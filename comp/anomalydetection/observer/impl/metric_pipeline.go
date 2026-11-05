@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"errors"
 	"fmt"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -31,6 +32,8 @@ type pipelineRegistration struct {
 // metricPipelineSeriesState tracks matching progress without owning storage.
 type metricPipelineSeriesState struct {
 	lastMatchedTime int64
+	reactivated     bool
+	outputAfter     int64
 }
 
 // MetricPipeline routes gauges to detectors by their committed kind. It is
@@ -45,6 +48,7 @@ type MetricPipeline struct {
 	cachedRefs    []observer.SeriesRef
 	cachedGen     uint64
 	scratch       []observer.Point
+	rawOutputs    []observer.Anomaly
 }
 
 func newMetricPipeline(
@@ -52,7 +56,7 @@ func newMetricPipeline(
 	matcher observer.MetricKindMatcher,
 ) (*MetricPipeline, error) {
 	if matcher == nil {
-		return nil, fmt.Errorf("metric pipeline requires a matcher")
+		return nil, errors.New("metric pipeline requires a matcher")
 	}
 	p := &MetricPipeline{
 		name:          "metric_pipeline",
@@ -139,13 +143,25 @@ func (p *MetricPipeline) Detect(
 	filter observer.DetectionFilter,
 ) observer.DetectionResult {
 	var result observer.DetectionResult
+	p.rawOutputs = p.rawOutputs[:0]
 	for i := range p.registrations {
 		detectorFilter, ok := pipelineDetectionFilter(&p.registrations[i], filter)
 		if !ok {
 			continue
 		}
 		detected := p.registrations[i].detector.Detect(storage, dataTime, detectorFilter)
-		result.Anomalies = append(result.Anomalies, detected.Anomalies...)
+		for _, anomaly := range detected.Anomalies {
+			if anomaly.SourceRef == nil {
+				result.Anomalies = append(result.Anomalies, anomaly)
+				continue
+			}
+			state := p.series[anomaly.SourceRef.Ref]
+			if state != nil && state.reactivated && anomaly.Timestamp <= state.outputAfter {
+				p.rawOutputs = append(p.rawOutputs, anomaly)
+				continue
+			}
+			result.Anomalies = append(result.Anomalies, anomaly)
+		}
 	}
 	return result
 }
@@ -194,6 +210,10 @@ func (p *MetricPipeline) advanceKinds(storage *timeSeriesStorage, dataTime int64
 		if previous, exists := p.byKind[transition.From]; exists {
 			p.registrations[previous].detector.RemoveSeries([]observer.SeriesRef{ref})
 		}
+		if _, supported := p.byKind[transition.To]; supported && transition.From != observer.UNSET {
+			state.reactivated = true
+			state.outputAfter = dataTime
+		}
 		storage.SetSeriesKind(ref, transition.To)
 	}
 }
@@ -208,11 +228,15 @@ func pipelineDetectionFilter(
 	if filter.MetricType != nil && *filter.MetricType != registration.metricType {
 		return observer.DetectionFilter{}, false
 	}
+	aggregations := intersectAggregations(registration.aggregations, filter.Aggregations)
+	if len(aggregations) == 0 && len(registration.aggregations) > 0 && len(filter.Aggregations) > 0 {
+		return observer.DetectionFilter{}, false
+	}
 	kind, metricType := registration.kind, registration.metricType
 	return observer.DetectionFilter{
 		MetricKind:   &kind,
 		MetricType:   &metricType,
-		Aggregations: intersectAggregations(registration.aggregations, filter.Aggregations),
+		Aggregations: aggregations,
 	}, true
 }
 
@@ -247,6 +271,7 @@ func (p *MetricPipeline) RemoveSeries(refs []observer.SeriesRef) {
 	for _, ref := range refs {
 		delete(p.series, ref)
 	}
+	p.rawOutputs = nil
 	p.cachedRefs = nil
 	p.cachedGen = 0
 }
@@ -262,4 +287,5 @@ func (p *MetricPipeline) Reset() {
 	p.cachedRefs = nil
 	p.cachedGen = 0
 	p.scratch = p.scratch[:0]
+	p.rawOutputs = nil
 }
