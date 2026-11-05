@@ -28,6 +28,11 @@ type pipelineRegistration struct {
 	aggregations []observer.Aggregate
 }
 
+// metricPipelineSeriesState tracks matching progress without owning storage.
+type metricPipelineSeriesState struct {
+	lastMatchedTime int64
+}
+
 // MetricPipeline routes gauges to detectors by their committed kind. It is
 // not constructed by the production catalog yet.
 type MetricPipeline struct {
@@ -36,6 +41,10 @@ type MetricPipeline struct {
 	byKind        map[observer.MetricKind]int
 	matcher       observer.MetricKindMatcher
 	window        observer.DetectorPointWindow
+	series        map[observer.SeriesRef]*metricPipelineSeriesState
+	cachedRefs    []observer.SeriesRef
+	cachedGen     uint64
+	scratch       []observer.Point
 }
 
 func newMetricPipeline(
@@ -51,6 +60,7 @@ func newMetricPipeline(
 		byKind:        make(map[observer.MetricKind]int, len(registrations)),
 		matcher:       matcher,
 		window:        matcher.Window(),
+		series:        make(map[observer.SeriesRef]*metricPipelineSeriesState),
 	}
 	for _, registration := range registrations {
 		if registration.detector == nil {
@@ -140,6 +150,54 @@ func (p *MetricPipeline) Detect(
 	return result
 }
 
+// advanceKinds evaluates matching after detection. It is the only pipeline
+// phase allowed to update committed kinds.
+func (p *MetricPipeline) advanceKinds(storage *timeSeriesStorage, dataTime int64) {
+	generation := storage.SeriesGeneration()
+	if p.cachedRefs == nil || generation != p.cachedGen {
+		gauge := metrics.GaugeType
+		filter := observer.WorkloadSeriesFilter()
+		filter.MetricType = &gauge
+		p.cachedRefs = listSeriesRefs(storage, filter, p.cachedRefs)
+		p.cachedGen = generation
+	}
+
+	statuses := bulkSeriesStatus(storage, p.cachedRefs, dataTime)
+	matcherWindow := p.matcher.Window()
+	for i, ref := range p.cachedRefs {
+		if statuses[i].pointCount < matcherWindow.MinPoints {
+			continue
+		}
+		_, p.scratch = collectLastPoints(
+			storage, ref, dataTime, matcherWindow.MaxPoints,
+			observer.AggregateAverage, p.scratch,
+		)
+		if len(p.scratch) < matcherWindow.MinPoints {
+			continue
+		}
+		lastPointTime := p.scratch[len(p.scratch)-1].Timestamp
+		state := p.series[ref]
+		if state != nil && lastPointTime <= state.lastMatchedTime {
+			continue
+		}
+		if state == nil {
+			state = &metricPipelineSeriesState{}
+			p.series[ref] = state
+		}
+		state.lastMatchedTime = lastPointTime
+
+		current, _ := storage.SeriesKind(ref)
+		transition, changed := p.matcher.Observe(ref, current, p.scratch, dataTime)
+		if !changed {
+			continue
+		}
+		if previous, exists := p.byKind[transition.From]; exists {
+			p.registrations[previous].detector.RemoveSeries([]observer.SeriesRef{ref})
+		}
+		storage.SetSeriesKind(ref, transition.To)
+	}
+}
+
 func pipelineDetectionFilter(
 	registration *pipelineRegistration,
 	filter observer.DetectionFilter,
@@ -186,6 +244,11 @@ func (p *MetricPipeline) RemoveSeries(refs []observer.SeriesRef) {
 	for i := range p.registrations {
 		p.registrations[i].detector.RemoveSeries(refs)
 	}
+	for _, ref := range refs {
+		delete(p.series, ref)
+	}
+	p.cachedRefs = nil
+	p.cachedGen = 0
 }
 
 // Reset clears routed detector and matcher state. Committed kinds are owned by
@@ -195,4 +258,8 @@ func (p *MetricPipeline) Reset() {
 	for i := range p.registrations {
 		p.registrations[i].detector.Reset()
 	}
+	clear(p.series)
+	p.cachedRefs = nil
+	p.cachedGen = 0
+	p.scratch = p.scratch[:0]
 }

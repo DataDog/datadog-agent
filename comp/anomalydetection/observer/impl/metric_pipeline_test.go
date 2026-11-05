@@ -63,6 +63,37 @@ func newPipelineStub(kind observer.MetricKind, name string) (pipelineRegistratio
 	}, detector
 }
 
+func newScriptedPipelineMatcher(
+	minPoints, maxPoints, confirmations int,
+	predictions ...observer.MetricKind,
+) *metricKindMatcher {
+	idx := 0
+	return newMetricKindMatcherWithClassifier(
+		observer.MetricKindMatcherConfig{
+			MinPoints:               minPoints,
+			MaxPoints:               maxPoints,
+			TransitionConfirmations: confirmations,
+		},
+		func(_ []observer.Point, _ *matcherWorkspace) observer.MetricKind {
+			if idx >= len(predictions) {
+				return predictions[len(predictions)-1]
+			}
+			prediction := predictions[idx]
+			idx++
+			return prediction
+		},
+	)
+}
+
+func addPipelinePoints(s *timeSeriesStorage, key uint64, start, end int64, metricType metrics.MetricType) observer.SeriesRef {
+	var ref observer.SeriesRef
+	for ts := start; ts <= end; ts++ {
+		ref = s.AddWithKeyAndHostComposite("work", fmt.Sprintf("metric_%d", key), "", 100, ts,
+			tagset.CompositeTags{}, key, metricType).Ref
+	}
+	return ref
+}
+
 func TestMetricPipelineRoutedDetection(t *testing.T) {
 	stableReg, stable := newPipelineStub(observer.STABLE, "stable")
 	linearReg, linear := newPipelineStub(observer.LINEAR, "linear")
@@ -146,4 +177,95 @@ func TestScanMWMetricPipelineRouting(t *testing.T) {
 		scanmwStateKey{ref: linear, agg: observer.AggregateAverage})
 	require.NotContains(t, p.registrations[0].detector.(*ScanMWDetector).series,
 		scanmwStateKey{ref: count, agg: observer.AggregateAverage})
+}
+
+func TestMetricPipelineInitialAndFreshMatching(t *testing.T) {
+	s := newDetectorTestStorage()
+	gauge := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+	addPipelinePoints(s, 2, 1, 3, metrics.CountType)
+	stableReg, _ := newPipelineStub(observer.STABLE, "scanmw")
+	p, err := newMetricPipeline([]pipelineRegistration{stableReg}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
+	require.NoError(t, err)
+	p.matcher = newScriptedPipelineMatcher(3, 3, 1, observer.STABLE, observer.UNKNOWN)
+
+	p.advanceKinds(s, 3)
+	kind, _ := s.SeriesKind(gauge)
+	require.Equal(t, observer.STABLE, kind)
+	require.Len(t, p.series, 1)
+	require.Equal(t, int64(3), p.series[gauge].lastMatchedTime)
+
+	p.advanceKinds(s, 3)
+	kind, _ = s.SeriesKind(gauge)
+	require.Equal(t, observer.STABLE, kind, "unchanged data must not classify again")
+	p.advanceKinds(s, 3)
+	kind, _ = s.SeriesKind(gauge)
+	require.Equal(t, observer.STABLE, kind, "future points do not create fresh evidence")
+
+	addPipelinePoints(s, 1, 4, 4, metrics.GaugeType)
+	p.advanceKinds(s, 4)
+	kind, _ = s.SeriesKind(gauge)
+	require.Equal(t, observer.UNKNOWN, kind)
+	require.Len(t, p.series, 1, "count series must not enter matching state")
+}
+
+func TestMetricPipelineTransitionCleanupAndHistory(t *testing.T) {
+	s := newDetectorTestStorage()
+	ref := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+	stableReg, stable := newPipelineStub(observer.STABLE, "scanmw")
+	p, err := newMetricPipeline([]pipelineRegistration{stableReg}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
+	require.NoError(t, err)
+	p.matcher = newScriptedPipelineMatcher(3, 3, 3,
+		observer.STABLE, observer.LINEAR, observer.LINEAR, observer.LINEAR,
+	)
+
+	p.advanceKinds(s, 3)
+	kind, _ := s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+
+	// Two eligible predictions are pending; the third confirms the transition.
+	addPipelinePoints(s, 1, 4, 4, metrics.GaugeType)
+	p.advanceKinds(s, 4)
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+	addPipelinePoints(s, 1, 5, 5, metrics.GaugeType)
+	p.advanceKinds(s, 5)
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+	addPipelinePoints(s, 1, 6, 6, metrics.GaugeType)
+	p.advanceKinds(s, 6)
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.LINEAR, kind)
+	require.Equal(t, []observer.SeriesRef{ref}, stable.removed)
+	require.Equal(t, int64(6), s.PointCountUpTo(ref, 6), "transition must retain history")
+}
+
+func TestMetricPipelineEligibilityAndLifecycle(t *testing.T) {
+	s := newDetectorTestStorage()
+	ref := addPipelinePoints(s, 1, 1, 3, observer.UnknownType)
+	stableReg, stable := newPipelineStub(observer.STABLE, "scanmw")
+	p, err := newMetricPipeline([]pipelineRegistration{stableReg}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
+	require.NoError(t, err)
+	p.matcher = newScriptedPipelineMatcher(3, 3, 1, observer.STABLE)
+
+	p.advanceKinds(s, 3)
+	require.Empty(t, p.series, "unknown input type is not gauge-eligible")
+
+	addPipelinePoints(s, 1, 4, 4, metrics.GaugeType)
+	p.advanceKinds(s, 4)
+	kind, _ := s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind, "type promotion must refresh matching")
+	require.Len(t, stable.removed, 0)
+
+	p.RemoveSeries([]observer.SeriesRef{ref})
+	require.Empty(t, p.series)
+	require.Empty(t, p.matcher.(*metricKindMatcher).series)
+	require.Equal(t, uint64(0), p.cachedGen)
+
+	addPipelinePoints(s, 1, 5, 5, metrics.GaugeType)
+	p.advanceKinds(s, 5)
+	require.Equal(t, int64(5), s.PointCountUpTo(ref, 5), "pipeline reset must not delete storage")
+	p.Reset()
+	require.Empty(t, p.series)
+	require.Empty(t, p.matcher.(*metricKindMatcher).series)
+	require.Equal(t, int64(5), s.PointCountUpTo(ref, 5))
 }
