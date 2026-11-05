@@ -10,7 +10,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -251,13 +253,76 @@ func (i *ExecuteInputs) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// resultDeliveryProtocolSessionlessV1 is the explicit opt-in discriminator of the
+// sessionless POC delivery and receipt shape. The default session-backed shape has no
+// protocol key.
+const resultDeliveryProtocolSessionlessV1 = "sessionless-v1"
+
+// Bounds of the sessionless-v1 upload receipt, matching the frozen contract.
+const (
+	sessionlessMaxReceiptObjects = 128
+	sessionlessMaxReceiptBytes   = 16384
+)
+
+// objectIDPattern is the canonical hyphenated UUID form of a landing object reference.
+var objectIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
+
+// ResultDeliveryInputs is the backend-injected result delivery. Two mutually exclusive
+// shapes exist: the default session-backed shape (no protocol key, uploadId required)
+// and the opt-in sessionless-v1 shape (protocol and a strict boolean scanSensitiveData,
+// no uploadId). The sessionless shape is decoded strictly — unknown fields and wrong
+// types fail — while the session-backed shape keeps its tolerant decode. The Agent
+// remains the authoritative value validator.
 type ResultDeliveryInputs struct {
-	RunID           string                `json:"runId"`
-	TaskID          string                `json:"taskId"`
-	ArtifactVersion int64                 `json:"artifactVersion"`
-	UploadID        string                `json:"uploadId"`
-	BaseURL         string                `json:"baseUrl"`
-	Limits          *DeliveryLimitsInputs `json:"limits"`
+	Protocol          string                `json:"protocol"`
+	RunID             string                `json:"runId"`
+	TaskID            string                `json:"taskId"`
+	ArtifactVersion   int64                 `json:"artifactVersion"`
+	UploadID          string                `json:"uploadId"`
+	BaseURL           string                `json:"baseUrl"`
+	ScanSensitiveData *bool                 `json:"scanSensitiveData"`
+	Limits            *DeliveryLimitsInputs `json:"limits"`
+
+	// Wire key presence, recorded by UnmarshalJSON so a mixed shape fails closed even
+	// when a stray value is null or empty.
+	protocolSet bool
+	scanSet     bool
+	uploadIDSet bool
+}
+
+// UnmarshalJSON records the presence of the discriminating keys and decodes the
+// sessionless-v1 shape strictly. Without a protocol key the decode is the unchanged
+// tolerant session-backed decode.
+func (d *ResultDeliveryInputs) UnmarshalJSON(data []byte) error {
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return err
+	}
+	_, protocolSet := raw["protocol"]
+	_, scanSet := raw["scanSensitiveData"]
+	_, uploadIDSet := raw["uploadId"]
+
+	type deliveryAlias ResultDeliveryInputs
+	var wire deliveryAlias
+	if protocolSet {
+		decoder := json.NewDecoder(bytes.NewReader(data))
+		decoder.DisallowUnknownFields()
+		if err := decoder.Decode(&wire); err != nil {
+			return err
+		}
+	} else if err := json.Unmarshal(data, &wire); err != nil {
+		return err
+	}
+	*d = ResultDeliveryInputs(wire)
+	d.protocolSet = protocolSet
+	d.scanSet = scanSet
+	d.uploadIDSet = uploadIDSet
+	return nil
+}
+
+// sessionless reports whether the delivery selected the sessionless-v1 shape.
+func (d *ResultDeliveryInputs) sessionless() bool {
+	return d != nil && d.Protocol == resultDeliveryProtocolSessionlessV1
 }
 
 type DeliveryLimitsInputs struct {
@@ -359,6 +424,22 @@ func validateDeliveryInputs(delivery *ResultDeliveryInputs) error {
 	}
 	if delivery.Limits == nil {
 		return errors.New("resultDelivery.limits is required")
+	}
+	if !delivery.protocolSet {
+		// The session-backed shape cannot carry a sessionless-only field.
+		if delivery.scanSet {
+			return errors.New("resultDelivery.scanSensitiveData requires resultDelivery.protocol")
+		}
+		return nil
+	}
+	if delivery.Protocol != resultDeliveryProtocolSessionlessV1 {
+		return errors.New("resultDelivery.protocol must be omitted or " + resultDeliveryProtocolSessionlessV1)
+	}
+	if delivery.uploadIDSet {
+		return errors.New("resultDelivery.uploadId must not be set for protocol " + resultDeliveryProtocolSessionlessV1)
+	}
+	if delivery.ScanSensitiveData == nil {
+		return errors.New("resultDelivery.scanSensitiveData is required")
 	}
 	return nil
 }
@@ -468,7 +549,7 @@ func dispatchRemoteQueryExecute(ctx context.Context, client BridgeClient, inputs
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
-	output, err := remoteQueryExecuteOutputFromStream(stream, inputs.ResultDelivery.UploadID)
+	output, err := remoteQueryExecuteOutputFromStream(stream, inputs.ResultDelivery, inputs.IncludeSchema)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC response was invalid")
 	}
@@ -498,11 +579,13 @@ func remoteQueryExecuteRequestFromInputs(inputs ExecuteInputs, traceContext *pb.
 	}
 	if delivery := inputs.ResultDelivery; delivery != nil {
 		protoDelivery := &pb.RemoteQueryResultDelivery{
-			RunId:           delivery.RunID,
-			TaskId:          delivery.TaskID,
-			ArtifactVersion: int32(delivery.ArtifactVersion),
-			UploadId:        delivery.UploadID,
-			BaseUrl:         delivery.BaseURL,
+			Protocol:          delivery.Protocol,
+			RunId:             delivery.RunID,
+			TaskId:            delivery.TaskID,
+			ArtifactVersion:   int32(delivery.ArtifactVersion),
+			UploadId:          delivery.UploadID,
+			BaseUrl:           delivery.BaseURL,
+			ScanSensitiveData: delivery.ScanSensitiveData,
 		}
 		if limits := delivery.Limits; limits != nil {
 			protoDelivery.Limits = &pb.RemoteQueryUploadLimits{
@@ -573,9 +656,12 @@ func remoteQueryTraceContextFromContext(ctx context.Context) *pb.RemoteQueryTrac
 // error — no other key, because the AP output validation rejects unknown fields.
 // Progress metadata and agent timing stay on the internal AgentSecure stream events;
 // bulk result bytes never appear because the integration uploads page files directly.
-// A successful final must carry the compact receipt, and its uploadId must match the
-// injected upload session.
-func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], requestedUploadID string) (map[string]interface{}, error) {
+// A successful final must carry the compact receipt in the requested delivery shape: a
+// session-backed receipt's uploadId must match the injected upload session, and a
+// sessionless-v1 receipt is {protocol, objectIds, pageCount, totalRows, totalBytes}
+// validated against the frozen shape (see sessionlessUploadReceiptOutput). The two shapes
+// never cross: a receipt of the other shape is refused.
+func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], delivery *ResultDeliveryInputs, includeSchema bool) (map[string]interface{}, error) {
 	if stream == nil {
 		return nil, errors.New("remote query response stream missing")
 	}
@@ -642,6 +728,23 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	if receipt == nil {
 		return nil, errors.New("remote query response stream final event missing upload receipt")
 	}
+	if delivery.sessionless() {
+		receiptOutput, err := sessionlessUploadReceiptOutput(receipt, includeSchema)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]interface{}{
+			"status":        finalEvent.GetStatus(),
+			"uploadReceipt": receiptOutput,
+		}, nil
+	}
+	if receipt.GetProtocol() != "" || len(receipt.GetObjectIds()) != 0 {
+		return nil, errors.New("remote query upload receipt must not carry sessionless fields for a session-backed delivery")
+	}
+	requestedUploadID := ""
+	if delivery != nil {
+		requestedUploadID = delivery.UploadID
+	}
 	if receipt.GetUploadId() == "" {
 		return nil, errors.New("remote query upload receipt missing uploadId")
 	}
@@ -657,6 +760,71 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 			"totalRows":  receipt.GetTotalRows(),
 			"totalBytes": receipt.GetTotalBytes(),
 		},
+	}
+	return output, nil
+}
+
+// sessionlessUploadReceiptOutput maps the typed sessionless-v1 receipt to the AP output
+// receipt in its exact camelCase shape and fails closed on any contract violation:
+// protocol must be sessionless-v1, no session uploadId may appear, objectIds must be
+// canonical, unique UUIDs (at most 128, an ordered list), the counts must be
+// non-negative with pageCount equal to the number of references, an empty list is only a
+// zero-page/zero-row/zero-byte result without a requested schema, and the serialized
+// receipt must stay within 16 KiB. The counts and references are claims, not proof the
+// pages exist or were scanned: the Agent adds no scanning stamp and the worker reads the
+// objects back.
+func sessionlessUploadReceiptOutput(receipt *pb.RemoteQueryUploadReceipt, includeSchema bool) (map[string]interface{}, error) {
+	if receipt.GetProtocol() != resultDeliveryProtocolSessionlessV1 {
+		return nil, errors.New("remote query upload receipt protocol does not match the requested sessionless delivery")
+	}
+	if receipt.GetUploadId() != "" {
+		return nil, errors.New("remote query sessionless upload receipt must not carry uploadId")
+	}
+	objectIDs := receipt.GetObjectIds()
+	if len(objectIDs) > sessionlessMaxReceiptObjects {
+		return nil, fmt.Errorf("remote query sessionless upload receipt must not reference more than %d objects", sessionlessMaxReceiptObjects)
+	}
+	seen := make(map[string]struct{}, len(objectIDs))
+	for _, id := range objectIDs {
+		if !objectIDPattern.MatchString(id) {
+			return nil, errors.New("remote query sessionless upload receipt objectIds must be UUIDs")
+		}
+		key := strings.ToLower(id)
+		if _, duplicate := seen[key]; duplicate {
+			return nil, errors.New("remote query sessionless upload receipt objectIds must be unique")
+		}
+		seen[key] = struct{}{}
+	}
+	if receipt.GetPageCount() < 0 || receipt.GetTotalRows() < 0 || receipt.GetTotalBytes() < 0 {
+		return nil, errors.New("remote query sessionless upload receipt counts must not be negative")
+	}
+	if receipt.GetPageCount() != int64(len(objectIDs)) {
+		return nil, errors.New("remote query sessionless upload receipt pageCount must equal the number of objectIds")
+	}
+	if len(objectIDs) == 0 {
+		if includeSchema {
+			return nil, errors.New("remote query sessionless upload receipt without objects cannot satisfy a requested schema")
+		}
+		if receipt.GetTotalRows() != 0 || receipt.GetTotalBytes() != 0 {
+			return nil, errors.New("remote query sessionless upload receipt without objects must report zero rows and bytes")
+		}
+	}
+	// A non-nil slice so an empty reference list serializes as [] and never as null.
+	refs := make([]string, len(objectIDs))
+	copy(refs, objectIDs)
+	output := map[string]interface{}{
+		"protocol":   resultDeliveryProtocolSessionlessV1,
+		"objectIds":  refs,
+		"pageCount":  receipt.GetPageCount(),
+		"totalRows":  receipt.GetTotalRows(),
+		"totalBytes": receipt.GetTotalBytes(),
+	}
+	serialized, err := json.Marshal(output)
+	if err != nil {
+		return nil, errors.New("remote query sessionless upload receipt could not be serialized")
+	}
+	if len(serialized) > sessionlessMaxReceiptBytes {
+		return nil, fmt.Errorf("remote query sessionless upload receipt must not exceed %d bytes", sessionlessMaxReceiptBytes)
 	}
 	return output, nil
 }

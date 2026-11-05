@@ -200,8 +200,17 @@ type RemoteQueryResultDelivery struct {
 	UploadId        string                   `protobuf:"bytes,4,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
 	BaseUrl         string                   `protobuf:"bytes,5,opt,name=base_url,json=baseUrl,proto3" json:"base_url,omitempty"`
 	Limits          *RemoteQueryUploadLimits `protobuf:"bytes,8,opt,name=limits,proto3" json:"limits,omitempty"`
-	unknownFields   protoimpl.UnknownFields
-	sizeCache       protoimpl.SizeCache
+	// protocol discriminates the delivery shape. Empty is the session-backed shape
+	// above (upload_id required). "sessionless-v1" is the opt-in sessionless POC
+	// shape: no upload_id, and scan_sensitive_data is required. The Agent rejects
+	// mixed shapes and unknown protocol values.
+	Protocol string `protobuf:"bytes,9,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	// scan_sensitive_data is the sessionless-v1 scanning request. It has explicit
+	// presence so an omitted value is distinguishable from false; it must be unset
+	// for the session-backed shape.
+	ScanSensitiveData *bool `protobuf:"varint,10,opt,name=scan_sensitive_data,json=scanSensitiveData,proto3,oneof" json:"scan_sensitive_data,omitempty"`
+	unknownFields     protoimpl.UnknownFields
+	sizeCache         protoimpl.SizeCache
 }
 
 func (x *RemoteQueryResultDelivery) Reset() {
@@ -274,6 +283,20 @@ func (x *RemoteQueryResultDelivery) GetLimits() *RemoteQueryUploadLimits {
 		return x.Limits
 	}
 	return nil
+}
+
+func (x *RemoteQueryResultDelivery) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *RemoteQueryResultDelivery) GetScanSensitiveData() bool {
+	if x != nil && x.ScanSensitiveData != nil {
+		return *x.ScanSensitiveData
+	}
+	return false
 }
 
 // RemoteQueryTraceContext carries the optional trace-continuation metadata of the
@@ -560,14 +583,21 @@ func (x *RemoteQueryStreamFinal) GetAttributes() map[string]string {
 }
 
 // RemoteQueryUploadReceipt is the compact run receipt: exactly uploadId,
-// pageCount, totalRows, totalBytes. Bucket names, object paths, and checksums
-// are owned by the intake control plane.
+// pageCount, totalRows, totalBytes for the session-backed shape, or exactly
+// protocol, objectIds, pageCount, totalRows, totalBytes for sessionless-v1.
+// Bucket names, object paths, and checksums are owned by the intake control plane.
 type RemoteQueryUploadReceipt struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UploadId      string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
-	PageCount     int64                  `protobuf:"varint,2,opt,name=page_count,json=pageCount,proto3" json:"page_count,omitempty"`
-	TotalRows     int64                  `protobuf:"varint,3,opt,name=total_rows,json=totalRows,proto3" json:"total_rows,omitempty"`
-	TotalBytes    int64                  `protobuf:"varint,4,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
+	state      protoimpl.MessageState `protogen:"open.v1"`
+	UploadId   string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
+	PageCount  int64                  `protobuf:"varint,2,opt,name=page_count,json=pageCount,proto3" json:"page_count,omitempty"`
+	TotalRows  int64                  `protobuf:"varint,3,opt,name=total_rows,json=totalRows,proto3" json:"total_rows,omitempty"`
+	TotalBytes int64                  `protobuf:"varint,4,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
+	// protocol and object_ids carry the sessionless-v1 receipt: the ordered,
+	// unique landing object UUIDs the producer proposes. They are untrusted claims
+	// until backend readback. upload_id is empty for that shape; both are unset for
+	// the session-backed receipt.
+	Protocol      string   `protobuf:"bytes,5,opt,name=protocol,proto3" json:"protocol,omitempty"`
+	ObjectIds     []string `protobuf:"bytes,6,rep,name=object_ids,json=objectIds,proto3" json:"object_ids,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -628,6 +658,20 @@ func (x *RemoteQueryUploadReceipt) GetTotalBytes() int64 {
 		return x.TotalBytes
 	}
 	return 0
+}
+
+func (x *RemoteQueryUploadReceipt) GetProtocol() string {
+	if x != nil {
+		return x.Protocol
+	}
+	return ""
+}
+
+func (x *RemoteQueryUploadReceipt) GetObjectIds() []string {
+	if x != nil {
+		return x.ObjectIds
+	}
+	return nil
 }
 
 type RemoteQueryStreamError struct {
@@ -1005,14 +1049,18 @@ const file_datadog_remotequeries_remotequeries_proto_rawDesc = "" +
 	"\x10max_schema_bytes\x18\x05 \x01(\x03R\x0emaxSchemaBytes\x12\x1b\n" +
 	"\tmax_pages\x18\x06 \x01(\x03R\bmaxPages\x12\x1d\n" +
 	"\n" +
-	"timeout_ms\x18\a \x01(\x03R\ttimeoutMs\"\x82\x02\n" +
+	"timeout_ms\x18\a \x01(\x03R\ttimeoutMs\"\xeb\x02\n" +
 	"\x19RemoteQueryResultDelivery\x12\x15\n" +
 	"\x06run_id\x18\x01 \x01(\tR\x05runId\x12\x17\n" +
 	"\atask_id\x18\x02 \x01(\tR\x06taskId\x12)\n" +
 	"\x10artifact_version\x18\x03 \x01(\x05R\x0fartifactVersion\x12\x1b\n" +
 	"\tupload_id\x18\x04 \x01(\tR\buploadId\x12\x19\n" +
 	"\bbase_url\x18\x05 \x01(\tR\abaseUrl\x12F\n" +
-	"\x06limits\x18\b \x01(\v2..datadog.remotequeries.RemoteQueryUploadLimitsR\x06limitsJ\x04\b\x06\x10\aJ\x04\b\a\x10\b\"~\n" +
+	"\x06limits\x18\b \x01(\v2..datadog.remotequeries.RemoteQueryUploadLimitsR\x06limits\x12\x1a\n" +
+	"\bprotocol\x18\t \x01(\tR\bprotocol\x123\n" +
+	"\x13scan_sensitive_data\x18\n" +
+	" \x01(\bH\x00R\x11scanSensitiveData\x88\x01\x01B\x16\n" +
+	"\x14_scan_sensitive_dataJ\x04\b\x06\x10\aJ\x04\b\a\x10\b\"~\n" +
 	"\x17RemoteQueryTraceContext\x12\x19\n" +
 	"\btrace_id\x18\x01 \x01(\x04R\atraceId\x12\x1b\n" +
 	"\tparent_id\x18\x02 \x01(\x04R\bparentId\x12+\n" +
@@ -1041,7 +1089,7 @@ const file_datadog_remotequeries_remotequeries_proto_rawDesc = "" +
 	"attributes\x1a=\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x04\x10\x05R\x15execution_diagnostics\"\x96\x01\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x04\x10\x05R\x15execution_diagnostics\"\xd1\x01\n" +
 	"\x18RemoteQueryUploadReceipt\x12\x1b\n" +
 	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x1d\n" +
 	"\n" +
@@ -1049,7 +1097,10 @@ const file_datadog_remotequeries_remotequeries_proto_rawDesc = "" +
 	"\n" +
 	"total_rows\x18\x03 \x01(\x03R\ttotalRows\x12\x1f\n" +
 	"\vtotal_bytes\x18\x04 \x01(\x03R\n" +
-	"totalBytes\"\x9f\x02\n" +
+	"totalBytes\x12\x1a\n" +
+	"\bprotocol\x18\x05 \x01(\tR\bprotocol\x12\x1d\n" +
+	"\n" +
+	"object_ids\x18\x06 \x03(\tR\tobjectIds\"\x9f\x02\n" +
 	"\x16RemoteQueryStreamError\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1c\n" +
@@ -1137,6 +1188,7 @@ func file_datadog_remotequeries_remotequeries_proto_init() {
 	if File_datadog_remotequeries_remotequeries_proto != nil {
 		return
 	}
+	file_datadog_remotequeries_remotequeries_proto_msgTypes[2].OneofWrappers = []any{}
 	file_datadog_remotequeries_remotequeries_proto_msgTypes[9].OneofWrappers = []any{
 		(*RemoteQueryExecuteStreamEvent_Metadata)(nil),
 		(*RemoteQueryExecuteStreamEvent_Final)(nil),

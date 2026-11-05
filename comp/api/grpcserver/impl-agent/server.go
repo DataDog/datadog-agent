@@ -584,11 +584,18 @@ func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) 
 		return nil
 	}
 	out := &remotequeriesimpl.RemoteQueryResultDelivery{
+		Protocol:        delivery.GetProtocol(),
 		RunID:           delivery.GetRunId(),
 		TaskID:          delivery.GetTaskId(),
 		ArtifactVersion: int(delivery.GetArtifactVersion()),
 		UploadID:        delivery.GetUploadId(),
 		BaseURL:         delivery.GetBaseUrl(),
+	}
+	// scan_sensitive_data keeps its explicit presence: an unset value stays nil so the
+	// typed validation can reject a missing sessionless flag and a mixed session shape.
+	if delivery.ScanSensitiveData != nil {
+		scan := delivery.GetScanSensitiveData()
+		out.ScanSensitiveData = &scan
 	}
 	if limits := delivery.GetLimits(); limits != nil {
 		out.Limits = &remotequeriesimpl.RemoteQueryUploadLimits{
@@ -734,18 +741,33 @@ func int64FromMetadata(metadata map[string]interface{}, keys ...string) int64 {
 
 // uploadReceiptFromMetadata parses the compact run receipt carried in the final event
 // metadata into the typed proto receipt: exactly uploadId, pageCount, totalRows,
-// totalBytes. Returns nil when no receipt is present.
+// totalBytes for the session-backed shape, plus protocol and the ordered objectIds for
+// the sessionless-v1 shape. Returns nil when no receipt is present. The mapping is a
+// pure field copy: the sessionless shape is validated by the executor before the event
+// reaches this conversion and re-checked by the private action runner, and the Agent
+// never invents or rewrites a reference.
 func uploadReceiptFromMetadata(metadata map[string]interface{}) *pb.RemoteQueryUploadReceipt {
 	raw, ok := metadata["upload_receipt"].(map[string]interface{})
 	if !ok {
 		return nil
 	}
-	return &pb.RemoteQueryUploadReceipt{
+	receipt := &pb.RemoteQueryUploadReceipt{
 		UploadId:   stringFromMetadata(raw, "uploadId"),
 		PageCount:  int64FromMetadata(raw, "pageCount"),
 		TotalRows:  int64FromMetadata(raw, "totalRows"),
 		TotalBytes: int64FromMetadata(raw, "totalBytes"),
+		Protocol:   stringFromMetadata(raw, "protocol"),
 	}
+	if ids, ok := raw["objectIds"].([]interface{}); ok {
+		receipt.ObjectIds = make([]string, 0, len(ids))
+		for _, id := range ids {
+			// A non-string element maps to the empty string, which the private action
+			// runner rejects as a bad reference rather than dropping it silently.
+			value, _ := id.(string)
+			receipt.ObjectIds = append(receipt.ObjectIds, value)
+		}
+	}
+	return receipt
 }
 
 // stringAttributes maps scalar metadata values into string attributes, skipping the

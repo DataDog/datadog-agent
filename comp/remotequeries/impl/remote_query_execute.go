@@ -52,8 +52,34 @@ const (
 	remoteQueryUploadMaxResultBytes int64 = 100 << 30 // 100 GiB hard total cap
 )
 
+// RemoteQueryResultDeliveryProtocolSessionlessV1 is the explicit opt-in discriminator
+// of the sessionless POC result-delivery and receipt shape. The session-backed shape
+// carries no protocol key at all, so absence is the default and an unknown value is
+// rejected rather than falling back to either shape.
+const RemoteQueryResultDeliveryProtocolSessionlessV1 = "sessionless-v1"
+
+// Experiment caps of the sessionless-v1 delivery limits, tighter than the session-backed
+// forwarding ceilings above. The backend injects smaller worker limits; the Agent
+// refuses to forward anything above these.
+const (
+	sessionlessMaxFileBytes   int64 = 16 << 20 // 16 MiB per page
+	sessionlessMaxResultBytes int64 = 1 << 30  // 1 GiB per result
+	sessionlessMaxPages             = 128
+	sessionlessMaxColumns           = 1024
+	sessionlessMaxSchemaBytes int64 = 1 << 20 // 1 MiB descriptor
+
+	// sessionlessMaxReceiptObjects and sessionlessMaxReceiptBytes bound the final
+	// sessionless-v1 upload receipt crossing the bridge.
+	sessionlessMaxReceiptObjects = 128
+	sessionlessMaxReceiptBytes   = 16384
+)
+
 var (
 	remoteQueryUploadIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+
+	// remoteQueryObjectIDPattern is the canonical hyphenated UUID form of a landing
+	// object reference.
+	remoteQueryObjectIDPattern = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$`)
 
 	errDeliveryUnknownField = errors.New("resultDelivery contains unknown field")
 	errDeliveryMustBeObject = errors.New("resultDelivery must be an object")
@@ -208,13 +234,26 @@ type RemoteQueryUploadLimits struct {
 // and application keys; the Agent therefore only forwards a BaseURL that is on the
 // Agent's own site (see validateResultDeliveryBaseURL), performs no HTTP transport, and
 // never logs the handle.
+//
+// Two mutually exclusive shapes exist. The default session-backed shape has an empty
+// Protocol, requires UploadID and carries no ScanSensitiveData. The opt-in sessionless
+// shape has Protocol RemoteQueryResultDeliveryProtocolSessionlessV1, requires a
+// non-nil ScanSensitiveData and forbids UploadID: it carries no upload ID, bucket,
+// account routing, token, or trusted-scanning stamp. RunID keeps its wire name but is the
+// fresh per-delivery crawl ID in that shape, not the ITS run ID.
 type RemoteQueryResultDelivery struct {
-	RunID           string
-	TaskID          string
-	ArtifactVersion int
-	UploadID        string
-	BaseURL         string
-	Limits          *RemoteQueryUploadLimits
+	Protocol          string
+	RunID             string
+	TaskID            string
+	ArtifactVersion   int
+	UploadID          string
+	BaseURL           string
+	ScanSensitiveData *bool
+	Limits            *RemoteQueryUploadLimits
+}
+
+func (d *RemoteQueryResultDelivery) sessionless() bool {
+	return d != nil && d.Protocol == RemoteQueryResultDeliveryProtocolSessionlessV1
 }
 
 // RemoteQueryExecuteRequest is the typed request shared by the HTTP and gRPC callers. The
@@ -243,6 +282,25 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 	if delivery == nil {
 		return nil, errors.New("result_delivery is required")
 	}
+	sessionless := false
+	switch delivery.Protocol {
+	case "":
+		// The session-backed shape has no protocol key; a sessionless-only field
+		// next to it is a mixed shape.
+		if delivery.ScanSensitiveData != nil {
+			return nil, errors.New("result_delivery.scanSensitiveData requires result_delivery.protocol")
+		}
+	case RemoteQueryResultDeliveryProtocolSessionlessV1:
+		sessionless = true
+		if delivery.UploadID != "" {
+			return nil, fmt.Errorf("result_delivery.uploadId must not be set for protocol %s", RemoteQueryResultDeliveryProtocolSessionlessV1)
+		}
+		if delivery.ScanSensitiveData == nil {
+			return nil, errors.New("result_delivery.scanSensitiveData is required")
+		}
+	default:
+		return nil, fmt.Errorf("result_delivery.protocol must be omitted or %s", RemoteQueryResultDeliveryProtocolSessionlessV1)
+	}
 	if delivery.RunID == "" {
 		return nil, errors.New("result_delivery.runId is required")
 	}
@@ -252,11 +310,13 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 	if delivery.ArtifactVersion != RemoteQueryArtifactVersion {
 		return nil, fmt.Errorf("result_delivery.artifactVersion must be %d", RemoteQueryArtifactVersion)
 	}
-	if delivery.UploadID == "" {
-		return nil, errors.New("result_delivery.uploadId is required")
-	}
-	if !remoteQueryUploadIDPattern.MatchString(delivery.UploadID) {
-		return nil, errors.New("result_delivery.uploadId contains invalid characters")
+	if !sessionless {
+		if delivery.UploadID == "" {
+			return nil, errors.New("result_delivery.uploadId is required")
+		}
+		if !remoteQueryUploadIDPattern.MatchString(delivery.UploadID) {
+			return nil, errors.New("result_delivery.uploadId contains invalid characters")
+		}
 	}
 	if delivery.BaseURL == "" {
 		return nil, errors.New("result_delivery.baseUrl is required")
@@ -298,7 +358,33 @@ func validateRemoteQueryResultDelivery(delivery *RemoteQueryResultDelivery) (*Re
 	if limits.MaxFileBytes > limits.MaxResultBytes {
 		return nil, errors.New("result_delivery.limits.maxFileBytes must not exceed maxResultBytes")
 	}
+	if sessionless {
+		if err := validateSessionlessLimits(limits); err != nil {
+			return nil, err
+		}
+	}
 	return delivery, nil
+}
+
+// validateSessionlessLimits enforces the tighter sessionless-v1 experiment caps on top of
+// the shared limit invariants.
+func validateSessionlessLimits(limits *RemoteQueryUploadLimits) error {
+	if limits.MaxFileBytes > sessionlessMaxFileBytes {
+		return fmt.Errorf("result_delivery.limits.maxFileBytes must not exceed %d for protocol %s", sessionlessMaxFileBytes, RemoteQueryResultDeliveryProtocolSessionlessV1)
+	}
+	if limits.MaxResultBytes > sessionlessMaxResultBytes {
+		return fmt.Errorf("result_delivery.limits.maxResultBytes must not exceed %d for protocol %s", sessionlessMaxResultBytes, RemoteQueryResultDeliveryProtocolSessionlessV1)
+	}
+	if limits.MaxPages > sessionlessMaxPages {
+		return fmt.Errorf("result_delivery.limits.maxPages must not exceed %d for protocol %s", sessionlessMaxPages, RemoteQueryResultDeliveryProtocolSessionlessV1)
+	}
+	if limits.MaxColumns > sessionlessMaxColumns {
+		return fmt.Errorf("result_delivery.limits.maxColumns must not exceed %d for protocol %s", sessionlessMaxColumns, RemoteQueryResultDeliveryProtocolSessionlessV1)
+	}
+	if limits.MaxSchemaBytes > sessionlessMaxSchemaBytes {
+		return fmt.Errorf("result_delivery.limits.maxSchemaBytes must not exceed %d for protocol %s", sessionlessMaxSchemaBytes, RemoteQueryResultDeliveryProtocolSessionlessV1)
+	}
+	return nil
 }
 
 // validateResultDeliveryBaseURL fails closed unless baseURL is safe to receive the
@@ -411,13 +497,24 @@ type remoteQueryExecuteRequestJSON struct {
 // remoteQueryResultDeliveryRequestJSON is the HTTP wire shape of the backend-injected
 // upload instructions. Pointers distinguish an omitted field from an explicit value so
 // required-field checks fail closed instead of silently defaulting.
+//
+// The session-backed shape carries no protocol key; the sessionless-v1 shape carries
+// protocol and scanSensitiveData and no uploadId. The raw key presence is recorded by
+// UnmarshalJSON so a mixed shape fails closed even when a stray value is null or empty.
 type remoteQueryResultDeliveryRequestJSON struct {
-	RunID           string                              `json:"runId"`
-	TaskID          string                              `json:"taskId"`
-	ArtifactVersion *int                                `json:"artifactVersion"`
-	UploadID        string                              `json:"uploadId"`
-	BaseURL         string                              `json:"baseUrl"`
-	Limits          *remoteQueryUploadLimitsRequestJSON `json:"limits"`
+	Protocol          *string                             `json:"protocol"`
+	RunID             string                              `json:"runId"`
+	TaskID            string                              `json:"taskId"`
+	ArtifactVersion   *int                                `json:"artifactVersion"`
+	UploadID          string                              `json:"uploadId"`
+	BaseURL           string                              `json:"baseUrl"`
+	ScanSensitiveData *bool                               `json:"scanSensitiveData"`
+	Limits            *remoteQueryUploadLimitsRequestJSON `json:"limits"`
+
+	// Wire key presence, set by UnmarshalJSON.
+	protocolSet bool
+	scanSet     bool
+	uploadIDSet bool
 }
 
 type remoteQueryUploadLimitsRequestJSON struct {
@@ -443,8 +540,31 @@ func (d *remoteQueryResultDeliveryRequestJSON) UnmarshalJSON(data []byte) error 
 		}
 		return mapResultDeliveryTypeError(err)
 	}
+	// Presence of the discriminating keys. A JSON null for protocol or
+	// scanSensitiveData is a wrong type, not an omitted field.
+	var raw map[string]json.RawMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return errDeliveryMustBeObject
+	}
 	*d = remoteQueryResultDeliveryRequestJSON(delivery)
+	_, d.uploadIDSet = raw["uploadId"]
+	if value, present := raw["protocol"]; present {
+		if isJSONNull(value) {
+			return remoteQueryDeliveryTypeError{message: "resultDelivery.protocol must be a string"}
+		}
+		d.protocolSet = true
+	}
+	if value, present := raw["scanSensitiveData"]; present {
+		if isJSONNull(value) {
+			return remoteQueryDeliveryTypeError{message: "resultDelivery.scanSensitiveData must be a boolean"}
+		}
+		d.scanSet = true
+	}
 	return nil
+}
+
+func isJSONNull(data json.RawMessage) bool {
+	return bytes.Equal(bytes.TrimSpace(data), []byte("null"))
 }
 
 func (l *remoteQueryUploadLimitsRequestJSON) UnmarshalJSON(data []byte) error {
@@ -481,8 +601,10 @@ func mapResultDeliveryTypeError(err error) error {
 	switch typeErr.Field {
 	case "limits":
 		return errLimitsMustBeObject
-	case "runId", "taskId", "uploadId", "baseUrl":
+	case "protocol", "runId", "taskId", "uploadId", "baseUrl":
 		return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.%s must be a string", typeErr.Field)}
+	case "scanSensitiveData":
+		return remoteQueryDeliveryTypeError{message: "resultDelivery.scanSensitiveData must be a boolean"}
 	case "artifactVersion":
 		return remoteQueryDeliveryTypeError{message: fmt.Sprintf("resultDelivery.%s must be an integer", typeErr.Field)}
 	default:
@@ -524,13 +646,20 @@ type remoteQueryTraceContextJSON struct {
 // integration check inside the request JSON. It carries baseUrl so the integration
 // can perform the HTTP page uploads to its-agent-intake directly; the session has one
 // identifier, upload_id, and no upload token, so the handle cannot carry one.
+//
+// The session-backed shape is byte-for-byte unchanged: protocol and scanSensitiveData
+// are omitted, uploadId is always present (validated non-empty). The sessionless-v1
+// shape emits protocol and scanSensitiveData (an explicit false survives omitempty,
+// because it is a pointer) and omits uploadId entirely — there is no dummy upload ID.
 type remoteQueryResultDeliveryJSON struct {
-	RunID           string                      `json:"runId"`
-	TaskID          string                      `json:"taskId"`
-	ArtifactVersion int                         `json:"artifactVersion"`
-	UploadID        string                      `json:"uploadId"`
-	BaseURL         string                      `json:"baseUrl"`
-	Limits          remoteQueryUploadLimitsJSON `json:"limits"`
+	Protocol          string                      `json:"protocol,omitempty"`
+	RunID             string                      `json:"runId"`
+	TaskID            string                      `json:"taskId"`
+	ArtifactVersion   int                         `json:"artifactVersion"`
+	UploadID          string                      `json:"uploadId,omitempty"`
+	BaseURL           string                      `json:"baseUrl"`
+	ScanSensitiveData *bool                       `json:"scanSensitiveData,omitempty"`
+	Limits            remoteQueryUploadLimitsJSON `json:"limits"`
 }
 
 type remoteQueryUploadLimitsJSON struct {
@@ -621,6 +750,25 @@ func resultDeliveryFromWire(delivery *remoteQueryResultDeliveryRequestJSON) (*Re
 	if delivery == nil {
 		return nil, errors.New("result_delivery is required")
 	}
+	protocol := ""
+	if delivery.protocolSet {
+		if delivery.Protocol == nil || *delivery.Protocol != RemoteQueryResultDeliveryProtocolSessionlessV1 {
+			return nil, fmt.Errorf("result_delivery.protocol must be omitted or %s", RemoteQueryResultDeliveryProtocolSessionlessV1)
+		}
+		protocol = *delivery.Protocol
+	}
+	// Mixed shapes are rejected by key presence, before any value is interpreted: the
+	// session-backed shape cannot carry scanSensitiveData, the sessionless shape
+	// cannot carry uploadId even as an empty string.
+	if protocol == "" && delivery.scanSet {
+		return nil, errors.New("result_delivery.scanSensitiveData requires result_delivery.protocol")
+	}
+	if protocol != "" && delivery.uploadIDSet {
+		return nil, fmt.Errorf("result_delivery.uploadId must not be set for protocol %s", protocol)
+	}
+	if protocol != "" && delivery.ScanSensitiveData == nil {
+		return nil, errors.New("result_delivery.scanSensitiveData is required")
+	}
 	if delivery.ArtifactVersion == nil {
 		return nil, errors.New("result_delivery.artifactVersion is required")
 	}
@@ -650,11 +798,13 @@ func resultDeliveryFromWire(delivery *remoteQueryResultDeliveryRequestJSON) (*Re
 		return nil, errors.New("result_delivery.limits.timeoutMs is required")
 	}
 	return &RemoteQueryResultDelivery{
-		RunID:           delivery.RunID,
-		TaskID:          delivery.TaskID,
-		ArtifactVersion: *delivery.ArtifactVersion,
-		UploadID:        delivery.UploadID,
-		BaseURL:         delivery.BaseURL,
+		Protocol:          protocol,
+		RunID:             delivery.RunID,
+		TaskID:            delivery.TaskID,
+		ArtifactVersion:   *delivery.ArtifactVersion,
+		UploadID:          delivery.UploadID,
+		BaseURL:           delivery.BaseURL,
+		ScanSensitiveData: delivery.ScanSensitiveData,
 		Limits: &RemoteQueryUploadLimits{
 			MaxFileBytes:   *limits.MaxFileBytes,
 			MaxResultBytes: *limits.MaxResultBytes,
@@ -694,6 +844,11 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 	if req.ResultDelivery == nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, "result_delivery is required")
 	}
+	// A typed request assembled without NewRemoteQueryExecuteRequest must not bypass the
+	// discriminated shape checks: a mixed or unknown shape never reaches the integration.
+	if _, err := validateRemoteQueryResultDelivery(req.ResultDelivery); err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadRequest, statusInvalidRequest, err.Error())
+	}
 	// The integration sends the Agent's org API and application keys to baseUrl, so it
 	// must be on the Agent's own site; reject before target resolution or any forwarding.
 	if err := validateResultDeliveryBaseURL(req.ResultDelivery.BaseURL, s.site()); err != nil {
@@ -718,11 +873,156 @@ func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req Remot
 		return remoteQueryExecuteErrorResult(http.StatusRequestTimeout, statusExecutorUnavailable, "remote query request was cancelled")
 	}
 
-	runErr := runner.RunRemoteQueryStream(internal.Integration, requestJSON, emit)
+	// A sessionless-v1 run reports its result only through the final upload receipt, so
+	// the receipt is validated against the frozen shape before the final event is
+	// forwarded. The session-backed stream is forwarded untouched.
+	var receiptGuard *sessionlessReceiptGuard
+	runEmit := emit
+	if req.ResultDelivery.sessionless() {
+		receiptGuard = &sessionlessReceiptGuard{includeSchema: req.IncludeSchema, limits: req.ResultDelivery.Limits, emit: emit}
+		runEmit = receiptGuard.emitEvent
+	}
+
+	runErr := runner.RunRemoteQueryStream(internal.Integration, requestJSON, runEmit)
+	if receiptGuard != nil && receiptGuard.err != nil {
+		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, receiptGuard.err.Error())
+	}
 	if runErr != nil {
 		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, "remote query stream executor failed")
 	}
+	if receiptGuard != nil && !receiptGuard.finalSeen {
+		return remoteQueryExecuteErrorResult(http.StatusBadGateway, statusExecutorUnavailable, "sessionless remote query stream ended without a final event")
+	}
 	return RemoteQueryExecuteResult{HTTPStatus: http.StatusOK, Status: "SUCCEEDED"}
+}
+
+// sessionlessReceiptGuard validates the sessionless-v1 upload receipt carried by the
+// integration's final event and forwards every event unchanged: the Agent only checks
+// the receipt's shape and bounds, it never rewrites it, and the claims in it (object
+// references and totals) stay untrusted until the backend reads the objects back.
+type sessionlessReceiptGuard struct {
+	includeSchema bool
+	limits        *RemoteQueryUploadLimits
+	emit          func(check.RemoteQueryStreamEvent) error
+	// err is the sanitized reason the final receipt was refused; it never echoes
+	// receipt content.
+	err error
+	// finalSeen records a validated final event: a sessionless run that ends without
+	// one has no receipt to complete from.
+	finalSeen bool
+}
+
+func (g *sessionlessReceiptGuard) emitEvent(event check.RemoteQueryStreamEvent) error {
+	if event.Type == "final" {
+		if err := validateSessionlessFinalEvent(event.MetadataJSON, g.includeSchema, g.limits); err != nil {
+			g.err = err
+			return err
+		}
+		g.finalSeen = true
+	}
+	return g.emit(event)
+}
+
+// sessionlessReceipt is the exact sessionless-v1 receipt shape. Pointers distinguish an
+// omitted field from an explicit value, so every required field fails closed.
+type sessionlessReceipt struct {
+	Protocol   *string   `json:"protocol"`
+	ObjectIDs  *[]string `json:"objectIds"`
+	PageCount  *int64    `json:"pageCount"`
+	TotalRows  *int64    `json:"totalRows"`
+	TotalBytes *int64    `json:"totalBytes"`
+}
+
+// ValidateSessionlessUploadReceipt validates a final-event upload_receipt object against
+// the frozen sessionless-v1 shape and returns the ordered object references. It enforces
+// exactly protocol, objectIds, pageCount, totalRows and totalBytes (unknown fields, a
+// session-shaped uploadId, wrong types and missing fields are rejected), canonical and
+// unique UUID references, at most 128 of them, a serialized size of at most 16 KiB, and
+// that an empty reference list is only the zero-page, zero-row, zero-byte result of a
+// run that requested no schema. pageCount must equal the number of references. limits is
+// optional and, when set, bounds the claims by the run's own limits. It validates shape
+// and bounds only: counts and totals are claims, never proof that the pages exist.
+func ValidateSessionlessUploadReceipt(receiptJSON []byte, includeSchema bool, limits *RemoteQueryUploadLimits) ([]string, error) {
+	if len(receiptJSON) > sessionlessMaxReceiptBytes {
+		return nil, fmt.Errorf("sessionless upload receipt must not exceed %d bytes", sessionlessMaxReceiptBytes)
+	}
+	if !isJSONObject(receiptJSON) {
+		return nil, errors.New("sessionless upload receipt must be an object")
+	}
+	var receipt sessionlessReceipt
+	if err := decodeStrictJSON(bytes.NewReader(receiptJSON), &receipt); err != nil {
+		var typeErr *json.UnmarshalTypeError
+		switch {
+		case isUnknownJSONFieldError(err):
+			return nil, errors.New("sessionless upload receipt contains unknown field")
+		case errors.As(err, &typeErr):
+			return nil, fmt.Errorf("sessionless upload receipt field %s has the wrong type", typeErr.Field)
+		}
+		return nil, errors.New("sessionless upload receipt is malformed")
+	}
+	if receipt.Protocol == nil || *receipt.Protocol != RemoteQueryResultDeliveryProtocolSessionlessV1 {
+		return nil, fmt.Errorf("sessionless upload receipt protocol must be %s", RemoteQueryResultDeliveryProtocolSessionlessV1)
+	}
+	if receipt.ObjectIDs == nil {
+		return nil, errors.New("sessionless upload receipt objectIds is required")
+	}
+	if receipt.PageCount == nil || receipt.TotalRows == nil || receipt.TotalBytes == nil {
+		return nil, errors.New("sessionless upload receipt pageCount, totalRows and totalBytes are required")
+	}
+	objectIDs := *receipt.ObjectIDs
+	if len(objectIDs) > sessionlessMaxReceiptObjects {
+		return nil, fmt.Errorf("sessionless upload receipt must not reference more than %d objects", sessionlessMaxReceiptObjects)
+	}
+	seen := make(map[string]struct{}, len(objectIDs))
+	for _, id := range objectIDs {
+		if !remoteQueryObjectIDPattern.MatchString(id) {
+			return nil, errors.New("sessionless upload receipt objectIds must be UUIDs")
+		}
+		key := strings.ToLower(id)
+		if _, duplicate := seen[key]; duplicate {
+			return nil, errors.New("sessionless upload receipt objectIds must be unique")
+		}
+		seen[key] = struct{}{}
+	}
+	if *receipt.PageCount < 0 || *receipt.TotalRows < 0 || *receipt.TotalBytes < 0 {
+		return nil, errors.New("sessionless upload receipt counts must not be negative")
+	}
+	if *receipt.PageCount != int64(len(objectIDs)) {
+		return nil, errors.New("sessionless upload receipt pageCount must equal the number of objectIds")
+	}
+	if len(objectIDs) == 0 {
+		if includeSchema {
+			return nil, errors.New("sessionless upload receipt without objects cannot satisfy a requested schema")
+		}
+		if *receipt.TotalRows != 0 || *receipt.TotalBytes != 0 {
+			return nil, errors.New("sessionless upload receipt without objects must report zero rows and bytes")
+		}
+	}
+	if limits != nil {
+		if int64(len(objectIDs)) > int64(limits.MaxPages) {
+			return nil, errors.New("sessionless upload receipt exceeds the delivery maxPages limit")
+		}
+		if *receipt.TotalBytes > limits.MaxResultBytes {
+			return nil, errors.New("sessionless upload receipt exceeds the delivery maxResultBytes limit")
+		}
+	}
+	return objectIDs, nil
+}
+
+// validateSessionlessFinalEvent requires the final event of a sessionless-v1 run to carry
+// a valid upload_receipt, so a missing or session-shaped receipt never reaches the
+// private action runner as a success.
+func validateSessionlessFinalEvent(metadataJSON string, includeSchema bool, limits *RemoteQueryUploadLimits) error {
+	var metadata map[string]json.RawMessage
+	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
+		return errors.New("sessionless final event metadata is malformed")
+	}
+	raw, ok := metadata["upload_receipt"]
+	if !ok {
+		return errors.New("sessionless final event is missing upload_receipt")
+	}
+	_, err := ValidateSessionlessUploadReceipt(raw, includeSchema, limits)
+	return err
 }
 
 // resolveExecutionTarget resolves the execution target: one complete integration-owned candidate sweep, then the plain
@@ -823,11 +1123,13 @@ func marshalExecuteRequest(req remoteQueryExecuteRequest) (string, error) {
 		Query:         req.Query,
 		IncludeSchema: req.IncludeSchema,
 		ResultDelivery: &remoteQueryResultDeliveryJSON{
-			RunID:           req.ResultDelivery.RunID,
-			TaskID:          req.ResultDelivery.TaskID,
-			ArtifactVersion: req.ResultDelivery.ArtifactVersion,
-			UploadID:        req.ResultDelivery.UploadID,
-			BaseURL:         req.ResultDelivery.BaseURL,
+			Protocol:          req.ResultDelivery.Protocol,
+			RunID:             req.ResultDelivery.RunID,
+			TaskID:            req.ResultDelivery.TaskID,
+			ArtifactVersion:   req.ResultDelivery.ArtifactVersion,
+			UploadID:          req.ResultDelivery.UploadID,
+			BaseURL:           req.ResultDelivery.BaseURL,
+			ScanSensitiveData: req.ResultDelivery.ScanSensitiveData,
 			Limits: remoteQueryUploadLimitsJSON{
 				MaxFileBytes:   limits.MaxFileBytes,
 				MaxResultBytes: limits.MaxResultBytes,

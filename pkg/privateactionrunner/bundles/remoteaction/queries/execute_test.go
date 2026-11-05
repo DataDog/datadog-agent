@@ -8,6 +8,7 @@ package com_datadoghq_remoteaction_queries
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"strconv"
@@ -937,7 +938,7 @@ func TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit(t *testing.T) {
 		finalMarker(2),
 	}}
 
-	output, err := remoteQueryExecuteOutputFromStream(stream, testUploadID)
+	output, err := remoteQueryExecuteOutputFromStream(stream, &ResultDeliveryInputs{UploadID: testUploadID}, false)
 	require.NoError(t, err)
 	assert.Equal(t, "SUCCEEDED", output["status"])
 	assert.Len(t, output, 2, "output keys are exactly status and uploadReceipt")
@@ -1317,4 +1318,268 @@ func TestExecuteActionDevelopmentTracingDisabledCreatesNoSpan(t *testing.T) {
 	assert.Equal(t, activeTraceID, traceContext.GetTraceId())
 	assert.Equal(t, activeParentID, traceContext.GetParentId())
 	assert.Equal(t, int32(2), traceContext.GetSamplingPriority())
+}
+
+const (
+	testObjectID1 = "0b9d2f4e-6a1c-4d3b-9f7e-1a2b3c4d5e6f"
+	testObjectID2 = "7c1e8a90-52d4-4b6f-8e3a-9d0c1b2a3f45"
+)
+
+// sessionlessResultDeliveryInputs is the sessionless-v1 AP input: protocol and a strict
+// scanSensitiveData boolean, no uploadId.
+func sessionlessResultDeliveryInputs(scan interface{}) map[string]interface{} {
+	delivery := resultDeliveryInputs()
+	delete(delivery, "uploadId")
+	delivery["protocol"] = "sessionless-v1"
+	delivery["scanSensitiveData"] = scan
+	limits := delivery["limits"].(map[string]interface{})
+	limits["maxResultBytes"] = 1073741824
+	limits["maxFileBytes"] = 16777216
+	limits["maxRowBytes"] = 16777216
+	return delivery
+}
+
+func sessionlessReceipt(objectIDs ...string) *pb.RemoteQueryUploadReceipt {
+	return &pb.RemoteQueryUploadReceipt{
+		Protocol:   "sessionless-v1",
+		ObjectIds:  objectIDs,
+		PageCount:  int64(len(objectIDs)),
+		TotalRows:  42,
+		TotalBytes: 4096,
+	}
+}
+
+func sessionlessExecuteInputs(delivery map[string]interface{}) map[string]interface{} {
+	return map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT city FROM cities",
+		"includeSchema":  false,
+		"resultDelivery": delivery,
+	}
+}
+
+// TestExecuteActionForwardsSessionlessDeliveryAndMapsReceipt proves the discriminated
+// shape end to end: the AgentSecure request carries the protocol and the explicit scan
+// flag (including an explicit false) with no upload ID, and the final receipt is mapped to
+// the exact AP camelCase uploadReceipt with the ordered object references.
+func TestExecuteActionForwardsSessionlessDeliveryAndMapsReceipt(t *testing.T) {
+	for _, scan := range []bool{true, false} {
+		t.Run(fmt.Sprintf("scan=%t", scan), func(t *testing.T) {
+			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+				metadataEvent(0),
+				finalEvent(1, sessionlessReceipt(testObjectID1, testObjectID2), nil),
+				finalMarker(2),
+			}}
+			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+			output, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(sessionlessResultDeliveryInputs(scan))), nil)
+
+			require.NoError(t, err)
+			delivery := client.request.GetResultDelivery()
+			require.NotNil(t, delivery)
+			assert.Equal(t, "sessionless-v1", delivery.GetProtocol())
+			require.NotNil(t, delivery.ScanSensitiveData, "explicit false must keep its presence")
+			assert.Equal(t, scan, delivery.GetScanSensitiveData())
+			assert.Empty(t, delivery.GetUploadId())
+			assert.Equal(t, testRunID, delivery.GetRunId())
+			assert.Equal(t, int64(1073741824), delivery.GetLimits().GetMaxResultBytes())
+
+			assert.Equal(t, map[string]interface{}{
+				"status": "SUCCEEDED",
+				"uploadReceipt": map[string]interface{}{
+					"protocol":   "sessionless-v1",
+					"objectIds":  []string{testObjectID1, testObjectID2},
+					"pageCount":  int64(2),
+					"totalRows":  int64(42),
+					"totalBytes": int64(4096),
+				},
+			}, output)
+		})
+	}
+}
+
+// TestExecuteActionEmptySessionlessReceiptSerializesEmptyList proves an empty no-schema
+// result reports objectIds as [] and never null.
+func TestExecuteActionEmptySessionlessReceiptSerializesEmptyList(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1"}, nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	output, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(sessionlessResultDeliveryInputs(true))), nil)
+
+	require.NoError(t, err)
+	encoded, err := json.Marshal(output)
+	require.NoError(t, err)
+	assert.JSONEq(t, `{"status":"SUCCEEDED","uploadReceipt":{"protocol":"sessionless-v1","objectIds":[],"pageCount":0,"totalRows":0,"totalBytes":0}}`, string(encoded))
+}
+
+// TestExecuteActionRejectsMalformedSessionlessDeliveryBeforeRPC proves the sessionless
+// input is strict and fails before an Agent IPC client is created: mixed shapes, unknown
+// fields, wrong boolean/protocol types and a missing flag are all refused.
+func TestExecuteActionRejectsMalformedSessionlessDeliveryBeforeRPC(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(d map[string]interface{})
+	}{
+		{name: "uploadId alongside protocol", mutate: func(d map[string]interface{}) { d["uploadId"] = testUploadID }},
+		{name: "empty uploadId alongside protocol", mutate: func(d map[string]interface{}) { d["uploadId"] = "" }},
+		{name: "null uploadId alongside protocol", mutate: func(d map[string]interface{}) { d["uploadId"] = nil }},
+		{name: "unknown field", mutate: func(d map[string]interface{}) { d["bucketName"] = "b" }},
+		{name: "unknown limits field", mutate: func(d map[string]interface{}) { d["limits"].(map[string]interface{})["extra"] = 1 }},
+		{name: "scan flag missing", mutate: func(d map[string]interface{}) { delete(d, "scanSensitiveData") }},
+		{name: "scan flag null", mutate: func(d map[string]interface{}) { d["scanSensitiveData"] = nil }},
+		{name: "scan flag string", mutate: func(d map[string]interface{}) { d["scanSensitiveData"] = "true" }},
+		{name: "scan flag number", mutate: func(d map[string]interface{}) { d["scanSensitiveData"] = 1 }},
+		{name: "unknown protocol", mutate: func(d map[string]interface{}) { d["protocol"] = "sessionless-v2" }},
+		{name: "empty protocol", mutate: func(d map[string]interface{}) { d["protocol"] = "" }},
+		{name: "null protocol", mutate: func(d map[string]interface{}) { d["protocol"] = nil }},
+		{name: "numeric protocol", mutate: func(d map[string]interface{}) { d["protocol"] = 1 }},
+		{name: "missing limits", mutate: func(d map[string]interface{}) { delete(d, "limits") }},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			action := NewExecuteAction(func() (BridgeClient, error) {
+				require.Fail(t, "bridge client should not be created for a malformed sessionless delivery")
+				return nil, nil
+			})
+			delivery := sessionlessResultDeliveryInputs(true)
+			tt.mutate(delivery)
+
+			_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(delivery)), nil)
+
+			require.Error(t, err)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Equal(t, "invalid remote query action inputs", parErr.Message)
+		})
+	}
+}
+
+// TestExecuteActionRejectsScanFlagOnSessionBackedDelivery proves the default shape cannot
+// carry a sessionless-only field: that would be a mixed shape.
+func TestExecuteActionRejectsScanFlagOnSessionBackedDelivery(t *testing.T) {
+	for _, scan := range []interface{}{true, false, nil} {
+		delivery := resultDeliveryInputs()
+		delivery["scanSensitiveData"] = scan
+		action := NewExecuteAction(func() (BridgeClient, error) {
+			require.Fail(t, "bridge client should not be created for a mixed delivery")
+			return nil, nil
+		})
+
+		_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(delivery)), nil)
+
+		require.Error(t, err)
+		var parErr util.PARError
+		require.ErrorAs(t, err, &parErr)
+		assert.Equal(t, "invalid remote query action inputs", parErr.Message)
+	}
+}
+
+// TestExecuteActionSessionBackedDeliveryRequestIsUnchanged proves the default session
+// shape still forwards no protocol or scan flag.
+func TestExecuteActionSessionBackedDeliveryRequestIsUnchanged(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, validReceipt(), nil), finalMarker(1)}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+	_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(resultDeliveryInputs())), nil)
+
+	require.NoError(t, err)
+	delivery := client.request.GetResultDelivery()
+	assert.Empty(t, delivery.GetProtocol())
+	assert.Nil(t, delivery.ScanSensitiveData)
+	assert.Equal(t, testUploadID, delivery.GetUploadId())
+}
+
+// TestExecuteActionFailsClosedOnInvalidSessionlessReceipt proves the receipt crossing
+// back is validated against the frozen shape and the requested delivery shape, and that
+// the two shapes never cross.
+func TestExecuteActionFailsClosedOnInvalidSessionlessReceipt(t *testing.T) {
+	manyIDs := make([]string, 129)
+	for i := range manyIDs {
+		manyIDs[i] = fmt.Sprintf("00000000-0000-4000-8000-%012d", i)
+	}
+	withMutation := func(mutate func(r *pb.RemoteQueryUploadReceipt)) *pb.RemoteQueryUploadReceipt {
+		r := sessionlessReceipt(testObjectID1, testObjectID2)
+		mutate(r)
+		return r
+	}
+	tests := []struct {
+		name          string
+		includeSchema bool
+		receipt       *pb.RemoteQueryUploadReceipt
+		wantErr       string
+	}{
+		{name: "missing protocol", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.Protocol = "" }), wantErr: "protocol does not match"},
+		{name: "wrong protocol", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.Protocol = "sessionless-v2" }), wantErr: "protocol does not match"},
+		{name: "session receipt for sessionless run", receipt: validReceipt(), wantErr: "protocol does not match"},
+		{name: "uploadId carried", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.UploadId = testUploadID }), wantErr: "must not carry uploadId"},
+		{name: "bad uuid", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[1] = "not-a-uuid" }), wantErr: "must be UUIDs"},
+		{name: "empty reference", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[0] = "" }), wantErr: "must be UUIDs"},
+		{name: "path injection", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[0] = "../" + testObjectID1 }), wantErr: "must be UUIDs"},
+		{name: "duplicate", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds[1] = strings.ToUpper(testObjectID1) }), wantErr: "must be unique"},
+		{name: "more than 128 references", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", ObjectIds: manyIDs, PageCount: 129}, wantErr: "more than 128"},
+		{name: "negative rows", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.TotalRows = -1 }), wantErr: "must not be negative"},
+		{name: "page count mismatch", receipt: withMutation(func(r *pb.RemoteQueryUploadReceipt) { r.PageCount = 1 }), wantErr: "pageCount must equal"},
+		{name: "empty list with pages", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", PageCount: 1}, wantErr: "pageCount must equal"},
+		{name: "empty list with rows", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", TotalRows: 1}, wantErr: "zero rows and bytes"},
+		{name: "empty list with bytes", receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", TotalBytes: 1}, wantErr: "zero rows and bytes"},
+		{name: "empty list with requested schema", includeSchema: true, receipt: &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1"}, wantErr: "requested schema"},
+		{name: "missing receipt", receipt: nil, wantErr: "missing upload receipt"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, tt.receipt, nil), finalMarker(1)}}
+			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+			inputs := sessionlessExecuteInputs(sessionlessResultDeliveryInputs(true))
+			inputs["includeSchema"] = tt.includeSchema
+
+			output, err := action.Run(context.Background(), taskWithInputs(inputs), nil)
+
+			require.Error(t, err)
+			assert.Nil(t, output)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Contains(t, parErr.Message, tt.wantErr)
+		})
+	}
+}
+
+// TestExecuteActionAcceptsSchemaPageSessionlessReceipt proves a requested schema is
+// satisfied by one page reference, the counterpart of the empty-list rejection.
+func TestExecuteActionAcceptsSchemaPageSessionlessReceipt(t *testing.T) {
+	receipt := &pb.RemoteQueryUploadReceipt{Protocol: "sessionless-v1", ObjectIds: []string{testObjectID1}, PageCount: 1, TotalBytes: 40}
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, receipt, nil), finalMarker(1)}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+	inputs := sessionlessExecuteInputs(sessionlessResultDeliveryInputs(true))
+	inputs["includeSchema"] = true
+
+	_, err := action.Run(context.Background(), taskWithInputs(inputs), nil)
+
+	require.NoError(t, err)
+}
+
+// TestExecuteActionRejectsSessionlessFieldsOnSessionBackedReceipt proves a session-backed
+// run cannot be completed with a receipt that smuggles the sessionless fields.
+func TestExecuteActionRejectsSessionlessFieldsOnSessionBackedReceipt(t *testing.T) {
+	for name, mutate := range map[string]func(r *pb.RemoteQueryUploadReceipt){
+		"protocol":  func(r *pb.RemoteQueryUploadReceipt) { r.Protocol = "sessionless-v1" },
+		"objectIds": func(r *pb.RemoteQueryUploadReceipt) { r.ObjectIds = []string{testObjectID1} },
+	} {
+		t.Run(name, func(t *testing.T) {
+			receipt := validReceipt()
+			mutate(receipt)
+			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{finalEvent(0, receipt, nil), finalMarker(1)}}
+			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+
+			_, err := action.Run(context.Background(), taskWithInputs(sessionlessExecuteInputs(resultDeliveryInputs())), nil)
+
+			require.Error(t, err)
+			var parErr util.PARError
+			require.ErrorAs(t, err, &parErr)
+			assert.Contains(t, parErr.Message, "must not carry sessionless fields")
+		})
+	}
 }

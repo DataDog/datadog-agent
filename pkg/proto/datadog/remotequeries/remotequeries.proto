@@ -46,6 +46,15 @@ message RemoteQueryResultDelivery {
     // per request, so no public part sizing crosses the AgentSecure boundary.
     reserved 7;
     RemoteQueryUploadLimits limits = 8;
+    // protocol discriminates the delivery shape. Empty is the session-backed shape
+    // above (upload_id required). "sessionless-v1" is the opt-in sessionless POC
+    // shape: no upload_id, and scan_sensitive_data is required. The Agent rejects
+    // mixed shapes and unknown protocol values.
+    string protocol = 9;
+    // scan_sensitive_data is the sessionless-v1 scanning request. It has explicit
+    // presence so an omitted value is distinguishable from false; it must be unset
+    // for the session-backed shape.
+    optional bool scan_sensitive_data = 10;
 }
 
 // RemoteQueryTraceContext carries the optional trace-continuation metadata of the
@@ -106,13 +115,20 @@ message RemoteQueryStreamFinal {
 }
 
 // RemoteQueryUploadReceipt is the compact run receipt: exactly uploadId,
-// pageCount, totalRows, totalBytes. Bucket names, object paths, and checksums
-// are owned by the intake control plane.
+// pageCount, totalRows, totalBytes for the session-backed shape, or exactly
+// protocol, objectIds, pageCount, totalRows, totalBytes for sessionless-v1.
+// Bucket names, object paths, and checksums are owned by the intake control plane.
 message RemoteQueryUploadReceipt {
     string upload_id = 1;
     int64 page_count = 2;
     int64 total_rows = 3;
     int64 total_bytes = 4;
+    // protocol and object_ids carry the sessionless-v1 receipt: the ordered,
+    // unique landing object UUIDs the producer proposes. They are untrusted claims
+    // until backend readback. upload_id is empty for that shape; both are unset for
+    // the session-backed receipt.
+    string protocol = 5;
+    repeated string object_ids = 6;
 }
 
 message RemoteQueryStreamError {

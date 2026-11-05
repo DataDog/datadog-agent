@@ -27,6 +27,7 @@ dd_agent_go_test(
         "remote_query_execute_test.go",
         "remote_query_forwarding_synthetic_test.go",
         "remote_query_resolve_test.go",
+        "remote_query_sessionless_test.go",
         "remote_query_test.go",
     ],
     embed = [":impl"],

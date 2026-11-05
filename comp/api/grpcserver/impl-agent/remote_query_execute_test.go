@@ -395,3 +395,151 @@ func TestRemoteQueryExecuteRequestFromProtoDropsInvalidTraceContext(t *testing.T
 		})
 	}
 }
+
+func sessionlessRemoteQueryResultDeliveryProto(scan *bool) *pb.RemoteQueryResultDelivery {
+	return &pb.RemoteQueryResultDelivery{
+		Protocol:          remotequeriesimpl.RemoteQueryResultDeliveryProtocolSessionlessV1,
+		RunId:             "crawl-proof",
+		TaskId:            "task-proof",
+		ArtifactVersion:   int32(remotequeriesimpl.RemoteQueryArtifactVersion),
+		BaseUrl:           "https://dd.datad0g.com/api/unstable/its-agent-intake",
+		ScanSensitiveData: scan,
+		Limits: &pb.RemoteQueryUploadLimits{
+			MaxFileBytes:   16 << 20,
+			MaxResultBytes: 1 << 30,
+			MaxRowBytes:    16 << 20,
+			MaxColumns:     1024,
+			MaxSchemaBytes: 1 << 20,
+			MaxPages:       128,
+			TimeoutMs:      30000,
+		},
+	}
+}
+
+// TestRemoteQueryExecuteRequestFromProtoMapsSessionlessDelivery proves the discriminated
+// sessionless shape crosses the proto mapping with the scan flag's explicit presence
+// intact (false stays a present value), no upload ID, and the typed validation applied.
+func TestRemoteQueryExecuteRequestFromProtoMapsSessionlessDelivery(t *testing.T) {
+	for _, scan := range []bool{true, false} {
+		scan := scan
+		req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+			Integration:    "postgres",
+			Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+			Query:          "SELECT 1 AS value",
+			ResultDelivery: sessionlessRemoteQueryResultDeliveryProto(&scan),
+		})
+
+		require.NoError(t, err)
+		require.NotNil(t, req.ResultDelivery)
+		assert.Equal(t, remotequeriesimpl.RemoteQueryResultDeliveryProtocolSessionlessV1, req.ResultDelivery.Protocol)
+		assert.Empty(t, req.ResultDelivery.UploadID)
+		require.NotNil(t, req.ResultDelivery.ScanSensitiveData)
+		assert.Equal(t, scan, *req.ResultDelivery.ScanSensitiveData)
+		assert.Equal(t, int64(1<<30), req.ResultDelivery.Limits.MaxResultBytes)
+	}
+}
+
+// TestRemoteQueryExecuteRequestFromProtoRejectsMixedOrUnknownDelivery proves the
+// proto mapping fails closed on mixed and unknown shapes rather than defaulting to either.
+func TestRemoteQueryExecuteRequestFromProtoRejectsMixedOrUnknownDelivery(t *testing.T) {
+	scan := true
+	tests := []struct {
+		name     string
+		delivery *pb.RemoteQueryResultDelivery
+		wantErr  string
+	}{
+		{name: "sessionless without scan flag", delivery: sessionlessRemoteQueryResultDeliveryProto(nil), wantErr: "result_delivery.scanSensitiveData is required"},
+		{name: "sessionless with upload id", delivery: func() *pb.RemoteQueryResultDelivery {
+			d := sessionlessRemoteQueryResultDeliveryProto(&scan)
+			d.UploadId = "upload-proof"
+			return d
+		}(), wantErr: "result_delivery.uploadId must not be set for protocol sessionless-v1"},
+		{name: "unknown protocol", delivery: func() *pb.RemoteQueryResultDelivery {
+			d := sessionlessRemoteQueryResultDeliveryProto(&scan)
+			d.Protocol = "sessionless-v2"
+			return d
+		}(), wantErr: "result_delivery.protocol must be omitted or sessionless-v1"},
+		{name: "session shape with scan flag", delivery: func() *pb.RemoteQueryResultDelivery {
+			d := validRemoteQueryResultDeliveryProto()
+			d.ScanSensitiveData = &scan
+			return d
+		}(), wantErr: "result_delivery.scanSensitiveData requires result_delivery.protocol"},
+		{name: "sessionless limits above experiment cap", delivery: func() *pb.RemoteQueryResultDelivery {
+			d := sessionlessRemoteQueryResultDeliveryProto(&scan)
+			d.Limits.MaxPages = 129
+			return d
+		}(), wantErr: "result_delivery.limits.maxPages must not exceed 128 for protocol sessionless-v1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			_, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+				Integration:    "postgres",
+				Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+				Query:          "SELECT 1 AS value",
+				ResultDelivery: tt.delivery,
+			})
+			require.EqualError(t, err, tt.wantErr)
+		})
+	}
+}
+
+func TestRemoteQueryExecuteRequestFromProtoSessionDeliveryHasNoSessionlessFields(t *testing.T) {
+	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+		Integration:    "postgres",
+		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+		Query:          "SELECT 1 AS value",
+		ResultDelivery: validRemoteQueryResultDeliveryProto(),
+	})
+
+	require.NoError(t, err)
+	assert.Empty(t, req.ResultDelivery.Protocol)
+	assert.Nil(t, req.ResultDelivery.ScanSensitiveData)
+	assert.Equal(t, "upload-proof", req.ResultDelivery.UploadID)
+}
+
+// TestRemoteQueryStreamEventFromCheckEventMapsSessionlessReceipt pins the exact event to
+// AP mapping: the integration's snake-case upload_receipt object with camelCase members
+// becomes the typed receipt carrying the protocol and the ordered object references, with
+// no uploadId, and the receipt never leaks into the flattened attributes.
+func TestRemoteQueryStreamEventFromCheckEventMapsSessionlessReceipt(t *testing.T) {
+	const first, second = "0b9d2f4e-6a1c-4d3b-9f7e-1a2b3c4d5e6f", "7c1e8a90-52d4-4b6f-8e3a-9d0c1b2a3f45"
+	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "final",
+		MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"protocol":"sessionless-v1","objectIds":["` + first + `","` + second + `"],"pageCount":2,"totalRows":42,"totalBytes":4096},"stats":{"rowsEmitted":42}}`,
+	}, "postgres")
+
+	require.NoError(t, err)
+	receipt := event.GetFinal().GetUploadReceipt()
+	require.NotNil(t, receipt)
+	assert.Equal(t, "sessionless-v1", receipt.GetProtocol())
+	assert.Equal(t, []string{first, second}, receipt.GetObjectIds())
+	assert.Empty(t, receipt.GetUploadId())
+	assert.Equal(t, int64(2), receipt.GetPageCount())
+	assert.Equal(t, int64(42), receipt.GetTotalRows())
+	assert.Equal(t, int64(4096), receipt.GetTotalBytes())
+	for key, value := range event.GetFinal().GetAttributes() {
+		assert.NotContains(t, key, "objectIds")
+		assert.NotContains(t, value, first)
+	}
+
+	// A non-string reference stays an invalid (empty) reference instead of being
+	// dropped, so the private action runner can reject it.
+	event, err = remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "final",
+		MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"protocol":"sessionless-v1","objectIds":["` + first + `",7],"pageCount":2,"totalRows":0,"totalBytes":0}}`,
+	}, "postgres")
+	require.NoError(t, err)
+	assert.Equal(t, []string{first, ""}, event.GetFinal().GetUploadReceipt().GetObjectIds())
+}
+
+func TestRemoteQueryStreamEventFromCheckEventSessionReceiptHasNoSessionlessFields(t *testing.T) {
+	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "final",
+		MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}}`,
+	}, "postgres")
+
+	require.NoError(t, err)
+	receipt := event.GetFinal().GetUploadReceipt()
+	assert.Empty(t, receipt.GetProtocol())
+	assert.Empty(t, receipt.GetObjectIds())
+}
