@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
@@ -244,6 +245,27 @@ func TestDequeueTask_RetryAfterMs_OnErrorResponse(t *testing.T) {
 }
 
 // ---------- HealthCheck ----------
+
+func TestHealthCheckUsesPAROverride(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/prefix"+healthCheckPath, r.URL.Path)
+		assert.NotEmpty(t, r.Header.Get("X-Datadog-OnPrem-JWT"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"site":                             "datadoghq.eu",
+		"private_action_runner.par_dd_url": srv.URL + "/prefix/",
+		"private_action_runner.enabled":    true,
+		"remote_configuration.rc_dd_url":   "https://rc-proxy.example.com",
+	})
+	runner, err := config.FromDDConfig(cfg, nil)
+	require.NoError(t, err)
+	runner.PrivateKey, runner.OrgId, runner.RunnerId = newTestKey(t), 1, "test-runner"
+	_, err = NewClient(cfg, runner).HealthCheck(context.Background())
+	require.NoError(t, err)
+}
 
 func TestHealthCheck_RetryAfterMs(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

@@ -91,8 +91,9 @@ const (
 	K8sKubeletConfig = 29
 	// K8sConfigMap represents a Kubernetes ConfigMap
 	K8sConfigMap = 30
-	// K8sSecret represents a Kubernetes Secret
-	K8sSecret = 31
+	// K8sSecret represents a Kubernetes Secret. It matches the backend's
+	// K8S_SECRET resource type; 31 and 32 are backend-only resource types.
+	K8sSecret = 33
 	// ECSTask represents an ECS Task
 	ECSTask = 150
 )
