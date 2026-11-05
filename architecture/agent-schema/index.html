@@ -890,7 +890,7 @@
 <li><strong>IDE autocompletion</strong> — the schema can be published to <a href="https://www.schemastore.org/">SchemaStore</a> so editors like VS Code automatically validate and complete configuration files.</li>
 <li><strong>Automatic generation of <code>datadog.yaml.example</code> and <code>system-probe.yaml.example</code></strong> — the example file shipped with the Agent is generated directly from the schema, ensuring it stays in sync.</li>
 <li><strong>Type-safe code generation</strong> — Go configuration code can be generated from the schema, removing the imperative setup code entirely.</li>
-<li><strong>Runtime validation</strong>  — The user configuration can be validated at runtime by the Agent allowing automatic fallback to default upon an invalid value.</li>
+<li><strong>Runtime validation</strong>  — The user configuration can be validated at runtime by the Agent allowing automatic fallback to default upon an invalid value. This is done by the <a href="https://github.com/DataDog/datadog-agent/tree/main/comp/core/schema">schema component</a>. Validation links the JSON schema library and the embedded schemas into the binary, so only the Agent <code>run</code> and <code>experimental check-config</code> commands use the real implementation (<code>core.WithSchema(schemafx.Module())</code>); every other binary uses the noop one.</li>
 </ul>
 <h2 id="terminology">Terminology<a class="headerlink" href="#terminology" title="Permanent link">&para;</a></h2>
 <ul>
