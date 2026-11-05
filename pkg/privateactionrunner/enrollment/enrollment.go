@@ -113,7 +113,11 @@ func SelfEnroll(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, par.APIBaseURL(cfg, ddSite), extraHeaders)
+	endpoint, err := par.APIBaseURL(cfg, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	publicClient := opms.NewPublicClient(cfg, endpoint, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
@@ -194,7 +198,11 @@ func SelfEnrollApiKeyOnly(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	publicClient := opms.NewPublicClient(cfg, par.APIBaseURL(cfg, ddSite), extraHeaders)
+	endpoint, err := par.APIBaseURL(cfg, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	publicClient := opms.NewPublicClient(cfg, endpoint, extraHeaders)
 
 	runnerModes := []modes.Mode{modes.ModePull}
 
