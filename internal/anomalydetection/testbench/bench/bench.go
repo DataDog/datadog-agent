@@ -726,13 +726,16 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 
 // streamingStorageCfg preserves production storage policies for the configured
 // detectors. Only output-history capture is enabled for finite replay evaluation.
-func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) observerimpl.StorageConfig {
-	cfg := observerimpl.StorageConfigForComponents(settings)
+func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) (observerimpl.StorageConfig, error) {
+	cfg, err := observerimpl.StorageConfigForComponents(settings)
+	if err != nil {
+		return observerimpl.StorageConfig{}, err
+	}
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
 	cfg.TrackAnomalyHistory = true
 	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
-	return cfg
+	return cfg, nil
 }
 
 // resetAllState resets engine state via DebugView.Reset.
@@ -744,7 +747,11 @@ func (tb *Bench) resetAllState() error {
 	tb.baselineMu.Unlock()
 	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
 	if tb.config.StreamParquet {
-		storageCfg = streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
+		cfg, err := streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
+		if err != nil {
+			return err
+		}
+		storageCfg = cfg
 	}
 	return tb.debug.Reset(tb.settings, storageCfg)
 }

@@ -89,6 +89,10 @@ type ComponentSettings struct {
 	// Baseline controls the baseline analysis window.
 	Baseline BaselineConfig
 
+	// UseMetricPipeline selects the kind-routed metric workflow. Zero keeps the
+	// previous configured detector workflow.
+	UseMetricPipeline bool
+
 	// configs is populated internally by readConfig functions on catalog
 	// entries (e.g. from agent config). It is not exported because the
 	// values must match the typed config expected by each component's
@@ -152,7 +156,7 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 //
 //	catalog := defaultCatalog()
 //	settings := ComponentSettings{ ... } // from agent config, testbench UI, etc.
-//	detectors, correlators, scorer, extractors, components := catalog.Instantiate(settings)
+//	detectors, correlators, scorer, extractors, components, err := catalog.Instantiate(settings)
 type componentCatalog struct {
 	entries []componentEntry
 }
@@ -390,10 +394,23 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	scorer *anomalyScorer,
 	extractors []observerdef.LogMetricsExtractor,
 	components map[string]*componentInstance,
+	err error,
 ) {
 	components = make(map[string]*componentInstance, len(c.entries))
 
+	if settings.UseMetricPipeline {
+		pipeline, pipelineErr := newDefaultMetricPipeline()
+		if pipelineErr != nil {
+			return nil, nil, nil, nil, nil, pipelineErr
+		}
+		detectors = append(detectors, detectorRegistration{detector: pipeline})
+	}
+
 	for _, entry := range c.entries {
+		if settings.UseMetricPipeline && entry.kind == componentDetector {
+			continue
+		}
+
 		cfg := entry.defaultConfig
 		if override, ok := settings.configs[entry.name]; ok {
 			cfg = override
@@ -440,7 +457,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 			}
 		}
 	}
-	return detectors, correlators, scorer, extractors, components
+	return detectors, correlators, scorer, extractors, components, err
 }
 
 // CatalogEntry is a public view of a catalog component.
@@ -459,9 +476,12 @@ const TestbenchPassthroughComponentName = "passthrough"
 // StorageConfigForComponents returns bounded storage defaults derived from the
 // enabled, configured detectors, using the same retention policy as the Agent.
 // Replay callers should apply their testbench component defaults first.
-func StorageConfigForComponents(settings ComponentSettings) StorageConfig {
-	detectors, _, _, _, _ := defaultCatalog().Instantiate(settings)
-	return storageConfigFromAgentConfig(nil, detectors)
+func StorageConfigForComponents(settings ComponentSettings) (StorageConfig, error) {
+	detectors, _, _, _, _, err := defaultCatalog().Instantiate(settings)
+	if err != nil {
+		return StorageConfig{}, err
+	}
+	return storageConfigFromAgentConfig(nil, detectors), nil
 }
 
 // ParseSettingsFromJSON builds ComponentSettings from a map of JSON-encoded

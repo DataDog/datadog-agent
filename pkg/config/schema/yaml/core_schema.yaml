@@ -5864,6 +5864,12 @@ properties:
             comment: 0s derives retention from the maximum point window of enabled detectors.
             tags:
             - golang_type:duration
+      use_legacy_detectors:
+        node_type: setting
+        type: boolean
+        default: true
+        comment: Keep the previous metric-detector workflow. Set false to use the
+          kind-routed ScanMW pipeline.
     tags:
     - full-agent-only:true
   appsec:

@@ -44,9 +44,11 @@ func TestStreamingStorageUsesProductionPolicies(t *testing.T) {
 		"bocpd": json.RawMessage(`{"enabled":true,"max_run_length":240}`),
 	})
 	require.NoError(t, err)
-	cfg := streamingStorageCfg(settings, false)
+	cfg, err := streamingStorageCfg(settings, false)
+	require.NoError(t, err)
 	require.Equal(t, 240, cfg.MaxPointsPerSeries)
-	production := observerimpl.StorageConfigForComponents(settings)
+	production, err := observerimpl.StorageConfigForComponents(settings)
+	require.NoError(t, err)
 	// These flags capture already-emitted results; they do not change inputs
 	// or detector-facing storage. Every other policy must match production.
 	cfg.MaxCorrelations = production.MaxCorrelations
@@ -65,7 +67,8 @@ func TestStreamingStorageWithoutDetectorsRemainsBounded(t *testing.T) {
 	for _, entry := range observerimpl.TestbenchCatalogEntries() {
 		settings.Enabled[entry.Name] = false
 	}
-	cfg := streamingStorageCfg(settings, false)
+	cfg, err := streamingStorageCfg(settings, false)
+	require.NoError(t, err)
 	require.Positive(t, cfg.PointRetentionSecs)
 	require.Positive(t, cfg.MaxSeries)
 }

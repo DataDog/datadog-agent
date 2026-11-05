@@ -36,8 +36,7 @@ type metricPipelineSeriesState struct {
 	outputAfter     int64
 }
 
-// MetricPipeline routes gauges to detectors by their committed kind. It is
-// not constructed by the production catalog yet.
+// MetricPipeline routes gauges to detectors by their committed kind.
 type MetricPipeline struct {
 	name          string
 	registrations []pipelineRegistration
@@ -86,8 +85,7 @@ func newMetricPipeline(
 	return p, nil
 }
 
-// newScanMWMetricPipeline builds the initial kind-routed composition without
-// registering it in the production catalog.
+// newScanMWMetricPipeline builds the initial kind-routed composition.
 func newScanMWMetricPipeline(cfg ScanMWConfig) (*MetricPipeline, error) {
 	scan := NewScanMWDetector(cfg)
 	registration := pipelineRegistration{
@@ -99,6 +97,15 @@ func newScanMWMetricPipeline(cfg ScanMWConfig) (*MetricPipeline, error) {
 	p, err := newMetricPipeline([]pipelineRegistration{registration}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
 	if err != nil {
 		return nil, fmt.Errorf("build scanmw metric pipeline: %w", err)
+	}
+	return p, nil
+}
+
+// newDefaultMetricPipeline builds the default metric workflow.
+func newDefaultMetricPipeline() (*MetricPipeline, error) {
+	p, err := newScanMWMetricPipeline(DefaultScanMWConfig())
+	if err != nil {
+		return nil, fmt.Errorf("default metric pipeline: %w", err)
 	}
 	return p, nil
 }
