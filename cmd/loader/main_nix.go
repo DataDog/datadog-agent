@@ -296,6 +296,11 @@ func getListeners(cfg model.Reader) (tcpFD int, listeners map[string]uintptr, er
 	}
 
 	traceCfgReceiverPort := cfg.GetInt("apm_config.receiver_port")
+	// TODO(adp-apm-relay): remove. Must match the override in comp/trace/config/impl/setup.go.
+	if p := cfg.GetInt("data_plane.experimental.apm.trace_agent_receiver_port"); p > 0 {
+		log.Infof("Overriding apm_config.receiver_port (%d) with data_plane.experimental.apm.trace_agent_receiver_port (%d)", traceCfgReceiverPort, p)
+		traceCfgReceiverPort = p
+	}
 	traceCfgReceiverSocket := cfg.GetString("apm_config.receiver_socket")
 
 	// end of config initialization

@@ -313,6 +313,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 	// tries to bind 0.0.0.0:8126, colliding with the trace-agent container.
 	c.ReceiverEnabled = core.GetBool("apm_config.receiver_enabled")
 	c.ReceiverPort = core.GetInt("apm_config.receiver_port")
+	// TODO(adp-apm-relay): remove. Moves the trace-agent off receiver_port so ADP's APM relay can listen there.
+	if p := core.GetInt("data_plane.experimental.apm.trace_agent_receiver_port"); p > 0 {
+		log.Infof("Overriding apm_config.receiver_port (%d) with data_plane.experimental.apm.trace_agent_receiver_port (%d)", c.ReceiverPort, p)
+		c.ReceiverPort = p
+	}
 	c.ReceiverSocket = core.GetString("apm_config.receiver_socket")
 	if core.IsConfigured("apm_config.connection_limit") {
 		c.ConnectionLimit = core.GetInt("apm_config.connection_limit")
