@@ -170,9 +170,11 @@ static __always_inline bool check_resp_field_and_crlf(const char* buf, __u32 buf
 // the field itself is checked by a single call to check_resp_field_and_crlf
 // after it. That is deliberate. The validator is inlined, so every call site
 // gets its own copy of the 11-step ladder (~580 instructions), and is_redis is
-// itself inlined into several programs. Calling the validator from each switch
-// arm made the Go TLS return uprobes grow from ~2,100 to ~4,400 instructions,
-// past the 4,096 limit on pre-5.2 kernels (E2BIG on 4.14-4.19).
+// itself inlined into several programs, including the Go TLS return uprobes.
+// Calling the validator from each switch arm would put four copies in each of
+// those programs and push them past the 4,096-instruction limit on pre-5.2
+// kernels (E2BIG on 4.14-4.19). The debug build (usm-debug.o) is the binding
+// case, with ~180 instructions of headroom. Keep it a single call.
 static __always_inline bool is_redis(const char* buf, __u32 buf_size) {
     CHECK_PRELIMINARY_BUFFER_CONDITIONS(buf, buf_size, REDIS_MIN_FRAME_LENGTH);
 
