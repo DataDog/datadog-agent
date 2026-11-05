@@ -12,11 +12,15 @@ import (
 	"fmt"
 	"io"
 	stdlog "log"
+	"mime"
 	"net/http"
+	"net/http/httptrace"
 	"net/http/httputil"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -35,6 +39,9 @@ const (
 
 // EvpProxyAllowedHeaders contains the headers that the proxy will forward. All others will be cleared.
 var EvpProxyAllowedHeaders = []string{"Content-Type", "Accept-Encoding", "Content-Encoding", "User-Agent", "DD-CI-PROVIDER-NAME", "DD-EVP-ORIGIN", "DD-EVP-ORIGIN-VERSION"}
+
+// aiGuardProxyAllowedHeaders contains the headers that the AI Guard proxy will forward.
+var aiGuardProxyAllowedHeaders = append(slices.Clone(EvpProxyAllowedHeaders), "DD-AI-GUARD-VERSION", "DD-AI-GUARD-SOURCE", "DD-AI-GUARD-LANGUAGE")
 
 // evpProxyEndpointsFromConfig returns the configured list of endpoints to forward payloads to.
 func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
@@ -88,8 +95,89 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 			// so we do not call pr.SetXForwarded().
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd, EvpProxyAllowedHeaders, ""},
 	}
+}
+
+// aiGuardProxyEnabled reports whether the Agent has both keys the AI Guard API requires.
+func aiGuardProxyEnabled(conf *config.AgentConfig) bool {
+	return conf.APIKey() != "" && conf.EVPProxy.ApplicationKey != ""
+}
+
+// aiGuardProxyHandler forwards AI Guard API requests to https://api.<site> with the
+// Agent's API and application keys, through the main endpoint only.
+func (r *HTTPReceiver) aiGuardProxyHandler() http.Handler {
+	endpoints := []config.Endpoint{{Host: r.conf.Site, APIKey: r.conf.APIKey()}}
+	transport := &evpProxyTransport{r.conf.NewHTTPTransport(), endpoints, r.conf, NewContainerIDProviderFromConfig(r.conf), r.statsd, aiGuardProxyAllowedHeaders, r.conf.EVPProxy.ApplicationKey}
+	throttled := log.NewThrottled(5, 10*time.Second)
+	errorLog := stdlog.New(throttled, "AIGuardProxy: ", 0)
+	return http.StripPrefix("/ai_guard/proxy", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		// isValidPath rejects '.' in the decoded path, so dot segments cannot escape the AI Guard API.
+		if (req.Method != http.MethodGet && req.Method != http.MethodPost) || req.URL.RawQuery != "" ||
+			!strings.HasPrefix(req.URL.Path, "/api/v2/ai-guard/") || !isValidPath(req.URL.Path) {
+			writeAIGuardProxyError(w, http.StatusNotFound, "path_not_allowed")
+			return
+		}
+		if req.Header.Get("Sec-Fetch-Site") == "cross-site" {
+			http.Error(w, "cross-site request rejected", http.StatusForbidden)
+			return
+		}
+		if mediaType, _, _ := mime.ParseMediaType(req.Header.Get("Content-Type")); req.Method == http.MethodPost && mediaType != "application/json" {
+			http.Error(w, "unsupported media type", http.StatusUnsupportedMediaType)
+			return
+		}
+		if limit := r.conf.EVPProxy.MaxPayloadSize; limit > 0 {
+			req.Body = http.MaxBytesReader(w, req.Body, limit)
+		}
+		body, err := io.ReadAll(req.Body)
+		var tooLarge *http.MaxBytesError
+		if errors.As(err, &tooLarge) {
+			writeAIGuardProxyError(w, http.StatusRequestEntityTooLarge, "payload_too_large")
+			return
+		}
+		if err != nil {
+			http.Error(w, "failed to read request body", http.StatusBadRequest)
+			return
+		}
+		req.Body, req.ContentLength = io.NopCloser(bytes.NewReader(body)), int64(len(body))
+		req.Header.Set("X-Datadog-EVP-Subdomain", "api")
+
+		// Errors before a connection to Datadog is established (DNS, TCP or TLS) are told apart from later ones.
+		var connected atomic.Bool
+		req = req.WithContext(httptrace.WithClientTrace(req.Context(), &httptrace.ClientTrace{
+			GotConn: func(httptrace.GotConnInfo) { connected.Store(true) },
+		}))
+		proxy := &httputil.ReverseProxy{
+			Rewrite:   func(_ *httputil.ProxyRequest) {},
+			ErrorLog:  errorLog,
+			Transport: transport,
+			ModifyResponse: func(resp *http.Response) error {
+				resp.Header.Del(aiGuardProxyErrorHeader)
+				return nil
+			},
+			ErrorHandler: func(rw http.ResponseWriter, _ *http.Request, err error) {
+				code := "network_error"
+				if !connected.Load() {
+					code = "connection_failed"
+				}
+				throttled.Warn("AIGuardProxy: %s: %v", code, err)
+				writeAIGuardProxyError(rw, http.StatusBadGateway, code)
+			},
+		}
+		proxy.ServeHTTP(w, req)
+	}))
+}
+
+// aiGuardProxyErrorHeader marks the responses of the AI Guard proxy written by the Agent itself,
+// so that SDKs can tell them from Datadog's responses.
+const aiGuardProxyErrorHeader = "Datadog-Agent-Proxy-Error"
+
+// writeAIGuardProxyError writes an AI Guard proxy error with a JSON:API errors body.
+func writeAIGuardProxyError(w http.ResponseWriter, status int, code string) {
+	w.Header().Set(aiGuardProxyErrorHeader, code)
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_, _ = fmt.Fprintf(w, `{"errors":[{"status":"%d","code":%q,"title":%q}]}`, status, code, http.StatusText(status))
 }
 
 // evpProxyTransport sends HTTPS requests to multiple targets using an
@@ -103,6 +191,8 @@ type evpProxyTransport struct {
 	conf                *config.AgentConfig
 	containerIDProvider IDProvider
 	statsd              statsd.ClientInterface
+	allowedHeaders      []string
+	applicationKey      string // set as DD-APPLICATION-KEY when not empty
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
@@ -150,7 +240,7 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set("Via", "trace-agent "+t.conf.AgentVersion)
 
 	// Copy allowed headers from the input request
-	for _, header := range EvpProxyAllowedHeaders {
+	for _, header := range t.allowedHeaders {
 		val := inputHeaders.Get(header)
 		if val != "" {
 			req.Header.Set(header, val)
@@ -170,6 +260,9 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
 	log.Debugf("Setting headers X-Datadog-Hostnames=%s, X-Datadog-AgentDefaultEnv=%s for evp proxy", t.conf.Hostname, t.conf.DefaultEnv)
 	req.Header.Set(header.ContainerID, containerID)
+	if t.applicationKey != "" {
+		req.Header.Set("DD-APPLICATION-KEY", t.applicationKey)
+	}
 	if t.conf.ErrorTrackingStandalone {
 		req.Header.Set("X-Datadog-Error-Tracking-Standalone", "true")
 	}

@@ -1100,6 +1100,17 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, "123", cfg.Endpoints[0].APIKey)
 	})
 
+	env = "DD_APP_KEY"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, " 456 ")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "456", cfg.EVPProxy.ApplicationKey)
+	})
+
 	env = "DD_SITE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")

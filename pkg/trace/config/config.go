@@ -317,6 +317,8 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string `json:"-"` // Never marshal this field
+	// ApplicationKey is the top-level application key (app_key). Only the AI Guard proxy uses it.
+	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
