@@ -301,60 +301,15 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	InternalMonitoringEnabled bool
 
-	// description: ActivityDumpEnabled defines if the activity dump manager should be enabled
-	// visibility: private
-	// default_value: true
-	ActivityDumpEnabled bool
-
-	// description: ActivityDumpCleanupPeriod defines the period at which the activity dump manager should perform its cleanup operation.
-	// visibility: private
-	// default_value: 30s
-	ActivityDumpCleanupPeriod time.Duration
-
-	// description: ActivityDumpTagsResolutionPeriod defines the period at which the activity dump manager should try to resolve missing container tags.
-	// visibility: private
-	// default_value: 60s
-	ActivityDumpTagsResolutionPeriod time.Duration
-
-	// description: ActivityDumpLoadControlPeriod defines the period at which the activity dump manager should trigger the load controller
-	// visibility: private
-	// default_value: 60s
-	ActivityDumpLoadControlPeriod time.Duration
-
-	// description: ActivityDumpLoadControlMinDumpTimeout defines minimal duration of a activity dump recording
-	// visibility: private
-	// default_value: 10m
-	ActivityDumpLoadControlMinDumpTimeout time.Duration
-
-	// description: ActivityDumpTracedCgroupsCount defines the maximum count of cgroups that should be monitored concurrently. Leave this parameter to 0 to prevent the generation of activity dumps based on cgroups.
-	// visibility: private
-	// default_value: 5
-	ActivityDumpTracedCgroupsCount int
-
 	// description: ActivityDumpTraceSystemdCgroups defines if you want to trace systemd cgroups
 	// visibility: private
 	// default_value: false
 	ActivityDumpTraceSystemdCgroups bool
 
-	// description: ActivityDumpTracedEventTypes defines the list of events that should be captured in an activity dump. Leave this parameter empty to monitor all event types. If not already present, the `exec` event will automatically be added to this list.
-	// visibility: private
-	// default_value: ["exec", "open", "dns", "imds"]
-	ActivityDumpTracedEventTypes []model.EventType
-
-	// description: ActivityDumpCgroupDumpTimeout defines the cgroup activity dumps timeout.
+	// description: ActivityDumpCgroupDumpTimeout defines the interval at which active security profiles are persisted to local or remote storage.
 	// visibility: private
 	// default_value: 900s
 	ActivityDumpCgroupDumpTimeout time.Duration
-
-	// description: ActivityDumpRateLimiter defines the kernel rate of max events per sec for activity dumps.
-	// visibility: private
-	// default_value: 500
-	ActivityDumpRateLimiter uint16
-
-	// description: ActivityDumpCgroupWaitListTimeout defines the time to wait before a cgroup can be dumped again.
-	// visibility: private
-	// default_value: 4500s
-	ActivityDumpCgroupWaitListTimeout time.Duration
 
 	// description: ActivityDumpCgroupDifferentiateArgs defines if system-probe should differentiate process nodes using process arguments for dumps.
 	// visibility: private
@@ -380,43 +335,6 @@ type RuntimeSecurityConfig struct {
 	// visibility: private
 	// default_value: 100
 	ActivityDumpLocalStorageMaxDumpsCount int
-
-	// description: ActivityDumpSyscallMonitorPeriod defines the minimum amount of time to wait between 2 syscalls event for the same process.
-	// visibility: private
-	// default_value: 60s
-	ActivityDumpSyscallMonitorPeriod time.Duration
-
-	// description: ActivityDumpMaxDumpCountPerWorkload defines the maximum amount of dumps that the agent should send for a workload
-	// visibility: private
-	// default_value: 25
-	ActivityDumpMaxDumpCountPerWorkload int
-
-	// description: ActivityDumpWorkloadDenyList defines the list of workloads for which we shouldn't generate dumps. Workloads should be provided as strings in the following format "{image_name}:[{image_tag}|*]". If "*" is provided instead of a specific image tag, then the entry will match any workload with the input {image_name} regardless of their tag.
-	// visibility: private
-	// default_value: []
-	ActivityDumpWorkloadDenyList []string
-
-	// description: ActivityDumpTagRulesEnabled enable the tagging of nodes with matched rules
-	// visibility: private
-	// default_value: true
-	ActivityDumpTagRulesEnabled bool
-
-	// description: ActivityDumpSilentWorkloadsDelay defines the minimum amount of time to wait before the activity dump manager will start tracing silent workloads
-	// visibility: private
-	// default_value: 10s
-	ActivityDumpSilentWorkloadsDelay time.Duration
-
-	// description: ActivityDumpSilentWorkloadsTicker configures ticker that will check if a workload is silent and should be traced
-	// visibility: private
-	// default_value: 10s
-	ActivityDumpSilentWorkloadsTicker time.Duration
-
-	// # Dynamic configuration fields:
-
-	// description: ActivityDumpMaxDumpSize defines the maximum size of a dump
-	// visibility: private
-	// default_value: 1750
-	ActivityDumpMaxDumpSize func() int
 
 	// Per-type event sampling config
 	// description: EventSamplingOpenEnabled defines if the agent should sample open events
@@ -469,40 +387,15 @@ type RuntimeSecurityConfig struct {
 	// default_value: false
 	EventSamplingDynamicEnabled bool
 
-	// description: SecurityProfileEnabled defines if the Security Profile manager should be enabled
+	// description: SecurityProfileV2Enabled defines if the v2 Security Profile manager should be used
 	// visibility: private
 	// default_value: true
-	SecurityProfileEnabled bool
-
-	// description: SecurityProfileManagerV2Enabled defines if the v2 Security Profile manager should be used
-	// visibility: private
-	// default_value: false
 	SecurityProfileV2Enabled bool
 
 	// description: SecurityProfileMaxImageTags defines the maximum number of profile versions to maintain
 	// visibility: private
 	// default_value: 20
 	SecurityProfileMaxImageTags int
-
-	// description: SecurityProfileDir defines the directory in which Security Profiles are stored
-	// visibility: private
-	// default_value: ${run_path}/runtime-security/profiles
-	SecurityProfileDir string
-
-	// description: SecurityProfileWatchDir defines if the Security Profiles directory should be monitored
-	// visibility: private
-	// default_value: true
-	SecurityProfileWatchDir bool
-
-	// description: SecurityProfileCacheSize defines the count of Security Profiles held in cache
-	// visibility: private
-	// default_value: 10
-	SecurityProfileCacheSize int
-
-	// description: SecurityProfileMaxCount defines the maximum number of Security Profiles that may be evaluated concurrently
-	// visibility: private
-	// default_value: 400
-	SecurityProfileMaxCount int
 
 	// description: SecurityProfileDNSMatchMaxDepth defines the max depth of subdomain to be matched for DNS anomaly detection (0 to match everything)
 	// visibility: private
@@ -599,36 +492,6 @@ type RuntimeSecurityConfig struct {
 	// default_value: 512
 	SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup int
 
-	// description: AnomalyDetectionEventTypes defines the list of events that should be allowed to generate anomaly detections
-	// visibility: private
-	// default_value: ["exec"]
-	AnomalyDetectionEventTypes []model.EventType
-
-	// description: AnomalyDetectionDefaultMinimumStablePeriod defines the default minimum amount of time during which the events that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection event.
-	// visibility: private
-	// default_value: 900s
-	AnomalyDetectionDefaultMinimumStablePeriod time.Duration
-
-	// description: AnomalyDetectionMinimumStablePeriods defines the minimum amount of time per event type during which the events that diverge from their profiles are automatically added in their profiles without triggering an anomaly detection event.
-	// visibility: private
-	// default_value: {"exec": "900s", "dns": "900s"}
-	AnomalyDetectionMinimumStablePeriods map[model.EventType]time.Duration
-
-	// description: AnomalyDetectionUnstableProfileTimeThreshold defines the maximum amount of time to wait until a profile that hasn't reached a stable state is considered as unstable.
-	// visibility: private
-	// default_value: 1h
-	AnomalyDetectionUnstableProfileTimeThreshold time.Duration
-
-	// description: AnomalyDetectionUnstableProfileSizeThreshold defines the maximum size a profile can reach past which it is considered unstable
-	// visibility: private
-	// default_value: 5000000
-	AnomalyDetectionUnstableProfileSizeThreshold int64
-
-	// description: AnomalyDetectionWorkloadWarmupPeriod defines the duration we ignore the anomaly detections for because of workload warm up
-	// visibility: private
-	// default_value: 180s
-	AnomalyDetectionWorkloadWarmupPeriod time.Duration
-
 	// description: AnomalyDetectionRateLimiterPeriod is the duration during which a limited number of anomaly detection events are allowed
 	// visibility: private
 	// default_value: 1s
@@ -648,11 +511,6 @@ type RuntimeSecurityConfig struct {
 	// visibility: private
 	// default_value: true
 	AnomalyDetectionTagRulesEnabled bool
-
-	// description: AnomalyDetectionSilentRuleEventsEnabled do not send rule event if also part of an anomaly event
-	// visibility: private
-	// default_value: false
-	AnomalyDetectionSilentRuleEventsEnabled bool
 
 	// description: AnomalyDetectionEnabled defines if we should send anomaly detection events
 	// visibility: private
@@ -981,11 +839,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		return output
 	}
 
-	anomalyDetectionMinimumStablePeriods, err := parseEventTypeDurations(pkgconfigsetup.SystemProbe(), "runtime_security_config.security_profile.anomaly_detection.minimum_stable_period")
-	if err != nil {
-		return nil, err
-	}
-
 	rsConfig := &RuntimeSecurityConfig{
 		RuntimeEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enabled"),
 		FIMEnabled:     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.fim_enabled"),
@@ -1029,31 +882,12 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		InternalMonitoringEnabled: pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.internal_monitoring.enabled"),
 
 		// activity dump
-		ActivityDumpEnabled:                   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.enabled"),
 		ActivityDumpTraceSystemdCgroups:       pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.trace_systemd_cgroups"),
-		ActivityDumpCleanupPeriod:             pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cleanup_period"),
-		ActivityDumpTagsResolutionPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.tags_resolution_period"),
-		ActivityDumpLoadControlPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.load_controller_period"),
-		ActivityDumpLoadControlMinDumpTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.min_timeout"),
-		ActivityDumpTracedCgroupsCount:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.traced_cgroups_count"),
-		ActivityDumpTracedEventTypes:          parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.traced_event_types")),
 		ActivityDumpCgroupDumpTimeout:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.dump_duration"),
-		ActivityDumpCgroupWaitListTimeout:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.cgroup_wait_list_timeout"),
 		ActivityDumpCgroupDifferentiateArgs:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.cgroup_differentiate_args"),
 		ActivityDumpLocalStorageDirectory:     pkgconfigsetup.SystemProbe().GetString("runtime_security_config.activity_dump.local_storage.output_directory"),
 		ActivityDumpLocalStorageMaxDumpsCount: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.local_storage.max_dumps_count"),
 		ActivityDumpLocalStorageCompression:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.local_storage.compression"),
-		ActivityDumpSyscallMonitorPeriod:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.syscall_monitor.period"),
-		ActivityDumpMaxDumpCountPerWorkload:   pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_count_per_workload"),
-		ActivityDumpTagRulesEnabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.activity_dump.tag_rules.enabled"),
-		ActivityDumpSilentWorkloadsDelay:      pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.delay"),
-		ActivityDumpSilentWorkloadsTicker:     pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.activity_dump.silent_workloads.ticker"),
-		ActivityDumpWorkloadDenyList:          pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.workload_deny_list"),
-		// activity dump dynamic fields
-		ActivityDumpMaxDumpSize: func() int {
-			mds := max(pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.max_dump_size"), ADMinMaxDumSize)
-			return mds * (1 << 10)
-		},
 
 		// SBOM resolver
 		SBOMResolverEnabled:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.sbom.enabled") || pkgconfigsetup.Datadog().GetBool("sbom.enrichment.usage.enabled"),
@@ -1099,13 +933,8 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		EventSamplingDynamicEnabled:   pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.event_sampling.dynamic.enabled"),
 
 		// security profiles
-		SecurityProfileEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.enabled"),
 		SecurityProfileV2Enabled:           pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.v2.enabled"),
 		SecurityProfileMaxImageTags:        pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_image_tags"),
-		SecurityProfileDir:                 pkgconfigsetup.SystemProbe().GetString("runtime_security_config.security_profile.dir"),
-		SecurityProfileWatchDir:            pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.watch_dir"),
-		SecurityProfileCacheSize:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.cache_size"),
-		SecurityProfileMaxCount:            pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.max_count"),
 		SecurityProfileDNSMatchMaxDepth:    pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.dns_match_max_depth"),
 		SecurityProfileNodeEvictionTimeout: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.node_eviction_timeout"),
 		SecurityProfileCleanupDelay:        pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.profile_cleanup_delay"),
@@ -1131,18 +960,11 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 		SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup"),
 
 		// anomaly detection
-		AnomalyDetectionEventTypes:                   parseEventTypeStringSlice(pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.security_profile.anomaly_detection.event_types")),
-		AnomalyDetectionDefaultMinimumStablePeriod:   pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.default_minimum_stable_period"),
-		AnomalyDetectionMinimumStablePeriods:         anomalyDetectionMinimumStablePeriods,
-		AnomalyDetectionWorkloadWarmupPeriod:         pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.workload_warmup_period"),
-		AnomalyDetectionUnstableProfileTimeThreshold: pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.unstable_profile_time_threshold"),
-		AnomalyDetectionUnstableProfileSizeThreshold: pkgconfigsetup.SystemProbe().GetInt64("runtime_security_config.security_profile.anomaly_detection.unstable_profile_size_threshold"),
-		AnomalyDetectionRateLimiterPeriod:            pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period"),
-		AnomalyDetectionRateLimiterNumKeys:           pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys"),
-		AnomalyDetectionRateLimiterNumEventsAllowed:  pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
-		AnomalyDetectionTagRulesEnabled:              pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
-		AnomalyDetectionSilentRuleEventsEnabled:      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.silent_rule_events.enabled"),
-		AnomalyDetectionEnabled:                      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
+		AnomalyDetectionRateLimiterPeriod:           pkgconfigsetup.SystemProbe().GetDuration("runtime_security_config.security_profile.anomaly_detection.rate_limiter.period"),
+		AnomalyDetectionRateLimiterNumKeys:          pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_keys"),
+		AnomalyDetectionRateLimiterNumEventsAllowed: pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.security_profile.anomaly_detection.rate_limiter.num_events_allowed"),
+		AnomalyDetectionTagRulesEnabled:             pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.tag_rules.enabled"),
+		AnomalyDetectionEnabled:                     pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.security_profile.anomaly_detection.enabled"),
 
 		// enforcement
 		EnforcementEnabled:                      pkgconfigsetup.SystemProbe().GetBool("runtime_security_config.enforcement.enabled"),
@@ -1192,12 +1014,6 @@ func NewRuntimeSecurityConfig() (*RuntimeSecurityConfig, error) {
 	for _, configFlag := range compilationFlags {
 		rsConfig.SysCtlSnapshotKernelCompilationFlags[configFlag] = 1
 	}
-
-	activityDumpRateLimiter := pkgconfigsetup.SystemProbe().GetInt("runtime_security_config.activity_dump.rate_limiter")
-	if activityDumpRateLimiter < 0 || activityDumpRateLimiter > math.MaxUint16 {
-		return nil, fmt.Errorf("invalid value for runtime_security_config.activity_dump.rate_limiter: %d, must be in uint16 range", activityDumpRateLimiter)
-	}
-	rsConfig.ActivityDumpRateLimiter = uint16(activityDumpRateLimiter)
 
 	if slices.Contains(rsConfig.SecurityProfileV2EventTypes, model.FileMountEventType) {
 		for _, et := range []model.EventType{model.FileMoveMountEventType, model.PivotRootEventType} {
@@ -1296,14 +1112,6 @@ func IsEBPFLessModeEnabled() bool {
 	}
 
 	return pkgconfigsetup.SystemProbe().GetBool(cfgKey)
-}
-
-// GetAnomalyDetectionMinimumStablePeriod returns the minimum stable period for a given event type
-func (c *RuntimeSecurityConfig) GetAnomalyDetectionMinimumStablePeriod(eventType model.EventType) time.Duration {
-	if minimumStablePeriod, found := c.AnomalyDetectionMinimumStablePeriods[eventType]; found {
-		return minimumStablePeriod
-	}
-	return c.AnomalyDetectionDefaultMinimumStablePeriod
 }
 
 // EventSamplingEnabledFor reports whether the sampler of eventType runs: its knob is on, and
@@ -1411,10 +1219,6 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 		return fmt.Errorf("invalid value for runtime_security_config.security_profile.v2.tag_resolution.max_pending_events_per_cgroup: %d, must not be negative", c.SecurityProfileV2TagResolutionMaxPendingEventsPerCgroup)
 	}
 
-	if c.SecurityProfileV2Enabled {
-		c.AnomalyDetectionSilentRuleEventsEnabled = false
-	}
-
 	c.sanitizePlatform()
 
 	return c.sanitizeRuntimeSecurityConfigActivityDump()
@@ -1422,10 +1226,6 @@ func (c *RuntimeSecurityConfig) sanitize() error {
 
 // sanitizeRuntimeSecurityConfigActivityDump ensures that runtime_security_config.activity_dump is properly configured
 func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() error {
-	if !slices.Contains(c.ActivityDumpTracedEventTypes, model.ExecEventType) {
-		c.ActivityDumpTracedEventTypes = append(c.ActivityDumpTracedEventTypes, model.ExecEventType)
-	}
-
 	if formats := pkgconfigsetup.SystemProbe().GetStringSlice("runtime_security_config.activity_dump.local_storage.formats"); len(formats) > 0 {
 		var err error
 		c.ActivityDumpLocalStorageFormats, err = ParseStorageFormats(formats)
@@ -1434,29 +1234,7 @@ func (c *RuntimeSecurityConfig) sanitizeRuntimeSecurityConfigActivityDump() erro
 		}
 	}
 
-	if c.ActivityDumpTracedCgroupsCount > model.MaxTracedCgroupsCount {
-		c.ActivityDumpTracedCgroupsCount = model.MaxTracedCgroupsCount
-	}
-
-	if c.SecurityProfileEnabled && c.ActivityDumpEnabled && c.ActivityDumpLocalStorageDirectory != c.SecurityProfileDir {
-		return fmt.Errorf("activity dumps storage directory '%s' has to be the same than security profile storage directory '%s'", c.ActivityDumpLocalStorageDirectory, c.SecurityProfileDir)
-	}
-
 	return nil
-}
-
-// parseEventTypeDurations converts a map of durations indexed by event types
-func parseEventTypeDurations(cfg pkgconfigmodel.Config, prefix string) (map[model.EventType]time.Duration, error) {
-	eventTypeMap := cfg.GetStringMap(prefix)
-	eventTypeDurations := make(map[model.EventType]time.Duration, len(eventTypeMap))
-	for eventTypeName := range eventTypeMap {
-		eventType, err := model.ParseEvalEventType(eventTypeName)
-		if err != nil {
-			return nil, err
-		}
-		eventTypeDurations[eventType] = cfg.GetDuration(prefix + "." + eventTypeName)
-	}
-	return eventTypeDurations, nil
 }
 
 // parseHashAlgorithmStringSlice converts a string list to a list of hash algorithms

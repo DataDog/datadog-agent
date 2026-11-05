@@ -1048,29 +1048,6 @@ func (e *SpliceEvent) UnmarshalBinary(data []byte) (int, error) {
 }
 
 // UnmarshalBinary unmarshals a binary representation of itself
-func (e *CgroupTracingEvent) UnmarshalBinary(data []byte) (int, error) {
-	read, err := e.CGroupContext.UnmarshalBinary(data)
-	if err != nil {
-		return 0, err
-	}
-	cursor := read
-
-	read, err = e.Config.EventUnmarshalBinary(data[cursor:])
-	if err != nil {
-		return 0, err
-	}
-	cursor += read
-
-	if len(data)-cursor < 12 {
-		return 0, ErrNotEnoughData
-	}
-
-	e.ConfigCookie = binary.NativeEndian.Uint64(data[cursor : cursor+8])
-	e.Pid = binary.NativeEndian.Uint32(data[cursor+8 : cursor+12])
-	return cursor + 12, nil
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
 func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 	read, err := e.File.PathKey.UnmarshalBinary(data)
 	if err != nil {
@@ -1086,34 +1063,6 @@ func (e *CgroupWriteEvent) UnmarshalBinary(data []byte) (int, error) {
 	read += 8
 
 	return read, nil
-}
-
-// EventUnmarshalBinary unmarshals a binary representation of itself
-func (adlc *ActivityDumpLoadConfig) EventUnmarshalBinary(data []byte) (int, error) {
-	if len(data) < 48 {
-		return 0, ErrNotEnoughData
-	}
-
-	eventMask := binary.NativeEndian.Uint64(data[0:8])
-	for i := uint64(0); i < 64; i++ {
-		if eventMask&(1<<i) == (1 << i) {
-			adlc.TracedEventTypes = append(adlc.TracedEventTypes, EventType(i)+FirstDiscarderEventType)
-		}
-	}
-	adlc.Timeout = time.Duration(binary.NativeEndian.Uint64(data[8:16]))
-	adlc.WaitListTimestampRaw = binary.NativeEndian.Uint64(data[16:24])
-	adlc.StartTimestampRaw = binary.NativeEndian.Uint64(data[24:32])
-	adlc.EndTimestampRaw = binary.NativeEndian.Uint64(data[32:40])
-	adlc.Rate = binary.NativeEndian.Uint16(data[40:42])
-	// 2 bytes of padding
-	adlc.Paused = binary.NativeEndian.Uint32(data[44:48])
-	return 48, nil
-}
-
-// UnmarshalBinary unmarshals a binary representation of itself
-func (adlc *ActivityDumpLoadConfig) UnmarshalBinary(data []byte) error {
-	_, err := adlc.EventUnmarshalBinary(data)
-	return err
 }
 
 // UnmarshalBinary unmarshalls a binary representation of itself

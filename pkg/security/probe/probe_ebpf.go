@@ -588,9 +588,7 @@ func (p *EBPFProbe) initEBPFManager() error {
 
 	p.applyDefaultFilterPolicies()
 
-	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
-
-	if err := p.updateProbes(defaultEventTypes, needRawSyscalls); err != nil {
+	if err := p.updateProbes(defaultEventTypes, false); err != nil {
 		return err
 	}
 
@@ -667,16 +665,9 @@ func (p *EBPFProbe) Init() error {
 		return err
 	}
 
-	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
-		if err != nil {
-			return err
-		}
-	} else {
-		p.profileManager, err = securityprofile.NewManager(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.NewEvent, p.activityDumpHandler, p.hostname, p.opts.FilterStore)
-		if err != nil {
-			return err
-		}
+	p.profileManager, err = securityprofile.NewManagerV2(p.config, p.statsdClient, p.Manager.Get(), p.Resolvers, p.kernelVersion, p.activityDumpHandler, p.sendAnomalyDetection, p.hostname, p.probe.startTime, p.opts.FilterStore)
+	if err != nil {
+		return err
 	}
 
 	p.eventStream.SetMonitor(p.monitors.eventStreamMonitor)
@@ -688,7 +679,7 @@ func (p *EBPFProbe) Init() error {
 
 	p.processKiller.Start(p.ctx, &p.wg)
 
-	if p.config.RuntimeSecurity.ActivityDumpEnabled || p.config.RuntimeSecurity.SecurityProfileEnabled || p.config.RuntimeSecurity.SecurityProfileV2Enabled {
+	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		p.wg.Add(1)
 		go func() {
 			defer p.wg.Done()
@@ -1255,16 +1246,6 @@ func (p *EBPFProbe) AddActivityDumpHandler(handler backend.ActivityDumpHandler) 
 func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	p.probe.logTraceEvent(event.GetEventType(), event)
 
-	// filter out event if already present on a profile
-	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		p.profileManager.LookupEventInProfiles(event)
-
-		// mark the events that have an associated activity dump
-		if p.profileManager.HasActiveActivityDump(event) {
-			event.AddToFlags(model.EventFlagsHasActiveActivityDump)
-		}
-	}
-
 	// send event to wildcard handlers, like the CWS rule engine, first
 	p.probe.sendEventToHandlers(event)
 
@@ -1284,9 +1265,9 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 				}
 			} else if event.GetEventType() == model.FileOpenEventType && readsFile(&event.Open) {
 				// Resolve the path on a copy of the file, which keeps the error of a
-				// path the SBOM resolver fails to resolve off the event: the v1
-				// profiles skip an event carrying an error, and the probe monitor
-				// reports it as an abnormal path.
+				// path the SBOM resolver fails to resolve off the event: profiles
+				// skip an event carrying an error, and the probe monitor reports
+				// it as an abnormal path.
 				file := event.Open.File
 				if !file.IsPathnameStrResolved && len(file.PathnameStr) == 0 {
 					if path, _, _, _, err := p.Resolvers.PathResolver.ResolveFullFilePath(&file.FileFields, &event.PIDContext); err == nil {
@@ -1306,37 +1287,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 		}
 	}
 
-	// handle anomaly detections
-	if !p.config.RuntimeSecurity.SecurityProfileV2Enabled {
-		if event.IsAnomalyDetectionEvent() {
-			var workloadID containerutils.WorkloadID
-			var imageTag string
-
-			if !event.ProcessContext.Process.ContainerContext.IsNull() {
-				workloadID = event.ProcessContext.Process.ContainerContext.ContainerID
-				imageTag = utils.GetTagValue("image_tag", event.ProcessContext.Process.ContainerContext.Tags)
-			} else if event.ProcessContext.Process.CGroup.IsResolved() {
-				workloadID = event.ProcessContext.Process.CGroup.CGroupID
-				tags, err := p.Resolvers.TagsResolver.ResolveWithErr(workloadID)
-				if err != nil {
-					seclog.Errorf("failed to resolve tags for cgroup %s: %v", workloadID, err)
-					return
-				}
-				imageTag = utils.GetTagValue("version", tags)
-			}
-
-			if workloadID != nil {
-				p.profileManager.FillProfileContextFromWorkloadID(workloadID, &event.SecurityProfileContext, imageTag)
-			}
-
-			if p.config.RuntimeSecurity.AnomalyDetectionEnabled {
-				p.sendAnomalyDetection(event)
-			}
-		} else if event.Error == nil {
-			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
-			p.profileManager.ProcessEvent(event)
-		}
-	} else if event.Error == nil {
+	if event.Error == nil {
 		p.profileManager.ProcessEvent(event)
 	}
 
@@ -1462,13 +1413,7 @@ func (p *EBPFProbe) unmarshalProcessCacheEntry(ev *model.Event, data []byte) (in
 	return n, nil
 }
 
-func (p *EBPFProbe) onEventLost(_ string, perEvent map[string]uint64) {
-	// snapshot traced cgroups if a CgroupTracing event was lost
-	if p.probe.IsActivityDumpEnabled() && perEvent[model.CgroupTracingEventType.String()] > 0 {
-		if p.profileManager != nil {
-			p.profileManager.SyncTracedCgroups()
-		}
-	}
+func (p *EBPFProbe) onEventLost(_ string, _ map[string]uint64) {
 }
 
 func (p *EBPFProbe) triggerNopEvent() error {
@@ -2345,28 +2290,6 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		p.Resolvers.ProcessResolver.UpdateArgsEnvs(&event.ArgsEnvs)
 		return false
-	case model.CgroupTracingEventType:
-		if !p.config.RuntimeSecurity.ActivityDumpEnabled {
-			seclog.Errorf("shouldn't receive Cgroup event if activity dumps are disabled")
-			return false
-		}
-		if !p.regularUnmarshalEvent(&event.CgroupTracing, eventType, offset, dataLen, data) {
-			return false
-		}
-
-		cacheEntry := p.Resolvers.CGroupResolver.GetCacheEntryByInode(event.CgroupTracing.CGroupContext.CGroupPathKey.Inode)
-		if cacheEntry == nil {
-			seclog.Debugf("failed to resolve cgroup: %+v", event.CgroupTracing.CGroupContext.CGroupPathKey)
-			return false
-		}
-
-		event.CgroupTracing.CGroupContext = cacheEntry.GetCGroupContext()
-		event.CgroupTracing.ContainerContext = cacheEntry.GetContainerContext()
-
-		if p.profileManager != nil {
-			p.profileManager.HandleCGroupTracingEvent(&event.CgroupTracing)
-		}
-		return false
 	case model.UnshareMountNsEventType:
 		if _, err = event.UnshareMountNS.UnmarshalBinary(data[offset:]); err != nil {
 			seclog.Errorf("failed to decode unshare mnt ns event: %s (offset %d, len %d)", err, offset, dataLen)
@@ -2632,31 +2555,7 @@ func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Appro
 	return nil
 }
 
-func (p *EBPFProbe) isNeededForActivityDump(eventType eval.EventType) bool {
-	if p.config.RuntimeSecurity.ActivityDumpEnabled {
-		for _, e := range p.config.RuntimeSecurity.ActivityDumpTracedEventTypes {
-			if e.String() == eventType {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-// isSyscallMonitorEnabled reports whether activity dumps or syscall drift detection consume raw syscalls
-func (p *EBPFProbe) isSyscallMonitorEnabled() bool {
-	return (p.config.RuntimeSecurity.ActivityDumpEnabled && slices.Contains(p.config.RuntimeSecurity.ActivityDumpTracedEventTypes, model.SyscallsEventType)) ||
-		(p.config.RuntimeSecurity.AnomalyDetectionEnabled && slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType))
-}
-
 func (p *EBPFProbe) isNeededForSecurityProfile(eventType eval.EventType) bool {
-	if p.config.RuntimeSecurity.SecurityProfileEnabled {
-		for _, e := range p.config.RuntimeSecurity.AnomalyDetectionEventTypes {
-			if e.String() == eventType {
-				return true
-			}
-		}
-	}
 	if p.config.RuntimeSecurity.SecurityProfileV2Enabled {
 		for _, e := range p.config.RuntimeSecurity.SecurityProfileV2EventTypes {
 			if e.String() == eventType {
@@ -2733,7 +2632,6 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	// extract probe to activate per the event types
 	for eventType, selectors := range probes.GetSelectorsPerEventType(p.useFentry, p.kernelVersion.HaveIOURing()) {
 		if (eventType == "*" || slices.Contains(requestedEventTypes, eventType) ||
-			p.isNeededForActivityDump(eventType) ||
 			p.isNeededForSecurityProfile(eventType) ||
 			p.isNeededForEventSampling(eventType) ||
 			p.config.Probe.EnableAllProbes) && p.validEventTypeForConfig(eventType) {
@@ -2762,7 +2660,7 @@ func (p *EBPFProbe) updateProbes(ruleSetEventTypes []eval.EventType, needRawSysc
 	}
 
 	// Attach raw_syscalls tracepoints once when any consumer needs them.
-	if needRawSyscalls || p.isSyscallMonitorEnabled() {
+	if needRawSyscalls {
 		activatedProbes = append(activatedProbes, probes.SyscallMonitorSelectors()...)
 	}
 	if p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
@@ -3113,8 +3011,7 @@ func (p *EBPFProbe) ApplyRuleSet(rs *rules.RuleSet) (*kfilters.FilterReport, boo
 
 	eventTypes := rs.GetEventTypes()
 
-	// activity dump & security profiles
-	needRawSyscalls := p.isNeededForActivityDump(model.SyscallsEventType.String())
+	var needRawSyscalls bool
 
 	// kill action
 	if p.config.RuntimeSecurity.EnforcementEnabled && isKillActionPresent(rs) {
@@ -3276,8 +3173,6 @@ func (p *EBPFProbe) initManagerOptionsTailCalls() {
 
 // initManagerOptionsConstants initiatilizes the eBPF manager constants
 func (p *EBPFProbe) initManagerOptionsConstants() {
-	areCGroupADsEnabled := p.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount > 0
-
 	// Add global constant editors
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, constantfetch.CreateConstantEditors(p.constantOffsets)...)
 	p.managerOptions.ConstantEditors = append(p.managerOptions.ConstantEditors, DiscarderConstants...)
@@ -3352,16 +3247,8 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 			Value: getCheckHelperCallInputType(p.kernelVersion),
 		},
 		manager.ConstantEditor{
-			Name:  "cgroup_activity_dumps_enabled",
-			Value: utils.BoolTouint64(p.config.RuntimeSecurity.ActivityDumpEnabled && areCGroupADsEnabled),
-		},
-		manager.ConstantEditor{
 			Name:  "net_struct_type",
 			Value: getNetStructType(p.kernelVersion),
-		},
-		manager.ConstantEditor{
-			Name:  "syscall_monitor_event_period",
-			Value: uint64(p.config.RuntimeSecurity.ActivityDumpSyscallMonitorPeriod.Nanoseconds()),
 		},
 		manager.ConstantEditor{
 			Name:  "network_monitor_period",
@@ -3386,14 +3273,6 @@ func (p *EBPFProbe) initManagerOptionsConstants() {
 		manager.ConstantEditor{
 			Name:  "send_signal",
 			Value: utils.BoolTouint64(p.kernelVersion.SupportBPFSendSignal()),
-		},
-		manager.ConstantEditor{
-			Name:  "anomaly_syscalls",
-			Value: utils.BoolTouint64(slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType)),
-		},
-		manager.ConstantEditor{
-			Name:  "syscall_monitor_enabled",
-			Value: utils.BoolTouint64(p.isSyscallMonitorEnabled()),
 		},
 		manager.ConstantEditor{
 			Name:  "raw_syscall_kill_enabled",
@@ -3607,20 +3486,17 @@ func (p *EBPFProbe) IsSkLookupPidResolutionSupported() bool {
 // initManagerOptionsMaps initializes the eBPF manager map spec editors and map reader startup
 func (p *EBPFProbe) initManagerOptionsMapSpecEditors() {
 	opts := probes.MapSpecEditorOpts{
-		TracedCgroupSize:              p.config.RuntimeSecurity.ActivityDumpTracedCgroupsCount,
 		UseRingBuffers:                p.useRingBuffers,
 		UseMmapableMaps:               p.useMmapableMaps,
 		UseSyscallTaskStorage:         p.useSyscallTaskStorage,
 		RingBufferSize:                uint32(p.config.Probe.EventStreamBufferSize),
 		PathResolutionEnabled:         p.probe.Opts.PathResolutionEnabled,
-		SecurityProfileMaxCount:       p.config.RuntimeSecurity.SecurityProfileMaxCount,
 		NetworkFlowMonitorEnabled:     p.config.Probe.NetworkFlowMonitorEnabled,
 		NetworkSkStorageEnabled:       p.isSKStorageSupported(),
 		NetworkSkLookupPidEnabled:     p.config.Probe.NetworkSkLookupPidResolutionEnabled,
 		SpanTrackMaxCount:             1,
 		CapabilitiesMonitoringEnabled: p.config.Probe.CapabilitiesMonitoringEnabled,
 		CgroupSocketEnabled:           p.kernelVersion.HasBpfGetSocketCookieForCgroupSocket(),
-		SecurityProfileSyscallAnomaly: slices.Contains(p.config.RuntimeSecurity.AnomalyDetectionEventTypes, model.SyscallsEventType),
 		EventSamplingOpenEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.FileOpenEventType),
 		EventSamplingBindEnabled:      p.config.RuntimeSecurity.EventSamplingEnabledFor(model.BindEventType),
 		EventSamplingConnectEnabled:   p.config.RuntimeSecurity.EventSamplingEnabledFor(model.ConnectEventType),
@@ -3707,10 +3583,6 @@ func (p *EBPFProbe) initManagerOptionsExcludedFunctions() error {
 
 // initManagerOptionsActivatedProbes initializes the eBPF manager activated probes options
 func (p *EBPFProbe) initManagerOptionsActivatedProbes() {
-	// Attach raw_syscalls tracepoints once when any consumer needs them.
-	if p.isSyscallMonitorEnabled() {
-		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallMonitorSelectors()...)
-	}
 	if p.config.RuntimeSecurity.SecurityProfileV2EnabledFor(model.SyscallsEventType) {
 		p.managerOptions.ActivatedProbes = append(p.managerOptions.ActivatedProbes, probes.SyscallUsageSelectors()...)
 	}

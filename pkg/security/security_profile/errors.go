@@ -10,8 +10,5 @@ package securityprofile
 
 import "errors"
 
-// ErrActivityDumpManagerDisabled is returned when the activity dump manager is disabled
-var ErrActivityDumpManagerDisabled = errors.New("ActivityDumpManager is disabled")
-
 // ErrSecurityProfileManagerDisabled is returned when the security profile manager is disabled
 var ErrSecurityProfileManagerDisabled = errors.New("SecurityProfileManager is disabled")

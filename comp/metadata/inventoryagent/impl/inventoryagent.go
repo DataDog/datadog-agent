@@ -252,7 +252,7 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	// Cloud Workload Security / system-probe
 
 	ia.data.Set("feature_cws_enabled", sysProbeConf.GetBool("runtime_security_config.enabled"))
-	ia.data.Set("feature_cws_security_profiles_enabled", sysProbeConf.GetBool("runtime_security_config.activity_dump.enabled"))
+	ia.data.Set("feature_cws_security_profiles_enabled", sysProbeConf.GetBool("runtime_security_config.security_profile.v2.enabled"))
 	ia.data.Set("feature_cws_remote_config_enabled", sysProbeConf.GetBool("runtime_security_config.remote_configuration.enabled"))
 	ia.data.Set("feature_cws_network_enabled", sysProbeConf.GetBool("event_monitoring_config.network.enabled"))
 

@@ -69,58 +69,24 @@ properties:
     node_type: section
     type: object
     visibility: public
-    description: Activity dump section configures if/how the Agent sends activity
-      dumps to Datadog
+    description: Activity dump section configures if/how the Agent persists security
+      profiles
     tags: []
     properties:
-      enabled:
-        node_type: setting
-        type: boolean
-        default: true
-        visibility: public
-        description: Set to true to activate the security profiles feature.
-      traced_cgroups_count:
-        node_type: setting
-        type: integer
-        default: 5
-        visibility: public
-        description: Defines the number of concurrent cgroups to be traced.
       dump_duration:
         node_type: setting
         type: string
         default: 900s
         visibility: public
-        description: Defines the duration of cgroups learning phase. Minimum value
-          is 10m.
+        description: Defines the interval at which active security profiles are persisted
+          to local or remote storage.
         example: 30m
-      auto_suppression:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
       cgroup_differentiate_args:
         node_type: setting
         type: boolean
         default: false
-      cgroup_dump_timeout:
-        node_type: setting
-        type: integer
-        default: 900
-      cgroup_wait_list_timeout:
-        node_type: setting
-        type: string
-        default: 4500s
-      cleanup_period:
-        node_type: setting
-        type: string
-        default: 30s
-      load_controller_period:
-        node_type: setting
-        type: string
-        default: 60s
+        description: Defines if process nodes in security profiles should be differentiated
+          using process arguments.
       local_storage:
         node_type: section
         type: object
@@ -129,6 +95,8 @@ properties:
             node_type: setting
             type: boolean
             default: false
+            description: Defines if the local storage should compress persisted security
+              profiles.
           formats:
             node_type: setting
             type: array
@@ -136,82 +104,25 @@ properties:
             - profile
             items:
               type: string
+            description: Defines the formats that should be used to persist security
+              profiles locally.
           max_dumps_count:
             node_type: setting
             type: integer
             default: 100
+            description: Defines the maximum count of security profiles that should
+              be kept locally.
           output_directory:
             node_type: setting
             type: string
             default: ${run_path}/runtime-security/profiles
-      max_dump_count_per_workload:
-        node_type: setting
-        type: integer
-        default: 25
-      max_dump_size:
-        node_type: setting
-        type: integer
-        default: 1750
-      min_timeout:
-        node_type: setting
-        type: string
-        default: 10m
-      rate_limiter:
-        node_type: setting
-        type: integer
-        default: 500
-      silent_workloads:
-        node_type: section
-        type: object
-        properties:
-          delay:
-            node_type: setting
-            type: string
-            default: 10s
-          ticker:
-            node_type: setting
-            type: string
-            default: 10s
-      syscall_monitor:
-        node_type: section
-        type: object
-        properties:
-          period:
-            node_type: setting
-            type: string
-            default: 60s
-      tag_rules:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
-      tags_resolution_period:
-        node_type: setting
-        type: string
-        default: 60s
+            description: Defines the output directory for persisted security profiles
+              and graphs.
       trace_systemd_cgroups:
         node_type: setting
         type: boolean
         default: false
-      traced_event_types:
-        node_type: setting
-        type: array
-        default:
-        - exec
-        - open
-        - dns
-        - imds
-        items:
-          type: string
-      workload_deny_list:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
+        description: Defines if systemd cgroups should be profiled.
   cmd_socket:
     node_type: setting
     type: string
@@ -597,33 +508,10 @@ properties:
         node_type: section
         type: object
         properties:
-          default_minimum_stable_period:
-            node_type: setting
-            type: string
-            default: 900s
           enabled:
             node_type: setting
             type: boolean
             default: true
-          event_types:
-            node_type: setting
-            type: array
-            default:
-            - exec
-            items:
-              type: string
-          minimum_stable_period:
-            node_type: section
-            type: object
-            properties:
-              dns:
-                node_type: setting
-                type: string
-                default: 900s
-              exec:
-                node_type: setting
-                type: string
-                default: 900s
           rate_limiter:
             node_type: section
             type: object
@@ -640,14 +528,6 @@ properties:
                 node_type: setting
                 type: string
                 default: 1s
-          silent_rule_events:
-            node_type: section
-            type: object
-            properties:
-              enabled:
-                node_type: setting
-                type: boolean
-                default: false
           tag_rules:
             node_type: section
             type: object
@@ -656,63 +536,18 @@ properties:
                 node_type: setting
                 type: boolean
                 default: true
-          unstable_profile_size_threshold:
-            node_type: setting
-            type: integer
-            default: 5000000
-          unstable_profile_time_threshold:
-            node_type: setting
-            type: string
-            default: 1h
-          workload_warmup_period:
-            node_type: setting
-            type: string
-            default: 180s
-      auto_suppression:
-        node_type: section
-        type: object
-        properties:
-          enabled:
-            node_type: setting
-            type: boolean
-            default: true
-          event_types:
-            node_type: setting
-            type: array
-            default:
-            - exec
-            - dns
-            items:
-              type: string
-      cache_size:
-        node_type: setting
-        type: integer
-        default: 10
-      dir:
-        node_type: setting
-        type: string
-        default: ${run_path}/runtime-security/profiles
       dns_match_max_depth:
         node_type: setting
         type: integer
         default: 3
-      enabled:
-        node_type: setting
-        type: boolean
-        default: true
-      max_count:
-        node_type: setting
-        type: integer
-        default: 400
       max_image_tags:
         node_type: setting
         type: integer
         default: 20
         description: |
-          Maximum number of image tag versions retained per security profile,
-          for both v1 and v2. The least recently seen version and its exclusive
-          activities are evicted when the limit is exceeded. Values below 1
-          are treated as 1.
+          Maximum number of image tag versions retained per security profile.
+          The least recently seen version and its exclusive activities are
+          evicted when the limit is exceeded. Values below 1 are treated as 1.
       node_eviction_timeout:
         node_type: setting
         type: string
@@ -863,10 +698,6 @@ properties:
                 description: |
                   Maximum number of events per workload held while waiting for
                   its tags to be resolved.
-      watch_dir:
-        node_type: setting
-        type: boolean
-        default: true
   self_test:
     node_type: section
     type: object

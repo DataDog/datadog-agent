@@ -154,7 +154,6 @@ type Event struct {
 	InvalidateDentry InvalidateDentryEvent `field:"-"`
 	ArgsEnvs         ArgsEnvsEvent         `field:"-"`
 	MountReleased    MountReleasedEvent    `field:"-"`
-	CgroupTracing    CgroupTracingEvent    `field:"-"`
 	NetDevice        NetDeviceEvent        `field:"-"`
 	VethPair         VethPairEvent         `field:"-"`
 	UnshareMountNS   UnshareMountNSEvent   `field:"-"`
@@ -886,31 +885,11 @@ type SpliceEvent struct {
 	PipeExitFlag  uint32    `field:"pipe_exit_flag"`  // SECLDoc[pipe_exit_flag] Definition:`Exit flag of the "fd_out" pipe passed to the splice syscall` Constants:`Pipe buffer flags`
 }
 
-// CgroupTracingEvent is used to signal that a new cgroup should be traced by the activity dump manager
-type CgroupTracingEvent struct {
-	ContainerContext ContainerContext
-	CGroupContext    CGroupContext
-	Config           ActivityDumpLoadConfig
-	Pid              uint32
-	ConfigCookie     uint64
-}
-
 // CgroupWriteEvent is used to signal that a new cgroup was created
 type CgroupWriteEvent struct {
 	File   FileEvent `field:"file"` // File pointing to the cgroup
 	Pid    uint32    `field:"pid"`  // SECLDoc[pid] Definition:`PID of the process added to the cgroup`
 	Retval int32     `field:"-"`
-}
-
-// ActivityDumpLoadConfig represents the load configuration of an activity dump
-type ActivityDumpLoadConfig struct {
-	TracedEventTypes     []EventType
-	Timeout              time.Duration
-	WaitListTimestampRaw uint64
-	StartTimestampRaw    uint64
-	EndTimestampRaw      uint64
-	Rate                 uint16 // max number of events per sec
-	Paused               uint32
 }
 
 // NetworkDeviceContext represents the network device context of a network event

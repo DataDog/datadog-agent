@@ -88,21 +88,8 @@ func (a *APIServer) DumpProcessCache(_ context.Context, params *api.DumpProcessC
 }
 
 // DumpActivity handles an activity dump request
-func (a *APIServer) DumpActivity(_ context.Context, params *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
-	p, ok := a.probe.PlatformProbe.(*probe.EBPFProbe)
-	if !ok {
-		return nil, errors.New("not supported")
-	}
-
-	if manager := p.GetProfileManager(); manager != nil {
-		msg, err := manager.DumpActivity(params)
-		if err != nil {
-			seclog.Errorf("%s", err.Error())
-		}
-		return msg, nil
-	}
-
-	return nil, errors.New("monitor not configured")
+func (a *APIServer) DumpActivity(_ context.Context, _ *api.ActivityDumpParams) (*api.ActivityDumpMessage, error) {
+	return nil, errors.New("not supported")
 }
 
 // ListActivityDumps returns the list of active dumps

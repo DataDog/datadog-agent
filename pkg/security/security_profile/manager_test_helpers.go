@@ -11,13 +11,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 )
 
-// NewTestManager creates a minimal Manager suitable for testing.
-// All feature-gated methods (LookupEventInProfiles, HasActiveActivityDump,
-// ProcessEvent, HandleCGroupTracingEvent, SyncTracedCgroups,
-// FillProfileContextFromWorkloadID) check their respective config flags
-// (SecurityProfileEnabled, ActivityDumpEnabled) and return early when disabled.
-func NewTestManager(cfg *config.Config) *Manager {
-	return &Manager{
+// NewTestManager creates a minimal ManagerV2 suitable for testing.
+func NewTestManager(cfg *config.Config) *ManagerV2 {
+	return &ManagerV2{
 		config: cfg,
 	}
 }

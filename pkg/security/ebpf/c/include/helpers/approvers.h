@@ -852,23 +852,6 @@ static enum SYSCALL_STATE __attribute__((always_inline)) approve_syscall_with_tg
         monitor_event_rejected(syscall->type);
     }
 
-    u64 *cookie = bpf_map_lookup_elem(&traced_pids, &tgid);
-    if (cookie != NULL) {
-        u64 now = bpf_ktime_get_ns();
-        struct activity_dump_config *config = lookup_or_delete_traced_pid(tgid, now, cookie);
-        if (config != NULL) {
-            // is this event type traced ?
-            if (mask_has_event(config->event_mask, syscall->type) && activity_dump_rate_limiter_allow(config->events_rate, *cookie, now, 0)) {
-                if (syscall->state == DISCARDED) {
-                    syscall->resolver.flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
-                }
-
-                // force to be accepted as this event will be part of a dump
-                syscall->state = ACCEPTED;
-            }
-        }
-    }
-
     if (syscall->state == SAMPLED) {
         syscall->resolver.flags |= RESOLVER_FLAG_SAVED_BY_ACTIVITY_DUMP;
 

@@ -24,7 +24,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	activity_tree "github.com/DataDog/datadog-agent/pkg/security/security_profile/activity_tree"
-	"github.com/DataDog/datadog-agent/pkg/security/security_profile/dump"
 	"github.com/DataDog/datadog-agent/pkg/security/security_profile/profile"
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
@@ -49,20 +48,6 @@ type testIteration struct {
 	resultNewProcessNode  bool
 	resultErr             error
 	resultTree            map[string][]string
-}
-
-type treeType int
-
-const (
-	dumpTree treeType = iota
-	profileTree
-)
-
-func (tt treeType) String() string {
-	if tt == dumpTree {
-		return "dump"
-	}
-	return "profile"
 }
 
 func matchResultTree(at *activity_tree.ActivityTree, toMatch map[string][]string) bool {
@@ -647,84 +632,63 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 		},
 	}
 
-	treeSavedStates := map[treeType]map[activity_tree.NodeGenerationType]*activity_tree.ActivityTree{
-		profileTree: {
-			activity_tree.Unknown:        nil,
-			activity_tree.Runtime:        nil,
-			activity_tree.Snapshot:       nil,
-			activity_tree.ProfileDrift:   nil,
-			activity_tree.WorkloadWarmup: nil,
-		},
-		dumpTree: {
-			activity_tree.Unknown:        nil,
-			activity_tree.Runtime:        nil,
-			activity_tree.Snapshot:       nil,
-			activity_tree.ProfileDrift:   nil,
-			activity_tree.WorkloadWarmup: nil,
-		},
+	treeSavedStates := map[activity_tree.NodeGenerationType]*activity_tree.ActivityTree{
+		activity_tree.Unknown:        nil,
+		activity_tree.Runtime:        nil,
+		activity_tree.Snapshot:       nil,
+		activity_tree.ProfileDrift:   nil,
+		activity_tree.WorkloadWarmup: nil,
 	}
 	var at *activity_tree.ActivityTree
 
 	for _, ti := range tests {
+		for _, gentype := range []activity_tree.NodeGenerationType{activity_tree.Unknown, activity_tree.Runtime, activity_tree.Snapshot, activity_tree.ProfileDrift, activity_tree.WorkloadWarmup} {
+			for _, dryRun := range []bool{true, false} { // dry-run have to be run first as we may retrieve previous saved state
+				testName := ti.testName + "/" + gentype.String() + "/profile"
+				if dryRun {
+					testName += "-dryrun"
+				}
 
-		// for each test we run a 3D matrix for tree type (profile or dump), generation type (Unknown, Runtime, Snapshot, ProfileDrift or WorkloadWarmup) and dry-run (with or without)
-		for _, tt := range []treeType{profileTree, dumpTree} {
-			for _, gentype := range []activity_tree.NodeGenerationType{activity_tree.Unknown, activity_tree.Runtime, activity_tree.Snapshot, activity_tree.ProfileDrift, activity_tree.WorkloadWarmup} {
-				for _, dryRun := range []bool{true, false} { // dry-run have to be run first as we may retrieve previous saved state
-					testName := ti.testName
-					testName += "/" + gentype.String()
-					testName += "/" + tt.String()
-					if dryRun {
-						testName += "-dryrun"
+				t.Run(testName, func(t *testing.T) {
+					if ti.resetActivityTree {
+						contID := defaultContainerID
+						if ti.differentContainerID {
+							contID = defaultContainerID2
+						}
+
+						p := profile.New(
+							profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}),
+							profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
+						)
+						at = activity_tree.NewActivityTree(p, nil, "profile")
+						p.ActivityTree = at
+						cgce := cgroupModel.NewCacheEntry(model.ContainerContext{ContainerID: containerutils.ContainerID(contID)}, model.CGroupContext{CGroupID: containerutils.CGroupID(contID)}, 0)
+						p.Instances = append(p.Instances, &tags.Workload{
+							GCroupCacheEntry: cgce,
+							Selector:         cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
+						})
+					} else { // retrieve last saved tree state
+						at = treeSavedStates[gentype]
 					}
 
-					t.Run(testName, func(t *testing.T) {
-						if ti.resetActivityTree {
-							contID := defaultContainerID
-							if ti.differentContainerID {
-								contID = defaultContainerID2
-							}
+					process := craftFakeProcess(defaultContainerID, &ti)
 
-							if tt == dumpTree {
-								dump := dump.NewEmptyActivityDump(nil, false, 0, nil, func(_ *dump.ActivityDump, _ uint32) {})
-								dump.Profile.Metadata.ContainerID = containerutils.ContainerID(contID)
-								at = dump.Profile.ActivityTree
-							} else /* profileTree */ {
-								profile := profile.New(
-									profile.WithWorkloadSelector(cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"}),
-									profile.WithEventTypes([]model.EventType{model.ExecEventType, model.DNSEventType}),
-								)
-								at = activity_tree.NewActivityTree(profile, nil, "profile")
-								profile.ActivityTree = at
-								cgce := cgroupModel.NewCacheEntry(model.ContainerContext{ContainerID: containerutils.ContainerID(contID)}, model.CGroupContext{CGroupID: containerutils.CGroupID(contID)}, 0)
-								profile.Instances = append(profile.Instances, &tags.Workload{
-									GCroupCacheEntry: cgce,
-									Selector:         cgroupModel.WorkloadSelector{Image: "image", Tag: "tag"},
-								})
-							}
-						} else { // retrieve last saved tree state
-							at = treeSavedStates[tt][gentype]
+					node, newProcessNode, err := at.CreateProcessNode(process, "tag", gentype, dryRun, nil)
+
+					assert.Equal(t, ti.resultErr, err)
+					assert.Equal(t, ti.resultNewProcessNode, newProcessNode)
+					if dryRun == false { // only check the returned node if dryRun is false
+						assert.Equal(t, ti.resultNodeShouldBeNil, node == nil)
+						if !matchResultTree(at, ti.resultTree) {
+							t.Error("result tree did not match")
 						}
+					}
 
-						process := craftFakeProcess(defaultContainerID, &ti)
-
-						node, newProcessNode, err := at.CreateProcessNode(process, "tag", gentype, dryRun, nil)
-
-						assert.Equal(t, ti.resultErr, err)
-						assert.Equal(t, ti.resultNewProcessNode, newProcessNode)
-						if dryRun == false { // only check the returned node if dryRun is false
-							assert.Equal(t, ti.resultNodeShouldBeNil, node == nil)
-							if !matchResultTree(at, ti.resultTree) {
-								t.Error("result tree did not match")
-							}
-						}
-
-						// Save activity tree state for next tests if needed
-						if !dryRun {
-							treeSavedStates[tt][gentype] = at
-						}
-					})
-				}
+					// Save activity tree state for next tests if needed
+					if !dryRun {
+						treeSavedStates[gentype] = at
+					}
+				})
 			}
 		}
 	}
@@ -756,11 +720,11 @@ func TestActivityTree_InsertExecEvents(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		adInputTree := dump.NewEmptyActivityDump(nil, false, 0, nil, func(_ *dump.ActivityDump, _ uint32) {})
-		adInputTree.Profile.Decode(path.Join(sharedTestSuiteDir, test+"_input_tree.json"))
+		profInputTree := profile.New()
+		profInputTree.Decode(path.Join(sharedTestSuiteDir, test+"_input_tree.json"))
 
-		adWantedTree := dump.NewEmptyActivityDump(nil, false, 0, nil, func(_ *dump.ActivityDump, _ uint32) {})
-		adWantedTree.Profile.Decode(path.Join(sharedTestSuiteDir, test+"_wanted_tree.json"))
+		profWantedTree := profile.New()
+		profWantedTree.Decode(path.Join(sharedTestSuiteDir, test+"_wanted_tree.json"))
 
 		inputEvent, err := serializers.DecodeEvent(path.Join(sharedTestSuiteDir, test+"_input_event.json"))
 		if err != nil {
@@ -769,18 +733,23 @@ func TestActivityTree_InsertExecEvents(t *testing.T) {
 			t.Fatal(errors.New("Empty event"))
 		}
 
+		cgce := cgroupModel.NewCacheEntry(inputEvent.ProcessCacheEntry.ContainerContext, inputEvent.ProcessCacheEntry.CGroup, 0)
+		profInputTree.Instances = append(profInputTree.Instances, &tags.Workload{
+			GCroupCacheEntry: cgce,
+		})
+
 		t.Run(test, func(t *testing.T) {
-			_, _, err := adInputTree.Profile.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, "tag", activity_tree.Runtime, false, nil)
+			_, _, err := profInputTree.ActivityTree.CreateProcessNode(inputEvent.ProcessCacheEntry, "tag", activity_tree.Runtime, false, nil)
 			if err != nil {
 				t.Fatal(err)
 			}
 
 			var builder strings.Builder
-			adInputTree.Profile.ActivityTree.Debug(&builder)
+			profInputTree.ActivityTree.Debug(&builder)
 			result := strings.TrimSpace(builder.String())
 
 			builder.Reset()
-			adWantedTree.Profile.ActivityTree.Debug(&builder)
+			profWantedTree.ActivityTree.Debug(&builder)
 			wantedResult := strings.TrimSpace(builder.String())
 
 			assert.Equalf(t, wantedResult, result, "the generated tree didn't match the expected output")
