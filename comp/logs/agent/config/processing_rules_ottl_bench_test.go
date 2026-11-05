@@ -195,3 +195,40 @@ func BenchmarkOTTLValidation(b *testing.B) {
 		})
 	}
 }
+
+// BenchmarkOTTLMasking includes parsing, all field writes, and final encoding.
+// Each rule edits a different field, so the whole document need only be encoded
+// once. Compilation and constructing the input are outside the timed loop.
+func BenchmarkOTTLMasking(b *testing.B) {
+	for _, count := range []int{1, 5, 20} {
+		b.Run(fmt.Sprintf("rules=%d", count), func(b *testing.B) {
+			var input strings.Builder
+			input.WriteString(`{"padding":"` + strings.Repeat("x", 2048) + `"`)
+			statements := make([]*OTTLStatement, count)
+			for i := range statements {
+				fmt.Fprintf(&input, `,"field%d":"secret"`, i)
+				var err error
+				statements[i], err = compileOTTLMaskStatement(fmt.Sprintf(`set(attributes["field%d"], "***")`, i))
+				if err != nil {
+					b.Fatal(err)
+				}
+			}
+			input.WriteByte('}')
+			content := []byte(input.String())
+			b.ReportAllocs()
+			b.SetBytes(int64(len(content)))
+			b.ResetTimer()
+			for b.Loop() {
+				c := AcquireOTTLContext(content)
+				for _, statement := range statements {
+					changed, err := c.ApplyMask(context.Background(), statement)
+					if err != nil || !changed {
+						b.Fatalf("changed=%v err=%v", changed, err)
+					}
+				}
+				_ = c.Content()
+				ReleaseOTTLContext(c)
+			}
+		})
+	}
+}

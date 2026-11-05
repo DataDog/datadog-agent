@@ -143,3 +143,87 @@ func TestSyncProcessorOTTLProcessingRules(t *testing.T) {
 		})
 	}
 }
+
+func TestOTTLMaskProcessingRuleOrder(t *testing.T) {
+	global := []*config.ProcessingRule{
+		{Type: config.MaskOTTLTransform, Name: "global_mask", Pattern: `set(attributes["credentials"]["password"], "***")`},
+		{Type: config.IncludeAtMatchOTTL, Name: "read_mask", Pattern: `attributes["credentials"]["password"] == "***"`},
+	}
+	local := []*config.ProcessingRule{
+		{Type: config.MaskSequences, Name: "legacy_mask", Pattern: `\*\*\*`, ReplacePlaceholder: "redacted"},
+		{Type: config.MaskOTTLTransform, Name: "source_mask", Pattern: `replace_pattern(attributes["message"], "token", "safe")`},
+		{Type: config.IncludeAtMatch, Name: "legacy_filter", Pattern: `"message":"safe"`},
+		{Type: config.IncludeAtMatchOTTL, Name: "read_both", Pattern: `attributes["credentials"]["password"] == "redacted" and attributes["message"] == "safe"`},
+	}
+	require.NoError(t, config.CompileProcessingRules(global))
+	require.NoError(t, config.CompileProcessingRules(local))
+	input := `{"credentials":{"password":"secret"},"message":"token"}`
+	output := `{"credentials":{"password":"redacted"},"message":"safe"}`
+
+	for _, mode := range []string{"unstructured", "structured", "synchronous"} {
+		t.Run(mode, func(t *testing.T) {
+			source := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: local})
+			msg := newMessage([]byte(input), source, "")
+			if mode == "structured" {
+				msg = newStructuredMessage([]byte(input), source, "")
+			}
+			if mode == "synchronous" {
+				keep, err := NewSyncProcessor(global, JSONEncoder, nil).Process(msg)
+				require.NoError(t, err)
+				require.True(t, keep)
+				var encoded encodedLog
+				require.NoError(t, json.Unmarshal(msg.GetContent(), &encoded))
+				require.Equal(t, output, encoded.Message)
+			} else {
+				require.True(t, (&Processor{processingRules: global}).applyRedactingRules(msg))
+				require.Equal(t, output, string(msg.GetContent()))
+			}
+			for _, rule := range append(append([]*config.ProcessingRule{}, global...), local...) {
+				require.EqualValues(t, 1, source.ProcessingInfo.GetCount(rule.Type+":"+rule.Name))
+			}
+		})
+	}
+}
+
+func TestOTTLMaskProcessingErrors(t *testing.T) {
+	for _, test := range []struct {
+		name, pattern, input, output string
+		keep, recorded               bool
+	}{
+		{"malformed JSON drops", `set(attributes["password"], "***")`, "not JSON", "", false, true},
+		{"failed where drops", `set(body, "***") where attributes["env"] == "prod"`, "not JSON", "", false, true},
+		{"invalid array index drops", `set(attributes["items"][1], "***")`, `{"items":[]}`, "", false, true},
+		{"raw body masks", `replace_pattern(body, "secret", "***")`, "secret text", "*** text", true, true},
+		{"no match", `replace_pattern(attributes["message"], "secret", "***")`, ` { "message": "safe" } `, ` { "message": "safe" } `, true, false},
+		{"false condition", `set(attributes["message"], "***") where false`, ` { "message": "secret" } `, ` { "message": "secret" } `, true, false},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			rules := []*config.ProcessingRule{{Name: "mask", Type: config.MaskOTTLTransform, Pattern: test.pattern}}
+			require.NoError(t, config.CompileProcessingRules(rules))
+			for _, synchronous := range []bool{false, true} {
+				source := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: rules})
+				msg := newMessage([]byte(test.input), source, "")
+				if synchronous {
+					keep, err := NewSyncProcessor(nil, JSONEncoder, nil).Process(msg)
+					require.NoError(t, err)
+					require.Equal(t, test.keep, keep)
+					if keep {
+						var encoded encodedLog
+						require.NoError(t, json.Unmarshal(msg.GetContent(), &encoded))
+						require.Equal(t, test.output, encoded.Message)
+					}
+				} else {
+					require.Equal(t, test.keep, (&Processor{}).applyRedactingRules(msg))
+					if test.keep {
+						require.Equal(t, test.output, string(msg.GetContent()))
+					}
+				}
+				expected := 0
+				if test.recorded {
+					expected = 1
+				}
+				require.EqualValues(t, expected, source.ProcessingInfo.GetCount(config.MaskOTTLTransform+":mask"))
+			}
+		})
+	}
+}
