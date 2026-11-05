@@ -287,8 +287,8 @@
   "moduleExtensions": {
     "//bazel/toolchains/llvm_bpf:llvm_bpf_configure.bzl%llvm_bpf_extension": {
       "general": {
-        "bzlTransitiveDigest": "eOYXODssdQNOf4X8CCImpZYvyFCF/VqCz/43DBjJieA=",
-        "usagesDigest": "lBRxCKYy9X03c4jyF/C6hWEAf+24zs/m6M/bS7BVXQU=",
+        "bzlTransitiveDigest": "wHUgbCWuQdCue2hZCzP9VmcwaHZRV0N0FUKiafhju0Y=",
+        "usagesDigest": "4kw0eF8/TH5vbIHdAlyms3D6zWCp+MIB6BPECjah9I4=",
         "recordedInputs": [],
         "generatedRepoSpecs": {
           "llvm_bpf": {
@@ -296,14 +296,14 @@
             "attributes": {
               "s3_base_url": "https://dd-agent-omnibus.s3.amazonaws.com/llvm",
               "clang_version": "12.0.1",
-              "clang_build_version": "v60409452-ee70de70",
+              "clang_build_version": "v150220922-61ce1181",
               "sha256s": {
-                "clang.amd64": "2a4df4c49a57efb33ec4e51f87f837bc80f3a5874a5828384f265541a018394e",
-                "clang.arm64": "5432ee1afc66453a457e756b025e4cace3aa56f687f595ac5d5bebcff00eac1b",
-                "llc.amd64": "aa6ca65c28ac09f3ba1d22ccbda6a85d1414c6ed4491d8d758a08351cb66f86e",
-                "llc.arm64": "08429823efd7d4ab6a247b195dabd0e8d8b43c50789704fd3a19947e71dd4776",
-                "llvm-strip.amd64": "70a9edc44ccad32361f1c6ae619c3b98e5505d4b67f24b5996f55bf841ee5cbd",
-                "llvm-strip.arm64": "1fd0cb6344d606d8c6fe6ea424fdfdd1cba1228f027dd3f08463c914bc47f67e"
+                "clang.amd64": "fe8b6949807895ef99d112db3c83b8d093d4d4b6bc6c7cd59a4fd93a86651e7c",
+                "clang.arm64": "18fc009137b869c9b207f38c05d2651886307eecef2bb9d3aa63b8d6ca357100",
+                "llc.amd64": "cffbb2d24b0d04091bc6d12dc01ee2ae9adc2459f1b20f7f06aa3ea2aaaa65a4",
+                "llc.arm64": "7d14c81e996722f9366f70296fdf0e9120aad4c97a9b6fca6499e7f4a321121e",
+                "llvm-strip.amd64": "aea858c07cc9b719f2de087e4387d4f30a6c064d4d13cc7bf6d04d92c69339bb",
+                "llvm-strip.arm64": "8a0497a6a951f0d049f80ff318ffd09039b24075f3f5562c078b269ef9c0fc32"
               },
               "verbose": false
             }
