@@ -106,10 +106,11 @@ func TestSendNoAPIKey(t *testing.T) {
 
 func TestBuildIntakeURL(t *testing.T) {
 	tests := []struct {
-		name     string
-		site     string
-		ddURL    string
-		expected string
+		name      string
+		site      string
+		ddURL     string
+		healthURL string
+		expected  string
 	}{
 		{
 			name:     "default site",
@@ -121,36 +122,22 @@ func TestBuildIntakeURL(t *testing.T) {
 			expected: "https://agenthealth-intake.datadoghq.eu./api/v2/agenthealth",
 		},
 		{
-			name:     "custom dd_url overrides",
-			site:     "datadoghq.eu",
-			ddURL:    "https://custom.example.com",
-			expected: "https://custom.example.com/api/v2/agenthealth",
-		},
-		{
-			name:     "dd_url on a Datadog main intake is mapped to the health intake",
+			name:     "main dd_url is ignored",
+			site:     "datad0g.com",
 			ddURL:    "https://agent.datad0g.com",
 			expected: "https://agenthealth-intake.datad0g.com./api/v2/agenthealth",
 		},
 		{
-			name:     "versioned dd_url is mapped to the health intake",
-			ddURL:    "https://7-85-0-app.agent.datadoghq.com",
-			expected: "https://agenthealth-intake.datadoghq.com./api/v2/agenthealth",
+			name:      "health_platform.forwarder.dd_url overrides site",
+			site:      "datadoghq.eu",
+			healthURL: "https://proxy.example.com",
+			expected:  "https://proxy.example.com/api/v2/agenthealth",
 		},
 		{
-			name:     "dd_url site wins over site",
-			site:     "datadoghq.eu",
-			ddURL:    "https://app.us3.datadoghq.com",
-			expected: "https://agenthealth-intake.us3.datadoghq.com./api/v2/agenthealth",
-		},
-		{
-			name:     "MRF customer alias is kept as-is",
-			ddURL:    "https://acme.mrf.datadoghq.com",
-			expected: "https://acme.mrf.datadoghq.com/api/v2/agenthealth",
-		},
-		{
-			name:     "proxy dd_url with trailing slash",
-			ddURL:    "https://proxy.internal:3834/",
-			expected: "https://proxy.internal:3834/api/v2/agenthealth",
+			name:      "health_platform.forwarder.dd_url wins over main dd_url",
+			ddURL:     "https://agent.datad0g.com",
+			healthURL: "https://proxy.example.com",
+			expected:  "https://proxy.example.com/api/v2/agenthealth",
 		},
 	}
 
@@ -162,6 +149,9 @@ func TestBuildIntakeURL(t *testing.T) {
 			}
 			if tt.ddURL != "" {
 				cfg.SetInTest("dd_url", tt.ddURL)
+			}
+			if tt.healthURL != "" {
+				cfg.SetInTest("health_platform.forwarder.dd_url", tt.healthURL)
 			}
 			assert.Equal(t, tt.expected, buildIntakeURL(cfg))
 		})
