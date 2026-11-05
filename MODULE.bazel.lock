@@ -1019,13 +1019,13 @@
         "pulumi-resource-azure-native-v3.29.0-linux-arm64.tar.gz": "sha1-GdARgk5J71GCLdkIRxDNZH9FL18=",
         "pulumi-resource-azure-native-v3.29.0-windows-amd64.tar.gz": "sha1-03UeEKdXagb47Tpk/yJV6Go578s="
       },
-      "https://github.com/pulumi/pulumi-command/releases/download/v1.2.1/pulumi-command_1.2.1_checksums.txt": {
-        "pulumi-resource-command-v1.2.1-darwin-amd64.tar.gz": "sha256-J9RhlolWl6Njos7pbmo2ke2nDNUp/LGD47Poxc/XNhc=",
-        "pulumi-resource-command-v1.2.1-darwin-arm64.tar.gz": "sha256-I4GOD24g5KxUrk9p+8gGZf41oZdIXctncwPLQYXUpuA=",
-        "pulumi-resource-command-v1.2.1-linux-amd64.tar.gz": "sha256-cTd5mdHaOfVOlNn+KVD2u5oKCQpXcJSGY3M5fcrS6AA=",
-        "pulumi-resource-command-v1.2.1-linux-arm64.tar.gz": "sha256-0pTuNsyXSZvIxdeQXGr/60t2ivUMJtauqpqPONBvpVg=",
-        "pulumi-resource-command-v1.2.1-windows-amd64.tar.gz": "sha256-saOQM5XlMrYo5lAMSJL8mZaCBxtGRfwXye+7H+DrK2g=",
-        "pulumi-resource-command-v1.2.1-windows-arm64.tar.gz": "sha256-KKClDUyFHokFyWy7Apo2qbl9z9NUpx7eTJg06pC6DJg="
+      "https://github.com/pulumi/pulumi-command/releases/download/v1.3.0/pulumi-command_1.3.0_checksums.txt": {
+        "pulumi-resource-command-v1.3.0-darwin-amd64.tar.gz": "sha256-s9krML7JXg+oT6O1Qwe0o1dh++Oux9FUxlrr52oaLX8=",
+        "pulumi-resource-command-v1.3.0-darwin-arm64.tar.gz": "sha256-pb//z+ZQf06EGqviVIFCQV0zCFfSRFBKwtiBMrUQGhc=",
+        "pulumi-resource-command-v1.3.0-linux-amd64.tar.gz": "sha256-+Gbqi/CR0jYwdxq2SYHX6YOg8LXCKEB0UGYsOwSyhWE=",
+        "pulumi-resource-command-v1.3.0-linux-arm64.tar.gz": "sha256-YEYvnB+sI0ImiK3jpg2SjY83L/tlQ7f/RyPdhx372vI=",
+        "pulumi-resource-command-v1.3.0-windows-amd64.tar.gz": "sha256-dN5r/dB1ysxYJYNDlZcT3lQyPsEccHQI4KTLu7eFeo8=",
+        "pulumi-resource-command-v1.3.0-windows-arm64.tar.gz": "sha256-M9nK76hmNclSvw1N7egMfp0gGWrdDERcLxvioGNun5A="
       },
       "https://github.com/pulumi/pulumi-docker-build/releases/download/v0.0.3/pulumi-docker-build_0.0.3_checksums.txt": {
         "pulumi-resource-docker-build-v0.0.3-darwin-amd64.tar.gz": "sha256-NjLNRl3NxbYPKXRrgmfGEdmZHvjYATAWurqmlkO5Vbg=",
@@ -1134,7 +1134,7 @@
         "url": "https://github.com/pulumi/pulumi-azure-native"
       },
       "https://registry.npmjs.org/@pulumi/cloud/1.20260918.0": {},
-      "https://registry.npmjs.org/@pulumi/command/1.2.1": {
+      "https://registry.npmjs.org/@pulumi/command/1.3.0": {
         "dependencies": {},
         "name": "command",
         "url": "https://github.com/pulumi/pulumi-command"

@@ -306,7 +306,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-cloud-sdk/go v1.20260918.0 // indirect
-	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
+	github.com/pulumi/pulumi-command/sdk v1.3.0 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 // indirect
