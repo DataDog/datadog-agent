@@ -153,7 +153,6 @@ use_repo(
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
     "com_github_datadog_libdd_rc_ffi_hosts_go",
-    "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",
     "com_github_datadog_zstd",
