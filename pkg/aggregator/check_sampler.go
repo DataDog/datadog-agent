@@ -19,6 +19,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -33,6 +34,8 @@ type CheckSampler struct {
 	id                     checkid.ID
 	series                 []*metrics.Serie
 	sketches               metrics.SketchSeriesList
+	mergedSeries           []*metrics.Serie
+	mergedSketches         []mergedSketch
 	contextResolver        *countBasedContextResolver
 	metrics                metrics.CheckMetrics
 	sketchMap              sketchMap
@@ -56,11 +59,13 @@ func newCheckSampler(
 	id checkid.ID,
 	tagger tagger.Component,
 ) *CheckSampler {
+	contextResolver := newCountBasedContextResolver(expirationCount, cache, tagger, string(id))
+	contextResolver.resolver.stripAtOutput = true
 	return &CheckSampler{
 		id:                     id,
 		series:                 make([]*metrics.Serie, 0),
 		sketches:               make(metrics.SketchSeriesList, 0),
-		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
+		contextResolver:        contextResolver,
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
 		sketchMap:              make(sketchMap),
 		lastBucketValue:        make(map[ckey.ContextKey]int64),
@@ -78,12 +83,13 @@ func (cs *CheckSampler) SetObserverHandle(h observer.Handle) {
 func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterList filterlist.TagMatcher) {
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
+		// The observer sees the identity the metric is sent with, stripped by metric_tag_filterlist rules.
 		context, _ := cs.contextResolver.get(contextKey)
-		cs.observerHandle.ObserveMetric(resolvedMetricView{
-			sample: metricSample,
-			host:   context.Host,
-			tags:   context.Tags(),
-		}, uint64(contextKey))
+		view, observedKey := resolvedMetricView{sample: metricSample, host: context.Host, tags: context.Tags()}, contextKey
+		if stripped, ok := cs.contextResolver.resolver.strippedOf(context); ok {
+			view.tags, observedKey = stripped.Tags(), stripped.key
+		}
+		cs.observerHandle.ObserveMetric(view, uint64(observedKey))
 	}
 	if metricSample.Mtype == metrics.DistributionType {
 		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
@@ -95,12 +101,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 	}
 }
 
-func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.SketchPoint) *metrics.SketchSeries {
-	ctx, ok := cs.contextResolver.get(ck)
-	if !ok {
-		log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
-		return nil
-	}
+func (cs *CheckSampler) newSketchSeries(ctx *Context, points []metrics.SketchPoint) *metrics.SketchSeries {
 	ss := &metrics.SketchSeries{
 		DistributionMetadata: metrics.DistributionMetadata{
 			Name:   ctx.Name,
@@ -113,6 +114,15 @@ func (cs *CheckSampler) newSketchSeries(ck ckey.ContextKey, points []metrics.Ske
 	}
 
 	return ss
+}
+
+// mergedIdentity returns the key and tags of the series a context's output is merged into: stripped while a rule
+// applies, and its own otherwise.
+func (cs *CheckSampler) mergedIdentity(ck ckey.ContextKey, ctx *Context) (ckey.ContextKey, tagset.CompositeTags) {
+	if stripped, ok := cs.contextResolver.resolver.strippedOf(ctx); ok {
+		return stripped.key, stripped.Tags()
+	}
+	return ck, ctx.Tags()
 }
 
 func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList filterlist.TagMatcher) {
@@ -244,6 +254,13 @@ func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.M
 		serie.NoIndex = context.noIndex
 		serie.SourceTypeName = checksSourceTypeName // this source type is required for metrics coming from the checks
 		serie.Source = context.source
+		// Context keys don't include the metric type, so a context can also get samples of a type whose series
+		// can't be merged, such as an ordinary histogram's statistics: only series that add up are merged.
+		if context.mergesSeries() && mergeableSerie(serie) {
+			serie.ContextKey, serie.Tags = cs.mergedIdentity(serie.ContextKey, context)
+			cs.mergedSeries = append(cs.mergedSeries, serie)
+			continue
+		}
 
 		cs.series = append(cs.series, serie)
 	}
@@ -259,13 +276,21 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 		pointsByCtx[ck] = append(pointsByCtx[ck], p)
 	})
 	for ck, points := range pointsByCtx {
-		series := cs.newSketchSeries(ck, points)
-		if series == nil {
+		ctx, ok := cs.contextResolver.get(ck)
+		if !ok {
+			log.Errorf("Ignoring sketch on context key '%v': inconsistent context resolver state: the context is not tracked", ck)
 			continue
 		}
+		series := cs.newSketchSeries(ctx, points)
 		// Filter the metrics
 		if filterList != nil && filterList.Test(series.Name) {
 			tlmChecksFilteredMetrics.Inc()
+			continue
+		}
+		if ctx.mergesAtOutput() {
+			var key ckey.ContextKey
+			key, series.Tags = cs.mergedIdentity(ck, ctx)
+			cs.mergedSketches = append(cs.mergedSketches, mergedSketch{key: key, sketch: series})
 			continue
 		}
 		cs.sketches = append(cs.sketches, series)
@@ -287,6 +312,13 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
+}
+
+// flushMerged returns the output committed since the last call that goes to the check output merger.
+func (cs *CheckSampler) flushMerged() ([]*metrics.Serie, []mergedSketch) {
+	series, sketches := cs.mergedSeries, cs.mergedSketches
+	cs.mergedSeries, cs.mergedSketches = nil, nil
+	return series, sketches
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
@@ -343,4 +375,21 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 		lower: bucket.LowerBound,
 		upper: bucket.UpperBound,
 	}
+}
+
+// restrip updates the identity every context strips to at output, after the rules changed.
+func (cs *CheckSampler) restrip(filterList filterlist.TagMatcher) {
+	cs.contextResolver.resolver.restrip(filterList)
+}
+
+// shareStrippedIdentities makes the sampler record stripped identities in a table shared with other samplers.
+// It must be called before the sampler tracks any context.
+func (cs *CheckSampler) shareStrippedIdentities(table *strippedIdentityTable) {
+	cs.contextResolver.resolver.stripped = table
+}
+
+// mergeableSerie returns whether a series of a check metric adds up across sources: the single series of a counter,
+// count or monotonic count, not the statistics of a histogram, nor a gauge or rate.
+func mergeableSerie(serie *metrics.Serie) bool {
+	return serie.NameSuffix == "" && (serie.MType == metrics.APICountType || serie.MType == metrics.APIRateType)
 }

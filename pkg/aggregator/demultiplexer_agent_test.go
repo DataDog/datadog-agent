@@ -14,6 +14,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
@@ -768,4 +769,149 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 		filterlistmock.MockModule(),
 		fx.Provide(func() tagger.Component { return taggerComponent }),
 	)
+}
+
+// startTagFilterDemux starts a demultiplexer with a rule stripping the pod tag from dist.metric and count.metric,
+// and registers check samplers.
+func startTagFilterDemux(t *testing.T, checks ...checkid.ID) (*AgentDemultiplexer, *MockSerializerSketch) {
+	demux, s, _ := startTagFilterDemuxWithFilterList(t, map[string]any{"metric_tag_filterlist_adp_only": false}, checks...)
+	return demux, s
+}
+
+// startTagFilterDemuxWithFilterList starts the demultiplexer with the given settings, which decide whether rules
+// apply.
+func startTagFilterDemuxWithFilterList(t *testing.T, settings map[string]any, checks ...checkid.ID) (*AgentDemultiplexer, *MockSerializerSketch, *filterlistimpl.FilterList) {
+	mockConfig := configmock.New(t)
+	for key, value := range settings {
+		mockConfig.SetInTest(key, value)
+	}
+	deps := createDemultiplexerAgentTestDeps(t)
+	filterList := filterlistimpl.NewFilterList(deps.Log, mockConfig, deps.Telemetry)
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{
+		"dist.metric":  {Action: "exclude", Tags: []string{"pod"}},
+		"count.metric": {Action: "exclude", Tags: []string{"pod"}},
+	})
+	demux := InitAndStartAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, demuxTestOptions(),
+		deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, filterList, "")
+
+	s := &MockSerializerSketch{}
+	s.On("AreSeriesEnabled").Return(true)
+	s.On("AreSketchesEnabled").Return(true)
+	s.On("SendServiceChecks", mock.Anything).Return(nil)
+	demux.aggregator.serializer = s
+	demux.sharedSerializer = s
+
+	require.Eventually(t, func() bool { return len(demux.aggregator.tagFilterListChan) == 0 }, time.Second, time.Millisecond)
+	for _, id := range checks {
+		demux.aggregator.registerSender(id)
+	}
+	waitForCheckItems(t, demux)
+	return demux, s, filterList
+}
+
+// checkItemsBarrier is handled by the aggregator's run loop once every item queued before it has been handled.
+type checkItemsBarrier chan struct{}
+
+func (b checkItemsBarrier) handle(*BufferedAggregator) { close(b) }
+
+// waitForCheckItems waits until the aggregator has handled every check item queued so far: an empty queue isn't
+// enough, as the last item can be dequeued but not handled yet.
+func waitForCheckItems(t *testing.T, demux *AgentDemultiplexer) {
+	barrier := make(checkItemsBarrier)
+	demux.aggregator.checkItems <- barrier
+	select {
+	case <-barrier:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the aggregator didn't handle check items")
+	}
+}
+
+// submitPodMetrics submits, from a check instance for a pod, a distribution and a counter that the rule strips
+// to one series across pods, and a gauge it doesn't filter, then commits. The samples are a second old, so that the
+// commit releases the distribution's sketch.
+func submitPodMetrics(demux *AgentDemultiplexer, id checkid.ID, pod string, count float64) {
+	tags := []string{"env:prod", "pod:" + pod}
+	if pod == "" {
+		tags = []string{"env:prod"}
+	}
+	for _, sample := range []*metrics.MetricSample{
+		{Name: "dist.metric", Value: 1, Mtype: metrics.DistributionType},
+		{Name: "count.metric", Value: count, Mtype: metrics.CounterType},
+		{Name: "other.metric", Value: 1, Mtype: metrics.GaugeType},
+	} {
+		sample.Tags = tags
+		sample.SampleRate = 1
+		sample.Timestamp = timeNowNano() - 1
+		demux.aggregator.checkItems <- &senderMetricSample{id: id, metricSample: sample}
+	}
+	demux.aggregator.checkItems <- &senderMetricSample{id: id, metricSample: &metrics.MetricSample{}, commit: true}
+}
+
+func seriesNamed(series []*metrics.Serie, name string) []*metrics.Serie {
+	var out []*metrics.Serie
+	for _, s := range series {
+		if s.Name == name {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func sketchesNamed(sketches []metrics.Distribution, name string) []*metrics.SketchSeries {
+	var out []*metrics.SketchSeries
+	for _, s := range sketches {
+		if s.GetName() == name {
+			out = append(out, s.(*metrics.SketchSeries))
+		}
+	}
+	return out
+}
+
+func TestTagFilterListMergesAcrossCheckInstances(t *testing.T) {
+	demux, s := startTagFilterDemux(t, "openmetrics:pod-a", "openmetrics:pod-b")
+	defer demux.Stop()
+
+	submitPodMetrics(demux, "openmetrics:pod-a", "a", 1)
+	submitPodMetrics(demux, "openmetrics:pod-b", "b", 2)
+	waitForCheckItems(t, demux)
+	demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
+
+	dists := sketchesNamed(s.sketches, "dist.metric")
+	require.Len(t, dists, 1, "one series for both pods")
+	assert.ElementsMatch(t, []string{"env:prod"}, strings.Split(dists[0].Tags.Join(","), ","))
+	var cnt int64
+	for _, p := range dists[0].Points {
+		cnt += p.Sketch.Basic.Cnt
+	}
+	assert.Equal(t, int64(2), cnt)
+
+	counts := seriesNamed(s.series, "count.metric")
+	require.Len(t, counts, 1)
+	var sum float64
+	for _, p := range counts[0].Points {
+		sum += p.Value
+	}
+	assert.Equal(t, 3.0, sum)
+	assert.ElementsMatch(t, []string{"env:prod"}, strings.Split(counts[0].Tags.Join(","), ","))
+
+	assert.Len(t, seriesNamed(s.series, "other.metric"), 2, "metrics without a rule keep one series per pod")
+}
+
+func TestTagFilterListMergesWithADP(t *testing.T) {
+	// With ADP, rules apply although metric_tag_filterlist_adp_only is left at its default.
+	demux, s, _ := startTagFilterDemuxWithFilterList(t, map[string]any{"data_plane.enabled": true}, "openmetrics:pod-a", "openmetrics:pod-b")
+	defer demux.Stop()
+
+	submitPodMetrics(demux, "openmetrics:pod-a", "a", 1)
+	submitPodMetrics(demux, "openmetrics:pod-b", "b", 2)
+	waitForCheckItems(t, demux)
+	demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
+
+	counts := seriesNamed(s.series, "count.metric")
+	require.Len(t, counts, 1, "one series for both pods")
+	var sum float64
+	for _, p := range counts[0].Points {
+		sum += p.Value
+	}
+	assert.Equal(t, 3.0, sum)
 }

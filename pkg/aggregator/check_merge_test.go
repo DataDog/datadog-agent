@@ -1,0 +1,125 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build test
+
+package aggregator
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/util/quantile"
+)
+
+func filteredCounter(key ckey.ContextKey, points ...metrics.Point) *metrics.Serie {
+	return &metrics.Serie{Name: "my.counter", ContextKey: key, MType: metrics.APIRateType, Points: points}
+}
+
+func filteredSketch(key ckey.ContextKey, ts int64, values ...float64) mergedSketch {
+	sketch := &quantile.Sketch{}
+	sketch.Insert(quantile.Default(), values...)
+	return mergedSketch{key: key, sketch: &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{Name: "my.dist"},
+		Points:               []metrics.SketchPoint{{Sketch: sketch, Ts: ts}},
+	}}
+}
+
+func seriesByKey(series metrics.Series) map[ckey.ContextKey]*metrics.Serie {
+	byKey := map[ckey.ContextKey]*metrics.Serie{}
+	for _, s := range series {
+		byKey[s.ContextKey] = s
+	}
+	return byKey
+}
+
+func TestCheckOutputMergerSumsCountersInTheSameSecond(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.2, Value: 1})})
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.7, Value: 2}, metrics.Point{Ts: 101.1, Value: 4})})
+	m.mergeSeries([]*metrics.Serie{filteredCounter(2, metrics.Point{Ts: 100.5, Value: 8})})
+	m.flush(&series, nil)
+
+	require.Len(t, series, 2)
+	byKey := seriesByKey(series)
+	assert.Equal(t, []metrics.Point{{Ts: 100, Value: 3}, {Ts: 101, Value: 4}}, byKey[1].Points)
+	assert.Equal(t, []metrics.Point{{Ts: 100, Value: 8}}, byKey[2].Points)
+}
+
+func TestCheckOutputMergerMergesSketchesInTheSameSecond(t *testing.T) {
+	m := newCheckOutputMerger()
+	var sketches metrics.SketchSeriesList
+
+	m.mergeSketches([]mergedSketch{filteredSketch(1, 100, 1, 2)})
+	m.mergeSketches([]mergedSketch{filteredSketch(1, 100, 3), filteredSketch(1, 101, 4)})
+	m.flush(nil, &sketches)
+
+	require.Len(t, sketches, 1)
+	points := sketches[0].Points
+	require.Len(t, points, 2)
+	assert.Equal(t, int64(100), points[0].Ts)
+	assert.Equal(t, int64(3), points[0].Sketch.Basic.Cnt)
+	assert.Equal(t, int64(101), points[1].Ts)
+	assert.Equal(t, int64(1), points[1].Sketch.Basic.Cnt)
+}
+
+func TestCheckOutputMergerKeepsSeriesOfDifferentTypesApart(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+
+	rate := filteredCounter(1, metrics.Point{Ts: 100, Value: 1})
+	count := filteredCounter(1, metrics.Point{Ts: 100, Value: 2})
+	count.MType = metrics.APICountType
+	m.mergeSeries([]*metrics.Serie{rate, count})
+	m.flush(&series, nil)
+
+	require.Len(t, series, 2, "values of different types are never added up")
+	for _, s := range series {
+		assert.Len(t, s.Points, 1)
+	}
+}
+
+func TestCheckOutputMergerKeepsTheSeriesOfAContextApart(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+
+	count := filteredCounter(1, metrics.Point{Ts: 100, Value: 1})
+	count.NameSuffix = ".count"
+	sum := filteredCounter(1, metrics.Point{Ts: 100, Value: 2})
+	sum.NameSuffix = ".sum"
+	m.mergeSeries([]*metrics.Serie{count, sum})
+	m.flush(&series, nil)
+
+	require.Len(t, series, 2)
+}
+
+func TestCheckOutputMergerMergesMetadata(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+
+	first := filteredCounter(1, metrics.Point{Ts: 100, Value: 1})
+	first.Source = metrics.MetricSourceOpenmetrics
+	second := filteredCounter(1, metrics.Point{Ts: 100, Value: 1})
+	second.NoIndex = true
+	second.Source = metrics.MetricSourceDogstatsd
+	firstSketch, secondSketch := filteredSketch(1, 100, 1), filteredSketch(1, 100, 1)
+	secondSketch.sketch.NoIndex = true
+	m.mergeSeries([]*metrics.Serie{first, second})
+	m.mergeSketches([]mergedSketch{firstSketch, secondSketch})
+	m.flush(&series, &sketches)
+
+	require.Len(t, series, 1)
+	assert.True(t, series[0].NoIndex, "a series isn't indexed if any of its sources asks not to")
+	assert.Equal(t, min(metrics.MetricSourceOpenmetrics, metrics.MetricSourceDogstatsd), series[0].Source)
+	require.Len(t, sketches, 1)
+	assert.True(t, sketches[0].NoIndex)
+}

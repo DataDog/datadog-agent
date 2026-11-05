@@ -28,7 +28,114 @@ type Context struct {
 	taggerTags *tags.Entry
 	metricTags *tags.Entry
 	noIndex    bool
+	stripFlags contextOutput
 	source     metrics.MetricSource
+
+	strippedIdentityRef uint32
+}
+
+// stripsAtOutput returns whether check samplers can strip the context's output: once it gets samples of a type that
+// can be stripped, whichever type created it.
+func (c *Context) stripsAtOutput() bool {
+	return c.stripFlags&strippable != 0
+}
+
+// mergesAtOutput returns whether the context's output that can be stripped goes to the check output merger: a rule
+// strips it.
+func (c *Context) mergesAtOutput() bool {
+	return c.strippedIdentityRef != 0
+}
+
+// mergesSeries returns whether the context's series go to the check output merger: none of its samples are of a type
+// whose series can't be merged.
+func (c *Context) mergesSeries() bool {
+	return c.mergesAtOutput() && c.stripFlags&unmergeableSeries == 0
+}
+
+// contextOutput are flags on what check samplers do with a context's output.
+type contextOutput uint8
+
+const (
+	// strippable is set once a context gets samples of a type that can be stripped at output. Context keys don't
+	// include the metric type, so samples of several types can share a context, whichever came first.
+	strippable contextOutput = 1 << iota
+	// unmergeableSeries is set once a context gets samples of a type whose series can't be merged, such as an
+	// ordinary histogram's statistics or an explicit-timestamp count: its series are never merged.
+	unmergeableSeries
+)
+
+func (o *contextOutput) set(flag contextOutput, on bool) {
+	if on {
+		*o |= flag
+	} else {
+		*o &^= flag
+	}
+}
+
+// strippedIdentity is the identity of a context after metric_tag_filterlist rules: its key and the tags left
+// after stripping, with the same name and host. Every source context that strips to it shares it, across check
+// samplers.
+type strippedIdentity struct {
+	key        ckey.ContextKey
+	taggerTags *tags.Entry
+	metricTags *tags.Entry
+	refs       uint32
+}
+
+// Tags returns the tags left after stripping.
+func (s *strippedIdentity) Tags() tagset.CompositeTags {
+	return tagset.NewCompositeTags(s.taggerTags.Tags(), s.metricTags.Tags())
+}
+
+// strippedIdentityTable holds one strippedIdentity per stripped series, referenced by 1 + its index. The check
+// samplers share one, as they are all used from the aggregator's run loop.
+type strippedIdentityTable struct {
+	identities []strippedIdentity
+	free       []uint32
+	byKey      map[ckey.ContextKey]uint32
+}
+
+func newStrippedIdentityTable() *strippedIdentityTable {
+	return &strippedIdentityTable{byKey: make(map[ckey.ContextKey]uint32)}
+}
+
+// acquire returns a reference to the identity with the key, creating it with newTags if there is none.
+func (t *strippedIdentityTable) acquire(key ckey.ContextKey, newTags func() (taggerTags, metricTags *tags.Entry)) uint32 {
+	if ref, ok := t.byKey[key]; ok {
+		t.identities[ref-1].refs++
+		return ref
+	}
+	identity := strippedIdentity{key: key, refs: 1}
+	identity.taggerTags, identity.metricTags = newTags()
+	var ref uint32
+	if n := len(t.free); n > 0 {
+		ref = t.free[n-1]
+		t.free = t.free[:n-1]
+		t.identities[ref-1] = identity
+	} else {
+		t.identities = append(t.identities, identity)
+		ref = uint32(len(t.identities))
+	}
+	t.byKey[key] = ref
+	return ref
+}
+
+// release drops a reference, removing the identity with its last one.
+func (t *strippedIdentityTable) release(ref uint32) {
+	identity := &t.identities[ref-1]
+	if identity.refs--; identity.refs > 0 {
+		return
+	}
+	identity.taggerTags.Release()
+	identity.metricTags.Release()
+	delete(t.byKey, identity.key)
+	*identity = strippedIdentity{}
+	t.free = append(t.free, ref)
+}
+
+// get returns the identity for a reference. It is valid until the next acquire.
+func (t *strippedIdentityTable) get(ref uint32) *strippedIdentity {
+	return &t.identities[ref-1]
 }
 
 // resolvedMetricView exposes the final metric identity to the anomaly-detection
@@ -102,6 +209,11 @@ type contextResolver struct {
 	// tagFilterEnabled controls whether metric_tag_filterlist tag stripping is applied.
 	// True when data_plane.enabled is true, or metric_tag_filterlist_adp_only is false.
 	tagFilterEnabled bool
+	// stripAtOutput keeps the full tags of contexts, recording the identity they strip to in stripped, instead of
+	// tracking them under the stripped context: check samplers strip their output, so that state kept per source
+	// stays per source.
+	stripAtOutput bool
+	stripped      *strippedIdentityTable
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -144,11 +256,12 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
-	if filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
+	if !cr.stripAtOutput && filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
 		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
 	}
+	tracksOutput := cr.stripAtOutput && cr.tagFilterEnabled
 
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
@@ -161,6 +274,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
+		if tracksOutput {
+			cr.trackOutput(context, metricSampleContext, filterList)
+		}
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
 			context:  context,
@@ -171,6 +287,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
 	} else {
+		if tracksOutput {
+			cr.trackOutput(entry.context, metricSampleContext, filterList)
+		}
 		// We can't assign to a field of a struct contained in map
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
@@ -181,15 +300,109 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 	return contextKey
 }
 
+// trackOutput records what a sample adds to its context's output. The first sample of a type that can be stripped
+// makes the context strippable, and strips it if a rule matches: the identity only depends on the context, so the
+// rule is looked up once (ShouldStripTags allocates), and restrip updates contexts when rules change. A sample of a
+// type whose series can't be merged keeps the context's series from being merged. The resolver's buffers must hold
+// the context's tags.
+func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) {
+	if !stripsAtOutput(metricSampleContext.GetMetricType()) {
+		context.stripFlags.set(unmergeableSeries, true)
+		return
+	}
+	if context.stripFlags&strippable != 0 {
+		return
+	}
+	context.stripFlags.set(strippable, true)
+	if filterList != nil && context.strippedIdentityRef == 0 {
+		cr.strip(context, filterList)
+	}
+}
+
+// strip records the identity a context strips to, if a rule matches it. The resolver's buffers must hold the
+// context's tags.
+func (cr *contextResolver) strip(context *Context, filterList filterlist.TagMatcher) {
+	if tagMatcher, filter := filterList.ShouldStripTags(context.Name); filter {
+		stripped, removed := cr.acquireStripped(context.Name, context.Host, tagMatcher)
+		context.strippedIdentityRef = stripped
+		tlmFilteredTags.Add(float64(removed))
+	}
+}
+
+// acquireStripped strips the tags in the resolver's buffers, which must already be stored for the context, and
+// returns a reference to the identity they strip to, and how many tags it removed.
+func (cr *contextResolver) acquireStripped(name, host string, tagMatcher func(tag string) bool) (uint32, int) {
+	removed := cr.taggerBuffer.RetainFunc(tagMatcher) + cr.metricBuffer.RetainFunc(tagMatcher)
+	key, taggerKey, metricKey := cr.keyGenerator.GenerateWithTags2(name, host, cr.taggerBuffer, cr.metricBuffer)
+	if cr.stripped == nil {
+		cr.stripped = newStrippedIdentityTable()
+	}
+	return cr.stripped.acquire(key, func() (*tags.Entry, *tags.Entry) {
+		return cr.tagsCache.Insert(taggerKey, cr.taggerBuffer), cr.tagsCache.Insert(metricKey, cr.metricBuffer)
+	}), removed
+}
+
+// strippedOf returns the identity a context strips to at output. It is valid until the next context is tracked.
+func (cr *contextResolver) strippedOf(context *Context) (*strippedIdentity, bool) {
+	if context.strippedIdentityRef == 0 {
+		return nil, false
+	}
+	return cr.stripped.get(context.strippedIdentityRef), true
+}
+
+// restrip updates the identity every context strips to at output, after the rules changed.
+func (cr *contextResolver) restrip(filterList filterlist.TagMatcher) {
+	if !cr.stripAtOutput || !cr.tagFilterEnabled {
+		return
+	}
+	defer cr.taggerBuffer.Reset()
+	defer cr.metricBuffer.Reset()
+	// ShouldStripTags allocates: look each metric's rule up once.
+	type rule struct {
+		tagMatcher func(tag string) bool
+		filter     bool
+	}
+	rules := make(map[string]rule)
+	for _, entry := range cr.contextsByKey {
+		context := entry.context
+		var stripped uint32
+		if filterList != nil && cr.tagFilterEnabled && context.stripsAtOutput() {
+			r, ok := rules[context.Name]
+			if !ok {
+				r.tagMatcher, r.filter = filterList.ShouldStripTags(context.Name)
+				rules[context.Name] = r
+			}
+			if tagMatcher, filter := r.tagMatcher, r.filter; filter {
+				cr.taggerBuffer.Reset()
+				cr.metricBuffer.Reset()
+				cr.taggerBuffer.Append(context.taggerTags.Tags()...)
+				cr.metricBuffer.Append(context.metricTags.Tags()...)
+				stripped, _ = cr.acquireStripped(context.Name, context.Host, tagMatcher)
+			}
+		}
+		if context.strippedIdentityRef != 0 {
+			cr.stripped.release(context.strippedIdentityRef)
+		}
+		context.strippedIdentityRef = stripped
+	}
+}
+
 // shouldAggregateTags returns true if the tag for the given metric should be considered
-// for aggregation. Distribution, and Counter (dogstatsd counts).
-// We don't support Count metrics from checks, it would be complicated to enable this for
-// MonotonicCounts - which is commonly used in checks, so to avoid confusion we don't
-// support counts in checks at all for now.
+// for aggregation in a time sampler: Distribution, and Counter (dogstatsd counts).
 func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
 	mtype := metricSampleContext.GetMetricType()
 	return mtype == metrics.DistributionType ||
 		mtype == metrics.CounterType
+}
+
+// stripsAtOutput returns whether check samplers strip the tags of a metric type from their output: types whose
+// sources' points add up, so that the check output merger can merge them.
+func stripsAtOutput(mtype metrics.MetricType) bool {
+	switch mtype {
+	case metrics.DistributionType, metrics.CounterType:
+		return true
+	}
+	return false
 }
 
 // filterTags filters tags from the context that match the given tagMatcher.
@@ -247,6 +460,9 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 		cr.countsByMtype[context.mtype]--
 		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[context.mtype] -= uint64(context.DataSizeInBytes())
+		if context.strippedIdentityRef != 0 {
+			cr.stripped.release(context.strippedIdentityRef)
+		}
 		context.release()
 	}
 }
@@ -270,6 +486,9 @@ func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, byt
 
 func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
+		if c.context.strippedIdentityRef != 0 {
+			cr.stripped.release(c.context.strippedIdentityRef)
+		}
 		c.context.release()
 	}
 	cr.clearTagFilterCache()

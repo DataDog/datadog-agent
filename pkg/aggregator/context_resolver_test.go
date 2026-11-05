@@ -765,3 +765,27 @@ func testTagFilterADPGate(t *testing.T, store *tags.Store) {
 func TestTagFilterADPGate(t *testing.T) {
 	testWithTagsStore(t, testTagFilterADPGate)
 }
+
+// TestStripsAtOutput lists every metric type: check samplers only strip types whose sources' points add up, and
+// only once they keep state per source where they have any.
+func TestStripsAtOutput(t *testing.T) {
+	cases := map[metrics.MetricType]bool{
+		metrics.GaugeType:              false,
+		metrics.RateType:               false,
+		metrics.CountType:              false,
+		metrics.MonotonicCountType:     false,
+		metrics.CounterType:            true,
+		metrics.HistogramType:          false,
+		metrics.HistorateType:          false,
+		metrics.SetType:                false,
+		metrics.DistributionType:       true,
+		metrics.GaugeWithTimestampType: false,
+		metrics.CountWithTimestampType: false,
+	}
+	require.Len(t, cases, int(metrics.NumMetricTypes), "every metric type is listed")
+	for mt, want := range cases {
+		t.Run(mt.String(), func(t *testing.T) {
+			assert.Equal(t, want, stripsAtOutput(mt))
+		})
+	}
+}
