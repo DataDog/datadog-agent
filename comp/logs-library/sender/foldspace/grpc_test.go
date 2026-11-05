@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/test/bufconn"
@@ -418,4 +419,60 @@ func TestTwoGRPCIntakesReceiveSameBytes(t *testing.T) {
 	b.mu.Lock()
 	assert.Equal(t, []string{"key-b"}, b.keys)
 	b.mu.Unlock()
+}
+
+// A connection left without a stream past idleTimeout, as through a reconnect
+// backoff, may lead to a peer that vanished without FIN or RST while nothing
+// pinged it. The next open must redial rather than reuse it; a shorter gap, or
+// one with a stream still open, keeps it.
+func TestGRPCRedialsConnectionIdlePastTimeout(t *testing.T) {
+	lis, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = lis.Close() })
+	srv := NewStatefulIntakeServer(&recordingIntake{})
+	go func() { _ = srv.Serve(lis) }()
+	t.Cleanup(srv.Stop)
+
+	now := time.Unix(0, 0)
+	transport := &GRPCTransport{
+		specs:       []SenderSpec{{ID: 0, Address: lis.Addr().String(), Class: Reliable, APIKey: func() string { return "key" }}},
+		conns:       make([]*grpc.ClientConn, 1),
+		state:       1024,
+		enc:         "identity",
+		method:      statefulStreamFullMethod,
+		idleTimeout: 45 * time.Second,
+		now:         func() time.Time { return now },
+		open:        make([]int, 1),
+		idleSince:   make([]time.Time, 1),
+	}
+	t.Cleanup(transport.Close)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	open := func() Stream {
+		t.Helper()
+		stream, err := transport.OpenStream(ctx, 0, 1)
+		require.NoError(t, err)
+		return stream
+	}
+
+	first := open()
+	conn := transport.conns[0]
+	require.NoError(t, first.Close())
+	require.NoError(t, first.Close(), "a second Close must not count the stream twice")
+
+	now = now.Add(30 * time.Second)
+	second := open()
+	assert.Same(t, conn, transport.conns[0], "idle under the timeout keeps the connection")
+
+	now = now.Add(time.Minute)
+	third := open()
+	assert.Same(t, conn, transport.conns[0], "a connection with an open stream is not idle")
+	require.NoError(t, second.Close())
+	require.NoError(t, third.Close())
+
+	now = now.Add(46 * time.Second)
+	fourth := open()
+	t.Cleanup(func() { _ = fourth.Close() })
+	assert.NotSame(t, conn, transport.conns[0], "idle past the timeout redials")
+	assert.Equal(t, connectivity.Shutdown, conn.GetState())
 }

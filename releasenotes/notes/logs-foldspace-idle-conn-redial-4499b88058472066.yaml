@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Foldspace now redials a gRPC connection that carried no stream for more than
+    45 seconds, as HTTP log delivery does with idle connections, instead of
+    opening the next stream on a connection whose peer may have disappeared
+    during a reconnect backoff.

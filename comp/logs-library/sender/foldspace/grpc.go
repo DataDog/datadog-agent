@@ -14,6 +14,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -27,6 +28,10 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
+// connIdleTimeout matches the HTTP logs transport's IdleConnTimeout. A
+// connection that carried no stream for longer is redialed rather than reused.
+const connIdleTimeout = 45 * time.Second
+
 // GRPCTransport dials one ClientConn per sender and opens stream generations
 // on that connection, each on the destination's StreamMethod.
 type GRPCTransport struct {
@@ -39,6 +44,19 @@ type GRPCTransport struct {
 	keepalive keepalive.ClientParameters
 	// extra is validated metadata sent on every stream of every sender.
 	extra map[string]string
+
+	// idleTimeout drops a sender's ClientConn once it has carried no stream for
+	// that long, so the next open redials and re-resolves the address. Keepalive
+	// pings only while a stream is open, so between streams, as during a
+	// reconnect backoff, nothing notices a peer that vanished without FIN or RST:
+	// the connection stays READY and the next stream would be opened on it, only
+	// to fail and cost another backoff. Zero keeps connections indefinitely.
+	idleTimeout time.Duration
+	now         func() time.Time
+	// open counts each sender's streams not yet closed; idleSince is when the
+	// sender's connection was dialed or its count last fell to zero.
+	open      []int
+	idleSince []time.Time
 }
 
 // NewGRPCTransport builds a transport for dest.
@@ -60,12 +78,16 @@ func NewGRPCTransport(dest *DestinationConfig) *GRPCTransport {
 		method = statefulStreamFullMethod
 	}
 	return &GRPCTransport{
-		specs:  dest.Senders,
-		conns:  make([]*grpc.ClientConn, len(dest.Senders)),
-		state:  dest.StateRequestBytes,
-		enc:    enc,
-		method: method,
-		extra:  dest.ExtraHeaders,
+		specs:       dest.Senders,
+		conns:       make([]*grpc.ClientConn, len(dest.Senders)),
+		state:       dest.StateRequestBytes,
+		enc:         enc,
+		method:      method,
+		extra:       dest.ExtraHeaders,
+		idleTimeout: connIdleTimeout,
+		now:         time.Now,
+		open:        make([]int, len(dest.Senders)),
+		idleSince:   make([]time.Time, len(dest.Senders)),
 		// Pings only while a stream is open: servers reject stream-less pings by
 		// default, and between streams there is nothing to detect a stall in.
 		keepalive: keepalive.ClientParameters{
@@ -111,14 +133,21 @@ func (t *GRPCTransport) OpenStream(ctx context.Context, sender SenderID, _ Strea
 		cancel()
 		return nil, classifyGRPC(err)
 	}
-	return &grpcStream{stream: clientStream, cancel: cancel}, nil
+	t.streamOpened(sender)
+	s := &grpcStream{stream: clientStream, cancel: cancel}
+	s.release = func() { t.streamClosed(sender) }
+	return s, nil
 }
 
 func (t *GRPCTransport) conn(ctx context.Context, sender SenderID) (*grpc.ClientConn, error) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
-	if t.conns[sender] != nil {
-		return t.conns[sender], nil
+	if conn := t.conns[sender]; conn != nil {
+		if !t.idleExpired(sender) {
+			return conn, nil
+		}
+		_ = conn.Close()
+		t.conns[sender] = nil
 	}
 	spec := t.specs[sender]
 	opts := []grpc.DialOption{
@@ -141,7 +170,37 @@ func (t *GRPCTransport) conn(ctx context.Context, sender SenderID) (*grpc.Client
 		return nil, err
 	}
 	t.conns[sender] = conn
+	if t.idleTimeout > 0 {
+		t.idleSince[sender] = t.now()
+	}
 	return conn, nil
+}
+
+// idleExpired reports whether sender's connection has gone longer than
+// idleTimeout without a stream. t.mu must be held.
+func (t *GRPCTransport) idleExpired(sender SenderID) bool {
+	return t.idleTimeout > 0 && t.open[sender] == 0 && t.now().Sub(t.idleSince[sender]) > t.idleTimeout
+}
+
+func (t *GRPCTransport) streamOpened(sender SenderID) {
+	if t.idleTimeout <= 0 {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.open[sender]++
+}
+
+func (t *GRPCTransport) streamClosed(sender SenderID) {
+	if t.idleTimeout <= 0 {
+		return
+	}
+	t.mu.Lock()
+	defer t.mu.Unlock()
+	t.open[sender]--
+	if t.open[sender] == 0 {
+		t.idleSince[sender] = t.now()
+	}
 }
 
 // Close tears down every ClientConn.
@@ -159,6 +218,9 @@ func (t *GRPCTransport) Close() {
 type grpcStream struct {
 	stream grpc.ClientStream
 	cancel context.CancelFunc
+	// release tells the transport the stream is done, once.
+	release   func()
+	closeOnce sync.Once
 }
 
 // Send gives up when ctx ends by cancelling the whole stream: SendMsg ignores
@@ -184,6 +246,9 @@ func (s *grpcStream) Recv(_ context.Context) (uint32, int32, error) {
 func (s *grpcStream) Close() error {
 	if s.cancel != nil {
 		s.cancel()
+	}
+	if s.release != nil {
+		s.closeOnce.Do(s.release)
 	}
 	return s.stream.CloseSend()
 }
