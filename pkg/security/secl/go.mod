@@ -5,7 +5,6 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model v0.0.0-00010101000000-000000000000
 	github.com/Masterminds/semver/v3 v3.5.0
-	github.com/alecthomas/participle/v2 v2.1.4
 	github.com/charlievieth/strcase v0.0.6
 	github.com/cilium/ebpf v0.22.1-0.20260708150823-a5b2e206f9ed
 	github.com/cloudflare/cbpfc v0.0.0-20260219140841-0661ad29132c
@@ -29,7 +28,6 @@ require (
 )
 
 require (
-	github.com/alecthomas/repr v0.5.2 // indirect
 	github.com/go-quicktest/qt v1.102.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
@@ -72,6 +70,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../comp/core/log/impl-trace
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../comp/core/log/mock
+	github.com/DataDog/datadog-agent/comp/core/schema/def => ../../../comp/core/schema/def
+	github.com/DataDog/datadog-agent/comp/core/schema/noop-impl => ../../../comp/core/schema/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../comp/core/secrets/def
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../comp/core/secrets/impl

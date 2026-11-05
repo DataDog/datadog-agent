@@ -1,0 +1,282 @@
+"""BUILD file for jemalloc."""
+
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@bazel_skylib//rules:expand_template.bzl", "expand_template")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:defs.bzl", "cc_library", "cc_shared_library")
+load("@rules_license//rules:license.bzl", "license")
+
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
+
+# Checked-in jemalloc.h still carries the git-describe version from configure
+# on the tag archive. The release tarball has a VERSION file; this build does not read it.
+VERSION = "5.3.0"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        download_url = "https://github.com/jemalloc/jemalloc/releases/download/{version}/jemalloc-{version}.tar.bz2",
+        package = "jemalloc",
+        version = VERSION,
+    ),
+)
+
+license(
+    name = "license",
+    license_kinds = ["@rules_license//licenses/spdx:BSD-2-Clause"],
+    license_text = "COPYING",
+    visibility = ["//visibility:public"],
+)
+
+# Link order follows C_SRCS in upstream's Makefile.in, so that the layout of the
+# shared library matches the configure_make build.
+_C_SRCS = [
+    "src/jemalloc.c",
+    "src/arena.c",
+    "src/background_thread.c",
+    "src/base.c",
+    "src/bin.c",
+    "src/bin_info.c",
+    "src/bitmap.c",
+    "src/buf_writer.c",
+    "src/cache_bin.c",
+    "src/ckh.c",
+    "src/counter.c",
+    "src/ctl.c",
+    "src/decay.c",
+    "src/div.c",
+    "src/ecache.c",
+    "src/edata.c",
+    "src/edata_cache.c",
+    "src/ehooks.c",
+    "src/emap.c",
+    "src/eset.c",
+    "src/exp_grow.c",
+    "src/extent.c",
+    "src/extent_dss.c",
+    "src/extent_mmap.c",
+    "src/fxp.c",
+    "src/san.c",
+    "src/san_bump.c",
+    "src/hook.c",
+    "src/hpa.c",
+    "src/hpa_hooks.c",
+    "src/hpdata.c",
+    "src/inspect.c",
+    "src/large.c",
+    "src/log.c",
+    "src/malloc_io.c",
+    "src/mutex.c",
+    "src/nstime.c",
+    "src/pa.c",
+    "src/pa_extra.c",
+    "src/pai.c",
+    "src/pac.c",
+    "src/pages.c",
+    "src/peak_event.c",
+    "src/prof.c",
+    "src/prof_data.c",
+    "src/prof_log.c",
+    "src/prof_recent.c",
+    "src/prof_stats.c",
+    "src/prof_sys.c",
+    "src/psset.c",
+    "src/rtree.c",
+    "src/safety_check.c",
+    "src/sc.c",
+    "src/sec.c",
+    "src/stats.c",
+    "src/sz.c",
+    "src/tcache.c",
+    "src/test_hooks.c",
+    "src/thread_event.c",
+    "src/ticker.c",
+    "src/tsd.c",
+    "src/witness.c",
+]
+
+# Mirrors what configure_make gets from configure: CONFIGURE_CFLAGS,
+# CONFIGURE_CXXFLAGS, CPPFLAGS and PIC_CFLAGS.
+_COMMON_COPTS = [
+    "-g3",
+    "-fvisibility=hidden",
+    "-O3",
+    "-fPIC",
+]
+
+# What jemalloc configure detected with the hermetic Linux toolchains.
+_DEFINES = {
+    "HAVE_CPU_SPINWAIT": "1",
+    "JEMALLOC_BACKGROUND_THREAD": "",
+    "JEMALLOC_C11_ATOMICS": "",
+    "JEMALLOC_CACHE_OBLIVIOUS": "",
+    "JEMALLOC_CONFIG_MALLOC_CONF": "\"\"",
+    "JEMALLOC_DSS": "",
+    "JEMALLOC_GCC_ATOMIC_ATOMICS": "",
+    "JEMALLOC_GCC_SYNC_ATOMICS": "",
+    "JEMALLOC_GCC_U8_ATOMIC_ATOMICS": "",
+    "JEMALLOC_GCC_U8_SYNC_ATOMICS": "",
+    "JEMALLOC_GLIBC_MALLOC_HOOK": "",
+    "JEMALLOC_GLIBC_MEMALIGN_HOOK": "",
+    "JEMALLOC_HAS_ALLOCA_H": "",
+    "JEMALLOC_HAS_RESTRICT": "",
+    "JEMALLOC_HAVE_BUILTIN_CLZ": "",
+    "JEMALLOC_HAVE_CLOCK_MONOTONIC": "",
+    "JEMALLOC_HAVE_CLOCK_MONOTONIC_COARSE": "",
+    "JEMALLOC_HAVE_CLOCK_REALTIME": "",
+    "JEMALLOC_HAVE_DLSYM": "",
+    "JEMALLOC_HAVE_MADVISE": "",
+    "JEMALLOC_HAVE_MADVISE_HUGE": "",
+    "JEMALLOC_HAVE_MPROTECT": "",
+    "JEMALLOC_HAVE_PTHREAD": "",
+    "JEMALLOC_HAVE_PTHREAD_ATFORK": "",
+    "JEMALLOC_HAVE_PTHREAD_GETNAME_NP": "",
+    "JEMALLOC_HAVE_PTHREAD_MUTEX_ADAPTIVE_NP": "",
+    "JEMALLOC_HAVE_PTHREAD_SETNAME_NP": "",
+    "JEMALLOC_HAVE_SCHED_GETCPU": "",
+    "JEMALLOC_HAVE_SCHED_SETAFFINITY": "",
+    "JEMALLOC_HAVE_SECURE_GETENV": "",
+    "JEMALLOC_INTERNAL_FFS": "__builtin_ffs",
+    "JEMALLOC_INTERNAL_FFSL": "__builtin_ffsl",
+    "JEMALLOC_INTERNAL_FFSLL": "__builtin_ffsll",
+    "JEMALLOC_INTERNAL_POPCOUNT": "__builtin_popcount",
+    "JEMALLOC_INTERNAL_POPCOUNTL": "__builtin_popcountl",
+    "JEMALLOC_INTERNAL_UNREACHABLE": "__builtin_unreachable",
+    "JEMALLOC_IS_MALLOC": "",
+    "JEMALLOC_MADVISE_DONTDUMP": "",
+    "JEMALLOC_MAPS_COALESCE": "",
+    "JEMALLOC_OVERRIDE___LIBC_CALLOC": "",
+    "JEMALLOC_OVERRIDE___LIBC_FREE": "",
+    "JEMALLOC_OVERRIDE___LIBC_MALLOC": "",
+    "JEMALLOC_OVERRIDE___LIBC_MEMALIGN": "",
+    "JEMALLOC_OVERRIDE___LIBC_REALLOC": "",
+    "JEMALLOC_OVERRIDE___LIBC_VALLOC": "",
+    "JEMALLOC_PRIVATE_NAMESPACE": "je_",
+    "JEMALLOC_PROC_SYS_VM_OVERCOMMIT_MEMORY": "",
+    "JEMALLOC_PURGE_MADVISE_DONTNEED": "",
+    "JEMALLOC_PURGE_MADVISE_DONTNEED_ZEROS": "",
+    "JEMALLOC_RETAIN": "",
+    "JEMALLOC_STRERROR_R_RETURNS_CHAR_WITH_GNU_SOURCE": "",
+    "JEMALLOC_THREADED_INIT": "",
+    "JEMALLOC_TLS": "",
+    "JEMALLOC_TLS_MODEL": "__attribute__((tls_model(\"initial-exec\")))",
+    "JEMALLOC_USE_SYSCALL": "",
+    "JEMALLOC_ZERO_REALLOC_DEFAULT_FREE": "",
+    "LG_HUGEPAGE": "21",
+    "LG_PAGE": "12",
+    "LG_SIZEOF_INT": "2",
+    "LG_SIZEOF_INTMAX_T": "3",
+    "LG_SIZEOF_LONG": "3",
+    "LG_SIZEOF_LONG_LONG": "3",
+    "LG_VADDR": "48",
+}
+
+# The sysroots lack MADV_FREE; configure only defines it itself on x86.
+_DEFINES_X86_64 = {
+    "CPU_SPINWAIT": "__asm__ volatile(\"pause\")",
+    "JEMALLOC_DEFINE_MADVISE_FREE": "",
+    "JEMALLOC_PURGE_MADVISE_FREE": "",
+}
+
+_DEFINES_ARM64 = {
+    "CPU_SPINWAIT": "__asm__ volatile(\"isb\")",
+}
+
+# Keys end with a newline because some names are prefixes of others
+# (JEMALLOC_TLS, JEMALLOC_TLS_MODEL). Names not listed stay #undef.
+_DEFS_LINUX_ARM64 = {
+    "#undef %s\n" % k: "#define %s %s\n" % (k, v)
+    for k, v in (_DEFINES | _DEFINES_ARM64).items()
+}
+
+_DEFS_LINUX_X86_64 = {
+    "#undef %s\n" % k: "#define %s %s\n" % (k, v)
+    for k, v in (_DEFINES | _DEFINES_X86_64).items()
+}
+
+expand_template(
+    name = "jemalloc_internal_defs_h",
+    out = "include/jemalloc/internal/jemalloc_internal_defs.h",
+    substitutions = select({
+        "@platforms//cpu:arm64": _DEFS_LINUX_ARM64,
+        "@platforms//cpu:x86_64": _DEFS_LINUX_X86_64,
+    }),
+    template = "include/jemalloc/internal/jemalloc_internal_defs.h.in",
+)
+
+expand_template(
+    name = "jemalloc_preamble_h",
+    out = "include/jemalloc/internal/jemalloc_preamble.h",
+    substitutions = {
+        "@install_suffix@": "",
+        "@private_namespace@": "je_",
+    },
+    template = "include/jemalloc/internal/jemalloc_preamble.h.in",
+)
+
+# configure builds jemalloc.h by concatenating shell-generated headers, so
+# it is checked in. JEMALLOC_NO_PRIVATE_NAMESPACE skips private_namespace.h.
+copy_file(
+    name = "jemalloc_h",
+    src = "@@//deps/jemalloc:jemalloc.h",
+    out = "include/jemalloc/jemalloc.h",
+)
+
+cc_library(
+    name = "jemalloc",
+    srcs = _C_SRCS + glob(["include/jemalloc/internal/*.h"]) + [
+        ":jemalloc_internal_defs_h",
+        ":jemalloc_preamble_h",
+    ],
+    hdrs = [":jemalloc_h"],
+    conlyopts = [
+        "-std=gnu11",
+        "-Wsign-compare",
+        "-Wundef",
+        "-Wno-format-zero-length",
+        "-Wpointer-arith",
+        "-Wno-missing-braces",
+        "-Wno-missing-field-initializers",
+        "-Wno-missing-attributes",
+        "-pipe",
+        "-funroll-loops",
+    ],
+    copts = _COMMON_COPTS,
+    includes = ["include"],
+    linkopts = ["-pthread"],
+    linkstatic = True,
+    local_defines = [
+        "_GNU_SOURCE",
+        "_REENTRANT",
+        "PIC",
+        "JEMALLOC_NO_PRIVATE_NAMESPACE",
+    ],
+    target_compatible_with = ["@platforms//os:linux"],
+    # The shared library is the only consumer. The archive is built with
+    # JEMALLOC_NO_PRIVATE_NAMESPACE, so linking it elsewhere risks colliding
+    # on its unprefixed internal symbol names.
+    visibility = ["//visibility:private"],
+)
+
+cc_shared_library(
+    name = "jemalloc_native_shared",
+    shared_lib_name = "libjemalloc.so.2",
+    user_link_flags = ["-Wl,-soname=libjemalloc.so.2"],
+    deps = [":jemalloc"],
+)
+
+dd_cc_packaged(
+    name = "jemalloc_pkg",
+    dest_dir = "embedded/lib",
+    input = ":jemalloc_native_shared",
+    libname = "libjemalloc",
+    version = "2",
+)

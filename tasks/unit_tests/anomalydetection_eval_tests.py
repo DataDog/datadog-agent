@@ -199,7 +199,7 @@ class TestPipelineResume(unittest.TestCase):
 class TestLocalF1Pipeline(unittest.TestCase):
     def test_missing_scenarios_abort_before_build_or_output_changes(self):
         tasks = [
-            (eval_scenarios, {}),
+            (eval_scenarios, {"local": True}),
             (eval_tp, {"only": "bocpd"}),
             (eval_combinations, {}),
             (eval_bayesian, {}),
@@ -269,11 +269,15 @@ class TestLocalF1Pipeline(unittest.TestCase):
                 "num_filtered_recovery": 0,
             }
             ctx = Mock()
-            ctx.run.side_effect = [None, SimpleNamespace(failed=False, stdout=json.dumps(score))]
+            ctx.run.side_effect = [
+                SimpleNamespace(failed=False),
+                SimpleNamespace(failed=False, stdout=json.dumps(score)),
+            ]
             with patch("builtins.print"):
                 report = eval_scenarios.body(
                     ctx,
                     scenario="example",
+                    local=True,
                     scenarios_dir=root,
                     only="bocpd",
                     build=False,
