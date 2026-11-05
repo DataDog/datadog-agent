@@ -9,6 +9,7 @@ package client
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"net/url"
@@ -27,6 +28,17 @@ var (
 	// expected to)
 	ErrNotStartedYet = errors.New("system-probe not started yet")
 )
+
+// StatusCodeError is returned when system-probe answers a request with a non-OK status code.
+type StatusCodeError struct {
+	URL        string
+	StatusCode int
+	Body       string
+}
+
+func (e *StatusCodeError) Error() string {
+	return fmt.Sprintf("non-ok status code: url %s, status_code: %d, response: `%s`", e.URL, e.StatusCode, e.Body)
+}
 
 // Get returns a http client configured to talk to the system-probe
 var Get = funcs.MemoizeArgNoError[string, *http.Client](get)

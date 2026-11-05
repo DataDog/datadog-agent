@@ -24,8 +24,9 @@ unless do_repackage?
       host_distribution = "--//packages/agent:host_distribution=#{Omnibus::Config.host_distribution()}"
   end
 
+  dependencies_install_target = heroku_target? ? "//packages/heroku:install_dependencies" : "//packages/agent/dependencies:install"
   build do
-      command "bazel run #{omnibazel_flags} -- //packages/agent/dependencies:install --destdir=#{install_dir}",
+      command "bazel run #{omnibazel_flags} -- #{dependencies_install_target} --destdir=#{install_dir}",
           :live_stream => Omnibus.logger.live_stream(:info)
   end
   build do
@@ -59,7 +60,7 @@ build do
   # set GOPATH on the omnibus source dir for this software
   gopath = Pathname.new(project_dir) + '../../../..'
   flavor_arg = ENV['AGENT_FLAVOR']
-  fips_args = fips_mode? ? "--fips-mode" : ""
+  fips_args = fips_mode? ? "--fips-backend=msgo" : ""
   # include embedded path (mostly for `pkg-config` binary)
   #
   # with_embedded_path prepends the embedded path to the PATH from the global environment
@@ -98,14 +99,15 @@ build do
     command "bazel run #{omnibazel_flags} -- //rtloader:install_static --destdir=\"#{project_dir}/rtloader/build/rtloader\"",
       :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded #{do_windows_sysprobe} --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    command "dda inv -- -e systray.build", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e systray.build #{fips_args}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   else
     command "bazel run #{omnibazel_flags} -- //rtloader:install --destdir='#{install_dir}'",
       :live_stream => Omnibus.logger.live_stream(:info)
     command "dda inv -- -e agent.build --exclude-rtloader --no-development --install-path=#{install_dir} --embedded-path=#{install_dir}/embedded --flavor #{flavor_arg}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 
-  command "bazel run #{omnibazel_flags} -- //packages/agent/product:post_build_install --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
+  post_build_install_target = heroku_target? ? "//packages/heroku:post_build_install" : "//packages/agent/product:post_build_install"
+  command "bazel run #{omnibazel_flags} -- #{post_build_install_target} --destdir=#{install_dir} --verbose", :live_stream => Omnibus.logger.live_stream(:info)
 
   # TODO: dda inv agent.build also builds datadog.yaml. We need to work with the
   # config team to find out if removing that will break their workflow.  If not,
@@ -159,6 +161,15 @@ build do
   if linux_target? and !heroku_target?
     command "dda inv -- -e installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer', "#{install_dir}/embedded/bin"
+  elsif osx_target?
+    # The .dmg postinstall script runs `installer postinst datadog-agent dmg` to install the
+    # Agent's LaunchDaemons.
+    #
+    # cgo stays enabled, as it is for the Windows installer below. pkg/inventory/systeminfo reaches
+    # IOKit through Objective-C on darwin and has no pure-Go fallback there, so a --no-cgo build
+    # drops its collect() and fails to link.
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    move 'bin/installer/installer', "#{install_dir}/embedded/bin"
   elsif windows_target?
     command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     move 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
@@ -172,7 +183,7 @@ build do
       copy "cmd/loader/main_noop.sh", "#{install_dir}/embedded/bin/trace-loader"
       command "chmod 0755 #{install_dir}/embedded/bin/trace-loader"
     else
-      command "dda inv -- -e loader.build --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
+      command "dda inv -- -e loader.build #{fips_args} --install-path=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
       copy "bin/trace-loader/trace-loader", "#{install_dir}/embedded/bin"
     end
   end
@@ -251,7 +262,6 @@ build do
     copy "pkg/ebpf/bytecode/build/#{arch}/co-re/*.o", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/"
     copy "pkg/ebpf/bytecode/build/runtime/*.c", "#{install_dir}/embedded/share/system-probe/ebpf/runtime/"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/clang-bpf", "#{install_dir}/embedded/bin/clang-bpf"
-    copy "#{ENV['SYSTEM_PROBE_BIN']}/llc-bpf", "#{install_dir}/embedded/bin/llc-bpf"
     copy "#{ENV['SYSTEM_PROBE_BIN']}/minimized-btfs.tar.xz", "#{install_dir}/embedded/share/system-probe/ebpf/co-re/btf/minimized-btfs.tar.xz"
 
     copy 'pkg/ebpf/c/COPYING', "#{install_dir}/embedded/share/system-probe/ebpf/"
@@ -264,7 +274,7 @@ build do
   end
 
   # dd-procmgrd (process manager daemon)
-  if (linux_target? || windows_target?) && !heroku_target?
+  if (linux_target? || windows_target? || osx_target?) && !heroku_target?
     command "bazel run #{omnibazel_flags} //pkg/procmgr/rust:install -- --destdir=#{install_dir}", :env => env, :live_stream => Omnibus.logger.live_stream(:info)
   end
 

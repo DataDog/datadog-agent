@@ -35,6 +35,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sbom"
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/securitycontext"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/selinux"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/sign"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/syscallctx"
@@ -42,33 +43,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/tc"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usergroup"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/usersessions"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ktime"
 )
 
 // EBPFResolvers holds the list of the event attribute resolvers
 type EBPFResolvers struct {
-	manager              *manager.Manager
-	MountResolver        mount.ResolverInterface
-	TimeResolver         *ktime.Resolver
-	UserGroupResolver    *usergroup.Resolver
-	TagsResolver         *tags.LinuxResolver
-	DentryResolver       *dentry.Resolver
-	ProcessResolver      *process.EBPFResolver
-	NamespaceResolver    *netns.Resolver
-	CGroupResolver       *cgroup.Resolver
-	TCResolver           *tc.Resolver
-	PathResolver         path.ResolverInterface
-	SBOMResolver         *sbom.Resolver
-	HashResolver         *hash.Resolver
-	UserSessionsResolver *usersessions.Resolver
-	SyscallCtxResolver   *syscallctx.Resolver
-	GoLabelsCtxResolver  *golabelsctx.Resolver
-	OTelAttrsResolver    *otelattrs.Resolver
-	DNSResolver          *dns.Resolver
-	FileMetadataResolver *file.Resolver
-	SignatureResolver    *sign.Resolver
+	manager                 *manager.Manager
+	MountResolver           mount.ResolverInterface
+	TimeResolver            *ktime.Resolver
+	UserGroupResolver       *usergroup.Resolver
+	TagsResolver            *tags.LinuxResolver
+	DentryResolver          *dentry.Resolver
+	ProcessResolver         *process.EBPFResolver
+	NamespaceResolver       *netns.Resolver
+	CGroupResolver          *cgroup.Resolver
+	TCResolver              *tc.Resolver
+	PathResolver            path.ResolverInterface
+	SBOMResolver            *sbom.Resolver
+	SecurityContextResolver securitycontext.Resolver
+	HashResolver            *hash.Resolver
+	UserSessionsResolver    *usersessions.Resolver
+	SyscallCtxResolver      *syscallctx.Resolver
+	GoLabelsCtxResolver     *golabelsctx.Resolver
+	OTelAttrsResolver       *otelattrs.Resolver
+	DNSResolver             *dns.Resolver
+	FileMetadataResolver    *file.Resolver
+	SignatureResolver       *sign.Resolver
 
 	SnapshotUsingListmount bool
 }
@@ -106,17 +107,10 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
-	// Create version resolver function that uses SBOM resolver if available
+	// A systemd service takes the version of the package of its unit file.
 	var versionResolver func(servicePath string) string
-	if config.RuntimeSecurity.SBOMResolverEnabled && sbomResolver != nil {
-		versionResolver = func(servicePath string) string {
-			if pkg := sbomResolver.ResolvePackage(&model.ProcessContext{
-				Process: model.Process{Credentials: model.Credentials{UID: 0xffff}},
-			}, &model.FileEvent{PathnameStr: servicePath}); pkg != nil {
-				return pkg.Version
-			}
-			return ""
-		}
+	if sbomResolver != nil {
+		versionResolver = sbomResolver.HostPackageVersion
 	}
 
 	tagsResolver := tags.NewResolver(config.RuntimeSecurity.TagsResolverQueueSize, opts.Tagger, cgroupsResolver, versionResolver)
@@ -202,28 +196,33 @@ func NewEBPFResolvers(config *config.Config, manager *manager.Manager, statsdCli
 		return nil, err
 	}
 
+	if sbomResolver != nil {
+		sbomResolver.SetProcessWalker(processResolver.Walk)
+	}
+
 	resolvers := &EBPFResolvers{
-		manager:                manager,
-		MountResolver:          mountResolver,
-		TimeResolver:           timeResolver,
-		UserGroupResolver:      userGroupResolver,
-		TagsResolver:           tagsResolver,
-		DentryResolver:         dentryResolver,
-		NamespaceResolver:      namespaceResolver,
-		CGroupResolver:         cgroupsResolver,
-		TCResolver:             tcResolver,
-		ProcessResolver:        processResolver,
-		PathResolver:           pathResolver,
-		SBOMResolver:           sbomResolver,
-		HashResolver:           hashResolver,
-		UserSessionsResolver:   userSessionsResolver,
-		SyscallCtxResolver:     syscallctx.NewResolver(),
-		GoLabelsCtxResolver:    golabelsctx.NewResolver(),
-		OTelAttrsResolver:      otelattrs.NewResolver(),
-		DNSResolver:            dnsResolver,
-		FileMetadataResolver:   fileMetadataResolver,
-		SnapshotUsingListmount: config.Probe.SnapshotUsingListmount,
-		SignatureResolver:      sign.NewSignatureResolver(),
+		manager:                 manager,
+		MountResolver:           mountResolver,
+		TimeResolver:            timeResolver,
+		UserGroupResolver:       userGroupResolver,
+		TagsResolver:            tagsResolver,
+		DentryResolver:          dentryResolver,
+		NamespaceResolver:       namespaceResolver,
+		CGroupResolver:          cgroupsResolver,
+		TCResolver:              tcResolver,
+		ProcessResolver:         processResolver,
+		PathResolver:            pathResolver,
+		SBOMResolver:            sbomResolver,
+		SecurityContextResolver: securitycontext.NewWorkloadmetaResolver(opts.WorkloadMeta),
+		HashResolver:            hashResolver,
+		UserSessionsResolver:    userSessionsResolver,
+		SyscallCtxResolver:      syscallctx.NewResolver(),
+		GoLabelsCtxResolver:     golabelsctx.NewResolver(),
+		OTelAttrsResolver:       otelattrs.NewResolver(),
+		DNSResolver:             dnsResolver,
+		FileMetadataResolver:    fileMetadataResolver,
+		SnapshotUsingListmount:  config.Probe.SnapshotUsingListmount,
+		SignatureResolver:       sign.NewSignatureResolver(),
 	}
 
 	return resolvers, nil

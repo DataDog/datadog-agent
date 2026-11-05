@@ -8,7 +8,8 @@
 package http
 
 import (
-	"sort"
+	"cmp"
+	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
@@ -129,8 +130,8 @@ func (b *incompleteBuffer) Flush() []Transaction {
 	for key, parts := range previous {
 		// TODO: in this loop we're sorting all transactions at once, but we could also
 		// consider sorting data during insertion time (using a tree-like structure, for example)
-		sort.Sort(byRequestTime(parts.requests))
-		sort.Sort(byResponseTime(parts.responses))
+		slices.SortFunc(parts.requests, func(a, b Transaction) int { return cmp.Compare(a.RequestStarted(), b.RequestStarted()) })
+		slices.SortFunc(parts.responses, func(a, b Transaction) int { return cmp.Compare(a.ResponseLastSeen(), b.ResponseLastSeen()) })
 
 		i := 0
 		j := 0
@@ -181,20 +182,4 @@ func (b *incompleteBuffer) Flush() []Transaction {
 func (b *incompleteBuffer) shouldKeep(tx Transaction, now int64) bool {
 	then := int64(tx.RequestStarted())
 	return (now - then) < b.minAgeNano
-}
-
-type byRequestTime []Transaction
-
-func (rt byRequestTime) Len() int      { return len(rt) }
-func (rt byRequestTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
-func (rt byRequestTime) Less(i, j int) bool {
-	return rt[i].RequestStarted() < rt[j].RequestStarted()
-}
-
-type byResponseTime []Transaction
-
-func (rt byResponseTime) Len() int      { return len(rt) }
-func (rt byResponseTime) Swap(i, j int) { rt[i], rt[j] = rt[j], rt[i] }
-func (rt byResponseTime) Less(i, j int) bool {
-	return rt[i].ResponseLastSeen() < rt[j].ResponseLastSeen()
 }

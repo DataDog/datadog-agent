@@ -27,6 +27,7 @@ go_library(
         "replicaset.go",
         "role.go",
         "rolebinding.go",
+        "secret.go",
         "service.go",
         "serviceaccount.go",
         "statefulset.go",
@@ -95,7 +96,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = [

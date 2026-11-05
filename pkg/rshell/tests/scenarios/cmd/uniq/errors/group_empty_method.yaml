@@ -1,0 +1,10 @@
+description: uniq --group= with explicit empty method is rejected.
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    printf 'a\na\n' | uniq --group=
+expect:
+  stdout: ""
+  stderr_contains: ["invalid argument '' for '--group'"]
+  exit_code: 1

@@ -230,3 +230,27 @@ func ProcessExists(pid int) bool {
 	}
 	return true
 }
+
+// IsZombiePid reports whether pid is a zombie, based on the "State" field in
+// /proc/<pid>/stat. Zombies have released their network namespace, so
+// ns-scoped procfs reads for them are expected to fail regardless of
+// privileges.
+func IsZombiePid(procRoot string, pid int) (bool, error) {
+	stat, err := os.ReadFile(filepath.Join(procRoot, strconv.Itoa(pid), "stat"))
+	if err != nil {
+		return false, err
+	}
+
+	processNameEndIndex := bytes.LastIndexByte(stat, byte(')'))
+	if processNameEndIndex > 0 && processNameEndIndex+1 < len(stat) {
+		fieldNum := 0
+		// start fields after process name
+		for field := range bytes.FieldsSeq(stat[processNameEndIndex+1:]) {
+			fieldNum++
+			if fieldNum == 1 {
+				return len(field) > 0 && field[0] == 'Z', nil
+			}
+		}
+	}
+	return false, nil
+}

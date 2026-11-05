@@ -10,6 +10,8 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
+	"strings"
 
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	flarehelpers "github.com/DataDog/datadog-agent/comp/core/flare/helpers"
@@ -18,15 +20,33 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	rcclienttypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
-	createDCAArchiveFunc = CreateDCAArchive
-	sendFlareFunc        = flarehelpers.SendTo
+	createDCAArchiveFunc        = CreateDCAArchive
+	sendFlareFunc               = flarehelpers.SendTo
+	getClusterAgentIdentityFunc = getClusterAgentIdentity
 )
+
+func renameClusterAgentFlareArchive(filePath, clusterName, namespace, podName string) string {
+	originalName := filepath.Base(filePath)
+	originalSuffix := strings.TrimPrefix(originalName, "datadog-agent-")
+	sanitize := strings.NewReplacer("/", "_", `\`, "_")
+	archiveName := fmt.Sprintf(
+		"datadog-agent-%s__%s__%s__%s",
+		sanitize.Replace(clusterName),
+		sanitize.Replace(namespace),
+		sanitize.Replace(podName),
+		originalSuffix,
+	)
+	archivePath := filepath.Join(filepath.Dir(filePath), archiveName)
+	if err := os.Rename(filePath, archivePath); err != nil {
+		log.Infof("Could not add Cluster Agent resource identity to flare archive name, using generic name: %v", err)
+		return filePath
+	}
+	return archivePath
+}
 
 // HandleRCFlareTask creates and sends a cluster-agent flare in response to an RC AGENT_TASK.
 func HandleRCFlareTask(
@@ -60,12 +80,7 @@ func HandleRCFlareTask(
 		log.Infof("[RemoteFlare] enable_streamlogs is not yet supported for the cluster-agent flare")
 	}
 
-	logFile := defaultpaths.GetDefaultDCALogFile()
-	if cfg.IsConfigured("log_file") {
-		logFile = cfg.GetString("log_file")
-	}
-
-	filePath, err := createDCAArchiveFunc(false, defaultpaths.GetDistPath(), logFile, nil, flareArgs, statusComp, diagnoseComp, ipcComp)
+	filePath, err := createIdentifiedDCAArchive(cfg, flareArgs, statusComp, diagnoseComp, ipcComp)
 	if err != nil {
 		return fmt.Errorf("failed to create cluster-agent flare: %w", err)
 	}
@@ -84,22 +99,6 @@ func HandleRCFlareTask(
 
 	rcSource := flarehelpers.NewRemoteConfigFlareSource(task.Config.UUID).WithFlareSourceTags(flareSource, tags)
 
-	_, err = sendFlareFunc(
-		cfg,
-		filePath,
-		caseID,
-		userHandle,
-		cfg.GetString("api_key"),
-		configUtils.GetInfraEndpoint(cfg),
-		rcSource,
-	)
-	if err != nil {
-		return err
-	}
-	if removeErr := os.Remove(filePath); removeErr != nil {
-		log.Warnf("[RemoteFlare] Could not remove local flare archive %s: %v", filePath, removeErr)
-	} else {
-		log.Infof("[RemoteFlare] Removed local flare archive %s", filePath)
-	}
-	return nil
+	_, err = NewCreator(cfg, statusComp, diagnoseComp, ipcComp).Send(filePath, caseID, userHandle, rcSource)
+	return err
 }

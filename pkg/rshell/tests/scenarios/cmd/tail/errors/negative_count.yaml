@@ -1,0 +1,12 @@
+description: tail -n with a negative count treats the value as its absolute value, matching GNU tail behaviour.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n -1 file.txt
+expect:
+  stdout: "hello\n"
+  exit_code: 0

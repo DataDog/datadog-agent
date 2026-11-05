@@ -11,9 +11,22 @@ package probes
 import (
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
+
+const (
+	// SyscallUsageSysEnterFunctionName is the program that samples the syscalls used per process
+	SyscallUsageSysEnterFunctionName = "sys_enter_syscall_usage"
+	// SyscallUsageTickerFunctionName is the program that periodically sends the syscalls sampled per process
+	SyscallUsageTickerFunctionName = "syscall_usage_ticker"
+)
+
+// SyscallUsageFunctionNames returns the programs of the workload profiles v2 syscall sampler
+func SyscallUsageFunctionNames() []string {
+	return []string{SyscallUsageSysEnterFunctionName, SyscallUsageTickerFunctionName}
+}
 
 // syscallMonitorProbes holds the list of probes used to track syscall events
 
@@ -25,7 +38,37 @@ func getSyscallMonitorProbes() []*manager.Probe {
 				EBPFFuncName: "sys_enter",
 			},
 		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: SyscallUsageSysEnterFunctionName,
+			},
+		},
+		{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: SyscallUsageTickerFunctionName,
+			},
+			SampleFrequency:   1,
+			PerfEventType:     unix.PERF_TYPE_SOFTWARE,
+			PerfEventConfig:   unix.PERF_COUNT_SW_CPU_CLOCK,
+			PerfEventCPUCount: 1,
+		},
 	}
+}
+
+// SyscallUsageSelectors returns the probes that send the syscalls sampled for workload profiles v2
+func SyscallUsageSelectors() []manager.ProbesSelector {
+	var selectors []manager.ProbesSelector
+	for _, funcName := range SyscallUsageFunctionNames() {
+		selectors = append(selectors, &manager.ProbeSelector{
+			ProbeIdentificationPair: manager.ProbeIdentificationPair{
+				UID:          SecurityAgentUID,
+				EBPFFuncName: funcName,
+			},
+		})
+	}
+	return selectors
 }
 
 func getSyscallTableMap() *manager.Map {

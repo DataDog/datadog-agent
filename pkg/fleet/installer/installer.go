@@ -263,7 +263,11 @@ func (i *installerImpl) SetupInstaller(ctx context.Context, path string) error {
 			return fmt.Errorf("could not create temporary directory: %w", err)
 		}
 		defer os.RemoveAll(tmpDir)
-		msiName := fmt.Sprintf("datadog-agent-%s-x86_64.msi", version.AgentPackageVersion)
+		msiProduct := packageDatadogAgent
+		if i.env.FIPSMode {
+			msiProduct = "datadog-fips-agent"
+		}
+		msiName := fmt.Sprintf("%s-%s-x86_64.msi", msiProduct, version.AgentPackageVersion)
 		err = paths.CopyFile(path, filepath.Join(tmpDir, msiName))
 		if err != nil {
 			return fmt.Errorf("could not copy installer: %w", err)
@@ -961,9 +965,11 @@ func ensureRepositoriesExist() error {
 	if err != nil {
 		return fmt.Errorf("error creating packages directory: %w", err)
 	}
-	err = os.MkdirAll(paths.ConfigsPath, 0755)
-	if err != nil {
-		return fmt.Errorf("error creating configs directory: %w", err)
+	if paths.ConfigsPath != "" {
+		err = os.MkdirAll(paths.ConfigsPath, 0755)
+		if err != nil {
+			return fmt.Errorf("error creating configs directory: %w", err)
+		}
 	}
 	err = os.MkdirAll(paths.RootTmpDir, 0755)
 	if err != nil {

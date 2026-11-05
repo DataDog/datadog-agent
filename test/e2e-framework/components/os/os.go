@@ -6,8 +6,10 @@
 package os
 
 import (
+	"errors"
 	"fmt"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/namer"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
@@ -18,10 +20,11 @@ import (
 
 // Interfaces used by OS components
 type PackageManager interface {
-	// Ensure ensures that a package is installed
-	// checkBinary is a binary that should be checked before running the install command, if it is not empty it will first run the `command -v checkBinary` command and if it fails it will run the installCmd,
-	// if it succeeds we consider the package is already installed
-	Ensure(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
+	// RuntimeInstallDocker installs Docker and docker-compose at provisioning time, for clouds without pre-baked images (GCP, Azure, local VMs).
+	// It fails on AWS, where Docker comes from the pre-baked -e2e AMIs.
+	RuntimeInstallDocker(opts ...PackageManagerOption) (command.Command, error)
+	// InstallLocalPackage installs a package file already present on the host, allowing unsigned packages.
+	InstallLocalPackage(packagePath string, opts ...PackageManagerOption) (command.Command, error)
 	EnsureUninstalled(packageRef string, transform command.Transformer, checkBinary string, opts ...PackageManagerOption) (command.Command, error)
 	AssertInstalled(checkBinary string, opts ...PackageManagerOption) (command.Command, error)
 }
@@ -30,11 +33,41 @@ type PackageManager interface {
 // Shared by GenericPackageManager and ZypperPackageManager, the two PackageManager implementations.
 func assertInstalledCommand(runner command.Runner, n namer.Namer, checkBinary string, pulumiOpts []pulumi.ResourceOption) (command.Command, error) {
 	cmdStr := fmt.Sprintf(
-		"bash -c 'command -v %s || { echo \"%s is missing on this host; it must be pre-baked into the machine image, see docs/public/how-to/test/e2e/dependencies.md\" >&2; exit 1; }'",
+		"bash -c 'command -v %s || { echo \"%s is missing on this host; it must be pre-baked into the machine image, see https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/\" >&2; exit 1; }'",
 		checkBinary, checkBinary,
 	)
 	cmdName := n.ResourceName("assert-"+checkBinary, utils.StrHash(cmdStr))
 	return runner.Command(cmdName, &command.Args{Create: pulumi.String(cmdStr)}, pulumiOpts...)
+}
+
+// ComposeVersion is the docker-compose version pre-baked in AWS e2e AMIs and runtime-installed elsewhere.
+const ComposeVersion = "v2.27.0"
+
+// runtimeInstallCompose downloads the pinned docker-compose release once dockerInstall has completed.
+func runtimeInstallCompose(runner command.Runner, dockerInstall command.Command, opts ...PackageManagerOption) (command.Command, error) {
+	params, err := common.ApplyOption(&PackageManagerParams{}, opts)
+	if err != nil {
+		return nil, err
+	}
+	installCompose := pulumi.Sprintf(
+		"curl --retry 10 -fsSLo /usr/local/bin/docker-compose https://github.com/docker/compose/releases/download/%s/docker-compose-linux-$(uname -m) && sudo chmod 755 /usr/local/bin/docker-compose",
+		ComposeVersion,
+	)
+	return runner.Command("install-compose", &command.Args{Create: installCompose, Sudo: true}, utils.MergeOptions(params.PulumiResourceOptions, utils.PulumiDependsOn(dockerInstall))...)
+}
+
+// isAWS reports whether env provisions resources on AWS.
+func isAWS(env any) bool {
+	awsEnv, ok := env.(interface{ IsAWS() bool })
+	return ok && awsEnv.IsAWS()
+}
+
+// failIfAWS returns an error when runtime-installing on AWS, where pre-baked -e2e AMIs must be used instead.
+func failIfAWS(env any) error {
+	if !isAWS(env) {
+		return nil
+	}
+	return errors.New("RuntimeInstallDocker is only meant for clouds without pre-baked images (GCP, Azure, local VMs): on AWS, use a pre-baked -e2e AMI that ships Docker instead, see https://datadoghq.dev/datadog-agent/how-to/test/e2e/dependencies/")
 }
 
 func AllowUnsignedPackages(allow bool) PackageManagerOption {

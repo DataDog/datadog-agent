@@ -53,7 +53,7 @@ const (
 	logSource           = "nginx"
 	logMessage          = "GET / HTTP/1.1"
 	testTag             = "ddi_e2e:true"
-	timeout             = 1 * time.Minute
+	timeout             = 2 * time.Minute
 	interval            = 1 * time.Second
 )
 
@@ -76,6 +76,8 @@ func TestDDI(t *testing.T) {
 	e2e.Run(t, &ddiSuite{},
 		e2e.WithProvisioner(provisionerkindvm.Provisioner(
 			provisionerkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenariokindvm.WithInternetAccess(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithoutLogsContainerCollectAll(),
 					kubernetesagentparams.WithHelmValues(helmValues),
@@ -84,6 +86,21 @@ func TestDDI(t *testing.T) {
 			),
 		)),
 	)
+}
+
+func (s *ddiSuite) SetupSuite() {
+	s.BaseSuite.SetupSuite()
+
+	// Kubernetes readiness alone does not guarantee that the Agent's polling providers and
+	// the Cluster Agent's controllers have finished warming up. Require a short stable period
+	// before exercising DDI configuration propagation.
+	require.NoError(s.T(), s.Env().WaitForAgentReady(
+		s.T().Context(),
+		environments.WithLinuxNodeAgentReady(),
+		environments.WithClusterAgentReady(),
+		environments.WithAgentReadinessTimeout(10*time.Minute),
+		environments.WithAgentReadinessStableFor(30*time.Second),
+	))
 }
 
 func (s *ddiSuite) BeforeTest(suiteName, testName string) {

@@ -8,6 +8,7 @@
 package selfident
 
 import (
+	"context"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -15,52 +16,43 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	containermetrics "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
+	// Register the cgroup-based self-container collector without pulling in every runtime collector.
+	_ "github.com/DataDog/datadog-agent/pkg/util/containers/metrics/system"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	apiservercommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 const (
 	podNameEnvVar      = "DD_POD_NAME"
 	daemonSetOwnerKind = "DaemonSet"
 
-	// defaultResolveRetries/defaultResolveRetryDelay bound how long DeploymentID
-	// waits for workloadmeta to observe the agent's own pod before giving up,
-	// and how long the ClusterID resolver retries the Cluster Agent/API server.
-	// Kept short (~1s) since both feed the synchronous ReportIssue path.
-	defaultResolveRetries    = 5
+	// Keep the default wait short for the synchronous ReportIssue path.
+	defaultResolveTimeout    = time.Second
 	defaultResolveRetryDelay = 200 * time.Millisecond
-
-	// defaultClusterResolveTimeout bounds how long a ClusterID caller blocks on
-	// the resolver, independent of how long a lookup blocks (the node-agent HTTP
-	// client can take ~10s; the Cluster Agent's Kubernetes calls take no caller
-	// deadline). Without it, a Cluster Agent/API server outage could stall
-	// ReportIssue — and thus agent shutdown — for many seconds.
-	defaultClusterResolveTimeout = defaultResolveRetries * defaultResolveRetryDelay
 )
 
 // SelfIdent resolves and caches the agent's own DaemonSet UID (deployment_id)
 // and cluster id, for use as health-issue identity discriminators.
 type SelfIdent struct {
-	wmeta workloadmeta.Component
+	wmeta           workloadmeta.Component
+	selfContainerID func() (string, error)
 
 	resolveMu    sync.Mutex
 	deploymentID atomic.Pointer[string]
 
-	resolveRetries    int
+	resolveTimeout    time.Duration
 	resolveRetryDelay time.Duration
 
-	// clusterResolveTimeout bounds how long a ClusterID caller blocks waiting
-	// for the shared resolver; clusterResolveMu guards clusterResolving, the
-	// channel closed when the single in-flight resolution finishes (nil when
-	// none is running).
-	clusterResolveTimeout time.Duration
-	clusterResolveMu      sync.Mutex
-	clusterResolving      chan struct{}
-	clusterID             atomic.Pointer[string]
+	// Concurrent callers share one in-flight cluster lookup.
+	clusterResolveMu sync.Mutex
+	clusterResolving chan struct{}
+	clusterID        atomic.Pointer[string]
 }
 
 // New creates a SelfIdent. Outside Kubernetes it returns a no-op instance that
@@ -69,10 +61,12 @@ type SelfIdent struct {
 // deployment_id resolution, in which case DeploymentID resolves to empty.
 func New(wmeta workloadmeta.Component) *SelfIdent {
 	s := &SelfIdent{
-		wmeta:                 wmeta,
-		resolveRetries:        defaultResolveRetries,
-		resolveRetryDelay:     defaultResolveRetryDelay,
-		clusterResolveTimeout: defaultClusterResolveTimeout,
+		wmeta: wmeta,
+		selfContainerID: func() (string, error) {
+			return containermetrics.GetProvider(option.New(wmeta)).GetMetaCollector().GetSelfContainerID()
+		},
+		resolveTimeout:    defaultResolveTimeout,
+		resolveRetryDelay: defaultResolveRetryDelay,
 	}
 	if !env.IsFeaturePresent(env.Kubernetes) {
 		empty := ""
@@ -82,38 +76,41 @@ func New(wmeta workloadmeta.Component) *SelfIdent {
 	return s
 }
 
-// DeploymentID returns the UID of the DaemonSet that owns this agent's pod,
-// or "" if not running under one. Resolution is retried a bounded number of
-// times before returning; a definitive outcome (found, or the pod/wmeta
-// isn't resolvable at all) is cached for the process lifetime, but a
-// transient "pod not synced yet" outcome is not cached, so a later call —
-// e.g. from another issue module reporting after this one — gets a fresh
-// attempt instead of being stuck replaying a stale "".
+// DeploymentID resolves the owning DaemonSet UID using the default wait.
 func (s *SelfIdent) DeploymentID() string {
 	if cached := s.deploymentID.Load(); cached != nil {
 		return *cached
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), s.resolveTimeout)
+	defer cancel()
+	return s.DeploymentIDWithContext(ctx)
+}
 
-	s.resolveMu.Lock()
-	defer s.resolveMu.Unlock()
-	if cached := s.deploymentID.Load(); cached != nil {
-		return *cached
-	}
-
+// DeploymentIDWithContext waits for the owning DaemonSet UID until ctx expires.
+func (s *SelfIdent) DeploymentIDWithContext(ctx context.Context) string {
 	podNamespace := namespace.GetMyNamespace()
-	var id string
-	var definitive bool
-	for attempt := 0; ; attempt++ {
-		id, definitive = s.resolveDeploymentID(podNamespace)
-		if definitive || attempt >= s.resolveRetries {
-			break
+	for ctx.Err() == nil {
+		s.resolveMu.Lock()
+		if cached := s.deploymentID.Load(); cached != nil {
+			s.resolveMu.Unlock()
+			return *cached
 		}
-		time.Sleep(s.resolveRetryDelay)
+		id, definitive := s.resolveDeploymentID(podNamespace)
+		// A transient miss must remain retryable by later callers.
+		if definitive {
+			s.deploymentID.Store(&id)
+		}
+		s.resolveMu.Unlock()
+		if definitive {
+			return id
+		}
+		select {
+		case <-ctx.Done():
+			return ""
+		case <-time.After(s.resolveRetryDelay):
+		}
 	}
-	if definitive {
-		s.deploymentID.Store(&id)
-	}
-	return id
+	return ""
 }
 
 // IssueDiscriminator returns DeploymentID(), so all agents in the same
@@ -124,39 +121,40 @@ func (s *SelfIdent) IssueDiscriminator() string {
 	return s.DeploymentID()
 }
 
-// ClusterID returns the best-effort Kubernetes cluster id for payload
-// enrichment only — never part of the issue id. A caller blocks up to
-// clusterResolveTimeout while resolution is in flight: long enough to give a
-// one-shot startup check (e.g. invalidconfig) a chance at the id, but bounded
-// so it can't block forever when a lookup hangs. A successful result is cached
-// for the process lifetime; a failure is not, so a later call retries instead
-// of being stuck with an empty id after a transient startup outage — the same
-// guarantee DeploymentID gives a transient workloadmeta miss.
-//
-// lookup() takes no context and can't be cancelled, so the retry loop runs in
-// a single shared resolver goroutine that callers wait on with a deadline: a
-// caller past the deadline returns "" without waiting for a slow lookup, and
-// concurrent callers share one retry budget. The resolver self-terminates
-// after the budget, so a lookup outliving its caller is bounded, not leaked.
+// ClusterID resolves the Kubernetes cluster ID using the default wait.
 func (s *SelfIdent) ClusterID() string {
 	if cached := s.clusterID.Load(); cached != nil {
 		return *cached
 	}
+	ctx, cancel := context.WithTimeout(context.Background(), s.resolveTimeout)
+	defer cancel()
+	return s.ClusterIDWithContext(ctx)
+}
 
-	resolved := s.startClusterResolve()
-	select {
-	case <-resolved:
-	case <-time.After(s.clusterResolveTimeout):
-	}
-	if cached := s.clusterID.Load(); cached != nil {
-		return *cached
+// ClusterIDWithContext waits for the Kubernetes cluster ID until ctx expires.
+func (s *SelfIdent) ClusterIDWithContext(ctx context.Context) string {
+	for ctx.Err() == nil {
+		if cached := s.clusterID.Load(); cached != nil {
+			return *cached
+		}
+		select {
+		case <-s.startClusterResolve():
+		case <-ctx.Done():
+			return ""
+		}
+		if cached := s.clusterID.Load(); cached != nil {
+			return *cached
+		}
+		select {
+		case <-ctx.Done():
+			return ""
+		case <-time.After(s.resolveRetryDelay):
+		}
 	}
 	return ""
 }
 
-// startClusterResolve returns a channel closed when the current cluster id
-// resolution finishes, starting a single shared resolver goroutine if none is
-// already in flight so concurrent callers share one retry budget.
+// The lookup has no context, so callers share a goroutine and bound their own wait.
 func (s *SelfIdent) startClusterResolve() <-chan struct{} {
 	s.clusterResolveMu.Lock()
 	defer s.clusterResolveMu.Unlock()
@@ -188,9 +186,6 @@ func (s *SelfIdent) startClusterResolve() <-chan struct{} {
 	return done
 }
 
-// resolveClusterID retries the flavor-appropriate cluster id lookup a bounded
-// number of times, caching a successful result for the process lifetime and
-// leaving the cache untouched on failure so a later caller retries.
 func (s *SelfIdent) resolveClusterID() {
 	// clustername.GetClusterID() is node-agent-only: on the Cluster Agent it
 	// targets an endpoint meant for node→DCA calls, broken when the DCA calls
@@ -201,18 +196,12 @@ func (s *SelfIdent) resolveClusterID() {
 		lookup = clusterAgentClusterIDFunc
 	}
 
-	for attempt := 0; ; attempt++ {
-		id, err := lookup()
-		if err == nil {
-			s.clusterID.Store(&id)
-			return
-		}
-		if attempt >= s.resolveRetries {
-			log.Debugf("selfident: cluster id unavailable after %d attempts: %v", attempt+1, err)
-			return
-		}
-		time.Sleep(s.resolveRetryDelay)
+	id, err := lookup()
+	if err != nil {
+		log.Debugf("selfident: cluster id unavailable: %v", err)
+		return
 	}
+	s.clusterID.Store(&id)
 }
 
 // nodeAgentClusterIDFunc/clusterAgentClusterIDFunc are the per-flavor cluster
@@ -235,20 +224,16 @@ func clusterAgentOwnClusterID() (string, error) {
 }
 
 // resolveDeploymentID makes one resolution attempt. definitive is true when
-// the caller can cache the result permanently (no workloadmeta, no resolvable
-// pod name, or the pod was found); false means the pod isn't in workloadmeta
-// yet, so the caller should retry rather than cache a false negative.
+// the caller can cache the result permanently (no workloadmeta or the pod was
+// found); false means the pod isn't in workloadmeta yet, so the caller should
+// retry rather than cache a false negative.
 func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definitive bool) {
 	if s.wmeta == nil {
 		return "", true
 	}
-	podName, ok := selfPodName()
-	if !ok {
-		return "", true
-	}
-	pod, err := s.wmeta.GetKubernetesPodByName(podName, podNamespace)
+	pod, err := s.resolveSelfPod(podNamespace)
 	if err != nil {
-		log.Debugf("selfident: own pod %q not yet in workloadmeta: %v", podName, err)
+		log.Debugf("selfident: own pod not yet available in workloadmeta: %v", err)
 		return "", false
 	}
 	for _, owner := range pod.Owners {
@@ -259,17 +244,27 @@ func (s *SelfIdent) resolveDeploymentID(podNamespace string) (id string, definit
 	return "", true
 }
 
-// selfPodName returns this container's own pod name: DD_POD_NAME when set
-// (Helm chart via the downward API), else the container hostname, which
-// kubelet defaults to the pod's name. The hostname fallback matters because
-// the Datadog Operator only injects DD_POD_NAME into the cluster agent.
-func selfPodName() (string, bool) {
-	if podName, ok := os.LookupEnv(podNameEnvVar); ok {
-		return podName, true
+func (s *SelfIdent) resolveSelfPod(podNamespace string) (*workloadmeta.KubernetesPod, error) {
+	if podName, ok := os.LookupEnv(podNameEnvVar); ok && podName != "" {
+		return s.wmeta.GetKubernetesPodByName(podName, podNamespace)
 	}
-	hostname, err := os.Hostname()
+
+	containerID, err := s.selfContainerID()
 	if err != nil {
-		return "", false
+		log.Debugf("selfident: own container id unavailable: %v", err)
+	} else if containerID != "" {
+		pod, err := s.wmeta.GetKubernetesPodForContainer(containerID)
+		if err == nil {
+			return pod, nil
+		}
+		log.Debugf("selfident: own container %q not yet linked to a pod in workloadmeta: %v", containerID, err)
 	}
-	return hostname, true
+
+	// Keep the hostname fallback for manifests that do not inject DD_POD_NAME.
+	// GetSelfPodName rejects it when the process shares the host UTS namespace.
+	podName, err := apiservercommon.GetSelfPodName()
+	if err != nil {
+		return nil, err
+	}
+	return s.wmeta.GetKubernetesPodByName(podName, podNamespace)
 }

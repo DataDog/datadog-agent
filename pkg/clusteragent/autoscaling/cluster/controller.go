@@ -249,11 +249,11 @@ func (c *Controller) createNodePool(ctx context.Context, targetNp *karpenterv1.N
 	if err != nil {
 		return fmt.Errorf("unable to convert NodePool to unstructured: %s, err: %v", npi.Name(), err)
 	}
-	_, err = c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
+	createdUnstr, err := c.Client.Resource(nodePoolGVR).Create(ctx, npUnstr, metav1.CreateOptions{})
 	if err != nil {
 		return fmt.Errorf("unable to create NodePool: %s, err: %v", npi.Name(), err)
 	}
-	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool %q", npi.Name())
+	c.eventRecorder.Eventf(createdUnstr, corev1.EventTypeNormal, model.SuccessfulNodepoolCreateEventReason, "Created NodePool %s", npi.Name())
 	return nil
 }
 
@@ -339,7 +339,7 @@ func (c *Controller) updateNodePool(ctx context.Context, targetNp *karpenterv1.N
 		c.eventRecorder.Eventf(datadogNp, corev1.EventTypeWarning, model.FailedNodepoolUpdateEventReason, "Failed to update NodePool: %v", err)
 		return fmt.Errorf("unable to update NodePool: %s, err: %v", npi.Name(), err)
 	}
-	c.eventRecorder.Eventf(datadogNp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool %q", npi.Name())
+	c.eventRecorder.Eventf(datadogNp, corev1.EventTypeNormal, model.SuccessfulNodepoolUpdateEventReason, "Updated NodePool %s", npi.Name())
 	return nil
 }
 
@@ -352,7 +352,7 @@ func (c *Controller) deleteNodePool(ctx context.Context, name string, knp *karpe
 		return fmt.Errorf("Unable to delete NodePool: %s, err: %v", name, err)
 	}
 
-	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolDeleteEventReason, "Deleted NodePool: %s", name)
+	c.eventRecorder.Eventf(knp, corev1.EventTypeNormal, model.SuccessfulNodepoolDeleteEventReason, "Deleted NodePool %s", name)
 	return nil
 }
 

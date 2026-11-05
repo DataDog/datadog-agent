@@ -15,6 +15,6 @@ import (
 )
 
 // Check is a noop on unsupported platforms.
-func Check(_ config.Component) ([]runnerdef.IssueReport, error) {
+func Check(_ config.Component, _ func() string) ([]runnerdef.IssueReport, error) {
 	return nil, nil
 }

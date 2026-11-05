@@ -1,0 +1,10 @@
+# skip: bash 5 treats stray '\r' bytes as a command name and emits "$'\r': command not found".
+# Our shell intentionally tolerates Windows-saved scripts (CRLF line endings) and treats them as empty.
+skip_assert_against_bash: true
+description: A script with only CRLF line endings (Windows-saved empty file) exits cleanly.
+input:
+  script: "\r\n\r\n\r\n"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

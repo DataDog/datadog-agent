@@ -59,6 +59,8 @@ files:
         type: integer
         example: 123
         default: 123
+        minimum: 1
+        maximum: 65535
       description: Port to use when reaching the NTP server.
     - name: version
       fleet_configurable: true

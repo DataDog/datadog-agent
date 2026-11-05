@@ -8,13 +8,16 @@
 package externalmetrics
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"net/http"
 	"testing"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
 
+	apierr "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/labels"
@@ -285,6 +288,66 @@ func TestGetExternalMetrics(t *testing.T) {
 	for i, fixture := range fixtures {
 		t.Run(fmt.Sprintf("#%d %s", i, fixture.desc), func(t *testing.T) {
 			fixture.runGetExternalMetric(t, defaultUpdateTime)
+		})
+	}
+}
+
+func TestGetExternalMetricErrorStatus(t *testing.T) {
+	tests := []struct {
+		name       string
+		err        error
+		statusCode int32
+	}{
+		{
+			name:       "no series",
+			err:        newQueryError("query-metric0", noSeriesFoundErrorFragment+", check Cluster Agent logs for QueryIndex errors", time.Time{}),
+			statusCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:       "only null values",
+			err:        newQueryError("query-metric0", onlyNullValuesErrorFragment+" (4 points), check data is available in the last 300 seconds", time.Time{}),
+			statusCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:       "persisted no-data error",
+			err:        errors.New(newQueryError("query-metric0", noSeriesFoundErrorFragment, time.Time{}).Error()),
+			statusCode: http.StatusUnprocessableEntity,
+		},
+		{
+			name:       "other processing error",
+			err:        newQueryError("query-metric0", "multiple series found", time.Time{}),
+			statusCode: http.StatusInternalServerError,
+		},
+		{
+			name:       "backend error",
+			err:        newBatchError(errors.New("backend unavailable"), time.Time{}),
+			statusCode: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			metricProvider := datadogMetricProvider{
+				store:            NewDatadogMetricsInternalStore(),
+				autogenNamespace: "default",
+			}
+			metricProvider.store.Set("ns/metric0", model.DatadogMetricInternal{
+				ID:    "ns/metric0",
+				Valid: false,
+				Error: tt.err,
+			}, "utest")
+
+			res, err := metricProvider.GetExternalMetric(
+				context.Background(),
+				"ns",
+				labels.Everything(),
+				provider.ExternalMetricInfo{Metric: "datadogmetric@ns:metric0"},
+			)
+
+			require.Nil(t, res)
+			var statusErr *apierr.StatusError
+			require.ErrorAs(t, err, &statusErr)
+			assert.Equal(t, tt.statusCode, statusErr.ErrStatus.Code)
 		})
 	}
 }

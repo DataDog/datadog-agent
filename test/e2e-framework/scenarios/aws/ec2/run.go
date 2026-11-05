@@ -42,10 +42,7 @@ func Run(ctx *pulumi.Context, awsEnv aws.Environment, env outputs.HostOutputs, p
 			return err
 		}
 		if params.agentOptions != nil {
-			// Agent install needs to be serial with the docker
-			// install because they both use the apt lock, and
-			// can cause each others' installs to fail if run
-			// at the same time.
+			// Prepare the pre-baked Docker runtime before installing the Agent.
 			params.agentOptions = append(params.agentOptions,
 				agentparams.WithPulumiResourceOptions(
 					utils.PulumiDependsOn(dockerManager)))

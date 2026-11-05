@@ -50,7 +50,7 @@ func newScheduler(cfg Config, wlm workloadmeta.Component, evictor podEvictor, pa
 		synced:    make(chan struct{}),
 	}
 	defaultConfig := workloadSpotConfig{percentage: cfg.Percentage, minOnDemand: cfg.MinOnDemandReplicas}
-	s.tracker = newPodTracker(defaultConfig, s.getSpotConfig, tel)
+	s.tracker = newPodTracker(defaultConfig, s.getSpotConfig, tel, cfg.RebalanceStabilizationPeriod)
 	store := newSpotConfigStore()
 	s.configStore = store
 	s.controller = newWorkloadController(dynamicClient, defaultConfig, store, lister, s.tracker)

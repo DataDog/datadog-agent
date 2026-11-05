@@ -88,7 +88,7 @@ func (s *agentUserSuite) TestAgentUser() {
 
 	// run tests
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	s.uninstallAgentAndRunUninstallTests(t)

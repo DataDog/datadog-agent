@@ -42,6 +42,8 @@ func TestKindSuite(t *testing.T) {
 	options := []e2e.SuiteOption{
 		e2e.WithProvisioner(awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenariokindvm.WithInternetAccess(),
 				scenariokindvm.WithDeployTestWorkload(),
 				scenariokindvm.WithPreAgentWorkloadApp(deployKubeAITestResource),
 				scenariokindvm.WithPreAgentWorkloadApp(deployKServeTestResource),

@@ -13,10 +13,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	realhaagentimpl "github.com/DataDog/datadog-agent/comp/haagent/impl"
 	haagentmock "github.com/DataDog/datadog-agent/comp/haagent/mock"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
 )
@@ -100,6 +102,27 @@ func TestGetReflectsLiveStateWithoutExplicitRefresh(t *testing.T) {
 	haAgentMock.SetEnabled(false)
 
 	assert.Nil(t, io.Get(), "Get() must reflect the current state, not the value cached by the last periodic collection")
+}
+
+func TestPayloadReflectsRealHaAgentComponent(t *testing.T) {
+	realCfg := config.NewMock(t)
+	realCfg.SetInTest("ha_agent.enabled", true)
+	realCfg.SetInTest("config_id", "ci-unit-ha-metadata")
+
+	realProvides, err := realhaagentimpl.NewComponent(realhaagentimpl.Requires{
+		Logger:      logmock.New(t),
+		AgentConfig: realCfg,
+		Hostname:    hostnameimpl.NewHostnameService(),
+	})
+	require.NoError(t, err)
+
+	io := getTestInventoryPayload(t, nil)
+	io.haAgent = realProvides.Comp
+
+	p := io.getPayload().(*Payload)
+
+	assert.True(t, p.Metadata.Enabled)
+	assert.Equal(t, "unknown", p.Metadata.State)
 }
 
 func TestFlareProviderFilename(t *testing.T) {

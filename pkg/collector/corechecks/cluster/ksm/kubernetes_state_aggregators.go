@@ -63,8 +63,9 @@ type cronJob struct {
 }
 
 type cronJobState struct {
-	id    int
-	state servicecheck.ServiceCheckStatus
+	startTime float64
+	id        int
+	state     servicecheck.ServiceCheckStatus
 }
 
 type lastCronJobAggregator struct {
@@ -202,14 +203,11 @@ func (a *lastCronJobFailedAggregator) accumulate(metric ksmstore.DDMetric) {
 	a.aggregator.accumulate(metric, servicecheck.ServiceCheckCritical)
 }
 
+// accumulate keeps the Job with the latest start time for each CronJob.
+// metric.Val holds the Job start time. The id parsed from the Job name only
+// breaks ties, because Jobs created outside the CronJob controller (e.g. by
+// `kubectl create job --from=cronjob/...` or Argo CD) can carry any suffix.
 func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servicecheck.ServiceCheckStatus) {
-	if condition, found := metric.Labels["condition"]; !found || condition != "true" {
-		return
-	}
-	if metric.Val != 1 {
-		return
-	}
-
 	namespace, found := metric.Labels["namespace"]
 	if !found {
 		return
@@ -226,10 +224,14 @@ func (a *lastCronJobAggregator) accumulate(metric ksmstore.DDMetric, state servi
 		return
 	}
 
-	if lastCronJob, found := a.accumulator[cronJob{namespace: namespace, name: cronjobName}]; !found || lastCronJob.id < id {
-		a.accumulator[cronJob{namespace: namespace, name: cronjobName}] = cronJobState{
-			id:    id,
-			state: state,
+	key := cronJob{namespace: namespace, name: cronjobName}
+	if lastCronJob, found := a.accumulator[key]; !found ||
+		lastCronJob.startTime < metric.Val ||
+		(lastCronJob.startTime == metric.Val && lastCronJob.id < id) {
+		a.accumulator[key] = cronJobState{
+			startTime: metric.Val,
+			id:        id,
+			state:     state,
 		}
 	}
 }
@@ -246,7 +248,7 @@ func (a *counterAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner
 			labels[allowedLabel] = labelValues[i]
 		}
 
-		hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
+		hostname, tags := k.hostnameAndTags(a.ksmMetricName, labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
 
 		sender.Gauge(ksmMetricPrefix+a.ddMetricName, count, hostname, tags)
 	}
@@ -267,7 +269,7 @@ func (a *resourceAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoine
 				labels[allowedLabel] = labelValues[i]
 			}
 
-			hostname, tags := k.hostnameAndTags(labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
+			hostname, tags := k.hostnameAndTags(a.ksmMetricName, labels, labelJoiner, labelsMapperOverride(a.ksmMetricName))
 			sender.Gauge(metricName, count, hostname, tags)
 		}
 		a.accumulators[resource] = make(map[[maxNumberOfAllowedLabels]string]float64)
@@ -285,6 +287,7 @@ func (a *lastCronJobFailedAggregator) flush(sender sender.Sender, k *KSMCheck, l
 func (a *lastCronJobAggregator) flush(sender sender.Sender, k *KSMCheck, labelJoiner *labelJoiner) {
 	for cronjob, state := range a.accumulator {
 		hostname, tags := k.hostnameAndTags(
+			"",
 			map[string]string{
 				"namespace": cronjob.namespace,
 				"cronjob":   cronjob.name,
@@ -415,8 +418,8 @@ func defaultMetricAggregators() map[string]metricAggregator {
 			"kube_ingress_labels",
 			[]string{"namespace"},
 		),
-		"kube_job_complete": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},
-		"kube_job_failed":   &lastCronJobFailedAggregator{aggregator: cronJobAggregator},
+		"kube_job_complete_start_time": &lastCronJobCompleteAggregator{aggregator: cronJobAggregator},
+		"kube_job_failed_start_time":   &lastCronJobFailedAggregator{aggregator: cronJobAggregator},
 		"kube_node_status_allocatable": newResourceValuesAggregator(
 			"node",
 			"allocatable.total",

@@ -127,7 +127,7 @@ func (c *PGClient) RunSelectQuery() error {
 }
 
 // RunSelectQueryWithLimit runs a SELECT query on the test DB with a limit on the number of rows to return.
-func (c *PGClient) RunSelectQueryWithLimit(limit int) error {
+func (c *PGClient) RunSelectQueryWithLimit(limit int64) error {
 	statement := c.db.NewSelect()
 	if limit > 0 {
 		statement = statement.Limit(limit)

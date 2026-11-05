@@ -14,14 +14,16 @@ import (
 	expvarserver "github.com/DataDog/datadog-agent/comp/agent/expvarserver/def"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/expvarcompat"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 )
 
 // Requires defines the dependencies for the expvarserver component.
 type Requires struct {
-	LC     compdef.Lifecycle
-	Config config.Component
-	Log    log.Component
+	LC           compdef.Lifecycle
+	Config       config.Component
+	Log          log.Component
+	ExpvarSource expvarcompat.Source `optional:"true"`
 }
 
 // Provides defines the output of the expvarserver component.
@@ -37,7 +39,7 @@ func NewComponent(reqs Requires) Provides {
 		OnStart: func(context.Context) error {
 			expvarServer = &http.Server{
 				Addr:    "127.0.0.1:" + expvarPort,
-				Handler: http.DefaultServeMux,
+				Handler: expvarcompat.Handler(http.DefaultServeMux, reqs.ExpvarSource),
 			}
 			go func() {
 				if err := expvarServer.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {

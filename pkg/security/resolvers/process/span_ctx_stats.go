@@ -11,12 +11,15 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strconv"
 	"syscall"
+	"time"
 
 	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/golabelsctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/otelattrs"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -27,12 +30,12 @@ import (
 var (
 	// errSpanCtxNotApplicable marks a process that is instrumented, but not
 	// through the reader that returned this error.
-	errSpanCtxNotApplicable = errors.New("not applicable")
+	errSpanCtxNotApplicable = otelthreadctx.ErrNotApplicable
 	// errSpanCtxUnsupported marks a shape this code recognizes but cannot handle
-	errSpanCtxUnsupported = errors.New("unsupported")
+	errSpanCtxUnsupported = otelthreadctx.ErrUnsupported
 	// errSpanCtxMalformed marks a process that violated the contract it published
 	// under
-	errSpanCtxMalformed = errors.New("malformed")
+	errSpanCtxMalformed = otelthreadctx.ErrMalformed
 	// errSpanCtxGone marks a target that stopped existing mid-resolution
 	errSpanCtxGone = errors.New("gone")
 	// errSpanCtxMapError marks a failure to push resolved offsets into a BPF map.
@@ -280,6 +283,20 @@ func (p *EBPFResolver) sendSpanCtxStats() error {
 		}
 	}
 	return nil
+}
+
+func (p *EBPFResolver) reportOTelProcCtxQueueLatency(queuedAt time.Time) {
+	p.reportLatency(metrics.MetricSpanContextProcessCtxQueueLatency, queuedAt, nil)
+}
+
+func (p *EBPFResolver) reportOTelTLSLatency(start time.Time, readELF bool) {
+	p.reportLatency(metrics.MetricSpanContextResolutionLatency, start, []string{"elf:" + strconv.FormatBool(readELF)})
+}
+
+func (p *EBPFResolver) reportLatency(metric string, since time.Time, tags []string) {
+	if err := p.statsdClient.Distribution(metric, time.Since(since).Seconds(), tags, 1.0); err != nil {
+		seclog.Warnf("couldn't send %s metric: %v", metric, err)
+	}
 }
 
 // reportSpanCtx classifies and counts the outcome of step for pid, logging a

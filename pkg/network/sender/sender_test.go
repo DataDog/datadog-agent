@@ -8,10 +8,14 @@
 package sender
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	model "github.com/DataDog/agent-payload/v5/process"
 	"github.com/stretchr/testify/assert"
@@ -36,6 +40,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/dns"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	"github.com/DataDog/datadog-agent/pkg/process/util/api"
 	evmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	utilintern "github.com/DataDog/datadog-agent/pkg/util/intern"
@@ -586,4 +591,187 @@ func TestNetworkConnectionBatchingWithResolvConf(t *testing.T) {
 
 	connMissing := cc.Connections[1]
 	require.Equal(t, int32(-1), connMissing.ResolvConfIdx, "connection without resolv.conf should have idx=-1")
+}
+
+// blockingConnectionSource holds a collection open until it is released, and
+// records the moment that collection returns.
+type blockingConnectionSource struct {
+	entered chan struct{}
+	release chan struct{}
+	order   chan string
+}
+
+func (f *blockingConnectionSource) RegisterClient(_ string) error { return nil }
+func (f *blockingConnectionSource) GetActiveConnections(_ string) (*network.Connections, func(), error) {
+	close(f.entered)
+	<-f.release
+	f.order <- "collection returned"
+	return nil, nil, errors.New("collection released")
+}
+func (f *blockingConnectionSource) GetProcessCacheTags() map[uint32][]string { return nil }
+
+// collectOnlySender builds the smallest sender the collection loop needs. New
+// is unusable here: it sleeps for over a second retrying the network ID, which
+// is far too slow to pay once per iteration.
+func collectOnlySender(t *testing.T, tracer ConnectionsSource) *directSender {
+	ctx, cancel := context.WithCancel(t.Context())
+	t.Cleanup(cancel)
+	return &directSender{
+		log:          logmock.New(t),
+		ctx:          ctx,
+		cancelFunc:   cancel,
+		tracer:       tracer,
+		resultsQueue: api.NewWeightedQueue(1, 1024),
+	}
+}
+
+func TestStopWaitsForInFlightCollection(t *testing.T) {
+	// Waiting is only observable as an ordering, never as elapsed time: a Stop
+	// that waits records the collection first whatever the scheduler does, so
+	// this cannot flake, while a Stop that returns early only sometimes loses
+	// the race. Repeat until losing it every single time is not credible.
+	for i := 0; i < 100; i++ {
+		source := &blockingConnectionSource{
+			entered: make(chan struct{}),
+			release: make(chan struct{}),
+			order:   make(chan string, 2),
+		}
+		d := collectOnlySender(t, source)
+
+		// Drive the collection loop by hand instead of waiting on the real ticker.
+		tick := make(chan time.Time)
+		d.collectWG.Add(1)
+		go d.collectLoop(tick)
+
+		tick <- time.Now()
+		<-source.entered
+
+		stopping := make(chan struct{})
+		go func() {
+			close(stopping)
+			d.Stop()
+			source.order <- "Stop returned"
+		}()
+
+		// Let Stop get going before releasing the collection, otherwise the
+		// collection finishes first by default and the race is never run.
+		<-stopping
+		close(source.release)
+
+		require.Equal(t, "collection returned", <-source.order,
+			"Stop returned while a collection was still in flight")
+		require.Equal(t, "Stop returned", <-source.order)
+	}
+}
+
+// countingConnectionSource records how many collections were started.
+type countingConnectionSource struct {
+	calls atomic.Int32
+}
+
+func (f *countingConnectionSource) RegisterClient(_ string) error { return nil }
+func (f *countingConnectionSource) GetActiveConnections(_ string) (*network.Connections, func(), error) {
+	f.calls.Add(1)
+	return nil, nil, errors.New("no connections")
+}
+func (f *countingConnectionSource) GetProcessCacheTags() map[uint32][]string { return nil }
+
+func TestCollectLoopIgnoresPendingTickAfterCancel(t *testing.T) {
+	source := &countingConnectionSource{}
+	d := collectOnlySender(t, source)
+	d.cancelFunc()
+
+	// A pending tick and a cancelled context are both ready, and select picks
+	// a ready case at random, so repeat often enough that a loop missing the
+	// cancellation check would collect at least once.
+	for i := 0; i < 100; i++ {
+		tick := make(chan time.Time, 1)
+		tick <- time.Now()
+		d.collectWG.Add(1)
+		d.collectLoop(tick)
+	}
+
+	require.Zero(t, source.calls.Load(), "collectLoop collected after the context was cancelled")
+}
+
+func TestNetworkConnectionNetNSReattributed(t *testing.T) {
+	// two sockets owned by the same proxy process: one in its own container, one that the
+	// tracer attributed to the pod owning the socket's network namespace. The reattributed one
+	// sorts first (lower Dest), so the PID's container comes from it unless encoding corrects it.
+	p := makeConnections(2)
+	p[1].Pid = p[0].Pid
+	p[0].SPort++
+	proxyCID := p[1].ContainerID.Source
+	p[0].ContainerID.Source = intern.GetByString("app-container")
+	p[0].NetNSOriginalContainerID = proxyCID
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.Process, strconv.Itoa(int(p[0].Pid))), "process", nil, nil, []string{"service:ztunnel"}, nil)
+
+	d := mockDirectSender(t, nil)
+	d.maxConnsPerMessage = 10
+	d.tagger = fakeTagger
+	payloads := slices.Collect(d.batches(&network.Connections{BufferedData: network.BufferedData{Conns: p}}, 1))
+	require.Len(t, payloads, 1)
+	m, err := model.DecodeMessage(payloads[0])
+	require.NoError(t, err)
+	cc, ok := m.Body.(*model.CollectorConnections)
+	require.True(t, ok)
+
+	assert.Equal(t, proxyCID.Get().(string), cc.ContainerForPid[int32(p[0].Pid)], "the PID must keep mapping to the process's own container")
+	require.Len(t, cc.Connections, 2)
+	for _, c := range cc.Connections {
+		tags := cc.GetConnectionsTags(c.TagsIdx)
+		if c.Laddr.ContainerId == "app-container" {
+			assert.NotContains(t, tags, "service:ztunnel", "the proxy's process tags must not move onto the pod")
+			assert.Equal(t, proxyCID.Get().(string), c.NetnsOriginalContainerId, "the payload must mark the reattribution")
+		} else {
+			assert.Contains(t, tags, "service:ztunnel")
+			assert.Empty(t, c.NetnsOriginalContainerId)
+		}
+	}
+}
+
+func TestAddConnectionListenersSkipsNetNSReattributed(t *testing.T) {
+	// the proxy's inbound socket on the pod's address, attributed to the pod
+	proxied := makeConnection(7)
+	proxied.Type, proxied.IntraHost, proxied.SPort = network.TCP, true, 8080
+	proxied.ContainerID.Source = intern.GetByString("app-container")
+	proxied.NetNSOriginalContainerID = intern.GetByString("proxy-container")
+	// a normal listener
+	direct := makeConnection(8)
+	direct.Type, direct.IntraHost, direct.SPort = network.TCP, true, 9090
+
+	listeners := make(map[listenKey]int32)
+	addConnectionListeners(listeners, []network.ConnectionStats{proxied, direct})
+
+	assert.NotContains(t, listeners, listenKey{IP: proxied.Source.Addr, Port: 8080}, "the proxy's PID must not name the pod's listener")
+	assert.Equal(t, int32(8), listeners[listenKey{IP: direct.Source.Addr, Port: 9090}])
+}
+
+func TestResolveDestinationContainerIDsReattributedTunnelLegs(t *testing.T) {
+	podA, podB := intern.GetByString("pod-a"), intern.GetByString("pod-b")
+	conn := func(src, dst string, sport, dport uint16, netns uint32, dir network.ConnectionDirection, cid *intern.Value) network.ConnectionStats {
+		c := network.ConnectionStats{ConnectionTuple: network.ConnectionTuple{
+			Source: util.AddressFromString(src), SPort: sport, Dest: util.AddressFromString(dst), DPort: dport,
+			NetNS: netns, Type: network.TCP, Direction: dir,
+		}, IntraHost: true}
+		c.ContainerID.Source = cid
+		c.NetNSOriginalContainerID = intern.GetByString("ztunnel")
+		return c
+	}
+	// a proxy's tunnel between pods on the same node: its socket in pod A's namespace and the one it
+	// accepted in pod B's, each attributed to its pod
+	conns := []network.ConnectionStats{
+		conn("10.0.0.1", "10.0.0.2", 40000, 15008, 1, network.OUTGOING, podA),
+		conn("10.0.0.2", "10.0.0.1", 15008, 40000, 2, network.INCOMING, podB),
+	}
+
+	r := &containerResolver{addrToContainerID: make(map[containerAddr]containerID)}
+	r.resolveDestinationContainerIDs(&network.Connections{BufferedData: network.BufferedData{Conns: conns}})
+
+	require.NotNil(t, conns[0].ContainerID.Dest)
+	assert.Equal(t, "pod-b", conns[0].ContainerID.Dest.Get().(string))
+	require.NotNil(t, conns[1].ContainerID.Dest)
+	assert.Equal(t, "pod-a", conns[1].ContainerID.Dest.Get().(string))
 }

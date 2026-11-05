@@ -135,9 +135,6 @@
 /* disable DNS shuffling */
 /* #undef CURL_DISABLE_SHUFFLE_DNS */
 
-/* to disable SMB/CIFS */
-/* #undef CURL_DISABLE_SMB */
-
 /* to disable SMTP */
 /* #undef CURL_DISABLE_SMTP */
 
@@ -231,6 +228,9 @@
 
 /* Define to 1 if you have the `eventfd' function. */
 #define HAVE_EVENTFD 1
+
+/* Define to 1 if you have the `fchmod' function. */
+#define HAVE_FCHMOD 1
 
 /* Define to 1 if you have the fcntl function. */
 #define HAVE_FCNTL 1

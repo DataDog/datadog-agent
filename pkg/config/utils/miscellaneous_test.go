@@ -242,3 +242,34 @@ func TestIsCloudProviderEnabled(t *testing.T) {
 	assert.False(t, IsCloudProviderEnabled("Azure", config))
 	assert.False(t, IsCloudProviderEnabled("Tencent", config))
 }
+
+func TestSetLogLevel(t *testing.T) {
+	tests := []struct {
+		name  string
+		level string
+		valid bool
+	}{
+		{"plain level", "debug", true},
+		{"case insensitive plain level", "DEBUG", true},
+		{"deprecated warning spelling", "warning", true},
+		{"per-package spec", "error,some/pkg/...=debug", true},
+		{"relative pattern spec", "info,./pkg/collector/...=debug", true},
+		{"unknown level", "verbose", false},
+		{"unknown level in spec", "error,some/pkg=noisy", false},
+		{"empty", "", false},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.New(t)
+			err := SetLogLevel(tc.level, cfg, model.SourceAgentRuntime)
+
+			if !tc.valid {
+				assert.Error(t, err)
+				return
+			}
+			assert.NoError(t, err)
+			assert.Equal(t, tc.level, cfg.GetString("log_level"), "the value is stored as given")
+		})
+	}
+}

@@ -387,8 +387,8 @@ api_key:
 #
 # forwarder_storage_max_size_in_bytes: 50000000
 
-## @param forwarder_storage_max_disk_ratio - float - optional - default: 0.8
-## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - float - optional - default: 0.8
+## @param forwarder_storage_max_disk_ratio - integer - optional - default: 0.8
+## @env DD_FORWARDER_STORAGE_MAX_DISK_RATIO - integer - optional - default: 0.8
 ## `forwarder_storage_max_disk_ratio` defines the disk capacity limit for storing transactions.
 ## `0.8` means the Agent can store transactions on disk until `forwarder_storage_max_size_in_bytes`
 ## is reached or when the disk mount for `forwarder_storage_path` exceeds 80% of the disk capacity,
@@ -423,16 +423,16 @@ api_key:
 #
 # forwarder_requeue_buffer_size: 100
 
-## @param forwarder_backoff_base - integer - optional - default: 2
-## @env DD_FORWARDER_BACKOFF_BASE - integer - optional - default: 2
+## @param forwarder_backoff_base - float - optional - default: 2
+## @env DD_FORWARDER_BACKOFF_BASE - float - optional - default: 2
 ## Defines the rate of exponential growth, and the first retry interval range.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher rate of exponential growth.
 #
 # forwarder_backoff_base: 2
 
-## @param forwarder_backoff_max - integer - optional - default: 64
-## @env DD_FORWARDER_BACKOFF_MAX - integer - optional - default: 64
+## @param forwarder_backoff_max - float - optional - default: 64
+## @env DD_FORWARDER_BACKOFF_MAX - float - optional - default: 64
 ## Defines the maximum number of seconds to wait for a retry.
 ## Do not set a lower value than the default. You may increase it if you use a proxy that benefits from a
 ## higher maximum backoff time.
@@ -608,6 +608,14 @@ api_key:
 #
 #   enabled: false
 
+#   # @param legacy_sm_active - boolean - optional - default: false
+#   # @env DD_GPU_LEGACY_SM_ACTIVE - boolean - optional - default: false
+#   # Set to true to restore the legacy mapping of GPM SM utilization to
+#   # gpu.sm_active, matching the behavior of DCGM. On GPM-capable GPUs, the high-priority GPM value is
+#   # reported as both gpu.sm_active and gpu.sm_utilization.
+#
+#   legacy_sm_active: false
+
 #   # @param nccl - custom object - optional
 #   # NCCL collective communication metrics. When enabled, the Agent listens on a
 #   # Unix domain socket for events emitted by the NCCL profiler plugin in
@@ -636,6 +644,16 @@ api_key:
 #     # Must be under host_socket_path.
 #
 #     socket_path: "/var/run/datadog/nccl.socket"
+
+#   # @param static_metrics_reporting_interval - duration - optional - default: "15s"
+#   # @env DD_GPU_STATIC_METRICS_REPORTING_INTERVAL - duration - optional - default: "15s"
+#   # Reporting interval for static GPU metrics, including gpu.device.total,
+#   # gpu.memory.limit, gpu.core.limit, and gpu.memory.bar1.total. Samples received
+#   # early are dropped and missing intervals are filled. Use the same value on every
+#   # host in a Datadog organization to avoid inaccurate weighted sums as workloads change.
+#   # Set to 0 to report on every check run.
+#
+#   static_metrics_reporting_interval: "15s"
 
 ## @param azure_metadata_timeout - integer - optional - default: 300
 ## @env DD_AZURE_METADATA_TIMEOUT - integer - optional - default: 300
@@ -1017,7 +1035,8 @@ api_key:
 
 ## @param secret_refresh_interval - integer - optional - default: 0
 ## @env DD_SECRET_REFRESH_INTERVAL - integer - optional - default: 0
-## `secret_refresh_interval` is the interval (in seconds) at which api/app key secrets are refreshed. A 0 value means the feature is disabled.
+## `secret_refresh_interval` is the interval (in seconds) at which eligible Agent and integration secrets are refreshed.
+## This also retries integration secrets that could not be resolved initially. A 0 value means the feature is disabled.
 ## For more information see: https://docs.datadoghq.com/agent/configuration/secrets-management/#refreshing-apiapp-keys-at-runtime
 #
 # secret_refresh_interval: 0
@@ -1249,8 +1268,8 @@ api_key:
 #
 #   compression_level: 6
 
-#   # @param batch_wait - float - optional - default: 5
-#   # @env DD_LOGS_CONFIG_BATCH_WAIT - float - optional - default: 5
+#   # @param batch_wait - integer - optional - default: 5
+#   # @env DD_LOGS_CONFIG_BATCH_WAIT - integer - optional - default: 5
 #   # The maximum time (in seconds) the Datadog Agent waits to fill each batch of logs before sending.
 #
 #   batch_wait: 5
@@ -1334,6 +1353,51 @@ api_key:
 #     #   * Linux: /var/log/datadog/streamlogs_info/streamlogs.log
 #
 #     streamlogs_log_file: "/var/log/datadog/streamlogs_info/streamlogs.log"
+
+#   # @param unreliable_mount - custom object - optional
+#   # Node-wide profile for log files on mounts with stale page-cache or file-handle
+#   # behavior during rotation, such as CIFS/SMB and Azure Files. It selects direct
+#   # fingerprint reads on Linux, smaller fingerprint defaults, a separate
+#   # rotation drain timeout, and a sequential handoff after rotation. Normal log
+#   # tailing keeps buffered reads.
+#
+#   unreliable_mount:
+
+#     # @param enabled - boolean - optional - default: false
+#     # @env DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ENABLED - boolean - optional - default: false
+#     # Enable the unreliable-mount profile for all file log sources on this Agent.
+#     # Restart the Agent after changing this setting. On Linux, fingerprint reads
+#     # use O_DIRECT, including when a source overrides the checksum settings.
+#     # Other platforms keep buffered fingerprint reads.
+#     # If no global fingerprint strategy is explicitly set, use line_checksum with
+#     # one line. In line mode, global max_bytes defaults to 4096 unless explicitly
+#     # configured. Explicit checksum settings, including disabled, are preserved.
+#     # Use rotation_drain_timeout in place of close_timeout for rotated files.
+#     # After a rotation detected by fingerprint, the replacement tailer does not
+#     # open the path until the rotated tailer has closed it. The rotated tailer
+#     # stops once its file has gone 30 seconds without new reads, or at
+#     # rotation_drain_timeout. The path is not collected until then, so a file
+#     # rotated away sooner than that after the previous rotation is not read.
+#     # A failed fingerprint prevents a new tailer from starting. An active tailer
+#     # keeps collecting, but cannot check fingerprint rotation until a later read
+#     # succeeds. Failures appear in the Agent log and status; status clears on recovery.
+#     # Linux does not retry a failed direct read using buffered I/O.
+#     # Direct reads fetch the whole fingerprint window on each scan. Scan frequency
+#     # is unchanged; consider raising logs_config.file_scan_period to reduce I/O.
+#
+#     enabled: false
+
+#     # @param rotation_drain_timeout - integer - optional - default: 60
+#     # @env DD_LOGS_CONFIG_UNRELIABLE_MOUNT_ROTATION_DRAIN_TIMEOUT - integer - optional - default: 60
+#     # Maximum seconds a tailer keeps reading a rotated file through its
+#     # already-open descriptor before closing it, used in place of close_timeout
+#     # when unreliable_mount.enabled is true. A rotated file that a replacement
+#     # tailer is waiting on closes earlier, once it has gone 30 seconds without
+#     # new reads. On these mounts a fresh open of the
+#     # path can fail while the open descriptor still drains. Values at or below
+#     # zero use the 60-second default.
+#
+#     rotation_drain_timeout: 60
 
 #############################
 ## DogStatsD Configuration ##
@@ -1629,8 +1693,8 @@ api_key:
 #
 #     evaluation_interval: "30s"
 
-#     # @param range_epsilon - float - optional - default: 0
-#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - float - optional - default: 0
+#     # @param range_epsilon - integer - optional - default: 0
+#     # @env DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON - integer - optional - default: 0
 #     # Monitor max-minus-min threshold. The Agent fails to start when this value is negative.
 #     # The monitor computes a window range as the maximum retained point value minus the minimum
 #     # retained point value in each completed evaluation window, or in each configured tag partition.

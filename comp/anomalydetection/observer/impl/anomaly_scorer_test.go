@@ -35,7 +35,7 @@ func makeAnomaly(detector string, ts int64, score *float64) observer.Anomaly {
 	src := observer.SeriesDescriptor{
 		Namespace: "test",
 		Name:      "series",
-		Tags:      []string{"host:h1"},
+		Tags:      testCompositeTags([]string{"host:h1"}),
 	}
 	return observer.Anomaly{
 		DetectorName: detector,
@@ -348,7 +348,7 @@ func TestDeduplication(t *testing.T) {
 
 	// Two anomalies on the same series: levels 1 (Low) and 3 (High).
 	// Only the High one (weight=2.0) should survive in the window.
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 	a1 := observer.Anomaly{
 		DetectorName: "holt_residual", Timestamp: 1000, Score: scorePtr(8), Source: src,
 	}
@@ -376,7 +376,7 @@ func TestWindowDedup(t *testing.T) {
 	cfg.WindowSecs = 15
 	s := NewAnomalyScorer(cfg)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 	// Series fires at t=1000 (Medium, level 2) and again at t=1005 (Low, level 1).
 	// The window should keep max level = 2 and count = 1 at t=1005.
 	s.ProcessAnomaly(observer.Anomaly{DetectorName: "bocpd", Timestamp: 1000, Source: src})
@@ -405,7 +405,7 @@ func TestWindowExpiry(t *testing.T) {
 	cfg.WindowSecs = 15
 	s := NewAnomalyScorer(cfg)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 	// Series fires once at t=1000; last seen = 1000.
 	// WindowSecs at t=1014: windowStart = 1014-15+1 = 1000 → series still alive (lastSeen >= windowStart).
 	// WindowSecs at t=1015: windowStart = 1015-15+1 = 1001 → series expired (lastSeen=1000 < 1001).
@@ -443,7 +443,7 @@ func TestWindowLevelExpiry(t *testing.T) {
 	cfg.WindowSecs = 15
 	s := NewAnomalyScorer(cfg)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 
 	// High anomaly at t=1000
 	s.ProcessAnomaly(observer.Anomaly{
@@ -530,7 +530,7 @@ func TestLateAnomalyClamp(t *testing.T) {
 	cfg.WindowSecs = 15
 	s := NewAnomalyScorer(cfg)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 
 	// Advance to t=1010 with no anomalies.
 	s.Advance(1010)
@@ -571,7 +571,7 @@ func TestLateAnomalyNoLeakInPending(t *testing.T) {
 	cfg.WindowSecs = 15
 	s := NewAnomalyScorer(cfg)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 
 	s.Advance(1010)
 
@@ -604,7 +604,7 @@ func TestLateAnomalyBeforeFirstAdvance(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig()
 	s := NewAnomalyScorer(cfg)
 
-	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: []string{"host:h"}}
+	src := observer.SeriesDescriptor{Namespace: "ns", Name: "m", Tags: testCompositeTags([]string{"host:h"})}
 
 	// No advance yet; lastAdvancedSec == 0.
 	s.ProcessAnomaly(observer.Anomaly{

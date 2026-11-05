@@ -76,8 +76,7 @@ func (pc *ProcessCacheEntry) Exit(exitTime time.Time) {
 func (pc *ProcessCacheEntry) copyProcessContextFrom(parent *ProcessCacheEntry) {
 	pc.copySSHUserSessionFrom(parent)
 	pc.copyAUIDFrom(parent)
-	pc.copyCGroupFrom(parent)
-	pc.copyContainerContextFrom(parent)
+	pc.copyCGroupAndContainerFrom(parent)
 	pc.copyNSFrom(parent)
 }
 
@@ -98,10 +97,12 @@ func (pc *ProcessCacheEntry) ApplyExecTimeOf(entry *ProcessCacheEntry) {
 	pc.ExecTime = entry.ExecTime
 }
 
+const cloneNewNS = 0x20000
+
 // SetExecParent set the parent of the exec entry
 func (pc *ProcessCacheEntry) SetExecParent(parent *ProcessCacheEntry) {
-	pc.setAncestor(parent)
 	pc.IsExec = true
+	pc.setAncestor(parent)
 	pc.IsExecExec = pc.Parent != nil && pc.Parent.IsExec
 }
 
@@ -141,16 +142,13 @@ func (pc *ProcessCacheEntry) GetContainerPIDs() ([]uint32, []string) {
 	return pids, paths
 }
 
-func (pc *ProcessCacheEntry) copyCGroupFrom(parent *ProcessCacheEntry) {
-	if !parent.CGroup.CGroupPathKey.IsNull() && pc.CGroup.IsNull() {
-		pc.CGroup = parent.CGroup
+func (pc *ProcessCacheEntry) copyCGroupAndContainerFrom(parent *ProcessCacheEntry) {
+	if parent.CGroup.IsNull() || !pc.CGroup.IsNull() {
+		return
 	}
-}
 
-func (pc *ProcessCacheEntry) copyContainerContextFrom(parent *ProcessCacheEntry) {
-	if !parent.ContainerContext.IsNull() && pc.ContainerContext.IsNull() {
-		pc.ContainerContext = parent.ContainerContext
-	}
+	pc.CGroup = parent.CGroup
+	pc.ContainerContext = parent.ContainerContext
 }
 
 func (pc *ProcessCacheEntry) copyNSFrom(parent *ProcessCacheEntry) {
@@ -158,7 +156,7 @@ func (pc *ProcessCacheEntry) copyNSFrom(parent *ProcessCacheEntry) {
 		pc.NetNS = parent.NetNS
 	}
 
-	if pc.MntNS == 0 {
+	if pc.MntNS == 0 && (pc.IsExec || pc.ForkFlags&cloneNewNS == 0) {
 		pc.MntNS = parent.MntNS
 	}
 }
@@ -194,6 +192,7 @@ func (pc *ProcessCacheEntry) Fork(child *ProcessCacheEntry) {
 	child.LinuxBinprm = pc.LinuxBinprm
 	child.Cookie = pc.Cookie
 	child.Tracer.Metadata = pc.Tracer.Metadata
+	child.Tracer.MetadataSource = pc.Tracer.MetadataSource
 
 	child.SetForkParent(pc)
 }

@@ -8,6 +8,7 @@ package transform
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -346,7 +347,7 @@ func OtelSpanToDDSpan(
 	}
 	TagSpanIfContainsExceptionEvent(otelspan, ddspan)
 	if otelspan.Links().Len() > 0 {
-		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
+		ddspan.SpanLinks = OTelSpanLinksToDD(otelspan.Links())
 	}
 
 	// Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
@@ -381,6 +382,12 @@ func OtelSpanToDDSpan(
 	}
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
+		// Span attributes take precedence over resource attributes. Numeric span attributes
+		// are stored in Metrics rather than Meta, so skip resource attributes whose key is
+		// already present in Metrics to avoid emitting a stale duplicate in Meta.
+		if _, ok := ddspan.Metrics[GetDDKeyForOTLPAttribute(k)]; ok {
+			return true
+		}
 		value := v.AsString()
 		conditionallyMapOTLPAttributeToMeta(k, value, ddspan)
 		return true
@@ -424,6 +431,11 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			str.WriteString(",")
 		}
 		var wrote bool
+		// Counted locally and added to DroppedAttributesCount() when the field is emitted,
+		// rather than written back with SetDroppedAttributesCount. Both forms report
+		// DroppedAttributesCount()+N, so the JSON is identical; the write-back additionally
+		// mutated events owned by the caller, which panics once they are read-only.
+		var dropped uint32
 		str.WriteString("{")
 		if v := e.Timestamp(); v != 0 {
 			str.WriteString(`"time_unix_nano":`)
@@ -466,16 +478,20 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					}
 					j++
 				} else {
+					// Unreachable: json.Marshal cannot fail on a Go string (invalid UTF-8 is
+					// coerced to U+FFFD, not rejected). Kept because json.Marshal returns an
+					// error that has to go somewhere -- discarding it would write a nil key
+					// and emit a bare ":". Unlike the value branch above, which json.Marshal
+					// does reject for NaN/Inf doubles.
 					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
-					e.SetDroppedAttributesCount(e.DroppedAttributesCount() + 1)
+					dropped++
 				}
-				j++
 				return true
 			})
 			str.WriteString("}")
 			wrote = true
 		}
-		if v := e.DroppedAttributesCount(); v != 0 {
+		if v := e.DroppedAttributesCount() + dropped; v != 0 {
 			if wrote {
 				str.WriteString(",")
 			}
@@ -488,52 +504,52 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 	return str.String()
 }
 
-// MarshalLinks marshals span links into JSON.
-func MarshalLinks(links ptrace.SpanLinkSlice) string {
-	var str strings.Builder
-	str.WriteString("[")
+// OTelSpanLinksToDD converts OTel span links into Datadog span links.
+func OTelSpanLinksToDD(links ptrace.SpanLinkSlice) []*pb.SpanLink {
+	ddLinks := make([]*pb.SpanLink, 0, links.Len())
 	for i := 0; i < links.Len(); i++ {
 		l := links.At(i)
-		if i > 0 {
-			str.WriteString(",")
+		traceID := l.TraceID()
+		ddLink := &pb.SpanLink{
+			TraceID:     OTelTraceIDToUint64(traceID),
+			TraceIDHigh: binary.BigEndian.Uint64(traceID[:8]),
+			SpanID:      OTelSpanIDToUint64(l.SpanID()),
+			Tracestate:  l.TraceState().AsRaw(),
 		}
-		t := l.TraceID()
-		str.WriteString(`{"trace_id":"`)
-		str.WriteString(hex.EncodeToString(t[:]))
-		s := l.SpanID()
-		str.WriteString(`","span_id":"`)
-		str.WriteString(hex.EncodeToString(s[:]))
-		str.WriteString(`"`)
-		if ts := l.TraceState().AsRaw(); len(ts) > 0 {
-			str.WriteString(`,"tracestate":"`)
-			str.WriteString(ts)
-			str.WriteString(`"`)
+		if flags := l.Flags(); flags != 0 {
+			// Only the low 8 bits are W3C trace flags; OTLP uses bits 8 and 9 for is_remote. The
+			// high bit marks the flags as set, telling "not sampled" apart from "unknown".
+			ddLink.Flags = flags&0xff | 1<<31
 		}
 		if l.Attributes().Len() > 0 {
-			str.WriteString(`,"attributes":{`)
-			var b bool
+			ddLink.Attributes = make(map[string]string, l.Attributes().Len())
 			l.Attributes().Range(func(k string, v pcommon.Value) bool {
-				if b {
-					str.WriteString(",")
-				}
-				b = true
-				str.WriteString(`"`)
-				str.WriteString(k)
-				str.WriteString(`":"`)
-				str.WriteString(v.AsString())
-				str.WriteString(`"`)
+				flattenLinkAttribute(ddLink.Attributes, k, v)
 				return true
 			})
-			str.WriteString("}")
 		}
-		if l.DroppedAttributesCount() > 0 {
-			str.WriteString(`,"dropped_attributes_count":`)
-			str.WriteString(strconv.FormatUint(uint64(l.DroppedAttributesCount()), 10))
-		}
-		str.WriteString("}")
+		ddLinks = append(ddLinks, ddLink)
 	}
-	str.WriteString("]")
-	return str.String()
+	return ddLinks
+}
+
+// flattenLinkAttribute sets the OTel attribute k=v in the string-valued Datadog span link
+// attributes, flattening slices into "k.0", "k.1", ... and maps into "k.<key>" as tracers do.
+func flattenLinkAttribute(attrs map[string]string, k string, v pcommon.Value) {
+	switch v.Type() {
+	case pcommon.ValueTypeSlice:
+		s := v.Slice()
+		for i := 0; i < s.Len(); i++ {
+			flattenLinkAttribute(attrs, k+"."+strconv.Itoa(i), s.At(i))
+		}
+	case pcommon.ValueTypeMap:
+		v.Map().Range(func(mk string, mv pcommon.Value) bool {
+			flattenLinkAttribute(attrs, k+"."+mk, mv)
+			return true
+		})
+	default:
+		attrs[k] = v.AsString()
+	}
 }
 
 // SetMetaOTLP sets the k/v OTLP attribute pair as a tag on span s.

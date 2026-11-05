@@ -1,0 +1,27 @@
+description: jq requires identifier field shorthand to be adjacent to its dot.
+input:
+  script: |+
+    jq -nc '. and true'
+    jq -nc '. or false'
+    jq -nc '{"a":1} | . "a"'
+    jq -nc '{"and":1} | .and'
+    if jq -n '. a' >/dev/null 2>&1; then
+      echo accepted
+    else
+      echo rejected
+    fi
+    if jq -n '{"foo":{"bar":1}} | .foo . bar' >/dev/null 2>&1; then
+      echo accepted
+    else
+      echo rejected
+    fi
+expect:
+  stdout: |+
+    false
+    false
+    1
+    1
+    rejected
+    rejected
+  stderr: |+
+  exit_code: 0

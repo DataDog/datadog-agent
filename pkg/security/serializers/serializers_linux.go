@@ -298,6 +298,10 @@ type ProcessSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// CapsUsed lists the capabilities that this process effectively made use of
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 	// Context of the user session for this event
 	UserSession *UserSessionContextSerializer `json:"user_session,omitempty"`
 	// File information of the executable
@@ -571,13 +575,15 @@ type MountEventSerializer struct {
 	// Mount source path
 	MountSourcePath string `json:"source.path,omitempty"`
 	// Mount point path error
-	MountRootPathResolutionError string `json:"mountpoint.path_error,omitempty"`
+	MountPointPathResolutionError string `json:"mountpoint.path_error,omitempty"`
 	// Mount source path error
 	MountSourcePathResolutionError string `json:"source.path_error,omitempty"`
 	// Mount is not attached to the VFS tree
 	Detached bool `json:"detached,omitempty"`
-	// Mount is not visible in the VFS tree
+	// Mount is visible in the VFS tree
 	Visible bool `json:"visible,omitempty"`
+	// Per-mount attribute flags expressed as MOUNT_ATTR_* names
+	Flags []string `json:"flags,omitempty"`
 }
 
 // SecurityProfileContextSerializer serializes the security profile context in an event
@@ -593,6 +599,8 @@ type SecurityProfileContextSerializer struct {
 	EventInProfile bool `json:"event_in_profile"`
 	// State of the event type in this profile
 	EventTypeState string `json:"event_type_state"`
+	// True if the profile had already been persisted to the backend when this event was emitted
+	ProfileAlreadySent bool `json:"profile_already_sent"`
 }
 
 // SyscallSerializer serializes a syscall
@@ -697,6 +705,42 @@ type SetrlimitEventSerializer struct {
 type UnshareEventSerializer struct {
 	// Namespace flags requested by the unshare call
 	Flags []string `json:"flags,omitempty"`
+}
+
+// SetNSEventSerializer serializes a setns event
+// easyjson:json
+type SetNSEventSerializer struct {
+	// Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0
+	NSType []string `json:"nstype,omitempty"`
+	// Namespace IDs of the thread once the syscall returned
+	NamespaceIDsSerializer
+	// Namespace IDs of the thread before the syscall
+	Previous *NamespaceIDsSerializer `json:"previous,omitempty"`
+	// Indicates that the mount namespace of the thread after the syscall is the host's initial one
+	MntNSHost bool `json:"mntns_host,omitempty"`
+	// Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one
+	MntNSOutsideBase bool `json:"mntns_outside_base,omitempty"`
+}
+
+// NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved
+// easyjson:json
+type NamespaceIDsSerializer struct {
+	// Mount namespace ID
+	MntNS uint32 `json:"mntns,omitempty"`
+	// Network namespace ID
+	NetNS uint32 `json:"netns,omitempty"`
+	// ID of the PID namespace future children are created in (pid_for_children)
+	PIDNS uint32 `json:"pidns,omitempty"`
+	// User namespace ID
+	UserNS uint32 `json:"userns,omitempty"`
+	// UTS namespace ID
+	UTSNS uint32 `json:"utsns,omitempty"`
+	// IPC namespace ID
+	IPCNS uint32 `json:"ipcns,omitempty"`
+	// Cgroup namespace ID
+	CgroupNS uint32 `json:"cgroupns,omitempty"`
+	// Time namespace ID
+	TimeNS uint32 `json:"timens,omitempty"`
 }
 
 // CGroupWriteEventSerializer serializes a cgroup_write event
@@ -863,6 +907,7 @@ type EventSerializer struct {
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
+	*SetNSEventSerializer         `json:"setns,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
 	*UnshareEventSerializer       `json:"unshare,omitempty"`
 }
@@ -885,12 +930,18 @@ type CapabilitiesEventSerializer struct {
 	CapsAttempted []string `json:"caps_attempted,omitempty"`
 	// Capabilities that the process successfully used since it started running
 	CapsUsed []string `json:"caps_used,omitempty"`
+	// Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace
+	CapsAttemptedHostUserNS []string `json:"caps_attempted_host_userns,omitempty"`
+	// Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace
+	CapsUsedHostUserNS []string `json:"caps_used_host_userns,omitempty"`
 }
 
 func newCapabilitiesEventSerializer(e *model.Event, ce *model.CapabilitiesEvent) *CapabilitiesEventSerializer {
 	return &CapabilitiesEventSerializer{
-		CapsAttempted: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
-		CapsUsed:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttempted:           model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttempted(e, ce)).StringArray(),
+		CapsUsed:                model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsed(e, ce)).StringArray(),
+		CapsAttemptedHostUserNS: model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesAttemptedHostUserNS(e, ce)).StringArray(),
+		CapsUsedHostUserNS:      model.KernelCapability(e.FieldHandlers.ResolveCapabilitiesUsedHostUserNS(e, ce)).StringArray(),
 	}
 }
 
@@ -1027,6 +1078,9 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			Source:          model.ProcessSourceToString(ps.Source),
 			CapsAttempted:   model.KernelCapability(ps.CapsAttempted).StringArray(),
 			CapsUsed:        model.KernelCapability(ps.CapsUsed).StringArray(),
+
+			CapsAttemptedHostUserNS: model.KernelCapability(ps.CapsAttemptedHostUserNS).StringArray(),
+			CapsUsedHostUserNS:      model.KernelCapability(ps.CapsUsedHostUserNS).StringArray(),
 		}
 
 		if ps.HasInterpreter() {
@@ -1078,9 +1132,11 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Tracer = tracer
 		}
 
-		if len(ps.ContainerContext.ContainerID) != 0 {
+		if ps.ContainerContext.ContainerID != "" || ps.ContainerContext.PodUID != "" {
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
+				PodUID:    ps.ContainerContext.PodUID,
+				ECSTaskID: ps.ContainerContext.ECSTaskID,
 				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
@@ -1317,12 +1373,12 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 
 	mountSerializer := &MountEventSerializer{
 		MountPoint: &FileSerializer{
-			Path:    e.GetMountRootPath(),
+			Path:    mountPointPath,
 			MountID: createNumPointer(e.Mount.ParentPathKey.MountID),
 			Inode:   createNumPointer(e.Mount.ParentPathKey.Inode),
 		},
 		Root: &FileSerializer{
-			Path:    e.GetMountMountpointPath(),
+			Path:    fh.ResolveMountRootPath(e, &e.Mount),
 			MountID: createNumPointer(e.Mount.RootPathKey.MountID),
 			Inode:   createNumPointer(e.Mount.RootPathKey.Inode),
 		},
@@ -1335,11 +1391,15 @@ func newMountEventSerializer(e *model.Event) *MountEventSerializer {
 		MountSourcePath: mountSourcePath,
 		Detached:        e.Mount.Detached,
 		Visible:         e.Mount.Visible,
+		Flags:           model.MountFlagsStrings(e.Mount.MountFlags),
 	}
 
-	// potential errors retrieved from ResolveMountPointPath and ResolveMountSourcePath
+	// potential errors retrieved from ResolveMountPointPath, ResolveMountRootPath and ResolveMountSourcePath
+	if e.Mount.MountPointPathResolutionError != nil {
+		mountSerializer.MountPointPathResolutionError = e.Mount.MountPointPathResolutionError.Error()
+	}
 	if e.Mount.MountRootPathResolutionError != nil {
-		mountSerializer.MountRootPathResolutionError = e.Mount.MountRootPathResolutionError.Error()
+		mountSerializer.Root.PathResolutionError = e.Mount.MountRootPathResolutionError.Error()
 	}
 	if e.Mount.MountSourcePathResolutionError != nil {
 		mountSerializer.MountSourcePathResolutionError = e.Mount.MountSourcePathResolutionError.Error()
@@ -1468,7 +1528,11 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
+		savedErr := e.Error
 		s := newProcessSerializer(&pce.Process, e)
+		if !first && &pce.Process != pc.Parent {
+			e.Error = savedErr
+		}
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce
@@ -1571,11 +1635,12 @@ func newSecurityProfileContextSerializer(event *model.Event, e *model.SecurityPr
 	tags := make([]string, len(e.Tags))
 	copy(tags, e.Tags)
 	return &SecurityProfileContextSerializer{
-		Name:           e.Name,
-		Version:        e.Version,
-		Tags:           tags,
-		EventInProfile: event.IsInProfile(),
-		EventTypeState: e.EventTypeState.String(),
+		Name:               e.Name,
+		Version:            e.Version,
+		Tags:               tags,
+		EventInProfile:     event.IsInProfile(),
+		EventTypeState:     e.EventTypeState.String(),
+		ProfileAlreadySent: e.ProfileAlreadySent,
 	}
 }
 
@@ -1632,6 +1697,17 @@ func newSetrlimitEventSerializer(e *model.Event) *SetrlimitEventSerializer {
 func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
 	return &UnshareEventSerializer{
 		Flags: model.CloneFlags(e.Unshare.Flags).StringArray(),
+	}
+}
+
+func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
+	previous := NamespaceIDsSerializer(e.SetNS.Previous)
+	return &SetNSEventSerializer{
+		NSType:                 model.CloneFlags(e.SetNS.NSType).StringArray(),
+		NamespaceIDsSerializer: NamespaceIDsSerializer(e.SetNS.NamespaceIDs),
+		Previous:               &previous,
+		MntNSHost:              e.SetNS.MntNSHost,
+		MntNSOutsideBase:       e.SetNS.MntNSOutsideBase,
 	}
 }
 
@@ -1695,9 +1771,11 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.SecurityProfileContextSerializer = newSecurityProfileContextSerializer(event, &event.SecurityProfileContext)
 	}
 
-	if !event.ProcessContext.ContainerContext.IsNull() {
+	if event.ProcessContext.ContainerContext.ContainerID != "" || event.ProcessContext.ContainerContext.PodUID != "" {
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
+			PodUID:    event.ProcessContext.ContainerContext.PodUID,
+			ECSTaskID: event.ProcessContext.ContainerContext.ECSTaskID,
 			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
@@ -1972,6 +2050,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SetrlimitEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
 		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
+	case model.SetNSEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.SetNS.Retval)
+		s.SetNSEventSerializer = newSetNSEventSerializer(event)
 	case model.SocketEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
 		s.SocketEventSerializer = newSocketEventSerializer(event)

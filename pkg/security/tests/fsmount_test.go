@@ -54,7 +54,7 @@ func TestFsmount(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	t.Run("fsmount-tmpfs", func(t *testing.T) {
 

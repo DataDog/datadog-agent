@@ -14,7 +14,7 @@ file_header_template = """// Unless explicitly stated otherwise all files in thi
 package {package}
 """
 
-file_header = file_header_template.format(package="setup")
+file_header = file_header_template.format(package="generatedsettings")
 constants_file_header = file_header_template.format(package="constants")
 
 constant_header = """//
@@ -26,17 +26,19 @@ constant_header = """//
 def render_settings_file(funcs):
     """Render a settings file: header, the imports its body needs, then each function.
 
-    funcs - list of (Go function declaration line, body lines)
+    funcs - list of (exported Go function name, doc comment after the name, body lines)
     """
     body = []
-    for declaration, lines in funcs:
+    for name, doc, lines in funcs:
         if body:
             body.append('')
-        body += [declaration, *lines, '}']
+        body += [f'// {name} {doc}', f'func {name}(config pkgconfigmodel.Setup) {{', *lines, '}']
 
     imports = ['import (']
     if any('time.' in line for line in body):
         imports += ['\t"time"', '']
+    if any('pkgconfigenv.' in line for line in body):
+        imports += ['\tpkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"']
     if any('pkgconfighelper.' in line for line in body):
         imports += ['\tpkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"']
     imports += ['\tpkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"', ')', '']
@@ -157,7 +159,7 @@ def retrieve_default_value(node, name):
 
     if node.get('platform_default'):
         platform_default = as_go_value(node['platform_default'], split_lines=True)
-        return f"getPlatformDefault(map[string]interface{{}}{platform_default})"
+        return f"pkgconfigenv.GetPlatformDefault(map[string]interface{{}}{platform_default})"
 
     if settingType in ('array', 'object'):
         return to_vartype(node, as_go_value(settingDefault))
@@ -206,10 +208,19 @@ def dict_to_gotype(inp):
     elif inp.get('type') == 'array':
         return f"[]{dict_to_gotype(inp.get('items'))}"
     elif inp.get('type') == 'object':
-        return f"map[string]{dict_to_gotype(inp.get('additionalProperties'))}"
+        obj_shape = inp.get('additionalProperties')
+        if obj_shape is None or obj_shape is False:
+            return 'map[string]interface{}'
+        if isinstance(obj_shape, dict):
+            return f"map[string]{dict_to_gotype(obj_shape)}"
+        raise RuntimeError('unknown value for additionalProperties: %s' % obj_shape)
 
 
+# Returns the type of the node as a gotype. Should only be called for
+# nodes that are arrays or objects
 def to_vartype(node, setting_default):
+    if node.get('type') not in ['array', 'object']:
+        return 'None'
     if node.get('type') == 'array':
         tags = node.get('tags')
         if tags:
@@ -236,6 +247,8 @@ ENV_PARSERS = {
 
 
 def env_parser_to_func_call(name, env_parser, node):
+    if node.get('type') not in ['array', 'object']:
+        raise RuntimeError('env_parser only allowed for array or object typed settings')
     parser_func, shape = ENV_PARSERS[env_parser]
     if shape == 'helper':
         return f"\tpkgconfighelper.{parser_func}(\"{name}\", config)"
@@ -283,20 +296,21 @@ def setting_sourcecode(name, node):
 
 def gen_delegated_auth_map(core_schema):
     """
-    Generate the delegated auth constant map for pkg/config/setup/generated.go.
+    Generate the delegated auth constant map for the generatedsettings generated.go.
 
     core_schema - loaded core schema object
     """
     out = file_header.split('\n') + constant_header.split('\n')
-    out.append("""type delegatedAuthConfig struct {
-	apiKeyPath        string
-	delegatedAuthPath string
-	description       string
+    out.append("""// DelegatedAuthConfig describes a \"delegated_auth\" configuration section.
+type DelegatedAuthConfig struct {
+	APIKeyPath        string
+	DelegatedAuthPath string
+	Description       string
 }
 
-// delegatedAuthKeys list all the \"delegated_auth\" configuration section.
+// DelegatedAuthKeys list all the \"delegated_auth\" configuration section.
 // This list is used to fully initialize authentication through cloud provider instead of API key
-var delegatedAuthKeys = []delegatedAuthConfig{""")
+var DelegatedAuthKeys = []DelegatedAuthConfig{""")
 
     for path, _ in walk_sections(core_schema):
         if path.split('.')[-1] != 'delegated_auth':
@@ -305,9 +319,9 @@ var delegatedAuthKeys = []delegatedAuthConfig{""")
         parent = path.rsplit('.', 1)[0] if '.' in path else ''
         prefix = f"{parent}." if parent else ""
         out.append(f"""	{{
-		apiKeyPath:        "{prefix}api_key",
-		delegatedAuthPath: "{prefix}delegated_auth",
-		description:       "{parent or 'global'}",
+		APIKeyPath:        "{prefix}api_key",
+		DelegatedAuthPath: "{prefix}delegated_auth",
+		Description:       "{parent or 'global'}",
 	}},""")
     out.append("}")
     return out
@@ -315,7 +329,7 @@ var delegatedAuthKeys = []delegatedAuthConfig{""")
 
 def run_core_constant_codegen(core_schema, outsource_dir):
     """
-    Generate pkg/config/setup/generated.go: the delegated auth constant map.
+    Generate generated.go in the generatedsettings package: the delegated auth constant map.
 
     core_schema   - loaded core schema object
     outsource_dir - the directory to output source code to
@@ -425,14 +439,24 @@ def run_codegen(schema, outsource_dir, sysprobe=False):
     if sysprobe:
         filename = 'system_probe_settings.go'
         sourcecode = render_settings_file(
-            [('func initMainSystemProbeConfig(config pkgconfigmodel.Setup) {', output_common_base)]
+            [
+                (
+                    'InitMainSystemProbeConfig',
+                    'registers the system-probe settings and their defaults.',
+                    output_common_base,
+                )
+            ]
         )
     else:
         filename = 'all_settings.go'
         sourcecode = render_settings_file(
             [
-                ('func initCoreAgentFull(config pkgconfigmodel.Setup) {', output_full_agent),
-                ('func initCommonBase(config pkgconfigmodel.Setup) {', output_common_base),
+                ('InitCoreAgentFull', 'registers the settings used only by the full core Agent.', output_full_agent),
+                (
+                    'InitCommonBase',
+                    'registers the settings shared by the core Agent and serverless-init.',
+                    output_common_base,
+                ),
             ]
         )
 

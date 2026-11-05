@@ -11,7 +11,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -73,8 +73,6 @@ const (
 
 	udpv6DestroySock = "udpv6_destroy_sock"
 
-	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
-	tcpRetransmit = "tcp_retransmit_skb"
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
 	tcpRetransmitRet = "tcp_retransmit_skb_exit"
 
@@ -124,7 +122,6 @@ var programs = map[string]struct{}{
 	tcpCloseReturn:             {},
 	tcpConnect:                 {},
 	tcpFinishConnect:           {},
-	tcpRetransmit:              {},
 	tcpRetransmitRet:           {},
 	tcpEnterLoss:               {},
 	tcpEnterRecovery:           {},
@@ -170,11 +167,11 @@ func enableProgram(enabled map[string]struct{}, name string) {
 	}
 }
 
-// classificationSupported returns true if protocol classification is supported.
+// ClassificationSupported returns true if protocol classification is supported.
 // Note: fentry requires kernel 5.8+ which is well above the 4.11 minimum for
 // bpf_skb_load_bytes in socket filters, so no kernel version check is needed
 // for that. However, RHEL 9+ has a known issue with protocol classification.
-func classificationSupported(c *config.Config) bool {
+func ClassificationSupported(c *config.Config) bool {
 	if !c.ProtocolClassificationEnabled {
 		return false
 	}
@@ -224,7 +221,6 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, tcpFinishConnect)
 		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn, inetCskAcceptReturnPre6100, kernel.VersionCode(6, 10, 0)))
 		enableProgram(enabled, inetCskListenStop)
-		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
 		enableProgram(enabled, tcpEnterLoss)
 		enableProgram(enabled, tcpEnterRecovery)
@@ -284,7 +280,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 }
 
 func enableAdvancedUDP(enabled map[string]struct{}) error {
-	missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
+	missing, err := ksyms.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 	if err != nil {
 		return fmt.Errorf("error verifying kernel function presence: %s", err)
 	}

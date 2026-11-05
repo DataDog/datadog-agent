@@ -164,12 +164,17 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("error reconciling legacy managed links: %w", err)
 	}
 
+	robocopyPath, err := systemRobocopyPath()
+	if err != nil {
+		return err
+	}
 	// Exit codes 0-3 are successful; higher codes can leave the destination incomplete.
+	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/return-codes-used-robocopy-utility
 	// /SEC is safe because the destination is secured before the copy and stable is never removed.
 	// /E preserves empty directories so rollback can distinguish pre-existing directories.
 	cmd := telemetry.CommandContext(
 		ctx,
-		"robocopy",
+		robocopyPath,
 		"/E",
 		"/SL",
 		"/SEC",
@@ -190,6 +195,18 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("error executing robocopy: %w\n%s\n%s", err, stdout.String(), stderr.String())
 	}
 	return verifyConfigFilesCopied(sourcePath, targetPath)
+}
+
+// systemRobocopyPath returns the absolute path of the robocopy shipped with Windows.
+//
+// Resolving robocopy through PATH breaks on hosts whose PATH lacks System32, or where an older
+// robocopy (e.g. the Windows Server 2003 Resource Kit one, which rejects /SL) shadows it.
+func systemRobocopyPath() (string, error) {
+	systemDir, err := windows.GetSystemDirectory()
+	if err != nil {
+		return "", fmt.Errorf("error getting Windows system directory: %w", err)
+	}
+	return filepath.Join(systemDir, "robocopy.exe"), nil
 }
 
 // secureCreateTargetDirectoryWithSourcePermissions creates targetPath with the same permissions as srcPath.

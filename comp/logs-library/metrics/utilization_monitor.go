@@ -44,7 +44,9 @@ type TelemetryUtilizationMonitor struct {
 	started             atomic.Bool
 
 	// EWMA utilization (N=15, α≈0.125); sampler writes, subscribers read.
-	avg atomic.Float64
+	// Allocate separately to keep the 64-bit atomic word aligned on ARM32.
+	// An inline Float64 after started would sit at byte offset 20.
+	avg *atomic.Float64
 
 	name              string
 	instance          string
@@ -71,6 +73,7 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 		sampleRate: sampleRate,
 		clock:      clock,
 		history:    newRollingHistory(),
+		avg:        atomic.NewFloat64(0),
 		lastSample: clock.Now(),
 		registry:   registry,
 	}
@@ -104,7 +107,7 @@ func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
 		return
 	}
 
-	// A torn read against the hot path can over- or under-count one interval; clamp01 bounds it and
+	// A torn read against the hot path can over- or under-count one interval; clamping to [0, 1] bounds it and
 	// the next tick self-corrects.
 	effBusy := u.effectiveBusyNanos(now)
 	windowBusy := effBusy - u.lastEffectiveBusy
@@ -112,7 +115,7 @@ func (u *TelemetryUtilizationMonitor) sample(now time.Time) {
 
 	rawRatio := 0.0
 	if windowElapsed > 0 {
-		rawRatio = clamp01(float64(windowBusy) / float64(windowElapsed))
+		rawRatio = max(0, min(1, float64(windowBusy)/float64(windowElapsed)))
 	}
 
 	avg := ewma(rawRatio, u.avg.Load())
@@ -193,14 +196,4 @@ func (u *TelemetryUtilizationMonitor) updateSaturationState(now time.Time, avg f
 			u.episodeMaxBytes = 0
 		}
 	}
-}
-
-func clamp01(v float64) float64 {
-	if v < 0 {
-		return 0
-	}
-	if v > 1 {
-		return 1
-	}
-	return v
 }

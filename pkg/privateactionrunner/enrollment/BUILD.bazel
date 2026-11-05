@@ -14,9 +14,7 @@ go_library(
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
         "//pkg/config/model",
-        "//pkg/config/setup",
-        "//pkg/config/utils",
-        "//pkg/privateactionrunner/adapters/constants",
+        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/adapters/regions",
@@ -47,12 +45,10 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     deps = [
         "//comp/core/config",
         "//pkg/config/mock",
-        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",

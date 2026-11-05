@@ -72,6 +72,32 @@ MARKDOWN_PATTERNS = [
     (re.compile(r'(?<!`)`([^`<>]+)`(?![_`])'), 'Markdown inline code. Use RST double backticks: ``{0}``'),
 ]
 
+# RST inline literals (``text``) are verbatim: no markup is recognized inside them, so
+# Markdown-looking sequences there are false positives (metric names such as
+# ``points__sent``, Python dunders such as ``__init__``). Non-greedy so that several
+# literals on the same line are masked individually rather than as one big span.
+INLINE_LITERAL_RE = re.compile(r'``.+?``')
+
+# Filler used to blank out inline literals while preserving the length of the line, so
+# reported line numbers stay accurate. NUL cannot trigger any of the patterns above.
+INLINE_LITERAL_MASK = '\0'
+
+
+def mask_inline_literals(line: str) -> str:
+    """Blank out RST inline literals.
+
+    This ensures that any content _within_ an inline literal cannot be misintepreted by subsequent
+    validation steps, but that the length of the inline literal (both content and backticks) is
+    preserved so that reported line numbers stay accurate.
+
+    Args:
+        line: A single line of RST text.
+
+    Returns:
+        The line with every ``inline literal`` span replaced by filler of the same length.
+    """
+    return INLINE_LITERAL_RE.sub(lambda match: INLINE_LITERAL_MASK * len(match.group(0)), line)
+
 
 class RSTLintError:
     """Represents a single RST linting error."""
@@ -131,7 +157,7 @@ def detect_markdown_patterns(text: str) -> list[RSTLintError]:
         return []
 
     errors = []
-    lines = text.split('\n')
+    lines = [mask_inline_literals(line) for line in text.split('\n')]
 
     for pattern, description in MARKDOWN_PATTERNS:
         for line_num, line in enumerate(lines, start=1):
@@ -447,3 +473,62 @@ def lint_releasenotes(files: Iterable[str | Path], *, validate_filename: bool = 
         if result.has_errors:
             results.append(result)
     return results
+
+
+def release_note_uid(path: str | Path) -> str | None:
+    """Return the lowercase 16-char hex UID reno derives from a note filename, if any."""
+    path = Path(path)
+    if path.suffix != '.yaml':
+        return None
+    uid = path.stem[-16:]
+    return uid.lower() if re.fullmatch(r'[0-9a-fA-F]{16}', uid) else None
+
+
+def release_note_tree(path: str | Path) -> str:
+    """Return the top-level releasenotes* directory (one reno tree) a note belongs to."""
+    for part in Path(str(path).replace('\\', '/')).parts:
+        if part.startswith('releasenotes'):
+            return part
+    return ''
+
+
+def parse_deleted_release_notes(git_log_output: str) -> dict[tuple[str, str], tuple[str, str]]:
+    """Parse ``git log --diff-filter=D --format=commit:%H --name-only`` output.
+
+    Returns a mapping of (reno tree, UID) to the (path, commit) of the most recent
+    deletion of a note with that UID. git log lists newest commits first.
+    """
+    deleted: dict[tuple[str, str], tuple[str, str]] = {}
+    commit = ''
+    for line in git_log_output.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        if line.startswith('commit:'):
+            commit = line.removeprefix('commit:')
+            continue
+        uid = release_note_uid(line)
+        if uid:
+            deleted.setdefault((release_note_tree(line), uid), (line, commit))
+    return deleted
+
+
+def find_reused_uids(
+    added: Iterable[str | Path], deleted: dict[tuple[str, str], tuple[str, str]]
+) -> list[tuple[str, str, str, str]]:
+    """Return (added path, UID, deleted path, deleting commit) for each added note reusing a deleted UID.
+
+    reno attributes a note to the earliest release in which its UID appears, so a
+    note re-added with the UID of a previously deleted one (e.g. when re-landing a
+    reverted PR) is attributed to that earlier release and silently left out of the
+    changelog for the release it actually ships in.
+    """
+    reused = []
+    for path in added:
+        uid = release_note_uid(path)
+        if not uid:
+            continue
+        match = deleted.get((release_note_tree(path), uid))
+        if match:
+            reused.append((str(path), uid, *match))
+    return reused

@@ -51,6 +51,14 @@
 
     The callback is expected to be provided by the rtloader caller - in go-context: CGO.
 */
+/*! \fn void _set_submit_histogram_bucket_multi_cb(cb_submit_histogram_bucket_multi_t)
+    \brief Sets the submit callback to be used by rtloader for histogram buckets that share
+    their context with other buckets of the same histogram.
+    \param cb A function pointer with cb_submit_histogram_bucket_multi_t prototype to the callback
+    function.
+
+    The callback is expected to be provided by the rtloader caller - in go-context: CGO.
+*/
 /*! \fn void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t)
     \brief Sets the submit event callback to be used by rtloader for event-platform event submission.
     \param cb A function pointer with cb_submit_event_platform_event_t prototype to the callback
@@ -76,6 +84,7 @@ void _set_submit_metric_cb(cb_submit_metric_t cb);
 void _set_submit_service_check_cb(cb_submit_service_check_t cb);
 void _set_submit_event_cb(cb_submit_event_t cb);
 void _set_submit_histogram_bucket_cb(cb_submit_histogram_bucket_t cb);
+void _set_submit_histogram_bucket_multi_cb(cb_submit_histogram_bucket_multi_t cb);
 void _set_submit_event_platform_event_cb(cb_submit_event_platform_event_t cb);
 
 #ifdef __cplusplus

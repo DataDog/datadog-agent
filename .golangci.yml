@@ -243,6 +243,33 @@ linters:
             - "**/pkg/**"
             - "!**/pkg/zstd/**"
             - "!$test"
+        logs-tokenizer-stdlib-only:
+          # pkg/logs/tokenizer is a shared library: its non-test code may import
+          # only the Go standard library. token_tables_gen.go is skipped as
+          # generated code; its imports come from the generator's template.
+          list-mode: strict
+          files:
+            - "**/pkg/logs/tokenizer/**"
+            - "!**/pkg/logs/tokenizer/gentokentables/**" # package main code generator; imports pkg/template/text
+            - "!$test"
+          allow:
+            - $gostd
+        logs-tokenizer-no-agent-deps:
+          # Every file, tests and the generator included: nothing from pkg/logs
+          # or comp. Tests may still use testing libraries.
+          # Deny entries match by prefix, so the pkg/logs entry would also block
+          # the package itself; lax mode lets the longer allow entry win, so
+          # external tests (package tokenizer_test) can import it.
+          list-mode: lax
+          files:
+            - "**/pkg/logs/tokenizer/**"
+          allow:
+            - github.com/DataDog/datadog-agent/pkg/logs/tokenizer
+          deny:
+            - pkg: "github.com/DataDog/datadog-agent/pkg/logs"
+              desc: "pkg/logs/tokenizer (tests included) must not depend on pkg/logs, so anything can import it."
+            - pkg: "github.com/DataDog/datadog-agent/comp"
+              desc: "pkg/logs/tokenizer (tests included) must not depend on comp, so anything can import it."
 
     errcheck:
       exclude-functions:
@@ -372,6 +399,9 @@ linters:
         - name: duplicated-imports
     forbidigo:
       forbid:
+        - pattern: ^.*\.NewLazyDLL$
+          pkg: ^(syscall|golang\.org/x/sys/windows)$
+          msg: Use windows.NewLazySystemDLL for Windows system libraries.
         - pattern: ^.*\.GetLastError$
           msg: "GetLastError always returns nil in Go because the syscall implementation resets the last error before calling the DLL function (see https://github.com/golang/go/issues/41220). Use the error returned directly from the syscall (third return value) instead."
         - pattern: ^model.NewConfig.*$

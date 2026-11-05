@@ -1,0 +1,13 @@
+description: GNU tail sticky offset — tail -c +5 -c 3 uses offset mode (from +5) with count 3, outputting from byte 3.
+setup:
+  files:
+    - path: file.txt
+      content: "abcdefghij"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -c +5 -c 3 file.txt
+expect:
+  stdout: "cdefghij"
+  stderr: ""
+  exit_code: 0

@@ -74,6 +74,110 @@ func TestDeviceCachePartialFailure(t *testing.T) {
 	require.Contains(t, err.Error(), "device non-existent-uuid not found")
 }
 
+func TestDeviceCacheRefreshReturnsReleasedErrorWhenReleaseStartsDuringRefresh(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceHandleByIndexCallback(func(_ int, device nvml.Device) (nvml.Device, nvml.Return) {
+			nvmlReleased.Store(true)
+			return device, nvml.SUCCESS
+		}),
+	)
+	WithMockNVML(t, mockNvml)
+	t.Cleanup(func() { nvmlReleased.Store(false) })
+
+	cache := NewDeviceCache()
+	require.ErrorIs(t, cache.Refresh(), ErrNVMLReleased)
+}
+
+func TestDeviceCacheKeepsDeviceWhenPCIInfoUnavailable(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+			device.GetPciInfoFunc = func() (nvml.PciInfo, nvml.Return) {
+				return nvml.PciInfo{}, nvml.ERROR_UNKNOWN
+			}
+		})),
+	)
+	WithMockNVML(t, mockNvml)
+
+	cache := NewDeviceCache()
+	require.NoError(t, cache.Refresh())
+
+	count, err := cache.Count()
+	require.NoError(t, err)
+	require.Equal(t, len(testutil.GPUUUIDs), count)
+
+	_, err = cache.GetByPCIBusID("")
+	require.Error(t, err)
+}
+
+func TestDeviceCacheKeepsGPULostDevice(t *testing.T) {
+	lost := atomic.Bool{}
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceHandleByIndexCallback(func(index int, device nvml.Device) (nvml.Device, nvml.Return) {
+			if lost.Load() && index == 1 {
+				return nil, nvml.ERROR_GPU_IS_LOST
+			}
+			return device, nvml.SUCCESS
+		}),
+	)
+	WithMockNVML(t, mockNvml)
+
+	cache := NewDeviceCache()
+	require.NoError(t, cache.Refresh())
+	original, err := cache.GetByUUID(testutil.GPUUUIDs[1])
+	require.NoError(t, err)
+	require.NotEmpty(t, original.GetDeviceInfo().PCIBusID)
+
+	lost.Store(true)
+	// Refresh twice while lost, so the device is also kept when the previous
+	// refresh already reused it.
+	for refresh := 2; refresh <= 3; refresh++ {
+		require.NoError(t, cache.Refresh())
+
+		kept, err := cache.GetByUUID(testutil.GPUUUIDs[1])
+		require.NoError(t, err, "refresh %d", refresh)
+		require.Same(t, original, kept, "refresh %d", refresh)
+		require.Equal(t, original.GetDeviceInfo().PCIBusID, kept.GetDeviceInfo().PCIBusID, "refresh %d", refresh)
+		byIndex, err := cache.GetByIndex(1)
+		require.NoError(t, err, "refresh %d", refresh)
+		require.Same(t, original, byIndex, "refresh %d", refresh)
+		count, err := cache.Count()
+		require.NoError(t, err, "refresh %d", refresh)
+		require.Equal(t, len(testutil.GPUUUIDs), count, "refresh %d", refresh)
+
+		_, err = cache.GetByUUID(testutil.GPUUUIDs[0])
+		require.NoError(t, err, "refresh %d", refresh)
+	}
+}
+
+func TestDeviceCacheDropsDeviceOnNonLostError(t *testing.T) {
+	fail := atomic.Bool{}
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDeviceHandleByIndexCallback(func(index int, device nvml.Device) (nvml.Device, nvml.Return) {
+			if fail.Load() && index == 1 {
+				return nil, nvml.ERROR_INVALID_ARGUMENT
+			}
+			return device, nvml.SUCCESS
+		}),
+	)
+	WithMockNVML(t, mockNvml)
+
+	cache := NewDeviceCache()
+	require.NoError(t, cache.Refresh())
+
+	fail.Store(true)
+	require.NoError(t, cache.Refresh())
+
+	_, err := cache.GetByUUID(testutil.GPUUUIDs[1])
+	require.Error(t, err)
+	count, err := cache.Count()
+	require.NoError(t, err)
+	require.Equal(t, len(testutil.GPUUUIDs)-1, count)
+}
+
 func TestDeviceCacheGetByIndex(t *testing.T) {
 	// Create mock with all symbols available
 	mockNvml := testutil.NewMockNVML(
@@ -93,15 +197,13 @@ func TestDeviceCacheGetByIndex(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, 0, device.GetDeviceInfo().Index)
 
-	// Test with invalid index
 	_, err = cache.GetByIndex(-1)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "index -1 out of range")
+	require.ErrorContains(t, err, "-1")
 
-	// Test out of range index
 	_, err = cache.GetByIndex(100)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "index 100 out of range")
+	require.ErrorContains(t, err, "100")
 }
 
 func TestDeviceCacheSMVersionSet(t *testing.T) {
@@ -313,4 +415,51 @@ func TestDeviceCacheRefresh_Concurrent(t *testing.T) {
 	}()
 
 	wg.Wait()
+}
+
+// TestMIGChildrenCarryComputeInstanceID pins that fillMigChildren populates
+// ComputeInstanceID from NVML rather than leaving the zero value. It matters
+// because the DRA container->device resolution compares the compute instance:
+// a MIG child that reported CI 0 when the driver actually said 1 would be
+// attributed to the wrong container on a multi-CI GPU instance.
+func TestMIGChildrenCarryComputeInstanceID(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDefaultMIGDevices(),
+		testutil.WithMIGComputeInstance(1),
+	)
+	WithMockNVML(t, mockNvml)
+
+	cache := NewDeviceCache()
+	require.NoError(t, cache.Refresh())
+
+	migDevices, err := cache.AllMigDevices()
+	require.NoError(t, err)
+	require.NotEmpty(t, migDevices)
+
+	for _, dev := range migDevices {
+		mig, ok := dev.(*MIGDevice)
+		require.True(t, ok)
+		require.Equal(t, 1, mig.ComputeInstanceID,
+			"MIG child %s did not take its compute instance ID from NVML", mig.UUID)
+	}
+}
+
+// TestNewMIGDeviceDefaultsComputeInstanceToUnknown pins the -1 convention at
+// the constructor. 0 is a real compute instance ID, so a MIGDevice built
+// outside fillMigChildren must not silently claim to be CI 0.
+func TestNewMIGDeviceDefaultsComputeInstanceToUnknown(t *testing.T) {
+	mockNvml := testutil.NewMockNVML(
+		testutil.WithSymbolsMock(allSymbols),
+		testutil.WithDefaultMIGDevices(),
+	)
+	WithMockNVML(t, mockNvml)
+
+	migMock := mockNvml.MIGDevice(testutil.DefaultMIGParentDeviceIdx, 0)
+	dev, err := NewMIGDevice(&safeDeviceImpl{
+		nvmlDevice: migMock,
+		lib:        &safeNvml{capabilities: allSymbols},
+	})
+	require.NoError(t, err)
+	require.Equal(t, -1, dev.ComputeInstanceID)
 }

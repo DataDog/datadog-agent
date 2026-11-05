@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build !windows && clusterchecks
+//go:build !windows && clusterchecks && !kubeapiserver
 
 //nolint:revive // TODO(PLINT) Fix revive linter
 package run
@@ -20,10 +20,8 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/bbs"
-	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/spf13/cobra"
 
-	"github.com/DataDog/datadog-agent/cmd/agent/common"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/api"
 	dcav1 "github.com/DataDog/datadog-agent/cmd/cluster-agent/api/v1"
@@ -231,13 +229,13 @@ func run(
 		return err
 	}
 
-	common.LoadComponents(ac, config)
-
 	// Set up check collector
 	ac.AddScheduler("check", pkgcollector.InitCheckScheduler(option.New(collector), demultiplexer, logReceiver, taggerComp, filterStore), true)
 
 	// start the autoconfig, this will immediately run any configured check
-	ac.LoadAndRun(mainCtx)
+	if err := ac.LoadAndRun(mainCtx); err != nil {
+		return err
+	}
 
 	if err = api.StartServer(mainCtx, wmeta, taggerComp, ac, statusComponent, settings, config, ipc, diagonseComp, dcametadataComp, clusterChecksMetadataComp, telemetry); err != nil {
 		return log.Errorf("Error while starting agent API, exiting: %v", err)
@@ -280,12 +278,12 @@ func initializeCCCache(ctx context.Context, config config.Component) (cloudfound
 	pollInterval := time.Second * time.Duration(config.GetInt("cloud_foundry_cc.poll_interval"))
 
 	// Create the CF client
-	ccClient, err := cloudfoundry.NewCFClient(&cfclient.Config{
-		ApiAddress:        config.GetString("cloud_foundry_cc.url"),
-		ClientID:          config.GetString("cloud_foundry_cc.client_id"),
-		ClientSecret:      config.GetString("cloud_foundry_cc.client_secret"),
-		SkipSslValidation: config.GetBool("cloud_foundry_cc.skip_ssl_validation"),
-	})
+	ccClient, err := cloudfoundry.NewCFClient(
+		config.GetString("cloud_foundry_cc.url"),
+		config.GetString("cloud_foundry_cc.client_id"),
+		config.GetString("cloud_foundry_cc.client_secret"),
+		config.GetBool("cloud_foundry_cc.skip_ssl_validation"),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CC client: %v", err)
 	}

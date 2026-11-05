@@ -21,6 +21,8 @@ go_library(
         "//pkg/config/model",
         "//pkg/util/log",
         "//pkg/util/log/errortracking",
+        "//pkg/util/log/observer",
+        "//pkg/util/log/scrub",
         "//pkg/util/log/slog",
         "//pkg/util/log/slog/filewriter",
         "//pkg/util/log/slog/formatters",
@@ -34,6 +36,7 @@ go_library(
 dd_agent_go_test(
     name = "setup_test",
     srcs = [
+        "log_format_test.go",
         "log_nix_test.go",
         "log_test.go",
         "split_writer_test.go",
@@ -44,6 +47,8 @@ dd_agent_go_test(
         "//pkg/util/log",
         "//pkg/util/log/errortracking",
         "//pkg/util/log/slog",
+        "//pkg/util/log/types",
+        "//pkg/util/scrubber",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ] + select({

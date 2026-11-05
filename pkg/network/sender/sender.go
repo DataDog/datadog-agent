@@ -19,6 +19,7 @@ import (
 	"net/netip"
 	"slices"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -122,7 +123,7 @@ func New(
 	if err := endpoint.CheckAPIKeysResolved(processAPIEndpoints); err != nil {
 		return nil, err
 	}
-	resolvers, err := resolver.NewSingleDomainResolvers(apicfg.KeysPerDomains(processAPIEndpoints))
+	resolvers, err := resolver.NewSingleDomainResolvers2(apicfg.EndpointDescriptors(processAPIEndpoints))
 	if err != nil {
 		return nil, err
 	}
@@ -217,30 +218,48 @@ type directSender struct {
 	resultsQueue        *api.WeightedQueue
 	checkInterval       time.Duration
 	runCount            uint64
+	collectWG           sync.WaitGroup
 }
 
 func (d *directSender) start() {
 	d.log.Info("direct sender started")
 	d.resolver.start(d.ctx)
 	go d.submitLoop()
+	d.collectWG.Add(1)
 	go func() {
 		ticker := time.NewTicker(d.checkInterval)
 		defer ticker.Stop()
-		for {
-			select {
-			case <-d.ctx.Done():
-				d.resultsQueue.Stop()
-				return
-			case <-ticker.C:
-				d.collect()
-			}
-		}
+		d.collectLoop(ticker.C)
 	}()
 }
 
-// Stop stops the direct sender
+// collectLoop collects connections on every tick until the sender's context is
+// cancelled. It owns the collectWG counter added by start, so Stop can wait for
+// a collection that is already in flight.
+func (d *directSender) collectLoop(tick <-chan time.Time) {
+	defer d.collectWG.Done()
+	defer d.resultsQueue.Stop()
+	for {
+		select {
+		case <-d.ctx.Done():
+			return
+		case <-tick:
+			// A pending tick and a cancelled context can both be ready here, in
+			// which case select picks one at random, so re-check before collecting.
+			if d.ctx.Err() != nil {
+				return
+			}
+			d.collect()
+		}
+	}
+}
+
+// Stop stops the direct sender. It blocks until any in-flight collection has
+// returned: the caller tears the tracer down as soon as Stop returns, and
+// collecting from a half-closed tracer crashes system-probe.
 func (d *directSender) Stop() {
 	d.cancelFunc()
+	d.collectWG.Wait()
 	d.log.Info("direct sender stopped")
 }
 
@@ -381,15 +400,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	}
 
 	// Build remote service resolver for intra-host connection enrichment.
-	for _, c := range conns.Conns {
-		// USM supports TCP only; skip UDP connections.
-		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
-			key := listenKey{IP: c.Source.Addr, Port: int32(c.SPort)}
-			if _, exists := listeners[key]; !exists {
-				listeners[key] = int32(c.Pid)
-			}
-		}
-	}
+	addConnectionListeners(listeners, conns.Conns)
 	remoteServiceResolver := &serviceResolver{
 		GetServiceContext: func(pid int32) []string {
 			if dsc := directSenderConsumerInstance.Load(); dsc != nil {
@@ -584,5 +595,23 @@ func (d *directSender) logCheckDuration(start time.Time) {
 		d.log.Infof("Finished connections check #%d in %s. First 5 check runs finished, next runs will be logged every 20 runs.", d.runCount, elapsed)
 	case d.runCount%20 == 0:
 		d.log.Infof("Finish connections check #%d in %s", d.runCount, elapsed)
+	}
+}
+
+// addConnectionListeners records the PID listening on each intra-host TCP address, without
+// overwriting entries already present.
+func addConnectionListeners(listeners map[listenKey]int32, conns []network.ConnectionStats) {
+	for _, c := range conns {
+		// a reattributed socket's PID is the proxy's, so it must not name the service listening on the pod's address
+		if c.NetNSOriginalContainerID != nil {
+			continue
+		}
+		// USM supports TCP only; skip UDP connections.
+		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
+			key := listenKey{IP: c.Source.Addr, Port: int32(c.SPort)}
+			if _, exists := listeners[key]; !exists {
+				listeners[key] = int32(c.Pid)
+			}
+		}
 	}
 }

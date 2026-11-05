@@ -25,6 +25,7 @@ import (
 	"golang.org/x/net/bpf"
 
 	"github.com/DataDog/datadog-agent/pkg/security/config"
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers"
 	sprocess "github.com/DataDog/datadog-agent/pkg/security/resolvers/process"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -427,7 +428,7 @@ func (fh *EBPFFieldHandlers) resolveSBOMFields(ev *model.Event, f *model.FileEve
 		return
 	}
 
-	if pkg := fh.resolvers.SBOMResolver.ResolvePackage(ev.ProcessContext, f); pkg != nil {
+	if pkg := fh.resolvers.SBOMResolver.LookupPackage(ev.ProcessContext, f); pkg != nil {
 		f.PkgName = pkg.Name
 		f.PkgVersion = pkg.Version
 		f.PkgEpoch = pkg.Epoch
@@ -758,13 +759,7 @@ func (fh *EBPFFieldHandlers) ResolveSyscallCtxArgsInt3(ev *model.Event, e *model
 func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
 	fh.resolveGoLabelsSpanContext(ev)
 	fh.resolveOTelSpanAttrs(ev)
-
-	// fork and exec carry the span context over to the process they create.
-	if eventType := ev.GetEventType(); eventType == model.ForkEventType || eventType == model.ExecEventType {
-		if ev.ProcessCacheEntry != nil {
-			ev.ProcessCacheEntry.SetSpanContext(ev.SpanContext)
-		}
-	}
+	propagateSpanContext(ev)
 
 	return &ev.SpanContext
 }
@@ -773,7 +768,7 @@ func (fh *EBPFFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanCont
 func (fh *EBPFFieldHandlers) resolveGoLabelsSpanContext(ev *model.Event) {
 	// nothing to do once the lookup ran, when the kernel already filled the ids
 	// in, or when it captured no labels snapshot for this event
-	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 {
+	if ev.GoLabels.Resolved || ev.SpanContext.SpanID != 0 || ev.GoLabels.ID == 0 || fh.resolvers.GoLabelsCtxResolver == nil {
 		return
 	}
 	ev.GoLabels.Resolved = true
@@ -810,13 +805,7 @@ func (fh *EBPFFieldHandlers) resolveOTelSpanAttrs(ev *model.Event) {
 		return
 	}
 
-	keyNames := fh.otelAttributeKeyNames(ev)
-
-	attrs := make(map[string]string, len(rawAttrs))
-	for _, attr := range rawAttrs {
-		attrs[otelAttributeName(keyNames, attr.KeyIndex)] = attr.Value
-	}
-	ev.SpanContext.Attributes = attrs
+	ev.SpanContext.Attributes = otelthreadctx.NamedAttributes(fh.otelAttributeKeyNames(ev), rawAttrs)
 }
 
 // otelAttributeKeyNames returns the ordered key names the process published, which
@@ -842,13 +831,6 @@ func (fh *EBPFFieldHandlers) otelAttributeKeyNames(ev *model.Event) []string {
 	}
 
 	return nil
-}
-
-func otelAttributeName(keyNames []string, keyIndex uint8) string {
-	if int(keyIndex) < len(keyNames) {
-		return keyNames[keyIndex]
-	}
-	return strconv.Itoa(int(keyIndex))
 }
 
 // ResolveOnDemandName resolves the on-demand event name
@@ -1073,6 +1055,24 @@ func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsed(evt *model.Event, ce *model
 	usedCapabilities := int(ce.Used)
 	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
 		usedCapabilities |= int(pce.CapsUsed)
+	}
+	return usedCapabilities
+}
+
+// ResolveCapabilitiesAttemptedHostUserNS resolves the accumulated attempted capabilities that were checked against the initial/host user namespace
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesAttemptedHostUserNS(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	attemptedCapabilities := int(ce.AttemptedHostUserNS)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		attemptedCapabilities |= int(pce.CapsAttemptedHostUserNS)
+	}
+	return attemptedCapabilities
+}
+
+// ResolveCapabilitiesUsedHostUserNS resolves the accumulated used capabilities that were obtained from the initial/host user namespace
+func (fh *EBPFFieldHandlers) ResolveCapabilitiesUsedHostUserNS(evt *model.Event, ce *model.CapabilitiesEvent) int {
+	usedCapabilities := int(ce.UsedHostUserNS)
+	if pce, resolved := fh.ResolveProcessCacheEntry(evt, nil); resolved && pce != nil {
+		usedCapabilities |= int(pce.CapsUsedHostUserNS)
 	}
 	return usedCapabilities
 }

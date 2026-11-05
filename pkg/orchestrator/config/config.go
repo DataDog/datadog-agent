@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build kubeapiserver
 
 //nolint:revive // TODO(CAPP) Fix revive linter
 package config
@@ -147,6 +147,7 @@ func extractEndpoints(URL *url.URL, configPath string, endpoints *[]apicfg.Endpo
 				APIKey:            utils.SanitizeAPIKey(k),
 				Endpoint:          u,
 				ConfigSettingPath: configPath,
+				ConfigKey:         endpointURL,
 			})
 		}
 	}

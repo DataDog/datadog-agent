@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix a panic of the CWS instrumentation webhook of the Cluster Agent when an
+    exec request missing its user info or its exec options outlasted the timeout.

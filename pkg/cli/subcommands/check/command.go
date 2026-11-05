@@ -90,6 +90,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
+	wmetautil "github.com/DataDog/datadog-agent/pkg/util/workloadmeta"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -130,6 +131,7 @@ type cliParams struct {
 	discoveryTimeout          uint
 	discoveryRetryInterval    uint
 	discoveryMinInstances     uint
+	workloadmetaTimeout       uint
 	generateIntegrationTraces bool
 }
 
@@ -166,11 +168,18 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 			eventplatforParams := eventplatform.NewDefaultParams()
 			eventplatforParams.UseNoopEventPlatformForwarder = true
 
-			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath,
+						config.WithConfigName(globalParams.ConfigName),
+						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
+						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+						// avoid binding the same port/socket as a potentially running agent:
+						// cmd_port 0 makes the OS pick an unused port, the IPC server is disabled
+						config.WithCLIOverride("cmd_port", 0),
+						config.WithCLIOverride("agent_ipc.port", 0),
+						config.WithCLIOverride("agent_ipc.use_socket", false)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
 				}),
@@ -241,6 +250,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 	cmd.Flags().UintVarP(&cliParams.discoveryTimeout, "discovery-timeout", "", 5, "max retry duration until Autodiscovery resolves the check template (in seconds)")
 	cmd.Flags().UintVarP(&cliParams.discoveryRetryInterval, "discovery-retry-interval", "", 1, "(unused)")
 	cmd.Flags().UintVarP(&cliParams.discoveryMinInstances, "discovery-min-instances", "", 1, "minimum number of config instances to be discovered before running the check(s)")
+	cmd.Flags().UintVarP(&cliParams.workloadmetaTimeout, "workloadmeta-timeout", "", uint(wmetautil.DefaultTimeout/time.Second), "how long to wait for the workloadmeta store to report itself as initialized before running the check(s) anyway (in seconds, 0 to not wait at all)")
 	// Power user flags - mark as hidden
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryDir, "m-dir", "", "an existing directory in which to store memory profiling data, ignoring clean-up")
 	createHiddenStringFlag(cmd, &cliParams.profileMemoryFrames, "m-frames", "", "the number of stack frames to consider")
@@ -262,6 +272,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 func run(
 	config config.Component,
 	cliParams *cliParams,
+	logger log.Component,
 	demultiplexer demultiplexer.Component,
 	wmeta workloadmeta.Component,
 	filterStore workloadfilter.Component,
@@ -312,10 +323,21 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component](), nil)
 
-	common.LoadComponents(ac, config)
-	ac.LoadAndRun(context.Background())
+	if err := ac.LoadAndRun(context.Background()); err != nil {
+		return err
+	}
+
+	// Checks here are run directly, not through the autodiscovery scheduler that would otherwise
+	// hold them back until workloadmeta is ready. Wait before resolving configs too, as
+	// autodiscovery listeners are fed by that same store.
+	waitTimeout := time.Duration(cliParams.workloadmetaTimeout) * time.Second
+	if waitTimeout > 0 && !wmetautil.WaitForInitialization(wmeta, waitTimeout, logger) && !cliParams.formatJSON {
+		// The log component is off by default here, so its warning would go unnoticed. Kept off
+		// stdout, and off JSON output entirely, as its consumers may read both streams merged.
+		fmt.Fprintln(os.Stderr, "Warning: workloadmeta is not ready, check results may be incomplete or empty")
+	}
 
 	// Create the CheckScheduler, but do not attach it to
 	// AutoDiscovery.
@@ -817,14 +839,4 @@ func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]inte
 	}
 
 	return []integration.Config{customConf}, nil
-}
-
-// disableCmdPort overrrides the `cmd_port` configuration so that when the
-// server starts up, it does not do so on the same port as a running agent.
-//
-// Ideally, the server wouldn't start up at all, but this workaround has been
-// in place for some time.
-func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
-	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
 }

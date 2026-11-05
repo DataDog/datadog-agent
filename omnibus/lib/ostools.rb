@@ -38,10 +38,6 @@ def arm_target?()
     return ohai["kernel"]["machine"].start_with?("aarch", "arm")
 end
 
-def arm7l_target?()
-    return ohai["kernel"]["machine"] == 'armv7l'
-end
-
 def heroku_target?()
     return ENV['AGENT_FLAVOR'] == 'heroku'
 end

@@ -11,7 +11,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/google/cel-go/cel"
+	"cel.dev/cel-go/cel"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"

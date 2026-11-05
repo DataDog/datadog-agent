@@ -40,6 +40,7 @@ go_library(
             "//pkg/util/ktime",
             "//pkg/version",
             "@com_github_spf13_cobra//:cobra",
+            "@org_golang_google_protobuf//encoding/protojson",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:darwin": [
@@ -88,6 +89,7 @@ go_library(
             "//pkg/util/ktime",
             "//pkg/version",
             "@com_github_spf13_cobra//:cobra",
+            "@org_golang_google_protobuf//encoding/protojson",
             "@org_uber_go_fx//:fx",
         ],
         "@rules_go//go/platform:netbsd": [

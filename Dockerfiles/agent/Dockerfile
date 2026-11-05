@@ -220,6 +220,9 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 /var/run/datadog /var/run/datadog-procmgrd /opt/datadog-agent/run \
+  && if [ -f /etc/datadog-agent/private-action-runner/script-config.yaml.example ]; then \
+       cp -n /etc/datadog-agent/private-action-runner/script-config.yaml.example /etc/datadog-agent/private-action-runner/script-config.yaml; \
+     fi \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /par-probe.sh /initlog.sh \
@@ -248,8 +251,13 @@ RUN [ "$(getent passwd dd-agent | cut -d: -f 3)" -eq 100 ]
 # cleaning up
 # We remove /etc/ssl because in JMX images, openjdk triggers installation of ca-certificates-java
 # which writes to /etc/ssl. Yet, in the Agent we only rely on certs shipped in the Agent package.
-RUN apt-get purge -y adduser \
-  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl
+RUN apt-get purge -y adduser passwd \
+  # Keep license/copyright attribution (/usr/share/doc/*/copyright, /usr/share/common-licenses),
+  # drop the rest of the package documentation (changelogs, READMEs, etc.)
+  && find /usr/share/doc -mindepth 1 -type f ! -name 'copyright*' -delete \
+  && find /usr/share/doc -mindepth 1 -type d -empty -delete \
+  && rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /etc/ssl \
+    /usr/share/man /usr/share/info /usr/share/lintian /usr/share/bash-completion
 RUN ln -sf /opt/datadog-agent/embedded/ssl /etc/ssl
 
 # Enable FIPS if needed

@@ -6,132 +6,30 @@
 package schema
 
 import (
-	"sync"
 	"testing"
 
-	"github.com/santhosh-tekuri/jsonschema/v6"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/assert/yaml"
-	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-var (
-	testYAMLSchema = `
-properties:
-  api_key:
-    type: string
-    default: ""
-  tags:
-    type: array
-    items:
-      type: string
-    default: []
-`
-	testSchema        *jsonschema.Schema
-	schemaCompileOnce sync.Once
-)
-
-func initTestSchema(t *testing.T) {
-	schemaCompileOnce.Do(func() {
-		c := jsonschema.NewCompiler()
-
-		var loadSchema interface{}
-		err := yaml.Unmarshal([]byte(testYAMLSchema), &loadSchema)
-		if err != nil {
-			assert.Failf(t, "could not unmarshal schema: '%s", err.Error())
-		}
-
-		if err := c.AddResource("test_schema", loadSchema); err != nil {
-			assert.Failf(t, "could not add schema resource: %s", err.Error())
-		}
-		testSchema, err = c.Compile("test_schema")
-		if err != nil {
-			assert.Failf(t, "could not add compile schema: %s", err.Error())
-		}
-	})
-
-	t.Cleanup(func() {
-		coreSchemaGetter = getCoreSchema
-		sysprobeSchemaGetter = getSysprobeSchema
-	})
-
-	coreSchemaGetter = func() (*jsonschema.Schema, error) { return testSchema, nil }
-	sysprobeSchemaGetter = func() (*jsonschema.Schema, error) { return testSchema, nil }
-}
-
-func TestGetCoreSchema(t *testing.T) {
-	data, err := GetCoreSchema()
-	if err == nil {
-		assert.NoError(t, yaml.Unmarshal(data, new(interface{})))
-		return
+func TestGetRawSchema(t *testing.T) {
+	for _, id := range []model.SchemaID{model.CoreSchema, model.SystemProbeSchema} {
+		t.Run(string(id), func(t *testing.T) {
+			data, err := GetRawSchema(id)
+			if err == nil {
+				assert.NoError(t, yaml.Unmarshal(data, new(interface{})))
+				return
+			}
+			// Schema files are compressed by `dda inv schema.compress` and not embedded in the test build;
+			// we verify the function returns a proper error rather than panicking.
+			assert.ErrorContains(t, err, "no embedded schema")
+		})
 	}
-	// Schema files are compressed by `dda inv schema.compress` and not embedded in the test build;
-	// we verify the function returns a proper error rather than panicking.
-	assert.ErrorContains(t, err, "no embedded schema")
 }
 
-func TestGetSystemProbeSchema(t *testing.T) {
-	data, err := GetSystemProbeSchema()
-	if err == nil {
-		assert.NoError(t, yaml.Unmarshal(data, new(interface{})))
-		return
-	}
-	// Same as above: no compressed schema in test build.
-	assert.ErrorContains(t, err, "no embedded schema")
-}
-
-func TestValidateCoreFileEmpty(t *testing.T) {
-	initTestSchema(t)
-	errs, err := ValidateCoreConfig(map[string]interface{}{})
-	assert.NoError(t, err)
-	assert.Empty(t, errs, "empty config should be valid against placeholder schema")
-
-	errs, err = ValidateSystemProbeConfig(map[string]interface{}{})
-	assert.NoError(t, err)
-	assert.Empty(t, errs, "empty config should be valid against placeholder schema")
-}
-
-func TestValidateCoreFileValid(t *testing.T) {
-	initTestSchema(t)
-	errs, err := ValidateCoreConfig(map[string]interface{}{
-		"api_key": "abc123",
-		"site":    "datadoghq.com",
-	})
-	assert.NoError(t, err)
-	assert.Empty(t, errs)
-}
-
-func TestValidateSystemProbeFileValid(t *testing.T) {
-	initTestSchema(t)
-	errs, err := ValidateSystemProbeConfig(map[string]interface{}{
-		"system_probe_config": map[string]interface{}{
-			"enabled": true,
-		},
-	})
-	assert.NoError(t, err)
-	assert.Empty(t, errs)
-}
-
-func TestValidateCoreFileInvalidType(t *testing.T) {
-	initTestSchema(t)
-	errs, err := ValidateCoreConfig(map[string]interface{}{"api_key": 1234})
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"at '/api_key': got number, want string"}, errs)
-
-	errs, err = ValidateCoreConfig(map[string]interface{}{"tags": map[string]interface{}{"a": "1234"}})
-	assert.NoError(t, err)
-	assert.Equal(t, []string{"at '/tags': got object, want array"}, errs)
-}
-
-func TestValidateCoreConfigDetailedTypeViolation(t *testing.T) {
-	initTestSchema(t)
-	violations, err := ValidateCoreConfigDetailed(map[string]any{"api_key": 1234})
-	require.NoError(t, err)
-	require.Len(t, violations, 1)
-	assert.Equal(t, Violation{
-		Message:       "at '/api_key': got number, want string",
-		Path:          "/api_key",
-		ActualType:    "number",
-		ExpectedTypes: []string{"string"},
-	}, violations[0])
+func TestGetRawSchemaUnknownID(t *testing.T) {
+	_, err := GetRawSchema("unknown")
+	assert.ErrorContains(t, err, "unknown schema ID 'unknown'")
 }

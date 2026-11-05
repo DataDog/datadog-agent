@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import shlex
 import sys
 from collections import defaultdict
 from fnmatch import fnmatch
@@ -33,6 +34,14 @@ from tasks.libs.common.git import (
     get_staged_files,
 )
 from tasks.libs.common.utils import gitlab_section, is_pr_context, running_in_ci
+from tasks.libs.linter.e2e_internet_access import (
+    REGISTRY_PATH,
+    REPO_ROOT,
+    Registry,
+    normalize_paths,
+    scan,
+    select_scope,
+)
 from tasks.libs.linter.gitlab import (
     ALL_GITLABCI_SUBLINTERS,
     PREPUSH_GITLABCI_SUBLINTERS,
@@ -245,23 +254,10 @@ def releasenote_unique_ids(ctx, files=None):
     full corpus — intended for pre-commit and CI use. Without --files the full corpus
     is scanned for any existing duplicates.
     """
-    hex_digits = set('0123456789abcdefABCDEF')
+    from tasks.libs.linter.releasenotes import release_note_tree, release_note_uid
 
     def path_key(path):
         return Path(str(path).replace('\\', '/')).as_posix()
-
-    def uid_of(path: Path):
-        if path.suffix != '.yaml':
-            return None
-        uid = path.stem[-16:]
-        return uid.lower() if len(uid) == 16 and all(c in hex_digits for c in uid) else None
-
-    def release_note_dir(path: Path):
-        """Return the top-level releasenotes* directory for a given path."""
-        for part in path.parts:
-            if part.startswith('releasenotes'):
-                return part
-        return ''
 
     def release_note_paths():
         note_paths = []
@@ -287,10 +283,10 @@ def releasenote_unique_ids(ctx, files=None):
     seen: dict[tuple[str, str], Path] = {}
     duplicate_groups: dict[tuple[str, str], list[Path]] = {}
     for path in all_notes:
-        uid = uid_of(path)
+        uid = release_note_uid(path)
         if not uid:
             continue
-        key = (release_note_dir(path), uid)
+        key = (release_note_tree(path), uid)
         if key in seen:
             duplicate_groups.setdefault(key, [seen[key]]).append(path)
         else:
@@ -318,6 +314,64 @@ def releasenote_unique_ids(ctx, files=None):
         raise Exit(code=1)
 
     print(color_message(f"All {len(targets)} release note(s) have unique UIDs", "green"))
+
+
+@task
+def releasenote_reused_uids(ctx, files=None, only_changed=False):
+    """Check that newly added release notes don't reuse the UID of a previously deleted note.
+
+    reno attributes a note to the earliest release its UID appears in, so restoring a
+    deleted note's file (typically when re-landing a reverted PR) attributes it to an
+    older release and drops it from the changelog of the release it ships in.
+
+    Args:
+        files: Comma-separated list of files to check (pre-commit). Files that already
+               exist at HEAD are skipped, as they are not being added.
+        only_changed: Check the notes added compared to the base branch (CI).
+    """
+    from tasks.libs.linter.releasenotes import find_reused_uids, parse_deleted_release_notes
+
+    if not files and not only_changed:
+        raise Exit("Pass either --files or --only-changed", code=1)
+
+    notes_pathspec = "'releasenotes*/notes/*.yaml'"
+    base_branch = get_ancestor_base_branch()
+    merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
+    if files:
+        candidates = [f.strip() for f in files.split(',') if f.strip()]
+        added = [
+            f for f in candidates if not ctx.run(f"git cat-file -e {shlex.quote(f'HEAD:{f}')}", warn=True, hide=True).ok
+        ]
+    else:
+        # Renames keep the UID and show up as R, not A, so they are not flagged.
+        result = ctx.run(f"git diff --name-only --diff-filter=A {merge_base} -- {notes_pathspec}", hide=True)
+        added = [f.strip() for f in result.stdout.splitlines() if f.strip()]
+
+    if not added:
+        print(color_message("No added release notes to check", "yellow"))
+        return
+
+    # Only deletions that reached the base branch matter: a note deleted and re-added
+    # within the same branch never shipped, so reno can't attribute it to an older release.
+    result = ctx.run(
+        f"git log -M --diff-filter=D --format=commit:%H --name-only {merge_base} -- {notes_pathspec}",
+        hide=True,
+    )
+    reused = find_reused_uids(added, parse_deleted_release_notes(result.stdout))
+
+    if reused:
+        print(color_message("Release notes reuse the UID of a previously deleted note:", "red"), file=sys.stderr)
+        for path, uid, deleted_path, commit in reused:
+            print(f"  {path} (UID: {uid}) was deleted as {deleted_path} in {commit[:11]}", file=sys.stderr)
+        print(
+            "\nreno would attribute these notes to the release the deleted note was first added in, leaving them"
+            " out of the changelog. This usually happens when re-landing a reverted PR.\n"
+            "Fix: regenerate your note with `reno new <slug>` to get a fresh unique UID.",
+            file=sys.stderr,
+        )
+        raise Exit(code=1)
+
+    print(color_message(f"None of the {len(added)} added release note(s) reuse a deleted UID", "green"))
 
 
 @task
@@ -884,7 +938,7 @@ def docs_links(ctx):
     # Double quoted because `cmd` passes a single quote through to Git, which then matches nothing.
     # In a pathspec `*` spans directories, so this reaches every nested page.
     result = ctx.run(
-        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "docs/public/*.md"',
+        r'git grep -nE "github\.com/DataDog/datadog-agent/(blob|tree)/" -- "doc/*.md"',
         warn=True,
         hide=True,
     )
@@ -939,4 +993,21 @@ def filenames(ctx):
             failure = True
 
     if failure:
+        raise Exit(code=1)
+
+
+@task(iterable=["path"])
+def e2e_internet_access(_, path=None):
+    """Checks that every WithInternetAccess() usage in E2E code is listed in test/new-e2e/internet-access.yaml.
+
+    Args:
+        path: File or directory to check (repeatable). Runs a full scan when omitted or when the registry is included.
+    """
+    scope = select_scope(normalize_paths(path or [], REPO_ROOT))
+    registry = Registry.parse((REPO_ROOT / REGISTRY_PATH).read_text())
+    errors = registry.errors + registry.check(scan(REPO_ROOT, scope), scope)
+    print(registry.summary())
+    if errors:
+        for error in errors:
+            print(color_message(error, Color.RED), file=sys.stderr)
         raise Exit(code=1)

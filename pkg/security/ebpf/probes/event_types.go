@@ -152,6 +152,12 @@ func GetCapabilitiesMonitoringSelectors() []manager.ProbesSelector {
 					hookFunc("hook_override_creds"),
 					hookFunc("hook_revert_creds"),
 				}},
+				// these only collect the caps checked against the initial/host user ns:
+				// capabilities monitoring still works if these cannot be attached, so they are best-effort
+				&manager.BestEffort{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_capable"),
+					hookFunc("hook_netlink_capable"),
+				}},
 			},
 		},
 	}
@@ -298,8 +304,14 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("hook_security_inode_follow_link"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_cgroup_procs_write"),
-				hookFunc("hook_cgroup1_procs_write"),
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_cgroup_procs_write"),
+					hookFunc("rethook_cgroup_procs_write"),
+				}},
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_cgroup1_procs_write"),
+					hookFunc("rethook_cgroup1_procs_write"),
+				}},
 			}},
 			&manager.BestEffort{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_cgroup_procs_open"),
@@ -312,8 +324,14 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 				hookFunc("hook_user_mode_thread"),
 			}},
 			&manager.OneOf{Selectors: []manager.ProbesSelector{
-				hookFunc("hook_cgroup_tasks_write"),
-				hookFunc("hook_cgroup1_tasks_write"),
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_cgroup_tasks_write"),
+					hookFunc("rethook_cgroup_tasks_write"),
+				}},
+				&manager.AllOf{Selectors: []manager.ProbesSelector{
+					hookFunc("hook_cgroup1_tasks_write"),
+					hookFunc("rethook_cgroup1_tasks_write"),
+				}},
 			}},
 			&manager.OneOf{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execve", hasFentry, EntryAndExit)},
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "execveat", hasFentry, EntryAndExit)},
@@ -660,8 +678,6 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 			&manager.AllOf{Selectors: []manager.ProbesSelector{
 				hookFunc("hook_security_socket_setsockopt"),
 				hookFunc("hook_sk_attach_filter"),
-				hookFunc("hook_release_sock"),
-				hookFunc("rethook_release_sock"),
 			}},
 		},
 
@@ -764,6 +780,10 @@ func GetSelectorsPerEventType(hasFentry, haveIOURing bool) map[eval.EventType][]
 		// Process context also uses the prctl syscall to notify userspace that we should try to resolve the given PID
 		"otel_process_ctx": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "prctl", hasFentry, EntryAndExit)},
+		},
+		"setns": {
+			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "setns", hasFentry, EntryAndExit)},
+			&manager.BestEffort{Selectors: nsInstallHookSelectors()},
 		},
 		"tracer_memfd_seal": {
 			&manager.BestEffort{Selectors: ExpandSyscallProbesSelector(SecurityAgentUID, "memfd_create", hasFentry, EntryAndExit)},

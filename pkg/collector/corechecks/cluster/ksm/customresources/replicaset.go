@@ -28,7 +28,7 @@ import (
 // NewReplicaSetRolloutFactory returns a new ReplicaSet rollout factory that tracks ReplicaSet events for deployment rollouts
 func NewReplicaSetRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &replicaSetRolloutFactory{
-		client:         client.Cl,
+		client:         client.InformerCl,
 		rolloutTracker: rolloutTracker,
 	}
 }

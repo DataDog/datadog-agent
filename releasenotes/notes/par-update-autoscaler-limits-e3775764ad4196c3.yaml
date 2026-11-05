@@ -1,0 +1,4 @@
+---
+features:
+  - |
+    Add the Kubernetes autoscaling ``updateAutoscalerLimits`` private action for updating the minimum or maximum replica limit of a HorizontalPodAutoscaler.

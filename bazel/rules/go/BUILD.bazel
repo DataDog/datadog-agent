@@ -22,8 +22,8 @@ run_binary(
     srcs = ["//tasks:build_tags.bzl"],
     outs = ["tags.go"],
     args = [
-        "$(location //tasks:build_tags.bzl)",
-        "$(location tags.go)",
+        "$(execpath //tasks:build_tags.bzl)",
+        "$(execpath tags.go)",
     ],
     tool = ":gen_tags_go",
 )

@@ -32,6 +32,10 @@ The Datadog Agent collects metrics, traces, logs, and security events and forwar
 
 ## Development Workflow
 
+### Developer documentation
+
+`doc/` is the sole source of Datadog Agent developer documentation. Consult `docs/README.md` before moving or deleting files remaining in `docs/`.
+
 ### Critical: Always use `dda inv`, never raw `go` commands
 
 This project uses extensive custom Go build tags. Most source files are ignored
@@ -76,6 +80,15 @@ Place the dev config at `dev/dist/datadog.yaml` (e.g. `echo "api_key: 0000001" >
 - Main config: `datadog.yaml`
 - Check configs: `conf.d/<check_name>.d/conf.yaml`
 - Supports environment variable overrides with `DD_` prefix
+- Never edit or commit the schema-generated `pkg/config/example/<build-type>_<os>.yaml.example`
+  files: release automation refreshes them after each release. Change `pkg/config/schema/yaml/`
+  instead, and revert any rewrites left by `dda inv schema.template-all`. See
+  `pkg/config/example/README.md` (the static `security-agent` and `application_monitoring`
+  examples are the exception)
+- Never edit or commit the generated settings code. `pkg/config/setup/generatedsettings/` is a
+  snapshot that release automation refreshes, so don't run `dda inv schema.codegen-snapshot`.
+  The generated `*.go` files in `pkg/config/setup/generatedsettings_local/` are gitignored and
+  rebuilt by every `dda inv` task. See the README in each directory
 
 ### eBPF-based System Checks
 - Checks using eBPF probes require system-probe module running
@@ -94,13 +107,15 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 
 ### Unit Tests
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
+Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
+Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
 - Tests provision real AWS, GCP or Azure infrastructure, deploy the agent, and assert payloads
   arrive in **fakeintake**. By default it forwards payloads to `dddev` org account.
 - Key docs: `test/e2e-framework/AGENTS.md` (framework), `test/fakeintake/AGENTS.md`
-  (intake mock), `docs/public/how-to/test/e2e/` (setup, running, dependencies, AMIs)
+  (intake mock), `doc/how-to/test/e2e/` (setup, running, dependencies, AMIs)
 - Use `/write-e2e` skill or read those docs directly to write new E2E tests
 - Run locally: `dda inv new-e2e-tests.run --targets=./tests/<area>/...`, or use the `/run-e2e`
   skill, which runs the test in a `dda env dev` sandbox and triages setup failures
@@ -126,12 +141,31 @@ derives the keypair name from the container username; use the host instead.
 
 ### Manual QA
 - When the agent needs to be inspected in a given environment (e.g. EKS, ECS, a cloud VM) that is not easily reproducible locally, use the manual QA infrastructure.
-- Full guide (scenarios, commands, stack lifecycle): `docs/public/how-to/test/manual-qa/index.md`
+- Full guide (scenarios, commands, stack lifecycle): `doc/how-to/test/manual-qa/index.md`
 
 ### Linting
+- Go: `dda inv linter.go` (see the `dda inv` table above)
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
+- Bazel: when the change touches `BUILD`, `BUILD.bazel`, `*.bzl`, `MODULE.bazel`, or `*.bazelrc`,
+  run `bazel run //bazel/buildifier:test`. If it fails, `bazel run //bazel/buildifier` and re-run
+  the test.
+
+#### Typechecking code for another platform
+Build-tagged files are invisible to the host test run, so `//go:build windows`
+code can be broken for a long time before CI says so. Prefix the linter with
+`GOOS`/`GOARCH` to typecheck it locally:
+
+```bash
+GOOS=windows GOARCH=amd64 dda inv linter.go --module=<module path>
+```
+
+Cross-linting for Windows needs mingw-w64 on `PATH` (`brew install mingw-w64` on
+macOS). `CGO_ENABLED=0` is not a substitute: core packages reach
+`pkg/util/winutil`, which requires real cgo. Note that
+`bazel build --platforms=@rules_go//go/toolchain:windows_amd64` builds libraries
+and `*_test` targets alike, cgo included, but `bazel test` cannot run the latter.
 
 ## Build System
 
@@ -181,12 +215,29 @@ Secondary CI: pull-request/repository-configuration checks and release automatio
 
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
-`docs/public/guidelines/` (contributing, coding style, components, etc.).
+`doc/guidelines/` (contributing, coding style, components, etc.).
+
+When re-landing a reverted PR, generate a new release note with `reno new`
+rather than restoring the original file. reno keys notes by the UID in the
+filename and attributes a reused UID to the release it first appeared in, so
+the note silently drops out of the changelog
+(`dda inv linter.releasenote-reused-uids` catches this).
+
+### Code ownership
+`.github/CODEOWNERS` is partly generated. The block between `# BEGIN COMPONENTS`
+and `# END COMPONENTS` is built from the `// team:` annotation in each
+component's `def/component.go` (or bundle's `bundle.go`). To change who owns a
+component or bundle, edit that annotation and run
+`dda inv components.lint-components --fix`, which also regenerates
+`comp/README.md`; never hand-edit lines inside the block (CI's `lint_components`
+job fails if they disagree with the annotations). Edit `CODEOWNERS` directly for
+everything else. To override part of a component (a subfolder or single file),
+add the line after `# END COMPONENTS`: rules are last-match-wins.
 
 ## Code Review
 
 Code reviewer plugins for Go and Python are available from the
-Datadog Claude Marketplace (DataDog/claude-marketplace, internal-only repo):
+Datadog Claude Marketplace (ddoghq/claude-marketplace, internal-only repo):
 
 - `/go-review`, `/go-improve` - Go code review and iterative improvement
 - `/py-review`, `/py-improve` - Python code review and iterative improvement

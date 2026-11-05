@@ -9,9 +9,10 @@ import (
 	"fmt"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"unicode/utf16"
 	"unsafe"
+
+	"golang.org/x/sys/windows"
 )
 
 // NTSTATUS is the return type used by many native Windows functions.
@@ -41,7 +42,7 @@ type SystemProcessIDInformation struct {
 
 // Loading NtQuerySystemInformation
 var (
-	ntdll                        = syscall.NewLazyDLL("ntdll.dll")
+	ntdll                        = windows.NewLazySystemDLL("ntdll.dll")
 	procNtQuerySystemInformation = ntdll.NewProc("NtQuerySystemInformation")
 )
 

@@ -14,6 +14,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
+// forbiddenSymbolsRegex defined in `data_scrubber_<platform>.go` because it's platform dependent
+var forbiddenSymbols = regexp.MustCompile(forbiddenSymbolsRegex)
+
 const (
 	defaultCacheMaxCycles = 25
 )
@@ -62,9 +65,6 @@ func NewDefaultDataScrubber() *DataScrubber {
 // The word must contain only word characters ([a-zA-z0-9_]) or wildcards *
 func CompileStringsToRegex(words []string) []DataScrubberPattern {
 	compiledRegexps := make([]DataScrubberPattern, 0, len(words))
-
-	// forbiddenSymbolsRegex defined in `data_scrubber_<platform>.go` because it's platform dependent
-	forbiddenSymbols := regexp.MustCompile(forbiddenSymbolsRegex)
 
 	for _, word := range words {
 		if forbiddenSymbols.MatchString(word) {

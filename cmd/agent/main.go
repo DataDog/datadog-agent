@@ -34,7 +34,10 @@ func coreAgentMain() *cobra.Command {
 }
 
 func init() {
-	registerAgent([]string{"agent", "datadog-agent", "dd-agent"}, coreAgentMain)
+	// "agent-bin" is the core Agent binary name in the AIX installp package
+	// (the "agent" entry point there is a wrapper script that execs agent-bin
+	// with LIBPATH/NLSPATH set, see packaging/aix/agent-wrapper.sh).
+	registerAgent([]string{"agent", "datadog-agent", "dd-agent", "agent-bin"}, coreAgentMain)
 }
 
 func main() {
@@ -58,9 +61,10 @@ func main() {
 	}
 
 	agentCmdBuilder := agents[process]
-	// The generic agent binary aliases below construct the Core Agent command tree; other bundled binaries must not
-	// perform RemoteCommandProvider discovery before their own Cobra dispatch.
-	isCoreAgent := agentCmdBuilder == nil || process == "agent" || process == "datadog-agent" || process == "dd-agent"
+	// The core Agent process names below construct the Core Agent command tree and must
+	// run RemoteCommandProvider discovery; other bundled binaries must not perform it
+	// before their own Cobra dispatch.
+	isCoreAgent := agentCmdBuilder == nil || process == "agent" || process == "datadog-agent" || process == "dd-agent" || process == "agent-bin"
 	if agentCmdBuilder == nil {
 		fmt.Fprintf(os.Stderr, "Invoked as '%s', acting as main Agent.\n", process)
 		agentCmdBuilder = coreAgentMain

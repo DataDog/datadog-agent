@@ -28,13 +28,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/sort"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -85,12 +85,34 @@ func (s *Stats) copy() *Stats {
 	}
 }
 
+// flushTelemetryNames maps the expvar names of the flush stats (aggregator/Flush/<name> and
+// aggregator/FlushCount/<name>) to the snake_case value used for the flush_type label of their
+// telemetry counterparts.
+var flushTelemetryNames = map[string]string{
+	// Flush times.
+	"ChecksMetricSampleFlushTime": "checks_metric_sample",
+	"ServiceCheckFlushTime":       "service_check",
+	"EventFlushTime":              "event",
+	"MainFlushTime":               "main",
+	"MetricSketchFlushTime":       "metric_sketch",
+	"ManifestsTime":               "manifests",
+	// Flush counts.
+	"ServiceChecks": "service_checks",
+	"Series":        "series",
+	"Events":        "events",
+	"Sketches":      "sketches",
+	"Manifests":     "manifests",
+}
+
 func newFlushTimeStats(name string) {
 	flushTimeStats[name] = &Stats{Name: name, FlushIndex: -1}
 }
 
 func addFlushTime(name string, value int64) {
 	flushTimeStats[name].add(value)
+	if flushType, ok := flushTelemetryNames[name]; ok {
+		tlmFlushTime.Set(float64(value), flushType)
+	}
 }
 
 func newFlushCountStats(name string) {
@@ -99,6 +121,9 @@ func newFlushCountStats(name string) {
 
 func addFlushCount(name string, value int64) {
 	flushCountStats[name].add(value)
+	if flushType, ok := flushTelemetryNames[name]; ok {
+		tlmFlushCount.Set(float64(value), flushType)
+	}
 }
 
 func expStatsMap(statsMap map[string]*Stats) func() interface{} {
@@ -138,7 +163,6 @@ var (
 	aggregatorCheckHistogramBucketMetricSample = expvar.Int{}
 	aggregatorServiceCheck                     = expvar.Int{}
 	aggregatorEvent                            = expvar.Int{}
-	aggregatorHostnameUpdate                   = expvar.Int{}
 	aggregatorOrchestratorMetadata             = expvar.Int{}
 	aggregatorOrchestratorMetadataErrors       = expvar.Int{}
 	aggregatorOrchestratorManifests            = expvar.Int{}
@@ -150,6 +174,12 @@ var (
 
 	tlmFlush = telemetryimpl.GetCompatComponent().NewCounter("aggregator", "flush",
 		[]string{"data_type", "state"}, "Number of metrics/service checks/events flushed")
+	tlmFlushTime = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "flush_time",
+		[]string{"flush_type"}, "Duration in nanoseconds of the last flush, by flush type")
+	tlmFlushCount = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "flush_count",
+		[]string{"flush_type"}, "Number of items handled by the last flush, by flush type")
+	tlmNumberOfFlush = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "number_of_flush",
+		"Number of flushes done by the aggregator")
 
 	tlmChannelSize = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "channel_size",
 		[]string{"shard"}, "Size of the aggregator channel")
@@ -165,6 +195,9 @@ var (
 		[]string{"shard", "metric_type"}, "Count the number of dogstatsd contexts in the aggregator, by metric type")
 	tlmDogstatsdContextsBytesByMtype = telemetryimpl.GetCompatComponent().NewGauge("aggregator", "dogstatsd_contexts_bytes_by_mtype",
 		[]string{"shard", "metric_type", tags.BytesKindTelemetryKey}, "Estimated count of bytes taken by contexts in the aggregator, by metric type")
+	tlmDogstatsdTypeMismatch = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "dogstatsd_type_mismatch", "Count of dogstatsd samples whose metric type differs from the existing metric for their context")
+	// Dogstatsd doesn't use metric types that have isStateful()==true, so we don't have telemetry metrics related to that (Total/Stateful/Stateless).
+	dogstatsdAddSampleTelemetry = &metrics.AddSampleTelemetry{TypeMismatch: tlmDogstatsdTypeMismatch}
 	tlmDogstatsdFilteredMetrics = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "dogstatsd_filtered_metrics", "How many metrics were filtered in the time samplers")
 	tlmChecksFilteredMetrics    = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "checks_filtered_metrics", "How many metrics were filtered in the check samplers")
 	tlmFilteredTags             = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "filtered_tags", "How many tags were filtered from a metric sample")
@@ -213,7 +246,6 @@ func init() {
 	aggregatorExpvars.Set("ChecksHistogramBucketMetricSample", &aggregatorCheckHistogramBucketMetricSample)
 	aggregatorExpvars.Set("ServiceCheck", &aggregatorServiceCheck)
 	aggregatorExpvars.Set("Event", &aggregatorEvent)
-	aggregatorExpvars.Set("HostnameUpdate", &aggregatorHostnameUpdate)
 	aggregatorExpvars.Set("OrchestratorMetadata", &aggregatorOrchestratorMetadata)
 	aggregatorExpvars.Set("OrchestratorMetadataErrors", &aggregatorOrchestratorMetadataErrors)
 	aggregatorExpvars.Set("OrchestratorManifests", &aggregatorOrchestratorManifests)
@@ -266,8 +298,6 @@ type BufferedAggregator struct {
 	haAgent                haagent.Component
 	configID               string
 	hostname               string
-	hostnameUpdate         chan string
-	hostnameUpdateDone     chan struct{} // signals that the hostname update is finished
 	flushChan              chan flushTrigger
 
 	stopChan  chan chan struct{}
@@ -349,8 +379,6 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 		haAgent:                     haAgent,
 		configID:                    configID,
 		hostname:                    hostname,
-		hostnameUpdate:              make(chan string),
-		hostnameUpdateDone:          make(chan struct{}),
 		flushChan:                   make(chan flushTrigger),
 		stopChan:                    make(chan chan struct{}),
 		health:                      health.RegisterLiveness("aggregator"),

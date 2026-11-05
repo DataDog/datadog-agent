@@ -9,9 +9,7 @@ import (
 	"expvar"
 	"fmt"
 	"net/http"
-	"regexp"
 	"slices"
-	"strings"
 	"sync"
 	"time"
 
@@ -21,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -43,10 +42,6 @@ var (
 
 	apiKeyStatus  = expvar.Map{}
 	apiKeyFailure = expvar.Map{}
-
-	// domainURLRegexp determines if an URL belongs to Datadog or not. If the URL belongs to Datadog it's prefixed
-	// with 'api.' (see computeDomainURLAPIKeyMap).
-	domainURLRegexp = regexp.MustCompile(`([a-z]{2,}\d{1,2}\.)?(datadoghq\.[a-z]+|ddog-gov\.com)\.?$`)
 )
 
 func init() {
@@ -175,13 +170,13 @@ func (fh *forwarderHealth) healthCheckLoop() {
 func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []string) {
 	fh.keyMapMutex.Lock()
 
-	apiDomain := getAPIDomain(domain)
+	apiDomain := utils.APIEndpointFromURL(domain)
 	newList := []string{}
 
 	// We need to go through all the resolvers to build up the api keys for a given
 	// api domain incase multiple resolvers have the same api endpoint.
 	for domainURL, resolver := range fh.domainResolvers {
-		if getAPIDomain(domainURL) == apiDomain {
+		if utils.APIEndpointFromURL(domainURL) == apiDomain {
 			newList = append(newList, resolver.GetAPIKeys()...)
 		}
 	}
@@ -202,21 +197,11 @@ func (fh *forwarderHealth) UpdateAPIKeys(domain string, old []string, new []stri
 	fh.checkValidAPIKeys(apiDomain, new)
 }
 
-func getAPIDomain(domain string) string {
-	if domainURLRegexp.MatchString(domain) {
-		match := domainURLRegexp.FindString(domain)
-		match = strings.TrimSuffix(match, ".")
-		return "https://api." + match
-	}
-
-	return domain
-}
-
 // computeDomainURLAPIKeyMap populates a map containing API Endpoints per API keys that belongs to the forwarderHealth struct
 func (fh *forwarderHealth) computeDomainURLAPIKeyMap() {
 	fh.keyMapMutex.Lock()
 	for domain, dr := range fh.domainResolvers {
-		domain = getAPIDomain(domain)
+		domain = utils.APIEndpointFromURL(domain)
 		fh.keysPerAPIEndpoint[domain] = append(fh.keysPerAPIEndpoint[domain], dr.GetAPIKeys()...)
 	}
 	fh.keyMapMutex.Unlock()

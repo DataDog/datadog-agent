@@ -1,0 +1,24 @@
+# vuln-hunt 2026-05-19-codex / allowed_paths.
+# skip: allowed_paths sandbox restriction is rshell-specific.
+skip_assert_against_bash: true
+description: cd inside command substitution does not change the parent runner cwd or sandbox state.
+setup:
+  files:
+    - path: allowed/data.txt
+      content: |+
+        parent
+    - path: other/data.txt
+      content: |+
+        child
+input:
+  allowed_paths: ["allowed", "other"]
+  script: |+
+    cd allowed
+    echo "child=$(cd ../other; cat data.txt)"
+    cat data.txt
+expect:
+  stdout: |+
+    child=child
+    parent
+  stderr: ""
+  exit_code: 0
