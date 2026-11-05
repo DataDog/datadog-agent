@@ -28,8 +28,9 @@ var tlmCheckMergeConflicts = telemetryimpl.GetCompatComponent().NewCounter("aggr
 // intake keeps only the last point it receives for a series and second. The merger combines those points: counts
 // and rates are summed, sketches merged. Points in different seconds stay apart.
 //
-// Samplers hand the merger the output of the contexts a rule strips, of the types that can be stripped. Other
-// output doesn't go through the merger.
+// Samplers hand the merger the output that can be stripped of every metric stripped since the Agent started,
+// stripped while a rule applies and with its full tags otherwise, so that a series a rule stops stripping keeps
+// merging with what's held or sent for it. Other output doesn't go through the merger.
 //
 // The merger sends each second of a series once, which rests on these:
 //   - Samplers stamp everything they hand the merger at commit, and the aggregator's run loop handles commits and
@@ -37,9 +38,13 @@ var tlmCheckMergeConflicts = telemetryimpl.GetCompatComponent().NewCounter("aggr
 //     that only moves forward, a commit handled after a flush is stamped at or after its cutoff, and a flush can
 //     send the seconds before its cutoff and hold the rest for the next flush.
 //   - Every flush collects everything committed since the previous one, so two commits in one second are merged.
+//   - A rule change that starts stripping a metric makes its output come to the merger: its points committed in the
+//     change's second move to the next second, which output sent before the change can't have used.
 type checkOutputMerger struct {
 	series   map[serieMergeKey]*metrics.Serie
 	sketches map[ckey.ContextKey]*metrics.SketchSeries
+	// notBefore is, for metrics a rule change started stripping, the second after the change.
+	notBefore map[string]int64
 
 	logThrottling util.SimpleThrottler
 }
@@ -64,8 +69,9 @@ type serieMergeKey struct {
 
 func newCheckOutputMerger() *checkOutputMerger {
 	return &checkOutputMerger{
-		series:   make(map[serieMergeKey]*metrics.Serie),
-		sketches: make(map[ckey.ContextKey]*metrics.SketchSeries),
+		series:    make(map[serieMergeKey]*metrics.Serie),
+		sketches:  make(map[ckey.ContextKey]*metrics.SketchSeries),
+		notBefore: make(map[string]int64),
 
 		logThrottling: util.NewSimpleThrottler(5, 5*time.Minute, ""),
 	}
@@ -88,7 +94,7 @@ func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 			merged.Source = m.mergeSource(merged.Source, serie.Source)
 		}
 		for _, point := range serie.Points {
-			point.Ts = float64(int64(point.Ts)) // merged per second
+			point.Ts = float64(m.unsentSecond(serie.Name, int64(point.Ts)))
 			merged.Points = mergeSeriePoint(merged.Points, point)
 		}
 	}
@@ -123,9 +129,16 @@ func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
 			merged.Source = m.mergeSource(merged.Source, s.sketch.Source)
 		}
 		for _, point := range s.sketch.Points {
+			point.Ts = m.unsentSecond(s.sketch.Name, point.Ts)
 			merged.Points = mergeSketchPoint(merged.Points, point)
 		}
 	}
+}
+
+// unsentSecond returns the second a point of a metric is sent in: its own, unless a rule change started stripping the
+// metric in it.
+func (m *checkOutputMerger) unsentSecond(name string, ts int64) int64 {
+	return max(ts, m.notBefore[name])
 }
 
 // mergeSource returns the origin of a merged series: the lowest of its sources', so that it doesn't depend on
@@ -157,9 +170,24 @@ func mergeSketchPoint(points []metrics.SketchPoint, point metrics.SketchPoint) [
 	return append(points, point)
 }
 
+// startedStripping is called when a rule change, at the given second, starts stripping metrics: their output didn't
+// come to the merger before, and output sent before the change may have used that second, so their points from the
+// change's second move to the next.
+func (m *checkOutputMerger) startedStripping(second int64, names []string) {
+	for _, name := range names {
+		m.notBefore[name] = second + 1
+	}
+}
+
 // flush sends the points from seconds before cutoff, and holds the others for a later flush.
 func (m *checkOutputMerger) flush(cutoff int64, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 	m.send(func(ts int64) bool { return ts < cutoff }, seriesSink, sketchesSink)
+	// Commits from now on are stamped at or after cutoff.
+	for name, second := range m.notBefore {
+		if second <= cutoff {
+			delete(m.notBefore, name)
+		}
+	}
 }
 
 // drain sends every point, for when no flush follows to send the points flush would hold.

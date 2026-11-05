@@ -419,9 +419,15 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 	}
 }
 
-// restrip updates the identity every context strips to at output, after the rules changed.
+// restrip updates the identity every context strips to at output, after the rules changed. Once every sampler
+// restripped, markStrippedMetrics must be called on each.
 func (cs *CheckSampler) restrip(filterList filterlist.TagMatcher) {
 	cs.contextResolver.resolver.restrip(filterList)
+}
+
+// markStrippedMetrics marks the contexts of metrics stripped since the Agent started, after the rules changed.
+func (cs *CheckSampler) markStrippedMetrics() {
+	cs.contextResolver.resolver.markStrippedMetrics()
 }
 
 // shareStrippedIdentities makes the sampler record stripped identities in a table shared with other samplers.

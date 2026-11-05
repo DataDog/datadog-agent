@@ -914,6 +914,40 @@ func TestTagFilterListFinalFlushSendsHeldPoints(t *testing.T) {
 	assert.Len(t, seriesNamed(s.series, "count.metric"), 1)
 }
 
+// TestTagFilterListRuleRemovedWithOutputPendingInSamplers checks the invariant through the aggregator across a rule
+// change. Whether the two sources' points share a second depends on the commit clock, which the test doesn't
+// control: TestCheckOutputMergerAfterARuleIsRemoved covers the collision deterministically.
+func TestTagFilterListRuleRemovedWithOutputPendingInSamplers(t *testing.T) {
+	demux, s, filterList := startTagFilterDemuxWithFilterList(t, map[string]any{"metric_tag_filterlist_adp_only": false}, "openmetrics:pod-a", "openmetrics:no-pod")
+	defer demux.Stop()
+
+	// Pod a's filtered output is committed but not flushed when the rule is removed. SetTagFilterList returns once
+	// the aggregator has the new rules.
+	submitPodMetrics(demux, "openmetrics:pod-a", "a", 1)
+	waitForCheckItems(t, demux)
+	filterList.SetTagFilterList(map[string]filterlistimpl.MetricTagList{})
+
+	// A source without the pod tag sent the stripped series unfiltered all along, and keeps doing so.
+	submitPodMetrics(demux, "openmetrics:no-pod", "", 2)
+	waitForCheckItems(t, demux)
+	demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
+
+	counts := seriesNamed(s.series, "count.metric")
+	var sum float64
+	seconds := map[int64]bool{}
+	for _, serie := range counts {
+		if serie.Tags.Join(",") != "env:prod" {
+			continue
+		}
+		for _, p := range serie.Points {
+			assert.False(t, seconds[int64(p.Ts)], "second %d sent twice for the series", int64(p.Ts))
+			seconds[int64(p.Ts)] = true
+			sum += p.Value
+		}
+	}
+	assert.Equal(t, 3.0, sum, "both sources are counted")
+}
+
 func TestTagFilterListStopWithIncompleteBucketsSendsHeldPoints(t *testing.T) {
 	demux, s := startTagFilterDemux(t, "openmetrics:pod-a")
 	configmock.New(t).SetInTest("dogstatsd_flush_incomplete_buckets", true)

@@ -41,9 +41,9 @@ func (c *Context) stripsAtOutput() bool {
 }
 
 // mergesAtOutput returns whether the context's output that can be stripped goes to the check output merger, stamped
-// at commit: a rule strips it.
+// at commit: its metric has been stripped since the Agent started.
 func (c *Context) mergesAtOutput() bool {
-	return c.strippedIdentityRef != 0
+	return c.stripFlags&strippedMetric != 0 && c.stripsAtOutput()
 }
 
 // mergesSeries returns whether the context's series go to the check output merger: none of its samples are of a type
@@ -56,9 +56,15 @@ func (c *Context) mergesSeries() bool {
 type contextOutput uint8
 
 const (
+	// strippedMetric is set for every context of a metric that has been stripped at output since the Agent
+	// started. Its output that can be stripped is stamped at commit and goes to the check output merger, stripped
+	// of tags while a rule applies and with its full tags otherwise: a sketch stamped at commit can't land in a
+	// second the merger has already sent, since a commit after a flush is stamped at or after its cutoff, and the
+	// merger merges two commits in one second.
+	strippedMetric contextOutput = 1 << iota
 	// strippable is set once a context gets samples of a type that can be stripped at output. Context keys don't
 	// include the metric type, so samples of several types can share a context, whichever came first.
-	strippable contextOutput = 1 << iota
+	strippable
 	// unmergeableSeries is set once a context gets samples of a type whose series can't be merged, such as an
 	// ordinary histogram's statistics or an explicit-timestamp count: its series are never merged.
 	unmergeableSeries
@@ -87,16 +93,29 @@ func (s *strippedIdentity) Tags() tagset.CompositeTags {
 	return tagset.NewCompositeTags(s.taggerTags.Tags(), s.metricTags.Tags())
 }
 
-// strippedIdentityTable holds one strippedIdentity per stripped series, referenced by 1 + its index. The check
-// samplers share one, as they are all used from the aggregator's run loop.
+// strippedIdentityTable holds one strippedIdentity per stripped series, referenced by 1 + its index, and the names
+// of the metrics that have been stripped. The check samplers share one, as they are all used from the aggregator's
+// run loop.
 type strippedIdentityTable struct {
 	identities []strippedIdentity
 	free       []uint32
 	byKey      map[ckey.ContextKey]uint32
+	// strippedNames are the metrics stripped since the Agent started: their output that can be stripped stays
+	// stamped at commit, and goes to the check output merger.
+	strippedNames map[string]struct{}
 }
 
 func newStrippedIdentityTable() *strippedIdentityTable {
-	return &strippedIdentityTable{byKey: make(map[ckey.ContextKey]uint32)}
+	return &strippedIdentityTable{byKey: make(map[ckey.ContextKey]uint32), strippedNames: make(map[string]struct{})}
+}
+
+// wasStripped returns whether a metric has been stripped since the Agent started.
+func (t *strippedIdentityTable) wasStripped(name string) bool {
+	if t == nil {
+		return false
+	}
+	_, ok := t.strippedNames[name]
+	return ok
 }
 
 // acquire returns a reference to the identity with the key, creating it with newTags if there is none.
@@ -275,6 +294,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			source:     metricSampleContext.GetSource(),
 		}
 		if tracksOutput {
+			context.stripFlags.set(strippedMetric, cr.stripped.wasStripped(context.Name))
 			cr.trackOutput(context, metricSampleContext, filterList)
 		}
 		cr.contextsByKey[contextKey] = resolverEntry{
@@ -316,6 +336,7 @@ func (cr *contextResolver) trackOutput(context *Context, metricSampleContext met
 	context.stripFlags.set(strippable, true)
 	if filterList != nil && context.strippedIdentityRef == 0 {
 		cr.strip(context, filterList)
+		context.stripFlags.set(strippedMetric, cr.stripped.wasStripped(context.Name))
 	}
 }
 
@@ -337,6 +358,7 @@ func (cr *contextResolver) acquireStripped(name, host string, tagMatcher func(ta
 	if cr.stripped == nil {
 		cr.stripped = newStrippedIdentityTable()
 	}
+	cr.stripped.strippedNames[name] = struct{}{}
 	return cr.stripped.acquire(key, func() (*tags.Entry, *tags.Entry) {
 		return cr.tagsCache.Insert(taggerKey, cr.taggerBuffer), cr.tagsCache.Insert(metricKey, cr.metricBuffer)
 	}), removed
@@ -350,9 +372,9 @@ func (cr *contextResolver) strippedOf(context *Context) (*strippedIdentity, bool
 	return cr.stripped.get(context.strippedIdentityRef), true
 }
 
-// anyStrippedMetric returns whether a rule strips any context at output.
+// anyStrippedMetric returns whether any metric has been stripped at output since the Agent started.
 func (cr *contextResolver) anyStrippedMetric() bool {
-	return cr.stripped != nil && len(cr.stripped.byKey) > 0
+	return cr.stripped != nil && len(cr.stripped.strippedNames) > 0
 }
 
 // restrip updates the identity every context strips to at output, after the rules changed.
@@ -389,6 +411,17 @@ func (cr *contextResolver) restrip(filterList filterlist.TagMatcher) {
 			cr.stripped.release(context.strippedIdentityRef)
 		}
 		context.strippedIdentityRef = stripped
+	}
+}
+
+// markStrippedMetrics marks the contexts of metrics stripped since the Agent started. It's called after every check sampler
+// restripped, so that the metrics any of them stripped are known.
+func (cr *contextResolver) markStrippedMetrics() {
+	if !cr.anyStrippedMetric() {
+		return
+	}
+	for _, entry := range cr.contextsByKey {
+		entry.context.stripFlags.set(strippedMetric, cr.stripped.wasStripped(entry.context.Name))
 	}
 }
 

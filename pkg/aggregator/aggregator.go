@@ -10,6 +10,7 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"maps"
 	"slices"
 	"sync"
 	"time"
@@ -941,16 +942,32 @@ func (agg *BufferedAggregator) run() {
 
 // setFilterList applies new metric_tag_filterlist rules: check samplers restrip their contexts.
 func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
+	agg.setFilterListAt(matcher, int64(timeNowNano()))
+}
+
+// setFilterListAt applies new metric_tag_filterlist rules, changed at the given second.
+func (agg *BufferedAggregator) setFilterListAt(matcher filterlist.TagMatcher, second int64) {
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 	agg.tagFilterList = matcher
 	if !agg.tagFilterEnabled {
 		return
 	}
+	wasStripped := maps.Clone(agg.strippedIdentities.strippedNames)
 	for _, cs := range agg.checkSamplers {
 		cs.clearStripCache()
 		cs.restrip(matcher)
 	}
+	for _, cs := range agg.checkSamplers {
+		cs.markStrippedMetrics()
+	}
+	var started []string
+	for name := range agg.strippedIdentities.strippedNames {
+		if _, ok := wasStripped[name]; !ok {
+			started = append(started, name)
+		}
+	}
+	agg.checkOutputMerger.startedStripping(second, started)
 }
 
 // tags returns the list of tags that should be added to the agent telemetry metrics

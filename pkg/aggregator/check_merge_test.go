@@ -169,3 +169,67 @@ func TestCheckOutputMergerMergesMetadata(t *testing.T) {
 	require.Len(t, sketches, 1)
 	assert.True(t, sketches[0].NoIndex)
 }
+
+func TestCheckOutputMergerAfterARuleStartsStripping(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+
+	// Before the rule, a source whose identity is unchanged by stripping may have sent second 100 unfiltered.
+	m.startedStripping(100, []string{"my.counter"})
+
+	other := filteredCounter(2, metrics.Point{Ts: 100.5, Value: 1})
+	other.Name = "other.counter"
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.5, Value: 1}), other})
+	m.flush(200, &series, nil)
+
+	byKey := seriesByKey(series)
+	assert.Equal(t, []metrics.Point{{Ts: 101, Value: 1}}, byKey[1].Points, "the metric's points can't reuse the second of the change")
+	assert.Equal(t, []metrics.Point{{Ts: 100, Value: 1}}, byKey[2].Points, "other metrics aren't moved")
+}
+
+func TestCheckOutputMergerKeepsPendingPointsAcrossRuleUpdates(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+
+	// Points committed since the last flush, then the same rules are sent again, or rules for other metrics.
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 101.2, Value: 1}, metrics.Point{Ts: 108.2, Value: 1})})
+	m.startedStripping(114, nil)
+	m.startedStripping(114, []string{"other.counter"})
+	m.flush(116, &series, nil)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, []metrics.Point{{Ts: 101, Value: 1}, {Ts: 108, Value: 1}}, series[0].Points)
+}
+
+func TestCheckOutputMergerRuleStartsStrippingInTheSecondOfAFlush(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+
+	// The change and a flush fall in second 115: the point moves to 116 and is held.
+	m.startedStripping(115, []string{"my.counter"})
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 115, Value: 1})})
+	m.flush(115, &series, nil)
+	require.Empty(t, series)
+
+	// Another source commits into 116.
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 116, Value: 2})})
+	m.flush(200, &series, nil)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, []metrics.Point{{Ts: 116, Value: 3}}, series[0].Points)
+}
+
+func TestCheckOutputMergerAfterARuleIsRemoved(t *testing.T) {
+	m := newCheckOutputMerger()
+	var series metrics.Series
+
+	// A filtered point for second 100 is held when the rule is removed. The metric's output still comes to the
+	// merger, with full tags: a source whose full tags are the held series' commits in the held second.
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.1, Value: 1})})
+	m.flush(100, &series, nil)
+	m.mergeSeries([]*metrics.Serie{filteredCounter(1, metrics.Point{Ts: 100.6, Value: 2})})
+	m.flush(200, &series, nil)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, []metrics.Point{{Ts: 100, Value: 3}}, series[0].Points)
+}
