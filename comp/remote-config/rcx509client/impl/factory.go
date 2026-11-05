@@ -41,6 +41,12 @@ func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 			logger.Info("remote config x509 debug ping handler enabled for manual staging validation")
 		}
 
+		if config.PrepareSecretDelivery != nil {
+			if err := client.RegisterHandler(prepareSecretDeliveryURI, config.PrepareSecretDelivery); err != nil {
+				_ = client.Close()
+				return nil, fmt.Errorf("register x509 secret preparation handler: %w", err)
+			}
+		}
 		return client, nil
 	}
 }

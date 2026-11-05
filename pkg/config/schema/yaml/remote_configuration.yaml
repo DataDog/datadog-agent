@@ -159,4 +159,23 @@ properties:
         default: false
         description: |-
           Register the x509 DebugService/Ping handler for manual staging validation. Do not enable in production.
+      secrets:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            description: |-
+              Enable experimental RC Secrets preparation using workload identity.
+          products:
+            node_type: setting
+            type: array
+            default: []
+            env_parser: comma_separated
+            items:
+              type: string
+            description: |-
+              Exact product names allowed to prepare secret delivery. Empty denies all products.
 comment: Delegated authentication for remote_configuration
