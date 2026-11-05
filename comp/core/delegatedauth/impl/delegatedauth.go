@@ -55,21 +55,27 @@ var (
 
 // endpointRegistration captures the immutable routing and writeback identity.
 type endpointRegistration struct {
-	orgUUID                          string
-	directive                        string
-	targetSite                       string
-	additionalEndpointDomain         string
-	additionalEndpointsConfigKey     string
-	additionalEndpointKeyIndex       int
+	orgUUID string
+	// originalDirective is immutable and matches entries reverted by a racing write.
+	originalDirective string
+	// targetSite is the exchange site. Empty means use the primary site.
+	targetSite string
+	// additionalEndpointDomain routes map-shape writeback under additionalEndpointsConfigKey.
+	additionalEndpointDomain     string
+	additionalEndpointsConfigKey string
+	// additionalEndpointKeyIndex is the original position in the domain's key list.
+	additionalEndpointKeyIndex int
+	// additionalEndpointsListConfigKey routes list-shape writeback, instead of the domain.
 	additionalEndpointsListConfigKey string
 	listEntryIndex                   int
-	additionalEndpointIdentity       string
+	// additionalEndpointIdentity binds list writeback to the original route.
+	additionalEndpointIdentity string
 }
 
 func endpointRegistrationFor(params delegatedauth.InstanceParams) endpointRegistration {
 	return endpointRegistration{
 		orgUUID:                          params.OrgUUID,
-		directive:                        params.AdditionalEndpointDirective,
+		originalDirective:                params.AdditionalEndpointDirective,
 		targetSite:                       resolveTargetSite(params),
 		additionalEndpointDomain:         params.AdditionalEndpointDomain,
 		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
@@ -100,6 +106,8 @@ var errDelegatedAuthDisabled = errors.New("delegated auth disabled: no supported
 
 // authInstance holds the state for a single delegated auth configuration (one API key target).
 type authInstance struct {
+	endpointRegistration
+
 	apiKey          *string
 	provider        common.Provider
 	authConfig      *common.AuthConfig
@@ -107,32 +115,9 @@ type authInstance struct {
 	apiKeyConfigKey string // Configuration key where the API key should be written
 	providerName    string
 	providerRegion  string
-	registration    endpointRegistration
-
-	// targetSite is the site to exchange the auth proof against. Empty means use the primary site.
-	targetSite string
-
-	// additionalEndpointDomain, if set, routes the key into the map-shape config at
-	// additionalEndpointsConfigKey under this domain instead of apiKeyConfigKey.
-	additionalEndpointDomain string
-	// additionalEndpointsConfigKey is the map-shape config path. Only set when additionalEndpointDomain is set.
-	additionalEndpointsConfigKey string
-	// additionalEndpointKeyIndex is this instance's position in the domain's key list. Only used
-	// when additionalEndpointDomain is set. See InstanceParams.AdditionalEndpointKeyIndex.
-	additionalEndpointKeyIndex int
-	// additionalEndpointsListConfigKey, if set, routes the key into the list-shape config at
-	// this path. Mutually exclusive with additionalEndpointDomain.
-	additionalEndpointsListConfigKey string
-	// listEntryIndex is this instance's position in the list. Only used when additionalEndpointsListConfigKey is set.
-	listEntryIndex int
-	// additionalEndpointIdentity binds list writeback to the original route.
-	additionalEndpointIdentity string
 	// lastWrittenValue is the value most recently written to the target, starting with the
 	// DELA[...] directive text. Used to find-and-replace this instance's own entry on each refresh.
 	lastWrittenValue string
-	// originalDirective is the literal DELA[...] text, never changes. Used as a fallback match
-	// in case a racing write reverted the entry back to the raw directive.
-	originalDirective string
 
 	// Exponential backoff for retry intervals
 	backoff *backoff.ExponentialBackOff
@@ -377,7 +362,7 @@ func (d *delegatedAuthComponent) hasEquivalentEndpointRegistration(params delega
 		return recovery.registration == registration
 	}
 	if existing := d.instances[params.APIKeyConfigKey]; existing != nil {
-		return existing.registration == registration
+		return existing.endpointRegistration == registration
 	}
 	return false
 }
@@ -854,19 +839,11 @@ func resolveTargetSite(params delegatedauth.InstanceParams) string {
 func newAuthInstance(params delegatedauth.InstanceParams, providerConfig common.ProviderConfig) *authInstance {
 	providerName, providerRegion := providerStatus(providerConfig)
 	return &authInstance{
-		apiKeyConfigKey:                  params.APIKeyConfigKey,
-		providerName:                     providerName,
-		providerRegion:                   providerRegion,
-		registration:                     endpointRegistrationFor(params),
-		targetSite:                       resolveTargetSite(params),
-		additionalEndpointDomain:         params.AdditionalEndpointDomain,
-		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
-		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
-		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
-		listEntryIndex:                   params.ListEntryIndex,
-		additionalEndpointIdentity:       params.AdditionalEndpointIdentity,
-		lastWrittenValue:                 params.AdditionalEndpointDirective,
-		originalDirective:                params.AdditionalEndpointDirective,
+		endpointRegistration: endpointRegistrationFor(params),
+		apiKeyConfigKey:      params.APIKeyConfigKey,
+		providerName:         providerName,
+		providerRegion:       providerRegion,
+		lastWrittenValue:     params.AdditionalEndpointDirective,
 	}
 }
 

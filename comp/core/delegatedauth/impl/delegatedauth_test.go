@@ -437,10 +437,12 @@ func TestReplaceInstancePreservesFallbackAfterStoppingOldInstance(t *testing.T) 
 	comp := &delegatedAuthComponent{
 		instances: map[string]*authInstance{
 			"additional": {
-				originalDirective: directive,
-				lastWrittenValue:  "static-key",
-				refreshCancel:     refreshCancel,
-				done:              done,
+				endpointRegistration: endpointRegistration{
+					originalDirective: directive,
+				},
+				lastWrittenValue: "static-key",
+				refreshCancel:    refreshCancel,
+				done:             done,
 			},
 		},
 	}
@@ -453,8 +455,10 @@ func TestReplaceInstancePreservesFallbackAfterStoppingOldInstance(t *testing.T) 
 		close(done)
 	}()
 	replacement := &authInstance{
-		originalDirective: directive,
-		lastWrittenValue:  directive,
+		endpointRegistration: endpointRegistration{
+			originalDirective: directive,
+		},
+		lastWrittenValue: directive,
 	}
 
 	require.NoError(t, comp.replaceInstance(context.Background(), "additional", replacement))
@@ -468,17 +472,21 @@ func TestReplaceInstanceDoesNotCarryValueAcrossDirectives(t *testing.T) {
 	comp := &delegatedAuthComponent{
 		instances: map[string]*authInstance{
 			"additional": {
-				originalDirective: "DELA[old-org, aws]",
-				lastWrittenValue:  "old-key",
-				done:              done,
+				endpointRegistration: endpointRegistration{
+					originalDirective: "DELA[old-org, aws]",
+				},
+				lastWrittenValue: "old-key",
+				done:             done,
 			},
 		},
 	}
 
 	const newDirective = "DELA[new-org, aws]"
 	replacement := &authInstance{
-		originalDirective: newDirective,
-		lastWrittenValue:  newDirective,
+		endpointRegistration: endpointRegistration{
+			originalDirective: newDirective,
+		},
+		lastWrittenValue: newDirective,
 	}
 	require.NoError(t, comp.replaceInstance(context.Background(), "additional", replacement))
 
@@ -1024,9 +1032,11 @@ func TestMergeIntoAdditionalEndpointsReplacesDirectiveOnFirstWrite(t *testing.T)
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://second-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[second-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://second-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+		},
+		lastWrittenValue: "DELA[second-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpoints(instance, "real-api-key-1", false)
@@ -1044,10 +1054,14 @@ func TestMergeIntoAdditionalEndpointsRotatesWithoutDuplicatesAndPreservesStaticK
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://third-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[third-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://third-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[third-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[third-org-uuid, aws]",
 	}
+	registration := instance.endpointRegistration
 
 	// First fetch resolves the directive.
 	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key-v1", false)
@@ -1059,6 +1073,7 @@ func TestMergeIntoAdditionalEndpointsRotatesWithoutDuplicatesAndPreservesStaticK
 	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key-v2", false)
 	got = mockConfig.GetStringMapStringSlice("additional_endpoints")
 	assert.ElementsMatch(t, []string{"some-static-key", "fetched-key-v2"}, got["https://third-org.datadoghq.com"])
+	assert.Equal(t, registration, instance.endpointRegistration, "key rotation must preserve registration identity")
 }
 
 func TestMergeIntoAdditionalEndpointsComposesWithSecretRotation(t *testing.T) {
@@ -1074,9 +1089,11 @@ func TestMergeIntoAdditionalEndpointsComposesWithSecretRotation(t *testing.T) {
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://mixed-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[mixed-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://mixed-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+		},
+		lastWrittenValue: "DELA[mixed-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v1", false)
@@ -1108,14 +1125,18 @@ func TestMergeIntoAdditionalEndpointsDoesNotClobberOtherDomains(t *testing.T) {
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	secondInstance := &authInstance{
-		additionalEndpointDomain:     "https://second-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[second-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://second-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+		},
+		lastWrittenValue: "DELA[second-org-uuid, aws]",
 	}
 	thirdInstance := &authInstance{
-		additionalEndpointDomain:     "https://third-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[third-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://third-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+		},
+		lastWrittenValue: "DELA[third-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpoints(secondInstance, "second-org-key", false)
@@ -1140,10 +1161,12 @@ func TestMergeIntoAdditionalEndpointsMatchesByIndexOnValueCollision(t *testing.T
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://collision-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		additionalEndpointKeyIndex:   1,
-		lastWrittenValue:             "shared-key",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://collision-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			additionalEndpointKeyIndex:   1,
+		},
+		lastWrittenValue: "shared-key",
 	}
 
 	comp.mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
@@ -1166,10 +1189,12 @@ func TestMergeIntoAdditionalEndpointsFallsBackToValueScanWhenIndexStale(t *testi
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://reordered-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		additionalEndpointKeyIndex:   0, // stale: index 0 is now the static key, not this instance's directive
-		lastWrittenValue:             "DELA[reordered-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://reordered-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			additionalEndpointKeyIndex:   0, // stale: index 0 is now the static key, not this instance's directive
+		},
+		lastWrittenValue: "DELA[reordered-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpoints(instance, "resolved-key", false)
@@ -1190,9 +1215,11 @@ func TestMergeIntoAdditionalEndpointsLeavesDomainUnchangedWhenNoMatch(t *testing
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://no-match-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[no-match-org-uuid, aws]", // never present in the list
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://no-match-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+		},
+		lastWrittenValue: "DELA[no-match-org-uuid, aws]", // never present in the list
 	}
 
 	comp.mergeIntoAdditionalEndpoints(instance, "fetched-key", false)
@@ -1210,8 +1237,10 @@ func TestMergeIntoAdditionalEndpointsListReplacesDirectiveOnFirstWrite(t *testin
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
-		lastWrittenValue:                 "DELA[logs-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		},
+		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false)
@@ -1232,8 +1261,10 @@ func TestMergeIntoAdditionalEndpointsListHandlesJSONString(t *testing.T) {
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
-		lastWrittenValue:                 "DELA[logs-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		},
+		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false)
@@ -1262,8 +1293,10 @@ func TestMergeIntoAdditionalEndpointsListHandlesYAMLDecodedEntries(t *testing.T)
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
-		lastWrittenValue:                 "DELA[logs-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		},
+		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpointsList(instance, "real-api-key-1", false)
@@ -1287,9 +1320,13 @@ func TestMergeIntoAdditionalEndpointsListRotatesWithoutClobberingOtherEntries(t 
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
-		lastWrittenValue:                 "DELA[logs-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+			originalDirective:                "DELA[logs-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
+	registration := instance.endpointRegistration
 
 	comp.mergeIntoAdditionalEndpointsList(instance, "fetched-key-v1", false)
 	got, ok := mockConfig.Get("logs_config.additional_endpoints").([]any)
@@ -1305,6 +1342,7 @@ func TestMergeIntoAdditionalEndpointsListRotatesWithoutClobberingOtherEntries(t 
 	require.True(t, ok)
 	assert.Equal(t, "some-static-key", got[0].(map[string]any)["api_key"])
 	assert.Equal(t, "fetched-key-v2", got[1].(map[string]any)["api_key"])
+	assert.Equal(t, registration, instance.endpointRegistration, "key rotation must preserve registration identity")
 }
 
 func TestMergeIntoAdditionalEndpointsListLeavesListUnchangedWhenNoMatch(t *testing.T) {
@@ -1315,8 +1353,10 @@ func TestMergeIntoAdditionalEndpointsListLeavesListUnchangedWhenNoMatch(t *testi
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
-		lastWrittenValue:                 "DELA[logs-org-uuid, aws]", // never present in the list
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+		},
+		lastWrittenValue: "DELA[logs-org-uuid, aws]", // never present in the list
 	}
 
 	comp.mergeIntoAdditionalEndpointsList(instance, "fetched-key", false)
@@ -1343,9 +1383,11 @@ func TestMergeIntoAdditionalEndpointsListMatchesByIndexOnValueCollision(t *testi
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
-		listEntryIndex:                   1,
-		lastWrittenValue:                 "shared-key",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+			listEntryIndex:                   1,
+		},
+		lastWrittenValue: "shared-key",
 	}
 
 	comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
@@ -1369,9 +1411,11 @@ func TestMergeIntoAdditionalEndpointsListFallsBackToValueScanWhenIndexStale(t *t
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
-		listEntryIndex:                   3, // stale - the list only has 1 entry now
-		lastWrittenValue:                 "DELA[logs-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+			listEntryIndex:                   3, // stale - the list only has 1 entry now
+		},
+		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
@@ -1415,11 +1459,13 @@ func TestAuthenticateRejectsRemovedAdditionalEndpointBeforeGeneratingProof(t *te
 		mockConfig.SetInTest("additional_endpoints", map[string][]string{})
 		provider := &failingProvider{}
 		instance := &authInstance{
-			provider:                     provider,
-			additionalEndpointDomain:     "https://removed.example.com",
-			additionalEndpointsConfigKey: "additional_endpoints",
-			lastWrittenValue:             "DELA[org-uuid, aws]",
-			originalDirective:            "DELA[org-uuid, aws]",
+			provider: provider,
+			endpointRegistration: endpointRegistration{
+				additionalEndpointDomain:     "https://removed.example.com",
+				additionalEndpointsConfigKey: "additional_endpoints",
+				originalDirective:            "DELA[org-uuid, aws]",
+			},
+			lastWrittenValue: "DELA[org-uuid, aws]",
 		}
 
 		_, err := (&delegatedAuthComponent{config: mockConfig}).authenticate(context.Background(), instance)
@@ -1432,10 +1478,12 @@ func TestAuthenticateRejectsRemovedAdditionalEndpointBeforeGeneratingProof(t *te
 		mockConfig.SetInTest("logs_config.additional_endpoints", []any{})
 		provider := &failingProvider{}
 		instance := &authInstance{
-			provider:                         provider,
-			additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
-			lastWrittenValue:                 "DELA[org-uuid, aws]",
-			originalDirective:                "DELA[org-uuid, aws]",
+			provider: provider,
+			endpointRegistration: endpointRegistration{
+				additionalEndpointsListConfigKey: "logs_config.additional_endpoints",
+				originalDirective:                "DELA[org-uuid, aws]",
+			},
+			lastWrittenValue: "DELA[org-uuid, aws]",
 		}
 
 		_, err := (&delegatedAuthComponent{config: mockConfig}).authenticate(context.Background(), instance)
@@ -1458,10 +1506,12 @@ func TestMergeIntoAdditionalEndpointsIgnoresUnrelatedConfigUpdates(t *testing.T)
 	}
 
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://our-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[our-org-uuid, aws]",
-		originalDirective:            "DELA[our-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://our-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[our-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[our-org-uuid, aws]",
 	}
 	require.NoError(t, (&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpoints(instance, "resolved-key", false))
 
@@ -1480,10 +1530,12 @@ additional_endpoints:
     - sibling-key
 `)
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://our-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[our-org-uuid, aws]",
-		originalDirective:            "DELA[our-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://our-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[our-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[our-org-uuid, aws]",
 	}
 
 	require.NoError(t, (&delegatedAuthComponent{config: mockConfig}).mergeIntoAdditionalEndpoints(instance, "resolved-key", false))
@@ -1512,14 +1564,16 @@ func TestAtomicWritebackPreservesPriorUpdate(t *testing.T) {
 
 	key := "resolved-key"
 	instance := &authInstance{
-		apiKey:                       &key,
-		lastRefresh:                  time.Now(),
-		refreshInterval:              time.Hour,
-		additionalEndpointDomain:     domain,
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[our-org-uuid, aws]",
-		originalDirective:            "DELA[our-org-uuid, aws]",
-		backoff:                      newBackoff(time.Hour),
+		apiKey:          &key,
+		lastRefresh:     time.Now(),
+		refreshInterval: time.Hour,
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     domain,
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[our-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[our-org-uuid, aws]",
+		backoff:          newBackoff(time.Hour),
 	}
 	comp := &delegatedAuthComponent{
 		config:    racy,
@@ -1545,12 +1599,14 @@ func TestWritebackBlockedByHigherPrioritySource(t *testing.T) {
 
 	key := "resolved-key"
 	instance := &authInstance{
-		apiKey:                       &key,
-		additionalEndpointDomain:     domain,
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[our-org-uuid, aws]",
-		originalDirective:            "DELA[our-org-uuid, aws]",
-		backoff:                      newBackoff(time.Hour),
+		apiKey: &key,
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     domain,
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[our-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[our-org-uuid, aws]",
+		backoff:          newBackoff(time.Hour),
 	}
 	comp := &delegatedAuthComponent{config: mockConfig}
 
@@ -1570,10 +1626,12 @@ func TestShadowedWritebackKeepsTrackingAfterHigherSourceIsUnset(t *testing.T) {
 		mockConfig.Set("additional_endpoints", value, pkgconfigmodel.SourceAgentRuntime)
 		comp := &delegatedAuthComponent{config: mockConfig}
 		instance := &authInstance{
-			additionalEndpointDomain:     domain,
-			additionalEndpointsConfigKey: "additional_endpoints",
-			lastWrittenValue:             directive,
-			originalDirective:            directive,
+			endpointRegistration: endpointRegistration{
+				additionalEndpointDomain:     domain,
+				additionalEndpointsConfigKey: "additional_endpoints",
+				originalDirective:            directive,
+			},
+			lastWrittenValue: directive,
 		}
 
 		// Both writes land in the secret layer but stay shadowed by the runtime layer.
@@ -1595,9 +1653,11 @@ func TestShadowedWritebackKeepsTrackingAfterHigherSourceIsUnset(t *testing.T) {
 		mockConfig.Set(configKey, value, pkgconfigmodel.SourceAgentRuntime)
 		comp := &delegatedAuthComponent{config: mockConfig}
 		instance := &authInstance{
-			additionalEndpointsListConfigKey: configKey,
-			lastWrittenValue:                 directive,
-			originalDirective:                directive,
+			endpointRegistration: endpointRegistration{
+				additionalEndpointsListConfigKey: configKey,
+				originalDirective:                directive,
+			},
+			lastWrittenValue: directive,
 		}
 		apiKey := func() any {
 			entries, ok := common.NormalizeListShapeEntries(mockConfig.Get(configKey))
@@ -1637,10 +1697,12 @@ func TestMergeIntoAdditionalEndpointsListPreservesPriorUpdate(t *testing.T) {
 	}
 
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: configKey,
-		listEntryIndex:                   0,
-		lastWrittenValue:                 "DELA[logs-org-uuid, aws]",
-		originalDirective:                "DELA[logs-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: configKey,
+			listEntryIndex:                   0,
+			originalDirective:                "DELA[logs-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 	require.NoError(t, (&delegatedAuthComponent{config: racy}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false))
 
@@ -1670,11 +1732,13 @@ func TestMergeIntoAdditionalEndpointsListRejectsDestinationChange(t *testing.T) 
 	}})
 
 	instance := &authInstance{
-		additionalEndpointsListConfigKey: configKey,
-		listEntryIndex:                   0,
-		additionalEndpointIdentity:       identity,
-		lastWrittenValue:                 "DELA[logs-org-uuid, aws]",
-		originalDirective:                "DELA[logs-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointsListConfigKey: configKey,
+			listEntryIndex:                   0,
+			additionalEndpointIdentity:       identity,
+			originalDirective:                "DELA[logs-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[logs-org-uuid, aws]",
 	}
 	(&delegatedAuthComponent{config: mockConfig}).mergeIntoAdditionalEndpointsList(instance, "resolved-key", false)
 
@@ -1704,10 +1768,12 @@ func TestMergeIntoAdditionalEndpointsBuildsOnPriorSecretRotation(t *testing.T) {
 
 	comp := &delegatedAuthComponent{config: racy}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://mixed-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[mixed-org-uuid, aws]",
-		originalDirective:            "DELA[mixed-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://mixed-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[mixed-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[mixed-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v1", false)
@@ -1730,10 +1796,12 @@ func TestMergeIntoAdditionalEndpointsHealsEntryRevertedByRace(t *testing.T) {
 
 	comp := &delegatedAuthComponent{config: mockConfig}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://reverted-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "wif-key-v1", // stale relative to config, per the scenario above
-		originalDirective:            "DELA[reverted-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://reverted-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[reverted-org-uuid, aws]",
+		},
+		lastWrittenValue: "wif-key-v1", // stale relative to config, per the scenario above
 	}
 
 	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v2", false)
@@ -1762,10 +1830,12 @@ func TestMergeIntoAdditionalEndpointsDoesNotClobberSiblingDomainUpdatedFirst(t *
 
 	comp := &delegatedAuthComponent{config: racy}
 	instance := &authInstance{
-		additionalEndpointDomain:     "https://our-org.datadoghq.com",
-		additionalEndpointsConfigKey: "additional_endpoints",
-		lastWrittenValue:             "DELA[our-org-uuid, aws]",
-		originalDirective:            "DELA[our-org-uuid, aws]",
+		endpointRegistration: endpointRegistration{
+			additionalEndpointDomain:     "https://our-org.datadoghq.com",
+			additionalEndpointsConfigKey: "additional_endpoints",
+			originalDirective:            "DELA[our-org-uuid, aws]",
+		},
+		lastWrittenValue: "DELA[our-org-uuid, aws]",
 	}
 
 	comp.mergeIntoAdditionalEndpoints(instance, "wif-key-v1", false)
@@ -1794,9 +1864,11 @@ func TestWriteAPIKeyToTargetDispatchesByInstanceShape(t *testing.T) {
 		})
 		comp := &delegatedAuthComponent{config: mockConfig}
 		instance := &authInstance{
-			additionalEndpointDomain:     "https://trace.agent.second-org.datadoghq.com",
-			additionalEndpointsConfigKey: "apm_config.additional_endpoints",
-			lastWrittenValue:             "DELA[apm-org-uuid, aws]",
+			endpointRegistration: endpointRegistration{
+				additionalEndpointDomain:     "https://trace.agent.second-org.datadoghq.com",
+				additionalEndpointsConfigKey: "apm_config.additional_endpoints",
+			},
+			lastWrittenValue: "DELA[apm-org-uuid, aws]",
 		}
 
 		comp.writeAPIKeyToTarget(instance, "map-key", false)
@@ -1812,8 +1884,10 @@ func TestWriteAPIKeyToTargetDispatchesByInstanceShape(t *testing.T) {
 		})
 		comp := &delegatedAuthComponent{config: mockConfig}
 		instance := &authInstance{
-			additionalEndpointsListConfigKey: "database_monitoring.samples.additional_endpoints",
-			lastWrittenValue:                 "DELA[dbm-org-uuid, aws]",
+			endpointRegistration: endpointRegistration{
+				additionalEndpointsListConfigKey: "database_monitoring.samples.additional_endpoints",
+			},
+			lastWrittenValue: "DELA[dbm-org-uuid, aws]",
 		}
 
 		comp.writeAPIKeyToTarget(instance, "list-key", true) // isFallback=true must not change the write target
