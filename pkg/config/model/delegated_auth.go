@@ -19,19 +19,13 @@ const (
 	DelaActivityDumpEndpointsKey = "runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints"
 )
 
-// delaListEndpointsKeys are the list-shape additional_endpoints settings enrolled for delegated
-// auth. Endpoints built from these settings must hold DELA[...] directives as pending until the
-// resolved key is written back.
-var delaListEndpointsKeys = map[string]struct{}{
-	DelaLogsEndpointsKey:         {},
-	DelaCWSEndpointsKey:          {},
-	DelaComplianceEndpointsKey:   {},
-	DelaActivityDumpEndpointsKey: {},
-}
-
 // IsDelaListEndpointsKey reports whether the config path is a list-shape additional_endpoints
 // setting that delegated auth can write resolved API keys back into.
 func IsDelaListEndpointsKey(path string) bool {
-	_, ok := delaListEndpointsKeys[path]
-	return ok
+	switch path {
+	case DelaLogsEndpointsKey, DelaCWSEndpointsKey, DelaComplianceEndpointsKey, DelaActivityDumpEndpointsKey:
+		return true
+	default:
+		return false
+	}
 }

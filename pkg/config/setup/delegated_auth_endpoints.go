@@ -332,18 +332,12 @@ var directSendDelegatedAuthDirectiveKeys = []struct {
 	{"compliance_config.run_in_system_probe", pkgconfigmodel.DelaComplianceEndpointsKey},
 }
 
-type directSendDirective struct {
-	// path is the config path of the entry holding the directive.
-	path string
-	// flag is the setting that moves the entry's payloads into the system-probe process.
-	flag string
-}
-
-// directSendDelegatedAuthDirectives lists the additional-endpoint entries holding a DELA
-// directive in settings that ship from the system-probe. The results feed a startup warning:
-// those entries cannot resolve in the process that ships them.
-func directSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) []directSendDirective {
-	var found []directSendDirective
+// WarnDirectSendDelegatedAuthDirectives warns when DELA directives sit in settings that ship
+// from the system-probe: that process cannot resolve them, so those payloads will not dual-ship
+// (and are held until restart). Called from the config load paths so that every placement of
+// the directive (datadog.yaml, security-agent.yaml, fleet policies, system-probe.yaml) is
+// flagged somewhere at startup.
+func WarnDirectSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) {
 	for _, setting := range directSendDelegatedAuthDirectiveKeys {
 		if !config.GetBool(setting.flag) {
 			continue
@@ -355,23 +349,8 @@ func directSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) []directSen
 				continue
 			}
 			if _, directive, ok := common.CaseInsensitiveStringFieldWithKey(entry, "api_key"); ok && strings.HasPrefix(strings.TrimSpace(directive), pkgconfigmodel.DelaDirectivePrefix) {
-				found = append(found, directSendDirective{
-					path: fmt.Sprintf("%s[%d]", setting.key, index),
-					flag: setting.flag,
-				})
+				log.Warnf("%s[%d] uses delegated auth, but %s ships its payloads from the system-probe process, which cannot resolve delegated-auth directives; those payloads will not dual-ship", setting.key, index, setting.flag)
 			}
 		}
-	}
-	return found
-}
-
-// WarnDirectSendDelegatedAuthDirectives warns when DELA directives sit in settings that ship
-// from the system-probe: that process cannot resolve them, so those payloads will not dual-ship
-// (and are held until restart). Called from the config load paths so that every placement of
-// the directive (datadog.yaml, security-agent.yaml, fleet policies, system-probe.yaml) is
-// flagged somewhere at startup.
-func WarnDirectSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) {
-	for _, found := range directSendDelegatedAuthDirectives(config) {
-		log.Warnf("%s uses delegated auth, but %s ships its payloads from the system-probe process, which cannot resolve delegated-auth directives; those payloads will not dual-ship", found.path, found.flag)
 	}
 }
