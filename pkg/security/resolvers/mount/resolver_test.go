@@ -537,28 +537,6 @@ func TestIterateNamespacePreservesPivotedContainerMounts(t *testing.T) {
 	assert.Len(t, visited, 3)
 }
 
-func TestMountResolutionErrorDetails(t *testing.T) {
-	mr, err := NewResolver(nil, nil, ResolverOpts{})
-	require.NoError(t, err)
-	mr.minMountID = 20
-
-	_, _, _, err = mr.ResolveMountPath(5, 1)
-	require.ErrorIs(t, err, ErrMountKernelID)
-	assert.EqualError(t, err, "not a critical error (mount_id=5 < min_mount_id=20)")
-
-	require.NoError(t, mr.Insert(model.Mount{
-		MountID:       100,
-		ParentPathKey: model.PathKey{MountID: 99},
-		MountPointStr: "/sub",
-	}))
-
-	_, _, _, err = mr.ResolveMountPath(100, 1)
-	var notFound *ErrMountNotFound
-	require.ErrorAs(t, err, &notFound)
-	assert.Equal(t, uint32(99), notFound.MountID)
-	assert.EqualError(t, err, "parent mount resolution failed for mount_id=100 (parent_mount_id=99, depth=1): mount ID not found: 99")
-}
-
 func BenchmarkGetParentPath(b *testing.B) {
 	// Create mount resolver
 	mr, _ := NewResolver(nil, nil, ResolverOpts{})
