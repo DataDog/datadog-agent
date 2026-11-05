@@ -24,11 +24,10 @@ import (
 // These values must agree with pkg/util/defaultpaths/path_darwin.go, which the Agent itself
 // resolves its configuration and run directories through.
 const (
-	// PackagesPath is the path to the packages directory.
-	// macOS has no versioned package pool of its own: the Agent comes from a .dmg and lives in
-	// the install root. The shared installer code reads a package repository per package all the
-	// same, so the install registers a placeholder one here (see registerPackageRepository in
-	// pkg/fleet/installer/packages/datadog_agent_darwin.go) and the path keeps its Linux value.
+	// PackagesPath is the path to the packages directory, the versioned package pool. A .dmg
+	// install has a single version, installed in the install root, so its version entry links
+	// there (see linkPackageEntry in pkg/fleet/installer/packages/datadog_agent_darwin.go). The path
+	// keeps its Linux value.
 	PackagesPath = "/opt/datadog-packages"
 	// ConfigsPath is empty: macOS never had the legacy managed/ policy layout, so there is no
 	// directory for the installer to create or purge.

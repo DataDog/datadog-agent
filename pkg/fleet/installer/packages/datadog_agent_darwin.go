@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
-	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/symlink"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -161,7 +161,7 @@ func postInstallDMG(ctx HookContext) error {
 	if err := ensureInstallerDataDir(); err != nil {
 		errs = append(errs, err)
 	}
-	if err := registerPackageRepository(ctx); err != nil {
+	if err := linkPackageEntry(ctx, defaultDmgLayout.installDir); err != nil {
 		errs = append(errs, err)
 	}
 	// The Agent's jobs run as its account, and launchd cannot start them without it. If the account
@@ -178,71 +178,66 @@ func postInstallDMG(ctx HookContext) error {
 	return errors.Join(errs...)
 }
 
-// registerPackageRepository registers the Agent in the package repository the shared installer
-// code keeps for every package.
+// linkPackageEntry gives the Agent its entry in the package repository the shared installer code
+// keeps for every package, /opt/datadog-packages/datadog-agent. The installer daemon reads that
+// entry to report the packages installed on the host, and configuration experiments clean it before
+// they start.
 //
-// macOS installs the Agent from a .dmg rather than from an OCI package, so nothing else on this
-// platform ever creates that repository -- but the installer daemon reads it to report the
-// packages installed on the host, and with no entry it reports none.
+// The repository is a versioned package pool, with stable and experiment pointing at the versions
+// in use. A .dmg install has a single version, installed in place in the install root, so the
+// entry links there, the same links the deb and rpm packages ship on Linux
+// (packages/agent/linux/BUILD.bazel):
 //
-// The version directory the links resolve to is a placeholder. macOS keeps no versioned package
-// pool: the files the entry stands for live in the install root, and are replaced there by the
-// next .dmg rather than installed alongside. What the shared code needs is a repository whose
-// stable link resolves, which is what this creates.
+//	/opt/datadog-packages/run/datadog-agent/<version> -> /opt/datadog-agent
+//	/opt/datadog-packages/datadog-agent/stable -> /opt/datadog-packages/run/datadog-agent/<version>
+//	/opt/datadog-packages/datadog-agent/experiment -> /opt/datadog-packages/datadog-agent/stable
 //
-// The version it is registered under is not a placeholder, though: it is what Fleet Automation
-// reads as the host's stable version and health-checks the running Agent against, so it has to
-// name the Agent actually installed -- see registeredVersion -- and has to move forward when a
-// .dmg replaces that Agent.
-func registerPackageRepository(ctx HookContext) (err error) {
-	span, ctx := ctx.StartSpan("register_package_repository")
+// The version link lives outside the repository, where its garbage collection never looks, so a
+// link to the install root is never taken for a package to delete. It is named after the Agent
+// actually installed -- see registeredVersion -- because Fleet Automation reads it as the host's
+// stable version and health-checks the running Agent against it, and it moves forward on every
+// .dmg upgrade, which removes the previous version's link and the placeholder directories earlier
+// builds registered. A real package already registered at stable, a directory with content, is
+// left alone.
+func linkPackageEntry(ctx HookContext, installDir string) (err error) {
+	span, _ := ctx.StartSpan("link_package_entry")
 	defer func() {
 		span.Finish(err)
 	}()
 
-	if err = os.MkdirAll(packagesRoot, 0755); err != nil {
-		return fmt.Errorf("failed to create %s: %w", packagesRoot, err)
+	root := filepath.Join(packagesRoot, ctx.Package)
+	versionsDir := filepath.Join(packagesRoot, "run", ctx.Package)
+	for _, dir := range []string{root, versionsDir} {
+		if err = os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create %s: %w", dir, err)
+		}
 	}
-	repositories := repository.NewRepositories(packagesRoot, AsyncPreRemoveHooks)
-
-	state, err := repositories.GetState(ctx.Package)
+	isReal, err := stableIsRealPackage(root)
 	if err != nil {
-		return fmt.Errorf("failed to read the %s package state: %w", ctx.Package, err)
+		return err
 	}
-	if state.HasStable() {
-		isPlaceholder, err := stableIsPlaceholder(repositories, ctx.Package)
-		if err != nil {
-			return err
-		}
-		// A real package is left alone: Repository.Create removes whatever it finds before
-		// writing, so re-registering would discard it.
-		if !isPlaceholder {
-			return nil
-		}
-		// A placeholder registered on an earlier .dmg install. The .dmg replaces the Agent in the
-		// install root without touching this entry, so after an upgrade it still names the version
-		// installed first. Register it again under the current version.
-		if state.Stable == registeredVersion() {
-			return nil
-		}
+	if isReal {
+		return nil
 	}
 
-	// Create wants a source directory to move in as the version, and takes ownership of it. An
-	// empty one stands in for the package pool this platform does not have.
-	placeholder, err := repositories.MkdirTemp()
-	if err != nil {
-		return fmt.Errorf("failed to create the placeholder package directory: %w", err)
+	pkgVersion := registeredVersion()
+	versionLink := filepath.Join(versionsDir, pkgVersion)
+	stableLink := filepath.Join(root, "stable")
+	for _, link := range [][2]string{
+		{versionLink, installDir},
+		{stableLink, versionLink},
+		{filepath.Join(root, "experiment"), stableLink},
+	} {
+		if err = symlink.Set(link[0], link[1]); err != nil {
+			return fmt.Errorf("failed to link %s to %s: %w", link[0], link[1], err)
+		}
 	}
-	// Only reached if Create failed before moving it.
-	defer os.RemoveAll(placeholder)
-
-	if err = repositories.Create(ctx, ctx.Package, registeredVersion(), placeholder); err != nil {
-		return fmt.Errorf("failed to register %s as a package: %w", ctx.Package, err)
-	}
+	removeOtherEntries(root, "stable", "experiment")
+	removeOtherEntries(versionsDir, pkgVersion)
 	return nil
 }
 
-// registeredVersion is the version the placeholder package entry is registered under.
+// registeredVersion is the version the package entry is registered under.
 //
 // It has to be the same value the installer daemon reports as the package's running version, which
 // is version.AgentPackageVersion (see runningVersions in pkg/fleet/daemon/daemon.go): Fleet
@@ -257,15 +252,65 @@ func registeredVersion() string {
 	return version.AgentVersion
 }
 
-// stableIsPlaceholder reports whether the package's stable link resolves to a placeholder entry --
-// the empty directory registerPackageRepository moves in -- rather than to a real package.
-func stableIsPlaceholder(repositories *repository.Repositories, pkg string) (bool, error) {
-	stablePath := repositories.Get(pkg).StablePath()
-	entries, err := os.ReadDir(stablePath)
-	if err != nil {
-		return false, fmt.Errorf("failed to read the %s stable package directory %s: %w", pkg, stablePath, err)
+// stableIsRealPackage reports whether the package's stable link resolves to a real package: a
+// directory in the repository with content, as an OCI install registers. A version link to the
+// install root, an empty placeholder directory from earlier builds, or no stable link at all is not.
+func stableIsRealPackage(root string) (bool, error) {
+	target, err := os.Readlink(filepath.Join(root, "stable"))
+	if os.IsNotExist(err) {
+		return false, nil
 	}
-	return len(entries) == 0, nil
+	if err != nil {
+		return false, fmt.Errorf("failed to read the stable link in %s: %w", root, err)
+	}
+	if !filepath.IsAbs(target) {
+		target = filepath.Join(root, target)
+	}
+	info, err := os.Lstat(target)
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to read the stable package %s: %w", target, err)
+	}
+	if !info.IsDir() {
+		return false, nil
+	}
+	entries, err := os.ReadDir(target)
+	if err != nil {
+		return false, fmt.Errorf("failed to read the stable package %s: %w", target, err)
+	}
+	return len(entries) > 0, nil
+}
+
+// removeOtherEntries removes every entry of dir but the ones named in keep: links are removed
+// themselves, never what they point to, and empty directories (the placeholders earlier builds
+// registered) are removed. Anything else is left and logged.
+func removeOtherEntries(dir string, keep ...string) {
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		log.Warnf("could not list %s: %v", dir, err)
+		return
+	}
+	for _, entry := range entries {
+		name := entry.Name()
+		if slices.Contains(keep, name) {
+			continue
+		}
+		path := filepath.Join(dir, name)
+		switch {
+		case entry.Type()&os.ModeSymlink != 0:
+			if err := os.Remove(path); err != nil {
+				log.Warnf("could not remove %s: %v", path, err)
+			}
+		case entry.IsDir():
+			if err := os.Remove(path); err != nil {
+				log.Warnf("leaving %s in place: %v", path, err)
+			}
+		default:
+			log.Warnf("leaving unexpected file %s in place", path)
+		}
+	}
 }
 
 // preRemoveDatadogAgent unloads the stable job set and removes its definitions, in the reverse of
