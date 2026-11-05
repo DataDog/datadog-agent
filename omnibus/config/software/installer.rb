@@ -40,7 +40,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  fips_args = fips_mode? ? "--fips-mode" : ""
+  fips_args = fips_mode? ? "--fips-backend=msgo" : ""
   if fips_mode?
     add_msgo_to_env(env)
   end

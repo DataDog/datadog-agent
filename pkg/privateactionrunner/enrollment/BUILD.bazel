@@ -14,9 +14,7 @@ go_library(
     deps = [
         "//comp/core/hostname/hostnameinterface/def",
         "//pkg/config/model",
-        "//pkg/config/utils",
         "//pkg/privateactionrunner",
-        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/adapters/regions",
@@ -51,7 +49,6 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//pkg/config/mock",
-        "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",

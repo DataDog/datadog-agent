@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
@@ -336,9 +337,11 @@ func TestCloudRunMetadataSharesTagLookup(t *testing.T) {
 				service := &CloudRun{isFunction: isFunction}
 				prefix := cloudRunServiceTagPrefix
 				kind := CloudRunService
+				wantMetadata := serverlessdef.CloudServiceMetadata{WorkloadType: workloadTypeCloudRunService, ResourceName: "service"}
 				if isFunction {
 					prefix = cloudRunFunctionTagPrefix
 					kind = CloudRunFunction
+					wantMetadata.WorkloadType = workloadTypeCloudRunFunction
 				}
 				gcpMetadata := map[string]string{projectID: "", location: "", containerID: ""}
 				if available {
@@ -352,6 +355,9 @@ func TestCloudRunMetadataSharesTagLookup(t *testing.T) {
 					assert.Equal(t, kind, gotKind)
 					return gcpMetadata
 				}
+
+				assert.Empty(t, service.GetMetadata().ResourceID, "metadata before GetTags has no GCP values")
+				assert.Zero(t, calls, "GetMetadata must not fetch GCP metadata")
 
 				first := service.GetTags()
 				first[projectID] = "mutated-by-caller"
@@ -367,10 +373,16 @@ func TestCloudRunMetadataSharesTagLookup(t *testing.T) {
 						resource += "/functions/handler"
 					}
 					assert.Equal(t, resource, second[prefix+resourceName])
+					wantMetadata.ResourceID = "//run.googleapis.com/projects/project/locations/region/revisions/revision"
+					wantMetadata.ParentResourceID = "//run.googleapis.com/projects/project/locations/region/services/service"
+					wantMetadata.Region = "region"
+					wantMetadata.GCPProjectID = "project"
 				} else {
 					assert.NotContains(t, second, prefix+resourceName)
 					assert.Equal(t, "unknown", service.GetEnhancedMetricTags(second).Base[projectID])
 				}
+				assert.Equal(t, wantMetadata, service.GetMetadata())
+				assert.True(t, service.CanCollectMetadata())
 				assert.Equal(t, 1, calls, "metadata and telemetry share the cached lookup, including failures")
 			})
 		}
