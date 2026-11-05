@@ -628,7 +628,89 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
 fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
     let script = ENTRYPOINT_PROCMGR_ALL_IN_ONE;
     assert!(script.contains("set -euo pipefail"));
-    assert!(script.contains("/etc/cont-init.d/*.sh"));
+    // s6 runs every regular file by its shebang. The entrypoint copies each one
+    // onto the /var/run/s6 volume because shipped and customer scripts are mode 0644.
+    assert!(
+        !script.contains("/etc/cont-init.d/*.sh"),
+        "a .sh-only glob skips customer scripts that have another suffix"
+    );
+    let code_lines: Vec<&str> = script
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
+    assert!(
+        code_lines
+            .iter()
+            .all(|line| !line.split_whitespace().any(|word| word == "bash")),
+        "run every regular file by its own shebang, not bash"
+    );
+    let pos = |needle: &str| {
+        code_lines
+            .iter()
+            .position(|line| *line == needle)
+            .unwrap_or_else(|| panic!("missing line: {needle}"))
+    };
+    let mapfile_line =
+        r#"mapfile -d '' inits < <(printf '%s\0' /etc/cont-init.d/* | LC_ALL=C sort -z)"#;
+    let lc_all: Vec<_> = code_lines
+        .iter()
+        .copied()
+        .filter(|line| line.contains("LC_ALL"))
+        .collect();
+    assert_eq!(
+        lc_all,
+        [mapfile_line],
+        "LC_ALL is only the sort prefix, so dd-procmgrd does not inherit it"
+    );
+    // Wipe the copy dir before either loop. The loops themselves are one contiguous slice,
+    // so fi and both done lines stay attached to the bodies they close.
+    let steps = [
+        "copy_dir=/var/run/s6/procmgr-cont-init.d",
+        r#"rm -rf "$copy_dir""#,
+        r#"mkdir -p "$copy_dir""#,
+        mapfile_line,
+        r#"wait "$!""#,
+        "selected=()",
+    ];
+    let positions: Vec<_> = steps.iter().map(|needle| pos(needle)).collect();
+    for (index, pair) in positions.windows(2).enumerate() {
+        assert!(
+            pair[0] < pair[1],
+            "`{}` must come before `{}`",
+            steps[index],
+            steps[index + 1]
+        );
+    }
+    let loops = [
+        r#"for init in "${inits[@]}"; do"#,
+        r#"if [[ -f "$init" ]]; then"#,
+        r#"copy="$copy_dir/${init##*/}""#,
+        r#"cp -L -- "$init" "$copy""#,
+        r#"chmod 0755 "$copy""#,
+        r#"selected+=("$init")"#,
+        "fi",
+        "done",
+        r#"for init in "${selected[@]}"; do"#,
+        r#"printf '===== RUNNING %s =====\n' "$init""#,
+        r#""$copy_dir/${init##*/}""#,
+        "done",
+    ];
+    let stage_at = pos(loops[0]);
+    let loops_end = stage_at + loops.len();
+    assert!(
+        positions.last().copied().unwrap() < stage_at,
+        "wipe the copy dir before either loop"
+    );
+    assert_eq!(
+        &code_lines[stage_at..loops_end],
+        &loops[..],
+        "the copy loop, including fi and done, must finish before the run loop"
+    );
+    assert!(
+        loops_end < pos("exec /opt/datadog-agent/embedded/bin/dd-procmgrd"),
+        "both loops must finish before dd-procmgrd"
+    );
     assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
     assert!(script.contains(
         r#"DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}""#
@@ -638,7 +720,6 @@ fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
         "an exported DD_IPC_CERT_FILE_PATH would override ipc_cert_file_path in datadog.yaml, \
          dd-procmgrd resolves the certificate path itself"
     );
-    assert!(script.contains("exec /opt/datadog-agent/embedded/bin/dd-procmgrd"));
     assert!(
         !script.contains("DD_PM_INHERIT_ENV"),
         "the entrypoint must not set DD_PM_INHERIT_ENV"
