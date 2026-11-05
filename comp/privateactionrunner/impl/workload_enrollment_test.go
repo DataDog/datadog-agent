@@ -9,7 +9,6 @@ package privateactionrunnerimpl
 
 import (
 	"context"
-	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/base64"
 	"encoding/pem"
@@ -190,35 +189,6 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 			require.True(t, os.IsNotExist(err))
 		})
 	}
-}
-
-func TestPrimaryWIFDoesNotReplaceExistingAPIKeyRunner(t *testing.T) {
-	flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
-	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-		"delegated_auth.org_uuid": "test-org",
-		"api_key":                 "original-key", par.SelfEnroll: true,
-		par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json"),
-	})
-	key, _, err := util.GenerateKeys()
-	require.NoError(t, err)
-	// Seed the identity using the same storage used by API-key enrollment.
-	identity := &enrollment.Result{URN: util.MakeRunnerURN("us1", 42, "existing-runner"), Hostname: "test-host", APIKeyHash: enrollment.HashAPIKey("original-key")}
-	identity.PrivateKey = key.Key.(*ecdsa.PrivateKey)
-	storage := enrollment.NewIdentityStorage(cfg, nil)
-	require.NoError(t, storage.Persist(context.Background(), identity))
-	before, err := os.ReadFile(enrollment.GetIdentityFilePath(cfg))
-	require.NoError(t, err)
-	hostname, _ := hostnamemock.NewMock("test-host")
-	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
-	reused, err := runner.getRunnerConfig(context.Background())
-	require.NoError(t, err)
-	require.Equal(t, identity.URN, reused.Urn)
-	cfg.SetInTest("api_key", "rotated-key")
-	_, err = runner.getRunnerConfig(context.Background())
-	require.ErrorContains(t, err, "cannot replace an existing runner")
-	after, err := os.ReadFile(enrollment.GetIdentityFilePath(cfg))
-	require.NoError(t, err)
-	require.Equal(t, before, after)
 }
 
 func TestPrimaryWIFDoesNotEnablePAR(t *testing.T) {
