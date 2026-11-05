@@ -191,6 +191,10 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 
 ## CI/CD Pipeline
 
+For failed or stuck DDCI requests—including a DDCI request ID, a Mosaic URL, or
+a branch, PR, or commit whose DDCI run failed—read `.claude/rules/ddci.md`
+before investigating or acting.
+
 ### GitLab CI
 - Primary CI system
 - Defined in `.gitlab-ci.yml` and `.gitlab/` directory
