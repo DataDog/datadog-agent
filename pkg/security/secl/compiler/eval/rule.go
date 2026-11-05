@@ -179,7 +179,11 @@ func (r *Rule) GetAst() *ast.Rule {
 // NewRuleEvaluator returns a new evaluator for a parsed rule: it runs the
 // compilation passes over the tree and compiles the result.
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
-	rule = pass.Run(rule, opts.passes()...).(*ast.Rule)
+	node, err := pass.Run(rule, opts.passes()...)
+	if err != nil {
+		return nil, err
+	}
+	rule = node.(*ast.Rule)
 	state := NewState(model, "")
 
 	eval, _, err := compileExpr(rule.Root, opts, state)
