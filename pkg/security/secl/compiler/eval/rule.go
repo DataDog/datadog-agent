@@ -14,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/utils"
 )
 
@@ -45,12 +46,14 @@ type RuleEvaluator struct {
 	Eval      BoolEvalFnc
 	EventType EventType
 
+	// tree is the parsed tree after the compilation passes. It is compiled for the
+	// rule, and again for each of its partials.
+	tree *ast.Rule
+
 	fieldValues map[Field][]FieldValue
 	fields      []Field
 
 	partialEvals map[Field]BoolEvalFnc
-
-	registers []Register
 }
 
 // NewRule returns a new rule
@@ -146,13 +149,7 @@ func (r *Rule) GetPartialEval(field Field) BoolEvalFnc {
 
 // GetFields - Returns all the Field of the Rule including field of the Macro used
 func (r *Rule) GetFields() []Field {
-	fields := r.evaluator.GetFields()
-
-	for _, macro := range r.Opts.MacroStore.List() {
-		fields = append(fields, macro.GetFields()...)
-	}
-
-	return fields
+	return r.evaluator.GetFields()
 }
 
 // GetPprofLabels returns the pprof labels
@@ -171,19 +168,7 @@ func (r *Rule) GetEventType() (EventType, error) {
 		return "", &ErrRuleNotCompiled{RuleID: r.ID}
 	}
 
-	eventType := r.evaluator.EventType
-
-	for _, macro := range r.Opts.MacroStore.List() {
-		evt := macro.GetEventType()
-		if evt != "" {
-			if eventType != "" && eventType != evt {
-				return "", ErrMultipleEventTypes
-			}
-			eventType = evt
-		}
-	}
-
-	return eventType, nil
+	return r.evaluator.EventType, nil
 }
 
 // GetAst - Returns the representation of the SECL `Expression`
@@ -191,19 +176,11 @@ func (r *Rule) GetAst() *ast.Rule {
 	return r.ast
 }
 
-// Parse - Transforms the SECL `Expression` into its AST representation
-func (r *Rule) Parse(parsingContext *parser.ParsingContext) error {
-	astRule, err := parsingContext.BuildRule(r.Expression)
-	if err != nil {
-		return err
-	}
-	r.ast = astRule
-	return nil
-}
-
-// NewRuleEvaluator returns a new evaluator for a rule
+// NewRuleEvaluator returns a new evaluator for a parsed rule: it runs the
+// compilation passes over the tree and compiles the result.
 func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, error) {
-	state := NewState(model, "", opts.MacroStore)
+	rule = pass.Run(rule, opts.passes()...).(*ast.Rule)
+	state := NewState(model, "")
 
 	eval, _, err := compileExpr(rule.Root, opts, state)
 	if err != nil {
@@ -267,9 +244,9 @@ func NewRuleEvaluator(rule *ast.Rule, model Model, opts *Opts) (*RuleEvaluator, 
 	return &RuleEvaluator{
 		Eval:        evalBool.EvalFnc,
 		EventType:   eventType,
+		tree:        rule,
 		fieldValues: state.fieldValues,
 		fields:      KeysOfMap(state.fieldValues),
-		registers:   state.registers,
 	}, nil
 }
 
@@ -279,7 +256,7 @@ func (r *Rule) GenEvaluator(model Model) error {
 
 	evaluator, err := NewRuleEvaluator(r.ast, model, r.Opts)
 	if err != nil {
-		if err, ok := err.(*ErrAstToEval); ok {
+		if err, ok := err.(*ErrAstToEval); ok && err.Pos.Source == "" {
 			return fmt.Errorf("rule syntax error: %s: %w", err, &ErrRuleParse{pos: err.Pos, expr: r.Expression})
 		}
 		return fmt.Errorf("rule compilation error: %w", err)
@@ -289,51 +266,21 @@ func (r *Rule) GenEvaluator(model Model) error {
 	return nil
 }
 
-func (r *Rule) genMacroPartials(field Field) (map[MacroID]*MacroEvaluator, error) {
-	macroEvaluators := make(map[MacroID]*MacroEvaluator)
-	for _, macro := range r.Opts.MacroStore.List() {
-		var err error
-		var evaluator *MacroEvaluator
-		if macro.ast != nil {
-			// NOTE(safchain) this is not working with nested macro. It will be removed once partial
-			// will be generated another way
-			evaluator, err = macroToEvaluator(macro.ast, r.Model, r.Opts, field)
-			if err != nil {
-				if err, ok := err.(*ErrAstToEval); ok {
-					return nil, fmt.Errorf("macro syntax error: %w", &ErrRuleParse{pos: err.Pos})
-				}
-				return nil, fmt.Errorf("macro compilation error: %w", err)
-			}
-		} else {
-			evaluator = macro.GetEvaluator()
-		}
-
-		macroEvaluators[macro.ID] = evaluator
-	}
-
-	return macroEvaluators, nil
-}
-
 // GenPartials - Compiles and generates partial Evaluators
 func (r *Rule) genPartials(field Field) error {
 	if !slices.Contains(r.GetFields(), field) {
 		return nil
 	}
 
-	macroPartial, err := r.genMacroPartials(field)
-	if err != nil {
-		return err
-	}
-
-	state := NewState(r.Model, field, partialMacroEvaluatorGetter(macroPartial))
-	pEval, _, err := compileExpr(r.ast.Root, r.Opts, state)
+	state := NewState(r.Model, field)
+	pEval, _, err := compileExpr(r.evaluator.tree.Root, r.Opts, state)
 	if err != nil {
 		return fmt.Errorf("couldn't generate partial for field %s and rule %s: %w", field, r.ID, err)
 	}
 
 	pEvalBool, ok := pEval.(*BoolEvaluator)
 	if !ok {
-		return NewTypeError(r.ast.Pos, reflect.Bool)
+		return NewTypeError(r.evaluator.tree.Pos, reflect.Bool)
 	}
 
 	if pEvalBool.EvalFnc == nil {
@@ -345,11 +292,4 @@ func (r *Rule) genPartials(field Field) error {
 	r.evaluator.setPartial(field, pEvalBool.EvalFnc)
 
 	return nil
-}
-
-type partialMacroEvaluatorGetter map[MacroID]*MacroEvaluator
-
-func (p partialMacroEvaluatorGetter) GetMacroEvaluator(macroID string) (*MacroEvaluator, bool) {
-	v, ok := p[macroID]
-	return v, ok
 }
