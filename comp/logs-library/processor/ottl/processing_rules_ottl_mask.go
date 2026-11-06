@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package ottl
 
 import (
 	"context"
@@ -13,24 +13,24 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
+	upstreamottl "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/valyala/fastjson"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config/internal/ottlfuncs"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl/internal/ottlfuncs"
 )
 
 func compileOTTLMaskStatement(pattern string) (*OTTLStatement, error) {
 	functions := ottlFilterFunctions()
-	for _, factory := range []ottl.Factory[*OTTLContext]{
+	for _, factory := range []upstreamottl.Factory[*OTTLContext]{
 		ottlfuncs.NewReplacePatternFactory[*OTTLContext](),
 		ottlfuncs.NewReplaceMatchFactory[*OTTLContext](),
 		ottlfuncs.NewSetFactory[*OTTLContext](),
 	} {
 		functions[factory.Name()] = factory
 	}
-	parser, err := ottl.NewParser(functions, parseOTTLMaskPath, component.TelemetrySettings{Logger: zap.NewNop()})
+	parser, err := upstreamottl.NewParser(functions, parseOTTLMaskPath, component.TelemetrySettings{Logger: zap.NewNop()})
 	if err != nil {
 		return nil, err
 	}

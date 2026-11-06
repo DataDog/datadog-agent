@@ -315,3 +315,18 @@ func TestAgentIsASyncSenderFactory(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, []error{nil}, s.Send(context.Background(), testMessages("a")))
 }
+
+func TestSyncSenderRejectsInvalidOTTLAtStartup(t *testing.T) {
+	for _, kind := range []string{config.IncludeAtMatchOTTL, config.ExcludeAtMatchOTTL, config.MaskOTTLTransform} {
+		t.Run(kind, func(t *testing.T) {
+			cfg := configComponent.NewMockWithOverrides(t, map[string]interface{}{
+				"api_key":                      "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+				"logs_config.processing_rules": []map[string]interface{}{{"type": kind, "name": "bad_rule", "pattern": "invalid OTTL syntax"}},
+			})
+			sender, err := NewSyncSender(Dependencies{Log: logmock.New(t), Config: cfg, Hostname: stubHostname{}, Compression: compressionfx.NewMockCompressor(), IntakeOrigin: config.DDOTIntakeOrigin})
+			require.Nil(t, sender)
+			require.ErrorContains(t, err, "bad_rule")
+			require.ErrorContains(t, err, "invalid processing rules")
+		})
+	}
+}

@@ -84,7 +84,8 @@ var (
 	HTTPConnectivityFailure HTTPConnectivity = false
 )
 
-// GlobalProcessingRules returns the global processing rules to apply to all logs.
+// GlobalProcessingRules loads global rule definitions and compiles regex rules.
+// Logs setup must also compile and validate OTTL through the logs runtime.
 func GlobalProcessingRules(coreConfig pkgconfigmodel.Reader) ([]*ProcessingRule, error) {
 	var rules []*ProcessingRule
 	err := structure.UnmarshalKey(coreConfig, "logs_config.processing_rules", &rules, structure.EnableStringUnmarshal)

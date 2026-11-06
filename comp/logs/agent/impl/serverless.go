@@ -13,6 +13,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logComponent "github.com/DataDog/datadog-agent/comp/core/log/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl"
 	agent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	flareController "github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
@@ -32,7 +33,7 @@ func NewServerlessLogsAgent(tagger tagger.Component, compression logscompression
 		started: atomic.NewUint32(0),
 
 		auditor:         auditornoop.NewAuditor(),
-		sources:         sources.NewLogSources(),
+		sources:         sources.NewLogSources(ottl.PrepareSource),
 		services:        service.NewServices(),
 		tracker:         tailers.NewTailerTracker(),
 		flarecontroller: flareController.NewFlareController(),
