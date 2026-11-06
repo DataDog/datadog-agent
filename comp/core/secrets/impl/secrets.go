@@ -667,11 +667,11 @@ func (r *secretResolver) Resolve(data []byte, origin string, imageName string, k
 // Secret Refresh Notifications
 // =============================
 // Integrations: Notify for ALL secret changes (they can restart independently)
-// Agent configs: Notify ONLY for secrets in allowListPaths (only certain settings support live refresh)
+// Agent configs: Notify ONLY for allowlisted secrets (only certain settings support live refresh)
 //
 // Why the difference? Integrations can restart to apply any secret change. The Agent cannot
 // partially restart, so we only notify for settings the code can update in-memory (currently
-// just API/APP keys).
+// API/APP keys and private action runner credential values).
 //
 // To be noted: we send one notification per secret+origin unique pair.
 var (
@@ -682,8 +682,9 @@ var (
 		"system-probe.yaml",
 		"security-agent.yaml",
 	}
-	// allowListPaths restricts what config settings may be updated. Any secrets linked to a settings containing any of the
-	// following strings will be refreshed.
+	// allowListPaths restricts what config settings may be updated. Single-segment entries
+	// match anywhere in a setting path. Dotted entries match the entire path, with "*"
+	// matching exactly one segment (including map keys containing dots).
 	//
 	// For example, allowing "additional_endpoints" will trigger notifications for:
 	//   - "additional_endpoints"
@@ -701,6 +702,7 @@ var (
 		"debugger_additional_endpoints",
 		"debugger_diagnostics_additional_endpoints",
 		"symdb_additional_endpoints",
+		"private_action_runner.credentials.values.*.value",
 	}
 )
 
@@ -712,8 +714,15 @@ func secretMatchesAllowlist(secretCtx secretContext) bool {
 		return true
 	}
 
-	for _, allowedKey := range allowListPaths {
-		if slices.Contains(secretCtx.path, allowedKey) {
+	for _, allowedPath := range allowListPaths {
+		pattern := strings.Split(allowedPath, ".")
+		if len(pattern) == 1 {
+			if slices.Contains(secretCtx.path, allowedPath) {
+				return true
+			}
+		} else if slices.EqualFunc(secretCtx.path, pattern, func(segment, expected string) bool {
+			return expected == "*" || segment == expected
+		}) {
 			return true
 		}
 	}
