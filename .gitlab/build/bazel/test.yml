@@ -144,9 +144,15 @@ bazel:rc-x509-ffi:windows-amd64:
   needs: []
   rules:
     - when: on_success
+  # TODO: drop the DLL listing once the smoke test starts on Windows. It lists
+  # the test binary's DLL imports before running it ($$ is a literal $ here).
   variables:
     POWERSHELL_SCRIPT: >-
-      bazel build -c opt --verbose_failures @libdd_rc_source//:rc_x509_ffi;
+      bazel build -c opt --verbose_failures @libdd_rc_source//:rc_x509_ffi //deps/libdd_rc/smoke:client_lifecycle_test @winlibs_mingw64//:objdump;
+      $$root = bazel info execution_root;
+      $$objdump = bazel cquery -c opt --output=files @winlibs_mingw64//:objdump;
+      $$exe = bazel cquery -c opt --output=files //deps/libdd_rc/smoke:client_lifecycle_test | Where-Object { $$_ -like '*.exe' };
+      & "$$root/$$objdump" -p "$$root/$$exe" | Select-String 'DLL Name';
       bazel test -c opt --test_output=errors --verbose_failures //deps/libdd_rc/smoke:client_lifecycle_test
 
 .bazel:coverage:macos:
