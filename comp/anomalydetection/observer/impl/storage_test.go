@@ -132,7 +132,7 @@ func TestSeriesKeyHashIncludesNamespace(t *testing.T) {
 
 func TestEngineIngestMetricUsesProvidedStorageKey(t *testing.T) {
 	storage := newTimeSeriesStorage()
-	engine := newEngine(engineConfig{storage: storage})
+	engine := mustNewEngine(engineConfig{storage: storage})
 	metric := &metricObs{
 		name:      "metric.a",
 		host:      "host-a",

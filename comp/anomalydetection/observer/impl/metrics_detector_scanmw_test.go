@@ -9,14 +9,109 @@ import (
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func testScanMWDetector() *ScanMWDetector {
-	d := NewScanMWDetector()
-	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
-	return d
+	cfg := DefaultScanMWConfig()
+	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	return NewScanMWDetector(cfg)
+}
+
+func TestScanMW_Config(t *testing.T) {
+	defaults := ScanMWConfig{
+		MinSegment: 12, MinPoints: 30, MaxPoints: 120,
+		SignificanceThreshold: 1e-8, MinEffectSize: 0.85, MinDeviationMAD: 3,
+		Aggregations: []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount},
+	}
+	require.Equal(t, defaults, DefaultScanMWConfig())
+	explicit := ScanMWConfig{
+		MinSegment: 6, MinPoints: 20, MaxPoints: 40,
+		SignificanceThreshold: 1e-6, MinEffectSize: 0.7, MinDeviationMAD: 2,
+		Aggregations: []observer.Aggregate{observer.AggregateSum},
+	}
+	raisedMax := defaults
+	raisedMax.MinPoints, raisedMax.MaxPoints = 130, 130
+	for _, tc := range []struct {
+		name string
+		cfg  ScanMWConfig
+		want ScanMWConfig
+	}{
+		{"zero", ScanMWConfig{}, defaults},
+		{"negative", ScanMWConfig{
+			MinSegment: -1, MinPoints: -1, MaxPoints: -1,
+			SignificanceThreshold: -1, MinEffectSize: -1, MinDeviationMAD: -1,
+		}, defaults},
+		{"explicit", explicit, explicit},
+		{"max below min", ScanMWConfig{MinPoints: 130, MaxPoints: 60}, raisedMax},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			d := NewScanMWDetector(tc.cfg)
+			require.Equal(t, tc.want, d.config)
+			require.Equal(t, observer.DetectorPointWindow{
+				MinPoints: tc.want.MinPoints, MaxPoints: tc.want.MaxPoints,
+			}, d.DetectorPointWindow())
+		})
+	}
+}
+
+func TestScanMW_ConfigOwnership(t *testing.T) {
+	cfg := DefaultScanMWConfig()
+	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+	d := NewScanMWDetector(cfg)
+	want := DefaultScanMWConfig()
+	want.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
+	cfg.Aggregations[0] = observer.AggregateCount
+	cfg.MinPoints, cfg.MaxPoints = 1, 2
+	require.Equal(t, want, d.config)
+	d.Reset()
+	require.Equal(t, want, d.config, "reset must preserve constructor configuration")
+
+	// Defaults returned to different callers must not share aggregation slices.
+	first, second := DefaultScanMWConfig(), DefaultScanMWConfig()
+	first.Aggregations[0] = observer.AggregateSum
+	require.Equal(t, observer.AggregateAverage, second.Aggregations[0])
+}
+
+func TestScanMW_DefaultAggregations(t *testing.T) {
+	s := newTimeSeriesStorage()
+	add := func(key uint64, namespace string, metricType metrics.MetricType, kind observer.MetricKind) observer.SeriesRef {
+		var ref observer.SeriesRef
+		for i := 1; i <= 40; i++ {
+			value := 50.0
+			if i > 20 {
+				value = 200
+			}
+			ref = s.AddWithKeyAndHostComposite(namespace, "metric", "", value, int64(i),
+				tagset.CompositeTags{}, key, metricType).Ref
+		}
+		s.SetSeriesKind(ref, kind)
+		return ref
+	}
+	stable := add(1, "work", metrics.GaugeType, observer.STABLE)
+	linear := add(2, "work", metrics.GaugeType, observer.LINEAR)
+	count := add(3, "work", metrics.CountType, observer.STABLE)
+	untyped := add(4, "work", observer.UnknownType, observer.STABLE)
+	add(5, observer.TelemetryNamespace, metrics.GaugeType, observer.STABLE)
+	add(6, "work", metrics.GaugeType, observer.UNKNOWN)
+	add(7, "work", metrics.GaugeType, observer.UNSET)
+
+	unrestricted := NewScanMWDetector(DefaultScanMWConfig())
+	result := unrestricted.Detect(s, 40)
+	require.Len(t, result.Anomalies, 6, "unscoped ScanMW retains all workload kinds and types")
+	require.Len(t, unrestricted.series, 12, "each workload series has average and count state")
+	for _, anomaly := range result.Anomalies {
+		require.Equal(t, observer.AggregateAverage, anomaly.SourceRef.Aggregate,
+			"counts are constant despite the average step")
+	}
+	for _, ref := range []observer.SeriesRef{stable, linear, count, untyped} {
+		require.Contains(t, unrestricted.series, scanmwStateKey{ref: ref, agg: observer.AggregateAverage})
+		require.Contains(t, unrestricted.series, scanmwStateKey{ref: ref, agg: observer.AggregateCount})
+	}
 }
 
 func TestScanMW_NotEnoughPoints(t *testing.T) {

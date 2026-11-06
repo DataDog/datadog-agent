@@ -83,9 +83,6 @@ build do
   end
 
   env = with_standard_compiler_flags(env)
-  if fips_mode?
-    add_msgo_to_env(env)
-  end
 
   # we assume the go deps are already installed before running omnibus
   if windows_target?

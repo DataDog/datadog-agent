@@ -43,7 +43,7 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/kr/pretty v0.3.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.52.1
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.11.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.12.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2
 	github.com/pulumi/pulumi/sdk/v3 v3.273.0
 	github.com/samber/lo v1.53.0
@@ -306,11 +306,11 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-cloud-sdk/go v1.20260918.0 // indirect
-	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
+	github.com/pulumi/pulumi-command/sdk v1.3.0 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 // indirect
-	github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v4 v4.5.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v10 v10.2.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.4 // indirect

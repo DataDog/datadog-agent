@@ -9,6 +9,7 @@ import (
 	"math"
 	"sort"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -145,9 +146,12 @@ func parseAggregateConfig(names []string) []observer.Aggregate {
 	}
 	aggregations := make([]observer.Aggregate, 0, len(names))
 	for _, name := range names {
-		if agg, ok := parseAggregateSuffix(name); ok {
-			aggregations = append(aggregations, agg)
+		agg, ok := parseAggregateSuffix(name)
+		if !ok {
+			logging.Warnf("ignoring unknown aggregation %q; valid values are avg, sum, count", name)
+			continue
 		}
+		aggregations = append(aggregations, agg)
 	}
 	return aggregations
 }

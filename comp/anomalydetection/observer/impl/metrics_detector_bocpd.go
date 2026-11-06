@@ -124,7 +124,7 @@ type BOCPDDetector struct {
 	// per-(series, aggregation) state.
 	series map[bocpdStateKey]*bocpdSeriesState
 
-	// Cache discovered series refs across Detect calls. Refresh when seriesGen changes.
+	// Refresh refs on series generation changes.
 	// Holding []SeriesRef instead of []SeriesMeta avoids retaining the Tags []string
 	// backing array for every series (~5.8 MiB at 50k series).
 	cachedRefs []observer.SeriesRef
@@ -170,6 +170,7 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	if len(config.Aggregations) == 0 {
 		config.Aggregations = defaults.Aggregations
 	}
+	config.Aggregations = append([]observer.Aggregate(nil), config.Aggregations...)
 	return &BOCPDDetector{
 		config: config,
 		series: make(map[bocpdStateKey]*bocpdSeriesState),
