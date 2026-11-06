@@ -347,7 +347,10 @@ For Envoy Gateway in EXTERNAL mode:
  1. Watches Gateway resources (gateway.networking.k8s.io/v1)
  2. Creates EnvoyExtensionPolicy resources that configure External Processing
  3. EnvoyExtensionPolicy backendRefs point at a Kubernetes Service
- 4. Manages ReferenceGrant resources for cross-namespace access
+ 4. Manages one ReferenceGrant per Gateway namespace (named datadog-appsec-extproc-<namespace>, in the
+    processor namespace) for cross-namespace access; a single shared grant would hit the 16-entry
+    limit of ReferenceGrant spec.from. The shared datadog-appsec-extproc grant created by older
+    versions is drained as its namespaces lose their last Gateway
  5. Handles cleanup when gateways are deleted
 
 ### SIDECAR Mode (envoyGatewaySidecarPattern)
@@ -608,8 +611,11 @@ that is monitored by the Cluster Agent's health probe system.
 
 The package emits telemetry metrics:
 
-  - appsec_injector.watched_changes: Counter tracking add/modify/delete operations
-    Tags: proxy_type, operation, success
+  - appsec_injector.watched_changes: Counter tracking add/modify/delete operations, incremented on
+    every attempt (retries included)
+    Tags: proxy_type, operation, success, reason (Kubernetes API status reason such as Forbidden or
+    Invalid, "unknown" for non-API errors, "none" on success). Forbidden and Invalid errors are not
+    retried since they need a change on the cluster side
 
   - appsec_injector.sidecar_mutations: Counter tracking sidecar injection outcomes on the
     CREATE (MutatePod) admission path, emitted once per admission for a pod owned by a sidecar

@@ -14,11 +14,11 @@ import (
 
 var (
 	// watchedChangesCounter tracks the number of changes detected by the appsec injector for watched resources
-	// Tags: proxy_type, operation, success
+	// Tags: proxy_type, operation, success, reason
 	watchedChangesCounter = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
 		"appsec_injector",
 		"watched_changes",
-		[]string{"proxy_type", "operation", "success"},
+		[]string{"proxy_type", "operation", "success", "reason"},
 		"Tracks the number of changes detected by the appsec injector for the watched resources",
 		telemetry.DefaultOptions,
 	)

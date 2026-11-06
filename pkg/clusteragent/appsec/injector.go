@@ -25,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	workqueuetelemetry "github.com/DataDog/datadog-agent/pkg/util/workqueue/telemetry"
 	v1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/fields"
@@ -356,9 +357,12 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 		err = pattern.Deleted(ctx, item.obj)
 	}
 
-	watchedChangesCounter.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil))
+	watchedChangesCounter.Inc(string(proxyType), item.typ.String(), strconv.FormatBool(err == nil), failureReason(err))
 
 	if err == nil {
+		queue.Forget(item)
+	} else if isPermanentError(err) {
+		si.logger.Warnf("unable to process item, not retrying: %v", err)
 		queue.Forget(item)
 	} else if queue.NumRequeues(item) < 5 {
 		si.logger.Debugf("requeuing item after error: %v", err)
@@ -369,6 +373,24 @@ func (si *securityInjector) processWorkItem(ctx context.Context, proxyType appse
 	}
 
 	return false
+}
+
+// failureReason returns the Kubernetes API status reason (Forbidden, Invalid, ...) of err, keeping
+// the telemetry tag cardinality bounded.
+func failureReason(err error) string {
+	if err == nil {
+		return "none"
+	}
+	if reason := apierrors.ReasonForError(err); reason != metav1.StatusReasonUnknown {
+		return string(reason)
+	}
+	return "unknown"
+}
+
+// isPermanentError reports whether retrying err cannot succeed without a change on the cluster side
+// (RBAC, admission policies, schema validation), in which case the backoff only adds API calls.
+func isPermanentError(err error) bool {
+	return apierrors.IsForbidden(err) || apierrors.IsInvalid(err)
 }
 
 func instantiatePatterns(config appsecconfig.Config, logger logComp.Component, k8sClient dynamic.Interface, recorder record.EventRecorder) map[appsecconfig.ProxyType]appsecconfig.InjectionPattern {
