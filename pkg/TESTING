@@ -1,0 +1,17 @@
+test_suite {
+  name: "pkg"
+  tests: "//pkg/..."
+}
+test_suite {
+  name: "pkg_coverage"
+  tests: "//pkg/..."
+  test_args: "--config=go"
+  test_args: "--config=gorace"
+  test_args: "--config=dd-agent-go-tests-only"
+  coverage: true
+}
+
+presubmit {
+  check_tests: "pkg"
+  check_tests: "pkg_coverage"
+}

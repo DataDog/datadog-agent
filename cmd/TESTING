@@ -1,0 +1,17 @@
+test_suite {
+  name: "cmd"
+  tests: "//cmd/..."
+}
+test_suite {
+  name: "cmd_coverage"
+  tests: "//cmd/..."
+  test_args: "--config=go"
+  test_args: "--config=gorace"
+  test_args: "--config=dd-agent-go-tests-only"
+  coverage: true
+}
+
+presubmit {
+  check_tests: "cmd"
+  check_tests: "cmd_coverage"
+}
