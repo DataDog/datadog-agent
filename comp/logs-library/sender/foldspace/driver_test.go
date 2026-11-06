@@ -462,17 +462,15 @@ func TestReliableAckResolvesUnreliableDropDoesNot(t *testing.T) {
 	}
 
 	core.Drop(1, streams[1], false)
-	notes := core.PollNotifications()
-	require.Len(t, notes, 1)
-	assert.Equal(t, DroppedStats, notes[0].Kind)
-	assert.Equal(t, uint64(1), notes[0].Records)
-	assert.Empty(t, core.PollNotifications())
+	assert.Empty(t, core.PollNotifications(), "a drop counts, and resolves nothing")
+	assert.Equal(t, SenderCounts{DroppedRecords: 1, DroppedBytes: 6}, core.SenderStats(1))
 
 	core.HandleAck(0, streams[0], reliableBatch, AckOK)
-	notes = core.PollNotifications()
+	notes := core.PollNotifications()
 	require.Len(t, notes, 1)
 	assert.Equal(t, PayloadDurable, notes[0].Kind)
 	assert.Equal(t, []uint64{9}, notes[0].MetadataIDs)
+	assert.Equal(t, SenderCounts{SentRecords: 1, SentBytes: 6}, core.SenderStats(0))
 }
 
 // Dual-ship names sink ownership: the primary destination owns the auditor, so
@@ -999,6 +997,11 @@ func TestDialWaitsForDelegatedAuthKey(t *testing.T) {
 // them, so nothing reaches the auditor and nothing stays pinned.
 func TestDialAbandonsWithoutDelegatedAuthKey(t *testing.T) {
 	shortenCredentialWait(t)
+	prevStats := senderStatsInterval
+	senderStatsInterval = 5 * time.Millisecond
+	t.Cleanup(func() { senderStatsInterval = prevStats })
+	dropped := metrics.TlmFoldspaceDropped.WithValues()
+	before := dropped.Get()
 	fake := NewFakeCore(FakeCoreConfig{Classes: []SenderClass{Reliable}})
 	core := &streamErrorCore{Core: fake}
 	transport := &gatedTransport{FakeTransport: NewFakeTransport(1)}
@@ -1012,4 +1015,6 @@ func TestDialAbandonsWithoutDelegatedAuthKey(t *testing.T) {
 	assert.Zero(t, core.errors.Load(), "no key coming abandons the dial rather than failing it")
 	assert.Zero(t, transport.Dials(), "a sender with no key coming must not dial")
 	assert.Empty(t, sink.ch)
+	require.Eventually(t, func() bool { return dropped.Get() == before+1 }, 2*time.Second, 5*time.Millisecond,
+		"the given-up record is counted dropped")
 }

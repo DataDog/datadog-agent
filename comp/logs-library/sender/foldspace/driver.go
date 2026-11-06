@@ -771,15 +771,37 @@ func (d *Driver) recvLoop(ctx context.Context, stream StreamID, s Stream, acks c
 	}
 }
 
+// senderStatsInterval is how often the dropped-record telemetry catches up
+// with the core's per-sender counters.
+var senderStatsInterval = time.Second
+
 func (d *Driver) notifyLoop() {
 	defer d.wg.Done()
+	ticker := time.NewTicker(senderStatsInterval)
+	defer ticker.Stop()
+	dropped := make([]uint64, d.core.SenderCount())
 	for {
 		select {
 		case <-d.stop:
 			d.drainNotifications()
+			d.recordDrops(dropped)
 			return
 		case <-d.notifyWake:
 			d.drainNotifications()
+		case <-ticker.C:
+			d.recordDrops(dropped)
+		}
+	}
+}
+
+// recordDrops adds what each sender gave up since the last call to the
+// dropped-record telemetry. seen holds each sender's count as last read.
+func (d *Driver) recordDrops(seen []uint64) {
+	for i := range seen {
+		n := d.core.SenderStats(SenderID(i)).DroppedRecords
+		if n > seen[i] {
+			metrics.TlmFoldspaceDropped.Add(float64(n - seen[i]))
+			seen[i] = n
 		}
 	}
 }
@@ -796,8 +818,6 @@ func (d *Driver) handleNotification(n Notification) {
 		d.releaseToSink(n.MetadataIDs)
 	case PayloadAbandoned:
 		d.dropPending(n.MetadataIDs)
-	case DroppedStats:
-		metrics.TlmFoldspaceDropped.Add(float64(n.Records))
 	}
 }
 

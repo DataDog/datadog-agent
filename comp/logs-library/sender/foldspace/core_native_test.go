@@ -89,24 +89,20 @@ func TestNativeCoreRoundTrip(t *testing.T) {
 	require.True(t, sawSendBatch, "the sealed batch should be offered for sending")
 
 	// Acknowledging every batch in order is what makes the record durable,
-	// reported as a notification naming the metadata id offered above. A
-	// telemetry notification for the reserved snapshot batch's own send can
-	// share the poll with it, so the durable resolution is found by kind
-	// rather than assumed to be the first entry.
+	// reported as a notification naming the metadata id offered above.
 	require.True(t, ack.NotificationsReady, "a durable payload should be announced")
 	notifications := core.PollNotifications()
 	require.NotEmpty(t, notifications)
 	var durable *Notification
 	for i := range notifications {
-		t.Logf("notification kind=%v sender=%d hasSender=%v records=%d bytes=%d ids=%v",
-			notifications[i].Kind, notifications[i].Sender, notifications[i].HasSender,
-			notifications[i].Records, notifications[i].Bytes, notifications[i].MetadataIDs)
+		t.Logf("notification kind=%v ids=%v", notifications[i].Kind, notifications[i].MetadataIDs)
 		if notifications[i].Kind == PayloadDurable {
 			durable = &notifications[i]
 		}
 	}
 	require.NotNil(t, durable, "a durable payload should be announced")
 	require.Equal(t, []uint64{42}, durable.MetadataIDs)
+	require.Equal(t, uint64(1), core.SenderStats(0).SentRecords, "the acknowledged record is counted sent")
 
 	// Clock advance is the difference between readings, so it only becomes
 	// non-zero once a second, later timestamp has been offered.
@@ -206,6 +202,7 @@ func TestNativeAbandonedDialGivesUpTheRecord(t *testing.T) {
 		}
 	}
 	require.Equal(t, []uint64{7}, abandoned)
+	require.Equal(t, uint64(1), core.SenderStats(0).DroppedRecords, "the given-up record is counted dropped")
 	require.True(t, core.IsDrained(), "the abandoned record must not stay pinned")
 }
 

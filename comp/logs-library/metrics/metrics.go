@@ -165,9 +165,10 @@ var (
 	TlmListenerIPDenied = telemetryimpl.GetCompatComponent().NewCounter("logs", "listener_ip_denied",
 		[]string{"listener_type"}, "Count of connections or datagrams rejected by IP allow/deny filters")
 
-	// TlmFoldspaceDropped counts non-abandoning payload drops reported by foldspace.
+	// TlmFoldspaceDropped counts records a foldspace sender gave up on, once for
+	// every sender that gave them up. A peer may still have delivered them.
 	TlmFoldspaceDropped = telemetryimpl.GetCompatComponent().NewCounter("logs_foldspace", "dropped",
-		nil, "Payloads a foldspace sender gave up on without abandoning the record")
+		nil, "Records a foldspace sender gave up on, counted once per sender")
 
 	// TlmFoldspaceUnadmitted counts records foldspace refused at admission for
 	// good, which are dropped unsent.

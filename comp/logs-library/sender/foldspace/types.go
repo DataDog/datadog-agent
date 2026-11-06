@@ -167,14 +167,10 @@ const (
 	StreamFailed CoreErrorKind = 4
 )
 
-// NotificationKind is which outcome a notification reports.
-//
-// Two families: a resolution (PayloadDurable, PayloadAbandoned) names records
-// and ends their life; telemetry (DroppedStats) counts and names a sender, and
-// moves no cursor. Numbering matches enum foldspace_notification_kind in
-// foldspace_go.h; core_native.go asserts that at construction. Value 3
-// (FOLDSPACE_NOTIFICATION_SENT_STATS) has no Go constant: nothing here
-// consumes it, and notificationFrom passes it through unrecognized.
+// NotificationKind is which outcome a notification reports. Every
+// notification is a resolution: it names records and ends their life.
+// Numbering matches the FOLDSPACE_NOTIFICATION_* values in foldspace_go.h;
+// core_native.go asserts that at construction.
 type NotificationKind int
 
 const (
@@ -183,9 +179,6 @@ const (
 	// PayloadAbandoned resolves every record it names as given up on, whether by
 	// one sender's abandoning drop or a global Abandon.
 	PayloadAbandoned NotificationKind = 2
-	// DroppedStats counts a sender's non-abandoning drops. It names no records:
-	// Records and Bytes are aggregate counts, not a resolution.
-	DroppedStats NotificationKind = 4
 )
 
 // AckOK is the wire status of a batch the server accepted. Anything else
@@ -304,20 +297,22 @@ type Effect struct {
 	Err     *CoreError
 }
 
-// Notification is a final or diagnostic outcome for records the consumer
-// offered.
-//
-// A resolution (Kind PayloadDurable or PayloadAbandoned) names records in
-// MetadataIDs and ends their life; Records and Bytes are zero. Telemetry
-// (Kind DroppedStats) counts in Records and Bytes and names no records:
-// MetadataIDs is empty.
+// Notification is the final outcome for the records it names in MetadataIDs.
 type Notification struct {
 	Kind        NotificationKind
-	Sender      SenderID
-	HasSender   bool
 	MetadataIDs []uint64
-	Records     uint64
-	Bytes       uint64
+}
+
+// SenderCounts is what one sender has delivered and given up on, counted from
+// construction. Under fan-out the same records count once for every sender
+// that carried them. Sent counts payloads the sender had acknowledged, and
+// Dropped payloads it gave up on, which a peer may still have delivered. Bytes
+// are encoded payload sizes.
+type SenderCounts struct {
+	SentRecords    uint64
+	SentBytes      uint64
+	DroppedRecords uint64
+	DroppedBytes   uint64
 }
 
 // Lease holds the bytes of one sealed batch.

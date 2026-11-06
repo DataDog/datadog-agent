@@ -181,22 +181,19 @@ func (c *nativeCore) IsDrained() bool {
 }
 
 func (c *nativeCore) PollSender(sender SenderID) []Effect {
-	var list *C.foldspace_effects
+	var list C.foldspace_effects
 	must(C.foldspace_poll_sender(c.client, C.uint64_t(sender), &list))
-	if list == nil {
+	defer C.foldspace_effects_free(&list)
+	if list.len == 0 {
 		return nil
 	}
-	defer C.foldspace_effects_free(list)
 
-	out := make([]Effect, 0, int(C.foldspace_effects_len(list)))
-	for {
-		native := C.foldspace_effects_next(list)
-		if native == nil {
-			return out
-		}
-		out = append(out, effectFrom(native))
-		C.foldspace_effect_free(native)
+	natives := unsafe.Slice(list.items, int(list.len))
+	out := make([]Effect, len(natives))
+	for i := range natives {
+		out[i] = effectFrom(&natives[i])
 	}
+	return out
 }
 
 func (c *nativeCore) HandleStreamOpened(sender SenderID, stream StreamID) Progress {
@@ -240,21 +237,31 @@ func (c *nativeCore) HandleTimer(sender SenderID, stream StreamID, timer TimerKi
 }
 
 func (c *nativeCore) PollNotifications() []Notification {
-	var list *C.foldspace_notifications
+	var list C.foldspace_notifications
 	must(C.foldspace_poll_notifications(c.client, &list))
-	if list == nil {
+	defer C.foldspace_notifications_free(&list)
+	if list.len == 0 {
 		return nil
 	}
-	defer C.foldspace_notifications_free(list)
 
-	out := make([]Notification, 0, int(C.foldspace_notifications_len(list)))
-	for {
-		native := C.foldspace_notifications_next(list)
-		if native == nil {
-			return out
-		}
-		out = append(out, notificationFrom(native))
-		C.foldspace_notification_free(native)
+	natives := unsafe.Slice(list.items, int(list.len))
+	out := make([]Notification, len(natives))
+	for i := range natives {
+		out[i] = notificationFrom(&natives[i])
+	}
+	return out
+}
+
+// SenderStats reads the library's counters without entering a sender's
+// region: like foldspace_stats, foldspace_sender_stats takes no region lock.
+func (c *nativeCore) SenderStats(sender SenderID) SenderCounts {
+	var out C.foldspace_sender_counts
+	must(C.foldspace_sender_stats(c.client, C.uint64_t(sender), &out))
+	return SenderCounts{
+		SentRecords:    uint64(out.sent_records),
+		SentBytes:      uint64(out.sent_bytes),
+		DroppedRecords: uint64(out.dropped_records),
+		DroppedBytes:   uint64(out.dropped_bytes),
 	}
 }
 
@@ -320,26 +327,27 @@ func (p *progressBuf) result() Progress {
 
 // --- effects and notifications ----------------------------------------------
 
+// effectFrom reads one effect in place from the list that carries it. Nothing
+// it returns points into the list, which is freed once every effect is read.
 func effectFrom(native *C.foldspace_effect) Effect {
 	out := Effect{
-		Kind:    EffectKind(C.foldspace_effect_kind(native)),
-		Sender:  SenderID(C.foldspace_effect_sender(native)),
-		Stream:  StreamID(C.foldspace_effect_stream(native)),
-		After:   time.Duration(C.foldspace_effect_after_nanos(native)),
-		BatchID: uint32(C.foldspace_effect_batch_id(native)),
+		Kind:    EffectKind(native.kind),
+		Sender:  SenderID(native.sender),
+		Stream:  StreamID(native.stream),
+		After:   time.Duration(native.after_nanos),
+		BatchID: uint32(native.batch_id),
 	}
 	if out.Kind == ScheduleTimer {
-		out.Timer = TimerKind(C.foldspace_effect_timer_kind(native))
+		out.Timer = TimerKind(native.timer_kind)
 	}
-	if lease := C.foldspace_effect_lease(native); lease != nil {
+	if native.lease != nil {
 		// NewLease copies, so the library's bytes are needed only for that
 		// copy and the lease is freed here rather than on release.
-		out.Batch = NewLease(leaseBytes(lease), nil)
-		C.foldspace_lease_free(lease)
+		out.Batch = NewLease(strBytes(native.batch), nil)
+		C.foldspace_lease_free(native.lease)
 	}
 	if out.Kind == ReportError {
-		var nativeErr C.foldspace_core_error
-		must(C.foldspace_effect_error(native, &nativeErr))
+		nativeErr := native.error
 		out.Err = &CoreError{
 			Kind:            CoreErrorKind(nativeErr.kind),
 			ExpectedBatchID: uint32(nativeErr.expected_batch_id),
@@ -352,27 +360,21 @@ func effectFrom(native *C.foldspace_effect) Effect {
 	return out
 }
 
-func leaseBytes(lease *C.foldspace_lease) []byte {
-	n := int(C.foldspace_lease_len(lease))
-	if n == 0 {
+// strBytes views the library's bytes without copying. They are valid only
+// until the list or lease that owns them is freed.
+func strBytes(s C.foldspace_str) []byte {
+	if s.ptr == nil || s.len == 0 {
 		return nil
 	}
-	return unsafe.Slice((*byte)(unsafe.Pointer(C.foldspace_lease_bytes(lease))), n)
+	return unsafe.Slice((*byte)(unsafe.Pointer(s.ptr)), int(s.len))
 }
 
+// notificationFrom copies the metadata ids out, because they point into the
+// list that carries the notification.
 func notificationFrom(native *C.foldspace_notification) Notification {
-	out := Notification{
-		Kind:    NotificationKind(C.foldspace_notification_kind(native)),
-		Records: uint64(C.foldspace_notification_records(native)),
-		Bytes:   uint64(C.foldspace_notification_bytes(native)),
-	}
-	var sender C.uint64_t
-	if C.foldspace_notification_sender(native, &sender) != 0 {
-		out.Sender, out.HasSender = SenderID(sender), true
-	}
-	var count C.size_t
-	if ids := C.foldspace_notification_metadata_ids(native, &count); ids != nil && count > 0 {
-		out.MetadataIDs = append([]uint64(nil), unsafe.Slice((*uint64)(unsafe.Pointer(ids)), int(count))...)
+	out := Notification{Kind: NotificationKind(native.kind)}
+	if native.metadata_ids != nil && native.metadata_ids_len > 0 {
+		out.MetadataIDs = append([]uint64(nil), unsafe.Slice((*uint64)(unsafe.Pointer(native.metadata_ids)), int(native.metadata_ids_len))...)
 	}
 	return out
 }
@@ -442,8 +444,7 @@ func assertABINumbering() {
 		panic("foldspace: Admission constants in types.go do not match foldspace_go.h")
 	}
 	if NotificationKind(C.FOLDSPACE_NOTIFICATION_PAYLOAD_DURABLE) != PayloadDurable ||
-		NotificationKind(C.FOLDSPACE_NOTIFICATION_PAYLOAD_ABANDONED) != PayloadAbandoned ||
-		NotificationKind(C.FOLDSPACE_NOTIFICATION_DROPPED_STATS) != DroppedStats {
+		NotificationKind(C.FOLDSPACE_NOTIFICATION_PAYLOAD_ABANDONED) != PayloadAbandoned {
 		panic("foldspace: NotificationKind constants in types.go do not match foldspace_go.h")
 	}
 }

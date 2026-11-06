@@ -56,6 +56,7 @@ type FakeCore struct {
 	pending       map[uint64]*fakePayload // keyed by the single metadata id
 	order         []uint64
 	notifications []Notification
+	counts        []SenderCounts
 
 	clockNanos uint64
 }
@@ -105,6 +106,7 @@ func NewFakeCore(cfg FakeCoreConfig) *FakeCore {
 		streamGen:       make([]uint64, n),
 		dialing:         make([]StreamID, n),
 		givingUp:        make([]bool, n),
+		counts:          make([]SenderCounts, n),
 		queued:          make([][]queuedSend, n),
 		effects:         make([][]Effect, n),
 		pending:         make(map[uint64]*fakePayload),
@@ -423,6 +425,8 @@ func (c *FakeCore) ackLocked(sender SenderID, p *fakePayload) {
 		return
 	}
 	p.acked[sender] = true
+	c.counts[sender].SentRecords++
+	c.counts[sender].SentBytes += uint64(len(p.body))
 	if c.classes[sender] == Reliable {
 		p.reliableLeft--
 		if p.reliableLeft == 0 {
@@ -444,9 +448,9 @@ func (c *FakeCore) resolveLocked(p *fakePayload, n Notification) {
 }
 
 // Drop marks a sender as having given up on an in-flight payload without
-// acknowledging it. A non-abandoning drop is telemetry only: it names no
-// record and never resolves the auditor. An abandoning drop from a reliable
-// sender is a resolution: it names the record and ends its life.
+// acknowledging it, and counts it in the sender's stats. A non-abandoning drop
+// names no record and never resolves the auditor. An abandoning drop from a
+// reliable sender is a resolution: it names the record and ends its life.
 func (c *FakeCore) Drop(sender SenderID, stream StreamID, abandoned bool) Progress {
 	c.enterSender(sender)
 	defer c.leaveSender(sender)
@@ -463,28 +467,10 @@ func (c *FakeCore) Drop(sender SenderID, stream StreamID, abandoned bool) Progre
 		if !p.route.Contains(sender) {
 			continue
 		}
-		p.dropped[sender] = true
-		if !abandoned {
-			c.notifications = append(c.notifications, Notification{
-				Kind:      DroppedStats,
-				Sender:    sender,
-				HasSender: true,
-				Records:   1,
-				Bytes:     uint64(len(p.body)),
-			})
-			continue
-		}
-		c.notifications = append(c.notifications, Notification{
-			Kind:        PayloadAbandoned,
-			Sender:      sender,
-			HasSender:   true,
-			MetadataIDs: []uint64{p.id},
-		})
-		if c.classes[sender] == Reliable {
+		c.dropLocked(sender, p)
+		if abandoned && c.classes[sender] == Reliable {
 			c.resolveLocked(p, Notification{
 				Kind:        PayloadAbandoned,
-				Sender:      sender,
-				HasSender:   true,
 				MetadataIDs: []uint64{p.id},
 			})
 		}
@@ -526,7 +512,7 @@ func (c *FakeCore) HandleStreamError(sender SenderID, stream StreamID, message s
 // HandleStreamAbandoned reports that a sender's stream cannot be opened and is
 // not expected to become openable. It fails the stream like HandleStreamError,
 // and the sender gives up every payload it holds, as it does what seals for it
-// until a stream opens. Each is reported dropped, and one a reliable sender held
+// until a stream opens. Each is counted dropped, and one a reliable sender held
 // is abandoned at once rather than after its other senders settle it.
 func (c *FakeCore) HandleStreamAbandoned(sender SenderID, stream StreamID, message string) Progress {
 	c.enterSender(sender)
@@ -571,20 +557,28 @@ func (c *FakeCore) giveUpLocked(sender SenderID, p *fakePayload) {
 	if p.resolved || p.acked[sender] || p.dropped[sender] {
 		return
 	}
-	p.dropped[sender] = true
-	c.notifications = append(c.notifications, Notification{
-		Kind:      DroppedStats,
-		Sender:    sender,
-		HasSender: true,
-		Records:   1,
-		Bytes:     uint64(len(p.body)),
-	})
+	c.dropLocked(sender, p)
 	if c.classes[sender] == Reliable {
 		c.resolveLocked(p, Notification{
 			Kind:        PayloadAbandoned,
 			MetadataIDs: []uint64{p.id},
 		})
 	}
+}
+
+func (c *FakeCore) dropLocked(sender SenderID, p *fakePayload) {
+	p.dropped[sender] = true
+	c.counts[sender].DroppedRecords++
+	c.counts[sender].DroppedBytes += uint64(len(p.body))
+}
+
+// SenderStats reports what sender has had acknowledged and given up on. Like
+// the library's, it enters no sender's region.
+func (c *FakeCore) SenderStats(sender SenderID) SenderCounts {
+	c.checkSender(sender)
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return c.counts[sender]
 }
 
 // HandleTimer feeds back a timer the library asked for.

@@ -31,6 +31,9 @@ type Core interface {
 	HandleStreamAbandoned(sender SenderID, stream StreamID, message string) Progress
 	HandleTimer(sender SenderID, stream StreamID, timer TimerKind) Progress
 	PollNotifications() []Notification
+	// SenderStats may be called from any goroutine: it enters no sender's
+	// region.
+	SenderStats(sender SenderID) SenderCounts
 	TakeClockAdvance() time.Duration
 	Close()
 	SenderCount() int
