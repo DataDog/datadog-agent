@@ -208,6 +208,9 @@ rejections, and `SupportsTarget` for each kind you accept and reject.
 
 ## Gotchas
 
+- Configuration hashes must be deterministic across replicas. Incremental XOR
+  aggregation requires well-mixed entry hashes: FNV entry hashes can cancel
+  simultaneous generation updates for a resource's checks and logs.
 - Handlers run on all replicas; status is leader-only. Gate cluster-wide side
   effects on `IsLeader()`; do not gate local per-replica work.
 - `Handle` must be idempotent; duplicate events are expected.
