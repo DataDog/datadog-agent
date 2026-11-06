@@ -45,7 +45,17 @@ func prepareCredentialVM(t *testing.T, vm *baloum.VM) {
 }
 
 func TestCredentialRecipientLegacy(t *testing.T) {
-	vm := newVM(t)
+	vm := baloum.NewVM(loadColSpec(t), baloum.Opts{
+		Logger: &testLogger{t: t, trace: trace},
+		RawFncs: map[asm.BuiltinFunc]func(*baloum.VM, *asm.Instruction) error{
+			asm.FnGetSocketCookie: func(vm *baloum.VM, _ *asm.Instruction) error {
+				ctx := baloum.RawContext{Regs: vm.Regs()}
+				ctx.Regs[asm.R0] = 1
+				ctx.SetRegs(vm)
+				return nil
+			},
+		},
+	})
 	prepareCredentialVM(t, vm)
 	var ctx baloum.StdContext
 	code, err := vm.RunProgram(&ctx, "test/credential_recipient_legacy")
@@ -68,9 +78,11 @@ func TestCredentialRecipientSocket(t *testing.T) {
 			socket         bool
 			storage        bool
 			otherNamespace bool
+			kernelThread   bool
 			want           int64
 		}{
 			{name: "recipient", socket: true, storage: true, want: 456},
+			{name: "kernel thread", socket: true, storage: true, kernelThread: true},
 			{name: "transit"},
 			{name: "untracked socket", socket: true},
 			{name: "different namespace", otherNamespace: true},
@@ -120,7 +132,11 @@ func TestCredentialRecipientSocket(t *testing.T) {
 							}
 							var address uint64
 							if tc.storage {
-								address = vm.Heap().AllocWith(binary.NativeEndian.AppendUint32(nil, 456))
+								pid := uint32(456)
+								if tc.kernelThread {
+									pid = 2
+								}
+								address = vm.Heap().AllocWith(binary.NativeEndian.AppendUint32(nil, pid))
 							}
 							setReturn(vm, address)
 							return nil
