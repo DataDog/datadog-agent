@@ -4,7 +4,7 @@
 #include "baloum.h"
 #include "bpf_endian.h"
 #include "helpers/network/credentials.h"
-#include "helpers/network/imds.h"
+#include "helpers/network/pid_resolver.h"
 #include "helpers/network/parser.h"
 
 static __always_inline int test_credential_source(struct credential_endpoint_t *endpoint, struct credential_endpoint_t *other_endpoint, struct credential_endpoint_t *loopback, u32 source) {
@@ -110,12 +110,23 @@ int test_credential_recipient_legacy() {
     };
     pkt->network_direction = EGRESS;
     pkt->pid = 123;
-    resolve_imds_ingress_pid(NULL, pkt);
+    pkt->cgroup_id = 999;
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
     assert_equals(pkt->pid, 123, "egress event keeps the sender context");
+    assert_equals(pkt->cgroup_id, 999, "egress event keeps the cgroup context");
 
+    u64 cookie = 1;
+    u32 sender_pid = 123;
+    int ret = bpf_map_update_elem(&sock_cookie_pid, &cookie, &sender_pid, BPF_ANY);
+    assert_zero(ret, "failed to register sender cookie");
     pkt->network_direction = INGRESS;
-    resolve_imds_ingress_pid(NULL, pkt);
+    resolve_pid(NULL, pkt, PID_RESOLUTION_DEFAULT);
+    assert_equals(pkt->pid, sender_pid, "default resolution still trusts the socket cookie");
+    assert_zero(pkt->cgroup_id, "default resolution resets the cgroup context");
+    pkt->cgroup_id = 999;
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
     assert_zero(pkt->pid, "missing local recipient must not retain sender pid");
+    assert_equals(pkt->cgroup_id, 999, "strict resolution preserves the cgroup context");
 
     struct pid_route_t route = {
         .addr = {htonl(0x0a000005), 0},
@@ -124,15 +135,21 @@ int test_credential_recipient_legacy() {
         .l4_protocol = IPPROTO_TCP,
     };
     struct pid_route_entry_t entry = {.owner_sk = (struct sock *)1, .pid = 456, .type = FLOW_CLASSIFICATION_ENTRY};
-    int ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
+    ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
     assert_zero(ret, "failed to register recipient route");
-    pkt->pid = 123;
-    resolve_imds_ingress_pid(NULL, pkt);
-    assert_equals(pkt->pid, 456, "ingress event resolves the local recipient");
+    pkt->pid = sender_pid;
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
+    assert_equals(pkt->pid, 456, "ingress event resolves the local recipient instead of the sender cookie");
+    ret = bpf_map_delete_elem(&sock_cookie_pid, &cookie);
+    assert_zero(ret, "failed to unregister sender cookie");
+    resolve_pid(NULL, pkt, PID_RESOLUTION_DEFAULT);
+    assert_equals(pkt->pid, 456, "default resolution still uses the exact route without a cookie");
 
     pkt->ns_flow.netns = 43;
-    resolve_imds_ingress_pid(NULL, pkt);
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
     assert_zero(pkt->pid, "a different namespace must not match");
+    resolve_pid(NULL, pkt, PID_RESOLUTION_DEFAULT);
+    assert_equals(pkt->pid, 456, "default resolution still uses the translated namespace");
     pkt->ns_flow.netns = 42;
 
     // A wildcard entry must not attribute traffic forwarded to a different IP.
@@ -140,27 +157,42 @@ int test_credential_recipient_legacy() {
     ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
     assert_zero(ret, "failed to register wildcard route");
     pkt->translated_ns_flow.flow.daddr[0] = htonl(0x0a000006);
-    resolve_imds_ingress_pid(NULL, pkt);
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
     assert_zero(pkt->pid, "forwarded ingress must not match a wildcard route");
+    resolve_pid(NULL, pkt, PID_RESOLUTION_DEFAULT);
+    assert_equals(pkt->pid, 456, "default resolution still accepts wildcard routes");
     pkt->translated_ns_flow.flow.daddr[0] = htonl(0x0a000005);
     route.addr[0] = htonl(0x0a000005);
 
     entry.type = BIND_ENTRY;
     ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
     assert_zero(ret, "failed to register bind route");
-    resolve_imds_ingress_pid(NULL, pkt);
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
     assert_zero(pkt->pid, "a listener alone does not identify the requester");
+    resolve_pid(NULL, pkt, PID_RESOLUTION_DEFAULT);
+    assert_equals(pkt->pid, 456, "default resolution still accepts listeners");
     entry.type = PROCFS_ENTRY;
     ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
     assert_zero(ret, "failed to register procfs route");
-    resolve_imds_ingress_pid(NULL, pkt);
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
     assert_zero(pkt->pid, "a procfs entry does not prove socket ownership");
+    resolve_pid(NULL, pkt, PID_RESOLUTION_DEFAULT);
+    assert_equals(pkt->pid, 456, "default resolution still accepts procfs entries");
     entry.type = FLOW_CLASSIFICATION_ENTRY;
     entry.owner_sk = NULL;
     ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
     assert_zero(ret, "failed to register ownerless route");
-    resolve_imds_ingress_pid(NULL, pkt);
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
     assert_zero(pkt->pid, "an ownerless route must not match");
+    resolve_pid(NULL, pkt, PID_RESOLUTION_DEFAULT);
+    assert_equals(pkt->pid, 456, "default resolution still accepts ownerless routes");
+
+    entry.owner_sk = (struct sock *)1;
+    entry.pid = 2;
+    ret = bpf_map_update_elem(&flow_pid, &route, &entry, BPF_ANY);
+    assert_zero(ret, "failed to register kernel thread route");
+    resolve_pid(NULL, pkt, PID_RESOLUTION_STRICT_INGRESS);
+    assert_zero(pkt->pid, "a kernel thread cannot be a credential recipient");
 
     return 1;
 }
@@ -201,7 +233,7 @@ int test_credential_recipient_socket(struct baloum_ctx *ctx) {
     assert_zero(ret, "failed to seed legacy fallback");
     pkt->network_direction = INGRESS;
     pkt->pid = 123;
-    resolve_imds_ingress_pid((struct __sk_buff *)ctx, pkt);
+    resolve_pid((struct __sk_buff *)ctx, pkt, PID_RESOLUTION_STRICT_INGRESS);
     return pkt->pid;
 }
 
