@@ -216,3 +216,54 @@ func TestRun_BannerBeforePrompt(t *testing.T) {
 	require.Len(t, results, 1)
 	assert.Equal(t, "12:00:00\n", results[0].Output)
 }
+
+func TestIOSError(t *testing.T) {
+	errorLines := []string{
+		"% Invalid input detected at '^' marker.",
+		"% Invalid IP address",
+		"% Invalid interface type and number",
+		"% Incomplete command.",
+		`% Ambiguous command:  "sh i"`,
+		"% Unrecognized command",
+		"% Unknown command or computer name, or unable to find computer address",
+		"% Unknown VRF specified",
+		"% Bad IP address or host name",
+		"% Bad mask 0xFF000000 for address 10.0.0.1",
+		"%Error opening flash:foo (No such file or directory)",
+		"% Error in authentication.",
+		"% Cannot remove the last IP address",
+		"% Can't find interface",
+		"% Unable to open file",
+		"% Failed to write configuration",
+		"% No such file or directory",
+		"% Not enough space on device",
+		"% Insufficient memory",
+		"% 10.0.0.0 overlaps with GigabitEthernet0/1",
+		"% Command authorization failed.",
+		"% Authorization failed.",
+		"% Access denied",
+		"% Permission denied",
+	}
+	for _, line := range errorLines {
+		t.Run(line, func(t *testing.T) {
+			output := "R1(config)#some command\n" + line + "\n\n"
+			err := iosError(output)
+			require.Error(t, err)
+			assert.Equal(t, line, err.Error())
+		})
+	}
+
+	okOutputs := []string{
+		"",
+		"Building configuration...\n[OK]\n",
+		"% Warning: use /31 mask on non point-to-point interface cautiously\n",
+		"% Note: this command is deprecated\n",
+		"%SYS-5-CONFIG_I: Configured from console by console\n",
+		"description % Invalid input\n", // not at line start
+	}
+	for _, output := range okOutputs {
+		t.Run("ok/"+output, func(t *testing.T) {
+			assert.NoError(t, iosError(output))
+		})
+	}
+}

@@ -28,8 +28,39 @@ var (
 	// questionRE matches a question IOS asks before running a command, such
 	// as `Destination filename [startup-config]?`.
 	questionRE = regexp.MustCompile(`(\?|\[confirm\]) ?$`)
-	// errorRE matches the line IOS prints when it rejects a command.
-	errorRE = regexp.MustCompile(`(?m)^% (Invalid input|Incomplete command|Ambiguous command|Unknown command|Bad ).*$`)
+	// errorRE matches the line IOS prints when it rejects or fails to run a
+	// command. Other lines starting with "%" are informational and are not
+	// matched, e.g. "% Warning: ...", "% Note: ..." or syslog messages such as
+	// "%SYS-5-CONFIG_I: ...".
+	// Note that cisco does not publish a list of all possible errors and
+	// warnings; this list should cover the vast majority of cases with very few
+	// false positives, but it is difficult to be certain and new commands could
+	// introduce new error messages in future versions of IOS.
+	errorRE = regexp.MustCompile(`(?m)^(?:` + strings.Join([]string{
+		// Parser rejections.
+		`% Invalid `,           // % Invalid input detected at '^' marker. / % Invalid IP address / % Invalid interface type and number
+		`% Incomplete command`, // % Incomplete command.
+		`% Ambiguous command`,  // % Ambiguous command:  "sh i"
+		`% Unrecognized command`,
+		`% Unknown `, // % Unknown command or computer name, or unable to find computer address / % Unknown VRF specified
+		`% Bad `,     // % Bad IP address or host name / % Bad mask
+		// Generic failures, e.g. from copy, delete or file operations.
+		`%Error`,  // %Error opening flash:foo (No such file or directory)
+		`% Error`, // % Error in authentication.
+		`% Cannot `,
+		`% Can't `,
+		`% Unable to `,
+		`% Failed `,
+		`% No such `,
+		`% Not enough space`,
+		`% Insufficient `,
+		`% \S+ overlaps with `, // % 10.0.0.0 overlaps with GigabitEthernet0/1
+		// Authorization failures.
+		`% Command authorization failed`,
+		`% Authorization failed`,
+		`% Access denied`,
+		`% Permission denied`,
+	}, "|") + `).*$`)
 )
 
 // setupCommands are sent before the requested lines so that output is not
