@@ -28,7 +28,10 @@ type Context struct {
 	taggerTags *tags.Entry
 	metricTags *tags.Entry
 	noIndex    bool
+	stripFlags stripFlags
 	source     metrics.MetricSource
+
+	strippedIdentityRef uint32
 }
 
 // resolvedMetricView exposes the final metric identity to the anomaly-detection
@@ -102,6 +105,8 @@ type contextResolver struct {
 	// tagFilterEnabled controls whether metric_tag_filterlist tag stripping is applied.
 	// True when data_plane.enabled is true, or metric_tag_filterlist_adp_only is false.
 	tagFilterEnabled bool
+	// stripped is set for check samplers, which keep the full tags of contexts and strip only their output.
+	stripped *strippedIdentityTable
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -144,11 +149,12 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 
 	contextKey, taggerKey, metricKey := cr.generateContextKey(metricSampleContext) // the generator will remove duplicates (and doesn't mind the order)
 
-	if filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
+	if cr.stripped == nil && filterList != nil && cr.tagFilterEnabled && shouldAggregateTags(metricSampleContext) {
 		if tagMatcher, filter := filterList.ShouldStripTags(metricSampleContext.GetName()); filter {
 			contextKey, taggerKey, metricKey = cr.filterTags(metricSampleContext, tagMatcher, contextKey)
 		}
 	}
+	tracksOutput := cr.stripped != nil && cr.tagFilterEnabled
 
 	if entry, ok := cr.contextsByKey[contextKey]; !ok {
 		mtype := metricSampleContext.GetMetricType()
@@ -161,6 +167,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			noIndex:    metricSampleContext.IsNoIndex(),
 			source:     metricSampleContext.GetSource(),
 		}
+		if tracksOutput {
+			cr.trackOutput(context, metricSampleContext, filterList)
+		}
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
 			context:  context,
@@ -171,6 +180,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 		cr.bytesByMtype[mtype] += uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[mtype] += uint64(context.DataSizeInBytes())
 	} else {
+		if tracksOutput {
+			cr.trackOutput(entry.context, metricSampleContext, filterList)
+		}
 		// We can't assign to a field of a struct contained in map
 		cr.contextsByKey[contextKey] = resolverEntry{
 			lastSeen: timestamp,
@@ -182,10 +194,7 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 }
 
 // shouldAggregateTags returns true if the tag for the given metric should be considered
-// for aggregation. Distribution, and Counter (dogstatsd counts).
-// We don't support Count metrics from checks, it would be complicated to enable this for
-// MonotonicCounts - which is commonly used in checks, so to avoid confusion we don't
-// support counts in checks at all for now.
+// for aggregation in a time sampler: Distribution, and Counter (dogstatsd counts).
 func shouldAggregateTags(metricSampleContext metrics.MetricSampleContext) bool {
 	mtype := metricSampleContext.GetMetricType()
 	return mtype == metrics.DistributionType ||
@@ -247,6 +256,7 @@ func (cr *contextResolver) remove(expiredContextKey ckey.ContextKey) {
 		cr.countsByMtype[context.mtype]--
 		cr.bytesByMtype[context.mtype] -= uint64(context.SizeInBytes())
 		cr.dataBytesByMtype[context.mtype] -= uint64(context.DataSizeInBytes())
+		cr.releaseStripped(context)
 		context.release()
 	}
 }
@@ -270,6 +280,7 @@ func (cr *contextResolver) updateMetrics(countsByMTypeGauge telemetry.Gauge, byt
 
 func (cr *contextResolver) release() {
 	for _, c := range cr.contextsByKey {
+		cr.releaseStripped(c.context)
 		c.context.release()
 	}
 	cr.clearTagFilterCache()
@@ -377,9 +388,13 @@ type countBasedContextResolver struct {
 	expireCountInterval int64
 }
 
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string) *countBasedContextResolver {
+// newCountBasedContextResolver returns a resolver that records in stripped, if it's set, the identities contexts strip
+// to at output, instead of tracking stripped contexts.
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, stripped *strippedIdentityTable) *countBasedContextResolver {
+	resolver := newContextResolver(tagger, cache, id)
+	resolver.stripped = stripped
 	return &countBasedContextResolver{
-		resolver:            newContextResolver(tagger, cache, id),
+		resolver:            resolver,
 		expireCount:         0,
 		expireCountInterval: int64(expireCountInterval),
 	}
