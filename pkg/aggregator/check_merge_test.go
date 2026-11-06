@@ -234,6 +234,22 @@ func TestCheckOutputMergerMovesPointsByAtLeastASecond(t *testing.T) {
 	assert.Equal(t, []metrics.Point{{Ts: 101, Value: 2}}, series[1].Points)
 }
 
+func TestCheckOutputMergerKeepsSeriesOfDifferentTypesApart(t *testing.T) {
+	m := newTestCheckOutputMerger()
+	var series metrics.Series
+
+	rate := filteredCounter(1, metrics.Point{Ts: 100, Value: 1})
+	count := filteredCounter(1, metrics.Point{Ts: 100, Value: 2})
+	count.MType = metrics.APICountType
+	m.mergeSeries([]*metrics.Serie{rate, count})
+	m.flush(200, &series, nil)
+
+	require.Len(t, series, 2, "values of different types are never added up")
+	for _, s := range series {
+		assert.Len(t, s.Points, 1)
+	}
+}
+
 func TestCheckOutputMergerMergesMetadata(t *testing.T) {
 	m := newTestCheckOutputMerger()
 	var series metrics.Series
