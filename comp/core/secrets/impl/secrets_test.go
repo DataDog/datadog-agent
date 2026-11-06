@@ -1745,3 +1745,27 @@ snmp_traps:
 	assert.Empty(t, paths)
 	assert.Empty(t, handles)
 }
+
+func TestGetHashValues(t *testing.T) {
+	tel := nooptelemetry.GetCompatComponent()
+	resolver := newEnabledSecretResolver(tel)
+	resolver.scrubHookFunc = func([]string) {}
+	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
+		res := map[string]string{}
+		for _, h := range handles {
+			res[h] = h + "_value"
+		}
+		return res, nil
+	}
+
+	assert.Empty(t, resolver.GetHashValues([]string{"my_key"}))
+
+	_, err := resolver.Resolve([]byte("api_key: ENC[my_key]\ntoken: ENC[my_token]\n"), "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+
+	// sha256("my_key_value") and sha256("my_token_value"); unknown handles are omitted
+	assert.Equal(t, map[string]string{
+		"my_key":   "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa",
+		"my_token": "bacafcb4c9e997043341bc9bd26d9b17c80bf4c00e4c964b7808ea488fe06c9d",
+	}, resolver.GetHashValues([]string{"my_key", "my_token", "unknown"}))
+}

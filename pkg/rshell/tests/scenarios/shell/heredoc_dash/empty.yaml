@@ -1,0 +1,7 @@
+description: Heredoc-dash with no content lines produces empty output.
+input:
+  script: "cat <<-EOF\nEOF\n"
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

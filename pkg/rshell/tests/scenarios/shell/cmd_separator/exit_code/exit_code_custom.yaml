@@ -1,0 +1,9 @@
+description: Custom exit code from the last command is preserved.
+input:
+  script: |+
+    echo hello; exit 42
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 42

@@ -41,11 +41,11 @@ import (
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	intakeroutingfx "github.com/DataDog/datadog-agent/comp/intakerouting/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
 	ndmrcconfigfx "github.com/DataDog/datadog-agent/comp/ndm/rcconfig/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
-	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
 	networkpathrcproviderfx "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
@@ -102,6 +102,7 @@ import (
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
+	schemafx "github.com/DataDog/datadog-agent/comp/core/schema/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
@@ -183,11 +184,11 @@ import (
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
-	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net"
 	profileStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/status"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
@@ -215,6 +216,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/sigdanger"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// runtime init routines
@@ -330,10 +332,14 @@ func run(log log.Component,
 	snmpScanManager snmpscanmanager.Component,
 	traceroute traceroute.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	gpuReadiness *gpu.Readiness,
 ) error {
 	defer func() {
 		stopAgent(cfg, sysprobeConf)
 	}()
+
+	// Handle SIGDANGER (AIX paging space low); no-op on other platforms.
+	sigdanger.Init()
 
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
@@ -395,6 +401,7 @@ func run(log log.Component,
 		traceroute,
 		healthplatformComp,
 		ncmComp,
+		gpuReadiness,
 	); err != nil {
 		return err
 	}
@@ -420,6 +427,13 @@ func run(log log.Component,
 	return <-stopCh
 }
 
+func newGPUReadiness(cfg config.Component) *gpu.Readiness {
+	if cfg.GetBool("gpu.enabled") {
+		return gpu.NewReadiness(cfg.GetDuration("gpu.readiness_timeout"))
+	}
+	return nil
+}
+
 func getSharedFxOption() fx.Option {
 	return fx.Options(
 		flare.Module(flare.NewParams(
@@ -430,7 +444,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
 			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithSchema(schemafx.Module())),
 		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
@@ -517,7 +531,12 @@ func getSharedFxOption() fx.Option {
 		fx.Invoke(func(wmeta workloadmeta.Component, tagger tagger.Component, filterStore workloadfilter.Component) {
 			proccontainers.InitSharedContainerProvider(wmeta, tagger, filterStore)
 		}),
+		// Register GPU readiness before lifecycle hooks start the health probe server.
+		// OneShot resolves the run arguments during Fx construction.
+		fx.Provide(newGPUReadiness),
 		logs.Bundle(),
+		// Intake routing serves every telemetry type, so it is not part of the logs bundle.
+		intakeroutingfx.Module(),
 		observerfx.Module(),
 		logssourcefx.Module(),
 		recorderfx.Module(),
@@ -543,7 +562,7 @@ func getSharedFxOption() fx.Option {
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
 		networkconfigmanagementfx.Module(),
-		networkdevicesfx.Module(),
+		ndmConnectivityCheckModule(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
@@ -599,7 +618,6 @@ func getSharedFxOption() fx.Option {
 		configstreamfx.Module(),
 		logondurationfx.Module(),
 		healthplatform.Bundle(healthplatform.WithRemoteIssueRestoration()),
-		tracetelemetryfx.Module(),
 		dataplanepreflightmodefx.Module(),
 	)
 }
@@ -631,6 +649,7 @@ func startAgent(
 	traceroute traceroute.Component,
 	healthplatformComp healthplatformdef.Component,
 	ncmComp option.Option[networkconfigmanagement.Component],
+	gpuReadiness *gpu.Readiness,
 ) error {
 	var err error
 
@@ -716,7 +735,7 @@ func startAgent(
 	jmxfetch.RegisterWith(ac)
 
 	// Set up check collector
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp)
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, cfg, tlm, rcclient, flare, snmpScanManager, traceroute, ncmComp, gpuReadiness)
 	checkScheduler := pkgcollector.InitCheckScheduler(option.New(collectorComponent), demultiplexer, logReceiver, tagger, filterStore)
 	checkScheduler.SetMetricLookbackShadowSenderManager(metricLookback.NewSenderManager(ctx, hostnameDetected))
 	ac.AddScheduler("check", checkScheduler, true)

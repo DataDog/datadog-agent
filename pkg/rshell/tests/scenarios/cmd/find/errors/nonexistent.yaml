@@ -1,0 +1,13 @@
+description: find reports error for nonexistent starting path.
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find nonexistent
+expect:
+  stderr_contains: ["find:"]
+  exit_code: 1

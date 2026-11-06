@@ -29,8 +29,6 @@ go_library(
         "//pkg/proto/pbgo/core",
         "//pkg/util/log",
         "//pkg/zstd",
-        "@com_github_h2non_filetype//:filetype",
-        "@com_github_h2non_filetype//matchers",
         "@com_github_spf13_afero//:afero",
         "@org_golang_google_protobuf//proto",
     ] + select({

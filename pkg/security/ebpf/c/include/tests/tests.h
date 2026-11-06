@@ -2,8 +2,11 @@
 #define _TESTS_H
 
 #include "discarders_test.h"
+#include "file_capabilities_test.h"
 #include "workload_profile_ratelimiter_test.h"
 #include "raw_packet_test.h"
 #include "path_id_test.h"
+#include "syscall_usage_test.h"
+#include "approvers_test.h"
 
 #endif

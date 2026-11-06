@@ -51,11 +51,8 @@ func (p *EBPFResolver) resolveGoLabels(pid uint32) error {
 	defer elfFile.Close()
 
 	// Detect the Go version from the binary. This reads .go.buildinfo, which
-	// survives `-ldflags=-s -w`.
-	goVersion, err := elfFile.GoVersion()
-	if err != nil {
-		return fmt.Errorf("%w: failed to read Go build info: %w", errSpanCtxMalformed, err)
-	}
+	// survives `-ldflags=-s -w`. A malformed .go.buildinfo also yields "".
+	goVersion := elfFile.GoVersion()
 	if goVersion == "" {
 		return fmt.Errorf("%w: not a Go binary", errSpanCtxGone)
 	}

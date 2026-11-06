@@ -4,10 +4,14 @@ import io
 import json
 import os
 import shlex
+import sys
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
+
+from invoke import Context
 
 from tasks.libs.code_review.prompt import (
     CodeReviewError,
@@ -403,6 +407,41 @@ class TestCodeReviewProviders(unittest.TestCase):
         self.assertEqual(ctx.commands[0][0], "codex exec --sandbox read-only -")
         self.assertEqual(ctx.commands[0][1]["encoding"], "utf-8")
         self.assertEqual(ctx.commands[0][1]["in_stream"].read(), "review prompt")
+
+    def test_run_provider_delivers_large_stdin_promptly(self):
+        # Invoke forwards a plain StringIO one character per 10ms poll, so a prompt this size used to take
+        # minutes to reach the provider. Read it to EOF through a real Invoke runner, bounded by a timeout.
+        prompt = "review prompt ✅\n" * 16384
+        read_stdin = "import sys; data = sys.stdin.buffer.read(); print(len(data))"
+
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch("sys.stdout", new_callable=io.StringIO),
+            patch("sys.stderr", new_callable=io.StringIO),
+        ):
+            output_path = Path(tmp) / "codex.md"
+            # Invoke's own timeout kills the child but keeps feeding stdin, so bound the call with a thread.
+            provider = threading.Thread(
+                target=run_provider,
+                args=(
+                    Context(),
+                    ProviderInvocation(
+                        provider="codex",
+                        executable=sys.executable,
+                        args=(sys.executable, "-c", read_stdin),
+                        stdin=prompt,
+                        output_path=output_path,
+                    ),
+                ),
+                # A stuck thread holds its working directory, so do not point it at the temporary one.
+                kwargs={"cwd": Path.cwd()},
+                daemon=True,
+            )
+            provider.start()
+            provider.join(timeout=60)
+
+            self.assertFalse(provider.is_alive(), "provider did not receive stdin EOF within 60s")
+            self.assertEqual(output_path.read_text(encoding="utf-8").strip(), str(len(prompt.encode("utf-8"))))
 
     def test_run_provider_echoes_output_the_console_cannot_encode(self):
         ctx = FakeNonAsciiContext()

@@ -23,6 +23,8 @@
 #include "protocols/classification/protocol-classification.h"
 #include "protocols/tls/tls-certs.h"
 
+#define TCP_SKB_CB(__skb)	((struct tcp_skb_cb *)&((__skb)->cb[0]))
+
 BPF_PERCPU_HASH_MAP(udp_send_skb_args, u64, conn_tuple_t, 1024)
 
 static __always_inline int read_conn_tuple_partial_from_flowi4(conn_tuple_t *t, struct flowi4 *fl4, u64 pid_tgid, metadata_mask_t type) {
@@ -429,42 +431,15 @@ int BPF_PROG(skb_consume_udp, struct sock *sk, struct sk_buff *skb, int len) {
     return handle_skb_consume_udp(sk, skb, len);
 }
 
-SEC("fentry/tcp_retransmit_skb")
-int BPF_PROG(tcp_retransmit_skb, struct sock *sk, struct sk_buff *skb, int segs, int err) {
-    log_debug("fexntry/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    tcp_retransmit_skb_args_t args = {};
-    args.retrans_out_pre = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    if (args.retrans_out_pre < 0) {
-        return 0;
-    }
-
-    bpf_map_update_with_telemetry(pending_tcp_retransmit_skb, &pid_tgid, &args, BPF_ANY);
-
-    return 0;
-}
-
 SEC("fexit/tcp_retransmit_skb")
 int BPF_PROG(tcp_retransmit_skb_exit, struct sock *sk, struct sk_buff *skb, int segs, int err) {
     log_debug("fexit/tcp_retransmit");
-    u64 pid_tgid = bpf_get_current_pid_tgid();
-    if (err < 0) {
-        bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-        return 0;
-    }
-    tcp_retransmit_skb_args_t *args = bpf_map_lookup_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-    if (args == NULL) {
-        return 0;
-    }
-    u32 retrans_out_pre = args->retrans_out_pre;
-    u32 retrans_out = BPF_CORE_READ(tcp_sk(sk), retrans_out);
-    bpf_map_delete_elem(&pending_tcp_retransmit_skb, &pid_tgid);
-
-    if (retrans_out < 0) {
+    if (err != 0) {
         return 0;
     }
 
-    return handle_retransmit(sk, retrans_out-retrans_out_pre);
+    u16 skb_pcount = TCP_SKB_CB(skb)->tcp_gso_segs;
+    return handle_retransmit(sk, skb_pcount);
 }
 
 SEC("fentry/tcp_connect")
@@ -688,7 +663,7 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -697,12 +672,10 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
     }
 
     conn_tuple_t sock_tup;
-    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
-    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    // netns and pid stay zero: the map is keyed without them.
+    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
-    sock_tup.netns = 0;
-    sock_tup.pid = 0;
 
     if (!is_equal(&skb_tup, &sock_tup)) {
         normalize_tuple(&skb_tup);

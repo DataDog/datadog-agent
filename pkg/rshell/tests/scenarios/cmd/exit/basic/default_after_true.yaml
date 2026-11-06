@@ -1,0 +1,9 @@
+description: Exit with no args after true uses the success exit status.
+input:
+  script: |+
+    true
+    exit
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

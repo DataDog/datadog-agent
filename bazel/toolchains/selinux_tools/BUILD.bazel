@@ -1,7 +1,26 @@
-"""toolchain to wrap the SELinux userspace policy tools.
+"""Hermetic checkmodule and semodule_package.
 
-Type: @selinux_tools//:selinux_tools_toolchain_type
+Type: @@//bazel/toolchains/selinux_tools:selinux_tools_toolchain_type
 
-Toolchains:
-- @selinux_tools//:selinux_tools_toolchain: provides checkmodule and semodule_package.
+The binaries are @checkpolicy//:checkmodule and @semodule_utils//:semodule_package.
 """
+
+load(":selinux_tools.bzl", "selinux_tools_toolchain")
+
+toolchain_type(
+    name = "selinux_tools_toolchain_type",
+    visibility = ["//visibility:public"],
+)
+
+selinux_tools_toolchain(
+    name = "built",
+    checkmodule = "@checkpolicy//:checkmodule",
+    semodule_package = "@semodule_utils//:semodule_package",
+)
+
+toolchain(
+    name = "selinux_tools_toolchain",
+    exec_compatible_with = ["@platforms//os:linux"],
+    toolchain = ":built",
+    toolchain_type = ":selinux_tools_toolchain_type",
+)

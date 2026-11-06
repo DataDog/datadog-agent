@@ -44,6 +44,7 @@ go_library(
         "//pkg/aggregator",
         "//pkg/aggregator/sender",
         "//pkg/collector/check/stats",
+        "//pkg/config/utils",
         "//pkg/logs/message",
         "//pkg/metrics",
         "//pkg/metrics/event",
