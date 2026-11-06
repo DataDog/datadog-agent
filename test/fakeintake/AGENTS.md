@@ -38,8 +38,9 @@ Start with an empty cursor, then use `next_cursor`, including after
 `has_more=false`, to poll for new records. Each call observes its own high-water
 mark, with no cross-page snapshot or retention pin. Flush, restart or retention
 can expire a cursor (HTTP 410); consumers must fail an incomplete export rather
-than silently restart and duplicate or skip evidence. Invalid cursors, routes
-or limits return HTTP 400. An empty route history is a successful empty page.
+than silently restart and duplicate or skip evidence. Malformed or route-mismatched
+cursors, missing endpoints and invalid limits return HTTP 400. An empty route
+history is a successful empty page.
 
 The limit bounds record count, not bytes: each original body remains complete.
 Raw bodies, encodings and request metadata match `GetRawPayloads`; existing
