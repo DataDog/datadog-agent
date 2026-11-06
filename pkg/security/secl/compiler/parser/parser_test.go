@@ -156,6 +156,54 @@ func TestName(t *testing.T) {
 	root, err = ParseExpression(`%{process.ancestors[A].file.name}`)
 	require.NoError(t, err)
 	require.Equal(t, `process.ancestors[A].file.name`, ast.Sprint(root))
+
+	// whitespace is allowed in the braces, as in a name
+	root, err = ParseExpression(`%{ process . pid }`)
+	require.NoError(t, err)
+	require.Equal(t, `process.pid`, ast.Sprint(root))
+}
+
+func TestInterpolation(t *testing.T) {
+	root, err := ParseExpression(`"pid:%{process.pid}/${my_var}"`)
+	require.NoError(t, err)
+	at := func(offset int) ast.Meta { return ast.At(ast.Position{Offset: offset, Line: 1, Column: offset + 1}) }
+	require.Equal(t, &ast.Interpolation{Meta: at(0), Parts: []ast.Node{
+		&ast.Literal{Meta: at(1), Value: ast.MakeString("pid:")},
+		&ast.Selector{Meta: at(7), Base: &ast.Ident{Meta: at(7), Name: "process"}, Member: "pid"},
+		&ast.Literal{Meta: at(19), Value: ast.MakeString("/")},
+		&ast.VariableRef{Meta: at(20), Name: "my_var"},
+	}}, root)
+	require.Equal(t, `"pid:%{process.pid}/${my_var}"`, ast.Sprint(root))
+
+	for expr, expected := range map[string]string{
+		// whitespace is allowed in the braces, the text around is kept
+		`" a %{ process . pid } b "`: `" a %{process.pid} b "`,
+		// a field in a subscript
+		`"%{process.argv[%{i}]}"`: `"%{process.argv[i]}"`,
+		// the scanner is back out of the string after it
+		`"%{process.pid}" == "a" && open.flags == 1`: `(&& (== "%{process.pid}" "a") (== open.flags 1))`,
+		// an escaped backslash is text, the `${` after it opens a variable
+		`"\\${a}"`: `"\\${a}"`,
+	} {
+		root, err := ParseExpression(expr)
+		require.NoError(t, err, expr)
+		require.Equal(t, expected, ast.Sprint(root), expr)
+	}
+
+	// an escaped `$` is text: a string with no interpolation once looked into
+	// is a literal
+	root, err = ParseExpression(`"\${a}"`)
+	require.NoError(t, err)
+	require.Equal(t, ast.MakeString(`\${a}`), root.(*ast.Literal).Value)
+
+	// the strings of an array are never looked into
+	root, err = ParseExpression(`["${IFS%??}", "%{a b}", "${x}"]`)
+	require.NoError(t, err)
+	members := root.(*ast.Array).Members
+	require.Len(t, members, 3)
+	require.Equal(t, ast.MakeString("${IFS%??}"), members[0].Value)
+	require.Equal(t, ast.MakeString("%{a b}"), members[1].Value)
+	require.Equal(t, ast.MakeString("${x}"), members[2].Value)
 }
 
 func TestIntAnd(t *testing.T) {
@@ -549,6 +597,31 @@ func TestSyntaxErrors(t *testing.T) {
 			expected: "1:11: expected name after `.`, found `.`\n" +
 				"%{process..pid} == 1\n" +
 				"          ^",
+		},
+		{
+			// an interpolation is parsed with the positions of its parts
+			expr: `"a%{process..pid}" == 1`,
+			expected: "1:13: expected name after `.`, found `.`\n" +
+				"\"a%{process..pid}\" == 1\n" +
+				"            ^",
+		},
+		{
+			expr: `"a%{process.pid" == "b"`,
+			expected: "1:16: expected `}`, found `\"`, to close the `%{` at 1:3\n" +
+				"\"a%{process.pid\" == \"b\"\n" +
+				"               ^",
+		},
+		{
+			expr: `"a%{}" == "b"`,
+			expected: "1:5: expected field name after `%{`, found `}`\n" +
+				"\"a%{}\" == \"b\"\n" +
+				"    ^",
+		},
+		{
+			expr: `%{process.pid == 1`,
+			expected: "1:15: expected `}`, found `==`, to close the `%{` at 1:1\n" +
+				"%{process.pid == 1\n" +
+				"              ^^",
 		},
 		{
 			expr: `process. == 1`,

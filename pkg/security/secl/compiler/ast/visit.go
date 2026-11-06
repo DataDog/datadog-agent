@@ -179,6 +179,18 @@ func (n *Array) doChildren(do func(Node) bool) bool {
 	return false
 }
 
+// The copy of an interpolation owns its slice of parts.
+
+func (n *Interpolation) copy() Node { c := *n; c.Parts = slices.Clone(n.Parts); return &c }
+func (n *Interpolation) editChildren(edit func(Node) Node) {
+	for i, part := range n.Parts {
+		n.Parts[i] = edit(part)
+	}
+}
+func (n *Interpolation) doChildren(do func(Node) bool) bool {
+	return slices.ContainsFunc(n.Parts, do)
+}
+
 func (n *IdentArray) copy() Node                      { c := *n; c.Names = slices.Clone(n.Names); return &c }
 func (n *IdentArray) editChildren(func(Node) Node)    {}
 func (n *IdentArray) doChildren(func(Node) bool) bool { return false }

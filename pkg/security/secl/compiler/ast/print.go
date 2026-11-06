@@ -56,6 +56,8 @@ func (p printer) sprint(node Node) {
 		sb.WriteString("${")
 		sb.WriteString(node.Name)
 		sb.WriteString("}")
+	case *Interpolation:
+		p.sprintInterpolation(node)
 	case *Selector:
 		p.sprint(node.Base)
 		sb.WriteString(".")
@@ -80,6 +82,28 @@ func (p printer) sprint(node Node) {
 	default:
 		fmt.Fprintf(sb, "<%T>", node)
 	}
+}
+
+// sprintInterpolation prints a string with interpolations the way it is
+// written, a field in its `%{}`: `"pid:%{process.pid}"`.
+func (p printer) sprintInterpolation(node *Interpolation) {
+	sb := p.sb
+	sb.WriteString(`"`)
+	for _, part := range node.Parts {
+		if text, ok := part.(*Literal); ok && text.Value.Kind() == String {
+			sb.WriteString(StringVal(text.Value))
+			continue
+		}
+		if _, ok := part.(*VariableRef); ok {
+			p.sprint(part)
+			continue
+		}
+		// a name, or the constant it was resolved to
+		sb.WriteString("%{")
+		p.sprint(part)
+		sb.WriteString("}")
+	}
+	sb.WriteString(`"`)
 }
 
 // sprintFieldRef prints a field reference the way it is written:

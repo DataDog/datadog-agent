@@ -8,6 +8,8 @@ package eval
 
 import (
 	"reflect"
+	"strconv"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/pass"
@@ -145,7 +147,10 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 		return indexToEvaluator(node, opts, state)
 
 	case *ast.Literal:
-		return literalToEvaluator(node, opts, state)
+		return literalToEvaluator(node)
+
+	case *ast.Interpolation:
+		return interpolationToEvaluator(node, opts, state)
 
 	case *ast.VariableRef:
 		return evaluatorFromVariable(node.Name, node.Pos, opts, state)
@@ -188,8 +193,79 @@ func indexToEvaluator(node *ast.Index, opts *Opts, state *State) (interface{}, a
 	return evaluator, node.Pos, nil
 }
 
+// interpolationToEvaluator compiles a string with interpolations: its parts
+// are compiled, each converted to a string, and concatenated at evaluation.
+func interpolationToEvaluator(node *ast.Interpolation, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	parts, weight := make([]*StringEvaluator, 0, len(node.Parts)), 0
+	for _, part := range node.Parts {
+		evaluator, pos, err := compileNode(part, opts, state)
+		if err != nil {
+			return nil, pos, err
+		}
+		str, ok := toStringEvaluator(evaluator)
+		if !ok {
+			if variable, ok := part.(*ast.VariableRef); ok {
+				return nil, pos, NewError(pos, "variable type not supported '%s'", variable.Name)
+			}
+			return nil, pos, NewError(pos, "field type not supported '%s'", ast.Sprint(part))
+		}
+		if field, ok := evaluator.(Evaluator); ok && field.GetField() != "" {
+			state.fieldValues[field.GetField()] = append(state.fieldValues[field.GetField()], FieldValue{Type: VariableValueType})
+		}
+		parts, weight = append(parts, str), weight+str.Weight
+	}
+
+	return &StringEvaluator{
+		ValueType: VariableValueType,
+		Weight:    weight,
+		EvalFnc: func(ctx *Context) string {
+			var builder strings.Builder
+			for _, part := range parts {
+				if part.EvalFnc != nil {
+					builder.WriteString(part.EvalFnc(ctx))
+				} else {
+					builder.WriteString(part.Value)
+				}
+			}
+			return builder.String()
+		},
+	}, node.Pos, nil
+}
+
+// toStringEvaluator converts an evaluator to one of its value as a string, an
+// array being joined by commas. It reports false for a type that has none.
+func toStringEvaluator(evaluator interface{}) (*StringEvaluator, bool) {
+	switch evaluator := evaluator.(type) {
+	case *StringEvaluator:
+		return evaluator, true
+	case *IntEvaluator:
+		if evaluator.EvalFnc == nil {
+			return &StringEvaluator{Value: strconv.Itoa(evaluator.Value)}, true
+		}
+		return &StringEvaluator{Weight: evaluator.Weight, EvalFnc: func(ctx *Context) string {
+			return strconv.Itoa(evaluator.EvalFnc(ctx))
+		}}, true
+	case *StringArrayEvaluator:
+		return &StringEvaluator{Weight: evaluator.Weight, EvalFnc: func(ctx *Context) string {
+			return strings.Join(evaluator.EvalFnc(ctx), ",")
+		}}, true
+	case *IntArrayEvaluator:
+		return &StringEvaluator{Weight: evaluator.Weight, EvalFnc: func(ctx *Context) string {
+			var builder strings.Builder
+			for i, number := range evaluator.EvalFnc(ctx) {
+				if i != 0 {
+					builder.WriteString(",")
+				}
+				builder.WriteString(strconv.Itoa(number))
+			}
+			return builder.String()
+		}}, true
+	}
+	return nil, false
+}
+
 // literalToEvaluator compiles a literal.
-func literalToEvaluator(node *ast.Literal, opts *Opts, state *State) (interface{}, ast.Position, error) {
+func literalToEvaluator(node *ast.Literal) (interface{}, ast.Position, error) {
 	switch node.Value.Kind() {
 	case ast.Bool:
 		return &BoolEvaluator{
@@ -210,17 +286,8 @@ func literalToEvaluator(node *ast.Literal, opts *Opts, state *State) (interface{
 		}, node.Pos, nil
 
 	case ast.String:
-		str := ast.StringVal(node.Value)
-
-		// contains variables or field references
-		hasVariables := len(variableRegex.FindAllIndex([]byte(str), -1)) > 0
-		hasFieldReferences := len(fieldReferenceRegex.FindAllIndex([]byte(str), -1)) > 0
-		if hasVariables || hasFieldReferences {
-			return stringEvaluatorFromVariable(str, node.Pos, opts, state)
-		}
-
 		return &StringEvaluator{
-			Value:     str,
+			Value:     ast.StringVal(node.Value),
 			ValueType: ScalarValueType,
 			Offset:    node.Pos.Offset,
 		}, node.Pos, nil

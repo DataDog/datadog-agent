@@ -13,6 +13,16 @@ type Literal struct {
 	Value Value
 }
 
+// Interpolation is a string with values interpolated in it:
+// `"pid:%{process.pid}"`, `"${my_var}/x"`.
+type Interpolation struct {
+	Meta
+
+	// Parts are the parts of the string, in order: a string Literal for its
+	// text, a VariableRef for a `${my_var}`, a name for a `%{process.pid}`.
+	Parts []Node
+}
+
 // Array is an array literal: `[1, 2]`, `["/etc/passwd", ~"/etc/*"]`,
 // `[127.0.0.1, 192.168.0.0/24]`.
 //
