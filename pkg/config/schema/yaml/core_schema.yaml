@@ -6733,9 +6733,10 @@ properties:
                     description: |-
                       Relocated Agent OTLP/gRPC listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
                       The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
-                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback address or, for Unix transports,
+                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address or, for Unix transports,
                       a socket path. Any local process that can reach this endpoint can send OTLP data without TLS client authentication.
-                      For Unix transports, explicitly set this to a socket path instead of using the TCP default.
+                      When the gRPC receiver uses a Unix transport, this must be explicitly set to a socket path: leaving the TCP default
+                      is a configuration error and the Agent's OTLP ingest does not start.
                       Ignored if the gRPC receiver is not enabled. Temporary and development-only; will be removed in the future.
                   agent_receiver_http_endpoint:
                     node_type: setting
@@ -6744,7 +6745,7 @@ properties:
                     description: |-
                       Relocated Agent OTLP/HTTP listener endpoint when data_plane.enabled and data_plane.otlp.enabled are true.
                       The relocated listener never uses TLS: the data plane terminates TLS on the endpoint configured in
-                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback address. Any local process that
+                      otlp_config.receiver. When receiver TLS is configured, this must be a loopback IP address. Any local process that
                       can reach this endpoint can send OTLP data without TLS client authentication.
                       Ignored if the HTTP receiver is not enabled. Temporary and development-only; will be removed in the future.
                   logs:
