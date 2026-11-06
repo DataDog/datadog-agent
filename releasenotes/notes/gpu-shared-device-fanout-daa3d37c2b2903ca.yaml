@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    Device-level GPU metrics on a GPU shared by several workloads
+    (time-slicing, MPS, KAI fractions) are now emitted once per workload
+    on the device, so each series is attributable to one workload, instead
+    of once with all the workloads' tags, which serialized each tag into a
+    single comma-joined value no tag filter could match. The value is the
+    same on every series: the device is a whole. Aggregations that average
+    device metrics per host now weight a shared GPU by its number of
+    co-tenants; aggregate per ``gpu_uuid`` for the per-device value.
