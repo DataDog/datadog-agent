@@ -38,7 +38,7 @@ The nodes of the six pools are EC2 instances of the same type, `m6i.large`, with
 
 An installation's node Agent runs on every node of the installation, but only those of the node-agent pool are measured. On the two other pools, it collects the container metrics of the Cluster Agent and of the cluster checks runner, which the benchmark compares, and forwards their profiles.
 
-The Cluster Agent and the cluster checks runner have a node each, where they share the CPU with nothing measured. Their resource limits are raised well above the defaults of the E2E framework, so that CPU throttling and OOM kills stay out of the results.
+The Cluster Agent and the cluster checks runner have a node each, shared only with the node Agent of their installation and the network DaemonSets of EKS. The CPU limit of the Cluster Agent is the 2 vCPUs of its `m6i.large` node, and that of the cluster checks runner far higher, so that the kernel never throttles them, and their memory limits leave room for a leak to grow for a while. An OOM kill would still restart them, which [fails the test](#the-guards).
 
 CoreDNS, the KWOK controller and the churn orchestrator, which generates the workload, run on Fargate, away from the measured nodes: the Fargate profile of the cluster matches the `kube-system` namespace and the `agent.datadoghq.com/sidecar: fargate` label of the churn orchestrator.
 
@@ -56,7 +56,7 @@ See <<<repo("test/e2e-framework/scenarios/aws/benchmarkeks/run.go")>>>.
 
 The CPU usage of the Agents is what the benchmark compares, so the CPU performance of a node must not depend on its past. It does on burstable instances, such as the T family: they earn CPU credits when idle and spend them to run above their baseline performance, so their performance at a given time depends on the credits they have left. The node pools use `m6i.large`, a general-purpose type with a constant CPU performance.
 
-The `ddinfra:aws/defaultInstanceType` parameter can change the instance type. Nothing checks that the new one isn't burstable.
+The `ddinfra:aws/defaultInstanceType` parameter can change the instance type. Nothing checks that the new one isn't burstable, nor that the CPU limit of the Cluster Agent still covers the vCPUs of its node.
 
 ## The workload
 
@@ -149,7 +149,7 @@ With the default durations, the test lasts about 75 minutes once the Agents are 
 
 All the nodes have the same instance type, but not the same machine: for the same work, a node can use up to 20% more CPU time than another one. If the baseline always ran on the node pools of installation a, and the comparison on those of installation b, the difference between these machines would show up as a difference between the versions.
 
-So each version runs one phase on the node pools of each installation, and the machine difference cancels out between the phases. For instance, in a run comparing the Agent 7.84.0 with itself, the Cluster Agent of the comparison used 6.7% less CPU than that of the baseline in the first phase, on the node of installation b, then 8.6% more in the second phase, on the node of installation a: the node of installation b was simply faster. Over both phases, the change was under 1%. [How the test decides](statistics.md#cancelling-out-the-machines) shows how the two phases are combined.
+So each version runs one phase on the node pools of each installation, and the machine difference cancels out between the phases: [How the test decides](statistics.md#cancelling-out-the-machines) shows how.
 
 Running both versions at the same time, rather than one after the other on the same nodes, also gives them the same workload, the same API server and the same conditions on AWS. Whatever happens in the cluster at a given time happens to both.
 
@@ -175,7 +175,7 @@ Each query returns a point per minute, the average of the containers it selects:
 
 The node Agents of each installation collect these metrics, so a version that changed how they are computed would bias the comparison of all the components alike.
 
-The other containers of the Agent pods, such as `process-agent` and `trace-agent`, aren't compared.
+The other containers of the node Agent pods, such as `trace-agent` and `system-probe`, aren't compared, because the workload barely exercises them: no application sends traces, for instance, so `trace-agent` only forwards the profiles of the Agents. On Linux, the process checks run in the `agent` container, which is compared.
 
 ### Check run times
 

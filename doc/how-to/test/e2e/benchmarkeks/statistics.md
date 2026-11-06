@@ -10,11 +10,11 @@ The code is in <<<repo("test/new-e2e/tests/containers/benchmark/compare.go")>>> 
 
 ## Blocks
 
-The CPU and memory metrics have a point per minute. Each phase of 20 minutes is cut into 4 blocks of 5 minutes, and the test computes the mean of each version in each block: `bₖ` for the baseline, `cₖ` for the comparison. The run times of the checks are measured per block directly.
+To tell a real change from noise, the test needs several roughly independent measurements of the difference between the versions. The points of the metrics don't qualify: there is one per minute, and the memory usage of a minute is nearly that of the minute before. So the test cuts each phase of 20 minutes into 4 blocks of 5 minutes, and computes the mean of each version over each block: `bₖ` for the baseline, `cₖ` for the comparison. The means of two blocks depend much less on one another than two consecutive points, and both means of a block are measured at the same time, with the same workload.
 
-The test works on the means of the blocks rather than on the points, because consecutive points aren't independent: the memory usage of a minute is nearly that of the minute before. A statistical test that took 20 such points as 20 independent measures would be far too confident. The means of blocks of 5 minutes depend much less on one another.
+Longer blocks would depend even less on one another, but there would be fewer of them to estimate the noise from: blocks of 5 minutes leave 4 per phase, one more than the minimum of 3. A shorter phase gets shorter blocks, down to 1 minute, so that it still holds at least 3.
 
-Both versions are measured in the same block, at the same time, with the same workload: the test compares them block by block. A phase must hold at least 3 blocks, and every block must hold data of both versions.
+The run times of the checks are measured per block directly: see [Check run times](how-it-works.md#check-run-times).
 
 ## Cancelling out the machines
 
@@ -50,7 +50,7 @@ If both versions cost the same, `e` would only differ from 0 by noise. The test 
 ```text
  SE(e) = ½ √(s₁²/n₁ + s₂²/n₂)
 
-         e            m₁ + m₂
+        e              m₁ + m₂
  t = ───────  =  ────────────────────
       SE(e)       √(s₁²/n₁ + s₂²/n₂)
 ```
@@ -110,7 +110,7 @@ Before the benchmark was merged, it ran on pairs of releases whose differences w
 
 | Baseline → comparison | Expected | Result |
 |---|---|---|
-| 7.84.0 → 7.84.0, A/A | No change | All unchanged, the largest change being 1.9% |
+| 7.84.0 → 7.84.0, A/A | No change | All unchanged |
 | 7.77.3 → 7.78.0, fix of a leak of the KSM check ([#48680](https://github.com/DataDog/datadog-agent/pull/48680)) | Lower memory of the cluster checks runner | Improvement: memory −28%, CPU −11% |
 | 7.78.0 → 7.77.3, the same reversed | A regression | Regression, the test failed: memory +38%, CPU +12% |
 | 7.73.3 → 7.78.0, several optimizations of the Cluster Agent and of the KSM check | Lower CPU usage of the Cluster Agent and of the cluster checks runner | Improvements: Cluster Agent CPU −35%, cluster checks runner CPU −24%, KSM check run time −16%. But a regression failed the test: node Agent memory +6.6%, a growth accumulated over 5 minor versions |
@@ -121,6 +121,6 @@ These runs compared the memory through `container.memory.usage`, which the bench
 
 ## Limits
 
-- **Some noise escapes the p-value.** The p-value only accounts for the noise from one block to the next. Some differences last as long as an Agent process, and are drawn anew at each start: for instance, the run time of the `kubelet` check varies from one Agent pod to another. In an A/A run, it differed by 13.4% with a p-value of 0.001: significant, but below its threshold of 20%. The thresholds guard against such differences, which is why they are calibrated with A/A runs.
+- **Some noise escapes the p-value.** The p-value only accounts for the noise from one block to the next. Some differences last as long as an Agent process, and are drawn anew at each start: for instance, the run time of the `kubelet` check varies from one Agent pod to another. In the A/A run of [the example report](index.md#read-the-result), it differed by 13.4% with a p-value of 0.001: significant, but below its threshold of 20%. The thresholds guard against such differences, which is why they are calibrated with A/A runs.
 - **Small changes pass.** A change below the thresholds is unchanged, however real: the benchmark catches large regressions, not slow drifts. Small regressions can add up over several versions, one at a time, as the memory of the node Agent did from 7.73.3 to 7.78.0.
 - **Compare versions within a run, not results across runs.** The node images of EKS and the version of KWOK aren't pinned, so two runs don't run on exactly the same system. Each run compares its two versions on the same system.

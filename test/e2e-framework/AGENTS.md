@@ -358,3 +358,7 @@ This file is part of the `AGENTS.md` hierarchy (see root `AGENTS.md` §
 "Keeping AI context accurate"). Update it when environments, provisioners,
 agentparams, or key APIs change. AI agents should fix inaccuracies they
 encounter during tasks.
+
+The developer docs in `doc/how-to/test/e2e/`, the `benchmarkeks` scenario
+included, and `doc/how-to/test/manual-qa/` also describe this framework: update
+them in the same PR when a change alters what they describe.

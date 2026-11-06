@@ -1,2 +1,2 @@
 *[DSD]: DogStatsD
-*[KSM]: kube-state-metrics, run by the kubernetes_state_core check
+*[KSM]: kube-state-metrics

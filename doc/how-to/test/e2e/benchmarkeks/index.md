@@ -63,15 +63,25 @@ The job `new-e2e-containers-benchmarkeks` prints the report at the end of its lo
 - `report.json`, whenever the measurement completes, with every number of the comparison, including the means and the log ratio of each phase;
 - `report.md`, only when a metric improved, regressed or couldn't be compared, ready to be pasted in a pull request.
 
-The report gives the times of both phases, then a table like this one, its numbers made up:
+The report gives the times of both phases, then a table like this one, from a CI run comparing two builds of the same Agent code:
 
 | Component | Metric | Baseline | Comparison | Change | p-value | Verdict |
 |---|---|--:|--:|--:|--:|---|
-| Node Agent | `container.cpu.usage` | 100.0 millicores | 112.5 millicores | +12.5% (+12.5 millicores) | < 0.001 | **regression** |
-| Cluster Agent | `container.memory.working_set` | 180.0 MiB | 181.2 MiB | +0.7% (+1.2 MiB) | 0.640 | unchanged |
-| Node Agent | `kubelet` check run time | 40.0 ms | 38.0 ms | -5.0% (-2.0 ms) | 0.200 | unchanged |
+| Node Agent | `container.cpu.usage` | 82.9 millicores | 81.9 millicores | -1.2% (-1.0 millicores) | 0.173 | unchanged |
+| Node Agent | `container.memory.working_set` | 192.4 MiB | 185.1 MiB | -3.8% (-7.3 MiB) | 0.002 | unchanged |
+| Node Agent | `container.memory.rss` | 187.1 MiB | 179.7 MiB | -3.9% (-7.3 MiB) | 0.002 | unchanged |
+| Cluster Agent | `container.cpu.usage` | 79.8 millicores | 79.7 millicores | -0.2% (-0.0 millicores) | 0.736 | unchanged |
+| Cluster Agent | `container.memory.working_set` | 257.4 MiB | 266.9 MiB | +3.7% (+9.5 MiB) | 0.011 | unchanged |
+| Cluster Agent | `container.memory.rss` | 255.1 MiB | 264.7 MiB | +3.8% (+9.5 MiB) | 0.011 | unchanged |
+| Cluster checks runner | `container.cpu.usage` | 275.1 millicores | 274.2 millicores | -0.3% (-0.9 millicores) | 0.475 | unchanged |
+| Cluster checks runner | `container.memory.working_set` | 746.5 MiB | 745.0 MiB | -0.2% (-1.5 MiB) | 0.685 | unchanged |
+| Cluster checks runner | `container.memory.rss` | 740.9 MiB | 739.3 MiB | -0.2% (-1.6 MiB) | 0.675 | unchanged |
+| Node Agent | `kubelet` check run time | 352.1 ms | 304.8 ms | -13.4% (-47.4 ms) | 0.001 | unchanged |
+| Cluster checks runner | `kubernetes_state_core` check run time | 1555.5 ms | 1542.1 ms | -0.9% (-13.4 ms) | 0.151 | unchanged |
 
 **Baseline** and **Comparison** are the averages of each version over both phases, and the value in parentheses in **Change** is their difference. The percentage comes from the ratios of both versions block by block, averaged over both phases, which [cancels out the machines](statistics.md#cancelling-out-the-machines): it can differ slightly from the ratio of the two columns. [How the test decides](statistics.md) explains the p-value and the verdict.
+
+In this run, three rows are significant, below 0.05 / 11 ≈ 0.0045, but below their thresholds: both memory metrics of the node Agents (−7.3 MiB, under 10 MiB) and the run time of the `kubelet` check (−13.4%, under 20%). Both builds run the same code: these are differences that [escape the p-value](statistics.md#limits), and that the thresholds absorb.
 
 The report then lists the images of both versions, and links to their profiles in dddev over the first phase: the Agents upload profiles throughout the run, which show where a regression comes from.
 
