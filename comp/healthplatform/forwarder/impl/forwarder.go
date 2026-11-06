@@ -19,6 +19,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	forwarderdef "github.com/DataDog/datadog-agent/comp/healthplatform/forwarder/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -30,6 +31,9 @@ const (
 	intakeEndpointPrefix = "https://agenthealth-intake."
 	intakeEndpointPath   = "/api/v2/agenthealth"
 	httpTimeout          = 30 * time.Second
+
+	// forwarderName tags this forwarder in the shared forwarder.http_errors metric.
+	forwarderName = "health_platform"
 )
 
 // forwarder is a stateless HTTP client. It has no ticker or provider — the
@@ -39,12 +43,25 @@ type forwarder struct {
 	intakeURL  string
 	httpClient *http.Client
 	log        log.Component
+	httpErrors telemetry.Counter
 }
 
 // Requires defines the dependencies for the forwarder.
 type Requires struct {
-	Log    log.Component
-	Config config.Component
+	Log       log.Component
+	Config    config.Component
+	Telemetry telemetry.Component
+}
+
+// newHTTPErrorsCounter registers the forwarder.http_errors counter. Its name and tags are meant to
+// be shared by every forwarder, so that agent telemetry can report HTTP errors across forwarders.
+func newHTTPErrorsCounter(tel telemetry.Component) telemetry.Counter {
+	return tel.NewCounter(
+		"forwarder",
+		"http_errors",
+		[]string{"forwarder", "code"},
+		"Number of HTTP error responses received from a Datadog intake, by forwarder and status class",
+	)
 }
 
 // NewComponent creates a forwarder. It never registers lifecycle hooks; there is nothing
@@ -55,6 +72,7 @@ func NewComponent(reqs Requires) forwarderdef.Component {
 		intakeURL:  buildIntakeURL(reqs.Config),
 		httpClient: buildHTTPClient(reqs.Config),
 		log:        reqs.Log,
+		httpErrors: newHTTPErrorsCounter(reqs.Telemetry),
 	}
 }
 
@@ -91,10 +109,25 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		if class := statusClass(resp.StatusCode); class != "" {
+			f.httpErrors.Inc(forwarderName, class)
+		}
 		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
 	return len(payload), nil
+}
+
+// statusClass returns the value of the `code` tag of forwarder.http_errors for an HTTP status code
+// ("4xx" or "5xx"), or "" when the status is not an HTTP error and must not be counted.
+func statusClass(statusCode int) string {
+	if statusCode >= 400 && statusCode < 500 {
+		return "4xx"
+	}
+	if statusCode >= 500 && statusCode < 600 {
+		return "5xx"
+	}
+	return ""
 }
 
 func buildIntakeURL(cfg pkgconfigmodel.Reader) string {
