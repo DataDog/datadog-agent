@@ -118,8 +118,8 @@ single_version_override(
     module_name = "llvm",
     patch_strip = 1,
     patches = [
-        # Static glibc archives for -static links; upstream proposal pending
-        "//bazel/patches:llvm/0001-glibc-static-library-search-directory.patch",
+        # Additional -L directory so -static links find real glibc archives; upstream proposal pending
+        "//bazel/patches:llvm/0001-glibc-additional-library-search-directory.patch",
     ],
     version = "0.8.26",
 )

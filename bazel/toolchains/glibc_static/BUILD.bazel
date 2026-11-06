@@ -23,7 +23,7 @@ copy_to_directory(
     srcs = [],
 )
 
-# Value of @llvm//runtimes/glibc:glibc_static_library_search_directory. Any other
+# Value of @llvm//runtimes/glibc:glibc_additional_library_search_directory. Any other
 # glibc version gets no archives, so its -static links keep failing loudly.
 alias(
     name = "glibc_static",

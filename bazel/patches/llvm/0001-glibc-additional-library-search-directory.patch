@@ -6,16 +6,16 @@ index 32c3228..323e7c0 100644
      visibility = ["//visibility:public"],
  )
  
-+# Static glibc archives (libc.a, libpthread.a, ...) matching the target glibc
-+# version. The stubs above are shared objects only, so -static links need this.
++# Additional -L directory, searched after the stubs. -static links skip the
++# stubs' shared objects and linker scripts and resolve archives from here.
 +label_flag(
-+    name = "glibc_static_library_search_directory",
-+    build_setting_default = ":empty_static_library_search_directory",
++    name = "glibc_additional_library_search_directory",
++    build_setting_default = ":empty_additional_library_search_directory",
 +    visibility = ["//visibility:public"],
 +)
 +
 +copy_to_directory(
-+    name = "empty_static_library_search_directory",
++    name = "empty_additional_library_search_directory",
 +    srcs = [],
 +)
 +
@@ -32,7 +32,7 @@ index b3f76a5..6aef3ca 100644
  
 +        # Searched after the stubs, so only -static links, which skip the
 +        # stubs' shared objects and linker scripts, resolve archives from it.
-+        "-L{libc_static_library_search_path}",
++        "-L{libc_additional_library_search_path}",
 +
          # In prevention of when all of those can be shared libraries.
          "-Wl,--push-state",
@@ -41,11 +41,11 @@ index b3f76a5..6aef3ca 100644
      ],
      data = [
          "//runtimes/glibc:glibc_library_search_directory",
-+        "//runtimes/glibc:glibc_static_library_search_directory",
++        "//runtimes/glibc:glibc_additional_library_search_directory",
      ],
      format = {
          "libc_library_search_path": "//runtimes/glibc:glibc_library_search_directory",
-+        "libc_static_library_search_path": "//runtimes/glibc:glibc_static_library_search_directory",
++        "libc_additional_library_search_path": "//runtimes/glibc:glibc_additional_library_search_directory",
      },
  )
  
