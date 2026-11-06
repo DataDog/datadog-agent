@@ -693,6 +693,13 @@ type Container struct {
 	// KAI Scheduler GPU fractions. A GPU without an entry is not shared that
 	// way.
 	GPUShares map[string]GPUShare `proto:"ignore"`
+	// GPUDeviceReplicas holds, keyed by the base device UUID, the shared
+	// NVIDIA device replicas (time-slicing or MPS) allocated to this
+	// container. A replica allocation is one of the replicas the NVIDIA
+	// device plugin registered of the base device; the container sees the
+	// whole device, and shares it with the holders of the other replicas.
+	// A container can hold several replicas of the same base device.
+	GPUDeviceReplicas map[string]GPUDeviceReplica `proto:"ignore"`
 	// CgroupPath is a path to the cgroup of the container.
 	// It can be relative to the cgroup parent.
 	// Linux only.
@@ -798,6 +805,9 @@ func (c Container) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "GPU Device IDs:", c.GPUDeviceIDs)
 		if len(c.GPUShares) > 0 {
 			_, _ = fmt.Fprintln(&sb, "GPU Shares:", c.GPUShares)
+		}
+		if len(c.GPUDeviceReplicas) > 0 {
+			_, _ = fmt.Fprintln(&sb, "GPU Device Replicas:", c.GPUDeviceReplicas)
 		}
 	}
 
@@ -2519,6 +2529,16 @@ const (
 	// GPUSharingModeKAIFraction means that KAI Scheduler shares the GPU
 	// between workloads that each request a fraction of it.
 	GPUSharingModeKAIFraction GPUSharingMode = "kai_fraction"
+	// GPUSharingModeTimeSlicing means that the NVIDIA device plugin shares the
+	// GPU between workloads as time-sliced replicas of it.
+	GPUSharingModeTimeSlicing GPUSharingMode = "time-slicing"
+	// GPUSharingModeMPS means that the NVIDIA device plugin shares the GPU
+	// between workloads as replicas served by Multi-Process Service.
+	GPUSharingModeMPS GPUSharingMode = "mps"
+	// GPUSharingModeUnknown means that the GPU is shared between workloads by
+	// a replication mechanism the node does not describe: a shared-replica
+	// allocation was detected, but the node carries no sharing-strategy label.
+	GPUSharingModeUnknown GPUSharingMode = "unknown"
 )
 
 // GPUShare is the share of a GPU assigned to a container that shares the GPU
@@ -2530,6 +2550,31 @@ type GPUShare struct {
 	// Memory is the GPU memory, in bytes, that the container is allowed to
 	// use, or 0 when the container shares the GPU but its memory is unknown.
 	Memory uint64
+}
+
+// GPUDeviceReplica describes the shared NVIDIA device replicas (time-slicing
+// or MPS) of one base device allocated to a container. The kubelet
+// PodResources API reports each replica allocation as a device ID with a
+// replica suffix, "<base-device-id>::<replica>"; a container can hold
+// several replicas of the same base device.
+type GPUDeviceReplica struct {
+	// Replicas is the number of replicas of the base device allocated to
+	// the container.
+	Replicas int
+	// Mode is the sharing mechanism of the base device, as detected on the
+	// node: time-slicing, mps, or unknown when the node does not describe
+	// its sharing strategy.
+	//
+	// Mode is denormalized here: it is the GPU entity's SharingMode, a
+	// node-level verdict rather than a per-workload one. Carrying it on the
+	// container's allocation is what lets the workloads' tags converge when
+	// the verdict changes (e.g. the sharing-strategy label becomes
+	// readable): the NVML collector republishes the container with the new
+	// mode, which changes its entity and re-tags it, and the pod with it. A
+	// tagger-side lookup of the GPU entity would instead leave workloads
+	// tagged before the change with their stale mode, as unchanged entities
+	// generate no new events.
+	Mode GPUSharingMode
 }
 
 // GPUDeviceType is an enum to identify the type of the GPU device.
@@ -2659,6 +2704,11 @@ type GPU struct {
 	// workloads. Empty when the collector does not detect sharing mechanisms,
 	// which means the same as GPUSharingModeNone.
 	SharingMode GPUSharingMode
+	// SharingReplicas is the number of device replicas the device plugin
+	// registered of this device when it is shared by replication (time-slicing
+	// or MPS), 0 when the device is not shared that way or the count is
+	// unknown.
+	SharingReplicas int
 }
 
 var _ Entity = &GPU{}

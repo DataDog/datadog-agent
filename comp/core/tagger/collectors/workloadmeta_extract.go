@@ -205,6 +205,9 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			switch entityID.Kind {
 			case workloadmeta.KindContainer:
 				tagInfos = append(tagInfos, c.handleContainer(ev)...)
+				// A container whose GPU allocation changed refreshes the tags of
+				// its pod, which do not change with it.
+				tagInfos = append(tagInfos, c.retagPodOfGPUContainer(ev.Entity)...)
 			case workloadmeta.KindKubernetesPod:
 				tagInfos = append(tagInfos, c.handleKubePod(ev)...)
 			case workloadmeta.KindECSTask:
@@ -333,6 +336,14 @@ func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.
 	for _, gpuVendor := range container.Resources.GPUVendorList {
 		tagList.AddLow(tags.KubeGPUVendor, gpuVendor)
 	}
+
+	// gpu tags from shared-device replica allocations (time-slicing, MPS).
+	// These make the sharing visible on the workloads' own series, next to
+	// the device-level tags ExtractGPUTags emits: which mechanism shares each
+	// GPU the workload holds a replica of, the index of that replica, and the
+	// UUID of the shared base device, so that workloads holding replicas of
+	// the same GPU can be grouped together.
+	addGPUSharingTags(tagList, container.GPUDeviceReplicas)
 
 	if c.promoteProcessTags {
 		c.addPromotedProcessTags(container.ID, tagList)
@@ -502,6 +513,33 @@ func (c *WorkloadMetaCollector) retagProcessContainer(entity workloadmeta.Entity
 		Type:       workloadmeta.EventTypeSet,
 		Entity:     container,
 		IsComplete: c.entityCompleteness[container.EntityID],
+	})
+}
+
+// retagPodOfGPUContainer re-tags the pod owning a container whose GPU
+// allocations changed. A pod's sharing tags come from its containers'
+// shared-GPU replicas, which the node-local NVML collector publishes after
+// the kubelet collector first tagged the pod; an unchanged pod generates no
+// further Set events, so without this the pod would keep the tags it had
+// before its container's GPU allocation was known.
+func (c *WorkloadMetaCollector) retagPodOfGPUContainer(entity workloadmeta.Entity) []*types.TagInfo {
+	container, ok := entity.(*workloadmeta.Container)
+	if !ok || len(container.GPUDeviceReplicas) == 0 {
+		return nil
+	}
+	if container.Owner == nil || container.Owner.Kind != workloadmeta.KindKubernetesPod {
+		return nil
+	}
+
+	pod, err := c.store.GetKubernetesPod(container.Owner.ID)
+	if err != nil {
+		return nil
+	}
+
+	return c.handleKubePod(workloadmeta.Event{
+		Type:       workloadmeta.EventTypeSet,
+		Entity:     pod,
+		IsComplete: c.entityCompleteness[pod.EntityID],
 	})
 }
 
@@ -781,9 +819,35 @@ func (c *WorkloadMetaCollector) handleKubePod(ev workloadmeta.Event) []*types.Ta
 	c.extractTagsFromPodKueueInfo(pod, tagList)
 	c.extractTagsFromPodKAIInfo(pod, tagList)
 
+	// All of the pod's containers, iterated twice below: first to accumulate
+	// their GPU sharing tags into the pod's tag list, then to emit one tag
+	// info per pod container with a copy of the completed list.
+	podContainers := pod.GetAllContainers()
+
+	// gpu tags from the shared-device replica allocations (time-slicing,
+	// MPS) of the pod's containers, so that kubernetes.* pod series carry
+	// them too. The allocation data is published node-locally by the NVML
+	// workloadmeta collector, so it reaches the pod through the container
+	// entities. A pod tagged before its container's GPU allocation was
+	// published would keep its stale tags: unchanged pods generate no new Set
+	// events, so retagPodOfGPUContainer re-tags the pod when the container's
+	// allocation changes instead.
+	for _, podContainer := range podContainers {
+		if podContainer.ID == "" {
+			continue
+		}
+		container, err := c.store.GetContainer(podContainer.ID)
+		if err != nil {
+			// The container is not in the store (yet): nothing to read from
+			// it. Its own event carries its tags when it appears.
+			continue
+		}
+		addGPUSharingTags(tagList, container.GPUDeviceReplicas)
+	}
+
 	tagInfos := []*types.TagInfo{c.extractTagsFromPodEntity(pod, tagList, ev.IsComplete)}
 
-	for _, podContainer := range pod.GetAllContainers() {
+	for _, podContainer := range podContainers {
 		cTagInfo, err := c.extractTagsFromPodContainer(pod, podContainer, tagList.Copy(), ev.IsComplete)
 		if err != nil {
 			log.Debugf("cannot extract tags from pod container: %s", err)
@@ -1167,6 +1231,9 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
 	tagList.AddLow(tags.GPUSharingMode, sharingModeTagValue(gpu))
+	if gpu.SharingReplicas > 0 {
+		tagList.AddLow(tags.GPUSharingReplicas, strconv.Itoa(gpu.SharingReplicas))
+	}
 	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
@@ -1198,6 +1265,24 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 		tagList.AddLow(tags.GPUParentGPUUUID, gpuUUID)
 	} else {
 		tagList.AddLow(tags.GPUParentGPUUUID, strings.ToLower(gpu.ParentGPUUUID))
+	}
+}
+
+// addGPUSharingTags adds the tags of the shared NVIDIA device replicas
+// (time-slicing, MPS) allocated to a workload, keyed by base device UUID:
+// the sharing mechanism of each shared device, the number of replicas of
+// it the workload holds, and the UUID of the shared base device, so that
+// workloads holding replicas of the same GPU can be grouped together. A
+// workload holding replicas of several GPUs gets one tag value per device.
+func addGPUSharingTags(tagList *taglist.TagList, replicasByDevice map[string]workloadmeta.GPUDeviceReplica) {
+	for baseUUID, replica := range replicasByDevice {
+		if replica.Mode != "" && replica.Mode != workloadmeta.GPUSharingModeNone {
+			tagList.AddLow(tags.GPUSharingMode, string(replica.Mode))
+		}
+		if replica.Replicas > 0 {
+			tagList.AddLow(tags.GPUSharingReplicasUsed, strconv.Itoa(replica.Replicas))
+		}
+		tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(baseUUID))
 	}
 }
 

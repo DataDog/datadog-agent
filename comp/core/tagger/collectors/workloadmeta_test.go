@@ -5293,6 +5293,41 @@ func TestHandleGPU(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "shared by time-slicing",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor:          "nvidia",
+				Device:          "NVIDIA A10G",
+				NVLinkVersion:   "not_nvlink_capable",
+				SharingMode:     workloadmeta.GPUSharingModeTimeSlicing,
+				SharingReplicas: 4,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:nvidia_a10g",
+						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:time-slicing",
+						"gpu_sharing_replicas:4",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -5308,6 +5343,203 @@ func TestHandleGPU(t *testing.T) {
 			assertTagInfoListEqual(t, tt.expected, actual)
 		})
 	}
+}
+
+func TestHandleContainerGPUSharingTags(t *testing.T) {
+	// A container holding a shared-GPU replica (time-slicing, MPS) gets the
+	// sharing tags next to its own tags, so its series and every device
+	// metric it is attributed to carry them.
+	const baseUUID = "GPU-170ab964-06dc-a639-af22-0cafd46259c7"
+
+	newContainerCollector := func(t *testing.T) *WorkloadMetaCollector {
+		store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+			fx.Provide(func() log.Component { return logmock.New(t) }),
+			fx.Provide(func() config.Component { return config.NewMock(t) }),
+			fx.Supply(context.Background()),
+			workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		))
+		return NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+	}
+
+	t.Run("with a replica allocation", func(t *testing.T) {
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "gpu-burner-0",
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "gpu-burner",
+			},
+			GPUDeviceReplicas: map[string]workloadmeta.GPUDeviceReplica{
+				baseUUID: {Replicas: 2, Mode: workloadmeta.GPUSharingModeTimeSlicing},
+			},
+		}
+
+		tagInfos := newContainerCollector(t).handleContainer(workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: container,
+		})
+		require.Len(t, tagInfos, 1)
+
+		assert.Contains(t, tagInfos[0].LowCardTags, "gpu_sharing_mode:time-slicing")
+		assert.Contains(t, tagInfos[0].LowCardTags, "gpu_sharing_replicas_used:2")
+		assert.Contains(t, tagInfos[0].LowCardTags, "gpu_uuid:"+strings.ToLower(baseUUID))
+	})
+
+	t.Run("without any replica allocation", func(t *testing.T) {
+		// Includes a container holding an exclusive GPU: it must get no
+		// sharing tags.
+		container := &workloadmeta.Container{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainer,
+				ID:   "exclusive-0",
+			},
+			EntityMeta: workloadmeta.EntityMeta{
+				Name: "exclusive",
+			},
+			ResolvedAllocatedResources: []workloadmeta.ContainerAllocatedResource{
+				{Name: "nvidia.com/gpu", ID: baseUUID},
+			},
+		}
+
+		tagInfos := newContainerCollector(t).handleContainer(workloadmeta.Event{
+			Type:   workloadmeta.EventTypeSet,
+			Entity: container,
+		})
+		require.Len(t, tagInfos, 1)
+
+		for _, tag := range tagInfos[0].LowCardTags {
+			assert.NotContains(t, tag, "gpu_sharing")
+		}
+	})
+}
+
+func TestHandleKubePodGPUSharingTags(t *testing.T) {
+	// The pod of a container holding a shared-GPU replica carries the sharing
+	// tags too, so kubernetes.* pod series can be annotated and grouped by the
+	// shared GPU. The allocation data lives on the container entity, so the pod
+	// handler reads it from the store.
+	const (
+		baseUUID    = "GPU-170ab964-06dc-a639-af22-0cafd46259c7"
+		containerID = "gpu-burner-0"
+	)
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		GPUDeviceReplicas: map[string]workloadmeta.GPUDeviceReplica{
+			baseUUID: {Replicas: 2, Mode: workloadmeta.GPUSharingModeTimeSlicing},
+		},
+	})
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesPod,
+			ID:   "gpu-burner-uid",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "gpu-burner",
+			Namespace: "default",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{ID: containerID, Name: "gpu-burner"},
+		},
+	}
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	tagInfos := collector.handleKubePod(workloadmeta.Event{
+		Type:   workloadmeta.EventTypeSet,
+		Entity: pod,
+	})
+
+	podInfo := findTagInfo(t, tagInfos, types.NewEntityID(types.KubernetesPodUID, pod.ID))
+	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_mode:time-slicing")
+	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_replicas_used:2")
+	assert.Contains(t, podInfo.LowCardTags, "gpu_uuid:"+strings.ToLower(baseUUID))
+
+	// The pod's container entities inherit the tags from the pod's tag list.
+	containerInfo := findTagInfo(t, tagInfos, types.NewEntityID(types.ContainerID, containerID))
+	assert.Contains(t, containerInfo.LowCardTags, "gpu_sharing_replicas_used:2")
+}
+
+func findTagInfo(t *testing.T, tagInfos []*types.TagInfo, entityID types.EntityID) *types.TagInfo {
+	t.Helper()
+	for _, tagInfo := range tagInfos {
+		if tagInfo.EntityID == entityID {
+			return tagInfo
+		}
+	}
+	t.Fatalf("no tag info for entity %v", entityID)
+	return nil
+}
+
+func TestRetagPodOfGPUContainer(t *testing.T) {
+	// The pod's sharing tags come from its containers' GPU replicas, which
+	// the NVML collector publishes after the kubelet collector tagged the
+	// pod. The pod itself does not change, so it is re-tagged through its
+	// container's event instead.
+	const (
+		baseUUID    = "GPU-170ab964-06dc-a639-af22-0cafd46259c7"
+		containerID = "gpu-burner-0"
+	)
+	podEntityID := workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesPod,
+		ID:   "gpu-burner-uid",
+	}
+
+	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+		fx.Provide(func() config.Component { return config.NewMock(t) }),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	store.Set(&workloadmeta.KubernetesPod{
+		EntityID: podEntityID,
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "gpu-burner",
+			Namespace: "default",
+		},
+		Containers: []workloadmeta.OrchestratorContainer{
+			{ID: containerID, Name: "gpu-burner"},
+		},
+	})
+	container := &workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindContainer,
+			ID:   containerID,
+		},
+		Owner: &podEntityID,
+		GPUDeviceReplicas: map[string]workloadmeta.GPUDeviceReplica{
+			baseUUID: {Replicas: 2, Mode: workloadmeta.GPUSharingModeTimeSlicing},
+		},
+	}
+	store.Set(container)
+
+	cfg := configmock.New(t)
+	collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
+
+	tagInfos := collector.retagPodOfGPUContainer(container)
+	require.NotEmpty(t, tagInfos, "the pod of a container with GPU replicas is re-tagged")
+
+	podInfo := findTagInfo(t, tagInfos, types.NewEntityID(types.KubernetesPodUID, podEntityID.ID))
+	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_mode:time-slicing")
+	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_replicas_used:2")
+
+	// A container without shared-GPU replicas re-tags nothing.
+	assert.Nil(t, collector.retagPodOfGPUContainer(&workloadmeta.Container{
+		EntityID: container.EntityID,
+		Owner:    &podEntityID,
+	}))
 }
 
 func TestHandleDelete(t *testing.T) {
