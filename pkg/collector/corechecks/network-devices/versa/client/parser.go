@@ -337,6 +337,44 @@ func parsePathQoSMetrics(data [][]interface{}) ([]QoSMetrics, error) {
 	return rows, nil
 }
 
+// parseCircuitQoSMetrics parses the raw AaData response into CircuitQoSMetrics structs
+func parseCircuitQoSMetrics(data [][]interface{}) ([]CircuitQoSMetrics, error) {
+	var rows []CircuitQoSMetrics
+	for _, row := range data {
+		m := CircuitQoSMetrics{}
+		if len(row) != 15 {
+			return nil, fmt.Errorf("expected 15 columns, got %d", len(row))
+		}
+		// Type assertions for each value
+		var ok bool
+		if m.DrillKey, ok = row[0].(string); !ok {
+			return nil, errors.New("expected string for DrillKey")
+		}
+		if m.Site, ok = row[1].(string); !ok {
+			return nil, errors.New("expected string for Site")
+		}
+		if m.AccessCircuit, ok = row[2].(string); !ok {
+			return nil, errors.New("expected string for AccessCircuit")
+		}
+
+		// Floats from index 3-14 (12 float fields)
+		floatFields := []*float64{
+			&m.BestEffortTx, &m.BestEffortTxDrop, &m.ExpeditedForwardTx, &m.ExpeditedForwardDrop,
+			&m.AssuredForwardTx, &m.AssuredForwardDrop, &m.NetworkControlTx, &m.NetworkControlDrop,
+			&m.BestEffortBandwidth, &m.ExpeditedForwardBW, &m.AssuredForwardBW, &m.NetworkControlBW,
+		}
+		for i, ptr := range floatFields {
+			if val, ok := row[i+3].(float64); ok {
+				*ptr = val
+			} else {
+				return nil, fmt.Errorf("expected float64 at index %d", i+3)
+			}
+		}
+		rows = append(rows, m)
+	}
+	return rows, nil
+}
+
 // parseDIAMetrics parses the raw AaData response into DIAMetrics structs
 func parseDIAMetrics(data [][]interface{}) ([]DIAMetrics, error) {
 	var rows []DIAMetrics
