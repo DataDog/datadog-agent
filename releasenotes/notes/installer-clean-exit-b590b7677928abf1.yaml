@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Fix the installer daemon exiting with an error when Remote Configuration
-    or remote updates are disabled. The daemon now exits successfully,
-    preventing repeated service restarts and startup rate limiting.
