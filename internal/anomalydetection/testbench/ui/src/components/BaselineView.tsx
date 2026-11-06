@@ -34,7 +34,7 @@ export function BaselineTimelineWidget({ status, phaseMarkers = [] }: { status: 
   const detectors = baseline?.detectors ?? noDetectors;
   const [hoverPercent, setHoverPercent] = useState<number | null>(null);
   const timeline = useMemo(() => {
-    if (!baseline?.enabled || detectors.length === 0 || !baseline.started) return null;
+    if (!baseline?.enabled || detectors.length === 0 || !baseline.started || baseline.startSec === undefined) return null;
     const scenarioStart = status?.scenarioStart ?? baseline.startSec;
     const knownEnds = detectors.flatMap(d => d.baselineEndSec === undefined ? [] : [d.baselineEndSec + 1]);
     const scenarioEnd = status?.scenarioEnd ?? Math.max(baseline.startSec + 1, ...knownEnds);

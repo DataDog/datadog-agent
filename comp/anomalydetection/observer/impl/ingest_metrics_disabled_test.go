@@ -28,7 +28,7 @@ func TestObserverDropsMetricsWhenIngestMetricsDisabled(t *testing.T) {
 
 	storage := newTimeSeriesStorage()
 	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
-	eng := newEngine(engineConfig{
+	eng := mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
@@ -104,7 +104,7 @@ func TestInternalAgentMetricsAreIngestedAndObserverTelemetryIsDropped(t *testing
 	require.NoError(t, err)
 
 	storage := newTimeSeriesStorage()
-	eng := newEngine(engineConfig{storage: storage})
+	eng := mustNewEngine(engineConfig{storage: storage})
 
 	obs := &observerImpl{
 		engine:               eng,
@@ -167,7 +167,7 @@ func TestIngestMetricSyncAllowsInternalAgentMetricsAndDropsObserverTelemetry(t *
 
 	storage := newTimeSeriesStorage()
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: storage}),
+		engine:       mustNewEngine(engineConfig{storage: storage}),
 		metricFilter: defaultFilter,
 	}
 

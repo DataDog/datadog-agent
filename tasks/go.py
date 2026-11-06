@@ -342,7 +342,9 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     """
     time: report how long each of tidy's subtasks took.
     """
-    _check_valid_mods()
+    # Pre-Bazel branches have modules whose root is not a package (e.g. Agent 6's pkg/security/seclwin)
+    if is_bazel_workspace():
+        _check_valid_mods()
     # `go mod tidy` in the in-repo generatedsettings module needs its generated code
     if os.path.isdir(GENERATED_SETTINGS_DIR):
         schema_codegen(ctx)

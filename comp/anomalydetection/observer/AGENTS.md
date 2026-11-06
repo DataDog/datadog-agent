@@ -67,6 +67,20 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
+Construct detectors with statistical config values; normalize once and reset only
+runtime state.
+
+`Detector.Detect` takes a per-call `DetectionFilter`: independent kind/type
+restrictions and authoritative aggregation selection. Empty aggregations select
+average then count; explicit selections keep order, skipping duplicates and invalid
+values. Kind/type values and nil presence must stay constant per instance,
+including resets; equal-valued
+replacement pointers are allowed. Aggregations may vary per call. Empty means
+unrestricted workload detection; telemetry is always excluded. Filtering neither
+advances excluded state nor removes it; callers own reset/transition cleanup.
+Catalog registrations bind one filter per detector instance; no configuration
+populates it yet.
+
 `anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
 patterns across all tag groups (default 3,000). This includes patterns below
 the metric emission threshold. Non-positive values use the default. Capacity

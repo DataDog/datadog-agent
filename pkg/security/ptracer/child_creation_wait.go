@@ -158,7 +158,7 @@ func (ctx *CWSPtracerCtx) handleChildCreationEvent(nr, creatorTID, childTID int,
 			// A timed-out child may have exited and left ProcessCache already.
 			// Let the guard consume its late notification without recreating
 			// inherited resources or resurrecting either process cache entry.
-			ctx.sendForkMsg(process, creatorTID)
+			ctx.sendForkMsg(process, creatorTID, nil)
 			return
 		}
 		ctx.processCache.Add(childTID, process)

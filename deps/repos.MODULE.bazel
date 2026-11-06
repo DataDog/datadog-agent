@@ -290,20 +290,6 @@ http_archive(
 )
 
 http_archive(
-    name = "libxml2",
-    files = {
-        "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
-        "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
-        "BUILD.bazel": "//deps:libxml2/overlay.BUILD.bazel",
-    },
-    sha256 = "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821",
-    strip_prefix = "libxml2-2.15.4",
-    urls = [
-        "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz",
-    ],
-)
-
-http_archive(
     name = "libxslt",
     files = {
         "config-linux-x86_64.h": "//deps:libxslt/config-linux-x86_64.h",
@@ -415,11 +401,13 @@ http_archive(
 
 http_archive(
     name = "jemalloc",
-    build_file = "//deps:jemalloc.BUILD.bazel",
-    sha256 = "ef6f74fd45e95ee4ef7f9e19ebe5b075ca6b7fbe0140612b2a161abafb7ee179",
-    strip_prefix = "jemalloc-5.3.0",
+    files = {
+        "BUILD.bazel": "//deps/jemalloc:overlay.BUILD.bazel",
+    },
+    sha256 = "3826bc80232f22ed5c4662f3034f799ca316e819103bdc7bb99018a421706f92",
+    strip_prefix = "jemalloc-5.3.1",
     urls = [
-        "https://github.com/jemalloc/jemalloc/archive/refs/tags/5.3.0.tar.gz",
+        "https://github.com/jemalloc/jemalloc/releases/download/5.3.1/jemalloc-5.3.1.tar.bz2",
     ],
 )
 

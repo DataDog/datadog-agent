@@ -58,7 +58,18 @@ func (c *scriptChecker) arguments(entry *CommandCheck, args []string, elevated b
 	operation := allowedpaths.PathRead
 	stdinDash := true
 	switch entry.Command {
-	case "echo", "printf", "true", "false", "exit", "break", "continue", "read", "tr", "uname", "help":
+	case "help":
+		// `help <command>` refuses a RemediationOnly command outside
+		// remediation mode (builtins/help), the same gate dispatch applies.
+		if len(operands) == 1 {
+			if _, isFeature := builtins.Feature(operands[0]); !isFeature {
+				if message, denied := remediationOnlyRefusal(operands[0], c.policy.remediationMode); denied {
+					entry.issue(CheckRemediationRequired, message)
+				}
+			}
+		}
+		return
+	case "echo", "printf", "true", "false", "exit", "break", "continue", "read", "tr", "uname":
 		return
 	case "df", "free", "ip", "lsof", "pmap", "ps", "ss", "uptime", "vmstat", "ping", "ntfs-du":
 		// These commands use fixed/trusted host capabilities, not user-selected
