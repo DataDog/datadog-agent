@@ -52,3 +52,7 @@ func (c *Counter) isStateful() bool {
 func (c *Counter) isDecomposable() bool {
 	return true
 }
+
+func (c *Counter) metricType() MetricType {
+	return CounterType
+}

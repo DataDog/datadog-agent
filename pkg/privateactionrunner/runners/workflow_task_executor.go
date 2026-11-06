@@ -127,10 +127,7 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 	preparedTask *PreparedWorkflowTask,
 ) (interface{}, error) {
 	logger := log.FromContext(ctx)
-	timeoutSeconds := preparedTask.Task.TimeoutSeconds()
-	if timeoutSeconds == nil {
-		timeoutSeconds = e.config.TaskTimeoutSeconds
-	}
+	timeoutSeconds := effectiveTimeoutSeconds(preparedTask.Task.TimeoutSeconds(), e.config.TaskTimeoutSeconds)
 
 	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
 	defer timeoutCancel()
@@ -140,6 +137,18 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 		return nil, timeoutErr
 	}
 	return output, err
+}
+
+// effectiveTimeoutSeconds returns the task's own timeout when set, never exceeding a positive
+// configured task_timeout_seconds, and the configured value otherwise.
+func effectiveTimeoutSeconds(taskTimeout, configTimeout *int32) *int32 {
+	if taskTimeout == nil {
+		return configTimeout
+	}
+	if configTimeout != nil && *configTimeout > 0 && *taskTimeout > *configTimeout {
+		return configTimeout
+	}
+	return taskTimeout
 }
 
 func (e *WorkflowTaskExecutor) RunTask(
@@ -154,6 +163,7 @@ func (e *WorkflowTaskExecutor) RunTask(
 	}
 
 	logger := log.FromContext(ctx)
+	ctx, executionDetails := observability.WithExecutionDetails(ctx)
 
 	ctx = telemetry.WithService(ctx, observability.ParService)
 	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
@@ -163,7 +173,7 @@ func (e *WorkflowTaskExecutor) RunTask(
 
 	startTime := observability.ReportExecutionStart(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
 	output, err = action.Run(ctx, task, preparedTask.Credential)
-	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
+	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger, executionDetails)
 
 	if err != nil {
 		return nil, util.DefaultActionError(err)
@@ -177,18 +187,20 @@ func (e *WorkflowTaskExecutor) RunTask(
 func (e *WorkflowTaskExecutor) getAllowedAction(task *types.Task) (types.Action, error) {
 	fqn := task.GetFQN()
 	bundleName, actionName := actions.SplitFQN(fqn)
-	bundle := e.registry.GetBundle(bundleName)
+	executionFQN := task.GetExecutionFQN()
+	executionBundle, executionAction := actions.SplitFQN(executionFQN)
+	bundle := e.registry.GetBundle(executionBundle)
 	if bundle == nil {
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find bundle for %s", bundleName),
+			fmt.Errorf("could not find bundle for %s", executionBundle),
 		)
 	}
-	action := bundle.GetAction(actionName)
+	action := bundle.GetAction(executionAction)
 	if action == nil {
 		return nil, util.NewPARError(
 			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find action for %s", actionName),
+			fmt.Errorf("could not find action for %s", executionAction),
 		)
 	}
 	if !e.config.IsActionAllowed(bundleName, actionName) {

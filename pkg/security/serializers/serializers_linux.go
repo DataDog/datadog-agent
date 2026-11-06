@@ -707,6 +707,42 @@ type UnshareEventSerializer struct {
 	Flags []string `json:"flags,omitempty"`
 }
 
+// SetNSEventSerializer serializes a setns event
+// easyjson:json
+type SetNSEventSerializer struct {
+	// Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0
+	NSType []string `json:"nstype,omitempty"`
+	// Namespace IDs of the thread once the syscall returned
+	NamespaceIDsSerializer
+	// Namespace IDs of the thread before the syscall
+	Previous *NamespaceIDsSerializer `json:"previous,omitempty"`
+	// Indicates that the mount namespace of the thread after the syscall is the host's initial one
+	MntNSHost bool `json:"mntns_host,omitempty"`
+	// Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one
+	MntNSOutsideBase bool `json:"mntns_outside_base,omitempty"`
+}
+
+// NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved
+// easyjson:json
+type NamespaceIDsSerializer struct {
+	// Mount namespace ID
+	MntNS uint32 `json:"mntns,omitempty"`
+	// Network namespace ID
+	NetNS uint32 `json:"netns,omitempty"`
+	// ID of the PID namespace future children are created in (pid_for_children)
+	PIDNS uint32 `json:"pidns,omitempty"`
+	// User namespace ID
+	UserNS uint32 `json:"userns,omitempty"`
+	// UTS namespace ID
+	UTSNS uint32 `json:"utsns,omitempty"`
+	// IPC namespace ID
+	IPCNS uint32 `json:"ipcns,omitempty"`
+	// Cgroup namespace ID
+	CgroupNS uint32 `json:"cgroupns,omitempty"`
+	// Time namespace ID
+	TimeNS uint32 `json:"timens,omitempty"`
+}
+
 // CGroupWriteEventSerializer serializes a cgroup_write event
 // easyjson:json
 type CGroupWriteEventSerializer struct {
@@ -871,6 +907,7 @@ type EventSerializer struct {
 	*CapabilitiesEventSerializer  `json:"capabilities,omitempty"`
 	*PrCtlEventSerializer         `json:"prctl,omitempty"`
 	*SetrlimitEventSerializer     `json:"setrlimit,omitempty"`
+	*SetNSEventSerializer         `json:"setns,omitempty"`
 	*SocketEventSerializer        `json:"socket,omitempty"`
 	*UnshareEventSerializer       `json:"unshare,omitempty"`
 }
@@ -1099,6 +1136,7 @@ func newProcessSerializer(ps *model.Process, e *model.Event) *ProcessSerializer 
 			psSerializer.Container = &ContainerContextSerializer{
 				ID:        string(ps.ContainerContext.ContainerID),
 				PodUID:    ps.ContainerContext.PodUID,
+				ECSTaskID: ps.ContainerContext.ECSTaskID,
 				Source:    ps.ContainerContext.ContainerSource.String(),
 				CreatedAt: utils.NewEasyjsonTimeIfNotZero(ps.ContainerContext.UnixCreatedAt()),
 			}
@@ -1490,7 +1528,11 @@ func newProcessContextSerializer(pc *model.ProcessContext, e *model.Event, rule 
 
 	for ptr != nil {
 		pce := (*model.ProcessCacheEntry)(ptr)
+		savedErr := e.Error
 		s := newProcessSerializer(&pce.Process, e)
+		if !first && &pce.Process != pc.Parent {
+			e.Error = savedErr
+		}
 
 		// evaluate variables scoped to this ancestor
 		e.ProcessCacheEntry = pce
@@ -1658,6 +1700,17 @@ func newUnshareEventSerializer(e *model.Event) *UnshareEventSerializer {
 	}
 }
 
+func newSetNSEventSerializer(e *model.Event) *SetNSEventSerializer {
+	previous := NamespaceIDsSerializer(e.SetNS.Previous)
+	return &SetNSEventSerializer{
+		NSType:                 model.CloneFlags(e.SetNS.NSType).StringArray(),
+		NamespaceIDsSerializer: NamespaceIDsSerializer(e.SetNS.NamespaceIDs),
+		Previous:               &previous,
+		MntNSHost:              e.SetNS.MntNSHost,
+		MntNSOutsideBase:       e.SetNS.MntNSOutsideBase,
+	}
+}
+
 func newSocketEventSerializer(e *model.Event) *SocketEventSerializer {
 	return &SocketEventSerializer{
 		Domain:   model.SocketDomain(e.Socket.Domain).String(),
@@ -1722,6 +1775,7 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 		s.ContainerContextSerializer = &ContainerContextSerializer{
 			ID:        string(event.ProcessContext.ContainerContext.ContainerID),
 			PodUID:    event.ProcessContext.ContainerContext.PodUID,
+			ECSTaskID: event.ProcessContext.ContainerContext.ECSTaskID,
 			Source:    event.ProcessContext.ContainerContext.ContainerSource.String(),
 			CreatedAt: utils.NewEasyjsonTimeIfNotZero(time.Unix(0, int64(event.ProcessContext.ContainerContext.CreatedAt))),
 			Variables: newVariablesContext(event, rule, "container."),
@@ -1996,6 +2050,9 @@ func NewEventSerializer(event *model.Event, rule *rules.Rule, scrubber *utils.Sc
 	case model.SetrlimitEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Setrlimit.Retval)
 		s.SetrlimitEventSerializer = newSetrlimitEventSerializer(event)
+	case model.SetNSEventType:
+		s.EventContextSerializer.Outcome = serializeOutcome(event.SetNS.Retval)
+		s.SetNSEventSerializer = newSetNSEventSerializer(event)
 	case model.SocketEventType:
 		s.EventContextSerializer.Outcome = serializeOutcome(event.Socket.Retval)
 		s.SocketEventSerializer = newSocketEventSerializer(event)

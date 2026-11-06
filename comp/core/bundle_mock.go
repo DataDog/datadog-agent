@@ -24,6 +24,7 @@ import (
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	mocktelemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -42,6 +43,7 @@ func makeMockBundle(logParams, logger fx.Option) fxutil.BundleOptions {
 		fxutil.ProvideOptional[sysprobeconfig.Component](),
 		mocktelemetry.Module(),
 		fx.Provide(delegatedauthmock.New),
+		schemanoopfx.Module(),
 	)
 }
 

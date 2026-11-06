@@ -82,3 +82,7 @@ func (mc *MonotonicCount) isStateful() bool {
 func (mc *MonotonicCount) isDecomposable() bool {
 	return true
 }
+
+func (mc *MonotonicCount) metricType() MetricType {
+	return MonotonicCountType
+}

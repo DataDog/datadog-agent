@@ -46,3 +46,7 @@ func (s *Set) isStateful() bool {
 func (s *Set) isDecomposable() bool {
 	return false
 }
+
+func (s *Set) metricType() MetricType {
+	return SetType
+}

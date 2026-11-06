@@ -1,0 +1,15 @@
+# skip: allowed_commands is rshell-specific sandbox behaviour with no bash equivalent.
+description: A blocked command in a subshell prints the error; subsequent commands in the subshell still run.
+skip_assert_against_bash: true
+input:
+  allowed_commands:
+    - rshell:echo
+  script: |+
+    ( echo before; cat /dev/null; echo after )
+expect:
+  stdout: |+
+    before
+    after
+  stderr: |+
+    rshell: cat: command not allowed
+  exit_code: 0

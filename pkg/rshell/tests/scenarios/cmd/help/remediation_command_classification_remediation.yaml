@@ -1,0 +1,16 @@
+description: Help lists allowlisted remediation commands as available in remediation mode.
+skip_assert_against_bash: true
+input:
+  mode: "remediation"
+  allowed_commands: ["rshell:echo", "rshell:help", "rshell:rm", "rshell:truncate"]
+  script: |+
+    help
+expect:
+  stdout_contains:
+    - "remediation mode"
+    - "Commands available now (4):"
+    - "rm        remove files"
+    - "truncate  shrink or extend file size"
+    - "Disabled by policy ("
+  stderr: ""
+  exit_code: 0

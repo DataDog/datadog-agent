@@ -1,0 +1,10 @@
+description: And-or operators work inside brace groups.
+input:
+  script: |+
+    { true && echo "and-ok"; false || echo "or-ok"; }
+expect:
+  stdout: |+
+    and-ok
+    or-ok
+  stderr: ""
+  exit_code: 0

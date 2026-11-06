@@ -42,3 +42,7 @@ func (c *Count) isStateful() bool {
 func (c *Count) isDecomposable() bool {
 	return true
 }
+
+func (c *Count) metricType() MetricType {
+	return CountType
+}

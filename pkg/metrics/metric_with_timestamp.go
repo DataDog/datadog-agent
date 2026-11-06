@@ -44,3 +44,10 @@ func (mt *MetricWithTimestamp) isStateful() bool {
 func (mt *MetricWithTimestamp) isDecomposable() bool {
 	return true
 }
+
+func (mt *MetricWithTimestamp) metricType() MetricType {
+	if mt.apiType == APIGaugeType {
+		return GaugeWithTimestampType
+	}
+	return CountWithTimestampType
+}

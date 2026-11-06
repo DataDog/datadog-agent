@@ -1,0 +1,6 @@
+description: "Newlines in variable value are split by default IFS"
+input:
+  script: "A=\"line1\nline2\nline3\"\nfor w in $A; do echo \"[$w]\"; done\n"
+expect:
+  stdout: "[line1]\n[line2]\n[line3]\n"
+  exit_code: 0

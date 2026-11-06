@@ -53,3 +53,7 @@ func (h *Historate) isStateful() bool {
 func (h *Historate) isDecomposable() bool {
 	return false
 }
+
+func (h *Historate) metricType() MetricType {
+	return HistorateType
+}

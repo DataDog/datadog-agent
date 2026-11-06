@@ -115,6 +115,16 @@ profiles:
       - name: points.dropped
         preserve_tags:
           - domain
+      - name: aggregator.dogstatsd_type_mismatch
+      - name: aggregator.checks_type_mismatch
+      # Metadata payloads over the serializer size limits are dropped before
+      # reaching the forwarder, so they are invisible from intake.
+      - name: serializer.metadata_payload_dropped
+        preserve_tags:
+          - reason
+      - name: serializer.metadata_payload_dropped_bytes
+        preserve_tags:
+          - compressed
       - name: transactions.input_count
         preserve_tags:
           - domain
@@ -138,6 +148,37 @@ profiles:
         preserve_tags:
           - code
           - endpoint
+  schedule:
+    start_after: 30
+    iterations: 0
+    period: 900
+# Intake routing (comp/intakerouting) serves every telemetry type, so it is not part of logs-and-metrics.
+- name: intake-routing
+  metric:
+    exclude:
+      zero_metric: true
+    metrics:
+      - name: intake_routing.queries
+        preserve_tags:
+          - status
+      - name: intake_routing.preflights
+        preserve_tags:
+          - status
+      - name: intake_routing.switches
+        preserve_tags:
+          - telemetry_type
+          - direction
+      - name: intake_routing.rejected_answers
+        preserve_tags:
+          - telemetry_type
+          - reason
+      - name: intake_routing.skipped_endpoints
+        preserve_tags:
+          - telemetry_type
+          - reason
+      - name: intake_routing.active_overrides
+        preserve_tags:
+          - telemetry_type
   schedule:
     start_after: 30
     iterations: 0
@@ -423,17 +464,6 @@ profiles:
     start_after: 30
     iterations: 0
     period: 900
-- name: trace-agent
-  metric:
-    exclude:
-      zero_metric: true
-    metrics:
-      - name: trace.enabled
-      - name: trace.working
-  schedule:
-    start_after: 60
-    iterations: 0
-    period: 900
 - name: gpu
   metric:
     exclude:
@@ -538,6 +568,7 @@ profiles:
         preserve_tags:
           - section
           - status
+      - name: metadata_streaming.history_resyncs
       - name: workloadmeta.stored_entities
         preserve_tags:
           - kind

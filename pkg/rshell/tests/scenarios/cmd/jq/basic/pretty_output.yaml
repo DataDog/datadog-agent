@@ -1,0 +1,18 @@
+description: jq indents nested containers by two spaces in the default output mode.
+input:
+  script: |+
+    echo '{"a":[1,2],"b":{"c":{}},"d":[]}' | jq .
+expect:
+  stdout: |+
+    {
+      "a": [
+        1,
+        2
+      ],
+      "b": {
+        "c": {}
+      },
+      "d": []
+    }
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Comment after variable assignment is ignored and assignment still takes effect.
+input:
+  script: |+
+    A=hello # comment after assignment
+    echo "$A"
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

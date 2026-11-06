@@ -44,6 +44,7 @@ const (
 
 type admissionProbeSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
+	remotePersistenceStartup remotePersistenceStartup
 }
 
 func TestAdmissionProbeSuite(t *testing.T) {
@@ -51,6 +52,9 @@ func TestAdmissionProbeSuite(t *testing.T) {
 	e2e.Run(t, &admissionProbeSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenariokindvm.WithInternetAccess(),
+				scenariokindvm.WithPreAgentWorkloadApp(deployRemotePersistenceBackend),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(admissionProbeHelmValues),
 				),

@@ -81,6 +81,11 @@ dda inv anomalydetection.launch-testbench
 See `internal/anomalydetection/testbench/README.md` for flags and
 headless/eval workflows.
 
+Local evaluation and testbench replay accept LLMObs recording datasets through
+`--dataset NAME_OR_UUID`, using the latest version. Dataset rows provide scenario
+names and recording ZIP references. `--local` replays existing files without
+LLMObs. See the testbench README for commands and the default dataset.
+
 ## Production Safety and Review Invariants
 
 The live Agent is the primary constraint; testbench convenience must not affect
@@ -128,10 +133,11 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 
 Both paths use shared filtering primitives from `internal/logsfilter/` inside
 the observer. Producer handles perform only cheap `MayAllowSource` and
-`min_severity` gates before copying the log snapshot and enqueueing to the
-observer channel; full `processing_rules` evaluation, priority rate limiting,
-and optional Parquet log recording happen asynchronously on the observer
-dispatch goroutine. The agent-internal logger callback performs only
+`min_severity` gates before snapshotting scalar log fields, retaining immutable
+tags, and enqueueing to the observer channel; full `processing_rules`
+evaluation, priority rate limiting, and optional Parquet log recording happen
+asynchronously on the observer dispatch goroutine. The agent-internal logger
+callback performs only
 self/severity gates and a bounded non-blocking enqueue; tag construction and
 JSON formatting run on the `agent_logs` worker outside `pkg/util/log`'s global
 logger lock.

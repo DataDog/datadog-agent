@@ -67,6 +67,7 @@ type Metric interface {
 	// value a single flush over the whole window would produce. For example, a count
 	// flushed as 3 and then 2 adds up to the 5 a single flush would report.
 	isDecomposable() bool
+	metricType() MetricType
 }
 
 // NoSerieError is the error returned by a metric when not enough samples have been

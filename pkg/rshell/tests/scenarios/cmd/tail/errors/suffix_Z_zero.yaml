@@ -1,0 +1,13 @@
+description: tail -n 0Z exits 0 with no output (0 * overflow suffix = 0, which is valid).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 0Z file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

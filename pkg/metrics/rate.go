@@ -59,3 +59,7 @@ func (r *Rate) isStateful() bool {
 func (r *Rate) isDecomposable() bool {
 	return false
 }
+
+func (r *Rate) metricType() MetricType {
+	return RateType
+}

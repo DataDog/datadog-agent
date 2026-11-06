@@ -41,3 +41,7 @@ func (g *Gauge) isStateful() bool {
 func (g *Gauge) isDecomposable() bool {
 	return true
 }
+
+func (g *Gauge) metricType() MetricType {
+	return GaugeType
+}

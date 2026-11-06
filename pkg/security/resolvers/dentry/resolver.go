@@ -376,6 +376,7 @@ func computeFilenameFromParts(parts [][]byte) string {
 // ResolveFromMap resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool, caller Caller) (string, error) {
 	var resolutionErr error
+	leafKey := pathKey
 
 	keyBuffer, err := pathKey.MarshalBinary()
 	if err != nil {
@@ -392,16 +393,16 @@ func (dr *Resolver) ResolveFromMap(pathKey model.PathKey, cache bool, caller Cal
 		pathKey.Write(keyBuffer)
 		if err := dr.pathnames.Lookup(keyBuffer, &pathLeaf); err != nil {
 			dr.filenameParts = dr.filenameParts[:0]
-			resolutionErr = &ErrDentryPathKeyNotFound{PathKey: pathKey}
+			resolutionErr = &ErrDentryPathKeyNotFound{LeafKey: leafKey, PathKey: pathKey, Depth: depth, Caller: caller}
 			break
 		}
 		depth++
 
 		if pathLeaf.Name[0] == '\x00' {
 			if depth >= model.MaxPathDepth {
-				resolutionErr = errTruncatedParents
+				resolutionErr = &ErrTruncatedParents{LeafKey: leafKey, PathKey: pathKey, Depth: depth, Caller: caller}
 			} else {
-				resolutionErr = errKernelMapResolution
+				resolutionErr = &ErrKernelMapResolution{LeafKey: leafKey, PathKey: pathKey, Depth: depth, Caller: caller}
 			}
 			break
 		}
@@ -527,6 +528,8 @@ func (dr *Resolver) computeSegmentCount() int {
 // ResolveFromERPC resolves the path of the provided inode / mount id / path id
 func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool, caller Caller) (string, error) {
 	var resolutionErr error
+	leafKey := pathKey
+	lastKey := pathKey
 	depth := int64(0)
 
 	entry := counterEntry{
@@ -550,28 +553,29 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool, caller Ca
 	for i < dr.erpcSegmentSize-17 {
 		depth++
 
-		// parse the path_key_t structure
-		pathKey.Inode = binary.NativeEndian.Uint64(dr.erpcSegment[i : i+8])
-		pathKey.MountID = binary.NativeEndian.Uint32(dr.erpcSegment[i+8 : i+12])
-
 		// check challenge
 		if challenge != binary.NativeEndian.Uint32(dr.erpcSegment[i+12:i+16]) {
 			if depth >= model.MaxPathDepth {
-				resolutionErr = errTruncatedParentsERPC
+				resolutionErr = &ErrTruncatedParentsERPC{LeafKey: leafKey, PathKey: lastKey, Depth: depth, Caller: caller}
 				break
 			}
 			dr.missCounters[entry].Inc()
-			return "", errERPCRequestNotProcessed
+			return "", &ErrERPCRequestNotProcessed{LeafKey: leafKey, PathKey: lastKey, Depth: depth, Caller: caller}
 		}
+
+		// parse the path_key_t structure
+		pathKey.Inode = binary.NativeEndian.Uint64(dr.erpcSegment[i : i+8])
+		pathKey.MountID = binary.NativeEndian.Uint32(dr.erpcSegment[i+8 : i+12])
+		lastKey = pathKey
 
 		// skip PathID
 		i += 16
 
 		if dr.erpcSegment[i] == 0 {
 			if depth >= model.MaxPathDepth {
-				resolutionErr = errTruncatedParentsERPC
+				resolutionErr = &ErrTruncatedParentsERPC{LeafKey: leafKey, PathKey: pathKey, Depth: depth, Caller: caller}
 			} else {
-				resolutionErr = errERPCResolution
+				resolutionErr = &ErrERPCResolution{LeafKey: leafKey, PathKey: pathKey, Depth: depth, Caller: caller}
 			}
 			break
 		}
@@ -609,6 +613,7 @@ func (dr *Resolver) ResolveFromERPC(pathKey model.PathKey, cache bool, caller Ca
 func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool, caller Caller) (string, error) {
 	var path string
 	var err = ErrEntryNotFound
+	var erpcErr error
 
 	if cache {
 		path, err = dr.ResolveFromCache(pathKey, caller)
@@ -616,6 +621,7 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool, caller Caller) (s
 	if err != nil && dr.config.ERPCDentryResolutionEnabled {
 		t := time.Now()
 		path, err = dr.ResolveFromERPC(pathKey, cache, caller)
+		erpcErr = err
 		durationMicrosec := time.Since(t).Microseconds()
 
 		// update in-line average
@@ -624,8 +630,12 @@ func (dr *Resolver) Resolve(pathKey model.PathKey, cache bool, caller Caller) (s
 		dr.erpcResolutionAvgTime += (float64(durationMicrosec) - dr.erpcResolutionAvgTime) / float64(dr.erpcResolutionNumValues)
 		dr.erpcResolutionTimesLock.Unlock()
 	}
-	if err != nil && err != errTruncatedParentsERPC && dr.config.MapDentryResolutionEnabled {
+	var truncatedERPC *ErrTruncatedParentsERPC
+	if err != nil && !errors.As(err, &truncatedERPC) && dr.config.MapDentryResolutionEnabled {
 		path, err = dr.ResolveFromMap(pathKey, cache, caller)
+		if err != nil && erpcErr != nil {
+			err = fmt.Errorf("%w (erpc: %w)", err, erpcErr)
+		}
 	}
 	return path, err
 }

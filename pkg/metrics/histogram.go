@@ -322,3 +322,7 @@ func (h *Histogram) isStateful() bool {
 func (h *Histogram) isDecomposable() bool {
 	return false
 }
+
+func (h *Histogram) metricType() MetricType {
+	return HistogramType
+}

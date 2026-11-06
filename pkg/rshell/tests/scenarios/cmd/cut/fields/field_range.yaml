@@ -1,0 +1,14 @@
+description: Cut selects fields from a given position to end of line.
+setup:
+  files:
+    - path: input.txt
+      content: "a:b:c\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f2- input.txt
+expect:
+  stdout: "b:c\n"
+  stderr: ""
+  exit_code: 0

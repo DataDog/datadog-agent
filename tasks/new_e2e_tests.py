@@ -230,6 +230,32 @@ def _build_binaries_with_bazel(ctx: Context, targets: list[str]) -> bool:
     return True
 
 
+def _install_windows_testsuites(module_name: str, targets: list[str]) -> None:
+    """Install the Windows test suites of the target packages where their e2e tests expect them, under `artifacts`.
+
+    Suites incompatible with the host, i.e. on anything but Linux x86_64, are left out.
+    Transitional, until e2e tests run through `bazel run` with the suites as their `data`.
+    """
+    prefixes = {
+        f"{module_name}/{path}" if (path := target.removesuffix("...").strip("./")) else module_name
+        for target in targets
+    } or {module_name}
+    for package in bazel(
+        "cquery",
+        f'attr(name, "^install_windows_testsuites$", //{module_name}/...)',
+        "--output=starlark",
+        "--starlark:expr='' if 'IncompatiblePlatformProvider' in providers(target) else target.label.package",
+        capture_output=True,
+    ).split():
+        if any(package == prefix or package.startswith(f"{prefix}/") for prefix in prefixes):
+            bazel(
+                "run",
+                f"//{package}:install_windows_testsuites",
+                "--",
+                f"--destdir={get_repo_root() / package / 'artifacts'}",
+            )
+
+
 # Buffer subtracted from the remaining GitLab job time to derive the go test
 # timeout. It gives the test framework (TearDownSuite: pulumi destroy, cluster
 # state dump, dashboard URL log) a window to run after go test panics on its
@@ -576,6 +602,9 @@ def run(
         if not _build_binaries_with_bazel(ctx, targets):
             print("WARNING: Failed to build test binaries with Bazel, disabling use_bazel_built_binaries")
             use_bazel_built_binaries = False
+
+    _install_windows_testsuites(module_name, targets)
+    tool.install_pulumi_plugins()
 
     if use_bazel_built_binaries:
         bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")

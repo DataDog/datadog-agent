@@ -1,0 +1,9 @@
+description: Command substitution in if condition works correctly.
+input:
+  script: |+
+    if $(true); then echo yes; fi
+expect:
+  stdout: |+
+    yes
+  stderr: ""
+  exit_code: 0
