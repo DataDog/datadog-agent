@@ -1065,9 +1065,24 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
 	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
+	assert.False(t, cfg.GetBool(DataPlaneOTLPEnabled))
+	assert.Equal(t, "127.0.0.1:4319", cfg.GetString(DataPlaneExperimentalOTLPProxyAgentReceiverGRPCEndpoint))
+	assert.Equal(t, "127.0.0.1:4320", cfg.GetString(DataPlaneExperimentalOTLPProxyAgentReceiverHTTPEndpoint))
+	for _, signal := range []string{"logs", "metrics", "traces"} {
+		key := DataPlaneExperimentalOTLPProxySection + "." + signal
+		assert.True(t, cfg.IsKnown(key))
+		assert.False(t, cfg.GetBool(key))
+		assert.False(t, cfg.IsConfigured(key))
+	}
+	for _, key := range []string{
+		"data_plane.otlp.proxy.enabled",
+		"data_plane.otlp.proxy.logs.enabled",
+		"data_plane.otlp.proxy.metrics.enabled",
+		"data_plane.otlp.proxy.traces.enabled",
+		"data_plane.otlp.proxy.receiver.protocols.grpc.endpoint",
+	} {
+		assert.False(t, cfg.IsKnown(key), "%s must not have a compatibility alias", key)
+	}
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
