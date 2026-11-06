@@ -132,3 +132,26 @@ func TestCLIWorkflowSelection(t *testing.T) {
 	_, err := loadCLIComponentSettings(filepath.Join(t.TempDir(), "missing"), "", "", "", true)
 	require.Error(t, err)
 }
+
+func TestCLIWorkflowSelectionFromParamsFile(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		body     string
+		flag     bool
+		pipeline bool
+	}{
+		{name: "file enables", body: `{"use_metric_pipeline":true,"components":{}}`, pipeline: true},
+		{name: "file disables", body: `{"use_metric_pipeline":false,"components":{}}`},
+		{name: "file omits key", body: `{"components":{}}`},
+		{name: "flag enables when file omits key", body: `{"components":{}}`, flag: true, pipeline: true},
+		{name: "flag enables when file disables", body: `{"use_metric_pipeline":false,"components":{}}`, flag: true, pipeline: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "params.json")
+			require.NoError(t, os.WriteFile(path, []byte(tc.body), 0600))
+			settings, err := loadCLIComponentSettings(path, "", "", "", tc.flag)
+			require.NoError(t, err)
+			require.Equal(t, tc.pipeline, settings.UseMetricPipeline)
+		})
+	}
+}

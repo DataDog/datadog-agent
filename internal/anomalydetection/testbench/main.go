@@ -442,6 +442,6 @@ func loadCLIComponentSettings(configFile, enableStr, disableStr, onlyStr string,
 		componentSettings = observerimpl.ComponentSettings{Enabled: overrides}
 	}
 
-	componentSettings.UseMetricPipeline = useMetricPipeline
+	componentSettings.UseMetricPipeline = componentSettings.UseMetricPipeline || useMetricPipeline
 	return componentSettings, nil
 }
