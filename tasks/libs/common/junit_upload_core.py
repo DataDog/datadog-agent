@@ -1,4 +1,5 @@
 import io
+import json
 import os
 import platform
 import re
@@ -11,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from shutil import which
 from subprocess import check_call
+from time import perf_counter
 
 from invoke.exceptions import Exit
 
@@ -85,11 +87,20 @@ def enrich_junitxml(xml_path: str, flavor: AgentFlavor):
     tree.write(xml_path)
 
 
-def junit_upload_from_tgz(junit_tgz, result_json, codeowners_path=".github/CODEOWNERS"):
+def junit_upload_from_tgz(
+    junit_tgz, result_json, codeowners_path=".github/CODEOWNERS", *, max_workers=None, report_timings=False
+):
     """
     Upload all JUnit XML files contained in given tgz archive.
+
+    max_workers optionally bounds concurrent uploader processes; None keeps the
+    executor default. report_timings prints durations and counts without command
+    arguments, environment variables, file contents, or exception messages.
     """
     from codeowners import CodeOwners
+
+    if max_workers is not None and (not isinstance(max_workers, int) or max_workers < 1):
+        raise ValueError("max_workers must be a positive integer")
 
     with open(codeowners_path) as f:
         codeowners = CodeOwners(f.read())
@@ -126,8 +137,8 @@ def junit_upload_from_tgz(junit_tgz, result_json, codeowners_path=".github/CODEO
 
         # Upload junit on a per-team basis (all folders except the one part of the original archive)
         team_folders = [item for item in working_dir.iterdir() if item.is_dir() and item not in xml_folders]
-        with ThreadPoolExecutor() as executor:
-            _upload_junitxmls(team_folders, executor)
+        with ThreadPoolExecutor(max_workers=max_workers) as executor:
+            _upload_junitxmls(team_folders, executor, report_timings=report_timings)
 
 
 def get_flaky_failures_and_marked_flaky_tests_from_test_output(result_json):
@@ -243,23 +254,72 @@ def split_junitxml(root_dir: Path, xml_path: Path, codeowners, flaky_failures, m
     return len(output_xmls)
 
 
-def _upload_junitxmls(team_dirs: list[Path], executor: ThreadPoolExecutor):
+def _upload_junitxmls(team_dirs: list[Path], executor: ThreadPoolExecutor, *, report_timings=False):
     """
     Upload all per-team split JUnit XMLs from given directories.
     """
     datadog_ci_command = [get_datadog_ci_command(), "junit", "upload", *skip_git_metadata_upload_flags()]
     futures = []
+    timings = []
     for team_dir in team_dirs:
         for args, env in _generate_junitxmls(team_dir):
-            futures.append(executor.submit(_execute_with_partial_isolation, args=datadog_ci_command + args, env=env))
+            if report_timings:
+                timing = {"index": len(timings), "queued": perf_counter()}
+                timings.append(timing)
+                future = executor.submit(_execute_timed_upload, datadog_ci_command + args, env, timing)
+            else:
+                future = executor.submit(_execute_with_partial_isolation, args=datadog_ci_command + args, env=env)
+            futures.append(future)
     exceptions = []
     for future in futures:
         try:
             future.result()
         except Exception as e:
             exceptions.append(e)
+    if report_timings:
+        _report_upload_timings(timings)
     if exceptions:
         raise ExceptionGroup(f"{len(exceptions)} junit uploads failed", exceptions)
+
+
+def _execute_timed_upload(args, env, timing):
+    timing["started"] = perf_counter()
+    timing["status"] = "failed"
+    try:
+        result = _execute_with_partial_isolation(args, env)
+        timing["status"] = "success"
+        return result
+    finally:
+        timing["finished"] = perf_counter()
+
+
+def _report_upload_timings(timings):
+    # Every future has completed before reading these per-invocation records.
+    active = peak_active = 0
+    events = sorted((timing[key], delta) for timing in timings for key, delta in (("started", 1), ("finished", -1)))
+    for _, delta in events:
+        active += delta
+        peak_active = max(peak_active, active)
+    summary = {
+        "upload_count": len(timings),
+        "max_active": peak_active,
+        "elapsed_seconds": max((timing["finished"] for timing in timings), default=0)
+        - min((timing["queued"] for timing in timings), default=0),
+        "uploads": [
+            {
+                "index": timing["index"],
+                "queue_seconds": timing["started"] - timing["queued"],
+                "run_seconds": timing["finished"] - timing["started"],
+                "status": timing["status"],
+            }
+            for timing in timings
+        ],
+    }
+    try:
+        print(f"JUnit upload timings: {json.dumps(summary, sort_keys=True)}")
+    except (OSError, ValueError):
+        # Optional diagnostics must not replace an upload result or its errors.
+        pass
 
 
 def _generate_junitxmls(team_dir: Path) -> Iterator[tuple[list[str], dict[str, str]]]:
