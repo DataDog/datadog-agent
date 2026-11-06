@@ -191,10 +191,18 @@ func getPaginatedAnalytics[T any](
 	filterQuery string,
 	joinQuery string,
 	metrics []string,
+	layout *timeseriesLayout,
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
+	// An endpoint without a layout has not been verified against a real timeseries
+	// response, so it stays on tableData even when the instance asks for timeseries.
+	// Silently reshaping its rows would either mis-index the parser or drop every row.
 	if client.analyticsQueryType == QueryTypeTimeseries {
-		return getTimeseriesAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics, parser)
+		if layout == nil {
+			log.Debugf("Query %q does not support timeseries collection, using tableData", query)
+		} else {
+			return getTimeseriesAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics, layout, parser)
+		}
 	}
 
 	var allMetrics []T
@@ -251,75 +259,76 @@ func getTimeseriesAnalytics[T any](
 	filterQuery string,
 	joinQuery string,
 	metrics []string,
+	layout *timeseriesLayout,
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
-	groupBy, err := groupByFieldCount(query)
+	// Deliberately a single request. A timeseries body is a list of series rather than of
+	// rows, and whether count and from-count slice it by entity, by series or not at all
+	// is not something we have been able to pin down against a real Director. Paging on
+	// the wrong unit would either silently truncate the fleet or re-fetch and re-submit
+	// the same buckets on every page, so instead we ask for everything once and say so
+	// when the response looks like it was capped.
+	analyticsURL := buildAnalyticsPath(analyticsQuery{
+		tenant:      tenant,
+		feature:     feature,
+		queryType:   QueryTypeTimeseries,
+		query:       query,
+		lookback:    lookback,
+		endDate:     timeseriesEndDate,
+		gap:         client.analyticsGap,
+		filterQuery: filterQuery,
+		joinQuery:   joinQuery,
+		metrics:     metrics,
+		count:       cfg.MaxCount,
+		fromCount:   0,
+	})
+
+	resp, err := get[AnalyticsTimeseriesResponse](client, analyticsURL, nil, true, cfg.Timeout)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to get analytics timeseries: %v", err)
 	}
 
-	var allMetrics []T
+	if entities := countEntities(resp.Data); entities >= cfg.MaxCount {
+		log.Warnf("Timeseries query %q returned %d entities, at or above max_count %d: raise max_count, results may be truncated", query, entities, cfg.MaxCount)
+	}
 
-	for page := 0; page < cfg.MaxPages; page++ {
-		analyticsURL := buildAnalyticsPath(analyticsQuery{
-			tenant:      tenant,
-			feature:     feature,
-			queryType:   QueryTypeTimeseries,
-			query:       query,
-			lookback:    lookback,
-			endDate:     timeseriesEndDate,
-			gap:         client.analyticsGap,
-			filterQuery: filterQuery,
-			joinQuery:   joinQuery,
-			metrics:     metrics,
-			count:       cfg.MaxCount,
-			fromCount:   page * cfg.MaxCount,
-		})
-
-		resp, err := get[AnalyticsTimeseriesResponse](client, analyticsURL, nil, true, cfg.Timeout)
-		if err != nil {
-			return nil, fmt.Errorf("failed to get analytics timeseries page %d: %v", page+1, err)
-		}
-
-		rows, dropped := flattenTimeseries(resp.Data, metrics, groupBy)
-		if dropped > 0 {
+	rows, dropped := flattenTimeseries(resp.Data, metrics, layout.drillKeyFields)
+	if dropped > 0 {
+		if len(rows) == 0 {
+			// Every bucket was unusable. Most likely a requested metric is not returned
+			// as a series on this tenant, or the drill key does not split the way the
+			// layout expects, and either way the endpoint reports nothing at all.
+			log.Warnf("Dropped all %d timeseries buckets for query %q, no metrics will be reported for it", dropped, query)
+		} else {
 			log.Debugf("Dropped %d incomplete timeseries buckets for query %q", dropped, query)
 		}
+	}
 
-		rawRows := make([][]interface{}, 0, len(rows))
-		for _, row := range rows {
-			rawRows = append(rawRows, row.row)
-		}
+	rawRows := make([][]interface{}, 0, len(rows))
+	for _, row := range rows {
+		rawRows = append(rawRows, row.row)
+	}
 
-		parsed, err := parser(rawRows)
-		if err != nil {
-			return nil, fmt.Errorf("failed to parse analytics timeseries page %d: %v", page+1, err)
-		}
-		// flattenTimeseries and the parsers are both order preserving and all or nothing,
-		// so parsed[i] is the entry built from rows[i].
-		if len(parsed) != len(rows) {
-			return nil, fmt.Errorf("parsed %d entries from %d timeseries buckets", len(parsed), len(rows))
-		}
-		for i := range parsed {
-			if entry, ok := any(&parsed[i]).(timestamped); ok {
-				entry.setTimestamp(rows[i].timestamp)
-			}
-		}
-
-		allMetrics = append(allMetrics, parsed...)
-
-		// count and from-count page over entities, not rows: one entity brings back a row
-		// per bucket. Stop once a page returns fewer entities than it asked for.
-		if countEntities(resp.Data) < cfg.MaxCount {
-			break
+	parsed, err := parser(rawRows)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse analytics timeseries: %v", err)
+	}
+	// flattenTimeseries and the parsers are both order preserving and all or nothing, so
+	// parsed[i] is the entry built from rows[i].
+	if len(parsed) != len(rows) {
+		return nil, fmt.Errorf("parsed %d entries from %d timeseries buckets", len(parsed), len(rows))
+	}
+	for i := range parsed {
+		if entry, ok := any(&parsed[i]).(timestamped); ok {
+			entry.setTimestamp(rows[i].timestamp)
 		}
 	}
 
-	return allMetrics, nil
+	return parsed, nil
 }
 
 // countEntities returns the number of distinct entities across the series of a timeseries
-// response, which is the unit Analytics pages over.
+// response.
 func countEntities(series []AnalyticsTimeseries) int {
 	names := make(map[string]struct{}, len(series))
 	for _, s := range series {

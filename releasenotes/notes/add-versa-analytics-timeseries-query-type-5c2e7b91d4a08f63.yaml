@@ -16,6 +16,9 @@ features:
     companion ``analytics_gap`` option sets the requested bucket size, defaulting to
     ``1MINUTE``, which Versa renders at whatever resolution the tenant is configured for.
 
-    SLA and path QoS metrics collected this way are submitted with the timestamp of their
-    own bucket and deduplicated across collections, so a lookback window longer than the
-    check interval does not double report.
+    SLA, path QoS and circuit QoS metrics collected this way are submitted with the
+    timestamp of their own bucket and deduplicated per tenant and entity, so a lookback
+    window longer than the check interval does not double report. Other endpoints continue
+    to use ``tableData`` whatever this option is set to. The newest bucket of each entity
+    is held back for one collection, because Versa's buckets are wall-clock aligned and
+    the current one is still accumulating.
