@@ -15,6 +15,7 @@ import (
 	"slices"
 	"strconv"
 	"sync"
+	"sync/atomic"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	manager "github.com/DataDog/ebpf-manager"
@@ -54,21 +55,35 @@ type programEntry struct {
 	programID  uint32
 	probe      *manager.Probe
 	deviceName string
+	attachMode manager.TCAttachMode
 }
 
 // Resolver defines a TC resolver
 type Resolver struct {
 	sync.RWMutex
-	config   *config.Config
-	programs map[ProgramKey]programEntry
+	config     *config.Config
+	attachMode manager.TCAttachMode
+	programs   map[ProgramKey]programEntry
+	staleLinks atomic.Int64
 }
 
-// NewResolver returns a TC resolver
+// NewResolver returns a TC resolver, whose attach mode is read once from a config already checked against the kernel
 func NewResolver(config *config.Config) *Resolver {
-	return &Resolver{
-		config:   config,
-		programs: make(map[ProgramKey]programEntry),
+	attachMode := manager.TCAttachModeLegacy
+	if config.NetworkTCXEnabled {
+		attachMode = manager.TCAttachModeTCX
 	}
+
+	return &Resolver{
+		config:     config,
+		attachMode: attachMode,
+		programs:   make(map[ProgramKey]programEntry),
+	}
+}
+
+// AttachMode returns how the classifiers are attached to their devices
+func (tcr *Resolver) AttachMode() manager.TCAttachMode {
+	return tcr.attachMode
 }
 
 // SendTCProgramsStats sends TC programs stats
@@ -76,9 +91,49 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
-	if val := float64(len(tcr.programs)); val > 0 {
-		_ = statsdClient.Gauge(metrics.MetricTCProgram, val, []string{}, 1.0)
+	counts := make(map[manager.TCAttachMode]int)
+	for _, entry := range tcr.programs {
+		counts[entry.attachMode]++
 	}
+
+	for mode, count := range counts {
+		_ = statsdClient.Gauge(metrics.MetricTCProgram, float64(count), []string{"attach_mode:" + mode.String()}, 1.0)
+	}
+	tcr.sendStaleLinksStats(statsdClient)
+}
+
+// FilterPriority returns the priority of the filters of the classifiers
+func (tcr *Resolver) FilterPriority() uint16 {
+	// the eBPF manager falls back to its default priority when none is provided
+	if tcr.config.NetworkClassifierPriority == 0 {
+		return manager.DefaultTCFilterPriority
+	}
+	return tcr.config.NetworkClassifierPriority
+}
+
+// Directions returns the directions of the hooks the classifiers are attached to
+func (tcr *Resolver) Directions() []manager.TrafficType {
+	var directions []manager.TrafficType
+	for _, tcProbe := range probes.GetTCProbes(tcr.config.NetworkIngressEnabled, tcr.config.NetworkRawPacketEnabled) {
+		if !slices.Contains(directions, tcProbe.NetworkDirection) {
+			directions = append(directions, tcProbe.NetworkDirection)
+		}
+	}
+	return directions
+}
+
+// ProgramIDs returns the IDs of the classifiers attached in the provided network namespace
+func (tcr *Resolver) ProgramIDs(netns uint32) map[uint32]struct{} {
+	tcr.RLock()
+	defer tcr.RUnlock()
+
+	ids := make(map[uint32]struct{})
+	for key, entry := range tcr.programs {
+		if key.NetNS == netns {
+			ids[entry.programID] = struct{}{}
+		}
+	}
+	return ids
 }
 
 // SelectTCProbes selects TC probes
@@ -137,13 +192,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		newProbe.IfIndexNetns = uint64(netnsHandle.Fd())
 		newProbe.IfIndexNetnsID = device.NetNS
 		newProbe.KeepProgramSpec = false
-		newProbe.TCFilterPrio = tcr.config.NetworkClassifierPriority
-
-		if slices.Contains(probes.RawPacketTCProgram, tcProbe.EBPFFuncName) {
-			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.RawNetworkClassifierHandle)
-		} else {
-			newProbe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
-		}
+		tcr.setAttachPoint(newProbe)
 
 		netnsEditor := []manager.ConstantEditor{
 			{
@@ -164,6 +213,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 				programID:  newProbe.ID(),
 				probe:      newProbe,
 				deviceName: device.Name,
+				attachMode: newProbe.TCAttachMode,
 			}
 
 			tcr.programs[progKey] = entry
@@ -173,6 +223,23 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 		}
 	}
 	return combinedErr.ErrorOrNil()
+}
+
+// setAttachPoint sets where a clone is attached on its device
+func (tcr *Resolver) setAttachPoint(probe *manager.Probe) {
+	probe.TCAttachMode = tcr.attachMode
+	if tcr.attachMode == manager.TCAttachModeTCX {
+		// as with legacy filters sharing a priority, the clone attached last runs first: raw packet, in both modes
+		probe.TCXAnchor = manager.TCXAnchorHead
+		return
+	}
+
+	probe.TCFilterPrio = tcr.config.NetworkClassifierPriority
+	if slices.Contains(probes.RawPacketTCProgram, probe.EBPFFuncName) {
+		probe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.RawNetworkClassifierHandle)
+	} else {
+		probe.TCFilterHandle = netlink.MakeHandle(0, tcr.config.NetworkClassifierHandle)
+	}
 }
 
 // detachHook detaches and deletes a TC hook from the resolver, needs to be called with the lock held
@@ -206,32 +273,32 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 }
 
 // FlushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
-// per network namespace (ignoring the interfaces that are lazily deleted).
-func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) map[uint32]int {
+// per network namespace (ignoring the interfaces that are lazily deleted), and the number of stale TCX links it detached.
+func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) (map[uint32]int, int) {
 	tcr.Lock()
 	defer tcr.Unlock()
 
 	probesCountNoLazyDeletion := make(map[uint32]int)
+	var staleLinks int
 
-	var linkName string
 	for tcKey, entry := range tcr.programs {
 		if !entry.probe.IsTCFilterActive() {
-			tcr.detachHook(tcKey, entry, m)
+			if tcr.detachInactiveHook(tcKey, entry, m) {
+				staleLinks++
+			}
 		} else {
 			link, err := entry.probe.ResolveLink()
-			if err == nil {
-				linkName = link.Attrs().Name
-			} else {
-				linkName = ""
+			if err != nil {
+				continue
 			}
 			// ignore interfaces that are lazily deleted
-			if link.Attrs().HardwareAddr.String() != "" && !isLazy(linkName) {
+			if link.Attrs().HardwareAddr.String() != "" && !isLazy(link.Attrs().Name) {
 				probesCountNoLazyDeletion[tcKey.NetNS]++
 			}
 		}
 	}
 
-	return probesCountNoLazyDeletion
+	return probesCountNoLazyDeletion, staleLinks
 }
 
 // ResolveNetworkDeviceIfName resolves network device name

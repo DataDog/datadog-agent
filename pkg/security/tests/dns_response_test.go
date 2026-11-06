@@ -51,6 +51,11 @@ var _ = declare(TestDNSResponse, testOpts{
 
 func TestDNSResponse(t *testing.T) {
 	SkipIfNotAvailable(t)
+
+	testDNSResponse(t)
+}
+
+func testDNSResponse(t *testing.T) {
 	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {

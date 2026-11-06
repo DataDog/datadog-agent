@@ -58,6 +58,7 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 					"mmapableMaps":   cfStatus.Environment.UseMmapableMaps,
 					"ringBuffer":     cfStatus.Environment.UseRingBuffer,
 					"fentry":         cfStatus.Environment.UseFentry,
+					"tcx":            cfStatus.Environment.UseTCX,
 				}
 				if cfStatus.Environment.Constants != nil {
 					environment["constantFetchers"] = cfStatus.Environment.Constants

@@ -30,6 +30,10 @@ var _ = declare(TestAWSIMDSv1Request, testOpts{networkIngressEnabled: true})
 func TestAWSIMDSv1Request(t *testing.T) {
 	SkipIfNotAvailable(t)
 
+	testAWSIMDSv1Request(t)
+}
+
+func testAWSIMDSv1Request(t *testing.T) {
 	checkNetworkCompatibility(t)
 
 	if testEnvironment != DockerEnvironment && !env.IsContainerized() {

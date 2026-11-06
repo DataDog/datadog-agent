@@ -64,6 +64,9 @@
     {{- if .fentry }}
     Use fentry: {{ .fentry }}
     {{- end }}
+    {{- if .tcx }}
+    Use TCX: {{ .tcx }}
+    {{- end }}
     {{ if .constantFetchers }}
     Available constant fetchers
     ===========================

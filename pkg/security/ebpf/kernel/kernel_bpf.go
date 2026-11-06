@@ -10,8 +10,10 @@ package kernel
 
 import (
 	"runtime"
+	"sync"
 	"unsafe"
 
+	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/features"
@@ -210,6 +212,15 @@ func (k *Version) SupportCORE() bool {
 // https://github.com/torvalds/linux/commit/eb166e522c77699fc19bfa705652327a1e51a117
 func (k *Version) HasBpfGetCurrentPidTgidForSchedCLS() bool {
 	return features.HaveProgramHelper(ebpf.SchedCLS, asm.FnGetCurrentPidTgid) == nil
+}
+
+var haveTCX = sync.OnceValue(func() bool {
+	return manager.HaveTCX() == nil
+})
+
+// HasTCX returns true if the kernel can attach Sched CLS programs with TCX links
+func (k *Version) HasTCX() bool {
+	return haveTCX()
 }
 
 // HasBpfGetCurrentCgroupIDForSchedCLS returns if the kernel supports bpf_get_current_cgroup_id for Sched CLS program type

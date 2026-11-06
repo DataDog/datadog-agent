@@ -20,6 +20,7 @@ go_library(
             "@com_github_cilium_ebpf//asm",
             "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//link",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@org_golang_x_sys//unix",
         ],
         "@rules_go//go/platform:linux": [
@@ -32,6 +33,7 @@ go_library(
             "@com_github_cilium_ebpf//asm",
             "@com_github_cilium_ebpf//features",
             "@com_github_cilium_ebpf//link",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
             "@org_golang_x_sys//unix",
         ],
         "//conditions:default": [],

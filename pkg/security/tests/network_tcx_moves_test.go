@@ -1,0 +1,480 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+//go:build linux && functionaltests
+
+// Package tests holds tests related files
+package tests
+
+import (
+	"fmt"
+	"net"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cenkalti/backoff/v7"
+	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
+	"github.com/cilium/ebpf/link"
+	"github.com/stretchr/testify/assert"
+	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netns"
+	"golang.org/x/sys/unix"
+
+	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/security/metrics"
+	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
+)
+
+const tcxMovesDomain = "tcx-moves.test"
+
+var tcxMovesRule = &rules.RuleDefinition{
+	ID:         "test_rule_tcx_moves",
+	Expression: fmt.Sprintf(`dns.question.name == "%s"`, tcxMovesDomain),
+}
+
+// tcxMoves holds what the device move scenarios share
+type tcxMoves struct {
+	test        *testModule
+	probe       *sprobe.EBPFProbe
+	ip          string
+	hostNetNS   uint32
+	settleDelay time.Duration
+}
+
+// testTCXDeviceMoves checks that TCX links never run with the namespace of a device that moved away
+func testTCXDeviceMoves(t *testing.T) {
+	for _, module := range []string{"dummy", "macvlan", "veth", "vxlan", "bridge"} {
+		if out, err := loadModule(module); err != nil {
+			t.Fatalf("couldn't load the %s module: %s, %v", module, string(out), err)
+		}
+	}
+
+	test, err := newTestModule(t, nil, []*rules.RuleDefinition{tcxTestRule, tcxMovesRule})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	p, ok := test.probe.PlatformProbe.(*sprobe.EBPFProbe)
+	if !ok {
+		t.Fatal("not supported")
+	}
+	hostNetNS, err := getCurrentNetns()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	m := &tcxMoves{
+		test:        test,
+		probe:       p,
+		ip:          which(t, "ip"),
+		hostNetNS:   hostNetNS,
+		settleDelay: test.probe.Config.Probe.NetworkTCXSettleDelay,
+	}
+
+	m.run(t, "wptcxdum0", "link", "add", "wptcxdum0", "type", "dummy")
+	m.run(t, "", "link", "set", "wptcxdum0", "up")
+
+	t.Run("macvlan_moved_before_settling", m.testMovedBeforeSettling)
+	t.Run("tunnel_and_bridge_not_delayed", m.testNotDelayed)
+	t.Run("macvlan_moved_after_settling", m.testMovedAfterSettling)
+	t.Run("netkit_peer_moved", m.testNetkitPeerMoved)
+	t.Run("veth_peer_moved", m.testVethPeerMoved)
+	t.Run("host_veth_pair", m.testHostVethPair)
+	t.Run("docker_veth_pair", m.testDockerVethPair)
+	t.Run("failing_device", m.testFailingDevice)
+	t.Run("netns_destruction", m.testNetNSDestruction)
+}
+
+// run runs ip with args, and deletes the device named by cleanup at the end of the test
+func (m *tcxMoves) run(tb testing.TB, cleanup string, args ...string) {
+	tb.Helper()
+	if out, err := exec.Command(m.ip, args...).CombinedOutput(); err != nil {
+		tb.Fatalf("ip %s: %s, %v", strings.Join(args, " "), string(out), err)
+	}
+	if cleanup != "" {
+		tb.Cleanup(func() {
+			_ = exec.Command(m.ip, "link", "delete", cleanup).Run()
+		})
+	}
+}
+
+// newNetNS creates a named network namespace, and hands it to the resolver as a container runtime would expose it
+func (m *tcxMoves) newNetNS(tb testing.TB, name string) (uint32, *utils.NSPath) {
+	tb.Helper()
+	m.run(tb, "", "netns", "add", name)
+	tb.Cleanup(func() {
+		_ = exec.Command(m.ip, "netns", "delete", name).Run()
+	})
+
+	nsPath := utils.NewNSPathFromPath(filepath.Join("/var/run/netns", name), utils.NetNsType)
+	nsID, err := nsPath.GetNSID()
+	if err != nil {
+		tb.Fatal(err)
+	}
+	_, _ = m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, nsPath)
+	return nsID, nsPath
+}
+
+// resnapshotNetNS makes the resolver snapshot a namespace again, as it does the first time it sees a pod namespace
+func (m *tcxMoves) resnapshotNetNS(tb testing.TB, nsID uint32, nsPath *utils.NSPath) {
+	tb.Helper()
+	if namespace := m.probe.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsID); namespace != nil {
+		m.probe.FlushNetworkNamespace(namespace)
+	}
+	if _, isNew := m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, nsPath); !isNew {
+		tb.Fatalf("namespace %d wasn't snapshotted again", nsID)
+	}
+}
+
+func (m *tcxMoves) flush() {
+	m.probe.Resolvers.NamespaceResolver.FlushNamespaces()
+}
+
+// ifIndex returns the ifindex of a device in a namespace, the host one when nsPath is nil
+func (m *tcxMoves) ifIndex(tb testing.TB, nsPath *utils.NSPath, name string) uint32 {
+	tb.Helper()
+	handle, err := netlinkHandle(nsPath)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	defer handle.Close()
+
+	device, err := handle.LinkByName(name)
+	if err != nil {
+		tb.Fatalf("couldn't find %s: %v", name, err)
+	}
+	return uint32(device.Attrs().Index)
+}
+
+func netlinkHandle(nsPath *utils.NSPath) (*netlink.Handle, error) {
+	if nsPath == nil {
+		return netlink.NewHandle(unix.NETLINK_ROUTE)
+	}
+	ns, err := netns.GetFromPath(nsPath.GetPath())
+	if err != nil {
+		return nil, err
+	}
+	defer ns.Close()
+	return netlink.NewHandleAt(ns, unix.NETLINK_ROUTE)
+}
+
+// programs returns the IDs of the classifiers the resolver holds for a device
+func (m *tcxMoves) programs(nsID uint32, ifIndex uint32) []uint32 {
+	var ids []uint32
+	for _, program := range m.probe.Resolvers.TCResolver.DumpNetworkNamespacePrograms(nsID, nil, nil)[ifIndex] {
+		ids = append(ids, program.ProgramID)
+	}
+	return ids
+}
+
+func (m *tcxMoves) isAttached(nsID uint32, ifIndex uint32) bool {
+	return len(m.programs(nsID, ifIndex)) > 0
+}
+
+func (m *tcxMoves) waitAttached(tb testing.TB, nsID uint32, ifIndex uint32, timeout time.Duration) {
+	tb.Helper()
+	err := retry(tb, func() error {
+		if !m.isAttached(nsID, ifIndex) {
+			return fmt.Errorf("device %d of namespace %d isn't attached", ifIndex, nsID)
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(timeout))
+	if err != nil {
+		tb.Fatal(err)
+	}
+}
+
+// hookPrograms returns the IDs of the TCX programs of both hooks of a device
+func hookPrograms(tb testing.TB, nsPath *utils.NSPath, ifName string) []uint32 {
+	tb.Helper()
+	var ids []uint32
+	for _, direction := range []manager.TrafficType{manager.Egress, manager.Ingress} {
+		for _, program := range tcxHookPrograms(tb, nsPath, ifName, direction) {
+			ids = append(ids, uint32(program.ID))
+		}
+	}
+	return ids
+}
+
+// assertOnlyLocalPrograms checks that the programs of a moved device are exactly the ones attached in its namespace
+func (m *tcxMoves) assertOnlyLocalPrograms(tb testing.TB, nsID uint32, nsPath *utils.NSPath, ifName string) {
+	tb.Helper()
+	local := m.programs(nsID, m.ifIndex(tb, nsPath, ifName))
+	assert.NotEmpty(tb, local, "%s isn't attached in namespace %d", ifName, nsID)
+	assert.ElementsMatch(tb, local, hookPrograms(tb, nsPath, ifName), "programs of %s in namespace %d", ifName, nsID)
+}
+
+func (m *tcxMoves) staleLinks() int64 {
+	m.probe.Resolvers.TCResolver.SendTCProgramsStats(m.test.statsdClient)
+	return m.test.statsdClient.Get(metrics.MetricTCStaleLinks)
+}
+
+func (m *tcxMoves) errors(class string) int64 {
+	_ = m.probe.Resolvers.NamespaceResolver.SendStats()
+	return m.test.statsdClient.Get(metrics.MetricNamespaceResolverError + ":error_type:" + class)
+}
+
+// assertOneDNSEvent sends one DNS query from a namespace and checks that the device it leaves through reports it
+// once, with the namespace and the process of the query
+func (m *tcxMoves) assertOneDNSEvent(t *testing.T, nsID uint32, nsPath *utils.NSPath, ifName string, server net.IP) {
+	type dnsEvent struct {
+		netNS uint32
+		pid   uint32
+	}
+	var lock sync.Mutex
+	var events []dnsEvent
+
+	m.test.RegisterRuleEventHandler(func(event *model.Event, rule *rules.Rule) {
+		if rule.ID != tcxMovesRule.ID || event.NetworkContext.Device.IfName != ifName {
+			return
+		}
+		lock.Lock()
+		events = append(events, dnsEvent{netNS: event.NetworkContext.Device.NetNS, pid: event.ProcessContext.Pid})
+		lock.Unlock()
+	})
+	defer m.test.RegisterRuleEventHandler(nil)
+
+	err := runInTestNetns(nsPath, func() error {
+		conn, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: server, Port: int(DNSPort)})
+		if err != nil {
+			return err
+		}
+		defer conn.Close()
+		_, err = conn.Write(dnsQuery(tcxMovesDomain))
+		return err
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// time for a duplicate to show up too
+	time.Sleep(3 * time.Second)
+
+	lock.Lock()
+	defer lock.Unlock()
+	if assert.Len(t, events, 1, "DNS events reported by %s", ifName) {
+		assert.Equal(t, nsID, events[0].netNS, "namespace of the DNS event")
+		assert.Equal(t, utils.Getpid(), events[0].pid, "process of the DNS event")
+	}
+}
+
+// dnsQuery returns a DNS query for the A record of name
+func dnsQuery(name string) []byte {
+	msg := []byte{0x7c, 0x31, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0}
+	for _, label := range strings.Split(name, ".") {
+		msg = append(msg, byte(len(label)))
+		msg = append(msg, label...)
+	}
+	return append(msg, 0, 0, 1, 0, 1)
+}
+
+// testMovedBeforeSettling moves a macvlan, standing for a VF or a Docker macvlan, right after creating it
+func (m *tcxMoves) testMovedBeforeSettling(t *testing.T) {
+	_, nsPath := m.newNetNS(t, "wptcx_early")
+
+	m.run(t, "", "link", "add", "wptcxmv0", "link", "wptcxdum0", "type", "macvlan", "mode", "bridge")
+	hostIfIndex := m.ifIndex(t, nil, "wptcxmv0")
+	m.run(t, "", "link", "set", "wptcxmv0", "netns", "wptcx_early")
+
+	time.Sleep(m.settleDelay + 2*time.Second)
+
+	assert.False(t, m.isAttached(m.hostNetNS, hostIfIndex), "wptcxmv0 was attached in the host namespace")
+	// a link attached in the host namespace would have followed the device
+	assert.Empty(t, hookPrograms(t, nsPath, "wptcxmv0"), "programs of wptcxmv0 in its new namespace")
+}
+
+// testNotDelayed checks that tunnels and bridges, which stay where they're created, are attached right away
+func (m *tcxMoves) testNotDelayed(t *testing.T) {
+	m.run(t, "wptcxvx0", "link", "add", "wptcxvx0", "type", "vxlan", "id", "42", "dstport", "4789", "local", "127.0.0.1")
+	m.run(t, "wptcxbr0", "link", "add", "wptcxbr0", "type", "bridge")
+
+	for _, name := range []string{"wptcxvx0", "wptcxbr0"} {
+		m.waitAttached(t, m.hostNetNS, m.ifIndex(t, nil, name), m.settleDelay/2)
+	}
+}
+
+// testMovedAfterSettling moves a macvlan once attached in the host namespace
+func (m *tcxMoves) testMovedAfterSettling(t *testing.T) {
+	nsID, nsPath := m.newNetNS(t, "wptcx_late")
+
+	m.run(t, "", "link", "add", "wptcxmv1", "link", "wptcxdum0", "type", "macvlan", "mode", "bridge")
+	hostIfIndex := m.ifIndex(t, nil, "wptcxmv1")
+
+	time.Sleep(m.settleDelay / 2)
+	assert.False(t, m.isAttached(m.hostNetNS, hostIfIndex), "wptcxmv1 was attached before settling")
+	m.waitAttached(t, m.hostNetNS, hostIfIndex, m.settleDelay+5*time.Second)
+	hostLinks := int64(len(m.programs(m.hostNetNS, hostIfIndex)))
+
+	staleLinks := m.staleLinks()
+	m.run(t, "", "link", "set", "wptcxmv1", "netns", "wptcx_late")
+	m.flush()
+
+	assert.False(t, m.isAttached(m.hostNetNS, hostIfIndex), "wptcxmv1 is still attached in the host namespace")
+	assert.Equal(t, hostLinks, m.staleLinks()-staleLinks, "stale links")
+
+	m.resnapshotNetNS(t, nsID, nsPath)
+	m.assertOnlyLocalPrograms(t, nsID, nsPath, "wptcxmv1")
+
+	m.run(t, "", "-n", "wptcx_late", "addr", "add", "192.0.2.2/24", "dev", "wptcxmv1")
+	m.run(t, "", "-n", "wptcx_late", "link", "set", "wptcxmv1", "up")
+	m.run(t, "", "-n", "wptcx_late", "neigh", "add", "192.0.2.1", "lladdr", "02:00:00:00:00:01", "dev", "wptcxmv1", "nud", "permanent")
+	m.assertOneDNSEvent(t, nsID, nsPath, "wptcxmv1", net.IPv4(192, 0, 2, 1))
+}
+
+// testNetkitPeerMoved creates a netkit pair as Cilium does: in the host namespace, before moving its peer
+func (m *tcxMoves) testNetkitPeerMoved(t *testing.T) {
+	nsID, nsPath := m.newNetNS(t, "wptcx_netkit")
+
+	if out, err := exec.Command(m.ip, "link", "add", "wptcxnk0", "type", "netkit", "peer", "name", "wptcxnk1").CombinedOutput(); err != nil {
+		t.Skipf("netkit isn't supported: %s, %v", string(out), err)
+	}
+	t.Cleanup(func() {
+		_ = exec.Command(m.ip, "link", "delete", "wptcxnk0").Run()
+	})
+	primaryIfIndex := m.ifIndex(t, nil, "wptcxnk0")
+	peerHostIfIndex := m.ifIndex(t, nil, "wptcxnk1")
+	m.run(t, "", "link", "set", "wptcxnk1", "netns", "wptcx_netkit")
+
+	// the pod facing primary stays, and gets attached once settled
+	m.waitAttached(t, m.hostNetNS, primaryIfIndex, m.settleDelay+5*time.Second)
+	assert.False(t, m.isAttached(m.hostNetNS, peerHostIfIndex), "the netkit peer was attached in the host namespace")
+	assert.Empty(t, hookPrograms(t, nsPath, "wptcxnk1"), "programs of the netkit peer in its new namespace")
+
+	m.resnapshotNetNS(t, nsID, nsPath)
+	m.assertOnlyLocalPrograms(t, nsID, nsPath, "wptcxnk1")
+
+	m.run(t, "", "addr", "add", "192.0.2.5/30", "dev", "wptcxnk0")
+	m.run(t, "", "link", "set", "wptcxnk0", "up")
+	m.run(t, "", "-n", "wptcx_netkit", "addr", "add", "192.0.2.6/30", "dev", "wptcxnk1")
+	m.run(t, "", "-n", "wptcx_netkit", "link", "set", "wptcxnk1", "up")
+	m.assertOneDNSEvent(t, nsID, nsPath, "wptcxnk1", net.IPv4(192, 0, 2, 5))
+}
+
+// testVethPeerMoved checks that the move event of a veth peer attaches it once, in its new namespace
+func (m *tcxMoves) testVethPeerMoved(t *testing.T) {
+	nsID, nsPath := m.newNetNS(t, "wptcx_veth")
+
+	m.run(t, "wptcxve0", "link", "add", "wptcxve0", "type", "veth", "peer", "name", "wptcxve1")
+	m.run(t, "", "link", "set", "wptcxve1", "netns", "wptcx_veth")
+
+	m.waitAttached(t, nsID, m.ifIndex(t, nsPath, "wptcxve1"), 5*time.Second)
+	m.assertOnlyLocalPrograms(t, nsID, nsPath, "wptcxve1")
+	assert.False(t, m.isAttached(m.hostNetNS, m.ifIndex(t, nil, "wptcxve0")), "the host end was attached")
+}
+
+// testHostVethPair checks that a veth pair kept in the host namespace, like cilium_host and cilium_net, is attached
+// by the host snapshot of a flush, although no event reports it
+func (m *tcxMoves) testHostVethPair(t *testing.T) {
+	m.run(t, "wptcxch0", "link", "add", "wptcxch0", "type", "veth", "peer", "name", "wptcxch1")
+	ifIndexes := []uint32{m.ifIndex(t, nil, "wptcxch0"), m.ifIndex(t, nil, "wptcxch1")}
+
+	m.flush()
+	time.Sleep(m.settleDelay / 2)
+	for _, ifIndex := range ifIndexes {
+		assert.False(t, m.isAttached(m.hostNetNS, ifIndex), "device %d was attached before settling", ifIndex)
+	}
+	for _, ifIndex := range ifIndexes {
+		m.waitAttached(t, m.hostNetNS, ifIndex, m.settleDelay+5*time.Second)
+	}
+}
+
+// testDockerVethPair checks that the host end of a veth pair whose other end moved stays unattached, as in legacy
+// mode, even when a host snapshot catches the pair before the move
+func (m *tcxMoves) testDockerVethPair(t *testing.T) {
+	m.newNetNS(t, "wptcx_docker")
+
+	m.run(t, "wptcxdk0", "link", "add", "wptcxdk0", "type", "veth", "peer", "name", "wptcxdk1")
+	hostEnd := m.ifIndex(t, nil, "wptcxdk0")
+	m.flush()
+	m.run(t, "", "link", "set", "wptcxdk1", "netns", "wptcx_docker")
+
+	for range 3 {
+		time.Sleep(m.settleDelay + time.Second)
+		m.flush()
+	}
+	time.Sleep(m.settleDelay + time.Second)
+	assert.False(t, m.isAttached(m.hostNetNS, hostEnd), "the host end was attached")
+}
+
+// testFailingDevice fills the TCX hooks of a host device, so that attaching it fails, and checks that the host
+// snapshots don't try it again
+func (m *tcxMoves) testFailingDevice(t *testing.T) {
+	m.run(t, "wptcxfl0", "link", "add", "wptcxfl0", "type", "veth", "peer", "name", "wptcxfl1")
+	failing := m.ifIndex(t, nil, "wptcxfl0")
+
+	// TCX hooks hold 64 programs at most, and a program only once
+	for i := range 64 {
+		prog, err := ebpf.NewProgram(&ebpf.ProgramSpec{
+			Name:         fmt.Sprintf("foreign_%d", i),
+			Type:         ebpf.SchedCLS,
+			License:      "Apache-2.0",
+			Instructions: asm.Instructions{asm.Mov.Imm(asm.R0, probes.TCActUnspec), asm.Return()},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		t.Cleanup(func() { _ = prog.Close() })
+
+		for _, attach := range []ebpf.AttachType{ebpf.AttachTCXIngress, ebpf.AttachTCXEgress} {
+			l, err := link.AttachTCX(link.TCXOptions{Interface: int(failing), Program: prog, Attach: attach})
+			if err != nil {
+				t.Fatal(err)
+			}
+			t.Cleanup(func() { _ = l.Close() })
+		}
+	}
+
+	failures := m.errors("tcx_attach")
+	m.flush()
+	m.waitAttached(t, m.hostNetNS, m.ifIndex(t, nil, "wptcxfl1"), m.settleDelay+5*time.Second)
+	assert.Equal(t, int64(1), m.errors("tcx_attach")-failures, "failed attaches of wptcxfl0")
+
+	for range 3 {
+		m.flush()
+		time.Sleep(time.Second)
+	}
+	time.Sleep(m.settleDelay + time.Second)
+	assert.Equal(t, int64(1), m.errors("tcx_attach")-failures, "failed attaches of wptcxfl0")
+	assert.False(t, m.isAttached(m.hostNetNS, failing))
+}
+
+// testNetNSDestruction checks that the links of a destroyed namespace go away with their entries, without being
+// counted as stale
+func (m *tcxMoves) testNetNSDestruction(t *testing.T) {
+	nsID, nsPath := m.newNetNS(t, "wptcx_gone")
+
+	m.run(t, "", "link", "add", "wptcxde0", "type", "veth", "peer", "name", "wptcxde1")
+	m.run(t, "", "link", "set", "wptcxde1", "netns", "wptcx_gone")
+	m.waitAttached(t, nsID, m.ifIndex(t, nsPath, "wptcxde1"), 5*time.Second)
+
+	staleLinks := m.staleLinks()
+	// a CNI plugin deletes the pair before the namespace
+	m.run(t, "", "link", "delete", "wptcxde0")
+	m.run(t, "", "netns", "delete", "wptcx_gone")
+
+	err := retry(t, func() error {
+		m.flush()
+		if programs := m.probe.Resolvers.TCResolver.DumpNetworkNamespacePrograms(nsID, nil, nil); len(programs) > 0 {
+			return fmt.Errorf("classifiers left in namespace %d: %+v", nsID, programs)
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(10))
+	assert.NoError(t, err)
+	assert.Equal(t, staleLinks, m.staleLinks(), "stale links")
+
+	_, err = os.Stat(nsPath.GetPath())
+	assert.True(t, os.IsNotExist(err), "the namespace is still mounted: %v", err)
+}

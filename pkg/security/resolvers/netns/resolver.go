@@ -71,9 +71,14 @@ type Resolver struct {
 	tcRequests          chan TcClassifierRequest
 	netnsHandleRequests chan networkNamespaceHandleRequest
 	errorCounters       map[string]*atomic.Int64
+	blindHooks          blindHooks
 	ctx                 context.Context
 	cancel              context.CancelFunc
 	wg                  sync.WaitGroup
+
+	// settler and hostSnapshotRequests are only set with TCX links, which follow moved devices
+	settler              *deviceSettler
+	hostSnapshotRequests chan struct{}
 }
 
 // NewResolver returns a new instance of Resolver
@@ -89,6 +94,14 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		netnsHandleRequests: make(chan networkNamespaceHandleRequest, 1024),
 
 		errorCounters: newErrorCounters(),
+		blindHooks: blindHooks{
+			tcx:          tcxQuerier{query: tc.QueryTCXPrograms},
+			scanRequests: make(chan struct{}, 1),
+		},
+	}
+	if nr.usesTCX() {
+		nr.settler = newDeviceSettler(config.NetworkTCXSettleDelay)
+		nr.hostSnapshotRequests = make(chan struct{}, 1)
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
@@ -329,6 +342,9 @@ func (nr *Resolver) SyncCache() bool {
 		nr.snapshotNetworkDevices(entry.netns)
 	}
 
+	// the scan needs the handle on the host network namespace taken above
+	nr.requestBlindHooksScan()
+
 	return len(newEntries) > 0
 }
 
@@ -366,6 +382,12 @@ func (nr *Resolver) Start(ctx context.Context) error {
 		defer nr.wg.Done()
 		nr.flushNamespaces(nr.ctx)
 	}()
+
+	nr.wg.Add(1)
+	go func() {
+		defer nr.wg.Done()
+		nr.detectBlindHooksPeriodically(nr.ctx)
+	}()
 	return nil
 }
 
@@ -378,7 +400,8 @@ func (nr *Resolver) Stop() {
 }
 
 func (nr *Resolver) manualFlushNamespaces() {
-	probesCount := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
+	probesCount, staleLinks := nr.tcResolver.FlushInactiveProbes(nr.manager, nr.IsLazyDeletionInterface)
+	countStaleLinks(staleLinks)
 
 	// There is a possible race condition if we lose all network device creations but do notice the new network
 	// namespace: we will create a handle that will never be flushed by `nr.probe.flushInactiveNamespaces()`.
@@ -386,6 +409,8 @@ func (nr *Resolver) manualFlushNamespaces() {
 	// device. Defer a snapshot process for each of those namespaces, and delete them if the snapshot yields
 	// no new device.
 	nr.preventNetworkNamespaceDrift(probesCount)
+
+	nr.requestHostSnapshot()
 }
 
 func (nr *Resolver) flushNamespaces(ctx context.Context) {
@@ -533,6 +558,7 @@ func (nr *Resolver) SendStats() error {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverLonelyNetworkNamespace, lonelyNetworkNamespacesCount, []string{}, 1.0)
 	}
 
+	nr.sendBlindHookStats()
 	nr.sendErrorStats()
 	return nil
 }
@@ -565,8 +591,9 @@ func newTmpFile(prefix string) (*os.File, error) {
 
 // NetworkDeviceDump is used to dump a network namespace
 type NetworkDeviceDump struct {
-	IfName  string
-	IfIndex int
+	IfName   string
+	IfIndex  int
+	Programs []tc.ProgramDump `json:",omitempty"`
 }
 
 // NetworkNamespaceDump is used to dump a network namespce
@@ -596,9 +623,13 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 
 		netnsDump := NetworkNamespaceDump{
 			NsID:          netns.nsID,
-			HandleFD:      int(netns.handle.Fd()),
-			HandlePath:    netns.handle.Name(),
+			HandleFD:      -1,
 			LonelyTimeout: netns.lonelyTimeout,
+		}
+		// namespaces holding queued devices may have no handle yet
+		if netns.hasValidHandle() {
+			netnsDump.HandleFD = int(netns.handle.Fd())
+			netnsDump.HandlePath = netns.handle.Name()
 		}
 
 		for _, dev := range netns.networkDevicesQueue {
@@ -619,10 +650,12 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 			if err == nil {
 				links, err = listLinks(ntl.Sock)
 				if err == nil {
+					programs := nr.tcResolver.DumpNetworkNamespacePrograms(netns.nsID, handle, ntl)
 					for _, link := range links {
 						netnsDump.Devices = append(netnsDump.Devices, NetworkDeviceDump{
-							IfName:  link.Attrs().Name,
-							IfIndex: link.Attrs().Index,
+							IfName:   link.Attrs().Name,
+							IfIndex:  link.Attrs().Index,
+							Programs: programs[uint32(link.Attrs().Index)],
 						})
 					}
 				}

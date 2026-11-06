@@ -1635,6 +1635,7 @@ type EnvironmentStatus struct {
 	UseMmapableMaps bool                   `protobuf:"varint,4,opt,name=UseMmapableMaps,proto3" json:"UseMmapableMaps,omitempty"`
 	UseRingBuffer   bool                   `protobuf:"varint,5,opt,name=UseRingBuffer,proto3" json:"UseRingBuffer,omitempty"`
 	UseFentry       bool                   `protobuf:"varint,6,opt,name=UseFentry,proto3" json:"UseFentry,omitempty"`
+	UseTCX          bool                   `protobuf:"varint,7,opt,name=UseTCX,proto3" json:"UseTCX,omitempty"`
 	unknownFields   protoimpl.UnknownFields
 	sizeCache       protoimpl.SizeCache
 }
@@ -1707,6 +1708,13 @@ func (x *EnvironmentStatus) GetUseRingBuffer() bool {
 func (x *EnvironmentStatus) GetUseFentry() bool {
 	if x != nil {
 		return x.UseFentry
+	}
+	return false
+}
+
+func (x *EnvironmentStatus) GetUseTCX() bool {
+	if x != nil {
+		return x.UseTCX
 	}
 	return false
 }
@@ -3541,14 +3549,15 @@ const file_pkg_security_proto_api_api_proto_rawDesc = "" +
 	"\x05value\x18\x02 \x01(\v2\x18.api.ScopedVariableStoreR\x05value:\x028\x01J\x04\b\x04\x10\x05\"h\n" +
 	"\x15ConstantFetcherStatus\x12\x1a\n" +
 	"\bFetchers\x18\x01 \x03(\tR\bFetchers\x123\n" +
-	"\x06Values\x18\x02 \x03(\v2\x1b.api.ConstantValueAndSourceR\x06Values\"\xff\x01\n" +
+	"\x06Values\x18\x02 \x03(\v2\x1b.api.ConstantValueAndSourceR\x06Values\"\x97\x02\n" +
 	"\x11EnvironmentStatus\x12\x1a\n" +
 	"\bWarnings\x18\x01 \x03(\tR\bWarnings\x128\n" +
 	"\tConstants\x18\x02 \x01(\v2\x1a.api.ConstantFetcherStatusR\tConstants\x12&\n" +
 	"\x0eKernelLockdown\x18\x03 \x01(\tR\x0eKernelLockdown\x12(\n" +
 	"\x0fUseMmapableMaps\x18\x04 \x01(\bR\x0fUseMmapableMaps\x12$\n" +
 	"\rUseRingBuffer\x18\x05 \x01(\bR\rUseRingBuffer\x12\x1c\n" +
-	"\tUseFentry\x18\x06 \x01(\bR\tUseFentry\"2\n" +
+	"\tUseFentry\x18\x06 \x01(\bR\tUseFentry\x12\x16\n" +
+	"\x06UseTCX\x18\a \x01(\bR\x06UseTCX\"2\n" +
 	"\x12DirectSenderStatus\x12\x1c\n" +
 	"\tEndpoints\x18\x01 \x03(\tR\tEndpoints\"\x16\n" +
 	"\x14DumpDiscardersParams\";\n" +
