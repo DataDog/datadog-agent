@@ -194,12 +194,14 @@ func TestServer(t *testing.T) {
 					Encoding:    "text/plain",
 					Data:        []byte("totoro|7|tag:valid,owner:pducolin"),
 					ContentType: "text/plain",
+					Request:     expectedPostMetadata(fi.URL(), "/totoro", "text/plain", len("totoro|7|tag:valid,owner:pducolin")),
 				},
 				{
 					Timestamp:   clock.Now().UTC(),
 					Encoding:    "text/plain",
 					Data:        []byte("totoro|5|tag:valid,owner:kiki"),
 					ContentType: "text/plain",
+					Request:     expectedPostMetadata(fi.URL(), "/totoro", "text/plain", len("totoro|5|tag:valid,owner:kiki")),
 				},
 			},
 		}
@@ -234,6 +236,7 @@ func TestServer(t *testing.T) {
 						"timestamp": float64(0)},
 					},
 					Encoding: "gzip",
+					Request:  expectedPostMetadata(fi.URL(), "/api/v2/logs", "gzip", len(logBytes)),
 				},
 			},
 		}
@@ -676,4 +679,16 @@ func PostSomeRealisticLogs(t *testing.T, url string) {
 	response, err := http.Post(url+"/api/v2/logs", "gzip", bytes.NewBuffer(logBytes))
 	require.NoError(t, err, "Error on POST request")
 	defer response.Body.Close()
+}
+
+// http.Post supplies these HTTP/1.1 headers for the nonempty fixture bodies.
+func expectedPostMetadata(serverURL, target, contentType string, length int) *api.RequestMetadata {
+	return &api.RequestMetadata{
+		Method: "POST", Target: target, Route: target, Host: strings.TrimPrefix(serverURL, "http://"),
+		Protocol: "HTTP/1.1", ContentLength: int64(length),
+		Headers: http.Header{
+			"User-Agent": {"Go-http-client/1.1"}, "Accept-Encoding": {"gzip"},
+			"Content-Type": {contentType}, "Content-Length": {strconv.Itoa(length)},
+		},
+	}
 }

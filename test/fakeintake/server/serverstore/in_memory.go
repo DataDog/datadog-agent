@@ -55,7 +55,10 @@ func (s *inMemoryStore) GetLastAPIKey() (string, error) {
 }
 
 // AppendPayload adds a payload to the store and tries parsing and adding a dumped json to the parsed store
-func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time) error {
+func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, encoding string, contentType string, collectTime time.Time, request ...api.RequestMetadata) error {
+	if len(request) > 1 {
+		return errors.New("a payload can have only one request metadata record")
+	}
 	// Set the last APIKey first, to avoid deadlocking
 	s.SetLastAPIKey(apiKey)
 	s.mutex.Lock()
@@ -67,7 +70,10 @@ func (s *inMemoryStore) AppendPayload(route string, apiKey string, data []byte, 
 		Encoding:    encoding,
 		ContentType: contentType,
 	}
-	s.rawPayloads[route] = append(s.rawPayloads[route], rawPayload)
+	if len(request) == 1 {
+		rawPayload.Request = &request[0]
+	}
+	s.rawPayloads[route] = append(s.rawPayloads[route], rawPayload.Clone())
 	s.NbPayloads.WithLabelValues(route).Set(float64(len(s.rawPayloads[route])))
 	return nil
 }
@@ -95,7 +101,9 @@ func (s *inMemoryStore) GetRawPayloads(route string) (payloads []api.Payload) {
 	s.mutex.RLock()
 	defer s.mutex.RUnlock()
 	payloads = make([]api.Payload, len(s.rawPayloads[route]))
-	copy(payloads, s.rawPayloads[route])
+	for index, payload := range s.rawPayloads[route] {
+		payloads[index] = payload.Clone()
+	}
 	return payloads
 }
 

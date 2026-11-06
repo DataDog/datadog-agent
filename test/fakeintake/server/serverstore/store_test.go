@@ -7,6 +7,7 @@ package serverstore
 
 import (
 	"encoding/json"
+	"net/http"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -44,6 +45,7 @@ func (suite *StoreTestSuite) TestAppendPayload() {
 	assert.Len(suite.T(), rawPayloads, 1)
 	assert.Equal(suite.T(), data, rawPayloads[0].Data)
 	assert.Equal(suite.T(), "1234", rawPayloads[0].APIKey)
+	assert.Nil(suite.T(), rawPayloads[0].Request, "legacy append calls have no request metadata")
 
 	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
 	require.NoError(suite.T(), err)
@@ -112,4 +114,44 @@ func (suite *StoreTestSuite) TestFlush() {
 	jsonPayloads, err := GetJSONPayloads(store, "testRoute")
 	assert.NoError(suite.T(), err)
 	assert.Len(suite.T(), jsonPayloads, 0)
+}
+
+func (suite *StoreTestSuite) TestRequestMetadataSnapshots() {
+	store := suite.StoreConstructor()
+	defer store.Close()
+	parserMap["testRoute"] = jsonParser
+	defer delete(parserMap, "testRoute")
+	data := []byte(`{"key":"value"}`)
+	request := api.RequestMetadata{
+		Method: "POST", Target: "/testRoute?probe=one", Host: "intake.example", Route: "testRoute",
+		Protocol: "HTTP/1.1", ContentLength: -1, TransferEncoding: []string{"chunked"},
+		Headers: http.Header{"X-Values": {"one", "two"}}, Trailers: http.Header{"X-End": {"done"}},
+	}
+	expected := request.Clone()
+	collected := time.Unix(1700000000, 123).UTC()
+	require.NoError(suite.T(), store.AppendPayload("testRoute", "key", data, "json", "application/json", collected, request))
+	data[0] = 'X'
+	request.Headers["X-Values"][0] = "changed"
+	request.Trailers.Set("X-End", "changed")
+	request.TransferEncoding[0] = "changed"
+
+	raw := store.GetRawPayloads("testRoute")
+	require.Len(suite.T(), raw, 1)
+	assert.Equal(suite.T(), []byte(`{"key":"value"}`), raw[0].Data)
+	assert.Equal(suite.T(), collected, raw[0].Timestamp)
+	assert.Equal(suite.T(), expected, raw[0].Request)
+	raw[0].Data[0] = 'X'
+	raw[0].Request.Headers["X-Values"][0] = "changed"
+	raw[0].Request.Trailers.Set("X-End", "changed")
+	raw[0].Request.TransferEncoding[0] = "changed"
+
+	parsed, err := GetJSONPayloads(store, "testRoute")
+	require.NoError(suite.T(), err)
+	require.Len(suite.T(), parsed, 1)
+	assert.Equal(suite.T(), map[string]interface{}{"key": "value"}, parsed[0].Data)
+	assert.Equal(suite.T(), expected, parsed[0].Request)
+	parsed[0].Request.Headers.Set("X-Values", "changed")
+	assert.Equal(suite.T(), expected, store.GetRawPayloads("testRoute")[0].Request)
+	require.Error(suite.T(), store.AppendPayload("testRoute", "key", nil, "", "", collected, request, request))
+	assert.Len(suite.T(), store.GetRawPayloads("testRoute"), 1)
 }

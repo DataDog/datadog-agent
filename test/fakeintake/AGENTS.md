@@ -20,12 +20,14 @@ test/fakeintake/
     └── client/       # CLI tool (fakeintakectl)
 ```
 
-## Embedding the server
+## Request metadata
 
-Configure `server.NewServer` with options before `Start`. Embedders can use
-`WithListenerFactory` to wrap `net.Listener` and its accepted connections for
-transport observation while retaining the official handlers and payload store.
-The server owns listener shutdown. Without this option it uses `net.Listen`.
+Raw `api.Payload` records retain the received compressed body in `Data` and
+optional server-parsed request metadata in `Request`. Metadata includes repeated
+header values, trailers, method, target, host, protocol and route. Go's HTTP
+parser has already normalized header names and removed transfer framing; this
+is not an original wire capture. Parsed JSON query responses retain the same
+metadata. Older payloads without `request` decode with nil metadata.
 
 ## Supported endpoints
 
