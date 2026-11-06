@@ -48,8 +48,9 @@ var (
 
 // Device is a physical AMD GPU bound to the amdgpu driver.
 type Device struct {
-	// UUID is a stable identifier: "amd-" followed by the unique_id attribute
-	// when it is a valid nonzero 64-bit hex serial, or by the PCI address
+	// UUID is a stable identifier: the UUID amd-smi and the AMD metrics
+	// exporter report, derived from the unique_id attribute when it is a valid
+	// nonzero 64-bit hex serial, or "amd-" followed by the PCI address
 	// otherwise, or when the serial is shared by several PCI functions.
 	UUID string
 	// Index is the position of the device when sorted by PCI address.
@@ -60,6 +61,8 @@ type Device struct {
 	PCIBusID string
 	// DeviceID is the PCI device ID, e.g. 0x74a1.
 	DeviceID uint16
+	// VirtualFunction is true for an SR-IOV virtual function, as seen in a VM.
+	VirtualFunction bool
 	// DriverVersion is the amdgpu module version, empty when the module does
 	// not export one (in-tree driver builds).
 	DriverVersion string
@@ -198,7 +201,7 @@ func keepSharedSerialIdentities(sysRoot string, devices []*Device) {
 	defer sharedSerialsMu.Unlock()
 	known := sharedSerials[sysRoot]
 	for _, dev := range devices {
-		if dev.serial == "" || dev.UUID == Vendor+"-"+dev.serial {
+		if dev.serial == "" || dev.UUID != pciUUID(dev.PCIBusID) {
 			continue
 		}
 		// Given a PCI identity in this scan, as its serial is shared.
@@ -278,9 +281,10 @@ func probeCard(linkPath string) (*Device, error) {
 	}
 
 	dev := &Device{
-		PCIBusID:   pciBusID,
-		DeviceID:   deviceID,
-		devicePath: devicePath,
+		PCIBusID:        pciBusID,
+		DeviceID:        deviceID,
+		VirtualFunction: isVirtualFunction(devicePath, deviceID),
+		devicePath:      devicePath,
 	}
 	if total, err := readUint(filepath.Join(devicePath, "mem_info_vram_total")); err == nil {
 		dev.MemoryTotal = total
@@ -290,7 +294,7 @@ func probeCard(linkPath string) (*Device, error) {
 	serial, err := strconv.ParseUint(uniqueID, 16, 64)
 	if err == nil && serial != 0 && uniqueIDRegex.MatchString(uniqueID) {
 		dev.serial = uniqueID
-		dev.UUID = Vendor + "-" + uniqueID
+		dev.UUID = amdSMIUUID(serial, deviceID, dev.VirtualFunction)
 	} else {
 		dev.UUID = pciUUID(pciBusID)
 	}
@@ -300,6 +304,29 @@ func probeCard(linkPath string) (*Device, error) {
 		dev.Name = cleanName(deviceName(deviceID))
 	}
 	return dev, nil
+}
+
+// amdSMIUUID returns the UUID amd-smi derives from the ASIC serial and the PCI
+// device ID (amdsmi_uuid_gen in amdsmi's amd_smi_uuid.cc), e.g.
+// 2a0074b5-0000-1000-8077-ed7921593a8b. The second byte is 0xff for a physical
+// GPU and 0x00 for a virtual function, as amd-smi reports them.
+func amdSMIUUID(serial uint64, deviceID uint16, virtualFunction bool) string {
+	fcn := uint64(0xff)
+	if virtualFunction {
+		fcn = 0
+	}
+	timeLow := (serial>>56)<<24 | fcn<<16 | uint64(deviceID)
+	return fmt.Sprintf("%08x-0000-1000-80%02x-%04x%08x", timeLow, (serial>>48)&0xff, (serial>>32)&0xffff, serial&0xffffffff)
+}
+
+// isVirtualFunction reports whether a PCI device is an SR-IOV virtual
+// function: from its physfn link on the host, or from its device ID in a VM,
+// where the link is absent.
+func isVirtualFunction(devicePath string, deviceID uint16) bool {
+	if _, err := os.Lstat(filepath.Join(devicePath, "physfn")); err == nil {
+		return true
+	}
+	return strings.HasSuffix(instinctNames[deviceID], " VF")
 }
 
 func pciUUID(pciBusID string) string {
