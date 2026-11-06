@@ -236,20 +236,16 @@ func (s *LogSources) GetSources() []*LogSource {
 // prepare runs under mu, before any launcher can observe the source. Invalid
 // sources remain visible in status but are never sent to current or later subscribers.
 func (s *LogSources) prepare(source *LogSource) bool {
-	if source.Config == nil {
+	// Preserve the existing status for structural errors. Schedulers already
+	// report these, and source status can also be supplied by the caller.
+	if source.Config == nil || source.Config.Validate() != nil {
 		return false
 	}
-	err := source.Config.Validate()
-	if err == nil {
-		for _, prepare := range s.prepareSource {
-			if err = prepare(source); err != nil {
-				break
-			}
+	for _, prepare := range s.prepareSource {
+		if err := prepare(source); err != nil {
+			source.Status().Error(err)
+			return false
 		}
-	}
-	if err != nil {
-		source.Status().Error(err)
-		return false
 	}
 	return true
 }
