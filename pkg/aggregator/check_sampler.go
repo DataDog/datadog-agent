@@ -83,7 +83,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 	contextKey := cs.contextResolver.trackContext(metricSample, tagFilterList)
 	if cs.observerHandle != nil {
 		context, _ := cs.contextResolver.get(contextKey)
-		observedKey, observedTags := cs.observedIdentity(contextKey, context)
+		observedKey, observedTags := cs.observedIdentity(contextKey, context, metricSample.Mtype)
 		cs.observerHandle.ObserveMetric(resolvedMetricView{
 			sample: metricSample,
 			host:   context.Host,
@@ -115,9 +115,10 @@ func (cs *CheckSampler) newSketchSeries(ctx *Context, points []metrics.SketchPoi
 	return ss
 }
 
-// observedIdentity returns the key and tags the observer sees a sample with: those its metric is sent with.
-func (cs *CheckSampler) observedIdentity(ck ckey.ContextKey, ctx *Context) (ckey.ContextKey, tagset.CompositeTags) {
-	if stripped, ok := cs.contextResolver.resolver.strippedOf(ctx); ok {
+// observedIdentity returns the key and tags the observer sees a sample with: those its metric is sent with, except
+// for monotonic counts, whose samples are each source's running total.
+func (cs *CheckSampler) observedIdentity(ck ckey.ContextKey, ctx *Context, mtype metrics.MetricType) (ckey.ContextKey, tagset.CompositeTags) {
+	if stripped, ok := cs.contextResolver.resolver.strippedOf(ctx); ok && mtype != metrics.MonotonicCountType {
 		return stripped.key, stripped.Tags()
 	}
 	return ck, ctx.Tags()
@@ -395,7 +396,8 @@ func (cs *CheckSampler) markStrippedMetrics() {
 	cs.contextResolver.resolver.markStrippedMetrics()
 }
 
-// addsUp returns whether a series' points add up across sources: the single series of a counter or count. Other series of a context that merges at output come from metric state that outlived an earlier
+// addsUp returns whether a series' points add up across sources: the single series of a counter, count or
+// monotonic count. Other series of a context that merges at output come from metric state that outlived an earlier
 // context with the same key, such as a histogram's.
 func addsUp(serie *metrics.Serie) bool {
 	return serie.NameSuffix == "" && (serie.MType == metrics.APICountType || serie.MType == metrics.APIRateType)

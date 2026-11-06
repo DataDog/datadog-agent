@@ -51,7 +51,7 @@ func (c *Context) mergesAtOutput() bool {
 // whose sources' points add up.
 func typeStripsAtOutput(mtype metrics.MetricType) bool {
 	switch mtype {
-	case metrics.DistributionType, metrics.CounterType, metrics.CountType:
+	case metrics.DistributionType, metrics.CounterType, metrics.CountType, metrics.MonotonicCountType:
 		return true
 	}
 	return false

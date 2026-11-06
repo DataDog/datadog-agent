@@ -772,7 +772,7 @@ func TestTypeStripsAtOutput(t *testing.T) {
 		metrics.GaugeType:              false,
 		metrics.RateType:               false,
 		metrics.CountType:              true,
-		metrics.MonotonicCountType:     false,
+		metrics.MonotonicCountType:     true,
 		metrics.CounterType:            true,
 		metrics.HistogramType:          false,
 		metrics.HistorateType:          false,
