@@ -18,6 +18,7 @@
 #       - nvidia_smi or calibrated_workload: validate against the named external source in real-GPU integration tests
 #       - value_tolerance: required with an external source; contains one or both of absolute and relative (percent) tolerances
 #   - support:
+#       - amd_only (optional): true for metrics emitted only for AMD GPUs; no architecture listed in architectures.yaml supports them
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
 #       - capabilities_required (optional): {nvlink: <min_generation>, max_nvlink: <max_generation>, c2c: <bool>} (hardware capabilities required for the metric; max_nvlink requires nvlink)
@@ -651,6 +652,49 @@ metrics:
       unsupported_architectures:
         - pascal
         - volta
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  errors.amdgpu:
+    metadata:
+      metric_type: counter
+      description: >-
+        AMD GPU errors received during the last collection interval, by type:
+        VM faults, GPU resets and thermal throttling events reported by the
+        amdgpu kernel driver (KFD), and increases of the RAS error counters
+        (uncorrectable, correctable, deferred, fatal, poison).
+      aggregation: interval_count
+    tagsets:
+      - device
+    custom_tags:
+      - origin
+      - type
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  errors.amdgpu.total:
+    metadata:
+      metric_type: gauge
+      unit: error
+      description: >-
+        AMD GPU errors by type since the Agent started collecting them for this
+        device: VM faults, GPU resets and thermal throttling events reported by
+        the amdgpu kernel driver (KFD), and increases of the RAS error counters
+        (uncorrectable, correctable, deferred, fatal, poison).
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    custom_tags:
+      - origin
+      - type
+    support:
+      amd_only: true
+      unsupported_architectures: []
       device_modes:
         mig: false
         physical: true

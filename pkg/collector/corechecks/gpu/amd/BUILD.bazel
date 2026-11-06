@@ -7,6 +7,7 @@ go_library(
         "check.go",
         "check_stub.go",
         "config.go",
+        "errors.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/amd",
     visibility = ["//visibility:public"],
@@ -159,7 +160,10 @@ go_library(
 
 dd_agent_go_test(
     name = "amd_test",
-    srcs = ["check_test.go"],
+    srcs = [
+        "check_test.go",
+        "errors_test.go",
+    ],
     embed = [":amd"],
     gotags_sets = [["nvml"]],
     include_default = False,

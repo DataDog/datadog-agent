@@ -74,7 +74,8 @@ tags:
   origin:
     regex: "^(driver|hardware)$"
   type:
-    regex: "^\\d+$"
+    # NVIDIA XID code, or AMD error type (errors.amdgpu).
+    regex: "^(\\d+|[a-z_]+)$"
   kube_container_name: {}
   memory_location:
     regex:
