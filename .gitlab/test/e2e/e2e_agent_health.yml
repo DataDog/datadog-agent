@@ -50,3 +50,19 @@ new-e2e-agent-telemetry:
   variables:
     TARGETS: ./tests/agent-telemetry
     TEAM: fleet-remediation
+    EXTRA_PARAMS: --skip "TestPageSizeLinuxARM64Suite"
+
+# The 64KiB page size suite installs the arm64 RPM on CentOS. It has its own job so that
+# new-e2e-agent-telemetry doesn't wait for the arm64 package, and a failure names the platform.
+new-e2e-agent-telemetry-arm64:
+  extends: .new_e2e_template
+  needs:
+    - !reference [.needs_new_e2e_template]
+    - agent_rpm-arm64-a7
+  rules:
+    - !reference [.on_agenttelemetry_or_e2e_changes]
+    - !reference [.manual]
+  variables:
+    TARGETS: ./tests/agent-telemetry
+    TEAM: fleet-remediation
+    EXTRA_PARAMS: --run "TestPageSizeLinuxARM64Suite"
