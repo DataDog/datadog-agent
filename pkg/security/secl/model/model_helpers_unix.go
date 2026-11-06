@@ -120,6 +120,15 @@ func (m *Model) ValidateField(field eval.Field, fieldValue eval.FieldValue) erro
 	return nil
 }
 
+// GetFieldDerivation returns how to compute the value of a field from the value of another one: the name of a file is
+// the basename of its path
+func (m *Model) GetFieldDerivation(field eval.Field, from eval.Field) func(string) string {
+	if prefix, found := strings.CutSuffix(from, PathSuffix); found && field == prefix+NameSuffix {
+		return path.Base
+	}
+	return nil
+}
+
 // ValidateRule validates the rule
 func (m *Model) ValidateRule(rule *eval.Rule) error {
 	if m.ExtraValidateRule != nil {
