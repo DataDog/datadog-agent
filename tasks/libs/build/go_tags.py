@@ -20,6 +20,7 @@ from concurrent.futures import ThreadPoolExecutor
 GRAPH_KINDS = "go_library|go_tool_library|go_test|go_binary|go_proto_library|go_proto_compiler|go_source|alias"
 QUERY = f'kind("{GRAPH_KINDS}", deps(//...))'
 MANIFEST_PATH = "bazel/go_tags/closure_tags.bzl"
+_SCAN_CACHE = "go_tag_scan_cache.json"
 
 _LIBRARY_KINDS = {"go_library", "go_proto_library", "go_source"}
 _ROOT_KINDS = {"go_test", "go_binary"}
@@ -82,6 +83,31 @@ def scan_build_tags(path: str) -> set[str] | None:
     except OSError:
         return None
     return tags
+
+
+def scan_sources(paths: list[str], cache: dict) -> tuple[dict[str, set[str] | None], dict]:
+    """
+    Build tags of each source file, or None if it can't be read, plus the cache for the next run.
+
+    `cache` maps a path to its stat key and tags; a file whose key is unchanged is not read again.
+    """
+
+    def scan(path: str) -> tuple[set[str] | None, list | None]:
+        try:
+            st = os.stat(path)
+        except OSError:
+            return None, None
+        key = [st.st_ino, st.st_size, st.st_mtime_ns, st.st_ctime_ns]
+        entry = cache.get(path)
+        if entry and entry[0] == key:
+            return set(entry[1]), entry
+        tags = scan_build_tags(path)
+        return tags, None if tags is None else [key, sorted(tags)]
+
+    # Opening tens of thousands of files dominates a run without cache, and file I/O releases the GIL.
+    with ThreadPoolExecutor(16) as pool:
+        results = dict(zip(paths, pool.map(scan, paths), strict=True))
+    return {path: tags for path, (tags, _) in results.items()}, {path: e for path, (_, e) in results.items() if e}
 
 
 _ERROR_LOCATION = re.compile(r"^ERROR: (.+?):\d+:\d+: ")
@@ -214,11 +240,8 @@ def main() -> int:
         "--proto:locations=false",
         QUERY,
     )
-    info = bazel("info", "output_base")
-    if info.returncode != 0:
-        print(info.stderr, file=sys.stderr)
-        return info.returncode
-    output_base = info.stdout.strip()
+    # <output base>/execroot/<workspace name>
+    output_base = os.path.dirname(os.path.dirname(os.environ["BUILD_EXECROOT"]))
     # 3: some packages failed to load, e.g. Windows-only toolchain repositories on other hosts. That is only fatal
     # for main-repository packages, or when a Go package is among them, which build_manifest detects.
     if query.returncode not in (0, 3) or main_repo_errors(query.stderr, workspace, output_base):
@@ -226,17 +249,39 @@ def main() -> int:
         return query.returncode or 1
     try:
         nodes = parse_graph(query.stdout)
-        sources = list({src for node in nodes.values() for src in node["srcs"] if src.endswith(_SCANNED_EXTENSIONS)})
-        # Opening tens of thousands of files dominates the run, and file I/O releases the GIL.
-        with ThreadPoolExecutor(16) as pool:
-            found = pool.map(lambda label: scan_build_tags(source_path(label, workspace, output_base)), sources)
-            scans = dict(zip(sources, found, strict=True))
-        universe, manifest = build_manifest(nodes, scans.__getitem__)
+        sources = {
+            src: source_path(src, workspace, output_base)
+            for node in nodes.values()
+            for src in node["srcs"]
+            if src.endswith(_SCANNED_EXTENSIONS)
+        }
+        cache_path = os.path.join(output_base, _SCAN_CACHE)
+        try:
+            with open(cache_path, encoding="utf-8") as f:
+                cache = json.load(f)
+        except (OSError, ValueError):
+            cache = {}
+        scans, cache = scan_sources(list(sources.values()), cache)
+        universe, manifest = build_manifest(nodes, lambda label: scans[sources[label]])
     except ValueError as e:
         print(query.stderr, e, sep="\n", file=sys.stderr)
         return 1
-    with open(os.path.join(workspace, MANIFEST_PATH), "w", encoding="utf-8", newline="\n") as bzl:
-        bzl.write(render_manifest(universe, manifest))
+    # Another run can share the output base once `bazel run` released its lock.
+    with open(f"{cache_path}.{os.getpid()}", "w", encoding="utf-8") as f:
+        json.dump(cache, f)
+    os.replace(f"{cache_path}.{os.getpid()}", cache_path)
+
+    content = render_manifest(universe, manifest)
+    manifest_path = os.path.join(workspace, MANIFEST_PATH)
+    try:
+        with open(manifest_path, encoding="utf-8", newline="") as bzl:
+            unchanged = bzl.read() == content
+    except FileNotFoundError:
+        unchanged = False
+    # Rewriting it unchanged would still make the next Bazel command reload the packages loading it.
+    if not unchanged:
+        with open(manifest_path, "w", encoding="utf-8", newline="\n") as bzl:
+            bzl.write(content)
     return 0
 
 

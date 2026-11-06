@@ -43,6 +43,23 @@ class TestScanBuildTags(unittest.TestCase):
         self.assertIsNone(go_tags.scan_build_tags("/nonexistent/a.go"))
 
 
+class TestScanSources(unittest.TestCase):
+    def test_reuses_unchanged_files_only(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "a.go"
+            path.write_text("//go:build linux\npackage foo\n")
+            missing = str(Path(tmp) / "gen.go")
+            tags, cache = go_tags.scan_sources([str(path), missing], {})
+            self.assertEqual(tags, {str(path): {"linux"}, missing: None})
+            self.assertEqual(list(cache), [str(path)])
+
+            cache[str(path)][1] = ["cached"]
+            self.assertEqual(go_tags.scan_sources([str(path)], cache)[0], {str(path): {"cached"}})
+
+            path.write_text("//go:build docker\npackage foo\n")
+            self.assertEqual(go_tags.scan_sources([str(path)], cache)[0], {str(path): {"docker"}})
+
+
 class TestBuildManifest(unittest.TestCase):
     def _manifest(self, rules, sources):
         nodes = go_tags.parse_graph("\n".join(rules))
