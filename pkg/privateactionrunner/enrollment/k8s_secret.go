@@ -20,7 +20,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
@@ -37,22 +36,38 @@ const (
 	secretPollInterval = 1 * time.Second
 )
 
-// getIdentityFromK8sSecret retrieves PAR identity from a Kubernetes secret
-func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*PersistedIdentity, error) {
-	client, err := getKubeClient()
+var errNoLeaderSource = errors.New("leader election is not available")
+
+// k8sIdentityStorage stores the PAR identity in a Kubernetes secret shared by the Cluster Agent replicas.
+type k8sIdentityStorage struct {
+	kubeClient   func() (kubernetes.Interface, error)
+	namespace    string
+	secretName   string
+	leader       LeaderSource
+	pollInterval time.Duration
+}
+
+func newK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource) *k8sIdentityStorage {
+	return &k8sIdentityStorage{
+		kubeClient:   getKubeClient,
+		namespace:    namespace.GetResourcesNamespace(),
+		secretName:   getSecretName(cfg),
+		leader:       leader,
+		pollInterval: secretPollInterval,
+	}
+}
+
+// Load retrieves the PAR identity from the Kubernetes secret
+func (s *k8sIdentityStorage) Load(ctx context.Context) (*PersistedIdentity, error) {
+	client, err := s.kubeClient()
 	if err != nil {
 		return nil, err
 	}
-
-	ns := namespace.GetResourcesNamespace()
-	secretName := getSecretName(cfg)
-
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return nil, err
+	if s.leader == nil {
+		return nil, errNoLeaderSource
 	}
 
-	secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
+	secret, err := client.CoreV1().Secrets(s.namespace).Get(ctx, s.secretName, metav1.GetOptions{})
 	if err != nil {
 		if isNonTransientK8sError(err) {
 			return nil, fmt.Errorf("failed to get identity secret: %w", err)
@@ -62,10 +77,10 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 		} else {
 			log.Warnf("Transient error fetching PAR identity secret, will retry: %v", err)
 		}
-		leadershipChange, isLeader := le.Subscribe()
+		leadershipChange, isLeader := s.leader.Subscribe()
 		secret, err = waitForLeaderAndSecret(
-			ctx, leadershipChange, isLeader, client, ns, secretName,
-			secretPollInterval,
+			ctx, leadershipChange, isLeader, client, s.namespace, s.secretName,
+			s.pollInterval,
 		)
 		if err != nil {
 			return nil, err
@@ -74,7 +89,7 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 	if secret == nil {
 		return nil, nil
 	}
-	return parseSecretData(secret, ns, secretName)
+	return parseSecretData(secret, s.namespace, s.secretName)
 }
 
 // waitForLeaderAndSecret waits until either:
@@ -220,23 +235,21 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 	return nil
 }
 
-// persistIdentityToK8sSecret saves the enrollment result to a Kubernetes secret.
-func persistIdentityToK8sSecret(ctx context.Context, cfg configModel.Reader, result *Result) error {
-	le, err := leaderelection.GetLeaderEngine()
-	if err != nil {
-		return err
+// Persist saves the enrollment result to the Kubernetes secret when this replica is the leader.
+func (s *k8sIdentityStorage) Persist(ctx context.Context, result *Result) error {
+	if s.leader == nil {
+		return errNoLeaderSource
 	}
-	if !le.IsLeader() {
+	if !s.leader.IsLeader() {
 		log.Info("Not leader, skipping PAR identity secret persistence")
 		return nil
 	}
 	log.Info("Leader replica: persisting PAR identity to K8s secret")
-	client, err := getKubeClient()
+	client, err := s.kubeClient()
 	if err != nil {
 		return err
 	}
-	ns := namespace.GetResourcesNamespace()
-	return writeIdentitySecret(ctx, client, ns, getSecretName(cfg), result)
+	return writeIdentitySecret(ctx, client, s.namespace, s.secretName, result)
 }
 
 // persistIdentityToK8sSecretNoLeader persists identity to K8s secret without requiring leadership.
