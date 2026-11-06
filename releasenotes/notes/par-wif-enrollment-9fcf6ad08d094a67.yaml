@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    Node Agent Private Action Runners can enroll using their primary intake
+    Workload Identity Federation (WIF) identity. When PAR self-enrollment and
+    primary intake WIF are configured, enrollment uses the matched intake mapping's
+    PAR permission instead of the intake API key. Existing saved runner identities
+    are reused. Failed enrollment does not fall back to API-key enrollment.
