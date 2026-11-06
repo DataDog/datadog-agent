@@ -221,7 +221,7 @@ type Reader interface {
 
 	// IsSensitive returns whether the setting holds a credential, as declared by `sensitive: true` in the schema
 	IsSensitive(key string) bool
-	// FilterSensitiveEnvVars returns the env vars from envVars that are bound to sensitive settings
+	// FilterSensitiveEnvVars returns envVars without the env vars bound to sensitive settings
 	FilterSensitiveEnvVars(envVars []string) []string
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)

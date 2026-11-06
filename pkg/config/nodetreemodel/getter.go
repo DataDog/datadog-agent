@@ -41,17 +41,17 @@ func (c *ntmConfig) GetEnvVars() []string {
 	return vars
 }
 
-// FilterSensitiveEnvVars returns the env vars from envVars that are bound to sensitive settings
+// FilterSensitiveEnvVars returns envVars without the env vars bound to sensitive settings
 func (c *ntmConfig) FilterSensitiveEnvVars(envVars []string) []string {
 	c.RLock()
 	defer c.RUnlock()
-	var sensitive []string
+	var filtered []string
 	for _, envVar := range envVars {
-		if _, found := c.sensitiveEnvVars[strings.ToUpper(envVar)]; found {
-			sensitive = append(sensitive, envVar)
+		if _, found := c.sensitiveEnvVars[strings.ToUpper(envVar)]; !found {
+			filtered = append(filtered, envVar)
 		}
 	}
-	return sensitive
+	return filtered
 }
 
 // computeSensitiveEnvVars must be called with the lock held
