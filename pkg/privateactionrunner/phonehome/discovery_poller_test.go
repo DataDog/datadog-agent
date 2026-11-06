@@ -46,11 +46,11 @@ type scopeFixture struct {
 
 func newScopeFixture(t *testing.T) *scopeFixture {
 	t.Helper()
-	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "true")
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 	f := &scopeFixture{clock: clock.NewMock(), rcCode: 200, aaaCode: 200, body: grantedScopeJSON}
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		// RC key updates also refresh org metadata, independently of scope discovery.
-		if r.URL.Path == "/api/v0.1/org" {
+		if r.URL.Path == "/rc/api/v0.1/org" {
 			w.WriteHeader(http.StatusServiceUnavailable)
 			return
 		}
@@ -61,13 +61,13 @@ func newScopeFixture(t *testing.T) *scopeFixture {
 		f.mu.Lock()
 		defer f.mu.Unlock()
 		switch r.URL.Path {
-		case "/api/v0.1/status":
+		case "/rc/api/v0.1/status":
 			f.rcGETs.Add(1)
 			w.WriteHeader(f.rcCode)
 			body, err := proto.Marshal(&pbgo.OrgStatusResponse{Enabled: f.enabled, Authorized: f.authorized})
 			require.NoError(t, err)
 			_, _ = w.Write(body)
-		case "/api/v2/validate":
+		case "/par/api/v2/validate":
 			f.aaaGETs.Add(1)
 			w.Header().Set("Retry-After", f.retryAfter)
 			w.WriteHeader(f.aaaCode)
@@ -81,10 +81,10 @@ func newScopeFixture(t *testing.T) *scopeFixture {
 	cfg := configmock.New(t)
 	cfg.SetInTest("remote_configuration.no_tls", true)
 	f.cfg = cfg
-	for k, v := range map[string]any{"api_key": "scope-test-key", "site": "datadoghq.com", "remote_configuration.enabled": true, "private_action_runner.enabled": true, "dd_url": server.URL, "remote_configuration.rc_dd_url": server.URL, "run_path": t.TempDir()} {
+	for k, v := range map[string]any{"api_key": "scope-test-key", "site": "datadoghq.com", "remote_configuration.enabled": true, "private_action_runner.enabled": true, "dd_url": server.URL, "remote_configuration.rc_dd_url": server.URL + "/rc", "private_action_runner.par_dd_url": server.URL + "/par", "run_path": t.TempDir()} {
 		cfg.SetInTest(k, v)
 	}
-	s, err := remote.NewService(cfg, "test", server.URL, "host", func() []string { return nil }, nil, "test", remote.WithAPIKey("scope-test-key"))
+	s, err := remote.NewService(cfg, "test", server.URL+"/rc", "host", func() []string { return nil }, nil, "test", remote.WithAPIKey("scope-test-key"))
 	require.NoError(t, err)
 	f.rcService = s
 	f.s = NewDiscovery(cfg, NewSource(cfg, s))
@@ -187,7 +187,7 @@ func TestPARDiscoveryCadenceAndBackoffSurviveGatePause(t *testing.T) {
 }
 
 func TestPARDiscoveryRejectsConfigMismatchAndLocalDisable(t *testing.T) {
-	for _, scenario := range []string{"key", "endpoint", "local-off", "par-off"} {
+	for _, scenario := range []string{"key", "endpoint", "par-endpoint", "local-off", "par-off"} {
 		t.Run(scenario, func(t *testing.T) {
 			f := newScopeFixture(t)
 			f.s.SetPARDiscoveryDemand(true)
@@ -197,7 +197,9 @@ func TestPARDiscoveryRejectsConfigMismatchAndLocalDisable(t *testing.T) {
 			case "key":
 				f.cfg.SetInTest("api_key", "different")
 			case "endpoint":
-				f.cfg.SetInTest("dd_url", "http://127.0.0.1:1")
+				f.cfg.SetInTest("remote_configuration.rc_dd_url", "http://127.0.0.1:1")
+			case "par-endpoint":
+				f.cfg.SetInTest("private_action_runner.par_dd_url", "http://127.0.0.1:1")
 			case "local-off":
 				f.cfg.SetInTest("remote_configuration.enabled", false)
 			case "par-off":

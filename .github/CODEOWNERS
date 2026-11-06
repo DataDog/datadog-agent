@@ -42,6 +42,7 @@
 /.agents/skills/create-runtime-setting/SKILL.md @DataDog/agent-runtimes @DataDog/fleet-automation
 /.agents/skills/cws-btfhub-sync                 @DataDog/agent-security
 /.agents/skills/cws-iouring-coverage/           @DataDog/agent-security
+/.agents/skills/describe-functional-changes/    @DataDog/agent-devx
 /.agents/skills/explain-lading-config           @DataDog/single-machine-performance
 /.agents/skills/gpu-live-metric-validation/     @DataDog/accelerator-telemetry
 /.agents/skills/injector-dev                    @Datadog/container-platform
@@ -518,6 +519,7 @@
 /comp/core/gui @DataDog/fleet-remediation
 /comp/core/profiler @DataDog/fleet-remediation
 /comp/core/remoteflags @DataDog/fleet-remediation
+/comp/core/schema @DataDog/fleet-automation
 /comp/core/secrets @DataDog/fleet-automation
 /comp/core/settings @DataDog/fleet-automation
 /comp/core/status @DataDog/fleet-remediation
@@ -537,6 +539,7 @@
 /comp/metadata/hostgpu @DataDog/accelerator-telemetry
 /comp/metadata/hostsysteminfo @DataDog/windows-products
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/metadata/serverlessaas @DataDog/serverless-azure-and-gcp @DataDog/fleet-automation
 /comp/metadata/serverlessinit @DataDog/serverless-azure-and-gcp @DataDog/fleet-automation
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/ebpf-platform
 /comp/trace/etwtracer @DataDog/windows-products
@@ -613,7 +616,6 @@
 # the rest of comp/host-profiler is shared with opentelemetry-agent (see bundle.go)
 /comp/host-profiler/cgroup/                 @DataDog/profiling-full-host
 /comp/host-profiler/collector/impl/receiver/ @DataDog/profiling-full-host
-/comp/host-profiler/oom/                    @DataDog/profiling-full-host
 /comp/host-profiler/symboluploader/         @DataDog/profiling-full-host
 
 # pkg
@@ -991,6 +993,8 @@
 /releasenotes-dca/ # do not notify anyone
 
 /rtloader/ @DataDog/agent-runtimes
+
+/runbooks/ @DataDog/agent-build
 
 /tasks/                                                         @DataDog/agent-devx
 /tasks/macos.py                                                 @DataDog/windows-products
