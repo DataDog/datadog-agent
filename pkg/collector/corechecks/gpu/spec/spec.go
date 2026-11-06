@@ -34,13 +34,16 @@ type DeviceMode string
 const (
 	DeviceModePhysical DeviceMode = "physical"
 	DeviceModeMIG      DeviceMode = "mig"
-	DeviceModeVGPU     DeviceMode = "vgpu"
+	// DeviceModeMIGParent is a physical GPU with MIG enabled and at least one MIG child.
+	DeviceModeMIGParent DeviceMode = "mig_parent"
+	DeviceModeVGPU      DeviceMode = "vgpu"
 )
 
 // AllDeviceModes lists every device mode modeled by the GPU spec.
 var AllDeviceModes = []DeviceMode{
 	DeviceModePhysical,
 	DeviceModeMIG,
+	DeviceModeMIGParent,
 	DeviceModeVGPU,
 }
 
