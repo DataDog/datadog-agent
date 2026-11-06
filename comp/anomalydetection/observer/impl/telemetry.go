@@ -273,9 +273,9 @@ func (t *observerTelemetry) recordInputRateLimiterDropped(source, priority strin
 	t.inputRateLimiterDrop.Add(1, source, priority)
 }
 
-func (t *observerTelemetry) recordDetectorEmission(detector, kind, severity string) {
-	t.detectorEmissions.Add(1, detector, severity)
-	t.kindEmissions.Add(1, detector, kind, severity)
+func (t *observerTelemetry) recordDetectorEmission(detector, kind, severity string, count uint64) {
+	t.detectorEmissions.Add(float64(count), detector, severity)
+	t.kindEmissions.Add(float64(count), detector, kind, severity)
 }
 
 func (t *observerTelemetry) inFlightCounter(logSource string) *atomic.Int64 {

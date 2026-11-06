@@ -218,12 +218,14 @@ type engine struct {
 	// live agent path (newEngine in observer.go).
 	trackCorrelationHistory bool
 
+	// emissionCounts aggregates accepted emissions between telemetry drains.
+	emissionCounts map[emissionKey]uint64
+
 	// Optional callbacks for direct telemetry emission.
 	onStorageSeriesEvicted func(reason string, count int)
 	onStorageCapacityHit   func()
 	onAnomalyDedupEvicted  func(reason string, count int)
 	onAdvanceSkipped       func(reason string)
-	onDetectorEmission     func(detector, kind, severity string)
 
 	// Event subscription management.
 	sinks   []eventSink
@@ -260,6 +262,13 @@ type engine struct {
 	// metricFilter provides package-wide metric-type filtering for both external
 	// and log-derived metrics.
 	metricFilter *metricsFilterRules
+}
+
+// emissionKey identifies a detector emission telemetry series.
+type emissionKey struct {
+	detector string
+	kind     string
+	severity string
 }
 
 // engineConfig holds the parameters for constructing an engine.
@@ -319,6 +328,7 @@ func newEngine(cfg engineConfig) *engine {
 		trackAnomalyHistory:        cfg.trackAnomalyHistory,
 		trackDetectorOutputHistory: cfg.trackDetectorOutputHistory,
 		trackCorrelationHistory:    cfg.trackCorrelationHistory,
+		emissionCounts:             make(map[emissionKey]uint64),
 	}
 	if cfg.logCountBuckets.Enabled {
 		e.logCounts = newMaterializedLogCountBucketizer(cfg.logCountBuckets)
@@ -749,6 +759,22 @@ func (e *engine) evictInactiveSeries(upToSec int64, detectors []detectorRegistra
 	fanOutSeriesRemoval(detectors, freed)
 }
 
+// recordEmission accumulates one accepted detector emission for telemetry.
+func (e *engine) recordEmission(detector, kind, severity string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	e.emissionCounts[emissionKey{detector: detector, kind: kind, severity: severity}]++
+}
+
+// drainEmissionCounts returns and clears pending emission counts.
+func (e *engine) drainEmissionCounts() map[emissionKey]uint64 {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	counts := e.emissionCounts
+	e.emissionCounts = make(map[emissionKey]uint64)
+	return counts
+}
+
 // runDetectorsAndCorrelatorsSnapshot runs the given detectors and correlators.
 // Uses explicit slices so the caller can snapshot them under a lock.
 //
@@ -760,12 +786,9 @@ func (e *engine) evictInactiveSeries(upToSec int64, detectors []detectorRegistra
 // clusters are captured while still alive.
 func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []detectorRegistration, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
-	var severityConfig observerdef.AnomalyScorerConfig
-	if e.onDetectorEmission != nil {
-		severityConfig = DefaultAnomalyScorerConfig().AnomalyScorerConfig
-		if e.scorer != nil {
-			severityConfig = e.scorer.config.AnomalyScorerConfig
-		}
+	severityConfig := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	if e.scorer != nil {
+		severityConfig = e.scorer.config.AnomalyScorerConfig
 	}
 
 	// Detect, deduplicate, and feed anomalies to correlators.
@@ -842,13 +865,11 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []dete
 			if !e.acceptAnomaly(anomaly) {
 				continue // duplicate
 			}
-			if e.onDetectorEmission != nil {
-				detectorName := anomaly.DetectorName
-				if detectorName == "" {
-					detectorName = detector.Name()
-				}
-				e.onDetectorEmission(detectorName, anomaly.MetricKind.String(), anomalySeverityLabel(anomalyLevel(anomaly, severityConfig)))
+			detectorName := anomaly.DetectorName
+			if detectorName == "" {
+				detectorName = detector.Name()
 			}
+			e.recordEmission(detectorName, anomaly.MetricKind.String(), anomalySeverityLabel(anomalyLevel(anomaly, severityConfig)))
 			e.processAnomaly(anomaly)
 			allAnomalies = append(allAnomalies, anomaly)
 			e.emit(engineEvent{
@@ -1188,6 +1209,7 @@ func (e *engine) SetDetectors(detectors []detectorRegistration) {
 		detectors[i].timing = &detectorTiming{}
 	}
 	e.detectors = detectors
+	e.emissionCounts = make(map[emissionKey]uint64)
 	e.logObservers = nil
 	for _, registration := range e.detectors {
 		d := registration.detector
@@ -1226,6 +1248,7 @@ func (e *engine) Reset() {
 	e.latestDataTime = 0
 	e.inactiveSeriesEvictionChecked = false
 	e.lastInactiveSeriesEvictionCheck = 0
+	e.emissionCounts = make(map[emissionKey]uint64)
 
 	for _, registration := range e.detectors {
 		if registration.timing != nil {
@@ -1307,6 +1330,7 @@ func (e *engine) resetAnalysisState() {
 	e.latestDataTime = 0
 	e.inactiveSeriesEvictionChecked = false
 	e.lastInactiveSeriesEvictionCheck = 0
+	e.emissionCounts = make(map[emissionKey]uint64)
 	for _, registration := range e.detectors {
 		if registration.timing != nil {
 			*registration.timing = detectorTiming{}
@@ -1548,6 +1572,10 @@ func (e *engine) publishMetricKindTelemetry(t *observerTelemetry) {
 	}
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	for key, count := range e.emissionCounts {
+		t.recordDetectorEmission(key.detector, key.kind, key.severity, count)
+	}
+	e.emissionCounts = make(map[emissionKey]uint64)
 	for kind, count := range e.storage.SeriesCountByKind() {
 		t.metricKindSeriesCount.Set(float64(count), observerdef.MetricKind(kind).String())
 	}

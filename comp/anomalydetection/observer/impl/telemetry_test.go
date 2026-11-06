@@ -39,7 +39,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 1)
 	tel.recordAdvanceSkipped("input")
 	tel.recordInputRateLimiterDropped("internal", "high")
-	tel.recordDetectorEmission("bocpd", "unset", "medium")
+	tel.recordDetectorEmission("bocpd", "unset", "medium", 1)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 }
 
@@ -52,8 +52,8 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordMetricAccepted("dogstatsd")
 	tel.recordObservationDropped("logs", "containers")
 	tel.recordInputRateLimiterDropped("internal", "high")
-	tel.recordDetectorEmission("bocpd", "unset", "medium")
-	tel.recordDetectorEmission("bocpd", "unset", "medium")
+	tel.recordDetectorEmission("bocpd", "unset", "medium", 1)
+	tel.recordDetectorEmission("bocpd", "unset", "medium", 1)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonCapacity, 3)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonSeries, 4)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 5)
@@ -109,6 +109,46 @@ func observerMetric(t *testing.T, telemetryComp telemetry.Component, metricName 
 
 	t.Fatalf("metric %q with labels %v not found", fullMetricName, wantLabels)
 	return nil
+}
+
+func TestEngineEmissionTelemetryBatching(t *testing.T) {
+	comp := telemetryimpl.NewMock(t)
+	tel := newObserverTelemetry(comp)
+	e, _ := makeEngine([]observer.Anomaly{
+		makeTestAnomaly("metric_a", 100),
+		makeTestAnomaly("metric_b", 100),
+	})
+
+	e.Advance(310)
+	e.publishMetricKindTelemetry(tel)
+	labels := map[string]string{"detector": "scanmw", "kind": "unset", "severity": "xlow"}
+	require.Equal(t, 2.0, observerMetric(t, comp, telemetryKindEmissions, labels).GetCounter().GetValue())
+	require.Equal(t, 2.0, observerMetric(t, comp, telemetryDetectorEmissions,
+		map[string]string{"detector": "scanmw", "severity": "xlow"}).GetCounter().GetValue())
+	require.Empty(t, e.emissionCounts, "emissions must be cleared after a drain")
+
+	before, err := comp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	e.publishMetricKindTelemetry(tel)
+	after, err := comp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	require.Empty(t, e.emissionCounts)
+	require.Len(t, before, len(after), "an idle drain must not publish new emission samples")
+}
+
+func TestEngineEmissionTelemetryLifecycle(t *testing.T) {
+	e, _ := makeEngine([]observer.Anomaly{makeTestAnomaly("metric_a", 100)})
+
+	e.Advance(310)
+	require.Len(t, e.emissionCounts, 1)
+	e.Reset()
+	require.Empty(t, e.emissionCounts, "reset must clear pending emissions")
+
+	e, _ = makeEngine([]observer.Anomaly{makeTestAnomaly("metric_a", 100)})
+	e.Advance(310)
+	require.Len(t, e.emissionCounts, 1)
+	e.SetDetectors(nil)
+	require.Empty(t, e.emissionCounts, "component replacement must clear pending emissions")
 }
 
 func TestClassifyLogSource(t *testing.T) {
@@ -197,7 +237,6 @@ func TestMetricPipelineEmissionTelemetry(t *testing.T) {
 	ref := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
 	e, p, d := newPipelineEngine(t, s, observer.STABLE)
 	d.ref = ref
-	e.onDetectorEmission = tel.recordDetectorEmission
 	result := e.Advance(3)
 	require.Len(t, result.anomalies, 1)
 	require.Equal(t, observer.STABLE, result.anomalies[0].MetricKind)
@@ -210,6 +249,7 @@ func TestMetricPipelineEmissionTelemetry(t *testing.T) {
 	e.publishMetricKindTelemetry(tel)
 	require.Equal(t, 1.0, observerMetric(t, comp, telemetryKindEmissions,
 		map[string]string{"detector": d.Name(), "kind": "stable", "severity": "medium"}).GetCounter().GetValue())
+	require.Empty(t, e.drainEmissionCounts(), "emissions must be cleared after a drain")
 	require.Equal(t, 3.0, observerMetric(t, comp, telemetryKindProcessingCalls,
 		map[string]string{"detector": d.Name(), "kind": "stable"}).GetCounter().GetValue())
 	require.Equal(t, meanNs, observerMetric(t, comp, telemetryKindProcessingTimeNs,
@@ -230,17 +270,12 @@ func TestMetricWorkflowTimingAndBaselineTelemetry(t *testing.T) {
 				kind = "unset"
 				e.SetDetectors([]detectorRegistration{{detector: d}})
 			}
-			emissions := 0
-			e.onDetectorEmission = func(detector, kind, severity string) {
-				emissions++
-				tel.recordDetectorEmission(detector, kind, severity)
-			}
 			e.baseline = newBaselineController(BaselineConfig{
 				Enabled: true, DurationSec: 10, MuteNoisyMetrics: true,
 			}, detectorNames(e.detectors))
 			require.Empty(t, e.Advance(3).anomalies)
 			e.Advance(4)
-			require.Zero(t, emissions, "baseline emissions must not be counted")
+			require.Empty(t, e.drainEmissionCounts(), "baseline emissions must not be counted")
 			timing := p.registrations[0].timing
 			if !pipeline {
 				timing = *e.detectors[0].timing
@@ -324,8 +359,6 @@ func TestMetricWorkflowMutedEmissionTelemetry(t *testing.T) {
 				baseline:                   BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
 				trackDetectorOutputHistory: true,
 			})
-			emissions := 0
-			e.onDetectorEmission = func(_, _, _ string) { emissions++ }
 			e.Advance(40)
 			addPipelineValues(s, 1, 41, 60, 100)
 			e.Advance(60)
@@ -333,7 +366,7 @@ func TestMetricWorkflowMutedEmissionTelemetry(t *testing.T) {
 			e.Advance(200)
 			require.NotEmpty(t, e.baseline.mutedHashes)
 			require.Zero(t, s.TotalSeriesCount())
-			require.Zero(t, emissions, "baseline qualification and noisy-metric muting must suppress telemetry")
+			require.Empty(t, e.drainEmissionCounts(), "baseline qualification and noisy-metric muting must suppress telemetry")
 		})
 	}
 }
