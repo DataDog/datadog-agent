@@ -30,6 +30,8 @@ type Store interface {
 	CleanUpPayloadsOlderThan(time.Time)
 	// GetRawPayloads returns all raw payloads for a given route
 	GetRawPayloads(route string) []api.Payload
+	// GetRawPayloadPage returns a bounded suffix, rejecting expired positions.
+	GetRawPayloadPage(route, cursor string, limit int) (api.PayloadPage, error)
 	// GetRouteStats returns the number of payloads for each route
 	GetRouteStats() map[string]int
 	// Flush flushes the store
