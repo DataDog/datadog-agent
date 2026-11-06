@@ -270,8 +270,8 @@ func TestReadProcessMemory(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, []ProcessMemory{
+		{PID: 100, DeviceUUID: "000074a1-0000-1000-80c0-ffee00c0ffee", VRAMBytes: 1<<30 + 1<<20},
 		{PID: 100, DeviceUUID: "amd-0000-41-00-0", VRAMBytes: 4096},
-		{PID: 100, DeviceUUID: "amd-00c0ffee00c0ffee", VRAMBytes: 1<<30 + 1<<20},
 	}, usage)
 }
 
