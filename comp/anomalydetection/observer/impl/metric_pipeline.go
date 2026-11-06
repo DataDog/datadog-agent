@@ -8,6 +8,7 @@ package observerimpl
 import (
 	"errors"
 	"fmt"
+	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -27,6 +28,7 @@ type pipelineRegistration struct {
 	metricType   metrics.MetricType
 	detector     pipelineDetector
 	aggregations []observer.Aggregate
+	timing       detectorTiming
 }
 
 // metricPipelineSeriesState tracks matching progress without owning storage.
@@ -47,6 +49,8 @@ type MetricPipeline struct {
 	cachedRefs    []observer.SeriesRef
 	cachedGen     uint64
 	scratch       []observer.Point
+
+	kindTransitions metricKindTransitionCounts
 }
 
 func newMetricPipeline(
@@ -155,8 +159,13 @@ func (p *MetricPipeline) Detect(
 		if !ok {
 			continue
 		}
-		detected := p.registrations[i].detector.Detect(storage, dataTime, detectorFilter)
+		registration := &p.registrations[i]
+		start := time.Now()
+		detected := registration.detector.Detect(storage, dataTime, detectorFilter)
+		registration.timing.record(time.Since(start))
 		for _, anomaly := range detected.Anomalies {
+			anomaly.DetectorName = registration.detector.Name()
+			anomaly.MetricKind = registration.kind
 			if anomaly.SourceRef == nil {
 				result.Anomalies = append(result.Anomalies, anomaly)
 				continue
@@ -220,6 +229,7 @@ func (p *MetricPipeline) advanceKinds(storage *timeSeriesStorage, dataTime int64
 			state.outputAfter = dataTime
 		}
 		storage.SetSeriesKind(ref, transition.To)
+		p.recordKindTransition(transition.From, transition.To)
 	}
 }
 
@@ -284,11 +294,29 @@ func (p *MetricPipeline) RemoveSeries(refs []observer.SeriesRef) {
 // storage and reset by the caller.
 func (p *MetricPipeline) Reset() {
 	p.matcher.Reset()
+	p.kindTransitions = metricKindTransitionCounts{}
 	for i := range p.registrations {
 		p.registrations[i].detector.Reset()
+		p.registrations[i].timing = detectorTiming{}
 	}
 	clear(p.series)
 	p.cachedRefs = nil
 	p.cachedGen = 0
 	p.scratch = p.scratch[:0]
+}
+
+const metricKindCount = 4
+
+type metricKindTransitionCounts [metricKindCount][metricKindCount]uint64
+
+func (p *MetricPipeline) recordKindTransition(from, to observer.MetricKind) {
+	if from < metricKindCount && to < metricKindCount && from != to {
+		p.kindTransitions[from][to]++
+	}
+}
+
+func (p *MetricPipeline) drainKindTransitionCounts() metricKindTransitionCounts {
+	counts := p.kindTransitions
+	p.kindTransitions = metricKindTransitionCounts{}
+	return counts
 }

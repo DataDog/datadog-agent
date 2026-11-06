@@ -469,8 +469,6 @@ func NewComponent(deps Requires) (Provides, error) {
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
 	eng.onAnomalyDedupEvicted = obsTelemetry.recordAnomalyDedupEvicted
 	eng.onAdvanceSkipped = obsTelemetry.recordAdvanceSkipped
-	eng.onProcessingTime = obsTelemetry.recordProcessingTime
-	eng.onDetectorEmission = obsTelemetry.recordDetectorEmission
 	for _, extractor := range extractors {
 		if sinkAware, ok := extractor.(interface{ SetObserverTelemetry(*observerTelemetry) }); ok {
 			sinkAware.SetObserverTelemetry(obsTelemetry)
@@ -729,6 +727,8 @@ func (o *observerImpl) run() {
 	metricsCh, logsCh := o.metricsCh, o.logsCh
 	ticker := time.NewTicker(filteredMetricPublishInterval)
 	defer ticker.Stop()
+	o.engine.publishMetricKindTelemetry(o.telemetry)
+	defer o.engine.publishMetricKindTelemetry(o.telemetry)
 	for metricsCh != nil || logsCh != nil {
 		var obs observation
 		var ok bool
@@ -745,6 +745,7 @@ func (o *observerImpl) run() {
 			}
 		case <-ticker.C:
 			o.engine.flushFilteredMetrics()
+			o.engine.publishMetricKindTelemetry(o.telemetry)
 			continue
 		}
 		if obs.flush != nil {
