@@ -37,6 +37,7 @@ func TestNewWorker(t *testing.T) {
 	concurrency := newTestConcurrencyDomain(1, 10)
 	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue, newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{}, NewSharedConnection(log, false, concurrency, mockConfig, nil), concurrency)
 	assert.NotNil(t, w)
+	assert.True(t, w.waitForInflight, "workers should drain in-flight requests by default")
 	assert.Equal(t, w.Client.GetClient().Timeout, mockConfig.GetDuration("forwarder_timeout")*time.Second)
 }
 
@@ -204,6 +205,7 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 	stopped := make(chan struct{}, 1)
 
 	mockConfig := mock.New(t)
+	mockConfig.SetInTest("forwarder_stop_wait_for_inflight", false)
 
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
@@ -259,6 +261,7 @@ func TestWorkerCancelsWaitingTransactions(t *testing.T) {
 	stopped := make(chan struct{}, 1)
 
 	mockConfig := mock.New(t)
+	mockConfig.SetInTest("forwarder_stop_wait_for_inflight", false)
 
 	log := logmock.New(t)
 
@@ -428,9 +431,9 @@ type PointSuccessfullySentMock struct {
 	dropped atomic.Int64
 }
 
-// TestWorkerStopDoesNotCancelInFlight verifies that when forwarder_stop_wait_for_inflight
-// is enabled and Worker.Stop is called while a transaction is in flight, Stop waits for
-// the transaction's Process call to return rather than cancelling its context.
+// TestWorkerStopDoesNotCancelInFlight verifies that without a configuration
+// override, Worker.Stop waits for an in-flight transaction's Process call to
+// return rather than cancelling its context.
 // The transaction completes successfully and is not requeued.
 func TestWorkerStopDoesNotCancelInFlight(t *testing.T) {
 	highPrio := make(chan transaction.Transaction, 1)
@@ -438,7 +441,6 @@ func TestWorkerStopDoesNotCancelInFlight(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 1)
 
 	mockConfig := mock.New(t)
-	mockConfig.SetInTest("forwarder_stop_wait_for_inflight", true)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	concurrency := newTestConcurrencyDomain(1, 10)
@@ -657,7 +659,7 @@ func TestWorkerStopWaitsForInFlightHTTPRequest(t *testing.T) {
 	txn.AssertNumberOfCalls(t, "Process", 1)
 }
 
-// TestWorkerStopCancelsContextRequeuesSemaphoreBlocked verifies the default shutdown path
+// TestWorkerStopCancelsContextRequeuesSemaphoreBlocked verifies the opt-out shutdown path
 // (forwarder_stop_wait_for_inflight=false). With a limit of 1 concurrent request and one
 // transaction holding the single semaphore slot, a second transaction is blocked in
 // acquireRequestSemaphore. When Stop is called, workerCtx is cancelled immediately; the blocked
@@ -669,8 +671,8 @@ func TestWorkerStopCancelsContextRequeuesSemaphoreBlocked(t *testing.T) {
 	requeue := make(chan transaction.Transaction, 2)
 
 	mockConfig := mock.New(t)
-	// forwarder_stop_wait_for_inflight is intentionally left at its default (false) to exercise
-	// the cancel-on-stop path.
+	// Explicitly opt out of draining to exercise the cancel-on-stop path.
+	mockConfig.SetInTest("forwarder_stop_wait_for_inflight", false)
 	log := logmock.New(t)
 	secrets := secretsmock.New(t)
 	concurrency := newTestConcurrencyDomain(1, 1)
