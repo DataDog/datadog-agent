@@ -39,7 +39,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   clock.speed.graphics.max:
@@ -54,7 +54,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.speed.memory:
@@ -73,7 +73,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   clock.speed.memory.max:
@@ -88,7 +88,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.speed.sm:
@@ -103,7 +103,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   clock.speed.sm.max:
@@ -118,7 +118,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.speed.video:
@@ -134,7 +134,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   clock.speed.video.max:
@@ -150,7 +150,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.applications_clocks_setting:
@@ -167,7 +167,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.display_clock_setting:
@@ -184,7 +184,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.gpu_idle:
@@ -201,7 +201,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.hw_power_brake_slowdown:
@@ -218,7 +218,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.hw_slowdown:
@@ -235,7 +235,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.hw_thermal_slowdown:
@@ -252,7 +252,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.none:
@@ -269,7 +269,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.sw_power_cap:
@@ -286,7 +286,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.sw_thermal_slowdown:
@@ -303,7 +303,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttle_reasons.sync_boost:
@@ -322,7 +322,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   clock.throttled_while_active:
@@ -341,7 +341,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   core.limit:
@@ -534,7 +534,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.corrected.volatile:
@@ -552,7 +552,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.uncorrected.total:
@@ -573,7 +573,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.uncorrected.volatile:
@@ -590,8 +590,8 @@ metrics:
     support:
       unsupported_architectures: []
       device_modes:
-        mig: false
-        mig_parent: false
+        mig: true
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.sram.threshold_exceeded:
@@ -610,7 +610,7 @@ metrics:
         - turing
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.sram.uncorrected_by_subtype.total:
@@ -634,7 +634,7 @@ metrics:
         - turing
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   errors.ecc.sram.uncorrected_by_subtype.volatile:
@@ -658,7 +658,7 @@ metrics:
         - turing
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   ecc.repair_pending.channel:
@@ -673,7 +673,7 @@ metrics:
         - volta
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   ecc.repair_pending.tpc:
@@ -688,7 +688,7 @@ metrics:
         - volta
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   errors.xid:
@@ -1089,7 +1089,7 @@ metrics:
         - ada
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   device.unavailable:
@@ -1137,7 +1137,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   nvlink.count.active:
@@ -1505,7 +1505,7 @@ metrics:
         - pascal
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   nvlink.plr.codes_loss:
@@ -2096,7 +2096,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.throughput.rx:
@@ -2117,7 +2117,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.throughput.tx:
@@ -2138,7 +2138,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.speed.current:
@@ -2155,7 +2155,7 @@ metrics:
     support:
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.speed.max:
@@ -2172,7 +2172,7 @@ metrics:
     support:
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.speed.degraded:
@@ -2186,7 +2186,7 @@ metrics:
     support:
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.width.current:
@@ -2202,7 +2202,7 @@ metrics:
     support:
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.width.max:
@@ -2218,7 +2218,7 @@ metrics:
     support:
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   pci.link.width.degraded:
@@ -2232,7 +2232,7 @@ metrics:
     support:
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   performance_state:
@@ -2246,7 +2246,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: true
   power.management_limit:
@@ -2261,7 +2261,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   power.usage:
@@ -2285,7 +2285,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   process.core.usage:
@@ -2564,7 +2564,7 @@ metrics:
         - fermi
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   sm_active:
@@ -2662,7 +2662,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   tensor_active:
@@ -2705,7 +2705,7 @@ metrics:
         - pascal
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   vgpu.license_status:
