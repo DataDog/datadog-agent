@@ -71,7 +71,6 @@ require (
 	github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 // indirect
 	github.com/Microsoft/go-winio v0.6.4 // indirect
 	github.com/alecthomas/participle/v2 v2.1.4 // indirect
-	github.com/alecthomas/repr v0.5.2 // indirect
 	github.com/benbjohnson/clock v1.3.5 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
@@ -118,8 +117,6 @@ require (
 	go.opentelemetry.io/collector/pdata v1.71.0 // indirect
 	go.opentelemetry.io/otel v1.47.1-0.20261102082644-9c507082cd98 // indirect
 	go.opentelemetry.io/otel/metric v1.47.1-0.20261102082644-9c507082cd98 // indirect
-	go.opentelemetry.io/otel/sdk v1.47.1-0.20261102082644-9c507082cd98 // indirect
-	go.opentelemetry.io/otel/sdk/metric v1.47.1-0.20261102082644-9c507082cd98 // indirect
 	go.opentelemetry.io/otel/trace v1.47.1-0.20261102082644-9c507082cd98 // indirect
 	go.uber.org/atomic v1.12.0 // indirect
 	go.uber.org/dig v1.19.0 // indirect
