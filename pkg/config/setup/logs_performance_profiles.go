@@ -98,12 +98,6 @@ var logsPerformanceProfiles = map[string]logsPerformanceProfile{
 	},
 }
 
-// LogsPerformanceProfileSetting is one config key/value a profile applies.
-type LogsPerformanceProfileSetting struct {
-	Key   string
-	Value interface{}
-}
-
 // isLogsPerformanceProfileOff reports whether name is empty or an "off" alias.
 func isLogsPerformanceProfileOff(name string) bool {
 	switch strings.ToLower(strings.TrimSpace(name)) {
@@ -116,56 +110,6 @@ func isLogsPerformanceProfileOff(name string) bool {
 // configuredLogsPerformanceProfile returns logs_config.profile trimmed and lowercased.
 func configuredLogsPerformanceProfile(config pkgconfigmodel.Reader) string {
 	return strings.ToLower(strings.TrimSpace(config.GetString("logs_config.profile")))
-}
-
-// lookupLogsPerformanceProfile resolves the configured profile; ok is false when none is active.
-func lookupLogsPerformanceProfile(config pkgconfigmodel.Reader) (profile logsPerformanceProfile, name string, ok bool) {
-	name = configuredLogsPerformanceProfile(config)
-	if isLogsPerformanceProfileOff(name) {
-		return logsPerformanceProfile{}, name, false
-	}
-	profile, ok = logsPerformanceProfiles[name]
-	return profile, name, ok
-}
-
-// ResolvedLogsPerformanceProfile reports the active profile and its settings sorted by key.
-func ResolvedLogsPerformanceProfile(config pkgconfigmodel.Reader) (name string, settings []LogsPerformanceProfileSetting, ok bool) {
-	profile, name, ok := lookupLogsPerformanceProfile(config)
-	if !ok {
-		return "", nil, false
-	}
-	for _, key := range sortedSettingKeys(profile.settings) {
-		settings = append(settings, LogsPerformanceProfileSetting{Key: key, Value: resolveProfileSettingValue(profile.settings[key])})
-	}
-	return name, settings, true
-}
-
-// LogsPerformanceProfileExists reports whether name is in the catalog.
-func LogsPerformanceProfileExists(name string) bool {
-	_, ok := logsPerformanceProfiles[name]
-	return ok
-}
-
-// LogsPerformanceProfileCovers reports whether active applies every candidate setting at the same value.
-func LogsPerformanceProfileCovers(active, candidate string) bool {
-	if isLogsPerformanceProfileOff(active) || isLogsPerformanceProfileOff(candidate) {
-		return false
-	}
-	a, ok := logsPerformanceProfiles[active]
-	if !ok {
-		return false
-	}
-	c, ok := logsPerformanceProfiles[candidate]
-	if !ok {
-		return false
-	}
-	for key, candidateVal := range c.settings {
-		activeVal, ok := a.settings[key]
-		if !ok || resolveProfileSettingValue(activeVal) != resolveProfileSettingValue(candidateVal) {
-			return false
-		}
-	}
-	return true
 }
 
 // profileYieldSources are the sources a profile never overrides.
