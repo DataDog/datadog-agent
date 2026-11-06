@@ -122,6 +122,7 @@ type FakeSSHServer struct {
 	listener   net.Listener
 	hostKey    ssh.Signer
 	newSession SessionFactory
+	onRequest  func(reqType string) // optional; called before each session request is handled
 
 	expectedUser     string
 	expectedPassword string
@@ -141,6 +142,15 @@ func WithCredentials(user, password string) FakeServerOption {
 	return func(s *FakeSSHServer) {
 		s.expectedUser = user
 		s.expectedPassword = password
+	}
+}
+
+// WithRequestHook registers f to be called with each session request's type
+// (e.g. "pty-req", "shell") before the server handles it. f may block to
+// simulate a slow device.
+func WithRequestHook(f func(reqType string)) FakeServerOption {
+	return func(s *FakeSSHServer) {
+		s.onRequest = f
 	}
 }
 
@@ -251,6 +261,9 @@ func (s *FakeSSHServer) serveConn(conn net.Conn, cfg *ssh.ServerConfig) {
 func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	defer ch.Close()
 	for req := range reqs {
+		if s.onRequest != nil {
+			s.onRequest(req.Type)
+		}
 		switch req.Type {
 		case "exec":
 			// Per RFC 4254 §6.5: payload is "string", which is uint32 length

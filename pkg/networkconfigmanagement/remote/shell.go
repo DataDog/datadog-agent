@@ -38,18 +38,61 @@ type sshShell struct {
 
 var _ Shell = (*sshShell)(nil)
 
-// StartShell opens an interactive shell with a PTY on the device.
-func (c *SSHConnection) StartShell(_ context.Context) (Shell, types.TypedError) {
-	session, err := c.client.NewSession()
-	if err != nil {
-		return nil, types.WrapErrorf(types.ErrCannotConnect, "unable to open session to %q: %w", c.ipAddress, err)
-	}
-	sh, err := startShell(session)
-	if err != nil {
-		_ = session.Close()
+// StartShell opens an interactive shell with a PTY on the device. If ctx ends
+// before setup completes, any session already opened is closed and the ctx
+// error is returned.
+func (c *SSHConnection) StartShell(ctx context.Context) (Shell, types.TypedError) {
+	if err := ctx.Err(); err != nil {
 		return nil, types.WrapErrorf(types.ErrCannotConnect, "unable to start shell on %q: %w", c.ipAddress, err)
 	}
-	return sh, nil
+
+	type result struct {
+		sh  Shell
+		err types.TypedError
+	}
+	var (
+		mu        sync.Mutex
+		session   *ssh.Session
+		abandoned bool // set once StartShell has given up on ctx
+	)
+	resCh := make(chan result, 1) // buffered so the goroutine never blocks
+	go func() {
+		s, err := c.client.NewSession()
+		if err != nil {
+			resCh <- result{err: types.WrapErrorf(types.ErrCannotConnect, "unable to open session to %q: %w", c.ipAddress, err)}
+			return
+		}
+		mu.Lock()
+		if abandoned {
+			mu.Unlock()
+			_ = s.Close()
+			return
+		}
+		session = s
+		mu.Unlock()
+		sh, err := startShell(s)
+		if err != nil {
+			_ = s.Close()
+			resCh <- result{err: types.WrapErrorf(types.ErrCannotConnect, "unable to start shell on %q: %w", c.ipAddress, err)}
+			return
+		}
+		resCh <- result{sh: sh}
+	}()
+
+	select {
+	case r := <-resCh:
+		return r.sh, r.err
+	case <-ctx.Done():
+	}
+	// Closing the session unblocks any pending setup request, and also tears
+	// down a shell whose setup finished concurrently with cancellation.
+	mu.Lock()
+	abandoned = true
+	if session != nil {
+		_ = session.Close()
+	}
+	mu.Unlock()
+	return nil, types.WrapErrorf(types.ErrCannotConnect, "unable to start shell on %q: %w", c.ipAddress, ctx.Err())
 }
 
 func startShell(session *ssh.Session) (*sshShell, error) {
