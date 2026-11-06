@@ -1,5 +1,5 @@
 load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
-load("//test/new-e2e:tests/windows_testsuites.bzl", "install_windows_testsuites")
+load("//test/new-e2e:tests/windows_testsuites.bzl", "windows_testsuites")
 
 dd_agent_go_test(
     name = "sysprobe-functional_test",
@@ -9,7 +9,10 @@ dd_agent_go_test(
         "assets_test.go",
         "sysprobe_test.go",
     ],
-    data = ["fixtures/system-probe.yaml"],
+    data = [
+        "fixtures/system-probe.yaml",
+        ":windows_testsuites",
+    ] + glob(["usmtest/*"]),
     embedsrcs = [
         "assets/iisstart.htm",
         "assets/iisstart.png",
@@ -33,8 +36,8 @@ dd_agent_go_test(
 # Left out:
 # - //pkg/ebpf/cgo:genpost_test: compiles the same sources as :cgo_test,
 # - //pkg/ebpf/verifier:verifier_log_parser_test: compiles the same tests as :verifier_test on Windows.
-install_windows_testsuites(
-    name = "install_windows_testsuites",
+windows_testsuites(
+    name = "windows_testsuites",
     files = {
         "//cmd/system-probe/modules:modules_test_npm": "cmd/system-probe/modules/testsuite.exe",
         "//comp/metadata/inventoryagent/impl:impl_test": "comp/metadata/inventoryagent/impl/testsuite.exe",
