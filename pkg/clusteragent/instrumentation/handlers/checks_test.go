@@ -10,7 +10,6 @@ package handlers
 import (
 	"context"
 	"encoding/json"
-	"fmt"
 	"testing"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -657,7 +656,7 @@ func TestCheckStoreHash(t *testing.T) {
 	})
 
 	t.Run("checks and logs generation updates do not cancel", func(t *testing.T) {
-		// With XOR-combined FNV entry hashes, this UID produces the same hash
+		// With XOR-combined FNV entry  hashes, this UID produces the same hash
 		// for generations 1 and 2 even though both entries have changed.
 		const key = "ddi-e2e-update/nginx-monitoring-update"
 		const uid = "7a8973da-6e33-5c9e-8150-54b725c7b7d4"
@@ -673,38 +672,4 @@ func TestCheckStoreHash(t *testing.T) {
 		require.Len(t, configs, 2)
 		require.Equal(t, cs.Hash(), hash)
 	})
-}
-
-// BenchmarkCheckStoreConfigurationUpdate measures updating both entries of an
-// existing DDI through the production write path. Initial population is untimed.
-func BenchmarkCheckStoreConfigurationUpdate(b *testing.B) {
-	for _, entries := range []int{100, 1000, 10000, 100000} {
-		b.Run(fmt.Sprintf("entries=%d", entries), func(b *testing.B) {
-			cs := NewCheckStore()
-			cfg := []integration.Config{{Name: "http_check"}}
-			resources := entries / 2
-			crs := make([]*datadoghq.DatadogInstrumentation, resources)
-			checkKeys := make([]string, resources)
-			logKeys := make([]string, resources)
-			for i := range crs {
-				name := fmt.Sprintf("workload-monitoring-%06d", i)
-				crs[i] = newCR(name, "production", "Deployment", "app", nil)
-				crs[i].UID = types.UID(fmt.Sprintf("7a8973da-6e33-4c9e-8150-%012d", i))
-				crs[i].Generation = 1
-				checkKeys[i] = "production/" + name
-				logKeys[i] = logsStoreKey(checkKeys[i])
-				cs.writeConfigs(checkKeys[i], crs[i], cfg)
-				cs.writeConfigs(logKeys[i], crs[i], cfg)
-			}
-			b.ReportAllocs()
-			b.ResetTimer()
-			for i := 0; i < b.N; i++ {
-				index := i % resources
-				cr := crs[index]
-				cr.Generation++
-				cs.writeConfigs(checkKeys[index], cr, cfg)
-				cs.writeConfigs(logKeys[index], cr, cfg)
-			}
-		})
-	}
 }
