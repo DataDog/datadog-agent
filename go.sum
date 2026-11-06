@@ -582,6 +582,8 @@ github.com/go-delve/delve v1.27.2 h1:dhcjFjiVoQI53uwsG7EqYiMhdvFuywsBZx4KDOK+sYE
 github.com/go-delve/delve v1.27.2/go.mod h1:nkFriKZ7rywF+tspcCgJeouzq6b0krJlJiGp15T81hA=
 github.com/go-jose/go-jose/v4 v4.1.6 h1:sNRkftxFJxwsILiQukqp5z83QBSmntVwmgRY7AqBDO4=
 github.com/go-jose/go-jose/v4 v4.1.6/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
+github.com/go-jose/go-jose/v4 v4.1.7 h1:Nac/98uT5LPkfbiFuYa8ktf62a2VxwQ4xbq1GK8pV5E=
+github.com/go-jose/go-jose/v4 v4.1.7/go.mod h1:x4oUasVrzR7071A4TnHLGSPpNOm2a21K9Kf04k1rs08=
 github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8 h1:o8UqXPI6SVwQt04RGsqKp3qqmbOfTNMqDrWsc4O47kk=
 github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8/go.mod h1:TiCD2a1pcmjd7YnhGH0f/zKNcCD06B029pHhzV23c2M=
 github.com/go-kit/kit v0.8.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
