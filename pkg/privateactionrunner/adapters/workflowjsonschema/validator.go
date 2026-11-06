@@ -10,6 +10,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
 	"strings"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -56,16 +58,18 @@ func FormatValidationError(err error) error {
 	return errors.Join(errs...)
 }
 
-// ValidateParameters validates parameters against the properties and required fields
-// from an action parameter schema.
+// ValidateParameters validates parameters against an action parameter schema. The
+// whole schema is enforced, including root-level keywords such as
+// additionalProperties, allOf/anyOf/oneOf, and if/then/else.
 func ValidateParameters(parameterSchema map[string]interface{}, parameters any) error {
-	schemaData := map[string]interface{}{
-		"type":       "object",
-		"properties": parameterSchema["properties"],
+	schemaData := maps.Clone(parameterSchema)
+	if schemaData == nil {
+		schemaData = map[string]interface{}{}
 	}
-	if required, found := parameterSchema["required"]; found {
-		schemaData["required"] = required
-	}
+	// Compile under the default draft, as properties always were, so keywords beside a $ref still apply.
+	delete(schemaData, "$schema")
+	splitDependencies(schemaData)
+	schemaData["type"] = "object"
 
 	schemaJSON, err := json.Marshal(schemaData)
 	if err != nil {
@@ -77,8 +81,10 @@ func ValidateParameters(parameterSchema map[string]interface{}, parameters any) 
 		return fmt.Errorf("failed to parse schema: %w", err)
 	}
 
-	const loc = "parameter-schema.json"
+	const loc = "mem://parameter-schema.json"
 	c := jsonschema.NewCompiler()
+	// Parameter schemas must be self-contained; never resolve $ref against the local filesystem.
+	c.UseLoader(nil)
 	if err := c.AddResource(loc, doc); err != nil {
 		return fmt.Errorf("failed to add schema resource: %w", err)
 	}
@@ -92,4 +98,31 @@ func ValidateParameters(parameterSchema map[string]interface{}, parameters any) 
 		return fmt.Errorf("parameter validation failed: %w", err)
 	}
 	return nil
+}
+
+// splitDependencies carries a root draft-07 dependencies keyword, which the default draft
+// no longer evaluates, over to its dependentRequired and dependentSchemas equivalents.
+func splitDependencies(schemaData map[string]interface{}) {
+	dependencies, ok := schemaData["dependencies"].(map[string]interface{})
+	if !ok {
+		return
+	}
+	allOf, ok := schemaData["allOf"].([]interface{})
+	if _, found := schemaData["allOf"]; found && !ok {
+		return
+	}
+	required := map[string]interface{}{}
+	schemas := map[string]interface{}{}
+	for name, dependency := range dependencies {
+		if _, isList := dependency.([]interface{}); isList {
+			required[name] = dependency
+		} else {
+			schemas[name] = dependency
+		}
+	}
+	delete(schemaData, "dependencies")
+	schemaData["allOf"] = append(slices.Clone(allOf), map[string]interface{}{
+		"dependentRequired": required,
+		"dependentSchemas":  schemas,
+	})
 }
