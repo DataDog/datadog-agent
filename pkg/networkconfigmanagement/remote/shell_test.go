@@ -185,10 +185,8 @@ func TestStartShell_ContextEndsDuringSetup(t *testing.T) {
 	defer cancel()
 	// Wait for the shell request to be reached, then cancel the context.
 	go func() {
-		select {
-		case <-shellRequested:
-			cancel()
-		}
+		<-shellRequested
+		cancel()
 	}()
 	sh, err := conn.StartShell(ctx)
 	assert.Nil(t, sh)
