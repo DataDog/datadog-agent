@@ -808,24 +808,30 @@ const MaxScriptBytes = 5 * 1024 * 1024 // 5 MiB
 
 // ParseScript parses script as a shell program and returns the resulting AST.
 // It enforces [MaxScriptBytes]: if len(script) exceeds that limit the call
-// returns an error immediately, before the parser allocates any memory.
+// returns an error immediately, before the parser allocates any memory. It
+// also bounds the parser's recursion while it runs and enforces
+// [MaxNestingDepth] on the resulting AST.
 //
 // name is an optional filename used in parse-error messages (pass "" if
 // there is no associated file).
 //
 // Library callers should use ParseScript rather than calling the underlying
-// syntax parser directly so that the size limit is consistently enforced.
+// syntax parser directly so that these limits are consistently enforced.
 func ParseScript(script, name string) (*syntax.File, error) {
 	if len(script) > MaxScriptBytes {
 		return nil, fmt.Errorf("script size %d bytes exceeds maximum of %d bytes (%d MiB); split the script into smaller pieces",
 			len(script), MaxScriptBytes, MaxScriptBytes/(1024*1024))
 	}
-	// Reject deeply nested scripts before the recursive-descent parser can
-	// overflow the goroutine stack on them. See [MaxNestingDepth].
-	if err := checkScriptNestingDepth(script); err != nil {
+	prog, err := parseDepthBounded(script, name)
+	if err != nil {
 		return nil, err
 	}
-	return syntax.NewParser().Parse(strings.NewReader(script), name)
+	// Long pipelines and lists parse iteratively but nest the AST; bound it
+	// here so callers' recursive walks of it cannot overflow.
+	if err := checkNestingDepth(prog); err != nil {
+		return nil, err
+	}
+	return prog, nil
 }
 
 // Close releases resources held by the Runner, such as os.Root file descriptors

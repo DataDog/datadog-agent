@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    The restricted shell used by the Private Action Runner's ``runCommand`` and
+    ``runRemediationCommand`` actions now bounds the parser's recursion while
+    it parses a script, and checks the parsed script's nesting depth before
+    returning it. Scripts nested deeper than the parser can handle, through any
+    construct, are rejected with an error instead of terminating the process
+    running the action. Scripts nesting arithmetic parentheses or array
+    indexes beyond a few hundred levels, or other constructs beyond roughly a
+    thousand levels, are now rejected.
