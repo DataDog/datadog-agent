@@ -791,6 +791,7 @@ func startTagFilterDemuxWithSettings(t *testing.T, settings map[string]any, chec
 		"dist.metric":   {Action: "exclude", Tags: []string{"pod"}},
 		"count.metric":  {Action: "exclude", Tags: []string{"pod"}},
 		"countc.metric": {Action: "exclude", Tags: []string{"pod"}},
+		"mono.metric":   {Action: "exclude", Tags: []string{"pod"}},
 	})
 	demux := InitAndStartAgentDemultiplexer(deps.Log, NewForwarderTest(deps.Log), deps.OrchestratorFwd, demuxTestOptions(),
 		deps.EventPlatform, deps.HaAgent, deps.Compressor, deps.Tagger, filterList, "")
@@ -975,17 +976,20 @@ func TestTagFilterListMergesThroughCheckSenders(t *testing.T) {
 	demux, s := startTagFilterDemux(t)
 	defer demux.Stop()
 
-	runs := map[checkid.ID][]float64{
-		"openmetrics:pod-a": {1, 2},
-		"openmetrics:pod-b": {3, 4},
+	type sent struct{ count, mono float64 }
+	runs := map[checkid.ID][]sent{
+		"openmetrics:pod-a": {{count: 1, mono: 10}, {count: 2, mono: 15}},
+		"openmetrics:pod-b": {{count: 3, mono: 1000}, {count: 4, mono: 1002}},
 	}
 	for id, checkRuns := range runs {
 		sender, err := demux.GetSender(id)
 		require.NoError(t, err)
 		tags := []string{"env:prod", "pod:" + string(id)}
-		for _, value := range checkRuns {
-			sender.Distribution("dist.metric", value, "", tags)
-			sender.Counter("count.metric", value, "", tags)
+		for _, run := range checkRuns {
+			sender.Distribution("dist.metric", run.count, "", tags)
+			sender.Counter("count.metric", run.count, "", tags)
+			sender.Count("countc.metric", run.count, "", tags)
+			sender.MonotonicCount("mono.metric", run.mono, "", tags)
 			sender.Gauge("other.metric", 1, "", tags)
 			sender.Commit()
 		}
@@ -994,6 +998,8 @@ func TestTagFilterListMergesThroughCheckSenders(t *testing.T) {
 	demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
 
 	assert.Equal(t, 1+2+3+4.0, mergedSeriesTotal(t, s.series, "count.metric", metrics.APIRateType))
+	assert.Equal(t, 1+2+3+4.0, mergedSeriesTotal(t, s.series, "countc.metric", metrics.APICountType))
+	assert.Equal(t, (15-10)+(1002-1000.0), mergedSeriesTotal(t, s.series, "mono.metric", metrics.APICountType), "each instance's own increase, summed")
 
 	assert.Equal(t, int64(4), mergedSketchCount(t, sketchesNamed(s.sketches, "dist.metric")))
 
