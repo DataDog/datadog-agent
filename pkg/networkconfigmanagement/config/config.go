@@ -54,9 +54,6 @@ func (ac AuthCredentials) Validate() error {
 	if ac.Password == "" && ac.PrivateKeyFile == "" {
 		return errors.New("missing auth method (either password or private key)")
 	}
-	if ac.SSH == nil {
-		return errors.New("missing SSH configuration")
-	}
 	// Port validation
 	port, err := strconv.Atoi(ac.Port)
 	if err != nil {
@@ -65,12 +62,12 @@ func (ac AuthCredentials) Validate() error {
 	if !(port >= 0 && port <= 65535) { // max value for 16-bit unsigned int
 		return fmt.Errorf("invalid port: out of range: %q", ac.Port)
 	}
-
-	// if SSH configs exist, ensure they are valid
-	if ac.SSH != nil {
-		if err := ac.SSH.validate(); err != nil {
-			return fmt.Errorf("invalid SSH config: %w", err)
-		}
+	// Validate SSH config
+	if ac.SSH == nil {
+		return errors.New("missing SSH configuration")
+	}
+	if err := ac.SSH.validate(); err != nil {
+		return fmt.Errorf("invalid SSH config: %w", err)
 	}
 	return nil
 }
