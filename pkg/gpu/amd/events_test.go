@@ -11,6 +11,7 @@ import (
 	"encoding/binary"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -44,6 +45,22 @@ type fakeKFD struct {
 	mu      sync.Mutex
 	writers map[uint64]*os.File
 	err     error
+	events  readerEvents
+}
+
+// readerEvents counts the lines handled and the stops of the subscriber's
+// readers, so that tests wait for them instead of polling.
+type readerEvents chan struct{}
+
+func (r readerEvents) wait(t *testing.T, n int) {
+	t.Helper()
+	for range n {
+		select {
+		case <-r:
+		case <-t.Context().Done():
+			t.Fatal("test ended before the readers handled the expected events")
+		}
+	}
 }
 
 func newFakeSubscriber(t *testing.T) (*EventSubscriber, *fakeKFD) {
@@ -51,6 +68,9 @@ func newFakeSubscriber(t *testing.T) (*EventSubscriber, *fakeKFD) {
 	require.NoError(t, os.WriteFile(kfdPath, nil, 0o600))
 	fake := &fakeKFD{writers: map[uint64]*os.File{}}
 	s := NewEventSubscriber(kfdPath)
+	events := make(readerEvents, 64)
+	s.readerEvent = func() { events <- struct{}{} }
+	fake.events = events
 	s.openSMI = func(_ *os.File, gpuID uint64) (*os.File, error) {
 		fake.mu.Lock()
 		defer fake.mu.Unlock()
@@ -78,14 +98,12 @@ func (f *fakeKFD) send(t *testing.T, gpuID uint64, data string) {
 	require.NoError(t, err)
 }
 
-func flushUntil(t *testing.T, s *EventSubscriber, n int) []Event {
-	var events []Event
-	require.Eventually(t, func() bool {
-		got, _ := s.Flush()
-		events = append(events, got...)
-		return len(events) >= n
-	}, 5*time.Second, 10*time.Millisecond)
-	return events
+// sendLines writes lines to a subscription and waits until its reader has
+// handled them.
+func (f *fakeKFD) sendLines(t *testing.T, gpuID uint64, lines ...string) {
+	t.Helper()
+	f.send(t, gpuID, strings.Join(lines, "\n")+"\n")
+	f.events.wait(t, len(lines))
 }
 
 func TestEventSubscriberMapsEventsToDevices(t *testing.T) {
@@ -97,9 +115,10 @@ func TestEventSubscriberMapsEventsToDevices(t *testing.T) {
 	}
 	require.NoError(t, s.Sync(devices))
 
-	fake.send(t, 101, "1 44535:python3\n")
-	fake.send(t, 200, "3 5 1\n4 5\n")
-	events := flushUntil(t, s, 3)
+	fake.sendLines(t, 101, "1 44535:python3")
+	fake.sendLines(t, 200, "3 5 1", "4 5")
+	events, _ := s.Flush()
+	require.Len(t, events, 3)
 
 	byDevice := map[string][]EventType{}
 	for _, e := range events {
@@ -143,15 +162,15 @@ func TestEventSubscriberResubscribesAfterAFailedRead(t *testing.T) {
 	fake.mu.Lock()
 	fake.writers[100].Close()
 	fake.mu.Unlock()
-	require.Eventually(t, func() bool {
-		s.mu.Lock()
-		defer s.mu.Unlock()
-		return len(s.subs) == 0
-	}, 5*time.Second, 10*time.Millisecond)
+	fake.events.wait(t, 1) // the reader stopped and dropped its subscription
+	s.mu.Lock()
+	assert.Empty(t, s.subs)
+	s.mu.Unlock()
 
 	require.NoError(t, s.Sync(devices))
-	fake.send(t, 100, "1 1:x\n")
-	events := flushUntil(t, s, 1)
+	fake.sendLines(t, 100, "1 1:x")
+	events, _ := s.Flush()
+	require.Len(t, events, 1)
 	assert.Equal(t, "gpu-a", events[0].DeviceUUID)
 }
 
@@ -165,8 +184,9 @@ func TestEventSubscriberSyncDropsRemovedGPUs(t *testing.T) {
 	s.mu.Unlock()
 	assert.False(t, subscribed)
 
-	fake.send(t, 200, "1 1:x\n")
-	events := flushUntil(t, s, 1)
+	fake.sendLines(t, 200, "1 1:x")
+	events, _ := s.Flush()
+	require.Len(t, events, 1)
 	assert.Equal(t, "gpu-b", events[0].DeviceUUID)
 }
 

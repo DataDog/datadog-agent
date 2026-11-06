@@ -176,9 +176,16 @@ func xgmiSamples(dev *amdgpu.Device, entry *amdgpu.GPUMetricsEntry) []nvidia.Sam
 }
 
 func rateMetric(name string, value uint64, tags []string) *nvidia.Metric {
-	m := nvidia.NewMetric(name, float64(value), metrics.GaugeType, nvidia.Low, tags, nil)
+	m := deviceMetric(name, float64(value), tags)
 	m.RateCalculationMode = nvidia.PerSecondRateCalculation
 	return m
+}
+
+// deviceMetric returns a device-level exporter metric. Exporter metrics carry
+// no workload tags: the check then needs no workload tag cache, whose
+// telemetry cannot be registered by several instances.
+func deviceMetric(name string, value float64, tags []string) *nvidia.Metric {
+	return nvidia.NewMetric(name, value, metrics.GaugeType, nvidia.Low, tags, nil).WithoutWorkloadTags()
 }
 
 // throttleSamples returns the share of the interval, in percent, during which
@@ -203,7 +210,7 @@ func (e *exporterCollector) throttleSamples(deviceUUID string, entry *amdgpu.GPU
 			continue
 		}
 		pct := min(float64(cur-prev)/elapsed*100, 100)
-		samples = append(samples, nvidia.NewMetric("throttle.residency", pct, metrics.GaugeType, nvidia.Low, []string{"reason:" + reason.tag}, nil))
+		samples = append(samples, deviceMetric("throttle.residency", pct, []string{"reason:" + reason.tag}))
 	}
 	return samples
 }

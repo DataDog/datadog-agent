@@ -134,6 +134,13 @@ func NewMetric(name string, value float64, metricType ddmetrics.MetricType, prio
 
 var _ Sample = (*Metric)(nil)
 
+// WithoutWorkloadTags makes the metric carry device tags only, without the
+// tags of the workloads using the device, and returns it.
+func (m *Metric) WithoutWorkloadTags() *Metric {
+	m.noWorkloadTags = true
+	return m
+}
+
 func (m *Metric) Key() string {
 	return "__metric__:" + m.Name
 }

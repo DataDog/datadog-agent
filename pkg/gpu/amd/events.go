@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"syscall"
 	"time"
 	"unsafe"
 
@@ -69,6 +70,10 @@ type EventSubscriber struct {
 	kfdPath string
 	// openSMI returns the event file of a KFD GPU ID; tests replace it.
 	openSMI func(kfd *os.File, gpuID uint64) (*os.File, error)
+
+	// readerEvent, when set by tests, is called each time a reader handles
+	// an event line or stops.
+	readerEvent func()
 
 	mu       sync.Mutex
 	kfd      *os.File
@@ -191,6 +196,7 @@ func (s *EventSubscriber) read(sub *smiSubscription) {
 				evt.Time = time.Now()
 				s.add(evt)
 			}
+			s.notifyReaderEvent()
 		}
 		if err != nil {
 			if !errors.Is(err, os.ErrClosed) {
@@ -198,8 +204,15 @@ func (s *EventSubscriber) read(sub *smiSubscription) {
 				// next Sync makes a new one.
 				s.drop(sub)
 			}
+			s.notifyReaderEvent()
 			return
 		}
+	}
+}
+
+func (s *EventSubscriber) notifyReaderEvent() {
+	if s.readerEvent != nil {
+		s.readerEvent()
 	}
 }
 
@@ -258,11 +271,20 @@ func openSMIEvents(kfd *os.File, gpuID uint64) (*os.File, error) {
 	if err != nil {
 		return nil, err
 	}
+	// The kernel creates the event file without O_CLOEXEC. Hold ForkLock until
+	// close-on-exec is set, so that no subprocess the Agent starts inherits it
+	// (and the subscription with it).
 	var errno unix.Errno
-	if err := conn.Control(func(fd uintptr) {
+	syscall.ForkLock.RLock()
+	controlErr := conn.Control(func(fd uintptr) {
 		_, _, errno = unix.Syscall(unix.SYS_IOCTL, fd, amdkfdIOCSMIEvents, uintptr(unsafe.Pointer(&args)))
-	}); err != nil {
-		return nil, err
+	})
+	if controlErr == nil && errno == 0 {
+		unix.CloseOnExec(int(args.AnonFD))
+	}
+	syscall.ForkLock.RUnlock()
+	if controlErr != nil {
+		return nil, controlErr
 	}
 	if errno != 0 {
 		return nil, fmt.Errorf("AMDKFD_IOC_SMI_EVENTS: %w", errno)

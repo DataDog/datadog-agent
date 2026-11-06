@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -91,6 +92,33 @@ var amdCollectorTelemetryTagNames = []string{
 	"gpu_driver_version",
 }
 
+// checkTelemetries holds the telemetry of each check name and telemetry
+// component: the registry rejects a second registration of the same metric,
+// and a check can be instantiated several times (several exporter endpoints,
+// or Autodiscovery rescheduling it).
+var (
+	checkTelemetriesMu sync.Mutex
+	checkTelemetries   = make(map[checkTelemetryKey]*checkTelemetry)
+)
+
+type checkTelemetryKey struct {
+	tm        telemetry.Component
+	subsystem string
+}
+
+// sharedCheckTelemetry returns the telemetry of a check, registering it once.
+func sharedCheckTelemetry(tm telemetry.Component, subsystem string) *checkTelemetry {
+	checkTelemetriesMu.Lock()
+	defer checkTelemetriesMu.Unlock()
+	key := checkTelemetryKey{tm: tm, subsystem: subsystem}
+	if t, ok := checkTelemetries[key]; ok {
+		return t
+	}
+	t := newCheckTelemetry(tm, subsystem)
+	checkTelemetries[key] = t
+	return t
+}
+
 func newCheckTelemetry(tm telemetry.Component, subsystem string) *checkTelemetry {
 	return &checkTelemetry{
 		emitter: gpu.EmitterTelemetry{
@@ -131,7 +159,7 @@ func newNamedCheck(name string, tagger tagger.Component, tm telemetry.Component,
 		tagger:              tagger,
 		wmeta:               wmeta,
 		telemetryComponent:  tm,
-		telemetry:           newCheckTelemetry(tm, name),
+		telemetry:           sharedCheckTelemetry(tm, name),
 		rateCalculator:      nvidia.NewRateCalculator(),
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
 		excludedDeviceUUIDs: make(map[string]struct{}),
@@ -184,6 +212,10 @@ func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigD
 		c.containerProvider = containerProvider
 	}
 
+	if c.exporter != nil {
+		// Exporter metrics carry device tags only.
+		return nil
+	}
 	workloadTagCache, err := gpu.NewWorkloadTagCacheWithSubsystem(c.name, c.tagger, c.wmeta, c.containerProvider, c.telemetryComponent, pkgconfigsetup.Datadog().GetInt("gpu.workload_tag_cache_size"))
 	if err != nil {
 		return fmt.Errorf("error creating workload tag cache: %w", err)
@@ -226,7 +258,9 @@ func (c *Check) Run() error {
 
 	// Make sure workload tag resolution attempts retrieving the most up to date values.
 	// Stale cache entries (from previous runs) might still be used as a fallback.
-	c.workloadTagCache.MarkStale()
+	if c.workloadTagCache != nil {
+		c.workloadTagCache.MarkStale()
+	}
 
 	if err := c.emitMetrics(snd, time.Now()); err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error while sending AMD GPU metrics: %s", err)

@@ -192,3 +192,28 @@ func TestExporterCheckInstancesHaveDistinctIDs(t *testing.T) {
 	b, _ := setupExporterCheck(t, root, "http://10.0.0.2:5000/gpumetrics")
 	assert.NotEqual(t, a.ID(), b.ID())
 }
+
+// Autodiscovery creates a new instance when the exporter is rescheduled, and
+// several endpoints can be configured: instances share one telemetry
+// registry, which rejects duplicate registrations.
+func TestExporterCheckInstancesShareTelemetry(t *testing.T) {
+	tm := testutil.GetTelemetryMock(t)
+	tagger := taggerfxmock.SetupFakeTagger(t)
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	applyAMDTestSettings(t, nil)
+	root := fakeAMDHost(t)
+	for _, url := range []string{"http://10.0.0.1:5000/gpumetrics", "http://10.0.0.2:5000/gpumetrics"} {
+		check := newNamedCheck(ExporterCheckName, tagger, tm, wmeta)
+		check.containerProvider = newMockContainerProvider(t, map[int]string{})
+		check.sysRoot = root
+		require.NotPanics(t, func() {
+			require.NoError(t, check.Configure(mocksender.CreateDefaultDemultiplexer(t), integration.FakeConfigHash, []byte("gpumetrics_url: "+url), []byte{}, "test", "provider"))
+		})
+		check.Cancel()
+	}
+}
+
+func TestExporterMetricsCarryDeviceTagsOnly(t *testing.T) {
+	assert.True(t, deviceMetric("throttle.residency", 1, nil).NoWorkloadTags())
+	assert.True(t, rateMetric("xgmi.throughput.raw.rx", 1, nil).NoWorkloadTags())
+}
