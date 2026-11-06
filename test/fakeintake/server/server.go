@@ -73,7 +73,6 @@ type Server struct {
 	forwardEndpoint    string
 	logForwardEndpoint string
 	apiKey             string
-	listen             func(string, string) (net.Listener, error)
 
 	urlMutex sync.RWMutex
 	url      string
@@ -207,20 +206,6 @@ func WithPort(port int) Option {
 	return WithAddress(fmt.Sprintf("0.0.0.0:%d", port))
 }
 
-// WithListenerFactory changes how the HTTP listener is created. Embedders can
-// wrap the listener and its connections to observe transport bytes without
-// replacing Fakeintake's handlers or payload store. The server owns and closes
-// the listener. Configure this before Start. Passing nil restores net.Listen.
-func WithListenerFactory(listen func(string, string) (net.Listener, error)) Option {
-	return func(fi *Server) {
-		if fi.IsRunning() {
-			log.Println("Fake intake is already running. Configure the listener factory before Start.")
-			return
-		}
-		fi.listen = listen
-	}
-}
-
 // WithReadyChannel assign a boolean channel to get notified when the server is ready
 func WithReadyChannel(ready chan bool) Option {
 	return func(fi *Server) {
@@ -348,11 +333,7 @@ func (fi *Server) listenRoutine() {
 	// explicitly creating a listener to get the actual port
 	// as http.Server.ListenAndServe hides this information
 	// https://github.com/golang/go/blob/go1.19.6/src/net/http/server.go#L2987-L3000
-	listen := fi.listen
-	if listen == nil {
-		listen = net.Listen
-	}
-	listener, err := listen("tcp", fi.server.Addr)
+	listener, err := net.Listen("tcp", fi.server.Addr)
 	if err != nil {
 		log.Printf("Error creating fake intake server at %s: %v", fi.server.Addr, err)
 
@@ -489,7 +470,11 @@ func (fi *Server) handleDatadogPostRequest(w http.ResponseWriter, req *http.Requ
 	contentType := req.Header.Get("Content-Type")
 
 	apiKey := fi.extractDatadogAPIKey(req)
-	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, collectTime)
+	err = fi.store.AppendPayload(req.URL.Path, apiKey, payload, encoding, contentType, collectTime, api.RequestMetadata{
+		Method: req.Method, Target: req.RequestURI, Host: req.Host, Route: req.URL.Path,
+		Protocol: req.Proto, Headers: req.Header, Trailers: req.Trailer,
+		ContentLength: req.ContentLength, TransferEncoding: req.TransferEncoding,
+	})
 	if err != nil {
 		log.Printf("Error adding payload to store: %v", err)
 		response := buildErrorResponse(err)

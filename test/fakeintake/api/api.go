@@ -7,25 +7,64 @@
 package api
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"slices"
 	"time"
 )
 
+// RequestMetadata contains the request values exposed by net/http. Header names
+// and transfer framing have already been parsed; this is not a wire capture.
+// Route is the payload-store key, while Target retains the request URI.
+type RequestMetadata struct {
+	Method           string      `json:"method,omitempty"`
+	Target           string      `json:"target,omitempty"`
+	Host             string      `json:"host,omitempty"`
+	Route            string      `json:"route,omitempty"`
+	Protocol         string      `json:"protocol,omitempty"`
+	Headers          http.Header `json:"headers,omitempty"`
+	Trailers         http.Header `json:"trailers,omitempty"`
+	ContentLength    int64       `json:"content_length,omitempty"`
+	TransferEncoding []string    `json:"transfer_encoding,omitempty"`
+}
+
+// Clone returns independent header, trailer and transfer-encoding values.
+func (r *RequestMetadata) Clone() *RequestMetadata {
+	if r == nil {
+		return nil
+	}
+	cloned := *r
+	cloned.Headers = r.Headers.Clone()
+	cloned.Trailers = r.Trailers.Clone()
+	cloned.TransferEncoding = slices.Clone(r.TransferEncoding)
+	return &cloned
+}
+
 //nolint:revive // TODO(APL) Fix revive linter
 type Payload struct {
-	Timestamp   time.Time `json:"timestamp"`
-	APIKey      string    `json:"api_key"`
-	Data        []byte    `json:"data"`
-	Encoding    string    `json:"encoding"`
-	ContentType string    `json:"content_type"`
+	Timestamp   time.Time        `json:"timestamp"`
+	APIKey      string           `json:"api_key"`
+	Data        []byte           `json:"data"`
+	Encoding    string           `json:"encoding"`
+	ContentType string           `json:"content_type"`
+	Request     *RequestMetadata `json:"request,omitempty"`
+}
+
+// Clone returns an independent body and request metadata snapshot.
+func (p Payload) Clone() Payload {
+	p.Data = bytes.Clone(p.Data)
+	p.Request = p.Request.Clone()
+	return p
 }
 
 //nolint:revive // TODO(APL) Fix revive linter
 type ParsedPayload struct {
-	Timestamp time.Time   `json:"timestamp"`
-	APIKey    string      `json:"api_key"`
-	Data      interface{} `json:"data"`
-	Encoding  string      `json:"encoding"`
+	Timestamp time.Time        `json:"timestamp"`
+	APIKey    string           `json:"api_key"`
+	Data      interface{}      `json:"data"`
+	Encoding  string           `json:"encoding"`
+	Request   *RequestMetadata `json:"request,omitempty"`
 }
 
 //nolint:revive // TODO(APL) Fix revive linter

@@ -83,7 +83,7 @@ go_library(
 dd_agent_go_test(
     name = "server_test",
     srcs = [
-        "listener_test.go",
+        "metadata_test.go",
         "par_test.go",
         "rc_test.go",
         "redact_test.go",
@@ -142,6 +142,7 @@ dd_agent_go_test(
         "//pkg/proto/pbgo/core",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
         "//test/fakeintake/api",
+        "//test/fakeintake/client",
         "//test/fakeintake/server/rcstore",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
