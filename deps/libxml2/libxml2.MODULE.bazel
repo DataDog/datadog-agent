@@ -1,0 +1,15 @@
+# This file is generated. Do not hand edit.
+
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+http_archive(
+    name = "libxml2",
+    files = {
+        "BUILD.bazel": "//deps/libxml2:overlay/overlay.BUILD.bazel",
+        "config-linux-arm64.h": "//deps/libxml2:overlay/config-linux-arm64.h",
+        "config-linux-x86_64.h": "//deps/libxml2:overlay/config-linux-x86_64.h",
+    },
+    sha256 = "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821",
+    strip_prefix = "libxml2-2.15.4",
+    url = "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz",
+)
