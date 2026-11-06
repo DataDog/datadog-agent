@@ -460,7 +460,7 @@ func TestWorkflowTaskExecutorExecutionReporting(t *testing.T) {
 	require.Equal(t, "1.2.3", logger.entries[1]["package_version"])
 }
 
-func TestWorkflowTaskExecutorRunPreparedTimeoutNeverExceedsConfig(t *testing.T) {
+func TestWorkflowTaskExecutorRunPreparedUsesConfiguredTimeout(t *testing.T) {
 	const (
 		bundleID   = "test-bundle"
 		actionName = "test-action"
@@ -476,12 +476,13 @@ func TestWorkflowTaskExecutorRunPreparedTimeoutNeverExceedsConfig(t *testing.T) 
 	}{
 		{name: "task timeout above config is capped", configTimeout: int32Ptr(60), taskTimeout: float64(86400), wantTimeout: 60 * time.Second, wantDeadline: true},
 		{name: "task timeout at int32 max is capped", configTimeout: int32Ptr(60), taskTimeout: float64(math.MaxInt32), wantTimeout: 60 * time.Second, wantDeadline: true},
-		{name: "task timeout below config is kept", configTimeout: int32Ptr(60), taskTimeout: float64(5), wantTimeout: 5 * time.Second, wantDeadline: true},
+		{name: "shorter input timeout belongs to the action", configTimeout: int32Ptr(60), taskTimeout: float64(5), wantTimeout: 60 * time.Second, wantDeadline: true},
 		{name: "task timeout equal to config is kept", configTimeout: int32Ptr(60), taskTimeout: float64(60), wantTimeout: 60 * time.Second, wantDeadline: true},
 		{name: "missing task timeout uses config", configTimeout: int32Ptr(60), wantTimeout: 60 * time.Second, wantDeadline: true},
 		{name: "invalid task timeout uses config", configTimeout: int32Ptr(60), taskTimeout: "86400", wantTimeout: 60 * time.Second, wantDeadline: true},
-		{name: "unset config keeps task timeout", taskTimeout: float64(120), wantTimeout: 120 * time.Second, wantDeadline: true},
-		{name: "non-positive config keeps task timeout", configTimeout: int32Ptr(-1), taskTimeout: float64(120), wantTimeout: 120 * time.Second, wantDeadline: true},
+		{name: "unset config adds no deadline", taskTimeout: float64(120)},
+		{name: "negative config adds no deadline", configTimeout: int32Ptr(-1), taskTimeout: float64(120)},
+		{name: "zero config adds no deadline", configTimeout: int32Ptr(0), taskTimeout: float64(120)},
 		{name: "unset config and task timeout has no deadline"},
 	}
 
