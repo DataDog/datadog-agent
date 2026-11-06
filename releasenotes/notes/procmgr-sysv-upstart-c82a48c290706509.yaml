@@ -1,4 +1,6 @@
 ---
 enhancements:
   - |
-    On hosts that use SysV init or Upstart, the Agent now starts the ``dd-procmgrd`` process manager together with the core Agent. Private Action Runner split mode needs this process manager to run ``par-control``. The installer writes the process definitions under ``processes.d`` when the process manager is enabled and removes those definitions when it is not. The ``datadog-agent-action`` service uses the monolithic runner only when those Private Action Runner definitions are absent and ``dd-procmgrd`` is not running. To disable the process manager, set ``DD_PROCESS_MANAGER_ENABLED=false`` when installing or upgrading the Agent, or set ``DATADOG_ENABLED=no`` in ``/etc/default/datadog-agent-procmgr``. A later upgrade without the variable enables the process manager again.
+    On hosts that use SysV init or Upstart, the Agent now starts ``dd-procmgrd`` with the core Agent.
+
+    The process manager is on by default. To turn it off at install or upgrade, set ``DD_PROCESS_MANAGER_ENABLED=false``. An upgrade that does not set the variable turns it back on. To keep it off across upgrades, set ``DATADOG_ENABLED=no`` in ``/etc/default/datadog-agent-procmgr``.
