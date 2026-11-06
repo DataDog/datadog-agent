@@ -420,6 +420,12 @@ type ConditionLeafCompleteOp struct {
 	baseOp
 }
 
+// ConditionEnterOp opens a split condition's handler, which skips
+// ConditionBeginOp, so a fault in it is still reported as the condition's.
+type ConditionEnterOp struct {
+	baseOp
+}
+
 // ExprAdvanceOffsetOp shifts sm->offset by Offset bytes. Used by the
 // LocationOp lowering for `@it` (any/all loop iterator) to position
 // sm->offset at a specific field within the @it scratch slot before the

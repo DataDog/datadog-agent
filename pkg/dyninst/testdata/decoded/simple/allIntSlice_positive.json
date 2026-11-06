@@ -131,7 +131,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "all(xs, {@it > 0})",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -159,7 +165,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "all(xs, {@it > 0})",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -187,7 +199,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "all(xs, {@it > 0})",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },

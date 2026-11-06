@@ -97,6 +97,7 @@ const (
 	OpcodeInitFilterMapLoop
 	OpcodeEmitFilterMapElement
 	OpcodeFilterMapAdvance
+	OpcodeConditionEnter
 )
 
 //revive:enable:exported
