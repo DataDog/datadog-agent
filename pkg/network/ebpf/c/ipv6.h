@@ -28,13 +28,27 @@ __maybe_unused static __always_inline bool is_ipv4_mapped_ipv6(__u64 saddr_h, __
 #endif
 }
 
-static __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct in6_addr *in6) {
+static __maybe_unused __always_inline void read_in6_addr(u64 *addr_h, u64 *addr_l, const struct in6_addr *in6) {
 #ifdef COMPILE_PREBUILT
     bpf_probe_read_kernel_with_telemetry(addr_h, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[0]));
     bpf_probe_read_kernel_with_telemetry(addr_l, sizeof(u64), (void *)&(in6->in6_u.u6_addr32[2]));
 #else
     BPF_CORE_READ_INTO(addr_h, in6, in6_u.u6_addr32[0]);
     BPF_CORE_READ_INTO(addr_l, in6, in6_u.u6_addr32[2]);
+#endif
+}
+
+// Copies an in6_addr that is already on the BPF stack, avoiding a helper call.
+// Yields the same bytes as read_in6_addr; use read_in6_addr for kernel pointers.
+static __maybe_unused __always_inline void copy_in6_addr_from_stack(u64 *addr_h, u64 *addr_l, const struct in6_addr *in6) {
+#if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__
+    *addr_h = ((u64)in6->in6_u.u6_addr32[1] << 32) | in6->in6_u.u6_addr32[0];
+    *addr_l = ((u64)in6->in6_u.u6_addr32[3] << 32) | in6->in6_u.u6_addr32[2];
+#elif __BYTE_ORDER__ == __ORDER_BIG_ENDIAN__
+    *addr_h = ((u64)in6->in6_u.u6_addr32[0] << 32) | in6->in6_u.u6_addr32[1];
+    *addr_l = ((u64)in6->in6_u.u6_addr32[2] << 32) | in6->in6_u.u6_addr32[3];
+#else
+#error "Fix your compiler's __BYTE_ORDER__?!"
 #endif
 }
 
