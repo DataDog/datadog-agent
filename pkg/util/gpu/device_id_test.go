@@ -1,0 +1,79 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package gpu
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestParseNvidiaDeviceReplica(t *testing.T) {
+	testCases := []struct {
+		deviceID     string
+		expectedBase string
+		expectedRep  int
+		expectedOK   bool
+	}{
+		// Time-sliced physical GPU, default resource name.
+		{"GPU-170ab964-06dc-a639-af22-0cafd46259c7::0", "GPU-170ab964-06dc-a639-af22-0cafd46259c7", 0, true},
+		{"GPU-170ab964-06dc-a639-af22-0cafd46259c7::3", "GPU-170ab964-06dc-a639-af22-0cafd46259c7", 3, true},
+		// The same replica IDs keep working under a renamed resource.
+		{"GPU-170ab964-06dc-a639-af22-0cafd46259c7::2", "GPU-170ab964-06dc-a639-af22-0cafd46259c7", 2, true},
+		// Time-sliced MIG instance.
+		{"MIG-GPU-170ab964-06dc-a639-af22-0cafd46259c7/1/0::1", "MIG-GPU-170ab964-06dc-a639-af22-0cafd46259c7/1/0", 1, true},
+		// MIG instance without a replica suffix.
+		{"MIG-GPU-170ab964-06dc-a639-af22-0cafd46259c7/1/0", "", 0, false},
+		// Exclusive whole-GPU allocation.
+		{"GPU-170ab964-06dc-a639-af22-0cafd46259c7", "", 0, false},
+		// GKE device plugin IDs.
+		{"nvidia0", "", 0, false},
+		{"nvidia0::1", "", 0, false},
+		// DRA device names.
+		{"gpu-0-mig-1g18gb-19-0", "", 0, false},
+		// Defensive: formats that must degrade to "not a replica".
+		{"", "", 0, false},
+		{"GPU-", "", 0, false},
+		{"GPU-abc::", "", 0, false},
+		{"GPU-abc::-1", "", 0, false},
+		{"GPU-abc::notanumber", "", 0, false},
+		{"::0", "", 0, false},
+		{"GPU-abc::0::1", "GPU-abc::0", 1, true},
+	}
+
+	for _, tc := range testCases {
+		t.Run("parse_"+tc.deviceID, func(t *testing.T) {
+			replica, ok := ParseNvidiaDeviceReplica(tc.deviceID)
+			assert.Equal(t, tc.expectedOK, ok)
+			if tc.expectedOK {
+				assert.Equal(t, tc.expectedBase, replica.BaseDeviceID)
+				assert.Equal(t, tc.expectedRep, replica.Replica)
+			}
+		})
+	}
+}
+
+func TestIsNvidiaDeviceID(t *testing.T) {
+	assert.True(t, IsNvidiaDeviceID("GPU-170ab964-06dc-a639-af22-0cafd46259c7"))
+	assert.True(t, IsNvidiaDeviceID("GPU-170ab964-06dc-a639-af22-0cafd46259c7::2"))
+	assert.True(t, IsNvidiaDeviceID("MIG-GPU-170ab964-06dc-a639-af22-0cafd46259c7/1/0"))
+	assert.True(t, IsNvidiaDeviceID("MIG-GPU-170ab964-06dc-a639-af22-0cafd46259c7/1/0::2"))
+	assert.False(t, IsNvidiaDeviceID("nvidia0"))
+	assert.False(t, IsNvidiaDeviceID("gpu-0-mig-1g18gb-19-0"))
+	assert.False(t, IsNvidiaDeviceID(""))
+}
+
+func TestIsNvidiaKubernetesAllocation(t *testing.T) {
+	assert.True(t, IsNvidiaKubernetesAllocation("nvidia.com/gpu", "GPU-abc"))
+	assert.True(t, IsNvidiaKubernetesAllocation("nvidia.com/mig-1g.10gb", "MIG-abc"))
+	assert.True(t, IsNvidiaKubernetesAllocation("gpu.nvidia.com", "gpu-0"))
+	// Renamed shared resource: the name says nothing, the ID does.
+	assert.True(t, IsNvidiaKubernetesAllocation("nvidia.com/gpu.shared", "GPU-abc::1"))
+	assert.True(t, IsNvidiaKubernetesAllocation("myorg.com/gpu", "GPU-abc::1"))
+	// Another vendor's allocation with a non-NVIDIA ID shape.
+	assert.False(t, IsNvidiaKubernetesAllocation("amd.com/gpu", "amd-1234"))
+	assert.False(t, IsNvidiaKubernetesAllocation("myorg.com/gpu", "abc-123"))
+}
