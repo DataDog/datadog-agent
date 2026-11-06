@@ -58,24 +58,26 @@ def check_symbols(symbols, must_include, must_not_include):
 def main(argv):
     args = parse_args(argv)
 
-    try:
-        symbols = dump_symbols(args.nm, args.binary)
-    except RuntimeError as e:
-        print(str(e), file=sys.stderr)
-        return 1
-
-    failures = check_symbols(symbols, args.must_include, args.must_not_include)
-    if failures:
-        print(
-            "check_for_symbols failed for {binary}:\n{failures}".format(
-                binary=args.binary, failures="\n".join(failures)
-            ),
-            file=sys.stderr,
-        )
-        return 1
-
     with open(args.output, "w") as f:
+        try:
+            symbols = dump_symbols(args.nm, args.binary)
+        except RuntimeError as e:
+            print(str(e), file=sys.stderr)
+            f.write("FAIL\n")
+            return 1
+
+        failures = check_symbols(symbols, args.must_include, args.must_not_include)
+        if failures:
+            print(
+                "check_for_symbols failed for {binary}:\n{failures}".format(
+                    binary=args.binary, failures="\n".join(failures)
+                ),
+                file=sys.stderr,
+            )
+            f.write("FAIL\n")
+            return 1
         f.write("PASS\n")
+
     return 0
 
 
