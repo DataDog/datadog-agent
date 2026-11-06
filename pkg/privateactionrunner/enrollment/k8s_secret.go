@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -54,25 +55,36 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 		return nil, err
 	}
 
+	requireWIF := UsesWIF(cfg) && cfg.GetBool(par.SelfEnroll)
 	secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
-	if err != nil {
-		if isNonTransientK8sError(err) {
-			return nil, fmt.Errorf("failed to get identity secret: %w", err)
+	if err == nil {
+		identity, parseErr := parseSecretData(secret, ns, secretName)
+		if parseErr != nil {
+			return nil, parseErr
 		}
-		if k8serrors.IsNotFound(err) {
-			log.Info("PAR identity secret does not exist, waiting for leader to create it...")
-		} else {
-			log.Warnf("Transient error fetching PAR identity secret, will retry: %v", err)
+		if !requireWIF || identity.MatchesWIFConfig(cfg) {
+			return identity, nil
 		}
-		leadershipChange, isLeader := le.Subscribe()
-		secret, err = waitForLeaderAndSecret(
-			ctx, leadershipChange, isLeader, client, ns, secretName,
-			secretPollInterval,
-		)
-		if err != nil {
-			return nil, err
-		}
+		log.Info("Saved PAR identity does not match the configured WIF organization/site; waiting for leader to replace it")
+	} else if isNonTransientK8sError(err) {
+		return nil, fmt.Errorf("failed to get identity secret: %w", err)
+	} else if !k8serrors.IsNotFound(err) {
+		log.Warnf("Transient error fetching PAR identity secret, will retry: %v", err)
 	}
+	var requiredWIFOrg, requiredWIFSite string
+	if requireWIF {
+		requiredWIFOrg = cfg.GetString("delegated_auth.org_uuid")
+		requiredWIFSite = par.Site(cfg)
+	}
+	leadershipChange, isLeader := le.Subscribe()
+	secret, err = waitForLeaderAndSecret(
+		ctx, leadershipChange, isLeader, client, ns, secretName,
+		secretPollInterval, requiredWIFOrg, requiredWIFSite,
+	)
+	if err != nil {
+		return nil, err
+	}
+
 	if secret == nil {
 		return nil, nil
 	}
@@ -81,7 +93,7 @@ func getIdentityFromK8sSecret(ctx context.Context, cfg configModel.Reader) (*Per
 
 // waitForLeaderAndSecret waits until either:
 // - We become leader (then returns nil to trigger enrollment)
-// - The secret appears (created by current or previous leader)
+// - The secret appears (matching the WIF org/site when requiredWIFOrg is set)
 // - The context is cancelled
 //
 // Transient K8s API errors (timeouts, rate limiting, 5xx) are logged and
@@ -93,6 +105,7 @@ func waitForLeaderAndSecret(
 	client kubernetes.Interface,
 	ns, secretName string,
 	pollInterval time.Duration,
+	requiredWIFOrg, requiredWIFSite string,
 ) (*corev1.Secret, error) {
 	if isLeader() {
 		log.Info("This replica is the leader, will create PAR identity secret")
@@ -118,6 +131,10 @@ func waitForLeaderAndSecret(
 		case <-ticker.C:
 			secret, err := client.CoreV1().Secrets(ns).Get(ctx, secretName, metav1.GetOptions{})
 			if err == nil {
+				if requiredWIFOrg != "" && (!strings.EqualFold(string(secret.Data[wifOrgUUIDField]), requiredWIFOrg) ||
+					string(secret.Data[wifSiteField]) != requiredWIFSite) {
+					continue
+				}
 				log.Infof("Follower replica: found PAR identity secret created by leader: %s/%s", ns, secretName)
 				return secret, nil
 			}
