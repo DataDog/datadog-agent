@@ -31,7 +31,7 @@ import (
 var (
 	ErrAgentReceiverEndpointNotConfigured = errors.New("data plane OTLP enabled but Agent receiver endpoint is not configured")
 	ErrAgentReceiverEndpointCollision     = errors.New("relocated Agent OTLP receiver endpoint conflicts with another listener")
-	ErrAgentReceiverPlaintextNotLoopback  = errors.New("relocated Agent OTLP receiver is plaintext and must use a loopback address or Unix socket when TLS is configured")
+	ErrAgentReceiverPlaintextNotLoopback  = errors.New("relocated Agent OTLP receiver is plaintext and must use a loopback IP address, or a socket path with a Unix transport, when TLS is configured")
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -130,7 +130,8 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 
 // relocateReceiverListeners moves enabled Agent OTLP listeners off the endpoints configured in otlp_config.receiver,
 // which the data plane owns in proxy mode. The data plane terminates TLS on those endpoints, so relocated listeners
-// are always plaintext and must be loopback addresses or Unix sockets when receiver TLS is configured. Only the
+// are always plaintext and must be loopback IP addresses, or socket paths with a Unix transport, when receiver TLS is
+// configured. All validation errors are reported together, and nothing is changed unless validation passes. Only the
 // receiver copy is modified: the shared configuration keeps its TLS settings for the data plane.
 func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{}) error {
 	protocols, _ := receiver["protocols"].(map[string]interface{})
@@ -146,6 +147,8 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 		{protocol: "http", key: coreconfig.DataPlaneExperimentalOTLPProxyAgentReceiverHTTPEndpoint},
 	}
 
+	// Listeners that fail validation keep a nil config, which excludes them from collision checks and relocation.
+	var errs []error
 	for i := range listeners {
 		listener := &listeners[i]
 		section, enabled := protocols[listener.protocol]
@@ -156,35 +159,46 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 			continue
 		}
 
-		if section == nil {
-			listener.config = map[string]interface{}{}
-		} else {
+		listenerConfig := map[string]interface{}{}
+		if section != nil {
 			var ok bool
-			listener.config, ok = section.(map[string]interface{})
+			listenerConfig, ok = section.(map[string]interface{})
 			if !ok {
-				return fmt.Errorf("OTLP/%s receiver configuration must be a map", listener.protocol)
+				errs = append(errs, fmt.Errorf("OTLP/%s receiver configuration must be a map", listener.protocol))
+				continue
 			}
 		}
 
-		listener.agentEndpoint = cfg.GetString(listener.key)
-		if listener.agentEndpoint == "" {
-			return fmt.Errorf("%w: %s", ErrAgentReceiverEndpointNotConfigured, listener.key)
+		agentEndpoint := cfg.GetString(listener.key)
+		if agentEndpoint == "" {
+			errs = append(errs, fmt.Errorf("%w: %s", ErrAgentReceiverEndpointNotConfigured, listener.key))
+			continue
 		}
-		transport, _ := listener.config["transport"].(string)
+		transport, _ := listenerConfig["transport"].(string)
 		unixTransport := isUnixTransport(transport)
 		if unixTransport && !cfg.IsConfigured(listener.key) {
-			return fmt.Errorf("%w: %s must be explicitly configured with a Unix socket path when OTLP/%s transport is %q",
-				ErrAgentReceiverEndpointNotConfigured, listener.key, listener.protocol, transport)
+			errs = append(errs, fmt.Errorf("%w: %s must be explicitly configured with a Unix socket path when OTLP/%s transport is %q",
+				ErrAgentReceiverEndpointNotConfigured, listener.key, listener.protocol, transport))
+			continue
 		}
-		_, listener.tls = listener.config["tls"]
-		if listener.tls && !unixTransport && !isLoopbackEndpoint(listener.agentEndpoint) {
-			return fmt.Errorf("%w: %s = %q for OTLP/%s", ErrAgentReceiverPlaintextNotLoopback, listener.key, listener.agentEndpoint, listener.protocol)
+		_, tls := listenerConfig["tls"]
+		if tls && !unixTransport && !isLoopbackEndpoint(agentEndpoint) {
+			if transport == "" {
+				transport = "tcp"
+			}
+			errs = append(errs, fmt.Errorf("%w: %s = %q for OTLP/%s (transport %q)",
+				ErrAgentReceiverPlaintextNotLoopback, listener.key, agentEndpoint, listener.protocol, transport))
+			continue
 		}
-		var explicit bool
-		listener.configuredEndpoint, explicit = listener.config["endpoint"].(string)
+		configuredEndpoint, explicit := listenerConfig["endpoint"].(string)
 		if !explicit {
-			listener.configuredEndpoint = cfg.GetString(coreconfig.OTLPReceiverSection + ".protocols." + listener.protocol + ".endpoint")
+			configuredEndpoint = cfg.GetString(coreconfig.OTLPReceiverSection + ".protocols." + listener.protocol + ".endpoint")
 		}
+
+		listener.config = listenerConfig
+		listener.agentEndpoint = agentEndpoint
+		listener.configuredEndpoint = configuredEndpoint
+		listener.tls = tls
 	}
 
 	for i, listener := range listeners {
@@ -195,10 +209,15 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 			if other.config == nil {
 				continue
 			}
-			if listener.agentEndpoint == other.configuredEndpoint || (i != j && listener.agentEndpoint == other.agentEndpoint) {
-				return fmt.Errorf("%w: %s = %q conflicts with OTLP/%s", ErrAgentReceiverEndpointCollision, listener.key, listener.agentEndpoint, other.protocol)
+			// i < j reports a collision between the two relocated endpoints once, not from both sides.
+			if listener.agentEndpoint == other.configuredEndpoint || (i < j && listener.agentEndpoint == other.agentEndpoint) {
+				errs = append(errs, fmt.Errorf("%w: %s = %q conflicts with OTLP/%s", ErrAgentReceiverEndpointCollision, listener.key, listener.agentEndpoint, other.protocol))
 			}
 		}
+	}
+
+	if len(errs) > 0 {
+		return multierr.Combine(errs...)
 	}
 
 	for _, listener := range listeners {
@@ -226,13 +245,12 @@ func isUnixTransport(transport string) bool {
 	return false
 }
 
+// isLoopbackEndpoint reports whether the host of endpoint is a loopback IP literal, such as 127.0.0.1, 127.10.0.1, ::1
+// or [::1]. Hostnames, including localhost, are rejected because they are not guaranteed to resolve to loopback.
 func isLoopbackEndpoint(endpoint string) bool {
 	host, _, err := net.SplitHostPort(endpoint)
 	if err != nil {
 		host = endpoint
-	}
-	if strings.EqualFold(host, "localhost") {
-		return true
 	}
 	ip := net.ParseIP(strings.TrimSuffix(strings.TrimPrefix(host, "["), "]"))
 	return ip != nil && ip.IsLoopback()
