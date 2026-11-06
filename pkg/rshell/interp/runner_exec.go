@@ -769,6 +769,14 @@ func remediationOnlyRefusal(name string, remediationMode bool) (string, bool) {
 	return msg, true
 }
 
+// MaxNestedCommandDepth bounds how many levels deep builtins that run other
+// commands (find -exec / -execdir, xargs) may nest. Each level runs
+// synchronously on the caller's goroutine, so an unbounded chain grows the Go
+// stack until the runtime aborts the process with an unrecoverable
+// "fatal error: stack overflow" that neither recover() nor the execution
+// timeout can intercept.
+const MaxNestedCommandDepth = 16
+
 func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup func() ([]string, bool)) {
 	elevated := false
 	if args[0] == "sudo" {
@@ -890,8 +898,11 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 				return fn(name, vr.Str)
 			})
 		}
-		var runCmdWithStdin func(context.Context, string, string, []string, io.Reader) (uint8, error)
-		runCmdWithStdin = func(ctx context.Context, dir string, cmdName string, cmdArgs []string, childStdin io.Reader) (uint8, error) {
+		// depth is 1 for a command run by the top-level builtin and grows by
+		// one per nested level. It is captured per child CallContext rather
+		// than read from ctx, so it holds whatever ctx a builtin passes back.
+		var runChild func(ctx context.Context, depth int, dir string, cmdName string, cmdArgs []string, childStdin io.Reader) (uint8, error)
+		runChild = func(ctx context.Context, depth int, dir string, cmdName string, cmdArgs []string, childStdin io.Reader) (uint8, error) {
 			if !r.allowAllCommands && !r.allowedCommands[cmdName] {
 				return 127, fmt.Errorf("rshell: %s: command not allowed", cmdName)
 			}
@@ -917,6 +928,9 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 			if msg, denied := remediationOnlyRefusal(cmdName, r.remediationMode); denied {
 				r.errf("%s", msg)
 				return 1, nil
+			}
+			if depth > MaxNestedCommandDepth {
+				return 126, fmt.Errorf("rshell: %s: nested command depth exceeds maximum of %d", cmdName, MaxNestedCommandDepth)
 			}
 			childOut := builtins.NewWriteGuard(r.stdout)
 			child := &builtins.CallContext{
@@ -1024,9 +1038,11 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 					// has no override (childStdin == nil), this is the same
 					// fallback as before — the grandchild's CallContext
 					// picks up r.stdin via the default branch below.
-					return runCmdWithStdin(ctx, dir, name, args, childStdin)
+					return runChild(ctx, depth+1, dir, name, args, childStdin)
 				},
-				RunCommandWithStdin: runCmdWithStdin,
+				RunCommandWithStdin: func(ctx context.Context, dir string, name string, args []string, stdin io.Reader) (uint8, error) {
+					return runChild(ctx, depth+1, dir, name, args, stdin)
+				},
 				// Intentionally not exposing SetVar / GetVar in the
 				// child CallContext used for find -exec / -execdir
 				// grandchildren. find treats each invocation as a
@@ -1069,6 +1085,9 @@ func (r *Runner) call(ctx context.Context, pos syntax.Pos, args []string, setup 
 				}
 			}
 			return result.Code, nil
+		}
+		runCmdWithStdin := func(ctx context.Context, dir string, cmdName string, cmdArgs []string, childStdin io.Reader) (uint8, error) {
+			return runChild(ctx, 1, dir, cmdName, cmdArgs, childStdin)
 		}
 		runCmd := func(ctx context.Context, dir string, cmdName string, cmdArgs []string) (uint8, error) {
 			return runCmdWithStdin(ctx, dir, cmdName, cmdArgs, nil)
