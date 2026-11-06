@@ -53,6 +53,42 @@ agents:
 	)
 }
 
+// otlpIngestIdxTestSuite runs the same checks with the trace-agent's direct OTLP to V1 decoder
+// enabled, with the default operation and resource name logic.
+type otlpIngestIdxTestSuite struct {
+	otlpIngestTestSuite
+}
+
+func TestOTLPIngestIdx(t *testing.T) {
+	values := `
+datadog:
+  otlp:
+    receiver:
+      protocols:
+        grpc:
+          enabled: true
+    logs:
+      enabled: true
+  logs:
+    containerCollectAll: false
+    containerCollectUsingFiles: false
+agents:
+  containers:
+    traceAgent:
+      env:
+        - name: DD_APM_FEATURES
+          value: 'enable_otlp_idx'
+    agent:
+      env:
+        - name: DD_OTLP_CONFIG_METRICS_RESOURCE_ATTRIBUTES_AS_TAGS
+          value: 'true'
+`
+	t.Parallel()
+	e2e.Run(t, &otlpIngestIdxTestSuite{}, e2e.WithProvisioner(
+		provkindvm.Provisioner(provkindvm.WithRunOptions(scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values))))),
+	)
+}
+
 var otlpIngestParams = utils.IAParams{
 	InfraAttributes: true,
 }
@@ -67,6 +103,12 @@ func (s *otlpIngestTestSuite) SetupSuite() {
 
 func (s *otlpIngestTestSuite) TestOTLPTraces() {
 	utils.TestTraces(s, otlpIngestParams)
+	utils.TestTracePayloadFormat(s, false)
+}
+
+func (s *otlpIngestIdxTestSuite) TestOTLPTraces() {
+	utils.TestTraces(s, otlpIngestParams)
+	utils.TestTracePayloadFormat(s, true)
 }
 
 func (s *otlpIngestTestSuite) TestOTLPMetrics() {

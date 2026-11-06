@@ -68,6 +68,8 @@ func resolveClientComputedStats(attrs pcommon.Map, fromHeader bool) bool {
 
 var _ (ptraceotlp.GRPCServer) = (*OTLPReceiver)(nil)
 
+var errOTLPReceiverStopped = errors.New("OTLPReceiver in trace agent is already stopped")
+
 // OTLPReceiver implements an OpenTelemetry Collector receiver which accepts incoming
 // data on two ports for both plain HTTP and gRPC.
 type OTLPReceiver struct {
@@ -75,6 +77,8 @@ type OTLPReceiver struct {
 	wg                 sync.WaitGroup      // waits for a graceful shutdown
 	grpcsrv            *grpc.Server        // the running GRPC server on a started receiver, if enabled
 	out                chan<- *Payload     // the outgoing payload channel
+	outV1              chan<- *PayloadV1   // the outgoing V1 payload channel, used when idxEnabled
+	idxEnabled         bool                // gRPC requests are decoded directly into V1 payloads
 	conf               *config.AgentConfig // receiver config
 	cidProvider        IDProvider          // container ID provider
 	statsd             statsd.ClientInterface
@@ -84,8 +88,10 @@ type OTLPReceiver struct {
 	mu                 sync.RWMutex
 }
 
-// NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
-func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+// NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel,
+// or, for gRPC requests decoded directly into the V1 representation, down outV1. A nil outV1
+// disables the direct decoder.
+func NewOTLPReceiver(out chan<- *Payload, outV1 chan<- *PayloadV1, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
 	operationAndResourceNamesV2GateEnabled := !cfg.HasFeature("disable_operation_and_resource_name_logic_v2")
 	operationAndResourceNamesV2GateEnabledVal := 0.0
 	if operationAndResourceNamesV2GateEnabled {
@@ -120,11 +126,17 @@ func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd
 		enableContainerTagsV2Val = 0.0
 	}
 	_ = statsd.Gauge("datadog.trace_agent.otlp.enable_container_tags_v2", enableContainerTagsV2Val, nil, 1)
+	idxEnabled := outV1 != nil && otlpIdxEnabled(cfg)
+	idxEnabledVal := 0.0
+	if idxEnabled {
+		idxEnabledVal = 1.0
+	}
+	_ = statsd.Gauge("datadog.trace_agent.otlp.idx_enabled", idxEnabledVal, nil, 1)
 	grpcMaxRecvMsgSize := 10 * 1024 * 1024
 	if cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib > 0 {
 		grpcMaxRecvMsgSize = cfg.OTLPReceiver.GrpcMaxRecvMsgSizeMib * 1024 * 1024
 	}
-	return &OTLPReceiver{out: out, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
+	return &OTLPReceiver{out: out, outV1: outV1, idxEnabled: idxEnabled, conf: cfg, cidProvider: NewContainerIDProviderFromConfig(cfg), statsd: statsd, timing: timing, grpcMaxRecvMsgSize: grpcMaxRecvMsgSize}
 }
 
 // Start starts the OTLPReceiver, if any of the servers were configured as active.
@@ -159,8 +171,14 @@ func (o *OTLPReceiver) Start() {
 			// OTLP trace ingestion doesn't need generic gRPC metrics interceptors
 			// since we collect business-specific metrics (spans, traces, payloads) via StatsD
 
-			o.grpcsrv = grpc.NewServer(opts...)
-			ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
+			if o.idxEnabled {
+				opts = append(opts, grpc.ForceServerCodecV2(newOTLPCodec()))
+				o.grpcsrv = grpc.NewServer(opts...)
+				o.grpcsrv.RegisterService(&otlpTraceServiceDesc, o)
+			} else {
+				o.grpcsrv = grpc.NewServer(opts...)
+				ptraceotlp.RegisterGRPCServer(o.grpcsrv, o)
+			}
 			o.wg.Add(1)
 			go func() {
 				defer o.wg.Done()
@@ -284,7 +302,7 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	defer o.mu.RUnlock()
 
 	if o.isStopped.Load() {
-		return source.Source{}, errors.New("OTLPReceiver in trace agent is already stopped")
+		return source.Source{}, errOTLPReceiverStopped
 	}
 	if o.conf.HasFeature("disable_receive_resource_spans_v2") {
 		return o.receiveResourceSpansV1(ctx, rspans, httpHeader, hostFromAttributesHandler), nil
