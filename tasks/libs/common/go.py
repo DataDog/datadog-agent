@@ -18,7 +18,7 @@ from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import timed
+from tasks.libs.common.utils import join_command, timed
 from tasks.schema.generate import schema_codegen
 
 
@@ -156,46 +156,51 @@ def go_build(
             if sys.platform == "win32":
                 env = _with_hermetic_mingw_path(ctx, env)
 
-    cmd = "go build"
+    args = ["build"]
     if coverage:
-        cmd += " -cover -covermode=atomic"
+        args += ["-cover", "-covermode=atomic"]
         build_tags = build_tags or []
         build_tags.append("e2ecoverage")
     if mod:
-        cmd += f" -mod={mod}"
+        args.append(f"-mod={mod}")
     if race:
-        cmd += " -race"
+        args.append("-race")
     if rebuild:
-        cmd += " -a"
+        args.append("-a")
     if verbose:
-        cmd += " -v"
+        args.append("-v")
     if echo:
-        cmd += " -x"
+        args.append("-x")
     if build_tags:
         # sort build tags to have the same order and ensure caching hits properly
-        cmd += f" -tags \"{','.join(sorted(build_tags))}\""
+        args += ["-tags", ",".join(sorted(build_tags))]
     if bin_path:
-        cmd += f" -o {bin_path}"
+        args += ["-o", str(bin_path)]
     if gcflags:
-        cmd += f" -gcflags=\"{gcflags}\""
+        args.append(f"-gcflags={gcflags}")
     if check_deadcode:
         ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
-        cmd += f" -ldflags=\"{ldflags}\""
+        args.append(f"-ldflags={ldflags}")
     if trimpath and 'DELVE' not in os.environ:
-        cmd += " -trimpath"
+        args.append("-trimpath")
 
-    cmd += f" {entrypoint}"
+    args.append(str(entrypoint))
 
     if fips_backend == FipsBackend.boringcrypto:
         env = env | {"GOEXPERIMENT": "boringcrypto"}
     elif fips_backend == FipsBackend.msgo and target_os == "linux":
         env = env | {"GOEXPERIMENT": "ms_nocgo_opensslcrypto"}
 
-    if check_deadcode:
-        result = _handle_pipe_to_whydeadcode(ctx, os.path.basename(entrypoint), cmd, env)
+    if fips_backend == FipsBackend.msgo:
+        stderr = bazel("run", "//:msgo", "--", "-C", os.getcwd(), *args, capture_stderr=check_deadcode, env=env)
+        if check_deadcode:
+            _pipe_to_whydeadcode(os.path.basename(entrypoint), stderr, env)
+        result = Result()
+    elif check_deadcode:
+        result = _handle_pipe_to_whydeadcode(ctx, os.path.basename(entrypoint), join_command(["go", *args]), env)
     else:
-        result = cast(Result, ctx.run(cmd, env=env))
+        result = cast(Result, ctx.run(join_command(["go", *args]), env=env))
 
     if sys.platform == "win32" or result.exited != 0 or bin_path is None:
         return result
@@ -222,7 +227,11 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
 
     # -dumpdep is very verbose so we hide that
     result = cast(Result, runner.run(cmd, env=env, hide="stderr"))
+    _pipe_to_whydeadcode(name, result.stderr, env)
+    return result
 
+
+def _pipe_to_whydeadcode(name: str, dumpdep: str, env: dict[str, str] | None = None) -> None:
     # whydeadcode --ignore-unrecognized-input prints dead code call stack on stdout
     # it returns 0, even if dead code elimination is disabled
     # so we check whether stdout is empty to know if dead code elimination is disabled
@@ -232,12 +241,10 @@ def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str
         "@com_github_aarzilli_whydeadcode//:whydeadcode",
         "--",
         "--ignore-unrecognized-input",
-        input=result.stderr,
+        input=dumpdep,
         capture_output=True,
     )
     if whydeadcode_out:
         print(
             f"dead code elimination is disabled for {name} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcode_out}"
         )
-
-    return result
