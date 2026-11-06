@@ -225,19 +225,9 @@ func (s *vsockForwardingSuite) TestGuestConnectsOverVSock() {
 	}, 4*time.Minute)
 }
 
-// TestEventCrossesVSockHop is the end-to-end assertion. RemoteEventServer logs
-// this line on the receiving side for each event it accepts, so it is direct
-// evidence that a CWS event produced inside the guest travelled over vsock into
-// the forwarder. CWS self-tests generate the events on guest startup.
-func (s *vsockForwardingSuite) TestEventCrossesVSockHop() {
-	assertLogsEventually(s.T(), s, forwarderLogPath, []string{
-		"received remote event from rule",
-	}, 6*time.Minute)
-}
-
-// TestForwardedEventReachesIntake extends TestEventCrossesVSockHop past the
-// receiver log line: with direct_send_from_system_probe the forwarder ships what
-// it receives itself, so a guest event must end up in fakeintake. The event is
+// TestForwardedEventReachesIntake is the end-to-end assertion: with
+// direct_send_from_system_probe the forwarder ships what it receives over vsock
+// itself, so a guest event must end up in fakeintake. The event is
 // produced on demand by the guest-only rule, so neither the forwarder's own
 // events nor forwarded heartbeats or self-test reports can satisfy this, and it
 // checks the forwarder keeps the guest's hostname instead of stamping its own.
