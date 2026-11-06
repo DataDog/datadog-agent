@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The FIPS DDOT image (``ddot-collector:<version>-fips``) now uses jemalloc instead of the glibc
+    memory allocator. With glibc, memory freed by OpenSSL on many threads was kept in per-thread
+    arenas, so the collector's memory usage kept growing and could reach its container memory limit.
+    The non-FIPS image is unchanged.
