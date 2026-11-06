@@ -55,6 +55,9 @@ var (
 	// reKeyEquals matches `key=value` or `key:value` where key contains a
 	// sensitive keyword, covering env assignments (API_KEY=x), JSON-ish
 	// fragments, and glued long-flag values (--password=x).
+	// The fast-path guard in scrubCommandText relies on every match containing
+	// ':' or '='. If this pattern can match without either, update or remove
+	// that guard too; otherwise matching secrets will bypass redaction.
 	reKeyEquals = regexp.MustCompile(`(?i)([\w-]*` + sensitiveKeyWords + `[\w-]*\s*[:=]\s*)` + valueAlt)
 
 	// reFlagSpace matches a `-flag value` / `--flag value` pair where flag
@@ -69,6 +72,9 @@ var (
 	// reJWT matches a bare JWT-shaped token: three dot-separated
 	// base64url segments. This is the fallback for opaque bearer tokens that
 	// appear without a preceding keyword or scheme.
+	// The fast-path guard in scrubCommandText relies on every match containing
+	// '.'. If this pattern can match without a dot, update or remove that guard
+	// too; otherwise matching secrets will bypass redaction.
 	reJWT = regexp.MustCompile(`\b[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b`)
 )
 
