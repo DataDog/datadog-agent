@@ -588,6 +588,7 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 	agg.mu.Lock()
 	defer agg.mu.Unlock()
 
+	agg.checkOutputMerger.startedStripping(agg.strippedIdentities.takeNotBefore())
 	//nolint:revive // TODO(AML) Fix revive linter
 	for checkId, checkSampler := range agg.checkSamplers {
 		checkSeries, sketches := checkSampler.flush()
@@ -952,6 +953,9 @@ func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
 	for _, cs := range agg.checkSamplers {
 		cs.clearStripCache()
 		cs.restrip(matcher)
+	}
+	for _, cs := range agg.checkSamplers {
+		cs.markStrippedMetrics()
 	}
 }
 

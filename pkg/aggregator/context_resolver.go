@@ -168,6 +168,9 @@ func (cr *contextResolver) trackContext(metricSampleContext metrics.MetricSample
 			source:     metricSampleContext.GetSource(),
 		}
 		if tracksOutput {
+			if cr.stripped.wasStripped(context.Name) {
+				context.stripFlags.set(routedToMerger)
+			}
 			cr.trackOutput(context, metricSampleContext, filterList)
 		}
 		cr.contextsByKey[contextKey] = resolverEntry{

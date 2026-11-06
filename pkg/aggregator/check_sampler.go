@@ -302,6 +302,9 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 }
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
+	if cs.contextResolver.resolver.stripped != nil {
+		cs.contextResolver.resolver.stripped.noteCommit(timestamp)
+	}
 	cs.commitSeries(timestamp, filterList)
 	cs.commitSketches(timestamp, filterList)
 
@@ -381,9 +384,15 @@ func bucketBoundsFor(bucket *metrics.HistogramBucket) bucketBounds {
 	}
 }
 
-// restrip updates the identity every context strips to at output, after the rules changed.
+// restrip updates the identity every context strips to at output, after the rules changed. Once every sampler
+// restripped, markStrippedMetrics must be called on each.
 func (cs *CheckSampler) restrip(filterList filterlist.TagMatcher) {
 	cs.contextResolver.resolver.restrip(filterList)
+}
+
+// markStrippedMetrics marks the contexts of metrics stripped since the Agent started, after the rules changed.
+func (cs *CheckSampler) markStrippedMetrics() {
+	cs.contextResolver.resolver.markStrippedMetrics()
 }
 
 // addsUp returns whether a series' points add up across sources: the single series of a counter. Other series of a context that merges at output come from metric state that outlived an earlier
