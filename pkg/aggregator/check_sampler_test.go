@@ -317,7 +317,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
+			{Ts: 12349.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 
@@ -351,7 +351,7 @@ func testCheckHistogramBucketSampling(t *testing.T, store *tags.Store) {
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12400.0, Sketch: expSketch},
+			{Ts: 12401.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 
@@ -416,7 +416,7 @@ func testCheckHistogramBucketDontFlushFirstValue(t *testing.T, store *tags.Store
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12400.0, Sketch: expSketch},
+			{Ts: 12401.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 }
@@ -486,7 +486,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 			Name: "my.histogram",
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12410, Sketch: sketchOf(10, 20, 3)},
+			{Ts: 12411, Sketch: sketchOf(10, 20, 3)},
 		},
 	}, flushed[0], 0.01)
 
@@ -495,7 +495,7 @@ func testCheckHistogramBucketReset(t *testing.T, store *tags.Store) {
 			Name: "my.histogram",
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12420, Sketch: sketchOf(10, 20, 2)},
+			{Ts: 12421, Sketch: sketchOf(10, 20, 2)},
 		},
 	}, flushed[1], 0.01)
 }
@@ -562,7 +562,7 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch.Finish()},
+			{Ts: 12349.0, Sketch: expSketch.Finish()},
 		},
 	}, flushed[0], .03)
 
@@ -605,7 +605,7 @@ func testCheckHistogramBucketMultipleBucketsSampling(t *testing.T, store *tags.S
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12400.0, Sketch: expSketch.Finish()},
+			{Ts: 12401.0, Sketch: expSketch.Finish()},
 		},
 	}, flushed[0], .03)
 
@@ -656,7 +656,7 @@ func testCheckHistogramBucketInfinityBucket(t *testing.T, store *tags.Store) {
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
+			{Ts: 12349.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 }
@@ -695,7 +695,7 @@ func testCheckHistogramBucketNegativeInfinityBucket(t *testing.T, store *tags.St
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
+			{Ts: 12349.0, Sketch: expSketch},
 		},
 	}, flushed[0], .03)
 }
@@ -734,13 +734,38 @@ func testCheckDistribution(t *testing.T, store *tags.Store) {
 			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
 		},
 		Points: []metrics.SketchPoint{
-			{Ts: 12345.0, Sketch: expSketch},
+			{Ts: 12349.0, Sketch: expSketch},
 		},
 	}, sketches[0])
 }
 
 func TestCheckDistribution(t *testing.T) {
 	testWithTagsStore(t, testCheckDistribution)
+}
+
+func testCheckDistributionStampedAtCommit(t *testing.T, store *tags.Store) {
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), nooptagger.NewComponent())
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	// One run submits samples over several seconds, the last ones in the second it commits in.
+	for _, ts := range []float64{12345.2, 12346.5, 12347.1, 12347.4} {
+		checkSampler.addSample(&metrics.MetricSample{
+			Name: "my.metric.name", Value: 1, Mtype: metrics.DistributionType,
+			Tags: []string{"foo"}, SampleRate: 1, Timestamp: ts,
+		}, tagmatcher)
+	}
+	checkSampler.commit(12347.6, &matcher)
+	_, sketches := checkSampler.flush()
+
+	require.Len(t, sketches, 1)
+	require.Len(t, sketches[0].Points, 1, "one point for the run")
+	assert.Equal(t, int64(12347), sketches[0].Points[0].Ts, "stamped at the commit")
+	assert.Equal(t, int64(4), sketches[0].Points[0].Sketch.Basic.Cnt, "with every sample of the run, including the commit's second")
+}
+
+func TestCheckDistributionStampedAtCommit(t *testing.T) {
+	testWithTagsStore(t, testCheckDistributionStampedAtCommit)
 }
 
 func testFilteredMetrics(t *testing.T, store *tags.Store) {
@@ -907,10 +932,10 @@ func testNewSketchSeriesWithMissingContext(t *testing.T, store *tags.Store) {
 	tb := tagset.NewHashingTagsAccumulator()
 	orphanKey := k.Generate("orphan.metric", "orphanhost", tb)
 
-	// Insert a sketch point directly into sketchMap, bypassing trackContext.
+	// Insert a sketch point directly into pendingSketches, bypassing trackContext.
 	// This simulates an inconsistent state where the sketch map references a
 	// context key not present in the context resolver.
-	checkSampler.sketchMap.insert(12345, orphanKey, 1.0, 1.0)
+	checkSampler.pendingSketches.insert(orphanKey, 1.0, 1.0)
 
 	// Before the fix, commitSketches would call newSketchSeries which would
 	// dereference a nil *Context, causing a panic. After the fix, it logs
