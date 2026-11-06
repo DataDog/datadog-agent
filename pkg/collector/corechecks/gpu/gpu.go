@@ -757,6 +757,11 @@ func (c *Check) getGPUToContainersMap(now time.Time) map[string][]*workloadmeta.
 			continue
 		}
 
+		if containers.IsUtilityOnlyContainer(container) {
+			log.Debugf("Container %s declares utility-only NVIDIA driver capabilities, skipping for device assignment", container.Name)
+			continue
+		}
+
 		gpuContainers++
 		if containers.HasRunningNvidiaDRAGPUClaim(container) {
 			hasDRAClaims = true

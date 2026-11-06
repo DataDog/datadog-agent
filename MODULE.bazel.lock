@@ -1004,13 +1004,13 @@
         "pulumi-resource-aws-v7.52.1-windows-amd64.tar.gz": "sha1-lp7qLA49t3yHi/p2nsAA+BLoGi4=",
         "pulumi-resource-aws-v7.52.1-windows-arm64.tar.gz": "sha1-yqjMo1wAezo+spbKEM7hfIXm4Rs="
       },
-      "https://github.com/pulumi/pulumi-awsx/releases/download/v3.11.0/pulumi-awsx_3.11.0_checksums.txt": {
-        "pulumi-resource-awsx-v3.11.0-darwin-amd64.tar.gz": "sha1-t6PL+nWQJG5eVuAftDKKkk+Pv6c=",
-        "pulumi-resource-awsx-v3.11.0-darwin-arm64.tar.gz": "sha1-mHlofXeqAq5cax09B7dALuNbQ1Y=",
-        "pulumi-resource-awsx-v3.11.0-linux-amd64.tar.gz": "sha1-TVI2fIkSv0bhdkjM6/4zFkTMzrE=",
-        "pulumi-resource-awsx-v3.11.0-linux-arm64.tar.gz": "sha1-P20oH7rHWIzTynOc2DnFwAigv1o=",
-        "pulumi-resource-awsx-v3.11.0-windows-amd64.tar.gz": "sha1-QohCO3LgVticXS9/I1RfZEboLvQ=",
-        "pulumi-resource-awsx-v3.11.0-windows-arm64.tar.gz": "sha1-lga1I9C57MWNBQ8D0yRql/HTB1Y="
+      "https://github.com/pulumi/pulumi-awsx/releases/download/v3.12.0/pulumi-awsx_3.12.0_checksums.txt": {
+        "pulumi-resource-awsx-v3.12.0-darwin-amd64.tar.gz": "sha1-jbs7BxW3PCJ3cc15hGQbccrGL+w=",
+        "pulumi-resource-awsx-v3.12.0-darwin-arm64.tar.gz": "sha1-JohHFxVQkphdTTvJ7ALHFAk/8ic=",
+        "pulumi-resource-awsx-v3.12.0-linux-amd64.tar.gz": "sha1-Pc1dl6Ty1aIUkkumOffGAeSbqXA=",
+        "pulumi-resource-awsx-v3.12.0-linux-arm64.tar.gz": "sha1-nbPJVan8uDSxYZge2THZFGp7MC8=",
+        "pulumi-resource-awsx-v3.12.0-windows-amd64.tar.gz": "sha1-w1TxQhidZaSDQDak7/OsDgh9QpQ=",
+        "pulumi-resource-awsx-v3.12.0-windows-arm64.tar.gz": "sha1-GL1GedbkflYVbC0ygkeN3hIblkg="
       },
       "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.29.0/pulumi-azure-native_3.29.0_checksums.txt": {
         "pulumi-resource-azure-native-v3.29.0-darwin-amd64.tar.gz": "sha1-cTQJm+ML5yhMWzVDWSlneZpKYv4=",
@@ -1119,7 +1119,7 @@
         "name": "aws",
         "url": "https://github.com/pulumi/pulumi-aws"
       },
-      "https://registry.npmjs.org/@pulumi/awsx/3.11.0": {
+      "https://registry.npmjs.org/@pulumi/awsx/3.12.0": {
         "dependencies": {
           "@pulumi/aws": "v7.43.0",
           "@pulumi/docker": "v4.6.0",
