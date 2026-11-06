@@ -7,7 +7,7 @@ go_library(
         "noop_sender.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/benchmarks/kubernetes_state",
-    tags = ["manual"],  # keep
+    tags = ["manual"],
     visibility = ["//visibility:private"],
     deps = [
         "//comp/core/tagger/impl-noop",
@@ -38,6 +38,6 @@ go_binary(
         "kubeapiserver",
         "kubelet",
         "test",
-    ],  # keep
+    ],
     visibility = ["//visibility:public"],
 )

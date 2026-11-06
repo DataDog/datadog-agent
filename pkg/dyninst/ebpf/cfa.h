@@ -4,7 +4,7 @@
 #include "bpf_helpers.h"
 #include "bpf_tracing.h"
 
-static inline uint64_t calculate_cfa(struct pt_regs* regs, bool frameless) {
+static inline uint64_t calculate_cfa(bpf_user_pt_regs_t* regs, bool frameless) {
   // Stack layout is slightly different in Go between arm64 and x86_64.
   // Established based on following documentation and machine code reads:
   // https://tip.golang.org/src/cmd/compile/abi-internal#architecture-specifics

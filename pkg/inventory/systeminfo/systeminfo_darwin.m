@@ -92,3 +92,14 @@ DeviceInfo getDeviceInfo(void) {
     }
 }
 
+char *copyLocalHostName(void) {
+    @autoreleasepool {
+        CFStringRef name = SCDynamicStoreCopyLocalHostName(NULL);
+        if (!name) return NULL;
+
+        const char *utf8 = [(__bridge NSString *)name UTF8String];
+        char *result = utf8 ? strdup(utf8) : NULL;
+        CFRelease(name);
+        return result;
+    }
+}

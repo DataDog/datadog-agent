@@ -1,6 +1,9 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from github import GithubException
+from invoke.exceptions import Exit
+
 from tasks.libs.ciproviders.github_api import GithubAPI
 
 
@@ -146,3 +149,43 @@ class TestFindAllTeams(unittest.TestCase):
         github = GithubAPI(repository="test", public_repo=True)
         with patch.object(github, '_repository') as mock_repo:
             self.assertListEqual(github.find_teams(mock_repo), [])
+
+
+class TestCreateBranch(unittest.TestCase):
+    def _github(self):
+        with patch("tasks.libs.ciproviders.github_api.Github", autospec=True):
+            return GithubAPI(repository="test", public_repo=True)
+
+    def test_new_branch(self):
+        github = self._github()
+        with patch.object(github, '_repository') as mock_repo:
+            github.create_branch("changelog-update-7.86.0", "abc", reset=True)
+            mock_repo.create_git_ref.assert_called_once_with(ref="refs/heads/changelog-update-7.86.0", sha="abc")
+            mock_repo.get_git_ref.assert_not_called()
+
+    def test_existing_branch_without_pr_is_reset(self):
+        github = self._github()
+        with patch.object(github, '_repository') as mock_repo:
+            mock_repo.create_git_ref.side_effect = GithubException(422, {"message": "Reference already exists"}, None)
+            mock_repo.get_pulls.return_value.totalCount = 0
+            github.create_branch("changelog-update-7.86.0", "abc", reset=True)
+            mock_repo.get_pulls.assert_called_once_with(state="open", head="DataDog:changelog-update-7.86.0")
+            mock_repo.get_git_ref.assert_called_once_with("heads/changelog-update-7.86.0")
+            mock_repo.get_git_ref.return_value.edit.assert_called_once_with(sha="abc", force=True)
+
+    def test_existing_branch_with_open_pr_is_kept(self):
+        github = self._github()
+        with patch.object(github, '_repository') as mock_repo:
+            mock_repo.create_git_ref.side_effect = GithubException(422, {"message": "Reference already exists"}, None)
+            mock_repo.get_pulls.return_value.totalCount = 1
+            with self.assertRaises(Exit):
+                github.create_branch("changelog-update-7.86.0", "abc", reset=True)
+            mock_repo.get_git_ref.assert_not_called()
+
+    def test_existing_branch_without_reset_fails(self):
+        github = self._github()
+        with patch.object(github, '_repository') as mock_repo:
+            mock_repo.create_git_ref.side_effect = GithubException(422, {"message": "Reference already exists"}, None)
+            with self.assertRaises(GithubException):
+                github.create_branch("changelog-update-7.86.0", "abc")
+            mock_repo.get_git_ref.assert_not_called()

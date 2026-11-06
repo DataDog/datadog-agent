@@ -152,7 +152,7 @@ func RunCheck(log log.Component, config config.Component, secretsComp secrets.Co
 			log.Warnf("could not evaluate xccdf benchmark: %v", err)
 		}
 		for _, event := range benchmarkEvents {
-			event.HostCCRID = hostCCRID
+			event.CCRID = compliance.CCRIDForResource(hostCCRID, event.ResourceType)
 			b, _ := json.MarshalIndent(event, "", "\t")
 			fmt.Println(string(b))
 			if event.Result != compliance.CheckSkipped {

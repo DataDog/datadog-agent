@@ -1,5 +1,11 @@
 {{- with .privateActionRunnerStatus -}}
   Status: {{- if .Enabled }} Enabled{{else}} Disabled{{end}}
+{{- with .PhoneHome }}
+  Startup gate: {{ .State }} ({{ .Reason }})
+{{- if .NextCheck }}
+  Next gate check: {{ .NextCheck }}
+{{- end }}
+{{- end }}
 {{- if .Enabled }}
   URN: {{ .URN }}
   Self Enroll: {{ .SelfEnroll }}

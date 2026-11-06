@@ -9,6 +9,7 @@ package containerd
 
 import (
 	"errors"
+	"net"
 
 	containerd "github.com/containerd/containerd/v2/client"
 
@@ -27,8 +28,8 @@ import (
 // Limitations:
 //   - Host /proc needs to be mounted.
 //   - If the container exposes multiple IPs, this function just returns one of
-//     them. That means that if a container is attached to multiple networks this
-//     might not work as expected.
+//     them, preferring non link-local ones. That means that if a container is
+//     attached to multiple networks this might not work as expected.
 func extractIP(namespace string, container containerd.Container, containerdClient cutil.ContainerdItf) (string, error) {
 	if !env.IsHostProcAvailable() {
 		return "", nil
@@ -60,8 +61,20 @@ func extractIP(namespace string, container containerd.Container, containerdClien
 			return "", errors.New("no IPs found")
 		}
 
-		return IPs[0], nil
+		return selectIP(IPs), nil
 	}
 
 	return "", errors.New("no IPs found")
+}
+
+// selectIP returns the first non link-local IP, or the first IP if they are
+// all link-local. ECS awsvpc tasks have a 169.254.172.x address next to the
+// task ENI IP, and only the latter is reachable from the agent.
+func selectIP(IPs []string) string {
+	for _, ip := range IPs {
+		if parsed := net.ParseIP(ip); parsed != nil && !parsed.IsLinkLocalUnicast() {
+			return ip
+		}
+	}
+	return IPs[0]
 }

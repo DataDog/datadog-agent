@@ -6,12 +6,15 @@
 package cloudservice
 
 import (
+	"os"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 )
 
@@ -73,6 +76,85 @@ func TestGetWindowsAppServiceTags(t *testing.T) {
 		"aas.site.type":                 "app",
 		"aas.subscription.id":           "",
 	}, tags)
+}
+
+func TestAppServiceGetMetadata(t *testing.T) {
+	const armID = "/subscriptions/Test_Subscription_ID/resourcegroups/Test_Resource_Group/providers/microsoft.web/sites/Test_Site_Name"
+	for _, tt := range []struct {
+		name         string
+		functionApp  bool
+		worker       string
+		workloadType string
+		resourceID   string
+	}{
+		{name: "web app", workloadType: workloadTypeAzureAppService, resourceID: strings.ToLower(armID)},
+		{name: "function app", functionApp: true, worker: "node", workloadType: workloadTypeAzureFunction, resourceID: armID},
+		{name: "function app with empty worker", functionApp: true, workloadType: workloadTypeAzureFunction, resourceID: armID},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("WEBSITE_SITE_NAME", "Test_Site_Name")
+			t.Setenv("REGION_NAME", "eastus")
+			t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
+			t.Setenv("WEBSITE_STACK", "NODE")
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", tt.worker)
+			if !tt.functionApp {
+				require.NoError(t, os.Unsetenv("FUNCTIONS_WORKER_RUNTIME"))
+			}
+			service := &AppService{}
+
+			assert.Equal(t, serverlessdef.CloudServiceMetadata{
+				WorkloadType:        tt.workloadType,
+				ResourceID:          tt.resourceID,
+				ResourceName:        "Test_Site_Name",
+				Region:              "eastus",
+				AzureSubscriptionID: "Test_Subscription_ID",
+				AzureResourceGroup:  "Test_Resource_Group",
+				RuntimeCandidates:   []string{tt.worker, "Node.js"},
+			}, service.GetMetadata())
+			assert.Equal(t, armID, service.GetTags()["aas.resource.id"], "tags keep the ARM ID casing")
+			assert.True(t, service.CanCollectMetadata())
+		})
+	}
+}
+
+func TestAppServiceMissingIdentity(t *testing.T) {
+	for _, missing := range []string{"WEBSITE_OWNER_NAME", "WEBSITE_RESOURCE_GROUP", WebsiteName} {
+		t.Run(missing, func(t *testing.T) {
+			t.Setenv("WEBSITE_OWNER_NAME", "Test_Subscription_ID+resourcegroup-EastUSwebspace")
+			t.Setenv("WEBSITE_RESOURCE_GROUP", "Test_Resource_Group")
+			t.Setenv(WebsiteName, "Test_Site_Name")
+			t.Setenv(missing, "")
+
+			assert.Empty(t, (&AppService{}).GetMetadata().ResourceID)
+		})
+	}
+}
+
+func TestAppServiceMetadataRuntimeCandidates(t *testing.T) {
+	for _, tt := range []struct {
+		stack string
+		want  string
+	}{
+		{stack: "NODE", want: "Node.js"},
+		{stack: "PYTHON", want: "Python"},
+		{stack: "JAVA", want: "Java"},
+		{stack: "TOMCAT", want: "Java"},
+		{stack: "DOTNETCORE", want: ".NET"},
+		{stack: "PHP", want: "PHP"},
+		{stack: "RUBY", want: "Ruby"},
+		{stack: "DOCKER"},
+		{stack: "SITECONTAINERS"},
+		{stack: ""},
+	} {
+		t.Run("stack="+tt.stack, func(t *testing.T) {
+			t.Setenv(WebsiteStack, tt.stack)
+			t.Setenv("FUNCTIONS_WORKER_RUNTIME", " MyWorker ")
+
+			assert.Equal(t, []string{" MyWorker ", tt.want}, (&AppService{}).GetMetadata().RuntimeCandidates,
+				"the worker comes first and keeps its raw value")
+		})
+	}
 }
 
 func TestAppServiceShutdownEmitsMetrics(t *testing.T) {

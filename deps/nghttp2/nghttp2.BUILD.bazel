@@ -16,7 +16,7 @@ license(
     visibility = ["//visibility:public"],
 )
 
-SO_VERSION = "14.25.1"
+SO_VERSION = "14.29.5"
 
 PUBLIC_HEADERS = [
     "lib/includes/nghttp2/nghttp2ver.h",
@@ -29,6 +29,8 @@ PUBLIC_HEADERS = [
 cc_library(
     name = "libnghttp2",
     srcs = [
+        "lib/nghttp2_alpn.c",
+        "lib/nghttp2_alpn.h",
         "lib/nghttp2_buf.c",
         "lib/nghttp2_buf.h",
         "lib/nghttp2_callbacks.c",
@@ -54,8 +56,6 @@ cc_library(
         "lib/nghttp2_mem.c",
         "lib/nghttp2_mem.h",
         "lib/nghttp2_net.h",
-        "lib/nghttp2_npn.c",
-        "lib/nghttp2_npn.h",
         "lib/nghttp2_option.c",
         "lib/nghttp2_option.h",
         "lib/nghttp2_outbound_item.c",

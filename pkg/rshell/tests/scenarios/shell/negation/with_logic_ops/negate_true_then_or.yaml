@@ -1,0 +1,9 @@
+description: Negation of true fails, triggering the || fallback.
+input:
+  script: |+
+    ! true || echo "fallback"
+expect:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

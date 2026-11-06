@@ -52,6 +52,13 @@ func parseModulesList(path string) ([]string, error) {
 		if config, ok := moduleConfig.(string); ok && config == "ignored" {
 			continue
 		}
+		// A module with a workspace_path is used from that directory: its own path only holds a snapshot for
+		// external consumers
+		if config, ok := moduleConfig.(map[string]any); ok {
+			if workspacePath, ok := config["workspace_path"].(string); ok {
+				module = workspacePath
+			}
+		}
 		res = append(res, module)
 	}
 	return res, nil

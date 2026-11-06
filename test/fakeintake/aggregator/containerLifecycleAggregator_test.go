@@ -23,6 +23,12 @@ func TestNewContainerLifecyclePayloads(t *testing.T) {
 		assert.Empty(t, payloads)
 	})
 
+	t.Run("parseContainerLifecyclePayload connectivity check body should be skipped", func(t *testing.T) {
+		payloads, err := ParseContainerLifecyclePayload(api.Payload{Data: []byte("{}"), Encoding: encodingEmpty})
+		assert.NoError(t, err)
+		assert.Empty(t, payloads)
+	})
+
 	t.Run("parseContainerLifecyclePayload valid body should parse payloads", func(t *testing.T) {
 		payloads, err := ParseContainerLifecyclePayload(api.Payload{Data: ContainerLifecycleData, Encoding: encodingGzip})
 		assert.NoError(t, err)

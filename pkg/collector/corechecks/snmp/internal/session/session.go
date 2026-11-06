@@ -171,14 +171,9 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 	s.gosnmpInst.Retries = config.Retries
 	s.gosnmpInst.UseUnconnectedUDPSocket = config.UseUnconnectedUDPSocket
 
-	lvl, err := log.GetLogLevel()
-	if err != nil {
-		log.Warnf("failed to get logger: %s", err)
-	} else {
-		if lvl == log.TraceLvl {
-			TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
-			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
-		}
+	if log.ShouldLog(log.TraceLvl) {
+		TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
+		s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
 	}
 	return s, nil
 }

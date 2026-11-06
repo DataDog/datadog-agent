@@ -1,0 +1,15 @@
+# Verify that GNU wc does NOT apply width-7 padding for non-regular
+# (stdin) input when only a single column is printed.
+description: wc does not pad non-regular input when only one flag is given.
+setup:
+  files:
+    - path: file.txt
+      content: "a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat file.txt | wc -l
+expect:
+  stdout: "1\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: "sort rejects -k with trailing comma."
+setup:
+  files:
+    - path: data.txt
+      content: "a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 1, data.txt
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+expect:
+  stdout: ""
+  stderr_contains: ["invalid number after ','"]
+  exit_code: 2

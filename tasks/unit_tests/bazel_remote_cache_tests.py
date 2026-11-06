@@ -49,6 +49,7 @@ class TestRemoteCacheSelect(unittest.TestCase):
         *,
         curl=0,
         vault=True,
+        vault_session=False,
         probe_seed=None,
         extra_env=None,
         container=False,
@@ -62,7 +63,17 @@ class TestRemoteCacheSelect(unittest.TestCase):
             _link_coreutils(bin_dir)
             _make_stub(bin_dir, "curl", curl)
             if vault:
-                _make_stub(bin_dir, "vault", 0)
+                # Other Vault commands, including `token lookup`, succeed. Only the
+                # Buildbarn read reflects whether that path is allowed.
+                buildbarn_rc = 0 if vault_session else 2
+                (bin_dir / "vault").write_text(
+                    "#!/bin/sh\n"
+                    'case " $* " in\n'
+                    f'  *" identity/oidc/token/buildbarn "*) exit {buildbarn_rc} ;;\n'
+                    "esac\n"
+                    "exit 0\n"
+                )
+                (bin_dir / "vault").chmod(0o755)
 
             tmpdir = tmp / "tmp"
             tmpdir.mkdir()
@@ -126,10 +137,21 @@ class TestRemoteCacheSelect(unittest.TestCase):
     def test_default_policy_is_auto(self):
         self.assertEqual(self._run(policy=None, curl=0, vault=True), "--config=cache")
 
-    def test_container_without_token_skips(self):
-        # In a container there is no interactive Vault login; without a token the
-        # build is ineligible regardless of a reachable frontend.
+    def test_container_without_buildbarn_access_skips(self):
+        # A logged-in Vault token that cannot read identity/oidc/token/buildbarn
+        # must not enable the cache: the credential helper would then try an
+        # interactive login, which a container may not be able to finish.
         self.assertEqual(self._run(policy="auto", curl=0, vault=True, container=True), "")
+
+    def test_container_with_vault_session_enables(self):
+        # e.g. a Datadog workspace after `ddtool auth login`.
+        self.assertEqual(
+            self._run(policy="auto", curl=0, vault=True, vault_session=True, container=True),
+            "--config=cache",
+        )
+
+    def test_container_with_vault_session_unreachable(self):
+        self.assertEqual(self._run(policy="auto", curl=7, vault=True, vault_session=True, container=True), "")
 
     def test_container_with_token_enables(self):
         self.assertEqual(

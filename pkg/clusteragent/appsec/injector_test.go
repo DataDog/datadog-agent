@@ -24,6 +24,7 @@ import (
 	"k8s.io/client-go/dynamic"
 	dynamicfake "k8s.io/client-go/dynamic/fake"
 	k8stesting "k8s.io/client-go/testing"
+	"k8s.io/client-go/tools/cache"
 	"k8s.io/client-go/tools/record"
 	"k8s.io/client-go/util/workqueue"
 
@@ -805,4 +806,44 @@ func TestCleanupPattern_MarksCleanupContext(t *testing.T) {
 	cleanupPattern(context.Background(), logmock.New(t), client, pattern)
 
 	assert.Equal(t, []bool{true, true}, pattern.cleanup)
+}
+
+func TestCreateEventHandler(t *testing.T) {
+	gw := &unstructured.Unstructured{}
+	gw.SetAPIVersion("gateway.networking.k8s.io/v1")
+	gw.SetKind("Gateway")
+	gw.SetNamespace("default")
+	gw.SetName("gw")
+
+	for _, tc := range []struct {
+		name   string
+		call   func(h cache.ResourceEventHandler)
+		queued []workItem
+	}{
+		{name: "add", call: func(h cache.ResourceEventHandler) { h.OnAdd(gw, false) }, queued: []workItem{{typ: workItemAdded, obj: gw}}},
+		{name: "delete", call: func(h cache.ResourceEventHandler) { h.OnDelete(gw) }, queued: []workItem{{typ: workItemDeleted, obj: gw}}},
+		{name: "delete missed while the watch was down", call: func(h cache.ResourceEventHandler) {
+			h.OnDelete(cache.DeletedFinalStateUnknown{Key: "default/gw", Obj: gw})
+		}, queued: []workItem{{typ: workItemDeleted, obj: gw}}},
+		{name: "tombstone without an object", call: func(h cache.ResourceEventHandler) {
+			h.OnDelete(cache.DeletedFinalStateUnknown{Key: "default/gw"})
+		}},
+		{name: "unexpected add type", call: func(h cache.ResourceEventHandler) { h.OnAdd("not an object", false) }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			queue := workqueue.NewTypedRateLimitingQueue(workqueue.DefaultTypedControllerRateLimiter[workItem]())
+			defer queue.ShutDown()
+			si := &securityInjector{logger: logmock.New(t)}
+
+			tc.call(si.createEventHandler(queue))
+
+			require.Equal(t, len(tc.queued), queue.Len())
+			for _, want := range tc.queued {
+				got, _ := queue.Get()
+				assert.Equal(t, want.typ, got.typ)
+				assert.Same(t, want.obj, got.obj)
+				queue.Done(got)
+			}
+		})
+	}
 }

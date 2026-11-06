@@ -17,6 +17,7 @@ from tasks import (
     anomalydetection,
     auth,
     bazel,
+    bazel_parity,
     bench,
     buildimages,
     claude,
@@ -75,6 +76,7 @@ from tasks import (
     quality_gates,
     release,
     renovate,
+    rshell,
     rtloader,
     sbomgen,
     schema,
@@ -158,11 +160,9 @@ Task.__call__ = custom__call__
 ns = Collection()
 
 # add single tasks to the root
-# AIX gets routed to the legacy task because it doesn't support bazel.
-# windows will be onboarded to bazel-by-default when ready
-if sys.platform in ("win32", "aix"):
+# AIX gets routed to the legacy test task because it doesn't support bazel.
+if sys.platform == "aix":
     ns.add_task(test_legacy, name="test")
-    ns.add_task(test, name="test-new")
 else:
     ns.add_task(test)
     ns.add_task(test_legacy)
@@ -211,6 +211,7 @@ ns.add_task(lint_go)
 ns.add_collection(anomalydetection)
 ns.add_collection(auth)
 ns.add_collection(bazel)
+ns.add_collection(bazel_parity)
 ns.add_collection(agent)
 ns.add_collection(ami)
 ns.add_collection(agent_ci_api)
@@ -259,6 +260,7 @@ ns.add_collection(setup)
 ns.add_collection(systray)
 ns.add_collection(release)
 ns.add_collection(renovate)
+ns.add_collection(rshell)
 ns.add_collection(rtloader)
 ns.add_collection(system_probe)
 ns.add_collection(process_agent)

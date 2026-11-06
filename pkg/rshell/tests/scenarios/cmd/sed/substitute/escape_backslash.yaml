@@ -1,0 +1,13 @@
+description: The \\\\ escape in replacement inserts a literal backslash.
+setup:
+  files:
+    - path: input.txt
+      content: "foo\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/foo/a\\b/' input.txt
+expect:
+  stdout: "a\\b\n"
+  stderr: ""
+  exit_code: 0

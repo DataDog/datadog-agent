@@ -15,6 +15,7 @@ import (
 	"net/url"
 	"os"
 	"regexp"
+	"strconv"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -483,6 +484,9 @@ type AgentConfig struct {
 	StatsdPort     int
 	StatsdPipeName string // for Windows Pipes
 	StatsdSocket   string // for UDS Sockets
+	// StatsdBufferSize is dogstatsd_buffer_size, the largest datagram
+	// DogStatsD reads. The DogStatsD proxy packs lines up to this size.
+	StatsdBufferSize int
 
 	// logging
 	LogFilePath string
@@ -607,6 +611,10 @@ type AgentConfig struct {
 	// DebugServerPort defines the port used by the debug server
 	DebugServerPort int
 
+	// DebugServerHost is the loopback address the debug server binds.
+	// Empty and "localhost" use 127.0.0.1, so the default cmd_host does not dial ::1.
+	DebugServerHost string
+
 	// Install Signature
 	InstallSignature InstallSignatureConfig
 
@@ -657,6 +665,16 @@ type AgentConfig struct {
 	// APIKeyIsFromSecretFn reports whether an API key value was resolved from a
 	// secret handle (and can therefore be changed by a refresh).
 	APIKeyIsFromSecretFn func(apiKey string) bool `json:"-"`
+}
+
+// DebugServerAddr returns the host:port the debug server binds and that in-process clients dial.
+// "localhost" is rewritten to 127.0.0.1. Dialing the name also tries ::1, which stalls when that address drops SYNs.
+func (c *AgentConfig) DebugServerAddr() string {
+	host := c.DebugServerHost
+	if host == "" || host == "localhost" {
+		host = "127.0.0.1"
+	}
+	return net.JoinHostPort(host, strconv.Itoa(c.DebugServerPort))
 }
 
 // RemoteClient client is used to APM Sampling Updates from a remote source.
@@ -724,9 +742,10 @@ func New() *AgentConfig {
 		APIKeyRefreshThrottleInterval: 0,
 		ClientStatsFlushInterval:      2 * time.Second, // bucket duration (2s)
 
-		StatsdHost:    "localhost",
-		StatsdPort:    8125,
-		StatsdEnabled: true,
+		StatsdHost:       "localhost",
+		StatsdPort:       8125,
+		StatsdBufferSize: 8192,
+		StatsdEnabled:    true,
 
 		MaxMemory:        5e8, // 500 Mb, should rarely go above 50 Mb
 		MaxCPU:           0.5, // 50%, well behaving agents keep below 5%

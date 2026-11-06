@@ -1,0 +1,9 @@
+description: cd -h prints usage to stdout and exits 0.
+skip_assert_against_bash: true
+input:
+  script: |+
+    cd -h
+expect:
+  stdout_contains: ["Usage: cd"]
+  stderr: ""
+  exit_code: 0

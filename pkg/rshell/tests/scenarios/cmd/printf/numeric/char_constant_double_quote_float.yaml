@@ -1,0 +1,7 @@
+description: Double-quote character constant with float format gives ASCII value.
+input:
+  script: |+
+    printf "%f\n" '"A'
+expect:
+  stdout: "65.000000\n"
+  exit_code: 0

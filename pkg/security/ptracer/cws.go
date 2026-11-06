@@ -24,6 +24,7 @@ import (
 	"github.com/cenkalti/backoff/v7"
 	"github.com/vmihailenco/msgpack/v5"
 
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
@@ -45,15 +46,16 @@ var (
 
 // Opts defines ptracer options
 type Opts struct {
-	Creds            Creds
-	Verbose          bool
-	Debug            bool
-	Async            bool
-	StatsDisabled    bool
-	ProcScanDisabled bool
-	ScanProcEvery    time.Duration
-	SeccompDisabled  bool
-	AttachedCb       func()
+	Creds               Creds
+	Verbose             bool
+	Debug               bool
+	Async               bool
+	StatsDisabled       bool
+	ProcScanDisabled    bool
+	ScanProcEvery       time.Duration
+	SeccompDisabled     bool
+	SpanContextDisabled bool
+	AttachedCb          func()
 
 	// internal
 	mode ebpfless.Mode
@@ -63,20 +65,30 @@ type Opts struct {
 type CWSPtracerCtx struct {
 	Tracer
 
-	opts                *Opts
-	wg                  sync.WaitGroup
-	cancel              context.Context
-	cancelFnc           context.CancelFunc
-	containerID         containerutils.ContainerID
-	cgroupID            containerutils.CGroupID
-	probeAddr           string
-	client              net.Conn
-	clientReady         chan bool
-	msgDataChan         chan []byte
-	helloMsg            *ebpfless.Message
-	processCache        *ProcessCache
-	traceesReported     []int
-	stopSignalForwarder func()
+	opts        *Opts
+	wg          sync.WaitGroup
+	cancel      context.Context
+	cancelFnc   context.CancelFunc
+	containerID containerutils.ContainerID
+	cgroupID    containerutils.CGroupID
+	probeAddr   string
+	client      net.Conn
+	clientReady chan bool
+	msgDataChan chan []byte
+	// The network sender owns this single dequeued payload until its write
+	// succeeds or it is rejected as oversized. Keep it across reconnects;
+	// requeueing at the tail breaks FIFO.
+	inFlightMsgData []byte
+	// The tracing thread owns lifecycle metadata, not a telemetry queue.
+	// This guard filters late forks after a child-creation wait has expired.
+	lifecycleGuard *processLifecycleGuard
+	// Optional override of the procfs boundary; called only on the tracing thread.
+	processContextReader func(processIdentity) (*ebpfless.SyscallMsg, error)
+	helloMsg             *ebpfless.Message
+	processCache         *ProcessCache
+	otelTarget           *otelthreadctx.Target
+	traceesReported      []int
+	stopSignalForwarder  func()
 }
 
 type syscallHandlerFunc func(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, disableStats bool) error
@@ -197,12 +209,25 @@ func (ctx *CWSPtracerCtx) sendMsg(msg *ebpfless.Message) error {
 		return err
 	}
 
+	ctx.enqueueMsgData(data)
+	return nil
+}
+
+// enqueueMsgData never waits for the network: a stalled probe must not hold
+// tracees stopped. A full outbound queue drops the new message rather than
+// blocking the tracing thread. Reject unsendable frames before queueing them.
+func (ctx *CWSPtracerCtx) enqueueMsgData(data []byte) bool {
+	if len(data) > ebpfless.MaxMessageSize {
+		logger.Errorf("dropping oversized message: %d bytes exceeds maximum %d", len(data), ebpfless.MaxMessageSize)
+		return false
+	}
 	select {
 	case ctx.msgDataChan <- data:
+		return true
 	default:
 		logger.Errorf("unable to send message")
+		return false
 	}
-	return nil
 }
 
 func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
@@ -236,18 +261,28 @@ func (ctx *CWSPtracerCtx) waitClientToBeReady() error {
 	}
 }
 
-// returns nil if client needs to be reconnected
+// sendMessagesLoop returns nil when the connection needs to be re-established.
+// The in-flight payload survives that return and is retried after the next hello,
+// before any later queued message. Oversized payloads cannot be delivered and
+// are discarded without writing or reconnecting. This preserves FIFO retries
+// for valid frames, not exactly-once delivery: there is no acknowledgement.
 func (ctx *CWSPtracerCtx) sendMessagesLoop() error {
 	for {
+		if ctx.inFlightMsgData != nil {
+			// In particular, an exec must not overtake a fork whose write failed.
+			if len(ctx.inFlightMsgData) > ebpfless.MaxMessageSize {
+				logger.Errorf("dropping oversized in-flight message: %d bytes exceeds maximum %d", len(ctx.inFlightMsgData), ebpfless.MaxMessageSize)
+			} else if err := ctx.sendMsgData(ctx.inFlightMsgData); err != nil {
+				logger.Debugf("error sending msg: %v", err)
+				return nil
+			}
+			ctx.inFlightMsgData = nil
+		}
 		select {
 		case <-ctx.cancel.Done():
 			return errors.New("Exiting")
 		case data := <-ctx.msgDataChan:
-			if err := ctx.sendMsgData(data); err != nil {
-				logger.Debugf("error sending msg: %v", err)
-				ctx.msgDataChan <- data
-				return nil
-			}
+			ctx.inFlightMsgData = data
 		}
 	}
 }
@@ -316,6 +351,7 @@ func (ctx *CWSPtracerCtx) initCtxCommon() error {
 	ctx.msgDataChan = make(chan []byte, 100000)
 
 	ctx.processCache = NewProcessCache()
+	ctx.otelTarget = otelthreadctx.NewTarget(otelProcRoot)
 
 	ctx.helloMsg = &ebpfless.Message{
 		Type: ebpfless.MessageTypeHello,
@@ -454,6 +490,16 @@ func (ctx *CWSPtracerCtx) StartCWSPtracer() (int, error) {
 	if ctx.probeAddr == "" {
 		logger.Debugf("sending message: %s", ctx.helloMsg)
 	} else {
+		initial := make([]processIdentity, 0, len(ctx.PIDs))
+		for _, pid := range ctx.PIDs {
+			if process := ctx.processCache.Get(pid); process != nil {
+				initial = append(initial, process.identity())
+			}
+		}
+		// Seed roots explicitly: they have no instrumented creation event.
+		// Only ptrace events use this guard; concurrent procfs snapshots are
+		// not authoritative creation notifications and use the outbound FIFO directly.
+		ctx.lifecycleGuard = newProcessLifecycleGuard(initial, ctx.enqueueMsgData)
 		ctx.handleClientConnection()
 	}
 

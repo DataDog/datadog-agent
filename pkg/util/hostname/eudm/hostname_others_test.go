@@ -15,6 +15,6 @@ import (
 )
 
 func TestGetUnsupported(t *testing.T) {
-	_, err := Get()
+	_, err := Get(true)
 	require.ErrorIs(t, err, errors.ErrUnsupported)
 }

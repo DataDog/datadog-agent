@@ -14,15 +14,18 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 	corev1 "k8s.io/api/core/v1"
 	crd "k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset/fake"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	vpa "k8s.io/autoscaler/vertical-pod-autoscaler/pkg/client/clientset/versioned/fake"
 	cr "k8s.io/client-go/dynamic/fake"
 	"k8s.io/client-go/kubernetes/fake"
 	kscheme "k8s.io/client-go/kubernetes/scheme"
+	metafake "k8s.io/client-go/metadata/fake"
 	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -500,4 +503,42 @@ func TestOrchestratorCheck_IsLeader(t *testing.T) {
 		assert.True(t, isLeader)
 		assert.NoError(t, err)
 	})
+}
+
+func TestGetOrchestratorInformerFactoryHelmReleaseConfigMaps(t *testing.T) {
+	configMap := func(name string, labels map[string]string) *metav1.PartialObjectMetadata {
+		return &metav1.PartialObjectMetadata{
+			TypeMeta:   metav1.TypeMeta{APIVersion: "v1", Kind: "ConfigMap"},
+			ObjectMeta: metav1.ObjectMeta{Name: name, Namespace: "default", Labels: labels},
+		}
+	}
+	scheme := runtime.NewScheme()
+	require.NoError(t, metav1.AddMetaToScheme(scheme))
+	metadataClient := metafake.NewSimpleMetadataClient(scheme,
+		configMap("regular", nil),
+		configMap("sh.helm.release.v1.app.v1", map[string]string{"owner": "helm"}),
+	)
+
+	listConfigMaps := func(t *testing.T) []string {
+		of := getOrchestratorInformerFactory(&apiserver.APIClient{MetadataInformerCl: metadataClient})
+		informer := of.ConfigMapMetadataInformerFactory.ForResource(corev1.SchemeGroupVersion.WithResource("configmaps")).Informer()
+		stopCh := make(chan struct{})
+		defer close(stopCh)
+		of.ConfigMapMetadataInformerFactory.Start(stopCh)
+		require.True(t, cache.WaitForCacheSync(stopCh, informer.HasSynced))
+		names := []string{}
+		for _, obj := range informer.GetStore().List() {
+			names = append(names, obj.(*metav1.PartialObjectMetadata).Name)
+		}
+		return names
+	}
+
+	cfg := mockconfig.New(t)
+
+	// Disabled: the ConfigMap collector watches every ConfigMap, as before.
+	assert.ElementsMatch(t, []string{"regular", "sh.helm.release.v1.app.v1"}, listConfigMaps(t))
+
+	// Enabled: Helm release ConfigMaps are left to the Helm release collector.
+	cfg.SetInTest("orchestrator_explorer.helm_releases.configmaps.enabled", true)
+	assert.ElementsMatch(t, []string{"regular"}, listConfigMaps(t))
 }
