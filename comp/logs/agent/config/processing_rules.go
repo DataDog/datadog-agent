@@ -44,8 +44,7 @@ type ProcessingRule struct {
 	Name               string
 	ReplacePlaceholder string `mapstructure:"replace_placeholder" json:"replace_placeholder" yaml:"replace_placeholder"`
 	Pattern            string
-	OTTLCondition      *OTTLCondition `mapstructure:"-" json:"-" yaml:"-"`
-	OTTLStatement      *OTTLStatement `mapstructure:"-" json:"-" yaml:"-"`
+	OTTL               CompiledOTTLRule `mapstructure:"-" json:"-" yaml:"-"`
 	Regex              *regexp.Regexp
 	Placeholder        []byte
 	Matching           []*SourceMatchEntry `mapstructure:"matching" json:"matching" yaml:"matching"`
@@ -55,7 +54,8 @@ type ProcessingRule struct {
 // Each processing rule must have:
 // - a valid name
 // - a valid type
-// - a valid pattern that compiles
+// - a valid regex pattern, or a nonempty OTTL expression
+// OTTL syntax is validated by the logs runtime before the configuration is used.
 func ValidateProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
 		if rule.Name == "" {
@@ -71,20 +71,11 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 			if err != nil {
 				return fmt.Errorf("invalid pattern %s for processing rule: %s", rule.Pattern, rule.Name)
 			}
-		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL:
+		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL, MaskOTTLTransform:
 			if rule.Pattern == "" {
 				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
 			}
-			if _, err := compileOTTLCondition(rule.Pattern); err != nil {
-				return fmt.Errorf("invalid OTTL condition for processing rule %q: %w", rule.Name, err)
-			}
-		case MaskOTTLTransform:
-			if rule.Pattern == "" {
-				return fmt.Errorf("no pattern provided for processing rule: %s", rule.Name)
-			}
-			if _, err := compileOTTLMaskStatement(rule.Pattern); err != nil {
-				return fmt.Errorf("invalid OTTL masking statement for processing rule %q: %w", rule.Name, err)
-			}
+			// The logs runtime validates OTTL syntax before accepting the source.
 		case ExcludeTruncated:
 			break
 		case RemapSource:
@@ -111,26 +102,11 @@ func ValidateProcessingRules(rules []*ProcessingRule) error {
 	return nil
 }
 
-// CompileProcessingRules compiles regular expressions, OTTL conditions, and masking statements.
+// CompileProcessingRules compiles regular expressions. OTTL compilation belongs to the logs runtime.
 func CompileProcessingRules(rules []*ProcessingRule) error {
 	for _, rule := range rules {
-		if rule.Type == MaskOTTLTransform {
-			statement, err := compileOTTLMaskStatement(rule.Pattern)
-			if err != nil {
-				return fmt.Errorf("invalid OTTL masking statement for processing rule %q: %w", rule.Name, err)
-			}
-			rule.OTTLStatement = statement
-			continue
-		}
-		if rule.Type == ExcludeAtMatchOTTL || rule.Type == IncludeAtMatchOTTL {
-			condition, err := compileOTTLCondition(rule.Pattern)
-			if err != nil {
-				return fmt.Errorf("invalid OTTL condition for processing rule %q: %w", rule.Name, err)
-			}
-			rule.OTTLCondition = condition
-			continue
-		}
-		if rule.Type == ExcludeTruncated || rule.Type == RemapSource {
+		switch rule.Type {
+		case ExcludeAtMatchOTTL, IncludeAtMatchOTTL, MaskOTTLTransform, ExcludeTruncated, RemapSource:
 			continue
 		}
 		re, err := regexp.Compile(rule.Pattern)
@@ -166,4 +142,20 @@ func ApplyMaskSequence(content []byte, rule *ProcessingRule) ([]byte, bool) {
 
 	masked := rule.Regex.ReplaceAll(content, rule.Placeholder)
 	return masked, !bytes.Equal(content, masked)
+}
+
+// OTTLContext is the message-local state shared by compiled OTTL rules. Keeping
+// this interface here lets config consumers avoid linking the OTTL engine.
+type OTTLContext interface {
+	Content() []byte
+	Reset([]byte)
+	Release()
+}
+
+// CompiledOTTLRule is attached by the logs runtime during setup, before rules are
+// published to processors. Evaluate returns a filter match or a masking change.
+// Implementations must support concurrent evaluation with separate contexts.
+type CompiledOTTLRule interface {
+	NewContext([]byte) OTTLContext
+	Evaluate(OTTLContext) (bool, error)
 }

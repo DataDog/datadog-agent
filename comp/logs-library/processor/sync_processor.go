@@ -24,7 +24,8 @@ type SyncProcessor struct {
 	hostname        hostnameinterface.Component
 }
 
-// NewSyncProcessor returns a SyncProcessor.
+// NewSyncProcessor returns a SyncProcessor. Global and source rules must be
+// compiled by the logs runtime before messages are passed to Process.
 func NewSyncProcessor(processingRules []*config.ProcessingRule, encoder Encoder, hostname hostnameinterface.Component) *SyncProcessor {
 	return &SyncProcessor{
 		processingRules: processingRules,
@@ -38,7 +39,11 @@ func NewSyncProcessor(processingRules []*config.ProcessingRule, encoder Encoder,
 func (p *SyncProcessor) Process(msg *message.Message) (bool, error) {
 	metrics.LogsDecoded.Add(1)
 	metrics.TlmLogsDecoded.Inc()
-	if !applyProcessingRules(msg, p.processingRules) {
+	keep, err := applyProcessingRules(msg, p.processingRules)
+	if err != nil {
+		return false, err
+	}
+	if !keep {
 		return false, nil
 	}
 	metrics.LogsProcessed.Add(1)

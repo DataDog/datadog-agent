@@ -3,6 +3,7 @@
 
 // Adapted for Agent JSON/body values: Collector log, metric, and trace slices
 // cannot be returned by this context and must not become production imports.
+
 package ottlfuncs
 
 import (

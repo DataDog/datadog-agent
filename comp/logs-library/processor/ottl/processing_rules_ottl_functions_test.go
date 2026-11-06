@@ -3,13 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package config
+package ottl
 
 import (
 	"context"
 	"testing"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
+	upstreamottl "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/ottlfuncs"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
@@ -45,7 +45,7 @@ func TestOTTLFunctionsMatchUpstream(t *testing.T) {
 		{`IsMap(attributes["value"])`, `not JSON`},
 	} {
 		t.Run(test.pattern+test.input, func(t *testing.T) {
-			parser, err := ottl.NewParser(ottlfuncs.StandardFuncs[*OTTLContext](), parseOTTLPath, component.TelemetrySettings{Logger: zap.NewNop()})
+			parser, err := upstreamottl.NewParser(ottlfuncs.StandardFuncs[*OTTLContext](), parseOTTLPath, component.TelemetrySettings{Logger: zap.NewNop()})
 			require.NoError(t, err)
 			reference, referenceErr := parser.ParseCondition(test.pattern)
 			actual, actualErr := compileOTTLCondition(test.pattern)
@@ -102,7 +102,7 @@ func TestOTTLFunctionsMatchUpstream(t *testing.T) {
 func testOTTLMaskMatchesUpstream(t *testing.T, pattern, input string) {
 	t.Helper()
 	t.Run(pattern+input, func(t *testing.T) {
-		parser, err := ottl.NewParser(ottlfuncs.StandardFuncs[*OTTLContext](), parseOTTLMaskPath, component.TelemetrySettings{Logger: zap.NewNop()})
+		parser, err := upstreamottl.NewParser(ottlfuncs.StandardFuncs[*OTTLContext](), parseOTTLMaskPath, component.TelemetrySettings{Logger: zap.NewNop()})
 		require.NoError(t, err)
 		reference, referenceErr := parser.ParseStatement(pattern)
 		actual, actualErr := compileOTTLMaskStatement(pattern)
