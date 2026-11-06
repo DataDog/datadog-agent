@@ -50,7 +50,7 @@ func newMockContainerProvider(t *testing.T, pidToContainerID map[int]string) *mo
 	return mockContainerProvider
 }
 
-const testAMDUUID = "00ff74a1-0000-1000-80c0-ffee00c0ffee"
+const testAMDUUID = "000074a1-0000-1000-80c0-ffee00c0ffee"
 
 // fakeAMDHost returns a sysfs root with one MI300X-like GPU.
 func fakeAMDHost(t *testing.T) string {
@@ -166,7 +166,7 @@ func TestAMDOnlyHostEmitsMetrics(t *testing.T) {
 }
 
 func TestAMDDeviceExcludedByConfig(t *testing.T) {
-	check, mockSender := setupAMDCheck(t, fakeAMDHost(t), map[string]any{"gpu.excluded_devices": []string{"00FF74A1-0000-1000-80C0-FFEE00C0FFEE"}})
+	check, mockSender := setupAMDCheck(t, fakeAMDHost(t), map[string]any{"gpu.excluded_devices": []string{"000074A1-0000-1000-80C0-FFEE00C0FFEE"}})
 
 	require.NoError(t, check.Run(), "excluding every AMD GPU must not require an NVIDIA driver")
 	assert.Empty(t, emittedGauges(mockSender))
@@ -232,8 +232,8 @@ func TestAMDRediscoveryDropsRemovedDevices(t *testing.T) {
 	require.NoError(t, check.Run())
 	gauges := emittedGauges(mockSender)
 	require.Len(t, gauges["gpu.device.total"], 1)
-	assert.Contains(t, gauges["gpu.device.total"][0].Arguments.Get(3), "gpu_uuid:00ff74a1-0000-1000-8000-000000002222")
-	assert.NotContains(t, check.deviceTags, "00ff74a1-0000-1000-8000-000000001111")
+	assert.Contains(t, gauges["gpu.device.total"][0].Arguments.Get(3), "gpu_uuid:000074a1-0000-1000-8000-000000002222")
+	assert.NotContains(t, check.deviceTags, "000074a1-0000-1000-8000-000000001111")
 
 	require.NoError(t, os.Remove(filepath.Join(fs.Root, "class", "drm", "card1", "device")))
 	mockSender.ResetCalls()
