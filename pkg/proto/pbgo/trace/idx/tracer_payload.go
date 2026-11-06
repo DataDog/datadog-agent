@@ -16,7 +16,7 @@ const (
 	// maxCollectionSize bounds the element count any array or map header may declare. It matches the
 	// `//msgp:limit arrays:500000 maps:500000` directive applied to the generated decoders in
 	// pkg/proto/pbgo/trace/trace.go, so the hand-written decoders here accept the same shapes.
-	maxCollectionSize = 500000
+	maxCollectionSize = 500_000
 	// maxStringTableSize bounds the number of entries in a string table (the v1 string table and the
 	// v0.5 dictionary). Strings are referenced by index from everywhere in the payload, so this keeps
 	// the historical 25M limit; the remaining-bytes check below still bounds what a payload can claim.
