@@ -6,6 +6,8 @@
 package aggregator
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
@@ -19,11 +21,14 @@ import (
 // handles commits and flushes one at a time, so a commit handled after a flush is stamped at or after its cutoff: a
 // flush sends the seconds before its cutoff, and holds the rest for the next flush to merge with later commits. A
 // metric that starts being stripped has its points moved past the latest second committed before, which its output
-// sent before may have used.
+// sent before may have used. After a backward clock step, a point in a second already sent moves to the
+// next unsent one, unless the step is maxShiftSeconds or longer.
 type checkOutputMerger struct {
 	series            map[serieSecond]*metrics.Serie
 	sketches          map[sketchSecond]*metrics.SketchSeries
+	lastSentSecond    int64
 	notBeforeByMetric map[string]int64
+	maxShiftSeconds   int64
 }
 
 // mergedSketch is a sketch series handed to the merger, with the key of the series it merges into.
@@ -44,11 +49,18 @@ type sketchSecond struct {
 	second     int64
 }
 
-func newCheckOutputMerger() *checkOutputMerger {
+// maxHold is how far, in seconds, ahead of a flush's cutoff points can be held: only a backward clock step gets them
+// that far ahead, and the clock won't reach them soon.
+const maxHold = int64(time.Hour / time.Second)
+
+// newCheckOutputMerger returns a merger that moves points by at most maxShift, the flush interval, and at least a
+// second.
+func newCheckOutputMerger(maxShift time.Duration) *checkOutputMerger {
 	return &checkOutputMerger{
 		series:            make(map[serieSecond]*metrics.Serie),
 		sketches:          make(map[sketchSecond]*metrics.SketchSeries),
 		notBeforeByMetric: make(map[string]int64),
+		maxShiftSeconds:   max(1, int64(maxShift/time.Second)),
 	}
 }
 
@@ -94,10 +106,18 @@ func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
 	}
 }
 
-// unsentSecond returns the second a point of a metric is sent in: its own, unless output sent before the metric
-// started being stripped may have used it.
+// unsentSecond returns the second a point of a metric is sent in: its own, unless the merger has already sent it, or
+// output sent before the metric started being stripped may have used it. Then it's the next second the point can
+// use, if that's at most maxShiftSeconds later.
 func (m *checkOutputMerger) unsentSecond(name string, ts int64) int64 {
-	return max(ts, m.notBeforeByMetric[name])
+	if clockSteppedBackTooFar := m.lastSentSecond-ts >= m.maxShiftSeconds; clockSteppedBackTooFar {
+		m.lastSentSecond = ts - 1
+	}
+	moveTo := max(m.lastSentSecond+1, m.notBeforeByMetric[name])
+	if moveTo-ts > m.maxShiftSeconds {
+		return ts
+	}
+	return max(ts, moveTo)
 }
 
 // startedStripping records, for metrics that started being stripped, the first second their points can use: their
@@ -108,9 +128,10 @@ func (m *checkOutputMerger) startedStripping(notBefore map[string]int64) {
 	}
 }
 
-// flush sends the seconds before cutoff, and holds the others for a later flush.
+// flush sends the seconds before cutoff, and holds the others for a later flush, unless they're more than maxHold
+// after cutoff.
 func (m *checkOutputMerger) flush(cutoff int64, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
-	m.send(func(second int64) bool { return second < cutoff }, seriesSink, sketchesSink)
+	m.send(func(second int64) bool { return second < cutoff || second > cutoff+maxHold }, seriesSink, sketchesSink)
 	for name, second := range m.notBeforeByMetric {
 		if second <= cutoff {
 			delete(m.notBeforeByMetric, name)
@@ -126,12 +147,14 @@ func (m *checkOutputMerger) drain(seriesSink metrics.SerieSink, sketchesSink met
 func (m *checkOutputMerger) send(ready func(second int64) bool, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 	for key, serie := range m.series {
 		if ready(key.second) {
+			m.lastSentSecond = max(m.lastSentSecond, key.second)
 			seriesSink.Append(serie)
 			delete(m.series, key)
 		}
 	}
 	for key, sketch := range m.sketches {
 		if ready(key.second) {
+			m.lastSentSecond = max(m.lastSentSecond, key.second)
 			sketchesSink.Append(sketch)
 			delete(m.sketches, key)
 		}
