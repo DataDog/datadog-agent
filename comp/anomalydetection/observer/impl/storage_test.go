@@ -1375,3 +1375,48 @@ func TestStorageMetricKindFilters(t *testing.T) {
 	require.True(t, ok)
 	require.Equal(t, observer.UNSET, kind)
 }
+
+func TestInstrumentedStorageSelectionFilters(t *testing.T) {
+	build := func(order []int) *timeSeriesStorage {
+		s := newTimeSeriesStorage()
+		for _, key := range order {
+			ref := s.AddWithKeyAndHostComposite("work", fmt.Sprintf("metric_%d", key), "", 100, 1,
+				tagset.CompositeTags{}, uint64(key), metrics.GaugeType).Ref
+			s.SetSeriesKind(ref, observer.STABLE)
+		}
+		return s
+	}
+	for _, method := range []string{"ListSeries", "ListSeriesRefsInto"} {
+		t.Run(method, func(t *testing.T) {
+			hash := func(s *timeSeriesStorage, filter observer.SeriesFilter) uint64 {
+				instrumented := newInstrumentedStorage(s)
+				if method == "ListSeries" {
+					instrumented.ListSeries(filter)
+				} else {
+					instrumented.ListSeriesRefsInto(filter, nil)
+				}
+				return instrumented.digest("test", 1).Hash
+			}
+			s, reverse := build([]int{1, 2}), build([]int{2, 1})
+			kind, mt := observer.STABLE, metrics.GaugeType
+			filter := observer.SeriesFilter{MetricKind: &kind, MetricType: &mt}
+			want := hash(s, filter)
+			require.Equal(t, want, hash(reverse, filter), "refs and iteration order must not affect digests")
+			otherKind, otherType := kind, mt
+			require.Equal(t, want, hash(s, observer.SeriesFilter{MetricKind: &otherKind, MetricType: &otherType}))
+			require.NotEqual(t, want, hash(s, observer.SeriesFilter{}), "different restrictions can select the same series")
+			kind = observer.LINEAR
+			require.NotEqual(t, want, hash(s, filter), "digest must reflect the current pointer value")
+
+			empty := newTimeSeriesStorage()
+			unrestricted := hash(empty, observer.SeriesFilter{})
+			kind, mt = observer.UNSET, observer.UnknownType
+			require.NotEqual(t, unrestricted, hash(empty, observer.SeriesFilter{MetricKind: &kind}))
+			require.NotEqual(t, unrestricted, hash(empty, observer.SeriesFilter{MetricType: &mt}))
+			unsetHash, unknownHash := hash(empty, observer.SeriesFilter{MetricKind: &kind}), hash(empty, observer.SeriesFilter{MetricType: &mt})
+			kind, mt = observer.STABLE, metrics.CountType
+			require.NotEqual(t, unsetHash, hash(empty, observer.SeriesFilter{MetricKind: &kind}))
+			require.NotEqual(t, unknownHash, hash(empty, observer.SeriesFilter{MetricType: &mt}))
+		})
+	}
+}
