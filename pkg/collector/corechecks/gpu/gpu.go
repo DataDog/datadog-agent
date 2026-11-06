@@ -33,6 +33,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nodeunschedulable"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
@@ -41,7 +42,6 @@ import (
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -219,7 +219,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if c.sysRoot == "" {
 		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers,
 		// falling back to /sys when that root has no devices.
-		c.sysRoot = kernel.DeviceSysFSRoot()
+		c.sysRoot = sysfsroot.DeviceSysFSRoot()
 	}
 	// With no NVIDIA GPU, NVML would only fail on every run.
 	c.skipNVML = hasOnlyAMDGPUs(c.sysRoot)

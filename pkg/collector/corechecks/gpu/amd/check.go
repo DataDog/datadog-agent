@@ -27,12 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	amdgpu "github.com/DataDog/datadog-agent/pkg/gpu/amd"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -143,7 +143,7 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if c.sysRoot == "" {
 		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers,
 		// falling back to /sys when that root has no devices.
-		c.sysRoot = kernel.DeviceSysFSRoot()
+		c.sysRoot = sysfsroot.DeviceSysFSRoot()
 	}
 	log.Infof("Discovering AMD GPUs under %s", filepath.Join(c.sysRoot, "class", "drm"))
 	if c.readTimeout == 0 {

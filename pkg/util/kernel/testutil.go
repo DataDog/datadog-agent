@@ -28,9 +28,6 @@ func resetProcFSRoot() {
 // resetSysFSRoot resets any memoization of SysFSRoot, useful for unit tests
 func resetSysFSRoot() {
 	SysFSRoot = funcs.MemoizeNoError(sysFsRoot)
-	DeviceSysFSRoot = funcs.MemoizeNoError(func() string {
-		return deviceSysFsRoot(SysFSRoot(), "/sys")
-	})
 }
 
 // ResetProcSysRootCachesForTest clears memoized ProcFSRoot and SysFSRoot after HOST_PROC / HOST_SYS
