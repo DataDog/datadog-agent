@@ -51,8 +51,8 @@ func TestLoadCustomSchemaEnforcement(t *testing.T) {
 		yaml     string
 		hostname string
 	}{
-		{"enabled by default", "hostname: invalid\n", ""},
-		{"disabled in the file", "hostname: invalid\nschema:\n  enforce: false\n", "invalid"},
+		{"disabled by default", "hostname: invalid\n", "invalid"},
+		{"enabled in the file", "hostname: invalid\nschema:\n  enforce: true\n", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			config := newTestConf(t)
