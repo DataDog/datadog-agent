@@ -36,7 +36,7 @@ func startTestShell(t *testing.T, factory SessionFactory) Shell {
 	return connectTestShell(t, StartFakeSSHServerWithFactory(t, factory))
 }
 
-func connectTestShell(t *testing.T, srv *FakeSSHServer) Shell {
+func connectTestConn(t *testing.T, srv *FakeSSHServer) *SSHConnection {
 	t.Helper()
 	knownHosts := MakeKnownHostsFile(t, srv)
 	client, err := NewRetryingSSHClient(func() (*ssh.Client, error) {
@@ -45,7 +45,12 @@ func connectTestShell(t *testing.T, srv *FakeSSHServer) Shell {
 	require.NoError(t, err)
 	conn := &SSHConnection{client: client, ipAddress: srv.Host()}
 	t.Cleanup(func() { _ = conn.Close() })
+	return conn
+}
 
+func connectTestShell(t *testing.T, srv *FakeSSHServer) Shell {
+	t.Helper()
+	conn := connectTestConn(t, srv)
 	sh, terr := conn.StartShell(t.Context())
 	require.NoError(t, terr)
 	t.Cleanup(func() { _ = sh.Close() })
@@ -141,4 +146,56 @@ func TestShell_ReadUntilAfterClose(t *testing.T) {
 	_, err := sh.ReadUntil(ctx, through("never"))
 	assert.Error(t, err)
 	assert.NotErrorIs(t, err, context.DeadlineExceeded)
+}
+
+func TestStartShell_CanceledContext(t *testing.T) {
+	var requests atomic.Int32
+	srv := StartFakeSSHServerWithFunc(t, FakeData(nil),
+		WithRequestHook(func(string) { requests.Add(1) }))
+	conn := connectTestConn(t, srv)
+
+	ctx, cancel := context.WithCancel(t.Context())
+	cancel()
+	sh, err := conn.StartShell(ctx)
+	assert.Nil(t, sh)
+	require.ErrorIs(t, err, context.Canceled)
+	assert.Zero(t, requests.Load(), "no session requests should reach the server")
+}
+
+func TestStartShell_ContextEndsDuringSetup(t *testing.T) {
+	shellRequested := make(chan struct{})
+	testEnded := make(chan struct{})
+	// When the client sends the initial request for a pty, the server will
+	// close shellRequested and then wait until testEnded is closed. This
+	// ensures that the SSH session has been created but the handshake will
+	// stall until after the context is canceled.
+	srv := StartFakeSSHServerWithFunc(t, FakeData(nil),
+		WithRequestHook(func(reqType string) {
+			if reqType == "shell" {
+				close(shellRequested)
+				<-testEnded
+			}
+		}))
+	// Registered after the server so it runs before the server's Stop.
+	t.Cleanup(func() { close(testEnded) })
+	conn := connectTestConn(t, srv)
+
+	ctx, cancel := context.WithTimeout(t.Context(), time.Second*1)
+	// defer this just to be safe; we'll be canceling it ourselves.
+	defer cancel()
+	// Wait for the shell request to be reached, then cancel the context.
+	go func() {
+		select {
+		case <-shellRequested:
+			cancel()
+		}
+	}()
+	sh, err := conn.StartShell(ctx)
+	assert.Nil(t, sh)
+	require.ErrorIs(t, err, context.Canceled)
+	select {
+	case <-shellRequested:
+	default:
+		t.Fatal("cancellation should have happened while the pty request was pending")
+	}
 }
