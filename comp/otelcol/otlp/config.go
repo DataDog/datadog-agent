@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"net"
 	"strings"
 
 	"go.uber.org/multierr"
@@ -30,6 +31,7 @@ import (
 var (
 	ErrAgentReceiverEndpointNotConfigured = errors.New("data plane OTLP enabled but Agent receiver endpoint is not configured")
 	ErrAgentReceiverEndpointCollision     = errors.New("relocated Agent OTLP receiver endpoint conflicts with another listener")
+	ErrAgentReceiverPlaintextNotLoopback  = errors.New("relocated Agent OTLP receiver is plaintext and must use a loopback address or Unix socket when TLS is configured")
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -126,14 +128,19 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	}, multierr.Combine(errs...)
 }
 
+// relocateReceiverListeners moves enabled Agent OTLP listeners off the endpoints configured in otlp_config.receiver,
+// which the data plane owns in proxy mode. The data plane terminates TLS on those endpoints, so relocated listeners
+// are always plaintext and must be loopback addresses or Unix sockets when receiver TLS is configured. Only the
+// receiver copy is modified: the shared configuration keeps its TLS settings for the data plane.
 func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{}) error {
 	protocols, _ := receiver["protocols"].(map[string]interface{})
 	listeners := []struct {
-		protocol       string
-		key            string
-		config         map[string]interface{}
-		publicEndpoint string
-		agentEndpoint  string
+		protocol           string
+		key                string
+		config             map[string]interface{}
+		configuredEndpoint string
+		agentEndpoint      string
+		tls                bool
 	}{
 		{protocol: "grpc", key: coreconfig.DataPlaneExperimentalOTLPProxyAgentReceiverGRPCEndpoint},
 		{protocol: "http", key: coreconfig.DataPlaneExperimentalOTLPProxyAgentReceiverHTTPEndpoint},
@@ -164,17 +171,19 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 			return fmt.Errorf("%w: %s", ErrAgentReceiverEndpointNotConfigured, listener.key)
 		}
 		transport, _ := listener.config["transport"].(string)
-		switch transport {
-		case "unix", "unixgram", "unixpacket":
-			if !cfg.IsConfigured(listener.key) {
-				return fmt.Errorf("%w: %s must be explicitly configured with a Unix socket path when OTLP/%s transport is %q",
-					ErrAgentReceiverEndpointNotConfigured, listener.key, listener.protocol, transport)
-			}
+		unixTransport := isUnixTransport(transport)
+		if unixTransport && !cfg.IsConfigured(listener.key) {
+			return fmt.Errorf("%w: %s must be explicitly configured with a Unix socket path when OTLP/%s transport is %q",
+				ErrAgentReceiverEndpointNotConfigured, listener.key, listener.protocol, transport)
+		}
+		_, listener.tls = listener.config["tls"]
+		if listener.tls && !unixTransport && !isLoopbackEndpoint(listener.agentEndpoint) {
+			return fmt.Errorf("%w: %s = %q for OTLP/%s", ErrAgentReceiverPlaintextNotLoopback, listener.key, listener.agentEndpoint, listener.protocol)
 		}
 		var explicit bool
-		listener.publicEndpoint, explicit = listener.config["endpoint"].(string)
+		listener.configuredEndpoint, explicit = listener.config["endpoint"].(string)
 		if !explicit {
-			listener.publicEndpoint = cfg.GetString(coreconfig.OTLPReceiverSection + ".protocols." + listener.protocol + ".endpoint")
+			listener.configuredEndpoint = cfg.GetString(coreconfig.OTLPReceiverSection + ".protocols." + listener.protocol + ".endpoint")
 		}
 	}
 
@@ -186,7 +195,7 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 			if other.config == nil {
 				continue
 			}
-			if listener.agentEndpoint == other.publicEndpoint || (i != j && listener.agentEndpoint == other.agentEndpoint) {
+			if listener.agentEndpoint == other.configuredEndpoint || (i != j && listener.agentEndpoint == other.agentEndpoint) {
 				return fmt.Errorf("%w: %s = %q conflicts with OTLP/%s", ErrAgentReceiverEndpointCollision, listener.key, listener.agentEndpoint, other.protocol)
 			}
 		}
@@ -198,9 +207,35 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 		}
 		listener.config["endpoint"] = listener.agentEndpoint
 		protocols[listener.protocol] = listener.config
-		log.Infof("Relocating Agent OTLP/%s receiver from %q to %q", listener.protocol, listener.publicEndpoint, listener.agentEndpoint)
+		if listener.tls {
+			delete(listener.config, "tls")
+			log.Infof("Relocating Agent OTLP/%s receiver from %q to %q as plaintext because the data plane terminates TLS on the configured endpoint",
+				listener.protocol, listener.configuredEndpoint, listener.agentEndpoint)
+			continue
+		}
+		log.Infof("Relocating Agent OTLP/%s receiver from %q to %q", listener.protocol, listener.configuredEndpoint, listener.agentEndpoint)
 	}
 	return nil
+}
+
+func isUnixTransport(transport string) bool {
+	switch transport {
+	case "unix", "unixgram", "unixpacket":
+		return true
+	}
+	return false
+}
+
+func isLoopbackEndpoint(endpoint string) bool {
+	host, _, err := net.SplitHostPort(endpoint)
+	if err != nil {
+		host = endpoint
+	}
+	if strings.EqualFold(host, "localhost") {
+		return true
+	}
+	ip := net.ParseIP(strings.TrimSuffix(strings.TrimPrefix(host, "["), "]"))
+	return ip != nil && ip.IsLoopback()
 }
 
 func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool) (map[string]interface{}, error) {
