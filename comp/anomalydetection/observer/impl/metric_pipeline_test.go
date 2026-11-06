@@ -165,11 +165,15 @@ func TestMetricPipelineRoutedDetection(t *testing.T) {
 
 func TestMetricPipelineValidationAndLifecycle(t *testing.T) {
 	stableReg, stable := newPipelineStub(observer.STABLE, "scanmw")
-	p, err := newMetricPipeline([]pipelineRegistration{stableReg}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
+	linearReg, linear := newPipelineStub(observer.LINEAR, "linear")
+	p, err := newMetricPipeline([]pipelineRegistration{stableReg, linearReg}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
 	require.NoError(t, err)
 	require.Equal(t, "scanmw", p.Name())
 	require.True(t, p.Ready())
-	require.Equal(t, observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 30}, p.DetectorPointWindow())
+	require.Equal(t, observer.DetectorPointWindow{MinPoints: 30, MaxPoints: 30}, p.DetectorPointWindow(),
+		"MinPoints uses the earliest warmup; MaxPoints uses the broadest history")
+	stable.ready = false
+	linear.ready = false
 
 	stable.ready = false
 	require.False(t, p.Ready())

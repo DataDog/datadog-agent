@@ -109,7 +109,9 @@ func pipelineExpandWindow(window *observer.DetectorPointWindow, detector observe
 		return
 	}
 	points := requirement.DetectorPointWindow()
-	if points.MinPoints > window.MinPoints {
+	// MinPoints is the earliest meaningful warmup across kinds, so take the
+	// minimum. MaxPoints is the largest history requirement, so take the max.
+	if window.MinPoints == 0 || (points.MinPoints > 0 && points.MinPoints < window.MinPoints) {
 		window.MinPoints = points.MinPoints
 	}
 	if points.MaxPoints > window.MaxPoints {
