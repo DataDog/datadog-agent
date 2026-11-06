@@ -156,25 +156,38 @@ if checkName == "" {
 
 Declare every context key your module reads as a package-private `const` at the top of `issue.go` (e.g. `contextKeyConfigPath = "config_path"`). This makes the contract between the check and the template explicit.
 
-### Field ownership and backend enrichment
+Backend-generated content can use `Extra` to enrich any supported content field. Include every structured fact needed for display content, remediation, or investigation instructions. The sections below distinguish required Agent data from fields the current worker can enrich; enrichment does not imply unrestricted replacement of Agent values.
+
+### What is required
 
 | Field | Rule |
 |---|---|
 | `IssueName` | Must equal the `IssueName` const — never vary |
 | `IssueType` | Must equal the `IssueType` const — never vary. Must be `IssueName` lowercased with spaces replaced by underscores |
-| `Title` | The catalog can render it from `Extra` when empty. Any Agent-provided fallback wins; include the underlying facts in `Extra` too |
-| `Description` | The catalog can render the diagnosis from `Extra` when empty. Any Agent-provided fallback wins; do not leave diagnostic facts only in this prose |
-| `Category` | Subsystem slug. Controls UI tab routing: `"configuration"` → Configuration tab; `"integration"` or `"check"` → Integrations tab; other values → default tab. Examples from existing modules: `"check-execution"`, `"autodiscovery"`, `"filesystem"`. New values can be created. |
-| `Location` | Where the issue was detected (examples: `"collector"`, `"agent"`, `"autodiscovery"`). New values can be created. |
 | `Severity` | Agent-owned: report the observed severity. The worker never fills or overrides it from template metadata |
-| `Source` | Reporting component (examples: `"agent"`, `"collector"`, `"autodiscovery"`). New values can be created. |
-| `Remediation` | Leave nil for new issue types; the backend template owns the summary, steps, scripts, and AI prompt |
+| `Source` | Reporting component (examples: `"agent"`, `"collector"`). New values can be created. |
 | `Tags` | Lowercase slugs; always include the subsystem and any relevant entity name |
-| `Extra` | Agent-owned `structpb.Struct`: include every fact needed to render display content, select remediation, or investigate the issue; see the contract below |
+| `Extra` | Agent-owned `structpb.Struct`: include every structured fact needed to generate display content, remediation, or investigation instructions; see the contract below |
 
-The catalog can fill missing `IssueName`, `Title`, `Description`, `Category`, and `Location`; it does not override non-empty Agent values. `Category` also has a separate issue-type lookup that works with the resolver flag disabled. Keep `IssueName` and `IssueType` stable in the Agent for registry lookup and lifecycle handling. `Id`, severity, state/lifecycle, `Source`, `Tags`, and diagnostic `Extra` remain reporter-owned; template enrichment does not replace them. Report-level resource identity is independent of display content.
+Keep `IssueName` and `IssueType` stable in the Agent for registry lookup and lifecycle handling. `Id`, severity, state/lifecycle, `Source`, `Tags`, and diagnostic `Extra` remain reporter-owned; template enrichment does not replace them. Report-level resource identity is independent of display content.
 
-A template may own title/description/category/location entirely only when its deployment and resolver rollout are coordinated. Otherwise retain useful Agent fallback values. For active issues, the worker requires a title, description, and severity after enrichment, as well as issue name, category, and host identity; missing required fields can cause the issue to be dropped. Moving display content to the backend must account for resolver-disabled, missing-template, and resolution-failure cases as well as local Agent API output.
+For active issues, the worker requires a title, description, and severity after enrichment, as well as issue name, category, and host identity. Retain useful Agent fallback values until template deployment and resolver rollout are coordinated; missing required fields can cause the issue to be dropped. Account for resolver-disabled, missing-template, and resolution-failure cases as well as local Agent API output.
+
+### What can be enriched or overridden
+
+The current worker fills missing display fields; it does not override non-empty Agent values. Every supported template-generated field can use the diagnostic content in `Extra`.
+
+| Field | Backend behavior |
+|---|---|
+| `IssueName` | Can fill a missing name from the catalog; keep the stable constant in the Agent for registration and lifecycle handling |
+| `Title` | Renders from `Extra` when empty. Any Agent-provided fallback wins; include the underlying facts in `Extra` too |
+| `Description` | Renders the diagnosis from `Extra` when empty. Any Agent-provided fallback wins; do not leave diagnostic facts only in this prose |
+| `Category` | Fills a missing subsystem slug. A separate issue-type lookup also works with the resolver flag disabled. Category controls UI routing; examples include `"configuration"`, `"integration"`, and `"filesystem"` |
+| `Location` | Fills the detection location when missing, such as `"collector"`, `"agent"`, or `"autodiscovery"` |
+| `Remediation` | Supplies remediation for active issues when Agent remediation is empty. Leave nil for new issue types; the backend owns the summary, steps, scripts, and AI prompt |
+| `Remediation.ai_prompt` | Can be supplied by the backend even when the Agent already provides remediation; its existing summary and steps remain unchanged |
+
+Runtime severity and issue identity are not overridden. A template may own title/description/category/location entirely only when its deployment and resolver rollout are coordinated. Local Agent APIs and fakeintake receive the original Agent payload, not the backend-enriched fields.
 
 ### `Extra`: the diagnostic and investigation contract
 
