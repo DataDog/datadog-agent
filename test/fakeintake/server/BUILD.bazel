@@ -6,8 +6,8 @@ go_library(
     srcs = [
         "body.go",
         "http.go",
-        "par.go",
         "page.go",
+        "par.go",
         "rc.go",
         "redact.go",
         "server.go",
