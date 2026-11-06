@@ -57,8 +57,10 @@ func (c *sharingCollector) Device() ddnvml.Device {
 // Collect returns, for each container assigned a share of the device, samples
 // with its fraction and its memory, associated with that container only, so
 // that each share is attributable to one container. Containers without a known
-// share get nothing: whether they have the device to themselves or share it
-// some other way, such as time-slicing, cannot be told apart reliably.
+// share get nothing: they either have the device to themselves, or share it by
+// replication (time-slicing, MPS), whose allocations carry no per-container
+// share -- the sharing itself is detected separately, and reported as tags on
+// the container and device entities.
 func (c *sharingCollector) Collect() ([]Sample, error) {
 	deviceUUID := c.device.GetDeviceInfo().UUID
 
