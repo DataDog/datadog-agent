@@ -319,7 +319,7 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	if cfg == nil {
 		return settings
 	}
-	settings.UseMetricPipeline = !cfg.GetBool("anomaly_detection.use_legacy_detectors")
+	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.use_metric_pipeline")
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
 		// The anomaly_scorer has its own dedicated config prefix outside detectors.*.
