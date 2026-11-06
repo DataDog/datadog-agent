@@ -158,3 +158,14 @@ func (e *sharedTagsExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		},
 	}
 }
+
+// mustNewEngine builds an engine for tests, panicking if construction fails.
+// Production code returns errors from newEngine instead of panicking; tests may
+// not, which keeps call sites free of repeated error checks.
+func mustNewEngine(cfg engineConfig) *engine {
+	e, err := newEngine(cfg)
+	if err != nil {
+		panic(fmt.Sprintf("newEngine: %v", err))
+	}
+	return e
+}

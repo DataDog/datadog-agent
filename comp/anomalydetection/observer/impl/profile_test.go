@@ -48,7 +48,7 @@ func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
 		}
 	}
 
-	return newEngine(engineConfig{
+	return mustNewEngine(engineConfig{
 		storage:     storage,
 		detectors:   detectors,
 		correlators: correlators,
