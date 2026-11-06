@@ -21,6 +21,10 @@ if [ ! -d "$AIX_AGENT_SRC/.git" ]; then
     git clone --progress "$AIX_GIT_REMOTE" "$AIX_AGENT_SRC"
 fi
 cd "$AIX_AGENT_SRC"
+# The clone is persistent and the host is manually managed, so its origin
+# can have been changed on the host; always re-point it at the remote under
+# test before fetching.
+git remote set-url origin "$AIX_GIT_REMOTE"
 git clean -df
 git reset --hard
 git fetch --progress origin
