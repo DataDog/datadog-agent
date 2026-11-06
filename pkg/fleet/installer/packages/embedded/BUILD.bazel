@@ -11,8 +11,14 @@ exports_files(
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
 
+exports_files(
+    ["tmpl/gen/darwin-pm/processes.d/datadog-agent-sysprobe.yaml"],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
 service_srcs = glob([
     "tmpl/gen/pm/processes.d/*.yaml",
+    "tmpl/gen/darwin-pm/processes.d/*.yaml",
     "tmpl/gen/windows/*.yaml",
     "tmpl/gen/pm/debrpm/*.service",
     "tmpl/gen/pm/oci/*.service",
@@ -85,6 +91,7 @@ go_library(
         "tmpl/datadog-agent-security-windows.yaml.tmpl",
         "tmpl/datadog-agent-sysprobe.service.tmpl",
         "tmpl/datadog-agent-sysprobe-windows.yaml.tmpl",
+        "tmpl/datadog-agent-sysprobe-darwin.yaml.tmpl",
         "tmpl/datadog-agent-trace.service.tmpl",
         "tmpl/datadog-agent-trace-windows.yaml.tmpl",
         "tmpl/datadog-agent.service.tmpl",

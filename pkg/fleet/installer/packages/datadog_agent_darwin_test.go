@@ -10,6 +10,7 @@ package packages
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -22,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/launchd"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/processmanager"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -43,7 +45,8 @@ func (e exitError) ExitCode() int { return int(e) }
 // stubLaunchd replaces the launchd client with one that records its invocations instead of
 // running launchctl. print always reports the label as not loaded, so Bootout's settle loop
 // (which polls print after every bootout) returns immediately instead of spinning for the full
-// BootoutSettleTimeout.
+// BootoutSettleTimeout. It also stubs the processes.d catalog, so no test touches the real
+// install root.
 func stubLaunchd(t *testing.T) *[][]string {
 	t.Helper()
 
@@ -63,6 +66,7 @@ func stubLaunchd(t *testing.T) *[][]string {
 	}
 	t.Cleanup(func() { launchdClient = original })
 	stubUninstall(t)
+	stubProcmgrCatalog(t, &calls)
 	return &calls
 }
 
@@ -81,6 +85,84 @@ func stubUninstall(t *testing.T) *[][]string {
 	}
 	t.Cleanup(func() { defaultUninstallLayout, hostCommand = originalLayout, originalCommand })
 	return &commands
+}
+
+// catalogStub answers for the processes.d writer and remover with the errors it is given.
+type catalogStub struct {
+	writeErr  error
+	removeErr error
+}
+
+const (
+	catalogWriteCall  = "write-processes.d"
+	catalogRemoveCall = "remove-processes.d"
+)
+
+// stubProcmgrCatalog replaces the processes.d writer and remover with fakes that record their
+// calls into calls, beside the launchctl invocations, so the tests can check their order.
+func stubProcmgrCatalog(t *testing.T, calls *[][]string) *catalogStub {
+	t.Helper()
+
+	stub := &catalogStub{}
+	originalWrite, originalRemove := writeProcmgrCatalog, removeProcmgrCatalog
+	writeProcmgrCatalog = func(installRoot string) error {
+		*calls = append(*calls, []string{catalogWriteCall, installRoot})
+		return stub.writeErr
+	}
+	removeProcmgrCatalog = func(installRoot string) error {
+		*calls = append(*calls, []string{catalogRemoveCall, installRoot})
+		return stub.removeErr
+	}
+	t.Cleanup(func() { writeProcmgrCatalog, removeProcmgrCatalog = originalWrite, originalRemove })
+	return stub
+}
+
+// launchctlCalls drops the recorded processes.d writer and remover calls, leaving the launchctl
+// invocations.
+func launchctlCalls(calls [][]string) [][]string {
+	return slices.DeleteFunc(slices.Clone(calls), func(c []string) bool {
+		return len(c) > 0 && (c[0] == catalogWriteCall || c[0] == catalogRemoveCall)
+	})
+}
+
+// failProcmgrBootout makes the stubbed client fail to unload the process manager, which stays
+// loaded.
+func failProcmgrBootout(t *testing.T) {
+	t.Helper()
+
+	stub := launchdClient
+	launchdClient = func() *launchd.Client {
+		client := stub()
+		record := client.Runner
+		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
+			if len(args) == 2 && args[1] == "system/"+procmgrLabel {
+				switch args[0] {
+				case "bootout":
+					_, _ = record(ctx, name, args...)
+					return nil, errors.New("operation now in progress")
+				case "print":
+					return []byte("state = running"), nil
+				}
+			}
+			return record(ctx, name, args...)
+		}
+		return client
+	}
+}
+
+func callIndex(calls [][]string, call ...string) int {
+	return slices.IndexFunc(calls, func(c []string) bool { return slices.Equal(c, call) })
+}
+
+// procmgrCalls returns the launchctl verbs run against the process manager.
+func procmgrCalls(calls [][]string, dir string) []string {
+	var verbs []string
+	for _, args := range calls {
+		if slices.Contains(args, "system/"+procmgrLabel) || slices.Contains(args, filepath.Join(dir, procmgrLabel+".plist")) {
+			verbs = append(verbs, args[0])
+		}
+	}
+	return verbs
 }
 
 // stubJobDir points the hooks at a temporary directory instead of /Library/LaunchDaemons.
@@ -210,7 +292,7 @@ func TestInstallStableJobsLoadsTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
 
-	require.NoError(t, installStableJobs(testHookContext(t)))
+	require.NoError(t, installStableJobs(testHookContext(t), nil))
 
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		path := filepath.Join(dir, label+".plist")
@@ -261,7 +343,7 @@ func TestInstallStableJobsLoadsTheRestWhenOneFails(t *testing.T) {
 	}
 
 	dir := launchdJobDir
-	err := installStableJobs(testHookContext(t))
+	err := installStableJobs(testHookContext(t), nil)
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), failing)
@@ -504,7 +586,7 @@ func TestPostInstallDMGCreatesTheInstallerStateFirst(t *testing.T) {
 	ensured := false
 	ensureInstallerDataDir = func() error {
 		ensured = true
-		callsWhenEnsured = len(*calls)
+		callsWhenEnsured = len(launchctlCalls(*calls))
 		return nil
 	}
 	ctx := testHookContext(t)
@@ -554,7 +636,7 @@ func TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount(t *testing.T
 
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "_dd-agent does not exist")
-	assert.Empty(t, *calls, "launchd was called without the Agent's account")
+	assert.Empty(t, launchctlCalls(*calls), "launchd was called without the Agent's account")
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
 	}
@@ -807,4 +889,171 @@ func TestTheUninstallLayoutMatchesTheInstall(t *testing.T) {
 	assert.Contains(t, defaultUninstallLayout.paths, "/opt/datadog-packages")
 	assert.Contains(t, defaultUninstallLayout.paths, "/Applications/Datadog Agent.app")
 	assert.Contains(t, defaultUninstallLayout.paths, "/usr/local/bin/datadog-installer")
+}
+
+// dmgHookContext is a .dmg hook context, with the installer state and install layout stubbed so
+// the post-install runs against temporary directories.
+func dmgHookContext(t *testing.T) HookContext {
+	t.Helper()
+	stubInstallerState(t)
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+	return ctx
+}
+
+// assertLoaded checks every job but the skipped ones was written and bootstrapped.
+func assertLoaded(t *testing.T, calls [][]string, dir string, skip ...string) {
+	t.Helper()
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		if slices.Contains(skip, label) {
+			continue
+		}
+		assert.FileExists(t, filepath.Join(dir, label+".plist"))
+		assert.Contains(t, calls, []string{"bootstrap", "system", filepath.Join(dir, label+".plist")}, "%s was not loaded", label)
+	}
+}
+
+// TestPostInstallDMGWritesTheCatalogBeforeLoadingProcmgr pins that dd-procmgrd reads the catalog
+// when it starts: the writer runs before the process manager is first unloaded for its reload.
+func TestPostInstallDMGWritesTheCatalogBeforeLoadingProcmgr(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+
+	require.NoError(t, postInstallDMG(dmgHookContext(t)))
+
+	write := callIndex(*calls, catalogWriteCall, defaultDmgLayout.installDir)
+	require.NotEqual(t, -1, write, "the catalog was not written to %s", defaultDmgLayout.installDir)
+	bootout := callIndex(*calls, "bootout", "system/"+procmgrLabel)
+	require.NotEqual(t, -1, bootout)
+	assert.Less(t, write, bootout)
+	assertLoaded(t, *calls, dir)
+}
+
+func TestPostInstallDMGLoadsEveryJobWhenTheCatalogWriteFails(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubProcmgrCatalog(t, calls).writeErr = errors.New("no space left on device")
+
+	require.NoError(t, postInstallDMG(dmgHookContext(t)))
+	assertLoaded(t, *calls, dir)
+}
+
+// TestPostInstallDMGOmitsProcmgrOnAnUntrustedCatalog pins that dd-procmgrd, which runs as root
+// and starts what processes.d names, is neither loaded nor left loadable at boot on a catalog
+// that cannot be trusted, while every other job still loads.
+func TestPostInstallDMGOmitsProcmgrOnAnUntrustedCatalog(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubProcmgrCatalog(t, calls).writeErr = fmt.Errorf("%w: planted", processmanager.ErrUntrustedCatalog)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, procmgrLabel+".plist"), []byte("old definition"), 0o644))
+
+	require.NoError(t, postInstallDMG(dmgHookContext(t)))
+
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	verbs := procmgrCalls(*calls, dir)
+	assert.Contains(t, verbs, "bootout")
+	for _, verb := range []string{"enable", "bootstrap", "kickstart"} {
+		assert.NotContains(t, verbs, verb)
+	}
+	assertLoaded(t, *calls, dir, procmgrLabel)
+}
+
+func TestPostInstallDMGFailsWhenProcmgrCannotBeOmitted(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubProcmgrCatalog(t, calls).writeErr = fmt.Errorf("%w: planted", processmanager.ErrUntrustedCatalog)
+	failProcmgrBootout(t)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, procmgrLabel+".plist"), []byte("old definition"), 0o644))
+
+	err := postInstallDMG(dmgHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), procmgrLabel)
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"), "the definition is removed even if the job stays loaded")
+	verbs := procmgrCalls(*calls, dir)
+	for _, verb := range []string{"enable", "bootstrap", "kickstart"} {
+		assert.NotContains(t, verbs, verb)
+	}
+	assertLoaded(t, *calls, dir, procmgrLabel)
+}
+
+func TestPostInstallDMGRestoresProcmgrOnceTheCatalogIsTrusted(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	catalog := stubProcmgrCatalog(t, calls)
+	catalog.writeErr = fmt.Errorf("%w: planted", processmanager.ErrUntrustedCatalog)
+	require.NoError(t, postInstallDMG(dmgHookContext(t)))
+	require.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+
+	catalog.writeErr = nil
+	*calls = nil
+	require.NoError(t, postInstallDMG(dmgHookContext(t)))
+
+	assertLoaded(t, *calls, dir)
+}
+
+func TestInstallStableJobsLeavesASkippedJobAlone(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	path := filepath.Join(dir, procmgrLabel+".plist")
+	require.NoError(t, os.WriteFile(path, []byte("old definition"), 0o644))
+
+	require.NoError(t, installStableJobs(testHookContext(t), map[string]bool{procmgrLabel: true}))
+
+	assert.Empty(t, procmgrCalls(*calls, dir))
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	assert.Equal(t, "old definition", string(content))
+	assertLoaded(t, *calls, dir, procmgrLabel)
+}
+
+func TestPreRemoveRemovesTheCatalogAfterTheJobs(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+
+	require.NoError(t, preRemoveDatadogAgent(dmgHookContext(t)))
+
+	remove := callIndex(*calls, catalogRemoveCall, defaultDmgLayout.installDir)
+	require.NotEqual(t, -1, remove, "the catalog was not removed from %s", defaultDmgLayout.installDir)
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		bootout := callIndex(*calls, "bootout", "system/"+label)
+		require.NotEqual(t, -1, bootout)
+		assert.Less(t, bootout, remove, "%s was unloaded after the catalog was removed", label)
+	}
+}
+
+func TestPreRemoveSucceedsWhenTheCatalogCannotBeRemoved(t *testing.T) {
+	calls := stubLaunchd(t)
+	stubJobDir(t)
+	stubProcmgrCatalog(t, calls).removeErr = errors.New("permission denied")
+
+	require.NoError(t, preRemoveDatadogAgent(dmgHookContext(t)))
+}
+
+// TestPostInstallDMGOmitsProcmgrWithoutTheAgentsAccount pins that an untrusted catalog still takes
+// the process manager down when the Agent's account is missing and no other job is loaded: it
+// runs as root, so the missing account does not stop it from starting at boot.
+func TestPostInstallDMGOmitsProcmgrWithoutTheAgentsAccount(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubProcmgrCatalog(t, calls).writeErr = fmt.Errorf("%w: planted", processmanager.ErrUntrustedCatalog)
+	require.NoError(t, os.WriteFile(filepath.Join(dir, procmgrLabel+".plist"), []byte("old definition"), 0o644))
+	ctx := dmgHookContext(t)
+	agentUserExists = func() bool { return false }
+
+	err := postInstallDMG(ctx)
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "_dd-agent does not exist")
+	assert.NoFileExists(t, filepath.Join(dir, procmgrLabel+".plist"))
+	assert.Contains(t, procmgrCalls(*calls, dir), "bootout")
+	for _, args := range launchctlCalls(*calls) {
+		if args[0] == "print" {
+			continue
+		}
+		assert.Equal(t, []string{"bootout", "system/" + procmgrLabel}, args, "only the process manager may be touched")
+	}
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
+	}
 }

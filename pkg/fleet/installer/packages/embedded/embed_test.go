@@ -242,3 +242,44 @@ func TestShippedProcmgrConfigFilesListsEmbeds(t *testing.T) {
 	assert.Contains(t, shipped, "datadog-agent-ddot.yaml")
 	assert.Contains(t, shipped, "datadog-agent-par-control.yaml")
 }
+
+// TestDarwinProcmgrProcessesAreTheInertCatalog pins the macOS processes.d catalog to the inert
+// system-probe entry, rendered at codegen with the macOS paths.
+func TestDarwinProcmgrProcessesAreTheInertCatalog(t *testing.T) {
+	names, err := DarwinProcmgrProcesses()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"datadog-agent-sysprobe.yaml"}, names)
+
+	for _, name := range names {
+		t.Run(name, func(t *testing.T) {
+			content, err := GetDarwinProcmgrProcess(name)
+			require.NoError(t, err)
+			require.NotEmpty(t, content)
+			text := string(content)
+			assert.Contains(t, text, "auto_start: false")
+			assert.Contains(t, text, "/opt/datadog-agent/embedded/bin/")
+			assert.NotContains(t, text, "{{", "a template action was left unrendered")
+			assert.NotContains(t, text, "__", "an install-time placeholder would never be replaced on macOS")
+			assert.NotContains(t, text, ".exe")
+			assert.NotRegexp(t, `[A-Za-z]:\\`, text, "a Windows drive path")
+		})
+	}
+}
+
+// TestShippedProcmgrConfigFilesIncludesDarwin checks the darwin dir is scanned itself: the Windows
+// dir ships datadog-agent-sysprobe.yaml too, so a name check alone would pass without it.
+func TestShippedProcmgrConfigFilesIncludesDarwin(t *testing.T) {
+	var rels []string
+	for _, dir := range shippedProcmgrConfigDirs {
+		rels = append(rels, dir.rel)
+	}
+	assert.Contains(t, rels, darwinProcmgrConfigsDir)
+
+	shipped, err := ShippedProcmgrConfigFiles()
+	require.NoError(t, err)
+	names, err := DarwinProcmgrProcesses()
+	require.NoError(t, err)
+	for _, name := range names {
+		assert.Contains(t, shipped, name)
+	}
+}

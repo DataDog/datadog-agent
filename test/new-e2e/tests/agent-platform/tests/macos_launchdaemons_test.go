@@ -30,6 +30,13 @@ const (
 	macosPostinstallLogPath = "/opt/datadog-agent/logs/postinstall.log"
 	macosPreinstallLogPath  = "/opt/datadog-agent/logs/preinstall.log"
 
+	// The processes.d catalog dd-procmgrd loads, and the inert system-probe entry the installer
+	// writes into it.
+	macosInstallDir        = "/opt/datadog-agent"
+	macosProcessesDir      = macosInstallDir + "/processes.d"
+	macosSysprobeProcess   = "datadog-agent-sysprobe"
+	macosSysprobeEntryPath = macosProcessesDir + "/" + macosSysprobeProcess + ".yaml"
+
 	// Lines omnibus/package-scripts/agent-dmg/preinst writes to its log.
 	macosPreinstPreRemoveRan    = "# Running the installed version's pre-remove"
 	macosPreinstPreRemoveFailed = "WARNING: The installed version's pre-remove"
@@ -101,6 +108,12 @@ func macosLogLaunchDaemonDiagnostics(t *testing.T, client *common.MacOSTestClien
 	}
 	out, _ = client.Execute("sudo " + macosProcmgrCLI + " status --json 2>&1")
 	t.Logf("dd-procmgr status:\n%s", out)
+	out, _ = client.Execute("sudo " + macosProcmgrCLI + " list 2>&1")
+	t.Logf("dd-procmgr list:\n%s", out)
+	out, _ = client.Execute("sudo /bin/ls -led " + macosInstallDir + " " + macosProcessesDir + " 2>&1")
+	t.Logf("install root and processes.d:\n%s", out)
+	out, _ = client.Execute("sudo /bin/ls -le " + macosProcessesDir + " 2>&1")
+	t.Logf("processes.d entries:\n%s", out)
 }
 
 // macosLogDiagnosticsOnFailure registers a cleanup that logs LaunchDaemon diagnostics if the test
@@ -124,7 +137,8 @@ func assertMacosInstallerPostinstSucceeded(t *testing.T, client *common.MacOSTes
 
 // assertMacosStableLaunchDaemons checks each stable LaunchDaemon is installed from the definition
 // the installer embeds, owned by root:wheel with mode 644, and loaded. It also checks that
-// dd-procmgrd answers on its socket and is supervising nothing.
+// dd-procmgrd answers on its socket and lists the inert system-probe entry without running it, and
+// that the catalog it loads could only have been written by root.
 func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient) {
 	for _, label := range macosStableLaunchDaemons {
 		plist := macosLaunchDaemonPath(label)
@@ -147,29 +161,95 @@ func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient
 		}
 	}, 60*time.Second, 2*time.Second)
 
-	assertMacosProcmgrAnswers(t, client)
+	assertMacosProcmgrAnswers(t, client, 1)
+	assertMacosProcmgrCatalogFiles(t, client)
 }
 
-// assertMacosProcmgrAnswers checks dd-procmgrd is up and its catalog is empty.
+// assertMacosProcmgrAnswers checks dd-procmgrd is up and lists the inert catalog: expected
+// entries, every one skipped and none running.
 //
-// status is the call that proves the socket works. describe needs a process name, and no
-// processes.d entry is shipped on macOS yet, so there is nothing to describe.
-func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient) {
+// The system-probe entry ships with auto_start: false while launchd's com.datadoghq.sysprobe owns
+// the binary, so auto_start_false must be its only skip reason. A command path that does not exist
+// on the host would add path_missing, so this also checks the entry names the installed binary.
+func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, expected int) {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		out, err := client.Execute("sudo " + macosProcmgrCLI + " status --json")
 		if !assert.NoError(c, err, "dd-procmgr status failed:\n%s", out) {
 			return
 		}
 		var status struct {
-			Ready          bool `json:"ready"`
-			TotalProcesses int  `json:"total_processes"`
+			Ready                  bool `json:"ready"`
+			TotalProcesses         int  `json:"total_processes"`
+			RunningProcesses       int  `json:"running_processes"`
+			SkippedProcesses       int  `json:"skipped_processes"`
+			InvalidConfigProcesses int  `json:"invalid_config_processes"`
 		}
 		if !assert.NoError(c, json.Unmarshal([]byte(strings.TrimSpace(out)), &status), "dd-procmgr status output:\n%s", out) {
 			return
 		}
 		assert.True(c, status.Ready, "dd-procmgrd is not ready:\n%s", out)
-		assert.Equal(c, 0, status.TotalProcesses, "dd-procmgrd should be supervising nothing yet:\n%s", out)
+		assert.Equal(c, expected, status.TotalProcesses, "dd-procmgrd should list the shipped catalog:\n%s", out)
+		assert.Equal(c, 0, status.RunningProcesses, "dd-procmgrd should be running nothing yet:\n%s", out)
+		assert.Equal(c, expected, status.SkippedProcesses, "every shipped entry should be skipped:\n%s", out)
+		assert.Equal(c, 0, status.InvalidConfigProcesses, "a shipped entry did not parse:\n%s", out)
 	}, 60*time.Second, 2*time.Second)
+
+	if expected != 1 {
+		return
+	}
+
+	out, err := client.Execute("sudo " + macosProcmgrCLI + " list --json")
+	require.NoError(t, err, "dd-procmgr list failed:\n%s", out)
+	var list []struct {
+		Name        string   `json:"name"`
+		State       string   `json:"state"`
+		SkipReasons []string `json:"skip_reasons"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &list), "dd-procmgr list output:\n%s", out)
+	require.Len(t, list, 1, "dd-procmgr list output:\n%s", out)
+	assert.Equal(t, macosSysprobeProcess, list[0].Name)
+	assert.Equal(t, "Skipped", list[0].State)
+	assert.Equal(t, []string{"auto_start_false"}, list[0].SkipReasons)
+
+	out, err = client.Execute("sudo " + macosProcmgrCLI + " describe " + macosSysprobeProcess + " --json")
+	require.NoError(t, err, "dd-procmgr describe failed:\n%s", out)
+	var detail struct {
+		Command string   `json:"command"`
+		Args    []string `json:"args"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(strings.TrimSpace(out)), &detail), "dd-procmgr describe output:\n%s", out)
+	assert.Equal(t, macosInstallDir+"/embedded/bin/system-probe", detail.Command)
+	assert.Equal(t, []string{"run", "-c", macosInstallDir + "/etc"}, detail.Args)
+}
+
+// assertMacosProcmgrCatalogFiles checks the catalog dd-procmgrd loads could only have been written
+// by root: dd-procmgrd runs as root and starts what processes.d names. The install root,
+// processes.d and the entry are owned by root, have no group or other write bit, carry no ACL and
+// are not writable by the Agent's account. No untrusted processes.d was moved aside.
+func assertMacosProcmgrCatalogFiles(t *testing.T, client *common.MacOSTestClient) {
+	for path, expected := range map[string]string{
+		macosInstallDir:        "root 755",
+		macosProcessesDir:      "root 755",
+		macosSysprobeEntryPath: "root 644",
+	} {
+		attributes, err := client.Execute("sudo /usr/bin/stat -f '%Su %Lp' " + path)
+		require.NoError(t, err)
+		assert.Equal(t, expected, strings.TrimSpace(attributes), "%s has the wrong owner or mode", path)
+
+		// ls -e prints one line per ACL entry under the mode line.
+		acl, err := client.Execute("sudo /bin/ls -lde " + path)
+		require.NoError(t, err)
+		assert.Len(t, strings.Split(strings.TrimSpace(acl), "\n"), 1, "%s carries an ACL:\n%s", path, acl)
+
+		// Prints the result instead of relying on the exit status, so a failing sudo cannot pass.
+		writable, err := client.Execute("sudo -u _dd-agent sh -c 'if test -w \"$1\"; then echo writable; else echo readonly; fi' sh " + path)
+		require.NoError(t, err)
+		assert.Equal(t, "readonly", strings.TrimSpace(writable), "%s is writable by _dd-agent", path)
+	}
+
+	quarantines, err := client.Execute("sudo find " + macosInstallDir + " -maxdepth 1 -name 'processes.d.untrusted-*'")
+	require.NoError(t, err)
+	assert.Empty(t, strings.TrimSpace(quarantines), "an untrusted processes.d was moved aside")
 }
 
 // assertMacosInstallerLaunchDaemon checks the installer loaded its own daemon's job, root:wheel 644,
