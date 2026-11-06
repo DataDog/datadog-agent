@@ -767,6 +767,7 @@ func TestTagFilterADPGate(t *testing.T) {
 }
 
 // TestTypeFiltersAtOutput lists every metric type: check samplers only filter types whose sources' points add up.
+// HistogramType is only filtered for histogram buckets, which become sketches.
 func TestTypeFiltersAtOutput(t *testing.T) {
 	cases := map[metrics.MetricType]bool{
 		metrics.GaugeType:              false,
@@ -784,7 +785,8 @@ func TestTypeFiltersAtOutput(t *testing.T) {
 	require.Len(t, cases, int(metrics.NumMetricTypes), "every metric type is listed")
 	for mt, want := range cases {
 		t.Run(mt.String(), func(t *testing.T) {
-			assert.Equal(t, want, typeFiltersAtOutput(mt))
+			assert.Equal(t, want, typeFiltersAtOutput(mt, false))
 		})
 	}
+	assert.True(t, typeFiltersAtOutput(metrics.HistogramType, true), "histogram buckets become sketches")
 }

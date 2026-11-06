@@ -283,6 +283,67 @@ func sortedTagsOf(tags tagsJoiner) []string {
 	return out
 }
 
+func bucketSample(name, pod string, value int64, ts float64) *metrics.HistogramBucket {
+	tags := []string{"env:prod"}
+	if pod != "" {
+		tags = append(tags, "pod:"+pod)
+	}
+	return &metrics.HistogramBucket{Name: name, Value: value, LowerBound: 1, UpperBound: 2, Monotonic: true, Tags: tags, Timestamp: ts, MultipleBuckets: true}
+}
+
+func TestCheckSamplerMergesHistogramBucketsPerSource(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
+	matcher := filterPodMatcher(t, "my.hist")
+	flushMatcher := metricname.NewMatcher(nil, false)
+	merger := newCheckOutputMerger()
+
+	// Monotonic bucket counts keep their previous value per source: three sources with counts far apart, one of
+	// them without the pod tag, filter to one sketch whose count is the sum of each source's increase.
+	var sketches metrics.SketchSeriesList
+	for i, run := range []map[string]int64{{"a": 10, "b": 1000, "": 100000}, {"a": 15, "b": 1002, "": 100004}} {
+		for pod, value := range run {
+			cs.addBucket(bucketSample("my.hist", pod, value, float64(100+i)), matcher)
+		}
+		// An ordinary histogram of the same name, from another source, keeps its tags: its statistics can't be merged.
+		cs.addSample(podSample("my.hist", metrics.HistogramType, "h", 1, float64(100+i)), matcher)
+		cs.commit(float64(100+i)+0.5, &flushMatcher)
+		out := flushSampler(cs)
+		assert.Empty(t, out.mergedSeries)
+		assert.Empty(t, out.sketches)
+		merger.mergeSketches(out.mergedSketches)
+	}
+	merger.drain(nil, &sketches)
+
+	require.Len(t, sketches, 1)
+	assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(sketches[0].Tags))
+	require.Len(t, sketches[0].Points, 1, "the first run has no previous counts")
+	assert.Equal(t, int64(101), sketches[0].Points[0].Ts, "stamped at the commit")
+	assert.Equal(t, int64(5+2+4), sketches[0].Points[0].Sketch.Basic.Cnt)
+}
+
+func TestCheckSamplerRefiltersHistogramBuckets(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newTagFilterTestSampler("check:0", newFilteredIdentityTable())
+	key := cs.contextResolver.trackContext(bucketSample("my.hist", "a", 1, 100), filterlistimpl.NewNoopTagMatcher())
+	histogram := cs.contextResolver.trackContext(podSample("my.hist", metrics.HistogramType, "b", 1, 100), filterlistimpl.NewNoopTagMatcher())
+	// A gauge with the same name and tags as a source of buckets shares its context.
+	shared := cs.contextResolver.trackContext(podSample("my.hist", metrics.GaugeType, "c", 1, 100), filterlistimpl.NewNoopTagMatcher())
+	cs.contextResolver.trackContext(bucketSample("my.hist", "c", 1, 100), filterlistimpl.NewNoopTagMatcher())
+
+	// A rule added later filters bucket contexts, which report the same metric type as ordinary histograms.
+	for range 2 { // the same rules sent again change nothing
+		cs.refilter(filterPodMatcher(t, "my.hist"))
+		_, filtered := filteredTags(cs, key)
+		assert.True(t, filtered)
+		_, filtered = filteredTags(cs, histogram)
+		assert.False(t, filtered)
+		_, filtered = filteredTags(cs, shared)
+		assert.False(t, filtered, "a context shared with another type isn't filtered")
+		assert.Len(t, cs.contextResolver.resolver.filteredIdentities.byKey, 1)
+	}
+}
+
 // Context keys don't include the metric type: samples of different types with the same name and tags share a
 // context. Once a context gets samples of a type that can't be filtered, none of its output is filtered.
 func TestCheckSamplerDoesNotFilterContextsSharedWithOtherTypes(t *testing.T) {
@@ -292,18 +353,26 @@ func TestCheckSamplerDoesNotFilterContextsSharedWithOtherTypes(t *testing.T) {
 	distribution := podSample("my.metric", metrics.DistributionType, "a", 1, 100)
 	explicitCount := &metrics.MetricSample{Name: "my.metric", Mtype: metrics.CountWithTimestampType, Value: 5,
 		Tags: []string{"env:prod", "pod:a"}, SampleRate: 1, Timestamp: 90}
+	buckets := &metrics.HistogramBucket{Name: "my.metric", Value: 3, LowerBound: 1, UpperBound: 2,
+		Tags: []string{"env:prod", "pod:a"}, Timestamp: 100}
 
-	for name, samples := range map[string][]*metrics.MetricSample{
+	for name, samples := range map[string][]metrics.MetricSampleContext{
 		"histogram then distribution":                {histogram, distribution},
 		"distribution then histogram":                {distribution, histogram},
 		"distribution then explicit-timestamp count": {distribution, explicitCount},
+		"histogram then buckets":                     {histogram, buckets},
 	} {
 		t.Run(name, func(t *testing.T) {
 			table := newFilteredIdentityTable()
 			cs := newTagFilterTestSampler("check:0", table)
 			matcher := filterPodMatcher(t, "my.metric")
 			for _, sample := range samples {
-				cs.addSample(sample, matcher)
+				switch sample := sample.(type) {
+				case *metrics.MetricSample:
+					cs.addSample(sample, matcher)
+				case *metrics.HistogramBucket:
+					cs.addBucket(sample, matcher)
+				}
 			}
 			cs.commit(101, &flushMatcher)
 			out := flushSampler(cs)
