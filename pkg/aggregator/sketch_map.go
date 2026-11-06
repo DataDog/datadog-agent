@@ -24,16 +24,6 @@ func (m sketchMap) Len() int {
 	return l
 }
 
-// contains reports whether a sketch is stored for the given contextKey, at any timestamp
-func (m sketchMap) contains(ck ckey.ContextKey) bool {
-	for _, byCtx := range m {
-		if _, ok := byCtx[ck]; ok {
-			return true
-		}
-	}
-	return false
-}
-
 // insert v into a sketch for the given (ts, contextKey)
 // NOTE: ts is truncated to bucketSize
 func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64, sampleRate float64) bool {
@@ -43,20 +33,6 @@ func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64, sampleRate fl
 
 	m.getOrCreate(ts, ck).Insert(v, sampleRate)
 	return true
-}
-
-func (m sketchMap) insertInterp(ts int64, ck ckey.ContextKey, lower float64, upper float64, count uint) bool {
-	if math.IsInf(lower, 0) || math.IsNaN(lower) {
-		return false
-	}
-
-	if math.IsInf(upper, 0) || math.IsNaN(upper) {
-		return false
-	}
-
-	// Use the error to indicate whether the insertion happened.
-	err := m.getOrCreate(ts, ck).InsertInterpolate(lower, upper, count)
-	return err == nil
 }
 
 func (m sketchMap) getOrCreate(ts int64, ck ckey.ContextKey) *quantile.Agent {

@@ -36,7 +36,7 @@ type CheckSampler struct {
 	sketches               metrics.SketchSeriesList
 	contextResolver        *countBasedContextResolver
 	metrics                metrics.CheckMetrics
-	sketchMap              sketchMap
+	pendingSketches        contextSketches
 	lastBucketValue        map[ckey.ContextKey]int64
 	lastBucketValueByBound map[ckey.ContextKey]map[bucketBounds]int64
 	deregistered           bool
@@ -68,7 +68,7 @@ func newCheckSampler(
 		sketches:               make(metrics.SketchSeriesList, 0),
 		contextResolver:        newCountBasedContextResolver(expirationCount, cache, tagger, string(id)),
 		metrics:                metrics.NewCheckMetrics(expireMetrics, statefulTimeout),
-		sketchMap:              make(sketchMap),
+		pendingSketches:        make(contextSketches),
 		lastBucketValue:        make(map[ckey.ContextKey]int64),
 		contextResolverMetrics: contextResolverMetrics,
 		logThrottling:          util.NewSimpleThrottler(5, 5*time.Minute, ""),
@@ -92,7 +92,7 @@ func (cs *CheckSampler) addSample(metricSample *metrics.MetricSample, tagFilterL
 		}, uint64(contextKey))
 	}
 	if metricSample.Mtype == metrics.DistributionType {
-		cs.sketchMap.insert(int64(metricSample.Timestamp), contextKey, metricSample.Value, metricSample.SampleRate)
+		cs.pendingSketches.insert(contextKey, metricSample.Value, metricSample.SampleRate)
 		return
 	}
 
@@ -202,13 +202,13 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 
 	// "if the quantile falls into the highest bucket, the upper bound of the 2nd highest bucket is returned"
 	if math.IsInf(bucket.UpperBound, 1) {
-		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
+		cs.pendingSketches.insertInterp(contextKey, bucket.LowerBound, bucket.LowerBound, uint(bucket.Value))
 		return
 	}
 
 	// mirror the +Inf case: the open-ended bottom bucket collapses to its upper bound
 	if math.IsInf(bucket.LowerBound, -1) {
-		cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.UpperBound, bucket.UpperBound, uint(bucket.Value))
+		cs.pendingSketches.insertInterp(contextKey, bucket.UpperBound, bucket.UpperBound, uint(bucket.Value))
 		return
 	}
 
@@ -216,7 +216,7 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 		"Interpolating %d values over the [%f-%f] bucket",
 		bucket.Value, bucket.LowerBound, bucket.UpperBound,
 	)
-	cs.sketchMap.insertInterp(int64(bucket.Timestamp), contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
+	cs.pendingSketches.insertInterp(contextKey, bucket.LowerBound, bucket.UpperBound, uint(bucket.Value))
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
@@ -258,17 +258,16 @@ func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.Co
 	}
 }
 
+// commitSketches releases the sketch of every context the check run submitted to, stamped at the commit, as series
+// are.
 func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname.Matcher) {
-	pointsByCtx := make(map[ckey.ContextKey][]metrics.SketchPoint)
-
-	cs.sketchMap.flushBefore(int64(timestamp), func(ck ckey.ContextKey, p metrics.SketchPoint) {
-		if p.Sketch == nil {
-			return
+	defer clear(cs.pendingSketches)
+	for ck, agent := range cs.pendingSketches {
+		sketch := agent.Finish()
+		if sketch == nil {
+			continue
 		}
-		pointsByCtx[ck] = append(pointsByCtx[ck], p)
-	})
-	for ck, points := range pointsByCtx {
-		series := cs.newSketchSeries(ck, points)
+		series := cs.newSketchSeries(ck, []metrics.SketchPoint{{Sketch: sketch, Ts: int64(timestamp)}})
 		if series == nil {
 			continue
 		}
@@ -328,7 +327,8 @@ func (cs *CheckSampler) commitDecomposable(timestamp float64, filterList *metric
 func (cs *CheckSampler) hasState(key ckey.ContextKey) bool {
 	_, bucket := cs.lastBucketValue[key]
 	_, byBound := cs.lastBucketValueByBound[key]
-	return bucket || byBound || cs.sketchMap.contains(key)
+	_, sketch := cs.pendingSketches[key]
+	return bucket || byBound || sketch
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {
