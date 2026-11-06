@@ -123,13 +123,24 @@ class TestMainRepoErrors(unittest.TestCase):
             "ERROR: /wsx/pkg/c/BUILD.bazel:1:1: not the workspace\n"
         )
         self.assertEqual(
-            go_tags.main_repo_errors(stderr, "/ws"),
+            go_tags.main_repo_errors(stderr, "/ws", "/ob"),
             ["ERROR: /ws/pkg/a/BUILD.bazel:3:8: //pkg/a:a_test: no such attribute 'x' in 'go_test' rule"],
+        )
+
+    def test_output_base_inside_the_workspace(self):
+        stderr = (
+            "ERROR: /ws/.cache/bazel/ob/external/toolchains_msvc+/msbuild/BUILD.bazel:14:6: no such package"
+            " '@@msbuild//': execvp(/ws/.cache/bazel/ob/external/msiutil/msiutil.exe, ...) failed\n"
+            "ERROR: /ws/pkg/a/BUILD.bazel:3:8: no such package '@@x//': referenced by '//pkg/a:a'\n"
+        )
+        self.assertEqual(
+            go_tags.main_repo_errors(stderr, "/ws", "/ws/.cache/bazel/ob"),
+            ["ERROR: /ws/pkg/a/BUILD.bazel:3:8: no such package '@@x//': referenced by '//pkg/a:a'"],
         )
 
     def test_windows_workspace(self):
         stderr = "ERROR: C:/ws/pkg/a/BUILD.bazel:3:8: no such attribute\n"
-        self.assertEqual(go_tags.main_repo_errors(stderr, "C:\\ws"), [stderr.strip()])
+        self.assertEqual(go_tags.main_repo_errors(stderr, "C:\\ws", "C:\\ob"), [stderr.strip()])
 
 
 class TestSourcePath(unittest.TestCase):

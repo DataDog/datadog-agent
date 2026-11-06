@@ -74,17 +74,28 @@ def scan_build_tags(path: str) -> set[str] | None:
     return tags
 
 
-def main_repo_errors(query_stderr: str, workspace: str) -> list[str]:
+_ERROR_LOCATION = re.compile(r"^ERROR: (.+?):\d+:\d+: ")
+
+
+def main_repo_errors(query_stderr: str, workspace: str, output_base: str) -> list[str]:
     """
     Query errors located in the main repository.
 
     `--keep_going` drops a package that fails to load, and with it any external package only it depends on.
     """
+
     # Bazel prints Windows paths with forward slashes.
-    prefix = workspace.replace("\\", "/").rstrip("/") + "/"
-    return [
-        line for line in query_stderr.splitlines() if line.startswith("ERROR: ") and prefix in line.replace("\\", "/")
-    ]
+    def directory(path: str) -> str:
+        return path.replace("\\", "/").rstrip("/") + "/"
+
+    main, external = directory(workspace), directory(output_base)
+    errors = []
+    for line in query_stderr.splitlines():
+        location = _ERROR_LOCATION.match(line)
+        # CI keeps the output base inside the checkout.
+        if location and location[1].startswith(main) and not location[1].startswith(external):
+            errors.append(line)
+    return errors
 
 
 def _is_main_repo(label: str) -> bool:

@@ -447,12 +447,12 @@ def write_tag_manifest(_):
         ignore_errors=True,
     )
     repo_root = str(get_repo_root())
+    output_base = bazel("info", "output_base", capture_output=True).strip()
     # 3: some packages failed to load, e.g. Windows-only toolchain repositories on other hosts. That is only fatal
     # for main-repository packages, or when a Go package is among them, which build_manifest detects.
-    if query.returncode not in (0, 3) or go_tags.main_repo_errors(query.stderr, repo_root):
+    if query.returncode not in (0, 3) or go_tags.main_repo_errors(query.stderr, repo_root, output_base):
         print(query.stderr, file=sys.stderr)
         raise Exit(message="`bazel query` failed, see the errors above", code=query.returncode or 1)
-    output_base = bazel("info", "output_base", capture_output=True).strip()
     try:
         universe, manifest = go_tags.build_manifest(
             go_tags.parse_graph(query.stdout),
