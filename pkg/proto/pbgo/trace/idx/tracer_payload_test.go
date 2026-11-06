@@ -361,22 +361,28 @@ func TestDecodersBoundAllocationsByInput(t *testing.T) {
 	}
 
 	// v1: {11: chunks[{4: spans[{11: links[{3: attributes[key, type, value, ...]}]}]}]}
-	v1Chunks := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendMapHeader(nil, 1), 11), huge)
-	v1Spans := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendMapHeader(v1Chunks, 1), 4), huge)
-	v1Links := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendMapHeader(v1Spans, 1), 11), huge)
-	v1LinkAttrs := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendMapHeader(v1Links, 1), 3), huge-1)
-	v1NestedArrays := msgp.AppendUint32(v1LinkAttrs, 0) // attribute key
-	for i := 0; i < 10; i++ {
-		v1NestedArrays = msgp.AppendArrayHeader(msgp.AppendUint32(v1NestedArrays, 6), huge) // array value
+	// Nested cases declare one element at every parent level and an oversized count only at the
+	// container under test, so decoding reaches that container's guard. Counts of maxCollectionSize
+	// pass the per-header limit, so they are rejected only by the remaining-input check.
+	v1Field := func(prefix []byte, field uint32) []byte {
+		return msgp.AppendUint32(msgp.AppendMapHeader(bytes.Clone(prefix), 1), field)
 	}
-	// Counts that pass the per-header limit must still be rejected when the input is too short
-	// to hold that many elements.
-	v1ChunksAtLimit := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendMapHeader(nil, 1), 11), maxCollectionSize)
-	v1StringTable := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendMapHeader(nil, 1), 1), huge)
+	v1Chunk := msgp.AppendArrayHeader(v1Field(nil, 11), 1)
+	v1Span := msgp.AppendArrayHeader(v1Field(v1Chunk, 4), 1)
+	v1Link := msgp.AppendArrayHeader(v1Field(v1Span, 11), 1)
+	v1Chunks := msgp.AppendArrayHeader(v1Field(nil, 11), huge)
+	v1ChunksAtLimit := msgp.AppendArrayHeader(v1Field(nil, 11), maxCollectionSize)
+	v1Spans := msgp.AppendArrayHeader(v1Field(v1Chunk, 4), maxCollectionSize)
+	v1Links := msgp.AppendArrayHeader(v1Field(v1Span, 11), maxCollectionSize)
+	v1LinkAttrs := msgp.AppendArrayHeader(v1Field(v1Link, 3), maxCollectionSize-2) // a multiple of 3
+	// One attribute (key 0, type 6 = array) whose array value declares maxCollectionSize elements.
+	v1ArrayValue := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendUint32(msgp.AppendArrayHeader(v1Field(v1Link, 3), 3), 0), 6), maxCollectionSize)
+	v1StringTable := msgp.AppendArrayHeader(v1Field(nil, 1), huge)
 
-	// v0.4: [[{"meta": {...}}]] and [[{"span_links": [...]}]]
+	// v0.4: [[span, ...], ...]
 	v04Traces := msgp.AppendArrayHeader(nil, huge)
-	v04Spans := msgp.AppendArrayHeader(v04Traces, huge)
+	v04TracesAtLimit := msgp.AppendArrayHeader(nil, maxCollectionSize)
+	v04Spans := msgp.AppendArrayHeader(msgp.AppendArrayHeader(nil, 1), maxCollectionSize)
 	v04Meta := msgp.AppendMapHeader(msgp.AppendString(msgp.AppendMapHeader(msgp.AppendArrayHeader(msgp.AppendArrayHeader(nil, 1), 1), 1), "meta"), maxCollectionSize)
 	// One byte per declared entry passes the header check but fails checkSlabCount (two bytes per entry);
 	// the attribute map must not be sized before that check runs.
@@ -406,9 +412,10 @@ func TestDecodersBoundAllocationsByInput(t *testing.T) {
 		{"v1 spans", v1, v1Spans},
 		{"v1 span links", v1, v1Links},
 		{"v1 link attributes", v1, v1LinkAttrs},
-		{"v1 nested array values", v1, v1NestedArrays},
+		{"v1 array value", v1, v1ArrayValue},
 		{"v1 string table", v1, v1StringTable},
 		{"v0.4 traces", v04, v04Traces},
+		{"v0.4 traces at limit", v04, v04TracesAtLimit},
 		{"v0.4 spans", v04, v04Spans},
 		{"v0.4 meta", v04, v04Meta},
 		{"v0.4 meta half backed", v04, v04MetaHalfBacked},
