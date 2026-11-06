@@ -4,7 +4,12 @@ from unittest.mock import patch
 
 from invoke.exceptions import Exit
 
-from tasks.agent import add_rc_x509_cgo_flags, install_rc_x509_build_files, needs_rc_x509_build_files
+from tasks.agent import (
+    RC_X509_WINDOWS_LDFLAGS,
+    add_rc_x509_cgo_flags,
+    install_rc_x509_build_files,
+    needs_rc_x509_build_files,
+)
 
 
 class TestRCX509BuildInputs(unittest.TestCase):
@@ -77,7 +82,7 @@ class TestRCX509BuildInputs(unittest.TestCase):
         }
         native_embedded_path = os.path.join(os.sep, "tmp", "agent", "embedded")
 
-        add_rc_x509_cgo_flags(env, native_embedded_path)
+        add_rc_x509_cgo_flags(env, native_embedded_path, "linux")
 
         self.assertEqual(env["CGO_CFLAGS"], f"-Werror -I{native_embedded_path}/include")
         self.assertEqual(env["CGO_LDFLAGS"], f"-L/existing/lib -L{native_embedded_path}/lib")
@@ -87,10 +92,18 @@ class TestRCX509BuildInputs(unittest.TestCase):
         env = {}
         native_embedded_path = os.path.join(os.sep, "tmp", "agent", "embedded")
 
-        add_rc_x509_cgo_flags(env, native_embedded_path)
+        add_rc_x509_cgo_flags(env, native_embedded_path, "linux")
 
         self.assertEqual(env["CGO_CFLAGS"], f" -I{native_embedded_path}/include")
         self.assertEqual(env["CGO_LDFLAGS"], f" -L{native_embedded_path}/lib")
+
+    def test_links_the_mingw_runtime_statically_on_windows(self):
+        env = {}
+        native_embedded_path = os.path.join(os.sep, "tmp", "agent", "embedded")
+
+        add_rc_x509_cgo_flags(env, native_embedded_path, "win32")
+
+        self.assertEqual(env["CGO_LDFLAGS"], f" -L{native_embedded_path}/lib {RC_X509_WINDOWS_LDFLAGS}")
 
     def test_needs_build_files_when_rc_x509_tag_is_set(self):
         self.assertTrue(needs_rc_x509_build_files({"rc_x509", "zlib"}, "linux", enable_bazel=False))

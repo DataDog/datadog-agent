@@ -52,6 +52,10 @@ BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
 RC_X509_BUILD_FILES_INSTALL = "@libdd_rc_source//:install_rc_x509_ffi_build_files"
+# On Windows the Rust library needs MinGW's libgcc unwinder and winpthread, which
+# would otherwise link as DLLs the Agent doesn't ship. Link them statically; keep
+# in sync with rc_x509_ffi_cc's linkopts in deps/libdd_rc/libdd_rc.BUILD.bazel.
+RC_X509_WINDOWS_LDFLAGS = "-static-libgcc -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive,-Bdynamic"
 
 
 def rc_x509_supported(target_platform):
@@ -82,10 +86,12 @@ def needs_rc_x509_build_files(build_tags, target_platform, enable_bazel):
     return "rc_x509" in build_tags and rc_x509_supported(target_platform) and not enable_bazel
 
 
-def add_rc_x509_cgo_flags(env, native_embedded_path):
+def add_rc_x509_cgo_flags(env, native_embedded_path, target_platform):
     """Add the rc-x509 header and static-library directories to a Go build environment."""
     env["CGO_CFLAGS"] = env.get("CGO_CFLAGS", "") + f" -I{os.path.join(native_embedded_path, 'include')}"
     env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" -L{os.path.join(native_embedded_path, 'lib')}"
+    if target_platform == "win32":
+        env["CGO_LDFLAGS"] += f" {RC_X509_WINDOWS_LDFLAGS}"
 
 
 @task
@@ -217,7 +223,7 @@ def build(
         platform=target_platform,
     )
     if rc_x509_embedded_path:
-        add_rc_x509_cgo_flags(env, rc_x509_embedded_path)
+        add_rc_x509_cgo_flags(env, rc_x509_embedded_path, target_platform)
 
     if target_platform == 'win32':
         # Important for x-compiling
