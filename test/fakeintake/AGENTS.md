@@ -20,6 +20,13 @@ test/fakeintake/
     └── client/       # CLI tool (fakeintakectl)
 ```
 
+## Embedding the server
+
+Configure `server.NewServer` with options before `Start`. Embedders can use
+`WithListenerFactory` to wrap `net.Listener` and its accepted connections for
+transport observation while retaining the official handlers and payload store.
+The server owns listener shutdown. Without this option it uses `net.Listen`.
+
 ## Supported endpoints
 
 | Route | Aggregator | Client method |
