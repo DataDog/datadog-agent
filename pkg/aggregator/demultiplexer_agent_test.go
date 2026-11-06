@@ -594,8 +594,9 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 
 	// sendAndFlush submits a distribution sample with the given timestamp via
 	// the check sampler path (not DogStatsD), commits it, then flushes.
-	// Using an explicit past timestamp ensures the sketch bucket is always
-	// older than the commit time and will be flushed.
+	// Sketches of tag-filtered metrics are stamped at commit, and a flush holds
+	// those from its own second for the next flush: flushing at a later time
+	// ensures the sketch is sent.
 	sendAndFlush := func(ts float64) {
 		demux.aggregator.checkItems <- &senderMetricSample{
 			id: checkID,
@@ -616,7 +617,7 @@ func TestUpdateTagFilterListCheckSamplerCacheInvalidation(t *testing.T) {
 		require.Eventually(func() bool {
 			return len(demux.aggregator.checkItems) == 0
 		}, time.Second, time.Millisecond)
-		demux.ForceFlushToSerializer(time.Now(), true, false)
+		demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
 	}
 
 	// First send: tag1 and tag2 are excluded. This is a cache miss so the
@@ -771,6 +772,12 @@ func createDemultiplexerAgentTestDeps(t *testing.T) DemultiplexerAgentTestDeps {
 	)
 }
 
+// startTagFilterDemux starts a demultiplexer with a rule stripping the pod tag from dist.metric and count.metric,
+// and registers check samplers.
+func startTagFilterDemux(t *testing.T, checks ...checkid.ID) (*AgentDemultiplexer, *MockSerializerSketch) {
+	return startTagFilterDemuxWithSettings(t, map[string]any{"metric_tag_filterlist_adp_only": false}, checks...)
+}
+
 // startTagFilterDemuxWithSettings starts the demultiplexer with the given settings, which decide whether rules
 // apply.
 func startTagFilterDemuxWithSettings(t *testing.T, settings map[string]any, checks ...checkid.ID) (*AgentDemultiplexer, *MockSerializerSketch) {
@@ -916,4 +923,46 @@ func TestTagFilterListMergesAcrossCheckInstances(t *testing.T) {
 			assert.Len(t, seriesNamed(s.series, "other.metric"), 2, "metrics without a rule keep one series per pod")
 		})
 	}
+}
+
+func TestTagFilterListStopSendsHeldPoints(t *testing.T) {
+	// The stop flush is forced with dogstatsd_flush_incomplete_buckets, and isn't by default: both send what's held.
+	for _, flushIncompleteBuckets := range []bool{false, true} {
+		t.Run(fmt.Sprintf("dogstatsd_flush_incomplete_buckets=%v", flushIncompleteBuckets), func(t *testing.T) {
+			demux, s := startTagFilterDemux(t, "openmetrics:pod-a")
+			configmock.New(t).SetInTest("dogstatsd_flush_incomplete_buckets", flushIncompleteBuckets)
+
+			beforeCommit := time.Now()
+			submitPodMetrics(demux, "openmetrics:pod-a", "a", 1)
+			waitForCheckItems(t, demux)
+			// A flush with a cutoff before the commit holds the filtered points.
+			demux.ForceFlushToSerializer(beforeCommit, true, false)
+			require.Empty(t, sketchesNamed(s.sketches, "dist.metric"))
+			require.Empty(t, seriesNamed(s.series, "count.metric"))
+
+			demux.Stop()
+			assert.Len(t, sketchesNamed(s.sketches, "dist.metric"), 1)
+			assert.Len(t, seriesNamed(s.series, "count.metric"), 1)
+		})
+	}
+}
+
+func TestTagFilterListAgentCheckSendsHeldPoints(t *testing.T) {
+	demux, _ := startTagFilterDemux(t, "openmetrics:pod-a", "openmetrics:pod-b")
+	defer demux.Stop()
+
+	// agent check reads the aggregator right after the check runs: what the merger holds is included.
+	submitPodMetrics(demux, "openmetrics:pod-a", "a", 1)
+	submitPodMetrics(demux, "openmetrics:pod-b", "b", 2)
+	waitForCheckItems(t, demux)
+	series, sketches := demux.aggregator.GetSeriesAndSketches(time.Now())
+
+	assert.Equal(t, 3.0, mergedSeriesTotal(t, series, "count.metric", metrics.APIRateType))
+	var dists []*metrics.SketchSeries
+	for _, sketch := range sketches {
+		if sketch.Name == "dist.metric" {
+			dists = append(dists, sketch)
+		}
+	}
+	assert.Equal(t, int64(2), mergedSketchCount(t, dists))
 }

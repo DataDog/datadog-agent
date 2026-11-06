@@ -576,13 +576,14 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 	var series metrics.Series
 	var sketches metrics.SketchSeriesList
 	agg.getSeriesAndSketches(before, &series, &sketches)
+	agg.drainCheckOutputs(&series, &sketches)
 	return series, sketches
 }
 
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
-// Check output that merges across sources goes through the check output merger.
+// Check output that merges across sources goes to the check output merger instead.
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	_ time.Time,
 	seriesSink metrics.SerieSink,
@@ -611,7 +612,6 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 			delete(agg.checkSamplers, checkId)
 		}
 	}
-	agg.checkOutputMerger.flush(seriesSink, sketchesSink)
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
@@ -705,7 +705,27 @@ func (agg *BufferedAggregator) appendDefaultSeries(start time.Time, series metri
 
 func (agg *BufferedAggregator) flushSeriesAndSketches(trigger flushTrigger) {
 	agg.getSeriesAndSketches(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	if trigger.forceFlushAll || trigger.final {
+		agg.drainCheckOutputs(trigger.seriesSink, trigger.sketchesSink)
+	} else {
+		agg.flushCheckOutputs(trigger.time, trigger.seriesSink, trigger.sketchesSink)
+	}
 	agg.appendDefaultSeries(trigger.time, trigger.seriesSink)
+}
+
+// flushCheckOutputs sends the merged outputs of tag-filtered check metrics from seconds before the flush, holding
+// the others for a later flush.
+func (agg *BufferedAggregator) flushCheckOutputs(now time.Time, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.checkOutputMerger.flush(now.Unix(), seriesSink, sketchesSink)
+}
+
+// drainCheckOutputs sends every merged output of tag-filtered check metrics, for when no flush follows.
+func (agg *BufferedAggregator) drainCheckOutputs(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.checkOutputMerger.drain(seriesSink, sketchesSink)
 }
 
 // GetServiceChecks grabs all the service checks from the queue and clears the queue
