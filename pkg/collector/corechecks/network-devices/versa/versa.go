@@ -96,6 +96,8 @@ type checkCfg struct {
 	MaxCount                              int           `yaml:"max_count"`
 	ClientTimeout                         int           `yaml:"client_timeout"`
 	LookbackTimeWindowMinutes             int           `yaml:"lookback_time_window_minutes"`
+	AnalyticsQueryType                    string        `yaml:"analytics_query_type"`
+	AnalyticsGap                          string        `yaml:"analytics_gap"`
 	UseHTTP                               bool          `yaml:"use_http"`
 	Insecure                              bool          `yaml:"insecure"`
 	CAFile                                string        `yaml:"ca_file"`
@@ -115,6 +117,7 @@ type checkCfg struct {
 	CollectApplicationsByApplianceMetrics *bool         `yaml:"collect_applications_by_appliance_metrics"`
 	CollectTopUserMetrics                 *bool         `yaml:"collect_top_user_metrics"`
 	CollectQoSMetrics                     *bool         `yaml:"collect_qos_metrics"`
+	CollectCircuitQoSMetrics              *bool         `yaml:"collect_circuit_qos_metrics"`
 	CollectDIAMetrics                     *bool         `yaml:"collect_dia_metrics"`
 	CollectSiteMetrics                    *bool         `yaml:"collect_site_metrics"`
 	CollectInterfaceMetrics               *bool         `yaml:"collect_interface_metrics"`
@@ -182,8 +185,8 @@ func (v *VersaCheck) Run() error {
 	needsDeviceMapping := *v.config.SendInterfaceMetadata || *v.config.CollectDirectorInterfaceMetrics ||
 		*v.config.CollectSLAMetrics || *v.config.CollectLinkMetrics || *v.config.CollectSiteMetrics ||
 		*v.config.CollectApplicationsByApplianceMetrics || *v.config.CollectTopUserMetrics ||
-		*v.config.CollectTunnelMetrics || *v.config.CollectQoSMetrics || *v.config.CollectDIAMetrics ||
-		*v.config.CollectInterfaceMetrics
+		*v.config.CollectTunnelMetrics || *v.config.CollectQoSMetrics || *v.config.CollectCircuitQoSMetrics ||
+		*v.config.CollectDIAMetrics || *v.config.CollectInterfaceMetrics
 
 	// Gather appliances if we need device metadata, hardware metrics, or device mapping
 	collectAppliances := *v.config.SendDeviceMetadata || *v.config.CollectHardwareMetrics || needsDeviceMapping
@@ -420,6 +423,17 @@ func (v *VersaCheck) Run() error {
 			v.metricsSender.SendTunnelMetrics(tunnelMetrics, deviceNameToIDMap)
 		}
 
+		// Collect per access circuit QoS metrics if enabled
+		if *v.config.CollectCircuitQoSMetrics {
+			circuitQoSMetrics, err := c.GetCircuitQoSMetrics(org.Name)
+			if err != nil {
+				log.Errorf("error getting circuit QoS metrics from organization %s: %v", org.Name, err)
+			} else {
+				circuitQoSMetrics = filterAnalyticsMetricsByDevice(circuitQoSMetrics, monitoredDevices, func(m client.CircuitQoSMetrics) string { return m.Site })
+				v.metricsSender.SendCircuitQoSMetrics(circuitQoSMetrics, deviceNameToIDMap)
+			}
+		}
+
 		// Collect QoS metrics if enabled
 		if *v.config.CollectQoSMetrics {
 			qosMetrics, err := c.GetPathQoSMetrics(org.Name)
@@ -510,6 +524,7 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	instanceConfig.CollectApplicationsByApplianceMetrics = boolPointer(false)
 	instanceConfig.CollectTopUserMetrics = boolPointer(false)
 	instanceConfig.CollectQoSMetrics = boolPointer(false)
+	instanceConfig.CollectCircuitQoSMetrics = boolPointer(false)
 	instanceConfig.CollectDIAMetrics = boolPointer(false)
 	instanceConfig.CollectSiteMetrics = boolPointer(false)
 	instanceConfig.CollectInterfaceMetrics = boolPointer(false)
@@ -538,6 +553,24 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 
 	if v.config.MinCollectionInterval != 0 {
 		v.interval = time.Second * time.Duration(v.config.MinCollectionInterval)
+	}
+
+	// Fail at configure time rather than passing an unknown query type to the Analytics
+	// API, where it would surface as an opaque per-call failure on every run.
+	switch v.config.AnalyticsQueryType {
+	case "", client.QueryTypeTableData, client.QueryTypeTimeseries:
+	default:
+		return fmt.Errorf("invalid analytics_query_type %q, expected %q or %q",
+			v.config.AnalyticsQueryType, client.QueryTypeTableData, client.QueryTypeTimeseries)
+	}
+
+	// Versa rejects a gap outside this set, 15MINUTE included. Warn rather than fail,
+	// since the accepted set is tenant and version dependent and a hard error would block
+	// a value that a given Director does accept.
+	switch strings.ToUpper(v.config.AnalyticsGap) {
+	case "", "1MINUTE", "1HOUR", "1DAY":
+	default:
+		log.Warnf("analytics_gap %q is outside the values Versa documents (1MINUTE, 1HOUR, 1DAY) and may be rejected", v.config.AnalyticsGap)
 	}
 
 	v.metricsSender = report.NewSender(sender, v.config.Namespace)
@@ -579,6 +612,14 @@ func (v *VersaCheck) buildClientOptions() ([]client.ClientOptions, error) {
 
 	if v.config.LookbackTimeWindowMinutes > 0 {
 		clientOptions = append(clientOptions, client.WithLookback(v.config.LookbackTimeWindowMinutes))
+	}
+
+	if v.config.AnalyticsQueryType != "" {
+		clientOptions = append(clientOptions, client.WithAnalyticsQueryType(v.config.AnalyticsQueryType))
+	}
+
+	if v.config.AnalyticsGap != "" {
+		clientOptions = append(clientOptions, client.WithAnalyticsGap(v.config.AnalyticsGap))
 	}
 
 	return clientOptions, nil
