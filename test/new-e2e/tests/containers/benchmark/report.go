@@ -136,12 +136,11 @@ func (r *Result) Fail(err error) {
 type Report struct {
 	ClusterName string `json:"cluster_name"`
 	// Phases are the windows of the first phase and of the swapped one.
-	Phases     [2]Window `json:"phases"`
-	Baseline   Version   `json:"baseline"`
-	Comparison Version   `json:"comparison"`
-	Results    []Result  `json:"results"`
-	// DashboardURL is the URL of a dashboard of the run.
-	DashboardURL string `json:"dashboard_url,omitempty"`
+	Phases       [2]Window `json:"phases"`
+	Baseline     Version   `json:"baseline"`
+	Comparison   Version   `json:"comparison"`
+	Results      []Result  `json:"results"`
+	DashboardURL string    `json:"dashboard_url,omitempty"`
 }
 
 // notable reports whether a metric improved, regressed or couldn't be compared: the outcomes

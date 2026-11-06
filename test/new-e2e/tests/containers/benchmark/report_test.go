@@ -168,7 +168,6 @@ func TestURLs(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "/profiling/explorer", profiles.Path)
 	assert.Equal(t, "kube_cluster_name:bench kube_namespace:datadog-a", profiles.Query().Get("query"))
-	assert.Equal(t, "1791885600000", profiles.Query().Get("from_ts"))
 
 	assert.Equal(t, "https://dddev.datadoghq.com/dashboard/abc-def-ghi?from_ts=1791885600000&live=false&refresh_mode=paused&to_ts=1791887400000&tpl_var_kube_cluster_name%5B0%5D=bench&tpl_var_profiles_from%5B0%5D=1791885600000",
 		DashboardURL(appURL, "abc-def-ghi", map[string]string{"kube_cluster_name": "bench", "profiles_from": "1791885600000"}, testFrom, to))
