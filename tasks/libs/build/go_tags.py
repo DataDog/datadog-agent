@@ -24,6 +24,7 @@ _LIBRARY_KINDS = {"go_library", "go_proto_library", "go_source"}
 _ROOT_KINDS = {"go_test", "go_binary"}
 # go_proto_library adds its compilers' deps (grpc, the protobuf runtime) to its own.
 _EDGE_ATTRS = ("deps", "embed", "compilers", "compiler", "actual")
+_QUERIED_ATTRS = (*_EDGE_ATTRS, "srcs", "importpath", "gotags")
 _SCANNED_EXTENSIONS = (".go", ".s", ".S", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".m", ".syso")
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
 
@@ -197,7 +198,16 @@ def main() -> int:
     def bazel(*args: str) -> subprocess.CompletedProcess:
         return subprocess.run([command, *args], cwd=workspace, env=env, capture_output=True, text=True)
 
-    query = bazel("query", "--consistent_labels", "--keep_going", "--output=streamed_jsonproto", QUERY)
+    query = bazel(
+        "query",
+        "--consistent_labels",
+        "--keep_going",
+        "--output=streamed_jsonproto",
+        f"--proto:output_rule_attrs={','.join(_QUERIED_ATTRS)}",
+        "--proto:rule_inputs_and_outputs=false",
+        "--proto:locations=false",
+        QUERY,
+    )
     info = bazel("info", "output_base")
     if info.returncode != 0:
         print(info.stderr, file=sys.stderr)
