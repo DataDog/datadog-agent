@@ -2268,9 +2268,24 @@ func expandTypesWithBudgets(
 		return err
 	}
 
-	// Process any newly added expression leaf types.
-	if err := proc.drainQueue(); err != nil {
-		return err
+	// Complete types created during exploration before discarding placeholders.
+	for {
+		if err := proc.drainQueue(); err != nil {
+			return err
+		}
+		added := false
+		for id, t := range tc.typesByID {
+			if _, ok := t.(*pointeePlaceholderType); ok {
+				continue
+			}
+			if _, ok := processedBest[id]; !ok {
+				proc.push(t, 0)
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
 	}
 
 	// Rewrite placeholders to unresolved pointee types.
