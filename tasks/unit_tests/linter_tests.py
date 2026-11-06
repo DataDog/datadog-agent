@@ -1,8 +1,9 @@
 import os
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from codeowners import CodeOwners
+from invoke import Context
 
 import tasks.linter as linter
 from tasks.libs.linter.gitlab_exceptions import FailureLevel, GitlabLintFailure
@@ -213,3 +214,31 @@ class TestGitlabCIJobsCodeowners(unittest.TestCase):
         with self.assertRaises(GitlabLintFailure) as cm:
             linter._gitlab_ci_jobs_codeowners_lint(['becareful', '.gitlab-ci.yml'], CodeOwners(codeowners))
         self.assertEqual(cm.exception.level, FailureLevel.ERROR)
+
+
+class TestReleasenoteReusedUidsBaseBranch(unittest.TestCase):
+    """The task runs as a pre-commit hook, so it must not reach the GitHub API (which prompts for a token)."""
+
+    def run_task(self, **kwargs):
+        ctx = MagicMock(spec=Context)
+        ctx.run.return_value = MagicMock(ok=False, stdout="")
+        with (
+            patch.object(linter, "get_ancestor_base_branch", side_effect=AssertionError("GitHub API lookup")),
+            patch.object(linter, "GithubAPI", side_effect=AssertionError("GitHub API lookup")),
+            patch.object(linter, "get_default_branch", return_value="main"),
+            patch.object(linter, "get_common_ancestor", return_value="abc123") as get_common_ancestor,
+        ):
+            linter.releasenote_reused_uids(ctx, **kwargs)
+        return get_common_ancestor.call_args.args[2]
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_files_defaults_to_main(self):
+        self.assertEqual("origin/main", self.run_task(files="releasenotes/notes/new-note-0123456789abcdef.yaml"))
+
+    @patch.dict(os.environ, {}, clear=True)
+    def test_only_changed_defaults_to_main(self):
+        self.assertEqual("origin/main", self.run_task(only_changed=True))
+
+    @patch.dict(os.environ, {"COMPARE_TO_BRANCH": "7.85.x"}, clear=True)
+    def test_compare_to_branch(self):
+        self.assertEqual("origin/7.85.x", self.run_task(only_changed=True))
