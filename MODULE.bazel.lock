@@ -1051,13 +1051,13 @@
         "pulumi-resource-docker-v5.2.0-windows-amd64.tar.gz": "sha1-NyFnrywgLGVnM2g3qZxZ3GMn248=",
         "pulumi-resource-docker-v5.2.0-windows-arm64.tar.gz": "sha1-29xOfaFzhsuMVIR0X2tSeQhsXn8="
       },
-      "https://github.com/pulumi/pulumi-eks/releases/download/v4.4.0/pulumi-eks_4.4.0_checksums.txt": {
-        "pulumi-resource-eks-v4.4.0-darwin-amd64.tar.gz": "sha1-fLTt+UlwwN49CqVI6SjijUfVRh0=",
-        "pulumi-resource-eks-v4.4.0-darwin-arm64.tar.gz": "sha1-pn1pI2/OfYWQnkf9/MrSUDMoMKM=",
-        "pulumi-resource-eks-v4.4.0-linux-amd64.tar.gz": "sha1-ZzorqrDtqIxh+TwgZaNIzDOAC24=",
-        "pulumi-resource-eks-v4.4.0-linux-arm64.tar.gz": "sha1-6MdM5m4isCQ56TgiRwlI26nMmvw=",
-        "pulumi-resource-eks-v4.4.0-windows-amd64.tar.gz": "sha1-eTmfDqT2auG598ZLTDEKXwFZ34c=",
-        "pulumi-resource-eks-v4.4.0-windows-arm64.tar.gz": "sha1-8jz49bK9DH7YeQVsDfRbMxcYhCw="
+      "https://github.com/pulumi/pulumi-eks/releases/download/v4.5.0/pulumi-eks_4.5.0_checksums.txt": {
+        "pulumi-resource-eks-v4.5.0-darwin-amd64.tar.gz": "sha1-7CjidWiFR0rImzbYWjo0LLyWGtQ=",
+        "pulumi-resource-eks-v4.5.0-darwin-arm64.tar.gz": "sha1-Y5LmLGtKRnzjX/LtOEX3SUz6DHY=",
+        "pulumi-resource-eks-v4.5.0-linux-amd64.tar.gz": "sha1-i1T0RZzDcrq0jAy1GLaQyCx7FXA=",
+        "pulumi-resource-eks-v4.5.0-linux-arm64.tar.gz": "sha1-WM8gvQgdxn7L+0a3Ie7sf4/N8R0=",
+        "pulumi-resource-eks-v4.5.0-windows-amd64.tar.gz": "sha1-x3mjkTO8cjeeO+Fg12wdiPrkssw=",
+        "pulumi-resource-eks-v4.5.0-windows-arm64.tar.gz": "sha1-BSMG9CzasgYtyIULhhgXqWM3jDM="
       },
       "https://github.com/pulumi/pulumi-gcp/releases/download/v10.2.0/pulumi-gcp_10.2.0_checksums.txt": {
         "pulumi-resource-gcp-v10.2.0-darwin-amd64.tar.gz": "sha1-l4Ps4AGDqbJ4iEqvmLa5iMSAnqI=",
@@ -1154,7 +1154,7 @@
         "name": "docker",
         "url": "https://github.com/pulumi/pulumi-docker"
       },
-      "https://registry.npmjs.org/@pulumi/eks/4.4.0": {
+      "https://registry.npmjs.org/@pulumi/eks/4.5.0": {
         "dependencies": {
           "@pulumi/aws": "v7.25.0",
           "@pulumi/kubernetes": "v4.19.0"
