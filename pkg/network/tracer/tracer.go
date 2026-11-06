@@ -169,17 +169,22 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		}
 	}()
 
-	tr.ebpfTracer, err = connection.NewTracer(cfg, telemetryComponent)
-	if err != nil {
-		return nil, err
-	}
-	telemetryComponent.RegisterCollector(tr.ebpfTracer)
-
+	// the conntracker comes first so the connection tracer can share the eBPF conntracker's map
 	tr.conntracker, err = newConntracker(cfg, telemetryComponent)
 	if err != nil {
 		return nil, err
 	}
 	telemetryComponent.RegisterCollector(tr.conntracker)
+
+	var tracerOpts []connection.Option
+	if m := ebpfConntrackerMap(tr.conntracker); m != nil {
+		tracerOpts = append(tracerOpts, connection.WithConntrackNATMap(m))
+	}
+	tr.ebpfTracer, err = connection.NewTracer(cfg, telemetryComponent, tracerOpts...)
+	if err != nil {
+		return nil, err
+	}
+	telemetryComponent.RegisterCollector(tr.ebpfTracer)
 
 	if cfg.EnableGatewayLookup {
 		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections, telemetryComponent)
@@ -279,6 +284,20 @@ func loadEbpfConntracker(cfg *config.Config, telemetryComponent telemetryCompone
 	}
 
 	return NewEBPFConntracker(cfg, telemetryComponent)
+}
+
+// ebpfConntrackerMap returns the eBPF conntracker's map of NAT'd connections, or nil if it isn't loaded.
+func ebpfConntrackerMap(c netlink.Conntracker) *ebpf.Map {
+	ctks := []netlink.Conntracker{c}
+	if chain, ok := c.(*chainConntracker); ok {
+		ctks = chain.ctks
+	}
+	for _, ctk := range ctks {
+		if e, ok := ctk.(*ebpfConntracker); ok {
+			return e.ctMap.Map()
+		}
+	}
+	return nil
 }
 
 func newConntracker(cfg *config.Config, telemetryComponent telemetryComponent.Component) (netlink.Conntracker, error) {

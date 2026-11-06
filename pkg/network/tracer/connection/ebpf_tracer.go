@@ -175,7 +175,64 @@ type ebpfTracer struct {
 }
 
 // NewTracer creates a new tracer
-func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, error) {
+// shareConntrackNATMap makes the tracer use the eBPF conntracker's map of NAT'd connections in place of its
+// placeholder, which also leaves the net_dev_queue probe unattached.
+func shareConntrackNATMap(o *manager.Options, m *ebpf.Map) {
+	if o.MapEditors == nil {
+		o.MapEditors = make(map[string]*ebpf.Map)
+	}
+	o.MapEditors[probes.ConntrackMap] = m
+	setNATLookupMode(o, natLookupConntrack)
+	// a replacement must match the placeholder's spec
+	o.MapSpecEditors[probes.ConntrackMap] = manager.MapSpecEditor{
+		Type:       m.Type(),
+		MaxEntries: m.MaxEntries(),
+		Flags:      m.Flags(),
+		EditorFlag: manager.EditType | manager.EditMaxEntries | manager.EditFlags,
+	}
+	// only net_dev_queue fills it, and that isn't attached
+	o.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: 1, EditorFlag: manager.EditMaxEntries}
+}
+
+// unshareConntrackNATMap undoes shareConntrackNATMap.
+func unshareConntrackNATMap(o *manager.Options, config *config.Config) {
+	delete(o.MapEditors, probes.ConntrackMap)
+	delete(o.MapSpecEditors, probes.ConntrackMap)
+	o.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
+	setNATLookupMode(o, natLookupSKBCache)
+}
+
+// nat_lookup_mode values, matching NAT_LOOKUP_* in tracer/nat.h
+const (
+	natLookupConntrack uint64 = 1
+	natLookupSKBCache  uint64 = 2
+)
+
+// setNATLookupMode tells the tracer which map holds the NAT'd tuples, so it skips the lookup in the other one.
+func setNATLookupMode(o *manager.Options, mode uint64) {
+	o.ConstantEditors = slices.DeleteFunc(o.ConstantEditors, func(c manager.ConstantEditor) bool { return c.Name == "nat_lookup_mode" })
+	o.ConstantEditors = append(o.ConstantEditors, manager.ConstantEditor{Name: "nat_lookup_mode", Value: mode})
+}
+
+func loadFentryOrKprobeTracer(config *config.Config, mgrOptions manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), TracerType, error) {
+	m, closeTracerFn, err := fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
+	if err == nil {
+		log.Info("fentry tracer loaded successfully")
+		return m, closeTracerFn, TracerTypeFentry, nil
+	}
+	if !errors.Is(err, fentry.ErrorDisabled) {
+		return nil, nil, 0, fmt.Errorf("fentry tracer failed to load: %w", err)
+	}
+
+	m, closeTracerFn, kprobeTracerType, err := kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
+	if err != nil {
+		return nil, nil, 0, fmt.Errorf("kprobe tracer failed to load: %w", err)
+	}
+	log.Info("kprobe tracer loaded successfully")
+	return m, closeTracerFn, TracerType(kprobeTracerType), nil
+}
+
+func newEbpfTracer(config *config.Config, _ telemetryComponent.Component, opts options) (Tracer, error) {
 	if _, err := tracefs.Root(); err != nil {
 		return nil, fmt.Errorf("eBPF based network tracer unsupported: %s", err)
 	}
@@ -247,23 +304,18 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		mgrOptions.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPOngoingConnectPid] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPRecvMsgArgsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries}
-
-		tracerType = TracerTypeFentry
-		m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
-		if err == nil {
-			log.Info("fentry tracer loaded successfully")
-		} else if !errors.Is(err, fentry.ErrorDisabled) {
-			return nil, fmt.Errorf("fentry tracer failed to load: %w", err)
+		setNATLookupMode(&mgrOptions, natLookupSKBCache)
+		if opts.conntrackNATMap != nil {
+			shareConntrackNATMap(&mgrOptions, opts.conntrackNATMap)
 		}
-
+		m, closeTracerFn, tracerType, err = loadFentryOrKprobeTracer(config, mgrOptions, connCloseEventHandler)
+		if err != nil && opts.conntrackNATMap != nil {
+			log.Warnf("tracer failed to load with the eBPF conntracker's map, loading it with net_dev_queue instead: %s", err)
+			unshareConntrackNATMap(&mgrOptions, config)
+			m, closeTracerFn, tracerType, err = loadFentryOrKprobeTracer(config, mgrOptions, connCloseEventHandler)
+		}
 		if err != nil {
-			var kprobeTracerType kprobe.TracerType
-			m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
-			if err != nil {
-				return nil, fmt.Errorf("kprobe tracer failed to load: %w", err)
-			}
-			tracerType = TracerType(kprobeTracerType)
-			log.Info("kprobe tracer loaded successfully")
+			return nil, err
 		}
 	}
 	m.DumpHandler = dumpMapsHandler
