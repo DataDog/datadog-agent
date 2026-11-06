@@ -1014,7 +1014,7 @@ func TestBuildAnalyticsPathTimeseries(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, QueryTypeTimeseries, query.Get("qt"))
 	require.Equal(t, "today", query.Get("end-date"))
-	require.Equal(t, "15MINUTE", query.Get("gap"))
+	require.Equal(t, defaultAnalyticsGap, query.Get("gap"))
 	require.Equal(t, "(accessType:DIA)", query.Get("fq"))
 	require.Equal(t, "siteStatus", query.Get("jq"))
 	require.Equal(t, "4000", query.Get("from-count"))
@@ -1081,9 +1081,9 @@ func TestGetSLAMetricsTimeseries(t *testing.T) {
 	slaMetrics, err := client.GetSLAMetrics("datadog")
 	require.NoError(t, err)
 
-	// Two paths, three buckets each, versus the single aggregate row tableData returns for
-	// the same window.
-	require.Len(t, slaMetrics, 6)
+	// Two paths, three buckets each, of which the newest is held back as still filling,
+	// versus the single aggregate row tableData returns for the same window.
+	require.Len(t, slaMetrics, 4)
 
 	assert.Equal(t, SLAMetrics{
 		DrillKey:            "test-branch-2B,Controller-2,INET-1,INET-1,fc_nc",
@@ -1103,10 +1103,11 @@ func TestGetSLAMetricsTimeseries(t *testing.T) {
 	assert.Equal(t, 0.5, slaMetrics[1].FwdLossRatio)
 	assert.Equal(t, int64(1793968200000), slaMetrics[1].Timestamp)
 
-	// Buckets are ordered oldest first within an entity.
-	for i := 1; i < 3; i++ {
-		assert.Greater(t, slaMetrics[i].Timestamp, slaMetrics[i-1].Timestamp)
-	}
+	// Buckets are ordered oldest first within an entity, and entities are ordered by drill
+	// key, so the second entity's buckets follow the first entity's.
+	assert.Greater(t, slaMetrics[1].Timestamp, slaMetrics[0].Timestamp)
+	assert.Equal(t, "test-branch-3A", slaMetrics[2].LocalSite)
+	assert.Greater(t, slaMetrics[3].Timestamp, slaMetrics[2].Timestamp)
 }
 
 func TestGetSLAMetricsTableDataCarriesNoTimestamp(t *testing.T) {
@@ -1136,7 +1137,8 @@ func TestGetPathQoSMetricsTimeseries(t *testing.T) {
 	qosMetrics, err := client.GetPathQoSMetrics("datadog")
 	require.NoError(t, err)
 
-	require.Len(t, qosMetrics, 2)
+	// Two buckets, of which the newest is held back as still filling.
+	require.Len(t, qosMetrics, 1)
 	assert.Equal(t, QoSMetrics{
 		DrillKey:             "test-branch-2B,Controller-2",
 		LocalSiteName:        "test-branch-2B",
@@ -1159,7 +1161,6 @@ func TestGetPathQoSMetricsTimeseries(t *testing.T) {
 		Bandwidth:            14800.0,
 		Timestamp:            1793967300000,
 	}, qosMetrics[0])
-	assert.Equal(t, int64(1793968200000), qosMetrics[1].Timestamp)
 }
 
 func TestGetCircuitQoSMetrics(t *testing.T) {

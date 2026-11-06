@@ -6,7 +6,6 @@
 package client
 
 import (
-	"fmt"
 	"sort"
 	"strings"
 )
@@ -18,22 +17,30 @@ type timeseriesRow struct {
 	row       []interface{}
 }
 
-// groupByFieldCount returns the number of group by fields in an Analytics query
-// expression such as "slam(localsite,remotesite,fc)". A timeseries response does not
-// return those fields as separate columns the way tableData does, only joined together
-// into the series name, so the count is how we know where to split the name back apart.
-func groupByFieldCount(query string) (int, error) {
-	open := strings.Index(query, "(")
-	closeParen := strings.LastIndex(query, ")")
-	if open < 0 || closeParen < open {
-		return 0, fmt.Errorf("could not parse group by fields from query %q", query)
-	}
-	args := strings.TrimSpace(query[open+1 : closeParen])
-	if args == "" {
-		return 0, nil
-	}
-	return strings.Count(args, ",") + 1, nil
+// timeseriesLayout describes how to rebuild tableData shaped rows from a timeseries
+// response for one endpoint. Only endpoints that have a layout support timeseries; the
+// rest fall back to tableData, deliberately.
+//
+// Two things make this per endpoint rather than derivable from the query. The drill key is
+// not always the group by arguments joined together: linkusage and tunnelstats take
+// attribute arguments such as accckt.ip that key on a subset, so counting the arguments
+// over-counts the parts. And not every parser expects a leading drill key column at all:
+// parseSiteMetrics reads the site name from column zero.
+type timeseriesLayout struct {
+	// drillKeyFields is the number of comma separated parts the drill key splits into,
+	// which is also the number of columns the parser expects between the drill key and
+	// the first metric value.
+	drillKeyFields int
 }
+
+// Layouts for the endpoints verified against real timeseries responses. Adding one for a
+// further endpoint means checking its drill key against its parser's column count first,
+// ideally against a captured response.
+var (
+	slaTimeseriesLayout        = &timeseriesLayout{drillKeyFields: 5}
+	pathQoSTimeseriesLayout    = &timeseriesLayout{drillKeyFields: 2}
+	circuitQoSTimeseriesLayout = &timeseriesLayout{drillKeyFields: 2}
+)
 
 // flattenTimeseries converts the per metric series of a timeseries response into
 // tableData shaped rows, one per entity per time bucket: the drill key, then the group by
@@ -41,7 +48,11 @@ func groupByFieldCount(query string) (int, error) {
 //
 // A bucket is only emitted once every requested metric has reported a value for it, since
 // the parsers index columns positionally and a missing value would shift everything after
-// it. The count of buckets dropped for that reason is returned so the caller can log it.
+// it. The newest bucket of each entity is also held back, because Versa buckets are wall
+// clock aligned and the current one is still filling: publishing it would pin a partial
+// value at that timestamp, and the dedupe would then refuse the complete value that
+// arrives on the next run. The count of buckets dropped for either reason is returned so
+// the caller can log it.
 func flattenTimeseries(series []AnalyticsTimeseries, metrics []string, groupBy int) ([]timeseriesRow, int) {
 	metricIndex := make(map[string]int, len(metrics))
 	for i, metric := range metrics {
@@ -117,7 +128,12 @@ func flattenTimeseries(series []AnalyticsTimeseries, metrics []string, groupBy i
 		}
 		sort.Slice(timestamps, func(i, j int) bool { return timestamps[i] < timestamps[j] })
 
-		for _, timestamp := range timestamps {
+		for i, timestamp := range timestamps {
+			if i == len(timestamps)-1 {
+				// The newest bucket is still accumulating; it lands on the next run.
+				dropped++
+				continue
+			}
 			b := byTime[timestamp]
 			if b.filled != len(metrics) {
 				dropped++
