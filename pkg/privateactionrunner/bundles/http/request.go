@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
@@ -78,6 +79,28 @@ type RequestInputs struct {
 	ResponseEncoding        *string         `json:"responseEncoding,omitempty"`
 }
 
+var allowedVerbs = []string{
+	http.MethodHead,
+	http.MethodGet,
+	http.MethodPut,
+	http.MethodPost,
+	http.MethodDelete,
+	http.MethodPatch,
+}
+
+func normalizeVerb(verb string) (string, error) {
+	// net/http sends an empty method as GET; keep accepting it.
+	if verb == "" {
+		return http.MethodGet, nil
+	}
+	for _, allowed := range allowedVerbs {
+		if strings.EqualFold(verb, allowed) {
+			return allowed, nil
+		}
+	}
+	return "", fmt.Errorf("unsupported HTTP verb %q, allowed values: %s", verb, strings.Join(allowedVerbs, ", "))
+}
+
 type RequestOutputs struct {
 	Status  int         `json:"status"`
 	Body    interface{} `json:"body,omitempty"`
@@ -92,6 +115,10 @@ func (h *Handler) Run(
 	inputs, err := types.ExtractInputs[RequestInputs](task)
 	if err != nil {
 		return nil, util.DefaultActionError(err)
+	}
+	verb, err := normalizeVerb(inputs.Verb)
+	if err != nil {
+		return nil, util.DefaultActionErrorWithDisplayError(err, err.Error())
 	}
 
 	if err := validateHeaders(inputs.RequestHeaders); err != nil {
@@ -145,20 +172,20 @@ func (h *Handler) Run(
 		if err != nil {
 			return nil, util.DefaultActionErrorWithDisplayError(err, "error encoding JSON request body")
 		}
-		req, err = http.NewRequestWithContext(ctx, inputs.Verb, requestURL.String(), bytes.NewBuffer(reqBody))
+		req, err = http.NewRequestWithContext(ctx, verb, requestURL.String(), bytes.NewBuffer(reqBody))
 		if err != nil {
 			return nil, util.DefaultActionErrorWithDisplayError(err, "error creating request")
 		}
 		initHTTPRequestHeader(headers, req)
 	} else if formData != nil {
-		req, err = http.NewRequestWithContext(ctx, inputs.Verb, requestURL.String(), formData)
+		req, err = http.NewRequestWithContext(ctx, verb, requestURL.String(), formData)
 		if err != nil {
 			return nil, util.DefaultActionErrorWithDisplayError(err, "error creating request")
 		}
 		initHTTPRequestHeader(headers, req)
 		req.Header.Set("Content-Type", formContentType)
 	} else {
-		req, err = http.NewRequestWithContext(ctx, inputs.Verb, requestURL.String(), nil)
+		req, err = http.NewRequestWithContext(ctx, verb, requestURL.String(), nil)
 		if err != nil {
 			return nil, util.DefaultActionErrorWithDisplayError(err, "error creating request")
 		}

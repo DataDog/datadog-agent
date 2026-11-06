@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The Private Action Runner ``com.datadoghq.http.request`` and
+    ``com.datadoghq.http.testConnection`` actions now reject HTTP verbs other
+    than ``HEAD``, ``GET``, ``PUT``, ``POST``, ``DELETE`` and ``PATCH``, the
+    values the action documents. Verbs are matched case-insensitively and sent
+    in uppercase; an empty verb is still sent as ``GET``.
