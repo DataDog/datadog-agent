@@ -109,10 +109,15 @@ func (cr *contextResolver) generateContextKey(metricSampleContext metrics.Metric
 	return cr.keyGenerator.GenerateWithTags2(metricSampleContext.GetName(), metricSampleContext.GetHost(), cr.taggerBuffer, cr.metricBuffer)
 }
 
+// tagFilterEnabled returns whether metric_tag_filterlist rules apply: when data_plane.enabled is true, or
+// metric_tag_filterlist_adp_only is false.
+func tagFilterEnabled() bool {
+	cfg := pkgconfigsetup.Datadog()
+	return cfg.GetBool("data_plane.enabled") || !cfg.GetBool("metric_tag_filterlist_adp_only")
+}
+
 func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *contextResolver {
 	cfg := pkgconfigsetup.Datadog()
-	adpEnabled := cfg.GetBool("data_plane.enabled")
-	adpOnly := cfg.GetBool("metric_tag_filterlist_adp_only")
 	return &contextResolver{
 		id:               id,
 		contextsByKey:    make(map[ckey.ContextKey]resolverEntry),
@@ -126,7 +131,7 @@ func newContextResolver(tagger tagger.Component, cache *tags.Store, id string) *
 		taggerBuffer:     tagset.NewHashingTagsAccumulator(),
 		metricBuffer:     tagset.NewHashingTagsAccumulator(),
 		tagFilterCache:   newTagFilterCache(cfg.GetInt("aggregator_tag_filter_cache_capacity")),
-		tagFilterEnabled: adpEnabled || !adpOnly,
+		tagFilterEnabled: tagFilterEnabled(),
 	}
 }
 
