@@ -95,7 +95,7 @@ type Check struct {
 	sysprobeData        *sysprobeDataTracker             // sysprobeData tracks failures of the system-probe data sources; only touched from the Run goroutine
 	draCDIMissingSince  time.Time                        // draCDIMissingSince is when running DRA claims without readable CDI specs were first seen; only touched from the Run goroutine
 	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
-	skipNVML            bool                             // skipNVML is set in Configure when gpu.amd.enabled is on and the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
+	skipNVML            bool                             // skipNVML is set in Configure when the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
 	nodeUnschedulable   *nodeunschedulable.Cache         // nodeUnschedulable is the unschedulable state of the node, nil when gpu.unschedulable_nodes.enabled is false; refreshed before the collectors run
 }
@@ -220,8 +220,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
 		c.sysRoot = kernel.SysFSRoot()
 	}
-	c.skipNVML = pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") && hasOnlyAMDGPUs(c.sysRoot)
-	if c.skipNVML {
+	// With no NVIDIA GPU, NVML would only fail on every run.
+	c.skipNVML = hasOnlyAMDGPUs(c.sysRoot)
+	if c.skipNVML && !pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") {
+		log.Warn("All GPUs on this host are AMD and gpu.amd.enabled is false: set it to true (DD_GPU_AMD_ENABLED) to monitor them with the AMD GPU check")
+	} else if c.skipNVML {
 		log.Info("All GPUs on this host are AMD: the AMD GPU check collects them, the NVIDIA GPU check stays idle")
 	}
 	c.strictIntervals = nvidia.NewStrictIntervalProcessor(c.gpuConfig.StaticMetricsReportingInterval)
@@ -676,8 +679,8 @@ const (
 
 // hasOnlyAMDGPUs reports whether the PCI inventory under sysRoot
 // (<sysRoot>/bus/pci/devices) has at least one AMD GPU and no NVIDIA GPU. When
-// it does, and AMD collection is enabled, the NVIDIA GPU check stays idle and
-// leaves the host to the AMD GPU check.
+// it does, the NVIDIA GPU check stays idle and leaves the host to the AMD GPU
+// check.
 //
 // It reads the PCI bus rather than driver state, so that:
 //   - an NVIDIA GPU counts even if its driver is missing or broken: the NVIDIA
