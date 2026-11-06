@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix data loss when ``metric_tag_filterlist`` removes the tags that
+    distinguish the sources of a check metric, such as the pod of each check
+    instance.
