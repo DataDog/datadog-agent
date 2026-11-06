@@ -105,6 +105,10 @@ func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpecs *Archit
 	t.Helper()
 
 	testMode := testutil.DeviceFeatureMode(config.DeviceMode)
+	if config.DeviceMode == DeviceModeMIGParent {
+		// A MIG parent is a physical GPU with MIG enabled; the mock exposes it together with its MIG child.
+		testMode = testutil.DeviceFeatureMIG
+	}
 	caps := testutil.Capabilities{
 		GPM:                       archSpec.EffectiveCapabilities(config.DeviceMode).GPM,
 		NvLinkGenerationSupported: config.Capabilities.NVLink,
@@ -120,7 +124,7 @@ func BuildMockOptionsForConfig(t *testing.T, config GPUConfig, archSpecs *Archit
 		testutil.WithDeviceFeatureMode(testMode),
 	}
 
-	if config.DeviceMode == DeviceModeMIG {
+	if config.DeviceMode == DeviceModeMIG || config.DeviceMode == DeviceModeMIGParent {
 		opts = append(opts, testutil.WithDeviceOptions(0,
 			testutil.WithMIGChildUUIDs(map[int]string{0: testutil.MIGUUIDs[0]}),
 		))

@@ -65,10 +65,12 @@ func (c *GPUConfig) TagFilter() string {
 	switch c.DeviceMode {
 	case DeviceModeMIG:
 		parts = append(parts, "gpu_slicing_mode:mig")
+	case DeviceModeMIGParent:
+		parts = append(parts, "gpu_slicing_mode:mig-parent")
 	case DeviceModeVGPU:
 		parts = append(parts, "gpu_virtualization_mode:*vgpu")
 	default:
-		parts = append(parts, "NOT gpu_virtualization_mode:*vgpu", "NOT gpu_slicing_mode:mig")
+		parts = append(parts, "NOT gpu_virtualization_mode:*vgpu", "NOT gpu_slicing_mode:mig", "NOT gpu_slicing_mode:mig-parent")
 	}
 	if c.NVLinkCapable != nil {
 		parts = append(parts, fmt.Sprintf("gpu_nvlink_capable:%t", *c.NVLinkCapable))
@@ -81,6 +83,8 @@ func NewGPUConfigFromTags(architecture, slicingMode, virtualizationMode string) 
 	deviceMode := DeviceModePhysical
 	if slicingMode == "mig" {
 		deviceMode = DeviceModeMIG
+	} else if slicingMode == "mig-parent" {
+		deviceMode = DeviceModeMIGParent
 	} else if virtualizationMode == "vgpu" {
 		deviceMode = DeviceModeVGPU
 	}
