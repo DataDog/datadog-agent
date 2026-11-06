@@ -46,29 +46,62 @@ func Fail(stderr string, exit uint32) FakeResponse {
 
 func FakeData(data map[string]FakeResponse) ShellFunc {
 	return func(shell *ShellContext) uint32 {
-		var exitStatus uint32
-		for _, command := range strings.Split(shell.command, "\n") {
-			command = strings.TrimSpace(command)
-			if command == "" {
-				continue
+		command := strings.TrimSpace(shell.command)
+		resp, ok := data[command]
+		if !ok {
+			resp = FakeResponse{
+				Stderr:     fmt.Sprintf("unknown command: %s\n", command),
+				ExitStatus: 127,
 			}
-			resp, ok := data[command]
-			if !ok {
-				resp = FakeResponse{
-					Stderr:     fmt.Sprintf("unknown command: %s\n", command),
-					ExitStatus: 127,
-				}
-			}
-			if resp.Stdout != "" {
-				_, _ = io.WriteString(shell.stdout, resp.Stdout)
-			}
-			if resp.Stderr != "" {
-				_, _ = io.WriteString(shell.stderr, resp.Stderr)
-			}
-			exitStatus = resp.ExitStatus
 		}
-		return exitStatus
+		if resp.Stdout != "" {
+			_, _ = io.WriteString(shell.stdout, resp.Stdout)
+		}
+		if resp.Stderr != "" {
+			_, _ = io.WriteString(shell.stderr, resp.Stderr)
+		}
+		return resp.ExitStatus
 	}
+}
+
+// SessionFunc builds a ShellFunc scoped to one SSH session. Per-session device
+// state must be allocated in the returned closure so it cannot leak.
+type SessionFunc func() ShellFunc
+
+// Static adapts a ShellFunc for fakes with no per-session state.
+func Static(f ShellFunc) SessionFunc { return func() ShellFunc { return f } }
+
+func FakeASA(runningConfig string, pagerLines int) SessionFunc {
+	return func() ShellFunc {
+		pagerEnabled := true
+		return func(shell *ShellContext) uint32 {
+			switch strings.TrimSpace(shell.command) {
+			case "":
+				return 0
+			case "terminal pager 0":
+				pagerEnabled = false
+				return 0
+			case "more system:running-config":
+				out := runningConfig
+				if pagerEnabled {
+					out = paginate(out, pagerLines)
+				}
+				_, _ = io.WriteString(shell.stdout, out)
+				return 0
+			default:
+				_, _ = fmt.Fprintf(shell.stderr, "ERROR: %% Invalid input detected at '^' marker.\n")
+				return 1
+			}
+		}
+	}
+}
+
+func paginate(s string, lines int) string {
+	parts := strings.SplitAfter(s, "\n")
+	if lines <= 0 || len(parts) <= lines {
+		return s
+	}
+	return strings.Join(parts[:lines], "") + "<--- More --->"
 }
 
 type ShellContext struct {
@@ -99,7 +132,11 @@ type ShellFunc func(*ShellContext) (returnCode uint32)
 type FakeSSHServer struct {
 	listener  net.Listener
 	hostKey   ssh.Signer
-	getOutput ShellFunc
+	getOutput SessionFunc
+
+	banner    string
+	prompt    string
+	eagerEcho bool
 
 	expectedUser     string
 	expectedPassword string
@@ -122,6 +159,23 @@ func WithCredentials(user, password string) FakeServerOption {
 	}
 }
 
+// WithBanner sets text written once when an interactive shell starts.
+func WithBanner(banner string) FakeServerOption {
+	return func(s *FakeSSHServer) { s.banner = banner }
+}
+
+// WithPrompt sets the prompt written after each command, e.g. "fw01# ".
+func WithPrompt(prompt string) FakeServerOption {
+	return func(s *FakeSSHServer) { s.prompt = prompt }
+}
+
+// WithEagerEcho echoes each line as soon as it is read rather than after the
+// previous command finishes, as real devices do. A client that writes several
+// lines up front then sees their echoes above the output they belong to.
+func WithEagerEcho() FakeServerOption {
+	return func(s *FakeSSHServer) { s.eagerEcho = true }
+}
+
 // StartFakeSSHServer launches an in-process SSH server on 127.0.0.1 with a
 // random port. The server is shut down via t.Cleanup, which closes the
 // listener and every accepted connection.
@@ -129,9 +183,15 @@ func StartFakeSSHServer(t *testing.T, outputs map[string]FakeResponse, opts ...F
 	return StartFakeSSHServerWithFunc(t, FakeData(outputs), opts...)
 }
 
-// StartFakeSSHServerWithFunc starts an in-process SSH server using the given
-// function to reply to requests.
+// StartFakeSSHServerWithFunc starts a server whose ShellFunc is shared by every
+// session. Use StartFakeSSHServerWithSessionFunc for per-session state.
 func StartFakeSSHServerWithFunc(t *testing.T, getOutput ShellFunc, opts ...FakeServerOption) *FakeSSHServer {
+	return StartFakeSSHServerWithSessionFunc(t, Static(getOutput), opts...)
+}
+
+// StartFakeSSHServerWithSessionFunc starts a server that builds a fresh
+// ShellFunc per session, so per-session device state is modeled correctly.
+func StartFakeSSHServerWithSessionFunc(t *testing.T, getOutput SessionFunc, opts ...FakeServerOption) *FakeSSHServer {
 	t.Helper()
 
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -221,6 +281,10 @@ func (s *FakeSSHServer) serveConn(conn net.Conn, cfg *ssh.ServerConfig) {
 
 func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	defer ch.Close()
+
+	// One ShellFunc per session, so per-session device state cannot leak.
+	run := s.getOutput()
+
 	for req := range reqs {
 		switch req.Type {
 		case "exec":
@@ -237,10 +301,17 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 			s.mu.Unlock()
 
 			_ = req.Reply(true, nil)
-			shell := NewShellContext(payload.Command, ch)
-			exitStatus := s.getOutput(shell)
+			exitStatus := run(NewShellContext(payload.Command, ch))
 
 			_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: exitStatus}))
+			return
+
+		case "pty-req":
+			_ = req.Reply(true, nil)
+
+		case "shell":
+			_ = req.Reply(true, nil)
+			s.runShell(ch, run)
 			return
 
 		default:
@@ -249,6 +320,57 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 			}
 		}
 	}
+}
+
+// runShell reads commands a line at a time and runs each against the same
+// ShellFunc, so state set by one is visible to the next. "exit" ends it.
+func (s *FakeSSHServer) runShell(ch ssh.Channel, run ShellFunc) {
+	if s.banner != "" {
+		_, _ = io.WriteString(ch, s.banner)
+	}
+	if s.prompt != "" {
+		_, _ = io.WriteString(ch, s.prompt)
+	}
+
+	done := make(chan struct{})
+	defer close(done)
+	lines := make(chan string, 16)
+	go func() {
+		defer close(lines)
+		scanner := bufio.NewScanner(ch)
+		for scanner.Scan() {
+			command := strings.TrimRight(scanner.Text(), "\r")
+
+			s.mu.Lock()
+			s.received = append(s.received, command)
+			s.mu.Unlock()
+
+			if s.eagerEcho {
+				_, _ = io.WriteString(ch, command+"\n")
+			}
+			select {
+			case lines <- command:
+			case <-done:
+				return
+			}
+		}
+	}()
+
+	var exitStatus uint32
+	for command := range lines {
+		if !s.eagerEcho {
+			_, _ = io.WriteString(ch, command+"\n")
+		}
+		if strings.TrimSpace(command) == "exit" {
+			_, _ = io.WriteString(ch, "\nLogoff\n")
+			break
+		}
+		exitStatus = run(NewShellContext(command, ch))
+		if s.prompt != "" {
+			_, _ = io.WriteString(ch, s.prompt)
+		}
+	}
+	_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: exitStatus}))
 }
 
 // Stop closes the listener and every connection accepted so far. Idempotent.
