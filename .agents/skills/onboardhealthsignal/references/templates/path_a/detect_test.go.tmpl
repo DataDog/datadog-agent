@@ -1,0 +1,24 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright __YEAR__-present Datadog, Inc.
+
+__DETECT_BUILD_LINE__package __PKG__
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+__DETECT_TEST_IMPORTS__	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+)
+
+// TestDetectCondition tests detection itself against real objects (a real temp
+// dir or socket, not mocks of the thing detected). check_test.go covers only the
+// wiring. On macOS keep unix socket paths short: os.MkdirTemp("", "x"), not
+// t.TempDir(). Build any test that uses a unix socket, Geteuid or chmod with a
+// linux constraint: the feature tags are also set in Windows builds.
+func TestDetectCondition(t *testing.T) {
+__DETECT_TEST_BODY__
+}
