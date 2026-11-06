@@ -552,4 +552,9 @@ func TestHoltResidualConfig(t *testing.T) {
 	require.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, d.aggregations)
 	d.Reset()
 	require.Equal(t, want, d.config, "reset preserves configuration")
+
+	// Unknown aggregation names parse away; fall back to keep the detector enabled.
+	unknown := NewHoltResidualDetector(HoltResidualConfig{Aggregations: []string{"average"}})
+	require.Equal(t, []string{"average"}, unknown.config.Aggregations)
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, unknown.aggregations)
 }

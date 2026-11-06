@@ -136,9 +136,14 @@ func NewTukeyBiweightDetector(cfg TukeyBiweightConfig) *TukeyBiweightDetector {
 		cfg.Aggregations = defaults.Aggregations
 	}
 	cfg.Aggregations = append([]string(nil), cfg.Aggregations...)
+	aggregations := parseAggregateConfig(cfg.Aggregations)
+	if len(aggregations) == 0 {
+		// Unknown names are dropped; fall back so misconfiguration cannot disable detection.
+		aggregations = parseAggregateConfig(defaults.Aggregations)
+	}
 	return &TukeyBiweightDetector{
 		config:       cfg,
-		aggregations: parseAggregateConfig(cfg.Aggregations),
+		aggregations: aggregations,
 		series:       make(map[tbStateKey]*tbSeriesState),
 	}
 }
