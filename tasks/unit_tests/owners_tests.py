@@ -1,3 +1,4 @@
+import json
 import os
 import tempfile
 import unittest
@@ -54,6 +55,26 @@ class TestSmpPrContext(unittest.TestCase):
         labels, involved = smp_pr_context_impl("mybranch", "DataDog/datadog-agent", self.owners_file)
         self.assertEqual(labels, "")
         self.assertEqual(involved, "")
+
+    @mock.patch("tasks.libs.ciproviders.github_api.GithubAPI")
+    def test_optional_context_reports_resolved_absent_and_ambiguous(self, mock_gh_cls):
+        gh = mock_gh_cls.return_value
+        gh.get_pr_labels.return_value = []
+        gh.get_pr_files.return_value = []
+        pr = mock.Mock(number=42, html_url='https://github.com/DataDog/datadog-agent/pull/42')
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, 'pr.json')
+            for prs, status in [([pr], 'resolved'), ([], 'absent'), ([pr, pr], 'ambiguous')]:
+                with self.subTest(status=status):
+                    gh.get_pr_for_branch.return_value = prs
+                    smp_pr_context_impl('feature', 'DataDog/datadog-agent', self.owners_file, path)
+                    with open(path) as stream:
+                        context = json.load(stream)
+                    self.assertEqual(context['status'], status)
+                    if status == 'resolved':
+                        self.assertEqual(context['number'], 42)
+                    else:
+                        self.assertNotIn('number', context)
 
 
 if __name__ == "__main__":

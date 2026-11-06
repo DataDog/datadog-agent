@@ -1,0 +1,40 @@
+{
+  "title": "SMP experiment health",
+  "deployment_enabled": false,
+  "service": "datadog-agent-smp-experiment-health",
+  "template_variables": [
+    {"name": "experiment", "attribute": "@smp.experiment", "default": "*"},
+    {"name": "check", "attribute": "@smp.check_name", "default": "*"},
+    {"name": "pr", "attribute": "@smp.pr_number", "default": "*", "applies_to": "pr_panels_only"}
+  ],
+  "fixed_filter": "service:datadog-agent-smp-experiment-health @smp.report_kind:experiment_health @smp.report_version:1",
+  "views": {
+    "all_evaluations": {
+      "data_source": "ci_tests",
+      "contexts": ["main", "pr"],
+      "group_by": ["@smp.experiment", "@smp.check_kind", "@smp.check_name"],
+      "queries": {"passed": "@smp.outcome:pass", "failed": "@smp.outcome:fail", "errors": "@smp.outcome:error"},
+      "pass_rate": "100 * passed / (passed + failed)",
+      "zero_denominator": "no_data",
+      "widgets": ["bounds_pass_rate", "optimization_goal_pass_rate", "daily_outcome_counts", "check_table", "analysis_and_execution_errors"]
+    },
+    "latest_per_pr": {
+      "data_source": "published_ddsql_query",
+      "sql_file": "latest-pr.sql",
+      "partition": ["smp.pr_number", "smp.experiment"],
+      "order_desc": ["smp.parent_pipeline_id", "smp.ci_job_id", "smp.analysis_end", "smp.job_id"],
+      "selection": "Select the latest reported experiment run, then retain all its checks.",
+      "group_by": ["experiment", "check_kind", "check_name"],
+      "pass_rate": "100 * count(outcome = pass) / count(outcome IN (pass, fail))",
+      "widgets": ["bounds_pass_rate", "optimization_goal_pass_rate", "pr_check_table", "analysis_and_execution_errors"],
+      "publication_status": "disabled_pending_platform_pilot"
+    }
+  },
+  "notes": [
+    "This file is a review specification, not a Datadog API request.",
+    "Keep performance pass rates separate from analysis and execution errors.",
+    "Show source commit and run links in latest PR tables. Latest reported does not mean current PR head.",
+    "An experiment can have no main data because experiment selection differs by context.",
+    "Validate DDSQL publication and template-variable filters before platform activation."
+  ]
+}
