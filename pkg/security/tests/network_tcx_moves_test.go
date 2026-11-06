@@ -9,6 +9,7 @@
 package tests
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -119,11 +120,14 @@ func (m *tcxMoves) newNetNS(tb testing.TB, name string) (uint32, *utils.NSPath) 
 		_ = exec.Command(m.ip, "netns", "delete", name).Run()
 	})
 
-	nsPath := utils.NewNSPathFromPath(filepath.Join("/var/run/netns", name), utils.NetNsType)
-	nsID, err := nsPath.GetNSID()
-	if err != nil {
+	path := filepath.Join("/var/run/netns", name)
+	// a named netns is a bind mount, not a symlink, so its ID is the inode of the file
+	var stat unix.Stat_t
+	if err := unix.Stat(path, &stat); err != nil {
 		tb.Fatal(err)
 	}
+	nsID := uint32(stat.Ino)
+	nsPath := utils.NewNSPathFromPath(path, utils.NetNsType)
 	_, _ = m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, nsPath)
 	return nsID, nsPath
 }
@@ -415,21 +419,31 @@ func (m *tcxMoves) testFailingDevice(t *testing.T) {
 	m.run(t, "wptcxfl0", "link", "add", "wptcxfl0", "type", "veth", "peer", "name", "wptcxfl1")
 	failing := m.ifIndex(t, nil, "wptcxfl0")
 
-	// TCX hooks hold 64 programs at most, and a program only once
-	for i := range 64 {
-		prog, err := ebpf.NewProgram(&ebpf.ProgramSpec{
-			Name:         fmt.Sprintf("foreign_%d", i),
-			Type:         ebpf.SchedCLS,
-			License:      "Apache-2.0",
-			Instructions: asm.Instructions{asm.Mov.Imm(asm.R0, probes.TCActUnspec), asm.Return()},
-		})
-		if err != nil {
-			t.Fatal(err)
-		}
-		t.Cleanup(func() { _ = prog.Close() })
+	// a hook holds a program only once, and reports ERANGE when full, below 64 programs
+	var progs []*ebpf.Program
+	for _, attach := range []ebpf.AttachType{ebpf.AttachTCXIngress, ebpf.AttachTCXEgress} {
+		for i := 0; ; i++ {
+			if i == 64 {
+				t.Fatalf("the %s hook of wptcxfl0 never filled up", attach)
+			}
+			if i == len(progs) {
+				prog, err := ebpf.NewProgram(&ebpf.ProgramSpec{
+					Name:         fmt.Sprintf("foreign_%d", i),
+					Type:         ebpf.SchedCLS,
+					License:      "Apache-2.0",
+					Instructions: asm.Instructions{asm.Mov.Imm(asm.R0, probes.TCActUnspec), asm.Return()},
+				})
+				if err != nil {
+					t.Fatal(err)
+				}
+				t.Cleanup(func() { _ = prog.Close() })
+				progs = append(progs, prog)
+			}
 
-		for _, attach := range []ebpf.AttachType{ebpf.AttachTCXIngress, ebpf.AttachTCXEgress} {
-			l, err := link.AttachTCX(link.TCXOptions{Interface: int(failing), Program: prog, Attach: attach})
+			l, err := link.AttachTCX(link.TCXOptions{Interface: int(failing), Program: progs[i], Attach: attach})
+			if errors.Is(err, unix.ERANGE) {
+				break
+			}
 			if err != nil {
 				t.Fatal(err)
 			}
