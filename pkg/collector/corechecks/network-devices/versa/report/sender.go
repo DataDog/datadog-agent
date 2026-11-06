@@ -155,7 +155,7 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 			"remote_access_circuit:" + slaMetricsResponse.RemoteAccessCircuit,
 			"forwarding_class:" + slaMetricsResponse.ForwardingClass,
 		}
-		if deviceIP, ok := deviceNameToIDMap[slaMetricsResponse.LocalSite]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(slaMetricsResponse.LocalSite)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"sla.delay", slaMetricsResponse.Delay, "", tags)
@@ -179,7 +179,7 @@ func (s *Sender) SendLinkUsageMetrics(linkUsageMetrics []client.LinkUsageMetrics
 			"ip:" + linkMetric.IP,
 			"isp:" + linkMetric.ISP,
 		}
-		if deviceIP, ok := deviceNameToIDMap[linkMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(linkMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"link.volume_tx", linkMetric.VolumeTx, "", tags)
@@ -199,7 +199,7 @@ func (s *Sender) SendSiteMetrics(siteMetrics []client.SiteMetrics, deviceNameToI
 			"longitude:" + siteMetric.Longitude,
 			"location_source:" + siteMetric.LocationSource,
 		}
-		if deviceIP, ok := deviceNameToIDMap[siteMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(siteMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"site.volume_tx", siteMetric.VolumeTx, "", tags)
@@ -217,7 +217,7 @@ func (s *Sender) SendLinkStatusMetrics(linkStatusMetrics []client.LinkStatusMetr
 			"site:" + linkMetric.Site,
 			"access_circuit:" + linkMetric.AccessCircuit,
 		}
-		if deviceIP, ok := deviceNameToIDMap[linkMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(linkMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"link.availability", linkMetric.Availability, "", tags)
@@ -231,7 +231,7 @@ func (s *Sender) SendApplicationsByApplianceMetrics(appsByApplianceMetrics []cli
 			"site:" + appMetric.Site,
 			"app_id:" + appMetric.AppID,
 		}
-		if deviceIP, ok := deviceNameToIDMap[appMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(appMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"app.sessions", appMetric.Sessions, "", tags)
@@ -251,7 +251,7 @@ func (s *Sender) SendTopUserMetrics(topUserMetrics []client.TopUserMetrics, devi
 			"site:" + topUser.Site,
 			"user:" + topUser.User,
 		}
-		if deviceIP, ok := deviceNameToIDMap[topUser.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(topUser.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"user.sessions", topUser.Sessions, "", tags)
@@ -272,7 +272,7 @@ func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceN
 			"remote_ip:" + tunnelMetric.RemoteIP,
 			"vpn_prof_name:" + tunnelMetric.VpnProfName,
 		}
-		if deviceIP, ok := deviceNameToIDMap[tunnelMetric.Appliance]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(tunnelMetric.Appliance)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 		s.Gauge(versaMetricPrefix+"tunnel.volume_tx", tunnelMetric.VolumeTx, "", tags)
@@ -287,7 +287,7 @@ func (s *Sender) SendPathQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameTo
 			"local_site:" + qosMetric.LocalSiteName,
 			"remote_site:" + qosMetric.RemoteSiteName,
 		}
-		if deviceIP, ok := deviceNameToIDMap[qosMetric.LocalSiteName]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(qosMetric.LocalSiteName)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
@@ -323,7 +323,7 @@ func (s *Sender) SendDIAMetrics(diaMetrics []client.DIAMetrics, deviceNameToIDMa
 			"access_circuit:" + diaMetric.AccessCircuit,
 			"ip:" + diaMetric.IP,
 		}
-		if deviceIP, ok := deviceNameToIDMap[diaMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(diaMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
@@ -345,7 +345,7 @@ func (s *Sender) SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics []clien
 			"access_circuit:" + ifaceMetric.AccessCkt,
 			"interface:" + ifaceMetric.Interface,
 		}
-		if deviceIP, ok := deviceNameToIDMap[ifaceMetric.Site]; ok {
+		if deviceIP, ok := deviceNameToIDMap[strings.ToLower(ifaceMetric.Site)]; ok {
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
@@ -509,7 +509,7 @@ func (s *Sender) SendDirectorDeviceMetrics(director *client.DirectorStatus) {
 func (s *Sender) SendInterfaceStatus(interfaces []client.Interface, deviceNameToIPMap map[string]string) {
 	for _, iface := range interfaces {
 		// Get device IP from the deviceNameToIPMap
-		deviceIP, ok := deviceNameToIPMap[iface.DeviceName]
+		deviceIP, ok := deviceNameToIPMap[strings.ToLower(iface.DeviceName)]
 		if !ok {
 			log.Warnf("device IP not found for device %s, skipping interface status", iface.DeviceName)
 			continue

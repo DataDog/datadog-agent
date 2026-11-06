@@ -1183,7 +1183,7 @@ func TestSendLinkStatusMetrics(t *testing.T) {
 				},
 			},
 			deviceNameToIDMap: map[string]string{
-				"test-branch-2B": "192.168.1.1",
+				"test-branch-2b": "192.168.1.1", // lowercased: device-name map keys are normalized
 			},
 			expectedMetrics: []expectedMetric{
 				{
@@ -1294,7 +1294,7 @@ func TestSendApplicationsByApplianceMetrics(t *testing.T) {
 				},
 			},
 			deviceNameToIDMap: map[string]string{
-				"test-branch-2B": "192.168.1.1",
+				"test-branch-2b": "192.168.1.1", // lowercased: device-name map keys are normalized
 			},
 			expectedMetrics: []expectedMetric{
 				{
@@ -1471,7 +1471,7 @@ func TestSendTopUserMetrics(t *testing.T) {
 				},
 			},
 			deviceNameToIDMap: map[string]string{
-				"test-branch-2B": "192.168.1.1",
+				"test-branch-2b": "192.168.1.1", // lowercased: device-name map keys are normalized
 			},
 			expectedMetrics: []expectedMetric{
 				{
@@ -1650,7 +1650,7 @@ func TestSendAnalyticsInterfaceMetrics(t *testing.T) {
 				},
 			},
 			deviceNameToIDMap: map[string]string{
-				"test-branch-2B": "192.168.1.1",
+				"test-branch-2b": "192.168.1.1", // lowercased: device-name map keys are normalized
 			},
 			expectedMetrics: []expectedMetric{
 				{
@@ -1838,4 +1838,32 @@ func TestSendAnalyticsInterfaceMetrics(t *testing.T) {
 			mockSender.AssertNumberOfCalls(t, "Gauge", len(tt.expectedMetrics))
 		})
 	}
+}
+
+// TestSendAnalyticsInterfaceMetricsCaseInsensitiveDeviceLookup is a regression test for a defect
+// where an Analytics result whose site name differed in case from the Director's appliance name
+// passed device filtering (which matches case-insensitively) but then missed the device-tag
+// lookup (which was case-sensitive), so the metric was emitted with no device_id. Versa reports
+// the same device with inconsistent casing, so the device-name map is keyed lowercase and every
+// lookup normalizes.
+func TestSendAnalyticsInterfaceMetricsCaseInsensitiveDeviceLookup(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+
+	// The Director reported this appliance as "Branch-1"; Analytics reports the site as "BRANCH-1"
+	deviceNameToIDMap := map[string]string{"branch-1": "10.0.0.1"}
+	analyticsInterfaceMetrics := []client.AnalyticsInterfaceMetrics{
+		{
+			Site:      "BRANCH-1",
+			AccessCkt: "WAN-1",
+			Interface: "ge-0/0/0",
+			RxUtil:    15.7,
+		},
+	}
+
+	s := NewSender(mockSender, "default")
+	s.SendAnalyticsInterfaceMetrics(analyticsInterfaceMetrics, deviceNameToIDMap)
+
+	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"interface.rx_util", 15.7, "",
+		[]string{"site:BRANCH-1", "access_circuit:WAN-1", "interface:ge-0/0/0", "device_ip:10.0.0.1", "device_namespace:default"})
 }
