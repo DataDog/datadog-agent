@@ -966,3 +966,38 @@ func TestTagFilterListAgentCheckSendsHeldPoints(t *testing.T) {
 	}
 	assert.Equal(t, int64(2), mergedSketchCount(t, dists))
 }
+
+// TestTagFilterListMergesThroughCheckSenders submits as checks do, through their senders, from two check instances
+// whose metrics strip to the same series.
+func TestTagFilterListMergesThroughCheckSenders(t *testing.T) {
+	demux, s := startTagFilterDemux(t)
+	defer demux.Stop()
+
+	runs := map[checkid.ID][]float64{
+		"openmetrics:pod-a": {1, 2},
+		"openmetrics:pod-b": {3, 4},
+	}
+	for id, checkRuns := range runs {
+		sender, err := demux.GetSender(id)
+		require.NoError(t, err)
+		tags := []string{"env:prod", "pod:" + string(id)}
+		for _, value := range checkRuns {
+			sender.Distribution("dist.metric", value, "", tags)
+			sender.Counter("count.metric", value, "", tags)
+			sender.Gauge("other.metric", 1, "", tags)
+			sender.Commit()
+		}
+	}
+	waitForCheckItems(t, demux)
+	demux.ForceFlushToSerializer(time.Now().Add(5*time.Second), true, false)
+
+	assert.Equal(t, 1+2+3+4.0, mergedSeriesTotal(t, s.series, "count.metric", metrics.APIRateType))
+
+	assert.Equal(t, int64(4), mergedSketchCount(t, sketchesNamed(s.sketches, "dist.metric")))
+
+	others := map[string]bool{}
+	for _, serie := range seriesNamed(s.series, "other.metric") {
+		others[serie.Tags.Join(",")] = true
+	}
+	assert.Len(t, others, 2, "metrics without a rule keep one series per instance")
+}
