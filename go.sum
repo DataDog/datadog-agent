@@ -132,6 +132,8 @@ github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1 h1:HnvrdC79xJ+RP
 github.com/DataDog/netlink v1.0.1-0.20240223195320-c7a4f832a3d1/go.mod h1:whJevzBpTrid75eZy99s3DqCmy05NfibNaF2Ol5Ox5A=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816 h1:8diKw2aLYE6LsjWfYxDEqx0ZmcyMMmqB+qapRJrGtys=
 github.com/DataDog/opa v0.0.0-20251126100856-d2e1e78e0816/go.mod h1:7cPuErOAt7k/oVWAVJnxqAC6mwArrAazkvk0RXiih2A=
+github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c h1:hKgMbD4em7X3S1N7+3TnlazfOgVSoLdxHT0GRgcEKvg=
+github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c/go.mod h1:L0rXTl6xPxPZY4UPHfnOUjM7DmTSo2LjuFGKwlllaFs=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261027183534-cfa24f1802f2 h1:DMcXVtUo0r4nkrWveBpGVJh4IpV8c0/2Dhn7b2eX3uQ=
 github.com/DataDog/opentelemetry-ebpf-profiler v0.0.0-20261027183534-cfa24f1802f2/go.mod h1:oPuhDZCT1we/kWoN8ZTCDe+t5iIozE2tQ4/hN+NPuFk=
 github.com/DataDog/sketches-go v1.4.8 h1:pFk9BNn+Rzv8IMIoPUttoOpOr3bJOqU3P6EP5wK+Lv8=
@@ -1237,8 +1239,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.165.1 h1
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/golden v0.165.1/go.mod h1:8DH2X+BeAa4GJKSdcvhtr9gyblw5hvB2XyEAKxNd9r8=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.165.1 h1:sFwoq9vQfcaHd/klPK+vJJpWc7Zwj4Tc2OC1vX0csZM=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/kafka/configkafka v0.165.1/go.mod h1:Db2OX+gW+xapZbTU923sdYBdIpD1bVVDhKV+ULfqB5o=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.4.1 h1:UhubmSOrRUi2mLpPhSlEQHQajUH28+xHwz1TWCVr1DQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.4.1/go.mod h1:UPNkISVCAACbYYNFzFJt1K/1dlnwCxrZi/xLuxlQkb4=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile v0.165.1 h1:Xp+eUQhidzuGBDSQY4mS4mcjizV+3mt7v2Sb9zSHspA=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/contexts/xprofile v0.165.1/go.mod h1:IBvaW9+3N7ldHQ0dno7W2cRiOK4+GfWrwVaIjflYe5w=
 github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl/xottl v0.165.1 h1:jQBFfYT/2auiljQtXlKKgE4s0kFsDjTJtlUe4BXmosk=

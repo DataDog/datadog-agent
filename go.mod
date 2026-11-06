@@ -15,6 +15,10 @@ retract (
 // See https://github.com/DataDog/datadog-agent/blob/main/docs/dev/gomodreplace.md
 // for more details.
 
+// Reuse encoding/json in OTTL core to avoid linking a second JSON encoder.
+// Fork of v1.3.1 with a two-line change; see doc/how-to/test/log-processing-ottl.md.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl => github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c
+
 // Internal deps fix version
 replace (
 	// TODO(regis): drop below compat alias (https://github.com/google/cel-go/pull/1) once google/cel-go >v0.32.0

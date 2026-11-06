@@ -2,6 +2,10 @@ module github.com/DataDog/datadog-agent/comp/logs-library
 
 go 1.26.0
 
+// Reuse encoding/json in OTTL core to avoid linking a second JSON encoder.
+// Fork of v1.3.1 with a two-line change; see doc/how-to/test/log-processing-ottl.md.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl => github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c
+
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.216
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
@@ -34,6 +38,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/go-json-experiment/json v1.27.2
 	github.com/gobwas/glob v0.2.3
+	github.com/goccy/go-json v0.12.0
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.4.1
 	github.com/stretchr/testify v1.12.1
 	github.com/valyala/fastjson v1.6.10
@@ -91,7 +96,6 @@ require (
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/goccy/go-json v0.12.0 // indirect
 	github.com/gofrs/flock v0.13.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
@@ -113,6 +117,7 @@ require (
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.165.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.165.1 // indirect
 	github.com/pandatix/go-abnf v0.5.5 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect

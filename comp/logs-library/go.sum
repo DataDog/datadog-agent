@@ -4,6 +4,8 @@ github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2 h1:a9xjjGg5UQzUd+yl
 github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2/go.mod h1:XbWpLvPZo0LbxPhXTMIXSB98lFwfF9MnkT77iRHTXMY=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
+github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c h1:hKgMbD4em7X3S1N7+3TnlazfOgVSoLdxHT0GRgcEKvg=
+github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c/go.mod h1:L0rXTl6xPxPZY4UPHfnOUjM7DmTSo2LjuFGKwlllaFs=
 github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571 h1:zDAogP70WYpLD6MiIjQ9tHZYmkfbFcsfGb26CMf99To=
 github.com/DataDog/zstd v1.5.8-0.20260421145859-31a7e515a571/go.mod h1:oyU0k4j1rV2Cxqy/hdGZzmVg3nJtHahZBImIK9ejcDA=
 github.com/Microsoft/go-winio v0.6.4 h1:kJF2pamtYCWXf0xAT8sAkwKC0pMl2HYBrRPHAqyUc+g=
@@ -120,8 +122,6 @@ github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.165
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/common v0.165.1/go.mod h1:xgjaCv2AeoKdTW1TwaNiPB8aQO9U2Lxmbl1cJIIvQ00=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.165.1 h1:SOoC7ntFrBwKN72W+snLCZ6d5qiUvdINKVlhdRvnstg=
 github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.165.1/go.mod h1:9C1pN1Q2d5J1iw4kiIGsN5sDJO/QP8j/BwkrVfmmIeI=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.4.1 h1:UhubmSOrRUi2mLpPhSlEQHQajUH28+xHwz1TWCVr1DQ=
-github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.4.1/go.mod h1:UPNkISVCAACbYYNFzFJt1K/1dlnwCxrZi/xLuxlQkb4=
 github.com/pandatix/go-abnf v0.5.5 h1:EXex5KkRQx4Dm6GnpAcQnIMBs9KiK0uf8p/wq+4t9PM=
 github.com/pandatix/go-abnf v0.5.5/go.mod h1:AE0KD3/VNoCjGzc1gqetRKshbI4SYErXQ/8kPenR5mc=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=

@@ -321,3 +321,63 @@ The processor benchmark on Apple M5 Pro used one CPU, five samples of 300 ms, an
 | 20 | 1,315 ns | 1,429 ns | 400 B / 40 allocations |
 
 Allocation counts are unchanged. Timing varies between samples; the 20-rule median is 8.7% slower in this microbenchmark. This measures dispatch on a small message, not sustained pipeline throughput or a renewed FastJQ comparison.
+
+## Reusing the standard JSON encoder (2026-11-06)
+
+OTTL v1.3.1's core `StandardStringLikeGetter` imports `goccy/go-json` to encode
+objects, lists, and scalars. That retains a second JSON encoder even when the
+Agent never registers `ParseJSON`. The Agent now pins [a two-line change in the
+DataDog OTel fork](https://github.com/DataDog/opentelemetry-collector-contrib/commit/e230f349774cfd9d0f0884873bdeb3944232d32e)
+to use `encoding/json` for those conversions. `ParseJSON` retains its own upstream
+dependency; it is not registered in the Agent's structured-log processor.
+
+The replacement is in the root and logs-library `go.mod` files, so it applies to
+legacy Go package builds as well as Bazel. A Bazel repository patch alone would
+not affect the Omnibus Agent builds used by the static quality gates. The fork
+is based exactly on upstream v1.3.1 and changes no dependency versions or parser
+behavior. It also affects OTTL core conversions in other Collector consumers
+built in the root workspace.
+
+`TestOTTLStringJSONCompatibility` compares the new conversion with the original
+encoder for native and pdata containers, ordering, escaping, Unicode, integer
+precision, float boundaries, nil containers, and errors. `TestOTTLStringJSONMask`
+exercises compilation and the resulting body edit. The deliberate difference is
+standard small-exponent spelling (`1e-9` rather than `1e-09`), including numbers
+inside containers; numeric values are unchanged. String equality against a
+serialized number can therefore differ from upstream. JSON field parsing and
+ordinary field masking continue to use the shared fastjson context.
+
+When upgrading OTTL, rebase the import change on the selected upstream release,
+publish a new immutable fork commit, and update both replacements. Run the
+Agent's compatibility and masking suites, the upstream OTTL core suite, and
+Collector pipeline tests. Recheck binary size and `BenchmarkOTTLStringJSONEncoding`;
+the standard encoder can cost more CPU when a rule explicitly stringifies a
+container.
+
+With identical default Bazel release settings on macOS/arm64, the final fork pin
+reproduced the initial experiment:
+
+| Agent executable | Bytes | Growth versus original baseline |
+| --- | ---: | ---: |
+| Original baseline (`ded8910234c`) | 111,865,122 | — |
+| Before encoder change (`40ce40259c9`) | 113,775,506 | 1.82 MiB |
+| With standard encoder | 112,980,370 | 1.06 MiB |
+
+The saving is 795,136 bytes (0.758 MiB), about 42% of the remaining Agent growth.
+DogStatsD remains 25,307,138 bytes, 32 bytes above the original baseline. These
+are executable sizes, not Linux/Windows package measurements. The remaining
+Agent growth still exceeds the 600 KiB per-PR budget; no gate limits or
+exceptions were changed. Package CI must establish the platform-specific result.
+
+`BenchmarkOTTLStringJSONEncoding` on Apple M5 Pro used one CPU and five samples
+of 300 ms. It measures the encoder only, excluding context handling:
+
+| Value | Original encoder (ns/op) | Standard encoder (ns/op) | Standard allocations |
+| --- | ---: | ---: | ---: |
+| Integer | 34.46 | 41.28 | 16 B / 1 |
+| Three-field object | 310.2 | 373.3 | 272 B / 8 |
+| 2 KiB object | 1,023 | 1,755 | 2,528 B / 9 |
+
+The extra cost applies to rules that explicitly stringify numbers or containers.
+The shared JSON parse and fastjson field-mask serialization paths are unchanged.
+Raw measurements are in `bin/benchmarks/ottl-filtering/json-fork-*` (ignored by Git).
