@@ -5,8 +5,8 @@ go_library(
     name = "serverstore",
     srcs = [
         "in_memory.go",
-        "parser.go",
         "page.go",
+        "parser.go",
         "store.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/test/fakeintake/server/serverstore",
