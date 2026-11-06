@@ -1650,3 +1650,45 @@ func TestServerlessSourceCustomToRuntime(t *testing.T) {
 		})
 	}
 }
+
+func TestUnitFromMetricType(t *testing.T) {
+	tests := []struct {
+		name              string
+		mt                metricType
+		disableTimingUnit bool
+		want              string
+	}{
+		{"timing", timingType, false, metrics.UnitMilliseconds},
+		{"timing disabled", timingType, true, ""},
+		{"histogram", histogramType, false, ""},
+		{"gauge", gaugeType, false, ""},
+		{"count", countType, false, ""},
+		{"distribution disabled", distributionType, true, ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, unitFromMetricType(tt.mt, tt.disableTimingUnit))
+		})
+	}
+}
+
+func TestEnrichTimingUnit(t *testing.T) {
+	parsed, err := parseAndEnrichMultipleMetricMessage(t, []byte("daemon:1:2:3|ms"), enrichConfig{})
+	require.NoError(t, err)
+	require.Len(t, parsed, 3)
+	for _, s := range parsed {
+		assert.Equal(t, metrics.UnitMilliseconds, s.Unit)
+	}
+
+	parsed, err = parseAndEnrichMultipleMetricMessage(t, []byte("daemon:1:2:3|ms"), enrichConfig{disableTimingUnit: true})
+	require.NoError(t, err)
+	require.Len(t, parsed, 3)
+	for _, s := range parsed {
+		assert.Empty(t, s.Unit)
+	}
+
+	parsed, err = parseAndEnrichMultipleMetricMessage(t, []byte("daemon:666|h"), enrichConfig{})
+	require.NoError(t, err)
+	require.Len(t, parsed, 1)
+	assert.Empty(t, parsed[0].Unit)
+}
