@@ -40,16 +40,110 @@ exec > $LOG_FILE 2>&1
 FALLBACK_JOBS_DIR="$INSTALL_DIR/embedded/share/launchd"
 FALLBACK_JOBS="com.datadoghq.procmgr com.datadoghq.agent com.datadoghq.sysprobe com.datadoghq.data-plane"
 
+# path_is_trusted succeeds when $1 is missing, or is a real directory or file owned by uid ${2:-0}
+# that group and other cannot write and that carries no ACL. dd-procmgrd runs as root and starts
+# what processes.d names, so it is only loaded on a catalog that only root could have written. Must
+# agree with the trust rule in pkg/fleet/installer/packages/processmanager/catalog_darwin.go. Any
+# command failure counts as untrusted. The tools are named by absolute path: a GNU ls earlier on
+# PATH rejects -e, and an ACL check that errors must not pass.
+# $3 is the required type: dir, file, or either (the default). A missing path is trusted.
+path_is_trusted() {
+    [ -e "$1" ] || [ -L "$1" ] || return 0
+    [ -L "$1" ] && return 1
+    case "${3:-either}" in
+        dir) [ -d "$1" ] || return 1 ;;
+        file) [ -f "$1" ] || return 1 ;;
+        *) [ -d "$1" ] || [ -f "$1" ] || return 1 ;;
+    esac
+    pit_owner_mode=$(/usr/bin/stat -f '%u %Lp' "$1") || return 1
+    [ "${pit_owner_mode%% *}" = "${2:-0}" ] || return 1
+    case "${pit_owner_mode#* }" in
+        *[2367]?|*[2367]) return 1 ;;
+    esac
+    pit_acl_out=$(/bin/ls -lde "$1") || return 1
+    [ "$(printf '%s\n' "$pit_acl_out" | /usr/bin/wc -l)" -le 1 ] || return 1
+    return 0
+}
+
+PIT_ROOT_UID=0
+PIT_LAUNCHD_DIR=/Library/LaunchDaemons
+pit_skip_procmgr=0
+pit_unsafe_procmgr=0
+
+# pit_note_untrusted_catalog sets pit_skip_procmgr when dd-procmgrd must not be loaded on
+# processes.d, by the same rule as WriteDarwinProcmgrCatalog. The fallback does not rewrite the
+# catalog, so it also refuses a shipped entry that is not inert: a root-owned file can still be a
+# stale auto_start: true entry this version failed to replace.
+pit_note_untrusted_catalog() {
+    # path_is_trusted treats a missing path as trusted, which is right for a missing processes.d
+    # (a fresh tree, zero entries). A missing install root is not: the Go writer returns
+    # ErrUntrustedCatalog for it, and so does this function.
+    if [ ! -e "$INSTALL_DIR" ] && [ ! -L "$INSTALL_DIR" ]; then
+        pit_skip_procmgr=1
+        return
+    fi
+    if ! path_is_trusted "$INSTALL_DIR" "$PIT_ROOT_UID" dir || ! path_is_trusted "$INSTALL_DIR/processes.d" "$PIT_ROOT_UID" dir; then
+        pit_skip_procmgr=1
+        return
+    fi
+    # Shell globs skip dotfiles, and dd-procmgrd loads them, so each pattern is a separate glob:
+    # visible names, dotfiles, and dotfiles starting with two dots (not . or ..).
+    for pit_entry in "$INSTALL_DIR"/processes.d/* "$INSTALL_DIR"/processes.d/.[!.]* "$INSTALL_DIR"/processes.d/..?*; do
+        [ -e "$pit_entry" ] || [ -L "$pit_entry" ] || continue
+        case "${pit_entry##*/}" in
+            *.yaml|*.yml) ;;
+            *) continue ;;
+        esac
+        path_is_trusted "$pit_entry" "$PIT_ROOT_UID" file || pit_skip_procmgr=1
+    done
+    pit_managed="$INSTALL_DIR/processes.d/datadog-agent-sysprobe.yaml"
+    if [ "$pit_skip_procmgr" -eq 0 ] && [ -f "$pit_managed" ]; then
+        grep -q '^auto_start: false$' "$pit_managed" || pit_skip_procmgr=1
+    fi
+}
+
+# pit_omit_procmgr unloads dd-procmgrd and removes its definition, as preRemoveDatadogAgent does for
+# every job, so launchd cannot load it again at boot. The definition is removed even if the job
+# does not leave the domain, so a daemon that cannot be stopped now is still gone after a reboot.
+# bootout returns before the job has left the domain, and fails when it is already gone, so its
+# status is ignored and launchctl print is the check, with the loop install_fallback_launchdaemons
+# already uses. It fails if the job is still loaded or the definition could not be removed.
+pit_omit_procmgr() {
+    echo "WARNING: $INSTALL_DIR/processes.d is not trusted; not loading com.datadoghq.procmgr"
+    launchctl bootout "system/com.datadoghq.procmgr" 2>/dev/null || true
+    pit_omit_rc=0
+    rm -f "$PIT_LAUNCHD_DIR/com.datadoghq.procmgr.plist" || pit_omit_rc=1
+    pit_attempts=0
+    while [ "$pit_attempts" -lt 30 ] && launchctl print "system/com.datadoghq.procmgr" >/dev/null 2>&1; do
+        sleep 1
+        pit_attempts=$((pit_attempts + 1))
+    done
+    if launchctl print "system/com.datadoghq.procmgr" >/dev/null 2>&1; then
+        echo "ERROR: com.datadoghq.procmgr is still loaded on an untrusted processes.d"
+        pit_omit_rc=1
+    fi
+    return "$pit_omit_rc"
+}
+
 # install_fallback_launchdaemons installs and loads the Agent's stable LaunchDaemons without the
 # installer: copy, chown, chmod, enable, bootstrap, as versions before the installer did. Every job
-# is reloaded, even one already loaded from the shipped definition: it only runs after the installer
-# failed, which may have left a job on its way out of the domain. Every job is attempted even if an
-# earlier one fails; it returns non-zero if any of them is not loaded at the end.
+# it loads is reloaded, even one already loaded from the shipped definition: it only runs after the
+# installer failed, which may have left a job on its way out of the domain. Every such job is
+# attempted even if an earlier one fails. It returns non-zero when any job it tried to load is not
+# loaded at the end. com.datadoghq.procmgr is not one of those jobs when processes.d is not trusted:
+# it is omitted, and a failed omit is reported through pit_unsafe_procmgr rather than this status.
 install_fallback_launchdaemons() {
+    pit_note_untrusted_catalog
+    if [ "$pit_skip_procmgr" -eq 1 ]; then
+        pit_omit_procmgr || pit_unsafe_procmgr=1
+    fi
     failed=""
     for label in $FALLBACK_JOBS; do
+        if [ "$label" = "com.datadoghq.procmgr" ] && [ "$pit_skip_procmgr" -eq 1 ]; then
+            continue
+        fi
         src="$FALLBACK_JOBS_DIR/$label.plist"
-        dst="/Library/LaunchDaemons/$label.plist"
+        dst="$PIT_LAUNCHD_DIR/$label.plist"
         if [ ! -f "$src" ] || [ -L "$src" ]; then
             echo "ERROR: $src is missing; cannot install the $label LaunchDaemon"
             failed="$failed $label"
@@ -330,13 +424,16 @@ fi
 #
 # If the installer cannot run, or fails, the Agent's LaunchDaemons are installed the way earlier
 # versions did, from plain copies of the same definitions (install_fallback_launchdaemons), so the
-# Agent always ends up running. If the installer fails on any job, the fallback reloads all four,
-# so the jobs the installer had already started restart a second time; this is harmless.
+# Agent always ends up running. If the installer fails on any job, the fallback reloads every job
+# except a process manager it has just omitted, so those jobs restart a second time. That restart
+# is harmless.
 #
 # A LaunchDaemon the fallback can't load is reported in the install log but doesn't fail the
-# install. This keeps the behavior of earlier versions, which only printed a warning when a
-# bootstrap failed. Failing here would make macOS installs stricter than they have ever been, and
-# would roll back the binaries this install just laid down, on every Mac it reaches.
+# install. That keeps the behavior of earlier versions, which only printed a warning when a
+# bootstrap failed. Failing the install on a bootstrap error would make macOS installs stricter
+# than they have ever been, and would roll back the binaries this install just laid down, on every
+# Mac it reaches. The exception is com.datadoghq.procmgr left loaded on a processes.d it must not
+# trust: the check before the final exit fails the install.
 echo "# Installing process manager, agent, system-probe and Agent Data Plane as system-wide LaunchDaemons"
 INSTALLER_BIN="$INSTALL_DIR/embedded/bin/installer"
 if [ -x "$INSTALLER_BIN" ]; then
@@ -426,5 +523,12 @@ echo "## $INSTALL_DIR"
 ls -al $INSTALL_DIR || true
 echo "## $APP_DIR/Contents/Resources"
 ls -al "$APP_DIR/Contents/Resources" || true
+
+# Every other LaunchDaemon failure only warns (see above). A root daemon left loaded on a
+# processes.d it must not trust does not: the install is reported as failed.
+if [ "$pit_unsafe_procmgr" -eq 1 ]; then
+    echo "ERROR: com.datadoghq.procmgr could not be unloaded from an untrusted processes.d."
+    exit 1
+fi
 
 exit 0
