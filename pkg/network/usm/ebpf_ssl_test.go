@@ -10,12 +10,15 @@ package usm
 import (
 	"context"
 	"errors"
+	"net"
 	nethttp "net/http"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime"
 	"strconv"
+	"strings"
 	"syscall"
 	"testing"
 	"time"
@@ -28,6 +31,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
+	"github.com/DataDog/datadog-agent/pkg/network/protocols/http"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols/http/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm/consts"
 	fileopener "github.com/DataDog/datadog-agent/pkg/network/usm/sharedlibraries/testutil"
@@ -418,6 +422,158 @@ func TestFdBySSLBioMapLeak(t *testing.T) {
 	if t.Failed() {
 		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, fdBySSLBioMap)
 	}
+}
+
+// TestSSLSockByCtxMultiThreadedLeak verifies that ssl_sock_by_ctx keeps no entries for TLS
+// connections that were used by several threads of the same process once they are closed.
+//
+// The original bug: the map key held the full pid_tgid, thread ID included. Every thread that did
+// I/O on a connection without an entry for its own thread ID went through the tcp_sendmsg fallback
+// and inserted one, but SSL_shutdown and tcp_close only delete the entry of the thread closing the
+// connection. In thread pools the other entries leaked until the process exited, so the map could
+// fill up and USM stopped seeing new native TLS connections.
+//
+// The fix: the key is per process (thread ID bits cleared), so all threads share one entry per
+// SSL context.
+//
+// This test runs a helper with a thread pool sharing TLS connections, closes them all, and checks
+// (while the helper is still alive) that no entry is left for its PID and that its requests were
+// attributed to the right connections.
+func TestSSLSockByCtxMultiThreadedLeak(t *testing.T) {
+	cfg := NewUSMEmptyConfig()
+	cfg.EnableNativeTLSMonitoring = true
+	cfg.EnableHTTPMonitoring = true
+
+	utils.SkipIfTLSUnsupported(t, cfg)
+
+	const serverHost, serverPort = "127.0.0.1", "8444"
+	serverDone := testutil.HTTPServer(t, net.JoinHostPort(serverHost, serverPort), testutil.Options{
+		EnableTLS:       true,
+		EnableKeepAlive: true,
+		ReadTimeout:     time.Minute,
+	})
+	t.Cleanup(serverDone)
+
+	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
+	require.NotNil(t, monitor)
+
+	sslSockMap, mapExists, err := monitor.ebpfProgram.Manager.GetMap(sslSockByCtxMap)
+	require.NoError(t, err, "Error getting %s map", sslSockByCtxMap)
+	require.True(t, mapExists, "%s map does not exist", sslSockByCtxMap)
+
+	pid, requests := runSSLThreadPoolHelperDocker(t, serverHost, serverPort)
+	require.Positive(t, requests, "the helper did not complete any request")
+
+	leftover := countSSLSockByCtxEntriesOfPID(t, sslSockMap, pid)
+	t.Logf("%s entries left for pid %d after closing all connections: %d", sslSockByCtxMap, pid, leftover)
+	assert.Zero(t, leftover, "%s has entries for connections that were closed", sslSockByCtxMap)
+
+	// Make sure the connections were actually monitored, and that requests were attributed to the
+	// connection they were sent on (the path holds the client port).
+	const pathPrefix = "/200/ssl-threadpool/p"
+	captured, misattributed := 0, 0
+	deadline := time.Now().Add(10 * time.Second)
+	for time.Now().Before(deadline) && captured+misattributed < requests {
+		time.Sleep(500 * time.Millisecond)
+		for key, stats := range getHTTPLikeProtocolStats(t, monitor, protocols.HTTP) {
+			path := key.Path.Content.Get()
+			if !strings.HasPrefix(path, pathPrefix) {
+				continue
+			}
+			clientPort, err := strconv.Atoi(path[len(pathPrefix):])
+			require.NoError(t, err, "unexpected path %q", path)
+			count := 0
+			for _, stat := range stats.Data {
+				count += stat.Count
+			}
+			if int(key.SrcPort) == clientPort || int(key.DstPort) == clientPort {
+				captured += count
+			} else {
+				misattributed += count
+			}
+		}
+	}
+	t.Logf("requests sent: %d, captured on the right connection: %d, on another connection: %d", requests, captured, misattributed)
+	assert.Positive(t, captured, "no request of the helper was captured")
+	assert.Zero(t, misattributed, "requests were attributed to the wrong connection")
+
+	if t.Failed() {
+		ebpftest.DumpMapsTestHelper(t, monitor.DumpMaps, sslSockByCtxMap, sslCtxByTupleMap)
+	}
+}
+
+// countSSLSockByCtxEntriesOfPID counts the ssl_sock_by_ctx entries that belong to the given process.
+func countSSLSockByCtxEntriesOfPID(t *testing.T, m *ebpf.Map, pid int) int {
+	t.Helper()
+	var key http.SSLCtxPidTGID
+	var value http.SslSock
+	count := 0
+	iter := m.Iterate()
+	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
+		if int(key.Tgid>>32) == pid {
+			count++
+		}
+	}
+	require.NoError(t, iter.Err())
+	return count
+}
+
+// runSSLThreadPoolHelperDocker runs the ssl_threadpool helper in a Docker container, lets it start
+// once its process is traced, and waits for it to close all its connections. It returns the
+// helper's (host) PID and the number of requests it completed. The helper stays alive until the
+// test ends.
+func runSSLThreadPoolHelperDocker(t *testing.T, host, port string) (int, int) {
+	t.Helper()
+
+	curDir, err := testutil.CurDir()
+	require.NoError(t, err, "Failed to get current directory")
+	testDataDir := filepath.Join(curDir, "testdata", "ssl_threadpool_test")
+	outDir := t.TempDir()
+
+	env := []string{
+		"TESTDIR=" + testDataDir,
+		"OUTDIR=" + outDir,
+		"HOST=" + host,
+		"PORT=" + port,
+		"CONNECTIONS=20",
+		"THREADS=16",
+		"REQUESTS_PER_THREAD=500",
+		"ROTATIONS=300",
+	}
+
+	scanner, err := globalutils.NewScanner(regexp.MustCompile("SSL_THREADPOOL_READY"), globalutils.NoPattern)
+	require.NoError(t, err, "failed to create pattern scanner")
+
+	dockerCfg := dockerutils.NewComposeConfig(
+		dockerutils.NewBaseConfig(
+			"ssl-threadpool",
+			scanner,
+			dockerutils.WithEnv(env),
+			dockerutils.WithTimeout(2*time.Minute),
+			dockerutils.WithRetries(1),
+		),
+		filepath.Join(testDataDir, "docker-compose.yml"))
+	require.NoError(t, dockerutils.Run(t, dockerCfg), "failed to run ssl_threadpool docker container")
+
+	readInt := func(name string) (int, error) {
+		data, err := os.ReadFile(filepath.Join(outDir, name))
+		if err != nil {
+			return 0, err
+		}
+		return strconv.Atoi(strings.TrimSpace(string(data)))
+	}
+
+	pid, err := readInt("pid")
+	require.NoError(t, err)
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, pid, utils.ManualTracingFallbackEnabled)
+	require.NoError(t, os.WriteFile(filepath.Join(outDir, "start"), nil, 0o644))
+
+	var requests int
+	require.Eventually(t, func() bool {
+		requests, err = readInt("requests")
+		return err == nil
+	}, time.Minute, 200*time.Millisecond, "the helper did not finish its requests")
+	return pid, requests
 }
 
 // runBioLeakHelperDocker runs the bio_leak helper in a Docker container.
