@@ -6,7 +6,7 @@
 package model
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"golang.org/x/sys/unix"
 )
 
@@ -34,7 +34,7 @@ var (
 
 func initVMConstants() {
 	for k, v := range vmConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 	}
 }
 

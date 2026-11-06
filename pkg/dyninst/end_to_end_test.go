@@ -235,6 +235,7 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	modCfg, err := module.NewConfig(nil)
 	require.NoError(t, err)
 	modCfg.ActuatorConfig.RecompilationRateLimit = -1
+	modCfg.ProbeTombstoneFilePath = filepath.Join(t.TempDir(), "tombstone.json")
 
 	modCfg.SymDBUploadEnabled = true
 	modCfg.LogUploaderURL = ts.backendServer.URL + "/logs"
@@ -357,11 +358,150 @@ func runE2ETest(t *testing.T, cfg e2eTestConfig) {
 	// Ensure that the diagnostics states have been cleared.
 	require.Empty(t, ts.module.DiagnosticsStates())
 
+	testInvalidProbeTransitions(t, ts, probes, serverPort)
+
 	require.NoError(t, ts.serviceCmd.Process.Signal(os.Interrupt))
 	require.NoError(t, ts.serviceCmd.Wait())
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		assert.Empty(c, ts.module.DiagnosticsStates())
 	}, 10*time.Second, 100*time.Millisecond, "diagnostics states should be empty")
+}
+
+func testInvalidProbeTransitions(t *testing.T, ts *testState, probes []ir.ProbeDefinition, serverPort int) {
+	t.Helper()
+	var changing, stable *rcjson.SnapshotProbe
+	for _, probe := range probes {
+		encoded, err := json.Marshal(probe)
+		require.NoError(t, err)
+		cloned, err := rcjson.UnmarshalProbe(encoded)
+		require.NoError(t, err)
+		p, ok := cloned.(*rcjson.SnapshotProbe)
+		require.True(t, ok)
+		switch p.ID {
+		case "http_handler":
+			changing = p
+		case "look_at_the_request":
+			stable = p
+		}
+	}
+	require.NotNil(t, changing)
+	require.NotNil(t, stable)
+	changing.ID = "probe-transition"
+	changing.Version = 1
+	ts.rc.UpdateRemoteConfig(makeRemoteConfigUpdate(t, []ir.ProbeDefinition{changing}, false))
+	waitForProbeStatus(t, ts.backend.diagPayloadCh, makeTargetStatus(uploader.StatusInstalled, changing.ID))
+
+	invalidDefinitions := []struct {
+		definition string
+		kind       string
+		message    string
+	}{
+		{
+			definition: `{"type":"TRIGGER_PROBE"}`,
+			kind:       "UnsupportedFeature",
+			message:    "probe type TRIGGER_PROBE is not supported",
+		},
+		{
+			definition: `{"type":"LOG_PROBE","segments":[{"unknown":"hello"}]}`,
+			kind:       "InvalidProbeDefinition",
+			message:    "unknown segment type",
+		},
+		{
+			definition: `{"type":"LOG_PROBE","where":{"methodName":"main.HandleHTTP","sourceFile":"main.go","lines":["10","20"]}}`,
+			kind:       "InvalidProbeDefinition",
+			message:    "lines must be a single line number",
+		},
+	}
+	for _, invalid := range invalidDefinitions {
+		changing.Version++
+		var definition map[string]any
+		require.NoError(t, json.Unmarshal([]byte(invalid.definition), &definition))
+		definition["id"] = changing.ID
+		definition["version"] = changing.Version
+		encoded, err := json.Marshal(definition)
+		require.NoError(t, err)
+		path := createRemoteConfigPath(data.ProductLiveDebugging, changing.ID, encoded)
+		ts.rc.UpdateRemoteConfig(map[string][]byte{path: encoded})
+		diag := waitForProbeError(t, ts.backend.diagPayloadCh, changing.ID, changing.Version)
+		require.NotEmpty(t, diag.RuntimeID)
+		require.NotNil(t, diag.DiagnosticException)
+		require.Equal(t, invalid.kind, diag.DiagnosticException.Type)
+		require.Contains(t, diag.DiagnosticException.Message, invalid.message)
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			stats := ts.module.GetStats()["actuator"].(map[string]any)
+			assert.Equal(c, uint64(0), stats["numPrograms"])
+			assert.Equal(c, uint64(0), stats["numAttached"])
+		}, 10*time.Second, 100*time.Millisecond)
+	}
+
+	changing.Version++
+	depth := 0
+	changing.Capture = &rcjson.Capture{MaxReferenceDepth: &depth}
+	ts.rc.UpdateRemoteConfig(makeRemoteConfigUpdate(t, []ir.ProbeDefinition{changing, stable}, false))
+	waitForProbeStatus(t, ts.backend.diagPayloadCh, makeTargetStatus(uploader.StatusInstalled, changing.ID, stable.ID))
+	sendTestRequests(t, serverPort, 1)
+	waitForProbeStatus(t, ts.backend.diagPayloadCh, makeTargetStatus(uploader.StatusEmitting, changing.ID, stable.ID))
+
+	seen := make(map[string]bool)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		for _, payload := range ts.backend.getLogPayloads() {
+			var logs []struct {
+				Debugger struct {
+					Snapshot struct {
+						Probe struct {
+							ID string `json:"id"`
+						} `json:"probe"`
+						Captures struct {
+							Entry struct {
+								Arguments map[string]map[string]any `json:"arguments"`
+							} `json:"entry"`
+						} `json:"captures"`
+					} `json:"snapshot"`
+				} `json:"debugger"`
+			}
+			require.NoError(t, json.Unmarshal(payload, &logs))
+			for _, log := range logs {
+				snapshot := log.Debugger.Snapshot
+				seen[snapshot.Probe.ID] = true
+				if snapshot.Probe.ID == changing.ID {
+					r := snapshot.Captures.Entry.Arguments["r"]
+					require.Equal(t, "depth", r["notCapturedReason"])
+					require.NotContains(t, r, "fields")
+				}
+			}
+		}
+		assert.True(c, seen[changing.ID])
+		assert.True(c, seen[stable.ID])
+	}, 10*time.Second, 100*time.Millisecond)
+
+	ts.rc.UpdateRemoteConfig(nil)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		stats := ts.module.GetStats()["actuator"].(map[string]any)
+		assert.Equal(c, uint64(0), stats["numPrograms"])
+		assert.Equal(c, uint64(0), stats["numAttached"])
+		assert.Empty(c, ts.module.DiagnosticsStates())
+	}, 10*time.Second, 100*time.Millisecond)
+}
+
+func waitForProbeError(t *testing.T, payloads <-chan []byte, id string, version int) uploader.Diagnostic {
+	t.Helper()
+	timeout := time.After(60 * time.Second)
+	for {
+		select {
+		case payload := <-payloads:
+			var messages []uploader.DiagnosticMessage
+			require.NoError(t, json.Unmarshal(payload, &messages))
+			for _, msg := range messages {
+				diag := msg.Debugger.Diagnostic
+				if diag.ProbeID == id && diag.ProbeVersion == version {
+					require.Equal(t, uploader.StatusError, diag.Status)
+					return diag
+				}
+			}
+		case <-timeout:
+			t.Fatalf("timed out waiting for probe %s version %d error", id, version)
+		}
+	}
 }
 
 func makeRemoteConfigUpdate(t *testing.T, probes []ir.ProbeDefinition, addSymdb bool) map[string][]byte {

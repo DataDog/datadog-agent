@@ -62,6 +62,10 @@ modules:
   comp/core/log/impl-trace: default
   comp/core/log/mock:
     used_by_otel: true
+  comp/core/schema/def:
+    used_by_otel: true
+  comp/core/schema/noop-impl:
+    used_by_otel: true
   comp/core/secrets/def:
     used_by_otel: true
   comp/core/secrets/fx:
