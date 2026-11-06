@@ -14,7 +14,8 @@ features:
     The mapped ADP telemetry remains internal rather than being published as separate expvars.
     Expvars without an equivalent ADP metric remain Core Agent-only. Aggregator coverage includes DogStatsD contexts
     and samples, processed and flushed events/service checks, per-flush counts, and available flush
-    timings. ADP's ``NumberOfFlush`` analogue counts non-empty aggregation flushes. ADP's broader ``transactions__dropped`` counter
-    is not mapped to ``forwarder/Transactions/DroppedOnInput`` because its meaning is not equivalent
-    to the legacy expvar. Legacy splitter expvars were removed in Agent PR #38834 and are not
-    reintroduced.
+    timings. ADP's ``NumberOfFlush`` analogue counts non-empty aggregation flushes. API-key
+    validation requests are excluded from the mapped Forwarder success and HTTP error totals to
+    preserve legacy semantics. ADP's broader ``transactions__dropped`` counter is not mapped to
+    ``forwarder/Transactions/DroppedOnInput`` because its meaning is not equivalent to the legacy
+    expvar. Legacy splitter expvars were removed in Agent PR #38834 and are not reintroduced.
