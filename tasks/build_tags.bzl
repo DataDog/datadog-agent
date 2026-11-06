@@ -306,9 +306,6 @@ AIX_EXCLUDED_TAGS = set([
 # List of tags to always remove when building on Windows
 WINDOWS_EXCLUDED_TAGS = set([
     "requirefips",
-    # The Remote Config x509 client is not built for Windows yet.
-    "rc_x509",
-    "rcx509_nonfips",
 ])
 
 # List of tags to always remove when building on Darwin/macOS

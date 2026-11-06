@@ -109,9 +109,12 @@ class TestCodegenPayloadData(unittest.TestCase):
                 self.assertNotIn("rc_x509", tags)
                 self.assertNotIn("rcx509_nonfips", tags)
 
-    def test_rc_x509_is_excluded_on_windows(self):
-        # The x509 client is not built for Windows yet.
+    def test_rc_x509_is_enabled_on_windows_but_not_for_fips(self):
         tags = build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.base, platform="win32")
+        self.assertIn("rc_x509", tags)
+        self.assertIn("rcx509_nonfips", tags)
+
+        tags = build_tags.get_default_build_tags(build="agent", flavor=AgentFlavor.fips, platform="win32")
         self.assertNotIn("rc_x509", tags)
         self.assertNotIn("rcx509_nonfips", tags)
 
