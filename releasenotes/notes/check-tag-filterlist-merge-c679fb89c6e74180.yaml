@@ -1,4 +1,8 @@
 ---
+features:
+  - |
+    ``metric_tag_filterlist`` now also filters tags from count, monotonic count
+    and histogram bucket metrics submitted by checks.
 fixes:
   - |
     Fix data loss when ``metric_tag_filterlist`` removes the tags that
