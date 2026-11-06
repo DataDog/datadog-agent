@@ -155,6 +155,26 @@ func TestCleanPathList(t *testing.T) {
 			in:   []string{"/var/log:ro", "/var/log/datadog:rw"},
 			want: []string{"/var/log/:ro", "/var/log/datadog/:rw"},
 		},
+		{
+			name: "stacked access suffix is dropped instead of becoming a literal directory",
+			in:   []string{"/host/tenant:rw:rw", "/host/tenant:ro:rw", "/host/tenant:rw:ro"},
+			want: []string{},
+		},
+		{
+			name: "directory ending in access suffix before a separator is dropped",
+			in:   []string{"/host/tenant:rw/:rw", "/host/tenant:ro/", "/host/tenant:rw/./"},
+			want: []string{},
+		},
+		{
+			name: "suffix-named directory is dropped while valid entries are kept",
+			in:   []string{"/var/log:ro", "/host/tenant:rw/:rw", "/host/datadog:rw"},
+			want: []string{"/var/log/:ro", "/host/datadog/:rw"},
+		},
+		{
+			name: "colon elsewhere in the path is preserved",
+			in:   []string{"/host/a:rwx:rw", "/host/a:r/b:ro"},
+			want: []string{"/host/a:rwx/:rw", "/host/a:r/b/:ro"},
+		},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

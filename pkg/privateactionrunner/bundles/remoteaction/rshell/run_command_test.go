@@ -469,6 +469,12 @@ func TestFilterAllowedPathsIntersectsAgentAllowlistByAccess(t *testing.T) {
 			expected: []string{"/var/log/:rw"},
 		},
 		{
+			name:     "backend directory named with an access suffix is never granted",
+			agent:    []string{"/host:rw"},
+			backend:  []string{"/host/tenant:rw:rw", "/host/tenant:rw/:rw", "/host/other:rw"},
+			expected: []string{"/host/other/:rw"},
+		},
+		{
 			name:     "explicit agent root keeps backend read-write over read-only duplicate",
 			agent:    []string{"/"},
 			backend:  []string{"/var/log:ro", "/var/log:rw"},

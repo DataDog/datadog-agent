@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
@@ -63,16 +64,26 @@ func intersectAllowedCommands(backendAllowed []string, operatorAllowed []string)
 // and ensures that each path ends with a separator:
 // so that "/var/log" is a prefix of "/var/log/nginx" but not of "/var/logger".
 // It preserves rshell access suffixes (:ro / :rw) at the end of the path spec.
+//
+// Entries whose cleaned path still ends in :ro / :rw are dropped: rshell always
+// reads a terminal suffix as the access mode, so such a directory cannot be
+// granted, and the inserted separator would otherwise turn suffix text into a
+// literal directory name (e.g. "/x/a:rw:rw" -> "/x/a:rw/:rw").
 func cleanPathList(paths []string) []string {
-	cleaned := make([]string, len(paths))
-	for i, p := range paths {
+	cleaned := make([]string, 0, len(paths))
+	for _, p := range paths {
 		pathPart, accessSuffix := splitPathAccessSuffix(p)
 		cleanedPath := path.Clean(pathPart)
+
+		if _, nested := splitPathAccessSuffix(cleanedPath); nested != "" {
+			log.Warnf("ignoring allowed path %q: a directory name ending in %s or %s cannot be granted", p, pathAccessReadOnly, pathAccessReadWrite)
+			continue
+		}
 
 		if !strings.HasSuffix(cleanedPath, "/") {
 			cleanedPath += "/"
 		}
-		cleaned[i] = cleanedPath + accessSuffix
+		cleaned = append(cleaned, cleanedPath+accessSuffix)
 	}
 	return cleaned
 }
