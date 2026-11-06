@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Enable jemalloc by default in Linux Agent container images, including JMX
+    and FIPS variants, to reduce native memory fragmentation. To disable
+    jemalloc, override ``LD_PRELOAD`` with ``/opt/lib/nosys.so``.

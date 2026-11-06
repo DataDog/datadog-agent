@@ -56,6 +56,7 @@ dd_agent_go_test(
         "//cmd/privateactionrunner/command",
         "//comp/core/config",
         "//comp/core/delegatedauth/fx-noop",
+        "//comp/core/schema/fx-noop",
         "//comp/core/secrets/fx-noop",
         "//pkg/config/model",
         "//pkg/privateactionrunner",

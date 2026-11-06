@@ -1,9 +1,11 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "otelprocessctx",
     srcs = [
         "attributes.go",
+        "payload.go",
         "process_ctx.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/otelprocessctx",
@@ -11,16 +13,37 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/discovery/tracermetadata/model",
-            "//pkg/security/probe/procfs",
+            "@org_golang_google_protobuf//encoding/protowire",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/discovery/tracermetadata/model",
+            "@org_golang_google_protobuf//encoding/protowire",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "otelprocessctx_test",
+    srcs = ["payload_test.go"],
+    embed = [":otelprocessctx"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/discovery/tracermetadata/model",
+            "@com_github_stretchr_testify//require",
             "@io_opentelemetry_go_proto_slim_otlp//common/v1:common",
+            "@io_opentelemetry_go_proto_slim_otlp//resource/v1:resource",
             "@io_opentelemetry_go_proto_slim_otlp_processcontext_v1development//:v1development",
+            "@org_golang_google_protobuf//encoding/protowire",
             "@org_golang_google_protobuf//proto",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/discovery/tracermetadata/model",
-            "//pkg/security/probe/procfs",
+            "@com_github_stretchr_testify//require",
             "@io_opentelemetry_go_proto_slim_otlp//common/v1:common",
+            "@io_opentelemetry_go_proto_slim_otlp//resource/v1:resource",
             "@io_opentelemetry_go_proto_slim_otlp_processcontext_v1development//:v1development",
+            "@org_golang_google_protobuf//encoding/protowire",
             "@org_golang_google_protobuf//proto",
         ],
         "//conditions:default": [],

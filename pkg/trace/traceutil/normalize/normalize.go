@@ -8,6 +8,7 @@ package normalize
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"sync"
 	"unicode"
@@ -151,6 +152,14 @@ func NormalizeTag(v string) string {
 //nolint:revive
 func NormalizeTagValue(v string) string {
 	return normalize(v, false)
+}
+
+// IsValidStatusCode reports whether sc is a valid HTTP status code, between 100 and 599.
+func IsValidStatusCode(sc string) bool {
+	if code, err := strconv.ParseUint(sc, 10, 64); err == nil {
+		return 100 <= code && code < 600
+	}
+	return false
 }
 
 func normalize(v string, removeDigitStartChar bool) string {
