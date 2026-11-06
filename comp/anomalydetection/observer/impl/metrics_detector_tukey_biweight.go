@@ -47,11 +47,9 @@ type tbSeriesState struct {
 }
 
 // TukeyBiweightDetector scores recent values against a robust IRLS baseline.
-// Outliers receive zero weight, protecting the baseline from isolated spikes.
 type TukeyBiweightDetector struct {
-	ready        bool
-	config       TukeyBiweightConfig
-	aggregations []observer.Aggregate
+	ready  bool
+	config TukeyBiweightConfig
 
 	// per-series state keyed by ref+agg
 	series map[tbStateKey]*tbSeriesState
@@ -80,8 +78,6 @@ type TukeyBiweightConfig struct {
 	ScoreEvery int `json:"score_every"`
 	// CooldownPoints suppresses this many points after a fire (default: 30).
 	CooldownPoints int `json:"cooldown_points"`
-	// Aggregations to run detection on. Default: [Average, Count].
-	Aggregations []string `json:"aggregations,omitempty"`
 }
 
 // DefaultTukeyBiweightConfig returns the production/testbench defaults.
@@ -94,10 +90,6 @@ func DefaultTukeyBiweightConfig() TukeyBiweightConfig {
 		ZThreshold:     5.0,
 		ScoreEvery:     4,
 		CooldownPoints: 30,
-		Aggregations: []string{
-			observer.AggregateString(observer.AggregateAverage),
-			observer.AggregateString(observer.AggregateCount),
-		},
 	}
 }
 
@@ -132,19 +124,9 @@ func NewTukeyBiweightDetector(cfg TukeyBiweightConfig) *TukeyBiweightDetector {
 	if cfg.CooldownPoints == 0 {
 		cfg.CooldownPoints = defaults.CooldownPoints
 	}
-	if len(cfg.Aggregations) == 0 {
-		cfg.Aggregations = defaults.Aggregations
-	}
-	cfg.Aggregations = append([]string(nil), cfg.Aggregations...)
-	aggregations := parseAggregateConfig(cfg.Aggregations)
-	if len(aggregations) == 0 {
-		// Unknown names are dropped; fall back so misconfiguration cannot disable detection.
-		aggregations = parseAggregateConfig(defaults.Aggregations)
-	}
 	return &TukeyBiweightDetector{
-		config:       cfg,
-		aggregations: aggregations,
-		series:       make(map[tbStateKey]*tbSeriesState),
+		config: cfg,
+		series: make(map[tbStateKey]*tbSeriesState),
 	}
 }
 
@@ -175,7 +157,7 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, tbStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -187,10 +169,11 @@ func (d *TukeyBiweightDetector) RemoveSeries(refs []observer.SeriesRef) {
 // bucket via a same-bucket merge or out-of-order backfill, the per-series state
 // is rebuilt from visible storage to keep incremental processing equivalent to
 // replaying the final stored points.
-func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedSeries == nil || gen != d.cachedGen {
-		d.cachedSeries = storage.ListSeries(observer.WorkloadSeriesFilter())
+		d.cachedSeries = storage.ListSeries(detectorSeriesFilter(filter))
 		d.cachedGen = gen
 	}
 
@@ -205,7 +188,7 @@ func (d *TukeyBiweightDetector) Detect(storage observer.StorageReader, dataTime 
 	for i, meta := range d.cachedSeries {
 		status := bulkStatus[i]
 
-		for _, agg := range d.aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, meta.Ref, agg) {
 				continue
 			}

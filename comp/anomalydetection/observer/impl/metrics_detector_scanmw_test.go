@@ -16,22 +16,18 @@ import (
 )
 
 func testScanMWDetector() *ScanMWDetector {
-	cfg := DefaultScanMWConfig()
-	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
-	return NewScanMWDetector(cfg)
+	return NewScanMWDetector(DefaultScanMWConfig())
 }
 
 func TestScanMW_Config(t *testing.T) {
 	defaults := ScanMWConfig{
 		MinSegment: 12, MinPoints: 30, MaxPoints: 120,
 		SignificanceThreshold: 1e-8, MinEffectSize: 0.85, MinDeviationMAD: 3,
-		Aggregations: []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount},
 	}
 	require.Equal(t, defaults, DefaultScanMWConfig())
 	explicit := ScanMWConfig{
 		MinSegment: 6, MinPoints: 20, MaxPoints: 40,
 		SignificanceThreshold: 1e-6, MinEffectSize: 0.7, MinDeviationMAD: 2,
-		Aggregations: []observer.Aggregate{observer.AggregateSum},
 	}
 	raisedMax := defaults
 	raisedMax.MinPoints, raisedMax.MaxPoints = 130, 130
@@ -60,21 +56,14 @@ func TestScanMW_Config(t *testing.T) {
 
 func TestScanMW_ConfigOwnership(t *testing.T) {
 	cfg := DefaultScanMWConfig()
-	cfg.Aggregations = []observer.Aggregate{observer.AggregateAverage}
+
 	d := NewScanMWDetector(cfg)
 	want := DefaultScanMWConfig()
-	want.Aggregations = []observer.Aggregate{observer.AggregateAverage}
 
-	cfg.Aggregations[0] = observer.AggregateCount
 	cfg.MinPoints, cfg.MaxPoints = 1, 2
 	require.Equal(t, want, d.config)
 	d.Reset()
 	require.Equal(t, want, d.config, "reset must preserve constructor configuration")
-
-	// Defaults returned to different callers must not share aggregation slices.
-	first, second := DefaultScanMWConfig(), DefaultScanMWConfig()
-	first.Aggregations[0] = observer.AggregateSum
-	require.Equal(t, observer.AggregateAverage, second.Aggregations[0])
 }
 
 func TestScanMW_DefaultAggregations(t *testing.T) {
@@ -101,7 +90,7 @@ func TestScanMW_DefaultAggregations(t *testing.T) {
 	add(7, "work", metrics.GaugeType, observer.UNSET)
 
 	unrestricted := NewScanMWDetector(DefaultScanMWConfig())
-	result := unrestricted.Detect(s, 40)
+	result := unrestricted.Detect(s, 40, observer.DetectionFilter{})
 	require.Len(t, result.Anomalies, 6, "unscoped ScanMW retains all workload kinds and types")
 	require.Len(t, unrestricted.series, 12, "each workload series has average and count state")
 	for _, anomaly := range result.Anomalies {
@@ -122,7 +111,7 @@ func TestScanMW_NotEnoughPoints(t *testing.T) {
 		storage.Add("ns", "metric", 100, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 10)
+	result := d.Detect(storage, 10, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, result.Anomalies, "should not fire with fewer than MinPoints")
 }
 
@@ -137,7 +126,7 @@ func TestScanMW_DetectsStepChange(t *testing.T) {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, 40)
+	result := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	require.NotEmpty(t, result.Anomalies, "should detect step change")
 	title, description := observer.FormatAnomaly(result.Anomalies[0])
@@ -159,7 +148,7 @@ func TestScanMW_DetectsDownwardStepChange(t *testing.T) {
 	for i := 20; i < 40; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
 	}
-	result := d.Detect(storage, 40)
+	result := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, result.Anomalies)
 	title, description := observer.FormatAnomaly(result.Anomalies[0])
 	assert.Equal(t, "ScanMW changepoint: metric:avg", title)
@@ -174,18 +163,18 @@ func TestScanMW_IncrementalAdvance(t *testing.T) {
 	for i := 0; i < 20; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
 	}
-	r1 := d.Detect(storage, 20)
+	r1 := d.Detect(storage, 20, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, r1.Anomalies, "no anomaly in stable data")
 
 	// Second advance: add shifted data — now has 40 points total.
 	for i := 20; i < 40; i++ {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
-	r2 := d.Detect(storage, 40)
+	r2 := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, r2.Anomalies, "should detect step change on second advance")
 
 	// Third advance: no new data — should emit nothing.
-	r3 := d.Detect(storage, 40)
+	r3 := d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, r3.Anomalies, "no new data should produce no anomalies")
 }
 
@@ -201,7 +190,7 @@ func TestScanMW_SegmentAdvancement(t *testing.T) {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
 
-	r1 := d.Detect(storage, 50)
+	r1 := d.Detect(storage, 50, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, r1.Anomalies, "should detect first changepoint")
 
 	// After fire, the segment start should have advanced.
@@ -210,7 +199,7 @@ func TestScanMW_SegmentAdvancement(t *testing.T) {
 	for i := 50; i < 90; i++ {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
-	r2 := d.Detect(storage, 90)
+	r2 := d.Detect(storage, 90, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.Empty(t, r2.Anomalies, "stable post-change data should not re-fire")
 }
 
@@ -226,7 +215,7 @@ func TestScanMW_TwoSequentialChanges(t *testing.T) {
 		storage.Add("ns", "metric", 200, int64(i+1), nil)
 	}
 
-	r1 := d.Detect(storage, 50)
+	r1 := d.Detect(storage, 50, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, r1.Anomalies, "should detect first changepoint")
 
 	// Phase 2: 200 → 500
@@ -234,7 +223,7 @@ func TestScanMW_TwoSequentialChanges(t *testing.T) {
 		storage.Add("ns", "metric", 500, int64(i+1), nil)
 	}
 
-	r2 := d.Detect(storage, 80)
+	r2 := d.Detect(storage, 80, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	require.NotEmpty(t, r2.Anomalies, "should detect second changepoint after segment advancement")
 }
 
@@ -250,10 +239,10 @@ func TestScanMW_DeterministicReplay(t *testing.T) {
 	}
 
 	d1 := makeDetector()
-	r1 := d1.Detect(storage, 40)
+	r1 := d1.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	d2 := makeDetector()
-	r2 := d2.Detect(storage, 40)
+	r2 := d2.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 	require.Equal(t, len(r1.Anomalies), len(r2.Anomalies), "replay should produce same anomaly count")
 	for i := range r1.Anomalies {
@@ -269,7 +258,7 @@ func TestScanMW_Reset(t *testing.T) {
 	for i := 0; i < 40; i++ {
 		storage.Add("ns", "metric", 50, int64(i+1), nil)
 	}
-	d.Detect(storage, 40)
+	d.Detect(storage, 40, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 	assert.NotEmpty(t, d.series, "should have state after detection")
 
 	d.Reset()
@@ -301,7 +290,7 @@ func TestScanMW_PreloadedReplayFiresAsDataTimeAdvances(t *testing.T) {
 	// Replay: advance dataTime one bucket at a time over preloaded storage.
 	var fired bool
 	for dataTime := int64(1); dataTime <= 40; dataTime++ {
-		if len(d.Detect(storage, dataTime).Anomalies) > 0 {
+		if len(d.Detect(storage, dataTime, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}}).Anomalies) > 0 {
 			fired = true
 		}
 	}
