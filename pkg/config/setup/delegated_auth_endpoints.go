@@ -19,9 +19,8 @@ import (
 )
 
 var (
-	delaOrgUUIDRe       = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+	delaOrgOrRegionRe   = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 	delaNameRe          = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-	delaRegionRe        = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 	delaFallbackValueRe = regexp.MustCompile(`^[A-Za-z0-9_=-]+$`)
 )
 
@@ -52,7 +51,7 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 
 	orgUUID := strings.TrimSpace(parts[0])
 	provider := strings.TrimSpace(parts[1])
-	if !delaOrgUUIDRe.MatchString(orgUUID) || !delaNameRe.MatchString(provider) {
+	if !delaOrgOrRegionRe.MatchString(orgUUID) || !delaNameRe.MatchString(provider) {
 		return delaDirective{}, false
 	}
 
@@ -66,7 +65,7 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 		}
 		switch key {
 		case "region":
-			if !delaRegionRe.MatchString(val) {
+			if !delaOrgOrRegionRe.MatchString(val) {
 				return delaDirective{}, false
 			}
 		case "fallback":
