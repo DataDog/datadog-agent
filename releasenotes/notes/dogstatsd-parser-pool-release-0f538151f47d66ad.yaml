@@ -1,0 +1,5 @@
+fixes:
+  - |
+    DogStatsD now returns numeric buffers to the pool when a metric with multiple
+    values has an invalid sample rate or timestamp, preserving buffer reuse and
+    accurate pool usage telemetry.
