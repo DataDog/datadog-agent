@@ -59,8 +59,11 @@ type programEntry struct {
 // Resolver defines a TC resolver
 type Resolver struct {
 	sync.RWMutex
-	config   *config.Config
-	programs map[ProgramKey]programEntry
+	// probesLock serializes the changes to the TC programs of the manager with the activation of its probes. It is
+	// taken after the locks of the network namespace resolver, and before the RWMutex.
+	probesLock sync.Mutex
+	config     *config.Config
+	programs   map[ProgramKey]programEntry
 }
 
 // NewResolver returns a TC resolver
@@ -81,18 +84,42 @@ func (tcr *Resolver) SendTCProgramsStats(statsdClient statsd.ClientInterface) {
 	}
 }
 
-// SelectTCProbes selects TC probes
-func (tcr *Resolver) SelectTCProbes() manager.ProbesSelector {
+// UpdateActivatedProbes updates the probes activated in the manager, and keeps the TC programs that are running. TC
+// programs can't be added nor removed until the activation is done: the manager would fail on a program that is gone,
+// and detach the programs it wasn't asked to keep.
+func (tcr *Resolver) UpdateActivatedProbes(m *manager.Manager, selectors []manager.ProbesSelector) error {
+	if err := tcr.activateProbes(m, selectors); err != nil {
+		return err
+	}
+
+	var validationErrs error
+	for _, selector := range selectors {
+		if err := selector.RunValidator(m); err != nil {
+			validationErrs = errors.Join(validationErrs, err)
+		}
+	}
+	if validationErrs != nil {
+		_ = m.Stop(manager.CleanInternal)
+		return fmt.Errorf("probes activation validation failed: %w", validationErrs)
+	}
+	return nil
+}
+
+// activateProbes activates the provided probes without validating them: a validation failure makes the manager stop,
+// which waits for the event handlers, and those can wait for probesLock.
+func (tcr *Resolver) activateProbes(m *manager.Manager, selectors []manager.ProbesSelector) error {
+	tcr.probesLock.Lock()
+	defer tcr.probesLock.Unlock()
+
+	unvalidated := &manager.BestEffort{Selectors: append(slices.Clone(selectors), tcr.selectTCProbes())}
+	return m.UpdateActivatedProbes([]manager.ProbesSelector{unvalidated})
+}
+
+// selectTCProbes selects the TC probes that are running. The caller must hold probesLock.
+func (tcr *Resolver) selectTCProbes() manager.ProbesSelector {
 	tcr.RLock()
 	defer tcr.RUnlock()
 
-	// Although unlikely, a race is still possible with the umount event of a network namespace:
-	//   - a reload event is triggered
-	//   - selectTCProbes is invoked and the list of currently running probes is generated
-	//   - a container exits and the umount event of its network namespace is handled now (= its TC programs are stopped)
-	//   - the manager executes UpdateActivatedProbes
-	// In this setup, if we didn't use the best effort selector, the manager would try to init & attach a program that
-	// was deleted when the container exited.
 	var activatedProbes manager.BestEffort
 	for _, entry := range tcr.programs {
 		if entry.probe.IsRunning() {
@@ -107,6 +134,8 @@ func (tcr *Resolver) SelectTCProbes() manager.ProbesSelector {
 // SetupNewTCClassifierWithNetNSHandle creates and attaches TC probes on the provided device. WARNING: this function
 // will not close the provided netns handle, so the caller of this function needs to take care of it.
 func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice, netnsHandle *os.File, m *manager.Manager) error {
+	tcr.probesLock.Lock()
+	defer tcr.probesLock.Unlock()
 	tcr.Lock()
 	defer tcr.Unlock()
 
@@ -175,7 +204,7 @@ func (tcr *Resolver) SetupNewTCClassifierWithNetNSHandle(device model.NetDevice,
 	return combinedErr.ErrorOrNil()
 }
 
-// detachHook detaches and deletes a TC hook from the resolver, needs to be called with the lock held
+// detachHook detaches and deletes a TC hook from the resolver, needs to be called with probesLock and the lock held
 func (tcr *Resolver) detachHook(tcKey ProgramKey, entry programEntry, m *manager.Manager) {
 	if err := m.DetachHook(entry.probe.ProbeIdentificationPair); err != nil {
 		// fall through and clean up our local state below if the ebpf-manager has already stopped
@@ -193,14 +222,21 @@ func (tcr *Resolver) detachHook(tcKey ProgramKey, entry programEntry, m *manager
 	delete(tcr.programs, tcKey)
 }
 
-// FlushNetworkNamespaceID flushes network ID
-func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Manager) {
+// CleanupNetworkNamespace removes the TC programs of the provided network namespace, along with the other references
+// the manager holds on that namespace
+func (tcr *Resolver) CleanupNetworkNamespace(namespaceID uint32, m *manager.Manager) {
+	tcr.probesLock.Lock()
+	defer tcr.probesLock.Unlock()
+
+	_ = m.CleanupNetworkNamespace(namespaceID)
+
 	tcr.Lock()
 	defer tcr.Unlock()
 
 	for tcKey, entry := range tcr.programs {
 		if tcKey.NetNS == namespaceID {
-			tcr.detachHook(tcKey, entry, m)
+			ddebpf.RemoveProgramID(entry.programID, "cws")
+			delete(tcr.programs, tcKey)
 		}
 	}
 }
@@ -208,6 +244,8 @@ func (tcr *Resolver) FlushNetworkNamespaceID(namespaceID uint32, m *manager.Mana
 // FlushInactiveProbes detaches and deletes inactive probes. This function returns a map containing the count of interfaces
 // per network namespace (ignoring the interfaces that are lazily deleted).
 func (tcr *Resolver) FlushInactiveProbes(m *manager.Manager, isLazy func(string) bool) map[uint32]int {
+	tcr.probesLock.Lock()
+	defer tcr.probesLock.Unlock()
 	tcr.Lock()
 	defer tcr.Unlock()
 
