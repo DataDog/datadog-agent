@@ -48,6 +48,7 @@ func otelSpanToDDSpanMinimal(
 	peerTagKeys []string,
 	primaryTagKeys []string,
 	spanAccessor semantics.Accessor,
+	tagKeys *OTelSpanTagKeys,
 ) *pb.Span {
 	spanKind := otelspan.Kind()
 
@@ -109,9 +110,13 @@ func otelSpanToDDSpanMinimal(
 	}
 	// TODO(DSEM-658): migrate peer tag lookups to use the semantics library.
 	// Use direct lookup only: peerTagKeys already lists every precursor from peer_tags.ini (semantic-core).
-	for _, peerTagKey := range peerTagKeys {
-		if peerTagVal := GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
-			ddspan.Meta[peerTagKey] = peerTagVal
+	if tagKeys != nil {
+		copyOTelAttributeTags(sattr, rattr, tagKeys.peer, ddspan.Meta)
+	} else {
+		for _, peerTagKey := range peerTagKeys {
+			if peerTagVal := GetOTelAttrFromEitherMap(sattr, rattr, false, peerTagKey); peerTagVal != "" {
+				ddspan.Meta[peerTagKey] = peerTagVal
+			}
 		}
 	}
 	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
@@ -127,9 +132,13 @@ func otelSpanToDDSpanMinimal(
 	// Concentrator's matchingAdditionalMetricTags (which reads span.Meta[key])
 	// can aggregate on them. The minimal conversion does not copy all
 	// attributes, so these must be pulled in explicitly like peer tags above.
-	for _, primaryTagKey := range primaryTagKeys {
-		if primaryTagVal := GetOTelAttrFromEitherMap(sattr, rattr, false, primaryTagKey); primaryTagVal != "" {
-			ddspan.Meta[primaryTagKey] = primaryTagVal
+	if tagKeys != nil {
+		copyOTelAttributeTags(sattr, rattr, tagKeys.primary, ddspan.Meta)
+	} else {
+		for _, primaryTagKey := range primaryTagKeys {
+			if primaryTagVal := GetOTelAttrFromEitherMap(sattr, rattr, false, primaryTagKey); primaryTagVal != "" {
+				ddspan.Meta[primaryTagKey] = primaryTagVal
+			}
 		}
 	}
 	// Preserve the raw W3C tracestate so downstream consumers of the minimal
@@ -163,7 +172,60 @@ func OtelSpanToDDSpanMinimal(
 	primaryTagKeys []string,
 ) *pb.Span {
 	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
-	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys, primaryTagKeys, spanAccessor)
+	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys, primaryTagKeys, spanAccessor, nil)
+}
+
+// OTelSpanTagKeys holds immutable peer and primary tag selections reusable across spans.
+// Its zero value selects no tags.
+type OTelSpanTagKeys struct {
+	peer    map[string]struct{}
+	primary map[string]struct{}
+}
+
+// NewOTelSpanTagKeys prepares tag selections without retaining the input slices.
+func NewOTelSpanTagKeys(peerTagKeys, primaryTagKeys []string) OTelSpanTagKeys {
+	prepare := func(keys []string) map[string]struct{} {
+		if len(keys) == 0 {
+			return nil
+		}
+		set := make(map[string]struct{}, len(keys))
+		for _, key := range keys {
+			set[key] = struct{}{}
+		}
+		return set
+	}
+	return OTelSpanTagKeys{peer: prepare(peerTagKeys), primary: prepare(primaryTagKeys)}
+}
+
+// OtelSpanToDDSpanMinimalWithTagKeys is OtelSpanToDDSpanMinimal with reusable tag selections.
+func OtelSpanToDDSpanMinimalWithTagKeys(
+	otelspan ptrace.Span,
+	otelres pcommon.Resource,
+	lib pcommon.InstrumentationScope,
+	isTopLevel, topLevelByKind bool,
+	conf *config.AgentConfig,
+	tagKeys OTelSpanTagKeys,
+) *pb.Span {
+	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
+	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil, nil, spanAccessor, &tagKeys)
+}
+
+func copyOTelAttributeTags(sattr, rattr pcommon.Map, keys map[string]struct{}, meta map[string]string) {
+	if len(keys) == 0 {
+		return
+	}
+	// Resource fallback first; nonempty span values then take precedence.
+	for _, attrs := range [2]pcommon.Map{rattr, sattr} {
+		for key := range attrs.All() {
+			if _, requested := keys[key]; !requested {
+				continue
+			}
+			// Keep Get's first-match behavior for duplicate OTLP attribute keys.
+			if value := GetOTelAttrVal(attrs, false, key); value != "" {
+				meta[key] = value
+			}
+		}
+	}
 }
 
 func isDatadogAPMConventionKey(k string) bool {
@@ -318,7 +380,7 @@ func OtelSpanToDDSpan(
 	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
 	// primaryTagKeys is nil here: the full conversion below copies all span and
 	// resource attributes into Meta, so span-derived primary tags are already present.
-	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil, nil, spanAccessor)
+	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil, nil, spanAccessor, nil)
 
 	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
