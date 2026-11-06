@@ -898,11 +898,12 @@ func (c *blockingClcRunnerClient) GetRunnerStats(string) (types.CLCRunnersStats,
 func TestUpdateRunnersStatsDoesNotBlockStore(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	dispatcher := newDispatcher(fakeTagger)
-	client := &blockingClcRunnerClient{called: make(chan struct{}, 2), release: make(chan struct{})}
+	client := &blockingClcRunnerClient{called: make(chan struct{}, 3), release: make(chan struct{})}
 	dispatcher.clcRunnersClient = client
 
 	dispatcher.processNodeStatus("stats-node-a", "10.0.0.1", types.NodeStatus{})
 	dispatcher.processNodeStatus("stats-node-b", "10.0.0.2", types.NodeStatus{})
+	dispatcher.processNodeStatus("stats-node-c", "10.0.0.3", types.NodeStatus{})
 
 	collected := make(chan struct{})
 	go func() {
@@ -911,11 +912,12 @@ func TestUpdateRunnersStatsDoesNotBlockStore(t *testing.T) {
 	}()
 	<-client.called
 
-	// While a runner query is in flight, heartbeats, config polls and node
-	// expiry go through.
+	// While a runner query is in flight, heartbeats (including one from a new
+	// IP), config polls and node expiry go through.
 	unblocked := make(chan struct{})
 	go func() {
 		dispatcher.processNodeStatus("stats-node-a", "10.0.0.1", types.NodeStatus{})
+		dispatcher.processNodeStatus("stats-node-c", "10.0.0.9", types.NodeStatus{})
 		_, _, _ = dispatcher.getClusterCheckConfigs("stats-node-a")
 		dispatcher.store.Lock()
 		dispatcher.store.nodes["stats-node-b"].heartbeat = 0
@@ -941,6 +943,13 @@ func TestUpdateRunnersStatsDoesNotBlockStore(t *testing.T) {
 	// The runner that expired mid-query is neither recreated nor reported.
 	assert.NotContains(t, dispatcher.store.nodes, "stats-node-b")
 	assert.Zero(t, busyness.WithValues("stats-node-b", le.JoinLeaderValue).Get())
+
+	// The runner that moved to a new IP doesn't get the results of its old one.
+	nodeC, found := dispatcher.store.getNodeStore("stats-node-c")
+	require.True(t, found)
+	assert.Equal(t, "10.0.0.9", nodeC.clientIP)
+	assert.Zero(t, nodeC.workers)
+	assert.Empty(t, nodeC.clcRunnerStats)
 
 	requireNotLocked(t, dispatcher.store)
 }

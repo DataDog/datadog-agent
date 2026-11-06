@@ -272,6 +272,10 @@ func (d *dispatcher) updateRunnersStats() {
 			// Expired while we were querying it: don't bring its metrics back.
 			continue
 		}
+		if node.clientIP != r.ip {
+			// Re-registered from another IP: these results describe the old one.
+			continue
+		}
 		node.workers = r.workers
 
 		if r.statsErr != nil {
