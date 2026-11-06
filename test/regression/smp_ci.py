@@ -15,6 +15,13 @@ Ignored from this criteria
 - Detected regressions do not fail the job.
 - any `erratic` experiment results
 - jobs detected as `is_erratic` at runtime
+- bounds checks for non `quality_gate_*` jobs
+
+CI monitoring tags
+=========================
+- `job`: CI job pass/fail criteria (see above)
+- `regression`: fails if any experiment reports a significant regression
+- `bounds_checks`: fails if any bound check fails
 
 Exit code
 =========
@@ -140,9 +147,14 @@ def render_decision(report: ReportData) -> DecisionResult:
     record_lines = []
 
     for experiment in report["experiments"]:
+        is_quality_gate = experiment["name"].startswith(GATE_PREFIX)
+
         goal = experiment.get("optimization_goal")
         if goal is not None:
             result = goal.get("result")
+            if result is None and is_quality_gate:
+                job_failed = True
+
             regressions_failed |= result is None or (
                 not experiment["erratic"] and result["is_significant_change"] and not result["is_improvement"]
             )
@@ -150,24 +162,21 @@ def render_decision(report: ReportData) -> DecisionResult:
         for check in experiment["bounds_checks"]:
             total_count = check["total_count"]
             pass_count = check["pass_count"]
-            bounds_failed |= not experiment["erratic"] and pass_count < total_count
-            if not experiment["name"].startswith(GATE_PREFIX):
-                continue
+            check_failed = pass_count < total_count
+            bounds_failed |= not experiment["erratic"] and check_failed
 
-            gate_failure = total_count == 0 or pass_count != total_count
-            failed_count = total_count - pass_count
-            record_base = (
-                f"- **{experiment['name']}**, bounds check **{check['name']}**: "
-                f"{pass_count}/{total_count} replicas passed. "
-            )
-            if total_count == 0:
-                record_verdict = "No comparison replicate data. Gate **FAILED**."
-            elif gate_failure:
-                record_verdict = f"Failed {failed_count} which is > 0. Gate **FAILED**."
-            else:
-                record_verdict = "Gate passed."
-            record_lines.append(record_base + record_verdict)
-            job_failed |= gate_failure
+            if is_quality_gate:
+                failed_count = total_count - pass_count
+                record_base = (
+                    f"- **{experiment['name']}**, bounds check **{check['name']}**: "
+                    f"{pass_count}/{total_count} replicas passed. "
+                )
+                if check_failed:
+                    record_verdict = f"Failed {failed_count} which is > 0. Gate **FAILED**."
+                else:
+                    record_verdict = "Gate passed."
+                record_lines.append(record_base + record_verdict)
+                job_failed |= check_failed
 
     decision: Decision = {
         "regressions": "failed" if regressions_failed else "passed",
@@ -213,8 +222,6 @@ def main(argv: list[str] | None = None) -> int:
             args.output_failure_mark.write_bytes(b"")
         else:
             args.output_failure_mark.unlink(missing_ok=True)
-        # Write the payload last: the comment job checks this file, not a report
-        # that may have been downloaded from the backend by `job sync`.
         render_comment_payload(args.commit, markdown_text, args.output_pr_comment)
     except (OSError, ValueError, subprocess.CalledProcessError) as error:
         print(f"error: {error}", file=sys.stderr)
