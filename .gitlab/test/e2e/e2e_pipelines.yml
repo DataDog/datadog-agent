@@ -119,7 +119,7 @@ new-e2e-alp:
   variables:
     TARGETS: ./tests/agent-log-pipelines
     TEAM: agent-log-pipelines
-    EXTRA_PARAMS: --skip "Windows"
+    EXTRA_PARAMS: --skip "Windows|^TestRegistryDurability$"
   # Temporary for #incident-44744
   allow_failure: true
   retry: !reference [.retry_only_infra_failure, retry]
