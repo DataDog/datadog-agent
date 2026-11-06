@@ -56,9 +56,9 @@ func (e *identEditor) edit(node ast.Node) ast.Node {
 			return copyAt(tree, n.Pos)
 		}
 		return node
-	case *ast.Selector, *ast.Index:
+	case *ast.Selector, *ast.Index, *ast.Interpolation:
 		// the name of a macro or of a constant is a lone identifier, a dotted
-		// or subscripted name is a field
+		// or subscripted name is a field, and so is a name in a `%{}`
 		return node
 	case *ast.IdentArray:
 		array, err := e.resolveIdentArray(n)

@@ -35,7 +35,11 @@ const (
 	IP       // 127.0.0.1, ::1
 	CIDR     // 192.168.0.0/24
 	Variable // ${my_var}
-	FieldRef // %{process.pid}
+
+	// the parts of a string the parser looks into, see scanner.enterString
+
+	StringText // the text of a string between its interpolations
+	StringEnd  // the closing quote of a string
 
 	// keywords, spelled as identifiers
 
@@ -45,68 +49,73 @@ const (
 
 	// operators and punctuation
 
-	LAnd     // &&, also spelled `and`
-	LOr      // ||, also spelled `or`
-	Bang     // !
-	Eq       // ==
-	NotEq    // !=
-	Lt       // <
-	Le       // <=
-	Gt       // >
-	Ge       // >=
-	Match    // =~
-	NotMatch // !~
-	BAnd     // &
-	BOr      // |
-	BXor     // ^, also the unary bitwise not
-	Plus     // +
-	Minus    // -
-	LParen   // (
-	RParen   // )
-	LBracket // [
-	RBracket // ]
-	Comma    // ,
-	Dot      // .
+	LAnd      // &&, also spelled `and`
+	LOr       // ||, also spelled `or`
+	Bang      // !
+	Eq        // ==
+	NotEq     // !=
+	Lt        // <
+	Le        // <=
+	Gt        // >
+	Ge        // >=
+	Match     // =~
+	NotMatch  // !~
+	BAnd      // &
+	BOr       // |
+	BXor      // ^, also the unary bitwise not
+	Plus      // +
+	Minus     // -
+	LParen    // (
+	RParen    // )
+	LBracket  // [
+	RBracket  // ]
+	FieldOpen // %{, closed by a `}`
+	RBrace    // }
+	Comma     // ,
+	Dot       // .
 )
 
 var kindNames = [...]string{
-	EOF:      "end of expression",
-	Illegal:  "illegal token",
-	Ident:    "identifier",
-	Int:      "integer",
-	Duration: "duration",
-	String:   "string",
-	Pattern:  "pattern",
-	Regexp:   "regular expression",
-	IP:       "IP",
-	CIDR:     "CIDR",
-	Variable: "variable",
-	FieldRef: "field reference",
-	Not:      "`not`",
-	In:       "`in`",
-	AllIn:    "`allin`",
-	LAnd:     "`&&`",
-	LOr:      "`||`",
-	Bang:     "`!`",
-	Eq:       "`==`",
-	NotEq:    "`!=`",
-	Lt:       "`<`",
-	Le:       "`<=`",
-	Gt:       "`>`",
-	Ge:       "`>=`",
-	Match:    "`=~`",
-	NotMatch: "`!~`",
-	BAnd:     "`&`",
-	BOr:      "`|`",
-	BXor:     "`^`",
-	Plus:     "`+`",
-	Minus:    "`-`",
-	LParen:   "`(`",
-	RParen:   "`)`",
-	LBracket: "`[`",
-	RBracket: "`]`",
-	Comma:    "`,`",
-	Dot:      "`.`",
+	EOF:        "end of expression",
+	Illegal:    "illegal token",
+	Ident:      "identifier",
+	Int:        "integer",
+	Duration:   "duration",
+	String:     "string",
+	Pattern:    "pattern",
+	Regexp:     "regular expression",
+	IP:         "IP",
+	CIDR:       "CIDR",
+	Variable:   "variable",
+	StringText: "string text",
+	StringEnd:  "end of string",
+	Not:        "`not`",
+	In:         "`in`",
+	AllIn:      "`allin`",
+	LAnd:       "`&&`",
+	LOr:        "`||`",
+	Bang:       "`!`",
+	Eq:         "`==`",
+	NotEq:      "`!=`",
+	Lt:         "`<`",
+	Le:         "`<=`",
+	Gt:         "`>`",
+	Ge:         "`>=`",
+	Match:      "`=~`",
+	NotMatch:   "`!~`",
+	BAnd:       "`&`",
+	BOr:        "`|`",
+	BXor:       "`^`",
+	Plus:       "`+`",
+	Minus:      "`-`",
+	LParen:     "`(`",
+	RParen:     "`)`",
+	LBracket:   "`[`",
+	RBracket:   "`]`",
+	FieldOpen:  "`%{`",
+	RBrace:     "`}`",
+	Comma:      "`,`",
+	Dot:        "`.`",
 }
 
 func (k Kind) String() string {
@@ -144,7 +153,7 @@ func (t Token) describe() string {
 	switch t.Kind {
 	case EOF:
 		return t.Kind.String()
-	case Ident, Int, Duration, String, Pattern, Regexp, IP, CIDR, Variable, FieldRef, Illegal:
+	case Ident, Int, Duration, String, Pattern, Regexp, IP, CIDR, Variable, StringText, Illegal:
 		return fmt.Sprintf("%s `%s`", t.Kind, t.Text)
 	}
 	return "`" + t.Text + "`"

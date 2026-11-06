@@ -8,7 +8,6 @@ package pass
 
 import (
 	"slices"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
@@ -73,15 +72,6 @@ func (p projection) isUnknown(node ast.Node) bool {
 		return !slices.Contains(p.fields, n.Name)
 	case *ast.VariableRef:
 		return true
-	case *ast.Literal:
-		// an interpolation, `${variable}` or `%{field}`, is resolved at
-		// evaluation; a literal that only looks like one is unknown as well,
-		// which is sound
-		if n.Value.Kind() != ast.String {
-			return false
-		}
-		value := ast.StringVal(n.Value)
-		return strings.Contains(value, "${") || strings.Contains(value, "%{")
 	}
 	return false
 }

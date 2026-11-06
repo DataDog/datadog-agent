@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"net"
 	"reflect"
-	"regexp"
 	"sync"
 	"time"
 
@@ -21,8 +20,6 @@ import (
 const defaultMaxVariables = 100
 
 var (
-	variableRegex         = regexp.MustCompile(`\${[^}]*}`)
-	fieldReferenceRegex   = regexp.MustCompile(`%{[^}]*}`)
 	errAppendNotSupported = errors.New("append is not supported")
 	// ErrScopeNotAvailable is returned when a scoped variable operation cannot be
 	// applied because the current event does not provide the requested scope.
