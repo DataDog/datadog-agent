@@ -9,7 +9,7 @@
 #   - capabilities.nvlink: int (highest NVML NVLink version supported by this architecture/mode, or 0)
 #   - capabilities.c2c: bool (whether this architecture/mode supports NVLink-C2C)
 #   - capabilities.unsupported_fields_by_device_mode (list of conditional exclusions for the GetFields API)
-#       - device_modes: [physical|mig|mig_parent|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode. If not included, the fields are unsupported in all modes.)
+#       - device_modes: [physical|mig|mig_parent|vgpu, ...]  (in which modes the fields are unsupported, for example some fields are not supported in vGPU mode; a MIG parent supports the fields a physical GPU does. If not included, the fields are unsupported in all modes.)
 #       - fields: [<field_id>, ...] (the list of field IDs that are unsupported in the given modes. Check nvmlFieldNameToFieldID in spec_test.go for the mapping.)
 #   - support (optional): mode-specific capabilities and additional unsupported_fields entries
 #   - unsupported_device_modes: [mig|mig_parent|physical|vgpu, ...] (the list of device modes that are unsupported on the architecture. For example, MIG is not supported on the Pascal architecture.)
@@ -82,11 +82,11 @@ architectures:
       nvlink: 1
       c2c: false
       unsupported_fields_by_device_mode:
-        - device_modes: [physical, mig, mig_parent, vgpu]
+        - device_modes: [physical, mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_NVSWITCH_CONNECTED_LINK_COUNT
-        - device_modes: [mig, mig_parent, vgpu]
+        - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
@@ -108,10 +108,10 @@ architectures:
       nvlink: 2
       c2c: false
       unsupported_fields_by_device_mode:
-        - device_modes: [physical, mig, mig_parent, vgpu]
+        - device_modes: [physical, mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
-        - device_modes: [mig, mig_parent, vgpu]
+        - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
@@ -133,10 +133,10 @@ architectures:
       nvlink: 2
       c2c: false
       unsupported_fields_by_device_mode:
-        - device_modes: [physical, mig, mig_parent, vgpu]
+        - device_modes: [physical, mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
-        - device_modes: [mig, mig_parent, vgpu]
+        - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
@@ -158,7 +158,7 @@ architectures:
       nvlink: 4
       c2c: false
       unsupported_fields_by_device_mode:
-        - device_modes: [mig, mig_parent, vgpu]
+        - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_PCIE_REPLAY_COUNTER
@@ -179,7 +179,7 @@ architectures:
       nvlink: 6
       c2c: true
       unsupported_fields_by_device_mode:
-        - device_modes: [mig, mig_parent, vgpu]
+        - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_PCIE_REPLAY_COUNTER
@@ -208,10 +208,10 @@ architectures:
       nvlink: 0
       c2c: false
       unsupported_fields_by_device_mode:
-        - device_modes: [physical, mig, mig_parent, vgpu]
+        - device_modes: [physical, mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
-        - device_modes: [mig, mig_parent, vgpu]
+        - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_PCIE_REPLAY_COUNTER
             - FI_DEV_PERF_POLICY_THERMAL
@@ -231,7 +231,7 @@ architectures:
       nvlink: 7
       c2c: true
       unsupported_fields_by_device_mode:
-        - device_modes: [mig, mig_parent, vgpu]
+        - device_modes: [mig, vgpu]
           fields:
             - FI_DEV_MEMORY_TEMP
             - FI_DEV_PCIE_REPLAY_COUNTER

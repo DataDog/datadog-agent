@@ -77,12 +77,20 @@ func (o deviceOptions) isVGPU() bool {
 	return o.mode == DeviceFeatureVGPU
 }
 
-func (o deviceOptions) shouldMarkMIGUnsupported() bool {
+// shouldMarkMIGChildUnsupported returns true for the APIs that MIG children do not support. The GPU in
+// MIG mode that hosts them (the MIG parent) still supports them.
+func (o deviceOptions) shouldMarkMIGChildUnsupported() bool {
+	return o.isMIGChild()
+}
+
+// shouldMarkAnyMIGUnsupported returns true for the APIs that neither MIG children nor their parent
+// support while it is in MIG mode.
+func (o deviceOptions) shouldMarkAnyMIGUnsupported() bool {
 	return o.isMIGMode() || o.isMIGChild()
 }
 
-func (o deviceOptions) shouldMarkMIGOrVGPUUnsupported() bool {
-	return o.shouldMarkMIGUnsupported() || o.isVGPU()
+func (o deviceOptions) shouldMarkMIGChildOrVGPUUnsupported() bool {
+	return o.shouldMarkMIGChildUnsupported() || o.isVGPU()
 }
 
 func (o deviceOptions) nvlinkSupported() bool {
@@ -141,8 +149,13 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 	fieldValuesCounter := uint64(0)
 	fieldValuesCounterMu := sync.Mutex{}
 	arch, major, minor := opts.effectiveArchitecture()
-	isMIGUnsupported := opts.shouldMarkMIGUnsupported()
-	isMIGOrVGPUUnsupported := opts.shouldMarkMIGOrVGPUUnsupported()
+	// A GPU in MIG mode (the MIG parent) still supports most APIs, so the isMIGChild* variables only apply to
+	// MIG children (and vGPU). The isAnyMIG* variables also apply to the parent: it does not support the APIs
+	// behind fan speed, remapped rows, process utilization or utilization samples.
+	isMIGChildUnsupported := opts.shouldMarkMIGChildUnsupported()
+	isMIGChildOrVGPUUnsupported := opts.shouldMarkMIGChildOrVGPUUnsupported()
+	isAnyMIGUnsupported := opts.shouldMarkAnyMIGUnsupported()
+	isAnyMIGOrVGPUUnsupported := isAnyMIGUnsupported || opts.isVGPU()
 	deviceUUID := opts.effectiveUUID()
 	deviceMigChildren := opts.migChildUUIDs
 
@@ -243,7 +256,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return DefaultMemoryBusWidth, nvml.SUCCESS
 		},
 		GetMaxClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			rate, ok := DefaultMaxClockRates[clockType]
@@ -253,7 +266,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return rate, nvml.SUCCESS
 		},
 		GetClockInfoFunc: func(clockType nvml.ClockType) (uint32, nvml.Return) {
-			if isMIGUnsupported {
+			if isMIGChildUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			rate, ok := DefaultMaxClockRates[clockType]
@@ -263,25 +276,25 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return rate / 2, nvml.SUCCESS
 		},
 		GetCurrentClocksThrottleReasonsFunc: func() (uint64, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 0, nvml.SUCCESS
 		},
 		GetPowerManagementLimitFunc: func() (uint32, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 250000, nvml.SUCCESS
 		},
 		GetPowerUsageFunc: func() (uint32, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 150000, nvml.SUCCESS
 		},
 		GetTotalEnergyConsumptionFunc: func() (uint64, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			if arch < nvml.DEVICE_ARCH_VOLTA {
@@ -290,55 +303,55 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return 12345, nvml.SUCCESS
 		},
 		GetTemperatureFunc: func(_ nvml.TemperatureSensors) (uint32, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 60, nvml.SUCCESS
 		},
 		GetFanSpeedFunc: func() (uint32, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isAnyMIGOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 40, nvml.SUCCESS
 		},
 		GetPerformanceStateFunc: func() (nvml.Pstates, nvml.Return) {
-			if isMIGUnsupported {
+			if isMIGChildUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.PSTATE_0, nvml.SUCCESS
 		},
 		GetPcieThroughputFunc: func(_ nvml.PcieUtilCounter) (uint32, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 42, nvml.SUCCESS
 		},
 		GetPcieReplayCounterFunc: func() (int, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 0, nvml.SUCCESS
 		},
 		GetCurrPcieLinkGenerationFunc: func() (int, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 1, nvml.SUCCESS
 		},
 		GetMaxPcieLinkGenerationFunc: func() (int, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 4, nvml.SUCCESS
 		},
 		GetCurrPcieLinkWidthFunc: func() (int, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 8, nvml.SUCCESS
 		},
 		GetMaxPcieLinkWidthFunc: func() (int, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 16, nvml.SUCCESS
@@ -347,7 +360,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return DefaultPCIBusIDFields, nvml.SUCCESS
 		},
 		GetRemappedRowsFunc: func() (int, int, bool, bool, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isAnyMIGOrVGPUUnsupported {
 				return 0, 0, false, false, nvml.ERROR_NOT_SUPPORTED
 			}
 			if arch < nvml.DEVICE_ARCH_AMPERE {
@@ -356,7 +369,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return 0, 0, false, false, nvml.SUCCESS
 		},
 		GetRetiredPages_v2Func: func(_ nvml.PageRetirementCause) ([]uint64, []uint64, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return nil, nil, nvml.ERROR_NOT_SUPPORTED
 			}
 			// Dynamic page retirement is supported from Kepler to Turing; Ampere and
@@ -367,7 +380,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return nil, nil, nvml.SUCCESS
 		},
 		GetRepairStatusFunc: func() (nvml.RepairStatus, nvml.Return) {
-			if isMIGOrVGPUUnsupported {
+			if isMIGChildOrVGPUUnsupported {
 				return nvml.RepairStatus{}, nvml.ERROR_NOT_SUPPORTED
 			}
 			if arch < nvml.DEVICE_ARCH_TURING {
@@ -376,7 +389,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return nvml.RepairStatus{}, nvml.SUCCESS
 		},
 		GetNvLinkStateFunc: func(link int) (nvml.EnableState, nvml.Return) {
-			if isMIGUnsupported || !opts.nvlinkSupported() {
+			if isMIGChildUnsupported || !opts.nvlinkSupported() {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			if ret, ok := opts.nvlinkStateErrors[link]; ok && ret != nvml.SUCCESS {
@@ -394,19 +407,19 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return nvml.FEATURE_ENABLED, nvml.SUCCESS
 		},
 		GetNvLinkVersionFunc: func(link int) (uint32, nvml.Return) {
-			if isMIGUnsupported || !opts.nvlinkSupported() || link >= opts.nvlinkLinkCount {
+			if isMIGChildUnsupported || !opts.nvlinkSupported() || link >= opts.nvlinkLinkCount {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return uint32(opts.nvlinkGeneration), nvml.SUCCESS
 		},
 		GetNvLinkUtilizationCounterFunc: func(_, _ int) (uint64, uint64, nvml.Return) {
-			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
+			if isMIGChildOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
 				return 0, 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 100, 200, nvml.SUCCESS
 		},
 		GetNvLinkErrorCounterFunc: func(_ int, _ nvml.NvLinkErrorCounter) (uint64, nvml.Return) {
-			if isMIGOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
+			if isMIGChildOrVGPUUnsupported || !opts.nvlinkSupported() || opts.nvlinkLinkCount == 0 {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			// Blackwell+ does not report the data-link error counters: B200 returns NOT_SUPPORTED
@@ -419,14 +432,15 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 		GetBAR1MemoryInfoFunc: func() (nvml.BAR1Memory, nvml.Return) {
 			return nvml.BAR1Memory{}, nvml.SUCCESS
 		},
-		GetMemoryErrorCounterFunc: func(_ nvml.MemoryErrorType, _ nvml.EccCounterType, _ nvml.MemoryLocation) (uint64, nvml.Return) {
-			if isMIGUnsupported {
+		GetMemoryErrorCounterFunc: func(errorType nvml.MemoryErrorType, counterType nvml.EccCounterType, _ nvml.MemoryLocation) (uint64, nvml.Return) {
+			// MIG devices only report their uncorrected volatile counters.
+			if isMIGChildUnsupported && (errorType != nvml.MEMORY_ERROR_TYPE_UNCORRECTED || counterType != nvml.VOLATILE_ECC) {
 				return 0, nvml.ERROR_NOT_SUPPORTED
 			}
 			return 0, nvml.SUCCESS
 		},
 		GetSramEccErrorStatusFunc: func() (nvml.EccSramErrorStatus, nvml.Return) {
-			if isMIGUnsupported || arch < nvml.DEVICE_ARCH_AMPERE {
+			if isMIGChildUnsupported || arch < nvml.DEVICE_ARCH_AMPERE {
 				return nvml.EccSramErrorStatus{}, nvml.ERROR_NOT_SUPPORTED
 			}
 			return nvml.EccSramErrorStatus{}, nvml.SUCCESS
@@ -461,7 +475,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			return 0, nvml.SUCCESS
 		},
 		GetProcessUtilizationFunc: func(lastSeenTimestamp uint64) ([]nvml.ProcessUtilizationSample, nvml.Return) {
-			if isMIGUnsupported {
+			if isAnyMIGUnsupported {
 				return nil, nvml.ERROR_NOT_FOUND
 			}
 			if opts.processDataCallback != nil {
@@ -479,7 +493,7 @@ func configureDeviceMock(mock *MockDevice, deviceIdx int, opts deviceOptions, mi
 			if opts.samplesUnsupported {
 				return nvml.VALUE_TYPE_UNSIGNED_INT, nil, nvml.ERROR_NOT_SUPPORTED
 			}
-			if isMIGUnsupported {
+			if isAnyMIGUnsupported {
 				return nvml.VALUE_TYPE_UNSIGNED_INT, nil, nvml.ERROR_NOT_FOUND
 			}
 			if opts.isVGPU() && (samplingType == nvml.ENC_UTILIZATION_SAMPLES || samplingType == nvml.DEC_UTILIZATION_SAMPLES) {
