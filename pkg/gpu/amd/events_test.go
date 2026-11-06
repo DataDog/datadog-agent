@@ -178,6 +178,7 @@ func TestEventSubscriberSyncDropsRemovedGPUs(t *testing.T) {
 	s, fake := newFakeSubscriber(t)
 	require.NoError(t, s.Sync([]*Device{{UUID: "gpu-a", kfdGPUIDs: []uint64{100}}, {UUID: "gpu-b", kfdGPUIDs: []uint64{200}}}))
 	require.NoError(t, s.Sync([]*Device{{UUID: "gpu-b", kfdGPUIDs: []uint64{200}}}))
+	fake.events.wait(t, 1) // the reader of GPU 100 stopped
 
 	s.mu.Lock()
 	_, subscribed := s.subs[100]
