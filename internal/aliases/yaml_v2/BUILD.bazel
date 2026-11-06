@@ -1,0 +1,13 @@
+load("//bazel/rules/go_alias:defs.bzl", "go_alias")
+
+go_alias(
+    name = "yaml_v2",
+    src = "go.yaml.in/yaml/v2",
+    module_files = [
+        "//:go.mod",
+        "//:go.sum",
+        "//:go.work",
+    ],
+    out_file = "yaml_v2.go",
+    pkg_name = "yaml",
+)
