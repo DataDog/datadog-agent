@@ -356,7 +356,7 @@ func (v *VersaCheck) Run() error {
 				log.Errorf("error getting SLA metrics from organization %s: %v", org.Name, err)
 			} else {
 				slaMetrics = filterAnalyticsMetricsByDevice(slaMetrics, monitoredDevices, func(m client.SLAMetrics) string { return m.LocalSite })
-				v.metricsSender.SendSLAMetrics(slaMetrics, deviceNameToIDMap)
+				v.metricsSender.SendSLAMetrics(org.Name, slaMetrics, deviceNameToIDMap)
 			}
 		}
 
@@ -430,7 +430,7 @@ func (v *VersaCheck) Run() error {
 				log.Errorf("error getting circuit QoS metrics from organization %s: %v", org.Name, err)
 			} else {
 				circuitQoSMetrics = filterAnalyticsMetricsByDevice(circuitQoSMetrics, monitoredDevices, func(m client.CircuitQoSMetrics) string { return m.Site })
-				v.metricsSender.SendCircuitQoSMetrics(circuitQoSMetrics, deviceNameToIDMap)
+				v.metricsSender.SendCircuitQoSMetrics(org.Name, circuitQoSMetrics, deviceNameToIDMap)
 			}
 		}
 
@@ -441,7 +441,7 @@ func (v *VersaCheck) Run() error {
 				log.Errorf("error getting QoS metrics from organization %s: %v", org.Name, err)
 			} else {
 				qosMetrics = filterAnalyticsMetricsByDevice(qosMetrics, monitoredDevices, func(m client.QoSMetrics) string { return m.LocalSiteName })
-				v.metricsSender.SendPathQoSMetrics(qosMetrics, deviceNameToIDMap)
+				v.metricsSender.SendPathQoSMetrics(org.Name, qosMetrics, deviceNameToIDMap)
 			}
 		}
 

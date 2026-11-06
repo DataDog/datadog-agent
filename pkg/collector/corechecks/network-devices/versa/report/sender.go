@@ -146,7 +146,7 @@ func (s *Sender) SendUptimeMetrics(uptimes map[string]float64) {
 }
 
 // SendSLAMetrics sends SLA metrics retrieved from Versa Analytics
-func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendSLAMetrics(tenant string, slaMetrics []client.SLAMetrics, deviceNameToIDMap map[string]string) {
 	newTimestamps := make(map[string]float64)
 
 	for _, slaMetricsResponse := range slaMetrics {
@@ -161,7 +161,7 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
-		ts, send := s.bucketTimestamp("sla_metrics", slaMetricsResponse.DrillKey, slaMetricsResponse.Timestamp, newTimestamps)
+		ts, send := s.bucketTimestamp("sla_metrics", tenant, slaMetricsResponse.DrillKey, slaMetricsResponse.Timestamp, newTimestamps)
 		if !send {
 			continue
 		}
@@ -184,11 +184,15 @@ func (s *Sender) SendSLAMetrics(slaMetrics []client.SLAMetrics, deviceNameToIDMa
 // for GaugeWithTimestamp, and the entry is skipped when that bucket has already been sent
 // by an earlier run, which happens whenever the lookback window is longer than the check
 // interval.
-func (s *Sender) bucketTimestamp(metric string, drillKey string, timestampMillis int64, newTimestamps map[string]float64) (float64, bool) {
+func (s *Sender) bucketTimestamp(metric string, tenant string, drillKey string, timestampMillis int64, newTimestamps map[string]float64) (float64, bool) {
 	if timestampMillis == 0 {
 		return 0, true
 	}
-	key := ndmsender.GetMetricKey(metric, drillKey)
+	// The tenant belongs in the key: Run calls the senders once per organization, each
+	// call commits its timestamps, and templated site naming means two organizations can
+	// produce the same drill key. Without it the second organization's buckets would look
+	// like ones already sent and be dropped on every run.
+	key := ndmsender.GetMetricKey(metric, tenant, drillKey)
 	millis := float64(timestampMillis)
 	if !s.ShouldSendEntry(key, millis) {
 		return 0, false
@@ -321,7 +325,7 @@ func (s *Sender) SendTunnelMetrics(tunnelMetrics []client.TunnelMetrics, deviceN
 }
 
 // SendPathQoSMetrics sends QoS (Class of Service) metrics retrieved from Versa Analytics
-func (s *Sender) SendPathQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendPathQoSMetrics(tenant string, qosMetrics []client.QoSMetrics, deviceNameToIDMap map[string]string) {
 	newTimestamps := make(map[string]float64)
 
 	for _, qosMetric := range qosMetrics {
@@ -333,7 +337,7 @@ func (s *Sender) SendPathQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameTo
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
-		ts, send := s.bucketTimestamp("path_qos_metrics", qosMetric.DrillKey, qosMetric.Timestamp, newTimestamps)
+		ts, send := s.bucketTimestamp("path_qos_metrics", tenant, qosMetric.DrillKey, qosMetric.Timestamp, newTimestamps)
 		if !send {
 			continue
 		}
@@ -368,7 +372,7 @@ func (s *Sender) SendPathQoSMetrics(qosMetrics []client.QoSMetrics, deviceNameTo
 // from Versa Analytics. These are the branch side counterpart to SendPathQoSMetrics: the
 // same four forwarding classes, reported for each access circuit of a site rather than for
 // a pair of sites.
-func (s *Sender) SendCircuitQoSMetrics(qosMetrics []client.CircuitQoSMetrics, deviceNameToIDMap map[string]string) {
+func (s *Sender) SendCircuitQoSMetrics(tenant string, qosMetrics []client.CircuitQoSMetrics, deviceNameToIDMap map[string]string) {
 	newTimestamps := make(map[string]float64)
 
 	for _, qosMetric := range qosMetrics {
@@ -380,7 +384,7 @@ func (s *Sender) SendCircuitQoSMetrics(qosMetrics []client.CircuitQoSMetrics, de
 			tags = append(tags, s.GetDeviceTags(defaultIPTag, deviceIP)...)
 		}
 
-		ts, send := s.bucketTimestamp("circuit_qos_metrics", qosMetric.DrillKey, qosMetric.Timestamp, newTimestamps)
+		ts, send := s.bucketTimestamp("circuit_qos_metrics", tenant, qosMetric.DrillKey, qosMetric.Timestamp, newTimestamps)
 		if !send {
 			continue
 		}

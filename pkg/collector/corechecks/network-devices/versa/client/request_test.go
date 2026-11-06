@@ -259,6 +259,7 @@ func TestGetPaginatedAnalytics(t *testing.T) {
 				"",
 				"",
 				[]string{"metric1", "metric2"},
+				nil,
 				parseTestMetrics,
 			)
 

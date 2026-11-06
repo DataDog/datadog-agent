@@ -116,6 +116,18 @@ instances:
     ## timeseries returns one value per entity per time bucket, each submitted with the
     ## timestamp of its own bucket, so as-polled detail is preserved. Metrics become more
     ## volatile than with tableData, so review monitor thresholds before switching.
+    ##
+    ## timeseries applies to SLA metrics, QoS metrics and circuit QoS metrics. Every other
+    ## endpoint stays on tableData regardless of this setting, because Versa's drill keys
+    ## for those queries do not map onto their responses the same way.
+    ##
+    ## The newest bucket of each entity is held back for one collection, since Versa
+    ## buckets are wall-clock aligned and the current one is still filling. Expect these
+    ## metrics to lag real time by one bucket.
+    ##
+    ## timeseries sends one request per endpoint rather than paging, so max_count must
+    ## exceed the number of sites, paths or circuits in the tenant. A warning is logged if
+    ## a response comes back at or above max_count.
     #
     # analytics_query_type: tableData
 

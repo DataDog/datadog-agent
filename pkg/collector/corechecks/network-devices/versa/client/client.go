@@ -46,6 +46,8 @@ const (
 	// minutes on a 15 minute tenant, 5 on a 5 minute one.
 	defaultAnalyticsGap = "1MINUTE"
 	// timeseriesEndDate bounds a timeseries query. tableData queries send no end-date.
+	// Versa resolves "today" to now, not to midnight: a 4hoursAgo request against a 15
+	// minute tenant comes back with 16 buckets ending at the current quarter hour.
 	timeseriesEndDate = "today"
 )
 
@@ -350,7 +352,9 @@ func WithAnalyticsQueryType(queryType string) ClientOptions {
 func WithAnalyticsGap(gap string) ClientOptions {
 	return func(c *Client) {
 		if gap != "" {
-			c.analyticsGap = gap
+			// Versa matches the gap exactly, so normalize here rather than sending "1hour"
+			// and taking an opaque 4xx on every analytics call.
+			c.analyticsGap = strings.ToUpper(gap)
 		}
 	}
 }
@@ -613,6 +617,7 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 			"revLossRatio",
 			"pduLossRatio",
 		},
+		slaTimeseriesLayout,
 		parseSLAMetrics,
 	)
 }
@@ -646,6 +651,7 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 			"percentdrop", // percent drop bytes
 			"bandwidth",   // total bandwidth bps
 		},
+		pathQoSTimeseriesLayout,
 		parsePathQoSMetrics,
 	)
 }
@@ -659,6 +665,9 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 // network's class of service configuration, so a tenant without it will see the four
 // classes here but no per queue detail.
 func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, error) {
+	if tenant == "" {
+		return nil, errors.New("tenant cannot be empty")
+	}
 	return getPaginatedAnalytics(
 		client,
 		client.endpointConfig(EndpointCircuitQoSMetrics),
@@ -682,6 +691,7 @@ func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, 
 			"afbandwidth", // assured forwarding bps
 			"ncbandwidth", // network control bps
 		},
+		circuitQoSTimeseriesLayout,
 		parseCircuitQoSMetrics,
 	)
 }
@@ -700,6 +710,7 @@ func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, 
 		[]string{
 			"availability",
 		},
+		nil,
 		parseLinkStatusMetrics,
 	)
 }
@@ -721,6 +732,7 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 			"bw-tx",
 			"bw-rx",
 		},
+		nil,
 		parseLinkUsageMetrics,
 	)
 }
@@ -743,6 +755,7 @@ func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
 			"bw-rx",
 			"availability",
 		},
+		nil,
 		parseSiteMetrics,
 	)
 }
@@ -767,6 +780,7 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 			"bw-rx",
 			"bandwidth",
 		},
+		nil,
 		parseApplicationsByApplianceMetrics,
 	)
 }
@@ -791,6 +805,7 @@ func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 			"bw-rx",
 			"bandwidth",
 		},
+		nil,
 		parseTopUserMetrics,
 	)
 }
@@ -814,6 +829,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 			"volume-tx",
 			"volume-rx",
 		},
+		nil,
 		parseTunnelMetrics,
 	)
 }
@@ -839,6 +855,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 			"bw-tx",
 			"bw-rx",
 		},
+		nil,
 		parseDIAMetrics,
 	)
 }
@@ -868,6 +885,7 @@ func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfac
 			"bw-tx",
 			"bandwidth",
 		},
+		nil,
 		parseAnalyticsInterfaceMetrics,
 	)
 }
