@@ -156,14 +156,14 @@ func AllFentryTailCallRouteCallers() []TailCallRouteCallers {
 		{
 			ProgArrayName: "span_fill_progs",
 			Key:           SpanFillExitKey,
-			Callers:       []string{"hook_do_exit", tailCallFnc("flush_network_stats_exit")},
+			Callers:       []string{"hook_exit_itimers", tailCallFnc("flush_network_stats_exit")},
 		},
 
 		// network stats flush programs
 		{
 			ProgArrayName: "flush_network_stats_progs",
 			Key:           FlushNetworkStatsExitKey,
-			Callers:       []string{"hook_do_exit"},
+			Callers:       []string{"hook_exit_itimers"},
 		},
 		{
 			ProgArrayName: "flush_network_stats_progs",
