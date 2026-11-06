@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    APM : OTLP spans now carry the ``eks_cluster_arn`` tag when the resource sets
+    ``aws.eks.cluster.arn``, and the ``tablename`` tag when a span's
+    ``aws.dynamodb.table_names`` attribute names exactly one table. These are the
+    tag names used by Datadog tracers, so both kinds of spans can be queried with
+    the same tag. The OpenTelemetry attributes are unchanged. The ``tablename`` tag
+    also lets the ``peer.aws.dynamodb.table`` peer tag, used by APM stats, resolve
+    for OTLP DynamoDB spans.
