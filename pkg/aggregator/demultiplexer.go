@@ -83,6 +83,9 @@ type trigger struct {
 	// incomplete buckets. Is generally only appropriate to set during shutdown, since
 	// subsequent transmissions of the same bucket will override earlier entries in the backend.
 	forceFlushAll bool
+
+	// final is set on the last flush before stopping: no flush follows to send data held for one.
+	final bool
 }
 
 // flushTrigger is a trigger used to flush data, results is expected to be written

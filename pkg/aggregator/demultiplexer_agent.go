@@ -476,6 +476,7 @@ func (d *AgentDemultiplexer) Stop() {
 		blockChan:         make(chan struct{}),
 		waitForSerializer: true,
 		forceFlushAll:     forceFlushAll,
+		final:             true,
 	}
 
 	select {
@@ -598,6 +599,7 @@ func (d *AgentDemultiplexer) flushToSerializer(flush trigger) {
 						blockChan:         make(chan struct{}),
 						waitForSerializer: waitForSerializer,
 						forceFlushAll:     forceFlushAll,
+						final:             flush.final,
 					},
 					sketchesSink: sketchesSink,
 					seriesSink:   seriesSink,

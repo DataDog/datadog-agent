@@ -15,8 +15,9 @@ import (
 // several, before they are sent: the intake keeps only the last point it receives for a series and second. Counts
 // and rates are summed, and sketches merged, per series and second, each with the metadata of its own sources.
 //
-// Every flush sends what the samplers committed since the previous one: points for one second are merged when the
-// same flush collects them.
+// It sends each second of a series once. Samplers stamp what they hand it at commit, and the aggregator's run loop
+// handles commits and flushes one at a time, so a commit handled after a flush is stamped at or after its cutoff: a
+// flush sends the seconds before its cutoff, and holds the rest for the next flush to merge with later commits.
 type checkOutputMerger struct {
 	series   map[serieSecond]*metrics.Serie
 	sketches map[sketchSecond]*metrics.SketchSeries
@@ -89,14 +90,27 @@ func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
 	}
 }
 
-// flush sends every second it holds.
-func (m *checkOutputMerger) flush(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+// flush sends the seconds before cutoff, and holds the others for a later flush.
+func (m *checkOutputMerger) flush(cutoff int64, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	m.send(func(second int64) bool { return second < cutoff }, seriesSink, sketchesSink)
+}
+
+// drain sends every second, for when no flush follows to send the seconds flush would hold.
+func (m *checkOutputMerger) drain(seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
+	m.send(func(int64) bool { return true }, seriesSink, sketchesSink)
+}
+
+func (m *checkOutputMerger) send(ready func(second int64) bool, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 	for key, serie := range m.series {
-		seriesSink.Append(serie)
-		delete(m.series, key)
+		if ready(key.second) {
+			seriesSink.Append(serie)
+			delete(m.series, key)
+		}
 	}
 	for key, sketch := range m.sketches {
-		sketchesSink.Append(sketch)
-		delete(m.sketches, key)
+		if ready(key.second) {
+			sketchesSink.Append(sketch)
+			delete(m.sketches, key)
+		}
 	}
 }
