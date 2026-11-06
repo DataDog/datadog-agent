@@ -11,6 +11,7 @@ package tests
 import (
 	"bufio"
 	"context"
+	"encoding/binary"
 	"errors"
 	"fmt"
 	"io"
@@ -19,8 +20,10 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 
@@ -29,6 +32,8 @@ import (
 	"github.com/oliveagle/jsonpath"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
+	"github.com/vishvananda/netlink"
+	"github.com/vishvananda/netns"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
@@ -238,6 +243,276 @@ func TestRawPacket(t *testing.T) {
 			})
 		})
 	})
+}
+
+var _ = declare(TestRawPacketGSO, testOpts{networkIngressEnabled: true, networkRawPacketEnabled: true})
+
+// TestRawPacketGSO checks the capture of TCP packets larger than the MTU, whose payload isn't in the linear part of
+// the skb, on both hooks of a veth device in another network namespace.
+func TestRawPacketGSO(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	checkKernelCompatibility(t, "network feature", isRawPacketNotSupported)
+
+	// skip the test to avoid nested namespaces issues
+	if testEnvironment == DockerEnvironment {
+		t.Skip("skipping raw packet GSO test in docker")
+	}
+
+	if !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load 'veth' module: %s, %v", string(out), err)
+		}
+	}
+
+	const (
+		hostDevName  = "cws-gso-host"
+		nsDevName    = "cws-gso-ns"
+		hostAddr     = "198.18.172.1"
+		nsAddr       = "198.18.172.2"
+		egressPort   = 33181
+		ingressPort  = 33182
+		ethHeaderLen = 14
+		// sizeof(struct raw_packet_event_t.data)
+		captureLen = 256
+	)
+
+	// leaves out the handshake and the pure ACKs
+	withPayload := "(((ip[2:2] - ((ip[0]&0xf)<<2)) - ((tcp[12]&0xf0)>>2)) != 0)"
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_rule_raw_packet_gso_egress",
+			Expression: fmt.Sprintf(`packet.filter == "ip src %s and ip dst %s and tcp dst port %d and %s"`, nsAddr, hostAddr, egressPort, withPayload),
+		},
+		{
+			ID:         "test_rule_raw_packet_gso_ingress",
+			Expression: fmt.Sprintf(`packet.filter == "ip src %s and ip dst %s and tcp dst port %d and %s"`, hostAddr, nsAddr, ingressPort, withPayload),
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	// the probe attaches classifiers to the devices of a network namespace once a process lives in it
+	nsProc := exec.Command(which(t, "sleep"), "600")
+	nsProc.SysProcAttr = &syscall.SysProcAttr{Cloneflags: syscall.CLONE_NEWNET}
+	if err := nsProc.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		_ = nsProc.Process.Kill()
+		_ = nsProc.Wait()
+	}()
+
+	nsHandle, err := netns.GetFromPid(nsProc.Process.Pid)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nsHandle.Close()
+
+	nsID, err := utils.NewNSPathFromPid(uint32(nsProc.Process.Pid), utils.NetNsType).GetNSID()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	_ = netlink.LinkDel(&netlink.Veth{LinkAttrs: netlink.LinkAttrs{Name: hostDevName}})
+	veth := &netlink.Veth{
+		LinkAttrs:     netlink.LinkAttrs{Name: hostDevName},
+		PeerName:      nsDevName,
+		PeerNamespace: netlink.NsFd(nsHandle),
+	}
+	if err := netlink.LinkAdd(veth); err != nil {
+		t.Fatalf("couldn't create veth pair: %v", err)
+	}
+	defer func() {
+		_ = netlink.LinkDel(veth)
+	}()
+
+	if err := netlink.AddrAdd(veth, &netlink.Addr{IPNet: &net.IPNet{IP: net.ParseIP(hostAddr), Mask: net.CIDRMask(30, 32)}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := netlink.LinkSetUp(veth); err != nil {
+		t.Fatal(err)
+	}
+
+	nsNetlink, err := netlink.NewHandleAt(nsHandle)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer nsNetlink.Close()
+
+	nsLink, err := nsNetlink.LinkByName(nsDevName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := nsNetlink.AddrAdd(nsLink, &netlink.Addr{IPNet: &net.IPNet{IP: net.ParseIP(nsAddr), Mask: net.CIDRMask(30, 32)}}); err != nil {
+		t.Fatal(err)
+	}
+	if err := nsNetlink.LinkSetUp(nsLink); err != nil {
+		t.Fatal(err)
+	}
+
+	// the regular and the raw packet classifier of each hook
+	if err := retry(t, func() error {
+		for _, parent := range []uint32{netlink.HANDLE_MIN_INGRESS, netlink.HANDLE_MIN_EGRESS} {
+			filters, err := nsNetlink.FilterList(nsLink, parent)
+			if err != nil {
+				return err
+			}
+			if len(filters) < 2 {
+				return fmt.Errorf("%d tc filters attached to %s (parent %x)", len(filters), nsDevName, parent)
+			}
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxTries(100)); err != nil {
+		t.Fatal(err)
+	}
+
+	egressListener, err := net.Listen("tcp4", net.JoinHostPort(hostAddr, strconv.Itoa(egressPort)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer egressListener.Close()
+	go drainConnections(egressListener)
+
+	var ingressListener net.Listener
+	if err := inNetNS(nsHandle, func() (err error) {
+		ingressListener, err = net.Listen("tcp4", net.JoinHostPort(nsAddr, strconv.Itoa(ingressPort)))
+		return err
+	}); err != nil {
+		t.Fatal(err)
+	}
+	defer ingressListener.Close()
+	go drainConnections(ingressListener)
+
+	// larger than the initial congestion window, which TCP sends as one GSO packet
+	payload := make([]byte, 256<<10)
+	for i := range payload {
+		payload[i] = byte(i)
+	}
+
+	send := func(conn net.Conn) error {
+		defer conn.Close()
+		if err := conn.SetDeadline(time.Now().Add(10 * time.Second)); err != nil {
+			return err
+		}
+		_, err := conn.Write(payload)
+		return err
+	}
+
+	_, hostIPNet, _ := net.ParseCIDR(hostAddr + "/32")
+	_, nsIPNet, _ := net.ParseCIDR(nsAddr + "/32")
+	nsIfIndex := uint32(nsLink.Attrs().Index)
+	mtu := nsLink.Attrs().MTU
+
+	assertGSOCapture := func(t *testing.T, event *model.Event, src, dst *net.IPNet, dstPort int) {
+		t.Helper()
+
+		assert.Equal(t, "packet", event.GetType(), "wrong event type")
+		assert.Equal(t, nsID, event.RawPacket.Device.NetNS, "wrong network namespace")
+		assert.Equal(t, nsIfIndex, event.RawPacket.Device.IfIndex, "wrong interface")
+		assertFieldEqual(t, event, "packet.l3_protocol", int(model.EthPIP))
+		assertFieldEqual(t, event, "packet.l4_protocol", int(model.IPProtoTCP))
+		assertFieldEqual(t, event, "packet.source.ip", *src)
+		assertFieldEqual(t, event, "packet.destination.ip", *dst)
+		assertFieldEqual(t, event, "packet.destination.port", dstPort)
+		assert.Greater(t, event.RawPacket.Size, uint32(ethHeaderLen+mtu), "not a GSO packet")
+
+		// the event padding follows the captured bytes
+		if !assert.GreaterOrEqual(t, len(event.RawPacket.Data), captureLen, "truncated capture") {
+			return
+		}
+		ipHeader := event.RawPacket.Data[ethHeaderLen:captureLen]
+		assert.Equal(t, event.RawPacket.Size-ethHeaderLen, uint32(binary.BigEndian.Uint16(ipHeader[2:4])), "wrong IP total length")
+
+		tcpHeader := ipHeader[int(ipHeader[0]&0x0f)*4:]
+		tcpPayload := tcpHeader[int(tcpHeader[12]>>4)*4:]
+		if !assert.NotEmpty(t, tcpPayload, "no TCP payload captured") {
+			return
+		}
+		for i := 1; i < len(tcpPayload); i++ {
+			if tcpPayload[i] != tcpPayload[i-1]+1 {
+				t.Errorf("TCP payload isn't a slice of the sent stream at byte %d: %x", i, tcpPayload)
+				return
+			}
+		}
+	}
+
+	t.Run("egress", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			var conn net.Conn
+			if err := inNetNS(nsHandle, func() (err error) {
+				conn, err = net.DialTimeout("tcp4", net.JoinHostPort(hostAddr, strconv.Itoa(egressPort)), 5*time.Second)
+				return err
+			}); err != nil {
+				return err
+			}
+			return send(conn)
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_raw_packet_gso_egress")
+			assertGSOCapture(t, event, nsIPNet, hostIPNet, egressPort)
+		}, "test_rule_raw_packet_gso_egress")
+	})
+
+	t.Run("ingress", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			conn, err := net.DialTimeout("tcp4", net.JoinHostPort(nsAddr, strconv.Itoa(ingressPort)), 5*time.Second)
+			if err != nil {
+				return err
+			}
+			return send(conn)
+		}, func(event *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_raw_packet_gso_ingress")
+			assertGSOCapture(t, event, hostIPNet, nsIPNet, ingressPort)
+		}, "test_rule_raw_packet_gso_ingress")
+	})
+}
+
+// inNetNS runs fn on a thread switched to ns, so that the sockets it opens belong to ns.
+func inNetNS(ns netns.NsHandle, fn func() error) error {
+	errs := make(chan error, 1)
+	go func() {
+		runtime.LockOSThread()
+		orig, err := netns.Get()
+		if err != nil {
+			runtime.UnlockOSThread()
+			errs <- err
+			return
+		}
+		defer orig.Close()
+
+		if err := netns.Set(ns); err != nil {
+			runtime.UnlockOSThread()
+			errs <- err
+			return
+		}
+		fnErr := fn()
+		// exiting with the thread still locked makes the runtime discard it instead of reusing it in ns
+		if err := netns.Set(orig); err != nil {
+			errs <- err
+			return
+		}
+		runtime.UnlockOSThread()
+		errs <- fnErr
+	}()
+	return <-errs
+}
+
+// drainConnections discards what the connections accepted by l receive, until l is closed.
+func drainConnections(l net.Listener) {
+	for {
+		conn, err := l.Accept()
+		if err != nil {
+			return
+		}
+		go func() {
+			defer conn.Close()
+			_, _ = io.Copy(io.Discard, conn)
+		}()
+	}
 }
 
 var _ = declare(TestRawPacketRouterSelFlipOnRulesetReload, testOpts{networkRawPacketEnabled: true})
