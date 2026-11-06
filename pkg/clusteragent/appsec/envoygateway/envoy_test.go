@@ -10,6 +10,7 @@ package envoygateway
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -71,24 +72,26 @@ func newTestEnvoyExtensionPolicy(namespace string) *unstructured.Unstructured {
 	return policy
 }
 
-// newTestReferenceGrant creates a test ReferenceGrant unstructured object
-func newTestReferenceGrant(namespace, fromNamespace string) *unstructured.Unstructured {
+// newTestLegacyReferenceGrant creates the shared ReferenceGrant older versions created, listing fromNamespaces
+func newTestLegacyReferenceGrant(namespace string, fromNamespaces ...string) *unstructured.Unstructured {
+	from := make([]any, 0, len(fromNamespaces))
+	for _, ns := range fromNamespaces {
+		from = append(from, map[string]any{
+			"group":     "gateway.envoyproxy.io",
+			"kind":      "EnvoyExtensionPolicy",
+			"namespace": ns,
+		})
+	}
 	grant := &unstructured.Unstructured{
 		Object: map[string]any{
 			"apiVersion": "gateway.networking.k8s.io/v1beta1",
 			"kind":       "ReferenceGrant",
 			"metadata": map[string]any{
-				"name":      referenceGrantName,
+				"name":      legacyReferenceGrantName,
 				"namespace": namespace,
 			},
 			"spec": map[string]any{
-				"from": []any{
-					map[string]any{
-						"group":     "gateway.envoyproxy.io",
-						"kind":      "EnvoyExtensionPolicy",
-						"namespace": fromNamespace,
-					},
-				},
+				"from": from,
 				"to": []any{
 					map[string]any{
 						"kind": "Service",
@@ -180,7 +183,7 @@ func TestAdded_SuccessfulCreation(t *testing.T) {
 	assert.Equal(t, "gateway.envoyproxy.io/v1alpha1", createdPolicy.GetAPIVersion())
 
 	assert.Equal(t, config.Processor.Namespace, createdGrant.GetNamespace())
-	assert.Equal(t, referenceGrantName, createdGrant.GetName())
+	assert.Equal(t, referenceGrantName("test-ns"), createdGrant.GetName())
 }
 
 func TestAdded_SidecarCreatesBackendAndPolicyWithoutReferenceGrant(t *testing.T) {
@@ -292,15 +295,28 @@ func TestAdded_ExternalRegressionCreatesServicePolicyAndReferenceGrant(t *testin
 	assert.NotContains(t, backendRef, "group")
 	assert.NotContains(t, backendRef, "kind")
 
-	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
+	assert.Equal(t, []string{"test-ns"}, grantFromNamespaces(t, client, referenceGrantName("test-ns")))
+}
+
+// grantFromNamespaces returns the spec.from namespaces of the named ReferenceGrant in the processor namespace
+func grantFromNamespaces(t *testing.T, client dynamic.Interface, name string) []string {
+	t.Helper()
+	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(context.Background(), name, metav1.GetOptions{})
 	require.NoError(t, err)
 	from, found, err := unstructured.NestedSlice(grant.Object, "spec", "from")
-	require.NoError(t, err)
+	require.NoError(t, err, "spec.from must stay a list")
 	require.True(t, found)
-	require.Len(t, from, 1)
-	fromRef, ok := from[0].(map[string]any)
-	require.True(t, ok)
-	assert.Equal(t, "test-ns", fromRef["namespace"])
+	var namespaces []string
+	for _, entry := range from {
+		ref, ok := entry.(map[string]any)
+		require.True(t, ok)
+		assert.Equal(t, "gateway.envoyproxy.io", ref["group"])
+		assert.Equal(t, "EnvoyExtensionPolicy", ref["kind"])
+		ns, ok := ref["namespace"].(string)
+		require.True(t, ok)
+		namespaces = append(namespaces, ns)
+	}
+	return namespaces
 }
 
 func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
@@ -369,17 +385,17 @@ func TestAdded_SuccessfulCreationSecondGateway(t *testing.T) {
 	assert.Equal(t, "gateway.envoyproxy.io/v1alpha1", createdPolicy.GetAPIVersion())
 
 	assert.Equal(t, config.Processor.Namespace, createdGrant.GetNamespace())
-	assert.Equal(t, referenceGrantName, createdGrant.GetName())
+	assert.Equal(t, referenceGrantName("test-ns2"), createdGrant.GetName())
 
 	assert.Equal(t, 2, countPolicyCreate)
-	assert.Equal(t, 1, countRefGrantCreate)
-	assert.Equal(t, 2, countRefGrantPatch)
+	assert.Equal(t, 2, countRefGrantCreate)
+	assert.Equal(t, 0, countRefGrantPatch)
 }
 
 // The ReferenceGrant tests below check the stored objects rather than counting client calls: the
 // fake client applies JSON patches like the API server, so a patch that corrupts spec.from shows up.
 
-func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
+func TestAdded_GatewaysInManyNamespacesGetOneReferenceGrantEach(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())
@@ -395,7 +411,11 @@ func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
 	}
 	pattern := newTestEnvoyGatewayPattern(t, client, logger, config)
 
-	namespaces := []string{"test-ns1", "test-ns2", "test-ns3"}
+	// More namespaces than the 16 spec.from entries a single ReferenceGrant accepts
+	var namespaces []string
+	for i := range 20 {
+		namespaces = append(namespaces, fmt.Sprintf("test-ns%d", i))
+	}
 	for _, ns := range namespaces {
 		require.NoError(t, pattern.Added(ctx, newTestGateway(ns, "test-gateway")))
 	}
@@ -403,41 +423,44 @@ func TestAdded_GatewaysInMultipleNamespacesShareReferenceGrant(t *testing.T) {
 	for _, ns := range namespaces {
 		_, err := client.Resource(extensionGVR).Namespace(ns).Get(ctx, extProcName, metav1.GetOptions{})
 		require.NoError(t, err, "EnvoyExtensionPolicy should exist in namespace %s", ns)
+		assert.Equal(t, []string{ns}, grantFromNamespaces(t, client, referenceGrantName(ns)))
 	}
-
-	grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
-	require.NoError(t, err)
-	from, found, err := unstructured.NestedSlice(grant.Object, "spec", "from")
-	require.NoError(t, err, "spec.from must stay a list")
-	require.True(t, found)
-
-	var fromNamespaces []string
-	for _, entry := range from {
-		ref, ok := entry.(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, "gateway.envoyproxy.io", ref["group"])
-		assert.Equal(t, "EnvoyExtensionPolicy", ref["kind"])
-		ns, ok := ref["namespace"].(string)
-		require.True(t, ok)
-		fromNamespaces = append(fromNamespaces, ns)
-	}
-	assert.Equal(t, namespaces, fromNamespaces)
 
 	// Removing a namespace keeps the others
 	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns2"))
-	grant, err = client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
-	require.NoError(t, err)
-	from, _, err = unstructured.NestedSlice(grant.Object, "spec", "from")
-	require.NoError(t, err)
-	require.Len(t, from, 2)
-	for i, want := range []string{"test-ns1", "test-ns3"} {
-		ref, ok := from[i].(map[string]any)
-		require.True(t, ok)
-		assert.Equal(t, want, ref["namespace"])
-	}
+	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns2"), metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "ReferenceGrant of test-ns2 should be deleted")
+	assert.Equal(t, []string{"test-ns3"}, grantFromNamespaces(t, client, referenceGrantName("test-ns3")))
 }
 
-func TestAdded_RetryAfterPolicyFailureDoesNotDuplicateGrantEntry(t *testing.T) {
+func TestRemoveNamespaceToGrant_DrainsLegacySharedGrant(t *testing.T) {
+	ctx := context.Background()
+	client := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme(), newTestLegacyReferenceGrant("datadog", "test-ns1", "test-ns2"))
+
+	config := appsecconfig.Config{
+		Product: appsecconfig.Product{
+			Processor: appsecconfig.Processor{
+				ServiceName: "appsec-processor",
+				Namespace:   "datadog",
+				Port:        8080,
+			},
+		},
+	}
+	pattern := newTestEnvoyGatewayPattern(t, client, logmock.New(t), config)
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns1"))
+	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, legacyReferenceGrantName))
+
+	// A namespace the legacy grant does not list leaves it untouched
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns3"))
+	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, legacyReferenceGrantName))
+
+	require.NoError(t, pattern.RemoveNamespaceToGrant(ctx, "test-ns2"))
+	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, legacyReferenceGrantName, metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "legacy ReferenceGrant should be deleted with its last namespace")
+}
+
+func TestAdded_RetryAfterPolicyFailureKeepsSingleGrant(t *testing.T) {
 	ctx := context.Background()
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewayListKinds())
 
@@ -454,25 +477,9 @@ func TestAdded_RetryAfterPolicyFailureDoesNotDuplicateGrantEntry(t *testing.T) {
 	gateway1 := newTestGateway("test-ns1", "test-gateway")
 	gateway2 := newTestGateway("test-ns2", "test-gateway")
 
-	grantNamespaces := func() []string {
-		grant, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName, metav1.GetOptions{})
-		require.NoError(t, err)
-		from, _, err := unstructured.NestedSlice(grant.Object, "spec", "from")
-		require.NoError(t, err)
-		var namespaces []string
-		for _, entry := range from {
-			ref, ok := entry.(map[string]any)
-			require.True(t, ok)
-			ns, ok := ref["namespace"].(string)
-			require.True(t, ok)
-			namespaces = append(namespaces, ns)
-		}
-		return namespaces
-	}
-
 	require.NoError(t, pattern.Added(ctx, gateway1))
 
-	// The first policy creation in test-ns2 fails after the grant was extended, then the item is retried
+	// The first policy creation in test-ns2 fails after the grant was created, then the item is retried
 	failOnce := true
 	client.PrependReactor("create", "envoyextensionpolicies", func(action k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		if failOnce && action.GetNamespace() == "test-ns2" {
@@ -483,14 +490,16 @@ func TestAdded_RetryAfterPolicyFailureDoesNotDuplicateGrantEntry(t *testing.T) {
 	})
 	require.Error(t, pattern.Added(ctx, gateway2))
 	require.NoError(t, pattern.Added(ctx, gateway2))
-	assert.Equal(t, []string{"test-ns1", "test-ns2"}, grantNamespaces())
+	assert.Equal(t, []string{"test-ns2"}, grantFromNamespaces(t, client, referenceGrantName("test-ns2")))
 
-	// Deleting the last Gateway of test-ns2 removes its grant entry
+	// Deleting the last Gateway of test-ns2 removes its grant only
 	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
 		return true, &unstructured.UnstructuredList{Items: []unstructured.Unstructured{*gateway2}}, nil
 	})
 	require.NoError(t, pattern.Deleted(ctx, gateway2))
-	assert.Equal(t, []string{"test-ns1"}, grantNamespaces())
+	_, err := client.Resource(referenceGrantGVR).Namespace("datadog").Get(ctx, referenceGrantName("test-ns2"), metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "ReferenceGrant of test-ns2 should be deleted")
+	assert.Equal(t, []string{"test-ns1"}, grantFromNamespaces(t, client, referenceGrantName("test-ns1")))
 }
 
 func TestAdded_PolicyAlreadyExists(t *testing.T) {
@@ -632,7 +641,7 @@ func TestDeleted_SuccessfulDeletion_AloneInNamespace(t *testing.T) {
 
 	// Pre-create the EnvoyExtensionPolicy and ReferenceGrant
 	existingPolicy := newTestEnvoyExtensionPolicy("test-ns")
-	existingGrant := newTestReferenceGrant("datadog", "test-ns")
+	existingGrant := newTestLegacyReferenceGrant("datadog", "test-ns")
 
 	// Create client with custom list kinds for Gateway resources
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(

@@ -281,6 +281,41 @@ func TestProcessWorkItem_ErrorRetry(t *testing.T) {
 	assert.Equal(t, 1, queue.NumRequeues(item), "Item should have 1 requeue")
 }
 
+func TestProcessWorkItem_PermanentErrorNotRetried(t *testing.T) {
+	gr := schema.GroupResource{Group: "gateway.networking.k8s.io", Resource: "referencegrants"}
+	for name, permanentErr := range map[string]error{
+		"forbidden": apierrors.NewForbidden(gr, "grant", errors.New("no RBAC")),
+		"invalid":   apierrors.NewInvalid(schema.GroupKind{Group: gr.Group, Kind: "ReferenceGrant"}, "grant", nil),
+	} {
+		t.Run(name, func(t *testing.T) {
+			ctx := context.Background()
+			injector := newMockSecurityInjector(ctx, dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()), logmock.New(t), appsecconfig.Config{})
+			mockPattern := &mockInjectionPattern{addedErr: fmt.Errorf("could not ensure ReferenceGrant: %w", permanentErr)}
+
+			queue := workqueue.NewTypedRateLimitingQueue[workItem](
+				workqueue.NewTypedItemExponentialFailureRateLimiter[workItem](100*time.Millisecond, 1*time.Second),
+			)
+			defer queue.ShutDown()
+
+			item := workItem{obj: &unstructured.Unstructured{}, typ: workItemAdded}
+			queue.Add(item)
+
+			assert.False(t, injector.processWorkItem(ctx, appsecconfig.ProxyTypeEnvoyGateway, mockPattern, queue))
+			assert.Equal(t, 1, mockPattern.addedCalls)
+			assert.Zero(t, queue.NumRequeues(item), "permanent errors must not be requeued")
+			assert.Zero(t, queue.Len())
+		})
+	}
+}
+
+func TestFailureReason(t *testing.T) {
+	gr := schema.GroupResource{Group: "gateway.envoyproxy.io", Resource: "envoyextensionpolicies"}
+	assert.Equal(t, "none", failureReason(nil))
+	assert.Equal(t, "unknown", failureReason(errors.New("boom")))
+	assert.Equal(t, "Forbidden", failureReason(fmt.Errorf("wrapped: %w", apierrors.NewForbidden(gr, "p", errors.New("no RBAC")))))
+	assert.Equal(t, "Invalid", failureReason(errors.Join(errors.New("other"), apierrors.NewInvalid(schema.GroupKind{Group: gr.Group, Kind: "EnvoyExtensionPolicy"}, "p", nil))))
+}
+
 func TestProcessWorkItem_NotLeader(t *testing.T) {
 	mockLogger := logmock.New(t)
 	mockClient := dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())

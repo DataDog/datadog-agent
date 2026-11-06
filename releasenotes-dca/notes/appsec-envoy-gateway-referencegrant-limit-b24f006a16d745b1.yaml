@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix App and API Protection injection for Envoy Gateway failing on Gateways once
+    more than 16 namespaces needed access to the processor Service. The Cluster Agent
+    now creates one ``ReferenceGrant`` per Gateway namespace, named
+    ``datadog-appsec-extproc-<namespace>``, instead of a single shared grant limited
+    to 16 namespaces. The shared ``datadog-appsec-extproc`` grant created by previous
+    versions is removed as its namespaces lose their last Gateway.
+    Forbidden and invalid requests are no longer retried for hours.
