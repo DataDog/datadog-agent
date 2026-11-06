@@ -1,0 +1,29 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    GPU monitoring: on AMD Instinct GPUs, the ``amd_gpu`` check now
+    reads the amdgpu ``gpu_metrics`` table (format 1.9 and later) and
+    reports XGMI data throughput per link
+    (``gpu.xgmi.throughput.data.*``), throttling
+    (``gpu.clock.throttle_reasons.*``) and PCIe replays
+    (``gpu.pci.replay_counter``). On AMD GPUs, a throttle reason is the
+    fraction of the collection interval spent throttled, from 0 to 1,
+    where NVIDIA GPUs report 0 or 1; a monitor on a value above 0
+    works for both. ``gpu.gr_engine_active`` and ``gpu.sm_active``
+    become the socket's graphics activity averaged over the collection
+    interval (the mean over its XCDs, like ``gpu_busy_percent``), and
+    ``gpu.dram_active`` the average HBM bandwidth utilization, instead
+    of a single instantaneous reading. Older drivers keep the previous
+    metrics.
+fixes:
+  - |
+    GPU monitoring: on AMD GPUs, ``gpu.gr_engine_active``,
+    ``gpu.sm_active`` and ``gpu.dram_active`` now read 0 while the GPU
+    is runtime-suspended, instead of being missing.

@@ -8,9 +8,11 @@
 package amd
 
 import (
+	"encoding/binary"
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"testing"
 
@@ -196,4 +198,60 @@ func (f *FakeSysfs) SetKFDRenderMinor(node, minor int) {
 func (f *FakeSysfs) AddPartitionRenderNode(xcp string, minor int) {
 	f.t.Helper()
 	require.NoError(f.t, os.MkdirAll(filepath.Join(f.Root, "devices", "platform", xcp, "drm", "renderD"+strconv.Itoa(minor)), 0o755))
+}
+
+// testAttr is an attribute of a synthetic gpu_metrics table.
+type testAttr struct {
+	id     gpuMetricsAttrID
+	typ    gpuMetricsType
+	unit   gpuMetricsUnit
+	values []uint64
+}
+
+func encodeAttr(a testAttr) uint64 {
+	return uint64(a.unit)<<24 | uint64(a.typ)<<20 | uint64(a.id)<<10 | uint64(len(a.values))
+}
+
+// buildGPUMetrics builds a gpu_metrics table with the given version and
+// attributes, with a consistent structure_size and attr_count.
+func buildGPUMetrics(format, content uint8, attrs ...testAttr) []byte {
+	b := make([]byte, gpuMetricsHeaderSize)
+	b[2], b[3] = format, content
+	binary.LittleEndian.PutUint32(b[4:], uint32(len(attrs)))
+	for _, a := range attrs {
+		b = binary.LittleEndian.AppendUint64(b, encodeAttr(a))
+		for _, v := range a.values {
+			switch a.typ.size() {
+			case 1:
+				b = append(b, byte(v))
+			case 2:
+				b = binary.LittleEndian.AppendUint16(b, uint16(v))
+			case 4:
+				b = binary.LittleEndian.AppendUint32(b, uint32(v))
+			default:
+				b = binary.LittleEndian.AppendUint64(b, v)
+			}
+		}
+	}
+	binary.LittleEndian.PutUint16(b[0:], uint16(len(b)))
+	return b
+}
+
+// GPUMetricsTable builds a gpu_metrics 1.9 table holding the given fields, by
+// name (e.g. "ppt_residency_acc"), with the encoding amdgpu gives them.
+func GPUMetricsTable(t testing.TB, fields map[string][]uint64) []byte {
+	t.Helper()
+	ids := make(map[string]gpuMetricsAttrID, len(gpuMetricsSignatures))
+	for id, sig := range gpuMetricsSignatures {
+		ids[sig.name] = id
+	}
+	attrs := make([]testAttr, 0, len(fields))
+	for name, values := range fields {
+		id, ok := ids[name]
+		require.True(t, ok, "unknown gpu_metrics field %s", name)
+		sig := gpuMetricsSignatures[id]
+		attrs = append(attrs, testAttr{id: id, typ: sig.typ, unit: sig.unit, values: values})
+	}
+	slices.SortFunc(attrs, func(a, b testAttr) int { return int(a.id) - int(b.id) })
+	return buildGPUMetrics(1, 9, attrs...)
 }
