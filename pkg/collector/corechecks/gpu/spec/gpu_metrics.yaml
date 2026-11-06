@@ -18,6 +18,7 @@
 #       - nvidia_smi or calibrated_workload: validate against the named external source in real-GPU integration tests
 #       - value_tolerance: required with an external source; contains one or both of absolute and relative (percent) tolerances
 #   - support:
+#       - amd_only (optional): true for metrics emitted only for AMD GPUs; no architecture listed in architectures.yaml supports them
 #       - unsupported_architectures: [<architecture_name>, ...] (the list of architectures that do not support the metric)
 #       - device_modes: {mig: bool, physical: bool, vgpu: bool} (a map describing whether each device mode supports the metric)
 #       - capabilities_required (optional): {nvlink: <min_generation>, max_nvlink: <max_generation>, c2c: <bool>} (hardware capabilities required for the metric; max_nvlink requires nvlink)
@@ -212,12 +213,13 @@ metrics:
   clock.throttle_reasons.hw_slowdown:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled by hardware slowdown
+      description: >-
+        GPU clocks that are throttled by hardware slowdown (PROCHOT on AMD GPUs). On NVIDIA GPUs the value is 0 or 1; on AMD GPUs it is the fraction of the collection interval spent throttled, from 0 to 1, so a value above 0 means throttling on both.
       aggregation: sensor_data
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      range: {min: 0, max: 1}
     support:
       unsupported_architectures:
         - fermi
@@ -260,12 +262,13 @@ metrics:
   clock.throttle_reasons.sw_power_cap:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled to avoid exceeding power limits
+      description: >-
+        GPU clocks that are throttled to avoid exceeding power limits (package power tracking, PPT, on AMD GPUs). On NVIDIA GPUs the value is 0 or 1; on AMD GPUs it is the fraction of the collection interval spent throttled, from 0 to 1, so a value above 0 means throttling on both.
       aggregation: sensor_data
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      range: {min: 0, max: 1}
     support:
       unsupported_architectures:
         - fermi
@@ -276,12 +279,13 @@ metrics:
   clock.throttle_reasons.sw_thermal_slowdown:
     metadata:
       metric_type: gauge
-      description: GPU clocks that are throttled to avoid exceeding temperature limits
+      description: >-
+        GPU clocks that are throttled to avoid exceeding temperature limits (the socket temperature limit on AMD GPUs). On NVIDIA GPUs the value is 0 or 1; on AMD GPUs it is the fraction of the collection interval spent throttled, from 0 to 1, so a value above 0 means throttling on both.
       aggregation: sensor_data
     tagsets:
       - device
     validator:
-      values: [0, 1]
+      range: {min: 0, max: 1}
     support:
       unsupported_architectures:
         - fermi
@@ -458,7 +462,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time the DRAM was active
+      description: >-
+        Percentage of time the DRAM was active. On AMD GPUs, the HBM bandwidth utilization in percent of the peak, not the time busy: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous mem_busy_percent.
       aggregation: relative_activity
     tagsets:
       - device
@@ -851,7 +856,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time that the graphics engine was active
+      description: >-
+        Percentage of time that the graphics engine was active. On AMD GPUs, the socket's graphics activity, the mean over its XCDs: averaged over the collection interval when the amdgpu gpu_metrics table (format 1.9 and later) passes its checks, otherwise the instantaneous gpu_busy_percent.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:
@@ -1927,6 +1933,88 @@ metrics:
         vgpu: false
       capabilities_required:
         nvlink: 7
+  xgmi.throughput.data.rx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        Per-link XGMI receive throughput of AMD Instinct MI300 and MI350 Series GPUs in an XGMI hive with at least one peer, from the data read counters of the amdgpu gpu_metrics table (data bytes, like nvlink.throughput.data).
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - xgmi
+    validator:
+      range:
+        min: 0
+        max: 1000000000 # 1 TB/s per link, in KB/s
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.data.rx.total:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        XGMI receive throughput summed over the links of AMD Instinct MI300 and MI350 Series GPUs in an XGMI hive with at least one peer, from the amdgpu gpu_metrics table.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 8000000000 # 8 links of 1 TB/s, in KB/s
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.data.tx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        Per-link XGMI transmit throughput of AMD Instinct MI300 and MI350 Series GPUs in an XGMI hive with at least one peer, from the data written counters of the amdgpu gpu_metrics table (data bytes, like nvlink.throughput.data).
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - xgmi
+    validator:
+      range:
+        min: 0
+        max: 1000000000 # 1 TB/s per link, in KB/s
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.data.tx.total:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        XGMI transmit throughput summed over the links of AMD Instinct MI300 and MI350 Series GPUs in an XGMI hive with at least one peer, from the amdgpu gpu_metrics table.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 0
+        max: 8000000000 # 8 links of 1 TB/s, in KB/s
+    support:
+      amd_only: true
+      unsupported_architectures: []
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   c2c.errors.interrupt:
     metadata:
       metric_type: gauge
@@ -1978,7 +2066,8 @@ metrics:
   pci.replay_counter:
     metadata:
       metric_type: gauge
-      description: PCI replay counter
+      description: >-
+        PCI replay counter. On AMD GPUs, a cumulative firmware counter from the amdgpu gpu_metrics table, which on a virtual function can persist across guest driver loads.
     tagsets:
       - device
     validator:
@@ -2441,7 +2530,8 @@ metrics:
     metadata:
       metric_type: gauge
       unit: percent
-      description: Percentage of time the streaming multiprocessor was active
+      description: >-
+        Percentage of time the streaming multiprocessor was active. On AMD GPUs, equal to gr_engine_active (the interval average from gpu_metrics 1.9 and later when it passes its checks, otherwise the instantaneous gpu_busy_percent), as no compute-unit activity is available.
       used_in_dd_ui: true
       aggregation: relative_activity
     tagsets:
