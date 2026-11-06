@@ -217,9 +217,9 @@ def publish(
     - <dev_registry>/<dev_repository>:<tag> — public dev registry, like the CI
       dev_branch-host-profiler-standalone job; skip with --no-publish-dev
 
-    Requires go, docker (ddtool credential helper for registry.ddbuild.io, plus a
-    docker login with push access to the dev registry), crane, and the non-host
-    arch toolchain (the preflight error prints the install command).
+    Requires go, jq, docker (ddtool credential helper for registry.ddbuild.io,
+    plus a docker login with push access to the dev registry), crane, and the
+    non-host arch toolchain (the preflight error prints the install command).
 
     Examples:
         dda inv host-profiler.publish
@@ -267,23 +267,16 @@ def publish(
         print(color_message(f"=== Building host-profiler for {env['GOARCH']}", "green"))
     _run_parallel(jobs)
 
-    # Prepare the build context like the docker_build_host_profiler_standalone_* CI jobs
-    seccomp = json.load(open("cmd/host-profiler/deploy/seccomp-profile.json"))
-    with open(os.path.join(LOCAL_IMAGE_BUILD_CONTEXT, "logging-seccomp.json"), "w") as f:
-        json.dump({**seccomp, "flags": ["SECCOMP_FILTER_FLAG_LOG"]}, f, indent=2)
-        f.write("\n")
-    context_files = [
-        (f"{BIN_PATH}.{{arch}}", "host-profiler"),
-        (os.path.join(BIN_DIR, "dist", "host-profiler-config.yaml"), "host-profiler-config.yaml"),
-        ("cmd/host-profiler/deploy/seccomp-profile.json", "seccomp-profile.json"),
-        (None, "logging-seccomp.json"),
-    ]
+    # tools/host-profiler/prepare-image-context.sh is the single source of
+    # truth for the image contents, shared with the CI jobs.
+    context_files = ["host-profiler", "host-profiler-config.yaml", "seccomp-profile.json", "logging-seccomp.json"]
     try:
         base = base_image_tag or _latest_base_image_tag(ctx, registry)
         for arch in arches:
-            for src_tpl, dst in context_files:
-                if src_tpl:
-                    shutil.copy(src_tpl.format(arch=arch), os.path.join(LOCAL_IMAGE_BUILD_CONTEXT, dst))
+            ctx.run(
+                f"./tools/host-profiler/prepare-image-context.sh '{BIN_PATH}.{arch}' {LOCAL_IMAGE_BUILD_CONTEXT}",
+                echo=True,
+            )
 
             # CI conventions: ddbuild mirror for the builder image, Docker media types on export
             cmd = [
@@ -315,7 +308,7 @@ def publish(
             )
             ctx.run(f"docker manifest push {destination}:{tag}", echo=True)
     finally:
-        for _, dst in context_files:
+        for dst in context_files:
             path = os.path.join(LOCAL_IMAGE_BUILD_CONTEXT, dst)
             if os.path.exists(path):
                 os.remove(path)
