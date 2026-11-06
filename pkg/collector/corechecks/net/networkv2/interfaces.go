@@ -133,11 +133,14 @@ func (c *NetworkCheck) setInterfacesMetadata(ifaces []ifaceInfo) {
 	if err != nil {
 		return
 	}
-	nics := make([]nicMetadata, 0, len(ifaces))
+	// Sorting pointers reuses the generic sort code that the agent already has for pointer slices,
+	// instead of adding a copy for the nicMetadata struct.
+	nics := make([]*nicMetadata, 0, len(ifaces))
 	for _, iface := range ifaces {
-		nics = append(nics, newNicMetadata(iface))
+		nic := newNicMetadata(iface)
+		nics = append(nics, &nic)
 	}
-	slices.SortFunc(nics, func(a, b nicMetadata) int { return strings.Compare(a.Name, b.Name) })
+	slices.SortFunc(nics, func(a, b *nicMetadata) int { return strings.Compare(a.Name, b.Name) })
 	payload, err := json.Marshal(nics)
 	if err != nil {
 		log.Debugf("Unable to marshal network interfaces metadata: %s", err)
