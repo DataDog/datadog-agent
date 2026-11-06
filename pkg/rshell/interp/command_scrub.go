@@ -5,7 +5,10 @@
 
 package interp
 
-import "regexp"
+import (
+	"regexp"
+	"strings"
+)
 
 // scrubReplacement is the fixed placeholder substituted for a redacted value.
 // It matches the convention already used by the Datadog Agent's process
@@ -100,9 +103,16 @@ func scrubCommandText(text string) string {
 	text = reURLCreds.ReplaceAllString(text, "${1}:"+scrubReplacement+"@")
 	text = reBasicAuthFlag.ReplaceAllString(text, "${1}"+scrubReplacement)
 	text = reAuthHeader.ReplaceAllString(text, "${1}"+scrubReplacement)
-	text = redactQuotedValue(reKeyEquals, text)
+	// Key/value matches require a literal delimiter in the current text.
+	if strings.ContainsAny(text, ":=") {
+		text = redactQuotedValue(reKeyEquals, text)
+	}
 	text = redactQuotedValue(reFlagSpace, text)
 	text = reAWSAccessKey.ReplaceAllString(text, scrubReplacement)
-	text = reJWT.ReplaceAllString(text, scrubReplacement)
+	// A JWT match requires literal dots. Avoid the regex scan when none remain
+	// after the preceding redactions, including for large dotless comments.
+	if strings.ContainsRune(text, '.') {
+		text = reJWT.ReplaceAllString(text, scrubReplacement)
+	}
 	return text
 }
