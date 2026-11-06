@@ -965,6 +965,20 @@ properties:
         default: true
         env_vars:
         - DD_APM_INSTRUMENTATION_ON_DEMAND
+      skip_otel_operator_pods:
+        node_type: setting
+        type: boolean
+        default: true
+        env_vars:
+        - DD_APM_INSTRUMENTATION_SKIP_OTEL_OPERATOR_PODS
+        description: |-
+          Skip Single Step Instrumentation for pods that request instrumentation from the OpenTelemetry Operator, that is
+          pods with an instrumentation.opentelemetry.io/inject-* annotation (except *-container-names) on the pod itself
+          whose value is neither empty nor "false"; namespace annotations are not considered. Remote Configuration rules,
+          targets, enabled namespaces and cluster-wide injection do not inject these pods, while Datadog library
+          annotations on pods labeled admission.datadoghq.com/enabled="true" (or on any pod with
+          admission_controller.mutate_unlabelled), DatadogInstrumentation resources and the GPU and APM Basic opt-in
+          labels still do. The decision rests on the annotations alone. Set to false to inject these pods anyway.
       targets:
         node_type: setting
         type: array

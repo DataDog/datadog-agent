@@ -232,6 +232,10 @@ type InstrumentationConfig struct {
 	// APMBasic configures the target injecting dd-trace-c in APM Basic mode. Full config key:
 	// apm_config.instrumentation.apm_basic
 	APMBasic APMBasicConfig `mapstructure:"apm_basic" json:"apm_basic"`
+	// SkipOTelOperatorPods leaves the pods that request instrumentation from the OpenTelemetry Operator to that
+	// operator: remote-config policies, targets and inject-all do not inject them, while explicit Datadog opt-ins
+	// still do. Full config key: apm_config.instrumentation.skip_otel_operator_pods
+	SkipOTelOperatorPods bool `mapstructure:"skip_otel_operator_pods" json:"skip_otel_operator_pods"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the

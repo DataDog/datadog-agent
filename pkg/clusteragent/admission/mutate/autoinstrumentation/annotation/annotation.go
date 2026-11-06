@@ -64,9 +64,11 @@ const (
 const (
 	// AppliedConfig is the JSON of the configuration selected for injection.
 	AppliedConfig = "internal.apm.datadoghq.com/applied-config"
-	// InjectionSource identifies the configuration source that selected the libraries.
+	// InjectionSource identifies the configuration source that decided the outcome: the source that selected the
+	// libraries, or the one that blocked or skipped injection (e.g. opentelemetry-operator).
 	InjectionSource = "internal.apm.datadoghq.com/injection-source"
-	// InjectionError is set by the webhook when there was an error during mutation.
+	// InjectionError is set by the webhook when there was an error during mutation, or with the reason why
+	// injection was skipped.
 	// Example value: The overall pod's containers limit is too low, cpu pod_limit=5m needed=50m, memory pod_limit=4Mi needed=100Mi
 	InjectionError = "internal.apm.datadoghq.com/injection-error"
 	// InjectorCanonicalVersion is set with the actual version of the injector as opposed to a resolved digest.
@@ -116,7 +118,8 @@ const (
 	// (e.g. unsupported language).
 	InjectionStatusPartial = "partial"
 	// InjectionStatusSkipped means injection was skipped before it started
-	// (e.g. insufficient pod resources, incompatible runtime, or disabled injection mode).
+	// (e.g. insufficient pod resources, incompatible runtime, disabled injection mode, or a pod that requests
+	// instrumentation from the OpenTelemetry Operator). The injection-error annotation holds the reason.
 	InjectionStatusSkipped = "skipped"
 	// InjectionStatusError means a fatal error prevented the injector from running.
 	InjectionStatusError = "error"

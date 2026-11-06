@@ -1,0 +1,43 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    Single Step Instrumentation no longer injects a pod selected by a Remote Configuration rule,
+    ``apm_config.instrumentation.targets``, ``apm_config.instrumentation.enabled_namespaces`` or
+    cluster-wide injection when the pod requests instrumentation from the OpenTelemetry Operator,
+    that is when the pod itself has an ``instrumentation.opentelemetry.io/inject-*`` annotation
+    (other than ``*-container-names``) whose value is neither empty nor ``false``. Annotations set on
+    the namespace are not considered. The decision rests on these annotations alone: pods that keep
+    them while the OpenTelemetry Operator does not instrument them lose Datadog APM, so remove such
+    annotations or set them to ``"false"``. The whole pod is skipped, so containers that the
+    OpenTelemetry Operator leaves alone (by default every container but the first, or those not
+    listed in a ``*-container-names`` annotation) also lose Datadog APM. The change applies to pods
+    created after the upgrade. Skipped pods carry the
+    ``internal.apm.datadoghq.com/injection-source: opentelemetry-operator`` and
+    ``internal.apm.datadoghq.com/injection-status: skipped`` annotations, with the reason in
+    ``internal.apm.datadoghq.com/injection-error``, and the Single Step Instrumentation webhook adds
+    nothing else to them: no libraries, no ``DD_AGENT_HOST``, ``DD_ENTITY_ID`` or Unified Service
+    Tagging environment variables, and no Datadog sockets. To inject these pods as before, set
+    ``DD_APM_INSTRUMENTATION_SKIP_OTEL_OPERATOR_PODS`` to ``"false"`` on the Cluster Agent: in
+    ``clusterAgent.env`` with the Helm chart, quoting the value, or in
+    ``spec.override.clusterAgent.env`` with the Datadog Operator.
+features:
+  - |
+    Single Step Instrumentation skips pods that request instrumentation from the OpenTelemetry
+    Operator, to avoid instrumenting them twice. Such pods have an
+    ``instrumentation.opentelemetry.io/inject-*`` annotation (other than ``*-container-names``) on
+    the pod itself whose value is neither empty nor ``false``; annotations set on the namespace are
+    not considered. Remote Configuration rules, targets, enabled namespaces and cluster-wide injection
+    leave these pods to the OpenTelemetry Operator. Explicit Datadog opt-ins still inject them:
+    library annotations such as ``admission.datadoghq.com/<language>-lib.version`` on pods labeled
+    ``admission.datadoghq.com/enabled: "true"`` (or on any pod when
+    ``admission_controller.mutate_unlabelled`` is true), ``DatadogInstrumentation`` resources, and the
+    ``admission.datadoghq.com/gpu.enabled`` and ``admission.datadoghq.com/apm-basic.enabled`` labels.
+    Turn the filter off by setting ``DD_APM_INSTRUMENTATION_SKIP_OTEL_OPERATOR_PODS`` to ``"false"``
+    on the Cluster Agent.
