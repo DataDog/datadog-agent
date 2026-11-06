@@ -174,7 +174,6 @@ func (e *egress) tick() {
 
 	bytesSent, err := e.forwarder.Send(ctx, e.buildReport(merged))
 	if err != nil {
-		// Logged at Error so the failure reaches agent telemetry error tracking.
 		e.log.Errorf("Health platform egress: failed to send %d issues: %v", len(merged), err)
 		e.statusMu.Lock()
 		e.lastErr = err
