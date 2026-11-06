@@ -199,7 +199,32 @@ var testCases = []testCase{
 				},
 			},
 		},
-		validationErr: `signature is not supported`,
+	},
+	{
+		// System tests, which are shared across tracers, send log probes
+		// like this one and expect them to be installed.
+		name: "log probe without template",
+		input: `{
+				"id": "log-probe-1",
+				"type": "LOG_PROBE",
+				"version": 1,
+				"where": {
+					"methodName": "MyMethod"
+				},
+				"segments": []
+			}`,
+		want: &LogProbe{
+			LogProbeCommon: LogProbeCommon{
+				ProbeCommon: ProbeCommon{
+					ID:      "log-probe-1",
+					Version: 1,
+					Type:    TypeLogProbe.String(),
+					Where: &Where{
+						MethodName: "MyMethod",
+					},
+				},
+			},
+		},
 	},
 	{
 		name: "valid metric probe",
@@ -322,7 +347,7 @@ var testCases = []testCase{
 	{
 		name:         "invalid json",
 		input:        `{invalid json}`,
-		unmarshalErr: `failed to parse json: .*`,
+		unmarshalErr: `failed to parse probe definition: .*`,
 	},
 	{
 		name: "invalid probe type",
@@ -330,8 +355,49 @@ var testCases = []testCase{
 				"id": "invalid-probe",
 				"type": "INVALID_TYPE"
 			}`,
-		unmarshalErr: `failed to parse json: invalid config type: INVALID_TYPE`,
+		unmarshalErr: `failed to parse probe definition: invalid config type: INVALID_TYPE`,
 	},
+	{
+		name: "trigger probe",
+		input: `{
+				"id": "trigger-probe",
+				"type": "TRIGGER_PROBE",
+				"where": {"methodName": "MyMethod"}
+			}`,
+		unmarshalErr: `^probe type TRIGGER_PROBE is not supported$`,
+	},
+	{
+		name: "span decoration probe",
+		input: `{
+				"id": "span-decoration-probe",
+				"type": "SPAN_DECORATION_PROBE",
+				"where": {"methodName": "MyMethod"}
+			}`,
+		unmarshalErr: `^probe type SPAN_DECORATION_PROBE is not supported$`,
+	},
+	{
+		name: "log probe with a malformed segment",
+		input: `{
+				"id": "log-probe-1",
+				"type": "LOG_PROBE",
+				"where": {"methodName": "MyMethod"},
+				"template": "Hello",
+				"segments": [{"unknown": "Hello"}]
+			}`,
+		unmarshalErr: `^failed to parse LOG_PROBE definition: unknown segment type at index 0`,
+	},
+}
+
+func TestMaxReferenceDepthZero(t *testing.T) {
+	probe, err := UnmarshalProbe([]byte(`{
+		"id": "snapshot-probe",
+		"type": "LOG_PROBE",
+		"captureSnapshot": true,
+		"where": {"methodName": "main.f"},
+		"capture": {"maxReferenceDepth": 0}
+	}`))
+	require.NoError(t, err)
+	require.Equal(t, uint32(0), probe.GetCaptureConfig().GetMaxReferenceDepth())
 }
 
 func TestUnmarshalProbe(t *testing.T) {
