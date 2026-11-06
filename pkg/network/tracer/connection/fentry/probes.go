@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
@@ -107,7 +108,18 @@ const (
 
 	// net_dev_queue raw tracepoint for protocol classification (fentry requires 5.8+ so raw tracepoints are always available)
 	netDevQueueRawTracepoint = "raw_tracepoint__net__net_dev_queue"
+	// netDevQueueTPBTF is preferred over netDevQueueRawTracepoint when it loads
+	netDevQueueTPBTF = "tp_btf__net__net_dev_queue"
 )
+
+// netDevQueueTPBTFSupported trial-loads a tp_btf program on net_dev_queue that makes a BPF_PROBE_MEM load.
+var netDevQueueTPBTFSupported = func() bool {
+	err := ddfeatures.SupportsTPBTFProbeMem("net_dev_queue")
+	if err != nil {
+		log.Debugf("tp_btf/net_dev_queue not supported, using raw tracepoint: %s", err)
+	}
+	return err == nil
+}
 
 var programs = map[string]struct{}{
 	inetBind:                   {},
@@ -156,9 +168,8 @@ var programs = map[string]struct{}{
 	protocolClassifierQueues:    {},
 	protocolClassifierDBs:       {},
 	protocolClassifierGRPC:      {},
-	// Note: netDevQueueRawTracepoint is NOT in this map — it's added separately
-	// in manager.go with TracepointName/TracepointCategory fields, and enabled
-	// directly in enabledPrograms() to avoid duplicate probe registration.
+	// Note: netDevQueueRawTracepoint and netDevQueueTPBTF are NOT in this map — they're added separately
+	// in manager.go, and enabled directly in enabledPrograms() to avoid duplicate probe registration.
 }
 
 func enableProgram(enabled map[string]struct{}, name string) {
@@ -242,8 +253,12 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 			enableProgram(enabled, protocolClassifierGRPC)
 
 			// fentry requires 5.8+ which always supports raw tracepoints (4.17+)
-			// Directly insert — not in programs map since manager.go adds it with TracepointName fields
-			enabled[netDevQueueRawTracepoint] = struct{}{}
+			// Directly insert — not in programs map since manager.go adds them
+			if netDevQueueTPBTFSupported() {
+				enabled[netDevQueueTPBTF] = struct{}{}
+			} else {
+				enabled[netDevQueueRawTracepoint] = struct{}{}
+			}
 		}
 	}
 

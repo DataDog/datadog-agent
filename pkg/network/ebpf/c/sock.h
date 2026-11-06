@@ -182,11 +182,68 @@ static __always_inline u16 _sk_family(struct sock *skp) {
     return family;
 }
 
+#ifdef COMPILE_CORE
+// Readers for a BTF-typed sock pointer (a tp_btf argument): the verifier turns the sock_common
+// accesses into BPF_PROBE_MEM loads. inet_sk() fields lie past struct sock, where the verifier
+// rejects direct loads through a struct sock pointer, so those fallbacks stay probe reads.
+static __always_inline u16 read_sport_btf(struct sock *skp) {
+    u16 sport = skp->sk_num;
+    if (sport == 0) {
+        BPF_CORE_READ_INTO(&sport, inet_sk(skp), inet_sport);
+        sport = bpf_ntohs(sport);
+    }
+    return sport;
+}
+
+static __always_inline u16 read_dport_btf(struct sock *skp) {
+    u16 dport = skp->sk_dport;
+    if (dport == 0) {
+        BPF_CORE_READ_INTO(&dport, inet_sk(skp), inet_dport);
+    }
+    return bpf_ntohs(dport);
+}
+
+static __always_inline u32 read_saddr_v4_btf(struct sock *skp) {
+    u32 saddr = skp->sk_rcv_saddr;
+    if (saddr == 0) {
+        BPF_CORE_READ_INTO(&saddr, inet_sk(skp), inet_saddr);
+    }
+    return saddr;
+}
+
+static __always_inline u32 read_daddr_v4_btf(struct sock *skp) {
+    u32 daddr = skp->sk_daddr;
+    if (daddr == 0) {
+        BPF_CORE_READ_INTO(&daddr, inet_sk(skp), inet_daddr);
+    }
+    return daddr;
+}
+
+static __always_inline void read_saddr_v6_btf(struct sock *skp, u64 *addr_h, u64 *addr_l) {
+    struct in6_addr in6 = skp->sk_v6_rcv_saddr;
+    copy_in6_addr_from_stack(addr_h, addr_l, &in6);
+}
+
+static __always_inline void read_daddr_v6_btf(struct sock *skp, u64 *addr_h, u64 *addr_l) {
+    struct in6_addr in6 = skp->sk_v6_daddr;
+    copy_in6_addr_from_stack(addr_h, addr_l, &in6);
+}
+
+static __always_inline u16 _sk_family_btf(struct sock *skp) {
+    return skp->sk_family;
+}
+
+// Calls fn##_btf when btf is set, fn otherwise. btf must be a compile-time constant.
+#define BTF_OR_PROBE_READ(btf, fn, ...) ((btf) ? fn##_btf(__VA_ARGS__) : fn(__VA_ARGS__))
+#else
+#define BTF_OR_PROBE_READ(btf, fn, ...) fn(__VA_ARGS__)
+#endif // COMPILE_CORE
+
 /**
  * Reads values into a `conn_tuple_t` from a `sock`. Any values that are already set in conn_tuple_t
- * are not overwritten. Returns 1 success, 0 otherwise.
+ * are not overwritten. Returns 1 success, 0 otherwise. With btf set, skp must be a BTF-typed pointer.
  */
-static __always_inline int __read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type, const bool read_netns) {
+static __always_inline int __read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type, const bool read_netns, const bool btf) {
     int err = 0;
     t->pid = GET_USER_MODE_PID(pid_tgid);
     t->metadata = type;
@@ -196,15 +253,15 @@ static __always_inline int __read_conn_tuple_partial(conn_tuple_t* t, struct soc
     if (read_netns) {
         t->netns = get_netns_from_sock(skp);
     }
-    u16 family = _sk_family(skp);
+    u16 family = BTF_OR_PROBE_READ(btf, _sk_family, skp);
     // Retrieve addresses
     if (family == AF_INET) {
         t->metadata |= CONN_V4;
         if (t->saddr_l == 0) {
-            t->saddr_l = read_saddr_v4(skp);
+            t->saddr_l = BTF_OR_PROBE_READ(btf, read_saddr_v4, skp);
         }
         if (t->daddr_l == 0) {
-            t->daddr_l = read_daddr_v4(skp);
+            t->daddr_l = BTF_OR_PROBE_READ(btf, read_daddr_v4, skp);
         }
 
         if (t->saddr_l == 0 || t->daddr_l == 0) {
@@ -217,10 +274,10 @@ static __always_inline int __read_conn_tuple_partial(conn_tuple_t* t, struct soc
         }
 
         if (!(t->saddr_h || t->saddr_l)) {
-            read_saddr_v6(skp, &t->saddr_h, &t->saddr_l);
+            BTF_OR_PROBE_READ(btf, read_saddr_v6, skp, &t->saddr_h, &t->saddr_l);
         }
         if (!(t->daddr_h || t->daddr_l)) {
-            read_daddr_v6(skp, &t->daddr_h, &t->daddr_l);
+            BTF_OR_PROBE_READ(btf, read_daddr_v6, skp, &t->daddr_h, &t->daddr_l);
         }
 
         /* We can only pass 4 args to bpf_trace_printk */
@@ -254,10 +311,10 @@ static __always_inline int __read_conn_tuple_partial(conn_tuple_t* t, struct soc
 
     // Retrieve ports
     if (t->sport == 0) {
-        t->sport = read_sport(skp);
+        t->sport = BTF_OR_PROBE_READ(btf, read_sport, skp);
     }
     if (t->dport == 0) {
-        t->dport = read_dport(skp);
+        t->dport = BTF_OR_PROBE_READ(btf, read_dport, skp);
     }
 
     if (t->sport == 0 || t->dport == 0) {
@@ -269,7 +326,7 @@ static __always_inline int __read_conn_tuple_partial(conn_tuple_t* t, struct soc
 }
 
 static __always_inline int read_conn_tuple_partial(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
-    return __read_conn_tuple_partial(t, skp, pid_tgid, type, true);
+    return __read_conn_tuple_partial(t, skp, pid_tgid, type, true, false);
 }
 
 /**
@@ -283,8 +340,16 @@ static __always_inline int read_conn_tuple(conn_tuple_t* t, struct sock* skp, u6
 // Same as read_conn_tuple, but leaves netns zeroed, for callers that would discard it.
 static __maybe_unused __always_inline int read_conn_tuple_no_netns(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
     bpf_memset(t, 0, sizeof(conn_tuple_t));
-    return __read_conn_tuple_partial(t, skp, pid_tgid, type, false);
+    return __read_conn_tuple_partial(t, skp, pid_tgid, type, false, false);
 }
+
+#ifdef COMPILE_CORE
+// read_conn_tuple_no_netns for a BTF-typed sock pointer.
+static __maybe_unused __always_inline int read_conn_tuple_no_netns_btf(conn_tuple_t* t, struct sock* skp, u64 pid_tgid, metadata_mask_t type) {
+    bpf_memset(t, 0, sizeof(conn_tuple_t));
+    return __read_conn_tuple_partial(t, skp, pid_tgid, type, false, true);
+}
+#endif
 
 static __always_inline int get_proto(conn_tuple_t *t) {
     return (t->metadata & CONN_TYPE_TCP) ? CONN_TYPE_TCP : CONN_TYPE_UDP;
