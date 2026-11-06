@@ -247,6 +247,8 @@ func tagInventoryFiltersForConfig(config gpuspec.GPUConfig, extraFilters []strin
 		switch config.DeviceMode {
 		case gpuspec.DeviceModeMIG:
 			configFilters = []string{strings.Join(append(baseParts, "gpu_slicing_mode:mig"), ",")}
+		case gpuspec.DeviceModeMIGParent:
+			configFilters = []string{strings.Join(append(baseParts, "gpu_slicing_mode:mig-parent"), ",")}
 		case gpuspec.DeviceModeVGPU:
 			configFilters = []string{strings.Join(append(baseParts, "gpu_virtualization_mode:*vgpu"), ",")}
 		default:
