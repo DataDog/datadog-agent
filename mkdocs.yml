@@ -67,6 +67,10 @@ nav:
       - Writing tests: how-to/test/e2e/writing.md
       - Test dependencies: how-to/test/e2e/dependencies.md
       - Custom AMIs: how-to/test/e2e/custom-amis.md
+      - Performance benchmark:
+        - how-to/test/e2e/benchmarkeks/index.md
+        - How it works: how-to/test/e2e/benchmarkeks/how-it-works.md
+        - How the test decides: how-to/test/e2e/benchmarkeks/statistics.md
     - Manual QA: 
       - how-to/test/manual-qa/index.md
       - AWS: 
