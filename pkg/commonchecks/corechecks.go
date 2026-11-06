@@ -120,6 +120,9 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterContextualCheck(amdgpu.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
 		return amdgpu.Factory(tagger, telemetryForMode(ctx), store)
 	}))
+	corecheckLoader.RegisterContextualCheck(amdgpu.ExporterCheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return amdgpu.ExporterFactory(tagger, telemetryForMode(ctx), store)
+	}))
 	corecheckLoader.RegisterContextualCheck(nccl.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
 		return nccl.Factory(tagger, telemetryForMode(ctx), store)
 	}))

@@ -36,6 +36,7 @@ AGENT_CORECHECKS = [
     "network_path",
     "gpu",
     "amd_gpu",
+    "amd_gpu_exporter",
     "nccl",
     "discovery",
     "versa",

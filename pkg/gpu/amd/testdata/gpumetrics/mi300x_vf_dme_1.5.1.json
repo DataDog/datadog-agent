@@ -1,0 +1,548 @@
+{
+ "Response": [
+  {
+   "Spec": {
+    "ClockFrequency": [
+     {
+      "ClockType": 3,
+      "HighFrequency": 2100,
+      "LowFrequency": 500
+     },
+     {
+      "ClockType": 2,
+      "HighFrequency": 1300,
+      "LowFrequency": 900
+     },
+     {
+      "ClockType": 7,
+      "HighFrequency": 1333,
+      "LowFrequency": 914
+     },
+     {
+      "ClockType": 8,
+      "HighFrequency": 1143,
+      "LowFrequency": 711
+     }
+    ],
+    "ComputePartitionType": 1,
+    "GPUPowerCap": [
+     {
+      "PowerCap": 750,
+      "Type": 1
+     }
+    ],
+    "Id": "KgB0tQAAEACAd+15IVk6iw==",
+    "MemoryPartitionType": 1,
+    "PerformanceLevel": 1
+   },
+   "Stats": {
+    "AvgPackagePower": 65535,
+    "EnergyConsumed": 623467116363776,
+    "FanSpeed": 65535,
+    "GFXActivityAccumulated": 1272248676,
+    "MemoryActivityAccumulated": 2859964237,
+    "PCIeStats": {
+     "BiDirBandwidth": 556873043544,
+     "RecoveryCount": 1,
+     "RxBytes": 18446744073709551615,
+     "TxBytes": 18446744073709551615
+    },
+    "PackagePower": 143,
+    "PowerUsage": 143,
+    "Temperature": {
+     "EdgeTemperature": 65535,
+     "HBMTemperature": [
+      65535,
+      65535,
+      65535,
+      65535
+     ],
+     "JunctionTemperature": 38,
+     "MemoryTemperature": 33
+    },
+    "Usage": {
+     "GFXBusyInst": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0
+     ],
+     "JPEGActivity": [
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535
+     ],
+     "JPEGBusyInst": [
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      0,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535,
+      65535
+     ],
+     "MMActivity": 65535,
+     "VCNActivity": [
+      65535,
+      65535,
+      65535,
+      65535
+     ],
+     "VCNBusyInst": [
+      0,
+      0,
+      0,
+      0
+     ]
+    },
+    "VRAMUsage": {
+     "FreeGTT": 120784,
+     "FreeVRAM": 196003,
+     "FreeVisibleVRAM": 196003,
+     "TotalGTT": 120805,
+     "TotalVRAM": 196288,
+     "TotalVisibleVRAM": 196288,
+     "UsedGTT": 21,
+     "UsedVRAM": 285,
+     "UsedVisibleVRAM": 285
+    },
+    "ViolationStats": {
+     "CurrentAccumulatedCounter": 2545945608,
+     "GFXBelowHostLimitPowerAccumulated": [
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615
+     ],
+     "GFXBelowHostLimitPowerPercentage": [
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615
+     ],
+     "GFXBelowHostLimitTHMAccumulated": [
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615
+     ],
+     "GFXBelowHostLimitTHMPercentage": [
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615
+     ],
+     "GFXBelowHostLimitTotalAccumulated": [
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615
+     ],
+     "GFXBelowHostLimitTotalPercentage": [
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615
+     ],
+     "GFXLowUtilizationAccumulated": [
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615
+     ],
+     "GFXLowUtilizationPercentage": [
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615,
+      18446744073709551615
+     ],
+     "PPTResidencyAccumulated": 349868946,
+     "SocketThermalResidencyAccumulated": 12077626
+    },
+    "Voltage": {
+     "GFXVoltage": 65535,
+     "MemoryVoltage": 65535,
+     "Voltage": 65535
+    },
+    "XGMILinkStats": [
+     {},
+     {
+      "DataRead": 1,
+      "DataWrite": 1
+     },
+     {
+      "DataRead": 2,
+      "DataWrite": 1
+     },
+     {
+      "DataRead": 1,
+      "DataWrite": 1
+     },
+     {
+      "DataRead": 1,
+      "DataWrite": 1
+     },
+     {
+      "DataRead": 1,
+      "DataWrite": 1
+     },
+     {
+      "DataRead": 1,
+      "DataWrite": 1
+     },
+     {
+      "DataRead": 1,
+      "DataWrite": 1
+     }
+    ]
+   },
+   "Status": {
+    "CardModel": "AMD Instinct MI300X VF",
+    "CardSKU": "M3000100",
+    "CardVendor": "Advanced Micro Devices, Inc. [AMD/ATI]",
+    "ClockStatus": [
+     {
+      "DeepSleep": true,
+      "Frequency": 135,
+      "HighFrequency": 2100,
+      "LowFrequency": 500,
+      "Type": 3
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 132,
+      "HighFrequency": 2100,
+      "LowFrequency": 500,
+      "Type": 3
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 132,
+      "HighFrequency": 2100,
+      "LowFrequency": 500,
+      "Type": 3
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 132,
+      "HighFrequency": 2100,
+      "LowFrequency": 500,
+      "Type": 3
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 132,
+      "HighFrequency": 2100,
+      "LowFrequency": 500,
+      "Type": 3
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 132,
+      "HighFrequency": 2100,
+      "LowFrequency": 500,
+      "Type": 3
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 131,
+      "HighFrequency": 2100,
+      "LowFrequency": 500,
+      "Type": 3
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 131,
+      "HighFrequency": 2100,
+      "LowFrequency": 500,
+      "Type": 3
+     },
+     {
+      "Frequency": 900,
+      "HighFrequency": 1300,
+      "LowFrequency": 900,
+      "Type": 2
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 29,
+      "HighFrequency": 1333,
+      "LowFrequency": 914,
+      "Type": 7
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 29,
+      "HighFrequency": 1333,
+      "LowFrequency": 914,
+      "Type": 7
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 29,
+      "HighFrequency": 1333,
+      "LowFrequency": 914,
+      "Type": 7
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 29,
+      "HighFrequency": 1333,
+      "LowFrequency": 914,
+      "Type": 7
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 22,
+      "HighFrequency": 1143,
+      "LowFrequency": 711,
+      "Type": 8
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 22,
+      "HighFrequency": 1143,
+      "LowFrequency": 711,
+      "Type": 8
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 22,
+      "HighFrequency": 1143,
+      "LowFrequency": 711,
+      "Type": 8
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 22,
+      "HighFrequency": 1143,
+      "LowFrequency": 711,
+      "Type": 8
+     },
+     {
+      "Frequency": 889,
+      "HighFrequency": 1143,
+      "LowFrequency": 889,
+      "Type": 4
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 28,
+      "HighFrequency": 1143,
+      "LowFrequency": 889,
+      "Type": 4
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 28,
+      "HighFrequency": 1143,
+      "LowFrequency": 889,
+      "Type": 4
+     },
+     {
+      "DeepSleep": true,
+      "Frequency": 28,
+      "HighFrequency": 1143,
+      "LowFrequency": 889,
+      "Type": 4
+     },
+     {
+      "Frequency": 1300,
+      "HighFrequency": 1800,
+      "LowFrequency": 1300,
+      "Type": 1
+     }
+    ],
+    "DRMCardId": 1,
+    "DRMRenderId": 129,
+    "DriverVersion": "6.19.14.31400000",
+    "FWTimestamp": 254649297944308,
+    "FirmwareVersion": [
+     {
+      "Firmware": "CP_MEC1",
+      "Version": "32962"
+     },
+     {
+      "Firmware": "CP_MEC2",
+      "Version": "32962"
+     },
+     {
+      "Firmware": "RLC",
+      "Version": "70"
+     },
+     {
+      "Firmware": "SDMA0",
+      "Version": "27"
+     },
+     {
+      "Firmware": "SDMA1",
+      "Version": "27"
+     },
+     {
+      "Firmware": "VCN",
+      "Version": "0x09118029"
+     },
+     {
+      "Firmware": "RLC_GPM_MEM",
+      "Version": "4"
+     },
+     {
+      "Firmware": "RLC_SRM_MEM",
+      "Version": "4"
+     },
+     {
+      "Firmware": "RLC_CNTL",
+      "Version": "4"
+     },
+     {
+      "Firmware": "TA_RAS",
+      "Version": "27.54.02.27"
+     },
+     {
+      "Firmware": "TA_XGMI",
+      "Version": "32.00.00.20"
+     },
+     {
+      "Firmware": "PM",
+      "Version": "00.85.117.01"
+     }
+    ],
+    "GPUHandle": 436815520,
+    "KFDId": 21947,
+    "KFDProcessId": [
+     727140
+    ],
+    "MemoryVendor": "MICRON",
+    "NodeId": 1,
+    "PCIeStatus": {
+     "Bandwidth": 18,
+     "MaxSpeed": 32,
+     "MaxWidth": 16,
+     "PCIeBusId": "0000:83:00.0",
+     "SlotType": 2,
+     "Speed": 32,
+     "Version": 5,
+     "Width": 16
+    },
+    "ProcessStatus": {
+     "ProcessInfo": [
+      {
+       "PId": 727140
+      }
+     ]
+    },
+    "VBIOSPartNumber": "113-M3000100-103",
+    "VBIOSVersion": "00123529",
+    "VRAMStatus": {
+     "MaxBandwidth": 5325,
+     "Size": 196288,
+     "Type": 1,
+     "Vendor": "MICRON"
+    },
+    "VirtualizationMode": 3,
+    "XGMIStatus": {
+     "Speed": 32,
+     "Width": 16
+    }
+   }
+  }
+ ]
+}

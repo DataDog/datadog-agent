@@ -19,3 +19,8 @@ import (
 func Factory(_ tagger.Component, _ telemetry.Component, _ workloadmeta.Component) option.Option[func() check.Check] {
 	return option.None[func() check.Check]()
 }
+
+// ExporterFactory returns an empty option where the AMD GPU exporter check is not supported
+func ExporterFactory(_ tagger.Component, _ telemetry.Component, _ workloadmeta.Component) option.Option[func() check.Check] {
+	return option.None[func() check.Check]()
+}

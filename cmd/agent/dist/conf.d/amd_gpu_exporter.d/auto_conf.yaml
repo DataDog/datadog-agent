@@ -1,0 +1,9 @@
+## Schedules the amd_gpu_exporter check on the AMD device metrics exporter
+## container of the node (ROCm/device-metrics-exporter), when gpu.enabled and
+## gpu.amd.enabled are set. The exporter container must declare its port.
+ad_identifiers:
+  - device-metrics-exporter
+ignore_autodiscovery_tags: true
+init_config:
+instances:
+  - gpumetrics_url: http://%%host%%:%%port%%/gpumetrics

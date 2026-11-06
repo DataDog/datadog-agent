@@ -655,6 +655,128 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  xgmi.throughput.raw.rx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        Per-link XGMI receive throughput, from the AMD device metrics exporter, for AMD GPUs in an XGMI hive with at least one peer.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - xgmi
+    support:
+      unsupported_architectures: [fermi, kepler, maxwell, pascal, volta, turing, ampere, hopper, ada, blackwell]
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.raw.rx.total:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        XGMI receive throughput summed over the links, from the AMD device metrics exporter, for AMD GPUs in an XGMI hive with at least one peer.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: [fermi, kepler, maxwell, pascal, volta, turing, ampere, hopper, ada, blackwell]
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.raw.tx:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        Per-link XGMI transmit throughput, from the AMD device metrics exporter, for AMD GPUs in an XGMI hive with at least one peer.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+      - xgmi
+    support:
+      unsupported_architectures: [fermi, kepler, maxwell, pascal, volta, turing, ampere, hopper, ada, blackwell]
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  xgmi.throughput.raw.tx.total:
+    metadata:
+      metric_type: gauge
+      unit: kilobyte/second
+      description: >-
+        XGMI transmit throughput summed over the links, from the AMD device metrics exporter, for AMD GPUs in an XGMI hive with at least one peer.
+      aggregation: absolute_usage
+    tagsets:
+      - device
+    support:
+      unsupported_architectures: [fermi, kepler, maxwell, pascal, volta, turing, ampere, hopper, ada, blackwell]
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  throttle.residency:
+    metadata:
+      metric_type: gauge
+      unit: percent
+      description: >-
+        Share of the collection interval during which the AMD GPU was throttled, by reason (package power tracking, socket, HBM or voltage rail temperature, processor hot), from the AMD device metrics exporter.
+      aggregation: sensor_data
+    tagsets:
+      - device
+    custom_tags:
+      - reason
+    validator:
+      range: {min: 0, max: 100}
+    support:
+      unsupported_architectures: [fermi, kepler, maxwell, pascal, volta, turing, ampere, hopper, ada, blackwell]
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  errors.amdgpu:
+    metadata:
+      metric_type: counter
+      description: >-
+        AMD GPU errors received during the last collection interval, by type:
+        VM faults, GPU resets and thermal throttling events reported by the
+        amdgpu kernel driver (KFD), and increases of the RAS error counters
+        (uncorrectable, correctable, deferred, fatal, poison).
+      aggregation: interval_count
+    tagsets:
+      - device
+    custom_tags:
+      - origin
+      - type
+    support:
+      unsupported_architectures: [fermi, kepler, maxwell, pascal, volta, turing, ampere, hopper, ada, blackwell]
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
+  errors.amdgpu.total:
+    metadata:
+      metric_type: gauge
+      unit: error
+      description: >-
+        AMD GPU errors by type since the Agent started collecting them for this
+        device: VM faults, GPU resets and thermal throttling events reported by
+        the amdgpu kernel driver (KFD), and increases of the RAS error counters
+        (uncorrectable, correctable, deferred, fatal, poison).
+      aggregation: lifetime_error
+    tagsets:
+      - device
+    custom_tags:
+      - origin
+      - type
+    support:
+      unsupported_architectures: [fermi, kepler, maxwell, pascal, volta, turing, ampere, hopper, ada, blackwell]
+      device_modes:
+        mig: false
+        physical: true
+        vgpu: false
   errors.xid:
     metadata:
       metric_type: counter

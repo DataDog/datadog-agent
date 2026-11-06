@@ -73,8 +73,13 @@ tags:
     regex: "^\\d+(,\\d+)*$" # multiple PIDs are supported and should be split by commas
   origin:
     regex: "^(driver|hardware)$"
-  type:
+  xgmi_link:
     regex: "^\\d+$"
+  reason:
+    regex: "^(ppt|socket_thermal|hbm_thermal|vr_thermal|processor_hot)$"
+  type:
+    # NVIDIA XID code, or AMD error type (errors.amdgpu).
+    regex: "^(\\d+|[a-z_]+)$"
   kube_container_name: {}
   memory_location:
     regex:
@@ -139,6 +144,9 @@ tagsets:
   nvlink:
     tags:
       - nvlink_port
+  xgmi:
+    tags:
+      - xgmi_link
   process:
     workload_only: true
     tags:

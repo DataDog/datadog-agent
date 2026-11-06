@@ -67,6 +67,9 @@ type Check struct {
 	deviceTags          map[string][]string              // deviceTags maps device UUIDs to their device tags
 	readTimeout         time.Duration                    // readTimeout bounds the wait for the telemetry of one device
 	pendingReads        map[string]<-chan struct{}       // pendingReads holds telemetry reads, by device UUID, that have not returned yet
+	errors              *errorCounter                    // errors counts the KFD error events and RAS errors of the devices
+	name                string                           // name is the check name: amd_gpu, or amd_gpu_exporter for the exporter check
+	exporter            *exporterCollector               // exporter reads the AMD device metrics exporter, only in the amd_gpu_exporter check
 }
 
 type checkTelemetry struct {
@@ -88,17 +91,17 @@ var amdCollectorTelemetryTagNames = []string{
 	"gpu_driver_version",
 }
 
-func newCheckTelemetry(tm telemetry.Component) *checkTelemetry {
+func newCheckTelemetry(tm telemetry.Component, subsystem string) *checkTelemetry {
 	return &checkTelemetry{
 		emitter: gpu.EmitterTelemetry{
-			CollectionRuns:   tm.NewCounter(CheckName, "collection_runs", amdCollectorTelemetryTagNames, "Number of AMD GPU telemetry collections"),
-			CollectionErrors: tm.NewCounter(CheckName, "collection_errors", amdCollectorTelemetryTagNames, "Number of errors collecting AMD GPU telemetry"),
-			CollectionTime:   tm.NewHistogram(CheckName, "collection_time_ms", amdCollectorTelemetryTagNames, "Time taken to collect AMD GPU telemetry, in milliseconds", []float64{10, 100, 500, 1000, 5000}),
-			MetricsSent:      tm.NewCounter(CheckName, "metrics_sent", []string{"collector"}, "Number of AMD GPU metrics sent"),
-			DuplicateMetrics: tm.NewCounter(CheckName, "duplicate_metrics", []string{"device"}, "Number of duplicate AMD GPU metrics removed by priority de-duplication"),
+			CollectionRuns:   tm.NewCounter(subsystem, "collection_runs", amdCollectorTelemetryTagNames, "Number of AMD GPU telemetry collections"),
+			CollectionErrors: tm.NewCounter(subsystem, "collection_errors", amdCollectorTelemetryTagNames, "Number of errors collecting AMD GPU telemetry"),
+			CollectionTime:   tm.NewHistogram(subsystem, "collection_time_ms", amdCollectorTelemetryTagNames, "Time taken to collect AMD GPU telemetry, in milliseconds", []float64{10, 100, 500, 1000, 5000}),
+			MetricsSent:      tm.NewCounter(subsystem, "metrics_sent", []string{"collector"}, "Number of AMD GPU metrics sent"),
+			DuplicateMetrics: tm.NewCounter(subsystem, "duplicate_metrics", []string{"device"}, "Number of duplicate AMD GPU metrics removed by priority de-duplication"),
 		},
-		missingContainerGpuMapping: tm.NewCounter(CheckName, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching AMD GPU device"),
-		deviceCount:                tm.NewGauge(CheckName, "device_total", nil, "Number of AMD GPU devices"),
+		missingContainerGpuMapping: tm.NewCounter(subsystem, "missing_container_gpu_mapping", []string{"container_name"}, "Number of containers with no matching AMD GPU device"),
+		deviceCount:                tm.NewGauge(subsystem, "device_total", nil, "Number of AMD GPU devices"),
 	}
 }
 
@@ -109,13 +112,26 @@ func Factory(tagger tagger.Component, telemetry telemetry.Component, wmeta workl
 	})
 }
 
+// ExporterFactory creates a factory of the check reading the XGMI and
+// throttling statistics of AMD GPUs from the AMD device metrics exporter.
+func ExporterFactory(tagger tagger.Component, telemetry telemetry.Component, wmeta workloadmeta.Component) option.Option[func() check.Check] {
+	return option.New(func() check.Check {
+		return newNamedCheck(ExporterCheckName, tagger, telemetry, wmeta)
+	})
+}
+
 func newCheck(tagger tagger.Component, tm telemetry.Component, wmeta workloadmeta.Component) check.Check {
+	return newNamedCheck(CheckName, tagger, tm, wmeta)
+}
+
+func newNamedCheck(name string, tagger tagger.Component, tm telemetry.Component, wmeta workloadmeta.Component) *Check {
 	return &Check{
-		CheckBase:           core.NewCheckBase(CheckName),
+		CheckBase:           core.NewCheckBase(name),
+		name:                name,
 		tagger:              tagger,
 		wmeta:               wmeta,
 		telemetryComponent:  tm,
-		telemetry:           newCheckTelemetry(tm),
+		telemetry:           newCheckTelemetry(tm, name),
 		rateCalculator:      nvidia.NewRateCalculator(),
 		strictIntervals:     nvidia.NewStrictIntervalProcessor(0),
 		excludedDeviceUUIDs: make(map[string]struct{}),
@@ -124,11 +140,15 @@ func newCheck(tagger tagger.Component, tm telemetry.Component, wmeta workloadmet
 }
 
 // Configure parses the check configuration and initializes the check
-func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, initConfig integration.Data, source string, provider string) error {
+func (c *Check) Configure(senderManager sender.SenderManager, integrationConfigDigest uint64, config, initConfig integration.Data, source string, provider string) error {
 	if !pkgconfigsetup.Datadog().GetBool("gpu.enabled") || !pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") {
 		return fmt.Errorf("%w: AMD GPU check requires gpu.enabled and gpu.amd.enabled", check.ErrSkipCheckInstance)
 	}
 
+	if c.name == ExporterCheckName {
+		// Several exporter endpoints can be configured or discovered.
+		c.BuildID(integrationConfigDigest, config, initConfig)
+	}
 	if err := c.CommonConfigure(senderManager, initConfig, config, source, provider); err != nil {
 		return err
 	}
@@ -145,6 +165,15 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if c.readTimeout == 0 {
 		c.readTimeout = defaultAMDReadTimeout
 	}
+	if c.name == ExporterCheckName {
+		cfg, err := parseExporterInstanceConfig(config)
+		if err != nil {
+			return err
+		}
+		c.exporter = newExporterCollector(cfg)
+	} else if c.errors == nil {
+		c.errors = newErrorCounter(amdgpu.NewEventSubscriber(amdgpu.DefaultKFDPath))
+	}
 
 	if c.containerProvider == nil {
 		// As in the NVIDIA GPU check: not an error, to keep `agent check` working.
@@ -155,12 +184,20 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		c.containerProvider = containerProvider
 	}
 
-	workloadTagCache, err := gpu.NewWorkloadTagCacheWithSubsystem(CheckName, c.tagger, c.wmeta, c.containerProvider, c.telemetryComponent, pkgconfigsetup.Datadog().GetInt("gpu.workload_tag_cache_size"))
+	workloadTagCache, err := gpu.NewWorkloadTagCacheWithSubsystem(c.name, c.tagger, c.wmeta, c.containerProvider, c.telemetryComponent, pkgconfigsetup.Datadog().GetInt("gpu.workload_tag_cache_size"))
 	if err != nil {
 		return fmt.Errorf("error creating workload tag cache: %w", err)
 	}
 	c.workloadTagCache = workloadTagCache
 	return nil
+}
+
+// Cancel stops the KFD event subscriptions of the check.
+func (c *Check) Cancel() {
+	if c.errors != nil {
+		c.errors.close()
+	}
+	c.CheckBase.Cancel()
 }
 
 // Interval returns the scheduling interval of the check, which follows
@@ -183,6 +220,9 @@ func (c *Check) Run() error {
 
 	devices := c.refreshDevices()
 	c.telemetry.deviceCount.Set(float64(len(devices)))
+	if c.errors != nil {
+		c.errors.startCollection(devices)
+	}
 
 	// Make sure workload tag resolution attempts retrieving the most up to date values.
 	// Stale cache entries (from previous runs) might still be used as a fallback.
@@ -302,6 +342,9 @@ func (c *Check) collectSamples() []gpu.CollectorSamples {
 	if len(c.devices) == 0 {
 		return nil
 	}
+	if c.exporter != nil {
+		return c.exporter.collect(c.devices)
+	}
 	// Charge the shared process scan to the first device, like its errors.
 	start := time.Now()
 	usage, _, usageErr := amdgpu.ReadProcessMemory(c.sysRoot, c.devices)
@@ -328,11 +371,16 @@ func (c *Check) collectSamples() []gpu.CollectorSamples {
 				reading.err = errors.Join(reading.err, fmt.Errorf("read AMD GPU processes: %w", usageErr))
 			}
 		}
+		samples := append(amdSamples(reading.metrics), amdProcessSamples(reading.metrics, processesByDevice[dev.UUID])...)
+		if c.errors != nil {
+			c.errors.addRAS(dev.UUID, reading.metrics.RAS)
+			samples = append(samples, c.errors.samples(dev.UUID)...)
+		}
 		results[i] = gpu.CollectorSamples{
 			Name:          amdCollectorName,
 			DeviceUUID:    dev.UUID,
 			TelemetryTags: amdTelemetryTags(dev),
-			Samples:       append(amdSamples(reading.metrics), amdProcessSamples(reading.metrics, processesByDevice[dev.UUID])...),
+			Samples:       samples,
 			Err:           reading.err,
 			Duration:      reading.duration,
 		}

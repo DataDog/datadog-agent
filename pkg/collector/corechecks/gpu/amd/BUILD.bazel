@@ -7,6 +7,8 @@ go_library(
         "check.go",
         "check_stub.go",
         "config.go",
+        "errors.go",
+        "exporter.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/amd",
     visibility = ["//visibility:public"],
@@ -39,6 +41,7 @@ go_library(
             "//pkg/util/kernel",
             "//pkg/util/log",
             "//pkg/util/option",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:darwin": [
             "//comp/core/tagger/def",
@@ -103,6 +106,7 @@ go_library(
             "//pkg/util/kernel",
             "//pkg/util/log",
             "//pkg/util/option",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:netbsd": [
             "//comp/core/tagger/def",
@@ -159,7 +163,11 @@ go_library(
 
 dd_agent_go_test(
     name = "amd_test",
-    srcs = ["check_test.go"],
+    srcs = [
+        "check_test.go",
+        "errors_test.go",
+        "exporter_test.go",
+    ],
     embed = [":amd"],
     gotags_sets = [["nvml"]],
     include_default = False,

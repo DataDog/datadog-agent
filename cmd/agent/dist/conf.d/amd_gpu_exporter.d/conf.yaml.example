@@ -1,0 +1,17 @@
+## Reads XGMI throughput and throttling residency of AMD GPUs from the
+## /gpumetrics endpoint of the AMD device metrics exporter
+## (ROCm/device-metrics-exporter). Requires gpu.enabled and gpu.amd.enabled.
+init_config:
+
+instances:
+
+    ## @param gpumetrics_url - string - required
+    ## The /gpumetrics endpoint of the exporter. A host install of the exporter
+    ## listens on the ServerPort of /etc/metrics/config.json, 5000 by default.
+    #
+  - gpumetrics_url: http://localhost:5000/gpumetrics
+
+    ## @param timeout - number - optional - default: 5
+    ## Request timeout, in seconds.
+    #
+    # timeout: 5

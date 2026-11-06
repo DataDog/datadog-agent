@@ -9,3 +9,7 @@ package amd
 
 // CheckName defines the name of the AMD GPU check
 const CheckName = "amd_gpu"
+
+// ExporterCheckName defines the name of the check reading the AMD device
+// metrics exporter
+const ExporterCheckName = "amd_gpu_exporter"
