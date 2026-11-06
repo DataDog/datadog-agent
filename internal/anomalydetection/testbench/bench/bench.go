@@ -163,8 +163,9 @@ type StatusResponse struct {
 
 // ServerConfig exposes server-side configuration to the UI.
 type ServerConfig struct {
-	Components map[string]bool `json:"components"`
-	LogsOnly   bool            `json:"logsOnly"`
+	UseMetricPipeline bool            `json:"useMetricPipeline"`
+	Components        map[string]bool `json:"components"`
+	LogsOnly          bool            `json:"logsOnly"`
 }
 
 // Bench is the main controller for the observer test bench.
@@ -394,7 +395,11 @@ func (tb *Bench) LoadScenario(name string) error {
 		}
 	}
 
-	tb.resetAllState()
+	if err := tb.resetAllState(); err != nil {
+		tb.mu.Unlock()
+		tb.broadcastStatus()
+		return fmt.Errorf("reset engine state: %w", err)
+	}
 
 	tb.mu.Unlock()
 	tb.broadcastStatus()
@@ -447,7 +452,9 @@ func (tb *Bench) LoadScenario(name string) error {
 		// timestamp without resetting or walking retained storage.
 		tb.finishStreamLocked()
 	} else {
-		tb.rerunDetectorsLocked()
+		if err := tb.rerunDetectorsLocked(); err != nil {
+			return loadFailed(fmt.Errorf("rerun detectors: %w", err))
+		}
 	}
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
@@ -721,17 +728,20 @@ func unboundedStorageCfg(includeDetectorAnomalies bool) observerimpl.StorageConf
 
 // streamingStorageCfg preserves production storage policies for the configured
 // detectors. Only output-history capture is enabled for finite replay evaluation.
-func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) observerimpl.StorageConfig {
-	cfg := observerimpl.StorageConfigForComponents(settings)
+func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetectorAnomalies bool) (observerimpl.StorageConfig, error) {
+	cfg, err := observerimpl.StorageConfigForComponents(settings)
+	if err != nil {
+		return observerimpl.StorageConfig{}, err
+	}
 	cfg.MaxCorrelations = -1
 	cfg.TrackCorrelationHistory = true
 	cfg.TrackAnomalyHistory = true
 	cfg.TrackDetectorOutputHistory = includeDetectorAnomalies
-	return cfg
+	return cfg, nil
 }
 
 // resetAllState resets engine state via DebugView.Reset.
-func (tb *Bench) resetAllState() {
+func (tb *Bench) resetAllState() error {
 	tb.baselineMu.Lock()
 	tb.baselineFrozen = false
 	tb.baselineWindowEndSec = 0
@@ -739,15 +749,29 @@ func (tb *Bench) resetAllState() {
 	tb.baselineMu.Unlock()
 	storageCfg := unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)
 	if tb.config.StreamParquet {
-		storageCfg = streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
+		cfg, err := streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
+		if err != nil {
+			return err
+		}
+		storageCfg = cfg
 	}
-	tb.debug.Reset(tb.settings, storageCfg)
+	return tb.debug.Reset(tb.settings, storageCfg)
 }
 
 // catalogEntries includes testbench-only adapters in addition to production
 // observer components.
 func (tb *Bench) catalogEntries() []observerimpl.CatalogEntry {
-	return observerimpl.TestbenchCatalogEntries()
+	entries := observerimpl.TestbenchCatalogEntries()
+	if !tb.settings.UseMetricPipeline {
+		return entries
+	}
+	filtered := make([]observerimpl.CatalogEntry, 0, len(entries))
+	for _, entry := range entries {
+		if entry.Kind != "detector" {
+			filtered = append(filtered, entry)
+		}
+	}
+	return filtered
 }
 
 // correlationsLocked returns production correlations plus testbench-only
@@ -843,8 +867,9 @@ func (tb *Bench) GetStatus() StatusResponse {
 		ScenarioEnd:           scenarioEndPtr,
 		EpisodeInfo:           tb.episodeInfo,
 		ServerConfig: ServerConfig{
-			Components: compMap,
-			LogsOnly:   tb.config.LogsOnly,
+			Components:        compMap,
+			UseMetricPipeline: tb.settings.UseMetricPipeline,
+			LogsOnly:          tb.config.LogsOnly,
 		},
 		Baseline: baselineInfo,
 	}
@@ -867,13 +892,16 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 
 // rerunDetectorsLocked re-runs all detectors and correlators on current data.
 // Caller must hold lock.
-func (tb *Bench) rerunDetectorsLocked() {
+func (tb *Bench) rerunDetectorsLocked() error {
 	// Reset engine with current settings (clears all storage).
-	tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies))
+	if err := tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)); err != nil {
+		return err
+	}
 
 	tb.feedRawObservations()
 	tb.addRawMetricTelemetry()
 	tb.finishStreamLocked()
+	return nil
 }
 
 func (tb *Bench) feedRawObservations() {
@@ -1349,7 +1377,10 @@ func (tb *Bench) ToggleComponent(name string) error {
 	tb.settings.Enabled[name] = !current
 
 	if tb.ready {
-		tb.rerunDetectorsLocked()
+		if err := tb.rerunDetectorsLocked(); err != nil {
+			tb.mu.Unlock()
+			return fmt.Errorf("rerun detectors: %w", err)
+		}
 	}
 
 	tb.mu.Unlock()
@@ -1369,7 +1400,10 @@ func (tb *Bench) loadDemoScenario() error {
 	tb.ready = false
 	tb.loadedScenario = "demo"
 
-	tb.resetAllState()
+	if err := tb.resetAllState(); err != nil {
+		tb.mu.Unlock()
+		return fmt.Errorf("reset engine state: %w", err)
+	}
 
 	fmt.Println("Generating demo scenario data...")
 
@@ -1449,7 +1483,10 @@ func (tb *Bench) loadDemoScenario() error {
 	}
 	fmt.Printf("  Generated %d demo log entries\n", len(tb.rawLogs))
 
-	tb.rerunDetectorsLocked()
+	if err := tb.rerunDetectorsLocked(); err != nil {
+		tb.mu.Unlock()
+		return fmt.Errorf("rerun detectors: %w", err)
+	}
 	sv := tb.debug.StateView()
 	rs := tb.replayStats
 	fmt.Printf("Demo scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",

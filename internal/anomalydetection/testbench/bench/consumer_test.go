@@ -42,9 +42,11 @@ func TestStreamingStorageUsesProductionPolicies(t *testing.T) {
 		"bocpd": json.RawMessage(`{"enabled":true,"max_run_length":240}`),
 	})
 	require.NoError(t, err)
-	cfg := streamingStorageCfg(settings, false)
+	cfg, err := streamingStorageCfg(settings, false)
+	require.NoError(t, err)
 	require.Equal(t, 240, cfg.MaxPointsPerSeries)
-	production := observerimpl.StorageConfigForComponents(settings)
+	production, err := observerimpl.StorageConfigForComponents(settings)
+	require.NoError(t, err)
 	// These flags capture already-emitted results; they do not change inputs
 	// or detector-facing storage. Every other policy must match production.
 	cfg.MaxCorrelations = production.MaxCorrelations
@@ -63,7 +65,8 @@ func TestStreamingStorageWithoutDetectorsRemainsBounded(t *testing.T) {
 	for _, entry := range observerimpl.TestbenchCatalogEntries() {
 		settings.Enabled[entry.Name] = false
 	}
-	cfg := streamingStorageCfg(settings, false)
+	cfg, err := streamingStorageCfg(settings, false)
+	require.NoError(t, err)
 	require.Positive(t, cfg.PointRetentionSecs)
 	require.Positive(t, cfg.MaxSeries)
 }
@@ -99,4 +102,39 @@ func TestRetainedReplayInterleavesRawObservations(t *testing.T) {
 	recorder.events = nil
 	bench.feedRawObservations()
 	require.Equal(t, want, recorder.events)
+}
+
+type workflowResetRecorder struct {
+	observerimpl.DebugView
+	settings []observerimpl.ComponentSettings
+}
+
+func (r *workflowResetRecorder) Reset(settings observerimpl.ComponentSettings, _ observerimpl.StorageConfig) error {
+	r.settings = append(r.settings, settings)
+	return nil
+}
+
+func TestWorkflowSurvivesTestbenchReset(t *testing.T) {
+	for _, pipeline := range []bool{false, true} {
+		recorder := &workflowResetRecorder{}
+		tb := &Bench{
+			debug:    recorder,
+			settings: observerimpl.ComponentSettings{UseMetricPipeline: pipeline, Enabled: map[string]bool{}},
+		}
+		for _, streaming := range []bool{false, true} {
+			tb.config.StreamParquet = streaming
+			require.NoError(t, tb.resetAllState())
+			tb.settings.Enabled["log_pattern_extractor"] = false
+			require.NoError(t, tb.resetAllState())
+		}
+		require.Len(t, recorder.settings, 4)
+		for _, settings := range recorder.settings {
+			require.Equal(t, pipeline, settings.UseMetricPipeline)
+		}
+		for _, entry := range tb.catalogEntries() {
+			if pipeline {
+				require.NotEqual(t, "detector", entry.Kind, "inactive legacy detectors are not UI controls")
+			}
+		}
+	}
 }
