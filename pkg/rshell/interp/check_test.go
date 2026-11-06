@@ -17,6 +17,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/rshell/builtins"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"mvdan.cc/sh/v3/expand"
@@ -450,5 +451,89 @@ func TestCheckElevatedXargsChildRequiresGrant(t *testing.T) {
 				assert.Equal(t, test.denied, checkHasIssue(report, CheckElevationNotAllowed), "%+v", report)
 			}
 		})
+	}
+}
+
+// TestCheckHelpOfRemediationOnlyBuiltinMatchesRun asserts Check never approves
+// `help <cmd>` for a RemediationOnly builtin outside remediation mode when Run
+// refuses it. The builtins are enumerated from the registry so new ones are
+// covered.
+func TestCheckHelpOfRemediationOnlyBuiltinMatchesRun(t *testing.T) {
+	checkRunner(t) // registers the builtins
+	var names []string
+	for _, name := range builtins.Names() {
+		if meta, ok := builtins.Meta(name); ok && meta.RemediationOnly {
+			names = append(names, name)
+		}
+	}
+	require.NotEmpty(t, names)
+	for _, name := range names {
+		for _, mode := range []Mode{ModeReadOnly, ModeRemediation} {
+			t.Run(name+"/"+string(mode), func(t *testing.T) {
+				script := "help " + name
+				runner := checkRunner(t, allowAllCommandsOpt(), WithMode(mode))
+				result := checkScript(t, runner, script)
+				program, err := ParseScript(script, "")
+				require.NoError(t, err)
+				err = runner.Run(context.Background(), program)
+				assert.Equal(t, err == nil, result.Allowed, "%+v", result)
+				if mode == ModeReadOnly {
+					assert.False(t, result.Allowed, "%+v", result)
+					assert.True(t, checkHasIssue(result, CheckRemediationRequired), "%+v", result)
+				} else {
+					assert.True(t, result.Allowed, "%+v", result)
+				}
+			})
+		}
+	}
+}
+
+// Input redirects are authorized as an implicit cat at run time, so Check
+// must deny them under the same policy and agree with Run.
+func TestCheckInputRedirectRequiresCatMatchesRun(t *testing.T) {
+	root := t.TempDir()
+	require.NoError(t, os.WriteFile(filepath.Join(root, "data.txt"), []byte("x\n"), 0o600))
+	for _, allowed := range [][]string{{"rshell:echo", "rshell:tr", "rshell:read"}, {"rshell:echo", "rshell:tr", "rshell:read", "rshell:cat"}} {
+		catAllowed := len(allowed) == 4
+		for _, script := range []string{
+			"echo hi < data.txt",
+			"tr a-z A-Z < data.txt",
+			"tr a-z A-Z 0< data.txt",
+			"{ tr a-z A-Z; } < data.txt",
+			"while read -r l; do echo \"$l\"; done < data.txt",
+			"echo \"$(tr a-z A-Z < data.txt)\"",
+			"< data.txt",
+		} {
+			t.Run(fmt.Sprintf("%s/cat=%v", script, catAllowed), func(t *testing.T) {
+				var stderr strings.Builder
+				runner := checkRunner(t, StdIO(nil, io.Discard, &stderr), AllowedCommands(allowed), AllowedPaths([]string{root}))
+				runner.Dir = root
+				result := checkScript(t, runner, script)
+				program, err := ParseScript(script, "")
+				require.NoError(t, err)
+				_ = runner.Run(context.Background(), program)
+				gated := strings.Contains(stderr.String(), "cat not in allowed commands")
+				assert.Equal(t, !catAllowed, gated, "run stderr: %s", stderr.String())
+				assert.Equal(t, !catAllowed, checkHasIssue(result, CheckCommandNotAllowed), "%+v", result)
+				if !catAllowed {
+					assert.Equal(t, CheckDenied, result.Status, "%+v", result)
+				}
+			})
+		}
+	}
+	// `cat < file` and `$(<file)` report the cat denial once, via command policy.
+	runner := checkRunner(t, AllowedCommands([]string{"rshell:echo"}), AllowedPaths([]string{root}))
+	runner.Dir = root
+	for _, script := range []string{"cat < data.txt", "echo \"$(<data.txt)\""} {
+		result := checkScript(t, runner, script)
+		count := 0
+		for _, command := range result.Commands {
+			for _, issue := range command.Issues {
+				if issue.Code == CheckCommandNotAllowed {
+					count++
+				}
+			}
+		}
+		assert.Equal(t, 1, count, "%s: %+v", script, result)
 	}
 }

@@ -231,6 +231,12 @@ status and emit flare data
 
 Package remoteflags provides the Remote Flags component for dynamic feature flag management.
 
+### [comp/core/schema](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/schema)
+
+*Datadog Team*: fleet-automation
+
+Package schema provides a component validating the Agent configurations against their schemas
+
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
 *Datadog Team*: fleet-automation
@@ -549,6 +555,12 @@ Package runner implements a component to generate metadata payload at the right 
 
 Package securityagent is the metadata provider for security-agent process
 
+### [comp/metadata/serverlessaas](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessaas)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessaas defines the Azure App Service extension metadata component.
+
 ### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
 
 *Datadog Team*: serverless-azure-and-gcp fleet-automation
@@ -824,12 +836,6 @@ Package payloadmodifier defines the trace payload modifier component interface
 ### [comp/trace/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace/status)
 
 Package status implements the core status component information provider interface
-
-### [comp/trace-telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace-telemetry)
-
-*Datadog Team*: agent-runtimes
-
-Package tracetelemetry sends telemetry about the trace-agent and its state
 
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 

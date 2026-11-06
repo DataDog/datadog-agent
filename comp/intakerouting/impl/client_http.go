@@ -25,7 +25,7 @@ import (
 //
 // Request:
 //
-//	GET https://api.<site>/api/unstable/agent/intake-routing
+//	GET https://config.<site>/api/unstable/agent/intake-routing
 //	DD-API-KEY: <key>
 //
 // Response (HTTP 200):
@@ -36,7 +36,7 @@ import (
 // backend has an answer for. "override": false means "no override": use the default endpoint.
 // Unknown telemetry types are ignored. HTTP 404 means the backend does not offer routing.
 const (
-	routingURLPrefix = "https://api."
+	routingURLPrefix = "https://config."
 	routingPath      = "/api/unstable/agent/intake-routing"
 	preflightPath    = "/probe"
 
