@@ -130,7 +130,8 @@ type ComponentSettings struct {
 // ApplyTestbenchDefaults applies replay-specific defaults used by the offline
 // testbench. Production builds ComponentSettings from the agent config and
 // never calls this function. Explicit testbench --config component entries
-// take precedence over this profile.
+// take precedence over this profile. JSON configs should be loaded with
+// ParseTestbenchSettingsFromJSON so omitted fields inherit this profile.
 func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	if settings.Enabled == nil {
 		settings.Enabled = make(map[string]bool)
@@ -498,11 +499,21 @@ func StorageConfigForComponents(settings ComponentSettings) StorageConfig {
 // value may contain an optional "enabled" bool plus component-specific
 // hyperparameters. Unknown component names are rejected.
 func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
-	cat := defaultCatalog()
-	settings := ComponentSettings{
+	return parseSettingsFromJSON(overrides, ComponentSettings{
 		Enabled: make(map[string]bool),
 		configs: make(map[string]any),
-	}
+	})
+}
+
+// ParseTestbenchSettingsFromJSON overlays explicit JSON fields on the replay
+// profile. Enabled-only and partial entries inherit the same defaults as CLI
+// toggles. ParseSettingsFromJSON continues to use the core catalog defaults.
+func ParseTestbenchSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
+	return parseSettingsFromJSON(overrides, ApplyTestbenchDefaults(ComponentSettings{}))
+}
+
+func parseSettingsFromJSON(overrides map[string]json.RawMessage, settings ComponentSettings) (ComponentSettings, error) {
+	cat := defaultCatalog()
 	for name, raw := range overrides {
 		var wrapper struct {
 			Enabled *bool `json:"enabled"`
@@ -531,7 +542,11 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 			settings.Enabled[name] = *wrapper.Enabled
 		}
 		if entry.parseJSON != nil {
-			cfg, err := entry.parseJSON(entry.defaultConfig, raw)
+			defaults := entry.defaultConfig
+			if configured, ok := settings.configs[name]; ok {
+				defaults = configured
+			}
+			cfg, err := entry.parseJSON(defaults, raw)
 			if err != nil {
 				return ComponentSettings{}, fmt.Errorf("parsing config for %q: %w", name, err)
 			}

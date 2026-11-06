@@ -37,7 +37,12 @@ dd_agent_go_binary(
     name = "host-profiler",
     agent_version = env_vars.FORCE_AGENT_VERSION or None,
     embed = [":host-profiler_lib"],
+    gc_linkopts = [
+        "-s",
+        "-w",
+    ],
     gotags = HOST_PROFILER_TAGS,
+    pure = "on",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

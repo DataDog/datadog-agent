@@ -41,6 +41,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/delegatedauth/mock",
+        "//comp/core/schema/noop-impl",
         "//comp/core/secrets/mock",
         "//pkg/config/model",
         "//pkg/config/setup",
@@ -223,6 +224,7 @@ dd_agent_go_test(
         "simple_test.go",
         "sk_lookup_pid_test.go",
         "socket_test.go",
+        "span_ebpfless_test.go",
         "span_test.go",
         "splice_test.go",
         "ssh_user_session_test.go",

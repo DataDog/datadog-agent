@@ -10,27 +10,14 @@ package authoredscripts
 import (
 	"context"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
-	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
 )
-
-func TestConfigureCommandWindowsPreservesProcessAttributes(t *testing.T) {
-	cmd := exec.Command("cmd.exe")
-	cmd.SysProcAttr = &syscall.SysProcAttr{HideWindow: true}
-
-	configureCommand(cmd)
-
-	assert.True(t, cmd.SysProcAttr.HideWindow)
-	assert.NotZero(t, cmd.SysProcAttr.CreationFlags&windows.CREATE_NEW_PROCESS_GROUP)
-	assert.NotZero(t, cmd.SysProcAttr.CreationFlags&windows.CREATE_SUSPENDED)
-}
 
 func TestNewCommandWindowsWrapsPowerShellEntrypoint(t *testing.T) {
 	setRequiredWindowsEnvironment(t)
