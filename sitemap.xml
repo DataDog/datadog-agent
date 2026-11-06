@@ -100,6 +100,15 @@
         <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/</loc>
       </url>
       <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/benchmarkeks/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/benchmarkeks/how-it-works/</loc>
+      </url>
+      <url>
+        <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/benchmarkeks/statistics/</loc>
+      </url>
+      <url>
         <loc>https://datadoghq.dev/datadog-agent/how-to/test/e2e/custom-amis/</loc>
       </url>
       <url>
