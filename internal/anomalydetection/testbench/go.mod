@@ -12,6 +12,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/config v0.83.3
 	github.com/DataDog/datadog-agent/comp/core/log/def v0.83.3
 	github.com/DataDog/datadog-agent/comp/core/tagger/def v0.83.3
+	github.com/DataDog/datadog-agent/internal/anomalydetection/scorer v0.0.0-00010101000000-000000000000
 	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/pkg/metrics v0.83.3
 	github.com/DataDog/datadog-agent/pkg/tagset v0.83.3
