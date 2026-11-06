@@ -137,10 +137,6 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error removing experiment config files: %w", err)
 	}
-	// Ensure application_monitoring.yaml retains its required Everyone-read access after restore.
-	if err := grantApplicationMonitoringReadAccess(d.StablePath); err != nil {
-		return fmt.Errorf("error applying application_monitoring.yaml permissions: %w", err)
-	}
 	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
 		return fmt.Errorf("error removing experiment directory: %w", err)
@@ -240,19 +236,4 @@ func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path strin
 		return nil
 	}
 	return paths.SetFileReadableByEveryone(filepath.Join(root.Name(), path))
-}
-
-// grantApplicationMonitoringReadAccess re-grants Everyone read on application_monitoring.yaml
-// under stablePath, if it exists. application_monitoring.yaml is the only world-readable config
-// file, so keep this explicit even though the rollback copy also preserves its ACL.
-func grantApplicationMonitoringReadAccess(stablePath string) error {
-	appMonitoringPath := filepath.Join(stablePath, "application_monitoring.yaml")
-	_, err := os.Stat(appMonitoringPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("error checking application_monitoring.yaml: %w", err)
-	}
-	return paths.SetFileReadableByEveryone(appMonitoringPath)
 }
