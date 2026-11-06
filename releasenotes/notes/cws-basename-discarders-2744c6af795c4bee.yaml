@@ -1,0 +1,4 @@
+---
+enhancements:
+  - |
+    CWS: Improved kernel filtering to reduce CPU usage.
