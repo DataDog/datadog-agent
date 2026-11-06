@@ -193,12 +193,27 @@ func getPaginatedAnalytics[T any](
 	metrics []string,
 	parser func([][]interface{}) ([]T, error),
 ) ([]T, error) {
+	if client.analyticsQueryType == QueryTypeTimeseries {
+		return getTimeseriesAnalytics(client, cfg, tenant, feature, lookback, query, filterQuery, joinQuery, metrics, parser)
+	}
+
 	var allMetrics []T
 
 	// Paginate through the results
 	for page := 0; page < cfg.MaxPages; page++ {
 		fromCount := page * cfg.MaxCount
-		analyticsURL := buildAnalyticsPath(tenant, feature, lookback, query, "tableData", filterQuery, joinQuery, metrics, cfg.MaxCount, fromCount)
+		analyticsURL := buildAnalyticsPath(analyticsQuery{
+			tenant:      tenant,
+			feature:     feature,
+			queryType:   QueryTypeTableData,
+			query:       query,
+			lookback:    lookback,
+			filterQuery: filterQuery,
+			joinQuery:   joinQuery,
+			metrics:     metrics,
+			count:       cfg.MaxCount,
+			fromCount:   fromCount,
+		})
 
 		resp, err := get[AnalyticsMetricsResponse](client, analyticsURL, nil, true, cfg.Timeout)
 		if err != nil {
@@ -219,4 +234,96 @@ func getPaginatedAnalytics[T any](
 	}
 
 	return allMetrics, nil
+}
+
+// getTimeseriesAnalytics runs the same query as getPaginatedAnalytics with qt=timeseries,
+// which returns a point per time bucket per entity instead of one aggregate row covering
+// the whole lookback window. The response is flattened back into tableData shaped rows so
+// the endpoint's existing parser is reused unchanged, and each parsed entry is stamped
+// with its bucket time when the metric type has somewhere to put it.
+func getTimeseriesAnalytics[T any](
+	client *Client,
+	cfg EndpointConfig,
+	tenant string,
+	feature string,
+	lookback string,
+	query string,
+	filterQuery string,
+	joinQuery string,
+	metrics []string,
+	parser func([][]interface{}) ([]T, error),
+) ([]T, error) {
+	groupBy, err := groupByFieldCount(query)
+	if err != nil {
+		return nil, err
+	}
+
+	var allMetrics []T
+
+	for page := 0; page < cfg.MaxPages; page++ {
+		analyticsURL := buildAnalyticsPath(analyticsQuery{
+			tenant:      tenant,
+			feature:     feature,
+			queryType:   QueryTypeTimeseries,
+			query:       query,
+			lookback:    lookback,
+			endDate:     timeseriesEndDate,
+			gap:         client.analyticsGap,
+			filterQuery: filterQuery,
+			joinQuery:   joinQuery,
+			metrics:     metrics,
+			count:       cfg.MaxCount,
+			fromCount:   page * cfg.MaxCount,
+		})
+
+		resp, err := get[AnalyticsTimeseriesResponse](client, analyticsURL, nil, true, cfg.Timeout)
+		if err != nil {
+			return nil, fmt.Errorf("failed to get analytics timeseries page %d: %v", page+1, err)
+		}
+
+		rows, dropped := flattenTimeseries(resp.Data, metrics, groupBy)
+		if dropped > 0 {
+			log.Debugf("Dropped %d incomplete timeseries buckets for query %q", dropped, query)
+		}
+
+		rawRows := make([][]interface{}, 0, len(rows))
+		for _, row := range rows {
+			rawRows = append(rawRows, row.row)
+		}
+
+		parsed, err := parser(rawRows)
+		if err != nil {
+			return nil, fmt.Errorf("failed to parse analytics timeseries page %d: %v", page+1, err)
+		}
+		// flattenTimeseries and the parsers are both order preserving and all or nothing,
+		// so parsed[i] is the entry built from rows[i].
+		if len(parsed) != len(rows) {
+			return nil, fmt.Errorf("parsed %d entries from %d timeseries buckets", len(parsed), len(rows))
+		}
+		for i := range parsed {
+			if entry, ok := any(&parsed[i]).(timestamped); ok {
+				entry.setTimestamp(rows[i].timestamp)
+			}
+		}
+
+		allMetrics = append(allMetrics, parsed...)
+
+		// count and from-count page over entities, not rows: one entity brings back a row
+		// per bucket. Stop once a page returns fewer entities than it asked for.
+		if countEntities(resp.Data) < cfg.MaxCount {
+			break
+		}
+	}
+
+	return allMetrics, nil
+}
+
+// countEntities returns the number of distinct entities across the series of a timeseries
+// response, which is the unit Analytics pages over.
+func countEntities(series []AnalyticsTimeseries) int {
+	names := make(map[string]struct{}, len(series))
+	for _, s := range series {
+		names[s.Name] = struct{}{}
+	}
+	return len(names)
 }
