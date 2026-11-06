@@ -15,6 +15,7 @@ import re
 import shutil
 import subprocess
 import sys
+from concurrent.futures import ThreadPoolExecutor
 
 GRAPH_KINDS = "go_library|go_tool_library|go_test|go_binary|go_proto_library|go_proto_compiler|go_source|alias"
 QUERY = f'kind("{GRAPH_KINDS}", deps(//...))'
@@ -65,14 +66,19 @@ def parse_graph(streamed_jsonproto: str) -> dict[str, dict]:
 def scan_build_tags(path: str) -> set[str] | None:
     """Identifiers in the build constraints of a source file, or None if it can't be read."""
     tags = set()
+    in_block = False
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             for line in f:
                 line = line.strip()
-                if line.startswith(("//go:build", "// +build")):
+                if in_block:
+                    in_block = "*/" not in line
+                elif line.startswith(("//go:build", "// +build")):
                     tags.update(_IDENTIFIER.findall(line.split("build", 1)[1]))
-                elif path.endswith(".go") and line and not line.startswith(("//", "/*", "*")):
-                    break  # constraints must precede the package clause
+                elif line.startswith("/*"):
+                    in_block = "*/" not in line[2:]
+                elif line and not line.startswith("//"):
+                    break  # Go only reads constraints in the leading comments, in every kind of file
     except OSError:
         return None
     return tags
@@ -219,10 +225,13 @@ def main() -> int:
         print(query.stderr, "`bazel query` failed, see the errors above", sep="\n", file=sys.stderr)
         return query.returncode or 1
     try:
-        universe, manifest = build_manifest(
-            parse_graph(query.stdout),
-            lambda label: scan_build_tags(source_path(label, workspace, output_base)),
-        )
+        nodes = parse_graph(query.stdout)
+        sources = list({src for node in nodes.values() for src in node["srcs"] if src.endswith(_SCANNED_EXTENSIONS)})
+        # Opening tens of thousands of files dominates the run, and file I/O releases the GIL.
+        with ThreadPoolExecutor(16) as pool:
+            found = pool.map(lambda label: scan_build_tags(source_path(label, workspace, output_base)), sources)
+            scans = dict(zip(sources, found, strict=True))
+        universe, manifest = build_manifest(nodes, scans.__getitem__)
     except ValueError as e:
         print(query.stderr, e, sep="\n", file=sys.stderr)
         return 1

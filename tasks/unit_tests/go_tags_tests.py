@@ -30,6 +30,10 @@ class TestScanBuildTags(unittest.TestCase):
     def test_ignores_constraints_after_package_clause(self):
         self.assertEqual(self._scan("a.go", "package foo\n\n//go:build docker\n"), set())
 
+    def test_reads_constraints_after_a_block_comment(self):
+        content = "/*\nCopyright\n*/\n\n//go:build linux\n\n#include <stdio.h>\n//go:build docker\n"
+        self.assertEqual(self._scan("a.c", content), {"linux"})
+
     def test_reads_dotted_tags(self):
         self.assertEqual(
             self._scan("a.go", "//go:build goexperiment.systemcrypto\npackage foo\n"), {"goexperiment.systemcrypto"}
