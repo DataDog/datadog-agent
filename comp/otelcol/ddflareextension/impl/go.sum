@@ -44,6 +44,8 @@ github.com/DataDog/datadog-api-client-go/v2 v2.67.0/go.mod h1:d3tOEgUd2kfsr9uuHQ
 github.com/DataDog/datadog-go v3.2.0+incompatible/go.mod h1:LButxg5PwREeZtORoXG3tL4fMGNddJ+vMq1mwgfaqoQ=
 github.com/DataDog/datadog-go/v5 v5.9.1 h1:jOxw/TaxGWok8RIxbpqn2p3RzSnQr/m3Q6TgaHqqOU0=
 github.com/DataDog/datadog-go/v5 v5.9.1/go.mod h1:2SBt8zJu6r7sRQHZFMQ8oCukWTKj0ymwulmNgQzJ1JM=
+github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2 h1:a9xjjGg5UQzUd+yliPDF9e4wQA9qq9PKT+DRDUaonOM=
+github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2/go.mod h1:XbWpLvPZo0LbxPhXTMIXSB98lFwfF9MnkT77iRHTXMY=
 github.com/DataDog/go-acl v1.0.1 h1:uRbp98YmlVZYqNNyTBFNI3Y6bnziBLyCIR4nRu0bIpU=
 github.com/DataDog/go-acl v1.0.1/go.mod h1:YJx333qSb3GUqCLIbqKeGaZS2pUYh2IYGI7+FsX18CU=
 github.com/DataDog/go-sqllexer v0.2.6 h1:ZRwIYWbM3V2zPNlicUAumXabcitpC6JvWs9jUQS90Tk=
@@ -223,6 +225,8 @@ github.com/fsnotify/fsnotify v1.10.1 h1:b0/UzAf9yR5rhf3RPm9gf3ehBPpf0oZKIjtpKrx5
 github.com/fsnotify/fsnotify v1.10.1/go.mod h1:TLheqan6HD6GBK6PrDWyDPBaEV8LspOxvPSjC+bVfgo=
 github.com/fxamacker/cbor/v2 v2.9.6 h1:NHZPxuUjJXQjX9itA785y/5NKSlI4HQ+S7noZsmI7hs=
 github.com/fxamacker/cbor/v2 v2.9.6/go.mod h1:4EaZp6ClVunETjQ4GHmGNzysDK91Lr+r6Yz6tJqzVCw=
+github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8 h1:o8UqXPI6SVwQt04RGsqKp3qqmbOfTNMqDrWsc4O47kk=
+github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8/go.mod h1:TiCD2a1pcmjd7YnhGH0f/zKNcCD06B029pHhzV23c2M=
 github.com/go-kit/kit v0.8.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
 github.com/go-kit/kit v0.9.0/go.mod h1:xBxKIO96dXMWWy0MnWVtmwkA9/13aqxPnvrjFYMA2as=
 github.com/go-kit/log v0.2.1 h1:MRVx0/zhvdseW+Gza6N9rVzU/IVzaeE1SFI4raAhmBU=
@@ -752,6 +756,8 @@ github.com/twmb/murmur3 v1.2.1 h1:TJzZGygOc1VJ7jiBpy8m7KAAzm67zy1jvkUxxEjJp+g=
 github.com/twmb/murmur3 v1.2.1/go.mod h1:LVqs/avIy0flspVtmBd4VSbogDepFl6Wkj0i0ToccHE=
 github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8 h1:yS0rzVnj7Z/ZeHzvv5erQbO2b8gyTL4CeMNodl9SJMQ=
 github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8/go.mod h1:gwANdYmo9R8LLwGnyDFWK2PMsaXXX2HhAvCnb/UhZsM=
+github.com/valyala/fastjson v1.6.10 h1:/yjJg8jaVQdYR3arGxPE2X5z89xrlhS0eGXdv+ADTh4=
+github.com/valyala/fastjson v1.6.10/go.mod h1:e6FubmQouUNP73jtMLmcbxS6ydWIpOfhz34TSfO3JaE=
 github.com/vmihailenco/msgpack/v5 v5.4.1 h1:cQriyiUvjTwOHg8QZaPihLWeRAAVoCpE00IUPn0Bjt8=
 github.com/vmihailenco/msgpack/v5 v5.4.1/go.mod h1:GaZTsDaehaPpQVyxrf5mtQlH+pc21PIudVV/E3rRQok=
 github.com/vmihailenco/tagparser/v2 v2.0.0 h1:y09buUbR+b5aycVFQs/g70pqKVZNBmxwAhO7/IwNM9g=

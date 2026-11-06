@@ -339,45 +339,101 @@ func applyProcessingRules(msg *message.Message, processingRules []*config.Proces
 	if msg.Origin != nil && msg.Origin.LogSource != nil {
 		extraRules = msg.Origin.LogSource.Config.ProcessingRules
 	}
-	rules := append(processingRules, extraRules...)
-	for _, rule := range rules {
-		switch rule.Type {
-		case config.ExcludeAtMatch:
-			// if this message matches, we ignore it
-			if rule.Regex.Match(content) {
+	var ottlContext *config.OTTLContext
+	// Keep cleanup outside the rule loop so the compiler can keep the defer
+	// on the stack instead of allocating one deferred call for every message.
+	defer func() {
+		if ottlContext != nil {
+			config.ReleaseOTTLContext(ottlContext)
+		}
+	}()
+	for _, rules := range [2][]*config.ProcessingRule{processingRules, extraRules} {
+		for _, rule := range rules {
+			switch rule.Type {
+			case config.ExcludeAtMatch:
+				if ottlContext != nil {
+					content = ottlContext.Content()
+				}
+				// if this message matches, we ignore it
+				if rule.Regex.Match(content) {
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					return false
+				}
+			case config.IncludeAtMatch:
+				if ottlContext != nil {
+					content = ottlContext.Content()
+				}
+				// if this message doesn't match, we ignore it
+				if !rule.Regex.Match(content) {
+					return false
+				}
 				msg.RecordProcessingRule(rule.Type, rule.Name)
-				return false
-			}
-		case config.IncludeAtMatch:
-			// if this message doesn't match, we ignore it
-			if !rule.Regex.Match(content) {
-				return false
-			}
-			msg.RecordProcessingRule(rule.Type, rule.Name)
-		case config.MaskSequences:
-			var matched bool
-			content, matched = config.ApplyMaskSequence(content, rule)
-			if matched {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-			}
-		case config.ExcludeTruncated:
-			if msg.IsTruncated {
-				msg.RecordProcessingRule(rule.Type, rule.Name)
-				return false
-			}
-		case config.RemapSource:
-			for _, match := range rule.Matching {
-				if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {
-					if msg.Origin != nil {
-						msg.Origin.SetMappedSource(match.NewSource)
+			case config.ExcludeAtMatchOTTL, config.IncludeAtMatchOTTL:
+				if ottlContext == nil {
+					ottlContext = config.AcquireOTTLContext(content)
+				}
+				matched, err := rule.OTTLCondition.Eval(context.Background(), ottlContext)
+				if err != nil {
+					// Keep the message on evaluation errors; subsequent rules still apply.
+					continue
+				}
+				if rule.Type == config.ExcludeAtMatchOTTL {
+					if matched {
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+						return false
+					}
+				} else {
+					if !matched {
+						return false
 					}
 					msg.RecordProcessingRule(rule.Type, rule.Name)
-					break
+				}
+			case config.MaskOTTLTransform:
+				if ottlContext == nil {
+					ottlContext = config.AcquireOTTLContext(content)
+				}
+				changed, err := ottlContext.ApplyMask(context.Background(), rule.OTTLStatement)
+				if err != nil {
+					// Masking is fail-closed, matching the original mask_ottl rule.
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					return false
+				}
+				if changed {
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+				}
+			case config.MaskSequences:
+				if ottlContext != nil {
+					content = ottlContext.Content()
+				}
+				var matched bool
+				content, matched = config.ApplyMaskSequence(content, rule)
+				if matched {
+					if ottlContext != nil {
+						ottlContext.Reset(content)
+					}
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+				}
+			case config.ExcludeTruncated:
+				if msg.IsTruncated {
+					msg.RecordProcessingRule(rule.Type, rule.Name)
+					return false
+				}
+			case config.RemapSource:
+				for _, match := range rule.Matching {
+					if val, ok := msg.GetStructuredAttribute(match.Attribute); ok && val == match.Value {
+						if msg.Origin != nil {
+							msg.Origin.SetMappedSource(match.NewSource)
+						}
+						msg.RecordProcessingRule(rule.Type, rule.Name)
+						break
+					}
 				}
 			}
 		}
 	}
-
+	if ottlContext != nil {
+		content = ottlContext.Content()
+	}
 	msg.SetContent(content)
 	return true // we want to send this message
 }
