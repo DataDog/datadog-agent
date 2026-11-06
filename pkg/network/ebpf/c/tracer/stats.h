@@ -251,19 +251,29 @@ static __always_inline void update_conn_stats(conn_tuple_t *t, size_t sent_bytes
     }
 }
 
-// update_tcp_stats update rtt, retransmission and state on of a TCP connection
-static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
-    // initialize-if-no-exist the connection state, and load it
+// get_or_create_tcp_stats returns the tcp_stats entry for the tuple, inserting a zeroed one if missing.
+// The entry exists on nearly every call, so look it up first: a BPF_NOEXIST update on an existing key
+// takes the bucket lock only to return -EEXIST.
+static __always_inline tcp_stats_t *get_or_create_tcp_stats(conn_tuple_t *t) {
+    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+    if (val) {
+        return val;
+    }
+
     tcp_stats_t empty = {};
     bpf_memset(&empty, 0, sizeof(tcp_stats_t));
 
     // We skip EEXIST because of the use of BPF_NOEXIST flag. Emitting telemetry for EEXIST here spams metrics
     // and do not provide any useful signal since the key is expected to be present sometimes.
     bpf_map_update_with_telemetry(tcp_stats, t, &empty, BPF_NOEXIST, -EEXIST);
+    return bpf_map_lookup_elem(&tcp_stats, t);
+}
 
-    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
+// update_tcp_stats update rtt, retransmission and state on of a TCP connection, returning the entry
+static __always_inline tcp_stats_t *update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats) {
+    tcp_stats_t *val = get_or_create_tcp_stats(t);
     if (val == NULL) {
-        return;
+        return NULL;
     }
 
     if (stats.rtt > 0) {
@@ -280,6 +290,7 @@ static __always_inline void update_tcp_stats(conn_tuple_t *t, tcp_stats_t stats)
     if (stats.failure_reason != 0) {
         val->failure_reason = stats.failure_reason;
     }
+    return val;
 }
 
 static __always_inline int handle_message(conn_tuple_t *t, size_t sent_bytes, size_t recv_bytes, conn_direction_t dir,
@@ -313,9 +324,8 @@ static __always_inline int handle_retransmit(struct sock *sk, int count) {
 
 // handle_congestion_stats reads TCP congestion fields from tcp_sock into the
 // tcp_stats map.
-static __always_inline void handle_congestion_stats(conn_tuple_t *t, struct sock *sk) {
+static __always_inline void handle_congestion_stats(tcp_stats_t *val, struct sock *sk) {
 #if !defined(COMPILE_PREBUILT)
-    tcp_stats_t *val = bpf_map_lookup_elem(&tcp_stats, t);
     if (val == NULL) {
         return;
     }
@@ -453,8 +463,8 @@ static __always_inline void handle_tcp_stats(conn_tuple_t* t, struct sock* sk, u
     if (state > 0) {
         stats.state_transitions = (1 << state);
     }
-    update_tcp_stats(t, stats);
-    handle_congestion_stats(t, sk);
+    tcp_stats_t *val = update_tcp_stats(t, stats);
+    handle_congestion_stats(val, sk);
 }
 
 static __always_inline int handle_skb_consume_udp(struct sock *sk, struct sk_buff *skb, int len) {
