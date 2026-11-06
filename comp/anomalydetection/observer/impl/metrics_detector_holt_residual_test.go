@@ -17,10 +17,14 @@ import (
 // testHoltResidualDetector returns a detector configured for the
 // single-aggregation tests below. Default Aggregations includes Count;
 // pinning to Average keeps anomaly counts deterministic.
+func testHoltResidualConfig() HoltResidualConfig {
+	cfg := DefaultHoltResidualConfig()
+	cfg.Aggregations = []string{"avg"}
+	return cfg
+}
+
 func testHoltResidualDetector() *HoltResidualDetector {
-	d := NewHoltResidualDetector()
-	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
-	return d
+	return NewHoltResidualDetector(testHoltResidualConfig())
 }
 
 func newDetectorTestStorage() *timeSeriesStorage {
@@ -160,7 +164,7 @@ func TestHoltResidual_StepChange_FiresAndAdapts(t *testing.T) {
 	a := result.Anomalies[0]
 	// Fire must land within ConfirmM points of the step.
 	assert.GreaterOrEqual(t, a.Timestamp, stepStart, "fire must come on or after the step")
-	assert.LessOrEqual(t, a.Timestamp, stepStart+int64(d.ConfirmM-1), "fire must come within ConfirmM points of the step")
+	assert.LessOrEqual(t, a.Timestamp, stepStart+int64(d.config.ConfirmM-1), "fire must come within ConfirmM points of the step")
 
 	// After running the full advance, the smoother must have tracked the
 	// new regime — well past 1/α points the level should be close to the
@@ -177,7 +181,7 @@ func TestHoltResidual_StepChange_FiresAndAdapts(t *testing.T) {
 // again. Both halves run on a single fresh detector to avoid coupling.
 func TestHoltResidual_Refractory_BlocksNearbySpike(t *testing.T) {
 	t.Run("configured_window_is_not_consumed_by_firing_point", func(t *testing.T) {
-		d := &HoltResidualDetector{
+		d := NewHoltResidualDetector(HoltResidualConfig{
 			Alpha:           0.01,
 			Beta:            0.01,
 			ResidualWindow:  4,
@@ -185,9 +189,8 @@ func TestHoltResidual_Refractory_BlocksNearbySpike(t *testing.T) {
 			ConfirmM:        1,
 			MinDeviationMAD: 0,
 			Refractory:      1,
-			Aggregations:    []observer.Aggregate{observer.AggregateAverage},
-			series:          make(map[holtStateKey]*holtSeriesState),
-		}
+			Aggregations:    []string{"avg"},
+		})
 		storage := newDetectorTestStorage()
 		addConstant(t, storage, "metric", 28, 1, 0)
 		addConstant(t, storage, "metric", 2, 29, 100)
@@ -270,41 +273,39 @@ func TestHoltResidual_Reset(t *testing.T) {
 	assert.Nil(t, d.cachedRefs, "Reset must clear cached series")
 }
 
-// TestHoltResidual_DefaultsApplied confirms ensureDefaults populates a
-// zero-valued struct so reflective construction (and any caller that
-// bypasses NewHoltResidualDetector) still produces a usable detector.
+// TestHoltResidual_DefaultsApplied verifies constructor normalization.
 func TestHoltResidual_DefaultsApplied(t *testing.T) {
-	d := &HoltResidualDetector{}
+	d := NewHoltResidualDetector(HoltResidualConfig{})
 	storage := newDetectorTestStorage()
 
 	_ = d.Detect(storage, 1)
 
-	assert.Equal(t, 0.2, d.Alpha)
-	assert.Equal(t, 0.05, d.Beta)
-	assert.Equal(t, 24, d.WarmupPoints)
-	assert.Equal(t, 60, d.ResidualWindow)
-	assert.Equal(t, 4.5, d.ZThreshold)
-	assert.Equal(t, 2, d.ConfirmM)
-	assert.Equal(t, 3.0, d.MinDeviationMAD)
-	assert.Equal(t, 20, d.Refractory)
+	assert.Equal(t, 0.2, d.config.Alpha)
+	assert.Equal(t, 0.05, d.config.Beta)
+	assert.Equal(t, 24, d.config.WarmupPoints)
+	assert.Equal(t, 60, d.config.ResidualWindow)
+	assert.Equal(t, 4.5, d.config.ZThreshold)
+	assert.Equal(t, 2, d.config.ConfirmM)
+	assert.Equal(t, 3.0, d.config.MinDeviationMAD)
+	assert.Equal(t, 20, d.config.Refractory)
 	assert.NotNil(t, d.series)
 	assert.ElementsMatch(t,
 		[]observer.Aggregate{observer.AggregateAverage, observer.AggregateCount},
-		d.Aggregations,
+		d.aggregations,
 	)
 }
 
 // TestHoltResidual_Name pins the catalog identifier so the catalog test
 // stays in sync with the detector identifier.
 func TestHoltResidual_Name(t *testing.T) {
-	assert.Equal(t, "holt_residual", NewHoltResidualDetector().Name())
+	assert.Equal(t, "holt_residual", NewHoltResidualDetector(DefaultHoltResidualConfig()).Name())
 }
 
 // TestHoltResidual_InterfaceContracts checks the structural promises that
 // the catalog and engine both rely on: HoltResidualDetector must satisfy
 // observer.Detector AND observer.SeriesRemover so eviction frees its state.
 func TestHoltResidual_InterfaceContracts(_ *testing.T) {
-	d := NewHoltResidualDetector()
+	d := NewHoltResidualDetector(DefaultHoltResidualConfig())
 	var _ observer.Detector = d
 	var _ observer.SeriesRemover = d
 }
@@ -347,9 +348,10 @@ func TestHoltResidual_IncrementalMatchesBatch(t *testing.T) {
 // sees no strictly-new bucket must not move lastProcessedTime past late points
 // that still fall inside the dataTime range.
 func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 1
-	d.ResidualWindow = 4
+	dCfg := testHoltResidualConfig()
+	dCfg.WarmupPoints = 1
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
@@ -384,9 +386,10 @@ func TestHoltResidual_ReprocessesSameBucketMergeAndDoesNotSkipLatePoints(t *test
 }
 
 func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 1
-	d.ResidualWindow = 4
+	dCfg := testHoltResidualConfig()
+	dCfg.WarmupPoints = 1
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
@@ -413,9 +416,10 @@ func TestHoltResidual_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 }
 
 func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 1
-	d.ResidualWindow = 4
+	dCfg := testHoltResidualConfig()
+	dCfg.WarmupPoints = 1
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
@@ -443,9 +447,10 @@ func TestHoltResidual_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 }
 
 func TestHoltResidual_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 1
-	d.ResidualWindow = 4
+	dCfg := testHoltResidualConfig()
+	dCfg.WarmupPoints = 1
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
 
 	for timestamp := int64(1); timestamp <= 3; timestamp++ {
@@ -468,9 +473,10 @@ func TestHoltResidual_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T)
 }
 
 func TestHoltResidual_ContinuesAfterRetentionDropsBelowWarmup(t *testing.T) {
-	d := testHoltResidualDetector()
-	d.WarmupPoints = 3
-	d.ResidualWindow = 4
+	dCfg := testHoltResidualConfig()
+	dCfg.WarmupPoints = 3
+	dCfg.ResidualWindow = 4
+	d := NewHoltResidualDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	for timestamp := int64(1); timestamp <= 3; timestamp++ {
@@ -494,7 +500,8 @@ func TestHoltResidual_ContinuesAfterRetentionDropsBelowWarmup(t *testing.T) {
 // next ready-window breach should only set the first confirmation count, not
 // fire immediately.
 func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
-	d := &HoltResidualDetector{
+	// Isolate confirmation from the effect-size and refractory gates.
+	d := &HoltResidualDetector{config: HoltResidualConfig{
 		Alpha:           0.01,
 		Beta:            0.01,
 		ResidualWindow:  4,
@@ -502,7 +509,7 @@ func TestHoltResidual_ConfirmationStartsAfterWindowsReady(t *testing.T) {
 		ConfirmM:        2,
 		MinDeviationMAD: 0,
 		Refractory:      0,
-	}
+	}}
 	state := &holtSeriesState{
 		warmedUp: true,
 		resWin:   []float64{0, 0, 0},
@@ -530,4 +537,24 @@ func anomalyTimestamps(anomalies []observer.Anomaly) []int64 {
 		timestamps[i] = anomaly.Timestamp
 	}
 	return timestamps
+}
+
+func TestHoltResidualConfig(t *testing.T) {
+	require.Equal(t, DefaultHoltResidualConfig(), NewHoltResidualDetector(HoltResidualConfig{}).config)
+	cfg := DefaultHoltResidualConfig()
+	cfg.WarmupPoints, cfg.ResidualWindow = 5, 10
+	d := NewHoltResidualDetector(cfg)
+	want := cfg
+	want.Aggregations = append([]string(nil), cfg.Aggregations...)
+	cfg.WarmupPoints = 100
+	cfg.Aggregations[0] = "sum"
+	require.Equal(t, want, d.config, "constructor owns its configuration")
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, d.aggregations)
+	d.Reset()
+	require.Equal(t, want, d.config, "reset preserves configuration")
+
+	// Unknown aggregation names parse away; fall back to keep the detector enabled.
+	unknown := NewHoltResidualDetector(HoltResidualConfig{Aggregations: []string{"average"}})
+	require.Equal(t, []string{"average"}, unknown.config.Aggregations)
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, unknown.aggregations)
 }

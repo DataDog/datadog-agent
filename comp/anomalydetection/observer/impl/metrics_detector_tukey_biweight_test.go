@@ -18,10 +18,14 @@ import (
 // testTukeyBiweightDetector returns a detector pinned to the Average aggregate
 // so the tests don't double-count anomalies via the count aggregate (which
 // mirrors the same shape for these synthetic series).
+func testTukeyBiweightConfig() TukeyBiweightConfig {
+	cfg := DefaultTukeyBiweightConfig()
+	cfg.Aggregations = []string{"avg"}
+	return cfg
+}
+
 func testTukeyBiweightDetector() *TukeyBiweightDetector {
-	d := NewTukeyBiweightDetector()
-	d.Aggregations = []observer.Aggregate{observer.AggregateAverage}
-	return d
+	return NewTukeyBiweightDetector(testTukeyBiweightConfig())
 }
 
 // TestTukeyBiweight_RegisteredInCatalog verifies the Tukey biweight detector
@@ -88,10 +92,11 @@ func TestTukeyBiweight_IncrementalMatchesBatch(t *testing.T) {
 // the detector must use WriteGeneration to replay the updated aggregate without
 // retaining the stale pre-merge aggregate.
 func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
-	d := testTukeyBiweightDetector()
-	d.WindowSize = 4
-	d.MinPoints = 1
-	d.ScoreEvery = 100
+	dCfg := testTukeyBiweightConfig()
+	dCfg.WindowSize = 4
+	dCfg.MinPoints = 1
+	dCfg.ScoreEvery = 100
+	d := NewTukeyBiweightDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 1, nil)
@@ -120,10 +125,11 @@ func TestTukeyBiweight_ReprocessesSameBucketMerge(t *testing.T) {
 }
 
 func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
-	d := testTukeyBiweightDetector()
-	d.WindowSize = 4
-	d.MinPoints = 1
-	d.ScoreEvery = 100
+	dCfg := testTukeyBiweightConfig()
+	dCfg.WindowSize = 4
+	dCfg.MinPoints = 1
+	dCfg.ScoreEvery = 100
+	d := NewTukeyBiweightDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
@@ -147,10 +153,11 @@ func TestTukeyBiweight_RebuildsOnOutOfOrderBackfillBeforeCursor(t *testing.T) {
 }
 
 func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
-	d := testTukeyBiweightDetector()
-	d.WindowSize = 4
-	d.MinPoints = 1
-	d.ScoreEvery = 100
+	dCfg := testTukeyBiweightConfig()
+	dCfg.WindowSize = 4
+	dCfg.MinPoints = 1
+	dCfg.ScoreEvery = 100
+	d := NewTukeyBiweightDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	storage.Add("ns", "metric", 10.0, 10, nil)
@@ -176,10 +183,11 @@ func TestTukeyBiweight_RebuildsOnCursorMergeWithLaterAppend(t *testing.T) {
 }
 
 func TestTukeyBiweight_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T) {
-	d := testTukeyBiweightDetector()
-	d.MinPoints = 1
-	d.WindowSize = 4
-	d.ScoreEvery = 100
+	dCfg := testTukeyBiweightConfig()
+	dCfg.MinPoints = 1
+	dCfg.WindowSize = 4
+	dCfg.ScoreEvery = 100
+	d := NewTukeyBiweightDetector(dCfg)
 	storage := newTimeSeriesStorageWith(StorageConfig{MaxPointsPerSeries: 2})
 
 	for timestamp := int64(1); timestamp <= 3; timestamp++ {
@@ -202,10 +210,11 @@ func TestTukeyBiweight_PreservesStateWhenPointCapEvictsOldestBucket(t *testing.T
 }
 
 func TestTukeyBiweight_ContinuesAfterRetentionDropsBelowMinimum(t *testing.T) {
-	d := testTukeyBiweightDetector()
-	d.WindowSize = 4
-	d.MinPoints = 3
-	d.ScoreEvery = 100
+	dCfg := testTukeyBiweightConfig()
+	dCfg.WindowSize = 4
+	dCfg.MinPoints = 3
+	dCfg.ScoreEvery = 100
+	d := NewTukeyBiweightDetector(dCfg)
 	storage := newDetectorTestStorage()
 
 	for timestamp := int64(1); timestamp <= 3; timestamp++ {
@@ -377,7 +386,6 @@ func TestTukeyBiweight_NoFireOnLinearTrend(t *testing.T) {
 // guard here is convergence to FINITE numbers — no NaN, no Inf, sigma > 0.
 func TestTukeyBiweight_IRLSConverges(t *testing.T) {
 	d := testTukeyBiweightDetector()
-	d.ensureDefaults()
 
 	// Synthetic bimodal: 40 points at 0, 40 points at 10. No noise.
 	points := make([]observer.Point, 0, 80)
@@ -416,8 +424,9 @@ func TestTukeyBiweight_IRLSConverges(t *testing.T) {
 // validateDetectorTeardownContract. Without this the per-series map would
 // grow unbounded as storage evicts series.
 func TestTukeyBiweight_RemoveSeries(t *testing.T) {
-	d := NewTukeyBiweightDetector() // exercise the default [Average, Count] aggregations
-	d.MinPoints = 8
+	dCfg := DefaultTukeyBiweightConfig()
+	dCfg.MinPoints = 8
+	d := NewTukeyBiweightDetector(dCfg) // exercise the default [Average, Count] aggregations
 	storage := newDetectorTestStorage()
 
 	// Three series, each populated with enough points to allocate state.
@@ -429,7 +438,7 @@ func TestTukeyBiweight_RemoveSeries(t *testing.T) {
 	}
 
 	d.Detect(storage, 8)
-	require.Len(t, d.series, 3*len(d.Aggregations),
+	require.Len(t, d.series, 3*len(d.aggregations),
 		"each series should have one state entry per aggregation")
 
 	metas := storage.ListSeries(observer.WorkloadSeriesFilter())
@@ -438,7 +447,7 @@ func TestTukeyBiweight_RemoveSeries(t *testing.T) {
 
 	d.RemoveSeries(refsToRemove)
 
-	assert.Len(t, d.series, len(d.Aggregations),
+	assert.Len(t, d.series, len(d.aggregations),
 		"only state for the surviving series should remain")
 	assert.Nil(t, d.cachedSeries, "RemoveSeries must invalidate the cached series list")
 }
@@ -478,14 +487,14 @@ func TestTukeyBiweight_ScoreEveryAmortization(t *testing.T) {
 	}
 	require.NotNil(t, state)
 	assert.Equal(t, n, state.lastProcessedCount, "cursor must advance to all 200 points")
-	assert.Less(t, state.ticksSinceScore, d.ScoreEvery,
+	assert.Less(t, state.ticksSinceScore, d.config.ScoreEvery,
 		"between-score counter must be bounded by ScoreEvery")
 
 	// Direct steady-state guarantee: with ScoreEvery=4 over 200 points
 	// scoring runs at most ceil(200/4) = 50 times. The plan budgets ≤50
 	// invocations — we re-derive it here so any future bump to ScoreEvery
 	// won't silently weaken the amortization claim.
-	maxScores := (n + d.ScoreEvery - 1) / d.ScoreEvery
+	maxScores := (n + d.config.ScoreEvery - 1) / d.config.ScoreEvery
 	assert.LessOrEqual(t, maxScores, 50,
 		"amortization arithmetic: ScoreEvery=4 over 200 points caps scoring at 50 invocations")
 }
@@ -494,17 +503,18 @@ func TestTukeyBiweight_ScoreEveryAmortization(t *testing.T) {
 // consume score ticks before the storage tail reaches MinPoints. In particular,
 // MinPoints need not be divisible by ScoreEvery.
 func TestTukeyBiweight_FirstScoreAtMinimum(t *testing.T) {
-	d := testTukeyBiweightDetector()
-	d.MinPoints = 39
-	d.WindowSize = 39
-	d.ScoreEvery = 4
+	dCfg := testTukeyBiweightConfig()
+	dCfg.MinPoints = 39
+	dCfg.WindowSize = 39
+	dCfg.ScoreEvery = 4
+	d := NewTukeyBiweightDetector(dCfg)
 	storage := newDetectorTestStorage()
 
-	for i := 0; i < d.MinPoints; i++ {
+	for i := 0; i < d.config.MinPoints; i++ {
 		storage.Add("ns", "metric", 7, int64(i+1), nil)
 	}
 
-	result := d.Detect(storage, int64(d.MinPoints))
+	result := d.Detect(storage, int64(d.config.MinPoints))
 	assert.Empty(t, result.Anomalies)
 
 	require.Len(t, d.series, 1)
@@ -556,4 +566,26 @@ func TestTukeyBiweight_Reset(t *testing.T) {
 	d.Reset()
 	assert.Empty(t, d.series, "reset should clear all state")
 	assert.Nil(t, d.cachedSeries, "reset should clear cached series")
+}
+
+func TestTukeyBiweightConfig(t *testing.T) {
+	require.Equal(t, 100, NewTukeyBiweightDetector(TukeyBiweightConfig{WindowSize: 100}).config.MinPoints)
+	require.Equal(t, DefaultTukeyBiweightConfig(), NewTukeyBiweightDetector(TukeyBiweightConfig{}).config)
+	cfg := DefaultTukeyBiweightConfig()
+	cfg.WindowSize, cfg.MinPoints = 10, 20
+	d := NewTukeyBiweightDetector(cfg)
+	want := cfg
+	want.MinPoints = 10
+	want.Aggregations = append([]string(nil), cfg.Aggregations...)
+	cfg.WindowSize = 100
+	cfg.Aggregations[0] = "sum"
+	require.Equal(t, want, d.config, "constructor owns its configuration")
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, d.aggregations)
+	d.Reset()
+	require.Equal(t, want, d.config, "reset preserves configuration")
+
+	// Unknown aggregation names parse away; fall back to keep the detector enabled.
+	unknown := NewTukeyBiweightDetector(TukeyBiweightConfig{Aggregations: []string{"average"}})
+	require.Equal(t, []string{"average"}, unknown.config.Aggregations)
+	require.Equal(t, []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}, unknown.aggregations)
 }
