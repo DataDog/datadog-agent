@@ -218,7 +218,7 @@ const (
 	// maxV05CollectionSize bounds the element count of every array or map header in a v0.5 payload other
 	// than the dictionary. It matches the `//msgp:limit arrays:500000 maps:500000` directive in trace.go
 	// that applies to the generated v0.4 decoders.
-	maxV05CollectionSize = 500000
+	maxV05CollectionSize = 500_000
 	// maxV05DictionarySize bounds the number of strings in the v0.5 dictionary.
 	maxV05DictionarySize = 25 * 1e6
 )
