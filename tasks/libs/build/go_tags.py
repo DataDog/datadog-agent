@@ -12,6 +12,9 @@ import functools
 import json
 import os
 import re
+import shutil
+import subprocess
+import sys
 
 GRAPH_KINDS = "go_library|go_tool_library|go_test|go_binary|go_proto_library|go_proto_compiler|go_source|alias"
 QUERY = f'kind("{GRAPH_KINDS}", deps(//...))'
@@ -178,3 +181,45 @@ def render_manifest(universe: list[str], manifest: dict[str, list[str] | None]) 
         "}",
     ]
     return "\n".join(lines) + "\n"
+
+
+def main() -> int:
+    workspace = os.environ.get("BUILD_WORKSPACE_DIRECTORY")
+    if not workspace:
+        print("Run it with `bazel run //tasks:write_go_tag_manifest`", file=sys.stderr)
+        return 1
+
+    # `bazel run` passes on the variables bazelisk set for tools/bazel; without them, it reruns tools/bazel, which adds
+    # the CI and cache flags the outer command had.
+    env = {k: v for k, v in os.environ.items() if k not in ("BAZEL_REAL", "BAZELISK_SKIP_WRAPPER")}
+    command = shutil.which("bazelisk", path=env.get("PATH")) or "bazel"
+
+    def bazel(*args: str) -> subprocess.CompletedProcess:
+        return subprocess.run([command, *args], cwd=workspace, env=env, capture_output=True, text=True)
+
+    query = bazel("query", "--consistent_labels", "--keep_going", "--output=streamed_jsonproto", QUERY)
+    info = bazel("info", "output_base")
+    if info.returncode != 0:
+        print(info.stderr, file=sys.stderr)
+        return info.returncode
+    output_base = info.stdout.strip()
+    # 3: some packages failed to load, e.g. Windows-only toolchain repositories on other hosts. That is only fatal
+    # for main-repository packages, or when a Go package is among them, which build_manifest detects.
+    if query.returncode not in (0, 3) or main_repo_errors(query.stderr, workspace, output_base):
+        print(query.stderr, "`bazel query` failed, see the errors above", sep="\n", file=sys.stderr)
+        return query.returncode or 1
+    try:
+        universe, manifest = build_manifest(
+            parse_graph(query.stdout),
+            lambda label: scan_build_tags(source_path(label, workspace, output_base)),
+        )
+    except ValueError as e:
+        print(query.stderr, e, sep="\n", file=sys.stderr)
+        return 1
+    with open(os.path.join(workspace, MANIFEST_PATH), "w", encoding="utf-8", newline="\n") as bzl:
+        bzl.write(render_manifest(universe, manifest))
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
