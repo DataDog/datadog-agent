@@ -167,6 +167,9 @@ func (s *upgradeScenarioSuite) TestFipsUpgradeFromDebRPM() {
 	// The legacy install script does not forward the pipeline version to the DDOT download.
 	s.Env().RemoteHost.MustExecute("sudo datadog-installer extension install oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID") + " ddot")
 	s.Env().RemoteHost.MustExecute(`printf '\nremote_updates: true\nremote_configuration:\n  enabled: true\ninstaller:\n  registry:\n    url: installtesting.datad0g.com.internal.dda-testing.com\n' | sudo tee -a /etc/datadog-agent/datadog.yaml`)
+	// Before Remote Config is enabled, the FIPS installer can exhaust its startup rate limit.
+	// Clear that setup failure so the Agent restart can start the installer with the new config.
+	s.Env().RemoteHost.MustExecute("sudo systemctl reset-failed datadog-agent-installer.service")
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, installerUnit)
 	s.setCatalog(s.testCatalog())
