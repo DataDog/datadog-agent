@@ -28,8 +28,8 @@ import (
 
 // errors for ADP OTLP proxy configuration validation
 var (
-	ErrProxyGRPCEndpointNotConfigured = errors.New("data plane OTLP proxy enabled but gRPC endpoint is not configured")
-	ErrProxyGRPCEndpointCollision     = errors.New("data plane OTLP proxy gRPC endpoint conflicts with receiver endpoint")
+	ErrAgentReceiverEndpointNotConfigured = errors.New("data plane OTLP enabled but Agent receiver endpoint is not configured")
+	ErrAgentReceiverEndpointCollision     = errors.New("relocated Agent OTLP receiver endpoint conflicts with another listener")
 )
 
 func portToUint(v int) (port uint, err error) {
@@ -44,35 +44,11 @@ func portToUint(v int) (port uint, err error) {
 func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 	var errs []error
 
-	proxyEnabled := cfg.GetBool(coreconfig.DataPlaneOTLPProxyEnabled)
-
 	otlpReceiverConfig := configcheck.ReadConfigSection(cfg, coreconfig.OTLPReceiverSection)
 	otlpReceiverConfigMap := otlpReceiverConfig.ToStringMap()
 
-	if proxyEnabled {
-		// ADP OTLP proxy will own the configured gRPC endpoint, so we need to assign a different endpoint to be used by the core agent
-		protocols, ok := otlpReceiverConfigMap["protocols"].(map[string]interface{})
-		if !ok {
-			return PipelineConfig{}, errors.New("data plane OTLP proxy enabled but receiver protocols not configured")
-		}
-		grpc, ok := protocols["grpc"].(map[string]interface{})
-		if !ok {
-			return PipelineConfig{}, errors.New("data plane OTLP proxy enabled but gRPC protocol not configured")
-		}
-
-		proxyGRPCEndpoint := cfg.GetString(coreconfig.DataPlaneOTLPProxyReceiverProtocolsGRPCEndpoint)
-		originalGRPCEndpoint, _ := grpc["endpoint"].(string)
-
-		if proxyGRPCEndpoint == "" {
-			errs = append(errs, ErrProxyGRPCEndpointNotConfigured)
-		}
-
-		// Check for endpoint collision
-		if proxyGRPCEndpoint != "" && proxyGRPCEndpoint == originalGRPCEndpoint {
-			errs = append(errs, fmt.Errorf("%w: %q", ErrProxyGRPCEndpointCollision, proxyGRPCEndpoint))
-		}
-
-		grpc["endpoint"] = proxyGRPCEndpoint
+	if cfg.GetBool(coreconfig.DataPlaneEnabled) && cfg.GetBool(coreconfig.DataPlaneOTLPEnabled) {
+		errs = append(errs, relocateReceiverListeners(cfg, otlpReceiverConfigMap))
 	}
 
 	tracePort, err := portToUint(cfg.GetInt(coreconfig.OTLPTracePort))
@@ -148,6 +124,75 @@ func FromAgentConfig(cfg config.Reader) (PipelineConfig, error) {
 		Logs:                         logsConfig.ToStringMap(),
 		Debug:                        debugMap,
 	}, multierr.Combine(errs...)
+}
+
+func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{}) error {
+	protocols, _ := receiver["protocols"].(map[string]interface{})
+	listeners := []struct {
+		protocol       string
+		key            string
+		config         map[string]interface{}
+		publicEndpoint string
+		agentEndpoint  string
+	}{
+		{protocol: "grpc", key: coreconfig.DataPlaneExperimentalOTLPProxyAgentReceiverGRPCEndpoint},
+		{protocol: "http", key: coreconfig.DataPlaneExperimentalOTLPProxyAgentReceiverHTTPEndpoint},
+	}
+
+	for i := range listeners {
+		listener := &listeners[i]
+		section, enabled := protocols[listener.protocol]
+		if !enabled {
+			if cfg.IsConfigured(listener.key) {
+				log.Warnf("%s is ignored because the OTLP/%s receiver is not enabled", listener.key, listener.protocol)
+			}
+			continue
+		}
+
+		if section == nil {
+			listener.config = map[string]interface{}{}
+		} else {
+			var ok bool
+			listener.config, ok = section.(map[string]interface{})
+			if !ok {
+				return fmt.Errorf("OTLP/%s receiver configuration must be a map", listener.protocol)
+			}
+		}
+
+		listener.agentEndpoint = cfg.GetString(listener.key)
+		if listener.agentEndpoint == "" {
+			return fmt.Errorf("%w: %s", ErrAgentReceiverEndpointNotConfigured, listener.key)
+		}
+		var explicit bool
+		listener.publicEndpoint, explicit = listener.config["endpoint"].(string)
+		if !explicit {
+			listener.publicEndpoint = cfg.GetString(coreconfig.OTLPReceiverSection + ".protocols." + listener.protocol + ".endpoint")
+		}
+	}
+
+	for i, listener := range listeners {
+		if listener.config == nil {
+			continue
+		}
+		for j, other := range listeners {
+			if other.config == nil {
+				continue
+			}
+			if listener.agentEndpoint == other.publicEndpoint || (i != j && listener.agentEndpoint == other.agentEndpoint) {
+				return fmt.Errorf("%w: %s = %q conflicts with OTLP/%s", ErrAgentReceiverEndpointCollision, listener.key, listener.agentEndpoint, other.protocol)
+			}
+		}
+	}
+
+	for _, listener := range listeners {
+		if listener.config == nil {
+			continue
+		}
+		listener.config["endpoint"] = listener.agentEndpoint
+		protocols[listener.protocol] = listener.config
+		log.Infof("Relocating Agent OTLP/%s receiver from %q to %q", listener.protocol, listener.publicEndpoint, listener.agentEndpoint)
+	}
+	return nil
 }
 
 func normalizeMetricsConfig(metricsConfigMap map[string]interface{}, strict bool) (map[string]interface{}, error) {
