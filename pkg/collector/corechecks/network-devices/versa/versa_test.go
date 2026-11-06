@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	yaml "go.yaml.in/yaml/v3"
 
-	yaml "go.yaml.in/yaml/v3"
-
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
