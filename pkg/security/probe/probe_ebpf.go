@@ -1347,8 +1347,7 @@ func (p *EBPFProbe) unmarshalContexts(data []byte, event *model.Event, cgroupCon
 
 func eventWithNoProcessContext(eventType model.EventType) bool {
 	switch eventType {
-	case model.ShortDNSResponseEventType,
-		model.DNSEventType,
+	case model.DNSEventType,
 		model.IMDSEventType,
 		model.RawPacketFilterEventType,
 		model.LoadModuleEventType,
@@ -2267,6 +2266,7 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 		}
 		return false
 	case model.ShortDNSResponseEventType:
+		// Always stop here: the record has no process, span or cgroup context to decode.
 		if p.config.Probe.DNSResolutionEnabled {
 			if err := p.dnsLayer.DecodeFromBytes(data[offset:], gopacket.NilDecodeFeedback); err == nil {
 				p.addToDNSResolver(p.dnsLayer)
@@ -2278,7 +2278,9 @@ func (p *EBPFProbe) handleEarlyReturnEvents(event *model.Event, offset int, data
 			event.FailedDNS = model.FailedDNSEvent{
 				Payload: trimRightZeros(data[offset:]),
 			}
+			p.monitors.ProcessEvent(event, p.probe.scrubber)
 		}
+		return false
 	}
 	return true
 }
