@@ -107,6 +107,12 @@ COPY --from=builder /workspace/datadog-agent/bin/otel-agent/dist/otel-config.yam
 # Find all directories and files in /etc with world-writable permissions and remove write permissions for group and others
 RUN find /etc -type d,f -perm -o+w -print0 | xargs -r -0 chmod g-w,o-w
 
+# FIPS CI jobs preload jemalloc, shipped by their agent base image: glibc malloc keeps memory freed
+# by OpenSSL in per-thread arenas. Non-FIPS images lack it, so keep the default. Use ':' as separator.
+ARG LD_PRELOAD_LIBS=/opt/lib/nosys.so
+ENV LD_PRELOAD=${LD_PRELOAD_LIBS}
+ENV MALLOC_CONF=background_thread:true,dirty_decay_ms:5000
+
 ENV DD_OTELCOLLECTOR_ENABLED=true
 ENV DD_OTEL_STANDALONE=true
 # Mark the agent as containerized, so the hostname resolution can use the kubelet

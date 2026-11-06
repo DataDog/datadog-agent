@@ -387,6 +387,8 @@ docker_build_ot_agent_standalone_fips_amd64:
     TAG_SUFFIX: -7-fips
     BASE_IMAGE_NAME: agent
     BASE_IMAGE_TAG_SUFFIX: -7-fips
+    # The FIPS base image ships jemalloc: preload it (see Dockerfiles/otel-agent/Dockerfile).
+    BUILD_ARG: --target release --build-arg LD_PRELOAD_LIBS=/opt/lib/nosys.so:/opt/datadog-agent/embedded/lib/libjemalloc.so
 
 docker_build_ot_agent_standalone_fips_arm64:
   extends:
@@ -398,6 +400,8 @@ docker_build_ot_agent_standalone_fips_arm64:
     TAG_SUFFIX: -7-fips
     BASE_IMAGE_NAME: agent
     BASE_IMAGE_TAG_SUFFIX: -7-fips
+    # The FIPS base image ships jemalloc: preload it (see Dockerfiles/otel-agent/Dockerfile).
+    BUILD_ARG: --target release --build-arg LD_PRELOAD_LIBS=/opt/lib/nosys.so:/opt/datadog-agent/embedded/lib/libjemalloc.so
 
 docker_build_agent7_full:
   extends: [.docker_build_amd64, .docker_build_agent7]
