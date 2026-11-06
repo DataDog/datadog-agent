@@ -2,7 +2,7 @@
 
 ## Architecture
 
-The Health Platform detects, stores, and ships agent health issues to the Datadog backend.
+The Health Platform detects, stores, and ships agent health issues to the Datadog backend. For new issue types, the Agent reports diagnostic data and the backend `agthealth-worker` catalog supplies remediation. Remediation can then evolve without an Agent release; see [Backend remediation workflow](#backend-remediation-workflow).
 
 Two paths lead issues into the store:
 
@@ -29,7 +29,7 @@ Sub-package roles:
 
 | Sub-package | Role |
 |---|---|
-| `issues/<module>/` | Detection + remediation bundled per issue type |
+| `issues/<module>/` | Detection + diagnostic payload construction per issue type |
 | `issueregistry/` | Wires module factories into a `Registry` at startup |
 | `runner/` | Executes `HealthCheckFunc`, translates `IssueReport` → proto `Issue` via the registry (falls back to a minimal proto when no template is registered) |
 | `scheduler/` | Drives periodic checks on a timer |
@@ -141,7 +141,7 @@ Each issue module exposes four identity fields. Get them wrong and either the re
 
 ## Implementing `BuildIssue`
 
-`BuildIssue(context map[string]string) (*healthplatform.Issue, error)` is the remediation contract. Follow these rules exactly.
+`BuildIssue(context map[string]string) (*healthplatform.Issue, error)` constructs the Agent diagnostic payload. For new issue types, leave `Issue.Remediation` nil; create the remediation in the backend catalog instead. The Agent-side registry `Template` interface and `BuildIssue` still serve payload construction and are distinct from the backend catalog templates.
 
 ### Context access
 
@@ -168,8 +168,7 @@ Declare every context key your module reads as a package-private `const` at the 
 | `Location` | Where the issue was detected (examples: `"collector"`, `"agent"`, `"autodiscovery"`). New values can be created. |
 | `Severity` | One of `ISSUE_SEVERITY_LOW`, `ISSUE_SEVERITY_MEDIUM`, `ISSUE_SEVERITY_HIGH` |
 | `Source` | Reporting component (examples: `"agent"`, `"collector"`, `"autodiscovery"`). New values can be created. |
-| `Remediation.Summary` | One actionable sentence |
-| `Remediation.Steps` | Numbered, ordered from fastest/cheapest to most invasive |
+| `Remediation` | Leave nil for new issue types; the backend template owns the summary, steps, scripts, and AI prompt |
 | `Tags` | Lowercase slugs; always include the subsystem and any relevant entity name |
 | `Extra` | `structpb.Struct` — include all context keys so the UI can render them |
 
@@ -177,18 +176,22 @@ Declare every context key your module reads as a package-private `const` at the 
 
 > **Path B callers** who build and report issues directly (not via a `HealthCheckFunc`) must set `issue.Id` themselves — `store.ReportIssue` rejects an empty id.
 
-### Remediation steps
+### Backend remediation workflow
 
-- Step 1 is always the fastest diagnostic command (`agent status`, `agent configcheck`, etc.)
-- Include the exact CLI command text in the step string
-- Add optional steps conditionally based on context values; keep `Order` contiguous and 1-indexed:
-  ```go
-  steps = append(steps, &healthplatform.RemediationStep{
-      Order: int32(len(steps) + 1),
-      Text:  "Check known issues for version " + checkVersion,
-  })
-  ```
-- When the error type determines different remediation paths, use a helper (`buildAnnotationContent`, `buildSourceSpecificContent`, etc.) to keep `BuildIssue` readable — see `ad-misconfiguration/annotation_issue.go`
+The backend worker is named `agthealth-worker` in `dd-source`. Its [catalog authoring guide](https://github.com/DataDog/dd-source/blob/main/domains/evp-workers/apps/agthealth-worker/src/catalog/README.md) describes the template format, fixtures, and generation commands.
+
+For every new issue type:
+
+1. Keep detection, severity, issue identity, and resolution in the Agent. Populate the diagnostic fields above and put scrubbed, structured context in `Extra`. The catalog reads `Issue.Extra`, not the runner's internal `IssueReport.Context`; copy the values needed by the template into `Extra` in `BuildIssue`.
+1. Add `domains/evp-workers/apps/agthealth-worker/src/catalog/templates/<issue_type>.md` in a companion `dd-source` PR. Its `issue_type` must exactly match the Agent's `IssueType`. Author the remediation summary and ordered steps there, including conditional instructions based on the reported metadata. Keep scripts and AI prompts there too. Start with the fastest diagnostic command and include exact commands where useful.
+1. Add catalog fixtures using metadata from an actual Agent payload. Cover the remediation variants and missing metadata; regenerate the catalog and run its tests as described in the authoring guide. Do not hand-edit generated catalog files or duplicate the steps in Go tests.
+1. Link the Agent and backend PRs. Coordinate deployment of the template and enablement of the `agthealth-catalog-resolver` flag for the intended orgs before relying on backend remediation in the Agent release.
+
+**Precedence matters:** the worker fills missing remediation on active issues; non-empty Agent-provided remediation wins over the template's summary and steps. The backend can still add its AI prompt. Adding a backend template alone therefore does not migrate an issue that still sends remediation from Go. The worker does not attach template remediation to resolved issues.
+
+If the resolver is disabled, no template matches, or resolution fails, the Agent's report is left without backend remediation. Keep the Agent's diagnostic fields populated so the issue remains useful and valid independently of this optional enrichment. Local Agent APIs and fakeintake receive the Agent payload, not the backend-enriched remediation.
+
+For existing issue types, preserve their current Agent-side remediation until a coordinated migration has a matching backend template, metadata coverage, and resolver rollout. Older Agent versions will continue sending their existing steps; backend edits will not override those steps. New issue types must not copy these legacy Go remediation builders.
 
 ---
 
@@ -273,7 +276,7 @@ assert.Equal(t, IssueName, issue.IssueName)        // IssueName is stable
 assert.Equal(t, IssueType, issue.IssueType)        // IssueType is stable
 assert.Equal(t, expectedTitle, issue.Title)
 assert.Contains(t, issue.Description, expectedSub)
-assert.Equal(t, expectedStepCount, len(issue.Remediation.Steps))
+assert.Nil(t, issue.Remediation)                  // New issues use backend remediation
 require.NotNil(t, issue.Extra)
 // verify all Extra fields are present:
 fields := issue.Extra.GetFields()
@@ -283,8 +286,10 @@ assert.NotNil(t, fields["entity_name"])
 Required test cases:
 - Happy path with a fully-populated context
 - Missing/empty context keys → verify defaults are applied correctly
-- One test case per branch of any conditional remediation path
+- Metadata needed by each backend remediation variant is present and scrubbed
 - `nil` context map (must not panic)
+
+For existing issue types that have not migrated, retain assertions on their Agent-provided remediation. For new issues, validate rendered steps in the backend catalog fixtures; Agent tests validate the metadata contract and nil remediation.
 
 ### `check_test.go` — required if `check.go` exists
 
@@ -372,7 +377,10 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 
 - [ ] `Description` includes relevant error details without exposing secrets
 - [ ] `Category`, `Location`, `Severity`, `Source` are all populated
-- [ ] `Remediation.Summary` and at least one `Remediation.Steps` entry are present
+- [ ] New issue types leave `Remediation` nil and link a companion backend catalog PR
+- [ ] Backend template keys match `IssueType` and the scrubbed metadata emitted in `Extra`
+- [ ] Backend fixtures cover remediation variants; template deployment and resolver rollout are coordinated
+- [ ] Existing Agent-provided remediation is removed only as part of a coordinated migration
 - [ ] `Extra` is a `structpb.Struct` containing all context keys
 - [ ] `Tags` contains at least the subsystem slug
 
@@ -389,6 +397,8 @@ Check whether the diff touches `comp/healthplatform/issues/` or any call site th
 
 | Anti-pattern | Why it breaks |
 |---|---|
+| Adding a Go remediation builder for a new issue type | Agent-provided steps take precedence over backend templates and require an Agent release to change |
+| Passing template inputs only in `IssueReport.Context` | The backend reads `Issue.Extra`; runner context is not the wire contract |
 | Varying `IssueName` per instance | Breaks registry lookup and UI aggregation |
 | Gating `RegisterModuleFactory` on a config value in `init()` | Config is not available at init time |
 | Gating the entire check at registration time rather than inside `Fn` | Stale issues from a prior run are never resolved when the check is disabled |
