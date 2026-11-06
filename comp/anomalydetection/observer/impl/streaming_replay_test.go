@@ -34,7 +34,7 @@ func (e *streamMetricExtractor) ProcessLog(_ observerdef.LogView) observerdef.Lo
 
 func TestSynchronousLogStreamAdvancesAndFlushes(t *testing.T) {
 	detector := &streamAdvanceRecorder{}
-	obs := &observerImpl{engine: newEngine(engineConfig{
+	obs := &observerImpl{engine: mustNewEngine(engineConfig{
 		storage:   newTimeSeriesStorage(),
 		detectors: []observerdef.Detector{detector},
 	})}
@@ -49,7 +49,7 @@ func TestSynchronousLogStreamAdvancesAndFlushes(t *testing.T) {
 
 func TestSynchronousLogStreamUsesBoundedStorage(t *testing.T) {
 	storage := newTimeSeriesStorage()
-	obs := &observerImpl{engine: newEngine(engineConfig{
+	obs := &observerImpl{engine: mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{&streamMetricExtractor{}},
 	})}

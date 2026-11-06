@@ -57,6 +57,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -783,7 +784,7 @@ func (s *Server) applyMicroVMID(microVMID string) {
 	s.instanceID.Store(microVMID)
 	s.heartbeat.SetMicroVMID(microVMID)
 	if s.logsTagSetter != nil {
-		s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseLogTags...), lambdaMicroVMIDPrefix+microVMID))
+		s.logsTagSetter.SetLogsTags(append(slices.Clone(s.baseLogTags), lambdaMicroVMIDPrefix+microVMID))
 	}
 	if s.traceTagSetter != nil {
 		tags := maps.Clone(s.baseTraceTags)
@@ -794,7 +795,7 @@ func (s *Server) applyMicroVMID(microVMID string) {
 		s.traceTagSetter.SetTraceTags(tags)
 	}
 	if s.metricTagSetter != nil {
-		s.metricTagSetter.SetMetricTags(append(append([]string{}, s.baseUsageMetricTags...), "instance:"+microVMID))
+		s.metricTagSetter.SetMetricTags(append(slices.Clone(s.baseUsageMetricTags), "instance:"+microVMID))
 	}
 	if s.metadataReporter != nil {
 		s.metadataReporter.ReportMetadata(microVMID)

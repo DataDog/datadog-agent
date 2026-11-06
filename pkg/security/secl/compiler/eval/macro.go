@@ -35,10 +35,14 @@ func NewMacro(id, expression string, model Model, parsingContext *parser.Parsing
 		return nil, fmt.Errorf("syntax error: %w", err)
 	}
 
+	tree, err := pass.Run(astMacro, opts.passes()...)
+	if err != nil {
+		return nil, fmt.Errorf("compilation error: macro compilation error: %w", err)
+	}
 	macro := &Macro{
 		ID:   id,
 		Opts: opts,
-		ast:  pass.Run(astMacro, opts.passes()...).(*ast.Macro),
+		ast:  tree.(*ast.Macro),
 	}
 
 	// compiled only to report its errors where it's defined, each rule using it
@@ -60,9 +64,9 @@ func NewMacro(id, expression string, model Model, parsingContext *parser.Parsing
 // NewStringValuesMacro returns a new macro from an array of strings
 func NewStringValuesMacro(id string, values []string, opts *Opts) (*Macro, error) {
 	pos := ast.At(ast.Position{Source: id})
-	array := &ast.StringArray{Meta: pos}
+	array := &ast.Array{Meta: pos}
 	for _, value := range values {
-		array.Members = append(array.Members, &ast.StringLiteral{Meta: pos, Value: value})
+		array.Members = append(array.Members, &ast.Literal{Meta: pos, Value: ast.MakeString(value)})
 	}
 
 	return &Macro{

@@ -18,4 +18,9 @@ func TestEnvFilter_IsIncluded(t *testing.T) {
 	assert.True(t, filter.IsIncluded("FOO"))
 	assert.True(t, filter.IsIncluded("BAR"))
 	assert.False(t, filter.IsIncluded("BAZ"))
+
+	// Default include list checks
+	defaultFilter := newEnvFilter(nil)
+	assert.True(t, defaultFilter.IsIncluded("NVIDIA_DRIVER_CAPABILITIES"))
+	assert.False(t, defaultFilter.IsIncluded("NVIDIA_VISIBLE_DEVICES"))
 }
