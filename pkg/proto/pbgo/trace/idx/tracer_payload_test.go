@@ -6,7 +6,9 @@
 package idx
 
 import (
+	"bytes"
 	"encoding/base64"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -322,5 +324,142 @@ func TestShortTraceIDSurvivesWireDecode(t *testing.T) {
 	// The sampler calls LegacyTraceID() on this chunk; it must not panic.
 	assert.NotPanics(t, func() {
 		assert.Equal(t, uint64(0x01020304), c.LegacyTraceID())
+	})
+}
+
+// allocatedBytes returns the bytes allocated on the heap while running f.
+func allocatedBytes(f func()) uint64 {
+	runtime.GC()
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
+}
+
+// TestDecodersBoundAllocationsByInput checks that a few bytes of input declaring huge array/map counts
+// can't make the decoders allocate memory sized from those counts before failing.
+// See https://github.com/DataDog/datadog-agent/issues/59778
+func TestDecodersBoundAllocationsByInput(t *testing.T) {
+	const (
+		huge     = 25_000_000 // the previous per-header limit
+		maxAlloc = 1 << 20    // generous ceiling; each case allocated hundreds of MB before the fix
+	)
+	v1 := func(b []byte) error {
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsg(b)
+		return err
+	}
+	v04 := func(b []byte) error {
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsgConverted(b)
+		return err
+	}
+	v05 := func(b []byte) error {
+		tp := &InternalTracerPayload{}
+		return tp.UnmarshalMsgDictionary(b)
+	}
+
+	// v1: {11: chunks[{4: spans[{11: links[{3: attributes[key, type, value, ...]}]}]}]}
+	// Nested cases declare one element at every parent level and an oversized count only at the
+	// container under test, so decoding reaches that container's guard. Counts of maxCollectionSize
+	// pass the per-header limit, so they are rejected only by the remaining-input check.
+	v1Field := func(prefix []byte, field uint32) []byte {
+		return msgp.AppendUint32(msgp.AppendMapHeader(bytes.Clone(prefix), 1), field)
+	}
+	v1Chunk := msgp.AppendArrayHeader(v1Field(nil, 11), 1)
+	v1Span := msgp.AppendArrayHeader(v1Field(v1Chunk, 4), 1)
+	v1Link := msgp.AppendArrayHeader(v1Field(v1Span, 11), 1)
+	v1Chunks := msgp.AppendArrayHeader(v1Field(nil, 11), huge)
+	v1ChunksAtLimit := msgp.AppendArrayHeader(v1Field(nil, 11), maxCollectionSize)
+	v1Spans := msgp.AppendArrayHeader(v1Field(v1Chunk, 4), maxCollectionSize)
+	v1Links := msgp.AppendArrayHeader(v1Field(v1Span, 11), maxCollectionSize)
+	v1LinkAttrs := msgp.AppendArrayHeader(v1Field(v1Link, 3), maxCollectionSize-2) // a multiple of 3
+	// One attribute (key 0, type 6 = array) whose array value declares maxCollectionSize elements.
+	v1ArrayValue := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendUint32(msgp.AppendArrayHeader(v1Field(v1Link, 3), 3), 0), 6), maxCollectionSize)
+	v1StringTable := msgp.AppendArrayHeader(v1Field(nil, 1), huge)
+
+	// v0.4: [[span, ...], ...]
+	v04Traces := msgp.AppendArrayHeader(nil, huge)
+	v04TracesAtLimit := msgp.AppendArrayHeader(nil, maxCollectionSize)
+	v04Spans := msgp.AppendArrayHeader(msgp.AppendArrayHeader(nil, 1), maxCollectionSize)
+	v04Meta := msgp.AppendMapHeader(msgp.AppendString(msgp.AppendMapHeader(msgp.AppendArrayHeader(msgp.AppendArrayHeader(nil, 1), 1), 1), "meta"), maxCollectionSize)
+	// One byte per declared entry passes the header check but fails checkSlabCount (two bytes per entry);
+	// the attribute map must not be sized before that check runs.
+	halfBacking := bytes.Repeat([]byte{0xc0}, maxCollectionSize)
+	v04MetaHalfBacked := append(bytes.Clone(v04Meta), halfBacking...)
+	v04SpanField := func(field string) []byte {
+		return msgp.AppendString(msgp.AppendMapHeader(msgp.AppendArrayHeader(msgp.AppendArrayHeader(nil, 1), 1), 1), field)
+	}
+	// [[{"span_events" / "span_links": [{"attributes": {...}}]}]]
+	v04EventAttrsHalfBacked := msgp.AppendMapHeader(msgp.AppendString(msgp.AppendMapHeader(msgp.AppendArrayHeader(v04SpanField("span_events"), 1), 1), "attributes"), maxCollectionSize)
+	v04EventAttrsHalfBacked = append(v04EventAttrsHalfBacked, halfBacking...)
+	v04LinkAttrsHalfBacked := msgp.AppendMapHeader(msgp.AppendString(msgp.AppendMapHeader(msgp.AppendArrayHeader(v04SpanField("span_links"), 1), 1), "attributes"), maxCollectionSize)
+	v04LinkAttrsHalfBacked = append(v04LinkAttrsHalfBacked, halfBacking...)
+	v04Links := msgp.AppendArrayHeader(msgp.AppendString(msgp.AppendMapHeader(msgp.AppendArrayHeader(msgp.AppendArrayHeader(nil, 1), 1), 1), "span_links"), maxCollectionSize)
+
+	// v0.5: [dictionary, traces]
+	v05Dict := msgp.AppendArrayHeader(msgp.AppendArrayHeader(nil, 2), huge)
+	v05Traces := msgp.AppendArrayHeader(msgp.AppendArrayHeader(msgp.AppendArrayHeader(nil, 2), 0), maxCollectionSize)
+
+	for _, tc := range []struct {
+		name   string
+		decode func([]byte) error
+		body   []byte
+	}{
+		{"v1 chunks", v1, v1Chunks},
+		{"v1 chunks at limit", v1, v1ChunksAtLimit},
+		{"v1 spans", v1, v1Spans},
+		{"v1 span links", v1, v1Links},
+		{"v1 link attributes", v1, v1LinkAttrs},
+		{"v1 array value", v1, v1ArrayValue},
+		{"v1 string table", v1, v1StringTable},
+		{"v0.4 traces", v04, v04Traces},
+		{"v0.4 traces at limit", v04, v04TracesAtLimit},
+		{"v0.4 spans", v04, v04Spans},
+		{"v0.4 meta", v04, v04Meta},
+		{"v0.4 meta half backed", v04, v04MetaHalfBacked},
+		{"v0.4 span event attributes half backed", v04, v04EventAttrsHalfBacked},
+		{"v0.4 span link attributes half backed", v04, v04LinkAttrsHalfBacked},
+		{"v0.4 span links", v04, v04Links},
+		{"v0.5 dictionary", v05, v05Dict},
+		{"v0.5 traces", v05, v05Traces},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var err error
+			allocated := allocatedBytes(func() { err = tc.decode(tc.body) })
+			assert.Error(t, err)
+			assert.Less(t, allocated, uint64(maxAlloc), "decoding %d bytes allocated %d bytes", len(tc.body), allocated)
+		})
+	}
+}
+
+// TestDecodersRejectCountsAboveLimit checks the per-header count limit, which applies even when the
+// input is long enough to hold that many elements.
+func TestDecodersRejectCountsAboveLimit(t *testing.T) {
+	nils := bytes.Repeat([]byte{0xc0}, maxCollectionSize+1) // msgpack nil
+	t.Run("v1", func(t *testing.T) {
+		b := msgp.AppendArrayHeader(msgp.AppendUint32(msgp.AppendMapHeader(nil, 1), 11), maxCollectionSize+1)
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsg(append(b, nils...))
+		assert.ErrorContains(t, err, "Array too large")
+	})
+	t.Run("v1 payload fields", func(t *testing.T) {
+		b := msgp.AppendMapHeader(nil, maxCollectionSize+1)
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsg(append(b, bytes.Repeat(nils, 2)...))
+		assert.ErrorContains(t, err, "Map too large")
+	})
+	t.Run("v1 chunk fields", func(t *testing.T) {
+		b := msgp.AppendMapHeader(nil, maxCollectionSize+1)
+		tc := &InternalTraceChunk{Strings: NewStringTable()}
+		_, err := tc.UnmarshalMsg(append(b, bytes.Repeat(nils, 2)...))
+		assert.ErrorContains(t, err, "Map too large")
+	})
+	t.Run("v0.4", func(t *testing.T) {
+		b := msgp.AppendArrayHeader(nil, maxCollectionSize+1)
+		tp := &InternalTracerPayload{}
+		_, err := tp.UnmarshalMsgConverted(append(b, nils...))
+		assert.ErrorContains(t, err, "too long payload")
 	})
 }

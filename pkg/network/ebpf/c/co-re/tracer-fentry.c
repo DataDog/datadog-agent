@@ -663,7 +663,7 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -672,12 +672,10 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
     }
 
     conn_tuple_t sock_tup;
-    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
-    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    // netns and pid stay zero: the map is keyed without them.
+    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
-    sock_tup.netns = 0;
-    sock_tup.pid = 0;
 
     if (!is_equal(&skb_tup, &sock_tup)) {
         normalize_tuple(&skb_tup);
