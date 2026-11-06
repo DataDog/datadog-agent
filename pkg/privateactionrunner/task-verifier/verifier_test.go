@@ -124,3 +124,35 @@ func TestTaskVerifierRejectsUnsignedTask(t *testing.T) {
 
 	require.ErrorContains(t, err, "task is missing signed envelope")
 }
+
+func TestTaskVerifierRejectsSignedTaskWithoutConnectionInfo(t *testing.T) {
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	require.NoError(t, err)
+	data, err := proto.Marshal(&privateactionspb.PrivateActionTask{
+		OrgId:          42,
+		TaskId:         "task-id",
+		Inputs:         &structpb.Struct{},
+		ExpirationTime: timestamppb.New(time.Now().Add(time.Minute)),
+	})
+	require.NoError(t, err)
+	digest := sha256.Sum256(data)
+	task := &types.Task{}
+	task.Data.Attributes = &types.Attributes{SignedEnvelope: &privateactionspb.RemoteConfigSignatureEnvelope{
+		Data: data, HashType: privateactionspb.HashType_SHA256,
+		Signatures: []*privateactionspb.Signature{{
+			KeyId: "key-id", KeyType: privateactionspb.KeyType_ED25519,
+			Signature: ed25519.Sign(private, digest[:]),
+		}},
+	}}
+	verifier := &signedEnvelopeTaskVerifier{
+		keysManager: &staticKeysManager{keys: map[string]types.DecodedKey{
+			"key-id": &types.ED25519Key{KeyType: types.KeyTypeED25519, Key: public},
+		}},
+		config: &config.Config{OrgId: 42, RunnerId: "runner-id"},
+	}
+
+	got, err := verifier.UnwrapTask(task)
+
+	require.ErrorContains(t, err, "connection info is missing")
+	assert.Nil(t, got)
+}
