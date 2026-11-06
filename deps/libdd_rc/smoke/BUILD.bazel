@@ -23,6 +23,7 @@ go_test(
     target_compatible_with = select({
         "@platforms//os:linux": [],
         "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
         "//conditions:default": ["@platforms//:incompatible"],
     }),
     deps = ["@libdd_rc_source//:rcx509"],

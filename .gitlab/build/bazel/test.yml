@@ -137,6 +137,18 @@ bazel:rc-x509-ffi:macos-arm64:
   variables:
     RC_X509_ADDITIONAL_TEST_TARGETS: //packages/agent/dependencies:rc_x509_packaged_agent_macos_test //packages/agent/dependencies:rc_x509_packaged_agent_lifecycle_test
 
+# The Windows runner uses PowerShell, so it doesn't share the template above.
+bazel:rc-x509-ffi:windows-amd64:
+  extends: [.bazel:runner:windows-amd64]
+  stage: source_test
+  needs: []
+  rules:
+    - when: on_success
+  variables:
+    POWERSHELL_SCRIPT: >-
+      bazel build -c opt --verbose_failures @libdd_rc_source//:rc_x509_ffi;
+      bazel test -c opt --test_output=errors --verbose_failures //deps/libdd_rc/smoke:client_lifecycle_test
+
 .bazel:coverage:macos:
   extends: [.bazel:test:reporting, .bazel:test]
   script:

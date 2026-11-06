@@ -12,6 +12,7 @@ crate.from_cargo(
         "aarch64-apple-darwin",
         "aarch64-unknown-linux-gnu",
         "x86_64-apple-darwin",
+        "x86_64-pc-windows-gnu",
         "x86_64-unknown-linux-gnu",
     ],
     validate_lockfile = True,
@@ -62,11 +63,13 @@ crate.annotation(
 )
 
 # AWS-LC is built into librc_x509_ffi.a; the Agent's package metadata rule
-# references its exact upstream license text.
+# references its exact upstream license text. On Windows, use AWS-LC's prebuilt
+# assembly objects instead of requiring NASM; other platforms ignore this.
 crate.annotation(
     additive_build_file_content = """
 exports_files(["LICENSE"], visibility = ["//visibility:public"])
 """,
+    build_script_env = {"AWS_LC_SYS_PREBUILT_NASM": "1"},
     crate = "aws-lc-sys",
     repositories = ["libdd_rc_crates"],
 )
