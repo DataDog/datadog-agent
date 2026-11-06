@@ -1,0 +1,9 @@
+description: Printf applies precision to truncate a string.
+input:
+  script: |+
+    printf "%.3s\n" hello
+expect:
+  stdout: |+
+    hel
+  stderr: ""
+  exit_code: 0

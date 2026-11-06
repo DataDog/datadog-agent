@@ -1,0 +1,16 @@
+description: The $? variable after || reflects the last executed command.
+input:
+  script: |+
+    true || false
+    echo $?
+    false || true
+    echo $?
+    false || false
+    echo $?
+expect:
+  stdout: |+
+    0
+    0
+    1
+  stderr: ""
+  exit_code: 0

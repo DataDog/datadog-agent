@@ -13,6 +13,7 @@ go_library(
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
         "//comp/core/log/fx",
+        "//comp/core/schema/fx-noop",
         "//comp/core/secrets/fx-noop",
         "//comp/core/tagger/fx-noop",
         "//comp/trace/config/def",

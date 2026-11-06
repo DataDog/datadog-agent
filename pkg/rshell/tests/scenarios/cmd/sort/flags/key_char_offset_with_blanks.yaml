@@ -1,0 +1,13 @@
+description: "sort -k character offsets count from field start including leading blanks (GNU behavior)."
+setup:
+  files:
+    - path: blanks.txt
+      content: " x\nA\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 1.2,1.3 blanks.txt
+expect:
+  stdout: "A\n x\n"
+  stderr: ""
+  exit_code: 0

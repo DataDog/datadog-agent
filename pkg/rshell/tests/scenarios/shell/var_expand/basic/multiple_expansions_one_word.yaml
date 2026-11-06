@@ -1,0 +1,12 @@
+description: Multiple variable expansions concatenated within a single word.
+input:
+  script: |+
+    X=foo
+    Y=bar
+    Z=baz
+    echo "${X}${Y}${Z}"
+expect:
+  stdout: |+
+    foobarbaz
+  stderr: ""
+  exit_code: 0

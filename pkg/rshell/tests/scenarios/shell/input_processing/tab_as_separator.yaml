@@ -1,0 +1,7 @@
+description: Tab characters serve as argument separators.
+input:
+  script: "echo\thello\tworld\n"
+expect:
+  stdout: "hello world\n"
+  stderr: ""
+  exit_code: 0

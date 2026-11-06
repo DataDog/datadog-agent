@@ -1,0 +1,11 @@
+# skip: rshell intentionally bounds aggregate main-input records.
+skip_assert_against_bash: true
+description: awk bounds main-input record processing even when no statements execute.
+input:
+  script: |+
+    awk 'BEGIN { printf "%1048576s", ""; printf " " }' | awk -v RS=' ' '0'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: input record limit exceeded (maximum 1048576)
+  exit_code: 1

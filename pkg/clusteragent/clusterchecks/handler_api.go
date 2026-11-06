@@ -111,7 +111,10 @@ func (h *Handler) RebalanceClusterChecks(force bool) ([]types.RebalanceResponse,
 		return nil, errors.New("no checks to rebalance: advanced dispatching is not enabled")
 	}
 
-	response := h.dispatcher.rebalance(force)
+	response, err := h.dispatcher.rebalance(force)
+	if err != nil {
+		return nil, err
+	}
 	if response == nil {
 		response = []types.RebalanceResponse{}
 	}

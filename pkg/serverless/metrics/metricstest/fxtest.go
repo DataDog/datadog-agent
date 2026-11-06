@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -64,6 +65,7 @@ func bundleOptions(t *testing.T, taggerComp tagger.Component, forwarderOpts fx.O
 	return fx.Options(
 		fx.Supply(configcomp.NewParams("")),
 		configcomp.Module(),
+		schemanoopfx.Module(),
 		fx.Provide(func() logdef.Component { return logmock.New(t) }),
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
 		fx.Provide(func() delegatedauth.Component { return delegatedauthmock.New(t) }),

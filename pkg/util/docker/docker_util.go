@@ -39,7 +39,6 @@ type DockerUtil struct {
 	initRetry retry.Retrier
 
 	sync.Mutex
-	cfg          *Config
 	cli          *client.Client
 	queryTimeout time.Duration
 	// tracks the last time we invalidate our internal caches
@@ -63,13 +62,6 @@ func (d *DockerUtil) init() error {
 		return err
 	}
 
-	cfg := &Config{
-		// TODO: bind them to config entries if relevant
-		CollectNetwork: true,
-		CacheDuration:  10 * time.Second,
-	}
-
-	d.cfg = cfg
 	d.cli = cli
 	d.imageNameBySha = make(map[string]string)
 	d.lastInvalidate = time.Now()
