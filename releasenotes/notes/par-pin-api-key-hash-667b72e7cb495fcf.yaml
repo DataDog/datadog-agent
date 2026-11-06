@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Private Action Runner now records the ``api_key`` hash on a stored identity that was
+    saved without one, on the first start after upgrading. A later change of the ``api_key``
+    then makes the runner re-enroll, as it does for identities saved with a hash.

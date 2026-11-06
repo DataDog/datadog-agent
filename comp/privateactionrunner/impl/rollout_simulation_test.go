@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
@@ -199,6 +200,23 @@ func (c *rolloutCluster) enrolled(apiKey string) int {
 	return c.enrollments[apiKey]
 }
 
+func (c *rolloutCluster) seedLegacySecret(urn string) {
+	c.t.Helper()
+	privateKey, _, err := util.GenerateKeys()
+	require.NoError(c.t, err)
+	encodedKey, err := privateKey.MarshalJSON()
+	require.NoError(c.t, err)
+	_, err = c.client.CoreV1().Secrets(rolloutNamespace).Create(c.ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{Namespace: rolloutNamespace, Name: rolloutSecretName},
+		Data: map[string][]byte{
+			"private_key":     []byte(base64.RawURLEncoding.EncodeToString(encodedKey)),
+			"urn":             []byte(urn),
+			"orch_cluster_id": []byte("test-cluster-id"),
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(c.t, err)
+}
+
 func (c *rolloutCluster) secretAPIKeyHash() string {
 	secret, err := c.client.CoreV1().Secrets(rolloutNamespace).Get(c.ctx, rolloutSecretName, metav1.GetOptions{})
 	require.NoError(c.t, err)
@@ -255,6 +273,19 @@ func TestClusterAgentRolloutWithAPIKeyChange(t *testing.T) {
 				assert.Equal(t, enrollment.HashAPIKey(rolloutKeyB), c.secretAPIKeyHash())
 				assert.Equal(t, firstRes.cfg.Urn, secondRes.cfg.Urn)
 				assert.EqualValues(t, rolloutOrgs[rolloutKeyB], rolloutOrgID(t, firstRes.cfg.Urn))
+			},
+		},
+		{
+			name: "legacy secret without a hash, follower records the hash",
+			run: func(t *testing.T, c *rolloutCluster) {
+				legacyURN := util.MakeRunnerURN("us1", 1, "legacy-runner")
+				c.seedLegacySecret(legacyURN)
+
+				res := c.newReplica(rolloutKeyA, true, false, nil).resolve()
+
+				assert.Equal(t, legacyURN, res.cfg.Urn)
+				assert.Zero(t, c.enrolled(rolloutKeyA))
+				assert.Equal(t, enrollment.HashAPIKey(rolloutKeyA), c.secretAPIKeyHash())
 			},
 		},
 		{

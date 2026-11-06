@@ -236,10 +236,16 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
+	apiKey := p.coreConfig.GetString("api_key")
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, apiKey) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
+		if persistedIdentity.APIKeyHash == "" {
+			if err := p.identityStorage.PinAPIKeyHash(ctx, enrollment.HashAPIKey(apiKey)); err != nil {
+				p.logger.Warnf("Could not record the api_key hash on the stored identity, api_key changes will not be detected: %v", err)
+			}
+		}
 		p.coreConfig.Set(par.PrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
 		p.coreConfig.Set(par.URN, persistedIdentity.URN, model.SourceAgentRuntime)
 	}

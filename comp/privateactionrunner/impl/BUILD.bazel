@@ -71,6 +71,7 @@ dd_agent_go_test(
         "//pkg/config/create",
         "//pkg/config/model",
         "//pkg/fleet/installer/telemetry",
+        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/constants",
         "//pkg/privateactionrunner/enrollment",
@@ -87,6 +88,7 @@ dd_agent_go_test(
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//kubernetes/fake",
     ] + select({

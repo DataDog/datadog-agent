@@ -365,6 +365,80 @@ func TestIdentitySecretStoreLoad(t *testing.T) {
 	}
 }
 
+func TestIdentitySecretStorePinAPIKeyHash(t *testing.T) {
+	const ns, name = "default", "par-identity"
+	secretsGVR := schema.GroupVersionResource{Version: "v1", Resource: "secrets"}
+	pinHash := HashAPIKey("key-a")
+
+	tests := []struct {
+		name            string
+		secretHash      string
+		leader          bool
+		concurrentWrite func(s *corev1.Secret)
+		wantHash        string
+		wantUpdates     int
+	}{
+		{name: "leader, no hash", secretHash: "", leader: true, wantHash: pinHash, wantUpdates: 1},
+		{name: "follower, no hash", secretHash: "", wantHash: pinHash, wantUpdates: 1},
+		{name: "hash already set", secretHash: HashAPIKey("key-b"), wantHash: HashAPIKey("key-b")},
+		{
+			name:            "hash written between get and update",
+			concurrentWrite: func(s *corev1.Secret) { s.Data[apiKeyHashField] = []byte("concurrent-hash") },
+			wantHash:        "concurrent-hash", wantUpdates: 1,
+		},
+		{
+			name:            "unrelated write between get and update",
+			concurrentWrite: func(s *corev1.Secret) { s.Labels = map[string]string{"touched": "true"} },
+			wantHash:        pinHash, wantUpdates: 2,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			secret := makeTestSecret(ns, name)
+			if tt.secretHash != "" {
+				secret.Data[apiKeyHashField] = []byte(tt.secretHash)
+			}
+			client := fake.NewSimpleClientset(secret)
+			if tt.concurrentWrite != nil {
+				conflicted := false
+				client.PrependReactor("update", "secrets", func(k8stesting.Action) (bool, runtime.Object, error) {
+					if conflicted {
+						return false, nil, nil
+					}
+					conflicted = true
+					live, err := client.Tracker().Get(secretsGVR, ns, name)
+					require.NoError(t, err)
+					updated := live.(*corev1.Secret).DeepCopy()
+					tt.concurrentWrite(updated)
+					require.NoError(t, client.Tracker().Update(secretsGVR, updated, ns))
+					return true, nil, k8serrors.NewConflict(secretsGVR.GroupResource(), name, errors.New("resourceVersion does not match"))
+				})
+			}
+			storage := &k8sIdentityStorage{
+				kubeClient: func() (kubernetes.Interface, error) { return client, nil },
+				namespace:  ns,
+				secretName: name,
+				leader:     newFakeLeader(tt.leader),
+			}
+
+			require.NoError(t, storage.PinAPIKeyHash(context.Background(), pinHash))
+
+			got, err := client.CoreV1().Secrets(ns).Get(context.Background(), name, metav1.GetOptions{})
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantHash, string(got.Data[apiKeyHashField]))
+			assert.Equal(t, "urn:test", string(got.Data[urnField]))
+			assert.Equal(t, "test-key", string(got.Data[privateKeyField]))
+			updates := 0
+			for _, a := range client.Actions() {
+				if a.Matches("update", "secrets") {
+					updates++
+				}
+			}
+			assert.Equal(t, tt.wantUpdates, updates)
+		})
+	}
+}
+
 func TestIsNonTransientK8sError(t *testing.T) {
 	gr := schema.GroupResource{Resource: "secrets"}
 

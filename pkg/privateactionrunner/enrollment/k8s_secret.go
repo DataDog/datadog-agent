@@ -25,6 +25,7 @@ import (
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 )
 
 const (
@@ -290,6 +291,37 @@ func (s *k8sIdentityStorage) Persist(ctx context.Context, result *Result) error 
 		return err
 	}
 	return writeIdentitySecret(ctx, client, s.namespace, s.secretName, result)
+}
+
+// PinAPIKeyHash records apiKeyHash in the secret while it has none. Any replica may call it:
+// the update is conditional on the secret's version, so a concurrent write is never overwritten.
+func (s *k8sIdentityStorage) PinAPIKeyHash(ctx context.Context, apiKeyHash string) error {
+	client, err := s.kubeClient()
+	if err != nil {
+		return err
+	}
+	opCtx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		secret, err := client.CoreV1().Secrets(s.namespace).Get(opCtx, s.secretName, metav1.GetOptions{})
+		if err != nil {
+			return err
+		}
+		if len(secret.Data[apiKeyHashField]) != 0 {
+			return nil
+		}
+		if secret.Data == nil {
+			secret.Data = map[string][]byte{}
+		}
+		secret.Data[apiKeyHashField] = []byte(apiKeyHash)
+		_, err = client.CoreV1().Secrets(s.namespace).Update(opCtx, secret, metav1.UpdateOptions{})
+		return err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to record api_key hash in secret %s/%s: %w", s.namespace, s.secretName, err)
+	}
+	return nil
 }
 
 // persistIdentityToK8sSecretNoLeader persists identity to K8s secret without requiring leadership.

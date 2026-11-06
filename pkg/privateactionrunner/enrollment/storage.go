@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 
@@ -26,6 +27,8 @@ type IdentityStorage interface {
 	// Load returns the stored identity, or nil if there is none.
 	Load(ctx context.Context) (*PersistedIdentity, error)
 	Persist(ctx context.Context, result *Result) error
+	// PinAPIKeyHash records apiKeyHash on the stored identity unless it already has one.
+	PinAPIKeyHash(ctx context.Context, apiKeyHash string) error
 }
 
 // LeaderSource reports whether this replica is the leader and notifies leadership changes.
@@ -53,6 +56,34 @@ func (s *fileIdentityStorage) Load(_ context.Context) (*PersistedIdentity, error
 
 func (s *fileIdentityStorage) Persist(_ context.Context, result *Result) error {
 	return persistIdentityToFile(s.cfg, result)
+}
+
+func (s *fileIdentityStorage) PinAPIKeyHash(_ context.Context, apiKeyHash string) error {
+	identity, err := getIdentityFromFile(s.cfg)
+	if err != nil {
+		return fmt.Errorf("failed to record api_key hash: %w", withoutPath(err))
+	}
+	if identity == nil || identity.APIKeyHash != "" {
+		return nil
+	}
+	identity.APIKeyHash = apiKeyHash
+	jsonData, err := json.Marshal(identity)
+	if err != nil {
+		return fmt.Errorf("failed to record api_key hash: %w", err)
+	}
+	if err := os.WriteFile(GetIdentityFilePath(s.cfg), jsonData, 0600); err != nil {
+		return fmt.Errorf("failed to record api_key hash: %w", withoutPath(err))
+	}
+	return nil
+}
+
+// withoutPath drops the file path that OS errors carry, as PAR logs are shipped to Datadog.
+func withoutPath(err error) error {
+	var pathErr *fs.PathError
+	if errors.As(err, &pathErr) {
+		return pathErr.Err
+	}
+	return err
 }
 
 // RotateIdentity persists a new identity for explicit rotation.

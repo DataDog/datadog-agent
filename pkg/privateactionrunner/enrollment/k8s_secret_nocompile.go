@@ -30,6 +30,10 @@ func (*k8sIdentityStorage) Persist(_ context.Context, _ *Result) error {
 	return errK8sSecretUnavailable
 }
 
+func (*k8sIdentityStorage) PinAPIKeyHash(_ context.Context, _ string) error {
+	return errK8sSecretUnavailable
+}
+
 func persistIdentityToK8sSecretNoLeader(_ context.Context, _ configModel.Reader, _ *Result) error {
 	return errK8sSecretUnavailable
 }
