@@ -7,6 +7,7 @@ package payload
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
 	devicemetadata "github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -47,7 +48,7 @@ func GetInterfaceMetadataFromAnalytics(namespace string, deviceNameToIPMap map[s
 }
 
 func buildInterfaceMetadata(namespace string, deviceNameToIPMap map[string]string, iface client.Interface) (devicemetadata.InterfaceMetadata, error) {
-	deviceIP, ok := deviceNameToIPMap[iface.DeviceName]
+	deviceIP, ok := deviceNameToIPMap[strings.ToLower(iface.DeviceName)]
 	if !ok {
 		return devicemetadata.InterfaceMetadata{}, fmt.Errorf("couldn't find matching device %q for interface %q", iface.DeviceName, iface.Name)
 	}
@@ -67,7 +68,7 @@ func buildInterfaceMetadata(namespace string, deviceNameToIPMap map[string]strin
 }
 
 func buildInterfaceMetadataFromAnalytics(namespace string, deviceNameToIPMap map[string]string, analyticsIface client.AnalyticsInterfaceMetrics) (devicemetadata.InterfaceMetadata, error) {
-	deviceIP, ok := deviceNameToIPMap[analyticsIface.Site]
+	deviceIP, ok := deviceNameToIPMap[strings.ToLower(analyticsIface.Site)]
 	if !ok {
 		return devicemetadata.InterfaceMetadata{}, fmt.Errorf("couldn't find matching device %q for interface %q", analyticsIface.Site, analyticsIface.Interface)
 	}

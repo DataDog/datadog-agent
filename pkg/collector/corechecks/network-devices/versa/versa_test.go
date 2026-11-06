@@ -192,6 +192,18 @@ func TestGenerateDeviceNameToIDMap(t *testing.T) {
 				"branch2": "2",
 			},
 		},
+		{
+			description: "Device names are lowercased so Analytics lookups match regardless of case",
+			devices: []metadata.DeviceMetadata{
+				{
+					IPAddress: "1",
+					Name:      "Branch-1",
+				},
+			},
+			expectedMap: map[string]string{
+				"branch-1": "1",
+			},
+		},
 	}
 	for _, test := range tts {
 		t.Run(test.description, func(t *testing.T) {

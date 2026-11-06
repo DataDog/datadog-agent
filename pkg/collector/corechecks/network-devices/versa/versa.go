@@ -332,7 +332,7 @@ func (v *VersaCheck) Run() error {
 				}
 
 				// Get device IP from the deviceNameToIDMap
-				if deviceIP, ok := deviceNameToIDMap[id.ApplianceName]; ok {
+				if deviceIP, ok := deviceNameToIDMap[strings.ToLower(id.ApplianceName)]; ok {
 					interfaceMetricsByDevice[deviceIP] = interfaceMetrics
 				} else {
 					log.Errorf("device IP not found for device %s, skipping interface metrics", id.ApplianceName)
@@ -811,11 +811,16 @@ func filterAnalyticsMetricsByDevice[T any](metrics []T, monitoredDevices map[str
 
 // TODO: should we convert the tags map to use ID instead of IP?
 // generateDeviceNameToIPMap generates a map of device IP to device name to enrich the results from Analytics responses
+//
+// Keys are lowercased, so every lookup must lowercase its device name too. Versa reports
+// appliance names and Analytics site names with inconsistent casing for the same device, and
+// device filtering already matches case-insensitively; keying this map case-sensitively meant a
+// result could pass the filter and then fail the tag lookup, emitting a metric with no device_id.
 func generateDeviceNameToIPMap(deviceMetadata []devicemetadata.DeviceMetadata) map[string]string {
 	deviceNameToIPMap := make(map[string]string)
 	for _, device := range deviceMetadata {
 		if device.Name != "" {
-			deviceNameToIPMap[device.Name] = device.IPAddress
+			deviceNameToIPMap[strings.ToLower(device.Name)] = device.IPAddress
 		}
 	}
 	return deviceNameToIPMap
