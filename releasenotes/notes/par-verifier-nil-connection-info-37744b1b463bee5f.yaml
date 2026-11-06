@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    The Private Action Runner now rejects signed tasks that lack connection
+    info instead of crashing the runner or the Cluster Agent that embeds it.

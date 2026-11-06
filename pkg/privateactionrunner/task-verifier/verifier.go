@@ -87,7 +87,12 @@ func (t *signedEnvelopeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, 
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_ORG_ID, errors.New("task orgId doesn't match the orgId of the runner"))
 	}
 
-	if pbTask.GetConnectionInfo().RunnerId != t.config.RunnerId {
+	connectionInfo := pbTask.GetConnectionInfo()
+	if connectionInfo == nil {
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_RUNNER_ID, errors.New("connection info is missing"))
+	}
+
+	if connectionInfo.GetRunnerId() != t.config.RunnerId {
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_MISMATCHED_RUNNER_ID, errors.New("connection runnerId doesn't match the id of the runner"))
 	}
 
