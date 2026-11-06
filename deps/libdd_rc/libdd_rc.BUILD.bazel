@@ -24,7 +24,7 @@ package_metadata(
     purl = purl_for_generic(
         download_url = "https://github.com/DataDog/libdd-rc/archive/{version}.tar.gz",
         package = "libdd-rc",
-        version = "248199fbc416ce435912d7aa9c95f68cacdbd723",
+        version = "b4c4b988bf0ab3b91799e9659d024981c975e0fa",
     ),
 )
 

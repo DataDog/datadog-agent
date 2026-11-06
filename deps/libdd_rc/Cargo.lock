@@ -1111,7 +1111,7 @@ dependencies = [
 [[package]]
 name = "rc-crypto"
 version = "0.1.7"
-source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
+source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -1130,7 +1130,7 @@ dependencies = [
 [[package]]
 name = "rc-x509-client"
 version = "0.2.2"
-source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
+source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
 dependencies = [
  "futures",
  "pin-project",
@@ -1147,8 +1147,8 @@ dependencies = [
 
 [[package]]
 name = "rc-x509-proto"
-version = "0.3.1"
-source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
+version = "0.4.0"
+source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
 dependencies = [
  "bytes",
  "glob",
@@ -1165,7 +1165,7 @@ dependencies = [
 [[package]]
 name = "rc-x509-roots"
 version = "1.0.0"
-source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
+source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
 dependencies = [
  "rc-crypto",
 ]
@@ -1173,7 +1173,7 @@ dependencies = [
 [[package]]
 name = "rc-x509-trust"
 version = "0.2.1"
-source = "git+https://github.com/DataDog/libdd-rc?rev=248199fbc416ce435912d7aa9c95f68cacdbd723#248199fbc416ce435912d7aa9c95f68cacdbd723"
+source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
 dependencies = [
  "bytes",
  "mini-moka",

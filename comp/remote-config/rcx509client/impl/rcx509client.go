@@ -176,10 +176,25 @@ func (c *component) start(_ context.Context) error {
 	return nil
 }
 
-func (c *component) stop(_ context.Context) error {
+func (c *component) stop(ctx context.Context) error {
 	c.setState(rcx509client.StateStopping)
-	err := c.client.Close()
-	c.wg.Wait()
+
+	// Close has no deadline, so stop waiting when ctx is done; the client
+	// keeps shutting down in the background.
+	done := make(chan error, 1)
+	go func() {
+		err := c.client.Close()
+		c.wg.Wait()
+		done <- err
+	}()
+
+	var err error
+	select {
+	case err = <-done:
+	case <-ctx.Done():
+		c.logger.Warnf("remote config x509 client did not stop in time, finishing in the background: %v", ctx.Err())
+		return ctx.Err()
+	}
 	if err != nil {
 		c.setState(rcx509client.StateFailed)
 		c.logger.Errorf("unable to stop remote config x509 client: %v", err)

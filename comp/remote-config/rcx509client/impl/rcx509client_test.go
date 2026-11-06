@@ -29,6 +29,9 @@ type fakeClient struct {
 	startOnce sync.Once
 	stopOnce  sync.Once
 	closeErr  error
+
+	// closeBlock, if set, makes Close wait until it is closed.
+	closeBlock chan struct{}
 }
 
 func newFakeClient() *fakeClient {
@@ -45,6 +48,9 @@ func (c *fakeClient) Start() error {
 }
 
 func (c *fakeClient) Close() error {
+	if c.closeBlock != nil {
+		<-c.closeBlock
+	}
 	c.stopOnce.Do(func() { close(c.stop) })
 	return c.closeErr
 }
@@ -223,4 +229,24 @@ func TestCloseFailureIsReported(t *testing.T) {
 	default:
 		t.Fatal("client Start was not called")
 	}
+}
+
+func TestStopReturnsWhenContextDone(t *testing.T) {
+	client := newFakeClient()
+	client.closeBlock = make(chan struct{})
+	deps, lifecycle := newDependencies(t, map[string]interface{}{enabledSetting: true}, func(rcx509client.ClientConfig) (rcx509client.Client, error) {
+		return client, nil
+	})
+	provided := New(deps)
+	require.NoError(t, lifecycle.Start(context.Background()))
+
+	// Close blocks until closeBlock is closed, so Stop can only return through ctx.
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, lifecycle.Stop(ctx), context.Canceled)
+	require.Equal(t, rcx509client.StateStopping, provided.Comp.State())
+
+	// Let the background shutdown finish before the test ends.
+	close(client.closeBlock)
+	provided.Comp.(*component).wg.Wait()
 }
