@@ -21,16 +21,68 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 func newTestForwarder(t *testing.T, cfg config.Component) *forwarder {
+	t.Helper()
+	return newTestForwarderWithTelemetry(t, cfg, telemetrymock.New(t))
+}
+
+func newTestForwarderWithTelemetry(t *testing.T, cfg config.Component, tel telemetry.Component) *forwarder {
 	t.Helper()
 	return &forwarder{
 		cfg:        cfg,
 		intakeURL:  buildIntakeURL(cfg),
 		httpClient: buildHTTPClient(cfg),
 		log:        logmock.New(t),
+		httpErrors: newHTTPErrorsCounter(tel),
+	}
+}
+
+func TestSendCountsHTTPErrors(t *testing.T) {
+	statuses := []int{http.StatusBadRequest, http.StatusForbidden, http.StatusInternalServerError, http.StatusMovedPermanently}
+	next := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(statuses[next])
+		next++
+	}))
+	defer server.Close()
+
+	cfg := config.NewMock(t)
+	cfg.SetInTest("api_key", "test-api-key")
+	tel := telemetrymock.New(t)
+	fwd := newTestForwarderWithTelemetry(t, cfg, tel)
+	fwd.intakeURL = server.URL
+	// Don't follow the 301, so the forwarder sees it as a non-2xx response.
+	fwd.httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+
+	for range statuses {
+		_, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+		require.Error(t, err)
+	}
+
+	metrics, err := tel.GetCountMetric("forwarder", "http_errors")
+	require.NoError(t, err)
+	got := map[string]float64{}
+	for _, m := range metrics {
+		assert.Equal(t, "health_platform", m.Tags()["forwarder"])
+		got[m.Tags()["code"]] = m.Value()
+	}
+	// 3xx is a non-2xx response but not an HTTP error: it must not be counted.
+	assert.Equal(t, map[string]float64{"4xx": 2, "5xx": 1}, got)
+}
+
+func TestStatusClass(t *testing.T) {
+	for status, want := range map[int]string{
+		200: "", 204: "", 301: "", 399: "",
+		400: "4xx", 403: "4xx", 404: "4xx", 429: "4xx", 499: "4xx",
+		500: "5xx", 503: "5xx", 599: "5xx",
+		0: "", 600: "",
+	} {
+		assert.Equal(t, want, statusClass(status), "status %d", status)
 	}
 }
 
