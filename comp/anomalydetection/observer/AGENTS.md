@@ -67,6 +67,10 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
+Keep detector configuration separate from runtime state. Normalize defaults and
+copy mutable inputs at construction; reset only runtime state. Keep programmatic
+parameters independent of user-facing catalog settings.
+
 `anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
 patterns across all tag groups (default 3,000). This includes patterns below
 the metric emission threshold. Non-positive values use the default. Capacity

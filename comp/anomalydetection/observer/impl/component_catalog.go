@@ -93,7 +93,8 @@ type ComponentSettings struct {
 // ApplyTestbenchDefaults applies replay-specific defaults used by the offline
 // testbench. Production builds ComponentSettings from the agent config and
 // never calls this function. Explicit testbench --config component entries
-// take precedence over this profile.
+// take precedence over this profile. JSON configs should be loaded with
+// ParseTestbenchSettingsFromJSON so omitted fields inherit this profile.
 func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	if settings.Enabled == nil {
 		settings.Enabled = make(map[string]bool)
@@ -229,61 +230,51 @@ func defaultCatalog() *componentCatalog {
 				displayName: "ScanMW",
 				kind:        componentDetector,
 				factory: func(cfg any) any {
-					c := cfg.(*ScanMWDetector)
-					d := NewScanMWDetector()
-					d.MinPoints = c.MinPoints
-					d.MaxPoints = c.MaxPoints
-					return d
+					return NewScanMWDetector(cfg.(ScanMWConfig))
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := *defaults.(*ScanMWDetector)
+					cfg := defaults.(ScanMWConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("scanmw: failed to parse JSON config: %w", err)
 					}
-					return &cfg, nil
+					return cfg, nil
 				},
 				defaultEnabled: false,
-				defaultConfig:  NewScanMWDetector(),
+				defaultConfig:  DefaultScanMWConfig(),
 				readConfig: func(reader ConfigReader, prefix string) any {
-					d := NewScanMWDetector()
+					cfg := DefaultScanMWConfig()
 					if k := prefix + "min_points"; reader.IsConfigured(k) {
-						d.MinPoints = reader.GetInt(k)
+						cfg.MinPoints = reader.GetInt(k)
 					}
 					if k := prefix + "max_points"; reader.IsConfigured(k) {
-						d.MaxPoints = reader.GetInt(k)
+						cfg.MaxPoints = reader.GetInt(k)
 					}
-					return d
+					return cfg
 				},
 			},
 			{
-				name:        "scanwelch",
-				displayName: "ScanWelch",
-				kind:        componentDetector,
-				factory: func(cfg any) any {
-					c := cfg.(*ScanWelchDetector)
-					d := NewScanWelchDetector()
-					d.MinPoints = c.MinPoints
-					d.MaxPoints = c.MaxPoints
-					return d
-				},
+				name:           "scanwelch",
+				displayName:    "ScanWelch",
+				kind:           componentDetector,
+				factory:        func(cfg any) any { return NewScanWelchDetector(cfg.(ScanWelchConfig)) },
 				defaultEnabled: false,
-				defaultConfig:  NewScanWelchDetector(),
+				defaultConfig:  DefaultScanWelchConfig(),
 				readConfig: func(reader ConfigReader, prefix string) any {
-					d := NewScanWelchDetector()
+					cfg := DefaultScanWelchConfig()
 					if k := prefix + "min_points"; reader.IsConfigured(k) {
-						d.MinPoints = reader.GetInt(k)
+						cfg.MinPoints = reader.GetInt(k)
 					}
 					if k := prefix + "max_points"; reader.IsConfigured(k) {
-						d.MaxPoints = reader.GetInt(k)
+						cfg.MaxPoints = reader.GetInt(k)
 					}
-					return d
+					return cfg
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := *defaults.(*ScanWelchDetector)
+					cfg := defaults.(ScanWelchConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("scanwelch: failed to parse JSON config: %w", err)
 					}
-					return &cfg, nil
+					return cfg, nil
 				},
 			},
 			{
@@ -291,7 +282,7 @@ func defaultCatalog() *componentCatalog {
 				displayName:    "HoltResidual",
 				kind:           componentDetector,
 				defaultConfig:  DefaultHoltResidualConfig(),
-				factory:        func(cfg any) any { return NewHoltResidualDetectorWithConfig(cfg.(HoltResidualConfig)) },
+				factory:        func(cfg any) any { return NewHoltResidualDetector(cfg.(HoltResidualConfig)) },
 				defaultEnabled: false,
 				readConfig: func(reader ConfigReader, prefix string) any {
 					cfg := DefaultHoltResidualConfig()
@@ -316,7 +307,7 @@ func defaultCatalog() *componentCatalog {
 				displayName:    "TukeyBiweight",
 				kind:           componentDetector,
 				defaultConfig:  DefaultTukeyBiweightConfig(),
-				factory:        func(cfg any) any { return NewTukeyBiweightDetectorWithConfig(cfg.(TukeyBiweightConfig)) },
+				factory:        func(cfg any) any { return NewTukeyBiweightDetector(cfg.(TukeyBiweightConfig)) },
 				defaultEnabled: false,
 				readConfig: func(reader ConfigReader, prefix string) any {
 					cfg := DefaultTukeyBiweightConfig()
@@ -469,11 +460,21 @@ func StorageConfigForComponents(settings ComponentSettings) StorageConfig {
 // value may contain an optional "enabled" bool plus component-specific
 // hyperparameters. Unknown component names are rejected.
 func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
-	cat := defaultCatalog()
-	settings := ComponentSettings{
+	return parseSettingsFromJSON(overrides, ComponentSettings{
 		Enabled: make(map[string]bool),
 		configs: make(map[string]any),
-	}
+	})
+}
+
+// ParseTestbenchSettingsFromJSON overlays explicit JSON fields on the replay
+// profile. Enabled-only and partial entries inherit the same defaults as CLI
+// toggles. ParseSettingsFromJSON continues to use the core catalog defaults.
+func ParseTestbenchSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSettings, error) {
+	return parseSettingsFromJSON(overrides, ApplyTestbenchDefaults(ComponentSettings{}))
+}
+
+func parseSettingsFromJSON(overrides map[string]json.RawMessage, settings ComponentSettings) (ComponentSettings, error) {
+	cat := defaultCatalog()
 	for name, raw := range overrides {
 		var wrapper struct {
 			Enabled *bool `json:"enabled"`
@@ -502,7 +503,11 @@ func ParseSettingsFromJSON(overrides map[string]json.RawMessage) (ComponentSetti
 			settings.Enabled[name] = *wrapper.Enabled
 		}
 		if entry.parseJSON != nil {
-			cfg, err := entry.parseJSON(entry.defaultConfig, raw)
+			defaults := entry.defaultConfig
+			if configured, ok := settings.configs[name]; ok {
+				defaults = configured
+			}
+			cfg, err := entry.parseJSON(defaults, raw)
 			if err != nil {
 				return ComponentSettings{}, fmt.Errorf("parsing config for %q: %w", name, err)
 			}

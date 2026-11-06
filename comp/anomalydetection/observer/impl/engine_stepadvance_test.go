@@ -75,7 +75,7 @@ func makeEngine(anomalies []observer.Anomaly) (*engine, *TimeClusterCorrelator) 
 	correlator := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 	detector := &fixedDetector{anomalies: anomalies}
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:                 storage,
 		detectors:               []observer.Detector{detector},
 		correlators:             []observer.Correlator{correlator},
@@ -176,7 +176,7 @@ func TestStepAdvance_SuccessiveAdvanceCallsPreserveClusters(t *testing.T) {
 	}
 	correlator := NewTimeClusterCorrelator(DefaultTimeClusterConfig())
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:                 storage,
 		detectors:               []observer.Detector{detector},
 		correlators:             []observer.Correlator{correlator},
@@ -226,7 +226,7 @@ func TestEngine_EvictsInactiveSeriesBeforeDetectionAtConfiguredCadence(t *testin
 	old := storage.Add("ns", "old", 1, 100, nil).Ref
 	active := storage.Add("ns", "active", 1, 101, nil).Ref
 	detector := &inactiveEvictionDetector{}
-	e := newEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
+	e := mustNewEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
 
 	var evictionReasons []string
 	e.onStorageSeriesEvicted = func(reason string, _ int) {
@@ -264,7 +264,7 @@ func TestEngine_EvictsAtAdmissionAndSynchronizesDependentState(t *testing.T) {
 		EvictionFloorRatio: 0.5,
 	})
 	detector := &inactiveEvictionDetector{}
-	e := newEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
+	e := mustNewEngine(engineConfig{storage: storage, detectors: []observer.Detector{detector}})
 
 	var capacityHits int
 	var capacityEvicted int
@@ -303,7 +303,7 @@ func TestEngine_InactiveSeriesEvictionDisabled(t *testing.T) {
 	storageCfg.InactiveSeriesTTLSeconds = 0
 	storage := newTimeSeriesStorageWith(storageCfg)
 	ref := storage.Add("ns", "old", 1, 0, nil).Ref
-	e := newEngine(engineConfig{storage: storage})
+	e := mustNewEngine(engineConfig{storage: storage})
 
 	e.Advance(10_000)
 
