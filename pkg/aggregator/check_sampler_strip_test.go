@@ -8,6 +8,8 @@
 package aggregator
 
 import (
+	"slices"
+	"strings"
 	"testing"
 	"time"
 	"unsafe"
@@ -172,6 +174,54 @@ func TestCheckSamplerRestripsWhenRulesChange(t *testing.T) {
 	assert.Empty(t, cs.contextResolver.resolver.stripped.byKey)
 }
 
+func TestCheckSamplerStripsFilteredCounts(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newStripTestSampler("check:0", newStrippedIdentityTable())
+	matcher := stripPodMatcher(t, "my.count", "my.histogram")
+	flushMatcher := metricname.NewMatcher(nil, false)
+
+	for _, pod := range []string{"a", "b"} {
+		cs.addSample(podSample("my.count", metrics.CountType, pod, 2, 100.1), matcher)
+		cs.addSample(podSample("my.histogram", metrics.HistogramType, pod, 2, 100.1), matcher)
+	}
+	cs.commit(100.4, &flushMatcher)
+	out := flushSampler(cs)
+
+	require.Len(t, out.mergedSeries, 2)
+	for _, s := range out.mergedSeries {
+		assert.Equal(t, "my.count", s.Name)
+		assert.Equal(t, metrics.APICountType, s.MType)
+		assert.ElementsMatch(t, []string{"env:prod"}, tagsOf(s.Tags))
+	}
+	require.NotEmpty(t, out.series)
+	for _, s := range out.series {
+		assert.True(t, strings.HasPrefix(s.Name, "my.histogram."), "histogram statistics can't be merged, so they keep their tags")
+		assert.True(t, slices.ContainsFunc(tagsOf(s.Tags), func(tag string) bool { return strings.HasPrefix(tag, "pod:") }))
+	}
+}
+
+func TestCountAndCounterWithTheSameNameStayApart(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	table := newStrippedIdentityTable()
+	matcher := stripPodMatcher(t, "my.mixed")
+	flushMatcher := metricname.NewMatcher(nil, false)
+	merger := newTestCheckOutputMerger()
+	var series metrics.Series
+
+	for i, mtype := range []metrics.MetricType{metrics.CountType, metrics.CounterType} {
+		cs := newStripTestSampler(string(rune('a'+i)), table)
+		cs.addSample(podSample("my.mixed", mtype, string(rune('a'+i)), 1, 100), matcher)
+		cs.commit(100.4, &flushMatcher)
+		out := flushSampler(cs)
+		require.Empty(t, out.series)
+		merger.mergeSeries(out.mergedSeries)
+	}
+	merger.drain(&series, nil)
+
+	require.Len(t, series, 2, "values of different types are never added up: both are sent, and the intake keeps one")
+	assert.ElementsMatch(t, []metrics.APIMetricType{metrics.APICountType, metrics.APIRateType}, []metrics.APIMetricType{series[0].MType, series[1].MType})
+}
+
 // Context keys don't include the metric type: samples of different types with the same name and tags share a
 // context. Once a context gets samples of a type that can't be stripped, none of its output is stripped.
 func TestCheckSamplerDoesNotStripContextsSharedWithOtherTypes(t *testing.T) {
@@ -309,6 +359,30 @@ func TestCheckSamplerMergesStampedSketchesAfterARuleIsRemoved(t *testing.T) {
 	}
 	assert.Equal(t, 1, points, "one point for the second")
 	assert.Equal(t, int64(2), count)
+}
+
+func TestCheckSamplerKeepsExplicitTimestampsOutOfTheMerge(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	table := newStrippedIdentityTable()
+	matcher := stripPodMatcher(t, "my.count")
+	merger := newTestCheckOutputMerger()
+
+	// A filtered count: second 100 is sent, and second 101 is held.
+	filtered := newStripTestSampler("check:0", table)
+	filtered.addSample(podSample("my.count", metrics.CountType, "a", 1, 100), matcher)
+	flushThrough(filtered, merger, 100.5, 101)
+	filtered.addSample(podSample("my.count", metrics.CountType, "a", 1, 101), matcher)
+	flushThrough(filtered, merger, 101.5, 101)
+
+	// A count with an explicit timestamp, whose full tags are the filtered series': explicit-timestamp metrics are
+	// never filtered, and keep their timestamps.
+	explicit := newStripTestSampler("check:1", table)
+	explicit.addSample(&metrics.MetricSample{Name: "my.count", Mtype: metrics.CountWithTimestampType, Value: 5,
+		Tags: []string{"env:prod"}, SampleRate: 1, Timestamp: 90}, matcher)
+	series, _ := flushThrough(explicit, merger, 101.6, 101)
+
+	require.Len(t, series, 1)
+	assert.Equal(t, []metrics.Point{{Ts: 90, Value: 5}}, series[0].Points)
 }
 
 func TestStrippedIdentitiesMarkWhenMetricsStartBeingStripped(t *testing.T) {
