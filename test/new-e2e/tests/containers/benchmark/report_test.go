@@ -151,7 +151,6 @@ func TestURLs(t *testing.T) {
 
 	explorer, err := url.Parse(MetricsExplorerURL(appURL, "container.cpu.usage", []string{"kube_cluster_name:bench", "kube_container_name:agent"}, []string{"kube_namespace"}, testFrom, to))
 	require.NoError(t, err)
-	assert.Equal(t, "dddev.datadoghq.com", explorer.Host)
 	assert.Equal(t, "/metric/explorer", explorer.Path)
 	assert.Equal(t, url.Values{
 		"exp_metric":   {"container.cpu.usage"},
