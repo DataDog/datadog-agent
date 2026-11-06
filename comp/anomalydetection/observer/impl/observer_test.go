@@ -14,6 +14,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPublishSeriesFreshness(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	engine := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
+	engine.pendingFreshSeries.Store(2)
+	observer := &observerImpl{engine: engine, telemetry: newObserverTelemetry(telComp)}
+
+	observer.publishSeriesFreshness()
+
+	metricFamilies, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	var found bool
+	for _, family := range metricFamilies {
+		if family.GetName() == "observer__"+telemetrySeriesFresh {
+			require.Len(t, family.GetMetric(), 1)
+			require.Nil(t, family.GetMetric()[0].GetLabel())
+			require.Equal(t, 2.0, family.GetMetric()[0].GetCounter().GetValue())
+			found = true
+		}
+	}
+	require.True(t, found)
+	require.Zero(t, engine.pendingFreshSeries.Load())
+}
+
 func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	if err != nil {
