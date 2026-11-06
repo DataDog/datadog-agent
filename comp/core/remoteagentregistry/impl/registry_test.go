@@ -175,6 +175,25 @@ func TestReportRemoteAgentEventBroadcast(t *testing.T) {
 	require.Equal(t, "invalid_api_key", gotEvents[0].Details.EventType())
 }
 
+func TestHealthIssueLogEventSubscriber(t *testing.T) {
+	subscriber := newHealthIssueLogEventSubscriber()
+	require.Equal(t, "health-issue-log", subscriber.Name)
+
+	agent := remoteagent.RegisteredAgent{DisplayName: "Test Agent", Flavor: "test-agent"}
+
+	// Every severity branch plus a non-health event (which must be skipped) is exercised in one call;
+	// the subscriber only logs, so the assertion is that it processes all of them without panicking.
+	require.NotPanics(t, func() {
+		subscriber.Callback(agent, []remoteagent.RemoteAgentEvent{
+			{Message: "transient retry", Details: &remoteagent.HealthIssue{Severity: remoteagent.HealthIssueSeverityLow, Component: "receiver"}},
+			{Message: "partial loss", Details: &remoteagent.HealthIssue{Severity: remoteagent.HealthIssueSeverityMedium, Component: "processor"}},
+			{Message: "exporter down", Details: &remoteagent.HealthIssue{Severity: remoteagent.HealthIssueSeverityHigh, Component: "exporter"}},
+			{Message: "no severity", Details: &remoteagent.HealthIssue{Component: "unknown"}},
+			{Message: "unrelated event", Details: &remoteagent.InvalidAPIKey{}},
+		})
+	})
+}
+
 func TestGetRegisteredAgentsIdleTimeout(t *testing.T) {
 	provides, lc, config, _, ipcComp := buildComponent(t)
 	component := provides.Comp.(*remoteAgentRegistry)
