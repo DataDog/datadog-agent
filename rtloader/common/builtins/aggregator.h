@@ -80,6 +80,7 @@ extern "C" {
 // PyMODINIT_FUNC macro already specifies extern "C", nesting these is legal
 PyMODINIT_FUNC PyInit_aggregator(void);
 
+void _set_metric_submission_gil_release(bool enabled);
 void _set_submit_metric_cb(cb_submit_metric_t cb);
 void _set_submit_service_check_cb(cb_submit_service_check_t cb);
 void _set_submit_event_cb(cb_submit_event_t cb);

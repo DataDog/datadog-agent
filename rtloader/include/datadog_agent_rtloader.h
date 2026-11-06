@@ -370,6 +370,9 @@ DATADOG_AGENT_RTLOADER_API int handle_crashes(const int, const int, char **error
 DATADOG_AGENT_RTLOADER_API char *get_integration_list(rtloader_t *);
 
 // AGGREGATOR API
+// Configure before checks start. Applies to metrics and both histogram bucket callbacks.
+DATADOG_AGENT_RTLOADER_API void set_metric_submission_gil_release(rtloader_t *, bool enabled);
+
 /*! \fn void set_submit_metric_cb(rtloader_t *, cb_submit_metric_t)
     \brief Sets the submit metric callback to be used by rtloader for metric submission.
     \param rtloader_t A rtloader_t * pointer to the RtLoader instance.

@@ -473,6 +473,11 @@ void set_module_attr_string(rtloader_t *rtloader, char *module, char *attr, char
  * aggregator API
  */
 
+void set_metric_submission_gil_release(rtloader_t *rtloader, bool enabled)
+{
+    AS_TYPE(RtLoader, rtloader)->setMetricSubmissionGILRelease(enabled);
+}
+
 void set_submit_metric_cb(rtloader_t *rtloader, cb_submit_metric_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitMetricCb(cb);

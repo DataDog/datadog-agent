@@ -250,6 +250,9 @@ public:
     virtual char *getIntegrationList() = 0;
 
     // aggregator API
+    // Configure before checks start; covers metric and histogram submissions.
+    virtual void setMetricSubmissionGILRelease(bool enabled) = 0;
+
     //! setSubmitMetricCb member.
     /*!
       \param A cb_submit_metric_t function pointer to the CGO callback.
