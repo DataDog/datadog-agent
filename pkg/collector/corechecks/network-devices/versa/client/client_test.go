@@ -11,12 +11,14 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client/fixtures"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -961,4 +963,233 @@ func TestEndpointTimeout(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestBuildAnalyticsPathTableData(t *testing.T) {
+	path := buildAnalyticsPath(analyticsQuery{
+		tenant:    "datadog",
+		feature:   "SDWAN",
+		queryType: QueryTypeTableData,
+		query:     "slam(localsite,remotesite)",
+		lookback:  "30minutesAgo",
+		metrics:   []string{"delay", "fwdLossRatio"},
+		count:     2000,
+		fromCount: 0,
+	})
+
+	require.Equal(t, "/versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN", strings.Split(path, "?")[0])
+
+	query, err := url.ParseQuery(strings.SplitN(path, "?", 2)[1])
+	require.NoError(t, err)
+	require.Equal(t, QueryTypeTableData, query.Get("qt"))
+	require.Equal(t, "30minutesAgo", query.Get("start-date"))
+	require.Equal(t, "aggregate", query.Get("ds"))
+	require.Equal(t, "2000", query.Get("count"))
+	require.Equal(t, "0", query.Get("from-count"))
+	require.Equal(t, []string{"delay", "fwdLossRatio"}, query["metrics"])
+	// A tableData request must stay byte-identical to what the check has always sent.
+	require.False(t, query.Has("end-date"))
+	require.False(t, query.Has("gap"))
+	require.False(t, query.Has("fq"))
+	require.False(t, query.Has("jq"))
+}
+
+func TestBuildAnalyticsPathTimeseries(t *testing.T) {
+	path := buildAnalyticsPath(analyticsQuery{
+		tenant:      "datadog",
+		feature:     "SDWAN",
+		queryType:   QueryTypeTimeseries,
+		query:       "slam(localsite,remotesite)",
+		lookback:    "30minutesAgo",
+		endDate:     timeseriesEndDate,
+		gap:         defaultAnalyticsGap,
+		filterQuery: "(accessType:DIA)",
+		joinQuery:   "siteStatus",
+		metrics:     []string{"delay"},
+		count:       2000,
+		fromCount:   4000,
+	})
+
+	query, err := url.ParseQuery(strings.SplitN(path, "?", 2)[1])
+	require.NoError(t, err)
+	require.Equal(t, QueryTypeTimeseries, query.Get("qt"))
+	require.Equal(t, "today", query.Get("end-date"))
+	require.Equal(t, "15MINUTE", query.Get("gap"))
+	require.Equal(t, "(accessType:DIA)", query.Get("fq"))
+	require.Equal(t, "siteStatus", query.Get("jq"))
+	require.Equal(t, "4000", query.Get("from-count"))
+}
+
+func TestWithAnalyticsQueryType(t *testing.T) {
+	tests := []struct {
+		name      string
+		queryType string
+		expected  string
+	}{
+		{"default is tableData", "", QueryTypeTableData},
+		{"timeseries is accepted", QueryTypeTimeseries, QueryTypeTimeseries},
+		{"tableData is accepted", QueryTypeTableData, QueryTypeTableData},
+		{"unknown value keeps the default", "summary", QueryTypeTableData},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := SetupMockAPIServer()
+			defer server.Close()
+
+			client, err := testClient(server)
+			require.NoError(t, err)
+
+			if tt.queryType != "" {
+				WithAnalyticsQueryType(tt.queryType)(client)
+			}
+
+			require.Equal(t, tt.expected, client.analyticsQueryType)
+			// Gap is untouched by the query type and keeps its default.
+			require.Equal(t, defaultAnalyticsGap, client.analyticsGap)
+		})
+	}
+}
+
+func TestWithAnalyticsGap(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+	require.Equal(t, defaultAnalyticsGap, client.analyticsGap)
+
+	WithAnalyticsGap("1HOUR")(client)
+	require.Equal(t, "1HOUR", client.analyticsGap)
+
+	// An empty gap must not blank out the default.
+	WithAnalyticsGap("")(client)
+	require.Equal(t, "1HOUR", client.analyticsGap)
+}
+
+func TestGetSLAMetricsTimeseries(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+	// TODO: remove this override when single auth
+	// method is being used
+	client.directorEndpoint = server.URL
+	WithAnalyticsQueryType(QueryTypeTimeseries)(client)
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	// Two paths, three buckets each, versus the single aggregate row tableData returns for
+	// the same window.
+	require.Len(t, slaMetrics, 6)
+
+	assert.Equal(t, SLAMetrics{
+		DrillKey:            "test-branch-2B,Controller-2,INET-1,INET-1,fc_nc",
+		LocalSite:           "test-branch-2B",
+		RemoteSite:          "Controller-2",
+		LocalAccessCircuit:  "INET-1",
+		RemoteAccessCircuit: "INET-1",
+		ForwardingClass:     "fc_nc",
+		Delay:               101.0,
+		FwdDelayVar:         1.0,
+		RevDelayVar:         2.0,
+		Timestamp:           1793967300000,
+	}, slaMetrics[0])
+
+	// The spike in the middle bucket is what tableData averages away.
+	assert.Equal(t, 140.0, slaMetrics[1].Delay)
+	assert.Equal(t, 0.5, slaMetrics[1].FwdLossRatio)
+	assert.Equal(t, int64(1793968200000), slaMetrics[1].Timestamp)
+
+	// Buckets are ordered oldest first within an entity.
+	for i := 1; i < 3; i++ {
+		assert.Greater(t, slaMetrics[i].Timestamp, slaMetrics[i-1].Timestamp)
+	}
+}
+
+func TestGetSLAMetricsTableDataCarriesNoTimestamp(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+	client.directorEndpoint = server.URL
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Len(t, slaMetrics, 1)
+	assert.Zero(t, slaMetrics[0].Timestamp)
+}
+
+func TestGetPathQoSMetricsTimeseries(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+	client.directorEndpoint = server.URL
+	WithAnalyticsQueryType(QueryTypeTimeseries)(client)
+
+	qosMetrics, err := client.GetPathQoSMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Len(t, qosMetrics, 2)
+	assert.Equal(t, QoSMetrics{
+		DrillKey:             "test-branch-2B,Controller-2",
+		LocalSiteName:        "test-branch-2B",
+		RemoteSiteName:       "Controller-2",
+		BestEffortTx:         1000.0,
+		BestEffortTxDrop:     10.0,
+		ExpeditedForwardTx:   500.0,
+		ExpeditedForwardDrop: 0.0,
+		AssuredForwardTx:     300.0,
+		AssuredForwardDrop:   0.0,
+		NetworkControlTx:     50.0,
+		NetworkControlDrop:   0.0,
+		BestEffortBandwidth:  8000.0,
+		ExpeditedForwardBW:   4000.0,
+		AssuredForwardBW:     2400.0,
+		NetworkControlBW:     400.0,
+		VolumeTx:             1850.0,
+		TotalDrop:            10.0,
+		PercentDrop:          0.0054,
+		Bandwidth:            14800.0,
+		Timestamp:            1793967300000,
+	}, qosMetrics[0])
+	assert.Equal(t, int64(1793968200000), qosMetrics[1].Timestamp)
+}
+
+func TestGetCircuitQoSMetrics(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+	client.directorEndpoint = server.URL
+
+	circuitQoSMetrics, err := client.GetCircuitQoSMetrics("datadog")
+	require.NoError(t, err)
+
+	require.Equal(t, []CircuitQoSMetrics{
+		{
+			DrillKey:             "test-branch-2B,INET-1",
+			Site:                 "test-branch-2B",
+			AccessCircuit:        "INET-1",
+			BestEffortTx:         1000.0,
+			BestEffortTxDrop:     10.0,
+			ExpeditedForwardTx:   500.0,
+			ExpeditedForwardDrop: 0.0,
+			AssuredForwardTx:     300.0,
+			AssuredForwardDrop:   0.0,
+			NetworkControlTx:     50.0,
+			NetworkControlDrop:   0.0,
+			BestEffortBandwidth:  8000.0,
+			ExpeditedForwardBW:   4000.0,
+			AssuredForwardBW:     2400.0,
+			NetworkControlBW:     400.0,
+		},
+	}, circuitQoSMetrics)
 }
