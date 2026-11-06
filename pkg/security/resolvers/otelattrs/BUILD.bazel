@@ -7,11 +7,13 @@ go_library(
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//pkg/security/otelthreadctx",
             "//pkg/security/probe/managerhelper",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",
         ],
         "@rules_go//go/platform:linux": [
+            "//pkg/security/otelthreadctx",
             "//pkg/security/probe/managerhelper",
             "@com_github_cilium_ebpf//:ebpf",
             "@com_github_datadog_ebpf_manager//:ebpf-manager",

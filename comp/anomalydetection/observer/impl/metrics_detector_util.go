@@ -139,32 +139,6 @@ func appendPointWindow(buf []observer.Point, maxPoints int, point observer.Point
 	return buf
 }
 
-func parseAggregateConfig(names []string) []observer.Aggregate {
-	if len(names) == 0 {
-		return nil
-	}
-	aggregations := make([]observer.Aggregate, 0, len(names))
-	for _, name := range names {
-		if agg, ok := parseAggregateSuffix(name); ok {
-			aggregations = append(aggregations, agg)
-		}
-	}
-	return aggregations
-}
-
-func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
-	switch s {
-	case "avg":
-		return observer.AggregateAverage, true
-	case "sum":
-		return observer.AggregateSum, true
-	case "count":
-		return observer.AggregateCount, true
-	default:
-		return 0, false
-	}
-}
-
 func detectorSeriesFilter(filter observer.DetectionFilter) observer.SeriesFilter {
 	selection := observer.WorkloadSeriesFilter()
 	selection.MetricKind, selection.MetricType = filter.MetricKind, filter.MetricType

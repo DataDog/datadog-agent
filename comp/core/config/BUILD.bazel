@@ -26,6 +26,8 @@ go_library(
         "//comp/core/delegatedauth/def",
         "//comp/core/delegatedauth/noop-impl/types",
         "//comp/core/flare/types",
+        "//comp/core/schema/def",
+        "//comp/core/schema/noop-impl",
         "//comp/core/secrets/def",
         "//comp/core/secrets/noop-impl/types",
         "//comp/core/status",

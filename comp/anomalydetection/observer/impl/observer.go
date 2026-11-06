@@ -449,7 +449,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 	}
 
-	eng := newEngine(engineConfig{
+	eng, err := newEngine(engineConfig{
 		storage:         newTimeSeriesStorageWith(storageCfg),
 		extractors:      extractors,
 		detectors:       detectors,
@@ -460,6 +460,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		baseline:        settings.Baseline,
 		logCountBuckets: logCountBucketConfigFromAgent(cfg),
 	})
+	if err != nil {
+		return Provides{}, err
+	}
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
@@ -1135,7 +1138,7 @@ func (o *observerImpl) flushCtx(ctx context.Context) error {
 }
 
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
-func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
+func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) error {
 	o.Flush()
 	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
 	// Catalog scorers are unwatched standalone instances. Replay needs the same
@@ -1145,10 +1148,13 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
 	}
 	o.replayMu.Lock()
+	defer o.replayMu.Unlock()
 	o.metricFilter.muted.Store(nil)
-	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
+	if err := o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline); err != nil {
+		return err
+	}
 	o.publishSeriesCount()
-	o.replayMu.Unlock()
+	return nil
 }
 
 // baselineEventSink publishes the mute hash set to the shared filter when the
@@ -1262,15 +1268,18 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 // ReplayStoredData resets analysis state (preserving extractor context) then
 // replays all stored data through the scheduler in chronological order.
 // Implements DebugView.
-func (o *observerImpl) ReplayStoredData() {
+func (o *observerImpl) ReplayStoredData() error {
 	// resetAnalysisState resets detectors/correlators and tracking state but
 	// preserves extractor state so enrichAnomaly can still attach log pattern
 	// context (stored on seriesStats) during replay.
 	o.replayMu.Lock()
-	o.engine.resetAnalysisState()
+	defer o.replayMu.Unlock()
+	if err := o.engine.resetAnalysisState(); err != nil {
+		return err
+	}
 	o.engine.ReplayStoredData()
 	o.publishSeriesCount()
-	o.replayMu.Unlock()
+	return nil
 }
 
 // StorageReader returns a read-only view of the engine's time-series storage.

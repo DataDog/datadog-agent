@@ -40,10 +40,7 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  fips_args = fips_mode? ? "--fips-mode" : ""
-  if fips_mode?
-    add_msgo_to_env(env)
-  end
+  fips_args = fips_mode? ? "--fips-backend=msgo" : ""
 
   if linux_target?
     command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)

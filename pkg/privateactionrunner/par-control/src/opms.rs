@@ -418,7 +418,7 @@ impl HttpOpms {
             .context("failed to sign OPMS request JWT")?;
         let url = self
             .base_url
-            .join(path)
+            .join(path.trim_start_matches('/'))
             .with_context(|| format!("building OPMS request URL for {path}"))?;
         let mut request = self.client.request(method, url).headers(self.headers(jwt)?);
         if let Some(body) = body {
@@ -465,7 +465,7 @@ fn min_tls_version(raw: &str) -> TlsMinimumVersion {
 }
 
 fn parse_base_url(raw: &str) -> Result<reqwest::Url> {
-    let url = reqwest::Url::parse(raw).context("invalid OPMS URL")?;
+    let mut url = reqwest::Url::parse(raw).context("invalid OPMS URL")?;
     if !matches!(url.scheme(), "http" | "https") {
         bail!("unsupported OPMS URL scheme {:?}", url.scheme());
     }
@@ -475,8 +475,12 @@ fn parse_base_url(raw: &str) -> Result<reqwest::Url> {
     if url.host_str().is_none() {
         bail!("OPMS URL has no host");
     }
-    if url.path() != "/" || url.query().is_some() || url.fragment().is_some() {
-        bail!("OPMS URL must be an origin without a path, query, or fragment");
+    if url.query().is_some() || url.fragment().is_some() {
+        bail!("OPMS URL must not contain a query or fragment");
+    }
+    // Treat an override's path as a prefix, not a file replaced by URL joining.
+    if !url.path().ends_with('/') {
+        url.set_path(&format!("{}/", url.path()));
     }
     Ok(url)
 }
@@ -598,6 +602,8 @@ mod tests {
             "http://127.0.0.1:8080",
             "http://fake-opms",
             "https://opms.internal:8443",
+            "https://opms.internal:8443/proxy",
+            "https://opms.internal:8443/proxy/",
         ] {
             parse_base_url(url).unwrap_or_else(|error| panic!("{url}: {error}"));
         }
@@ -607,7 +613,9 @@ mod tests {
             "ftp://host",
             "https://",
             "http://h:notaport",
-            "https://api.datadoghq.com/path",
+            "https://api.datadoghq.com/?key=value",
+            "https://api.datadoghq.com/#fragment",
+            "https://user:password@api.datadoghq.com",
         ] {
             assert!(parse_base_url(bad).is_err(), "{bad} should not parse");
         }
@@ -710,8 +718,11 @@ mod tests {
     #[tokio::test]
     async fn health_check_is_a_signed_get_that_surfaces_server_pacing() {
         crate::tls::initialize_crypto_provider().unwrap();
-        for (status_line, expected_status) in [("200 OK", 200_u16), ("429 Too Many Requests", 429)]
-        {
+        for (status_line, expected_status, prefix) in [
+            ("200 OK", 200_u16, ""),
+            ("429 Too Many Requests", 429, "/proxy"),
+            ("200 OK", 200, "/proxy/"),
+        ] {
             let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
             let port = listener.local_addr().unwrap().port();
             let server = tokio::spawn(async move {
@@ -737,7 +748,7 @@ mod tests {
             });
 
             let opms = HttpOpms::new(
-                format!("http://127.0.0.1:{port}"),
+                format!("http://127.0.0.1:{port}{prefix}"),
                 Arc::new(crate::jwt::test_support::StaticSigner("jwt-health".into())),
                 HttpOpmsConfig {
                     runner_version: "7.83.0".into(),
@@ -763,7 +774,10 @@ mod tests {
 
             let request = server.await.unwrap();
             assert!(
-                request.starts_with(&format!("GET {HEALTH_CHECK_PATH} HTTP/1.1")),
+                request.starts_with(&format!(
+                    "GET {}{HEALTH_CHECK_PATH} HTTP/1.1",
+                    prefix.trim_end_matches('/')
+                )),
                 "unexpected request line in: {request}"
             );
             assert!(
