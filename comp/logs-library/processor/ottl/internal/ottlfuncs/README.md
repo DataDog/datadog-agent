@@ -24,10 +24,10 @@ When changing the OTTL dependency version:
    removing the canonical package import comment and retaining the documented
    Agent-context adaptations in `IsList` and `Len`. Update `LICENSE`.
 2. Update the version in this file.
-3. Run `TestOTTLFunctionsMatchUpstream` with the configuration package's normal
+3. Run `TestOTTLFunctionsMatchUpstream` with the logs runtime package's normal
    tests. It compares compilation, evaluation, errors, and masking output with
    the upstream factories across the Agent's JSON/body context.
-4. Run Gazelle for `comp/logs/agent/config` and inspect the production dependency
+4. Run Gazelle for `comp/logs-library/processor/ottl` and inspect the production dependency
    graph and binary-size delta. The upstream `ottlfuncs` import is intentional
    only in tests and benchmarks; do not reintroduce it in production.
 

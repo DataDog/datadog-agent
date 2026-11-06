@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package ottl
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 func TestOTTLMaskStatements(t *testing.T) {
@@ -161,19 +162,18 @@ func TestOTTLMaskStatementConcurrentUse(t *testing.T) {
 func TestOTTLMaskConfiguration(t *testing.T) {
 	pattern := `set(attributes["password"], "***")`
 	cfg := coreconfig.NewMock(t)
-	cfg.SetInTest("logs_config.processing_rules", []map[string]any{{"type": MaskOTTLTransform, "name": "redact", "pattern": pattern}})
+	cfg.SetInTest("logs_config.processing_rules", []map[string]any{{"type": config.MaskOTTLTransform, "name": "redact", "pattern": pattern}})
 	global, err := GlobalProcessingRules(cfg)
 	require.NoError(t, err)
-	require.NotNil(t, global[0].OTTLStatement)
+	require.NotNil(t, global[0].OTTL)
 
-	sources, err := ParseYAML([]byte("logs:\n  - type: file\n    path: app.log\n    log_processing_rules:\n      - type: mask_ottl\n        name: redact\n        pattern: '" + pattern + "'\n"))
+	sources, err := config.ParseYAML([]byte("logs:\n  - type: file\n    path: app.log\n    log_processing_rules:\n      - type: mask_ottl\n        name: redact\n        pattern: '" + pattern + "'\n"))
 	require.NoError(t, err)
-	require.NoError(t, sources[0].Validate())
-	require.NotNil(t, sources[0].ProcessingRules[0].OTTLStatement)
+	require.NoError(t, ValidateLogsConfig(sources[0]))
+	require.NotNil(t, sources[0].ProcessingRules[0].OTTL)
 
 	for _, pattern := range []string{"", `attributes["password"] == "secret"`, `replace_pattern(body, "[", "***")`, `delete_key(attributes, "password")`, `set(body, "x") where replace_pattern(body, ".", "*")`} {
-		rules := []*ProcessingRule{{Name: "invalid", Type: MaskOTTLTransform, Pattern: pattern}}
-		require.Error(t, ValidateProcessingRules(rules), pattern)
+		rules := []*config.ProcessingRule{{Name: "invalid", Type: config.MaskOTTLTransform, Pattern: pattern}}
 		require.Error(t, CompileProcessingRules(rules), pattern)
 	}
 }

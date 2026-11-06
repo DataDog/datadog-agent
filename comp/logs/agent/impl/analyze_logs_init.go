@@ -13,6 +13,7 @@ import (
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/flare"
 	auditornoop "github.com/DataDog/datadog-agent/comp/logs/auditor/impl-none"
@@ -27,7 +28,7 @@ import (
 
 // SetUpLaunchers intializes the launcher. The launchers schedule the tailers to read the log files provided by the analyze-logs command
 func SetUpLaunchers(conf configComponent.Component, sourceProvider *sources.ConfigSources) (chan *message.Message, *launchers.Launchers, pipeline.Provider, error) {
-	processingRules, err := config.GlobalProcessingRules(conf)
+	processingRules, err := ottl.GlobalProcessingRules(conf)
 	if err != nil {
 		return nil, nil, nil, err
 	}

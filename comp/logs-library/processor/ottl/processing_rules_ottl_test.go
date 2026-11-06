@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package ottl
 
 import (
 	"context"
@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 func TestOTTLConditions(t *testing.T) {
@@ -79,16 +80,14 @@ func TestOTTLConditions(t *testing.T) {
 
 func TestOTTLRuleValidation(t *testing.T) {
 	for _, pattern := range []string{"", `attributes["level"] ==`, `resource.attributes["level"] == "info"`, `attributes.level == "info"`, `Unknown(body)`, `set(body, "changed")`} {
-		for _, ruleType := range []string{ExcludeAtMatchOTTL, IncludeAtMatchOTTL} {
-			rule := &ProcessingRule{Name: "test", Type: ruleType, Pattern: pattern}
-			require.Error(t, ValidateProcessingRules([]*ProcessingRule{rule}), pattern)
-			require.Error(t, CompileProcessingRules([]*ProcessingRule{rule}), pattern)
+		for _, ruleType := range []string{config.ExcludeAtMatchOTTL, config.IncludeAtMatchOTTL} {
+			rule := &config.ProcessingRule{Name: "test", Type: ruleType, Pattern: pattern}
+			require.Error(t, CompileProcessingRules([]*config.ProcessingRule{rule}), pattern)
 		}
 	}
-	rule := &ProcessingRule{Name: "test", Type: IncludeAtMatchOTTL, Pattern: `attributes["level"] == "info"`}
-	require.NoError(t, ValidateProcessingRules([]*ProcessingRule{rule}))
-	require.NoError(t, CompileProcessingRules([]*ProcessingRule{rule}))
-	require.NotNil(t, rule.OTTLCondition)
+	rule := &config.ProcessingRule{Name: "test", Type: config.IncludeAtMatchOTTL, Pattern: `attributes["level"] == "info"`}
+	require.NoError(t, CompileProcessingRules([]*config.ProcessingRule{rule}))
+	require.NotNil(t, rule.OTTL)
 	require.Nil(t, rule.Regex)
 }
 
@@ -140,7 +139,7 @@ func TestOTTLGlobalProcessingRules(t *testing.T) {
 		name  string
 		value any
 	}{
-		{"map", []map[string]any{{"type": IncludeAtMatchOTTL, "name": "keep_prod", "pattern": `attributes["env"] == "prod"`}}},
+		{"map", []map[string]any{{"type": config.IncludeAtMatchOTTL, "name": "keep_prod", "pattern": `attributes["env"] == "prod"`}}},
 		{"JSON string", `[{"type":"include_at_match_ottl","name":"keep_prod","pattern":"attributes[\"env\"] == \"prod\""}]`},
 	} {
 		t.Run(test.name, func(t *testing.T) {
@@ -149,11 +148,11 @@ func TestOTTLGlobalProcessingRules(t *testing.T) {
 			rules, err := GlobalProcessingRules(cfg)
 			require.NoError(t, err)
 			require.Len(t, rules, 1)
-			require.Equal(t, IncludeAtMatchOTTL, rules[0].Type)
-			require.NotNil(t, rules[0].OTTLCondition)
+			require.Equal(t, config.IncludeAtMatchOTTL, rules[0].Type)
+			require.NotNil(t, rules[0].OTTL)
 			c := AcquireOTTLContext([]byte(`{"env":"prod"}`))
 			defer ReleaseOTTLContext(c)
-			matched, err := rules[0].OTTLCondition.Eval(context.Background(), c)
+			matched, err := rules[0].OTTL.Evaluate(c)
 			require.NoError(t, err)
 			require.True(t, matched)
 		})
@@ -161,7 +160,7 @@ func TestOTTLGlobalProcessingRules(t *testing.T) {
 }
 
 func TestOTTLSourceProcessingRules(t *testing.T) {
-	for name, parse := range map[string]func([]byte) ([]*LogsConfig, error){"YAML": ParseYAML, "JSON": ParseJSON} {
+	for name, parse := range map[string]func([]byte) ([]*config.LogsConfig, error){"YAML": config.ParseYAML, "JSON": config.ParseJSON} {
 		t.Run(name, func(t *testing.T) {
 			input := `logs:
   - type: file
@@ -177,13 +176,13 @@ func TestOTTLSourceProcessingRules(t *testing.T) {
 			configs, err := parse([]byte(input))
 			require.NoError(t, err)
 			require.Len(t, configs, 1)
-			require.NoError(t, configs[0].Validate())
+			require.NoError(t, ValidateLogsConfig(configs[0]))
 			require.Len(t, configs[0].ProcessingRules, 1)
-			condition := configs[0].ProcessingRules[0].OTTLCondition
+			condition := configs[0].ProcessingRules[0].OTTL
 			require.NotNil(t, condition)
 			c := AcquireOTTLContext([]byte(`{"http":{"status":503}}`))
 			defer ReleaseOTTLContext(c)
-			matched, err := condition.Eval(context.Background(), c)
+			matched, err := condition.Evaluate(c)
 			require.NoError(t, err)
 			require.True(t, matched)
 		})
@@ -192,9 +191,9 @@ func TestOTTLSourceProcessingRules(t *testing.T) {
 
 func TestOTTLConfigurationRejectsInvalidCondition(t *testing.T) {
 	cfg := coreconfig.NewMock(t)
-	cfg.SetInTest("logs_config.processing_rules", []map[string]any{{"type": ExcludeAtMatchOTTL, "name": "invalid", "pattern": `attributes["http"] ==`}})
+	cfg.SetInTest("logs_config.processing_rules", []map[string]any{{"type": config.ExcludeAtMatchOTTL, "name": "invalid", "pattern": `attributes["http"] ==`}})
 	_, err := GlobalProcessingRules(cfg)
 	require.ErrorContains(t, err, "invalid OTTL condition")
-	source := &LogsConfig{Type: FileType, Path: "app.log", ProcessingRules: []*ProcessingRule{{Type: IncludeAtMatchOTTL, Name: "invalid", Pattern: `attributes["http"] ==`}}}
-	require.ErrorContains(t, source.Validate(), "invalid OTTL condition")
+	source := &config.LogsConfig{Type: config.FileType, Path: "app.log", ProcessingRules: []*config.ProcessingRule{{Type: config.IncludeAtMatchOTTL, Name: "invalid", Pattern: `attributes["http"] ==`}}}
+	require.ErrorContains(t, ValidateLogsConfig(source), "invalid OTTL condition")
 }

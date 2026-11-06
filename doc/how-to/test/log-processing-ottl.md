@@ -70,7 +70,7 @@ behavior; filter errors keep them.
 
 ```shell
 bazel test --config=dd-agent-go-tests-only \
-  //comp/logs/agent/config:config_test \
+  //comp/logs-library/processor/ottl:ottl_test \
   //comp/logs-library/processor:processor_test \
   --test_output=errors
 ```
@@ -92,7 +92,7 @@ JSON masks also remove shadowed duplicate values when their editor otherwise
 does nothing. False where clauses retain the original bytes. Unrelated numbers
 are emitted directly from their parsed tokens, avoiding a float64 round trip.
 
-Run BenchmarkOTTLMasking in the configuration target to measure a roughly 2 KiB
+Run BenchmarkOTTLMasking in the OTTL runtime target to measure a roughly 2 KiB
 message with 1, 5, or 20 distinct field redactions, including final encoding.
 Compilation is outside the timed loop.
 
@@ -103,7 +103,7 @@ separately so the two benchmark processes do not compete for CPU:
 
 ```shell
 bazel test --config=dd-agent-go-tests-only \
-  //comp/logs/agent/config:config_test \
+  //comp/logs-library/processor/ottl:ottl_test \
   --nocache_test_results --test_output=streamed \
   --test_arg=-test.run=^$ --test_arg=-test.bench=BenchmarkOTTLFiltering \
   --test_arg=-test.benchmem --test_arg=-test.benchtime=200ms \
@@ -265,7 +265,7 @@ upstream `ottlfuncs` from importing XML, grok, and user-agent packages with
 initialization code and data. Those imports reached other binaries through the
 shared logs configuration package.
 
-Production now uses `comp/logs/agent/config/internal/ottlfuncs`, a small subset
+Production now uses `comp/logs-library/processor/ottl/internal/ottlfuncs`, a small subset
 of the upstream v1.3.1 implementations with attribution and license preserved.
 `IsList` and `Len` omit Collector signal slices that the Agent JSON/body context
 cannot return. The OTTL parser and typed getters remain upstream. Supported
@@ -298,3 +298,26 @@ upstream OTTL parser and common pdata types still enter shared configuration.
 
 Raw logs, size data, and dependency-query output are under
 `bin/benchmarks/ottl-filtering/size-*` (ignored by Git).
+
+## Logs runtime boundary (November 2026)
+
+The compiler, pooled JSON context, supported functions, and compatibility/engine benchmarks now live in `comp/logs-library/processor/ottl`. Shared configuration keeps structural/regex checks and small execution interfaces. The logs setup paths compile global rules; source admission compiles source rules before notifying launchers. `agent analyze-logs` also performs full OTTL validation. Compilation is not deferred to a message. Rejected sources stay visible in status but cannot reach either current or future launcher subscriptions.
+
+With identical default Bazel flags on macOS/arm64:
+
+| Executable | Original baseline (`ded8910234c`) | Before boundary (`c64d7575ca6`) | After boundary | Net addition |
+| --- | ---: | ---: | ---: | ---: |
+| Agent | 111,865,122 B | 113,791,906 B | 113,775,506 B | 1,910,384 B (1.82 MiB) |
+| DogStatsD | 25,307,106 B | 26,552,594 B | 25,307,138 B | 32 B |
+
+This boundary removes 1,245,456 bytes (1.19 MiB) from DogStatsD and 16,400 bytes from Agent relative to the preceding commit. Agent still links the OTTL engine to execute logs rules. These measurements exclude runfiles and package contents; Linux/Windows quality-gate deltas need CI. Local Linux analysis is blocked by the missing C/C++ cross-toolchain.
+
+The processor benchmark on Apple M5 Pro used one CPU, five samples of 300 ms, and the preceding commit as the baseline. It includes global/source dispatch and one shared parse of a roughly 70-byte nonmatching JSON message. Medians:
+
+| Rules | Before | After | After allocations |
+| --- | ---: | ---: | ---: |
+| 1 | 231.9 ns | 227.2 ns | 20 B / 2 allocations |
+| 5 | 528.6 ns | 475.8 ns | 100 B / 10 allocations |
+| 20 | 1,315 ns | 1,429 ns | 400 B / 40 allocations |
+
+Allocation counts are unchanged. Timing varies between samples; the 20-rule median is 8.7% slower in this microbenchmark. This measures dispatch on a small message, not sustained pipeline throughput or a renewed FastJQ comparison.

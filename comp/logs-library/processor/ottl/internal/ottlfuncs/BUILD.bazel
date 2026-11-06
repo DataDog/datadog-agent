@@ -22,10 +22,10 @@ go_library(
         "func_string.go",
         "regex_helpers.go",
     ],
-    importpath = "github.com/DataDog/datadog-agent/comp/logs/agent/config/internal/ottlfuncs",
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl/internal/ottlfuncs",
     visibility = [
-        "//comp/logs/agent/config:__subpackages__",
-        "@com_github_datadog_datadog_agent_comp_logs_agent_config//:__subpackages__",
+        "//comp/logs-library/processor/ottl:__subpackages__",
+        "@com_github_datadog_datadog_agent_comp_logs_library//:__subpackages__",
     ],
     deps = [
         "@com_github_gobwas_glob//:glob",

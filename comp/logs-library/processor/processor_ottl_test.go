@@ -12,6 +12,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -21,7 +22,7 @@ func TestOTTLProcessingRules(t *testing.T) {
 		for _, content := range []string{`{"level":"debug"}`, `{"level":"info"}`, `not JSON`, `{"level":"debug"} trailing`} {
 			t.Run(ruleType+"/"+content, func(t *testing.T) {
 				rules := []*config.ProcessingRule{{Type: ruleType, Name: "filter", Pattern: `attributes["level"] == "debug"`}}
-				require.NoError(t, config.CompileProcessingRules(rules))
+				require.NoError(t, ottl.CompileProcessingRules(rules))
 				source := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: rules})
 				for _, newMsg := range []bool{false, true} {
 					msg := newMessage([]byte(content), source, "")
@@ -50,8 +51,8 @@ func TestOTTLProcessingRuleOrder(t *testing.T) {
 		{Type: config.MaskSequences, Name: "mask", Pattern: "secret", ReplacePlaceholder: "redacted"},
 		{Type: config.ExcludeAtMatchOTTL, Name: "after", Pattern: `attributes["message"] == "redacted"`},
 	}
-	require.NoError(t, config.CompileProcessingRules(global))
-	require.NoError(t, config.CompileProcessingRules(local))
+	require.NoError(t, ottl.CompileProcessingRules(global))
+	require.NoError(t, ottl.CompileProcessingRules(local))
 	source := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: local})
 	p := &Processor{processingRules: global}
 	msg := newMessage([]byte(`{"message":"secret"}`), source, "")
@@ -67,7 +68,7 @@ func TestOTTLProcessingMaskInvalidatesBody(t *testing.T) {
 		{Type: config.MaskSequences, Name: "mask", Pattern: "secret", ReplacePlaceholder: "redacted"},
 		{Type: config.IncludeAtMatchOTTL, Name: "after", Pattern: `HasPrefix(body, "redacted")`},
 	}
-	require.NoError(t, config.CompileProcessingRules(rules))
+	require.NoError(t, ottl.CompileProcessingRules(rules))
 	source := sources.NewLogSource("test", &config.LogsConfig{})
 	p := &Processor{processingRules: rules}
 	msg := newMessage([]byte("secret message"), source, "")
@@ -89,7 +90,7 @@ func BenchmarkOTTLProcessor(b *testing.B) {
 				for i := range rules {
 					rules[i] = &config.ProcessingRule{Type: ruleType, Name: "filter", Pattern: pattern}
 				}
-				if err := config.CompileProcessingRules(rules); err != nil {
+				if err := ottl.CompileProcessingRules(rules); err != nil {
 					b.Fatal(err)
 				}
 				p := &Processor{processingRules: rules[:1]}
@@ -116,8 +117,8 @@ func TestSyncProcessorOTTLProcessingRules(t *testing.T) {
 		{Type: config.IncludeAtMatchOTTL, Name: "after_mask", Pattern: `attributes["message"] != "secret"`},
 		{Type: config.ExcludeAtMatchOTTL, Name: "debug", Pattern: `attributes["level"] == "debug"`},
 	}
-	require.NoError(t, config.CompileProcessingRules(global))
-	require.NoError(t, config.CompileProcessingRules(local))
+	require.NoError(t, ottl.CompileProcessingRules(global))
+	require.NoError(t, ottl.CompileProcessingRules(local))
 	source := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: local})
 	processor := NewSyncProcessor(global, JSONEncoder, nil)
 
@@ -155,8 +156,8 @@ func TestOTTLMaskProcessingRuleOrder(t *testing.T) {
 		{Type: config.IncludeAtMatch, Name: "legacy_filter", Pattern: `"message":"safe"`},
 		{Type: config.IncludeAtMatchOTTL, Name: "read_both", Pattern: `attributes["credentials"]["password"] == "redacted" and attributes["message"] == "safe"`},
 	}
-	require.NoError(t, config.CompileProcessingRules(global))
-	require.NoError(t, config.CompileProcessingRules(local))
+	require.NoError(t, ottl.CompileProcessingRules(global))
+	require.NoError(t, ottl.CompileProcessingRules(local))
 	input := `{"credentials":{"password":"secret"},"message":"token"}`
 	output := `{"credentials":{"password":"redacted"},"message":"safe"}`
 
@@ -199,7 +200,7 @@ func TestOTTLMaskProcessingErrors(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			rules := []*config.ProcessingRule{{Name: "mask", Type: config.MaskOTTLTransform, Pattern: test.pattern}}
-			require.NoError(t, config.CompileProcessingRules(rules))
+			require.NoError(t, ottl.CompileProcessingRules(rules))
 			for _, synchronous := range []bool{false, true} {
 				source := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: rules})
 				msg := newMessage([]byte(test.input), source, "")
@@ -224,6 +225,20 @@ func TestOTTLMaskProcessingErrors(t *testing.T) {
 				}
 				require.EqualValues(t, expected, source.ProcessingInfo.GetCount(config.MaskOTTLTransform+":mask"))
 			}
+		})
+	}
+}
+
+func TestUncompiledOTTLRulesCannotBypassProcessing(t *testing.T) {
+	for _, kind := range []string{config.IncludeAtMatchOTTL, config.ExcludeAtMatchOTTL, config.MaskOTTLTransform} {
+		t.Run(kind, func(t *testing.T) {
+			rules := []*config.ProcessingRule{{Name: "unprepared", Type: kind, Pattern: "true"}}
+			source := sources.NewLogSource("test", &config.LogsConfig{ProcessingRules: rules})
+			require.False(t, (&Processor{}).applyRedactingRules(newMessage([]byte("secret"), source, "")))
+			require.Contains(t, source.Status().GetError(), "unprepared")
+			keep, err := NewSyncProcessor(nil, JSONEncoder, nil).Process(newMessage([]byte("secret"), source, ""))
+			require.ErrorContains(t, err, "unprepared")
+			require.False(t, keep)
 		})
 	}
 }

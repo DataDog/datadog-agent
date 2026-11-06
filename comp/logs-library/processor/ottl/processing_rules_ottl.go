@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-package config
+package ottl
 
 import (
 	"context"
@@ -12,20 +12,20 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
+	upstreamottl "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl"
 	"github.com/valyala/fastjson"
 	"go.opentelemetry.io/collector/component"
 	"go.uber.org/zap"
 
-	"github.com/DataDog/datadog-agent/comp/logs/agent/config/internal/ottlfuncs"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl/internal/ottlfuncs"
 )
 
 // OTTLCondition is an upstream OTTL predicate compiled for the Agent log context.
 // Conditions are immutable after compilation and may be shared across pipelines.
-type OTTLCondition = ottl.Condition[*OTTLContext]
+type OTTLCondition = upstreamottl.Condition[*OTTLContext]
 
 // OTTLStatement is an upstream OTTL masking statement for the Agent log context.
-type OTTLStatement = ottl.Statement[*OTTLContext]
+type OTTLStatement = upstreamottl.Statement[*OTTLContext]
 
 // OTTLContext exposes a message body and JSON attributes to filters and masking statements.
 // It parses JSON lazily, once per content version, and materializes only the values
@@ -100,8 +100,8 @@ func (c *OTTLContext) attributes() (*fastjson.Value, error) {
 
 // Register only the supported factories from the internal upstream subset.
 // Importing upstream ottlfuncs would also retain unrelated package initializers.
-func ottlFilterFunctions() map[string]ottl.Factory[*OTTLContext] {
-	return ottl.CreateFactoryMap(
+func ottlFilterFunctions() map[string]upstreamottl.Factory[*OTTLContext] {
+	return upstreamottl.CreateFactoryMap(
 		ottlfuncs.NewIsMatchFactory[*OTTLContext](),
 		ottlfuncs.NewHasPrefixFactory[*OTTLContext](),
 		ottlfuncs.NewHasSuffixFactory[*OTTLContext](),
@@ -119,7 +119,7 @@ func ottlFilterFunctions() map[string]ottl.Factory[*OTTLContext] {
 }
 
 func compileOTTLCondition(pattern string) (*OTTLCondition, error) {
-	parser, err := ottl.NewParser(ottlFilterFunctions(), parseOTTLPath, component.TelemetrySettings{Logger: zap.NewNop()})
+	parser, err := upstreamottl.NewParser(ottlFilterFunctions(), parseOTTLPath, component.TelemetrySettings{Logger: zap.NewNop()})
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +130,7 @@ type ottlJSONKey struct {
 	name    string
 	index   int64
 	isIndex bool
-	dynamic ottl.Getter[*OTTLContext]
+	dynamic upstreamottl.Getter[*OTTLContext]
 }
 
 // Locations distinguish shared fastjson boolean/null values in different fields.
@@ -148,15 +148,15 @@ func (key ottlJSONKey) location(parent *fastjson.Value) ottlJSONLocation {
 	return ottlJSONLocation{parent: parent, name: key.name}
 }
 
-func parseOTTLPath(path ottl.Path[*OTTLContext]) (ottl.GetSetter[*OTTLContext], error) {
+func parseOTTLPath(path upstreamottl.Path[*OTTLContext]) (upstreamottl.GetSetter[*OTTLContext], error) {
 	return parseOTTLPathMode(path, false)
 }
 
-func parseOTTLMaskPath(path ottl.Path[*OTTLContext]) (ottl.GetSetter[*OTTLContext], error) {
+func parseOTTLMaskPath(path upstreamottl.Path[*OTTLContext]) (upstreamottl.GetSetter[*OTTLContext], error) {
 	return parseOTTLPathMode(path, true)
 }
 
-func parseOTTLPathMode(path ottl.Path[*OTTLContext], writable bool) (ottl.GetSetter[*OTTLContext], error) {
+func parseOTTLPathMode(path upstreamottl.Path[*OTTLContext], writable bool) (upstreamottl.GetSetter[*OTTLContext], error) {
 	if path.Name() == "log" && len(path.Keys()) == 0 && path.Next() != nil {
 		path = path.Next()
 	}
@@ -167,7 +167,7 @@ func parseOTTLPathMode(path ottl.Path[*OTTLContext], writable bool) (ottl.GetSet
 		return errors.New("Agent OTTL filter paths are read-only")
 	}
 	if path.Name() == "body" && len(path.Keys()) == 0 {
-		return ottl.StandardGetSetter[*OTTLContext]{Getter: func(_ context.Context, c *OTTLContext) (any, error) {
+		return upstreamottl.StandardGetSetter[*OTTLContext]{Getter: func(_ context.Context, c *OTTLContext) (any, error) {
 			if !c.bodySet {
 				c.body, c.bodySet = string(c.Content()), true
 			}
@@ -210,7 +210,7 @@ func parseOTTLPathMode(path ottl.Path[*OTTLContext], writable bool) (ottl.GetSet
 		}
 		keys = append(keys, ottlJSONKey{index: *index, isIndex: true})
 	}
-	return ottl.StandardGetSetter[*OTTLContext]{Getter: func(ctx context.Context, c *OTTLContext) (any, error) {
+	return upstreamottl.StandardGetSetter[*OTTLContext]{Getter: func(ctx context.Context, c *OTTLContext) (any, error) {
 		value, err := c.jsonPathValue(ctx, keys)
 		if err != nil {
 			return nil, err

@@ -140,3 +140,9 @@ Messages retain their original bytes when no edit or duplicate-key normalization
 is needed. Changed JSON may be compacted and have normalized escaping. The
 [benchmark notes](../../how-to/test/log-processing-ottl.md) describe the
 implementation and performance measurements.
+
+### Validation and compilation
+
+Shared configuration parsing checks names, rule types, required fields, and regular expressions. The logs runtime compiles OTTL separately: global rules are checked when the logs agent or synchronous sender starts, and source rules are checked before the source is delivered to a launcher. `agent analyze-logs` uses the same full validation. Invalid global OTTL prevents logs startup; an invalid source remains visible with its rule name and parser error in Agent status and is not tailed. A structural config check alone does not validate OTTL syntax.
+
+Compilation happens during setup, once for each rule definition. Compiled rules are shared by processing pipelines and inherited container sources. Global and source rules still share a pooled context and a lazy JSON parse per message. The shared config package only knows a small execution interface; it does not import OTTL, its parser, or its supported functions. This keeps those dependencies out of binaries that only consume logs configuration.
