@@ -6,15 +6,8 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-upgrade:
-  - |
-    Entries in ``scrubber.additional_keys`` and ``flare_stripped_keys`` are now matched as literal
-    key names. Regular expression syntax in these entries, such as ``.*_dsn``, is no longer
-    interpreted; list each key to scrub explicitly.
 fixes:
   - |
     Keys added to the scrubber through ``scrubber.additional_keys``, ``flare_stripped_keys``, or
-    configuration values resolved from secrets are now matched literally. Keys containing
-    regular expression characters such as ``(`` or ``.`` no longer cause the Agent to crash and
-    are scrubbed as written. These keys are also matched regardless of case when scrubbing
+    configuration values resolved from secrets are now matched regardless of case when scrubbing
     structured YAML and JSON data.
