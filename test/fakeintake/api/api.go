@@ -141,3 +141,11 @@ type RCStats struct {
 	PublicKey    string    `json:"public_key"`
 	RootJSON     string    `json:"root_json"`
 }
+
+// PayloadPage is a bounded raw-history response. NextCursor can be reused to
+// poll after HasMore becomes false. Retention and flush can expire a cursor.
+type PayloadPage struct {
+	Payloads   []Payload `json:"payloads"`
+	NextCursor string    `json:"next_cursor"`
+	HasMore    bool      `json:"has_more"`
+}

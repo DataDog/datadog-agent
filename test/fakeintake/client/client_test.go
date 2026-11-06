@@ -81,6 +81,35 @@ func NewServer(handler http.Handler) *httptest.Server {
 	return httptest.NewServer(handlerWitHeader)
 }
 
+func TestGetRawPayloadPage(t *testing.T) {
+	endpoint, cursor := "/custom?label=a&b", "cursor+/="
+	want := api.PayloadPage{
+		Payloads: []api.Payload{{Data: []byte{0, 1, 255}, Encoding: "zstd", Request: &api.RequestMetadata{
+			Headers: http.Header{"X-Values": {"a", "b"}},
+		}}},
+		NextCursor: "next", HasMore: true,
+	}
+	srv := NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "/fakeintake/payloads/page", req.URL.Path)
+		assert.Equal(t, endpoint, req.URL.Query().Get("endpoint"))
+		assert.Equal(t, cursor, req.URL.Query().Get("cursor"))
+		assert.Equal(t, "2", req.URL.Query().Get("limit"))
+		if cursor == "expired" {
+			http.Error(w, "payload cursor expired", http.StatusGone)
+			return
+		}
+		assert.NoError(t, json.NewEncoder(w).Encode(want))
+	}))
+	t.Cleanup(srv.Close)
+	c := NewClient(srv.URL, WithGetBackoffRetries(1))
+	got, err := c.GetRawPayloadPage(endpoint, cursor, 2)
+	require.NoError(t, err)
+	require.Equal(t, want, got)
+	cursor = "expired"
+	_, err = c.GetRawPayloadPage(endpoint, cursor, 2)
+	require.ErrorContains(t, err, "410")
+}
+
 // newSeriesServer answers each series endpoint with its own body. getMetric fetches
 // /api/v1/series, /api/v2/series and /api/intake/metrics/v3/series in a single call, and each
 // aggregator only understands its own wire format, so a server that replies with one shared
