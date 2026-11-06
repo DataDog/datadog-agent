@@ -94,7 +94,6 @@ func TestDetectorWorkflowSelection(t *testing.T) {
 func TestSettingsFromAgentConfigWorkflow(t *testing.T) {
 	cfg := configmock.NewFromYAML(t, `
 anomaly_detection:
-  use_legacy_detectors: true
   detectors:
     scanmw:
       min_points: 42
@@ -109,7 +108,7 @@ anomaly_detection:
     scanmw:
       min_points: 42
       max_points: 84
-  use_legacy_detectors: false
+  use_metric_pipeline: true
 `)
 	settings = settingsFromAgentConfig(defaultCatalog(), cfg)
 	require.True(t, settings.UseMetricPipeline)

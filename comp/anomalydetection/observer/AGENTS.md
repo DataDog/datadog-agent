@@ -192,9 +192,10 @@ half-window medians so isolated spikes do not dominate it.
 
 ### Metric pipeline
 
-Legacy detectors remain the default (`anomaly_detection.use_legacy_detectors: true`).
-Set it to `false` to run only `MetricPipeline`, with its own detector instances
-and defaults; legacy detector settings do not configure the pipeline.
+Legacy detectors remain the default.
+Set `anomaly_detection.use_metric_pipeline: true` to run only `MetricPipeline`,
+with its own detector instances and defaults; legacy detector settings do not
+configure the pipeline.
 Baseline and scorer settings apply in both workflows.
 
 `MetricPipeline` runs registered committed-kind detectors before matching.
