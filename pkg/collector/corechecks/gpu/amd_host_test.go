@@ -114,7 +114,6 @@ func TestNVIDIACheckOnAMDOnlyHostWithAMDDisabled(t *testing.T) {
 		return testutil.NewMockNVML(testutil.WithInitReturn(nvml.ERROR_LIBRARY_NOT_FOUND))
 	})
 	check := setupNVIDIACheckOnHost(t, fakeAMDHost(t), map[string]any{"gpu.amd.enabled": false})
-	assert.True(t, check.amdHintNeeded)
 
 	for range 3 {
 		require.NoError(t, check.Run())

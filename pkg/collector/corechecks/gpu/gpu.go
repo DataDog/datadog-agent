@@ -96,7 +96,6 @@ type Check struct {
 	draCDIMissingSince  time.Time                        // draCDIMissingSince is when running DRA claims without readable CDI specs were first seen; only touched from the Run goroutine
 	hostname            string                           // hostname scopes health issue IDs to this host, resolved lazily; only touched from the Run goroutine
 	skipNVML            bool                             // skipNVML is set in Configure when the host has AMD GPUs but no NVIDIA GPU: there is nothing for NVML to collect, so Run returns before loading it
-	amdHintNeeded       bool                             // amdHintNeeded is set in Configure when skipNVML is set but gpu.amd.enabled is off: nothing collects the GPUs
 	sysRoot             string                           // sysRoot is the sysfs root used to read the PCI inventory
 	nodeUnschedulable   *nodeunschedulable.Cache         // nodeUnschedulable is the unschedulable state of the node, nil when gpu.unschedulable_nodes.enabled is false; refreshed before the collectors run
 }
@@ -221,11 +220,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
 		c.sysRoot = kernel.SysFSRoot()
 	}
-	// With no NVIDIA GPU, NVML would only fail on every run: stay idle and, when
-	// AMD collection is off, point at the setting instead.
+	// With no NVIDIA GPU, NVML would only fail on every run.
 	c.skipNVML = hasOnlyAMDGPUs(c.sysRoot)
-	c.amdHintNeeded = c.skipNVML && !pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled")
-	if c.skipNVML && !c.amdHintNeeded {
+	if c.skipNVML && !pkgconfigsetup.Datadog().GetBool("gpu.amd.enabled") {
+		log.Warn("All GPUs on this host are AMD and gpu.amd.enabled is false: set it to true (DD_GPU_AMD_ENABLED) to monitor them with the AMD GPU check")
+	} else if c.skipNVML {
 		log.Info("All GPUs on this host are AMD: the AMD GPU check collects them, the NVIDIA GPU check stays idle")
 	}
 	c.strictIntervals = nvidia.NewStrictIntervalProcessor(c.gpuConfig.StaticMetricsReportingInterval)
@@ -387,9 +386,6 @@ func (c *Check) Run() error {
 	// issue reporter is only set before runs) and does not show as a loading
 	// error in the agent status.
 	if c.skipNVML {
-		if c.amdHintNeeded && amdHintLogLimit.ShouldLog() {
-			log.Warn(amdOnlyHostHint)
-		}
 		if c.issueReporter != nil {
 			c.resolveNvmlIssues("")
 			c.nvmlIssueID = ""
@@ -680,13 +676,6 @@ const (
 	pciClassDisplayController     = 0x03
 	pciClassProcessingAccelerator = 0x12
 )
-
-// amdOnlyHostHint is logged on hosts whose GPUs are all AMD while AMD
-// collection is disabled.
-const amdOnlyHostHint = "All GPUs on this host are AMD and gpu.amd.enabled is false: set it to true (DD_GPU_AMD_ENABLED) to monitor them with the AMD GPU check"
-
-// amdHintLogLimit repeats amdOnlyHostHint at most every 10 minutes.
-var amdHintLogLimit = log.NewLogLimit(1, 10*time.Minute)
 
 // hasOnlyAMDGPUs reports whether the PCI inventory under sysRoot
 // (<sysRoot>/bus/pci/devices) has at least one AMD GPU and no NVIDIA GPU. When
