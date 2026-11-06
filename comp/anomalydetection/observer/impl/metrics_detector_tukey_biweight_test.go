@@ -419,6 +419,44 @@ func TestTukeyBiweight_IRLSConverges(t *testing.T) {
 	require.Greater(t, sigma, 0.0, "MAD must be positive on a bimodal window with separation")
 }
 
+func TestTukeyBiweight_ScoringWorkspaceReusedAcrossWindows(t *testing.T) {
+	reused := testTukeyBiweightDetector()
+	series := &observer.Series{Namespace: "ns", Name: "metric"}
+	for window := 0; window < 25; window++ {
+		points := make([]observer.Point, 2+(window*17)%119)
+		for i := range points {
+			value := float64((i*17+window*13)%23) / 3
+			if i == len(points)-1 && window%2 == 0 {
+				value += 30
+			}
+			points[i] = observer.Point{Timestamp: int64(i + 1), Value: value}
+		}
+		original := append([]observer.Point(nil), points...)
+		fresh := testTukeyBiweightDetector()
+		end := points[len(points)-1].Timestamp
+		expected, expectedFired := fresh.scoreBiweight(points, series, observer.AggregateAverage, end)
+		got, fired := reused.scoreBiweight(points, series, observer.AggregateAverage, end)
+		require.Equal(t, expectedFired, fired, "window=%d", window)
+		require.Equal(t, expected, got, "window=%d", window)
+		// Subsequent calls must not hold aliases to the caller's point window.
+		require.Equal(t, original, points)
+	}
+}
+
+func TestTukeyBiweight_ScoringWorkspaceNoWarmAllocations(t *testing.T) {
+	d := testTukeyBiweightDetector()
+	series := &observer.Series{Namespace: "ns", Name: "constant"}
+	points := make([]observer.Point, 80)
+	for i := range points {
+		points[i] = observer.Point{Timestamp: int64(i + 1), Value: 10}
+	}
+	d.scoreBiweight(points, series, observer.AggregateAverage, 80) // warm scratch
+	allocs := testing.AllocsPerRun(100, func() {
+		d.scoreBiweight(points, series, observer.AggregateAverage, 80)
+	})
+	require.Zero(t, allocs)
+}
+
 // TestTukeyBiweight_RemoveSeries verifies the SeriesRemover hook frees the
 // per-(ref, agg) state, matching the contract validated by
 // validateDetectorTeardownContract. Without this the per-series map would

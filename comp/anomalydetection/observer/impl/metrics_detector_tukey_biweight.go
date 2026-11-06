@@ -58,6 +58,9 @@ type TukeyBiweightDetector struct {
 	// scoreBuf is shared by the single-writer detector while it scores each
 	// series. Keeping it here avoids retaining a raw window for every series.
 	scoreBuf []observer.Point
+	// scoreWorkspace reuses bounded value and sort buffers across scoring
+	// calls without retaining one scratch window per series.
+	scoreWorkspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedSeries []observer.SeriesMeta
@@ -312,10 +315,7 @@ func (d *TukeyBiweightDetector) scoreBiweight(points []observer.Point, series *o
 	if series == nil {
 		return observer.Anomaly{}, false
 	}
-	xs := make([]float64, len(points))
-	for i, point := range points {
-		xs[i] = point.Value
-	}
+	xs := d.scoreWorkspace.valuesFromPoints(points)
 	n := len(xs)
 	if n < 2 {
 		return observer.Anomaly{}, false
@@ -325,8 +325,8 @@ func (d *TukeyBiweightDetector) scoreBiweight(points []observer.Point, series *o
 	// gives a sigma-equivalent so the BiweightC·sigma cutoff matches the
 	// canonical Holland & Welsch derivation. Floor on degenerate (constant)
 	// windows to avoid divide-by-zero.
-	mu := detectorMedian(xs)
-	sigma := detectorMAD(xs, mu, true)
+	mu := d.scoreWorkspace.median(xs)
+	sigma := d.scoreWorkspace.mad(xs, mu) * 1.4826
 	if sigma < 1e-10 {
 		sigma = math.Max(math.Abs(mu)*0.01, 1e-6)
 	}
