@@ -362,21 +362,16 @@ func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 	assert.Empty(t, entries)
 }
 
-// TestPreRemoveKeepsTheDefinitionWhenBootoutFails pins that a job that can't be unloaded keeps its
-// definition, as in loadStableJob, and doesn't stop the rest of the set from being torn down.
-func TestPreRemoveKeepsTheDefinitionWhenBootoutFails(t *testing.T) {
-	stubLaunchd(t)
-	dir := stubJobDir(t)
-	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
-		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
-	}
-	failing := agentLaunchdJobs.LaunchdJobsStable[1]
+// stubFailingBootout makes the bootout of label fail, with the job still loaded.
+func stubFailingBootout(t *testing.T, label string) {
+	t.Helper()
+
 	stub := launchdClient
 	launchdClient = func() *launchd.Client {
 		client := stub()
 		record := client.Runner
 		client.Runner = func(ctx context.Context, name string, args ...string) ([]byte, error) {
-			if len(args) == 2 && args[1] == "system/"+failing {
+			if len(args) == 2 && args[1] == "system/"+label {
 				switch args[0] {
 				case "bootout":
 					return nil, errors.New("operation now in progress")
@@ -388,8 +383,24 @@ func TestPreRemoveKeepsTheDefinitionWhenBootoutFails(t *testing.T) {
 		}
 		return client
 	}
+	t.Cleanup(func() { launchdClient = stub })
+}
 
-	require.NoError(t, preRemoveDatadogAgent(testHookContext(t)))
+// TestPreRemoveKeepsTheDefinitionWhenBootoutFails pins that a job that can't be unloaded keeps its
+// definition, as in loadStableJob, and doesn't stop the rest of the set from being torn down. On an
+// upgrade nothing is reported: the next version's postinstall reloads the jobs.
+func TestPreRemoveKeepsTheDefinitionWhenBootoutFails(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	failing := agentLaunchdJobs.LaunchdJobsStable[1]
+	stubFailingBootout(t, failing)
+	ctx := testHookContext(t)
+	ctx.Upgrade = true
+
+	require.NoError(t, preRemoveDatadogAgent(ctx))
 
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		path := filepath.Join(dir, label+".plist")
@@ -399,6 +410,29 @@ func TestPreRemoveKeepsTheDefinitionWhenBootoutFails(t *testing.T) {
 			assert.NoFileExists(t, path)
 		}
 	}
+}
+
+// TestPreRemoveReportsAFailedBootoutOnUninstall pins that an uninstall still removes the install
+// when a job can't be unloaded, and reports that job, so cmd/agent/macos/uninstall_mac_os.sh runs
+// its own removal for what is left rather than reporting a complete uninstall.
+func TestPreRemoveReportsAFailedBootoutOnUninstall(t *testing.T) {
+	stubLaunchd(t)
+	dir := stubJobDir(t)
+	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	failing := agentLaunchdJobs.LaunchdJobsStable[1]
+	stubFailingBootout(t, failing)
+	installRoot := filepath.Join(t.TempDir(), "datadog-agent")
+	require.NoError(t, os.MkdirAll(installRoot, 0o755))
+	defaultUninstallLayout = uninstallLayout{paths: []string{installRoot}}
+
+	err := preRemoveDatadogAgent(testHookContext(t))
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), failing)
+	assert.NoDirExists(t, installRoot, "the rest of the install must still be removed")
+	assert.FileExists(t, filepath.Join(dir, failing+".plist"), "the job that could not be unloaded keeps its definition")
 }
 
 // TestPreRemoveIsIdempotent pins that the pre-remove succeeds on a host with nothing installed, and
