@@ -2,6 +2,66 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.2:
+
+7.85.2
+======
+
+.. _Release Notes_7.85.2_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-09
+
+- Please refer to the `7.85.2 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7852>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.85.2_Upgrade Notes:
+
+Upgrade Notes
+-------------
+
+- The ``openmetrics.d/adp_compat.yaml.example`` configuration example is no longer shipped. When
+  ADP is enabled, its DogStatsD, forwarder, and aggregator telemetry is now included in the Core
+  Agent's ``go_expvar`` values, so a separate OpenMetrics check against ADP is not needed and
+  would count ADP's values twice alongside ``go_expvar``.
+
+
+.. _Release Notes_7.85.2_New Features:
+
+New Features
+------------
+
+- Expose DogStatsD, forwarder, and aggregator telemetry from the Agent Data Plane through the
+  Core Agent's ``go_expvar`` paths when ADP is enabled. Existing ``go_expvar`` users can continue
+  using their current configuration while the compatibility layer combines Core Agent and ADP
+  values on each ``/debug/vars`` read, including Core Agent expvars created after startup.
+  The mapped ADP telemetry remains internal rather than being published as separate expvars.
+  Expvars without an equivalent ADP metric remain Core Agent-only. Aggregator coverage includes DogStatsD contexts
+  and samples, processed and flushed events/service checks, per-flush counts, and available flush
+  timings. ADP's ``NumberOfFlush`` analogue counts non-empty aggregation flushes. ADP's broader ``transactions__dropped`` counter
+  is not mapped to ``forwarder/Transactions/DroppedOnInput`` because its meaning is not equivalent
+  to the legacy expvar. Legacy splitter expvars were removed in Agent PR #38834 and are not
+  reintroduced.
+
+
+.. _Release Notes_7.85.2_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Fix macOS installer GUI-session detection so the Datadog GUI helper and
+  desktop monitor start for the console user after installation or upgrade
+  when a GUI session exists, including installations run outside a desktop terminal.
+
+- Recover Windows process-manager Agent account lookups after a host rename or
+  image clone when the installed domain is stale but the Agent service is
+  configured to use the same local account. This restores startup of Agent
+  Data Plane and other processes using the Agent account, including their
+  DogStatsD listener.
+
+
 .. _Release Notes_7.85.1:
 
 7.85.1

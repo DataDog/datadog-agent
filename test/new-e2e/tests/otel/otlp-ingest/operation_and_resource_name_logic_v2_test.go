@@ -94,8 +94,11 @@ type otlpIngestOpNameV2SpanAsResNameTestSuite struct {
 }
 
 func TestOTLPIngestOpNameV2Override(t *testing.T) {
+	// Share with trace-agent without replacing the framework's datadog.env intake settings.
 	values := `
 datadog:
+  envDict:
+    DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME: 'true'
   otlp:
     receiver:
       protocols:
@@ -106,12 +109,6 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-agents:
-  containers:
-    agent:
-      env:
-        - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_AS_RESOURCE_NAME
-          value: 'true'
 `
 	t.Parallel()
 	e2e.Run(t, &otlpIngestOpNameV2SpanAsResNameTestSuite{}, e2e.WithProvisioner(
@@ -136,8 +133,11 @@ type otlpIngestOpNameV2RemappingTestSuite struct {
 }
 
 func TestOTLPIngestOpV2OverrideRemapping(t *testing.T) {
+	// Share with trace-agent without replacing the framework's datadog.env intake settings.
 	values := `
 datadog:
+  envDict:
+    DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
   otlp:
     receiver:
       protocols:
@@ -148,12 +148,6 @@ datadog:
   logs:
     containerCollectAll: false
     containerCollectUsingFiles: false
-agents:
-  containers:
-    agent:
-      env:
-        - name: DD_OTLP_CONFIG_TRACES_SPAN_NAME_REMAPPINGS
-          value: '{"calendar-rest-go.client":"mapping.output","go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp.server":"calendar.server"}'
 `
 	t.Parallel()
 	ts := &otlpIngestOpNameV2RemappingTestSuite{}
