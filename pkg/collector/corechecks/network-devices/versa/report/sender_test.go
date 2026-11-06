@@ -1873,7 +1873,7 @@ func TestSendSLAMetricsTableData(t *testing.T) {
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	s := NewSender(mockSender, "default")
-	s.SendSLAMetrics([]client.SLAMetrics{
+	s.SendSLAMetrics("datadog", []client.SLAMetrics{
 		{
 			DrillKey:            "branch-1,hub-1,INET-1,INET-1,fc_nc",
 			LocalSite:           "branch-1",
@@ -1930,7 +1930,7 @@ func TestSendSLAMetricsTimeseries(t *testing.T) {
 	}
 
 	s := NewSender(mockSender, "default")
-	s.SendSLAMetrics(buckets, map[string]string{"branch-1": "192.168.1.1"})
+	s.SendSLAMetrics("datadog", buckets, map[string]string{"branch-1": "192.168.1.1"})
 
 	tags := []string{
 		"local_site:branch-1",
@@ -1949,11 +1949,11 @@ func TestSendSLAMetricsTimeseries(t *testing.T) {
 
 	// A lookback window longer than the check interval re-reports buckets that have
 	// already been sent, so a second run of the same buckets emits nothing.
-	s.SendSLAMetrics(buckets, map[string]string{"branch-1": "192.168.1.1"})
+	s.SendSLAMetrics("datadog", buckets, map[string]string{"branch-1": "192.168.1.1"})
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 12)
 
 	// A newer bucket for the same path still goes out.
-	s.SendSLAMetrics([]client.SLAMetrics{{
+	s.SendSLAMetrics("datadog", []client.SLAMetrics{{
 		DrillKey:            "branch-1,hub-1,INET-1,INET-1,fc_nc",
 		LocalSite:           "branch-1",
 		RemoteSite:          "hub-1",
@@ -1972,7 +1972,7 @@ func TestSendCircuitQoSMetrics(t *testing.T) {
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 	s := NewSender(mockSender, "default")
-	s.SendCircuitQoSMetrics([]client.CircuitQoSMetrics{
+	s.SendCircuitQoSMetrics("datadog", []client.CircuitQoSMetrics{
 		{
 			DrillKey:            "branch-1,INET-1",
 			Site:                "branch-1",
