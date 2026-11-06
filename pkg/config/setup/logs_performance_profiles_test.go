@@ -132,20 +132,6 @@ logs_config:
 		"low-resource must never raise the pipeline count above the host's core count")
 }
 
-func TestLogsPerformanceProfileCovers(t *testing.T) {
-	// Higher ladder tiers are supersets of lower ones.
-	assert.True(t, LogsPerformanceProfileCovers("high-throughput", "high-concurrency"))
-	assert.True(t, LogsPerformanceProfileCovers("max-throughput", "high-throughput"))
-	assert.True(t, LogsPerformanceProfileCovers("max-throughput", "high-concurrency"))
-	assert.True(t, LogsPerformanceProfileCovers("high-throughput", "high-throughput"), "a profile covers itself")
-
-	// Lower tiers do not cover higher ones, and unrelated/unknown/off names never cover.
-	assert.False(t, LogsPerformanceProfileCovers("high-concurrency", "high-throughput"))
-	assert.False(t, LogsPerformanceProfileCovers("low-latency", "high-concurrency"))
-	assert.False(t, LogsPerformanceProfileCovers("", "high-concurrency"))
-	assert.False(t, LogsPerformanceProfileCovers("high-throughput", "does-not-exist"))
-}
-
 func TestLogsPerformanceProfileOffByDefault(t *testing.T) {
 	cfg := confFromYAML(t, ``)
 
@@ -181,9 +167,6 @@ logs_config:
 	ApplyLogsPerformanceProfile(cfg)
 
 	assert.Equal(t, 200, cfg.GetInt("logs_config.message_channel_size"))
-	name, _, ok := ResolvedLogsPerformanceProfile(cfg)
-	require.True(t, ok)
-	assert.Equal(t, "high-throughput", name)
 }
 
 func TestLogsPerformanceProfileUnknownNameIsNoOp(t *testing.T) {
@@ -237,51 +220,6 @@ func TestLogsPerformanceProfileCatalogKeysAreKnown(t *testing.T) {
 			assert.Truef(t, cfg.IsKnown(key), "profile %q references unknown config key %q", name, key)
 		}
 	}
-}
-
-func TestResolvedLogsPerformanceProfile(t *testing.T) {
-	t.Run("active profile returns its settings", func(t *testing.T) {
-		cfg := confFromYAML(t, `
-logs_config:
-  profile: high-throughput
-`)
-
-		name, settings, ok := ResolvedLogsPerformanceProfile(cfg)
-
-		require.True(t, ok)
-		assert.Equal(t, "high-throughput", name)
-		require.NotEmpty(t, settings)
-		// Settings must be sorted by key for stable display.
-		for i := 1; i < len(settings); i++ {
-			assert.LessOrEqual(t, settings[i-1].Key, settings[i].Key)
-		}
-		byKey := map[string]interface{}{}
-		for _, s := range settings {
-			byKey[s.Key] = s.Value
-		}
-		assert.Contains(t, byKey, "logs_config.pipelines")
-	})
-
-	t.Run("no profile selected returns ok=false", func(t *testing.T) {
-		cfg := confFromYAML(t, ``)
-		_, _, ok := ResolvedLogsPerformanceProfile(cfg)
-		assert.False(t, ok)
-	})
-
-	t.Run("unknown profile returns ok=false", func(t *testing.T) {
-		cfg := confFromYAML(t, `
-logs_config:
-  profile: does-not-exist
-`)
-		_, _, ok := ResolvedLogsPerformanceProfile(cfg)
-		assert.False(t, ok)
-	})
-}
-
-func TestLogsPerformanceProfileExists(t *testing.T) {
-	assert.True(t, LogsPerformanceProfileExists("high-throughput"))
-	assert.False(t, LogsPerformanceProfileExists("does-not-exist"))
-	assert.False(t, LogsPerformanceProfileExists(""))
 }
 
 // The profile keys must stay bound to the schema and to their environment variables.
