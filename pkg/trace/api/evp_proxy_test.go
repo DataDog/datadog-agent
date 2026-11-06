@@ -961,6 +961,24 @@ func TestAIGuardProxy(t *testing.T) {
 		assert.Equal(t, "test_api_key", got.header.Get("DD-API-KEY"))
 	})
 
+	// A body of exactly the limit is allowed, so the limit must not be applied a second time
+	// while forwarding: that rejects it as a network error instead.
+	t.Run("payload at the exact limit", func(t *testing.T) {
+		body := `{"a":"bc"}`
+		received := make(chan upstreamRequest, 1)
+		conf := aiGuardTestConfig()
+		conf.EVPProxy.MaxPayloadSize = int64(len(body))
+		mux := aiGuardTestMux(t, conf, recordingUpstream(received))
+
+		rec := httptest.NewRecorder()
+		mux.ServeHTTP(rec, newAIGuardRequest("POST", "/api/v2/ai-guard/evaluate", body))
+
+		require.Len(t, received, 1)
+		assert.Equal(t, body, (<-received).body)
+		assert.Equal(t, http.StatusForbidden, rec.Code) // the upstream's own status, so it was proxied
+		assert.Empty(t, rec.Header().Values(aiGuardProxyErrorHeader))
+	})
+
 	t.Run("payload_too_large", func(t *testing.T) {
 		conf := aiGuardTestConfig()
 		conf.EVPProxy.MaxPayloadSize = 8

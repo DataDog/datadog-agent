@@ -95,7 +95,7 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 			// so we do not call pr.SetXForwarded().
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd, EvpProxyAllowedHeaders, ""},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd, EvpProxyAllowedHeaders, "", false},
 	}
 }
 
@@ -108,7 +108,8 @@ func aiGuardProxyEnabled(conf *config.AgentConfig) bool {
 // Agent's API and application keys, through the main endpoint only.
 func (r *HTTPReceiver) aiGuardProxyHandler() http.Handler {
 	endpoints := []config.Endpoint{{Host: r.conf.Site, APIKey: r.conf.APIKey()}}
-	transport := &evpProxyTransport{r.conf.NewHTTPTransport(), endpoints, r.conf, NewContainerIDProviderFromConfig(r.conf), r.statsd, aiGuardProxyAllowedHeaders, r.conf.EVPProxy.ApplicationKey}
+	// The handler reads the body under http.MaxBytesReader, so the transport must not limit it again.
+	transport := &evpProxyTransport{r.conf.NewHTTPTransport(), endpoints, r.conf, NewContainerIDProviderFromConfig(r.conf), r.statsd, aiGuardProxyAllowedHeaders, r.conf.EVPProxy.ApplicationKey, true}
 	throttled := log.NewThrottled(5, 10*time.Second)
 	errorLog := stdlog.New(throttled, "AIGuardProxy: ", 0)
 	return http.StripPrefix("/ai_guard/proxy", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -193,10 +194,14 @@ type evpProxyTransport struct {
 	statsd              statsd.ClientInterface
 	allowedHeaders      []string
 	applicationKey      string // set as DD-APPLICATION-KEY when not empty
+	// bodyAlreadyLimited skips the limit below for a caller that enforced it itself. Applying it
+	// twice rejects a body of exactly the limit: the limited reader reports the limit instead of
+	// EOF on the read the HTTP transport makes after ContentLength bytes.
+	bodyAlreadyLimited bool
 }
 
 func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
-	if req.Body != nil && t.conf.EVPProxy.MaxPayloadSize > 0 {
+	if req.Body != nil && !t.bodyAlreadyLimited && t.conf.EVPProxy.MaxPayloadSize > 0 {
 		req.Body = apiutil.NewLimitedReader(req.Body, t.conf.EVPProxy.MaxPayloadSize)
 	}
 	start := time.Now()
