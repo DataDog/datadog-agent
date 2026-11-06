@@ -101,15 +101,16 @@ func intersectAllowedPathsByAccess(operatorAllowed []string, backendAllowed []st
 	return reducePathListToBroadest(filtered)
 }
 
+// splitPathAccessSuffix must parse exactly like rshell's splitAllowedPathMode
+// (pkg/rshell/allowedpaths/path_mode.go): if the two disagree, the policy
+// checked here is not the policy rshell enforces.
 func splitPathAccessSuffix(pathSpec string) (pathPart string, accessSuffix string) {
-	switch {
-	case strings.HasSuffix(pathSpec, pathAccessReadWrite):
-		return strings.TrimSuffix(pathSpec, pathAccessReadWrite), pathAccessReadWrite
-	case strings.HasSuffix(pathSpec, pathAccessReadOnly):
-		return strings.TrimSuffix(pathSpec, pathAccessReadOnly), pathAccessReadOnly
-	default:
-		return pathSpec, ""
+	for _, suffix := range []string{pathAccessReadOnly, pathAccessReadWrite} {
+		if strings.HasSuffix(pathSpec, suffix) && len(pathSpec) > len(suffix) {
+			return strings.TrimSuffix(pathSpec, suffix), suffix
+		}
 	}
+	return pathSpec, ""
 }
 
 func pathAccessGroup(pathSpec string) string {

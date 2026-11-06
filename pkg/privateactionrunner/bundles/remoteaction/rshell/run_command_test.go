@@ -13,6 +13,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -1211,6 +1212,47 @@ func TestRunCommandPreservesAllowedPathAccessSuffixes(t *testing.T) {
 	assert.Equal(t, "ok\n", result.Stdout)
 	assert.Empty(t, result.Stderr)
 	assert.Nil(t, result.SandboxWarnings)
+}
+
+// A signed "<dir>/tenant:rw" grants "<dir>/tenant" read-write, both in PAR's
+// intersection and in rshell. An existing directory literally named
+// "tenant:rw" is never opened as a root, so PAR's "<dir>/tenant/:rw" rewrite
+// cannot redirect the grant to a different directory than the one rshell uses.
+func TestRunCommandAccessSuffixGrantsStrippedPathNotLiteralSuffixedDir(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("':' is not valid in Windows file names")
+	}
+	dir := t.TempDir()
+	tenant := filepath.Join(dir, "tenant")
+	literal := tenant + pathAccessReadWrite
+	require.NoError(t, os.Mkdir(tenant, 0o755))
+	require.NoError(t, os.Mkdir(literal, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(tenant, "f"), []byte("tenant\n"), 0o600))
+	require.NoError(t, os.WriteFile(filepath.Join(literal, "f"), []byte("literal\n"), 0o600))
+
+	handler := newDefaultRunCommandHandler()
+	assert.Equal(t, []string{tenant + "/" + pathAccessReadWrite}, handler.filterAllowedPaths([]string{literal}))
+
+	for _, tc := range []struct {
+		name     string
+		file     string
+		wantExit int
+		wantOut  string
+	}{
+		{name: "stripped path is granted", file: filepath.Join(tenant, "f"), wantExit: 0, wantOut: "tenant\n"},
+		{name: "literal suffixed dir is not granted", file: filepath.Join(literal, "f"), wantExit: 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			task := makeTaskWithPaths("cat "+tc.file, []string{"rshell:cat"}, []string{literal})
+
+			out, err := handler.Run(context.Background(), task, nil)
+
+			require.NoError(t, err)
+			result := out.(*RunCommandOutputs)
+			assert.Equal(t, tc.wantExit, result.ExitCode)
+			assert.Equal(t, tc.wantOut, result.Stdout)
+		})
+	}
 }
 
 func TestRunCommandOutputLimitsReturnActionErrors(t *testing.T) {

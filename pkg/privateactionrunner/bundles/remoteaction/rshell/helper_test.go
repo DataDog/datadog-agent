@@ -151,6 +151,11 @@ func TestCleanPathList(t *testing.T) {
 			want: []string{"/host/datadog/:rw"},
 		},
 		{
+			name: "bare access suffix is a path, not an access mode, as in rshell",
+			in:   []string{":rw", ":ro"},
+			want: []string{":rw/", ":ro/"},
+		},
+		{
 			name: "different access overlays are preserved independently",
 			in:   []string{"/var/log:ro", "/var/log/datadog:rw"},
 			want: []string{"/var/log/:ro", "/var/log/datadog/:rw"},
