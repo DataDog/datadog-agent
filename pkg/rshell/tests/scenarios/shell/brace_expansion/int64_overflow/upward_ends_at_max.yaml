@@ -1,0 +1,9 @@
+description: An upward sequence ending at the int64 maximum stops there.
+input:
+  script: |+
+    echo {9223372036854775805..9223372036854775807}
+expect:
+  stdout: |+
+    9223372036854775805 9223372036854775806 9223372036854775807
+  stderr: ""
+  exit_code: 0

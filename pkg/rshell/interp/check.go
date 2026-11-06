@@ -521,7 +521,7 @@ func forEachCheckField(cfg *expand.Config, word *syntax.Word, yield func(string,
 			ok = false
 		}
 	}()
-	for field, err := range expand.FieldsSeq(cfg, word) {
+	for field, err := range fieldsSeq(cfg, word) {
 		if !yield(field, err) {
 			return
 		}

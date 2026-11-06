@@ -1,0 +1,9 @@
+description: A sequence at the int64 maximum yields one element.
+input:
+  script: |+
+    echo {9223372036854775807..9223372036854775807}
+expect:
+  stdout: |+
+    9223372036854775807
+  stderr: ""
+  exit_code: 0

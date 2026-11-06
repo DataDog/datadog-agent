@@ -1,0 +1,9 @@
+description: A for loop over an overflowing sequence runs once per in-range element.
+input:
+  script: |+
+    for i in {9223372036854775807..9223372036854775807}; do echo "$i"; done
+expect:
+  stdout: |+
+    9223372036854775807
+  stderr: ""
+  exit_code: 0

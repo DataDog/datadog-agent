@@ -1,0 +1,9 @@
+description: An overflowing sequence combines with other brace expansions.
+input:
+  script: |+
+    echo x{9223372036854775806..9223372036854775807}y{a,b}
+expect:
+  stdout: |+
+    x9223372036854775806ya x9223372036854775806yb x9223372036854775807ya x9223372036854775807yb
+  stderr: ""
+  exit_code: 0

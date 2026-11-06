@@ -1,0 +1,9 @@
+description: Literal braces next to a clamped sequence stay literal.
+input:
+  script: |+
+    echo {a}{9223372036854775807..9223372036854775807} {9223372036854775807..9223372036854775807}'{b,c}'\{d,e\}
+expect:
+  stdout: |+
+    {a}9223372036854775807 9223372036854775807{b,c}{d,e}
+  stderr: ""
+  exit_code: 0

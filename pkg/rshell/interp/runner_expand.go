@@ -417,7 +417,7 @@ func (c *fieldCollector) add(words ...*syntax.Word) (ok bool) {
 			return false
 		}
 
-		for field, err := range expand.FieldsSeq(c.r.ecfg, word) {
+		for field, err := range fieldsSeq(c.r.ecfg, word) {
 			if err != nil {
 				if strings.HasPrefix(err.Error(), braceExpansionLimitErrorPrefix) {
 					err = &expansionLimitError{message: err.Error()}

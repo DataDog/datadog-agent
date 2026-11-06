@@ -73,6 +73,39 @@ func TestBraceExpansionLimit(t *testing.T) {
 	}
 }
 
+func TestBraceSequenceInt64OverflowEndsAtBound(t *testing.T) {
+	stdout, stderr, err := runExpansionScript(t,
+		"echo {9223372036854775806..9223372036854775807..2}\n"+
+			"echo {-9223372036854775807..-9223372036854775808}\n"+
+			"echo {1..2}{9223372036854775807..9223372036854775807}",
+		AllowedCommands([]string{"rshell:echo"}),
+	)
+	if err != nil || stderr != "" {
+		t.Fatalf("err = %v, stderr = %q, want success", err, stderr)
+	}
+	want := "9223372036854775806\n" +
+		"-9223372036854775807 -9223372036854775808\n" +
+		"19223372036854775807 29223372036854775807\n"
+	if stdout != want {
+		t.Fatalf("stdout = %q, want %q", stdout, want)
+	}
+}
+
+func TestBraceSequenceFullInt64RangeStillLimited(t *testing.T) {
+	stdout, stderr, err := runExpansionScript(t,
+		"echo {-9223372036854775808..9223372036854775807}\n"+
+			"echo {1..16384}{9223372036854775806..9223372036854775807}",
+		AllowedCommands([]string{"rshell:echo"}),
+	)
+	requireExitStatus(t, err, 1)
+	if stdout != "" {
+		t.Fatalf("stdout = %q, want empty", stdout)
+	}
+	if !strings.Contains(stderr, "brace expansion would exceed 16384 elements") {
+		t.Fatalf("stderr = %q, want brace expansion limit", stderr)
+	}
+}
+
 func TestRedirectExpansionLimits(t *testing.T) {
 	for _, script := range []string{
 		"true < {1..100000}",

@@ -1,0 +1,9 @@
+description: A step past the int64 maximum ends the sequence at its last element.
+input:
+  script: |+
+    echo {9223372036854775806..9223372036854775807..2}
+expect:
+  stdout: |+
+    9223372036854775806
+  stderr: ""
+  exit_code: 0
