@@ -37,6 +37,13 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		metricsClient = &statsd.NoOpClient{}
 	}
 	ddSite := par.Site(config)
+	apiBaseURL, err := par.APIBaseURL(config, ddSite)
+	if err != nil {
+		return nil, err
+	}
+	if par.ShouldWarnAboutRCOverride(config) {
+		log.Warn("PAR is enabled with remote_configuration.rc_dd_url set but private_action_runner.par_dd_url unset; the RC override does not change PAR routing. Set private_action_runner.par_dd_url explicitly if PAR requires custom routing.")
+	}
 	encodedPrivateKey := config.GetString(par.PrivateKey)
 	urn := config.GetString(par.URN)
 
@@ -110,7 +117,7 @@ func FromDDConfig(config config.Component, metricsClient statsd.ClientInterface)
 		RShellAllowedCommandsConfigured:    config.IsConfigured(par.RestrictedShellAllowedCommands),
 		RShellAllowedPathsConfigured:       config.IsConfigured(par.RestrictedShellAllowedPaths),
 		OpmsExtraHeaders:                   config.GetStringMapString(par.OPMSExtraHeaders),
-		APIBaseURL:                         par.APIBaseURL(config, ddSite),
+		APIBaseURL:                         apiBaseURL,
 		Modes:                              []modes.Mode{modes.ModePull},
 		OrgId:                              orgID,
 		PrivateKey:                         privateKey,

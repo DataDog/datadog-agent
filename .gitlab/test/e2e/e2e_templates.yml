@@ -11,7 +11,6 @@
     - !reference [.needs_new_e2e_template]
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
-    - !reference [.retrieve_linux_pulumi_plugins]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - |

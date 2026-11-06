@@ -83,6 +83,8 @@ def build(ctx, enable_bazel=False):
     else:
         build_tags = get_default_build_tags(build="host-profiler")
         ldflags, gcflags, env = get_build_flags(ctx)
+        if not os.environ.get("DELVE"):
+            ldflags += " -w"
         if profiler_version := _get_profiler_agent_version(ctx):
             ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
 

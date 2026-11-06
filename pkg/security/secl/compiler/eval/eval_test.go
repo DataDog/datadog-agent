@@ -23,9 +23,10 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
-func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]Field) *Opts {
+func newOptsWithParams(constants map[string]ast.Node, legacyFields map[Field]Field) *Opts {
 	opts := &Opts{
 		Constants:    constants,
 		LegacyFields: legacyFields,
@@ -44,7 +45,7 @@ func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]
 }
 
 func parseRule(expr string, model Model, opts *Opts) (*Rule, error) {
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	rule, err := NewRule("id1", expr, pc, opts)
 	if err != nil {
 		return nil, fmt.Errorf("parsing error: %v", err)
@@ -113,6 +114,35 @@ func TestBoolError(t *testing.T) {
 	_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
 	if err == nil || err.(*ErrAstToEval).Pos.Column != 38 {
 		t.Fatal("should report a bool type error")
+	}
+}
+
+func TestCIDRArrayScalarComparisonError(t *testing.T) {
+	model := &testModel{}
+
+	opts := newOptsWithParams(nil, nil)
+	rule, err := parseRule(`network.cidrs < 10.0.0.0/8`, model, opts)
+	if rule == nil {
+		t.Fatal(err)
+	}
+
+	// an ordering operator on an array of CIDRs is not supported, it used to panic
+	if _, err = NewRuleEvaluator(rule.GetAst(), model, opts); err == nil {
+		t.Fatal("should report an unknown operator error")
+	}
+}
+
+func TestIdentArrayError(t *testing.T) {
+	for expr, expected := range map[string]string{
+		`process.uid in [process.gid]`: "`process.gid` is not a constant",
+		// the family of an array is the one of its first member
+		`open.flags in [O_CREAT, true]`: "array of int expected",
+		`open.flags in [true, O_CREAT]`: "array of bool expected",
+	} {
+		_, err := parseRule(expr, &testModel{}, newOptsWithParams(testConstants, nil))
+		if err == nil || !strings.Contains(err.Error(), expected) {
+			t.Fatalf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
 	}
 }
 
@@ -630,8 +660,8 @@ func TestConstants(t *testing.T) {
 
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"list",
@@ -657,10 +687,32 @@ func TestMacroList(t *testing.T) {
 	}
 }
 
+func TestMacroEmptyValues(t *testing.T) {
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
+
+	macro, err := NewStringValuesMacro("list", nil, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.MacroStore.Add(macro)
+
+	expr := `open.filename in list`
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+	}
+
+	ctx := NewContext(&testEvent{open: testOpen{filename: "/etc/shadow"}})
+	if rule.Eval(ctx) {
+		t.Fatalf("should return false")
+	}
+}
+
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -698,8 +750,8 @@ func TestMacroExpression(t *testing.T) {
 
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -759,8 +811,8 @@ func TestNestedMacros(t *testing.T) {
 	}
 
 	model := &testModel{}
-	pc := ast.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro1, err := NewMacro(
 		"sensitive_files",
@@ -795,6 +847,43 @@ func TestNestedMacros(t *testing.T) {
 	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
+}
+
+func TestNestedMacrosPartial(t *testing.T) {
+	model := &testModel{}
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
+
+	for _, def := range []struct{ id, expr string }{
+		{"is_passwd", `open.filename == "/etc/passwd" || open.filename == "/etc/shadow"`},
+		{"httpd_passwd", `is_passwd && process.name == "httpd"`},
+	} {
+		macro, err := NewMacro(def.id, def.expr, model, pc, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.MacroStore.Add(macro)
+	}
+
+	rule, err := parseRule(`httpd_passwd`, model, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event := &testEvent{
+		process: testProcess{name: "nginx"},
+		open:    testOpen{filename: "/etc/passwd"},
+	}
+	ctx := NewContext(event)
+
+	result, err := rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.True(t, result, "open.filename shouldn't be a discarder")
+
+	event.open.filename = "/etc/group"
+	result, err = rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.False(t, result, "open.filename should be a discarder")
 }
 
 func TestFieldValidator(t *testing.T) {
@@ -1719,6 +1808,7 @@ func TestMatchingSubExprs(t *testing.T) {
 		{Expr: `network.ips allin [192.168.0.0/16, 192.168.0.0/24]`, Expected: `<b>network.ips</b> allin [<b>192.168.0.0/16, 192.168.0.0/24</b>]`},
 		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
 		{Expr: `process.name in [~"aaals*", ~"ls*"]`, Expected: `<b>process.name</b> in [~"aaals*", ~<b>"ls*"</b>]`},
+		{Expr: `process.is_root || process.list.key == 10 || process.uid == 22`, Expected: `<b>process.is_root</b> || process.list.key == 10 || process.uid == 22`},
 
 		// need to add varname in the evaluators
 		//{Expr: `true && process.pid == ${pid}`, Expected: `true && <b>process.pid</b> == ${pid}`},
@@ -1896,7 +1986,7 @@ func TestMatchingSubExprOperandSwap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, "", nil))
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, ""))
 			if err != nil {
 				t.Fatalf("failed to build the `Or` evaluator: %s", err)
 			}
