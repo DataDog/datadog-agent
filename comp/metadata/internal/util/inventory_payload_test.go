@@ -71,7 +71,7 @@ func TestProviderSpecificFirstRunDelay(t *testing.T) {
 	conf := config.NewMockWithOverrides(t, map[string]any{"inventories_first_run_delay": 3600})
 	l := logmock.New(t)
 	s := serializermock.NewMetricSerializer(t)
-	getPayload := func() marshaler.JSONMarshaler { return &testPayload{} }
+	getPayload := func() marshaler.TypedJSONMarshaler { return &testPayload{} }
 	regular := CreateInventoryPayload(conf, l, s, getPayload, "regular.json")
 	immediate := CreateInventoryPayload(conf, l, s, getPayload, "immediate.json")
 	immediate.SetFirstRunDelay(0)
