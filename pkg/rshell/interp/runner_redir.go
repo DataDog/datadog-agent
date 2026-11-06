@@ -297,9 +297,10 @@ func (r *Runner) redir(ctx context.Context, rd *syntax.Redirect) (io.Closer, err
 		// allowed stdin filter would otherwise become a general file
 		// reader. Treat `< file` as an implicit `cat file` for allowlist
 		// purposes, exactly like the `$(<file)` shortcut in cmdSubst.
-		// /dev/null yields no data, so it is exempt (it is still subject to
-		// AllowedPaths when opened below).
-		if !isDevNull(arg) && !r.allowAllCommands && !r.allowedCommands["cat"] {
+		// The platform's null device yields no data, so it is exempt (it is
+		// still subject to AllowedPaths when opened below). Only its native
+		// spelling counts: on Windows "/dev/null" opens an ordinary file.
+		if !isNativeDevNull(arg) && !r.allowAllCommands && !r.allowedCommands["cat"] {
 			r.errf("< %s: file read not permitted (cat not in allowed commands)\n", arg)
 			return nil, fmt.Errorf("< %s: file read not permitted (cat not in allowed commands)", arg)
 		}
