@@ -90,6 +90,7 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
 		flaretypes.NewFiller(getUlimitData),
 		flaretypes.NewFiller(getSvmonData),
+		flaretypes.NewFiller(getErrptData),
 		flaretypes.NewFiller(provideCertificateSources),
 	}
 

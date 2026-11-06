@@ -79,6 +79,7 @@ go_library(
 dd_agent_go_test(
     name = "flare_test",
     srcs = [
+        "archive_aix_test.go",
         "archive_docker_test.go",
         "archive_test.go",
         "certificates_test.go",
