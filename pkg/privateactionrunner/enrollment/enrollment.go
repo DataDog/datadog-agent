@@ -35,6 +35,8 @@ type Result struct {
 	RunnerName    string
 	OrchClusterID string
 	APIKeyHash    string
+	WIFOrgUUID    string
+	WIFSite       string
 }
 
 type AgentIdentifier struct {
@@ -49,6 +51,9 @@ type PersistedIdentity struct {
 	OrchClusterID string `json:"orch_cluster_id,omitempty"`
 	// Hashed rather than stored raw, to avoid persisting a second live credential.
 	APIKeyHash string `json:"api_key_hash,omitempty"`
+	// The configured WIF organization and site used for successful enrollment.
+	WIFOrgUUID string `json:"wif_org_uuid,omitempty"`
+	WIFSite    string `json:"wif_site,omitempty"`
 }
 
 func HashAPIKey(apiKey string) string {
