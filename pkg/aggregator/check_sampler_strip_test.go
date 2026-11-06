@@ -306,7 +306,7 @@ func flushThrough(cs *CheckSampler, merger *checkOutputMerger, commit float64, c
 func TestCheckSamplerMergesStampedSketchesAfterARuleIsRemoved(t *testing.T) {
 	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
 	cs := newStripTestSampler("check:0", newStrippedIdentityTable())
-	merger := newCheckOutputMerger()
+	merger := newTestCheckOutputMerger()
 	cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, 100), stripPodMatcher(t, "my.dist"))
 	flushThrough(cs, merger, 100.5, 101)
 
