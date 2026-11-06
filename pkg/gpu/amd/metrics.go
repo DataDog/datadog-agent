@@ -51,6 +51,8 @@ type Metrics struct {
 	PCIeMaxLinkWidth    Reading // max_link_width, lanes
 	PCIeLinkSpeedGTs    Reading // current_link_speed, GT/s per lane
 	PCIeMaxLinkSpeedGTs Reading // max_link_speed, GT/s per lane
+
+	RAS RASCounters // cumulative RAS error counters
 }
 
 // ReadMetrics reads the current telemetry of the device. Attributes the device
@@ -77,6 +79,7 @@ func (d *Device) ReadMetrics() (Metrics, error) {
 	if hwmonDir := r.hwmonDir(d.devicePath); hwmonDir != "" {
 		r.readHwmon(hwmonDir, &m)
 	}
+	m.RAS = r.readRAS(d.devicePath)
 
 	return m, errors.Join(r.errs...)
 }

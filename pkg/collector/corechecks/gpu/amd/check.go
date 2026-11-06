@@ -67,6 +67,7 @@ type Check struct {
 	deviceTags          map[string][]string              // deviceTags maps device UUIDs to their device tags
 	readTimeout         time.Duration                    // readTimeout bounds the wait for the telemetry of one device
 	pendingReads        map[string]<-chan struct{}       // pendingReads holds telemetry reads, by device UUID, that have not returned yet
+	errors              *errorCounter                    // errors counts the KFD error events and RAS errors of the devices
 }
 
 type checkTelemetry struct {
@@ -145,6 +146,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	if c.readTimeout == 0 {
 		c.readTimeout = defaultAMDReadTimeout
 	}
+	if c.errors == nil && c.String() == CheckName {
+		// Only the amd_gpu check counts errors: other checks of this package
+		// must not subscribe to the KFD events again.
+		c.errors = newErrorCounter(amdgpu.NewEventSubscriber(amdgpu.DefaultKFDPath))
+	}
 
 	if c.containerProvider == nil {
 		// As in the NVIDIA GPU check: not an error, to keep `agent check` working.
@@ -161,6 +167,14 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 	c.workloadTagCache = workloadTagCache
 	return nil
+}
+
+// Cancel stops the KFD event subscriptions of the check.
+func (c *Check) Cancel() {
+	if c.errors != nil {
+		c.errors.close()
+	}
+	c.CheckBase.Cancel()
 }
 
 // Interval returns the scheduling interval of the check, which follows
@@ -183,6 +197,9 @@ func (c *Check) Run() error {
 
 	devices := c.refreshDevices()
 	c.telemetry.deviceCount.Set(float64(len(devices)))
+	if c.errors != nil {
+		c.errors.startCollection(devices)
+	}
 
 	// Make sure workload tag resolution attempts retrieving the most up to date values.
 	// Stale cache entries (from previous runs) might still be used as a fallback.
@@ -328,11 +345,16 @@ func (c *Check) collectSamples() []gpu.CollectorSamples {
 				reading.err = errors.Join(reading.err, fmt.Errorf("read AMD GPU processes: %w", usageErr))
 			}
 		}
+		samples := append(amdSamples(reading.metrics), amdProcessSamples(reading.metrics, processesByDevice[dev.UUID])...)
+		if c.errors != nil {
+			c.errors.addRAS(dev.UUID, reading.metrics.RAS)
+			samples = append(samples, c.errors.samples(dev.UUID)...)
+		}
 		results[i] = gpu.CollectorSamples{
 			Name:          amdCollectorName,
 			DeviceUUID:    dev.UUID,
 			TelemetryTags: amdTelemetryTags(dev),
-			Samples:       append(amdSamples(reading.metrics), amdProcessSamples(reading.metrics, processesByDevice[dev.UUID])...),
+			Samples:       samples,
 			Err:           reading.err,
 			Duration:      reading.duration,
 		}

@@ -151,7 +151,10 @@ func buildMetricRows(specs *gpuspec.Specs) ([]metricRow, error) {
 
 		minSupportedArchitecture := earliestSupportedArchitecture(specs, metricSpec)
 		if minSupportedArchitecture == "" {
-			return nil, fmt.Errorf("metric %q is unsupported on all known architectures", metricName)
+			if !metricSpec.Support.AMDOnly {
+				return nil, fmt.Errorf("metric %q is unsupported on all known architectures", metricName)
+			}
+			minSupportedArchitecture = "amd"
 		}
 
 		row := metricRow{

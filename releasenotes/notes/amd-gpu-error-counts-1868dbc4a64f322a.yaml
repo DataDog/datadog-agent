@@ -1,0 +1,9 @@
+---
+features:
+  - |
+    GPU monitoring: on AMD Instinct GPUs, the ``amd_gpu`` check now reports
+    ``gpu.errors.amdgpu`` (errors during the collection interval) and
+    ``gpu.errors.amdgpu.total`` (errors since the check started), tagged by
+    error type: VM faults, GPU resets and thermal throttling events reported
+    by the amdgpu driver, and correctable, uncorrectable, deferred, fatal and
+    poison RAS errors. Events need access to ``/dev/kfd``.
