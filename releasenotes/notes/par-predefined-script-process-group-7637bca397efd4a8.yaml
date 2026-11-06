@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    The Private Action Runner ``runPredefinedScript`` action now terminates
+    processes left in the script's process group when the action times out or
+    the script exits. Previously, background processes started by the script
+    kept running and, while holding the script's output, delayed the action
+    past its timeout. Scripts that need long-lived background processes must
+    detach them into their own session (for example with ``setsid``). Unless
+    ``noFailOnError`` is set, the action fails when a background process keeps
+    the script's output open for more than 5 seconds after the script exits.
