@@ -29,14 +29,11 @@ import (
 
 func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 	for _, tc := range []struct {
-		name                string
-		optIn               bool
-		primaryOrg, logsOrg string
+		name    string
+		logsOrg string
 	}{
 		{name: "static API key"},
-		{name: "static API key with WIF enrollment enabled", optIn: true},
-		{name: "logs-only WIF with WIF enrollment enabled", optIn: true, logsOrg: "logs-org"},
-		{name: "primary WIF with WIF enrollment disabled", primaryOrg: "primary-org"},
+		{name: "logs-only WIF", logsOrg: "logs-org"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Setenv(app.InternalUseDDURLForOPMSEnvVar, "true")
@@ -57,10 +54,9 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 			}))
 			defer srv.Close()
 			overrides := map[string]interface{}{
-				"private_action_runner.wif_enrollment": tc.optIn,
-				"delegated_auth.org_uuid":              tc.primaryOrg,
-				"logs_config.delegated_auth.org_uuid":  tc.logsOrg,
-				"api_key":                              "test-key", "dd_url": srv.URL, "private_action_runner.enabled": true,
+				"delegated_auth.org_uuid":             "",
+				"logs_config.delegated_auth.org_uuid": tc.logsOrg,
+				"api_key":                             "test-key", "dd_url": srv.URL, "private_action_runner.enabled": true,
 				"private_action_runner.self_enroll": true, "private_action_runner.api_key_only_enrollment": true,
 				"private_action_runner.identity_file_path": filepath.Join(t.TempDir(), "identity.json"),
 			}
@@ -78,7 +74,7 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 			_, err = runner.getRunnerConfig(context.Background())
 			require.NoError(t, err)
 			require.EqualValues(t, 1, posts.Load(), "a saved identity follows existing reuse behavior")
-			// The opt-in must not block the existing API-key rotation path either.
+			// Without primary intake WIF, API-key rotation keeps the existing path.
 			overrides["api_key"] = "rotated-key"
 			cfg = coreconfig.NewMockWithOverrides(t, overrides)
 			// Config mocks share a backing store; discard identity populated by the previous startup.

@@ -55,6 +55,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
@@ -601,9 +602,12 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
-// wifEnrollmentEnabled applies the opt-in only to the primary intake WIF configuration.
+// wifEnrollmentEnabled follows primary intake authentication for node runners.
+// WIF configured only for another endpoint does not select PAR enrollment.
 func (p *PrivateActionRunner) wifEnrollmentEnabled() bool {
-	return p.coreConfig.GetBool(par.WIFEnrollment) && p.coreConfig.GetString("delegated_auth.org_uuid") != ""
+	agentFlavor := flavor.GetFlavor()
+	return (agentFlavor == flavor.DefaultAgent || agentFlavor == flavor.PrivateActionRunner) &&
+		p.coreConfig.GetString("delegated_auth.org_uuid") != ""
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner.
