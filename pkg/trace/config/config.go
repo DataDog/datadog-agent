@@ -835,6 +835,13 @@ func (c *AgentConfig) UpdateAPIKey(val string) {
 	c.Endpoints[0].APIKey = val
 }
 
+// UpdateApplicationKey updates the application key the AI Guard proxy sends to Datadog, so that
+// rotating app_key does not need a restart. Assigned in place like UpdateAPIKey above: this
+// struct is copied by value into the /info payload, so it cannot hold a lock.
+func (c *AgentConfig) UpdateApplicationKey(val string) {
+	c.EVPProxy.ApplicationKey = val
+}
+
 // WriterEndpoints returns the endpoints the trace and stats writers send
 // payloads to: Endpoints, minus the main endpoint (Endpoints[0]) when
 // SkipMainEndpoint is set. Configuration validation guarantees that at least

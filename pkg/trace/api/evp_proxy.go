@@ -95,7 +95,7 @@ func evpProxyForwarder(conf *config.AgentConfig, statsd statsd.ClientInterface) 
 			// so we do not call pr.SetXForwarded().
 		},
 		ErrorLog:  logger,
-		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd, EvpProxyAllowedHeaders, "", false},
+		Transport: &evpProxyTransport{conf.NewHTTPTransport(), endpoints, conf, NewContainerIDProviderFromConfig(conf), statsd, EvpProxyAllowedHeaders, false, false},
 	}
 }
 
@@ -109,7 +109,7 @@ func aiGuardProxyEnabled(conf *config.AgentConfig) bool {
 func (r *HTTPReceiver) aiGuardProxyHandler() http.Handler {
 	endpoints := []config.Endpoint{{Host: r.conf.Site, APIKey: r.conf.APIKey()}}
 	// The handler reads the body under http.MaxBytesReader, so the transport must not limit it again.
-	transport := &evpProxyTransport{r.conf.NewHTTPTransport(), endpoints, r.conf, NewContainerIDProviderFromConfig(r.conf), r.statsd, aiGuardProxyAllowedHeaders, r.conf.EVPProxy.ApplicationKey, true}
+	transport := &evpProxyTransport{r.conf.NewHTTPTransport(), endpoints, r.conf, NewContainerIDProviderFromConfig(r.conf), r.statsd, aiGuardProxyAllowedHeaders, true, true}
 	throttled := log.NewThrottled(5, 10*time.Second)
 	errorLog := stdlog.New(throttled, "AIGuardProxy: ", 0)
 	return http.StripPrefix("/ai_guard/proxy", http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
@@ -193,7 +193,9 @@ type evpProxyTransport struct {
 	containerIDProvider IDProvider
 	statsd              statsd.ClientInterface
 	allowedHeaders      []string
-	applicationKey      string // set as DD-APPLICATION-KEY when not empty
+	// sendApplicationKey forwards the Agent's application key as DD-APPLICATION-KEY. It is read
+	// from the config per request, so rotating app_key takes effect without a restart.
+	sendApplicationKey bool
 	// bodyAlreadyLimited skips the limit below for a caller that enforced it itself. Applying it
 	// twice rejects a body of exactly the limit: the limited reader reports the limit instead of
 	// EOF on the read the HTTP transport makes after ContentLength bytes.
@@ -266,8 +268,10 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 	req.Header.Set("X-Datadog-AgentDefaultEnv", t.conf.DefaultEnv)
 	log.Debugf("Setting headers X-Datadog-Hostnames=%s, X-Datadog-AgentDefaultEnv=%s for evp proxy", t.conf.Hostname, t.conf.DefaultEnv)
 	req.Header.Set(header.ContainerID, containerID)
-	if t.applicationKey != "" {
-		req.Header.Set("DD-APPLICATION-KEY", t.applicationKey)
+	if t.sendApplicationKey {
+		if applicationKey := t.conf.EVPProxy.ApplicationKey; applicationKey != "" {
+			req.Header.Set("DD-APPLICATION-KEY", applicationKey)
+		}
 	}
 	if t.conf.ErrorTrackingStandalone {
 		req.Header.Set("X-Datadog-Error-Tracking-Standalone", "true")

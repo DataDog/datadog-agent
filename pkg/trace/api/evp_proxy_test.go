@@ -945,6 +945,23 @@ func TestAIGuardProxy(t *testing.T) {
 		assert.Empty(t, got.trailer, "trailers must not be forwarded to Datadog")
 	})
 
+	// A rotated application key must reach Datadog without restarting the Agent.
+	t.Run("rotated application key", func(t *testing.T) {
+		received := make(chan upstreamRequest, 2)
+		conf := aiGuardTestConfig()
+		mux := aiGuardTestMux(t, conf, recordingUpstream(received))
+
+		mux.ServeHTTP(httptest.NewRecorder(), newAIGuardRequest("POST", "/api/v2/ai-guard/evaluate", "{}"))
+		require.Len(t, received, 1)
+		assert.Equal(t, "test_app_key", (<-received).header.Get("DD-APPLICATION-KEY"))
+
+		conf.UpdateApplicationKey("rotated_app_key")
+
+		mux.ServeHTTP(httptest.NewRecorder(), newAIGuardRequest("POST", "/api/v2/ai-guard/evaluate", "{}"))
+		require.Len(t, received, 1)
+		assert.Equal(t, "rotated_app_key", (<-received).header.Get("DD-APPLICATION-KEY"))
+	})
+
 	// The AI Guard proxy goes to the main endpoint only, so that the application key never fans out.
 	t.Run("main endpoint only", func(t *testing.T) {
 		received := make(chan upstreamRequest, 2)
