@@ -34,6 +34,8 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 	if auth == nil {
 		return nil, errors.New("WIF enrollment requires the delegated-auth component")
 	}
+	wifOrgUUID := cfg.GetString("delegated_auth.org_uuid")
+	ddSite := parconfig.Site(cfg)
 	privateJWK, publicJWK, err := util.GenerateKeys()
 	if err != nil {
 		return nil, err
@@ -50,7 +52,6 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 	if err != nil {
 		return nil, fmt.Errorf("request PAR enrollment workload token: %w", err)
 	}
-	ddSite := parconfig.Site(cfg)
 	runnerName := agentIdentifier.Hostname + "-" + time.Now().UTC().Format("20060102150405")
 	endpoint, err := parconfig.APIBaseURL(cfg, ddSite)
 	if err != nil {
@@ -72,6 +73,8 @@ func EnrollWithWorkloadToken(ctx context.Context, cfg configmodel.Reader, auth d
 		URN:        util.MakeRunnerURN(regions.GetRegionFromDDSite(ddSite), response.OrgID, response.RunnerID),
 		Hostname:   agentIdentifier.Hostname,
 		RunnerName: runnerName,
+		WIFOrgUUID: wifOrgUUID,
+		WIFSite:    ddSite,
 		// No APIKeyHash: this identity is authorized by WIF, not the rotating intake key.
 	}, nil
 }

@@ -104,6 +104,8 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 	require.Equal(t, enrolled.Urn, saved.URN)
 	require.Equal(t, util.MakeRunnerURN("eu1", 42, "runner-wif"), saved.URN, "the runner region comes from site, not the intake URL")
 	require.Empty(t, saved.APIKeyHash)
+	require.Equal(t, "test-org", saved.WIFOrgUUID)
+	require.Equal(t, "datadoghq.eu", saved.WIFSite, "save the logical site, not the intake URL override")
 	require.Equal(t, "ENC[unused-intake-key]", cfg.GetString("api_key"))
 
 	// A new component/config simulates restart: reuse the file, not runtime config writes.
