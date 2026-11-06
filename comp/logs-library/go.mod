@@ -2,6 +2,10 @@ module github.com/DataDog/datadog-agent/comp/logs-library
 
 go 1.26.0
 
+// Reuse encoding/json in OTTL core to avoid linking a second JSON encoder.
+// Fork of v1.3.1 with a two-line change; see doc/how-to/test/log-processing-ottl.md.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl => github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c
+
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.215
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
@@ -32,8 +36,9 @@ require (
 	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/fastjq v0.0.0-20260506145947-c3336f252fa2
 	github.com/benbjohnson/clock v1.3.5
-	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
+	github.com/go-json-experiment/json v1.27.0
 	github.com/gobwas/glob v0.2.3
+	github.com/goccy/go-json v0.10.6
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1
 	github.com/stretchr/testify v1.12.1
 	github.com/valyala/fastjson v1.6.10
@@ -91,7 +96,6 @@ require (
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
@@ -115,7 +119,6 @@ require (
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/internal/coreinternal v0.164.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1
 	github.com/pandatix/go-abnf v0.5.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/client_golang v1.25.0 // indirect
@@ -128,7 +131,7 @@ require (
 	github.com/spf13/pflag v1.0.10 // indirect
 	github.com/tklauser/go-sysconf v0.4.0 // indirect
 	github.com/tklauser/numcpus v0.12.0 // indirect
-	github.com/twmb/murmur3 v1.2.1 // indirect
+	github.com/twmb/murmur3 v1.2.2 // indirect
 	github.com/ua-parser/uap-go v0.0.0-20251207011819-db9adb27a0b8 // indirect
 	github.com/yusufpapurcu/wmi v1.2.4 // indirect
 	github.com/zeebo/xxh3 v1.1.0 // indirect
