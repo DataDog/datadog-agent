@@ -9,6 +9,8 @@ package securitycontext
 
 import (
 	"slices"
+	"sync"
+	"time"
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
@@ -26,14 +28,26 @@ type wmetaSource interface {
 // workloadmeta.
 type WorkloadmetaResolver struct {
 	wmeta wmetaSource
-	// seccompDefaultEnabled mirrors the node's kubelet --seccomp-default /
-	// seccompDefault setting, read once at construction.
+
+	kubeletLock       sync.Mutex
+	kubelet           *kubeletInfo
+	kubeletLookupTime time.Time
+	// seccompDefaultEnabled mirrors the kubelet's --seccomp-default setting.
 	seccompDefaultEnabled bool
 }
 
+// kubeletLookupInterval bounds how often /proc is scanned for a kubelet that
+// restarted or wasn't running yet.
+const kubeletLookupInterval = time.Minute
+
 // NewWorkloadmetaResolver returns a resolver backed by wmeta; nil is safe.
 func NewWorkloadmetaResolver(wmeta workloadmeta.Component) *WorkloadmetaResolver {
-	r := &WorkloadmetaResolver{seccompDefaultEnabled: kubeletSeccompDefaultEnabled()}
+	kubelet := findKubelet()
+	r := &WorkloadmetaResolver{
+		kubelet:               kubelet,
+		kubeletLookupTime:     time.Now(),
+		seccompDefaultEnabled: kubeletSeccompDefaultEnabled(kubelet),
+	}
 	if wmeta != nil {
 		r.wmeta = wmeta
 	}
@@ -94,8 +108,10 @@ func (r *WorkloadmetaResolver) Resolve(id containerutils.ContainerID) (Key, *Sec
 
 	// When neither the container nor the pod declares a seccomp profile, the
 	// kubelet applies RuntimeDefault if --seccomp-default is enabled on the node.
-	if hasPod && out.Seccomp == nil && r.seccompDefaultEnabled {
-		out.Seccomp = &SeccompProfile{Type: SeccompRuntimeDefault}
+	if hasPod && out.Seccomp == nil {
+		if _, seccompDefault := r.currentKubelet(); seccompDefault {
+			out.Seccomp = &SeccompProfile{Type: SeccompRuntimeDefault}
+		}
 	}
 
 	if sc == nil && podSC == nil && out.Seccomp == nil {
@@ -142,7 +158,31 @@ func (r *WorkloadmetaResolver) ResolveSeccompFilter(profile *SeccompProfile) (*S
 	if profile == nil || profile.Type != SeccompLocalhost {
 		return nil, nil
 	}
-	return readLocalhostSeccompProfile(profile.LocalhostProfile)
+	kubelet, _ := r.currentKubelet()
+	return readLocalhostSeccompProfile(kubelet, profile.LocalhostProfile)
+}
+
+// currentKubelet returns the cached kubelet and its seccomp default, looking
+// the kubelet up again when its process is gone or its PID was reused.
+func (r *WorkloadmetaResolver) currentKubelet() (*kubeletInfo, bool) {
+	r.kubeletLock.Lock()
+	defer r.kubeletLock.Unlock()
+
+	if r.kubelet != nil && r.kubelet.pid != "" {
+		if _, ok := kubeletArgs(r.kubelet.pid); ok {
+			return r.kubelet, r.seccompDefaultEnabled
+		}
+		// Copy since callers read it unlocked.
+		stale := *r.kubelet
+		stale.pid = ""
+		r.kubelet = &stale
+	}
+	if now := time.Now(); now.Sub(r.kubeletLookupTime) >= kubeletLookupInterval {
+		r.kubeletLookupTime = now
+		r.kubelet = findKubelet()
+		r.seccompDefaultEnabled = kubeletSeccompDefaultEnabled(r.kubelet)
+	}
+	return r.kubelet, r.seccompDefaultEnabled
 }
 
 func seccompFromWmeta(sp *workloadmeta.SeccompProfile) *SeccompProfile {

@@ -449,7 +449,7 @@ func TestEngine_LogPatternLRUEvictionFreesStorage(t *testing.T) {
 	extractor := NewLogPatternExtractor(cfg)
 
 	storage := newTimeSeriesStorage()
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
@@ -520,7 +520,7 @@ func TestEngine_LogPatternLRUEvictionFreesDetectorState(t *testing.T) {
 	stateless := &statelessTestDetector{name: "stateless"}
 
 	storage := newTimeSeriesStorage()
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 		detectors: []observerdef.Detector{
@@ -674,7 +674,7 @@ func TestEngine_LogPatternTotalLimitFreesStorage(t *testing.T) {
 	extractor := NewLogPatternExtractor(cfg)
 
 	storage := newTimeSeriesStorage()
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})

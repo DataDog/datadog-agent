@@ -31,7 +31,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -450,7 +449,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 	}
 
-	eng := newEngine(engineConfig{
+	eng, err := newEngine(engineConfig{
 		storage:         newTimeSeriesStorageWith(storageCfg),
 		extractors:      extractors,
 		detectors:       detectors,
@@ -461,6 +460,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		baseline:        settings.Baseline,
 		logCountBuckets: logCountBucketConfigFromAgent(cfg),
 	})
+	if err != nil {
+		return Provides{}, err
+	}
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
@@ -646,9 +648,9 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 		case configuredRetention == 0:
 			// Keep the detector-derived retention.
 		case configuredRetention < 0:
-			pkglog.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s; using %s derived from enabled detector windows", configuredRetention, requiredRetention)
+			logging.Warnf("anomaly_detection.storage.point_retention must be >= 0, got %s; using %s derived from enabled detector windows", configuredRetention, requiredRetention)
 		case configuredRetention < requiredRetention:
-			pkglog.Warnf("anomaly_detection.storage.point_retention=%s is below the %s required by enabled detector windows; using %s", configuredRetention, requiredRetention, requiredRetention)
+			logging.Warnf("anomaly_detection.storage.point_retention=%s is below the %s required by enabled detector windows; using %s", configuredRetention, requiredRetention, requiredRetention)
 		default:
 			storageCfg.PointRetentionSecs = int64(configuredRetention.Seconds())
 		}
@@ -656,7 +658,7 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	if cfg.IsConfigured("anomaly_detection.storage.inactive_series_ttl") {
 		d := cfg.GetDuration("anomaly_detection.storage.inactive_series_ttl")
 		if d < 0 {
-			pkglog.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
+			logging.Warnf("anomaly_detection.storage.inactive_series_ttl must be >= 0, got %s — using default", d)
 		} else {
 			storageCfg.InactiveSeriesTTLSeconds = int64(d.Seconds())
 		}
@@ -664,7 +666,7 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	if cfg.IsConfigured("anomaly_detection.storage.inactive_series_check_interval") {
 		d := cfg.GetDuration("anomaly_detection.storage.inactive_series_check_interval")
 		if d < 0 {
-			pkglog.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
+			logging.Warnf("anomaly_detection.storage.inactive_series_check_interval must be >= 0, got %s — using default", d)
 		} else {
 			storageCfg.InactiveSeriesCheckIntervalSeconds = int64(d.Seconds())
 		}
@@ -857,9 +859,9 @@ type seriesDetectorAdapter struct {
 	windowSec int64
 
 	// cachedRefs / cachedGen mirror the pattern used by BOCPDDetector,
-	// ScanWelchDetector, and ScanMWDetector: storage.SeriesGeneration() only
-	// advances when a brand-new series key is created, so we can avoid the
-	// per-Detect full-map series scan on steady-state cardinality.
+	// ScanWelchDetector, and ScanMWDetector: SeriesGeneration changes on series
+	// admission/removal and filterable metadata updates, not ordinary point writes.
+	// Reuse the selection while that generation is unchanged.
 	cachedRefs []observerdef.SeriesRef
 	cachedGen  uint64
 
@@ -1147,7 +1149,7 @@ func (o *observerImpl) flushCtx(ctx context.Context) error {
 }
 
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
-func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
+func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) error {
 	o.Flush()
 	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
 	// Catalog scorers are unwatched standalone instances. Replay needs the same
@@ -1157,10 +1159,13 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
 	}
 	o.replayMu.Lock()
+	defer o.replayMu.Unlock()
 	o.metricFilter.muted.Store(nil)
-	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
+	if err := o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline); err != nil {
+		return err
+	}
 	o.publishSeriesCount()
-	o.replayMu.Unlock()
+	return nil
 }
 
 // baselineEventSink publishes the mute hash set to the shared filter when the
@@ -1274,15 +1279,18 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 // ReplayStoredData resets analysis state (preserving extractor context) then
 // replays all stored data through the scheduler in chronological order.
 // Implements DebugView.
-func (o *observerImpl) ReplayStoredData() {
+func (o *observerImpl) ReplayStoredData() error {
 	// resetAnalysisState resets detectors/correlators and tracking state but
 	// preserves extractor state so enrichAnomaly can still attach log pattern
 	// context (stored on seriesStats) during replay.
 	o.replayMu.Lock()
-	o.engine.resetAnalysisState()
+	defer o.replayMu.Unlock()
+	if err := o.engine.resetAnalysisState(); err != nil {
+		return err
+	}
 	o.engine.ReplayStoredData()
 	o.publishSeriesCount()
-	o.replayMu.Unlock()
+	return nil
 }
 
 // StorageReader returns a read-only view of the engine's time-series storage.
