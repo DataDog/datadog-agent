@@ -168,15 +168,10 @@ func TestExperimentStartUnits(t *testing.T) {
 	)
 }
 
-func TestSyncProcmgrDefaults(t *testing.T) {
-	require.Equal(t, "/etc/datadog-agent/datadog-agent-procmgr", procmgrDefaultsPath)
-	path := filepath.Join(t.TempDir(), "datadog-agent-procmgr")
-	originalPath := procmgrDefaultsPath
+func TestStopProcmgrOnOptOut(t *testing.T) {
 	originalInitSystem := currentInitSystem
 	originalStop := stopProcmgrService
-	procmgrDefaultsPath = path
 	t.Cleanup(func() {
-		procmgrDefaultsPath = originalPath
 		currentInitSystem = originalInitSystem
 		stopProcmgrService = originalStop
 	})
@@ -190,73 +185,25 @@ func TestSyncProcmgrDefaults(t *testing.T) {
 
 	currentInitSystem = func() service.Type { return service.SystemdType }
 	t.Setenv(processManagerEnabledEnv, "false")
-	require.NoError(t, syncProcmgrDefaults(ctx))
-	_, err := os.Stat(path)
-	require.ErrorIs(t, err, os.ErrNotExist)
+	stopProcmgrOnOptOut(ctx)
 	assert.Empty(t, stopped)
 
 	currentInitSystem = func() service.Type { return service.UpstartType }
-	require.NoError(t, syncProcmgrDefaults(ctx))
-	info, err := os.Lstat(path)
-	require.NoError(t, err)
-	assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
-	content, err := os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, procmgrDefaultsDisabled, string(content))
+	stopProcmgrOnOptOut(ctx)
 	assert.Equal(t, []service.Type{service.UpstartType}, stopped)
 
-	require.NoError(t, os.Remove(path))
-	secretPath := filepath.Join(t.TempDir(), "secret")
-	require.NoError(t, os.WriteFile(secretPath, []byte("secret"), 0644))
-	require.NoError(t, os.Symlink(secretPath, path))
-	require.NoError(t, syncProcmgrDefaults(ctx))
-	info, err = os.Lstat(path)
-	require.NoError(t, err)
-	assert.True(t, info.Mode().IsRegular())
-	content, err = os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, procmgrDefaultsDisabled, string(content))
-	secret, err := os.ReadFile(secretPath)
-	require.NoError(t, err)
-	assert.Equal(t, "secret", string(secret))
-
-	require.NoError(t, os.WriteFile(path, []byte("old contents\n"), 0644))
-	oldFile, err := os.OpenFile(path, os.O_WRONLY, 0)
-	require.NoError(t, err)
-	t.Cleanup(func() { _ = oldFile.Close() })
-	require.NoError(t, syncProcmgrDefaults(ctx))
-	_, err = oldFile.WriteAt([]byte("tampered contents\n"), 0)
-	require.NoError(t, err)
-	content, err = os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, procmgrDefaultsDisabled, string(content))
-
-	require.NoError(t, os.WriteFile(path, []byte("DATADOG_ENABLED=no\n# admin\n"), 0644))
 	require.NoError(t, os.Unsetenv(processManagerEnabledEnv))
 	stopped = nil
-	require.NoError(t, syncProcmgrDefaults(ctx))
-	content, err = os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, "DATADOG_ENABLED=no\n# admin\n", string(content))
+	stopProcmgrOnOptOut(ctx)
 	assert.Empty(t, stopped)
 
 	t.Setenv(processManagerEnabledEnv, "true")
-	require.NoError(t, syncProcmgrDefaults(ctx))
-	_, err = os.Stat(path)
-	require.NoError(t, err)
-
-	require.NoError(t, os.WriteFile(path, []byte(procmgrDefaultsDisabled), 0644))
-	require.NoError(t, syncProcmgrDefaults(ctx))
-	_, err = os.Stat(path)
-	require.ErrorIs(t, err, os.ErrNotExist)
+	stopProcmgrOnOptOut(ctx)
+	assert.Empty(t, stopped)
 
 	currentInitSystem = func() service.Type { return service.SysvinitType }
 	t.Setenv(processManagerEnabledEnv, "FALSE")
-	stopped = nil
-	require.NoError(t, syncProcmgrDefaults(ctx))
-	content, err = os.ReadFile(path)
-	require.NoError(t, err)
-	assert.Equal(t, procmgrDefaultsDisabled, string(content))
+	stopProcmgrOnOptOut(ctx)
 	assert.Equal(t, []service.Type{service.SysvinitType}, stopped)
 }
 
@@ -295,17 +242,37 @@ func TestProcmgrOnSysVAndUpstartKeepsPlainResults(t *testing.T) {
 }
 
 func TestWriteProcessesOnlyUnderProcmgr(t *testing.T) {
+	require.NotEmpty(t, agentService.ProcmgrProcesses)
 	stubServiceManager(t, service.UpstartType, service.UpstartType)
 	packagePath := t.TempDir()
 	require.NoError(t, agentService.WriteProcesses(packagePath))
 	_, err := os.Stat(service.ConfigDir(packagePath))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 
+	dir := service.ConfigDir(packagePath)
+	require.NoError(t, os.MkdirAll(dir, 0755))
+	for _, process := range agentService.ProcmgrProcesses {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, process), []byte("managed"), 0644))
+	}
+	custom := filepath.Join(dir, "custom.yaml")
+	require.NoError(t, os.WriteFile(custom, []byte("admin"), 0644))
+	require.NoError(t, agentService.WriteProcesses(packagePath))
+	for _, process := range agentService.ProcmgrProcesses {
+		_, err := os.Stat(filepath.Join(dir, process))
+		assert.ErrorIs(t, err, os.ErrNotExist)
+	}
+	assert.FileExists(t, custom)
+
 	stubServiceManager(t, service.ProcmgrType, service.UpstartType)
 	require.NoError(t, agentService.WriteProcesses(packagePath))
 	for _, process := range agentService.ProcmgrProcesses {
-		assert.FileExists(t, filepath.Join(service.ConfigDir(packagePath), process))
+		path := filepath.Join(dir, process)
+		assert.FileExists(t, path)
+		info, err := os.Stat(path)
+		require.NoError(t, err)
+		assert.Equal(t, os.FileMode(0644), info.Mode().Perm())
 	}
+	assert.FileExists(t, custom)
 }
 
 // TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists, plain and procmgr,

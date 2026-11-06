@@ -15,12 +15,17 @@ env DD_LOG_TO_CONSOLE=false
 
 # Runs as root so --chuid can switch to dd-agent.
 script
-  # Same precedence as the procmgr job. The subshell keeps the admin file out of this environment.
+  # The subshell keeps the admin file out of this environment.
+  # Split mode needs both Private Action Runner definitions. Any other YAML only starts dd-procmgrd.
+  procmgr_par_definitions() {
+    [ -f "{install_dir}/processes.d/datadog-agent-par-control.yaml" ] || [ -f "{install_dir}/processes.d/datadog-agent-par-control.yml" ] || return 1
+    [ -f "{install_dir}/processes.d/datadog-agent-action-executor.yaml" ] || [ -f "{install_dir}/processes.d/datadog-agent-action-executor.yml" ] || return 1
+  }
   procmgr_enabled() {
     [ -x {install_dir}/embedded/bin/dd-procmgrd ] || return 1
     (
       DATADOG_ENABLED=
-      if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+      if ! procmgr_par_definitions; then
         DATADOG_ENABLED=no
       fi
       if [ -r /etc/default/datadog-agent-procmgr ]; then

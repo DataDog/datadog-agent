@@ -9,7 +9,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -830,14 +829,8 @@ func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 
 const (
 	procmgrServiceName       = "datadog-agent-procmgr"
-	procmgrDefaultsDisabled  = "DATADOG_ENABLED=no\n"
 	processManagerEnabledEnv = "DD_PROCESS_MANAGER_ENABLED"
 )
-
-// procmgrDefaultsPath is the file the SysV and Upstart jobs read at boot.
-// They compare its contents and do not source it. The directory is owned by dd-agent.
-// The installer process environment is not present then.
-var procmgrDefaultsPath = "/etc/datadog-agent/datadog-agent-procmgr"
 
 var (
 	currentServiceManager = service.GetServiceManagerType
@@ -855,94 +848,20 @@ var stopProcmgrService = func(ctx HookContext, manager service.Type) error {
 	}
 }
 
-// writeProcmgrDefaultsDisabled replaces path instead of truncating it, so an old writable descriptor stays on the previous inode.
-func writeProcmgrDefaultsDisabled(path string) error {
-	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, 0755); err != nil {
-		return fmt.Errorf("failed to create %s: %w", dir, err)
-	}
-	f, err := os.CreateTemp(dir, "."+filepath.Base(path)+".tmp-*")
-	if err != nil {
-		return fmt.Errorf("failed to create temporary file for %s: %w", path, err)
-	}
-	tempPath := f.Name()
-	removeTemp := true
-	defer func() {
-		_ = f.Close()
-		if removeTemp {
-			_ = os.Remove(tempPath)
-		}
-	}()
-	if _, err := f.Write([]byte(procmgrDefaultsDisabled)); err != nil {
-		return fmt.Errorf("failed to write %s: %w", path, err)
-	}
-	if err := f.Chmod(0644); err != nil {
-		return fmt.Errorf("failed to chmod %s: %w", path, err)
-	}
-	if err := f.Close(); err != nil {
-		return fmt.Errorf("failed to close %s: %w", path, err)
-	}
-	if err := os.Rename(tempPath, path); err != nil {
-		return fmt.Errorf("failed to replace %s: %w", path, err)
-	}
-	removeTemp = false
-	return nil
-}
-
-// installerProcmgrDefaults reports whether path is the regular file this installer wrote.
-// A symlink is left alone.
-func installerProcmgrDefaults(path string) (bool, error) {
-	info, err := os.Lstat(path)
-	if errors.Is(err, os.ErrNotExist) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("failed to inspect %s: %w", path, err)
-	}
-	if !info.Mode().IsRegular() {
-		return false, nil
-	}
-	f, err := os.OpenFile(path, os.O_RDONLY|unix.O_NOFOLLOW, 0)
-	if err != nil {
-		return false, fmt.Errorf("failed to read %s: %w", path, err)
-	}
-	defer f.Close()
-	content, err := io.ReadAll(f)
-	if err != nil {
-		return false, fmt.Errorf("failed to read %s: %w", path, err)
-	}
-	return string(content) == procmgrDefaultsDisabled, nil
-}
-
-// syncProcmgrDefaults records an explicit process-manager choice for SysV and Upstart.
-// An unset variable leaves a hand-written defaults file alone.
-func syncProcmgrDefaults(ctx HookContext) error {
+// stopProcmgrOnOptOut stops a running SysV or Upstart dd-procmgrd when this install opts out.
+// The process definitions are removed separately. A manual postinst re-run does not pass through preInstall, so the stop stays here.
+func stopProcmgrOnOptOut(ctx HookContext) {
 	manager := currentInitSystem()
 	switch manager {
 	case service.SysvinitType, service.UpstartType:
 	default:
-		return nil
+		return
 	}
-	switch strings.ToLower(strings.TrimSpace(os.Getenv(processManagerEnabledEnv))) {
-	case "false":
-		if err := writeProcmgrDefaultsDisabled(procmgrDefaultsPath); err != nil {
-			return err
-		}
-		if err := stopProcmgrService(ctx, manager); err != nil {
-			log.Warnf("failed to stop %s: %v", procmgrServiceName, err)
-		}
-		return nil
-	case "true":
-		match, err := installerProcmgrDefaults(procmgrDefaultsPath)
-		if err != nil || !match {
-			return err
-		}
-		if err := os.Remove(procmgrDefaultsPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-			return fmt.Errorf("failed to remove %s: %w", procmgrDefaultsPath, err)
-		}
-		return nil
-	default:
-		return nil
+	if strings.ToLower(strings.TrimSpace(os.Getenv(processManagerEnabledEnv))) != "false" {
+		return
+	}
+	if err := stopProcmgrService(ctx, manager); err != nil {
+		log.Warnf("failed to stop %s: %v", procmgrServiceName, err)
 	}
 }
 
@@ -951,9 +870,7 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	if err := syncProcmgrDefaults(ctx); err != nil {
-		return err
-	}
+	stopProcmgrOnOptOut(ctx)
 	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		if err := systemd.EnableUnit(ctx, s.SystemdMainUnitStable); err != nil {
@@ -1095,8 +1012,20 @@ func (s *datadogAgentService) WriteProcesses(packagePath string) error {
 	case service.ProcmgrType:
 		return writeEmbeddedProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
 	default:
-		return nil // Only procmgr defines processes
+		// An opt-out leaves the packaged directory in place and removes only the definitions this installer writes.
+		return removeProcmgrProcesses(packagePath, s.ProcmgrProcesses...)
 	}
+}
+
+func removeProcmgrProcesses(packagePath string, processes ...string) error {
+	dir := service.ConfigDir(packagePath)
+	for _, process := range processes {
+		path := filepath.Join(dir, process)
+		if err := os.Remove(path); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return fmt.Errorf("failed to remove %s: %w", path, err)
+		}
+	}
+	return nil
 }
 
 // WriteStable writes the stable units to the system and reloads the systemd daemon

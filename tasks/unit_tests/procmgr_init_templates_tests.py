@@ -13,6 +13,7 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SHELL = os.environ.get('PROCMGR_TEST_SHELL', '/bin/sh')
 SYSV_PROCMGR = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.procmgr.in'
 SYSV_ACTION = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.action.in'
 SYSV_AGENT = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.in'
@@ -20,7 +21,6 @@ UPSTART_DEBIAN = REPO_ROOT / 'packages/debian/etc/upstart_debian.procmgr.conf.in
 UPSTART_REDHAT = REPO_ROOT / 'packages/redhat/etc/upstart_redhat.procmgr.conf.in'
 SYSV_RUNTIME_DIR = '/usr/bin/install -d -o "$AGENT_USER" -g "$AGENT_USER" -m 0755 /var/run/datadog-procmgrd || return 2'
 UPSTART_RUNTIME_DIR = '/usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1'
-INSTALLER_PROCMGR_DEFAULTS = '/etc/datadog-agent/datadog-agent-procmgr'
 PARENT_SPLIT = 'true'
 
 
@@ -86,6 +86,9 @@ class Layout:
         self.etc.mkdir(parents=True)
         (self.install / 'run').mkdir(parents=True)
         write_executable(self.binary, f'env > "{self.env_out}"\nexit 0\n')
+        definitions = self.install / 'processes.d'
+        definitions.mkdir()
+        (definitions / 'datadog-agent-par-control.yaml').write_text('command: /bin/true\n')
         # The environment file sets two of the variables that must be overridden by the template.
         (self.etc / 'environment').write_text('DD_EXTRA=from-file\nDD_INSTALL_DIR=/wrong\nDD_CONF_DIR=/wrong\n')
 
@@ -184,7 +187,6 @@ exit 93
         script = script.replace('"/etc/init.d/$NAME" load-env', f'"{rendered}" load-env')
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{self.root}/default/')
-        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(self.root / 'datadog-agent-procmgr'))
         # The real path is /var/run, which this user cannot create. install still runs.
         script = script.replace(
             SYSV_RUNTIME_DIR,
@@ -194,7 +196,7 @@ exit 93
 
         env = self.base_env(f'{commands}:/usr/bin:/bin')
         result = subprocess.run(
-            ['/bin/sh', str(rendered), 'start'], env=env, text=True, capture_output=True, check=False, timeout=30
+            [SHELL, str(rendered), 'start'], env=env, text=True, capture_output=True, check=False, timeout=30
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertTrue(started.exists())
@@ -254,7 +256,7 @@ exit 98
         script_path.write_text(script)
 
         result = subprocess.run(
-            ['/bin/sh', str(script_path)],
+            [SHELL, str(script_path)],
             env=self.base_env(f'{commands}:/usr/bin:/bin'),
             text=True,
             capture_output=True,
@@ -360,7 +362,7 @@ exec "$@"
         )
 
         proc = subprocess.Popen(
-            ['/bin/sh', str(script_path)],
+            [SHELL, str(script_path)],
             env=self.base_env(f'{commands}:/usr/bin:/bin'),
             text=True,
             stdout=subprocess.PIPE,
@@ -400,7 +402,7 @@ exec "$@"
         daemon_pid.unlink()
         layout.env_out.unlink(missing_ok=True)
         failed = subprocess.run(
-            ['/bin/sh', str(script_path)],
+            [SHELL, str(script_path)],
             env=self.base_env(f'{commands}:/usr/bin:/bin'),
             text=True,
             capture_output=True,
@@ -411,18 +413,20 @@ exec "$@"
         self.assertFalse(daemon_pid.exists())
         self.assertFalse(layout.env_out.exists())
 
-    def test_procmgr_compares_the_installer_file_before_sourcing_the_admin_file(self):
-        compare = f'cat {INSTALLER_PROCMGR_DEFAULTS}'
+    def test_procmgr_checks_definitions_before_sourcing_the_admin_file(self):
         sysv = SYSV_PROCMGR.read_text()
-        self.assertNotIn(f'. {INSTALLER_PROCMGR_DEFAULTS}', sysv)
-        self.assertLess(sysv.index(compare), sysv.index('/etc/default/${NAME}'))
-        for template in (UPSTART_DEBIAN, UPSTART_REDHAT):
-            text = template.read_text()
-            self.assertNotIn(f'. {INSTALLER_PROCMGR_DEFAULTS}', text)
-            self.assertLess(text.index(compare), text.index('. /etc/default/datadog-agent-procmgr'))
+        self.assertNotIn('/etc/datadog-agent/datadog-agent-procmgr', sysv)
+        self.assertLess(sysv.index('procmgr_configured'), sysv.index('/etc/default/${NAME}'))
+        self.assertIn('[ -f "$f" ]', sysv)
+        debian = upstart_main_block(UPSTART_DEBIAN)
+        self.assertNotIn('/etc/datadog-agent/datadog-agent-procmgr', debian)
+        self.assertLess(debian.index('procmgr_configured'), debian.index('. /etc/default/datadog-agent-procmgr'))
+        for header in ('script', 'pre-start script'):
+            block = upstart_block(UPSTART_REDHAT, header)
+            self.assertNotIn('/etc/datadog-agent/datadog-agent-procmgr', block)
+            self.assertLess(block.index('procmgr_configured'), block.index('. /etc/default/datadog-agent-procmgr'))
 
-    def test_upstart_exits_when_the_defaults_file_disables_procmgr(self):
-        installer = self.root / 'datadog-agent-procmgr'
+    def test_upstart_follows_definitions_and_the_admin_file(self):
         admin = self.root / 'default' / 'datadog-agent-procmgr'
         admin.parent.mkdir()
         called = self.root / 'called'
@@ -431,35 +435,44 @@ exec "$@"
         binary.parent.mkdir(parents=True)
         binary.write_text('')
         binary.chmod(0o755)
+        processes = install / 'processes.d'
+        processes.mkdir()
+        definition = processes / 'datadog-agent-par-control.yaml'
+        directory_entry = processes / 'x.yaml'
         cases = (
             (UPSTART_DEBIAN, ('script',)),
             (UPSTART_REDHAT, ('pre-start script', 'script')),
         )
+        # definition present, admin text, disabled
         files = (
-            ('DATADOG_ENABLED=no\n', None, True),
-            (None, 'DATADOG_ENABLED=no\n', True),
-            (None, 'DATADOG_ENABLED=yes\n', False),
-            ('DATADOG_ENABLED=no\n', 'DATADOG_ENABLED=yes\n', False),
+            (False, None, True),
+            (False, 'DATADOG_ENABLED=no\n', True),
+            (False, 'DATADOG_ENABLED=yes\n', False),
+            (True, 'DATADOG_ENABLED=no\n', True),
+            (True, None, False),
+            (True, 'DATADOG_ENABLED=yes\n', False),
         )
         for template, headers in cases:
             for header in headers:
                 block = upstart_block(template, header)
-                for installer_text, admin_text, disabled in files:
-                    with self.subTest(template=template.name, block=header, disabled=disabled):
-                        for path, contents in ((installer, installer_text), (admin, admin_text)):
-                            if contents is None:
-                                path.unlink(missing_ok=True)
-                            else:
-                                path.write_text(contents)
+                for present, admin_text, disabled in files:
+                    with self.subTest(template=template.name, block=header, present=present, admin=admin_text):
+                        if present:
+                            definition.write_text('command: /bin/true\n')
+                        else:
+                            definition.unlink(missing_ok=True)
+                        if admin_text is None:
+                            admin.unlink(missing_ok=True)
+                        else:
+                            admin.write_text(admin_text)
                         called.unlink(missing_ok=True)
                         script = render(block, install, self.root / 'etc')
-                        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
                         script = script.replace('/etc/default/datadog-agent-procmgr', str(admin))
                         reached = f'touch "{called}"; exit 0'
                         script = script.replace(UPSTART_RUNTIME_DIR, reached)
                         script = script.replace('groups=$(/usr/bin/id -G dd-agent) || exit 1', reached)
                         result = subprocess.run(
-                            ['/bin/sh', '-c', script],
+                            [SHELL, '-e', '-c', script],
                             text=True,
                             capture_output=True,
                             check=False,
@@ -467,22 +480,29 @@ exec "$@"
                         )
                         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                         self.assertEqual(called.exists(), not disabled)
-                payload = self.root / 'pwned'
-                payload.unlink(missing_ok=True)
-                installer.write_text(f'DATADOG_ENABLED=no\ntouch "{payload}"\n')
+                definition.unlink(missing_ok=True)
+                directory_entry.mkdir()
                 admin.unlink(missing_ok=True)
                 called.unlink(missing_ok=True)
                 script = render(block, install, self.root / 'etc')
-                script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
                 script = script.replace('/etc/default/datadog-agent-procmgr', str(admin))
                 reached = f'touch "{called}"; exit 0'
                 script = script.replace(UPSTART_RUNTIME_DIR, reached)
                 script = script.replace('groups=$(/usr/bin/id -G dd-agent) || exit 1', reached)
                 result = subprocess.run(
-                    ['/bin/sh', '-c', script], text=True, capture_output=True, check=False, timeout=15
+                    [SHELL, '-e', '-c', script], text=True, capture_output=True, check=False, timeout=15
                 )
+                directory_entry.rmdir()
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertFalse(payload.exists())
+                self.assertFalse(called.exists())
+                yml = processes / 'custom.yml'
+                yml.write_text('command: /bin/true\n')
+                called.unlink(missing_ok=True)
+                result = subprocess.run(
+                    [SHELL, '-e', '-c', script], text=True, capture_output=True, check=False, timeout=15
+                )
+                yml.unlink()
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertTrue(called.exists())
 
     def test_procmgr_stop_waits_for_par_control(self):
@@ -505,7 +525,7 @@ exec "$@"
         self.assertIn(UPSTART_RUNTIME_DIR, redhat_pre_start)
         self.assertNotIn(UPSTART_RUNTIME_DIR, upstart_main_block(UPSTART_REDHAT))
 
-    def sysv_harness(self, installer_defaults=None, setpriv=True):
+    def sysv_harness(self, configured=True, setpriv=True):
         """Render the procmgr SysV script with a fake start-stop-daemon that records its calls."""
         root = Path(tempfile.mkdtemp(dir=self.root))
         layout = Layout(root)
@@ -529,14 +549,13 @@ esac
 exit 90
 ''',
         )
-        installer = root / 'datadog-agent-procmgr'
-        if installer_defaults is not None:
-            installer.write_text(installer_defaults)
+        if not configured:
+            for path in (layout.install / 'processes.d').glob('*'):
+                path.unlink()
         runtime = root / 'var-run' / 'datadog-procmgrd'
         script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{root}/default/')
-        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
         script = script.replace('/sbin/start-stop-daemon', str(commands / 'start-stop-daemon'))
         script = script.replace(
             SYSV_RUNTIME_DIR,
@@ -552,7 +571,7 @@ exit 90
             calls.unlink(missing_ok=True)
             started.unlink(missing_ok=True)
             result = subprocess.run(
-                ['/bin/sh', str(rendered), action],
+                [SHELL, str(rendered), action],
                 env={**env, 'STOP_RC': str(stop_rc), **extra},
                 text=True,
                 capture_output=True,
@@ -605,7 +624,7 @@ exit 90
         self.assertEqual(calls, [])
 
     def test_sysv_restart_stops_but_does_not_start_when_disabled(self):
-        run, started, pidfile = self.sysv_harness(installer_defaults='DATADOG_ENABLED=no\n')
+        run, started, pidfile = self.sysv_harness(configured=False)
         pidfile.write_text('4242\n')
         result, calls = run('restart')
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -627,13 +646,12 @@ exit 90
         script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
         script = script.replace('/etc/default/', f'{self.root}/default/')
-        script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(self.root / 'datadog-agent-procmgr'))
         script = script.replace('/usr/bin/install', str(commands / 'install'))
         rendered = self.root / 'init-script'
         rendered.write_text(script)
         env = self.base_env(f'{commands}:/usr/bin:/bin')
         result = subprocess.run(
-            ['/bin/sh', str(rendered), 'start'], env=env, text=True, capture_output=True, check=False, timeout=30
+            [SHELL, str(rendered), 'start'], env=env, text=True, capture_output=True, check=False, timeout=30
         )
         self.assertNotEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse(started.exists())

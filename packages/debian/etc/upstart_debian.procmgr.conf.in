@@ -14,8 +14,14 @@ env DD_LOG_TO_CONSOLE=false
 # No setuid stanza. Upstart applies it to every job process, including pre-start,
 # so this script stays root long enough to create the socket directory.
 script
-  # Compare the installer file as text. dd-agent can replace it, so do not source it.
-  if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+  # A regular definition in processes.d is the install-time choice. The admin file wins.
+  procmgr_configured() {
+    for f in "{install_dir}/processes.d/"*.yaml "{install_dir}/processes.d/"*.yml; do
+      [ -f "$f" ] && return 0
+    done
+    return 1
+  }
+  if ! procmgr_configured; then
     DATADOG_ENABLED=no
   fi
   if [ -r /etc/default/datadog-agent-procmgr ]; then

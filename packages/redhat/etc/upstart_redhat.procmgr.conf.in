@@ -11,8 +11,14 @@ kill timeout 200
 console output
 
 script
-  # Compare the installer file as text. dd-agent can replace it, so do not source it.
-  if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+  # A regular definition in processes.d is the install-time choice. The admin file wins.
+  procmgr_configured() {
+    for f in "{install_dir}/processes.d/"*.yaml "{install_dir}/processes.d/"*.yml; do
+      [ -f "$f" ] && return 0
+    done
+    return 1
+  }
+  if ! procmgr_configured; then
     DATADOG_ENABLED=no
   fi
   if [ -r /etc/default/datadog-agent-procmgr ]; then
@@ -68,8 +74,13 @@ END_LOAD_ENV
 end script
 
 pre-start script
-  # Compare the installer file as text. dd-agent can replace it, so do not source it.
-  if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+  procmgr_configured() {
+    for f in "{install_dir}/processes.d/"*.yaml "{install_dir}/processes.d/"*.yml; do
+      [ -f "$f" ] && return 0
+    done
+    return 1
+  }
+  if ! procmgr_configured; then
     DATADOG_ENABLED=no
   fi
   if [ -r /etc/default/datadog-agent-procmgr ]; then
@@ -80,7 +91,6 @@ pre-start script
   fi
   # dd-agent cannot create this directory under root-owned /var/run.
   /usr/bin/install -d -o dd-agent -g dd-agent -m 0755 /var/run/datadog-procmgrd || exit 1
-  # Manual rotation of errors log
   log_file_size=`du -b /var/log/datadog/procmgr-errors.log | cut -f1`
   if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then
     mv /var/log/datadog/procmgr-errors.log /var/log/datadog/procmgr-errors.log.1

@@ -15,13 +15,18 @@ import unittest
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+SHELL = os.environ.get('PROCMGR_TEST_SHELL', '/bin/sh')
 SYSV_TEMPLATE = REPO_ROOT / 'packages/debian/etc/sysvinit_debian.action.in'
 UPSTART_TEMPLATES = (
     REPO_ROOT / 'packages/debian/etc/upstart_debian.action.conf.in',
     REPO_ROOT / 'packages/redhat/etc/upstart_redhat.action.conf.in',
 )
-INSTALLER_PROCMGR_DEFAULTS = '/etc/datadog-agent/datadog-agent-procmgr'
 ADMIN_PROCMGR_DEFAULTS = '/etc/default/datadog-agent-procmgr'
+PAR_DEFINITIONS = (
+    'datadog-agent-par-control.yaml',
+    'datadog-agent-action-executor.yaml',
+)
+INSTALLER_OPT_OUT = 'DATADOG_ENABLED=no\n'
 SOCKET = '/var/run/datadog-procmgrd/dd-procmgrd.sock'
 UNIX_HEADER = 'Num       RefCount Protocol Flags    Type St Inode Path\n'
 LISTENING = f'0000000000000000: 00000002 00000000 00010000 0001 01 12345 {SOCKET}\n'
@@ -30,7 +35,7 @@ CONNECTED = f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {SOCKET
 # Each case disables procmgr, so without a listening socket the action job forces the monolithic runner.
 PROCMGR_DISABLED = (
     ('not installed', {'procmgr_installed': False}),
-    ('installer opt-out', {'procmgr_installed': True, 'installer_defaults': 'DATADOG_ENABLED=no\n'}),
+    ('installer opt-out', {'procmgr_installed': True, 'installer_defaults': INSTALLER_OPT_OUT}),
     ('admin opt-out', {'procmgr_installed': True, 'admin_defaults': 'DATADOG_ENABLED=no\n'}),
 )
 
@@ -41,17 +46,24 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
         path.write_text('#!/bin/sh\nset -eu\n' + content)
         path.chmod(0o755)
 
-    def write_procmgr_files(self, root, procmgr_installed, installer_defaults, admin_defaults):
+    def write_procmgr_files(self, root, procmgr_installed, installer_defaults, admin_defaults, extra_processes=()):
         if procmgr_installed:
             self.executable(root / 'embedded/bin/dd-procmgrd', 'exit 0\n')
-        installer = root / 'datadog-agent-procmgr'
-        if installer_defaults is not None:
-            installer.write_text(installer_defaults)
+        # installer_defaults opt-out means the installer wrote no Private Action Runner definitions.
+        names = ()
+        if procmgr_installed and installer_defaults != INSTALLER_OPT_OUT:
+            names = PAR_DEFINITIONS
+        names = tuple(names) + tuple(extra_processes)
+        if names:
+            directory = root / 'processes.d'
+            directory.mkdir(exist_ok=True)
+            for name in names:
+                (directory / name).write_text('command: /bin/true\n')
         admin = root / 'default/datadog-agent-procmgr'
         if admin_defaults is not None:
             admin.parent.mkdir(exist_ok=True)
             admin.write_text(admin_defaults)
-        return installer, admin
+        return admin
 
     def run_sysv(
         self,
@@ -63,6 +75,7 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
         procmgr_installed=False,
         installer_defaults=None,
         admin_defaults=None,
+        extra_processes=(),
         **env,
     ):
         import fcntl
@@ -72,7 +85,7 @@ class TestPARLegacyStartupTemplates(unittest.TestCase):
             binary = root / 'embedded/bin/privateactionrunner'
             binary.parent.mkdir(parents=True)
             self.executable(binary, 'exit 0\n')
-            installer, _ = self.write_procmgr_files(root, procmgr_installed, installer_defaults, admin_defaults)
+            self.write_procmgr_files(root, procmgr_installed, installer_defaults, admin_defaults, extra_processes)
             (root / 'run').mkdir()
             pidfile = root / 'run/privateactionrunner.pid'
             if running:
@@ -206,7 +219,6 @@ log_warning_msg() { echo "WARNING: $*"; }
             script = script.replace('. /lib/lsb/init-functions', f'. "{functions}"')
             script = script.replace('/etc/default/', f'{tmp}/default/')
             script = script.replace('/sbin/start-stop-daemon', str(daemon))
-            script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
             unix_table = root / 'unix'
             unix_table.write_text(UNIX_HEADER + (unix_row or ''))
             script = script.replace('/proc/net/unix', str(unix_table))
@@ -243,7 +255,7 @@ log_warning_msg() { echo "WARNING: $*"; }
             }
             try:
                 result = subprocess.run(
-                    ['/bin/sh', str(rendered), action],
+                    [SHELL, str(rendered), action],
                     env=environment,
                     pass_fds=(inherited_fd,),
                     text=True,
@@ -280,6 +292,14 @@ log_warning_msg() { echo "WARNING: $*"; }
         self.assertNotIn('monolithic', result.stdout)
         self.assertEqual(sleeps, ['1', '1'])
 
+    def test_sysv_unrelated_definition_does_not_select_split_mode(self):
+        result, calls, _, _ = self.run_sysv(
+            procmgr_installed=True, installer_defaults=INSTALLER_OPT_OUT, extra_processes=('custom.yaml',)
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+        self.assertIn('monolithic mode', result.stdout)
+
     def test_sysv_forces_monolithic_when_procmgr_is_disabled(self):
         for name, procmgr in PROCMGR_DISABLED:
             with self.subTest(name):
@@ -308,7 +328,7 @@ log_warning_msg() { echo "WARNING: $*"; }
     def test_sysv_admin_procmgr_defaults_override_the_installer_opt_out(self):
         result, calls, sleeps, _ = self.run_sysv(
             procmgr_installed=True,
-            installer_defaults='DATADOG_ENABLED=no\n',
+            installer_defaults=INSTALLER_OPT_OUT,
             admin_defaults='DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n',
         )
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
@@ -434,7 +454,6 @@ sys.exit(int(sys.argv[1]))
             script = SYSV_TEMPLATE.read_text().replace('{install_dir}', tmp).replace('{etc_dir}', tmp)
             script = script.replace('AGENT_USER="dd-agent"', 'AGENT_USER="root"')
             script = script.replace('/etc/default/', f'{tmp}/default/')
-            script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(root / 'datadog-agent-procmgr'))
             # Keep a host dd-procmgrd socket from switching this test to split mode.
             unix_table = root / 'unix'
             unix_table.write_text(UNIX_HEADER)
@@ -450,7 +469,7 @@ log_failure_msg() { echo "$*"; }''',
             rendered = root / 'init-script'
 
             def service(action):
-                return subprocess.run(['/bin/sh', str(rendered), action], text=True, capture_output=True, timeout=30)
+                return subprocess.run([SHELL, str(rendered), action], text=True, capture_output=True, timeout=30)
 
             for outcome in ('0', '2', 'signal', 'running'):
                 with self.subTest(outcome=outcome):
@@ -474,14 +493,22 @@ log_failure_msg() { echo "$*"; }''',
                         service('stop')
 
     def run_upstart(
-        self, template, unix_row=None, procmgr_installed=True, installer_defaults=None, admin_defaults=None
+        self,
+        template,
+        unix_row=None,
+        procmgr_installed=True,
+        installer_defaults=None,
+        admin_defaults=None,
+        extra_processes=(),
     ):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
             binary = root / 'embedded/bin/privateactionrunner'
             binary.parent.mkdir(parents=True)
             self.executable(binary, 'echo "split=${DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED-}"\n')
-            installer, admin = self.write_procmgr_files(root, procmgr_installed, installer_defaults, admin_defaults)
+            admin = self.write_procmgr_files(
+                root, procmgr_installed, installer_defaults, admin_defaults, extra_processes
+            )
             # Upstart's script/end script delimiters are syntax, not layout comments.
             text = template.read_text()
             blocks = re.findall(r'^script\n(.*?)^end script$', text, re.MULTILINE | re.DOTALL)
@@ -491,8 +518,8 @@ log_failure_msg() { echo "$*"; }''',
             unix_table = root / 'unix'
             unix_table.write_text(UNIX_HEADER + (unix_row or ''))
             script = script.replace('/proc/net/unix', str(unix_table))
-            script = script.replace(INSTALLER_PROCMGR_DEFAULTS, str(installer))
             script = script.replace(ADMIN_PROCMGR_DEFAULTS, str(admin))
+            script = script.replace('&>>', '>>')
             script = script.replace('/var/log/datadog/privateactionrunner-errors.log', str(logfile))
             su_env = root / 'su.env'
             # Record the environment su receives, then clear it. Real su does not pass it on.
@@ -526,9 +553,9 @@ done
 exit 98
 ''',
             )
-            # Upstart runs script blocks with sh -e.
+            # Upstart runs script blocks with sh -e. Debian's /bin/sh is dash.
             result = subprocess.run(
-                [shutil.which('bash'), '-e', '-c', script],
+                [SHELL, '-e', '-c', script],
                 env={
                     **os.environ,
                     'PATH': f'{tmp}:/usr/bin:/bin',
@@ -582,7 +609,7 @@ exit 98
             with self.subTest(template=template.name):
                 result, output, su_env = self.run_upstart(
                     template,
-                    installer_defaults='DATADOG_ENABLED=no\n',
+                    installer_defaults=INSTALLER_OPT_OUT,
                     admin_defaults='DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n',
                 )
                 self.assertEqual(result.returncode, 0, result.stderr)

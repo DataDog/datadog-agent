@@ -64,9 +64,17 @@ if [ ! -x $AGENTPATH ]; then
 	exit 0
 fi
 
-# load-env runs as dd-agent. Compare the installer file as text: dd-agent can replace it.
-# Source the admin file last so it wins.
-if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+# A regular definition in processes.d is the install-time choice. The admin file wins.
+# The check is a function so it cannot overwrite the start/stop argument in $1.
+procmgr_configured()
+{
+	for f in "$INSTALL_DIR/processes.d/"*.yaml "$INSTALL_DIR/processes.d/"*.yml; do
+		[ -f "$f" ] && return 0
+	done
+	return 1
+}
+
+if ! procmgr_configured; then
 	DATADOG_ENABLED=no
 fi
 if [ -r "/etc/default/${NAME}" ]; then
@@ -129,7 +137,6 @@ start_and_wait()
 		1) log_end_msg 0 ;;
 		2) log_end_msg 1 ;;
 		*)
-			# check if the process manager is running once per second for 5 seconds
 			retries=5
 			while [ $retries -gt 1 ]; do
 				procmgr_status

@@ -10,12 +10,17 @@ normal exit 0
 console output
 
 script
-  # Same precedence as the procmgr job. The subshell keeps the admin file out of this environment.
+  # The subshell keeps the admin file out of this environment.
+  # Split mode needs both Private Action Runner definitions. Any other YAML only starts dd-procmgrd.
+  procmgr_par_definitions() {
+    [ -f "{install_dir}/processes.d/datadog-agent-par-control.yaml" ] || [ -f "{install_dir}/processes.d/datadog-agent-par-control.yml" ] || return 1
+    [ -f "{install_dir}/processes.d/datadog-agent-action-executor.yaml" ] || [ -f "{install_dir}/processes.d/datadog-agent-action-executor.yml" ] || return 1
+  }
   procmgr_enabled() {
     [ -x {install_dir}/embedded/bin/dd-procmgrd ] || return 1
     (
       DATADOG_ENABLED=
-      if [ "$(cat /etc/datadog-agent/datadog-agent-procmgr 2>/dev/null)" = "DATADOG_ENABLED=no" ]; then
+      if ! procmgr_par_definitions; then
         DATADOG_ENABLED=no
       fi
       if [ -r /etc/default/datadog-agent-procmgr ]; then
@@ -51,7 +56,6 @@ script
 end script
 
 pre-start script
-  # Manual rotation of errors log
   log_file_size=`du -b /var/log/datadog/privateactionrunner-errors.log | cut -f1`
   if [ -n "$log_file_size" ] && [ $log_file_size -gt 5242880 ]; then
     # Rotate log file if it's larger than 5MB
