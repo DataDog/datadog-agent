@@ -115,12 +115,18 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 			case "resource.name":
 				s.SetResource(re.ReplaceAllString(s.Resource(), str))
 			default:
+				// Only write back changed values: a write has side effects on promoted keys
+				// (e.g. it replaces an unknown span.kind with the "internal" read from the field).
 				if val, ok := s.GetAttributeAsString(key); ok {
-					s.SetAttributeFromString(key, re.ReplaceAllString(val, str))
+					if newV := re.ReplaceAllString(val, str); newV != val {
+						s.SetAttributeFromString(key, newV)
+					}
 				}
 				for _, spanEvent := range s.Events() {
 					if val, ok := spanEvent.GetAttributeAsString(key); ok {
-						spanEvent.SetAttributeFromString(key, re.ReplaceAllString(val, str))
+						if newV := re.ReplaceAllString(val, str); newV != val {
+							spanEvent.SetAttributeFromString(key, newV)
+						}
 					}
 				}
 			}
