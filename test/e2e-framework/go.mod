@@ -31,7 +31,7 @@ require (
 	github.com/moby/moby/client v0.6.2
 	github.com/pkg/sftp v1.13.12
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.52.1
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.11.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.12.0
 	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.29.0
 	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.29.0
 	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.29.0
@@ -40,7 +40,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0
 	github.com/pulumi/pulumi-command/sdk v1.3.0
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0
-	github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0
+	github.com/pulumi/pulumi-eks/sdk/v4 v4.5.0
 	github.com/pulumi/pulumi-gcp/sdk/v10 v10.2.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4
