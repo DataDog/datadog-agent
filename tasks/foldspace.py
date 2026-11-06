@@ -10,10 +10,10 @@ from invoke import task
 
 from tasks.libs.common.utils import join_command
 
-# DataDog/foldspace ryan.hall/abandon-unavailable-sender, the top of stack #126.
+# DataDog/foldspace ryan.hall/client-cpu-ports, the top of stack #126.
 # Keep in sync with comp/logs-library/sender/foldspace/nativelib/README.md.
 FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
-FOLDSPACE_GIT_COMMIT = "7c8d3c99313528b955b99452ebdd9ab492e42a10"
+FOLDSPACE_GIT_COMMIT = "271aae809fdefab7f8d0e2b4d2a83d955e2219f5"
 FOLDSPACE_PACKAGE = "foldspace-go-ffi"
 
 
