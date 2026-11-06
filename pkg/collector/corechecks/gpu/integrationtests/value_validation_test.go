@@ -43,8 +43,9 @@ type smiResult struct {
 }
 
 type checkCollectionOptions struct {
-	passes           int
-	interval         time.Duration
+	passes   int
+	interval time.Duration
+	// smiOptionsByUUID selects the devices compared with nvidia-smi; nil disables nvidia-smi validation.
 	smiOptionsByUUID map[string][]testutil.SmiCollectionOption
 	injectXIDDevices []safenvml.Device
 }
@@ -118,7 +119,6 @@ func collectCheckAndNvidiaSmiMetrics(t *testing.T, options checkCollectionOption
 	t.Helper()
 	require.Positive(t, options.passes)
 	require.Positive(t, options.interval)
-	require.NotEmpty(t, options.smiOptionsByUUID)
 
 	checkInternal, mockSender := setupGPUCheck(t)
 	require.NoError(t, checkInternal.Run(), "initial Check.Run() should not return an error")
@@ -135,12 +135,14 @@ func collectCheckAndNvidiaSmiMetrics(t *testing.T, options checkCollectionOption
 	var smiSamples map[string]*testutil.SmiSample
 	for pass := range options.passes {
 		if pass == options.passes-1 {
-			// Compare SMI with the final Agent interval and return only that
-			// interval's metrics. Earlier runs initialize rate collectors.
+			// Return only the final interval's metrics. Earlier runs initialize rate collectors.
+			mockSender.ResetCalls()
+		}
+		if pass == options.passes-1 && len(options.smiOptionsByUUID) > 0 {
+			// Compare SMI with the final Agent interval.
 			// dmon takes three samples spanning roughly one Agent interval and
 			// reports the last one, so run the check as soon as dmon exits to
 			// compare readings taken at about the same moment.
-			mockSender.ResetCalls()
 			smiSamples = startNvidiaSmiCollection(options.smiOptionsByUUID, testutil.WithDelay(options.interval/2)).wait(t)
 		} else {
 			time.Sleep(options.interval)
@@ -181,11 +183,13 @@ func validateCollectedMetrics(t *testing.T, specs *gpuspec.Specs, uuids []string
 			require.True(t, found, "could not find GPU config for %s", uuid)
 			deviceMetrics := metricsByUUID[uuid]
 			require.NotEmpty(t, deviceMetrics, "no metrics emitted for GPU %s", uuid)
-			smiSample := smiSamples[uuid]
-			require.NotNil(t, smiSample, "no nvidia-smi sample for GPU %s", uuid)
 
 			options := baseOptions
-			options.NvidiaSMIValues = smiSample.MetricValues()
+			if smiSamples != nil {
+				smiSample := smiSamples[uuid]
+				require.NotNil(t, smiSample, "no nvidia-smi sample for GPU %s", uuid)
+				options.NvidiaSMIValues = smiSample.MetricValues()
+			}
 			if calibratedValuesByUUID != nil {
 				options.CalibratedWorkloadValues = calibratedValuesByUUID[uuid]
 			}
@@ -194,31 +198,42 @@ func validateCollectedMetrics(t *testing.T, specs *gpuspec.Specs, uuids []string
 	}
 }
 
-func gpuConfigForPhysicalDevice(t *testing.T, specs *gpuspec.Specs, device safenvml.Device) gpuspec.GPUConfig {
+// gpuConfigForDevice builds the spec config the device is validated against. A MIG device has the
+// architecture of the GPU it belongs to.
+func gpuConfigForDevice(t *testing.T, specs *gpuspec.Specs, device safenvml.Device, mode gpuspec.DeviceMode) gpuspec.GPUConfig {
 	t.Helper()
 
 	deviceInfo := device.GetDeviceInfo()
-	architecture := gpuutil.ArchToString(deviceInfo.Architecture)
-	require.NotContains(t, []string{"unknown", "invalid"}, architecture, "unsupported architecture enum %v", deviceInfo.Architecture)
+	archInfo := deviceInfo
+	if migDevice, ok := device.(*safenvml.MIGDevice); ok {
+		archInfo = migDevice.Parent.GetDeviceInfo()
+	}
+	architecture := gpuutil.ArchToString(archInfo.Architecture)
+	require.NotContains(t, []string{"unknown", "invalid"}, architecture, "unsupported architecture enum %v", archInfo.Architecture)
 
 	archSpec, ok := specs.Architectures.Architectures[architecture]
 	require.True(t, ok, "architecture %s missing from architectures spec", architecture)
-	require.True(t, gpuspec.IsModeSupportedByArchitecture(archSpec, gpuspec.DeviceModePhysical), "physical mode should be supported for architecture %s", architecture)
+	require.True(t, gpuspec.IsModeSupportedByArchitecture(archSpec, mode), "%s mode should be supported for architecture %s", mode, architecture)
 
-	capabilities := archSpec.EffectiveCapabilities(gpuspec.DeviceModePhysical)
-	capabilities.NVLink = archSpec.SupportedNVLinkGeneration()
-	if deviceInfo.NVLinkLinkCount == 0 {
-		capabilities.NVLink = 0
-	}
-	if linkCount(t, device, "C2C", nvidia.GetC2CLinkCount) == 0 {
-		capabilities.C2C = false
+	capabilities := archSpec.EffectiveCapabilities(mode)
+	nvlinkLinkCount := 0
+	// MIG devices and their parents report no NVLink or C2C, which the spec already encodes.
+	if mode == gpuspec.DeviceModePhysical {
+		capabilities.NVLink = archSpec.SupportedNVLinkGeneration()
+		nvlinkLinkCount = deviceInfo.NVLinkLinkCount
+		if deviceInfo.NVLinkLinkCount == 0 {
+			capabilities.NVLink = 0
+		}
+		if linkCount(t, device, "C2C", nvidia.GetC2CLinkCount) == 0 {
+			capabilities.C2C = false
+		}
 	}
 
 	return gpuspec.GPUConfig{
 		Architecture:    architecture,
-		DeviceMode:      gpuspec.DeviceModePhysical,
+		DeviceMode:      mode,
 		Capabilities:    capabilities,
-		NVLinkLinkCount: deviceInfo.NVLinkLinkCount,
+		NVLinkLinkCount: nvlinkLinkCount,
 	}
 }
 
@@ -226,16 +241,26 @@ func requiresGPM(architecture nvml.DeviceArchitecture) bool {
 	return architecture >= nvml.DEVICE_ARCH_HOPPER
 }
 
-func physicalDeviceConfigs(t *testing.T, specs *gpuspec.Specs, devices []safenvml.Device) (map[string]gpuspec.GPUConfig, map[string][]testutil.SmiCollectionOption) {
+// deviceConfigs returns the spec config of each device, keyed by lowercase UUID.
+func deviceConfigs(t *testing.T, specs *gpuspec.Specs, devices []safenvml.Device, mode gpuspec.DeviceMode) map[string]gpuspec.GPUConfig {
 	t.Helper()
 
 	configsByUUID := make(map[string]gpuspec.GPUConfig, len(devices))
+	for _, device := range devices {
+		configsByUUID[strings.ToLower(device.GetDeviceInfo().UUID)] = gpuConfigForDevice(t, specs, device, mode)
+	}
+	return configsByUUID
+}
+
+// smiOptionsForPhysicalDevices returns the nvidia-smi options to sample each physical device with.
+func smiOptionsForPhysicalDevices(t *testing.T, devices []safenvml.Device) map[string][]testutil.SmiCollectionOption {
+	t.Helper()
+
 	smiOptionsByUUID := make(map[string][]testutil.SmiCollectionOption, len(devices))
 	for _, device := range devices {
-		uuid := strings.ToLower(device.GetDeviceInfo().UUID)
+		uuid := device.GetDeviceInfo().UUID
 		deviceID, err := device.GetUUID()
 		require.NoError(t, err, "get UUID for GPU %s", uuid)
-		configsByUUID[uuid] = gpuConfigForPhysicalDevice(t, specs, device)
 		smiOptionsByUUID[deviceID] = nil
 		architecture, err := device.GetArchitecture()
 		require.NoError(t, err, "get architecture for GPU %s", uuid)
@@ -243,6 +268,5 @@ func physicalDeviceConfigs(t *testing.T, specs *gpuspec.Specs, devices []safenvm
 			smiOptionsByUUID[deviceID] = []testutil.SmiCollectionOption{testutil.WithGPM()}
 		}
 	}
-
-	return configsByUUID, smiOptionsByUUID
+	return smiOptionsByUUID
 }
