@@ -325,25 +325,32 @@ func removeOtherEntries(dir string, keep ...string) {
 // When the Agent is uninstalled rather than upgraded, as cmd/agent/macos/uninstall_mac_os.sh does
 // through `installer prerm datadog-agent dmg`, the rest of the install goes too (uninstallAgent).
 //
-// Every step is allowed to fail: a job that is already gone is the desired outcome, and an error
-// here would only stop the next version from installing.
+// Every step runs even if an earlier one fails. On an upgrade nothing is reported: a job that is
+// already gone is the desired outcome, the next version's postinstall reloads the jobs, and an
+// error would only stop it from installing. On an uninstall, the jobs that could not be unloaded
+// are reported once the rest is removed, so the uninstall script removes them itself instead of
+// leaving them registered against binaries that are gone.
 func preRemoveDatadogAgent(ctx HookContext) error {
 	client := launchdClient()
+	var errs []error
 	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
 		if err := client.Bootout(ctx, label); err != nil {
 			// As in loadStableJob, a job that can't be unloaded keeps its definition, so launchd is
 			// never left running a job whose file is gone, and the postinstall script reloads it.
 			log.Warnf("failed to unload %s: %v", label, err)
+			errs = append(errs, fmt.Errorf("failed to unload %s: %w", label, err))
 			continue
 		}
 		if err := os.Remove(launchd.Job{Label: label, Dir: launchdJobDir}.Path()); err != nil && !os.IsNotExist(err) {
 			log.Warnf("failed to remove job definition %s: %v", label, err)
+			errs = append(errs, fmt.Errorf("failed to remove job definition %s: %w", label, err))
 		}
 	}
-	if !ctx.Upgrade {
-		uninstallAgent(ctx, defaultUninstallLayout)
+	if ctx.Upgrade {
+		return nil
 	}
-	return nil
+	uninstallAgent(ctx, defaultUninstallLayout)
+	return errors.Join(errs...)
 }
 
 // uninstallLayout is everything an uninstall removes besides the LaunchDaemons. It is the same
