@@ -17,8 +17,6 @@ import (
 const (
 	scenarioEnvVarName = "PULUMI_SCENARIO"
 	scenarioParamName  = "scenario"
-
-	dummyScenario = "dummy"
 )
 
 // Run is the shared Pulumi entry point for every scenario runner binary. A
@@ -38,11 +36,6 @@ func ScenarioRunFunc() pulumi.RunFunc {
 		rootConfig := config.New(ctx, "")
 		if s := rootConfig.Get(scenarioParamName); s != "" {
 			scenarioName = s
-		}
-
-		// Fake stack name used to pre-download pulumi plugins due to a bug with `pulumi plugin install` and azure-native-sdk
-		if scenarioName == dummyScenario {
-			return nil
 		}
 
 		rf := Scenarios().Get(scenarioName)

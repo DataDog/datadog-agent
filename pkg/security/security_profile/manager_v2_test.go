@@ -1389,3 +1389,105 @@ func TestManagerV2_seedMountsForWorkload(t *testing.T) {
 		assert.True(t, foundLiveRuntime, "triggering live mount event must be inserted as Runtime")
 	})
 }
+
+func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
+	const (
+		baseNs     = uint32(4026531840)
+		foreignNs  = uint32(4026531841)
+		mountCount = 50
+	)
+
+	// newSeedingTest returns a profile and workload ready to be seeded with mountCount mounts in the base
+	// namespace, plus mountCount mounts in a foreign namespace entered by the event's process if withForeign is set.
+	newSeedingTest := func(t *testing.T, maxSize int, withForeign bool) (*ManagerV2, *profile.Profile, *tags.Workload, *model.Event) {
+		t.Helper()
+
+		m, _ := newInsertionTestManagerV2(t)
+		m.config.RuntimeSecurity.SecurityProfileV2EventTypes = append(m.config.RuntimeSecurity.SecurityProfileV2EventTypes, model.FileMountEventType)
+		m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize = func() int { return maxSize }
+		mr, err := mount.NewResolver(nil, nil, mount.ResolverOpts{})
+		require.NoError(t, err)
+		m.resolvers.MountResolver = mr
+
+		for i := range mountCount {
+			require.NoError(t, mr.Insert(model.Mount{
+				MountID:        uint32(100 + i),
+				NamespaceInode: baseNs,
+				Path:           fmt.Sprintf("/base/m%02d", i),
+				RootStr:        "/",
+				FSType:         "overlay",
+			}))
+			require.NoError(t, mr.Insert(model.Mount{
+				MountID:        uint32(200 + i),
+				NamespaceInode: foreignNs,
+				Path:           fmt.Sprintf("/frgn/m%02d", i),
+				RootStr:        "/",
+				FSType:         "overlay",
+			}))
+		}
+
+		ev := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		rootEntry := ev.ProcessCacheEntry
+		rootEntry.Process.MntNS = baseNs
+		if withForeign {
+			childEntry := model.NewPlaceholderProcessCacheEntry(43, 43, false)
+			childEntry.ContainerContext = rootEntry.ContainerContext
+			childEntry.FileEvent = rootEntry.FileEvent
+			childEntry.Process.MntNS = foreignNs
+			childEntry.Ancestor = rootEntry
+			ev.ProcessCacheEntry = childEntry
+			ev.ProcessContext = &childEntry.ProcessContext
+		}
+
+		selector, err := m.buildWorkloadSelector(ev)
+		require.NoError(t, err)
+		p, err := m.getOrCreateProfile(selector, ev)
+		require.NoError(t, err)
+		workload := m.getOrCreateWorkload(ev, selector, getWorkloadIDFromEvent(ev))
+		require.NotNil(t, workload)
+		m.linkWorkloadToProfile(p, workload)
+		return m, p, workload, ev
+	}
+
+	// fullBaseSize is the profile size once every base namespace mount is seeded
+	refManager, ref, refWorkload, refEv := newSeedingTest(t, 1<<30, false)
+	refManager.seedMountsForWorkload(ref, refWorkload, refEv)
+	require.Len(t, ref.ActivityTree.Mounts, mountCount)
+	fullBaseSize := ref.ComputeHeapSize()
+
+	t.Run("base namespace seeding stops at the max size and the profile is disabled", func(t *testing.T) {
+		maxSize := int(fullBaseSize / 2)
+		m, p, workload, ev := newSeedingTest(t, maxSize, false)
+
+		m.seedMountsForWorkload(p, workload, ev)
+		assert.Greater(t, len(p.ActivityTree.Mounts), 1)
+		assert.Less(t, len(p.ActivityTree.Mounts), mountCount, "seeding should stop once the profile reaches the max size")
+		assert.GreaterOrEqual(t, p.ComputeHeapSize(), int64(maxSize))
+
+		got, inserted := m.insertEventIntoProfile(ev)
+		assert.Nil(t, got)
+		assert.False(t, inserted)
+		assert.False(t, p.IsEnabled())
+		assert.True(t, p.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
+		assert.Empty(t, p.ActivityTree.Mounts)
+		assert.Zero(t, p.ComputeHeapSize())
+		assert.Positive(t, m.eventFiltering[eventFilteringEntry{model.FileOpenEventType, model.ProfileAtMaxSize, NA}].Load())
+	})
+
+	t.Run("foreign namespace is not seeded once the base namespace reached the max size", func(t *testing.T) {
+		m, p, workload, ev := newSeedingTest(t, int(fullBaseSize), true)
+
+		m.seedMountsForWorkload(p, workload, ev)
+		assert.Len(t, p.ActivityTree.Mounts, mountCount)
+		for _, mn := range p.ActivityTree.Mounts {
+			assert.True(t, mn.InBaseNamespace, "no foreign namespace mount should be seeded past the max size: %s", mn.MountPoint)
+		}
+
+		got, inserted := m.insertEventIntoProfile(ev)
+		assert.Nil(t, got)
+		assert.False(t, inserted)
+		assert.False(t, p.IsEnabled())
+		assert.True(t, p.ActivityTree.IsEmpty(), "a disabled profile drops its activity tree")
+		assert.Zero(t, p.ComputeHeapSize())
+	})
+}
