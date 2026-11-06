@@ -7,10 +7,6 @@
 
 package python
 
-func platformLoaderPrep() error {
-	return nil
-}
-
-func platformLoaderDone() error {
-	return nil
+func platformLoaderPrep() (func(), error) {
+	return func() {}, nil
 }
