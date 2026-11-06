@@ -287,6 +287,9 @@ type BufferedAggregator struct {
 
 	tagsStore              *tags.Store
 	checkSamplers          map[checkid.ID]*CheckSampler
+	strippedIdentities     *strippedIdentityTable
+	checkOutputMerger      *checkOutputMerger
+	tagFilterEnabled       bool
 	serviceChecks          servicecheck.ServiceChecks
 	events                 event.Events
 	manifests              []*senderOrchestratorManifest
@@ -376,6 +379,9 @@ func NewBufferedAggregator(s serializer.MetricSerializer, eventPlatformForwarder
 
 		tagsStore:                   tagsStore,
 		checkSamplers:               make(map[checkid.ID]*CheckSampler),
+		strippedIdentities:          newStrippedIdentityTable(),
+		checkOutputMerger:           newCheckOutputMerger(),
+		tagFilterEnabled:            tagFilterEnabled(),
 		flushInterval:               flushInterval,
 		serializer:                  s,
 		eventPlatformForwarder:      eventPlatformForwarder,
@@ -576,6 +582,7 @@ func (agg *BufferedAggregator) GetSeriesAndSketches(before time.Time) (metrics.S
 // getSeriesAndSketches grabs all the series & sketches from the queue and clears the queue
 // The parameter `before` is used as an end interval while retrieving series and sketches
 // from the time sampler. Metrics and sketches before this timestamp should be returned.
+// Check output that merges across sources goes through the check output merger.
 func (agg *BufferedAggregator) getSeriesAndSketches(
 	_ time.Time,
 	seriesSink metrics.SerieSink,
@@ -595,11 +602,16 @@ func (agg *BufferedAggregator) getSeriesAndSketches(
 			sketchesSink.Append(sk)
 		}
 
+		mergedSeries, mergedSketches := checkSampler.flushMerged()
+		agg.checkOutputMerger.mergeSeries(mergedSeries)
+		agg.checkOutputMerger.mergeSketches(mergedSketches)
+
 		if checkSampler.deregistered {
 			checkSampler.release()
 			delete(agg.checkSamplers, checkId)
 		}
 	}
+	agg.checkOutputMerger.flush(seriesSink, sketchesSink)
 }
 
 func updateSerieTelemetry(start time.Time, serieCount uint64, err error) {
@@ -942,13 +954,18 @@ func (agg *BufferedAggregator) run() {
 	}
 }
 
-// Set a new filterlist, ensuring we also clear the context resolver strip cache
-// for each check sampler.
+// setFilterList applies new metric_tag_filterlist rules: check samplers restrip their contexts.
 func (agg *BufferedAggregator) setFilterList(matcher filterlist.TagMatcher) {
+	agg.mu.Lock()
+	defer agg.mu.Unlock()
+	agg.tagFilterList = matcher
+	if !agg.tagFilterEnabled {
+		return
+	}
 	for _, cs := range agg.checkSamplers {
 		cs.clearStripCache()
+		cs.restrip(matcher)
 	}
-	agg.tagFilterList = matcher
 }
 
 // tags returns the list of tags that should be added to the agent telemetry metrics
@@ -1088,6 +1105,7 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		agg.tagsStore,
 		id,
 		agg.tagger,
+		agg.strippedIdentities,
 	)
 	if agg.observerHandle != nil {
 		cs.SetObserverHandle(agg.observerHandle)

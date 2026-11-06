@@ -225,7 +225,7 @@ func testCountBasedExpireContexts(t *testing.T, store *tags.Store) {
 	mSample1 := metrics.MetricSample{Name: "my.metric.name1"}
 	mSample2 := metrics.MetricSample{Name: "my.metric.name2"}
 	mSample3 := metrics.MetricSample{Name: "my.metric.name3"}
-	contextResolver := newCountBasedContextResolver(2, store, nooptagger.NewComponent(), "test")
+	contextResolver := newCountBasedContextResolver(2, store, nooptagger.NewComponent(), "test", nil)
 
 	contextKey1 := contextResolver.trackContext(&mSample1, matcher)
 	contextKey2 := contextResolver.trackContext(&mSample2, matcher)
@@ -764,4 +764,27 @@ func testTagFilterADPGate(t *testing.T, store *tags.Store) {
 
 func TestTagFilterADPGate(t *testing.T) {
 	testWithTagsStore(t, testTagFilterADPGate)
+}
+
+// TestTypeStripsAtOutput lists every metric type: check samplers only strip types whose sources' points add up.
+func TestTypeStripsAtOutput(t *testing.T) {
+	cases := map[metrics.MetricType]bool{
+		metrics.GaugeType:              false,
+		metrics.RateType:               false,
+		metrics.CountType:              false,
+		metrics.MonotonicCountType:     false,
+		metrics.CounterType:            true,
+		metrics.HistogramType:          false,
+		metrics.HistorateType:          false,
+		metrics.SetType:                false,
+		metrics.DistributionType:       true,
+		metrics.GaugeWithTimestampType: false,
+		metrics.CountWithTimestampType: false,
+	}
+	require.Len(t, cases, int(metrics.NumMetricTypes), "every metric type is listed")
+	for mt, want := range cases {
+		t.Run(mt.String(), func(t *testing.T) {
+			assert.Equal(t, want, typeStripsAtOutput(mt))
+		})
+	}
 }
