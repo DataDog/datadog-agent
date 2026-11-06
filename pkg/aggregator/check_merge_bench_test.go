@@ -35,16 +35,17 @@ const (
 
 func (m benchMode) String() string { return [...]string{"off", "on", "no-match"}[m] }
 
-// benchScenario is check instances submitting one metric type. Each source context has a pod tag, which the rule
-// filters, and a ctx tag, which it keeps: sources collapse into `contexts` series.
+// benchScenario is check instances submitting one metric type, or monotonic histogram buckets. Each source context
+// has a pod tag, which the rule filters, and a ctx tag, which it keeps: sources collapse into `contexts` series.
 type benchScenario struct {
-	name            string
-	mtype           metrics.MetricType
-	instances       int
-	podsPerInstance int
-	contexts        int
-	samplesPerRun   int
-	newPodsEachRun  bool
+	name             string
+	mtype            metrics.MetricType
+	bucketsPerSource int
+	instances        int
+	podsPerInstance  int
+	contexts         int
+	samplesPerRun    int
+	newPodsEachRun   bool
 }
 
 var benchScenarios = []benchScenario{
@@ -52,6 +53,9 @@ var benchScenarios = []benchScenario{
 	{name: "dist-one-instance", mtype: metrics.DistributionType, instances: 1, podsPerInstance: 200, contexts: 50, samplesPerRun: 5},
 	{name: "dist-churn", mtype: metrics.DistributionType, instances: 200, podsPerInstance: 1, contexts: 50, samplesPerRun: 5, newPodsEachRun: true},
 	{name: "counter", mtype: metrics.CounterType, instances: 200, podsPerInstance: 1, contexts: 50, samplesPerRun: 5},
+	{name: "count", mtype: metrics.CountType, instances: 200, podsPerInstance: 1, contexts: 50, samplesPerRun: 5},
+	{name: "monotonic-count", mtype: metrics.MonotonicCountType, instances: 200, podsPerInstance: 1, contexts: 50, samplesPerRun: 1},
+	{name: "histogram-buckets", bucketsPerSource: 10, instances: 200, podsPerInstance: 1, contexts: 50},
 }
 
 // benchSink drops what the aggregator sends.
@@ -100,9 +104,18 @@ func (h *benchHarness) submit(run int) {
 			pod := fmt.Sprintf("pod:%d-%d-%d", i, p, generation)
 			for c := 0; c < h.sc.contexts; c++ {
 				tags := []string{"env:prod", pod, fmt.Sprintf("ctx:%d", c)}
+				for k := 0; k < h.sc.bucketsPerSource; k++ {
+					h.agg.handleSenderBucket(senderHistogramBucket{id: id, bucket: &metrics.HistogramBucket{
+						Name: benchMetric, Value: int64(run+1) * 10, LowerBound: float64(k), UpperBound: float64(k + 1),
+						Monotonic: true, Tags: tags, Timestamp: ts, MultipleBuckets: true}})
+				}
 				for k := 0; k < h.sc.samplesPerRun; k++ {
+					value := float64(k)
+					if h.sc.mtype == metrics.MonotonicCountType {
+						value = float64(run * 10)
+					}
 					h.agg.handleSenderSample(senderMetricSample{id: id, metricSample: &metrics.MetricSample{
-						Name: benchMetric, Value: float64(k), Mtype: h.sc.mtype, Tags: tags, SampleRate: 1, Timestamp: ts}})
+						Name: benchMetric, Value: value, Mtype: h.sc.mtype, Tags: tags, SampleRate: 1, Timestamp: ts}})
 				}
 			}
 		}
