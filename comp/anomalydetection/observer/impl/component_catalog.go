@@ -57,37 +57,6 @@ type detectorRegistration struct {
 	filter   observerdef.DetectionFilter
 }
 
-// Catalog-only aggregation settings stay separate from detector statistics.
-type holtResidualCatalogConfig struct {
-	HoltResidualConfig
-	Aggregations []string `json:"aggregations,omitempty"`
-}
-
-type tukeyBiweightCatalogConfig struct {
-	TukeyBiweightConfig
-	Aggregations []string `json:"aggregations,omitempty"`
-}
-
-func defaultHoltResidualCatalogConfig() holtResidualCatalogConfig {
-	return holtResidualCatalogConfig{HoltResidualConfig: DefaultHoltResidualConfig(), Aggregations: []string{"avg", "count"}}
-}
-
-func defaultTukeyBiweightCatalogConfig() tukeyBiweightCatalogConfig {
-	return tukeyBiweightCatalogConfig{TukeyBiweightConfig: DefaultTukeyBiweightConfig(), Aggregations: []string{"avg", "count"}}
-}
-
-// detectorFilter resolves compatibility settings once during registration.
-func detectorFilter(cfg any) observerdef.DetectionFilter {
-	var aggregations []observerdef.Aggregate
-	switch cfg := cfg.(type) {
-	case holtResidualCatalogConfig:
-		aggregations = parseAggregateConfig(cfg.Aggregations)
-	case tukeyBiweightCatalogConfig:
-		aggregations = parseAggregateConfig(cfg.Aggregations)
-	}
-	return observerdef.DetectionFilter{Aggregations: aggregations}
-}
-
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.
 type componentInstance struct {
 	entry        componentEntry
@@ -142,10 +111,10 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 
 	bocpd := DefaultBOCPDConfig()
 	bocpd.WarmupPoints = 40
-	holt := defaultHoltResidualCatalogConfig()
+	holt := DefaultHoltResidualConfig()
 	holt.WarmupPoints = 15
 	holt.ResidualWindow = 25
-	tukey := defaultTukeyBiweightCatalogConfig()
+	tukey := DefaultTukeyBiweightConfig()
 	tukey.WindowSize = 40
 	tukey.MinPoints = 40
 
@@ -318,11 +287,11 @@ func defaultCatalog() *componentCatalog {
 				name:           "holt_residual",
 				displayName:    "HoltResidual",
 				kind:           componentDetector,
-				defaultConfig:  defaultHoltResidualCatalogConfig(),
-				factory:        func(cfg any) any { return NewHoltResidualDetector(cfg.(holtResidualCatalogConfig).HoltResidualConfig) },
+				defaultConfig:  DefaultHoltResidualConfig(),
+				factory:        func(cfg any) any { return NewHoltResidualDetector(cfg.(HoltResidualConfig)) },
 				defaultEnabled: false,
 				readConfig: func(reader ConfigReader, prefix string) any {
-					cfg := defaultHoltResidualCatalogConfig()
+					cfg := DefaultHoltResidualConfig()
 					if key := prefix + "warmup_points"; reader.IsConfigured(key) {
 						cfg.WarmupPoints = reader.GetInt(key)
 					}
@@ -332,7 +301,7 @@ func defaultCatalog() *componentCatalog {
 					return cfg
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(holtResidualCatalogConfig)
+					cfg := defaults.(HoltResidualConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, err
 					}
@@ -343,13 +312,13 @@ func defaultCatalog() *componentCatalog {
 				name:          "tukey_biweight",
 				displayName:   "TukeyBiweight",
 				kind:          componentDetector,
-				defaultConfig: defaultTukeyBiweightCatalogConfig(),
+				defaultConfig: DefaultTukeyBiweightConfig(),
 				factory: func(cfg any) any {
-					return NewTukeyBiweightDetector(cfg.(tukeyBiweightCatalogConfig).TukeyBiweightConfig)
+					return NewTukeyBiweightDetector(cfg.(TukeyBiweightConfig))
 				},
 				defaultEnabled: false,
 				readConfig: func(reader ConfigReader, prefix string) any {
-					cfg := defaultTukeyBiweightCatalogConfig()
+					cfg := DefaultTukeyBiweightConfig()
 					if key := prefix + "min_points"; reader.IsConfigured(key) {
 						cfg.MinPoints = reader.GetInt(key)
 					}
@@ -359,7 +328,7 @@ func defaultCatalog() *componentCatalog {
 					return cfg
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := defaults.(tukeyBiweightCatalogConfig)
+					cfg := defaults.(TukeyBiweightConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, err
 					}
@@ -450,10 +419,11 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 
 		switch entry.kind {
 		case componentDetector:
+			// Detectors register with an empty filter; no configuration feeds them yet.
 			if d, ok := instance.(observerdef.Detector); ok {
-				detectors = append(detectors, detectorRegistration{detector: d, filter: detectorFilter(cfg)})
+				detectors = append(detectors, detectorRegistration{detector: d})
 			} else if sd, ok := instance.(observerdef.SeriesDetector); ok {
-				detectors = append(detectors, detectorRegistration{detector: newSeriesDetectorAdapter(sd), filter: detectorFilter(cfg)})
+				detectors = append(detectors, detectorRegistration{detector: newSeriesDetectorAdapter(sd)})
 			}
 		case componentCorrelator:
 			// The anomaly_scorer entry is a componentCorrelator but returns an

@@ -9,7 +9,6 @@ import (
 	"math"
 	"sort"
 
-	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -138,35 +137,6 @@ func appendPointWindow(buf []observer.Point, maxPoints int, point observer.Point
 	copy(buf, buf[1:])
 	buf[len(buf)-1] = point
 	return buf
-}
-
-func parseAggregateConfig(names []string) []observer.Aggregate {
-	if len(names) == 0 {
-		return nil
-	}
-	aggregations := make([]observer.Aggregate, 0, len(names))
-	for _, name := range names {
-		agg, ok := parseAggregateSuffix(name)
-		if !ok {
-			logging.Warnf("ignoring unknown aggregation %q; valid values are avg, sum, count", name)
-			continue
-		}
-		aggregations = append(aggregations, agg)
-	}
-	return aggregations
-}
-
-func parseAggregateSuffix(s string) (observer.Aggregate, bool) {
-	switch s {
-	case "avg":
-		return observer.AggregateAverage, true
-	case "sum":
-		return observer.AggregateSum, true
-	case "count":
-		return observer.AggregateCount, true
-	default:
-		return 0, false
-	}
 }
 
 func detectorSeriesFilter(filter observer.DetectionFilter) observer.SeriesFilter {

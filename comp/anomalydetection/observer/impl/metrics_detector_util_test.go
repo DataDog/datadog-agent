@@ -6,31 +6,15 @@
 package observerimpl
 
 import (
-	"bytes"
 	"testing"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 )
 
 var defaultAggregations = []observer.Aggregate{observer.AggregateAverage, observer.AggregateCount}
-
-func TestParseAggregateConfigWarnsOnUnknownNames(t *testing.T) {
-	var output bytes.Buffer
-	logger, err := pkglog.LoggerFromWriterWithMinLevelAndMsgFormat(&output, pkglog.InfoLvl)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		pkglog.SetupLogger(pkglog.Default(), pkglog.InfoStr)
-		logger.Close()
-	})
-	pkglog.SetupLogger(logger, pkglog.InfoStr)
-
-	require.Equal(t, []observer.Aggregate{observer.AggregateSum}, parseAggregateConfig([]string{"sum", "average"}))
-	require.Contains(t, output.String(), `[anomalydetection] ignoring unknown aggregation "average"`)
-}
 
 func TestDetectorSeriesFilter(t *testing.T) {
 	storage := newTimeSeriesStorage()
