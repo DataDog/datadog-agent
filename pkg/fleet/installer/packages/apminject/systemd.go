@@ -141,11 +141,11 @@ func installerSupportsTmpfs(path string) bool {
 	return true
 }
 
-// RequiresReinstall reports whether the injector was configured with the
-// tmpfs preload path but the installer currently selected for its systemd
-// service predates that lifecycle. Replaying the injector post-install hook
-// repairs this state by switching back to the persistent preload path.
-func RequiresReinstall() bool {
+// RequiresReinstallForIncompatibleVersion reports whether the injector uses
+// the tmpfs preload path but the installer selected for its systemd service
+// predates that lifecycle. Replaying the injector post-install hook repairs
+// this state by switching back to the persistent preload path.
+func RequiresReinstallForIncompatibleVersion() bool {
 	mgr := NewSystemdServiceManager()
 	if mgr.InstallerPath() == "" || mgr.TmpfsCompatible() {
 		return false
@@ -157,12 +157,53 @@ func RequiresReinstall() bool {
 	return requiresReinstallForPreload(string(preload), false)
 }
 
+// HostPreloadNeedsRepair reports whether host instrumentation needs its
+// post-install hook replayed. A tmpfs preload entry also requires an enabled,
+// active unit to recreate the launcher link after reboot.
+func HostPreloadNeedsRepair() bool {
+	preload, err := os.ReadFile(ldSoPreloadPath)
+	if err != nil || hostPreloadNeedsRepair(preload) {
+		return true
+	}
+	if !requiresReinstallForPreload(string(preload), false) {
+		return false
+	}
+	return tmpfsServiceNeedsRepair(filepath.Join(systemd.UserUnitsPath, systemdServiceName), defaultTmpfsInjectDir, systemdUnitReady)
+}
+
+// AllInstrumentationNeedsRepair checks both installation methods, while
+// matching Instrument's behavior of skipping Docker on hosts without Docker.
+func AllInstrumentationNeedsRepair() bool {
+	return HostPreloadNeedsRepair() || (isDockerInstalled(context.Background()) && DockerRuntimeNeedsRepair())
+}
+
+func tmpfsServiceNeedsRepair(unitPath, linkPath string, unitReady func() bool) bool {
+	if _, err := os.Stat(unitPath); err != nil {
+		return true
+	}
+	if _, err := os.Stat(linkPath); err != nil {
+		return true
+	}
+	return !unitReady()
+}
+
+func systemdUnitReady() bool {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, status := range []string{"is-enabled", "is-active"} {
+		if err := exec.CommandContext(ctx, "systemctl", status, "--quiet", systemdServiceName).Run(); err != nil {
+			return false
+		}
+	}
+	return true
+}
+
 func requiresReinstallForPreload(preload string, tmpfsCompatible bool) bool {
 	if tmpfsCompatible {
 		return false
 	}
 	tmpfsLauncherMatcher := regexp.MustCompile("^" + tmpfsLauncherPattern(defaultTmpfsInjectDir) + "$")
-	return slices.ContainsFunc(strings.Fields(preload), tmpfsLauncherMatcher.MatchString)
+	return slices.ContainsFunc(activePreloadEntries(preload), tmpfsLauncherMatcher.MatchString)
 }
 
 // Setup writes the embedded service file, enables it for future boots, and
