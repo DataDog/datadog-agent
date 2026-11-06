@@ -48,11 +48,14 @@ func (c *Context) mergesAtOutput() bool {
 }
 
 // typeStripsAtOutput returns whether check samplers can strip the tags of a metric type from their output: the types
-// whose sources' points add up.
-func typeStripsAtOutput(mtype metrics.MetricType) bool {
+// whose sources' points add up. Histogram buckets report HistogramType, like ordinary histograms, whose statistics
+// don't add up.
+func typeStripsAtOutput(mtype metrics.MetricType, fromHistogramBuckets bool) bool {
 	switch mtype {
 	case metrics.DistributionType, metrics.CounterType, metrics.CountType, metrics.MonotonicCountType:
 		return true
+	case metrics.HistogramType:
+		return fromHistogramBuckets
 	}
 	return false
 }
@@ -167,7 +170,8 @@ func (t *strippedIdentityTable) get(ref uint32) *strippedIdentity {
 // (ShouldStripTags allocates), and restrip updates contexts when rules change. The resolver's buffers must hold the
 // context's tags.
 func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) {
-	if !typeStripsAtOutput(metricSampleContext.GetMetricType()) {
+	_, fromBuckets := metricSampleContext.(*metrics.HistogramBucket)
+	if !typeStripsAtOutput(metricSampleContext.GetMetricType(), fromBuckets) {
 		context.stripFlags.set(hasUnstrippableType)
 		cr.releaseStripped(context)
 		return
