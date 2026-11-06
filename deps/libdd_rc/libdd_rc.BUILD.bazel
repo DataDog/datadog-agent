@@ -144,69 +144,31 @@ rust_static_library(
 )
 
 pkg_files(
-    name = "rc_x509_ffi_linux_header_file",
+    name = "rc_x509_ffi_header_file",
     srcs = ["include/libdd_rc.h"],
     prefix = "embedded/include",
     strip_prefix = "include",
-    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_files(
-    name = "rc_x509_ffi_linux_static_files",
+    name = "rc_x509_ffi_static_file",
     # AWS-LC is built into librc_x509_ffi.a.
     srcs = [":rc_x509_ffi"],
     prefix = "embedded/lib",
-    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_filegroup(
-    name = "rc_x509_ffi_linux_build_files",
+    name = "rc_x509_ffi_build_files",
     srcs = [
-        ":rc_x509_ffi_linux_header_file",
-        ":rc_x509_ffi_linux_static_files",
+        ":rc_x509_ffi_header_file",
+        ":rc_x509_ffi_static_file",
     ],
-    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
 
 pkg_install(
-    name = "install_rc_x509_ffi_linux_build_files",
-    srcs = [":rc_x509_ffi_linux_build_files"],
-    target_compatible_with = ["@platforms//os:linux"],
-    visibility = ["//visibility:public"],
-)
-
-pkg_files(
-    name = "rc_x509_ffi_macos_header_file",
-    srcs = ["include/libdd_rc.h"],
-    prefix = "embedded/include",
-    strip_prefix = "include",
-    target_compatible_with = ["@platforms//os:macos"],
-)
-
-pkg_files(
-    name = "rc_x509_ffi_macos_native_files",
-    # macOS only ships the standard flavor, which links non-FIPS AWS-LC
-    # statically into librc_x509_ffi.a.
-    srcs = [":rc_x509_ffi"],
-    prefix = "embedded/lib",
-    target_compatible_with = ["@platforms//os:macos"],
-)
-
-pkg_filegroup(
-    name = "rc_x509_ffi_macos_build_files",
-    srcs = [
-        ":rc_x509_ffi_macos_header_file",
-        ":rc_x509_ffi_macos_native_files",
-    ],
-    target_compatible_with = ["@platforms//os:macos"],
-    visibility = ["//visibility:public"],
-)
-
-pkg_install(
-    name = "install_rc_x509_ffi_macos_build_files",
-    srcs = [":rc_x509_ffi_macos_build_files"],
-    target_compatible_with = ["@platforms//os:macos"],
+    name = "install_rc_x509_ffi_build_files",
+    srcs = [":rc_x509_ffi_build_files"],
     visibility = ["//visibility:public"],
 )
 

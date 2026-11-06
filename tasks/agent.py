@@ -51,10 +51,12 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "agent")
 AGENT_TAG = "datadog/agent:master"
-RC_X509_BUILD_FILES_INSTALL = {
-    "darwin": "@libdd_rc_source//:install_rc_x509_ffi_macos_build_files",
-    "linux": "@libdd_rc_source//:install_rc_x509_ffi_linux_build_files",
-}
+RC_X509_BUILD_FILES_INSTALL = "@libdd_rc_source//:install_rc_x509_ffi_build_files"
+
+
+def rc_x509_supported(target_platform):
+    """Whether the rc-x509 native library is built for target_platform."""
+    return target_platform.startswith("linux") or target_platform in ("darwin", "win32")
 
 
 def install_rc_x509_build_files(embedded_path, target_platform):
@@ -62,9 +64,7 @@ def install_rc_x509_build_files(embedded_path, target_platform):
     if not embedded_path:
         raise Exit("unable to locate embedded path for the rc-x509 native build inputs", code=1)
 
-    platform_key = "linux" if target_platform.startswith("linux") else target_platform
-    install_target = RC_X509_BUILD_FILES_INSTALL.get(platform_key)
-    if not install_target:
+    if not rc_x509_supported(target_platform):
         raise Exit(f"rc-x509 native build inputs are not supported on {target_platform}", code=1)
 
     normalized_path = os.path.normpath(os.path.abspath(embedded_path))
@@ -73,17 +73,13 @@ def install_rc_x509_build_files(embedded_path, target_platform):
     )
     native_embedded_path = os.path.join(install_root, "embedded")
 
-    bazel("run", install_target, "--", f"--destdir={install_root}")
+    bazel("run", RC_X509_BUILD_FILES_INSTALL, "--", f"--destdir={install_root}")
     return native_embedded_path
 
 
 def needs_rc_x509_build_files(build_tags, target_platform, enable_bazel):
     """Whether a non-Bazel Agent build must install the rc-x509 native link inputs."""
-    return (
-        "rc_x509" in build_tags
-        and (target_platform.startswith("linux") or target_platform == "darwin")
-        and not enable_bazel
-    )
+    return "rc_x509" in build_tags and rc_x509_supported(target_platform) and not enable_bazel
 
 
 def add_rc_x509_cgo_flags(env, native_embedded_path):
