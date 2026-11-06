@@ -2,6 +2,10 @@ module github.com/DataDog/datadog-agent/comp/logs-library
 
 go 1.26.0
 
+// Reuse encoding/json in OTTL core to avoid linking a second JSON encoder.
+// Fork of v1.3.1 with a two-line change; see doc/how-to/test/log-processing-ottl.md.
+replace github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl => github.com/DataDog/opentelemetry-collector-contrib/pkg/ottl v0.0.0-20261106190539-e230f349774c
+
 require (
 	github.com/DataDog/agent-payload/v5 v5.0.215
 	github.com/DataDog/datadog-agent/comp/core/config v0.64.0-devel
@@ -34,6 +38,7 @@ require (
 	github.com/benbjohnson/clock v1.3.5
 	github.com/go-json-experiment/json v0.0.0-20250517221953-25912455fbc8
 	github.com/gobwas/glob v0.2.3
+	github.com/goccy/go-json v0.10.6
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/ottl v1.3.1
 	github.com/stretchr/testify v1.12.1
 	github.com/valyala/fastjson v1.6.10
@@ -89,7 +94,6 @@ require (
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
-	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/groupcache v0.0.0-20241129210726-2c02b8208cf8 // indirect
