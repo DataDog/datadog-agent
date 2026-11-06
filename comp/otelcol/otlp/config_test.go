@@ -1003,11 +1003,12 @@ func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
 	)
 	defaultEndpoints := map[string]string{"grpc": "127.0.0.1:4319", "http": "127.0.0.1:4320"}
 	tests := []struct {
-		name      string
-		path      string
-		env       map[string]string
-		endpoints map[string]string
-		err       error
+		name        string
+		path        string
+		env         map[string]string
+		endpoints   map[string]string
+		err         error
+		errContains string
 	}{
 		{
 			name:      "both protocols with default relocation endpoints",
@@ -1060,6 +1061,34 @@ func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
 				"DD_DATA_PLANE_EXPERIMENTAL_OTLP_PROXY_TRACES":  "true",
 			},
 			endpoints: defaultEndpoints,
+		},
+		{
+			name: "unix transport requires an explicit relocation endpoint",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":  "/tmp/public-otlp.sock",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT": "unix",
+			},
+			err:         ErrAgentReceiverEndpointNotConfigured,
+			errContains: "data_plane.experimental.otlp.proxy.agent_receiver_grpc_endpoint must be explicitly configured with a Unix socket path",
+		},
+		{
+			name: "unixgram transport requires an explicit relocation endpoint",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":  "/tmp/public-otlp.sock",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT": "unixgram",
+			},
+			err: ErrAgentReceiverEndpointNotConfigured,
+		},
+		{
+			name: "unixpacket transport requires an explicit relocation endpoint",
+			path: "empty.yaml",
+			env: map[string]string{
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_ENDPOINT":  "/tmp/public-otlp.sock",
+				"DD_OTLP_CONFIG_RECEIVER_PROTOCOLS_GRPC_TRANSPORT": "unixpacket",
+			},
+			err: ErrAgentReceiverEndpointNotConfigured,
 		},
 		{
 			name: "preserves unix transport",
@@ -1177,6 +1206,9 @@ func TestDataPlaneOTLPRelocatesReceiverListeners(t *testing.T) {
 			got, err := FromAgentConfig(cfg)
 			if tt.err != nil {
 				require.ErrorIs(t, err, tt.err)
+				if tt.errContains != "" {
+					assert.ErrorContains(t, err, tt.errContains)
+				}
 			} else {
 				require.NoError(t, err)
 			}

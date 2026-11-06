@@ -163,6 +163,14 @@ func relocateReceiverListeners(cfg config.Reader, receiver map[string]interface{
 		if listener.agentEndpoint == "" {
 			return fmt.Errorf("%w: %s", ErrAgentReceiverEndpointNotConfigured, listener.key)
 		}
+		transport, _ := listener.config["transport"].(string)
+		switch transport {
+		case "unix", "unixgram", "unixpacket":
+			if !cfg.IsConfigured(listener.key) {
+				return fmt.Errorf("%w: %s must be explicitly configured with a Unix socket path when OTLP/%s transport is %q",
+					ErrAgentReceiverEndpointNotConfigured, listener.key, listener.protocol, transport)
+			}
+		}
 		var explicit bool
 		listener.publicEndpoint, explicit = listener.config["endpoint"].(string)
 		if !explicit {
