@@ -217,8 +217,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 	c.parallelCollectors = pkgconfigsetup.Datadog().GetBool("gpu.parallel_collectors")
 	if c.sysRoot == "" {
-		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
-		c.sysRoot = kernel.SysFSRoot()
+		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers,
+		// falling back to /sys when that root has no devices.
+		c.sysRoot = kernel.DeviceSysFSRoot()
 	}
 	// With no NVIDIA GPU, NVML would only fail on every run.
 	c.skipNVML = hasOnlyAMDGPUs(c.sysRoot)

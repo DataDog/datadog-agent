@@ -28,10 +28,10 @@ func TestGetTags(t *testing.T) {
 	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
 
 	// Keep the AMD detection away from the host sysfs
-	originalSysFSRoot := kernel.SysFSRoot
+	originalDeviceSysFSRoot := kernel.DeviceSysFSRoot
 	sysDir := t.TempDir()
-	kernel.SysFSRoot = func() string { return sysDir }
-	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
+	kernel.DeviceSysFSRoot = func() string { return sysDir }
+	defer func() { kernel.DeviceSysFSRoot = originalDeviceSysFSRoot }()
 
 	tests := []struct {
 		name     string
@@ -125,8 +125,8 @@ func TestGetTagsAMD(t *testing.T) {
 	kernel.ProcFSRoot = func() string { return procDir }
 	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
 
-	originalSysFSRoot := kernel.SysFSRoot
-	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
+	originalDeviceSysFSRoot := kernel.DeviceSysFSRoot
+	defer func() { kernel.DeviceSysFSRoot = originalDeviceSysFSRoot }()
 
 	cfg := configmock.New(t)
 
@@ -200,7 +200,7 @@ func TestGetTagsAMD(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sysDir := t.TempDir()
-			kernel.SysFSRoot = func() string { return sysDir }
+			kernel.DeviceSysFSRoot = func() string { return sysDir }
 			cfg.SetInTest("gpu.amd.enabled", !tt.amdDisabled)
 			if !tt.noDRM {
 				assert.NoError(t, os.MkdirAll(filepath.Join(sysDir, "class", "drm"), 0o755))

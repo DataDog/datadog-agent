@@ -64,6 +64,27 @@ func sysFsRoot() string {
 // SysFSRoot retrieves the current sysfs dir we should use
 var SysFSRoot = funcs.MemoizeNoError(sysFsRoot)
 
+// DeviceSysFSRoot returns the sysfs root to read device attributes (class/,
+// bus/, devices/) from. It is SysFSRoot, unless that root has no class/
+// directory while /sys has one: device sysfs is not namespaced, so a container
+// that mounts only part of the host sysfs (e.g. /host/sys/fs/cgroup) still
+// sees the host devices in its own /sys.
+var DeviceSysFSRoot = funcs.MemoizeNoError(func() string {
+	return deviceSysFsRoot(SysFSRoot(), "/sys")
+})
+
+func deviceSysFsRoot(root, fallback string) string {
+	if root == fallback || isDir(filepath.Join(root, "class")) || !isDir(filepath.Join(fallback, "class")) {
+		return root
+	}
+	return fallback
+}
+
+func isDir(path string) bool {
+	info, err := os.Stat(path)
+	return err == nil && info.IsDir()
+}
+
 // BootRoot retrieves the current boot dir we should use
 var BootRoot = funcs.MemoizeNoError(func() string {
 	if v := os.Getenv("HOST_BOOT"); v != "" {

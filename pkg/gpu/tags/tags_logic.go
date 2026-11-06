@@ -76,7 +76,7 @@ func hasNvidiaGPU() bool {
 // This runs on every Linux host, so a sysfs that cannot be read is only logged
 // at debug level.
 func hasAMDGPU() bool {
-	drmDir := filepath.Join(kernel.SysFSRoot(), "class", "drm")
+	drmDir := filepath.Join(kernel.DeviceSysFSRoot(), "class", "drm")
 	entries, err := os.ReadDir(drmDir)
 	if err != nil {
 		if !os.IsNotExist(err) {

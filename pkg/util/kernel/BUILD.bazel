@@ -101,6 +101,7 @@ dd_agent_go_test(
     srcs = [
         "auxv_test.go",
         "cpu_test.go",
+        "fs_test.go",
         "kmsg_test.go",
         "lockdown_test.go",
         "platform_test.go",
