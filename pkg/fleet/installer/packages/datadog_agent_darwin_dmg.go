@@ -585,12 +585,16 @@ func installLinks(layout dmgLayout) {
 // startDMGGUI installs the GUI and the AI usage desktop monitor as system-wide LaunchAgents, loads
 // them for the user at the console if there is a GUI session, and removes the staging directory.
 // It runs once the LaunchDaemons are loaded.
+//
+// The GUI session is detected by asking launchd for the console user's gui domain. Asking for the
+// user's manager name instead answers Background when the installer runs outside the user's Aqua
+// context, so the helpers would not be restarted after an upgrade.
 func startDMGGUI(ctx context.Context, layout dmgLayout, env installEnv) {
 	consoleUID := ""
 	if info, err := os.Stat(layout.consoleDevice); err == nil {
 		if owner := fileOwner(info); owner != "" {
-			if out, err := hostCommand(ctx, "sudo", "-u", owner, "launchctl", "managername"); err == nil && strings.Contains(string(out), "Aqua") {
-				if u, err := user.Lookup(owner); err == nil {
+			if u, err := user.Lookup(owner); err == nil {
+				if _, err := hostCommand(ctx, "launchctl", "print", "gui/"+u.Uid); err == nil {
 					consoleUID = u.Uid
 				}
 			}

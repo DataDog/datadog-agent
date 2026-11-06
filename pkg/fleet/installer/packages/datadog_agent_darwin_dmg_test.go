@@ -8,7 +8,10 @@
 package packages
 
 import (
+	"context"
+	"errors"
 	"os"
+	"os/user"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -219,4 +222,39 @@ func TestSetUpDMGInstall(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotContains(t, string(gui), "--headless")
 	assert.NoDirExists(t, layout.stagingDir, "the staging directory must be removed")
+}
+
+// TestStartDMGGUILoadsForTheConsoleSession pins how the GUI session is detected: the LaunchAgents are
+// loaded into the console user's gui domain when launchd has one, and left for the next login when
+// it doesn't. The installer runs outside the user's Aqua context, so the check asks launchd for the
+// domain rather than for the user's manager name.
+func TestStartDMGGUILoadsForTheConsoleSession(t *testing.T) {
+	current, err := user.Current()
+	require.NoError(t, err)
+	for _, hasSession := range []bool{true, false} {
+		layout := stubDmgLayout(t)
+		require.NoError(t, os.WriteFile(filepath.Join(layout.confDir(), guiLabel+".plist.example"), []byte("<plist/>\n"), 0o644))
+		var commands [][]string
+		hostCommand = func(_ context.Context, name string, args ...string) ([]byte, error) {
+			commands = append(commands, append([]string{name}, args...))
+			if name == "launchctl" && len(args) == 2 && args[0] == "print" && !hasSession {
+				return nil, errors.New("Could not find domain")
+			}
+			return nil, nil
+		}
+
+		startDMGGUI(t.Context(), layout, installEnv{})
+
+		assert.Contains(t, commands, []string{"launchctl", "print", "gui/" + current.Uid})
+		bootstrap := []string{"launchctl", "bootstrap", "gui/" + current.Uid, filepath.Join(layout.launchAgentsDir, guiLabel+".plist")}
+		if hasSession {
+			assert.Contains(t, commands, bootstrap, "the GUI must be loaded into the console session")
+		} else {
+			assert.NotContains(t, commands, bootstrap, "without a session the GUI waits for the next login")
+		}
+		for _, c := range commands {
+			assert.NotContains(t, c, "managername")
+		}
+		assert.FileExists(t, filepath.Join(layout.launchAgentsDir, guiLabel+".plist"))
+	}
 }
