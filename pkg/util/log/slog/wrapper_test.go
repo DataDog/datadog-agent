@@ -260,6 +260,161 @@ func TestWrapperSetAdditionalStackDepth(t *testing.T) {
 	assert.True(t, strings.HasSuffix(frame2.Function, "TestWrapperSetAdditionalStackDepth"), frame2.Function)
 }
 
+func TestWrapperLog(t *testing.T) {
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	// Helper function that logs a message
+	logHelper := func(extraDepth int) {
+		_ = wrapper.Log(types.InfoLvl, "test message", extraDepth)
+	}
+
+	// extraDepth 0: the helper function calling Log is the reported caller
+	logHelper(0)
+	require.Equal(t, 1, len(handler.records), handler.records)
+	record := handler.lastRecord()
+	assert.Equal(t, "test message", record.Message)
+	frame, _ := runtime.CallersFrames([]uintptr{record.PC}).Next()
+	assert.Contains(t, frame.Function, "TestWrapperLog.func1")
+
+	// Reset records
+	handler.reset()
+
+	// extraDepth 1: skip the helper function, the test is the reported caller
+	logHelper(1)
+	require.Equal(t, 1, len(handler.records), handler.records)
+	record = handler.lastRecord()
+	frame, _ = runtime.CallersFrames([]uintptr{record.PC}).Next()
+	assert.True(t, strings.HasSuffix(frame.Function, "TestWrapperLog"), frame.Function)
+}
+
+func TestWrapperLogContext(t *testing.T) {
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	wrapper.Log(types.TraceLvl, "test message", 0, "key1", "value1", "key2", 42)
+
+	record := handler.lastRecord()
+	attrs := getAttrs(record)
+	require.Equal(t, 2, len(attrs))
+	assert.Equal(t, "key1", attrs[0].Key)
+	assert.Equal(t, "value1", attrs[0].Value.String())
+	assert.Equal(t, "key2", attrs[1].Key)
+	assert.Equal(t, int64(42), attrs[1].Value.Int64())
+
+	// values must not be rendered while logging, only if the handler needs them
+	expensiveValue := &trackedStringer{StringFunc: func() string {
+		t.Fatal("String() should not be called when logging")
+		return ""
+	}}
+	handler.reset()
+	wrapper.Log(types.TraceLvl, "test message", 0, "expensive_key", expensiveValue)
+	assert.Equal(t, 1, len(handler.records), handler.records)
+}
+
+func TestWrapperLogErrorLevels(t *testing.T) {
+	tests := []struct {
+		name  string
+		level types.LogLevel
+	}{
+		{name: "Warn", level: types.WarnLvl},
+		{name: "Error", level: types.ErrorLvl},
+		{name: "Critical", level: types.CriticalLvl},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			handler := newMockHandler()
+			wrapper := NewWrapper(handler)
+
+			err := wrapper.Log(tt.level, "message", 0)
+			assert.Equal(t, 1, len(handler.records), handler.records)
+			assert.Error(t, err)
+			assert.Equal(t, "message", err.Error())
+
+			// the error is returned even when the handler is disabled
+			handler.enabled = false
+			err = wrapper.Log(tt.level, "message", 0)
+			assert.Error(t, err)
+			assert.Equal(t, "message", err.Error())
+		})
+	}
+
+	// trace, debug and info never return an error
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+	assert.NoError(t, wrapper.Log(types.TraceLvl, "message", 0))
+	assert.NoError(t, wrapper.Log(types.DebugLvl, "message", 0))
+	assert.NoError(t, wrapper.Log(types.InfoLvl, "message", 0))
+}
+
+func TestWrapperLogf(t *testing.T) {
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	logHelper := func(extraDepth int) {
+		_ = wrapper.Logf(types.InfoLvl, "test %s", extraDepth, "message")
+	}
+
+	logHelper(0)
+	require.Equal(t, 1, len(handler.records), handler.records)
+	record := handler.lastRecord()
+	assert.Equal(t, "test message", record.Message)
+	frame, _ := runtime.CallersFrames([]uintptr{record.PC}).Next()
+	assert.Contains(t, frame.Function, "TestWrapperLogf.func1")
+
+	handler.reset()
+
+	logHelper(1)
+	require.Equal(t, 1, len(handler.records), handler.records)
+	record = handler.lastRecord()
+	frame, _ = runtime.CallersFrames([]uintptr{record.PC}).Next()
+	assert.True(t, strings.HasSuffix(frame.Function, "TestWrapperLogf"), frame.Function)
+
+	// the message is only rendered when the level is enabled
+	handler.enabled = false
+	handler.reset()
+	stringerCalled := false
+	wrapper.Logf(types.TraceLvl, "%s", 0, &trackedStringer{StringFunc: func() string {
+		stringerCalled = true
+		return "formatted message"
+	}})
+	assert.False(t, stringerCalled, "String() should not be called when the level is disabled")
+	assert.Equal(t, 0, len(handler.records), handler.records)
+
+	// warn and above always render the message, to return it as an error
+	handler.enabled = true
+	handler.reset()
+	err := wrapper.Logf(types.WarnLvl, "hello %s", 0, "world")
+	assert.Error(t, err)
+	assert.Equal(t, "hello world", err.Error())
+
+	handler.enabled = false
+	handler.reset()
+	err = wrapper.Logf(types.WarnLvl, "hello %s", 0, "world")
+	assert.Equal(t, "hello world", err.Error())
+	assert.Equal(t, 0, len(handler.records), handler.records)
+}
+
+func TestWrapperLogAfterClose(t *testing.T) {
+	handler := newMockHandler()
+	wrapper := NewWrapper(handler)
+
+	wrapper.Close()
+
+	_ = wrapper.Log(types.TraceLvl, "trace message", 0)
+	_ = wrapper.Log(types.ErrorLvl, "error message", 0)
+	_ = wrapper.Logf(types.TraceLvl, "trace message %s", 0, "formatted")
+	_ = wrapper.Logf(types.ErrorLvl, "error message %s", 0, "formatted")
+
+	// logging to a closed wrapper still returns the error levels' errors
+	err := wrapper.Log(types.ErrorLvl, "error message", 0)
+	assert.Error(t, err)
+	assert.Equal(t, "error message", err.Error())
+
+	assert.Empty(t, handler.records, "handler should not be called after wrapper is closed")
+}
+
 func TestWrapperSetContext(t *testing.T) {
 	handler := newMockHandler()
 	wrapper := NewWrapper(handler)
@@ -267,7 +422,6 @@ func TestWrapperSetContext(t *testing.T) {
 	// Test setting context
 	context := []interface{}{"key1", "value1", "key2", 42}
 	wrapper.SetContext(context)
-
 	// Test that context is added to log record
 	wrapper.Info("test")
 	record := handler.lastRecord()
