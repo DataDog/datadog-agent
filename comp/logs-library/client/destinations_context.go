@@ -25,9 +25,15 @@ func NewDestinationsContext() *DestinationsContext {
 
 // Start creates a context that will be cancelled on Stop()
 func (dc *DestinationsContext) Start() {
+	dc.StartWithContext(context.Background())
+}
+
+// StartWithContext creates a separately cancellable context derived from parent.
+// Stopping this context does not cancel parent or other destination contexts.
+func (dc *DestinationsContext) StartWithContext(parent context.Context) {
 	dc.mutex.Lock()
 	defer dc.mutex.Unlock()
-	dc.context, dc.cancel = context.WithCancel(context.Background())
+	dc.context, dc.cancel = context.WithCancel(parent)
 }
 
 // Stop cancels the context that should be used by all senders.
