@@ -16,11 +16,10 @@ go_library(
         "//comp/core/ipc/def",
         "//comp/core/ipc/fx",
         "//comp/core/log/def",
-        "//pkg/aggregator",
+        "//pkg/aggregator/contexttop",
         "//pkg/config/helper",
         "//pkg/config/setup",
         "//pkg/util/fxutil",
-        "//pkg/zstd",
         "@com_github_spf13_cobra//:cobra",
         "@org_uber_go_fx//:fx",
     ],
@@ -32,7 +31,10 @@ dd_agent_go_test(
     embed = [":dogstatsd"],
     deps = [
         "//cmd/agent/command",
+        "//pkg/aggregator",
+        "//pkg/aggregator/contexttop",
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )
