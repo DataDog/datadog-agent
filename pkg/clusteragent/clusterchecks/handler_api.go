@@ -42,6 +42,21 @@ func (h *Handler) RejectOrForwardLeaderQuery(rw http.ResponseWriter, req *http.R
 	}
 }
 
+// NodesRunningCheck returns the Kubernetes nodes whose node Agent runs a check
+// dispatched as an endpoints check. It returns false when they are unknown,
+// for example when this Cluster Agent is a follower or in its leader warmup.
+func (h *Handler) NodesRunningCheck(checkName string) (map[string]struct{}, bool) {
+	// The dispatcher is reset asynchronously after leadership is lost, so
+	// check the state rather than relying on the store being inactive.
+	h.m.RLock()
+	isLeader := h.state == leader
+	h.m.RUnlock()
+	if !isLeader {
+		return nil, false
+	}
+	return h.dispatcher.nodesRunningCheck(checkName)
+}
+
 // GetState returns the state of the dispatching, for the clusterchecks cmd
 func (h *Handler) GetState(scrub bool) (types.StateResponse, error) {
 	h.m.RLock()
