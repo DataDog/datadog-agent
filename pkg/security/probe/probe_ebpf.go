@@ -4291,6 +4291,7 @@ func AppendProbeRequestsToFetcher(constantFetcher constantfetch.ConstantFetcher,
 	// network related constants
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNetDeviceStructIfIndex, "struct net_device", "ifindex")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNetDeviceStructName, "struct net_device", "name")
+	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameNetDeviceStructRtnlLinkOps, "struct net_device", "rtnl_link_ops")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameDeviceStructNdNet, "struct net_device", "nd_net")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockCommonStructSKCNet, "struct sock_common", "skc_net")
 	appendOffsetofRequest(constantFetcher, constantfetch.OffsetNameSockCommonStructSKCFamily, "struct sock_common", "skc_family")

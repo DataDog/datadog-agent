@@ -237,7 +237,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 	var attachedDeviceCountNoLazyDeletion int
 	for _, link := range links {
 		attrs := link.Attrs()
-		if attrs == nil {
+		if attrs == nil || link.Type() == "dummy" {
 			continue
 		}
 
