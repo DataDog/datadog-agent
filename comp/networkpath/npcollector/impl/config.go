@@ -60,8 +60,8 @@ func newConfig(agentConfig config.Component, sysprobeConfig sysprobeconfig.Compo
 	cnm := sysprobeConfig.GetBool("network_config.enabled")
 	infraMode := agentConfig.GetString("infrastructure_mode")
 	isEUDM := infraMode == "end_user_device"
-	// Basic tests are on by default, so they stand down when system-probe traceroute is
-	// explicitly disabled (e.g. the Helm chart default): every test would fail otherwise.
+	// Basic tests stand down when system-probe traceroute is explicitly disabled
+	// (e.g. the Helm chart default): every test would fail otherwise.
 	tracerouteExplicitlyDisabled := sysprobeConfig.IsConfigured("traceroute.enabled") && !sysprobeConfig.GetBool("traceroute.enabled")
 	basicTestsRequested := !isEUDM && agentConfig.GetBool("network_path.connections_monitoring.basic_tests_enabled") && cnm
 	if basicTestsRequested && tracerouteExplicitlyDisabled {
