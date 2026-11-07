@@ -6,6 +6,7 @@
 package processor
 
 import (
+	"fmt"
 	"regexp"
 	"testing"
 	"time"
@@ -14,7 +15,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
+	"github.com/DataDog/datadog-agent/comp/logs-library/quota"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -472,6 +475,30 @@ func BenchmarkMaskSequences(b *testing.B) {
 		}
 	})
 
+}
+
+func TestQuotaDrop(t *testing.T) {
+	out := make(chan *message.Message, 10)
+	p := New(nil, make(chan *message.Message), out, nil, nil, PassthroughEncoder, &diagnostic.NoopMessageReceiver{},
+		nil, metrics.NewNoopPipelineMonitor("0"), "0")
+	e := quota.NewEnforcer()
+	p.SetQuotaEnforcer(e)
+
+	nginx := sources.NewLogSource("", &config.LogsConfig{Source: "nginx", Tags: []string{"team:payments"}})
+	redis := sources.NewLogSource("", &config.LogsConfig{Source: "redis"})
+
+	p.processMessage(newMessage([]byte("a"), nginx, ""))
+	assert.Len(t, out, 1)
+
+	res := e.Update(map[string][]byte{"q": fmt.Appendf(nil, `{"quotas":[{"tags":["team:payments"],"expires_at":%d}]}`,
+		time.Now().Add(time.Hour).Unix())})
+	assert.NoError(t, res["q"])
+
+	p.processMessage(newMessage([]byte("b"), nginx, ""))
+	p.processMessage(newMessage([]byte("c"), redis, ""))
+	assert.Len(t, out, 2)
+	<-out
+	assert.Equal(t, "redis", (<-out).Origin.Source())
 }
 
 func TestExcludeTruncated(t *testing.T) {

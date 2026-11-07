@@ -19,6 +19,7 @@ go_library(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
+        "//comp/logs-library/quota",
         "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//pkg/config/model",
@@ -41,7 +42,9 @@ dd_agent_go_test(
     embed = [":processor"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
+        "//comp/logs-library/diagnostic",
         "//comp/logs-library/metrics",
+        "//comp/logs-library/quota",
         "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//pkg/config/mock",
