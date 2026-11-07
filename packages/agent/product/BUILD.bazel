@@ -275,3 +275,66 @@ pkg_install(
     srcs = [":system_probe_files"],
     visibility = ["//visibility:public"],
 )
+
+pkg_files(
+    name = "system_probe_binary",
+    srcs = ["//cmd/system-probe"],
+    attributes = pkg_attributes(mode = "755"),
+    prefix = "embedded/bin",
+)
+
+pkg_files(
+    name = "system_probe_ebpf_objects",
+    srcs = [
+        "//pkg/ebpf:prebuilt_objects",
+        "//pkg/ebpf/c:COPYING",
+    ],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf",
+)
+
+pkg_files(
+    name = "system_probe_co_re_objects",
+    srcs = ["//pkg/ebpf:co_re_objects"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/co-re",
+)
+
+pkg_files(
+    name = "system_probe_runtime_sources",
+    srcs = ["//pkg/ebpf:runtime_sources"],
+    attributes = pkg_attributes(mode = "644"),
+    prefix = "embedded/share/system-probe/ebpf/runtime",
+)
+
+# clang-bpf only. llc-bpf stays a toolchain file.
+pkg_files(
+    name = "system_probe_llvm_bpf",
+    srcs = select({
+        "@platforms//os:linux": ["@llvm_bpf//:bin/clang-bpf"],
+        "//conditions:default": [],
+    }),
+    attributes = pkg_attributes(mode = "744"),
+    prefix = "embedded/bin",
+)
+
+# Not wired into :all_files or Omnibus. FIPS omits the binary.
+pkg_filegroup(
+    name = "system_probe_install_dir_files",
+    srcs = [
+        ":system_probe_co_re_objects",
+        ":system_probe_ebpf_objects",
+        ":system_probe_llvm_bpf",
+        ":system_probe_runtime_sources",
+    ] + select({
+        "//packages/agent:fips_flavor": [],
+        "//conditions:default": [":system_probe_binary"],
+    }),
+)
+
+pkg_install(
+    name = "install_system_probe_install_dir",
+    srcs = [":system_probe_install_dir_files"],
+    destdir_flag = "//:install_dir",
+    target_compatible_with = ["@platforms//os:linux"],
+)
