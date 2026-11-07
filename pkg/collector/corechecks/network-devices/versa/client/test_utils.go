@@ -125,8 +125,13 @@ func SetupMockAPIServer() *httptest.Server {
 		// Check if this is a SLA metrics request or Link Extended metrics request
 		queryParams := r.URL.Query()
 		query := queryParams.Get("q")
+		timeseries := queryParams.Get("qt") == QueryTypeTimeseries
 		if strings.Contains(query, "slam(") {
-			fixtureHandler(fixtures.GetSLAMetrics)(w, r)
+			if timeseries {
+				fixtureHandler(fixtures.GetSLAMetricsTimeseries)(w, r)
+			} else {
+				fixtureHandler(fixtures.GetSLAMetrics)(w, r)
+			}
 		} else if strings.Contains(query, "linkusage(site,site.address") {
 			fixtureHandler(fixtures.GetSiteMetrics)(w, r)
 		} else if strings.Contains(query, "linkusage(") {
@@ -137,8 +142,14 @@ func SetupMockAPIServer() *httptest.Server {
 			fixtureHandler(fixtures.GetApplicationsByApplianceMetrics)(w, r)
 		} else if strings.Contains(query, "appUser(") {
 			fixtureHandler(fixtures.GetTopUsers)(w, r)
+		} else if strings.Contains(query, "pathcos(") {
+			if timeseries {
+				fixtureHandler(fixtures.GetPathQoSMetricsTimeseries)(w, r)
+			} else {
+				fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
+			}
 		} else if strings.Contains(query, "cos(") {
-			fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
+			fixtureHandler(fixtures.GetCircuitQoSMetrics)(w, r)
 		} else if strings.Contains(query, "usage(") {
 			fixtureHandler(fixtures.GetDIAMetrics)(w, r)
 		} else if strings.Contains(query, "intfUtil(") {
@@ -224,8 +235,10 @@ func SetupPaginationMockAPIServer() *httptest.Server {
 				fixtureHandler(fixtures.GetApplicationsByApplianceMetrics)(w, r)
 			} else if strings.Contains(query, "appUser(") {
 				fixtureHandler(fixtures.GetTopUsers)(w, r)
-			} else if strings.Contains(query, "cos(") {
+			} else if strings.Contains(query, "pathcos(") {
 				fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
+			} else if strings.Contains(query, "cos(") {
+				fixtureHandler(fixtures.GetCircuitQoSMetrics)(w, r)
 			} else if strings.Contains(query, "usage(") {
 				fixtureHandler(fixtures.GetDIAMetrics)(w, r)
 			} else if strings.Contains(query, "intfUtil(") {
