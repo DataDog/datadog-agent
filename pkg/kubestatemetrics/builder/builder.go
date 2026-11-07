@@ -358,23 +358,21 @@ func (b *Builder) startReflector(
 	useAPIServerCache bool,
 ) {
 	if useAPIServerCache {
-		listWatcher = newCacheEnabledListerWatcher(b.ctx, listWatcher)
+		listWatcher = newCacheEnabledListerWatcher(listWatcher)
 	}
-	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync)
+	reflector := cache.NewReflector(listWatcher, expectedType, store, b.resync*time.Second)
 	go reflector.Run(b.ctx.Done())
 }
 
 type cacheEnabledListerWatcher struct {
-	lw  cache.ListerWatcherWithContext
-	rv  string
-	ctx context.Context
+	lw cache.ListerWatcherWithContext
+	rv string
 }
 
-func newCacheEnabledListerWatcher(ctx context.Context, lw cache.ListerWatcher) cache.ListerWatcher {
+func newCacheEnabledListerWatcher(lw cache.ListerWatcher) cache.ListerWatcher {
 	return &cacheEnabledListerWatcher{
-		ctx: ctx,
-		lw:  cache.ToListerWatcherWithContext(lw),
-		rv:  "0",
+		lw: cache.ToListerWatcherWithContext(lw),
+		rv: "0",
 	}
 }
 
@@ -387,7 +385,7 @@ func newCacheEnabledListerWatcher(ctx context.Context, lw cache.ListerWatcher) c
 func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object, error) {
 	options.ResourceVersion = c.rv
 	options.ResourceVersionMatch = v1.ResourceVersionMatchNotOlderThan
-	res, err := c.lw.ListWithContext(c.ctx, options)
+	res, err := c.lw.ListWithContext(context.TODO(), options)
 	if err == nil {
 		metadataAccessor, err := meta.ListAccessor(res)
 		if err != nil {
@@ -401,7 +399,7 @@ func (c *cacheEnabledListerWatcher) List(options v1.ListOptions) (runtime.Object
 
 // Watch simply delegates to the wrapped ListerWatcherWithContext
 func (c *cacheEnabledListerWatcher) Watch(options v1.ListOptions) (apiwatch.Interface, error) {
-	return c.lw.WatchWithContext(c.ctx, options)
+	return c.lw.WatchWithContext(context.TODO(), options)
 }
 
 func handlePodCollection[T any](b *Builder, store cache.Store, client T, listWatchFunc func(kubeClient T, ns string, fieldSelector string) cache.ListerWatcher, namespace string, useAPIServerCache bool) {
