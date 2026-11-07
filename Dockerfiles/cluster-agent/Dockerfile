@@ -125,6 +125,7 @@ ENV \
     DD_GIT_COMMIT_SHA=${DD_GIT_COMMIT_SHA}
 
 COPY --from=artifacts datadog-cluster-agent /opt/datadog-agent/bin/datadog-cluster-agent
+COPY --from=artifacts libjemalloc.so.2 /opt/datadog-agent/embedded/lib/libjemalloc.so.2
 # CWS Instrumentation
 COPY --from=artifacts --chmod=0755 ./cws-instrumentation/ /opt/datadog-agent/bin/datadog-cws-instrumentation/
 # secret-generic-connector for secret_backend_type / secret_backend_command
@@ -160,7 +161,7 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
-ENV LD_PRELOAD=/opt/lib/nosys.so
+ENV LD_PRELOAD=/opt/lib/nosys.so:/opt/datadog-agent/embedded/lib/libjemalloc.so.2
 
 # Incompatible with the custom metrics API on port 443
 # Set DD_EXTERNAL_METRICS_PROVIDER_PORT to a higher value to run as non-root

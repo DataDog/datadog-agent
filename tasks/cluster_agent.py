@@ -17,6 +17,7 @@ from tasks.build_tags import compute_build_tags_for_flavor
 from tasks.cluster_agent_helpers import build_common, clean_common, refresh_assets_common, version_common
 from tasks.cws_instrumentation import BIN_PATH as CWS_INSTRUMENTATION_BIN_PATH
 from tasks.flavor import FipsBackend
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.dependencies import get_effective_dependencies_env
 
@@ -88,6 +89,14 @@ def build(
     # Build secret-generic-connector so it is shipped with the cluster agent.
     secret_generic_connector.build(ctx, fips_backend=fips_backend)
 
+    # Ship the same allocator as the core Agent in the Cluster Agent image.
+    arch = CONTAINER_PLATFORM_MAPPING[os.getenv("GOARCH") or platform.machine().lower()]
+    build_binary_with_bazel(
+        "@jemalloc//:jemalloc_pkg",
+        args=[f"--platforms=@rules_go//go/toolchain:linux_{arch}"],
+        bin_path=os.path.join(BIN_PATH, "libjemalloc.so.2"),
+    )
+
 
 @task
 def refresh_assets(ctx, development=True):
@@ -144,6 +153,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
     cws_instrumentation_base = f"{build_context}/cws-instrumentation"
     cws_instrumentation_exec_path = f"{cws_instrumentation_base}/cws-instrumentation.{arch}"
     secret_connector_dest = f"{build_context}/secret-generic-connector"
+    jemalloc_dest = f"{build_context}/libjemalloc.so.2"
 
     dockerfile_path = f"{build_context}/Dockerfile"
 
@@ -157,6 +167,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
         print(f"Error creating directory: {e}")
 
     shutil.copy2(latest_file, exec_path)
+    shutil.copy2(os.path.join(BIN_PATH, "libjemalloc.so.2"), jemalloc_dest)
     shutil.copy2(latest_cws_instrumentation_file, cws_instrumentation_exec_path)
     shutil.copy2(secret_generic_connector.BIN_PATH, secret_connector_dest)
     shutil.copytree("Dockerfiles/agent/nosys-seccomp", f"{build_context}/nosys-seccomp", dirs_exist_ok=True)
@@ -168,6 +179,7 @@ def image_build(ctx, arch=None, tag=AGENT_TAG, push=False):
         f"docker build -t {tag} --platform linux/{arch} {build_context} -f {dockerfile_path} --build-context artifacts={build_context}"
     )
     ctx.run(f"rm {exec_path}")
+    os.remove(jemalloc_dest)
     ctx.run(f"rm -rf {cws_instrumentation_base}")
     ctx.run(f"rm -f {secret_connector_dest}")
     ctx.run(f"rm -rf {par_config_dest}")

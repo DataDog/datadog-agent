@@ -15,10 +15,12 @@
     # keep the unstripped binary for fips compliance checks
     - cp $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
     - strip $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
+    - strip $CLUSTER_AGENT_BINARIES_DIR/libjemalloc.so.2
   artifacts:
     paths:
       - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent
       - $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent-unstripped
+      - $CLUSTER_AGENT_BINARIES_DIR/libjemalloc.so.2
       - $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector
       - Dockerfiles/cluster-agent/datadog-cluster.yaml
       - Dockerfiles/cluster-agent/security-agent-policies
