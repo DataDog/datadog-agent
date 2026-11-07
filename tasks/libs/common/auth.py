@@ -2,11 +2,14 @@ import os
 import shlex
 from contextlib import contextmanager
 
+from tasks.libs.common.bits_code import require_host_authentication
 from tasks.libs.common.utils import running_in_ci
 
 
 def datadog_infra_token(ctx, audience, datacenter="us1.ddbuild.io"):
     """Returns the http token for the given audience to access Datadog infrastructure services."""
+
+    require_host_authentication("Datadog infrastructure authentication")
 
     token = (
         ctx.run(
@@ -30,6 +33,7 @@ def datadog_infra_token(ctx, audience, datacenter="us1.ddbuild.io"):
 
 def get_aws_vault_env(ctx, account: str):
     """Returns the environment variables to authenticate with aws-vault for the given account."""
+    require_host_authentication("AWS vault authentication")
     if running_in_ci():
         raise RuntimeError("aws-vault is not meant to be used in CI")
     res = ctx.run(f"aws-vault export {account}", hide=True)
@@ -46,6 +50,7 @@ def dd_auth_api_app_keys(ctx, domain: str):
     """
     Fetch API/App keys from dd-auth for a given domain and temporarily set them in env.
     """
+    require_host_authentication("Datadog API/App key authentication")
     res = ctx.run(f"dd-auth --domain {shlex.quote(domain)} --output", hide=True, warn=True)
     if not res.ok:
         raise RuntimeError(f"dd-auth failed for domain {domain}")

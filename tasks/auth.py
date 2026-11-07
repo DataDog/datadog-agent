@@ -7,6 +7,7 @@ from invoke import Exit, task
 from tasks.libs.ciproviders.github_api import generate_local_github_token
 from tasks.libs.ciproviders.gitlab_api import get_gitlab_token
 from tasks.libs.common.auth import datadog_infra_token
+from tasks.libs.common.bits_code import require_host_authentication
 from tasks.libs.common.feature_flags import is_enabled
 from tasks.libs.common.utils import running_in_ci
 
@@ -27,6 +28,8 @@ def gitlab(ctx, repo='DataDog/datadog-agent', verbose=False):
 
     This could be used from the CI.
     """
+
+    require_host_authentication("GitLab token access")
 
     if "GITLAB_TOKEN" in os.environ and not is_enabled(ctx, "agent-ci-gitlab-short-lived-tokens"):
         print(os.environ["GITLAB_TOKEN"])
