@@ -121,6 +121,9 @@ class Arch:
             # not the architecture name.  Fall back to platform.processor() in that case.
             if not any(arch in a.spellings for a in ALL_ARCHS):
                 arch = platform.processor().lower()
+            # A 32-bit userland on a 64-bit ARM kernel, like the armhf build image, reports the kernel's machine
+            if arch in ARCH_ARM64.spellings and sys.maxsize <= 2**32:
+                arch = ARCH_ARM.name
 
         # Not the most efficient way to do this, but the list is small
         # enough and this way we avoid having to maintain a dictionary
@@ -167,4 +170,15 @@ ARCH_PPC64 = Arch(
     spellings={"ppc64", "powerpc64", "powerpc"},
 )
 
-ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64, ARCH_PPC64]
+ARCH_ARM = Arch(
+    name="arm",
+    go_arch="arm",
+    gcc_arch="arm",
+    kernel_arch="arm",
+    kmt_arch=None,
+    windows_arch="",
+    ci_arch="armhf",
+    spellings={"arm", "armhf", "armv6l", "armv7l", "armv8l"},
+)
+
+ALL_ARCHS = [ARCH_AMD64, ARCH_ARM64, ARCH_PPC64, ARCH_ARM]

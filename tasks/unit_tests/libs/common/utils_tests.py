@@ -227,3 +227,15 @@ class TestGetBuildFlags(unittest.TestCase):
 
         self.assertIn("-Wl,-rpath,/dev/lib", ldflags)
         self.assertIn("-Wl,-rpath,/dev/embedded/lib", ldflags)
+
+    @mock.patch.dict("os.environ", {}, clear=True)
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.types.arch.platform.machine", return_value="aarch64")
+    @mock.patch("tasks.libs.types.arch.sys.maxsize", 2**31 - 1)
+    def test_pins_go_env_for_32_bit_arm_userland_on_64_bit_kernel(self, _machine, _get_version_ldflags):
+        _, _, env = get_build_flags(mock.Mock())
+
+        self.assertEqual(
+            {k: env.get(k) for k in ("CGO_ENABLED", "GOARCH", "GOARM", "CC")},
+            {"CGO_ENABLED": "1", "GOARCH": "arm", "GOARM": "6", "CC": None},
+        )

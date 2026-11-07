@@ -32,7 +32,7 @@ from tasks.libs.common.constants import ALLOWED_REPO_ALL_BRANCHES, REPO_PATH
 from tasks.libs.common.get_payload_version import get_payload_version
 from tasks.libs.common.git import get_commit_sha, get_default_branch, set_git_config
 from tasks.libs.releasing.version import get_version
-from tasks.libs.types.arch import Arch
+from tasks.libs.types.arch import ARCH_ARM, Arch
 
 if sys.platform == "darwin":
     RTLOADER_LIB_NAME = "libdatadog-agent-rtloader.dylib"
@@ -428,6 +428,10 @@ def get_build_flags(
         env["CC"] = dd_cc
     if dd_cxx := os.getenv("DD_CXX"):
         env["CXX"] = dd_cxx
+
+    # Bazel's Go SDK follows the 64-bit kernel, so pin the 32-bit userland's target like Go's armv6l release, with cgo
+    if arch == ARCH_ARM:
+        env |= {"CGO_ENABLED": "1", "GOARCH": arch.go_arch, "GOARM": "6"}
 
     # Cross-OS lint/build setup: configure cross-compilation environment
     if target_platform != sys.platform or arch.is_cross_compiling():
