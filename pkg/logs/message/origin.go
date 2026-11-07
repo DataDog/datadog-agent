@@ -6,6 +6,7 @@
 package message
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -26,6 +27,8 @@ type Origin struct {
 	source       string
 	mappedSource string
 	tags         []string
+	shared       *TagSnapshot
+	messageTags  []string
 }
 
 // NewOrigin returns a new Origin
@@ -40,6 +43,18 @@ func NewOrigin(source *sources.LogSource) *Origin {
 // The returned slice must not be modified by the caller.
 func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
+}
+
+// HasTag reports whether Tags would contain tag, without allocating.
+func (o *Origin) HasTag(tag string) bool {
+	if o == nil || o.LogSource == nil {
+		return false
+	}
+	if slices.Contains(o.tags, tag) || slices.Contains(o.LogSource.Config.Tags, tag) {
+		return true
+	}
+	category, ok := strings.CutPrefix(tag, "sourcecategory:")
+	return ok && category != "" && category == o.LogSource.Config.SourceCategory
 }
 
 // TransportTags returns tags after filtering for intake encoders. Tags remains unfiltered.
@@ -172,6 +187,24 @@ func (o *Origin) tagsToStringArray() []string {
 // SetTags sets the tags of the origin.
 func (o *Origin) SetTags(tags []string) {
 	o.tags = tags
+	o.shared = nil
+	o.messageTags = nil
+}
+
+// SetTagsWithSnapshot sets tags, which must contain exactly the tags of shared plus messageTags.
+func (o *Origin) SetTagsWithSnapshot(tags []string, shared *TagSnapshot, messageTags []string) {
+	o.tags = tags
+	o.shared = shared
+	o.messageTags = messageTags
+}
+
+// TagSnapshot returns the shared tags and the message-specific tags that together match like HasTag.
+// ok is false when no snapshot was set or the source config changed since it was taken.
+func (o *Origin) TagSnapshot() (shared *TagSnapshot, messageTags []string, ok bool) {
+	if o == nil || o.shared == nil || o.LogSource == nil || !o.shared.describes(o.LogSource) {
+		return nil, nil, false
+	}
+	return o.shared, o.messageTags, true
 }
 
 // SetSource sets the source of the origin.
