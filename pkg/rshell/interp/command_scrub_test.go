@@ -6,10 +6,110 @@
 package interp
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 )
+
+// scrubCommandTextReference keeps the original unguarded pipeline as an oracle
+// for output equivalence and performance comparisons of the literal fast paths.
+func scrubCommandTextReference(text string) string {
+	text = reURLCreds.ReplaceAllString(text, "${1}:"+scrubReplacement+"@")
+	text = reBasicAuthFlag.ReplaceAllString(text, "${1}"+scrubReplacement)
+	text = reAuthHeader.ReplaceAllString(text, "${1}"+scrubReplacement)
+	text = redactQuotedValue(reKeyEquals, text)
+	text = redactQuotedValue(reFlagSpace, text)
+	text = reAWSAccessKey.ReplaceAllString(text, scrubReplacement)
+	return reJWT.ReplaceAllString(text, scrubReplacement)
+}
+
+func TestScrubCommandTextLiteralGuards(t *testing.T) {
+	const jwt = "aaaaaaaaaa.bbbbbbbbbb.cccccccccc"
+	for _, tc := range []struct {
+		name, input, want string
+	}{
+		{"minimum JWT", jwt, scrubReplacement},
+		{"quoted JWT", "echo '" + jwt + "'", "echo '" + scrubReplacement + "'"},
+		{"short segment", "aaaaaaaaa.bbbbbbbbbb.cccccccccc", "aaaaaaaaa.bbbbbbbbbb.cccccccccc"},
+		{"one dot", "aaaaaaaaaa.bbbbbbbbbb", "aaaaaaaaaa.bbbbbbbbbb"},
+		{"short dotted text", "echo example.com", "echo example.com"},
+		{"dotless flag", "echo --password=synthetic-secret", "echo --password=********"},
+		{"space flag without delimiters", "echo --password synthetic-secret", "echo --password ********"},
+		{"colon key", "password:synthetic-secret", "password:********"},
+		{"quoted colon key", "TOKEN : 'synthetic secret'", "TOKEN : '********'"},
+		{"ordinary delimiters", "echo ordinary=value other:value", "echo ordinary=value other:value"},
+		{"dotless env", "API_KEY=synthetic-secret echo hello", "API_KEY=******** echo hello"},
+		{"dotless basic auth", "curl -u synthetic:secret localhost", "curl -u ******** localhost"},
+		{"dotless AWS key", "echo AKIAIOSFODNN7EXAMPLE", "echo ********"},
+		{"earlier redaction removes dots", "TOKEN=" + jwt, "TOKEN=********"},
+		{"JWT remains after earlier redaction", "TOKEN=" + jwt + " echo " + jwt, "TOKEN=******** echo ********"},
+		{"multiline", "echo ok\n# " + jwt, "echo ok\n# ********"},
+		{"unicode", "echo café " + jwt, "echo café ********"},
+		{"invalid UTF8", "echo \xff " + jwt, "echo \xff ********"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, scrubCommandText(tc.input))
+			assert.Equal(t, scrubCommandTextReference(tc.input), scrubCommandText(tc.input))
+		})
+	}
+}
+
+func FuzzScrubCommandTextEquivalent(f *testing.F) {
+	for _, input := range []string{
+		"", "echo hello", "--token=synthetic", "a.b", "aaaaaaaaaa.bbbbbbbbbb.cccccccccc",
+		"echo \xff café", "curl https://user:synthetic@example.com", strings.Repeat("x", 256),
+		"TOKEN : 'synthetic secret'", "echo --password synthetic-secret", "echo ordinary=value other:value",
+	} {
+		f.Add(input)
+	}
+	f.Fuzz(func(t *testing.T, input string) {
+		// Bound the reference regex work; large inputs have separate benchmarks.
+		if len(input) > 1024 {
+			t.Skip()
+		}
+		assert.Equal(t, scrubCommandTextReference(input), scrubCommandText(input))
+	})
+}
+
+var scrubCommandTextBenchmarkResult string
+
+func BenchmarkScrubCommandText(b *testing.B) {
+	const jwt = "aaaaaaaaaa.bbbbbbbbbb.cccccccccc"
+	const prefix = "echo script-size-ok\n#"
+	const scriptSize = 5 * 1024 * 1024
+	dotless := prefix + strings.Repeat("x", scriptSize-len(prefix))
+	for _, input := range []struct {
+		name, text string
+	}{
+		{"tiny", "echo hello"},
+		{"dotless_5MiB", dotless},
+		{"one_dot_begin_5MiB", "." + dotless[1:]},
+		{"one_dot_middle_5MiB", dotless[:scriptSize/2] + "." + dotless[scriptSize/2+1:]},
+		{"one_dot_end_5MiB", dotless[:scriptSize-1] + "."},
+		{"dot_and_equals_5MiB", dotless[:scriptSize-2] + ".="},
+		{"dotted_command", "curl --password=synthetic https://example.com && echo " + jwt},
+		{"jwt_padded_5MiB", jwt + " " + dotless[len(jwt)+1:]},
+	} {
+		b.Run(input.name, func(b *testing.B) {
+			for _, implementation := range []struct {
+				name string
+				run  func(string) string
+			}{
+				{"reference", scrubCommandTextReference},
+				{"guarded", scrubCommandText},
+			} {
+				b.Run(implementation.name, func(b *testing.B) {
+					b.SetBytes(int64(len(input.text)))
+					b.ReportAllocs()
+					for b.Loop() {
+						scrubCommandTextBenchmarkResult = implementation.run(input.text)
+					}
+				})
+			}
+		})
+	}
+}
 
 // TestScrubCommandText covers the common shapes of secrets we expect to see
 // in a raw command line before it is attached to the rshell.run.command
