@@ -67,12 +67,32 @@ The --list flag can be used to list all available status sections.`,
 			// BundleParams field for AD.
 			os.Setenv("DD_AUTOCONFIG_FROM_ENVIRONMENT", "false")
 
-			return fxutil.OneShot(statusCmd,
+			logParams := log.ForOneShot(
+				command.LoggerName,
+				cliParams.logLevelDefaultOff.Value(),
+				true,
+			)
+
+			// JSON output must not be mixed with log messages.
+			if cliParams.jsonStatus || cliParams.prettyPrintJSON {
+				logParams.LogToConsole(false)
+			}
+
+			return fxutil.OneShot(
+				statusCmd,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:            log.ForOneShot(command.LoggerName, cliParams.logLevelDefaultOff.Value(), true)}),
+					ConfigParams: config.NewAgentParams(
+						globalParams.ConfFilePath,
+						config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
+						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+					),
+					SysprobeConfigParams: sysprobeconfigimpl.NewParams(
+						sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath),
+						sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+					),
+					LogParams: logParams,
+				}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
