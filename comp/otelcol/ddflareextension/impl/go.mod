@@ -88,6 +88,7 @@ require (
 	github.com/DataDog/datadog-agent/comp/core/tagger/generic_store v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/impl-remote v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.83.0 // indirect
+	github.com/DataDog/datadog-agent/comp/core/tagger/subscriber v0.0.0-20250129172314-517df3f51a84 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/tags v0.64.0-devel // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/telemetry v0.64.1 // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/types v0.83.0 // indirect
