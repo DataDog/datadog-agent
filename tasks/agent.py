@@ -255,8 +255,11 @@ def generate_config_examples(ctx, flavor, skip_assets, build_tags, development, 
 # is fetched on Windows versions the MSI supports. The source stylesheet is
 # left unchanged for Linux and macOS.
 _WINDOWS_FONTAWESOME_CSS_DROPS = (
-    b"src:url('../fonts/fontawesome-webfont.eot?v=4.7.0');"
-    b"src:url('../fonts/fontawesome-webfont.eot?#iefix&v=4.7.0') format('embedded-opentype'),",
+    # The first src: is the IE8-only declaration. Remove that declaration
+    # whole, then remove the EOT and TTF entries from the second list.
+    # The second src: has to stay, or the remaining URLs are not a font src.
+    b"src:url('../fonts/fontawesome-webfont.eot?v=4.7.0');",
+    b"url('../fonts/fontawesome-webfont.eot?#iefix&v=4.7.0') format('embedded-opentype'),",
     b"url('../fonts/fontawesome-webfont.ttf?v=4.7.0') format('truetype'),",
 )
 
