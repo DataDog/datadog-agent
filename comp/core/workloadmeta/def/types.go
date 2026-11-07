@@ -2866,8 +2866,10 @@ func (kc *KubeCapabilities) Merge(e Entity) error {
 
 // DeepCopy returns a deep copy of the given CRD entity
 func (kc KubeCapabilities) DeepCopy() Entity {
-	copyCrd := deepcopy.Copy(kc).(*KubeCapabilities)
-	return copyCrd
+	// TEST ONLY: deepcopy.Copy of a value returns a value, as for the other entities: the
+	// assertion to *KubeCapabilities of main panics, which the revert of #26552 reaches.
+	copyCrd := deepcopy.Copy(kc).(KubeCapabilities)
+	return &copyCrd
 }
 
 func (kc KubeCapabilities) String(verbose bool) string {
