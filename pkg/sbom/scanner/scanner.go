@@ -43,6 +43,7 @@ type deprecatedSetting struct {
 const (
 	cacheReason = "SBOM scans keep their cache in memory"
 	dirsReason  = "SBOM scans read the files their analyzers need"
+	mountReason = "sbom.container_image.overlayfs_direct_scan replaces it"
 )
 
 // deprecatedSettings lists the settings that SBOM scans ignore.
@@ -54,6 +55,7 @@ var deprecatedSettings = []deprecatedSetting{
 	{"sbom.container_image.overlayfs_disable_cache", cacheReason},
 	{"sbom.container_image.additional_directories", dirsReason},
 	{"sbom.host.additional_directories", dirsReason},
+	{"sbom.container_image.use_mount", mountReason},
 }
 
 // Scanner defines the scanner
@@ -254,7 +256,7 @@ func (s *Scanner) handleScanRequest(ctx context.Context, request sbom.ScanReques
 		}
 	}
 
-	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type(collector.Options()))
+	telemetry.SBOMAttempts.Inc(request.Collector(), request.Type())
 	s.processScan(ctx, request, imgMeta, collector)
 }
 
@@ -334,7 +336,7 @@ func (s *Scanner) keepPublishedSBOM(request sbom.ScanRequest, collector collecto
 		return true
 	case result.Error != nil && published != nil && published.Status == workloadmeta.Success:
 		log.Warnf("SBOM scan of image %s failed, keeping the SBOM of its OS packages: %v", request.ID(), result.Error)
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), errorType)
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), errorType)
 		s.scanQueue.AddRateLimited(request)
 		return true
 	}
@@ -392,12 +394,12 @@ func (s *Scanner) PerformScan(ctx context.Context, request sbom.ScanRequest, col
 // but the host.
 func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collectors.Collector, request sbom.ScanRequest, errorType string, osFallback bool) {
 	if scanResult == nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), "nil_scan_result")
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), "nil_scan_result")
 		log.Errorf("nil scan result for '%s'", request.ID())
 		return
 	}
 	if scanResult.Error != nil {
-		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(collector.Options()), errorType)
+		telemetry.SBOMFailures.Inc(request.Collector(), request.Type(), errorType)
 		if errors.Is(scanResult.Error, sbom.ErrScanNotSupported) {
 			// This request can never succeed, so retrying it would keep the scan
 			// worker busy forever. Drop it.
@@ -409,9 +411,9 @@ func (s *Scanner) handleScanResult(scanResult *sbom.ScanResult, collector collec
 		return
 	}
 
-	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type(collector.Options()))
+	telemetry.SBOMGenerationDuration.Observe(scanResult.Duration.Seconds(), request.Collector(), request.Type())
 	if osFallback {
-		telemetry.SBOMOSFallbacks.Inc(request.Collector(), request.Type(collector.Options()))
+		telemetry.SBOMOSFallbacks.Inc(request.Collector(), request.Type())
 		// Retry the full scan with the backoff of a failure. The host waits
 		// for its periodic refresh instead, which rescans it anyway.
 		if collector.Type() != collectors.HostScanType {

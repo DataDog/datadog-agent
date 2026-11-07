@@ -11,7 +11,7 @@ import "time"
 // ScanRequest defines the scan request interface
 type ScanRequest interface {
 	Collector() string
-	Type(ScanOptions) string
+	Type() string
 	ID() string
 }
 
@@ -23,7 +23,6 @@ type ScanOptions struct {
 	Timeout          time.Duration
 	WaitAfter        time.Duration
 	Fast             bool
-	UseMount         bool
 	OverlayFsScan    bool
 }
 

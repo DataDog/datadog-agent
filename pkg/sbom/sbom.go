@@ -152,7 +152,6 @@ func ScanOptionsFromConfigForContainers(cfg config.Component) ScanOptions {
 		Timeout:          time.Duration(cfg.GetInt("sbom.container_image.scan_timeout")) * time.Second,
 		WaitAfter:        time.Duration(cfg.GetInt("sbom.container_image.scan_interval")) * time.Second,
 		Analyzers:        cfg.GetStringSlice("sbom.container_image.analyzers"),
-		UseMount:         cfg.GetBool("sbom.container_image.use_mount"),
 		OverlayFsScan:    cfg.GetBool("sbom.container_image.overlayfs_direct_scan"),
 	}
 }
