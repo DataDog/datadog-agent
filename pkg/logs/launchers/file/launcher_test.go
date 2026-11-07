@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"testing"
@@ -485,6 +486,36 @@ func (suite *BaseLauncherTestSuite) TestLauncherScanWithLogRotationCopyTruncate(
 
 	msg = <-suite.outputChan
 	suite.Equal("third", string(msg.GetContent()))
+}
+
+// After a copytruncate the old tailer keeps draining the truncated file while its replacement
+// rereads it from the start, until it drains or close_timeout elapses. Status must say so.
+func (suite *BaseLauncherTestSuite) TestStatusReportsTailerDrainingTruncatedFile() {
+	s := suite.s
+	scanKey := getScanKey(suite.testPath, suite.source)
+
+	_, err := suite.testFile.WriteString("hello world\n")
+	suite.Require().NoError(err)
+	suite.Equal("hello world", string((<-suite.outputChan).GetContent()))
+
+	suite.Require().NoError(suite.testFile.Truncate(0))
+	_, err = suite.testFile.Seek(0, 0)
+	suite.Require().NoError(err)
+	_, err = suite.testFile.WriteString("third\n")
+	suite.Require().NoError(err)
+	suite.Require().NoError(suite.testFile.Sync())
+	s.resolveScan(s.fileProvider.FilesToTail(context.Background(), s.validatePodContainerID, s.activeSources, s.registry))
+	suite.Equal("third", string((<-suite.outputChan).GetContent()))
+
+	// The default close_timeout keeps the old tailer draining for the rest of the test.
+	suite.Require().Len(s.rotatedTailers, 1, "the old tailer should still be draining")
+	messages := suite.source.Messages.GetMessages()
+	suite.Require().Len(messages, 2, "both tailers read the truncated file, each one must say so")
+	suite.Contains(strings.Join(messages, "\n"), scanKey+drainingTailerSuffix)
+
+	// Stopping the launcher stops every tailer and clears the messages.
+	s.cleanup()
+	suite.Empty(suite.source.Messages.GetMessages())
 }
 
 func (suite *BaseLauncherTestSuite) TestLauncherScanWithFileRemovedAndCreated() {
@@ -1954,4 +1985,149 @@ func TestSequentialHandoffBlocksEveryScanKeyOnPath(t *testing.T) {
 	fixture.scan()
 
 	assert.Equal(t, 2, launcher.tailers.Count(), "both replacements start once the path is free")
+}
+
+// Two configured paths can lead to the same file, through a hardlink, a symlink or a wildcard that
+// overlaps an explicit path. Each gets its own tailer, so the file's logs are sent once per tailer:
+// the status page must say so on every source involved, and stop saying it once that ends.
+func TestStatusReportsFileTailedUnderSeveralPaths(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	linkPath := filepath.Join(dir, "app-link.log")
+	otherPath := filepath.Join(dir, "other.log")
+	for _, p := range []string{path, otherPath} {
+		require.NoError(t, os.WriteFile(p, []byte("line\n"), 0o644))
+	}
+	require.NoError(t, os.Link(path, linkPath))
+
+	launcher := createLauncher(t, launcherTestOptions{})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	defer launcher.cleanup()
+	drainPipeline(t, launcher.pipelineProvider.NextPipelineChan())
+
+	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
+	linkSource := sources.NewLogSource("app-link", &config.LogsConfig{Type: config.FileType, Path: linkPath})
+	otherSource := sources.NewLogSource("other", &config.LogsConfig{Type: config.FileType, Path: otherPath})
+	launcher.activeSources = []*sources.LogSource{source, linkSource, otherSource}
+	scan := func() {
+		launcher.resolveScan(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	}
+
+	scan()
+	require.Equal(t, 3, launcher.tailers.Count())
+	require.Len(t, source.Messages.GetMessages(), 1)
+	assert.Contains(t, source.Messages.GetMessages()[0], linkPath)
+	require.Len(t, linkSource.Messages.GetMessages(), 1)
+	assert.Contains(t, linkSource.Messages.GetMessages()[0], path)
+	assert.Empty(t, otherSource.Messages.GetMessages(), "a file tailed once must not be reported")
+
+	// Once only one tailer is left on the file, the warning goes away.
+	launcher.removeSource(linkSource)
+	scan()
+	require.Equal(t, 2, launcher.tailers.Count())
+	assert.Empty(t, source.Messages.GetMessages())
+	assert.Empty(t, linkSource.Messages.GetMessages())
+}
+
+// With rename rotation, the tailer draining the old file and a tailer started by another
+// configuration matching the rotated name read the same file.
+func TestStatusReportsDrainingTailerSharingRotatedFile(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	rotatedPath := path + ".1"
+	require.NoError(t, os.WriteFile(path, []byte("line\n"), 0o644))
+
+	launcher := createLauncher(t, launcherTestOptions{})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	defer launcher.cleanup()
+	drainPipeline(t, launcher.pipelineProvider.NextPipelineChan())
+
+	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
+	rotatedSource := sources.NewLogSource("app-rotated", &config.LogsConfig{Type: config.FileType, Path: rotatedPath})
+	launcher.activeSources = []*sources.LogSource{source, rotatedSource}
+	scan := func() {
+		launcher.resolveScan(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	}
+
+	scan()
+	require.Equal(t, 1, launcher.tailers.Count())
+
+	require.NoError(t, os.Rename(path, rotatedPath))
+	require.NoError(t, os.WriteFile(path, []byte("new\n"), 0o644))
+	scan()
+	require.Len(t, launcher.rotatedTailers, 1, "the old tailer should still be draining")
+	require.Equal(t, 2, launcher.tailers.Count(), "a tailer for the new file and one for the rotated name")
+
+	require.Len(t, rotatedSource.Messages.GetMessages(), 1)
+	assert.Contains(t, rotatedSource.Messages.GetMessages()[0], path+drainingTailerSuffix)
+	require.Len(t, source.Messages.GetMessages(), 1, "only the draining tailer shares a file, not the one on the new file")
+	assert.Contains(t, source.Messages.GetMessages()[0], rotatedPath)
+}
+
+// Two rotations before close_timeout leave two tailers draining files rotated away from the same
+// path, so they have the same ID. Each one shares a different file with a tailer on a rotated
+// name, and each overlap must be reported.
+func TestStatusReportsEveryDrainingTailerAfterRepeatedRotations(t *testing.T) {
+	dir := t.TempDir()
+	path := filepath.Join(dir, "app.log")
+	require.NoError(t, os.WriteFile(path, []byte("first\n"), 0o644))
+
+	launcher := createLauncher(t, launcherTestOptions{})
+	launcher.pipelineProvider = mock.NewMockProvider()
+	launcher.registry = auditorMock.NewMockRegistry()
+	defer launcher.cleanup()
+	drainPipeline(t, launcher.pipelineProvider.NextPipelineChan())
+
+	source := sources.NewLogSource("app", &config.LogsConfig{Type: config.FileType, Path: path})
+	rotatedSource := sources.NewLogSource("app-rotated", &config.LogsConfig{Type: config.FileType, Path: path + ".*"})
+	launcher.activeSources = []*sources.LogSource{source, rotatedSource}
+	scan := func() {
+		launcher.resolveScan(launcher.fileProvider.FilesToTail(context.Background(), launcher.validatePodContainerID, launcher.activeSources, launcher.registry))
+	}
+	// rotate moves app.log.1 to app.log.2 and app.log to app.log.1, then recreates app.log.
+	rotate := func(content string) {
+		if _, err := os.Stat(path + ".1"); err == nil {
+			require.NoError(t, os.Rename(path+".1", path+".2"))
+		}
+		require.NoError(t, os.Rename(path, path+".1"))
+		require.NoError(t, os.WriteFile(path, []byte(content), 0o644))
+	}
+
+	scan()
+	rotate("second\n")
+	scan()
+	rotate("third\n")
+	scan()
+
+	draining := 0
+	for _, rotated := range launcher.rotatedTailers {
+		if rotated.GetID() == path {
+			draining++
+		}
+	}
+	require.Equal(t, 2, draining, "both files rotated away from app.log should still be draining")
+	assert.Len(t, source.Messages.GetMessages(), 2, "each draining tailer shares its file with a tailer on a rotated name")
+}
+
+// drainPipeline discards messages sent to ch until the test ends, so tailers never block on it.
+// It stops after the test's deferred calls, which leaves tailers able to flush while they stop.
+func drainPipeline(t *testing.T, ch <-chan *message.Message) {
+	done := make(chan struct{})
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		for {
+			select {
+			case <-ch:
+			case <-done:
+				return
+			}
+		}
+	}()
+	t.Cleanup(func() {
+		close(done)
+		<-stopped
+	})
 }

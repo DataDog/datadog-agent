@@ -78,6 +78,9 @@ type Launcher struct {
 	// Keep the exact message recipients: a tailer's ReplaceableSource can change before cleanup.
 	fingerprintRotationErrors map[string]*config.Messages
 	stopOnce                  sync.Once
+
+	// Status messages about files several tailers read, keyed by tailer. See reportSharedFiles.
+	sharedFileMessages map[*tailer.Tailer]*config.Messages
 }
 
 const (
@@ -207,11 +210,13 @@ func (s *Launcher) resolveScan(files []*tailer.File) {
 	s.cleanUpRotatedTailers()
 	s.clearFingerprintRotationErrors()
 	s.resolveActiveTailers(files)
+	s.reportSharedFiles()
 }
 
 // cleanup all tailers
 func (s *Launcher) cleanup() {
 	s.clearFingerprintRotationErrors()
+	s.clearSharedFiles()
 	stopper := startstop.NewParallelStopper()
 	s.cleanUpRotatedTailers()
 	for _, tailer := range s.rotatedTailers {
