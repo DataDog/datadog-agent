@@ -84,6 +84,7 @@ dd_agent_go_test(
         "//pkg/util/prometheus",
         "@com_github_openshift_api//quota/v1:quota",
         "@com_github_patrickmn_go_cache//:go-cache",
+        "@com_github_prometheus_common//model",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",

@@ -302,7 +302,6 @@ use_repo(
     "com_github_prometheus_common",
     "com_github_prometheus_community_pro_bing",
     "com_github_prometheus_procfs",
-    "com_github_prometheus_prometheus",
     "com_github_protocolbuffers_protoscope",
     "com_github_protonmail_go_crypto",
     "com_github_pulumi_pulumi_aws_sdk_v7",

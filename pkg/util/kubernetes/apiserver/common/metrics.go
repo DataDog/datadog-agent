@@ -108,11 +108,11 @@ func matchesAny(name string, metricNames []string) bool {
 	return slices.Contains(metricNames, name)
 }
 
-func findMetricFamily(families []prometheus.MetricFamily, metricNames ...string) *prometheus.MetricFamily {
+func findMetricFamily(families []*prometheus.MetricFamily, metricNames ...string) *prometheus.MetricFamily {
 	for _, metricName := range metricNames {
 		for i := range families {
 			if families[i].Name == metricName {
-				return &families[i]
+				return families[i]
 			}
 		}
 	}

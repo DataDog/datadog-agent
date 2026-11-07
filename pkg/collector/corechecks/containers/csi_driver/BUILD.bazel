@@ -19,6 +19,7 @@ go_library(
         "//pkg/util/log",
         "//pkg/util/option",
         "//pkg/util/prometheus",
+        "@com_github_prometheus_common//model",
         "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
