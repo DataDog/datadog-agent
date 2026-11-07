@@ -34,6 +34,8 @@ type Node interface {
 	copy() Node
 	// editChildren replaces each child of the node, see EditChildren.
 	editChildren(edit func(Node) Node)
+	// doChildren calls do on each child of the node, see DoChildren.
+	doChildren(do func(Node) bool) bool
 }
 
 // Meta is embedded in every node of the tree.
