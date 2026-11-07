@@ -9,18 +9,25 @@ package secret
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"reflect"
 	"testing"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/certificate"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes/fake"
+	k8stesting "k8s.io/client-go/testing"
 )
 
 var (
@@ -235,4 +242,35 @@ func TestDigestDNSNames(t *testing.T) {
 			assert.Equal(t, tmp, tt.dnsNames)
 		})
 	}
+}
+
+func TestLastReconcileErrorRecovery(t *testing.T) {
+	client := fake.NewSimpleClientset()
+	factory := informers.NewSharedInformerFactory(client, 0)
+	c := NewController(client, factory.Core().V1().Secrets(), func() bool { return true }, nil, cfg)
+	t.Cleanup(c.queue.ShutDown)
+	require.NoError(t, c.LastReconcileError())
+
+	denied := true
+	client.PrependReactor("create", "secrets", func(_ k8stesting.Action) (bool, runtime.Object, error) {
+		if denied {
+			return true, nil, apierrors.NewForbidden(schema.GroupResource{Resource: "secrets"}, cfg.GetName(), errors.New("permission denied"))
+		}
+		return false, nil, nil
+	})
+	key := cfg.GetNs() + "/" + cfg.GetName()
+	c.queue.Add(key)
+	require.True(t, c.processNextWorkItem())
+	var rbacErr *common.RBACError
+	require.ErrorAs(t, c.LastReconcileError(), &rbacErr)
+	assert.Equal(t, "create", rbacErr.Verb)
+	assert.Equal(t, "secrets", rbacErr.Resource)
+	assert.Equal(t, cfg.GetNs(), rbacErr.Namespace)
+
+	denied = false
+	c.queue.Add(key)
+	require.True(t, c.processNextWorkItem())
+	assert.NoError(t, c.LastReconcileError())
+	_, err := client.CoreV1().Secrets(cfg.GetNs()).Get(context.Background(), cfg.GetName(), metav1.GetOptions{})
+	require.NoError(t, err)
 }

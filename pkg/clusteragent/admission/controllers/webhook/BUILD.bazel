@@ -106,6 +106,7 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_client_go//informers",
         "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//util/workqueue",
         "@org_uber_go_fx//:fx",
     ],
 )
