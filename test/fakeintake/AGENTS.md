@@ -29,6 +29,25 @@ parser has already normalized header names and removed transfer framing; this
 is not an original wire capture. Parsed JSON query responses retain the same
 metadata. Older payloads without `request` decode with nil metadata.
 
+## Incremental raw exports
+
+`Client.GetRawPayloadPage(endpoint, cursor, limit)` reads up to 128 original
+records without cloning earlier history. The HTTP endpoint is
+`GET /fakeintake/payloads/page?endpoint=ROUTE&limit=N[&cursor=CURSOR]`.
+Start with an empty cursor, then use `next_cursor`, including after
+`has_more=false`, to poll for new records. Each call observes its own high-water
+mark, with no cross-page snapshot or retention pin. Flush, restart or retention
+can expire a cursor (HTTP 410); consumers must fail an incomplete export rather
+than silently restart and duplicate or skip evidence. Malformed or route-mismatched
+cursors, missing endpoints and invalid limits return HTTP 400. An empty route
+history is a successful empty page.
+
+The limit bounds record count, not bytes: each original body remains complete.
+Raw bodies, encodings and request metadata match `GetRawPayloads`; existing
+full-history and typed APIs remain available. Non-Go callers can use
+`fakeintakectl --url URL get payload-page --endpoint /api/v2/logs --limit 32`
+and pass the returned `next_cursor` with `--cursor` on the next call.
+
 ## Supported endpoints
 
 | Route | Aggregator | Client method |

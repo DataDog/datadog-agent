@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "body.go",
         "http.go",
+        "page.go",
         "par.go",
         "rc.go",
         "redact.go",
@@ -84,6 +85,7 @@ dd_agent_go_test(
     name = "server_test",
     srcs = [
         "metadata_test.go",
+        "page_test.go",
         "par_test.go",
         "rc_test.go",
         "redact_test.go",
