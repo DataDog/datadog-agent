@@ -794,6 +794,7 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/network/ebpf/c:tracer-debug",
     "//pkg/network/ebpf/c/co-re:tracer-fentry",
     "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
+    "//pkg/network/ebpf/c/co-re:skb-parse-test",
     "//pkg/network/ebpf/c/runtime:usm",
     "//pkg/network/ebpf/c/runtime:usm-debug",
     "//pkg/network/ebpf/c/runtime:shared-libraries",

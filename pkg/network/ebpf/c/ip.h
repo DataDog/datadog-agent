@@ -126,9 +126,11 @@ typedef struct {
     __u8 tcp_flags;
 } skb_info_t;
 
+// Parses the headers with one load per field. Prebuilt always uses this; on other builds it is the
+// fallback for read_conn_tuple_skb_bulk.
 // On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
-__maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
+__maybe_unused static __always_inline __u64 read_conn_tuple_skb_fields(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
     bpf_memset(info, 0, sizeof(skb_info_t));
     info->data_off = ETH_HLEN;
 
@@ -188,6 +190,144 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
     }
 
     return 1;
+}
+
+#ifndef COMPILE_PREBUILT
+// Header bytes are loaded starting at this frame offset so every multi-byte field read below sits at a stack
+// offset aligned to its size, which the verifier requires.
+#define SKB_HDR_OFF 6
+
+// Plain header offsets rather than offsetof on kernel types: on CO-RE those are relocated register values, and
+// older verifiers reject a load from the stack pointer plus a register.
+#define SKB_ETH_PROTO_OFF 12
+#define SKB_IPV4_HLEN 20
+#define SKB_IPV4_TOT_LEN_OFF 2
+#define SKB_IPV4_PROTO_OFF 9
+#define SKB_IPV4_SADDR_OFF 12
+#define SKB_IPV4_DADDR_OFF 16
+#define SKB_IPV6_HLEN 40
+#define SKB_IPV6_PAYLOAD_LEN_OFF 4
+#define SKB_IPV6_NEXTHDR_OFF 6
+#define SKB_IPV6_SADDR_OFF 8
+#define SKB_IPV6_DADDR_OFF 24
+#define SKB_UDP_HLEN 8
+
+// Through the TCP flags of an IPv4 packet without options.
+#define SKB_HDR_V4_LEN (ETH_HLEN + SKB_IPV4_HLEN + TCP_FLAGS_OFFSET + 1 - SKB_HDR_OFF)
+// Through the TCP flags of an IPv6 packet.
+#define SKB_HDR_V6_LEN (ETH_HLEN + SKB_IPV6_HLEN + TCP_FLAGS_OFFSET + 1 - SKB_HDR_OFF)
+
+typedef union {
+    __u8 b[64];
+    __u16 h[32];
+    __u32 w[16];
+    __u64 d[8];
+} skb_hdr_buf_t;
+
+// Accessors take frame offsets and return the same values as __load_byte/__load_half/__load_word.
+#define SKB_HDR_BYTE(hdr, off) ((__u64)(hdr)->b[(off) - SKB_HDR_OFF])
+#define SKB_HDR_HALF(hdr, off) ((__u64)bpf_ntohs((hdr)->h[((off) - SKB_HDR_OFF) / 2]))
+#define SKB_HDR_WORD(hdr, off) ((__u64)bpf_ntohl((hdr)->w[((off) - SKB_HDR_OFF) / 4]))
+// Equals __load_word(off) << 32 | __load_word(off + 4).
+#define SKB_HDR_DWORD(hdr, off) bpf_ntohll((hdr)->d[((off) - SKB_HDR_OFF) / 8])
+
+// Same result as read_conn_tuple_skb_fields, from at most two bpf_skb_load_bytes calls instead of one per
+// field. Returns -1 without touching info or tup when the frame is shorter than the bulk loads or the IPv4
+// header has options; the caller falls back to the per-field parse then. A successful load means every
+// per-field load would also have succeeded, so the outputs match.
+static __always_inline int read_conn_tuple_skb_bulk(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
+    if (!bpf_helper_exists(BPF_FUNC_skb_load_bytes)) {
+        return -1;
+    }
+
+    skb_hdr_buf_t hdr;
+    if (bpf_skb_load_bytes(skb, SKB_HDR_OFF, &hdr, SKB_HDR_V4_LEN) < 0) {
+        return -1;
+    }
+
+    const __u32 ip = ETH_HLEN;
+    const struct __tcphdr *l4;
+    __u8 l4_proto;
+    switch (SKB_HDR_HALF(&hdr, SKB_ETH_PROTO_OFF)) {
+    case ETH_P_IP:
+    {
+        __u8 ipv4_hdr_len = (SKB_HDR_BYTE(&hdr, ip) & 0x0f) << 2;
+        if (ipv4_hdr_len > SKB_IPV4_HLEN) {
+            return -1;
+        }
+        bpf_memset(info, 0, sizeof(skb_info_t));
+        info->data_off = ETH_HLEN;
+        info->data_end = ETH_HLEN + SKB_HDR_HALF(&hdr, ip + SKB_IPV4_TOT_LEN_OFF);
+        if (ipv4_hdr_len < SKB_IPV4_HLEN) {
+            return 0;
+        }
+        l4_proto = SKB_HDR_BYTE(&hdr, ip + SKB_IPV4_PROTO_OFF);
+        tup->metadata |= CONN_V4;
+        tup->saddr_l = bpf_ntohll(SKB_HDR_WORD(&hdr, ip + SKB_IPV4_SADDR_OFF)) >> 32;
+        tup->daddr_l = bpf_ntohll(SKB_HDR_WORD(&hdr, ip + SKB_IPV4_DADDR_OFF)) >> 32;
+        info->data_off += SKB_IPV4_HLEN;
+        l4 = (const struct __tcphdr *)&hdr.w[(ip + SKB_IPV4_HLEN - SKB_HDR_OFF) / 4];
+        break;
+    }
+    case ETH_P_IPV6:
+    {
+        if (bpf_skb_load_bytes(skb, SKB_HDR_OFF + SKB_HDR_V4_LEN, &hdr.b[SKB_HDR_V4_LEN], SKB_HDR_V6_LEN - SKB_HDR_V4_LEN) < 0) {
+            return -1;
+        }
+        const __u32 saddr = ip + SKB_IPV6_SADDR_OFF;
+        const __u32 daddr = ip + SKB_IPV6_DADDR_OFF;
+        bpf_memset(info, 0, sizeof(skb_info_t));
+        info->data_off = ETH_HLEN;
+        info->data_end = ETH_HLEN + SKB_IPV6_HLEN + SKB_HDR_HALF(&hdr, ip + SKB_IPV6_PAYLOAD_LEN_OFF);
+        l4_proto = SKB_HDR_BYTE(&hdr, ip + SKB_IPV6_NEXTHDR_OFF);
+        tup->metadata |= CONN_V6;
+        tup->saddr_h = bpf_ntohll(tup->saddr_h | SKB_HDR_DWORD(&hdr, saddr));
+        tup->saddr_l = bpf_ntohll(tup->saddr_l | SKB_HDR_DWORD(&hdr, saddr + 8));
+        tup->daddr_h = bpf_ntohll(tup->daddr_h | SKB_HDR_DWORD(&hdr, daddr));
+        tup->daddr_l = bpf_ntohll(tup->daddr_l | SKB_HDR_DWORD(&hdr, daddr + 8));
+        info->data_off += SKB_IPV6_HLEN;
+        l4 = (const struct __tcphdr *)&hdr.w[(ip + SKB_IPV6_HLEN - SKB_HDR_OFF) / 4];
+        break;
+    }
+    default:
+        bpf_memset(info, 0, sizeof(skb_info_t));
+        info->data_off = ETH_HLEN;
+        info->data_end = ETH_HLEN;
+        return 0;
+    }
+
+    // l4 is at a fixed, 4-byte aligned stack offset on each path. UDP's ports share the TCP layout.
+    switch (l4_proto) {
+    case __IPPROTO_UDP:
+        tup->metadata |= CONN_TYPE_UDP;
+        tup->sport = bpf_ntohs(l4->source);
+        tup->dport = bpf_ntohs(l4->dest);
+        info->data_off += SKB_UDP_HLEN;
+        return 1;
+    case __IPPROTO_TCP:
+        tup->metadata |= CONN_TYPE_TCP;
+        tup->sport = bpf_ntohs(l4->source);
+        tup->dport = bpf_ntohs(l4->dest);
+        info->tcp_seq = bpf_ntohl(l4->seq);
+        info->tcp_flags = ((const __u8 *)l4)[TCP_FLAGS_OFFSET];
+        info->data_off += ((((const __u8 *)l4)[offsetof(struct __tcphdr, ack_seq) + 4] & 0xF0) >> 4) * 4;
+        return 1;
+    default:
+        return 0;
+    }
+}
+#endif // !COMPILE_PREBUILT
+
+// On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
+// header files, even if they are later used in source files. __maybe_unused prevents that issue
+__maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff *skb, skb_info_t *info, conn_tuple_t *tup) {
+#ifndef COMPILE_PREBUILT
+    int ret = read_conn_tuple_skb_bulk(skb, info, tup);
+    if (ret >= 0) {
+        return ret;
+    }
+#endif
+    return read_conn_tuple_skb_fields(skb, info, tup);
 }
 
 __maybe_unused static __always_inline bool is_equal(conn_tuple_t *t, conn_tuple_t *t2) {
