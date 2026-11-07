@@ -130,7 +130,7 @@ func TestDispatchRespectsRunnerGroups(t *testing.T) {
 
 			d.store.RLock()
 			assert.Equal(t, tt.want, d.groupNodes(d.checkGroup[tt.check]))
-			node, anyNode := d.getNodeToScheduleCheck(tt.check)
+			node, anyNode := d.getNodeToScheduleCheck(tt.check, "")
 			d.store.RUnlock()
 
 			assert.True(t, anyNode)
