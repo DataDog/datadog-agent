@@ -2,6 +2,8 @@
 
 This page attempts to list useful tools and resources to troubleshoot and profile a running Agent.
 
+For initialization bottlenecks, see [Autodiscovery startup traces](autodiscovery-startup.md).
+
 ## [pprof](https://golang.org/pkg/net/http/pprof/)
 
 The Agent exposes pprof's HTTP server on port `5000` by default. Through the pprof port you can get profiles (CPU, memory, etc) on the go runtime, along with some general information on the state of the runtime.

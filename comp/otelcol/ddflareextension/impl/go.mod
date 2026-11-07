@@ -146,7 +146,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/otel v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.83.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.0 // indirect
+	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.83.1 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/backoff v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/buf v0.83.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/cache v0.69.4 // indirect

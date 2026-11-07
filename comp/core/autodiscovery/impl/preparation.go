@@ -12,6 +12,8 @@ import (
 	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 // preparation owns a single default-provider/listener setup operation. Bare
@@ -23,6 +25,9 @@ type preparation struct {
 	done       chan struct{}
 	startCtx   context.Context
 	stopped    bool
+	tracer     startup.Tracer
+	trace      *startup.Span
+	traceCtx   context.Context
 }
 
 // start returns the same completion signal to every caller. The first caller's
@@ -36,6 +41,11 @@ func (p *preparation) start(ctx context.Context) (<-chan struct{}, context.Conte
 	if p.done == nil {
 		p.done = make(chan struct{})
 		p.startCtx = ctx
+		if p.tracer != nil {
+			p.trace = p.tracer.StartStartupTrace("autodiscovery")
+		}
+		p.trace.SetTag("agent.version", version.AgentVersion)
+		p.traceCtx = p.trace.Context(context.Background())
 		ready := health.RegisterReadiness("ad-initialization")
 		go func() {
 			defer close(p.done)
@@ -46,13 +56,15 @@ func (p *preparation) start(ctx context.Context) (<-chan struct{}, context.Conte
 	return p.done, p.startCtx, nil
 }
 
-func (p *preparation) wait(ctx context.Context) error {
+func (p *preparation) wait(ctx context.Context) (err error) {
 	// Lazy preparation must not retain a waiter's deadline. Only explicit
 	// preloading carries a startup context across to subsequent waiters.
 	done, startCtx, err := p.start(context.Background())
 	if err != nil {
 		return err
 	}
+	_, span := startup.StartSpan(p.context(ctx), "preparation.wait")
+	defer func() { span.Finish(err) }()
 	// Prefer completed preparation even if the preload context has since expired.
 	select {
 	case <-done:
@@ -69,6 +81,13 @@ func (p *preparation) wait(ctx context.Context) error {
 	}
 }
 
+func (p *preparation) context(ctx context.Context) context.Context {
+	p.mu.Lock()
+	trace := p.trace
+	p.mu.Unlock()
+	return trace.Context(ctx)
+}
+
 func (p *preparation) stop() {
 	p.mu.Lock()
 	p.stopped = true
@@ -78,5 +97,6 @@ func (p *preparation) stop() {
 		// Do not tear down AutoConfig or its dependencies while setup uses them,
 		// even if the shutdown context expires. Setup does not support cancellation.
 		<-done
+		p.trace.Finish(errors.New("autodiscovery stopped before startup completed"))
 	}
 }

@@ -7,6 +7,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//pkg/trace/traceutil/startup",
         "//pkg/util/fxutil",
         "//pkg/util/fxutil/logging",
         "@org_uber_go_fx//:fx",

@@ -6,6 +6,7 @@
 package autodiscoveryimpl
 
 import (
+	"context"
 	"path/filepath"
 	"time"
 
@@ -18,6 +19,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard // Listener configuration type only; configuration is injected.
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"      //nolint:depguard // Provider configuration type only; configuration is injected.
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
+	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/startup"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -34,7 +36,7 @@ var (
 	legacyProviders = []string{"kubelet", "container", "docker"}
 )
 
-func (ac *AutoConfig) prepareDefaults(cfg config.Component) {
+func (ac *AutoConfig) prepareDefaults(ctx context.Context, cfg config.Component) {
 	confSearchPaths := []string{
 		cfg.GetString("confd_path"),
 		filepath.Join(defaultpaths.GetDistPath(), "conf.d"),
@@ -44,7 +46,9 @@ func (ac *AutoConfig) prepareDefaults(cfg config.Component) {
 		confSearchPaths = append(confSearchPaths, filepath.Join(cfg.GetString("fleet_policies_dir"), "conf.d"))
 	}
 
-	providers.InitConfigFilesReader(confSearchPaths)
+	scanCtx, scanSpan := startup.StartSpan(ctx, "config.initialize")
+	providers.InitConfigFilesReaderWithContext(scanCtx, confSearchPaths)
+	scanSpan.Finish(nil)
 
 	acTelemetryStore := ac.GetTelemetryStore()
 
@@ -55,6 +59,7 @@ func (ac *AutoConfig) prepareDefaults(cfg config.Component) {
 	)
 
 	// Autodiscovery cannot easily use config.RegisterOverrideFunc() due to Unmarshalling
+	_, discoverySpan := startup.StartSpan(ctx, "providers.discover")
 	extraConfigProviders, extraConfigListeners := confad.DiscoverComponentsFromConfig(cfg)
 
 	var extraEnvProviders []constants.ConfigurationProviders
@@ -62,6 +67,7 @@ func (ac *AutoConfig) prepareDefaults(cfg config.Component) {
 	if pkgconfigenv.IsAutoconfigEnabled(cfg) && !helper.IsCLCRunner(cfg) {
 		extraEnvProviders, extraEnvListeners = confad.DiscoverComponentsFromEnv(cfg)
 	}
+	discoverySpan.Finish(nil)
 
 	// Register additional configuration providers
 	var configProviders []constants.ConfigurationProviders
@@ -113,7 +119,11 @@ func (ac *AutoConfig) prepareDefaults(cfg config.Component) {
 
 	// Adding all found providers
 	for _, cp := range uniqueConfigProviders {
-		if err := ac.AddConfigProviderFromCatalog(cp); err != nil {
+		_, span := startup.StartSpan(ctx, "provider.init")
+		span.SetTag("provider", cp.Name)
+		err := ac.AddConfigProviderFromCatalog(cp)
+		span.Finish(err)
+		if err != nil {
 			log.Errorf("%v", err)
 		}
 	}
@@ -183,7 +193,9 @@ func (ac *AutoConfig) prepareDefaults(cfg config.Component) {
 			listeners[i].SetEnabledProviders(providersSet)
 		}
 
-		ac.AddListeners(listeners)
+		listenerCtx, span := startup.StartSpan(ctx, "listeners.initialize")
+		ac.addListenersWithContext(listenerCtx, listeners)
+		span.Finish(nil)
 	} else {
 		log.Errorf("Error while reading 'listeners' settings: %v", err)
 	}
