@@ -11,6 +11,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -45,21 +46,22 @@ func TestReadMetricsFullTelemetry(t *testing.T) {
 	require.NoError(t, err)
 
 	assert.Equal(t, Metrics{
-		GPUBusyPercent:       valid(37),
-		MemoryBusyPercent:    valid(12),
-		VRAMTotalBytes:       valid(206141652992),
-		VRAMUsedBytes:        valid(294965248),
-		EdgeTemperatureC:     valid(45),
-		JunctionTemperatureC: valid(52.5),
-		MemoryTemperatureC:   valid(-1),
-		PowerMilliwatts:      valid(300500),
-		PowerCapMilliwatts:   valid(750000),
-		GraphicsClockMHz:     valid(1420),
-		MemoryClockMHz:       valid(1300),
-		PCIeLinkWidth:        valid(16),
-		PCIeMaxLinkWidth:     valid(16),
-		PCIeLinkSpeedGTs:     valid(32),
-		PCIeMaxLinkSpeedGTs:  valid(32),
+		GPUBusyPercent:         valid(37),
+		MemoryBusyPercent:      valid(12),
+		VRAMTotalBytes:         valid(206141652992),
+		VRAMUsedBytes:          valid(294965248),
+		EdgeTemperatureC:       valid(45),
+		JunctionTemperatureC:   valid(52.5),
+		MemoryTemperatureC:     valid(-1),
+		PowerMilliwatts:        valid(300500),
+		PowerCapMilliwatts:     valid(750000),
+		GraphicsClockMHz:       valid(1420),
+		MemoryClockMHz:         valid(1300),
+		MemoryClockAdjacentMHz: []float64{900},
+		PCIeLinkWidth:          valid(16),
+		PCIeMaxLinkWidth:       valid(16),
+		PCIeLinkSpeedGTs:       valid(32),
+		PCIeMaxLinkSpeedGTs:    valid(32),
 	}, m)
 }
 
@@ -230,4 +232,70 @@ func TestReadMetricsReportsPermissionErrors(t *testing.T) {
 	require.ErrorIs(t, err, os.ErrPermission)
 	assert.False(t, m.GPUBusyPercent.Valid)
 	assert.Equal(t, valid(12), m.MemoryBusyPercent)
+}
+
+func TestReadMetricsSuspendedDeviceIsIdle(t *testing.T) {
+	for name, tc := range map[string]struct {
+		err           error
+		runtimeStatus string
+		want          Reading
+		wantErr       bool
+	}{
+		"runtime-suspended":  {err: syscall.EPERM, runtimeStatus: "suspended\n", want: valid(0)},
+		"EPERM while active": {err: syscall.EPERM, runtimeStatus: "active\n", wantErr: true}, // e.g. a GPU reset
+		"EPERM, no status":   {err: syscall.EPERM, wantErr: true},
+		"permission denied":  {err: syscall.EACCES, runtimeStatus: "suspended\n", wantErr: true},
+		"unsupported":        {err: syscall.EOPNOTSUPP},
+	} {
+		t.Run(name, func(t *testing.T) {
+			fs := NewFakeSysfs(t)
+			devDir := fs.AddPCIDevice("0000:c1:00.0", "amdgpu", MI300XAttributes(""))
+			fs.AddCard("card0", devDir)
+			if tc.runtimeStatus != "" {
+				fs.WriteFiles(filepath.Join(devDir, "power"), map[string]string{"runtime_status": tc.runtimeStatus})
+			}
+			readActivityFile = func(path string) ([]byte, error) {
+				return nil, &os.PathError{Op: "read", Path: path, Err: tc.err}
+			}
+			t.Cleanup(func() { readActivityFile = os.ReadFile })
+			m, err := discoverSingle(t, fs).ReadMetrics()
+			if tc.wantErr {
+				assert.ErrorIs(t, err, tc.err)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.Equal(t, tc.want, m.GPUBusyPercent)
+			assert.Equal(t, tc.want, m.MemoryBusyPercent)
+		})
+	}
+}
+
+func TestReadMetricsZeroLinkWidthIsUnavailable(t *testing.T) {
+	fs := NewFakeSysfs(t)
+	attrs := MI300XAttributes("")
+	attrs["current_link_width"] = "0\n"
+	attrs["max_link_width"] = "0\n"
+	fs.AddCard("card0", fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs))
+	m, err := discoverSingle(t, fs).ReadMetrics()
+	require.NoError(t, err)
+	assert.False(t, m.PCIeLinkWidth.Valid)
+	assert.False(t, m.PCIeMaxLinkWidth.Valid)
+}
+
+func TestReadMetricsMemoryClockAdjacentLevels(t *testing.T) {
+	for table, want := range map[string][]float64{
+		"0: 900Mhz *\n1: 1100Mhz\n2: 1300Mhz\n": {1100},
+		"0: 900Mhz\n1: 1100Mhz *\n2: 1300Mhz\n": {900, 1300},
+		"0: 900Mhz\n1: bad\n2: 1300Mhz *\n":     nil, // an unparsable neighbor is not used
+		"0: 2000Mhz *\n":                        nil,
+	} {
+		fs := NewFakeSysfs(t)
+		attrs := MI300XAttributes("")
+		attrs["pp_dpm_mclk"] = table
+		fs.AddCard("card0", fs.AddPCIDevice("0000:c1:00.0", "amdgpu", attrs))
+		m, err := discoverSingle(t, fs).ReadMetrics()
+		require.NoError(t, err, table)
+		assert.True(t, m.MemoryClockMHz.Valid, table)
+		assert.Equal(t, want, m.MemoryClockAdjacentMHz, table)
+	}
 }
