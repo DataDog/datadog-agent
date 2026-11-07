@@ -382,13 +382,13 @@ func (p minimalPodParser) Parse(obj interface{}) workloadmeta.Entity {
 	}
 }
 
+// TEST ONLY: keeps the minimal pod path compiled and linted while unused.
+var _ = newPodStoreWithRestClient
+
 func newPodStore(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
-	// The REST client approach doesn't work with protobuf, so fallback to typed
-	// client.
-	if config.GetBool("kubernetes_apiserver_use_protobuf") {
-		return newPodStoreWithTypedClient(wlm, config, client)
-	}
-	return newPodStoreWithRestClient(wlm, config, client)
+	// TEST ONLY: always the typed client and the full pod parser, as before #43389
+	// introduced the minimal pod representation.
+	return newPodStoreWithTypedClient(wlm, config, client)
 }
 
 func newPodStoreWithRestClient(wlm workloadmeta.Component, config config.Reader, client kubernetes.Interface) (*cache.Reflector, *reflectorStore) {
