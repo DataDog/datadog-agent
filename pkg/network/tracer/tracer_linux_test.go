@@ -39,6 +39,7 @@ import (
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/miekg/dns"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -2435,6 +2436,94 @@ func (s *TracerSuite) TestUnconnectedDualStackUDPReplyIPv4() {
 		assert.Equal(ct, uint64(len(reply)), v4[0].Monotonic.SentBytes, "sent bytes")
 		assert.Equal(ct, uint64(len(request)), v4[0].Monotonic.RecvBytes, "received bytes")
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestUnconnectedDualStackDNSClient covers a DNS client that, like the musl
+// resolver, sends its queries from one unconnected AF_INET6 UDP socket to the
+// IPv4-mapped address of an IPv4 server. Each query's DNS stats must be attached
+// to an IPv4 connection, including a query that times out and so has no
+// response packet to create the connection from.
+func (s *TracerSuite) TestUnconnectedDualStackDNSClient() {
+	t := s.T()
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't track unconnected dual-stack UDP sockets per flow yet")
+	}
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
+	cfg.CollectDNSStats = true
+	cfg.DNSTimeout = 1 * time.Second
+	cfg.CollectLocalDNS = true
+	tr := setupTracer(t, cfg)
+
+	answering := testdns.GetServerIP(t).To4()
+	// nothing listens on this address, so the query times out
+	silent := net.IPv4(127, 0, 0, 154).To4()
+
+	fd, err := syscall.Socket(syscall.AF_INET6, syscall.SOCK_DGRAM, syscall.IPPROTO_UDP)
+	require.NoError(t, err)
+	t.Cleanup(func() { syscall.Close(fd) })
+	require.NoError(t, syscall.SetsockoptInt(fd, syscall.IPPROTO_IPV6, syscall.IPV6_V6ONLY, 0))
+	require.NoError(t, syscall.Bind(fd, &syscall.SockaddrInet6{}))
+	require.NoError(t, syscall.SetsockoptTimeval(fd, syscall.SOL_SOCKET, syscall.SO_RCVTIMEO, &syscall.Timeval{Sec: 2}))
+	sa, err := syscall.Getsockname(fd)
+	require.NoError(t, err)
+	clientPort := uint16(sa.(*syscall.SockaddrInet6).Port)
+
+	mapped := func(ip net.IP) *syscall.SockaddrInet6 {
+		to := &syscall.SockaddrInet6{Port: 53}
+		copy(to.Addr[:], ip.To16())
+		return to
+	}
+	query := func(domain string) []byte {
+		msg := new(dns.Msg)
+		msg.SetQuestion(dns.Fqdn(domain), dns.TypeA)
+		b, err := msg.Pack()
+		require.NoError(t, err)
+		return b
+	}
+
+	require.NoError(t, syscall.Sendto(fd, query("good.com"), 0, mapped(answering)))
+	buf := make([]byte, 512)
+	_, _, err = syscall.Recvfrom(fd, buf, 0)
+	require.NoError(t, err, "no answer from the test DNS server")
+	require.NoError(t, syscall.Sendto(fd, query("golang.org"), 0, mapped(silent)))
+	require.NoError(t, tr.reverseDNS.WaitForDomain("good.com"))
+	// let the unanswered query time out
+	time.Sleep(cfg.DNSTimeout + 500*time.Millisecond)
+
+	// DNS stats are held until a connection with the same tuple is next
+	// reported, and an idle UDP connection isn't, so poke both flows before each
+	// poll. Stats are attached once, so sum them across polls.
+	type counts struct{ successes, timeouts uint32 }
+	got := map[string]*counts{}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		for _, ip := range []net.IP{answering, silent} {
+			assert.NoError(ct, syscall.Sendto(fd, []byte{0}, 0, mapped(ip)))
+		}
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		for _, c := range network.FilterConnections(connections, func(cs network.ConnectionStats) bool {
+			return cs.Type == network.UDP && cs.SPort == clientPort && cs.DPort == 53
+		}) {
+			assert.Equal(ct, network.AFINET, c.Family, "client connection has the wrong family: %s", c)
+			dst := c.Dest.String()
+			if got[dst] == nil {
+				got[dst] = &counts{}
+			}
+			for _, byDomain := range c.DNSStats {
+				for _, stats := range byDomain {
+					got[dst].successes += stats.CountByRcode[0]
+					got[dst].timeouts += stats.Timeouts
+				}
+			}
+		}
+		if assert.Contains(ct, got, answering.String()) {
+			assert.Equal(ct, uint32(1), got[answering.String()].successes, "successful responses")
+		}
+		if assert.Contains(ct, got, silent.String()) {
+			assert.Equal(ct, uint32(1), got[silent.String()].timeouts, "timeouts")
+		}
+	}, 5*time.Second, 200*time.Millisecond)
 }
 
 func TestEbpfConntrackerFallback(t *testing.T) {
