@@ -229,7 +229,6 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	containerID2 := "container2"
 	containerTags1 := []string{"container_id:" + containerID1}
 	containerTags2 := []string{"container_id:" + containerID2}
-	containerTags := append(containerTags1, containerTags2...)
 	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, containerID1), "foo", containerTags1, nil, nil, nil)
 	fakeTagger.SetTags(taggertypes.NewEntityID(taggertypes.ContainerID, containerID2), "foo", containerTags2, nil, nil, nil)
 
@@ -261,31 +260,40 @@ func TestEmitNvmlMetrics(t *testing.T) {
 	for i, deviceUUID := range []string{device1UUID, device2UUID} {
 		metricValueBase := 10 * i
 
-		// Build expected tags
-		var expectedTags []string
+		// A device metric is emitted once per container on the device, each
+		// series attributable to one container, or once when the device has
+		// no container.
+		var expectedTagSets [][]string
 		if deviceUUID == device1UUID {
-			// Device 1 has container tags
-			expectedTags = append([]string{"gpu_uuid:" + deviceUUID}, containerTags...)
+			// Device 1 has two containers: one series per container
+			expectedTagSets = append(expectedTagSets,
+				append([]string{"gpu_uuid:" + deviceUUID}, containerTags1...),
+				append([]string{"gpu_uuid:" + deviceUUID}, containerTags2...))
 		} else {
 			// Device 2 has no container tags
-			expectedTags = []string{"gpu_uuid:" + deviceUUID}
+			expectedTagSets = append(expectedTagSets, []string{"gpu_uuid:" + deviceUUID})
 		}
-		slices.Sort(expectedTags)
-
-		matchTagsFunc := func(tags []string) bool {
-			slices.Sort(tags)
-			return slices.Equal(tags, expectedTags)
+		for j := range expectedTagSets {
+			slices.Sort(expectedTagSets[j])
 		}
 
-		// Verify metrics for this device
-		// metric1: only from device collector (priority 0)
-		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric1", float64(metricValueBase+1), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
+		for _, expectedTags := range expectedTagSets {
+			matchTagsFunc := func(tags []string) bool {
+				sorted := append([]string(nil), tags...)
+				slices.Sort(sorted)
+				return slices.Equal(sorted, expectedTags)
+			}
 
-		// metric2: priority 1 wins (from fields collector)
-		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric2", float64(metricValueBase+2), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
+			// Verify metrics for this device, on this series
+			// metric1: only from device collector (priority 0)
+			mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric1", float64(metricValueBase+1), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
 
-		// metric3: only from fields collector (priority 1)
-		mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric3", float64(metricValueBase+3), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
+			// metric2: priority 1 wins (from fields collector)
+			mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric2", float64(metricValueBase+2), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
+
+			// metric3: only from fields collector (priority 1)
+			mockSender.AssertCalled(t, "GaugeWithTimestamp", "gpu.metric3", float64(metricValueBase+3), "", mock.MatchedBy(matchTagsFunc), metricTimestamp)
+		}
 	}
 }
 
@@ -1190,6 +1198,70 @@ func TestEmitSampleDoesNotAliasDeviceTags(t *testing.T) {
 	require.Equal(t, []string{"gpu_uuid:gpu-1"}, deviceTags)
 }
 
+func TestEmitSampleSharedDeviceEmitsOneSeriesPerWorkload(t *testing.T) {
+	// A device metric on a GPU shared by several containers describes the
+	// device as a whole: every co-tenant sees the same value, but each series
+	// must be attributable to one workload. One emission carrying all the
+	// containers' tags would serialize pod_name as a single comma-joined
+	// value that no tag filter can match.
+	mockSender := mocksender.NewMockSender(t, "gpu")
+	mockSender.SetupAcceptAll()
+
+	deviceContainers := []*workloadmeta.Container{
+		{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "burner-0"}},
+		{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "burner-1"}},
+	}
+	wmeta := testutil.GetWorkloadMetaMock(t)
+	for _, container := range deviceContainers {
+		wmeta.Set(container)
+	}
+
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	for _, container := range deviceContainers {
+		fakeTagger.SetTags(
+			taggertypes.NewEntityID(taggertypes.ContainerID, container.ID),
+			"spec-test",
+			[]string{"gpu_sharing_replicas_used:1"},
+			[]string{"pod_name:pod-" + container.ID},
+			nil,
+			nil,
+		)
+	}
+
+	workloadTagCache, err := NewWorkloadTagCache(fakeTagger, wmeta, nil, testutil.GetTelemetryMock(t), 10)
+	require.NoError(t, err)
+	check := &Check{workloadTagCache: workloadTagCache}
+
+	sample := nvidia.NewMetric("utilization", 5, ddmetrics.GaugeType, 0, nil, nil)
+	require.NoError(t, check.emitSample(sample, mockSender, time.Now(), deviceContainers, nil, []string{"gpu_uuid:gpu-1"}))
+
+	require.Len(t, mockSender.Mock.Calls, 2, "one series per container sharing the device")
+	seriesPods := make([]string, 0, 2)
+	for _, call := range mockSender.Mock.Calls {
+		tags, ok := call.Arguments.Get(3).([]string)
+		require.True(t, ok)
+		require.ElementsMatch(t, []string{"gpu_uuid:gpu-1", "gpu_sharing_replicas_used:1"},
+			tagsWithoutPod(tags), "device tags on every series")
+		for _, tag := range tags {
+			if strings.HasPrefix(tag, "pod_name:") {
+				seriesPods = append(seriesPods, tag)
+			}
+		}
+	}
+	assert.ElementsMatch(t, []string{"pod_name:pod-burner-0", "pod_name:pod-burner-1"}, seriesPods,
+		"each series is attributable to one workload")
+}
+
+func tagsWithoutPod(tags []string) []string {
+	var out []string
+	for _, tag := range tags {
+		if !strings.HasPrefix(tag, "pod_name:") {
+			out = append(out, tag)
+		}
+	}
+	return out
+}
+
 func TestEmitSampleHistogramBucket(t *testing.T) {
 	mockSender := mocksender.NewMockSender(t, "gpu")
 
@@ -1445,6 +1517,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 		var allProcessEntityIDs []workloadmeta.EntityID
 		var allContainerTags []string
 		var allProcessTags []string
+		var deviceContainers []*workloadmeta.Container
 
 		device := &workloadmeta.GPU{
 			EntityID: workloadmeta.EntityID{
@@ -1492,6 +1565,7 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 
 			processes = append(processes, process)
 			containers = append(containers, container)
+			deviceContainers = append(deviceContainers, container)
 			allProcessEntityIDs = append(allProcessEntityIDs, process.EntityID)
 			allContainerTags = append(allContainerTags, containerTags...)
 			allProcessTags = append(allProcessTags, processTags...)
@@ -1510,8 +1584,13 @@ func TestRunEmitsCorrectTags(t *testing.T) {
 
 		callCount++
 		samplesToSend = append(samplesToSend, nvidia.NewMetric("no_workload_metric", float64(callCount), ddmetrics.GaugeType, 0, nil, nil))
-		noWorkloadTags := append(deviceTags, allContainerTags...)
-		mockSender.On("GaugeWithTimestamp", "gpu.no_workload_metric", float64(callCount), "", mockMatchesTags(noWorkloadTags), mock.Anything).Return()
+		// A metric that applies to the whole device is emitted once per
+		// container on it, each series attributable to one container; a device
+		// with a single container is emitted once as before.
+		for _, container := range deviceContainers {
+			expectedTags := append(slices.Clone(deviceTags), "container_id:"+container.EntityID.ID)
+			mockSender.On("GaugeWithTimestamp", "gpu.no_workload_metric", float64(callCount), "", mockMatchesTags(expectedTags), mock.Anything).Return()
+		}
 
 		callCount++
 		// Use a Count metric just to make it easier to distinguish mock calls

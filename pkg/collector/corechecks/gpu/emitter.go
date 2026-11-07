@@ -112,17 +112,23 @@ func (e *SampleEmitter) Emit(snd sender.Sender, collectorResults []CollectorSamp
 
 // EmitSample sends a sample with the given device tags and the tags of its
 // workloads. A sample without associated workloads applies to all workloads
-// on the device: it gets the tags of the device containers and the tags that
-// are common to all the processes using the device.
+// on the device: it is emitted once per workload, so that each series is
+// attributable to one workload. A shared GPU (time-slicing, MPS, KAI
+// fractions) has several workloads on one device, and the value is the same
+// for all of them -- the device is a whole -- but emitting one series with
+// every workload's tags would serialize each tag as a single comma-joined
+// value that no tag filter can match. Samples with no workload at all, and
+// samples that explicitly name their workloads, are emitted once as before.
 func (e *SampleEmitter) EmitSample(sample nvidia.Sample, snd sender.Sender, currentExecutionTime time.Time, deviceContainers []*workloadmeta.Container, devicePIDs []int32, deviceTags []string) error {
 	var multiErr []error
-
 	metricWorkloads := sample.AssociatedWorkloads()
 	metricTags := []string{}
+	appliesToAllWorkloads := false
 
 	if sample.NoWorkloadTags() {
 		metricWorkloads = nil
 	} else if len(metricWorkloads) == 0 {
+		appliesToAllWorkloads = true
 		for _, deviceContainer := range deviceContainers {
 			metricWorkloads = append(metricWorkloads, deviceContainer.EntityID)
 		}
@@ -134,6 +140,28 @@ func (e *SampleEmitter) EmitSample(sample nvidia.Sample, snd sender.Sender, curr
 			}
 			metricTags = append(metricTags, sharedTags...)
 		}
+	}
+
+	if appliesToAllWorkloads && len(metricWorkloads) > 1 {
+		// One series per workload on the device, each attributable to that
+		// workload alone.
+		for _, workloadID := range metricWorkloads {
+			workloadSample := sample.Clone()
+			workloadSample.AppendTags(metricTags)
+			tags, err := e.WorkloadTagCache.GetOrCreateWorkloadTags(workloadID)
+			if err != nil && !agenterrors.IsNotFound(err) { // Only report errors that are not "not found"
+				multiErr = append(multiErr, fmt.Errorf("error collecting workload tags for workload %s of type %s: %w", workloadID.ID, workloadID.Kind, err))
+			}
+
+			// always continue with whatever tags we can get even if there are errors
+			workloadSample.AppendTags(tags)
+			workloadSample.AppendTags(deviceTags)
+
+			if err := workloadSample.Emit(gpuMetricsNs, snd, currentExecutionTime); err != nil {
+				multiErr = append(multiErr, fmt.Errorf("error emitting sample: %w", err))
+			}
+		}
+		return errors.Join(multiErr...)
 	}
 
 	for _, workloadID := range metricWorkloads {
