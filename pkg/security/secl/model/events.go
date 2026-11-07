@@ -89,7 +89,7 @@ const (
 	UnloadModuleEventType
 	// SignalEventType Signal event
 	SignalEventType
-	// CgroupTracingEventType is sent when a new cgroup is being traced
+	// CgroupTracingEventType is sent when a new cgroup is being traced (DEPRECATED)
 	CgroupTracingEventType
 	// DNSEventType DNS event
 	DNSEventType

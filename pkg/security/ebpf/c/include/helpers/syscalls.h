@@ -5,7 +5,6 @@
 #include "maps.h"
 
 #include "events.h"
-#include "activity_dump.h"
 #include "span.h"
 #include "cgroup.h"
 #include <uapi/linux/filter.h>

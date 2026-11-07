@@ -9,7 +9,6 @@ package config
 func (c *RuntimeSecurityConfig) sanitizePlatform() {
 	// Force the disable of features unavailable on EBPFLess
 	if c.EBPFLessEnabled {
-		c.ActivityDumpEnabled = false
-		c.SecurityProfileEnabled = false
+		c.SecurityProfileV2Enabled = false
 	}
 }

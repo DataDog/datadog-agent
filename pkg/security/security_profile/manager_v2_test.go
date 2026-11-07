@@ -593,7 +593,6 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 	m := &ManagerV2{
 		config: &config.Config{
 			RuntimeSecurity: &config.RuntimeSecurityConfig{
-				SecurityProfileEnabled:                          true,
 				SecurityProfileV2Enabled:                        true,
 				SecurityProfileMaxImageTags:                     20,
 				AnomalyDetectionEnabled:                         true,
@@ -1080,7 +1079,6 @@ func TestManagerV2_onCGroupDeleted(t *testing.T) {
 func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 	m := &ManagerV2{
 		config: &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{
-			SecurityProfileEnabled:      true,
 			SecurityProfileV2Enabled:    true,
 			SecurityProfileV2EventTypes: []model.EventType{model.ExecEventType},
 		}},

@@ -130,9 +130,8 @@ runtime_security_config:
     enabled: {{ .SBOMEnabled }}
     host:
       enabled: {{ .HostSBOMEnabled }}
-  activity_dump:
-    enabled: false
 {{if .EnableSecurityProfile}}
+  activity_dump:
     cgroup_differentiate_args: {{ .WorkloadProfileDifferentiateArgs }}
 {{if gt .WorkloadProfilePersistencePeriod 0}}
     dump_duration: {{ .WorkloadProfilePersistencePeriod }}
@@ -143,7 +142,6 @@ runtime_security_config:
 {{end}}
 {{end}}
   security_profile:
-    enabled: {{ .EnableSecurityProfile }}
     v2:
       enabled: true
 {{if .EnableSecurityProfile}}

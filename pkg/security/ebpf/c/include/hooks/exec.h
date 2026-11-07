@@ -379,9 +379,6 @@ static __always_inline int sched_process_fork_common(void *ctx, u32 pid, u32 par
     // the child inherits the address space the thread-context readers describe
     inherit_span_context(ppid, pid);
 
-    // [activity_dump] inherit tracing state
-    inherit_traced_state(ctx, ppid, pid, &event->cgroup);
-
     // pop_syscall is hoisted before the (non-returning) tail call: the fork event
     // is fully built by now and pop_syscall doesn't touch the staging slot.
     pop_syscall(EVENT_FORK);
@@ -479,7 +476,6 @@ static __always_inline int handle_do_exit(ctx_t *ctx) {
         if (!event) {
             // tear down the process state even if the event can't be staged
             unregister_span_context();
-            cleanup_traced_state(tgid);
             goto pop_and_exit;
         }
 
@@ -495,7 +491,6 @@ static __always_inline int handle_do_exit(ctx_t *ctx) {
         // should be sampled for activity dumps
         event->event.flags |= EVENT_FLAGS_ACTIVITY_DUMP_SAMPLE;
 
-        cleanup_traced_state(tgid);
         pop_syscall(EVENT_ANY);
 
         span_fill_tail_call_key(ctx, KPROBE_OR_FENTRY_TYPE, SPAN_FILL_KEY_EXIT);
@@ -994,9 +989,6 @@ static __always_inline int send_exec_event(ctx_t *ctx) {
     copy_span_context(&syscall->exec.span_context, &event->span, &syscall->exec.go_labels, &event->go_labels);
 
     fill_args_envs(event, syscall);
-
-    // [activity_dump] check if this process should be traced
-    should_trace_new_process_cgroup(ctx, now, tgid, &event->cgroup);
 
     // add interpreter path info
     event->linux_binprm.interpreter = syscall->exec.linux_binprm.interpreter;

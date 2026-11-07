@@ -1,7 +1,6 @@
 #ifndef _STRUCTS_ALL_H_
 #define _STRUCTS_ALL_H_
 
-#include "activity_dump.h"
 #include "bpf.h"
 #include "dentry_resolver.h"
 #include "dns.h"

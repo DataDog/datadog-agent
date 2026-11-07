@@ -64,19 +64,4 @@ static __always_inline u8 pid_rate_limiter_allow(u16 rate, u16 should_count) {
     return rate_limiter_allow_apply(rate_ctx_p, rate, now, should_count);
 }
 
-static __always_inline u8 activity_dump_rate_limiter_allow(u16 rate, u64 cookie, u64 now, u16 should_count) {
-    if (now == 0) {
-        now = bpf_ktime_get_ns();
-    }
-
-    struct rate_limiter_ctx *rate_ctx_p = bpf_map_lookup_elem(&activity_dump_rate_limiters, &cookie);
-    if (rate_ctx_p == NULL) {
-        struct rate_limiter_ctx rate_ctx = new_rate_limiter(now, should_count);
-        bpf_map_update_elem(&activity_dump_rate_limiters, &cookie, &rate_ctx, BPF_ANY);
-        return 1;
-    }
-
-    return rate_limiter_allow_apply(rate_ctx_p, rate, now, should_count);
-}
-
 #endif /* _RATE_LIMITER_H_ */

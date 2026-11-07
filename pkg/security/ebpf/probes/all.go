@@ -18,7 +18,6 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
@@ -160,8 +159,6 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 // AllMaps returns the list of maps of the runtime security module
 func AllMaps() []*manager.Map {
 	return []*manager.Map{
-		// Syscall table map
-		getSyscallTableMap(),
 		// Filters
 		{Name: "filter_policy"},
 		{Name: "inode_discarders"},
@@ -211,13 +208,11 @@ func getMaxEntries(numCPU int, min int, max int) uint32 {
 
 // MapSpecEditorOpts defines some options of the map spec editor
 type MapSpecEditorOpts struct {
-	TracedCgroupSize              int
 	UseMmapableMaps               bool
 	UseRingBuffers                bool
 	UseSyscallTaskStorage         bool
 	RingBufferSize                uint32
 	PathResolutionEnabled         bool
-	SecurityProfileMaxCount       int
 	ReducedProcPidCacheSize       bool
 	NetworkFlowMonitorEnabled     bool
 	NetworkSkStorageEnabled       bool
@@ -225,7 +220,6 @@ type MapSpecEditorOpts struct {
 	SpanTrackMaxCount             int
 	CapabilitiesMonitoringEnabled bool
 	CgroupSocketEnabled           bool
-	SecurityProfileSyscallAnomaly bool
 	EventSamplingOpenEnabled      bool
 	EventSamplingBindEnabled      bool
 	EventSamplingConnectEnabled   bool
@@ -281,10 +275,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: nsFlowToNetworkStats,
 			EditorFlag: manager.EditMaxEntries,
 		},
-		"secprofs_syscalls": {
-			MaxEntries: uint32(opts.SecurityProfileMaxCount),
-			EditorFlag: manager.EditMaxEntries,
-		},
 		"go_labels_procs": {
 			MaxEntries: uint32(opts.SpanTrackMaxCount),
 			EditorFlag: manager.EditMaxEntries,
@@ -305,13 +295,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 			MaxEntries: uint32(opts.BasenameApproversSize),
 			EditorFlag: manager.EditMaxEntries,
 		},
-	}
-
-	if opts.SecurityProfileSyscallAnomaly {
-		editors["security_profiles"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.SecurityProfileMaxCount),
-			EditorFlag: manager.EditMaxEntries,
-		}
 	}
 
 	if opts.EventSamplingOpenEnabled {
@@ -353,25 +336,6 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	if opts.PathResolutionEnabled {
 		editors["pathnames"] = manager.MapSpecEditor{
 			MaxEntries: getMaxEntries(numCPU, minPathnamesEntries, maxPathnamesEntries),
-			EditorFlag: manager.EditMaxEntries,
-		}
-	}
-
-	if opts.TracedCgroupSize > 0 {
-		editors["traced_cgroups"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.TracedCgroupSize),
-			EditorFlag: manager.EditMaxEntries,
-		}
-		editors["activity_dumps_config"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.TracedCgroupSize * 2),
-			EditorFlag: manager.EditMaxEntries,
-		}
-		editors["activity_dump_rate_limiters"] = manager.MapSpecEditor{
-			MaxEntries: uint32(opts.TracedCgroupSize * 2),
-			EditorFlag: manager.EditMaxEntries,
-		}
-		editors["cgroup_wait_list"] = manager.MapSpecEditor{
-			MaxEntries: model.MaxTracedCgroupsCount,
 			EditorFlag: manager.EditMaxEntries,
 		}
 	}
