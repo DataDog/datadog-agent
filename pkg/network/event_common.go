@@ -433,7 +433,7 @@ func (c *ConnectionStats) addInternedTag(tag *intern.Value) {
 //	32b     16b     16b      4b      4b     32/128b      32/128b
 //
 // |  PID  | SPORT | DPORT | Family | Type |  SrcAddr  |  DestAddr
-func (c ConnectionStats) ByteKey(buf []byte) []byte {
+func (c *ConnectionStats) ByteKey(buf []byte) []byte {
 	return generateConnectionKey(c, buf, false)
 }
 
@@ -441,7 +441,7 @@ func (c ConnectionStats) ByteKey(buf []byte) []byte {
 // The format is similar to the one emitted by `ByteKey` with the sole difference
 // that the addresses used are translated.
 // Currently this key is used only for the aggregation of ephemeral connections.
-func (c ConnectionStats) ByteKeyNAT(buf []byte) []byte {
+func (c *ConnectionStats) ByteKeyNAT(buf []byte) []byte {
 	return generateConnectionKey(c, buf, true)
 }
 
@@ -551,7 +551,7 @@ func printAddress(address util.Address, names []dns.Hostname) string {
 	return b.String()
 }
 
-func generateConnectionKey(c ConnectionStats, buf []byte, useNAT bool) []byte {
+func generateConnectionKey(c *ConnectionStats, buf []byte, useNAT bool) []byte {
 	laddr, sport := c.Source, c.SPort
 	raddr, dport := c.Dest, c.DPort
 	if useNAT {

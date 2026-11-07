@@ -291,7 +291,8 @@ var networkProtocolToModel = map[network.ConnectionType]model.ConnectionType{
 
 func (d *directSender) networkPathConnections(conns *network.Connections) iter.Seq[npmodel.NetworkPathConnection] {
 	return func(yield func(npmodel.NetworkPathConnection) bool) {
-		for _, conn := range conns.Conns {
+		for i := range conns.Conns {
+			conn := &conns.Conns[i]
 			src := netip.AddrPortFrom(conn.Source.Addr, conn.SPort)
 			dest := netip.AddrPortFrom(conn.Dest.Addr, conn.DPort)
 			transDest := dest
@@ -422,12 +423,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	}
 
 	// Sort connections by remote IP/PID for more efficient resolution
-	slices.SortFunc(conns.Conns, func(a, b network.ConnectionStats) int {
-		if a.Dest.Addr != b.Dest.Addr {
-			return a.Dest.Addr.Compare(b.Dest.Addr)
-		}
-		return int(a.Pid) - int(b.Pid)
-	})
+	sortConnections(conns.Conns)
 
 	builder := model.NewCollectorConnectionsBuilder(io.Discard)
 
@@ -473,7 +469,8 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			// Adding a dummy tag to ensure the indices we get are always >= 0.
 			_ = tagsEncoder.Encode([]string{"-"})
 
-			for _, nc := range connsChunk {
+			for i := range connsChunk {
+				nc := &connsChunk[i]
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
 					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
 					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
@@ -601,7 +598,8 @@ func (d *directSender) logCheckDuration(start time.Time) {
 // addConnectionListeners records the PID listening on each intra-host TCP address, without
 // overwriting entries already present.
 func addConnectionListeners(listeners map[listenKey]int32, conns []network.ConnectionStats) {
-	for _, c := range conns {
+	for i := range conns {
+		c := &conns[i]
 		// a reattributed socket's PID is the proxy's, so it must not name the service listening on the pod's address
 		if c.NetNSOriginalContainerID != nil {
 			continue
@@ -612,6 +610,46 @@ func addConnectionListeners(listeners map[listenKey]int32, conns []network.Conne
 			if _, exists := listeners[key]; !exists {
 				listeners[key] = int32(c.Pid)
 			}
+		}
+	}
+}
+
+// sortConnections sorts conns by remote IP, then PID. It sorts an index slice and then permutes
+// conns in place, so each ConnectionStats is moved once instead of on every swap. The resulting
+// order is the same as sorting conns directly with the same comparison.
+func sortConnections(conns []network.ConnectionStats) {
+	idx := make([]int32, len(conns))
+	for i := range idx {
+		idx[i] = int32(i)
+	}
+	slices.SortFunc(idx, func(i, j int32) int {
+		a, b := &conns[i], &conns[j]
+		if a.Dest.Addr != b.Dest.Addr {
+			return a.Dest.Addr.Compare(b.Dest.Addr)
+		}
+		return int(a.Pid) - int(b.Pid)
+	})
+
+	// position i takes conns[idx[i]]; follow each cycle once, marking visited positions with -1
+	for start := range idx {
+		if idx[start] < 0 {
+			continue
+		}
+		if int(idx[start]) == start {
+			idx[start] = -1
+			continue
+		}
+		tmp := conns[start]
+		j := start
+		for {
+			k := int(idx[j])
+			idx[j] = -1
+			if k == start {
+				conns[j] = tmp
+				break
+			}
+			conns[j] = conns[k]
+			j = k
 		}
 	}
 }

@@ -10,7 +10,7 @@ import (
 )
 
 // GetNATLocalAddress returns the translated (local ip, local port) pair
-func GetNATLocalAddress(c ConnectionStats) (util.Address, uint16) {
+func GetNATLocalAddress(c *ConnectionStats) (util.Address, uint16) {
 	localIP := c.Source
 	localPort := c.SPort
 
@@ -23,7 +23,7 @@ func GetNATLocalAddress(c ConnectionStats) (util.Address, uint16) {
 }
 
 // GetNATRemoteAddress returns the translated (remote ip, remote port) pair
-func GetNATRemoteAddress(c ConnectionStats) (util.Address, uint16) {
+func GetNATRemoteAddress(c *ConnectionStats) (util.Address, uint16) {
 	remoteIP := c.Dest
 	remotePort := c.DPort
 

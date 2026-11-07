@@ -86,7 +86,7 @@ func TestGroupByConnection(t *testing.T) {
 		SPort:  60000,
 		DPort:  80,
 	}}
-	connectionData1 := byConnection.Find(connection1)
+	connectionData1 := byConnection.Find(&connection1)
 	assert.NotNil(t, connectionData1)
 	assert.Len(t, connectionData1.Data, 2)
 	assert.Condition(t, keyValueExists(connectionData1, key1, val1))
@@ -100,7 +100,7 @@ func TestGroupByConnection(t *testing.T) {
 		SPort:  60000,
 		DPort:  80,
 	}}
-	connectionData2 := byConnection.Find(connection2)
+	connectionData2 := byConnection.Find(&connection2)
 	assert.NotNil(t, connectionData2)
 	assert.Len(t, connectionData1.Data, 2)
 	assert.Condition(t, keyValueExists(connectionData2, key3, val3))

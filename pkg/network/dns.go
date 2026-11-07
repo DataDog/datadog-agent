@@ -28,8 +28,8 @@ func DNSKey(c *ConnectionStats, allowedPorts []int) (dns.Key, bool) {
 		return dns.Key{}, false
 	}
 
-	serverIP, _ := GetNATRemoteAddress(*c)
-	clientIP, clientPort := GetNATLocalAddress(*c)
+	serverIP, _ := GetNATRemoteAddress(c)
+	clientIP, clientPort := GetNATLocalAddress(c)
 	key := dns.Key{
 		ServerIP:   serverIP,
 		ClientIP:   clientIP,
