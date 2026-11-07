@@ -517,7 +517,10 @@ static __always_inline int handle_inet_csk_accept_exit(struct sock *sk) {
     pb.port = t.sport;
     add_port_bind(&pb, port_bindings);
 
+    // tcp_close and tcp_done look this entry up with a zero pid (tcp_done runs
+    // without process context), so it must be keyed with one too
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
     pid_ts_t pid_ts = {.pid_tgid = pid_tgid, .timestamp = bpf_ktime_get_ns()};
     bpf_map_update_with_telemetry(tcp_ongoing_connect_pid, &skp_conn, &pid_ts, BPF_ANY);
     log_debug("fexit/inet_csk_accept: netns: %u, sport: %u, dport: %u", t.netns, t.sport, t.dport);
