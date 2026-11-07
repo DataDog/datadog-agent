@@ -974,3 +974,60 @@ func TestCreateTransactionsWithLocal(t *testing.T) {
 	require.Len(t, txn, 1)
 	assert.Equal(t, "https://example.test", txn[0].Domain)
 }
+
+// levelRecorder records the messages logged at info level and above.
+type levelRecorder struct {
+	log.Component
+	mu   sync.Mutex
+	msgs []string
+}
+
+func newLevelRecorder(t *testing.T) *levelRecorder {
+	return &levelRecorder{Component: logmock.New(t)}
+}
+
+func (r *levelRecorder) record(format string, params ...interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.msgs = append(r.msgs, fmt.Sprintf(format, params...))
+}
+
+func (r *levelRecorder) Infof(format string, params ...interface{}) {
+	r.record(format, params...)
+	r.Component.Infof(format, params...)
+}
+
+func (r *levelRecorder) Warnf(format string, params ...interface{}) error {
+	r.record(format, params...)
+	return r.Component.Warnf(format, params...)
+}
+
+func (r *levelRecorder) Errorf(format string, params ...interface{}) error {
+	r.record(format, params...)
+	return r.Component.Errorf(format, params...)
+}
+
+func (r *levelRecorder) output() string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return strings.Join(r.msgs, "\n")
+}
+
+func TestCreateOptionsLogsKeyCountWithoutKeyCharacters(t *testing.T) {
+	const apiKey = "0123456789abcdef0123456789ab0a1b"
+	log := newLevelRecorder(t)
+	mockConfig := mock.New(t)
+	mockConfig.SetInTest("api_key", apiKey)
+	mockConfig.SetInTest("dd_url", "https://example.test")
+
+	opts, err := createOptions(defaultforwarderdef.NewParams(), mockConfig, log, secretsmock.New(t))
+	require.NoError(t, err)
+	require.Len(t, opts.DomainResolvers, 1)
+	for _, r := range opts.DomainResolvers {
+		assert.Equal(t, []string{apiKey}, r.GetAPIKeys())
+	}
+
+	out := log.output()
+	assert.Contains(t, out, "domain 'https://example.test' has 1 keys")
+	assert.NotContains(t, out, apiKey[len(apiKey)-4:])
+}

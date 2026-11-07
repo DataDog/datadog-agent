@@ -1287,6 +1287,22 @@ func TestAwaitsDelegatedAuthKey(t *testing.T) {
 	assert.False(t, static.AwaitsDelegatedAuthKey(), "already has a key")
 }
 
+func TestEndpointsStatusWithoutAPIKeys(t *testing.T) {
+	main := NewEndpoint("0123456789abcdef0123456789ab0a1b", "api_key", "agent-http-intake.logs.datadoghq.com", 0, EmptyPathPrefix, true)
+	additional := NewEndpoint("fedcba9876543210fedcba98765f4e5d", "logs_config.additional_endpoints", "intake.example.test", 8443, "/prefix", true)
+	additional.isReliable = false
+	endpoints := NewEndpoints(main, []Endpoint{additional}, false, true)
+
+	assert.Equal(t, []string{
+		"Reliable: Sending uncompressed logs in HTTPS to agent-http-intake.logs.datadoghq.com on port 443",
+		"Unreliable: Sending uncompressed logs in HTTPS to intake.example.test on port 8443 and path prefix \"/prefix\"",
+	}, endpoints.GetStatusWithoutAPIKeys())
+	assert.Equal(t, []string{
+		"Reliable: Sending uncompressed logs in HTTPS to agent-http-intake.logs.datadoghq.com on port 443 (API Key: ****************************0a1b)",
+		"Unreliable: Sending uncompressed logs in HTTPS to intake.example.test on port 8443 (API Key: ****************************4e5d) and path prefix \"/prefix\"",
+	}, endpoints.GetStatus())
+}
+
 func TestEndpointsTestSuite(t *testing.T) {
 	suite.Run(t, new(EndpointsTestSuite))
 }

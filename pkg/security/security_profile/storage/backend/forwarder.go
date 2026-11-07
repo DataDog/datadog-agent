@@ -197,7 +197,7 @@ func activityDumpRemoteStorageEndpoints(endpointPrefix string, intakeTrackType l
 		return nil, fmt.Errorf("invalid endpoints: %w", err)
 	}
 
-	for _, status := range endpoints.GetStatus() {
+	for _, status := range endpoints.GetStatusWithoutAPIKeys() {
 		seclog.Infof("activity dump remote storage endpoint: %v\n", status)
 	}
 	return endpoints, nil

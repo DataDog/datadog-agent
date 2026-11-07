@@ -352,7 +352,7 @@ func (fh *forwarderHealth) checkValidAPIKeys(domain string, keys []string) (apiE
 			fh.log.Debugf("api_key '%s' for domain %s is valid", scrubbedAPIKey, domain)
 			validKey = true
 		} else {
-			fh.log.Warnf("api_key '%s' for domain %s is invalid", scrubbedAPIKey, domain)
+			fh.log.Warnf("an api_key for domain %s is invalid", domain)
 
 			// Trigger throttled secret refresh on invalid API key
 			fh.secrets.Refresh()
