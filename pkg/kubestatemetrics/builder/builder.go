@@ -253,15 +253,10 @@ func GenerateStores[T any](
 		isPod = true
 	} else if u, ok := expectedType.(*unstructured.Unstructured); ok {
 		isPod = u.GetAPIVersion() == "v1" && u.GetKind() == "Pod"
-	} else if _, ok := expectedType.(*corev1.ConfigMap); ok {
-		configMapStore, err := generateConfigMapStores(b, metricFamilies, useAPIServerCache)
-		if err != nil {
-			log.Debugf("Defaulting to kube-state-metrics for configmap collection: %v", err)
-		} else {
-			log.Debug("Using meta.k8s.io API for configmap collection")
-			return configMapStore
-		}
 	}
+	// TEST ONLY: ConfigMaps are listed and watched in full by the default typed
+	// list/watch of kube-state-metrics, as before #32368.
+	_ = generateConfigMapStores
 
 	if b.namespaces.IsAllNamespaces() {
 		store := b.createStoreForType(composedMetricGenFuncs, expectedType)
