@@ -539,7 +539,11 @@ exec "$@"
         pidfile = layout.install / 'run' / 'dd-procmgrd.pid'
         init_functions = root / 'init-functions'
         init_functions.write_text(
-            'init_is_upstart() { return 1; }\n' 'log_daemon_msg() { :; }\n' 'log_end_msg() { return "$1"; }\n'
+            'init_is_upstart() { return 1; }\n'
+            'log_daemon_msg() { :; }\n'
+            'log_end_msg() { return "$1"; }\n'
+            'log_success_msg() { echo "$*"; }\n'
+            'log_failure_msg() { echo "$*"; }\n'
         )
         write_agent_commands(commands)
         write_executable(
@@ -573,9 +577,11 @@ exit 90
         rendered.write_text(script)
         env = self.base_env(f'{commands}:/usr/bin:/bin')
 
-        def run(action, stop_rc=0, **extra):
+        def run(action, stop_rc=0, running=False, **extra):
             calls.unlink(missing_ok=True)
             started.unlink(missing_ok=True)
+            if running:
+                started.touch()
             result = subprocess.run(
                 [SHELL, str(rendered), action],
                 env={**env, 'STOP_RC': str(stop_rc), **extra},
@@ -609,6 +615,19 @@ exit 90
                 self.assertEqual(stopped.returncode, 0, stopped.stdout + stopped.stderr)
                 self.assertFalse(pidfile.exists())
                 self.assertFalse(started.exists())
+
+    def test_sysv_status_checks_the_daemon_as_the_agent_user(self):
+        run, _, _ = self.sysv_harness()
+        result, calls = run('status', running=True)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('is running', result.stdout)
+        self.assertEqual(calls, ['--status as_agent=yes'])
+
+        run, _, _ = self.sysv_harness()
+        result, calls = run('status')
+        self.assertEqual(result.returncode, 3, result.stdout + result.stderr)
+        self.assertIn('is not running', result.stdout)
+        self.assertEqual(calls, ['--status as_agent=yes'])
 
     def test_sysv_checks_the_daemon_as_the_agent_user(self):
         for setpriv in (True, False):

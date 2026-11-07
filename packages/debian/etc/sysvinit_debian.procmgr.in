@@ -215,7 +215,15 @@ case "$1" in
 		;;
 
 	status)
-		status_of_proc -p $PIDFILE $AGENTPATH $NAME && exit 0 || exit $?
+		# Check the daemon as the agent user. Root cannot see a dd-agent process without CAP_SYS_PTRACE.
+		procmgr_status
+		RETVAL="$?"
+		case "$RETVAL" in
+			0) log_success_msg "$NAME is running" ;;
+			1|3) log_failure_msg "$NAME is not running" ;;
+			*) log_failure_msg "Could not determine $NAME status"; RETVAL=4 ;;
+		esac
+		exit "$RETVAL"
 		;;
 
 	restart|force-reload)
