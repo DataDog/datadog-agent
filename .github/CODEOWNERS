@@ -419,11 +419,13 @@
 
 /Dockerfiles/                            @DataDog/agent-build
 /Dockerfiles/agent/entrypoint.d/privateactionrunner                         @DataDog/action-platform
+/Dockerfiles/agent/entrypoint.d/procmgr-all-in-one                         @DataDog/agent-runtimes @DataDog/agent-build
 /Dockerfiles/agent/par-probe.sh                                            @DataDog/action-platform
 /Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml          @DataDog/action-platform @DataDog/agent-runtimes
 /Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml              @DataDog/action-platform @DataDog/agent-runtimes
 /Dockerfiles/agent/processes.d/aio/                                        @DataDog/agent-runtimes @DataDog/agent-build
 /Dockerfiles/agent/processes.d/aio/datadog-agent-action-executor.yaml      @DataDog/action-platform @DataDog/agent-runtimes
+/Dockerfiles/agent/processes.d/aio/datadog-agent-par.yaml                  @DataDog/action-platform @DataDog/agent-runtimes
 /Dockerfiles/agent/processes.d/aio/datadog-agent-par-control.yaml          @DataDog/action-platform @DataDog/agent-runtimes
 /Dockerfiles/agent/s6-services/privateactionrunner/                        @DataDog/action-platform
 /Dockerfiles/agent/entrypoint.d.windows/ @DataDog/agent-build @DataDog/windows-products
