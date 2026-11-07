@@ -165,7 +165,7 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 		// then stops them a second time. A non-idempotent component Stop() (e.g.
 		// the integration launcher's unbuffered stop channel) blocks the
 		// SerialStopper before it reaches the auditor, so stop() force-closes and
-		// returns with the auditor still running. The auditor's 1s flush ticker
+		// returns with the auditor still running. The auditor's 5s flush ticker
 		// then keeps recreating registry.json under run_path (== t.TempDir()),
 		// racing with the testing package's TempDir RemoveAll and producing flaky
 		// "directory not empty" cleanup failures. Stopping the auditor explicitly
