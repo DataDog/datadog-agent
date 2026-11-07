@@ -177,17 +177,11 @@ cc_library(
     hdrs = ["include/libdd_rc.h"],
     includes = ["include"],
     # On Windows the Rust library needs MinGW's libgcc unwinder and winpthread,
-    # which would otherwise link as DLLs the Agent doesn't ship. Link them
-    # statically; keep tasks/agent.py's RC_X509_WINDOWS_LDFLAGS in sync.
+    # which would otherwise link as DLLs the Agent doesn't ship. Link
+    # statically, as rtloader does; keep tasks/agent.py's
+    # RC_X509_WINDOWS_LDFLAGS in sync.
     linkopts = select({
-        "@platforms//os:windows": [
-            "-static-libgcc",
-            "-Wl,-Bstatic",
-            "-Wl,--whole-archive",
-            "-lwinpthread",
-            "-Wl,--no-whole-archive",
-            "-Wl,-Bdynamic",
-        ],
+        "@platforms//os:windows": ["-static"],
         "//conditions:default": [],
     }),
     visibility = ["//visibility:public"],
