@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    GPU monitoring: the ``amd_gpu`` check now tags AMD GPU metrics with the
+    pods and containers using each GPU when the GPU is allocated through
+    Kubernetes Dynamic Resource Allocation (DRA) with the AMD GPU DRA driver
+    (``gpu.amd.com``), in addition to the AMD GPU device plugin.
