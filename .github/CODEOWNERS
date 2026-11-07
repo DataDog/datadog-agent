@@ -1011,7 +1011,9 @@
 /tasks/build_tags.bzl                                           @DataDog/agent-build
 /tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
 /.gitlab/test/functional_test/anomalydetection.yml               @DataDog/agent-anomaly-detection
+/tasks/logs_tokenizer.py                                        @DataDog/agent-log-pipelines
 /tasks/unit_tests/anomalydetection*.py                          @DataDog/agent-anomaly-detection
+/tasks/unit_tests/logs_tokenizer*.py                            @DataDog/agent-log-pipelines
 /tasks/loader.py                                                @DataDog/agent-runtimes
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
@@ -1052,6 +1054,7 @@
 /tasks/security_agent.py                                        @DataDog/agent-security
 /tasks/sbomgen.py                                               @DataDog/agent-security
 /tasks/libs/anomalydetection/                                   @DataDog/agent-anomaly-detection
+/tasks/libs/logs_tokenizer/                                     @DataDog/agent-log-pipelines
 /tasks/libs/build/                                              @DataDog/agent-build
 /tasks/libs/cws/                                                @DataDog/agent-security
 /tasks/libs/gpu/                                                @DataDog/accelerator-telemetry
