@@ -41,7 +41,7 @@ func TestGetSystemdUnitEmbedsAllVariants(t *testing.T) {
 	}
 }
 
-func TestGetSystemdUnitEmbedsPrivilegedRshellVariants(t *testing.T) {
+func TestPrivilegedRshellUnitsFollowCoreAgent(t *testing.T) {
 	units := []string{
 		"datadog-agent-rshell-privileged.service",
 		"datadog-agent-rshell-privileged-exp.service",
@@ -55,7 +55,38 @@ func TestGetSystemdUnitEmbedsPrivilegedRshellVariants(t *testing.T) {
 				t.Run(name, func(t *testing.T) {
 					content, err := GetSystemdUnit(unit, unitType, ambiantCapabilitiesSupported)
 					require.NoError(t, err)
-					assert.NotEmpty(t, content)
+					procmgrContent, err := GetProcmgrUnit(unit, unitType, ambiantCapabilitiesSupported)
+					require.NoError(t, err)
+					assert.Equal(t, content, procmgrContent)
+
+					suffix, otherSuffix := "", "-exp"
+					if strings.Contains(unit, "-exp.") {
+						suffix, otherSuffix = otherSuffix, suffix
+					}
+					coreAgent := "datadog-agent" + suffix + ".service"
+					text := string(content)
+					assert.Contains(t, text, "\nAfter="+coreAgent+"\n")
+					assert.Contains(t, text, "\nBindsTo="+coreAgent+"\n")
+					// Split PAR deliberately exits the monolithic action service.
+					assert.NotContains(t, text, "datadog-agent-action")
+					assert.NotContains(t, text, "datadog-agent-procmgr")
+
+					extension := ".service"
+					if strings.HasSuffix(unit, ".socket") {
+						extension = ".socket"
+						// After=coreAgent must not form a boot cycle through sockets.target and basic.target.
+						assert.Contains(t, text, "\nDefaultDependencies=no\n")
+						assert.NotContains(t, text, "Before=sockets.target")
+						assert.Contains(t, text, "\nRequires=sysinit.target\n")
+						assert.Contains(t, text, "\nAfter=sysinit.target\n")
+						assert.Contains(t, text, "\nBefore=shutdown.target\n")
+						assert.Contains(t, text, "\nConflicts=shutdown.target\n")
+						assert.Contains(t, text, "\nWantedBy=sockets.target "+coreAgent+"\n")
+						assert.Contains(t, text, "\nService=datadog-agent-rshell-privileged"+suffix+".service\n")
+						assert.Contains(t, text, "\nSocketUser=dd-agent\nSocketGroup=dd-agent\nSocketMode=0600\n")
+						assert.Contains(t, text, "\nRemoveOnStop=yes\n")
+					}
+					assert.Contains(t, text, "\nConflicts=datadog-agent-rshell-privileged"+otherSuffix+extension+"\n")
 				})
 			}
 		}
