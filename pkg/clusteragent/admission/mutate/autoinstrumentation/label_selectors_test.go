@@ -20,9 +20,6 @@ import (
 
 func NewFakeLabelSelector() *autoinstrumentation.LabelSelectors {
 	return autoinstrumentation.NewLabelSelectors(&autoinstrumentation.LabelSelectorsConfig{
-		Enabled:            false,
-		OnDemand:           false,
-		MutateUnlabelled:   false,
 		DisabledNamespaces: []string{},
 	})
 }
@@ -34,27 +31,14 @@ func TestLabelSelectorsConfig(t *testing.T) {
 	}{
 		"default values match expected": {
 			expected: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled:            false,
-				OnDemand:           true,
-				MutateUnlabelled:   false,
 				DisabledNamespaces: []string{},
 			},
 		},
 		"overridden values match expected": {
 			config: map[string]any{
-				"apm_config.instrumentation.enabled":             true,
-				"apm_config.instrumentation.on_demand":           false,
-				"admission_controller.mutate_unlabelled":         true,
-				"admission_controller.add_aks_selectors":         true,
 				"apm_config.instrumentation.disabled_namespaces": []string{"foo"},
-				"apm_config.instrumentation.apm_basic.enabled":   true,
-				"instrumentation_crd_controller.enabled":         true,
 			},
 			expected: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled:            true,
-				OnDemand:           false,
-				MutateUnlabelled:   true,
-				APMBasic:           true,
 				DisabledNamespaces: []string{"foo"},
 			},
 		},
@@ -77,9 +61,7 @@ func TestLabelSelectors(t *testing.T) {
 		expectedObjectSelector    *metav1.LabelSelector
 	}{
 		"by default, everything should be allowed except for disabled namespaces and disable labels": {
-			config: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled: true,
-			},
+			config:               &autoinstrumentation.LabelSelectorsConfig{},
 			useNamespaceSelector: false,
 			expectedNamespaceSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -101,9 +83,7 @@ func TestLabelSelectors(t *testing.T) {
 			},
 		},
 		"by default, if we are using the namespace selector only, then both expressions should be in the namespace selector": {
-			config: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled: true,
-			},
+			config:               &autoinstrumentation.LabelSelectorsConfig{},
 			useNamespaceSelector: true,
 			expectedNamespaceSelector: &metav1.LabelSelector{
 				MatchExpressions: []metav1.LabelSelectorRequirement{
@@ -121,82 +101,8 @@ func TestLabelSelectors(t *testing.T) {
 			},
 			expectedObjectSelector: nil,
 		},
-		"when instrumentation is disabled and mutate unlabelled is also disabled, only enable labels should be selected": {
-			config: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled:          false,
-				OnDemand:         false,
-				MutateUnlabelled: false,
-			},
-			useNamespaceSelector: false,
-			expectedNamespaceSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      common.NamespaceLabelKey,
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   mutatecommon.DefaultDisabledNamespaces(),
-					},
-				},
-			},
-			expectedObjectSelector: &metav1.LabelSelector{
-				MatchLabels: map[string]string{
-					common.EnabledLabelKey: "true",
-				},
-			},
-		},
-		"when on-demand instrumentation is enabled, everything except explicit opt-outs should be selected": {
-			config: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled:          false,
-				OnDemand:         true,
-				MutateUnlabelled: false,
-			},
-			useNamespaceSelector: false,
-			expectedNamespaceSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      common.NamespaceLabelKey,
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   mutatecommon.DefaultDisabledNamespaces(),
-					},
-				},
-			},
-			expectedObjectSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      common.EnabledLabelKey,
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   []string{"false"},
-					},
-				},
-			},
-		},
-		"when instrumentation is disabled but mutate unlabelled is enabled, only enable labels should be selected": {
-			config: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled:          false,
-				MutateUnlabelled: true,
-			},
-			useNamespaceSelector: false,
-			expectedNamespaceSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      common.NamespaceLabelKey,
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   mutatecommon.DefaultDisabledNamespaces(),
-					},
-				},
-			},
-			expectedObjectSelector: &metav1.LabelSelector{
-				MatchExpressions: []metav1.LabelSelectorRequirement{
-					{
-						Key:      common.EnabledLabelKey,
-						Operator: metav1.LabelSelectorOpNotIn,
-						Values:   []string{"false"},
-					},
-				},
-			},
-		},
 		"disabled namespaces should be appended to the default disabled namepsaces": {
 			config: &autoinstrumentation.LabelSelectorsConfig{
-				Enabled:            true,
 				DisabledNamespaces: []string{"foo"},
 			},
 			useNamespaceSelector: false,
