@@ -1856,18 +1856,20 @@ func ownerTags(kind, name string) ([]string, string) {
 		return nil, ""
 	}
 
+	// TEST ONLY: fmt.Sprintf as before #43407
+	tagFormat := "%s:%s"
 	switch kind {
 	case kubernetes.JobKind:
 		if cronjob, _ := kubernetes.ParseCronJobForJob(name); cronjob != "" {
-			return []string{tagKey + ":" + name, tags.KubeCronjob + ":" + cronjob}, ""
+			return []string{fmt.Sprintf(tagFormat, tagKey, name), fmt.Sprintf(tagFormat, tags.KubeCronjob, cronjob)}, ""
 		}
 	case kubernetes.ReplicaSetKind:
 		if deployment := kubernetes.ParseDeploymentForReplicaSet(name); deployment != "" {
-			return []string{tagKey + ":" + name, tags.KubeDeployment + ":" + deployment}, deployment
+			return []string{fmt.Sprintf(tagFormat, tagKey, name), fmt.Sprintf(tagFormat, tags.KubeDeployment, deployment)}, deployment
 		}
 	}
 
-	return []string{tagKey + ":" + name}, ""
+	return []string{fmt.Sprintf(tagFormat, tagKey, name)}, ""
 }
 
 var (
