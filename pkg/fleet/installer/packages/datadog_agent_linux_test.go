@@ -207,6 +207,30 @@ func TestStopProcmgrOnOptOut(t *testing.T) {
 	assert.Equal(t, []service.Type{service.SysvinitType}, stopped)
 }
 
+// TestOnlyOwnerOfProcmgrStopsItOnOptOut checks that DDOT, which shares EnableStable,
+// does not stop the main Agent's procmgr.
+func TestOnlyOwnerOfProcmgrStopsItOnOptOut(t *testing.T) {
+	stubServiceManager(t, service.UpstartType, service.UpstartType)
+	originalStop := stopProcmgrService
+	t.Cleanup(func() {
+		stopProcmgrService = originalStop
+	})
+
+	var stopped []service.Type
+	stopProcmgrService = func(_ HookContext, manager service.Type) error {
+		stopped = append(stopped, manager)
+		return nil
+	}
+	t.Setenv(processManagerEnabledEnv, "false")
+	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
+
+	require.NoError(t, agentDDOTService.EnableStable(ctx))
+	assert.Empty(t, stopped)
+
+	require.NoError(t, agentService.EnableStable(ctx))
+	assert.Equal(t, []service.Type{service.UpstartType}, stopped)
+}
+
 func stubServiceManager(t *testing.T, manager service.Type, initSystem service.Type) {
 	t.Helper()
 	originalManager := currentServiceManager

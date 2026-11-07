@@ -865,12 +865,23 @@ func stopProcmgrOnOptOut(ctx HookContext) {
 	}
 }
 
+// stopOwnedProcmgrOnOptOut stops dd-procmgrd only for a service that owns the procmgr job.
+// DDOT shares EnableStable, and its install must not stop the main Agent's process manager.
+func (s *datadogAgentService) stopOwnedProcmgrOnOptOut(ctx HookContext) {
+	ownsProcmgr := slices.Contains(s.UpstartServices, procmgrServiceName) ||
+		slices.Contains(s.SysvinitServices, procmgrServiceName)
+	if !ownsProcmgr {
+		return
+	}
+	stopProcmgrOnOptOut(ctx)
+}
+
 // EnableStable enables the stable unit
 func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 	if err := s.checkPlatformSupport(ctx); err != nil {
 		return err
 	}
-	stopProcmgrOnOptOut(ctx)
+	s.stopOwnedProcmgrOnOptOut(ctx)
 	switch currentServiceManager(ctx.PackagePath) {
 	case service.SystemdType:
 		if err := systemd.EnableUnit(ctx, s.SystemdMainUnitStable); err != nil {
