@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "logsignature",
+    srcs = ["logsignature.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/logsignature",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/logs/tokenizer"],
+)
+
+dd_agent_go_test(
+    name = "logsignature_test",
+    srcs = ["logsignature_test.go"],
+    embed = [":logsignature"],
+    deps = [
+        "//pkg/logs/tokenizer",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

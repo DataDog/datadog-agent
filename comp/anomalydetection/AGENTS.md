@@ -23,6 +23,7 @@ comp/anomalydetection/
     fx/                  ← production Fx wiring (python build tag)
     fx/fx_noop.go        ← IoT / !python stub
     impl/                ← engine, detectors, correlators, extractors
+      logsignature/      ← log signatures for the log metrics extractor
       patterns/          ← log tokenizer/clusterer subpackage
     scenarios/           ← replay scenario directories (testbench)
   logssource/
