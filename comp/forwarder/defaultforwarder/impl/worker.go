@@ -7,6 +7,7 @@ package defaultforwarderimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptrace"
 	"sync"
@@ -263,6 +264,14 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 		return
 	}
 	if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient(), w.pointCountTelemetry); err != nil {
+		// Context cancellation during shutdown means the Agent stopped waiting for a
+		// response, not that the endpoint is unhealthy. Requeue the transaction so it
+		// can be retried or persisted, but do not trip the endpoint circuit breaker.
+		if errors.Is(err, context.Canceled) {
+			w.requeue(t)
+			w.log.Debugf("Transaction processing was canceled; requeued for retry: %v", err)
+			return
+		}
 		w.blockedList.close(target, time.Now())
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)

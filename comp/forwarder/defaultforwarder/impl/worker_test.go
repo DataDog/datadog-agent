@@ -10,6 +10,7 @@ package defaultforwarderimpl
 import (
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"strconv"
 	"sync"
 	"testing"
@@ -244,6 +245,143 @@ func TestWorkerCancelsInFlight(t *testing.T) {
 		assert.Equal(t, mockTransaction, requeued)
 	default:
 		assert.Fail(t, "Transaction not requeued")
+	}
+}
+
+func TestWorkerStopRequeuesCanceledInflightHTTPTransactionOnce(t *testing.T) {
+	requestEntered := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		close(requestEntered)
+		select {
+		case <-r.Context().Done():
+		case <-releaseHandler:
+		}
+	}))
+	defer server.Close()
+
+	highPrio := make(chan transaction.Transaction, 1)
+	lowPrio := make(chan transaction.Transaction, 1)
+	requeue := make(chan transaction.Transaction, 2)
+
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	secrets := secretsmock.New(t)
+	concurrency := newTestConcurrencyDomain(1, 1)
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
+		newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
+		NewSharedConnection(log, false, concurrency, mockConfig, server.Client().Transport), concurrency)
+
+	txn := newTestHTTPTransaction(server.URL, 1)
+
+	w.Start()
+	highPrio <- txn
+	<-requestEntered
+
+	w.Stop(false)
+	close(releaseHandler)
+
+	select {
+	case requeued := <-requeue:
+		assert.Equal(t, txn, requeued)
+	case <-time.After(time.Second):
+		t.Fatal("canceled in-flight transaction was not requeued")
+	}
+	assert.Equal(t, 0, len(requeue), "shutdown cancellation must not enqueue the same transaction twice")
+	assert.False(t, w.blockedList.isBlockForSend(txn.GetTarget(), time.Now()), "shutdown cancellation is not an endpoint failure")
+}
+
+func TestWorkerStopDoesNotRequeueCompletedHTTPTransaction(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	highPrio := make(chan transaction.Transaction, 1)
+	lowPrio := make(chan transaction.Transaction, 1)
+	requeue := make(chan transaction.Transaction, 1)
+	sender := &PointSuccessfullySentMock{}
+
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	secrets := secretsmock.New(t)
+	concurrency := newTestConcurrencyDomain(1, 1)
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
+		newBlockedEndpoints(mockConfig, log), sender,
+		NewSharedConnection(log, false, concurrency, mockConfig, server.Client().Transport), concurrency)
+
+	txn := newTestHTTPTransaction(server.URL, 3)
+
+	w.Start()
+	highPrio <- txn
+	assert.Eventually(t, func() bool { return sender.count.Load() == 3 }, time.Second, time.Millisecond)
+
+	w.Stop(false)
+
+	assert.Equal(t, 0, len(requeue), "successfully completed transaction must not be requeued")
+}
+
+func TestWorkerStopRequeuesMultipleCanceledHTTP2Transactions(t *testing.T) {
+	requestEntered := make(chan struct{}, 2)
+	protocols := make(chan string, 2)
+	releaseHandlers := make(chan struct{})
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		protocols <- r.Proto
+		requestEntered <- struct{}{}
+		select {
+		case <-r.Context().Done():
+		case <-releaseHandlers:
+		}
+	}))
+	server.EnableHTTP2 = true
+	server.StartTLS()
+	defer server.Close()
+
+	highPrio := make(chan transaction.Transaction, 2)
+	lowPrio := make(chan transaction.Transaction, 1)
+	requeue := make(chan transaction.Transaction, 2)
+
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	secrets := secretsmock.New(t)
+	concurrency := newTestConcurrencyDomain(1, 2)
+	w := NewWorker(mockConfig, log, secrets, highPrio, lowPrio, requeue,
+		newBlockedEndpoints(mockConfig, log), &PointSuccessfullySentMock{},
+		NewSharedConnection(log, false, concurrency, mockConfig, server.Client().Transport), concurrency)
+
+	txn1 := newTestHTTPTransaction(server.URL, 1)
+	txn2 := newTestHTTPTransaction(server.URL, 1)
+
+	w.Start()
+	highPrio <- txn1
+	highPrio <- txn2
+
+	for i := 0; i < 2; i++ {
+		select {
+		case <-requestEntered:
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for HTTP/2 request to enter handler")
+		}
+	}
+
+	w.Stop(false)
+	close(releaseHandlers)
+
+	seen := map[transaction.Transaction]bool{}
+	for i := 0; i < 2; i++ {
+		select {
+		case requeued := <-requeue:
+			seen[requeued] = true
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for canceled HTTP/2 transaction to be requeued")
+		}
+	}
+	assert.True(t, seen[txn1], "first in-flight HTTP/2 transaction should be requeued")
+	assert.True(t, seen[txn2], "second in-flight HTTP/2 transaction should be requeued")
+	assert.Equal(t, 0, len(requeue), "HTTP/2 shutdown cancellation must not duplicate requeues")
+
+	for i := 0; i < 2; i++ {
+		assert.Equal(t, "HTTP/2.0", <-protocols)
 	}
 }
 
