@@ -10,6 +10,8 @@ benchmark:
   tags: ["team:apm-k8s-tweaked-metal-datadog-agent", "specific:true"]
   variables:
     GIT_DEPTH: 0  # Full history: run-benchmarks.sh / analyze-results.sh check out BASE_BRANCH
+    # Benchmarks need stable resources across runs
+    DD_DISABLE_VPA: true
     # `go test -tags=test` sends pkg/util/log output to stdout at debug level, which corrupts
     # the GoBench output the analyzer parses. Set here rather than only in tasks/trace_agent.py
     # so it also applies to the baseline run, which is executed from a BASE_BRANCH checkout.

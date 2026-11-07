@@ -126,6 +126,8 @@ new-e2e-unit-tests:
     - !reference [.upload_junit_source]
   variables:
     KUBERNETES_CPU_REQUEST: 6
+    # Fixed resources: GOMEMLIMIT is derived from the memory limit
+    DD_DISABLE_VPA: true
     GOMEMLIMIT: "${KUBERNETES_MEMORY_LIMIT}B"
     GOMAXPROCS: $KUBERNETES_CPU_REQUEST
     GIT_DEPTH: 1  # Overrides .linux_tests: this job does not use --only-impacted-packages or coverage cache
