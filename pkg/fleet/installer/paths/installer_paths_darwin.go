@@ -24,11 +24,10 @@ import (
 // These values must agree with pkg/util/defaultpaths/path_darwin.go, which the Agent itself
 // resolves its configuration and run directories through.
 const (
-	// PackagesPath is the path to the packages directory.
-	// macOS has no versioned package pool of its own: the Agent comes from a .dmg and lives in
-	// the install root. The shared installer code reads a package repository per package all the
-	// same, so the install registers a placeholder one here (see registerPackageRepository in
-	// pkg/fleet/installer/packages/datadog_agent_darwin.go) and the path keeps its Linux value.
+	// PackagesPath is the path to the packages directory, the versioned package pool. A .dmg
+	// install has a single version, installed in the install root, so its version entry links
+	// there (see linkPackageEntry in pkg/fleet/installer/packages/datadog_agent_darwin.go). The path
+	// keeps its Linux value.
 	PackagesPath = "/opt/datadog-packages"
 	// ConfigsPath is empty: macOS never had the legacy managed/ policy layout, so there is no
 	// directory for the installer to create or purge.
@@ -50,18 +49,9 @@ const (
 	// ExperimentInstallerPath is the path to the experiment installer binary. macOS runs no
 	// version experiments, so there is no second binary to point at.
 	ExperimentInstallerPath = StableInstallerPath
-	// RunPath is the root installer daemon's own run directory: its socket, pid file, task
-	// database, remote configuration cache and the configuration experiment deadline.
-	//
-	// It is deliberately not the Agent's run directory, /opt/datadog-agent/run: that one belongs
-	// to the Agent's account, and the daemon runs as root. Like on Linux, it lives under
-	// PackagesPath, which only root can write to (see EnsureInstallerDataDir).
-	RunPath = "/opt/datadog-packages/run"
-	// InstallerLogPath is where the root installer daemon's logs go: its launchd job's standard
-	// output and error, and its own log file. Root-owned for the same reason as RunPath: the
-	// Agent's log directory belongs to the Agent's account, and a root process writing in it
-	// would follow any link that account planted there.
-	InstallerLogPath = "/opt/datadog-packages/logs"
+	// RunPath is where the installer daemon keeps its socket and task database: the Agent's run
+	// directory, alongside its remote configuration cache, which follows run_path's default.
+	RunPath = "/opt/datadog-agent/run"
 	// DatadogDataDir is the path to the Datadog data directory.
 	DatadogDataDir = "/opt/datadog-agent/etc"
 	// DatadogProgramFilesDir is the Datadog Program Files directory (not used on non-Windows platforms).
@@ -82,15 +72,16 @@ func SetupInstallerDataDir() error {
 // rootOwner is the owner every directory holding root installer state must have: root:wheel.
 var rootOwner = dirOwner{uid: 0, gid: 0}
 
-// EnsureInstallerDataDir makes sure the directories the root installer keeps its own state in,
-// PackagesPath, RunPath and InstallerLogPath, are real directories owned by root:wheel and writable by root only,
-// creating them when missing and repairing their ownership and mode when they drifted.
-//
-// The root daemon, its detached watcher and its resume step trust what these directories hold,
-// so they must never be writable by the Agent's account. A path that is not a directory (a
-// symbolic link in particular) is refused rather than repaired.
+// installerDataDirs are the directories only root may write to: the packages root, which holds the
+// package entry the installer reports the Agent from.
+var installerDataDirs = []string{PackagesPath}
+
+// EnsureInstallerDataDir makes sure installerDataDirs are real directories owned by root:wheel and
+// writable by root only, creating them when missing and repairing their ownership and mode when
+// they drifted. A path that is not a directory (a symbolic link in particular) is refused rather
+// than repaired.
 func EnsureInstallerDataDir() error {
-	for _, dir := range []string{PackagesPath, RunPath, InstallerLogPath} {
+	for _, dir := range installerDataDirs {
 		if err := ensureTrustedDir(dir, rootOwner); err != nil {
 			return err
 		}

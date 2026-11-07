@@ -7,8 +7,8 @@
 # Datadog Agent uninstall script for macOS.
 # Paired with install_mac_os.sh (Agent 7.79.0+). Removes the system-wide
 # components installed by the DMG: LaunchDaemons (procmgr, agent, sysprobe,
-# data-plane), GUI LaunchAgent, /Applications app, /opt/datadog-agent tree, and
-# symlinks.
+# data-plane, installer), GUI LaunchAgent, /Applications app, /opt/datadog-agent
+# and /opt/datadog-packages trees, and symlinks.
 set -eu
 
 if [ -t 1 ]; then
@@ -49,57 +49,79 @@ trap on_error ERR
 
 printf "${BLUE}* Uninstalling Datadog Agent, you might be asked for your sudo password...\n${NC}"
 
-# Hand the teardown to the installed version first, as the .dmg preinstall script does on upgrade:
-# only it knows the LaunchDaemons it installed. Each job's bootout is bounded at 30 seconds.
-# See preRemoveDatadogAgent in pkg/fleet/installer/packages/datadog_agent_darwin.go
+# uninstall_without_installer removes everything the .dmg installed, for versions whose installer
+# cannot do it: versions before the installer have none, and one whose pre-remove failed may have
+# left things behind. Every step is a no-op for what is already gone.
+uninstall_without_installer() {
+    printf "${BLUE}\n    - Stopping system services...\n${NC}"
+    $sudo_cmd launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
+    $sudo_cmd launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
+    $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
+    $sudo_cmd launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
+    $sudo_cmd launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
+    # bootout returns before a job has left the domain. Wait up to 30 seconds for each, as the
+    # installer's pre-remove does, so the Agent is stopped before its files are removed.
+    for label in com.datadoghq.procmgr com.datadoghq.agent com.datadoghq.sysprobe com.datadoghq.data-plane com.datadoghq.installer; do
+        attempts=0
+        while [ $attempts -lt 30 ] && $sudo_cmd launchctl print "system/$label" >/dev/null 2>&1; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
+    done
+
+    printf "${BLUE}\n    - Stopping GUI for logged-in users...\n${NC}"
+    for logged_user in $(who | awk '{print $1}' | sort -u); do
+        logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
+        $sudo_cmd launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
+        $sudo_cmd launchctl bootout "gui/$logged_uid/$ai_usage_desktop_monitor_label" 2>/dev/null || true
+        $sudo_cmd launchctl bootout "gui/$logged_uid/$old_ai_usage_desktop_monitor_label" 2>/dev/null || true
+    done
+    $sudo_cmd pkill -f 'Datadog Agent.app' 2>/dev/null || true
+    $sudo_cmd pkill -f 'ai-usage-agent-native-host.*--desktop-monitor' 2>/dev/null || true
+    $sudo_cmd pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
+
+    printf "${BLUE}\n    - Removing launchd plists...\n${NC}"
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.procmgr.plist
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.installer.plist
+    $sudo_cmd rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
+    $sudo_cmd rm -f "/Library/LaunchAgents/$ai_usage_desktop_monitor_label.plist"
+    $sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist"
+
+    printf "${BLUE}\n    - Removing application and install directory...\n${NC}"
+    $sudo_cmd rm -rf "/Applications/Datadog Agent.app"
+    $sudo_cmd rm -rf /opt/datadog-agent
+    # The installer daemon's own state and logs, and the package entry it reports the Agent from.
+    $sudo_cmd rm -rf /opt/datadog-packages
+
+    printf "${BLUE}\n    - Removing symlinks and staging data...\n${NC}"
+    $sudo_cmd rm -f /usr/local/bin/datadog-agent
+    $sudo_cmd rm -f /usr/local/bin/datadog-installer
+    # /var/log/datadog is a symlink to /opt/datadog-agent/logs created by preinst.
+    $sudo_cmd rm -f /var/log/datadog
+    # Staging dir may be left behind by an interrupted install (normally cleaned
+    # by postinst or install_mac_os.sh's EXIT trap).
+    $sudo_cmd rm -rf /private/var/root/datadog-install
+}
+
+# Hand the uninstall to the installed version, as the .dmg preinstall script hands it the teardown
+# on upgrade: it knows what it installed, and removes all of it. Each job's bootout is bounded at
+# 30 seconds. See preRemoveDatadogAgent in pkg/fleet/installer/packages/datadog_agent_darwin.go
 installer_bin=/opt/datadog-agent/embedded/bin/installer
 if $sudo_cmd test -x "$installer_bin" && $sudo_cmd "$installer_bin" is-prerm-supported >/dev/null 2>&1; then
     printf "${BLUE}\n    - Running the installed version's pre-remove...\n${NC}"
     if ! $sudo_cmd "$installer_bin" prerm datadog-agent dmg; then
-        printf "${RED}    The installed version's pre-remove failed; continuing.\n${NC}"
+        printf "${RED}    The installed version's pre-remove failed; removing the Agent directly.\n${NC}"
+        uninstall_without_installer
+    elif $sudo_cmd test -e /opt/datadog-agent; then
+        # Earlier versions' pre-remove only takes down the LaunchDaemons.
+        uninstall_without_installer
     fi
+else
+    uninstall_without_installer
 fi
-
-# The jobs this script knows the Agent has run. They are booted out whether or not the installed
-# version's pre-remove ran: versions before the installer have none, and one that failed may have
-# left jobs behind. A job already gone is a no-op.
-printf "${BLUE}\n    - Stopping system services...\n${NC}"
-$sudo_cmd launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
-$sudo_cmd launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-$sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
-$sudo_cmd launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
-
-printf "${BLUE}\n    - Stopping GUI for logged-in users...\n${NC}"
-for logged_user in $(who | awk '{print $1}' | sort -u); do
-    logged_uid=$(id -u "$logged_user" 2>/dev/null) || continue
-    $sudo_cmd launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
-    $sudo_cmd launchctl bootout "gui/$logged_uid/$ai_usage_desktop_monitor_label" 2>/dev/null || true
-    $sudo_cmd launchctl bootout "gui/$logged_uid/$old_ai_usage_desktop_monitor_label" 2>/dev/null || true
-done
-$sudo_cmd pkill -f 'Datadog Agent.app' 2>/dev/null || true
-$sudo_cmd pkill -f 'ai-usage-agent-native-host.*--desktop-monitor' 2>/dev/null || true
-$sudo_cmd pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
-
-printf "${BLUE}\n    - Removing launchd plists...\n${NC}"
-$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.procmgr.plist
-$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-$sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-$sudo_cmd rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
-$sudo_cmd rm -f "/Library/LaunchAgents/$ai_usage_desktop_monitor_label.plist"
-$sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist"
-
-printf "${BLUE}\n    - Removing application and install directory...\n${NC}"
-$sudo_cmd rm -rf "/Applications/Datadog Agent.app"
-$sudo_cmd rm -rf /opt/datadog-agent
-
-printf "${BLUE}\n    - Removing symlinks and staging data...\n${NC}"
-$sudo_cmd rm -f /usr/local/bin/datadog-agent
-# /var/log/datadog is a symlink to /opt/datadog-agent/logs created by preinst.
-$sudo_cmd rm -f /var/log/datadog
-# Staging dir may be left behind by an interrupted install (normally cleaned
-# by postinst or install_mac_os.sh's EXIT trap).
-$sudo_cmd rm -rf /private/var/root/datadog-install
 
 printf "${GREEN}
 

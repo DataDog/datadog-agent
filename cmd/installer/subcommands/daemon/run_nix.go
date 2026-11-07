@@ -20,6 +20,10 @@ import (
 )
 
 func runFxWrapper(global *command.GlobalParams) error {
+	enabled, err := daemonEnabledBeforeStart(global)
+	if err != nil || !enabled {
+		return err
+	}
 	return fxutil.Run(
 		getCommonFxOption(global),
 		fx.Invoke(func(_ pid.Component) {}),
