@@ -46,7 +46,7 @@ func TestClusterRoleBindingHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewClusterRoleBindingHandlers(tagger)
 
-	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -114,16 +114,16 @@ func TestClusterRoleBindingHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify raw informer references are returned
+	// Verify deep copy was made
 	resource1, ok := resources[0].(*rbacv1.ClusterRoleBinding)
 	assert.True(t, ok)
 	assert.Equal(t, "clusterrolebinding-1", resource1.Name)
-	assert.Same(t, clusterRoleBinding1, resource1) // ResourceList returns raw informer references
+	assert.NotSame(t, clusterRoleBinding1, resource1) // Should be a copy
 
 	resource2, ok := resources[1].(*rbacv1.ClusterRoleBinding)
 	assert.True(t, ok)
 	assert.Equal(t, "clusterrolebinding-2", resource2.Name)
-	assert.Same(t, clusterRoleBinding2, resource2) // ResourceList returns raw informer references
+	assert.NotSame(t, clusterRoleBinding2, resource2) // Should be a copy
 }
 
 func TestClusterRoleBindingHandlers_ResourceUID(t *testing.T) {
@@ -417,14 +417,4 @@ func createTestClusterRoleBinding(name, namespace string) *rbacv1.ClusterRoleBin
 			},
 		},
 	}
-}
-
-func TestClusterRoleBindingHandlers_CloneResource(t *testing.T) {
-	handlers := &ClusterRoleBindingHandlers{}
-	original := createTestClusterRoleBinding("test", "ns")
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*rbacv1.ClusterRoleBinding)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }
