@@ -9,10 +9,13 @@
 package main
 
 import (
+	"bufio"
 	"bytes"
 	_ "embed"
+	"errors"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/exec"
@@ -40,6 +43,8 @@ var (
 	setupIMDSTest         bool
 	cleanupIMDSTest       bool
 	runIMDSTest           bool
+	credentialsURL        string
+	credentialsOpenPath   string
 	userSessionExecutable string
 	userSessionOpenPath   string
 	syscallDriftTest      bool
@@ -184,6 +189,49 @@ func RunIMDSTest() error {
 	return response.Body.Close()
 }
 
+// RunCredentialsClient receives credentials in a separate process, then waits
+// for the parent test to request a file event and inspect its process context.
+func RunCredentialsClient(url, openPath string) error {
+	if openPath == "" {
+		return errors.New("credentials-open-path must be set")
+	}
+	transport := &http.Transport{Proxy: nil}
+	defer transport.CloseIdleConnections()
+	client := &http.Client{Transport: transport, Timeout: 10 * time.Second}
+	response, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	_, readErr := io.Copy(io.Discard, response.Body)
+	closeErr := response.Body.Close()
+	if readErr != nil {
+		return readErr
+	}
+	if closeErr != nil {
+		return closeErr
+	}
+	if response.StatusCode != http.StatusOK {
+		return fmt.Errorf("unexpected credential response: %s", response.Status)
+	}
+	fmt.Println("ready")
+
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		if scanner.Text() != "open" {
+			return fmt.Errorf("unknown credential client command: %q", scanner.Text())
+		}
+		file, err := os.OpenFile(openPath, os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			return err
+		}
+		if err := file.Close(); err != nil {
+			return err
+		}
+		fmt.Println("opened")
+	}
+	return scanner.Err()
+}
+
 func SetupIMDSTest() (*netlink.Dummy, error) {
 	// create dummy interface
 	return testutils.CreateDummyInterface(testutils.CSMDummyInterface, testutils.IMDSTestServerCIDR)
@@ -280,6 +328,8 @@ func main() {
 	flag.BoolVar(&setupIMDSTest, "setup-imds-test", false, "when set, creates a dummy interface and attach the IMDS IP to it")
 	flag.BoolVar(&cleanupIMDSTest, "cleanup-imds-test", false, "when set, removes the dummy interface of the IMDS test")
 	flag.BoolVar(&runIMDSTest, "run-imds-test", false, "when set, binds an IMDS server locally and sends a query to it")
+	flag.StringVar(&credentialsURL, "credentials-url", "", "credential endpoint queried by a separate test process")
+	flag.StringVar(&credentialsOpenPath, "credentials-open-path", "", "file opened after the credential client receives an open command on stdin")
 	flag.BoolVar(&syscallDriftTest, "syscall-drift-test", false, "when set, runs the syscall drift test")
 	flag.BoolVar(&loginUIDTest, "login-uid-test", false, "when set, runs the login_uid open test")
 	flag.StringVar(&loginUIDPath, "login-uid-path", "", "file used for the login_uid open test")
@@ -330,6 +380,12 @@ func main() {
 
 	if runIMDSTest {
 		if err := RunIMDSTest(); err != nil {
+			panic(err)
+		}
+	}
+
+	if credentialsURL != "" {
+		if err := RunCredentialsClient(credentialsURL, credentialsOpenPath); err != nil {
 			panic(err)
 		}
 	}

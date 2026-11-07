@@ -4,6 +4,7 @@
 #include "constants/enums.h"
 #include "helpers/network/context.h"
 #include "helpers/network/credentials.h"
+#include "helpers/network/pid_resolver.h"
 #include "helpers/process.h"
 #include "maps.h"
 
@@ -23,7 +24,8 @@ static __always_inline struct imds_event_t *reset_imds_event(struct __sk_buff *s
     // reset event flags
     evt->event.flags = 0;
 
-    // process context
+    // Resolve the local recipient on ingress, leaving the sender context unchanged on egress.
+    resolve_pid(skb, pkt, PID_RESOLUTION_STRICT_INGRESS);
     fill_network_process_context_from_pkt(&evt->process, pkt);
 
     // reset and fill span context unconditionally

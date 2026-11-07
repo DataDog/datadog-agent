@@ -3,9 +3,20 @@
 
 #include "maps.h"
 
-static __always_inline s64 get_flow_pid(struct pid_route_t *key) {
+enum pid_resolution_mode {
+    PID_RESOLUTION_DEFAULT,
+    // Re-resolve ingress packets from the local receiving socket, leaving egress attribution unchanged.
+    PID_RESOLUTION_STRICT_INGRESS,
+};
+
+static __always_inline s64 get_flow_pid(struct pid_route_t *key, enum pid_resolution_mode mode) {
     struct pid_route_entry_t *value = bpf_map_lookup_elem(&flow_pid, key);
-    if (!value) {
+    if (mode == PID_RESOLUTION_STRICT_INGRESS) {
+        // Only accept an exact, socket-owned connected route, never a wildcard listener or procfs guess.
+        if (!value || value->type != FLOW_CLASSIFICATION_ENTRY || value->owner_sk == NULL) {
+            return 0;
+        }
+    } else if (!value) {
         // Try with IP set to 0.0.0.0
         key->addr[0] = 0;
         key->addr[1] = 0;
@@ -21,7 +32,7 @@ static __always_inline s64 get_flow_pid(struct pid_route_t *key) {
 // resolve_pid_from_flow_pid resolves the pid from the flow_pid map. The same {address, port, netns} key
 // can be used in different network namespaces so this function can return the wrong pid in this case.
 // Thus it is only a fallback for kernels without bpf_sk_lookup / sk-local storage / the cgroup hook.
-static __always_inline void resolve_pid_from_flow_pid(struct packet_t *pkt) {
+static __always_inline void resolve_pid_from_flow_pid(struct packet_t *pkt, enum pid_resolution_mode mode) {
     struct pid_route_t pid_route = {};
 
     // resolve pid
@@ -43,7 +54,7 @@ static __always_inline void resolve_pid_from_flow_pid(struct packet_t *pkt) {
     }
 
     pid_route.l4_protocol = pkt->translated_ns_flow.flow.l4_protocol;
-    pkt->pid = get_flow_pid(&pid_route);
+    pkt->pid = get_flow_pid(&pid_route, mode);
 
     #if defined(DEBUG_NETWORK_FLOW)
     bpf_printk("Lookup: ip: %lu %lu port: %d", pid_route.addr[0], pid_route.addr[1], htons(pid_route.port));
@@ -121,33 +132,47 @@ static __always_inline int is_packet_locally_originated(struct __sk_buff *skb) {
     return skb->sk != NULL;
 }
 
-static __always_inline void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {
+static __always_inline void discard_kernel_thread_pid(struct packet_t *pkt) {
+    u32 pid = (u32)pkt->pid;
+    if (pid != 0 && IS_KERNEL_THREAD(pid)) {
+        pkt->pid = 0;
+    }
+}
+
+static __always_inline void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt, enum pid_resolution_mode mode) {
+    if (mode == PID_RESOLUTION_STRICT_INGRESS && pkt->network_direction != INGRESS) {
+        return;
+    }
+
     pkt->pid = 0;
-    pkt->cgroup_id = 0;
-
-    // pid from socket cookie: set when the skb has an associated socket (mostly on egress)
-    u64 cookie = bpf_get_socket_cookie(skb);
-    u32 *pid = bpf_map_lookup_elem(&sock_cookie_pid, &cookie);
-    if (pid) {
-        pkt->pid = *pid;
-    }
-
-    // pid from the current task: only valid on egress, which runs in the sender's context
-    if (pkt->pid == 0 && pkt->network_direction == EGRESS) {
-        u64 sched_cls_has_current_pid_tgid_helper = 0;
-        LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
-        if (sched_cls_has_current_pid_tgid_helper) {
-            u64 pid_tgid = bpf_get_current_pid_tgid();
-            pkt->pid = pid_tgid >> 32;
+    if (mode == PID_RESOLUTION_STRICT_INGRESS) {
+        // Socket lookups are scoped to the TC device's namespace. A cookie on ingress may still
+        // identify the sender, so resolve the local recipient even if the packet already had a pid.
+        if (pkt->translated_ns_flow.netns != pkt->ns_flow.netns) {
+            return;
         }
-    }
+    } else {
+        pkt->cgroup_id = 0;
 
-    // discard kworkers, no process should be associated (mostly on ingress)
-    if (pkt->pid != 0) {
-        u32 pid_val = (u32)pkt->pid;
-        if (IS_KERNEL_THREAD(pid_val)) {
-            pkt->pid = 0;
+        // pid from socket cookie: set when the skb has an associated socket (mostly on egress)
+        u64 cookie = bpf_get_socket_cookie(skb);
+        u32 *pid = bpf_map_lookup_elem(&sock_cookie_pid, &cookie);
+        if (pid) {
+            pkt->pid = *pid;
         }
+
+        // pid from the current task: only valid on egress, which runs in the sender's context
+        if (pkt->pid == 0 && pkt->network_direction == EGRESS) {
+            u64 sched_cls_has_current_pid_tgid_helper = 0;
+            LOAD_CONSTANT("sched_cls_has_current_pid_tgid_helper", sched_cls_has_current_pid_tgid_helper);
+            if (sched_cls_has_current_pid_tgid_helper) {
+                u64 pid_tgid = bpf_get_current_pid_tgid();
+                pkt->pid = pid_tgid >> 32;
+            }
+        }
+
+        // discard kworkers, no process should be associated (mostly on ingress)
+        discard_kernel_thread_pid(pkt);
     }
 
     // pid from socket lookup, falling back to the flow_pid map on unsupported kernels
@@ -158,8 +183,12 @@ static __always_inline void resolve_pid(struct __sk_buff *skb, struct packet_t *
                 resolve_pid_from_sk_lookup(skb, pkt);
             }
         } else {
-            resolve_pid_from_flow_pid(pkt);
+            resolve_pid_from_flow_pid(pkt, mode);
         }
+    }
+
+    if (mode == PID_RESOLUTION_STRICT_INGRESS) {
+        discard_kernel_thread_pid(pkt);
     }
 }
 
