@@ -26,6 +26,8 @@ import (
 
 	"github.com/fatih/color"
 	"golang.org/x/sys/unix"
+
+	systemprobeconfig "github.com/DataDog/datadog-agent/test/new-e2e/system-probe/config"
 )
 
 const matchAllPackages = "*"
@@ -208,12 +210,18 @@ func createDir(d string) error {
 	return nil
 }
 
-func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
+func collectEnvVars(testConfig *testConfig, bpfDir string) ([]string, error) {
 	var env []string
 	env = append(env, baseEnv...)
 	env = append(env,
 		"DD_SYSTEM_PROBE_BPF_DIR="+bpfDir,
 	)
+
+	flagEnv, err := kmtTestEnvVars()
+	if err != nil {
+		return nil, err
+	}
+	env = append(env, flagEnv...)
 
 	if testConfig.extraEnv != "" {
 		env = append(env, strings.Split(testConfig.extraEnv, " ")...)
@@ -230,7 +238,55 @@ func collectEnvVars(testConfig *testConfig, bpfDir string) []string {
 		}
 	}
 
-	return env
+	return env, nil
+}
+
+// kmtTestEnvVars returns the environment variables communicating the test
+// env vars of the KMT platform this runner is executing on, as defined in
+// test/new-e2e/system-probe/config/platforms.json, to the test binaries.
+//
+// The platform is not inferred from the running kernel: the CI job that
+// provisioned the VM passes the platforms.json architecture and key of the
+// booted image through /job_env.txt (see
+// .gitlab/test/kernel_matrix_testing/common.yml). Local runs can set the
+// same variables directly in the environment.
+func kmtTestEnvVars() ([]string, error) {
+	arch, key := os.Getenv("DD_KMT_PLATFORM_ARCH"), os.Getenv("DD_KMT_PLATFORM_KEY")
+	if arch == "" || key == "" {
+		if jobEnv, err := os.ReadFile("/job_env.txt"); err == nil {
+			for line := range strings.SplitSeq(string(jobEnv), "\n") {
+				name, val, ok := strings.Cut(line, "=")
+				if !ok {
+					continue
+				}
+				switch name {
+				case "DD_KMT_PLATFORM_ARCH":
+					arch = val
+				case "DD_KMT_PLATFORM_KEY":
+					key = val
+				}
+			}
+		}
+	}
+
+	if arch == "" || key == "" {
+		// Not a KMT CI run (e.g. local run or custom kernel): no platform
+		// metadata, leave the test env vars unset.
+		fmt.Println("no KMT platform key provided, no test env vars set")
+		return nil, nil
+	}
+
+	envVars, err := systemprobeconfig.TestEnvVars(arch, key)
+	if err != nil {
+		return nil, err
+	}
+
+	var env []string
+	for name, value := range envVars {
+		env = append(env, fmt.Sprintf("%s=%s", name, value))
+	}
+	fmt.Printf("KMT platform test env vars for %s/%s: %s\n", arch, key, strings.Join(env, " "))
+	return env, nil
 }
 
 func testPass(testConfig *testConfig, props map[string]string) error {
@@ -266,7 +322,10 @@ func testPass(testConfig *testConfig, props map[string]string) error {
 	}
 	bpfDir := filepath.Join(testConfig.testDirRoot, buildDir)
 
-	envVars := collectEnvVars(testConfig, bpfDir)
+	envVars, err := collectEnvVars(testConfig, bpfDir)
+	if err != nil {
+		return fmt.Errorf("collect env vars: %w", err)
+	}
 
 	var testContainer *testContainer
 	if testConfig.InContainerImage != "" {
