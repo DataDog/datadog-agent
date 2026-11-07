@@ -447,6 +447,11 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 
 	if err := t.m.Start(); err != nil {
 		t.closeConsumer.Stop()
+		if classifierAttachENOMEM(t.m.Manager) {
+			// Attaching a socket filter charges the program's size after verification (and JIT constant blinding,
+			// if net.core.bpf_jit_harden is set) against net.core.optmem_max, and fails with ENOMEM if it doesn't fit.
+			return fmt.Errorf("could not start ebpf manager: %w: not enough memory to attach protocol classification ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>, or disabling protocol classification (network_config.enable_protocol_classification: false / DD_ENABLE_PROTOCOL_CLASSIFICATION=false)", err)
+		}
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 	if t.sslProgram != nil {
@@ -460,6 +465,19 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 	ddebpf.AddProbeFDMappings(t.m.Manager)
 
 	return nil
+}
+
+// classifierAttachENOMEM reports whether the protocol classification socket filter failed to attach for lack of
+// memory. The manager's error joins every failed probe's error, so check the classifier probe itself rather than
+// matching ENOMEM anywhere in it.
+func classifierAttachENOMEM(m *manager.Manager) bool {
+	for _, p := range m.Probes {
+		//nolint:forbidigo // ebpf-manager's Probe.GetLastError (the probe's recorded attach error), not the Windows syscall
+		if p.EBPFFuncName == string(probes.ProtocolClassifierEntrySocketFilter) && errors.Is(p.GetLastError(), unix.ENOMEM) {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *ebpfTracer) Pause() error {
