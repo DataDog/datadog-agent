@@ -193,10 +193,10 @@ cc_library(
             "@cpython//:lib_win",
         ],
         "@platforms//os:linux": [
-            "@cpython//:python_unix_shared",
+            "@cpython//:headers",
         ],
         "@platforms//os:macos": [
-            "@cpython//:python_unix_shared",
+            "@cpython//:headers",
         ],
     }),
 )
