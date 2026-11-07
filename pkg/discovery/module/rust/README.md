@@ -25,10 +25,12 @@ The static library will be located at `target/release/libdd_discovery.a`.
 
 #### FFI Interface
 
-The library exposes two C-compatible functions defined in `src/ffi.rs`:
+The library exposes C-compatible functions defined in `src/ffi.rs`:
 
 - `dd_discovery_get_services()` - Runs service discovery and returns results
 - `dd_discovery_free()` - Frees memory allocated by `dd_discovery_get_services()`
+- `dd_discovery_init_logger()` - Forwards the library's logs to a callback
+- `dd_privileged_logs_open()` - Opens a log file for the privileged logs module
 
 The C header file is located at `include/dd_discovery.h` and is auto-generated
 from the Rust FFI types using [cbindgen](https://github.com/mozilla/cbindgen).
