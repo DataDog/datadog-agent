@@ -34,6 +34,7 @@ type injectionSourceName string
 const (
 	injectionSourceAnnotation             injectionSourceName = "annotation"
 	injectionSourceDatadogInstrumentation injectionSourceName = "datadog-instrumentation"
+	injectionSourceOTelOperator           injectionSourceName = "opentelemetry-operator"
 	injectionSourceRemoteConfig           injectionSourceName = "remote-config"
 	injectionSourceGPU                    injectionSourceName = "gpu"
 	injectionSourceAPMBasic               injectionSourceName = "apm-basic"
@@ -58,12 +59,16 @@ func hasAllowedTracerConfigPrefix(name string) bool {
 
 // sourceAction distinguishes a source that has no opinion from an explicit
 // injection or denial. A denial is decisive and blocks lower-priority sources.
+// A veto is not decisive while sources are evaluated and never decides the SSI
+// mode: its plan is used only when a lower-priority source that is not an
+// explicit opt-in would inject the pod and nothing else decides.
 type sourceAction uint8
 
 const (
 	sourcePass sourceAction = iota
 	sourceInject
 	sourceDeny
+	sourceVeto
 )
 
 type sourceResult struct {
@@ -78,7 +83,10 @@ type injectionSource interface {
 type injectionSourceEntry struct {
 	name              injectionSourceName
 	determinesSSIMode bool
-	source            injectionSource
+	// explicitOptIn marks sources that only match pods carrying a per-pod
+	// Datadog opt-in label. A veto does not apply to them.
+	explicitOptIn bool
+	source        injectionSource
 }
 
 // injectionPlan describes the libraries and tracer configuration selected
@@ -89,9 +97,13 @@ type injectionPlan struct {
 	tracerEnvVars             []corev1.EnvVar
 	appliedMetadataJSON       string
 	languageDetectionEligible bool
-	// blocked is true when a remote-config policy denied injection. The plan is
-	// retained so the mutator can record the blocking policy on the pod.
+	// blocked is true when a remote-config policy denied injection or a veto
+	// stopped it. The plan is retained so the mutator can record the outcome on
+	// the pod.
 	blocked bool
+	// skipReason explains why a veto stopped injection. The mutator records it
+	// as a skipped injection instead of a policy block.
+	skipReason string
 }
 
 // policySource keeps matcher policies aligned with injection plans by index.

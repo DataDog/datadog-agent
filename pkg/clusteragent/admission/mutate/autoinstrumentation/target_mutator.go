@@ -102,6 +102,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		containerRegistry: config.containerRegistry,
 		defaultLibraries:  defaultLibraries,
 	}
+	otelSource := &otelOperatorSource{enabled: config.Instrumentation.SkipOTelOperatorPods}
 	remoteSource := &remotePolicySource{
 		config:           config,
 		wmeta:            wmeta,
@@ -125,9 +126,12 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		sources: []injectionSourceEntry{
 			{name: injectionSourceAnnotation, source: annotationSource},
 			{name: injectionSourceDatadogInstrumentation, determinesSSIMode: true, source: ddiSource},
+			// Vetoes the sources below, except explicit opt-ins, for pods that
+			// request instrumentation from the OpenTelemetry Operator.
+			{name: injectionSourceOTelOperator, source: otelSource},
 			{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: remoteSource},
-			{name: injectionSourceGPU, determinesSSIMode: true, source: gpuSource},
-			{name: injectionSourceAPMBasic, determinesSSIMode: true, source: apmBasicSource},
+			{name: injectionSourceGPU, determinesSSIMode: true, explicitOptIn: true, source: gpuSource},
+			{name: injectionSourceAPMBasic, determinesSSIMode: true, explicitOptIn: true, source: apmBasicSource},
 			{name: injectionSourceStatic, determinesSSIMode: true, source: staticSource},
 			{name: injectionSourceInjectAll, determinesSSIMode: true, source: injectAllSource},
 		},
@@ -200,6 +204,10 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	annotation.Set(pod, annotation.InjectionSource, string(resolved.selectedBy))
 
 	injection := resolved.plan
+	if injection.skipReason != "" {
+		recordSkippedInjection(pod, injection.skipReason)
+		return false, nil
+	}
 	if injection.blocked {
 		annotation.Set(pod, annotation.AppliedConfig, injection.appliedMetadataJSON)
 		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
@@ -245,6 +253,26 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	return true, nil
 }
 
+// recordSkippedInjection records why injection was skipped and logs it once. The
+// webhook can be reinvoked for the same pod, for instance after the
+// OpenTelemetry Operator's webhook mutates it, and resolves it the same way.
+func recordSkippedInjection(pod *corev1.Pod, reason string) {
+	alreadyRecorded := pod.Annotations[annotation.InjectionStatus] == annotation.InjectionStatusSkipped &&
+		pod.Annotations[annotation.InjectionError] == reason
+	annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusSkipped)
+	annotation.Set(pod, annotation.InjectionError, reason)
+	if alreadyRecorded {
+		return
+	}
+
+	podName := mutatecommon.PodString(pod)
+	if pod.GetName() == "" {
+		// Pods created by controllers only have a generated name prefix at admission time.
+		podName = fmt.Sprintf("%s in namespace %q", podName, pod.Namespace)
+	}
+	log.Infof("Skipping APM library injection for pod %s: %s", podName, reason)
+}
+
 func (m *TargetMutator) addAppliedMetadata(pod *corev1.Pod, resolved *injectionResolution) {
 	injection := resolved.plan
 	envVarName := AppliedTargetEnvVar
@@ -265,9 +293,9 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 	return m.getTarget(pod) != nil
 }
 
-// getTarget returns an injectable resolution. A remote-config denial is not
-// injectable, but resolveTarget still exposes it so MutatePod can record the
-// blocking policy on the pod.
+// getTarget returns an injectable resolution. A remote-config denial or a veto
+// is not injectable, but resolveTarget still exposes it so MutatePod can record
+// the outcome on the pod.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *injectionResolution {
 	resolved := m.resolveTarget(pod)
 	if resolved != nil && resolved.plan.blocked {
@@ -280,6 +308,12 @@ func (m *TargetMutator) getTarget(pod *corev1.Pod) *injectionResolution {
 // mode. The first decisive source selects the plan. The first decisive SSI
 // source independently selects the mode so annotations can override libraries
 // without hiding an underlying SSI match.
+//
+// A veto is remembered only while no plan is selected. Later sources that would
+// inject the pod are then skipped unless they are explicit opt-ins. If one was
+// skipped and no other source decides, the veto plan is selected so MutatePod
+// records the skip. Denials still apply, and a pod that no source would inject
+// is left untouched.
 func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	if _, disabled := m.disabledNamespaces[pod.Namespace]; disabled {
 		return nil
@@ -294,11 +328,26 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	var selectedBy injectionSourceName
 	selectionDecided := false
 	isSSI := false
+	var veto *sourceResult
+	var vetoBy injectionSourceName
+	vetoed := false
 
 	for _, entry := range m.sources {
 		result := entry.source.resolve(pod)
 		// An abstaining source has no matching plan, so move on to the next.
 		if result.action == sourcePass {
+			continue
+		}
+
+		// A veto neither selects a plan nor decides the SSI mode.
+		if result.action == sourceVeto {
+			if !selectionDecided && veto == nil {
+				veto, vetoBy = &result, entry.name
+			}
+			continue
+		}
+		if veto != nil && !selectionDecided && result.action == sourceInject && !entry.explicitOptIn {
+			vetoed = true
 			continue
 		}
 
@@ -323,6 +372,10 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 		if selectedBy != injectionSourceAnnotation {
 			break
 		}
+	}
+
+	if !selectionDecided && vetoed {
+		selected, selectedBy, selectionDecided = *veto, vetoBy, true
 	}
 
 	if !selectionDecided || selected.plan == nil {

@@ -3478,6 +3478,40 @@ func TestSkippedDueToResources(t *testing.T) {
 	}
 }
 
+// TestAutoinstrumentation_OTelOperatorPods verifies that the whole SSI webhook,
+// including the config and tags-from-labels mutators it bundles, leaves a pod
+// that requests instrumentation from the OpenTelemetry Operator untouched apart
+// from the skip metadata.
+func TestAutoinstrumentation_OTelOperatorPods(t *testing.T) {
+	mockConfig := common.FakeConfigWithValues(t, map[string]any{"apm_config.instrumentation.enabled": true})
+	mockConfig.SetInTest("admission_controller.auto_instrumentation.gradual_rollout.enabled", false)
+	webhook, err := autoinstrumentation.NewAutoInstrumentation(mockConfig, common.FakeStoreWithDeployment(t, nil), nil, false, nil, nil, nil)
+	require.NoError(t, err)
+
+	pod := common.FakePodSpec{
+		NS: defaultNamespace,
+		Labels: map[string]string{
+			"tags.datadoghq.com/env":     "prod",
+			"tags.datadoghq.com/service": "web",
+		},
+		Annotations: map[string]string{"instrumentation.opentelemetry.io/inject-java": "true"},
+	}.Create()
+	in := pod.DeepCopy()
+	mutated, err := webhook.MutatePod(in, in.Namespace, fake.NewSimpleDynamicClient(runtime.NewScheme()))
+	require.NoError(t, err)
+
+	require.False(t, mutated)
+	require.Equal(t, pod.Spec, in.Spec, "no library, config or tags mutation is expected")
+	validator := testutils.NewPodValidator(in, testutils.InjectionModeAuto)
+	validator.RequireNoInjection(t)
+	validator.RequireInjectionStatus(t, testutils.InjectionStatusSkipped)
+	validator.RequireMissingAnnotations(t, []string{testutils.AppliedConfigAnnotation})
+	require.Equal(t, "opentelemetry-operator", in.Annotations[testutils.InjectionSourceAnnotation])
+	require.Equal(t,
+		"pod requests instrumentation from the OpenTelemetry Operator (instrumentation.opentelemetry.io/inject-java=true)",
+		in.Annotations["internal.apm.datadoghq.com/injection-error"])
+}
+
 func newTestNamespace(name string, labels map[string]string) workloadmeta.KubernetesMetadata {
 	return workloadmeta.KubernetesMetadata{
 		EntityID: workloadmeta.EntityID{
