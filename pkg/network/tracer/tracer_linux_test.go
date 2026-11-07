@@ -35,6 +35,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
@@ -45,6 +46,8 @@ import (
 	vnetns "github.com/vishvananda/netns"
 	"go.uber.org/mock/gomock"
 	"go4.org/intern"
+	"golang.org/x/net/http2"
+	"golang.org/x/net/http2/hpack"
 	"golang.org/x/sys/unix"
 
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
@@ -4445,4 +4448,122 @@ func (s *TracerSuite) TestNetNSContainerAttribution() {
 		assert.Nil(collect, own.NetNSOriginalContainerID)
 		assert.NotEmpty(collect, own.Tags)
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// TestClassificationGRPCRouting checks that only HTTP2 flows reach the gRPC classifier: flows that leave the
+// application-layer programs (queues, dbs) without a match must not tail-call it.
+func (s *TracerSuite) TestClassificationGRPCRouting() {
+	t := s.T()
+	cfg := testConfig()
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+
+	tr := setupTracer(t, cfg)
+	progs, err := tr.GetMap(probes.ClassificationProgsMap)
+	require.NoError(t, err)
+
+	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(io.Discard, c)
+		_ = c.Close()
+	})
+	require.NoError(t, srv.Run())
+	t.Cleanup(srv.Shutdown)
+
+	t.Run("HTTP2 payload is classified as gRPC", func(t *testing.T) {
+		c, err := srv.Dial()
+		require.NoError(t, err)
+		defer c.Close()
+
+		var hdrs bytes.Buffer
+		enc := hpack.NewEncoder(&hdrs)
+		for _, f := range []hpack.HeaderField{
+			{Name: ":method", Value: "POST"},
+			{Name: ":path", Value: "/helloworld.Greeter/SayHello"},
+			{Name: "content-type", Value: "application/grpc"},
+		} {
+			require.NoError(t, enc.WriteField(f))
+		}
+		var msg bytes.Buffer
+		msg.WriteString(http2.ClientPreface)
+		framer := http2.NewFramer(&msg, nil)
+		require.NoError(t, framer.WriteSettings())
+		require.NoError(t, framer.WriteHeaders(http2.HeadersFrameParam{StreamID: 1, BlockFragment: hdrs.Bytes(), EndHeaders: true}))
+		_, err = c.Write(msg.Bytes())
+		require.NoError(t, err)
+
+		require.EventuallyWithT(t, func(collect *assert.CollectT) {
+			payload, cleanup := getConnections(collect, tr)
+			defer cleanup()
+			conn, ok := findConnection(c.LocalAddr(), c.RemoteAddr(), payload)
+			require.True(collect, ok, "connection not found")
+			require.Equal(collect, protocols.Stack{Application: protocols.HTTP2, API: protocols.GRPC}, conn.ProtocolStack)
+		}, 3*time.Second, 100*time.Millisecond)
+	})
+
+	t.Run("unclassified payload skips gRPC", func(t *testing.T) {
+		// Swap the gRPC program for a stub that counts how often it is tail-called. bpf_stats cannot be used
+		// here because tail-called programs are not accounted.
+		counter, err := ebpf.NewMap(&ebpf.MapSpec{Type: ebpf.Array, KeySize: 4, ValueSize: 8, MaxEntries: 1})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = counter.Close() })
+		stub, err := ebpf.NewProgram(&ebpf.ProgramSpec{
+			Type:    ebpf.SocketFilter,
+			License: "GPL",
+			Instructions: asm.Instructions{
+				asm.StoreImm(asm.RFP, -4, 0, asm.Word),
+				asm.Mov.Reg(asm.R2, asm.RFP),
+				asm.Add.Imm(asm.R2, -4),
+				asm.LoadMapPtr(asm.R1, counter.FD()),
+				asm.FnMapLookupElem.Call(),
+				asm.JEq.Imm(asm.R0, 0, "out"),
+				asm.Mov.Imm(asm.R1, 1),
+				asm.StoreXAdd(asm.R0, asm.R1, asm.DWord),
+				asm.Mov.Imm(asm.R0, 0).WithSymbol("out"),
+				asm.Return(),
+			},
+		})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = stub.Close() })
+
+		key := uint32(netebpf.ClassificationGRPC)
+		var origID uint32
+		require.NoError(t, progs.Lookup(key, &origID))
+		orig, err := ebpf.NewProgramFromID(ebpf.ProgramID(origID))
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = orig.Close() })
+		require.NoError(t, progs.Put(key, stub))
+		t.Cleanup(func() { assert.NoError(t, progs.Put(key, orig)) })
+
+		grpcCalls := func() uint64 {
+			var n uint64
+			require.NoError(t, counter.Lookup(uint32(0), &n))
+			return n
+		}
+
+		c, err := srv.Dial()
+		require.NoError(t, err)
+		defer c.Close()
+
+		// Prove the stub is reachable: an HTTP2 preface on a new connection routes the entrypoint to it.
+		h2, err := srv.Dial()
+		require.NoError(t, err)
+		defer h2.Close()
+		_, err = h2.Write([]byte(http2.ClientPreface))
+		require.NoError(t, err)
+		require.Eventually(t, func() bool { return grpcCalls() > 0 }, 3*time.Second, 50*time.Millisecond, "gRPC slot never reached")
+
+		const writes = 50
+		payload := bytes.Repeat([]byte{0xab}, 256)
+		before := grpcCalls()
+		for i := 0; i < writes; i++ {
+			_, err := c.Write(payload)
+			require.NoError(t, err)
+			time.Sleep(time.Millisecond)
+		}
+		time.Sleep(200 * time.Millisecond)
+		// Other HTTP2 traffic on the host can still reach the gRPC slot, so allow some slack. Without this
+		// routing rule every payload packet above also tail-calls it.
+		assert.Less(t, grpcCalls()-before, uint64(writes/2))
+	})
 }
