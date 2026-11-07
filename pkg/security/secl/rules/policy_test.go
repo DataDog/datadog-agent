@@ -3849,3 +3849,120 @@ rules:
           signal: SIGKILL
           scope: process
 `
+
+func TestOverrideSetActionConflictingPrivateFlag(t *testing.T) {
+	loader := &PolicyLoader{
+		Providers: []PolicyProvider{
+			dummyRCProvider{
+				dummyLoadPoliciesFunc: func() ([]*Policy, *multierror.Error) {
+					return testPoliciesToPolicies([]*testPolicyDef{
+						{
+							name:       DefaultPolicyName,
+							source:     PolicyProviderTypeRC,
+							policyType: DefaultPolicyType,
+							def: PolicyDef{
+								Rules: []*RuleDefinition{
+									{
+										ID:         "imds_v1_usage",
+										Expression: `open.file.path == "/tmp/test"`,
+										Disabled:   true,
+										Actions: []*ActionDefinition{
+											{
+												Set: &SetDefinition{
+													Name:         "imds_v1_usage_services",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      true,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:    "scoped_var",
+													Field:   "process.file.path",
+													Scope:   "process",
+													Append:  true,
+													Private: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+						{
+							name:       "custom.policy",
+							source:     PolicyProviderTypeRC,
+							policyType: CustomPolicyType,
+							def: PolicyDef{
+								Rules: []*RuleDefinition{
+									{
+										ID:         "imds_v1_usage",
+										Expression: `open.file.path == "/tmp/test"`,
+										Combine:    OverridePolicy,
+										OverrideOptions: OverrideOptions{
+											Fields: []OverrideField{OverrideActionFields},
+										},
+										Actions: []*ActionDefinition{
+											{
+												Set: &SetDefinition{
+													Name:         "imds_v1_usage_services",
+													Field:        "process.file.path",
+													DefaultValue: "",
+													Append:       true,
+													Private:      false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:    "scoped_var",
+													Field:   "process.file.path",
+													Scope:   "process",
+													Append:  true,
+													Private: false,
+												},
+											},
+											{
+												Set: &SetDefinition{
+													Name:   "scoped_var",
+													Field:  "process.file.path",
+													Scope:  "container",
+													Append: true,
+												},
+											},
+										},
+									},
+								},
+							},
+						},
+					})
+				},
+			},
+		},
+	}
+
+	rs := newRuleSet()
+	_, errs := rs.LoadPolicies(loader, PolicyLoaderOpts{})
+	require.NoError(t, errs.ErrorOrNil())
+
+	rule := rs.GetRuleByID("imds_v1_usage")
+	require.NotNil(t, rule)
+	require.Len(t, rule.Def.Actions, 3)
+	require.Len(t, rule.Actions, 3)
+	assert.True(t, rule.Def.Actions[0].Set.Private)
+	assert.True(t, rule.Def.Actions[1].Set.Private)
+	assert.Equal(t, Scope("container"), rule.Def.Actions[2].Set.Scope)
+
+	globalVar := rs.GetVariableStore().Get("imds_v1_usage_services")
+	require.NotNil(t, globalVar)
+	assert.True(t, globalVar.GetVariableOpts().Private)
+
+	processVar := rs.GetVariableStore().Get("process.scoped_var")
+	require.NotNil(t, processVar)
+	assert.True(t, processVar.GetVariableOpts().Private)
+
+	containerVar := rs.GetVariableStore().Get("container.scoped_var")
+	require.NotNil(t, containerVar)
+	assert.False(t, containerVar.GetVariableOpts().Private)
+}
+
