@@ -182,9 +182,11 @@ cc_library(
     linkopts = select({
         "@platforms//os:windows": [
             "-static-libgcc",
-            "-Wl,-Bstatic,--whole-archive",
+            "-Wl,-Bstatic",
+            "-Wl,--whole-archive",
             "-lwinpthread",
-            "-Wl,--no-whole-archive,-Bdynamic",
+            "-Wl,--no-whole-archive",
+            "-Wl,-Bdynamic",
         ],
         "//conditions:default": [],
     }),

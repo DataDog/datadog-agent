@@ -55,7 +55,11 @@ RC_X509_BUILD_FILES_INSTALL = "@libdd_rc_source//:install_rc_x509_ffi_build_file
 # On Windows the Rust library needs MinGW's libgcc unwinder and winpthread, which
 # would otherwise link as DLLs the Agent doesn't ship. Link them statically; keep
 # in sync with rc_x509_ffi_cc's linkopts in deps/libdd_rc/libdd_rc.BUILD.bazel.
-RC_X509_WINDOWS_LDFLAGS = "-static-libgcc -Wl,-Bstatic,--whole-archive -lwinpthread -Wl,--no-whole-archive,-Bdynamic"
+RC_X509_WINDOWS_LDFLAGS = (
+    "-static-libgcc -Wl,-Bstatic -Wl,--whole-archive -lwinpthread -Wl,--no-whole-archive -Wl,-Bdynamic"
+)
+# Go's cgo flag allowlist doesn't include --whole-archive.
+RC_X509_WINDOWS_LDFLAGS_ALLOW = "-Wl,--(no-)?whole-archive"
 
 
 def rc_x509_supported(target_platform):
@@ -92,6 +96,10 @@ def add_rc_x509_cgo_flags(env, native_embedded_path, target_platform):
     env["CGO_LDFLAGS"] = env.get("CGO_LDFLAGS", "") + f" -L{os.path.join(native_embedded_path, 'lib')}"
     if target_platform == "win32":
         env["CGO_LDFLAGS"] += f" {RC_X509_WINDOWS_LDFLAGS}"
+        allow = env.get("CGO_LDFLAGS_ALLOW")
+        env["CGO_LDFLAGS_ALLOW"] = (
+            f"(?:{allow})|(?:{RC_X509_WINDOWS_LDFLAGS_ALLOW})" if allow else RC_X509_WINDOWS_LDFLAGS_ALLOW
+        )
 
 
 @task

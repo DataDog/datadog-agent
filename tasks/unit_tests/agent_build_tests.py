@@ -6,6 +6,7 @@ from invoke.exceptions import Exit
 
 from tasks.agent import (
     RC_X509_WINDOWS_LDFLAGS,
+    RC_X509_WINDOWS_LDFLAGS_ALLOW,
     add_rc_x509_cgo_flags,
     install_rc_x509_build_files,
     needs_rc_x509_build_files,
@@ -104,6 +105,16 @@ class TestRCX509BuildInputs(unittest.TestCase):
         add_rc_x509_cgo_flags(env, native_embedded_path, "win32")
 
         self.assertEqual(env["CGO_LDFLAGS"], f" -L{native_embedded_path}/lib {RC_X509_WINDOWS_LDFLAGS}")
+        self.assertEqual(env["CGO_LDFLAGS_ALLOW"], RC_X509_WINDOWS_LDFLAGS_ALLOW)
+
+    def test_keeps_existing_cgo_ldflags_allow_on_windows(self):
+        env = {"CGO_LDFLAGS_ALLOW": "-Wl,--allow-multiple-definition"}
+
+        add_rc_x509_cgo_flags(env, os.path.join(os.sep, "tmp", "agent", "embedded"), "win32")
+
+        self.assertEqual(
+            env["CGO_LDFLAGS_ALLOW"], f"(?:-Wl,--allow-multiple-definition)|(?:{RC_X509_WINDOWS_LDFLAGS_ALLOW})"
+        )
 
     def test_needs_build_files_when_rc_x509_tag_is_set(self):
         self.assertTrue(needs_rc_x509_build_files({"rc_x509", "zlib"}, "linux", enable_bazel=False))
