@@ -47,7 +47,7 @@ func TestRoleHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewRoleHandlers(tagger)
 
-	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -117,16 +117,16 @@ func TestRoleHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify raw informer references are returned
+	// Verify deep copy was made
 	resource1, ok := resources[0].(*rbacv1.Role)
 	assert.True(t, ok)
 	assert.Equal(t, "test-role", resource1.Name)
-	assert.Same(t, role1, resource1) // ResourceList returns raw informer references
+	assert.NotSame(t, role1, resource1) // Should be a copy
 
 	resource2, ok := resources[1].(*rbacv1.Role)
 	assert.True(t, ok)
 	assert.Equal(t, "role2", resource2.Name)
-	assert.Same(t, role2, resource2) // ResourceList returns raw informer references
+	assert.NotSame(t, role2, resource2) // Should be a copy
 }
 
 func TestRoleHandlers_ResourceUID(t *testing.T) {
@@ -407,14 +407,4 @@ func createTestRole() *rbacv1.Role {
 			},
 		},
 	}
-}
-
-func TestRoleHandlers_CloneResource(t *testing.T) {
-	handlers := &RoleHandlers{}
-	original := createTestRole()
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*rbacv1.Role)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }
