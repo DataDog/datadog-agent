@@ -604,6 +604,19 @@ exit 98
                     self.assertIn('split mode from config', output)
                     self.assertNotIn('split=false', output)
 
+    def test_upstart_unrelated_definition_does_not_select_split_mode(self):
+        for template in UPSTART_TEMPLATES:
+            with self.subTest(template=template.name):
+                result, output, _ = self.run_upstart(
+                    template,
+                    procmgr_installed=True,
+                    installer_defaults=INSTALLER_OPT_OUT,
+                    extra_processes=('custom.yaml',),
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn('monolithic mode', output)
+                self.assertIn('split=false', output)
+
     def test_upstart_admin_procmgr_defaults_override_the_installer_opt_out(self):
         for template in UPSTART_TEMPLATES:
             with self.subTest(template=template.name):

@@ -525,10 +525,14 @@ exec "$@"
         self.assertIn(UPSTART_RUNTIME_DIR, redhat_pre_start)
         self.assertNotIn(UPSTART_RUNTIME_DIR, upstart_main_block(UPSTART_REDHAT))
 
-    def sysv_harness(self, configured=True, setpriv=True):
+    def sysv_harness(self, configured=True, setpriv=True, admin_defaults=None, extra_processes=()):
         """Render the procmgr SysV script with a fake start-stop-daemon that records its calls."""
         root = Path(tempfile.mkdtemp(dir=self.root))
         layout = Layout(root)
+        if admin_defaults is not None:
+            admin = root / 'default' / 'datadog-agent-procmgr'
+            admin.parent.mkdir(parents=True, exist_ok=True)
+            admin.write_text(admin_defaults)
         commands = root / 'commands'
         started = root / 'started'
         calls = root / 'calls'
@@ -552,6 +556,8 @@ exit 90
         if not configured:
             for path in (layout.install / 'processes.d').glob('*'):
                 path.unlink()
+        for name in extra_processes:
+            (layout.install / 'processes.d' / name).write_text('command: /bin/true\n')
         runtime = root / 'var-run' / 'datadog-procmgrd'
         script = render(SYSV_PROCMGR.read_text(), layout.install, layout.etc)
         script = script.replace('. /lib/lsb/init-functions', f'. "{init_functions}"')
@@ -632,6 +638,23 @@ exit 90
         self.assertEqual(calls, ['--stop as_agent=yes'])
         self.assertFalse(pidfile.exists())
         self.assertFalse(started.exists())
+
+    def test_sysv_start_follows_definitions_and_the_admin_file(self):
+        cases = (
+            ('definitions present', True, (), None, True),
+            ('empty catalog', False, (), None, False),
+            ('stray definition only', False, ('custom.yml',), None, True),
+            ('admin disables', True, (), 'DATADOG_ENABLED=no\n', False),
+            ('admin enables', False, (), 'DATADOG_ENABLED=yes\n', True),
+        )
+        for name, configured, extra, admin, should_start in cases:
+            with self.subTest(name):
+                run, started, _ = self.sysv_harness(configured=configured, admin_defaults=admin, extra_processes=extra)
+                result, calls = run('start')
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertEqual(started.exists(), should_start)
+                self.assertEqual('--start as_agent=no' in calls, should_start)
+                self.assertEqual('Disabled via process manager configuration' in result.stdout, not should_start)
 
     def test_sysv_start_fails_when_runtime_dir_cannot_be_created(self):
         layout = Layout(self.root)
