@@ -301,6 +301,7 @@ properties:
         properties:
           api_key:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
             env_vars:

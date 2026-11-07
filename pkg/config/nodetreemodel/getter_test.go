@@ -12,6 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGet(t *testing.T) {
@@ -354,4 +355,29 @@ func TestGetEnvVars(t *testing.T) {
 
 	// testing that duplicate are removed and result is sorted
 	assert.Equal(t, []string{"ABC", "D", "DEF", "TEST_X"}, cfg.GetEnvVars())
+}
+
+func TestSensitive(t *testing.T) {
+	cfg := NewNodeTreeConfig("test", model.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
+
+	cfg.BindEnvAndSetDefault("api_key", "", "TEST_API_KEY", "TEST_OTHER_API_KEY")
+	cfg.BindEnvAndSetDefault("logs.api_key", "")
+	cfg.BindEnvAndSetDefault("site", "")
+	cfg.SetSensitive("api_key")
+	cfg.SetSensitive("Logs.API_Key")
+	cfg.BuildSchema()
+
+	require.True(t, cfg.IsSensitive("api_key"))
+	require.True(t, cfg.IsSensitive("LOGS.api_key"))
+	require.False(t, cfg.IsSensitive("site"))
+	require.False(t, cfg.IsSensitive("unknown"))
+	require.Equal(t,
+		[]string{"TEST_SITE", "UNKNOWN"},
+		cfg.FilterSensitiveEnvVars([]string{"TEST_SITE", "TEST_OTHER_API_KEY", "test_logs_api_key", "UNKNOWN", "TEST_API_KEY"}),
+	)
+	require.Empty(t, cfg.FilterSensitiveEnvVars([]string{"TEST_API_KEY", "test_logs_api_key"}))
+
+	assert.Panics(t, func() { cfg.SetSensitive("site") })
+	assert.False(t, cfg.IsSensitive("site"))
 }
