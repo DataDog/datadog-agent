@@ -546,8 +546,8 @@ namespace WixSetup.Datadog_Agent
                 StartOn = null,
                 // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                 StopOn = null,
-                Start = SvcStartType.auto,
-                DelayedAutoStart = true,
+                // StartDDServices sets automatic delayed start after configuration is safe.
+                Start = SvcStartType.disabled,
                 RemoveOn = SvcEvent.Uninstall_Wait,
                 ServiceSid = ServiceSid.none,
                 FirstFailureActionType = FailureActionType.restart,
@@ -708,6 +708,7 @@ namespace WixSetup.Datadog_Agent
                 "Manage Datadog agent processes",
                 "LocalSystem",
                 null);
+            procmgrService.Start = SvcStartType.disabled;
             agentBinDir.AddFile(new WixSharp.File(_agentBinaries.ProcmgrService, procmgrService));
             agentBinDir.Add(new EventSource
             {
@@ -746,7 +747,7 @@ namespace WixSetup.Datadog_Agent
                         // Tell MSI not to stop the services. We handle service stop manually in StopDDServices custom action.
                         StopOn = null,
                         RemoveOn = SvcEvent.Uninstall_Wait,
-                        Start = SvcStartType.demand,
+                        Start = SvcStartType.disabled,
                         ServiceSid = ServiceSid.none,
                         FirstFailureActionType = FailureActionType.restart,
                         SecondFailureActionType = FailureActionType.restart,

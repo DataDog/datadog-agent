@@ -100,3 +100,14 @@ runs as its own parallel job via the `E2E_MSI_TEST` matrix (see parent
    Go wrappers (services, registry, ACL, event logs) before writing one-off
    PowerShell commands. Use `s.newTester(vm)` for post-install/uninstall
    validation.
+
+## Service protection upgrade coverage
+
+`TestUpgradeServiceProtection` uses the current MSI and its same-pipeline
+`-upgrade-test` MSI (override with `UPGRADE_AGENT_MSI_URL`). Both packages must
+contain the service-protection fix. Test-only copies are instrumented with
+deferred startup-setting observations and WiX failure checkpoints; production
+custom actions retain their relative order. The scenarios cover old-product
+removal failure, incoming configuration failure, failure after enabling services,
+and successful upgrade. Do not substitute a released old MSI: that tests
+compatibility, not the outgoing product's new rollback behavior.

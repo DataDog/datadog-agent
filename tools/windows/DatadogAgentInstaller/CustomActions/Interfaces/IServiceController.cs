@@ -11,6 +11,7 @@ namespace Datadog.CustomActions.Interfaces
         IReadOnlyList<IWindowsService> Services { get; }
         void SetCredentials(string serviceName, string username, string password);
         void SetStartType(string serviceName, ServiceStartMode startType);
+        void SetDelayedAutoStart(string serviceName, bool delayed);
         void StopService(string serviceName, TimeSpan timeout);
         void StartService(string serviceName, TimeSpan timeout);
         public CommonSecurityDescriptor GetAccessSecurity(string serviceName);

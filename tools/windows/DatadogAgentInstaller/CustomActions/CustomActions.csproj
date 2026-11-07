@@ -92,6 +92,7 @@
     <Compile Include="PrerequisitesCustomActions.cs" />
     <Compile Include="Rollback\InstallerPackageRollback.cs" />
     <Compile Include="Rollback\ServicePermissionRollbackData.cs" />
+    <Compile Include="Rollback\ServiceStartupRollbackData.cs" />
     <Compile Include="Rollback\RestoreDaclRollbackCustomAction.cs" />
     <Compile Include="Rollback\FilePermissionRollbackData.cs" />
     <Compile Include="Rollback\FileStorageRollbackData.cs" />

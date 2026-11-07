@@ -48,9 +48,11 @@ dd_agent_go_test(
         "npm_test.go",
         "persisting_integrations_test.go",
         "procmgr_localsystem_test.go",
+        "service_startup_upgrade_test.go",
         "upgrade_test.go",
     ],
     embed = [":install-test"],
+    embedsrcs = ["fixtures/service-startup-checkpoints.ps1"],
     tags = ["manual"],
     deps = [
         "//test/e2e-framework/testing/components",
