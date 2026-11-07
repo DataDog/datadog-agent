@@ -243,7 +243,7 @@ func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) (*types.Comma
 	}
 	cmd := c.prof.Commands.GetRunning
 	if cmd == nil {
-		return nil, fmt.Errorf("no get_running command for profile %q", c.prof.Name)
+		return nil, fmt.Errorf("%w: no get_running command for profile %q", types.ErrCommandNotSupported, c.prof.Name)
 	}
 	return c.execute(ctx, cmd)
 }
@@ -255,7 +255,7 @@ func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*types.Comma
 	}
 	cmd := c.prof.Commands.GetStartup
 	if cmd == nil {
-		return nil, fmt.Errorf("no get_startup command for profile %q", c.prof.Name)
+		return nil, fmt.Errorf("%w: no get_startup command for profile %q", types.ErrCommandNotSupported, c.prof.Name)
 	}
 	return c.execute(ctx, cmd)
 }
