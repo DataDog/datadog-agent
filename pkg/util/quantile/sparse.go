@@ -67,7 +67,7 @@ func (s *Sketch) Reset() {
 
 // GetRawBins return raw bins information as string
 func (s *Sketch) GetRawBins() (int, string) {
-	return s.count, strings.Replace(s.bins.String(), "\n", "", -1)
+	return int(s.count), strings.Replace(s.bins.String(), "\n", "", -1)
 }
 
 // Insert a single value into the sketch.
@@ -134,7 +134,7 @@ func (s *Sketch) Quantile(c *Config, q float64) float64 {
 	return s.Basic.Max
 }
 
-func rank(count int, q float64) float64 {
+func rank(count uint64, q float64) float64 {
 	return math.RoundToEven(q * float64(count-1))
 }
 
