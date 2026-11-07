@@ -115,8 +115,10 @@ func (s *windowsPARSplitLifecycleSuite) SetupSuite() {
 
 	_, err = s.Env().RemoteHost.Execute(`[Environment]::SetEnvironmentVariable('DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS', 'true', 'Machine')`)
 	s.Require().NoError(err)
-	s.Require().NoError(s.runProcmgr("stop", parControlProcess))
-	s.waitForProcessState(parControlProcess, "Stopped", 30*time.Second)
+	// Fresh on-demand registrations are already idle; retries may leave a running child.
+	// This suite starts PAR explicitly to test its lifecycle, not core's permission gate.
+	_ = s.runProcmgr("stop", parControlProcess)
+	s.waitForProcessStates(parControlProcess, []string{"Created", "Skipped", "Stopped"}, 30*time.Second)
 	_ = s.runProcmgr("stop", parExecutorProcess)
 	s.waitForProcessStates(parExecutorProcess, []string{"Created", "Skipped", "Stopped", "Exited", "Failed"}, 30*time.Second)
 	s.Require().NoError(s.runProcmgr("start", parControlProcess))

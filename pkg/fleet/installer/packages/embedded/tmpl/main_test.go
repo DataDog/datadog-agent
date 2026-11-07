@@ -83,6 +83,24 @@ func TestPARInitialStartupIsCoreOwned(t *testing.T) {
 	assert.Contains(t, string(control), "\nrestart_max_delay_sec: 300\n")
 }
 
+func TestWindowsPARInitialStartupIsCoreOwned(t *testing.T) {
+	for _, tc := range []struct{ name, restart string }{
+		{"datadog-agent-par-control.yaml", "on-failure"},
+		{"datadog-agent-action-executor.yaml", "never"},
+	} {
+		process, err := fs.ReadFile(genFS, "gen/windows/"+tc.name)
+		assert.NoError(t, err)
+		assert.Contains(t, string(process), "\nauto_start: false\n")
+		assert.Contains(t, string(process), "\nrestart: "+tc.restart+"\n")
+		assert.Contains(t, string(process), `\\.\pipe\dd-par-executor`)
+		assert.Contains(t, string(process), "ipc_cert.pem")
+	}
+	control, err := fs.ReadFile(genFS, "gen/windows/datadog-agent-par-control.yaml")
+	assert.NoError(t, err)
+	assert.Contains(t, string(control), "\nruntime_success_sec: 60\n")
+	assert.Contains(t, string(control), "\nrestart_max_delay_sec: 300\n")
+}
+
 func TestParControlUsesActiveConfigDirForFleetPolicies(t *testing.T) {
 	process, err := fs.ReadFile(genFS, "gen/pm/processes.d/datadog-agent-par-control.yaml")
 	assert.NoError(t, err)

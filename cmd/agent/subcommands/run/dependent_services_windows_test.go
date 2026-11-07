@@ -143,6 +143,33 @@ func TestServicedefIsEnabled_procmgrManagedServices(t *testing.T) {
 	}
 }
 
+func TestPARStartupNeverFallsBackAroundPermissionGate(t *testing.T) {
+	for _, definitionExists := range []bool{false, true} {
+		for _, procmgrStarted := range []bool{false, true} {
+			cfg := configmock.New(t)
+			cfg.SetInTest("private_action_runner.enabled", true)
+			cfg.SetInTest("private_action_runner.split_enabled", true)
+			cfg.SetInTest("process_manager.enabled", true)
+			cfg.SetInTest("fips.enabled", false)
+			service, ok := findService(subservices(cfg, configmock.NewSystemProbe(t)), "private-action-runner")
+			require.True(t, ok)
+			root := t.TempDir()
+			if definitionExists {
+				root = writeProcmgrDefinitionFile(t, parProcmgrDefinitionFile)
+			}
+			withProcmgrInstallRoot(t, root, func() {
+				require.False(t, service.IsEnabled(true, procmgrStarted), "missing definitions or supervisor failure must not launch legacy PAR")
+				cfg.SetInTest("private_action_runner.split_enabled", false)
+				require.Equal(t, !(definitionExists && procmgrStarted), service.IsEnabled(true, procmgrStarted), "explicit monolithic mode retains legacy policy")
+				cfg.SetInTest("process_manager.enabled", false)
+				require.True(t, service.IsEnabled(false, false), "PM opt-out retains legacy startup")
+				cfg.SetInTest("private_action_runner.enabled", false)
+				require.False(t, service.IsEnabled(false, false), "PAR opt-out stays off")
+			})
+		}
+	}
+}
+
 func TestAPMServicedefMatchesIsAPMEnabled(t *testing.T) {
 	coreConf := configmock.New(t)
 	sysprobeConf := configmock.NewSystemProbe(t)
