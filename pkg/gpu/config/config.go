@@ -18,6 +18,7 @@ import (
 
 // Config holds the configuration for the GPU monitoring probe.
 type Config struct {
+	Resources ResourcesConfig
 	// DisabledCollectors lists Agent GPU collectors that should not be created.
 	DisabledCollectors []string
 	// NVLinkFECLightErrorThreshold is the maximum corrected-error count classified as light.
@@ -78,6 +79,12 @@ type Config struct {
 	JobsConfig JobsConfig
 	// TracingConfig configures the tracers injected into GPU workloads.
 	TracingConfig TracingConfig
+}
+
+// ResourcesConfig controls GPU inventory publication.
+type ResourcesConfig struct {
+	Enabled bool
+	TTL     time.Duration
 }
 
 // StreamConfig is the configuration for the streams.
@@ -174,6 +181,10 @@ func New() *Config {
 	spCfg := pkgconfigsetup.SystemProbe()
 	agentCfg := pkgconfigsetup.Datadog()
 	return &Config{
+		Resources: ResourcesConfig{
+			Enabled: agentCfg.GetBool("gpu.resources.enabled"),
+			TTL:     agentCfg.GetDuration("gpu.resources.ttl"),
+		},
 		DisabledCollectors:             agentCfg.GetStringSlice("gpu.disabled_collectors"),
 		NVLinkFECLightErrorThreshold:   agentCfg.GetInt("gpu.nvlink.fec_light_error_threshold"),
 		LegacySMActive:                 agentCfg.GetBool("gpu.legacy_sm_active"),

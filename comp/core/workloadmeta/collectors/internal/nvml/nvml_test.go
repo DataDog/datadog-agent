@@ -30,6 +30,7 @@ import (
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
+	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 )
 
 type recordingDeviceCache struct {
@@ -273,8 +274,8 @@ func TestPullNUMANodeFromSysfs(t *testing.T) {
 func TestPlatformFabricGUID(t *testing.T) {
 	// Bytes as returned on a GB200 GPU; nvidia-smi shows "GPU Fabric GUID: 0x8505c454f59170d4".
 	info := nvml.PlatformInfo{IbGuid: [16]uint8{0xd4, 0x70, 0x91, 0xf5, 0x54, 0xc4, 0x05, 0x85}}
-	require.Equal(t, "0x8505c454f59170d4", platformFabricGUID(info))
-	require.Empty(t, platformFabricGUID(nvml.PlatformInfo{}))
+	require.Equal(t, "0x8505c454f59170d4", gpuutil.PlatformFabricGUID(info))
+	require.Empty(t, gpuutil.PlatformFabricGUID(nvml.PlatformInfo{}))
 }
 
 func TestPullPlatformInfoHGXB200(t *testing.T) {
@@ -308,9 +309,9 @@ func TestPullPlatformInfoHGXB200(t *testing.T) {
 func TestPlatformChassisSerial(t *testing.T) {
 	var padded [16]uint8
 	copy(padded[:], "1821825880999")
-	require.Equal(t, "1821825880999", platformChassisSerial(nvml.PlatformInfo{ChassisSerialNumber: padded}))
+	require.Equal(t, "1821825880999", gpuutil.PlatformChassisSerial(nvml.PlatformInfo{ChassisSerialNumber: padded}))
 	// Non-rack systems report an empty serial, e.g. HGX H100 where only the module ID is set.
-	require.Empty(t, platformChassisSerial(nvml.PlatformInfo{HostId: 1, ModuleId: 3}))
+	require.Empty(t, gpuutil.PlatformChassisSerial(nvml.PlatformInfo{HostId: 1, ModuleId: 3}))
 }
 
 func TestFabricInfoToTags(t *testing.T) {
@@ -364,7 +365,7 @@ func TestFabricInfoToTags(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			clusterID, cliqueID, available := fabricInfoToTags(tt.fabricInfo)
+			clusterID, cliqueID, available := gpuutil.FabricInfoToTags(tt.fabricInfo)
 			require.Equal(t, tt.expectedClusterID, clusterID)
 			require.Equal(t, tt.expectedCliqueID, cliqueID)
 			require.Equal(t, tt.expectedAvailable, available)
@@ -375,7 +376,7 @@ func TestFabricInfoToTags(t *testing.T) {
 func TestFabricClusterUUIDFromNVMLInfo(t *testing.T) {
 	clusterUUID := [16]uint8{0x00, 0x11, 0x22, 0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xaa, 0xbb, 0xcc, 0xdd, 0xee, 0xff}
 
-	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff", fabricClusterUUIDFromNVMLInfo(clusterUUID))
+	require.Equal(t, "00112233-4455-6677-8899-aabbccddeeff", gpuutil.FabricClusterUUIDFromNVMLInfo(clusterUUID))
 }
 
 func TestGpuProcessInfoUpdate(t *testing.T) {
@@ -489,6 +490,36 @@ func TestPullKeepsLostGPU(t *testing.T) {
 		require.Equal(t, before.FabricCliqueID, after.FabricCliqueID, "pull %d", pull)
 		require.Equal(t, before.MaxClockRates, after.MaxClockRates, "pull %d", pull)
 	}
+}
+
+func TestFillNVMLAttributesDetectsLossAfterEnumeration(t *testing.T) {
+	lost := false
+	mock := nvmltestutil.SetupMockNVML(t,
+		testutil.WithDeviceCount(1),
+		testutil.WithDeviceOptions(0, testutil.WithCustomHook(func(d *testutil.MockDevice) {
+			getVirtualizationMode := d.GetVirtualizationModeFunc
+			d.GetVirtualizationModeFunc = func() (nvml.GpuVirtualizationMode, nvml.Return) {
+				if lost {
+					return 0, nvml.ERROR_GPU_IS_LOST
+				}
+				return getVirtualizationMode()
+			}
+		})),
+	)
+	device, err := ddnvml.NewPhysicalDevice(mock.Device(0))
+	require.NoError(t, err)
+	c := newTestCollector(t, nil)
+	id := workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: device.UUID}
+	c.lastPublishedGPUs[device.UUID] = &workloadmeta.GPU{
+		VirtualizationMode: "none", MemoryBusWidth: 256,
+	}
+
+	lost = true
+	gpu := &workloadmeta.GPU{EntityID: id}
+	c.fillNVMLAttributes(gpu, device)
+	require.True(t, gpu.Lost)
+	require.Equal(t, "none", gpu.VirtualizationMode)
+	require.Equal(t, uint32(256), gpu.MemoryBusWidth)
 }
 
 func TestProcessEntities(t *testing.T) {

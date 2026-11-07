@@ -8,9 +8,7 @@
 package nvml
 
 import (
-	"bytes"
 	"context"
-	"encoding/binary"
 	"errors"
 	"fmt"
 	"maps"
@@ -136,8 +134,9 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 		physicalDevice = migDevice.Parent
 	}
 
-	gpuDeviceInfo.PCIBusID = physicalDevice.GetDeviceInfo().PCIBusID
-
+	info := physicalDevice.GetDeviceInfo()
+	gpuDeviceInfo.PCIBusID = info.PCIBusID
+	gpuDeviceInfo.DriverVersion = info.DriverVersion
 	virtMode, err := physicalDevice.GetVirtualizationMode()
 	if ddnvml.IsGPULost(err) {
 		gpuDeviceInfo.Lost = true
@@ -164,22 +163,19 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	} else {
 		gpuDeviceInfo.VirtualizationMode = gpuutil.VirtualizationModeToString(virtMode)
 	}
-
-	memBusWidth, err := device.GetMemoryBusWidth()
-	if err != nil {
-		if logLimiter.ShouldLog() {
-			log.Warnf("%v for %d", err, gpuDeviceInfo.Index)
-		}
-	} else {
-		gpuDeviceInfo.MemoryBusWidth = memBusWidth
-	}
-
-	fabricInfo, err := physicalDevice.GetGpuFabricInfo()
-	if err == nil {
-		if clusterUUID, cliqueID, ok := fabricInfoToTags(fabricInfo); ok {
-			gpuDeviceInfo.FabricClusterUUID = clusterUUID
-			gpuDeviceInfo.FabricCliqueID = cliqueID
-		}
+	gpuDeviceInfo.MemoryBusWidth = device.GetDeviceInfo().MemoryBusWidth
+	gpuDeviceInfo.FabricClusterUUID = info.FabricClusterUUID
+	gpuDeviceInfo.FabricCliqueID = info.FabricCliqueID
+	gpuDeviceInfo.FabricGUID = info.FabricGUID
+	// Only expose rack-scale placement and board identity when a chassis is
+	// identified. Without a chassis serial, zero-filled NVML placement fields
+	// do not establish a location.
+	if info.ChassisSerial != "" {
+		gpuDeviceInfo.ChassisSerial = info.ChassisSerial
+		gpuDeviceInfo.SlotNumber = info.SlotNumber
+		gpuDeviceInfo.TrayIndex = info.TrayIndex
+		gpuDeviceInfo.ModuleID = info.ModuleID
+		gpuDeviceInfo.BoardSerial = info.BoardSerial
 	}
 
 	numaNode, err := physicalDevice.GetNumaNodeId()
@@ -189,20 +185,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 	if err == nil && numaNode >= 0 {
 		gpuDeviceInfo.NUMANode = &numaNode
-	}
-
-	// Platform info is only populated on rack-scale systems; other GPUs report an empty chassis serial.
-	if platformInfo, err := physicalDevice.GetPlatformInfo(); err == nil {
-		gpuDeviceInfo.FabricGUID = platformFabricGUID(platformInfo)
-		if chassisSerial := platformChassisSerial(platformInfo); chassisSerial != "" {
-			gpuDeviceInfo.ChassisSerial = chassisSerial
-			gpuDeviceInfo.SlotNumber = platformInfo.SlotNumber
-			gpuDeviceInfo.TrayIndex = platformInfo.TrayIndex
-			gpuDeviceInfo.ModuleID = platformInfo.ModuleId
-			if boardSerial, err := physicalDevice.GetSerial(); err == nil {
-				gpuDeviceInfo.BoardSerial = strings.TrimSpace(boardSerial)
-			}
-		}
 	}
 
 	// Do not generate errors for vGPU devices, we already know that they don't support max clock info
@@ -232,20 +214,6 @@ func (c *collector) fillNVMLAttributes(gpuDeviceInfo *workloadmeta.GPU, device d
 	}
 }
 
-func fabricClusterUUIDFromNVMLInfo(clusterUUID [16]uint8) string {
-	return fmt.Sprintf("%x-%x-%x-%x-%x", clusterUUID[0:4], clusterUUID[4:6], clusterUUID[6:8], clusterUUID[8:10], clusterUUID[10:16])
-}
-
-func fabricInfoToTags(fabricInfo nvml.GpuFabricInfo_v2) (string, uint32, bool) {
-	if fabricInfo.State != nvml.GPU_FABRIC_STATE_COMPLETED ||
-		nvml.Return(fabricInfo.Status) != nvml.SUCCESS ||
-		fabricInfo.ClusterUuid == [16]uint8{} {
-		return "", 0, false
-	}
-
-	return fabricClusterUUIDFromNVMLInfo(fabricInfo.ClusterUuid), fabricInfo.CliqueId, true
-}
-
 // pciNUMANode reads the NUMA node of a PCI device from sysfs. It returns -1
 // when the kernel doesn't know it.
 func pciNUMANode(roots []string, pciBusID string) (int, error) {
@@ -268,25 +236,6 @@ func pciNUMANode(roots []string, pciBusID string) (int, error) {
 		return strconv.Atoi(strings.TrimSpace(string(content)))
 	}
 	return -1, lastErr
-}
-
-// platformFabricGUID formats the NVLink fabric GUID like nvidia-smi
-// ("0x" + the first 8 bytes, little endian), or "" when not reported.
-func platformFabricGUID(info nvml.PlatformInfo) string {
-	guid := binary.LittleEndian.Uint64(info.IbGuid[:8])
-	if guid == 0 {
-		return ""
-	}
-	return fmt.Sprintf("0x%016x", guid)
-}
-
-// platformChassisSerial returns the NUL-padded chassis serial as a string.
-func platformChassisSerial(info nvml.PlatformInfo) string {
-	serial := info.ChassisSerialNumber[:]
-	if end := bytes.IndexByte(serial, 0); end >= 0 {
-		serial = serial[:end]
-	}
-	return strings.TrimSpace(string(serial))
 }
 
 func (c *collector) fillProcesses(gpuDeviceInfo *workloadmeta.GPU, device ddnvml.Device) {
@@ -391,23 +340,12 @@ func (c *collector) Pull(ctx context.Context) error {
 	// Hold the NVML gate for the whole pull: a deliberate release waits for
 	// the in-flight pull to finish instead of racing it. The gated helper
 	// keeps the library wrapper from escaping.
-	err := ddnvml.WithNVML(func(lib ddnvml.SafeNVML) error {
+	err := ddnvml.WithNVML(func(_ ddnvml.SafeNVML) error {
 		if c.deviceCache == nil {
 			c.deviceCache = ddnvml.NewDeviceCache()
 		}
 		if err := c.deviceCache.Refresh(); err != nil {
 			return fmt.Errorf("failed to initialize device cache: %w", err)
-		}
-
-		// driver version is equal to all devices of the same vendor
-		// currently we handle only nvidia.
-		// in the future this function should be refactored to support more vendors
-		driverVersion, err := lib.SystemGetDriverVersion()
-		// we try to get the driver version as best effort, just log warning if it fails
-		if err != nil {
-			if logLimiter.ShouldLog() {
-				log.Warnf("%v", err)
-			}
 		}
 
 		// attempt getting list of unhealthy devices (if available)
@@ -437,8 +375,6 @@ func (c *collector) Pull(ctx context.Context) error {
 			if err != nil {
 				return err
 			}
-
-			gpu.DriverVersion = driverVersion
 
 			_, unhealthy := unhealthyDevices[gpu.ID]
 			gpu.Healthy = !unhealthy

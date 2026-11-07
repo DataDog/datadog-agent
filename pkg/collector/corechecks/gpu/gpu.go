@@ -36,6 +36,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
+	gpuresources "github.com/DataDog/datadog-agent/pkg/gpu/resources"
 	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
@@ -68,6 +69,7 @@ var _ check.IssueAwareCheck = (*Check)(nil)
 // Check represents the GPU check that will be periodically executed via the Run() function
 type Check struct {
 	core.CheckBase
+	resourcePublisher   *gpuresources.Publisher
 	readiness           *Readiness
 	collectors          []nvidia.Collector               // collectors for NVML metrics
 	collectorBuilder    *nvidia.CollectorBuilder         // collectorBuilder builds the collectors and retries the ones that failed to be created
@@ -207,6 +209,9 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 
 	c.gpuConfig = gpuconfig.New()
+	if err := c.configureResources(); err != nil {
+		return err
+	}
 	for _, collectorName := range c.gpuConfig.DisabledCollectors {
 		log.Infof("Collector %s is disabled by configuration", collectorName)
 	}
@@ -468,6 +473,9 @@ func (c *Check) Run() error {
 
 	if err := c.deviceCache.Refresh(); err != nil {
 		return fmt.Errorf("failed to refresh device cache: %w", err)
+	}
+	if err := c.publishResources(snd, currentExecutionTime); err != nil {
+		_ = c.Warnf("GPU resource publication failed: %v", err)
 	}
 
 	deviceCount, err := c.deviceCache.Count()
