@@ -50,7 +50,7 @@ func TestNetworkPolicyHandlers_BeforeCacheCheck(t *testing.T) {
 	tagger := processorstest.NewFakeTagger(map[taggertypes.EntityID][]string{entityID: {"tagger-tag:value"}})
 	handlers := NewNetworkPolicyHandlers(tagger)
 
-	skip := handlers.EnrichModel(ctx, resource, resourceModel)
+	skip := handlers.BeforeCacheCheck(ctx, resource, resourceModel)
 	assert.False(t, skip)
 	assert.Equal(t, []string{"tagger-tag:value"}, resourceModel.Tags)
 }
@@ -118,16 +118,16 @@ func TestNetworkPolicyHandlers_ResourceList(t *testing.T) {
 	// Validate conversion
 	assert.Len(t, resources, 2)
 
-	// Verify raw informer references are returned
+	// Verify deep copy was made
 	resource1, ok := resources[0].(*networkingv1.NetworkPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, "networkpolicy-1", resource1.Name)
-	assert.Same(t, networkPolicy1, resource1) // ResourceList returns raw informer references
+	assert.NotSame(t, networkPolicy1, resource1) // Should be a copy
 
 	resource2, ok := resources[1].(*networkingv1.NetworkPolicy)
 	assert.True(t, ok)
 	assert.Equal(t, "networkpolicy-2", resource2.Name)
-	assert.Same(t, networkPolicy2, resource2) // ResourceList returns raw informer references
+	assert.NotSame(t, networkPolicy2, resource2) // Should be a copy
 }
 
 func TestNetworkPolicyHandlers_ResourceUID(t *testing.T) {
@@ -426,14 +426,4 @@ func createTestNetworkPolicy(name, namespace string) *networkingv1.NetworkPolicy
 			},
 		},
 	}
-}
-
-func TestNetworkPolicyHandlers_CloneResource(t *testing.T) {
-	handlers := &NetworkPolicyHandlers{}
-	original := createTestNetworkPolicy("test", "ns")
-	cloned := handlers.CloneResource(original)
-	clonedTyped, ok := cloned.(*networkingv1.NetworkPolicy)
-	assert.True(t, ok)
-	assert.NotSame(t, original, clonedTyped)
-	assert.Equal(t, original, clonedTyped)
 }
