@@ -22,6 +22,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/prometheus/common/model"
 	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -311,7 +312,7 @@ func (c *KataCheck) scrapeSandbox(s sender.Sender, sandboxID, socketPath string,
 
 	for _, family := range families {
 		for _, sample := range family.Samples {
-			rawName := sample.Metric["__name__"]
+			rawName := string(sample.Metric["__name__"])
 			if rawName == "" {
 				rawName = family.Name
 			}
@@ -320,9 +321,9 @@ func (c *KataCheck) scrapeSandbox(s sender.Sender, sandboxID, socketPath string,
 
 			switch strings.ToUpper(family.Type) {
 			case "COUNTER":
-				s.Rate(metricName, sample.Value, "", tags)
+				s.Rate(metricName, float64(sample.Value), "", tags)
 			default: // GAUGE, HISTOGRAM, SUMMARY, UNTYPED
-				s.Gauge(metricName, sample.Value, "", tags)
+				s.Gauge(metricName, float64(sample.Value), "", tags)
 			}
 		}
 	}
@@ -342,7 +343,7 @@ func formatMetricName(rawName string) string {
 }
 
 // buildSampleTags builds the full tag list for a metric sample from pre-resolved baseTags.
-func (c *KataCheck) buildSampleTags(baseTags []string, metric prom.Metric) []string {
+func (c *KataCheck) buildSampleTags(baseTags []string, metric model.Metric) []string {
 	tags := make([]string, len(baseTags), len(baseTags)+len(metric)+len(c.instance.Tags))
 	copy(tags, baseTags)
 	tags = append(tags, c.instance.Tags...)
@@ -351,14 +352,14 @@ func (c *KataCheck) buildSampleTags(baseTags []string, metric prom.Metric) []str
 		if k == "__name__" {
 			continue
 		}
-		if _, excluded := c.excludeSet[k]; excluded {
+		if _, excluded := c.excludeSet[string(k)]; excluded {
 			continue
 		}
-		labelName := k
-		if renamed, ok := c.instance.RenameLabels[k]; ok {
+		labelName := string(k)
+		if renamed, ok := c.instance.RenameLabels[string(k)]; ok {
 			labelName = renamed
 		}
-		tags = append(tags, labelName+":"+v)
+		tags = append(tags, labelName+":"+string(v))
 	}
 
 	return tags

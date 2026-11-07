@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	v1 "k8s.io/api/core/v1"
 	obj "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -161,9 +162,9 @@ func TestSubmitStorageObjectsMetrics(t *testing.T) {
 			family: &prometheus.MetricFamily{
 				Name: storageObjectsMetricName,
 				Type: "GAUGE",
-				Samples: []prometheus.Sample{
-					{Metric: prometheus.Metric{"resource": "pods"}, Value: 42},
-					{Metric: prometheus.Metric{"resource": "widgets.example.com"}, Value: 3},
+				Samples: model.Vector{
+					{Metric: model.Metric{"resource": "pods"}, Value: 42},
+					{Metric: model.Metric{"resource": "widgets.example.com"}, Value: 3},
 				},
 			},
 		},
@@ -172,9 +173,9 @@ func TestSubmitStorageObjectsMetrics(t *testing.T) {
 			family: &prometheus.MetricFamily{
 				Name: legacyStorageObjectsMetricName,
 				Type: "GAUGE",
-				Samples: []prometheus.Sample{
-					{Metric: prometheus.Metric{"resource": "pods"}, Value: 42},
-					{Metric: prometheus.Metric{"resource": "widgets.example.com"}, Value: 3},
+				Samples: model.Vector{
+					{Metric: model.Metric{"resource": "pods"}, Value: 42},
+					{Metric: model.Metric{"resource": "widgets.example.com"}, Value: 3},
 				},
 			},
 		},
