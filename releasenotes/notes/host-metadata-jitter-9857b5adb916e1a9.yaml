@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Host metadata payloads are now sent with jitter: each collection interval varies by up to 20%, and never
+    exceeds the configured interval. Agents that start at the same time no longer send their host metadata in
+    lockstep.
