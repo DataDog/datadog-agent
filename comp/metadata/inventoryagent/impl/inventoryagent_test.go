@@ -868,7 +868,7 @@ func TestFetchSecrets(t *testing.T) {
 			"my_key":     "234c1d086201f04697450c7bcbe1e75a927ff021529b3a9eb785b40e9e0339fa",
 			"secret_one": "c9941a386f3401c35efab67c9a302b4f13317d0d018ae6697b531dce994a8008",
 		},
-		"scrubbed": []string{"authKey", "dd_url"},
+		"scrubbed": []string{"dd_url", "network_devices.snmp_traps.users.0.authKey"},
 	}, ia.Get()["enc_info"])
 }
 
@@ -965,20 +965,20 @@ func TestFilterScrubbedKeys(t *testing.T) {
 		},
 		{
 			name:         "nested setting",
-			scrubbedKeys: []string{"https", "client_secret"},
+			scrubbedKeys: []string{"proxy.https", "client_secret"},
 			paths:        []string{"proxy.https"},
 			expected:     []string{"client_secret"},
 		},
 		{
-			name:         "slice index uses the parent key",
-			scrubbedKeys: []string{"community_strings", "client_secret"},
-			paths:        []string{"snmp_traps.community_strings.0", "snmp_traps.community_strings.1"},
-			expected:     []string{"client_secret"},
+			name:         "slice elements",
+			scrubbedKeys: []string{"snmp_traps.community_strings.0", "snmp_traps.community_strings.1", "client_secret"},
+			paths:        []string{"snmp_traps.community_strings.0"},
+			expected:     []string{"snmp_traps.community_strings.1", "client_secret"},
 		},
 		{
 			// integration configs use their digest as origin, and paths relative to the resolved section
 			name:         "nested setting from an integration config",
-			scrubbedKeys: []string{"password", "client_secret"},
+			scrubbedKeys: []string{"auth.password", "client_secret"},
 			paths:        []string{"a3f9c01b2d4e5f67:auth.password"},
 			expected:     []string{"client_secret"},
 		},
@@ -989,10 +989,10 @@ func TestFilterScrubbedKeys(t *testing.T) {
 			expected:     []string{"client_secret"},
 		},
 		{
-			name:         "partial key names are not filtered",
-			scrubbedKeys: []string{"proxy", "api"},
+			name:         "partial paths are not filtered",
+			scrubbedKeys: []string{"proxy", "https", "api_key"},
 			paths:        []string{"proxy.https", "logs_config.api_key"},
-			expected:     []string{"proxy", "api"},
+			expected:     []string{"proxy", "https", "api_key"},
 		},
 		{
 			name:         "duplicates are removed",
