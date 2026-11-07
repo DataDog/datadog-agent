@@ -95,6 +95,13 @@ func (a *TestAgentDemultiplexer) samples() (ontime []metrics.MetricSample, timed
 	return ontime, timed
 }
 
+// Samples returns a copy of the samples received so far, without waiting.
+// Use it when the caller has already synchronized with the producer (for
+// example, after a stop that waits for its workers to flush).
+func (a *TestAgentDemultiplexer) Samples() (ontime []metrics.MetricSample, timed []metrics.MetricSample) {
+	return a.samples()
+}
+
 // WaitForSamples returns the samples received by the demultiplexer.
 // Note that it returns as soon as something is avaible in either the live
 // metrics buffer or the late metrics one.

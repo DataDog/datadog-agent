@@ -1,0 +1,28 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    ``dogstatsd_flush_incomplete_buckets`` and ``forwarder_stop_wait_for_inflight``
+    now default to ``true``. On stop or restart, DogStatsD drains queued packets
+    and flushes the open aggregation window, and the forwarder waits for
+    in-flight requests instead of cancelling them.
+    The final aggregator flush is bounded by ``aggregator_stop_timeout`` (2 seconds
+    by default). The forwarder wait is bounded by ``forwarder_stop_timeout``
+    (2 seconds by default) only when it is greater than 0. With
+    ``forwarder_stop_timeout: 0``, stop waits for in-flight requests up to
+    ``forwarder_timeout`` (20 seconds by default), so keep
+    ``forwarder_stop_timeout`` greater than 0.
+    The forwarder change applies to every process that runs a forwarder from the
+    core configuration, such as the core Agent, the Process Agent, System Probe
+    and the Cluster Agent. Stop can take up to about 2 seconds longer per
+    forwarder, per process, only when requests are in flight. The OpenTelemetry
+    serializer exporter keeps the previous behavior.
+    To restore the previous behavior, set both options to ``false``, for
+    example with ``DD_DOGSTATSD_FLUSH_INCOMPLETE_BUCKETS=false`` and
+    ``DD_FORWARDER_STOP_WAIT_FOR_INFLIGHT=false``.
