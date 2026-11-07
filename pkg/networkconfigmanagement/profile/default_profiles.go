@@ -70,6 +70,17 @@ func WithSetup(cmds ...string) CmdOption {
 	}
 }
 
+// Interactive marks a command to be run over an interactive PTY shell session
+// instead of a one-shot exec, waiting for the given prompt regex between the
+// login banner, each setup command, and the command itself.
+func Interactive(prompt string) CmdOption {
+	re := regexp.MustCompile(prompt)
+	return func(pc *PlainCommand) {
+		pc.Interactive = true
+		pc.Prompt = re
+	}
+}
+
 // Names of the built-in NCM device profiles in DefaultProfiles.
 const (
 	ProfileAOSCX    ProfileName = "aoscx"
@@ -84,6 +95,12 @@ const (
 	ProfilePanOS    ProfileName = "pan-os"
 	ProfileTMOS     ProfileName = "tmos"
 )
+
+// panOSPrompt matches the PAN-OS interactive CLI prompt, e.g. "cwadmin@PRDC-IF01>"
+// (operational mode) or "cwadmin@PRDC-IF01#" (config mode), including the
+// optional HA state suffix like "(active)". It is anchored on the "user@host"
+// shape so it does not match config content (XML lines end in ">" too).
+const panOSPrompt = `(?m)^[\w.\-]+@[\w.\-]+(?:\([\w\-]+\))?\s*[>#]\s?$`
 
 // DefaultProfiles is the built-in set of NCM device profiles, keyed by profile name.
 var DefaultProfiles = Map{
@@ -398,12 +415,40 @@ var DefaultProfiles = Map{
 	ProfilePanOS: {
 		Name: ProfilePanOS,
 		Commands: CommandSet{
-			Verify:     MkCommand("show system info", Expect(`model: *PA-`)),
-			GetRunning: MkCommand("show config running", Expect(`(?s)<config.*</config>`)),
+			Verify: MkCommand("show system info", Expect(`model: *PA-`)),
+			// PAN-OS only emits command output over an interactive TTY; a
+			// non-interactive exec returns just the login banner. Run the command
+			// through an interactive shell with the pager disabled.
+			//
+			// Use `show config effective-running` (the final resolved config in
+			// effect, including pushed/shared policy) rather than `show config
+			// running` (raw committed): the raw committed config is not usable for
+			// customers who push policy from Panorama.
+			//
+			// The validator is a lightweight guard that we got config-shaped output
+			// and not a banner/error/empty response (the failure mode this profile
+			// was built to fix). Depending on PAN-OS version the output is either
+			// angle-bracket XML (`<config>...</config>`) or curly-brace hierarchical
+			// (`config { ... }`); accept both.
+			GetRunning: MkCommand("show config effective-running",
+				Expect(`(?s)(<config.*</config>|config\s*\{)`),
+				WithSetup("set cli pager off"),
+				Interactive(panOSPrompt),
+			),
 			GetVersion: MkCommand("show system info"),
 		},
 		Redactions: []RedactionRule{
+			// Admin password hash.
+			// XML output: <phash>...</phash>
 			MkRedaction(`<phash>.*?</phash>`, WithReplacement("<phash><secret hidden></phash>")),
+			// Curly-brace output: phash $5$...;
+			MkRedaction(`phash\s+\S+;`, WithReplacement("phash <secret hidden>;")),
+			// SNMP community string (effectively a password).
+			// XML output: <snmp-community-string>...</snmp-community-string>
+			MkRedaction(`<snmp-community-string>.*?</snmp-community-string>`, WithReplacement("<snmp-community-string><secret hidden></snmp-community-string>")),
+			// Curly-brace output: snmp-community-string foo; or, when the community
+			// contains whitespace, snmp-community-string "ops team secret";
+			MkRedaction(`snmp-community-string\s+("[^"]*"|\S+);`, WithReplacement("snmp-community-string <secret hidden>;")),
 		},
 	},
 

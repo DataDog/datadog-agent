@@ -52,6 +52,11 @@ type DeviceInstance struct {
 	Namespace string          `yaml:"namespace"`  // namespace for the device; if empty, defaults to value from initconfig
 	Profile   string          `yaml:"profile"`    // device profile name, e.g., "cisco-ios"
 	Auth      AuthCredentials `yaml:"auth"`
+	// Prompt optionally overrides the interactive CLI prompt regex used by
+	// profiles that collect config over an interactive shell (e.g. pan-os).
+	// Device CLI prompts are configurable, so operators that have customized
+	// theirs can set this to match; when empty, the profile's default is used.
+	Prompt string `yaml:"prompt"`
 }
 
 // DeviceID returns the formatted ID for this DeviceInstance.
