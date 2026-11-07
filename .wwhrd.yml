@@ -54,3 +54,5 @@ exceptions:
 additional:
   # list here paths to additional licenses
   golang/go: "raw.githubusercontent.com/golang/go/go1.26.10/LICENSE"
+  # copied into pkg/logs/internal/smb/thirdparty/gosmb2
+  hirochachacha/go-smb2: "raw.githubusercontent.com/hirochachacha/go-smb2/0314409c07a882ccaf03650aa2826b08c6781adb/LICENSE"

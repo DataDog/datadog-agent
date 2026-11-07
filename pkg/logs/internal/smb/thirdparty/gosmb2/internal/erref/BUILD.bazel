@@ -1,0 +1,11 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "erref",
+    srcs = [
+        "erref.go",
+        "ntstatus.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/logs/internal/smb/thirdparty/gosmb2/internal/erref",
+    visibility = ["//pkg/logs/internal/smb/thirdparty/gosmb2:__subpackages__"],
+)
