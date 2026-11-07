@@ -430,6 +430,7 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 	})
 
 	builder := model.NewCollectorConnectionsBuilder(io.Discard)
+	tagCache := newChunkTagCache()
 
 	return func(yield func([]byte) bool) {
 		defer func() {
@@ -472,13 +473,14 @@ func (d *directSender) batches(conns *network.Connections, groupID int32) iter.S
 			tagsEncoder := model.NewV3TagEncoder()
 			// Adding a dummy tag to ensure the indices we get are always >= 0.
 			_ = tagsEncoder.Encode([]string{"-"})
+			tagCache.reset()
 
 			for _, nc := range connsChunk {
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
 					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
-					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
+					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder, tagCache)
 					d.addRemoteServiceTags(builder, nc, remoteServiceResolver, tagsEncoder)
-					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)
+					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder, tagCache)
 					d.addDNS(builder, nc, dnsSet, indexToOffset)
 				})
 			}
