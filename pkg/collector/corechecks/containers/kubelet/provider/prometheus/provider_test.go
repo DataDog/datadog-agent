@@ -10,11 +10,11 @@ package prometheus
 import (
 	"testing"
 
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
-	"github.com/DataDog/datadog-agent/pkg/util/prometheus"
 )
 
 // TestIgnoreMetricByLabelWithYAMLDecodedList checks that ignore_metrics_by_labels values coming
@@ -30,15 +30,15 @@ func TestIgnoreMetricByLabelWithYAMLDecodedList(t *testing.T) {
 	p, err := NewProvider(cfg, nil, nil)
 	require.NoError(t, err)
 
-	filtered := &prometheus.Sample{
-		Metric: prometheus.Metric{"some_label": "value1"},
+	filtered := &model.Sample{
+		Metric: model.Metric{"some_label": "value1"},
 	}
 	assert.True(t, p.ignoreMetricByLabel(filtered, "some_metric"),
 		"expected the metric to be ignored because label %q matches the configured wildcard filter",
 		"some_label")
 
-	unfiltered := &prometheus.Sample{
-		Metric: prometheus.Metric{"other_label": "value1"},
+	unfiltered := &model.Sample{
+		Metric: model.Metric{"other_label": "value1"},
 	}
 	assert.False(t, p.ignoreMetricByLabel(unfiltered, "some_metric"),
 		"expected the metric not to be ignored because it has no %q label",

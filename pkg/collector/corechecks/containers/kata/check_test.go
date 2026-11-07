@@ -17,6 +17,7 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/prometheus/common/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -189,7 +190,7 @@ func TestBuildSampleTags_ExcludeLabels(t *testing.T) {
 		excludeSet: map[string]struct{}{"job": {}},
 	}
 
-	metric := map[string]string{
+	metric := model.Metric{
 		"sandbox_id": "aaa",
 		"job":        "kata",
 		"env":        "prod",

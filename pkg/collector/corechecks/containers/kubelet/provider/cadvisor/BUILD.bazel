@@ -20,6 +20,7 @@ go_library(
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/log",
         "//pkg/util/prometheus",
+        "@com_github_prometheus_common//model",
     ],
 )
 
