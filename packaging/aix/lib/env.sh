@@ -15,7 +15,7 @@ export PYTHONIOENCODING=utf-8
 export LC_ALL=en_US.UTF-8
 
 # ── Python version ────────────────────────────────────────────────────────────
-PYTHON_VERSION="3.13.17"
+PYTHON_VERSION="3.13.18"
 PYTHON_MAJ_MIN="${PYTHON_VERSION%.*}"   # e.g. 3.13
 export PYTHON_VERSION PYTHON_MAJ_MIN
 
