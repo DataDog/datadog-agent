@@ -1,0 +1,9 @@
+description: A large step yields every in-range element before the overflow.
+input:
+  script: |+
+    echo {0..9223372036854775807..4611686018427387904}
+expect:
+  stdout: |+
+    0 4611686018427387904
+  stderr: ""
+  exit_code: 0

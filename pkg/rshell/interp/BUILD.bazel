@@ -5,6 +5,7 @@ go_library(
     name = "interp",
     srcs = [
         "api.go",
+        "brace_sequence.go",
         "cd_support.go",
         "check.go",
         "check_commands.go",

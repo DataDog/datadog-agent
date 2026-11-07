@@ -1,0 +1,9 @@
+description: A step larger than the remaining range yields only the start.
+input:
+  script: |+
+    echo {1..9223372036854775807..9223372036854775807}
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

@@ -69,6 +69,7 @@ var interpAllowedSymbols = []string{
 	"runtime.GOOS",                // 🟢 current OS name constant; pure constant, no I/O.
 	"sort.Strings",                // 🟢 sorts exact systemd grant selectors deterministically in memory; no I/O.
 	"strconv.Itoa",                // 🟢 int-to-string conversion; pure function, no I/O.
+	"strconv.ParseInt",            // 🟢 string-to-int conversion for brace sequence endpoints; pure function, no I/O.
 	"strings.Builder",             // 🟢 efficient string concatenation; pure in-memory buffer, no I/O.
 	"strings.ContainsRune",        // 🟢 checks if a rune is in a string; pure function, no I/O.
 	"strings.NewReader",           // 🟢 wraps a string as an io.Reader; pure function, no I/O; used by ParseScript.
@@ -104,6 +105,7 @@ var interpAllowedSymbols = []string{
 	"mvdan.cc/sh/v3/expand.Config",                 // 🟢 configuration for word expansion; pure type.
 	"mvdan.cc/sh/v3/expand.Document",               // 🟢 expands a here-document; pure function.
 	"mvdan.cc/sh/v3/expand.Environ",                // 🟢 interface for environment variable access; pure interface.
+	"mvdan.cc/sh/v3/expand.BracesSeq",              // 🟢 lazily brace-expands a word, capped at 16Ki elements; pure function.
 	"mvdan.cc/sh/v3/expand.FieldsSeq",              // 🟢 lazily expands words into fields so callers can enforce resource limits.
 	"mvdan.cc/sh/v3/expand.KeepValue",              // 🟢 sentinel for variable expansion; pure constant.
 	"mvdan.cc/sh/v3/expand.ListEnviron",            // 🟢 converts string slice to Environ; pure function.
@@ -233,6 +235,7 @@ var interpPerModeSymbols = map[string][]string{
 		"runtime.GOOS",                // 🟢 current OS name constant; pure constant, no I/O.
 		"sort.Strings",                // 🟢 sorts exact systemd grant selectors deterministically in memory; no I/O.
 		"strconv.Itoa",                // 🟢 int-to-string conversion; pure function, no I/O.
+		"strconv.ParseInt",            // 🟢 string-to-int conversion for brace sequence endpoints; pure function, no I/O.
 		"strings.Builder",             // 🟢 efficient string concatenation; pure in-memory buffer, no I/O.
 		"strings.ContainsRune",        // 🟢 checks if a rune is in a string; pure function, no I/O.
 		"strings.NewReader",           // 🟢 wraps a string as an io.Reader; pure function, no I/O; used by ParseScript.
@@ -268,6 +271,7 @@ var interpPerModeSymbols = map[string][]string{
 		"mvdan.cc/sh/v3/expand.Config",                 // 🟢 configuration for word expansion; pure type.
 		"mvdan.cc/sh/v3/expand.Document",               // 🟢 expands a here-document; pure function.
 		"mvdan.cc/sh/v3/expand.Environ",                // 🟢 interface for environment variable access; pure interface.
+		"mvdan.cc/sh/v3/expand.BracesSeq",              // 🟢 lazily brace-expands a word, capped at 16Ki elements; pure function.
 		"mvdan.cc/sh/v3/expand.FieldsSeq",              // 🟢 lazily expands words into fields so callers can enforce resource limits.
 		"mvdan.cc/sh/v3/expand.KeepValue",              // 🟢 sentinel for variable expansion; pure constant.
 		"mvdan.cc/sh/v3/expand.ListEnviron",            // 🟢 converts string slice to Environ; pure function.

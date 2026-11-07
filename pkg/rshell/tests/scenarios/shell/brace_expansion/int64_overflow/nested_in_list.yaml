@@ -1,0 +1,9 @@
+description: An overflowing sequence nested in a list expansion is clamped.
+input:
+  script: |+
+    echo {a,{9223372036854775806..9223372036854775807}}
+expect:
+  stdout: |+
+    a 9223372036854775806 9223372036854775807
+  stderr: ""
+  exit_code: 0
