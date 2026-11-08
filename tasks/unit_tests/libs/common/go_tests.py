@@ -3,9 +3,6 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-from invoke import Result
-from invoke.exceptions import UnexpectedExit
-
 from tasks.flavor import FipsBackend
 from tasks.libs.common.go import _with_pdb_extldflag, go_build
 from tasks.libs.common.utils import join_command
@@ -15,33 +12,65 @@ class TestGoBuild(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
         self.ctx_mock = MagicMock()
-        self.run_mock = self.enterContext(patch("tasks.libs.common.go.Local")).return_value.run
+        self.bazel_mock = self.enterContext(patch("tasks.libs.common.go.bazel", return_value=""))
+        self.which_mock = self.enterContext(
+            patch("tasks.libs.common.go.shutil.which", return_value="/usr/bin/bazelisk")
+        )
 
     def test_default(self):
         go_build(self.ctx_mock, "main.go")
 
-        self.run_mock.assert_called_once_with("go build -trimpath main.go", env={}, hide=None)
+        self.bazel_mock.assert_called_once_with(
+            "run",
+            "@rules_go//go",
+            "--",
+            "-C",
+            os.getcwd(),
+            "build",
+            "-trimpath",
+            "main.go",
+            capture_stderr=False,
+            env={},
+        )
 
     def test_with_gcflags(self):
         go_build(self.ctx_mock, "main.go", gcflags="-gcflags=all=-N -l")
 
-        self.run_mock.assert_called_once_with(
-            join_command(["go", "build", "-gcflags=-gcflags=all=-N -l", "-trimpath", "main.go"]), env={}, hide=None
+        self.bazel_mock.assert_called_once_with(
+            "run",
+            "@rules_go//go",
+            "--",
+            "-C",
+            os.getcwd(),
+            "build",
+            "-gcflags=-gcflags=all=-N -l",
+            "-trimpath",
+            "main.go",
+            capture_stderr=False,
+            env={},
         )
 
     def test_boringcrypto(self):
         go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "1"}, fips_backend=FipsBackend.boringcrypto)
 
-        self.run_mock.assert_called_once_with(
-            "go build -trimpath main.go", env={"CGO_ENABLED": "1", "GOEXPERIMENT": "boringcrypto"}, hide=None
+        self.bazel_mock.assert_called_once_with(
+            "run",
+            "@rules_go//go",
+            "--",
+            "-C",
+            os.getcwd(),
+            "build",
+            "-trimpath",
+            "main.go",
+            capture_stderr=False,
+            env={"CGO_ENABLED": "1", "GOEXPERIMENT": "boringcrypto"},
         )
 
     @patch.dict("os.environ", {"GOOS": "linux"})
-    @patch("tasks.libs.common.go.bazel")
-    def test_msgo_linux(self, bazel):
+    def test_msgo_linux(self):
         go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "0"}, fips_backend=FipsBackend.msgo)
 
-        bazel.assert_called_once_with(
+        self.bazel_mock.assert_called_once_with(
             "run",
             "//:msgo",
             "--",
@@ -55,11 +84,10 @@ class TestGoBuild(unittest.TestCase):
         )
 
     @patch.dict("os.environ", {"GOOS": "windows"})
-    @patch("tasks.libs.common.go.bazel")
-    def test_msgo_windows(self, bazel):
+    def test_msgo_windows(self):
         go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "1"}, fips_backend=FipsBackend.msgo)
 
-        bazel.assert_called_once_with(
+        self.bazel_mock.assert_called_once_with(
             "run",
             "//:msgo",
             "--",
@@ -70,6 +98,16 @@ class TestGoBuild(unittest.TestCase):
             "main.go",
             capture_stderr=False,
             env={"CGO_ENABLED": "1"},
+        )
+
+    def test_without_bazel(self):
+        self.which_mock.return_value = None
+
+        go_build(self.ctx_mock, "main.go", gcflags="-gcflags=all=-N -l")
+
+        self.bazel_mock.assert_not_called()
+        self.ctx_mock.run.assert_called_once_with(
+            join_command(["go", "build", "-gcflags=-gcflags=all=-N -l", "-trimpath", "main.go"]), env={}
         )
 
     @unittest.skipIf(sys.platform == "win32", "os.chown not available on Windows")
@@ -119,10 +157,10 @@ class TestGoBuild(unittest.TestCase):
     @patch("os.path.exists")
     @patch("os.chown")
     def test_no_owner_correction_build_failure(self, mock_chown, mock_exists):
-        self.run_mock.side_effect = UnexpectedExit(Result(exited=1))
+        self.bazel_mock.side_effect = SystemExit(1)
         mock_exists.return_value = True
 
-        with self.assertRaises(UnexpectedExit):
+        with self.assertRaises(SystemExit):
             go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
 
         mock_exists.assert_not_called()
