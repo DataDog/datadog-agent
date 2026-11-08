@@ -146,8 +146,11 @@ func (m *Mock) IsValueFromSecret(value string) bool {
 	return false
 }
 
-// RemoveOrigin
+// RemoveOrigin is a no-op
 func (m *Mock) RemoveOrigin(_ string) {}
+
+// SetOriginName is a no-op
+func (m *Mock) SetOriginName(_ string, _ string) {}
 
 // SetPathsAndHandles sets the values returned by GetPathsAndHandles
 func (m *Mock) SetPathsAndHandles(paths []string, handles []string) {

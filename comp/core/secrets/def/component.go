@@ -56,9 +56,11 @@ type Component interface {
 	// RemoveOrigin removes a origin from the internal cache of the secret component. This does not remove secrets
 	// from the cache but the reference where those secrets are used.
 	RemoveOrigin(origin string)
+	// SetOriginName associates an origin, as given to Resolve, with a readable name for it (ex: the integration name).
+	SetOriginName(origin string, name string)
 	// GetPathsAndHandles returns, for each place a secret appears in the configuration, the setting's origin + path
 	// where it appears and the corresponding handle. The elements in each slice correlate to each other. Origin
-	// is omitted for `datadog.yaml`, otherwise its prepended with a ':'.
+	// is omitted for `datadog.yaml`, otherwise its name (see SetOriginName) is prepended with a ':'.
 	GetPathsAndHandles() ([]string, []string)
 	// GetHashValues returns, for each given handle with a resolved value, the hex encoded SHA-256 hash of that
 	// value. Handles that have not been resolved are omitted from the result.

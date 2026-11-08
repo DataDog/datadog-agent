@@ -413,7 +413,7 @@ func filterScrubbedKeys(scrubbedKeys []string, paths []string) []string {
 	seen := make(map[string]struct{}, len(paths)+len(scrubbedKeys))
 	for _, path := range paths {
 		// Scrubbed keys are full dotted settings (ex: "snmp_traps.community_strings.0")
-		// Secret paths are too, but optionally prefixed by their origin (ex: "a3f9c01b2d4e5f67:auth.password")
+		// Secret paths are too, but integrations are prefixed by their name (ex: "http_check:auth.password")
 		if idx := strings.Index(path, ":"); idx != -1 {
 			path = path[idx+1:]
 		}

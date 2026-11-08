@@ -976,16 +976,16 @@ func TestFilterScrubbedKeys(t *testing.T) {
 			expected:     []string{"snmp_traps.community_strings.1", "client_secret"},
 		},
 		{
-			// integration configs use their digest as origin, and paths relative to the resolved section
+			// integration configs are prefixed by their name, and paths relative to the resolved section
 			name:         "nested setting from an integration config",
 			scrubbedKeys: []string{"auth.password", "client_secret"},
-			paths:        []string{"a3f9c01b2d4e5f67:auth.password"},
+			paths:        []string{"http_check:auth.password"},
 			expected:     []string{"client_secret"},
 		},
 		{
 			name:         "top-level setting from an integration config",
 			scrubbedKeys: []string{"token", "client_secret"},
-			paths:        []string{"a3f9c01b2d4e5f67:token"},
+			paths:        []string{"http_check:token"},
 			expected:     []string{"client_secret"},
 		},
 		{
