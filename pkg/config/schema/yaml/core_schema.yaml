@@ -5864,12 +5864,16 @@ properties:
             comment: 0s derives retention from the maximum point window of enabled detectors.
             tags:
             - golang_type:duration
-      use_metric_pipeline:
-        node_type: setting
-        type: boolean
-        default: false
-        comment: Run only the kind-routed metric pipeline. Legacy detectors remain the
-          default.
+      metric_pipeline:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Run only the kind-routed metric pipeline. Legacy detectors remain the
+              default.
     tags:
     - full-agent-only:true
   appsec:

@@ -108,7 +108,8 @@ anomaly_detection:
     scanmw:
       min_points: 42
       max_points: 84
-  use_metric_pipeline: true
+  metric_pipeline:
+    enabled: true
 `)
 	settings = settingsFromAgentConfig(defaultCatalog(), cfg)
 	require.True(t, settings.UseMetricPipeline)

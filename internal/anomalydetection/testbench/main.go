@@ -168,7 +168,7 @@ func main() {
 		fx.Decorate(func(c config.Component) config.Component {
 			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
-			c.Set("anomaly_detection.use_metric_pipeline", componentSettings.UseMetricPipeline, pkgconfigmodel.SourceAgentRuntime)
+			c.Set("anomaly_detection.metric_pipeline.enabled", componentSettings.UseMetricPipeline, pkgconfigmodel.SourceAgentRuntime)
 			if len(parsedAllowedTypes) > 0 {
 				c.Set("anomaly_detection.metrics.allowed_types", parsedAllowedTypes, pkgconfigmodel.SourceAgentRuntime)
 			}
