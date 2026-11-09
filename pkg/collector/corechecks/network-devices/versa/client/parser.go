@@ -342,8 +342,8 @@ func parseCircuitQoSMetrics(data [][]interface{}) ([]CircuitQoSMetrics, error) {
 	var rows []CircuitQoSMetrics
 	for _, row := range data {
 		m := CircuitQoSMetrics{}
-		if len(row) != 15 {
-			return nil, fmt.Errorf("expected 15 columns, got %d", len(row))
+		if len(row) != 19 {
+			return nil, fmt.Errorf("expected 19 columns, got %d", len(row))
 		}
 		// Type assertions for each value
 		var ok bool
@@ -357,11 +357,12 @@ func parseCircuitQoSMetrics(data [][]interface{}) ([]CircuitQoSMetrics, error) {
 			return nil, errors.New("expected string for AccessCircuit")
 		}
 
-		// Floats from index 3-14 (12 float fields)
+		// Floats from index 3-18 (16 float fields)
 		floatFields := []*float64{
 			&m.BestEffortTx, &m.BestEffortTxDrop, &m.ExpeditedForwardTx, &m.ExpeditedForwardDrop,
 			&m.AssuredForwardTx, &m.AssuredForwardDrop, &m.NetworkControlTx, &m.NetworkControlDrop,
 			&m.BestEffortBandwidth, &m.ExpeditedForwardBW, &m.AssuredForwardBW, &m.NetworkControlBW,
+			&m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.Bandwidth,
 		}
 		for i, ptr := range floatFields {
 			if val, ok := row[i+3].(float64); ok {
