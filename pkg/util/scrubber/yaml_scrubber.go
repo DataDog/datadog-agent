@@ -248,6 +248,15 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 // fallback cannot apply YAML-only replacers and is therefore not safe for data
 // that is sent automatically as metadata.
 func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
+	return c.scrubYamlPreserveStructure(input, nil)
+}
+
+// yamlScalarObserver observes original scalar values at their sanitized paths after
+// scrubbing. It belongs to one call, never to the shared Scrubber. A nil cleaned
+// node means a containing replacement removed the scalar from the output tree.
+type yamlScalarObserver func(path string, original, cleaned *yaml.Node)
+
+func (c *Scrubber) scrubYamlPreserveStructure(input []byte, observe yamlScalarObserver) ([]byte, error) {
 	if len(input) == 0 {
 		return []byte{}, nil
 	}
@@ -278,7 +287,11 @@ func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
 		return nil, err
 	}
 
-	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{})); err != nil {
+	var original *yaml.Node
+	if observe != nil {
+		original = &document
+	}
+	if err := c.scrubYamlNode(&document, original, "", observe); err != nil {
 		return nil, err
 	}
 
@@ -294,76 +307,140 @@ func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
 	return buffer.Bytes(), nil
 }
 
-// scrubYamlNode scrubs node, whose dotted path is path (see scrubCallback)
-func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml.Node]struct{}) error {
-	if node == nil {
-		return nil
+// scrubYamlNode scrubs and observes in one traversal. Structured replacements
+// can reorder or collapse subtrees, so original children are matched by key or
+// index rather than losing their declarations when the replacement is applied.
+func (c *Scrubber) scrubYamlNode(node, original *yaml.Node, path string, observe yamlScalarObserver) error {
+	if original != nil {
+		snapshot := *original
+		original = &snapshot
 	}
-	if _, found := visited[node]; found {
-		return nil
-	}
-	visited[node] = struct{}{}
-
-	node.HeadComment = ""
-	node.LineComment = ""
-	node.FootComment = ""
-
-	switch node.Kind {
-	case yaml.DocumentNode:
-		for _, child := range node.Content {
-			if err := c.scrubYamlNode(child, path, visited); err != nil {
-				return err
-			}
-		}
-	case yaml.SequenceNode:
-		for i, child := range node.Content {
-			if err := c.scrubYamlNode(child, joinPath(path, strconv.Itoa(i)), visited); err != nil {
-				return err
-			}
-		}
-	case yaml.MappingNode:
-		for i := 0; i+1 < len(node.Content); i += 2 {
-			key, value := node.Content[i], node.Content[i+1]
-			keyValue := key.Value
-			var decodedKey interface{}
-			if err := key.Decode(&decodedKey); err != nil {
-				return err
-			}
-			if decodedKeyString, ok := decodedKey.(string); ok {
-				keyValue = decodedKeyString
-			}
-			if err := c.scrubYamlNode(key, path, visited); err != nil {
-				return err
-			}
-
-			var decoded interface{}
-			if err := value.Decode(&decoded); err != nil {
-				return err
-			}
-			valuePath := joinPath(path, keyValue)
-			if matched, replacement := c.scrubYamlDataValue(keyValue, valuePath, decoded); matched {
-				replaceYamlNode(value, replacement)
-				if err := c.scrubYamlNode(value, valuePath, visited); err != nil {
+	var originalChildren map[string]*yaml.Node
+	var originalItems []*yaml.Node
+	if original != nil {
+		switch original.Kind {
+		case yaml.MappingNode:
+			originalChildren = make(map[string]*yaml.Node, len(original.Content)/2)
+			for i := 0; i+1 < len(original.Content); i += 2 {
+				key, err := yamlKeyString(original.Content[i])
+				if err != nil {
 					return err
 				}
-			} else if err := c.scrubYamlNode(value, valuePath, visited); err != nil {
+				originalChildren[key] = original.Content[i+1]
+			}
+		case yaml.SequenceNode, yaml.DocumentNode:
+			originalItems = original.Content
+		}
+	}
+
+	if node != nil {
+		node.HeadComment = ""
+		node.LineComment = ""
+		node.FootComment = ""
+		switch node.Kind {
+		case yaml.DocumentNode, yaml.SequenceNode:
+			for i, child := range node.Content {
+				childPath := path
+				if node.Kind == yaml.SequenceNode {
+					childPath = joinPath(path, strconv.Itoa(i))
+				}
+				var originalChild *yaml.Node
+				if i < len(originalItems) {
+					originalChild = originalItems[i]
+				}
+				if err := c.scrubYamlNode(child, originalChild, childPath, observe); err != nil {
+					return err
+				}
+			}
+			if len(node.Content) < len(originalItems) {
+				originalItems = originalItems[len(node.Content):]
+			} else {
+				originalItems = nil
+			}
+		case yaml.MappingNode:
+			for i := 0; i+1 < len(node.Content); i += 2 {
+				key, value := node.Content[i], node.Content[i+1]
+				keyValue, err := yamlKeyString(key)
+				if err != nil {
+					return err
+				}
+				originalValue := originalChildren[keyValue]
+				delete(originalChildren, keyValue)
+				// Snapshot before a parent rule replaces this node in place.
+				if originalValue != nil {
+					snapshot := *originalValue
+					originalValue = &snapshot
+				}
+				if err := c.scrubYamlNode(key, nil, path, nil); err != nil {
+					return err
+				}
+				valuePath := joinPath(path, c.scrubYamlText(keyValue))
+				var decoded interface{}
+				if err := value.Decode(&decoded); err != nil {
+					return err
+				}
+				if matched, replacement := c.scrubYamlDataValue(keyValue, valuePath, decoded); matched {
+					replaceYamlNode(value, replacement)
+				}
+				if err := c.scrubYamlNode(value, originalValue, valuePath, observe); err != nil {
+					return err
+				}
+			}
+		case yaml.ScalarNode:
+			var decoded interface{}
+			if err := node.Decode(&decoded); err != nil {
 				return err
 			}
+			if str, ok := decoded.(string); ok {
+				if matched, replacement := c.scrubDataValue("", path, str); matched {
+					replaceYamlNode(node, replacement)
+				}
+			}
+		case yaml.AliasNode:
+			return errors.New("YAML aliases are not supported")
 		}
-	case yaml.ScalarNode:
-		var decoded interface{}
-		if err := node.Decode(&decoded); err != nil {
-			return err
-		}
-		if str, ok := decoded.(string); ok {
-			if matched, replacement := c.scrubDataValue("", path, str); matched {
-				replaceYamlNode(node, replacement)
+	}
+
+	// Visit original leaves hidden by a replacement (for example a redacted
+	// community_strings list), using the same traversal and call-local observer.
+	if len(originalChildren) != 0 {
+		// Keep source order for removed mapping children, too.
+		for i := 0; i+1 < len(original.Content); i += 2 {
+			key, err := yamlKeyString(original.Content[i])
+			if err != nil {
+				return err
+			}
+			if child := originalChildren[key]; child != nil {
+				if err := c.scrubYamlNode(nil, child, joinPath(path, c.scrubYamlText(key)), observe); err != nil {
+					return err
+				}
 			}
 		}
-	case yaml.AliasNode:
-		return errors.New("YAML aliases are not supported")
+	}
+	for i, child := range originalItems {
+		childPath := path
+		if original.Kind == yaml.SequenceNode {
+			childPath = joinPath(path, strconv.Itoa(len(original.Content)-len(originalItems)+i))
+		}
+		if err := c.scrubYamlNode(nil, child, childPath, observe); err != nil {
+			return err
+		}
+	}
+	if original != nil && original.Kind == yaml.ScalarNode && observe != nil {
+		observe(path, original, node)
 	}
 	return nil
+}
+
+func yamlKeyString(node *yaml.Node) (string, error) {
+	var decoded interface{}
+	if err := node.Decode(&decoded); err != nil {
+		return "", err
+	}
+	if key, ok := decoded.(string); ok {
+		return key, nil
+	}
+	return node.Value, nil
 }
 
 func (c *Scrubber) scrubYamlText(value string) string {
