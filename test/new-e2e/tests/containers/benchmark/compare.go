@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/samber/lo"
@@ -77,7 +78,7 @@ const (
 
 // Phase holds the points of a metric over a measurement phase, by image rather than by
 // installation: the two installations, each on node pools of its own, swap their images
-// between the two phases of a measurement.
+// between consecutive phases of a measurement.
 type Phase struct {
 	Window Window
 	// Baseline are the points of the installation running the baseline images.
@@ -99,12 +100,12 @@ type PhaseComparison struct {
 
 // Comparison is the comparison of a metric between the baseline and the comparison images.
 type Comparison struct {
-	// BaselineMean and ComparisonMean are the means of the images over both phases: the
-	// arithmetic means of their two phase means, one on each node pool.
+	// BaselineMean and ComparisonMean are the means of the images over the phases: the
+	// arithmetic means of their phase means, half of them on each node pool.
 	BaselineMean   float64 `json:"baseline_mean"`
 	ComparisonMean float64 `json:"comparison_mean"`
 	// RelativeChange is exp(e) - 1, e being the estimate of ln(comparison / baseline): the
-	// mean of the log ratios of both phases, in which the difference between the node pools
+	// mean of the log ratios of the phases, in which the difference between the node pools
 	// cancels out.
 	RelativeChange float64 `json:"relative_change"`
 	// PValue is the two-sided p-value of the t-test of e = 0.
@@ -113,34 +114,73 @@ type Comparison struct {
 	Phases  []PhaseComparison `json:"phases,omitempty"`
 }
 
-// Compare compares a metric of the baseline and comparison images over the first phase of a
-// measurement and the swapped one, in which the installations swapped their images.
+// checkPhaseCount returns an error unless phases, the number of phases of a measurement, is
+// even and at least 2: the installations swap their images between consecutive phases, so
+// that each image runs as many phases on the node pools of each installation.
+func checkPhaseCount(phases int) error {
+	if phases < 2 || phases%2 != 0 {
+		return fmt.Errorf("%d phase(s): a measurement needs an even number of phases, at least 2", phases)
+	}
+	return nil
+}
+
+// ParsePhaseCount returns the number of phases of a measurement value holds, in decimal, or an
+// error unless it is even and at least 2.
+func ParsePhaseCount(value string) (int, error) {
+	phases, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, err
+	}
+	if err := checkPhaseCount(phases); err != nil {
+		return 0, err
+	}
+	return phases, nil
+}
+
+// SwapInPhase returns x and y, swapped in the measurement phases of odd index phase, counted
+// from 0: the installations swap their images between consecutive phases, installation a
+// running the baseline images in the first one. So SwapInPhase(phase, baseline, comparison)
+// returns what installations a and b run, and SwapInPhase(phase, a, b) the installations
+// running the baseline and the comparison images.
+func SwapInPhase[T any](phase int, x, y T) (T, T) {
+	if phase%2 == 1 {
+		return y, x
+	}
+	return x, y
+}
+
+// Compare compares a metric of the baseline and comparison images over the phases of a
+// measurement, the installations swapping their images between consecutive phases.
 //
 // The ratio of the comparison to the baseline in a block of a phase is the effect of the
 // images times the ratio β of the speed of the node pools of the installations running them,
-// or 1/β once swapped. So the mean of the block log ratios over a phase estimates
-// ln(effect) ± ln(β), and the average of both phases ln(effect). Its variance is the sum of
-// the variances of both phase means divided by 4, with Welch–Satterthwaite degrees of freedom.
+// or 1/β in the phases with the images swapped. So the mean mₖ of the block log ratios over
+// phase k estimates ln(effect) ± ln(β), and the mean e of the mₖ of the K phases, half of them
+// on each side, ln(effect). Its variance is Σ vₖ / K², vₖ being the squared standard error
+// of mₖ, with Welch–Satterthwaite degrees of freedom (see meanOfMeansTTest).
 //
 // The change is an improvement or a regression when it is significant, and at least as large
 // as both thresholds. Every block must hold points of both images: missing data is an error,
 // never a lack of change.
-func Compare(first, swapped Phase, thresholds Thresholds) (Comparison, error) {
-	var c Comparison
-	var logRatios [2][]float64
-	for i, phase := range []Phase{first, swapped} {
+func Compare(phases []Phase, thresholds Thresholds) (Comparison, error) {
+	if err := checkPhaseCount(len(phases)); err != nil {
+		return Comparison{}, err
+	}
+	c := Comparison{Phases: make([]PhaseComparison, 0, len(phases))}
+	logRatios := make([][]float64, 0, len(phases))
+	for i, phase := range phases {
 		phaseComparison, ratios, err := comparePhase(phase)
 		if err != nil {
 			return Comparison{}, fmt.Errorf("phase %d: %w", i+1, err)
 		}
 		c.Phases = append(c.Phases, phaseComparison)
-		logRatios[i] = ratios
+		logRatios = append(logRatios, ratios)
 	}
 
-	c.BaselineMean = (c.Phases[0].BaselineMean + c.Phases[1].BaselineMean) / 2
-	c.ComparisonMean = (c.Phases[0].ComparisonMean + c.Phases[1].ComparisonMean) / 2
-	c.RelativeChange = math.Expm1((c.Phases[0].LogRatio + c.Phases[1].LogRatio) / 2)
-	c.PValue = meanOfMeansTTest(logRatios[0], logRatios[1])
+	c.BaselineMean = lo.MeanBy(c.Phases, func(phase PhaseComparison) float64 { return phase.BaselineMean })
+	c.ComparisonMean = lo.MeanBy(c.Phases, func(phase PhaseComparison) float64 { return phase.ComparisonMean })
+	c.RelativeChange = math.Expm1(lo.MeanBy(c.Phases, func(phase PhaseComparison) float64 { return phase.LogRatio }))
+	c.PValue = meanOfMeansTTest(logRatios...)
 	c.Verdict = c.verdict(thresholds)
 	return c, nil
 }
