@@ -12,8 +12,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 )
 
 type fakeBackendsIterator struct {
@@ -91,4 +96,17 @@ func TestRefreshBackendsKeepsRemovedBackendWhileLookedUp(t *testing.T) {
 	// once lookups stop, it's evicted a TTL after the last one
 	refreshBackends(cache, &fakeBackendsIterator{ids: []uint32{2}}, start.Add(9*time.Minute+removedBackendTTL+time.Second))
 	assert.ElementsMatch(t, []uint32{2}, backendIDs(cache))
+}
+
+func TestSharedConntrackNATMapNotSharedWithCilium(t *testing.T) {
+	ctMap, err := maps.NewGenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](&ebpf.MapSpec{Type: ebpf.Hash, MaxEntries: 1})
+	require.NoError(t, err)
+	t.Cleanup(func() { ctMap.Map().Close() })
+	ebpfCtk := &ebpfConntracker{ctMap: ctMap}
+
+	assert.Equal(t, ctMap.Map(), sharedConntrackNATMap(ebpfCtk))
+	assert.Equal(t, ctMap.Map(), sharedConntrackNATMap(chainConntrackers(ebpfCtk, netlink.NewNoOpConntracker())))
+	assert.Nil(t, sharedConntrackNATMap(chainConntrackers(ebpfCtk, &ciliumLoadBalancerConntracker{})))
+	assert.Nil(t, sharedConntrackNATMap(&ciliumLoadBalancerConntracker{}))
+	assert.Nil(t, sharedConntrackNATMap(netlink.NewNoOpConntracker()))
 }

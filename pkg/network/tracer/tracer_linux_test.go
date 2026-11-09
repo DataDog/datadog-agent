@@ -2868,8 +2868,8 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
 			t.Skip("the sk tracer doesn't classify with the conntrack map")
 		}
-		if ebpfConntrackerMap(tr.conntracker) == nil {
-			t.Skip("ebpf conntracker not loaded")
+		if sharedConntrackNATMap(tr.conntracker) == nil {
+			t.Skip("ebpf conntracker map not shared")
 		}
 		// net_dev_queue isn't attached, so its map is left at one entry
 		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
@@ -2885,7 +2885,7 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
 			t.Skip("the sk tracer doesn't classify with the net_dev_queue map")
 		}
-		require.Nil(t, ebpfConntrackerMap(tr.conntracker))
+		require.Nil(t, sharedConntrackNATMap(tr.conntracker))
 		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 		require.NoError(t, err)
 		assert.Equal(t, cfg.MaxTrackedConnections, m.MaxEntries())
