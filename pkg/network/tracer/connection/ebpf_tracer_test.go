@@ -12,7 +12,6 @@ import (
 	"errors"
 	"fmt"
 	"maps"
-	"slices"
 	"testing"
 	"unsafe"
 
@@ -87,13 +86,17 @@ func TestConntrackNATMapLoadFailureFallsBack(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, uint32(unsafe.Sizeof(netebpf.ConntrackTuple{})), ct.KeySize(), "tracer kept the bad map")
 
-	// net_dev_queue is attached again, with its map at full size
+	// net_dev_queue is loaded again, to be attached on start, with its map at full size
 	skb, err := tr.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
 	assert.Equal(t, cfg.MaxTrackedConnections, skb.MaxEntries())
 	mgr := tr.(*ebpfTracer).m.Manager
-	if probeRunning(mgr, probes.ProtocolClassifierEntrySocketFilter) {
-		assert.True(t, probeRunning(mgr, probes.NetDevQueueRawTracepoint, probes.NetDevQueueTracepoint, probes.DevQueueXmitNitKprobe), "net_dev_queue isn't attached")
+	classifies := kprobe.ClassificationSupported(cfg)
+	if tr.Type() == TracerTypeFentry {
+		classifies = fentry.ClassificationSupported(cfg)
+	}
+	if classifies {
+		assert.True(t, programLoaded(t, mgr, probes.NetDevQueueRawTracepoint, probes.NetDevQueueTracepoint, probes.DevQueueXmitNitKprobe), "net_dev_queue isn't loaded")
 	}
 
 	// and the programs were loaded to look up NAT'd tuples in its map, not the conntracker's
@@ -101,10 +104,13 @@ func TestConntrackNATMapLoadFailureFallsBack(t *testing.T) {
 	assert.False(t, loaded.shared, "loaded with the conntracker's map")
 }
 
-// probeRunning reports whether any probe with one of the given function names is running.
-func probeRunning(m *manager.Manager, names ...probes.ProbeFuncName) bool {
-	for _, p := range m.GetProbes() {
-		if slices.Contains(names, probes.ProbeFuncName(p.EBPFFuncName)) && p.IsRunning() {
+// programLoaded reports whether a program with one of the given function names was loaded. Excluded programs
+// aren't, and the tracer attaches the loaded ones when it starts.
+func programLoaded(t *testing.T, m *manager.Manager, names ...probes.ProbeFuncName) bool {
+	progs, err := m.GetPrograms()
+	require.NoError(t, err)
+	for _, name := range names {
+		if _, ok := progs[string(name)]; ok {
 			return true
 		}
 	}
