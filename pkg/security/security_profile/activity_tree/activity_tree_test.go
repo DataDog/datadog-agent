@@ -9,6 +9,8 @@
 package activitytree
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"strings"
 	"testing"
@@ -17,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -792,4 +795,28 @@ func TestProcessInfoMatches(t *testing.T) {
 		Argv:      []string{"-s", "https://example.com"},
 	}
 	assert.True(t, node.Matches(entry, true, false))
+}
+
+func TestEventErrorType(t *testing.T) {
+	cause := errors.New("cause")
+	tests := []struct {
+		name string
+		err  error
+		want string
+	}{
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, EventErrorBrokenLineage},
+		{"no process context", model.ErrNoProcessContext, EventErrorNoProcessContext},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, EventErrorPathResolution},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), EventErrorPathResolution},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, EventErrorPathResolutionNotCritical},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, EventErrorDNSDecoding},
+		{"other", cause, EventErrorOther},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := EventErrorType(tt.err)
+			assert.Equal(t, tt.want, got)
+			assert.Contains(t, EventErrorTypes, got)
+		})
+	}
 }
