@@ -10,6 +10,8 @@ package probe
 
 import (
 	"encoding/binary"
+	"errors"
+	"fmt"
 	"math"
 	"net"
 	"net/netip"
@@ -1076,6 +1078,21 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	require.ErrorIs(t, parentErrEv.Error, assert.AnError)
 	assert.NotContains(t, appNode.Files["tmp"].Children, "parent-bad")
 	assert.Len(t, anomalies, 1)
+}
+
+func TestFilesystemResolutionError(t *testing.T) {
+	var notCritical *path.ErrPathResolutionNotCritical
+	var critical *path.ErrPathResolution
+
+	kernelMount := filesystemResolutionError(3, 42, fmt.Errorf("%w (mount_id=3 < min_mount_id=20)", mount.ErrMountKernelID))
+	assert.ErrorAs(t, kernelMount, &notCritical)
+	assert.ErrorIs(t, kernelMount, mount.ErrMountKernelID)
+
+	// not a path error, which the probe monitor would report as an abnormal path
+	undefined := filesystemResolutionError(0, 42, mount.ErrMountUndefined)
+	assert.ErrorIs(t, undefined, mount.ErrMountUndefined)
+	assert.False(t, errors.As(undefined, &notCritical))
+	assert.False(t, errors.As(undefined, &critical))
 }
 
 func TestResolveMountSourcePath(t *testing.T) {
