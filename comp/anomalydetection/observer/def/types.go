@@ -273,6 +273,18 @@ type Anomaly struct {
 	SamplingIntervalSec int64
 	// DebugInfo contains detector-specific debug information explaining the detection.
 	DebugInfo *AnomalyDebugInfo
+	// LevelChange carries before/after levels of a detected change. Internal
+	// detection evidence, not a reporter payload.
+	LevelChange *LevelChangeEvidence `json:"-"`
+}
+
+// LevelChangeEvidence holds the two levels of a detected change, in source
+// series units. Scan detectors set both to the medians around their split.
+type LevelChangeEvidence struct {
+	// BeforeMedian is the level of the pre-change segment.
+	BeforeMedian float64
+	// AfterMedian is the level of the post-change segment.
+	AfterMedian float64
 }
 
 // AnomalyDebugInfo provides detailed information about why an anomaly was detected.

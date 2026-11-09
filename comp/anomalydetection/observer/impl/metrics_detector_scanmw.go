@@ -327,6 +327,10 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		Timestamp:           changePtTime,
 		Score:               &score,
 		SamplingIntervalSec: d.workspace.medianPointInterval(points),
+		LevelChange: &observer.LevelChangeEvidence{
+			BeforeMedian: preMedian,
+			AfterMedian:  postMedian,
+		},
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,
