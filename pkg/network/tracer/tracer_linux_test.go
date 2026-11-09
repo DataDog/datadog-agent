@@ -2795,6 +2795,54 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 	}
 }
 
+func (s *TracerSuite) TestTCPOngoingConnectPidCleanedOnClose() {
+	t := s.T()
+	if mode := ebpftest.GetBuildMode(); mode == ebpftest.Ebpfless || mode == ebpftest.SK {
+		t.Skip("tcp_ongoing_connect_pid is only used by the kprobe and fentry tracers")
+	}
+
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	ongoing, err := tr.ebpfTracer.GetMap(probes.TCPOngoingConnectPid)
+	require.NoError(t, err)
+
+	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(c, c)
+		c.Close()
+	})
+	require.NoError(t, srv.Run())
+	t.Cleanup(srv.Shutdown)
+	srvPort := uint16(srv.Addr().(*net.TCPAddr).Port)
+
+	// Both the connecting and the accepted socket get an entry; both must be
+	// gone once the sockets are closed.
+	for range 10 {
+		c, err := tracertestutil.DialTCP("tcp", srv.Address())
+		require.NoError(t, err)
+		_, err = c.Write([]byte("ping"))
+		require.NoError(t, err)
+		_, err = io.ReadFull(c, make([]byte, 4))
+		require.NoError(t, err)
+		require.NoError(t, c.Close())
+	}
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var key netebpf.SkpConn
+		var val netebpf.PidTs
+		var left []string
+		it := ongoing.Iterate()
+		for it.Next(&key, &val) {
+			if key.Tup.Sport == srvPort || key.Tup.Dport == srvPort {
+				left = append(left, fmt.Sprintf("sport=%d dport=%d pid=%d", key.Tup.Sport, key.Tup.Dport, key.Tup.Pid))
+			}
+		}
+		require.NoError(collect, it.Err())
+		assert.Empty(collect, left, "tcp_ongoing_connect_pid entries left after close")
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
 func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
 	t := s.T()
 
