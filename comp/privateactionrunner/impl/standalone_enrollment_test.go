@@ -51,10 +51,11 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 	})
 	flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
 	hostname, _ := hostnamemock.NewMock("test-host")
-	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
+	storage := enrollment.NewIdentityStorage(cfg, nil)
+	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
 	_, err := runner.getRunnerConfig(context.Background())
 	require.NoError(t, err)
-	identity, err := enrollment.GetIdentityFromPreviousEnrollment(context.Background(), cfg)
+	identity, err := storage.Load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 	require.NotEmpty(t, identity.PrivateKey)

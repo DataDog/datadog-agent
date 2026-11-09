@@ -143,6 +143,12 @@ var endpoints = []Endpoint{
 		TimeoutOverride: getConfiguredEVPRequestTimeoutDuration,
 	},
 	{
+		Pattern:         "/ai_guard/proxy/",
+		Handler:         func(r *HTTPReceiver) http.Handler { return r.aiGuardProxyHandler() },
+		TimeoutOverride: getConfiguredEVPRequestTimeoutDuration,
+		IsEnabled:       aiGuardProxyEnabled,
+	},
+	{
 		Pattern: "/debugger/v1/input",
 		Handler: func(r *HTTPReceiver) http.Handler { return r.debuggerLogsProxyHandler() },
 	},

@@ -85,7 +85,7 @@ func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 				b.StopTimer()
 				_, _, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
 				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{
+				e := mustNewEngine(engineConfig{
 					storage:    storage,
 					extractors: extractors,
 				})
@@ -122,7 +122,7 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 				b.StopTimer()
 				_, _, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
 				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{
+				e := mustNewEngine(engineConfig{
 					storage:    storage,
 					extractors: extractors,
 				})
@@ -143,7 +143,7 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 func BenchmarkLogContextSteadyState(b *testing.B) {
 	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	extractor.config.MinClusterSizeBeforeEmit = 1
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    newTimeSeriesStorage(),
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
