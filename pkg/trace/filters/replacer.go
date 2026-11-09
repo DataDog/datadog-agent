@@ -36,6 +36,13 @@ const hiddenTagPrefix = "_"
 // still apply to them.
 const envTag = "env"
 
+// wildcardReplaceableSpanTag reports whether "*" rules may rewrite the span tag
+// (V0 meta or metric, V1 attribute) named key. Span event attributes only skip
+// hidden tags and must not use it.
+func wildcardReplaceableSpanTag(key string) bool {
+	return key != envTag && !strings.HasPrefix(key, hiddenTagPrefix)
+}
+
 // Replace replaces all tags matching the Replacer's rules.
 func (f Replacer) Replace(trace pb.Trace) {
 	for _, rule := range f.rules {
@@ -44,14 +51,14 @@ func (f Replacer) Replace(trace pb.Trace) {
 			switch key {
 			case "*":
 				for k := range s.Meta {
-					if k != envTag && !strings.HasPrefix(k, hiddenTagPrefix) {
+					if wildcardReplaceableSpanTag(k) {
 						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
 					}
 				}
 				for k := range s.Metrics {
-					// Skip env too, as replaceNumericTag can move a non-numeric
-					// result into Meta["env"].
-					if k != envTag && !strings.HasPrefix(k, hiddenTagPrefix) {
+					// Skipping env matters here too, as replaceNumericTag can
+					// move a non-numeric result into Meta["env"].
+					if wildcardReplaceableSpanTag(k) {
 						f.replaceNumericTag(re, s, k, str)
 					}
 				}
@@ -99,10 +106,11 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 			case "*":
 				for k, v := range s.Attributes() {
 					kString := trace.Strings.Get(k)
-					// Spans decoded from msgpack v0.4/v0.5 payloads keep env both
-					// in the dedicated env field and in Attributes(), and setting
-					// the "env" attribute writes the env field.
-					if kString == envTag || strings.HasPrefix(kString, hiddenTagPrefix) {
+					// Skipping env matters here: spans decoded from msgpack
+					// v0.4/v0.5 payloads keep env both in the dedicated env field
+					// and in Attributes(), and setting the "env" attribute writes
+					// the env field.
+					if !wildcardReplaceableSpanTag(kString) {
 						continue
 					}
 					vString := v.AsString(trace.Strings)
