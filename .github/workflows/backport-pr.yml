@@ -40,6 +40,8 @@ jobs:
     needs: get-backport-targets
     if: needs.get-backport-targets.outputs.targets != '[]' && needs.get-backport-targets.outputs.targets != ''
     runs-on: ubuntu-latest
+    outputs:
+      author_email: ${{ steps.author.outputs.email }}
     strategy:
       fail-fast: false
       matrix:
@@ -80,6 +82,19 @@ jobs:
             GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
             GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: dda gh cherry-pick-pr --target-branch "${{ steps.target.outputs.target_branch }}"
+
+      - name: Extract original PR author email
+        id: author
+        env:
+          CHERRY_PICK_AUTHOR: ${{ steps.cherry-pick.outputs.author }}
+        run: |
+          # The cherry-pick step outputs the author as 'Name <email>'
+          email=$(sed -n 's/.*<\(.*\)>/\1/p' <<< "$CHERRY_PICK_AUTHOR")
+          if [[ -n "$email" ]]; then
+            echo "email=$email" >> "$GITHUB_OUTPUT"
+          else
+            echo "email=" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Comment on backport failure
         if: steps.cherry-pick.outcome == 'failure'
@@ -148,3 +163,43 @@ jobs:
             ___
 
             Co-authored-by: ${{ steps.cherry-pick.outputs.author }}
+
+  notify-backport-slack:
+    name: Notify PR owner on Slack
+    needs: [get-backport-targets, backport]
+    if: ${{ !cancelled() && needs.backport.outputs.author_email != '' }}
+    runs-on: ubuntu-latest
+    permissions: {} # This job only talks to the Slack API, no GitHub API access is needed
+    steps:
+      - name: Send Slack DM to PR owner
+        env:
+          SLACK_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+          AUTHOR_EMAIL: ${{ needs.backport.outputs.author_email }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          PR_TITLE: ${{ github.event.pull_request.title }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          TARGET_BRANCHES: ${{ needs.get-backport-targets.outputs.targets }}
+        run: |
+          # Look up the Slack user by email (same approach as tasks/pipeline.py changelog)
+          user_id=$(curl -sf -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            "https://slack.com/api/users.lookupByEmail?email=$(jq -rn --arg v "$AUTHOR_EMAIL" '$v|@uri')" \
+            | jq -r 'if .ok then .user.id else empty end')
+
+          branches=$(jq -rn --argjson v "$TARGET_BRANCHES" '$v | map(sub("^backport/"; "")) | join(", ")')
+          message=":rewind: A backport of <${PR_URL}|#${PR_NUMBER} (${PR_TITLE})> to \`${branches}\` was just created. Keep an eye on it in case it needs attention."
+
+          if [[ -n "$user_id" ]]; then
+            # DM the PR owner
+            channel="$user_id"
+          else
+            # Author has no Slack account (e.g. external contributor); notify agent-devx-ops instead
+            echo "No Slack user found for $AUTHOR_EMAIL, notifying #agent-devx-ops instead"
+            message="${message}\n:warning: Could not DM the PR owner (no Slack user for ${AUTHOR_EMAIL}). Please reach out to them if needed."
+            channel="#agent-devx-ops"
+          fi
+
+          curl -sf -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+            -H 'Content-Type: application/json' \
+            -X POST https://slack.com/api/chat.postMessage \
+            -d "$(jq -n --arg channel "$channel" --arg text "$message" '{channel: $channel, text: $text}')" \
+            | jq -e '.ok' > /dev/null
