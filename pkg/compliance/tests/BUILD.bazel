@@ -26,6 +26,7 @@ dd_agent_go_test(
         "base_test.go",
         "data_test.go",
         "docker_test.go",
+        "file_linux_test.go",
         "file_test.go",
         "kubernetes_test.go",
         "package_test.go",

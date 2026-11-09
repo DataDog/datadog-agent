@@ -27,15 +27,15 @@ The payload is a JSON dict with the following fields
   - `provided_configuration` - **string**: the current Security-Agent configuration (scrubbed), without the defaults, as a YAML
     string. This includes the settings configured by the user (throuh the configuration file, the environment, CLI...).
   - `file_configuration` - **string**: the Security-Agent configuration specified by the configuration file (scrubbed), as a YAML string.
-    Only the settings written in the configuration file are included, and their value might not match what's applyed by the agent since they can be overriden by other sources.
+    Only the settings written in the configuration file are included, and their value might not match what's applied by the agent since they can be overridden by other sources.
   - `environment_variable_configuration` - **string**: the Security-Agent configuration specified by the environment variables (scrubbed), as a YAML string.
-    Only the settings written in the environment variables are included, and their value might not match what's applyed by the agent somce they can be overriden by other sources.
+    Only the settings written in the environment variables are included, and their value might not match what's applied by the agent somce they can be overridden by other sources.
   - `agent_runtime_configuration` - **string**: the Security-Agent configuration set by the agent itself (scrubbed), as a YAML string.
-    Only the settings set by the agent itself are included, and their value might not match what's applyed by the agent since they can be overriden by other sources.
+    Only the settings set by the agent itself are included, and their value might not match what's applied by the agent since they can be overridden by other sources.
   - `remote_configuration` - **string**: the Security-Agent configuration specified by the Remote Configuration (scrubbed), as a YAML string.
-    Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent since they can be overriden by other sources.
+    Only the settings currently used by Remote Configuration are included, and their value might not match what's applied by the agent since they can be overridden by other sources.
   - `fleet_policies_configuration` - **string**: the Security-Agent configuration specified by the Fleet Automation Policies (scrubbed), as a YAML string.
-    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applyed by the agent since they can be overriden by other sources.
+    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applied by the agent since they can be overridden by other sources.
   - `cli_configuration` - **string**: the Security-Agent configuration specified by the CLI (scrubbed), as a YAML string.
     Only the settings set in the CLI are included.
   - `source_local_configuration` - **string**: the Security-Agent configuration synchronized from the local Agent process, as a YAML string.

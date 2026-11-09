@@ -3,7 +3,7 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>com.datadoghq.procmgr{{.LabelSuffix}}</string>
+        <string>com.datadoghq.procmgr</string>
         <key>RunAtLoad</key>
         <true/>
         <key>KeepAlive</key>
@@ -29,9 +29,9 @@
             <string>{{.ProgramDir}}/embedded/bin/dd-procmgrd</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_procmgr{{.LabelSuffix}}.log</string>
+        <string>{{.LogDir}}/launchd_procmgr.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_procmgr{{.LabelSuffix}}.log</string>
+        <string>{{.LogDir}}/launchd_procmgr.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>

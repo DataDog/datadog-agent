@@ -48,8 +48,9 @@ var (
 
 // Device is a physical AMD GPU bound to the amdgpu driver.
 type Device struct {
-	// UUID is a stable identifier: "amd-" followed by the unique_id attribute
-	// when it is a valid nonzero 64-bit hex serial, or by the PCI address
+	// UUID is a stable identifier: the UUID amd-smi and the AMD metrics
+	// exporter report, derived from the unique_id attribute when it is a valid
+	// nonzero 64-bit hex serial, or "amd-" followed by the PCI address
 	// otherwise, or when the serial is shared by several PCI functions.
 	UUID string
 	// Index is the position of the device when sorted by PCI address.
@@ -198,7 +199,7 @@ func keepSharedSerialIdentities(sysRoot string, devices []*Device) {
 	defer sharedSerialsMu.Unlock()
 	known := sharedSerials[sysRoot]
 	for _, dev := range devices {
-		if dev.serial == "" || dev.UUID == Vendor+"-"+dev.serial {
+		if dev.serial == "" || dev.UUID != pciUUID(dev.PCIBusID) {
 			continue
 		}
 		// Given a PCI identity in this scan, as its serial is shared.
@@ -290,7 +291,7 @@ func probeCard(linkPath string) (*Device, error) {
 	serial, err := strconv.ParseUint(uniqueID, 16, 64)
 	if err == nil && serial != 0 && uniqueIDRegex.MatchString(uniqueID) {
 		dev.serial = uniqueID
-		dev.UUID = Vendor + "-" + uniqueID
+		dev.UUID = amdSMIUUID(serial, deviceID)
 	} else {
 		dev.UUID = pciUUID(pciBusID)
 	}
@@ -300,6 +301,17 @@ func probeCard(linkPath string) (*Device, error) {
 		dev.Name = cleanName(deviceName(deviceID))
 	}
 	return dev, nil
+}
+
+// amdSMIUUID returns the UUID amd-smi derives from the ASIC serial and the PCI
+// device ID (amdsmi_uuid_gen in amdsmi's amd_smi_uuid.cc), e.g.
+// 2a0074b5-0000-1000-8077-ed7921593a8b. The second byte is the KFD partition
+// ID in current amd-smi, 0 for the physical GPU reported here; amd-smi before
+// ROCm 10 (ROCm/amdsmi repository) used 0xff instead.
+func amdSMIUUID(serial uint64, deviceID uint16) string {
+	const partitionID = 0
+	timeLow := (serial>>56)<<24 | partitionID<<16 | uint64(deviceID)
+	return fmt.Sprintf("%08x-0000-1000-80%02x-%04x%08x", timeLow, (serial>>48)&0xff, (serial>>32)&0xffff, serial&0xffffffff)
 }
 
 func pciUUID(pciBusID string) string {

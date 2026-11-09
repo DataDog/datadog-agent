@@ -1,0 +1,10 @@
+# -f (flood) is a DoS vector and must be rejected as an unknown flag.
+description: "ping -f (flood) is rejected with exit 1"
+input:
+  script: |+
+    ping -f localhost
+expect:
+  stdout: ""
+  stderr: "ping: invalid option -- 'f'\nTry 'ping --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

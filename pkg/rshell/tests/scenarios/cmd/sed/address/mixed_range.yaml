@@ -1,0 +1,13 @@
+description: Address ranges can mix different types like regex and line number.
+setup:
+  files:
+    - path: input.txt
+      content: "start\nkeep1\nkeep2\nstop\nignore\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '/start/,3s/^/>> /' input.txt
+expect:
+  stdout: ">> start\n>> keep1\n>> keep2\nstop\nignore\n"
+  stderr: ""
+  exit_code: 0

@@ -30,6 +30,10 @@ func (r *recordingOnlyTestRecorder) GetHandle(inner observerdef.HandleFunc) obse
 	}
 }
 
+func (r *recordingOnlyTestRecorder) RecordLog(_ string, _ observerdef.LogView) {
+	r.logs++
+}
+
 type recordingOnlyTestHandle struct {
 	inner    observerdef.Handle
 	recorder *recordingOnlyTestRecorder
@@ -42,7 +46,6 @@ func (h *recordingOnlyTestHandle) ObserveMetric(metric observerdef.MetricView, c
 
 func (h *recordingOnlyTestHandle) ObserveLog(log observerdef.LogView) {
 	h.inner.ObserveLog(log)
-	h.recorder.logs++
 }
 
 func TestRecordingOnlyHandleRouting(t *testing.T) {
@@ -99,11 +102,11 @@ anomaly_detection:
 			}
 			obs, ok := provides.Comp.(*observerImpl)
 			require.True(t, ok)
-			t.Cleanup(func() { close(obs.obsCh) })
+			t.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh) })
 
 			h := obs.GetHandle("check")
 			h.ObserveMetric(&metricObs{name: "system.cpu", value: 2.5, timestamp: 1000}, 1)
-			h.ObserveLog(&logObs{content: "hello", status: "info", timestampMs: 1_000_000})
+			h.ObserveLog(&logObs{content: "hello", status: "warn", timestampMs: 1_000_000})
 			obs.Flush()
 
 			series := obs.engine.storage.ListSeries(observerdef.SeriesFilter{Namespace: "check"})

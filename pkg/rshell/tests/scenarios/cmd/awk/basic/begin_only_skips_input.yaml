@@ -1,0 +1,14 @@
+description: awk defers input-only work but validates field separators in BEGIN-only programs.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk 'BEGIN { print "x" }' missing.txt
+    awk 'BEGIN { FS="["; FS=":"; print 1 }'
+    awk 'BEGIN { FS="[["; FS=":"; print 2 }'
+expect:
+  stdout: |+
+    x
+    1
+  stderr: |+
+    awk: fatal: invalid regular expression "[[": error parsing regexp: missing closing ]: `[[`
+  exit_code: 2

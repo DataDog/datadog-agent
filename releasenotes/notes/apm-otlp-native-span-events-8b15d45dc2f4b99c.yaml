@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    APM : Spans received over OTLP now carry their span events in the native span
+    events field instead of a JSON-encoded ``events`` tag. This fixes span events
+    being lost when the tag was cut by the 25,000 character tag value limit, and
+    lets the agent's credit card obfuscation and ``replace_tags`` rules apply to span
+    event attributes. String, boolean, integer and double attributes, and empty arrays
+    or arrays of one of these types, keep their type. Byte values are base64 encoded,
+    empty values and empty maps are dropped, and other array and map values are
+    flattened into ``key.0``, ``key.1``, ... and ``key.subkey`` entries, as for span
+    links. The event's dropped attributes count is no longer reported.

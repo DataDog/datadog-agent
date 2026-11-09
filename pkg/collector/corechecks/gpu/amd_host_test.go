@@ -70,7 +70,7 @@ func applyAMDTestSettings(t *testing.T, settings map[string]any) {
 func setupNVIDIACheckOnHost(t *testing.T, sysRoot string, settings map[string]any) *Check {
 	t.Helper()
 	senderManager := mocksender.CreateDefaultDemultiplexer(t)
-	checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t))
+	checkGeneric := newCheck(taggerfxmock.SetupFakeTagger(t), testutil.GetTelemetryMock(t), testutil.GetWorkloadMetaMock(t), nil)
 	check, ok := checkGeneric.(*Check)
 	require.True(t, ok)
 
@@ -95,7 +95,7 @@ func TestNVIDIACheckOnAMDOnlyHost(t *testing.T) {
 	check := setupNVIDIACheckOnHost(t, fakeAMDHost(t), nil)
 	check.SetIssueReporter(healthStore)
 	check.syncNvmlHealthIssue(true, false)
-	issueID := gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
+	issueID := check.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)
 	require.NotNil(t, healthStore.GetIssue(issueID))
 
 	for range 3 {
@@ -103,6 +103,22 @@ func TestNVIDIACheckOnAMDOnlyHost(t *testing.T) {
 	}
 	assert.Nil(t, healthStore.GetIssue(issueID))
 	assert.Zero(t, nvmlLoads, "the NVIDIA GPU check must not load NVML on an AMD-only host")
+}
+
+// On an AMD-only host with AMD collection disabled, the NVIDIA GPU check does
+// not load NVML either: it would only fail on every run.
+func TestNVIDIACheckOnAMDOnlyHostWithAMDDisabled(t *testing.T) {
+	nvmlLoads := 0
+	ddnvml.WithMockNvmlNewFunc(t, func(...nvml.LibraryOption) nvml.Interface {
+		nvmlLoads++
+		return testutil.NewMockNVML(testutil.WithInitReturn(nvml.ERROR_LIBRARY_NOT_FOUND))
+	})
+	check := setupNVIDIACheckOnHost(t, fakeAMDHost(t), map[string]any{"gpu.amd.enabled": false})
+
+	for range 3 {
+		require.NoError(t, check.Run())
+	}
+	assert.Zero(t, nvmlLoads)
 }
 
 // An NVIDIA audio function is not a GPU: the host is still AMD-only.
@@ -119,12 +135,12 @@ func TestNVIDIACheckOnAMDHostWithNVIDIAAudio(t *testing.T) {
 	check.syncNvmlHealthIssue(true, false)
 
 	require.NoError(t, check.Run())
-	assert.Nil(t, healthStore.GetIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)))
+	assert.Nil(t, healthStore.GetIssue(check.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)))
 }
 
 // An AMD GPU does not make a broken NVIDIA driver healthy: with an NVIDIA GPU,
-// an unreadable inventory, AMD collection disabled, or no GPU at all, the
-// NVIDIA GPU check keeps failing and reporting the NVML issue.
+// an unreadable inventory, or no GPU at all, the NVIDIA GPU check keeps
+// failing and reporting the NVML issue.
 func TestNVIDIACheckKeepsNVMLIssueUnlessAMDOnly(t *testing.T) {
 	for name, tc := range map[string]struct {
 		pciAttributes map[string]string // an extra PCI device, if any
@@ -135,7 +151,6 @@ func TestNVIDIACheckKeepsNVMLIssueUnlessAMDOnly(t *testing.T) {
 		"NVIDIA accelerator": {pciAttributes: map[string]string{"vendor": "0x10de\n", "class": "0x120000\n"}, amdGPU: true},
 		"unknown class":      {pciAttributes: map[string]string{"vendor": "0x10de\n"}, amdGPU: true},
 		"invalid vendor":     {pciAttributes: map[string]string{"vendor": "invalid\n"}, amdGPU: true},
-		"AMD collection off": {amdGPU: true, settings: map[string]any{"gpu.amd.enabled": false}},
 		"no GPU":             {},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -157,7 +172,7 @@ func TestNVIDIACheckKeepsNVMLIssueUnlessAMDOnly(t *testing.T) {
 			check.syncNvmlHealthIssue(true, false)
 
 			require.Error(t, check.Run())
-			assert.NotNil(t, healthStore.GetIssue(gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)))
+			assert.NotNil(t, healthStore.GetIssue(check.gpuHealthIssueID(gpuenvironment.ReasonNvmlUnavailable)))
 		})
 	}
 }

@@ -49,6 +49,12 @@ type dependencies struct {
 // storeGenerator returns a new store specific to a given resource
 type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
+// syncedStore is implemented by both the reflector stores and the informer
+// event handler registrations, so that the startup check can wait for them.
+type syncedStore interface {
+	HasSynced() bool
+}
+
 func shouldHavePodStore(cfg config.Reader) bool {
 	return podsRequiredAtStartup(cfg) || cfg.GetBool("autoscaling.workload.enabled")
 }
@@ -60,6 +66,8 @@ func podsRequiredAtStartup(cfg config.Reader) bool {
 	metadataAsTags := configutils.GetMetadataAsTags(cfg)
 	return cfg.GetBool("cluster_agent.collect_kubernetes_tags") ||
 		cfg.GetBool("autoscaling.cluster.spot.enabled") ||
+		// The kube metadata stream sends each node the KAI PodGroups of its pods.
+		shouldHaveKAIMetadata(cfg) ||
 		len(metadataAsTags.GetPodLabelsAsTags()) > 0 ||
 		len(metadataAsTags.GetPodAnnotationsAsTags()) > 0
 }
@@ -225,7 +233,7 @@ func GetFxOptions() fx.Option {
 }
 
 func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Component) error {
-	var objectStores []cache.ResourceEventHandlerRegistration
+	var objectStores []syncedStore
 
 	apiserverClient, err := apiserver.GetAPIClient()
 	if err != nil {
@@ -325,7 +333,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 			log.Errorf("failed to discover Kueue Workload resources: %v", err)
 		} else {
 			for _, gvr := range gvrs {
-				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				reflector, store, err := newKueueWorkloadStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr, c.config)
 				if err != nil {
 					log.Errorf("failed to create Kueue Workload store for %s: %v", gvr.Resource, err)
 					continue
@@ -334,6 +342,27 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 				go reflector.Run(ctx.Done())
 			}
 		}
+	}
+
+	if shouldHaveKAIMetadata(c.config) {
+		gvrs, err := getGVRsForRequestedResources(client.Discovery(), kaiPodGroupGVRStrings())
+		if err != nil {
+			log.Errorf("failed to discover KAI PodGroup resources: %v", err)
+		} else {
+			for _, gvr := range gvrs {
+				// Not added to objectStores: the PodGroups RBAC may be missing
+				// with older Helm charts or Operators, and it must not block
+				// readiness.
+				reflector, _ := newKAIPodGroupStore(wlmetaStore, apiserverClient.DynamicInformerCl, gvr)
+				go reflector.Run(ctx.Done())
+			}
+		}
+	}
+
+	if shouldHaveAutoscalerStores(c.config) {
+		// Part of the readiness check, but kinds that can't be listed are
+		// skipped and don't block readiness.
+		objectStores = append(objectStores, startAutoscalerStores(ctx, wlmetaStore, client.Discovery(), apiserverClient.DynamicCl, apiserverClient.DynamicInformerCl)...)
 	}
 
 	if c.config.GetBool("cluster_checks.crd_collection") {
@@ -455,7 +484,7 @@ func notifyKubeCapabilities(wlmetaStore workloadmeta.Component, versionInfo *ver
 	})
 }
 
-func runStartupCheck(ctx context.Context, stores []cache.ResourceEventHandlerRegistration) {
+func runStartupCheck(ctx context.Context, stores []syncedStore) {
 	log.Infof("Starting startup health check waiting for %d k8s reflectors to sync", len(stores))
 
 	// There is no way to ensure liveness correctly as it would need to be plugged inside the

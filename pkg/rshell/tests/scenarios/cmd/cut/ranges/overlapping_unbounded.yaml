@@ -1,0 +1,14 @@
+description: Cut merges overlapping unbounded byte ranges correctly.
+setup:
+  files:
+    - path: input.txt
+      content: "1234\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -b3-,2- input.txt
+expect:
+  stdout: "234\n"
+  stderr: ""
+  exit_code: 0

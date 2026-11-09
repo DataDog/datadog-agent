@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -159,6 +160,9 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 	}, nil
 }
 
+// HostTagsFunc returns host tags to add to every translated metric; it may return nil.
+type HostTagsFunc func() []string
+
 // Exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
 type Exporter struct {
@@ -166,6 +170,7 @@ type Exporter struct {
 	s                 serializer.MetricSerializer
 	hostGetter        SourceProviderFunc
 	extraTags         []string
+	hostTags          HostTagsFunc
 	apmReceiverAddr   string
 	createConsumer    createConsumerFunc
 	params            exporter.Settings
@@ -216,6 +221,8 @@ func minimalTranslatorFromConfig(
 	if err != nil {
 		return nil, err
 	}
+	// cumulativetodelta does not convert summaries, so the translator does it.
+	options = append(options, metrics.WithSummaryCumulativeToDelta())
 	logger := set.Logger.With(zap.String("component", "metrics translator"))
 	return metrics.NewMinimalTranslator(logger, attributesTranslator, options...)
 }
@@ -239,6 +246,9 @@ func translatorOptionsFromConfig(
 		metrics.WithDeltaTTL(cfg.DeltaTTL),
 	}
 	options = append(options, extraOptions...)
+	if gaugeIntervalGate.IsEnabled() {
+		options = append(options, metrics.WithGaugeInterval())
+	}
 
 	if statsIn != nil {
 		options = append(options, metrics.WithStatsOut(statsIn))
@@ -312,6 +322,19 @@ func NewExporter(
 	}, nil
 }
 
+// metricTags returns the tags added to every translated metric.
+// Host tags go into a new slice: exports may run concurrently.
+func (e *Exporter) metricTags() []string {
+	if e.hostTags == nil {
+		return e.extraTags
+	}
+	hostTags := e.hostTags()
+	if len(hostTags) == 0 {
+		return e.extraTags
+	}
+	return slices.Concat(e.extraTags, hostTags)
+}
+
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
 func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error {
 
@@ -329,7 +352,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 			e.params.Logger.Warn("failed to consume metrics for host metadata", zap.Error(err))
 		}
 	}
-	consumer := e.createConsumer(e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
+	consumer := e.createConsumer(e.metricTags(), e.apmReceiverAddr, e.params.BuildInfo)
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err

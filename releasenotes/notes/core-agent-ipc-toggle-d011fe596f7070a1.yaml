@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added the ``system_probe_config.core_agent_ipc.enabled`` setting
+    (environment variable ``DD_SYSTEM_PROBE_CONFIG_CORE_AGENT_IPC_ENABLED``),
+    enabled by default. Set it to ``false`` when ``system-probe`` runs isolated
+    from the core Agent and cannot reach it by design, such as inside a microVM
+    that forwards its events to a ``system-probe`` on the host. When disabled,
+    ``system-probe`` uses the noop tagger and local workloadfilter and hostname
+    resolution instead of their remote counterparts, and does not start remote
+    workloadmeta, config sync, the remote agent registry or the config stream
+    consumer. This removes the repeated ``unable to establish stream`` and
+    ``error received trying to start stream`` connection errors it used to log.

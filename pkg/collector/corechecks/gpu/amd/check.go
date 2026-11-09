@@ -10,6 +10,7 @@ package amd
 import (
 	"errors"
 	"fmt"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -26,12 +27,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nvidia"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	amdgpu "github.com/DataDog/datadog-agent/pkg/gpu/amd"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
 	"github.com/DataDog/datadog-agent/pkg/gpu/containers"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
-	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -67,6 +68,7 @@ type Check struct {
 	deviceTags          map[string][]string              // deviceTags maps device UUIDs to their device tags
 	readTimeout         time.Duration                    // readTimeout bounds the wait for the telemetry of one device
 	pendingReads        map[string]<-chan struct{}       // pendingReads holds telemetry reads, by device UUID, that have not returned yet
+	warnedNoDevices     bool                             // warnedNoDevices is set once the absence of AMD GPUs has been logged
 }
 
 type checkTelemetry struct {
@@ -139,9 +141,11 @@ func (c *Check) Configure(senderManager sender.SenderManager, _ uint64, config, 
 	}
 	c.strictIntervals = nvidia.NewStrictIntervalProcessor(gpuconfig.New().StaticMetricsReportingInterval)
 	if c.sysRoot == "" {
-		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers.
-		c.sysRoot = kernel.SysFSRoot()
+		// Tests set the root before Configure; otherwise honor HOST_SYS and /host/sys in containers,
+		// falling back to /sys when that root has no devices.
+		c.sysRoot = sysfsroot.DeviceSysFSRoot()
 	}
+	log.Infof("Discovering AMD GPUs under %s", filepath.Join(c.sysRoot, "class", "drm"))
 	if c.readTimeout == 0 {
 		c.readTimeout = defaultAMDReadTimeout
 	}
@@ -220,6 +224,14 @@ func (c *Check) refreshDevices() []*amdgpu.Device {
 	if err != nil && logLimitCheck.ShouldLog() {
 		log.Warnf("error discovering AMD GPUs: %v", err)
 	}
+	switch {
+	case len(devices) > 0:
+		c.warnedNoDevices = false
+	case err == nil && !c.warnedNoDevices:
+		// Warn once until a GPU shows up, so an empty check does not go unnoticed.
+		log.Warnf("No AMD GPU found under %s: in a container, the host sysfs must be visible (set HOST_SYS to its mount point)", filepath.Join(c.sysRoot, "class", "drm"))
+		c.warnedNoDevices = true
+	}
 	if msg := amdgpu.KFDAccessDeniedWarning(devices); msg != "" {
 		// The workloadmeta amdgpu collector warns about this, rate-limited.
 		log.Debug(msg)
@@ -264,6 +276,7 @@ func amdDeviceTags(dev *amdgpu.Device) []string {
 		"gpu_device:" + gpuutil.NormalizeGPUDeviceName(dev.Name),
 		"gpu_pci_bus_id:" + strings.ToLower(dev.PCIBusID),
 		"gpu_slicing_mode:none",
+		"gpu_sharing_mode:none",
 		"gpu_mig_profile:none",
 		"gpu_nvlink_capable:false",
 		"gpu_parent_uuid:" + strings.ToLower(dev.UUID),

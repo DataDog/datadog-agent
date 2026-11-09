@@ -1,0 +1,15 @@
+description: tail with multiple files prints headers and a blank line between them.
+setup:
+  files:
+    - path: a.txt
+      content: "alpha\nbeta\n"
+    - path: b.txt
+      content: "gamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 2 a.txt b.txt
+expect:
+  stdout: "==> a.txt <==\nalpha\nbeta\n\n==> b.txt <==\ngamma\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,7 @@
+description: Two octal digit escape in format string produces newline.
+input:
+  script: |+
+    printf "\12"
+expect:
+  stdout: "\n"
+  exit_code: 0

@@ -108,7 +108,10 @@ dd_agent_go_test(
         "types_test.go",
     ],
     embed = [":dns"],
-    gotags_sets = [["bpf"]],
+    gotags_sets = [
+        ["bpf"],
+        ["npm"],
+    ],
     tags = ["requires_ebpf"],
     deps = select({
         "@rules_go//go/platform:android": [

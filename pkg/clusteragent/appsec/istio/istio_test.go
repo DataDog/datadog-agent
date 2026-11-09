@@ -14,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
@@ -64,6 +66,7 @@ func newTestEnvoyFilter(namespace string) *unstructured.Unstructured {
 	filter.SetKind("EnvoyFilter")
 	filter.SetNamespace(namespace)
 	filter.SetName(envoyFilterName)
+	filter.SetLabels(map[string]string{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue})
 	return filter
 }
 
@@ -491,56 +494,99 @@ func TestDeleted_GetFilterError(t *testing.T) {
 	assert.Contains(t, err.Error(), "could not check if Envoy Filter was already deleted")
 }
 
-// TestDeleted_CleanupMode_WithNativeGateways tests that cleanupPattern can delete the
-// EnvoyFilter via the K8s GatewayClass pattern even when native Istio Gateways are present.
-// cleanupPattern calls Deleted on live GatewayClasses, so Get(gwClass) returns found (cleanup mode).
-// TestDeleted_APIErrorInContextDetection verifies that a transient API error during
-// cleanup-mode detection causes Deleted() to return an error rather than silently
-// entering cleanup mode and prematurely deleting the shared EnvoyFilter.
-func TestDeleted_APIErrorInContextDetection(t *testing.T) {
+// TestDeleted_OtherIstioGatewayClassExists verifies that deleting one Istio GatewayClass keeps the
+// shared EnvoyFilter while another Istio GatewayClass remains, and removes it with the last one.
+func TestDeleted_OtherIstioGatewayClassExists(t *testing.T) {
 	ctx := context.Background()
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
-	existingFilter := newTestEnvoyFilter("istio-system")
-	client := newFakeDynamicClient(scheme, existingFilter)
+	classA := newTestGatewayClass("istio-a", istioGatewayControllerName)
+	classB := newTestGatewayClass("istio-b", istioGatewayControllerName)
+	client := newFakeDynamicClient(scheme, newTestEnvoyFilter("istio-system"), classB,
+		newTestGatewayClass("envoy", "envoy.io/gateway-controller"))
 
 	config := appsecconfig.Config{
-		Product: appsecconfig.Product{
-			Processor: appsecconfig.Processor{
-				ServiceName: "appsec-processor",
-				Namespace:   "datadog",
-				Port:        8080,
-			},
-		},
 		Injection: appsecconfig.Injection{
 			IstioNamespace: "istio-system",
 		},
 	}
-
 	pattern := newTestIstioPattern(client, logger, config)
-	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
+	filters := client.Resource(filterGVR).Namespace("istio-system")
 
-	// Simulate transient API error on the context-detection Get call
-	client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, nil, errors.New("connection reset by peer")
-	})
+	// istio-a is gone from the cluster, istio-b remains
+	require.NoError(t, pattern.Deleted(ctx, classA))
+	_, err := filters.Get(ctx, envoyFilterName, metav1.GetOptions{})
+	require.NoError(t, err, "EnvoyFilter must be kept while another Istio GatewayClass exists")
 
-	deleteCalled := false
-	client.PrependReactor("delete", "*", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		deleteCalled = true
-		return false, nil, nil
-	})
-
-	err := pattern.Deleted(ctx, gwClass)
-
-	require.Error(t, err, "Should return error when context detection API call fails")
-	assert.Contains(t, err.Error(), "could not determine calling context")
-	assert.False(t, deleteCalled, "Should NOT delete EnvoyFilter when context cannot be determined")
+	// istio-b is deleted too: only a non-Istio GatewayClass remains
+	require.NoError(t, client.Resource(gatewayClassGVR).Delete(ctx, classB.GetName(), metav1.DeleteOptions{}))
+	require.NoError(t, pattern.Deleted(ctx, classB))
+	_, err = filters.Get(ctx, envoyFilterName, metav1.GetOptions{})
+	assert.True(t, k8serrors.IsNotFound(err), "EnvoyFilter must be deleted with the last Istio GatewayClass")
 }
 
+// TestDeleted_OptedOutResourcesDoNotKeepFilter verifies that opted-out GatewayClasses and native
+// Gateways do not keep the shared EnvoyFilter alive when an Istio GatewayClass is deleted or opts out.
+func TestDeleted_OptedOutResourcesDoNotKeepFilter(t *testing.T) {
+	optedOut := map[string]string{"appsec.datadoghq.com/enabled": "false"}
+	for _, tc := range []struct {
+		name         string
+		classALive   bool // class A still exists: it opted out instead of being deleted
+		otherClass   map[string]string
+		nativeLabels map[string]string
+		withNative   bool
+		filterRemain bool
+	}{
+		{name: "deleted, other Istio class opted out", otherClass: optedOut, filterRemain: false},
+		{name: "deleted, other Istio class enabled", otherClass: map[string]string{}, filterRemain: true},
+		{name: "opted out, only opted-out native Gateways", classALive: true, withNative: true, nativeLabels: optedOut, filterRemain: false},
+		{name: "opted out, enabled native Gateway", classALive: true, withNative: true, filterRemain: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			classA := newTestGatewayClass("istio-a", istioGatewayControllerName)
+			objects := []runtime.Object{newTestEnvoyFilter("istio-system")}
+			if tc.classALive {
+				classA.SetLabels(optedOut)
+				objects = append(objects, classA)
+			}
+			if tc.otherClass != nil {
+				classB := newTestGatewayClass("istio-b", istioGatewayControllerName)
+				classB.SetLabels(tc.otherClass)
+				objects = append(objects, classB)
+			}
+			client := newFakeDynamicClient(runtime.NewScheme(), objects...)
+			if tc.withNative {
+				native := newTestIstioGateway("native-gw", "default", map[string]any{"istio": "ingressgateway"})
+				native.SetLabels(tc.nativeLabels)
+				require.NoError(t, client.Tracker().Create(istioGatewayGVR, native, native.GetNamespace()))
+			}
+
+			config := appsecconfig.Config{
+				Injection: appsecconfig.Injection{
+					IstioNamespace: "istio-system",
+				},
+			}
+			pattern := newTestIstioPattern(client, logmock.New(t), config)
+
+			require.NoError(t, pattern.Deleted(ctx, classA))
+
+			_, err := client.Resource(filterGVR).Namespace("istio-system").Get(ctx, envoyFilterName, metav1.GetOptions{})
+			if tc.filterRemain {
+				require.NoError(t, err, "EnvoyFilter must be kept while an enabled resource still needs it")
+			} else {
+				assert.True(t, k8serrors.IsNotFound(err), "EnvoyFilter must be deleted when only opted-out resources remain")
+			}
+		})
+	}
+}
+
+// TestDeleted_CleanupMode_WithNativeGateways tests that cleanupPattern can delete the
+// EnvoyFilter via the K8s GatewayClass pattern even when native Istio Gateways are present.
+// cleanupPattern calls Deleted on live GatewayClasses with a cleanup context.
 func TestDeleted_CleanupMode_WithNativeGateways(t *testing.T) {
-	ctx := context.Background()
+	ctx := appsecconfig.WithCleanup(context.Background())
 	logger := logmock.New(t)
 	scheme := runtime.NewScheme()
 
@@ -569,11 +615,6 @@ func TestDeleted_CleanupMode_WithNativeGateways(t *testing.T) {
 
 	pattern := newTestIstioPattern(client, logger, config)
 	gwClass := newTestGatewayClass("istio", istioGatewayControllerName)
-
-	// In cleanup mode, Get(gwClass) returns found (GatewayClass still in cluster)
-	client.PrependReactor("get", "gatewayclasses", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
-		return true, gwClass, nil
-	})
 
 	// Native gateways are present (would normally trigger the cross-pattern skip)
 	client.PrependReactor("list", "gateways", func(_ k8stesting.Action) (handled bool, ret runtime.Object, err error) {
@@ -633,4 +674,43 @@ func TestDeleted_FilterDeletionError(t *testing.T) {
 	// Verify - should return error
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not delete Envoy Filter")
+}
+
+// TestDeleted_OnlyDeletesEnvoyFilterCreatedByInjector verifies that both Istio patterns leave an
+// EnvoyFilter they did not create in place, and still delete one created before the managed-by
+// label existed (component label only).
+func TestDeleted_OnlyDeletesEnvoyFilterCreatedByInjector(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		labels  map[string]string
+		deleted bool
+	}{
+		{name: "not created by the injector", labels: map[string]string{"app": "someone-else"}, deleted: false},
+		{name: "created before the managed-by label", labels: map[string]string{"app.kubernetes.io/component": "datadog-appsec-injector"}, deleted: true},
+	} {
+		for _, kind := range []string{"gatewayclass", "gateway"} {
+			t.Run(tc.name+"/"+kind, func(t *testing.T) {
+				ctx := context.Background()
+				filter := newTestEnvoyFilter("istio-system")
+				filter.SetLabels(tc.labels)
+				client := newFakeDynamicClient(runtime.NewScheme(), filter)
+				config := appsecconfig.Config{Injection: appsecconfig.Injection{IstioNamespace: "istio-system"}}
+
+				var err error
+				if kind == "gatewayclass" {
+					err = newTestIstioPattern(client, logmock.New(t), config).Deleted(ctx, newTestGatewayClass("istio", istioGatewayControllerName))
+				} else {
+					err = newTestNativeGatewayPattern(client, logmock.New(t), config).Deleted(ctx, newTestIstioGateway("gw", "default", map[string]any{"istio": "ingressgateway"}))
+				}
+				require.NoError(t, err)
+
+				_, err = client.Resource(filterGVR).Namespace("istio-system").Get(ctx, envoyFilterName, metav1.GetOptions{})
+				if tc.deleted {
+					assert.True(t, k8serrors.IsNotFound(err), "EnvoyFilter created by the injector must be deleted")
+				} else {
+					require.NoError(t, err, "EnvoyFilter not created by the injector must be left in place")
+				}
+			})
+		}
+	}
 }

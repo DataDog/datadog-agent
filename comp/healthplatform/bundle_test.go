@@ -29,6 +29,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
@@ -50,13 +51,24 @@ import (
 // team: fleet-remediation
 
 func TestBundleDependencies(t *testing.T) {
-	fxutil.TestBundle(t, Bundle(),
-		fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
-		fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
-		telemetrymock.Module(),
-		hostnameinterface.MockModule(),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	)
+	for _, test := range []struct {
+		name    string
+		options []Option
+	}{
+		{name: "no-op remote restoration"},
+		{name: "remote restoration", options: []Option{WithRemoteIssueRestoration()}},
+	} {
+		t.Run(test.name, func(t *testing.T) {
+			fxutil.TestBundle(t, Bundle(test.options...),
+				fx.Provide(func(t testing.TB) log.Component { return logmock.New(t) }),
+				fx.Provide(func(t testing.TB) config.Component { return config.NewMock(t) }),
+				telemetrymock.Module(),
+				schemanoopfx.Module(),
+				hostnameinterface.MockModule(),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			)
+		})
+	}
 }
 
 // TestBundleStartLifecycle exercises the full bundle through fx start/stop and
@@ -99,7 +111,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 		fx.Provide(func(t testing.TB) config.Component {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("api_key", "test-api-key")
-			cfg.SetInTest("dd_url", server.URL)
+			cfg.SetInTest("health_platform.forwarder.dd_url", server.URL)
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
@@ -107,6 +119,7 @@ func TestBundleStartLifecycle(t *testing.T) {
 			return cfg
 		}),
 		telemetrymock.Module(),
+		schemanoopfx.Module(),
 		hostnameinterface.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
@@ -186,7 +199,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 		fx.Provide(func(t testing.TB) config.Component {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("api_key", "test-api-key")
-			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.forwarder.dd_url", fi.URL())
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
@@ -194,6 +207,7 @@ func TestIssueStateLifecycleForwarded(t *testing.T) {
 			return cfg
 		}),
 		telemetrymock.Module(),
+		schemanoopfx.Module(),
 		hostnameinterface.MockModule(),
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	)
@@ -339,7 +353,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 		fx.Provide(func(t testing.TB) config.Component {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("api_key", "test-api-key")
-			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.forwarder.dd_url", fi.URL())
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)
 			cfg.SetInTest("health_platform.forwarder.interval", tickInterval)
@@ -350,6 +364,7 @@ func TestDogStatsDClientDropsReachFakeintake(t *testing.T) {
 			return cfg
 		}),
 		telemetrymock.Module(),
+		schemanoopfx.Module(),
 		hostnameinterface.MockModule(),
 	)
 

@@ -12,19 +12,20 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
 // SECLRuleFilter defines a SECL rule filter
 type SECLRuleFilter struct {
 	model          eval.Model
-	parsingContext *ast.ParsingContext
+	parsingContext *parser.ParsingContext
 }
 
 // NewSECLRuleFilter returns a new agent version based rule filter
 func NewSECLRuleFilter(model eval.Model) *SECLRuleFilter {
 	return &SECLRuleFilter{
 		model:          model,
-		parsingContext: ast.NewParsingContext(true),
+		parsingContext: parser.NewParsingContext(true),
 	}
 }
 
@@ -64,16 +65,16 @@ func (r *SECLRuleFilter) IsAccepted(filters []string) (bool, error) {
 	}
 
 	expression := mergeFilterExpressions(filters)
-	astRule, err := r.parsingContext.ParseRule(expression)
+	astRule, err := r.parsingContext.BuildRule(expression)
 	if err != nil {
 		return false, err
 	}
 
 	evalOpts := &eval.Opts{}
 	evalOpts.
-		WithConstants(map[string]interface{}{
-			"true":  &eval.BoolEvaluator{Value: true},
-			"false": &eval.BoolEvaluator{Value: false},
+		WithConstants(map[string]ast.Node{
+			"true":  &ast.Literal{Value: ast.MakeBool(true)},
+			"false": &ast.Literal{Value: ast.MakeBool(false)},
 		})
 
 	evaluator, err := eval.NewRuleEvaluator(astRule, r.model, evalOpts)

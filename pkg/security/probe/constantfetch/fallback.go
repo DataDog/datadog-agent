@@ -156,6 +156,9 @@ func computeCallbacksTable() map[string]func(*kernel.Version) uint64 {
 		OffsetNameTaskStructTGID:              getTaskStructTGIDOffset,
 		OffsetNameTaskStructThread:            getTaskStructThreadOffset,
 		OffsetNameThreadStructTp:              getThreadStructTpOffset,
+
+		OffsetNameCPUVFSCapDataStructPermitted:   getCPUVFSCapDataPermittedOffset,
+		OffsetNameCPUVFSCapDataStructInheritable: getCPUVFSCapDataInheritableOffset,
 	}
 }
 
@@ -360,6 +363,27 @@ func getCredsUIDOffset(kv *kernel.Version) uint64 {
 
 func getCredCapInheritableOffset(kv *kernel.Version) uint64 {
 	return getCredsUIDOffset(kv) + 36
+}
+
+// Linux 6.3 changed kernel_cap_t to a 64-bit value and moved rootid before the
+// capability masks. BTF/BTFHub remain preferred to handle vendor backports.
+func getCPUVFSCapDataPermittedOffset(kv *kernel.Version) uint64 {
+	switch {
+	case kv.Code == 0:
+		return 0
+	case kv.Code >= kernel.Kernel6_3:
+		return 8
+	default:
+		return 4
+	}
+}
+
+func getCPUVFSCapDataInheritableOffset(kv *kernel.Version) uint64 {
+	permittedOffset := getCPUVFSCapDataPermittedOffset(kv)
+	if permittedOffset == 0 {
+		return 0
+	}
+	return permittedOffset + 8
 }
 
 func getBpfMapIDOffset(kv *kernel.Version) uint64 {

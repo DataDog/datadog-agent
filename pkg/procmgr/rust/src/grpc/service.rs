@@ -433,6 +433,7 @@ fn process_detail_fields(proc: &ManagedProcess) -> proto::ProcessDetail {
         runtime_user: String::new(),
         config_error: String::new(),
         skip_reasons: proc.skip_reasons().to_vec(),
+        exit_with_supervisor: cfg.exit_with_supervisor,
     }
 }
 
@@ -462,6 +463,7 @@ fn invalid_detail_fields(inv: &InvalidProcess) -> proto::ProcessDetail {
         runtime_user: String::new(),
         config_error: inv.error.clone(),
         skip_reasons: Vec::new(),
+        exit_with_supervisor: false,
     }
 }
 

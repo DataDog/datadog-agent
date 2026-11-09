@@ -20,6 +20,18 @@ func NewConfigFileNotFoundError(err error) error {
 	return fmt.Errorf("%w: %w", ErrConfigFileNotFound, err)
 }
 
+// SchemaID identifies the configuration schema a config follows. The schemas themselves and their validation
+// live in pkg/config/schema, which is kept out of this package so binaries that don't validate their
+// configuration don't link the JSON schema library.
+type SchemaID string
+
+const (
+	// CoreSchema identifies the core schema (ie the schema for datadog.yaml)
+	CoreSchema SchemaID = "core"
+	// SystemProbeSchema identifies the system probe schema (ie the schema for system_probe.yaml)
+	SystemProbeSchema SchemaID = "system_probe"
+)
+
 // Source stores what edits a setting as a string
 type Source string
 
@@ -163,6 +175,8 @@ type Reader interface {
 	GetSizeInBytes(key string) uint
 	GetProxies() *Proxy
 	GetSequenceID() uint64
+	// GetSchemaID returns the ID of the schema the config follows
+	GetSchemaID() SchemaID
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
@@ -206,6 +220,11 @@ type Reader interface {
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
+
+	// IsSensitive returns whether the setting holds a credential, as declared by `sensitive: true` in the schema
+	IsSensitive(key string) bool
+	// FilterSensitiveEnvVars returns envVars without the env vars bound to sensitive settings
+	FilterSensitiveEnvVars(envVars []string) []string
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
 	Warnings() []string
@@ -304,6 +323,11 @@ type Setup interface {
 	// Name in the list must be sorted by priority (oldest name first).
 	BindEnvAndSetDefaultWithDeprecation(key string, defaultVal interface{}, deprecatedNames []string, envvars ...string)
 
+	// SetSensitive marks a setting as holding a credential.
+	// It must only be called by the code generated from the schema: set `sensitive: true` on the setting
+	// instead. The forbidigo linter enforces this.
+	SetSensitive(key string)
+
 	AddConfigPath(in string)
 	AddExtraConfigPaths(in []string) error
 	SetConfigName(in string)
@@ -324,7 +348,10 @@ type Compound interface {
 	// NOTE: This method should not be used by any new callsites, it is needed
 	// currently because of the unique requirements of OTel's configuration.
 	RevertFinishedBackToBuilder() BuildableConfig
-	Validate()
+
+	// Validate checks the configuration, using validator to validate it against its schema. When enforceSchema is
+	// true, the settings that don't match the schema are reverted to their default.
+	Validate(validator SchemaValidator, enforceSchema bool)
 }
 
 // Config is an interface that can read/write the config after it has been

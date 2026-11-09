@@ -1,0 +1,11 @@
+# skip: redirect type is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Output fd duplication (>&N) with unsupported fd is blocked.
+input:
+  script: |+
+    echo hello 3>&1
+expect:
+  stdout: ""
+  stderr: |+
+    >&N fd duplication is not supported
+  exit_code: 2

@@ -7,6 +7,8 @@ package replayimpl
 
 import (
 	"io"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -59,6 +61,15 @@ func TestReaderNoMmap(t *testing.T) {
 
 func TestReaderZstdNoMmap(t *testing.T) {
 	readerTest(t, "resources/test/datadog-capture.dog.zstd", false)
+}
+
+func TestReaderUnknownFile(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "unknown.dog")
+	assert.NoError(t, os.WriteFile(path, []byte{0xDE, 0xAD, 0xC0, 0xDE}, 0o644))
+
+	tc, err := NewTrafficCaptureReader(path, 1, false)
+	assert.EqualError(t, err, "unknown capture file provided, starting with: de ad c0 de")
+	assert.Nil(t, tc)
 }
 
 func TestSeek(t *testing.T) {

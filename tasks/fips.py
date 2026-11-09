@@ -56,8 +56,6 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
                     # Warning: if you want to add a dependency here you will hit a gitlab limit (no more than 5 needs https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731)
                     "go_e2e_deps",
                     "go_tools_deps",
-                    "tests_windows_sysprobe_x64",
-                    "tests_windows_secagent_x64",
                     "go_e2e_test_binaries",
                 ],
                 package_deps=[

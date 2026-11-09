@@ -1,0 +1,11 @@
+description: Adjacent single-quoted segments form a single word without spaces.
+input:
+  script: |+
+    echo 'abc''def''ghi'
+    echo 'a''b''c''d'
+expect:
+  stdout: |+
+    abcdefghi
+    abcd
+  stderr: ""
+  exit_code: 0

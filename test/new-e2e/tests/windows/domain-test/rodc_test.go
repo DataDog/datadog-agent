@@ -120,7 +120,7 @@ func rodcProvisioner() provisioners.PulumiEnvRunFunc[rodcEnvironment] {
 			return err
 		}
 
-		writableController, err := ec2.NewVM(awsEnv, writableDCName, ec2.WithOS(e2eos.WindowsServer2022E2E))
+		writableController, err := ec2.NewVM(awsEnv, writableDCName, ec2.WithOS(e2eos.WindowsServer2022))
 		if err != nil {
 			return err
 		}
@@ -128,7 +128,7 @@ func rodcProvisioner() provisioners.PulumiEnvRunFunc[rodcEnvironment] {
 			return err
 		}
 
-		readOnlyController, err := ec2.NewVM(awsEnv, readOnlyDCName, ec2.WithOS(e2eos.WindowsServer2022E2E))
+		readOnlyController, err := ec2.NewVM(awsEnv, readOnlyDCName, ec2.WithOS(e2eos.WindowsServer2022))
 		if err != nil {
 			return err
 		}

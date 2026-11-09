@@ -1,0 +1,12 @@
+description: Various quoting styles in assignment values.
+input:
+  script: |+
+    a='A"B"C' b="A'B'C"
+    echo "$a"
+    echo "$b"
+expect:
+  stdout: |+
+    A"B"C
+    A'B'C
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,25 @@
+description: Multiple container symlinks can be read in sequence
+# skip: container host-prefix symlink resolution is an rshell-specific feature
+skip_assert_against_bash: true
+containerized: true
+setup:
+  files:
+    - path: host/var/log/pods/pod-a/0.log
+      content: "log a\n"
+    - path: host/var/log/pods/pod-b/0.log
+      content: "log b\n"
+    - path: host/var/log/containers/a.log
+      symlink: /var/log/pods/pod-a/0.log
+    - path: host/var/log/containers/b.log
+      symlink: /var/log/pods/pod-b/0.log
+input:
+  allowed_paths: ["host/var/log"]
+  script: |+
+    cat host/var/log/containers/a.log
+    cat host/var/log/containers/b.log
+expect:
+  stdout: |+
+    log a
+    log b
+  stderr: |+
+  exit_code: 0
