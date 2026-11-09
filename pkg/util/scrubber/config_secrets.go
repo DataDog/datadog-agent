@@ -5,11 +5,7 @@
 
 package scrubber
 
-import (
-	"strings"
-
-	"go.yaml.in/yaml/v3"
-)
+import "reflect"
 
 // ConfigSecret describes a secret declaration in a configuration file, never its value.
 // Path is relative to the file, using dotted notation.
@@ -26,26 +22,27 @@ func ScrubYamlWithSecrets(input []byte) ([]byte, []ConfigSecret, error) {
 }
 
 // ScrubYamlWithSecrets returns a safely scrubbed file and its secret declarations.
-// Raw locations are derived from the same scrubbing operation as the returned file;
-// already-redacted values and non-credential booleans/empty values are not reported.
+// Raw declarations identify the fields replaced by scrubbing, including whole
+// containers. ENC declarations retain every original path and handle.
 // Like ScrubYamlPreserveStructure, unsafe YAML is rejected without returning metadata.
 func (c *Scrubber) ScrubYamlWithSecrets(input []byte) ([]byte, []ConfigSecret, error) {
 	declarations := []ConfigSecret{}
-	cleaned, err := c.scrubYamlPreserveStructure(input, func(path string, original, cleaned *yaml.Node) {
-		if original.Tag == "!!str" && IsEnc(original.Value) {
-			value := strings.TrimSpace(original.Value)
-			declarations = append(declarations, ConfigSecret{Path: path, Kind: "enc", Handle: value[4 : len(value)-1]})
-			return
-		}
-		if original.Tag == "!!null" || original.Tag == "!!bool" || strings.TrimSpace(original.Value) == "" || original.Value == defaultReplacement {
-			return
-		}
-		if cleaned == nil || cleaned.Kind != yaml.ScalarNode || original.Value != cleaned.Value {
-			declarations = append(declarations, ConfigSecret{Path: path, Kind: "raw"})
-		}
-	})
+	cleaned, err := c.scrubYamlPreserveStructure(input, &declarations)
 	if err != nil {
 		return nil, nil, err
 	}
 	return cleaned, declarations, nil
+}
+
+// recordRawSecret returns true when the replacement is covered by a field-level
+// reference, so its descendants do not need additional raw references.
+func recordRawSecret(secrets *[]ConfigSecret, path string, before, after any) bool {
+	if secrets == nil || !mayHoldCredential(before) || reflect.DeepEqual(before, after) {
+		return false
+	}
+	if value, ok := before.(string); ok && (IsEnc(value) || value == defaultReplacement) {
+		return false
+	}
+	*secrets = append(*secrets, ConfigSecret{Path: path, Kind: "raw"})
+	return true
 }

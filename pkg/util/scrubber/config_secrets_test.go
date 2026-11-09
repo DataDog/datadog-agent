@@ -22,6 +22,10 @@ init_config:
 instances:
   - password: raw-password
   - password: ENC[shared_password]
+  - password: 123456
+  - password: !custom ENC[tagged]
+  - password: |
+      multiline-password
 logs:
   - password: raw-log-password
 jmx_metrics:
@@ -41,14 +45,17 @@ already_redacted:
 		{Path: "init_config.password", Kind: "enc", Handle: "shared_password"},
 		{Path: "instances.0.password", Kind: "raw"},
 		{Path: "instances.1.password", Kind: "enc", Handle: "shared_password"},
+		{Path: "instances.2.password", Kind: "raw"},
+		{Path: "instances.3.password", Kind: "enc", Handle: "tagged"},
+		{Path: "instances.4.password", Kind: "raw"},
 		{Path: "logs.0.password", Kind: "raw"},
 		{Path: "jmx_metrics.0.password", Kind: "enc", Handle: "shared_password"},
-		{Path: "snmp_traps.community_strings.0", Kind: "raw"},
+		{Path: "snmp_traps.community_strings", Kind: "raw"},
 		{Path: "snmp_traps.community_strings.1", Kind: "enc", Handle: "community"},
 	}, secrets)
 	encoded, err := json.Marshal(secrets)
 	require.NoError(t, err)
-	for _, secret := range []string{"raw-logs-key", "raw-password", "raw-log-password", "raw-community"} {
+	for _, secret := range []string{"raw-logs-key", "raw-password", "raw-log-password", "raw-community", "123456", "multiline-password"} {
 		assert.NotContains(t, string(cleaned), secret)
 		assert.NotContains(t, string(encoded), secret)
 	}
@@ -61,17 +68,6 @@ func TestScrubYamlWithSecretsRejectsUnsafeInput(t *testing.T) {
 		assert.Nil(t, cleaned)
 		assert.Nil(t, secrets)
 	}
-}
-
-func TestScrubYamlWithSecretsStructuredReplacers(t *testing.T) {
-	_, secrets, err := NewWithDefaults().ScrubYamlWithSecrets([]byte(`additional_endpoints:
-  https://endpoint.example: [raw-key, 'ENC[endpoint_key]']
-`))
-	require.NoError(t, err)
-	assert.ElementsMatch(t, []ConfigSecret{
-		{Path: "additional_endpoints.https://endpoint.example.0", Kind: "raw"},
-		{Path: "additional_endpoints.https://endpoint.example.1", Kind: "enc", Handle: "endpoint_key"},
-	}, secrets)
 }
 
 func TestScrubYamlWithSecretsDoesNotLeakCredentialsInMapKeys(t *testing.T) {
@@ -87,7 +83,7 @@ func TestScrubYamlWithSecretsDoesNotLeakCredentialsInMapKeys(t *testing.T) {
 		assert.NotContains(t, string(encoded), value)
 	}
 	assert.ElementsMatch(t, []ConfigSecret{
-		{Path: "additional_endpoints.https://user:********@endpoint.example.0", Kind: "raw"},
+		{Path: "additional_endpoints", Kind: "raw"},
 		{Path: "additional_endpoints.https://user:********@endpoint.example.1", Kind: "enc", Handle: "endpoint_key"},
 	}, secrets)
 }
@@ -96,6 +92,7 @@ func TestScrubYamlWithSecretsPreservesStructuredReplacementMetadata(t *testing.T
 	input := []byte(`logs_config:
   additional_endpoints:
     - host: example.com
+      port: 0x1f90
       api_key: raw-endpoint-key
     - host: other.example.com
       api_key: ENC[shared]
@@ -118,14 +115,13 @@ snmp_traps:
 	cleaned, secrets, err := scrubber.ScrubYamlWithSecrets(input)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []ConfigSecret{
-		{Path: "logs_config.additional_endpoints.0.api_key", Kind: "raw"},
+		{Path: "logs_config.additional_endpoints", Kind: "raw"},
 		{Path: "logs_config.additional_endpoints.1.api_key", Kind: "enc", Handle: "shared"},
-		{Path: "private_action_runner.credentials.values.z_last.value", Kind: "raw"},
+		{Path: "private_action_runner", Kind: "raw"},
 		{Path: "private_action_runner.credentials.values.a_first.value", Kind: "enc", Handle: "shared"},
-		{Path: "scanning_rules.0.pattern", Kind: "raw"},
-		{Path: "scanning_rules.0.proximity_keywords.included_keywords.0", Kind: "raw"},
+		{Path: "scanning_rules", Kind: "raw"},
 		{Path: "scanning_rules.0.proximity_keywords.included_keywords.1", Kind: "enc", Handle: "shared"},
-		{Path: "snmp_traps.community_strings.0", Kind: "raw"},
+		{Path: "snmp_traps.community_strings", Kind: "raw"},
 		{Path: "snmp_traps.community_strings.1", Kind: "enc", Handle: "shared"},
 	}, secrets)
 	for _, value := range []string{"raw-endpoint-key", "raw-credential", "raw-pattern", "raw-keyword", "raw-community"} {
@@ -194,14 +190,36 @@ func TestScrubYamlWithSecretsCollapsedMapping(t *testing.T) {
   second: raw-value
   first: ENC[shared]
   nested:
-    password: ENC[shared]
+    42:
+      password: ENC[shared]
 `)
 	cleaned, secrets, err := NewWithDefaults().ScrubYamlWithSecrets(input)
 	require.NoError(t, err)
 	assert.YAMLEq(t, `token: '********'`, string(cleaned))
-	assert.Equal(t, []ConfigSecret{
-		{Path: "token.second", Kind: "raw"},
+	assert.ElementsMatch(t, []ConfigSecret{
+		{Path: "token", Kind: "raw"},
 		{Path: "token.first", Kind: "enc", Handle: "shared"},
-		{Path: "token.nested.password", Kind: "enc", Handle: "shared"},
+		{Path: "token.nested.42.password", Kind: "enc", Handle: "shared"},
+	}, secrets)
+}
+
+func TestScrubYamlWithSecretsUnchangedStructuredValues(t *testing.T) {
+	input := []byte(`logs_config:
+  additional_endpoints:
+    - host: example.com
+      port: 0x1f90
+      api_key: ENC[shared]
+private_action_runner:
+  enabled: true
+  credentials:
+    values:
+      existing: {value: '********'}
+      backend: {value: 'ENC[shared]'}
+`)
+	_, secrets, err := NewWithDefaults().ScrubYamlWithSecrets(input)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []ConfigSecret{
+		{Path: "logs_config.additional_endpoints.0.api_key", Kind: "enc", Handle: "shared"},
+		{Path: "private_action_runner.credentials.values.backend.value", Kind: "enc", Handle: "shared"},
 	}, secrets)
 }
