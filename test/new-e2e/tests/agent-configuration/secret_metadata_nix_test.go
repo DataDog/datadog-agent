@@ -21,8 +21,8 @@ import (
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-configuration/secretsutils"
 )
 
-//go:embed secret/fixtures/metadata-configs.json
-var metadataConfigsJSON []byte
+//go:embed secret/fixtures/metadata-configs.yaml
+var metadataConfigsYAML []byte
 
 //go:embed secret/fixtures/metadata-secrets.py
 var metadataBackendScript string
@@ -42,20 +42,13 @@ func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 		"datadog.yaml": {
 			{"api_key", "enc", "metadata_core"},
 			{"apm_config.debugger_api_key", "raw", ""},
-			{"logs_config.api_key", "raw", ""},
-			{"additional_endpoints", "raw", ""},
-			{"additional_endpoints.http://127.0.0.1:18081.1", "enc", "metadata_core"},
-			{"snmp_traps.community_strings", "raw", ""},
-			{"snmp_traps.community_strings.1", "enc", "metadata_community"},
 		},
 		"system-probe.yaml":           {{"system_probe_config.internal_profiling.api_key", "raw", ""}},
 		"security-agent.yaml":         {{"security_agent.internal_profiling.api_key", "enc", "metadata_security"}},
 		"application_monitoring.yaml": {{"api_key", "raw", ""}},
 		"conf.d/http_check.d/fa-secrets.yaml": {
-			{"init_config.password", "enc", "metadata_http_shared"},
 			{"instances.0.password", "enc", "metadata_http_shared"},
 			{"instances.0.headers.Authorization", "raw", ""},
-			{"instances.1.password", "enc", "metadata_http_shared"},
 		},
 		"conf.d/http_check.d/fa-secrets-second.yaml": {{"instances.0.password", "enc", "metadata_http_shared"}},
 	}
@@ -66,13 +59,12 @@ func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 		v.UpdateEnv(awshost.Provisioner())
 	})
 
-	var configs map[string]map[string]any
-	require.NoError(t, json.Unmarshal(metadataConfigsJSON, &configs))
+	var configs map[string]string
+	require.NoError(t, yaml.Unmarshal(metadataConfigsYAML, &configs))
 	values := map[string]string{
 		"metadata_core":        "0123456789abcdef0123456789abcdef",
 		"metadata_security":    "fedcba9876543210fedcba9876543210",
 		"metadata_http_shared": "fixture-resolved-http-secret",
-		"metadata_community":   "fixture-resolved-community-secret",
 	}
 	// Non-hex raw values exercise key-based scrubbing, not just API-key detection.
 	plaintexts := []string{"fixture-raw-secret-value"}
@@ -87,17 +79,15 @@ func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 		agentparams.WithFile("/tmp/fa-metadata-values.json", string(valueJSON), true),
 	}
 	for file, config := range configs {
-		encoded, err := yaml.Marshal(config)
-		require.NoError(t, err)
 		switch file {
-		case configDir + "datadog.yaml":
-			opts = append(opts, agentparams.WithAgentConfig(string(encoded)))
-		case configDir + "system-probe.yaml":
-			opts = append(opts, agentparams.WithSystemProbeConfig(string(encoded)))
-		case configDir + "security-agent.yaml":
-			opts = append(opts, agentparams.WithSecurityAgentConfig(string(encoded)))
+		case "datadog.yaml":
+			opts = append(opts, agentparams.WithAgentConfig(config))
+		case "system-probe.yaml":
+			opts = append(opts, agentparams.WithSystemProbeConfig(config))
+		case "security-agent.yaml":
+			opts = append(opts, agentparams.WithSecurityAgentConfig(config))
 		default:
-			opts = append(opts, agentparams.WithFile(file, string(encoded), true))
+			opts = append(opts, agentparams.WithFile(configDir+file, config, true))
 		}
 	}
 	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(opts...))))

@@ -300,22 +300,41 @@ func TestGetPayload(t *testing.T) {
 
 func TestGetPayloadFilesMetadata(t *testing.T) {
 	confdPath := t.TempDir()
-	configPath := filepath.Join(confdPath, "secret_test.yaml")
-	require.NoError(t, os.WriteFile(configPath, []byte("init_config: {}\ninstances:\n- custom_field: some_value\n"), 0600))
-
-	ic := getTestInventoryChecks(
-		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
-	)
-
+	files := []string{filepath.Join(confdPath, "http_check.d", "one.yaml"), filepath.Join(confdPath, "http_check.d", "two.yaml")}
+	require.NoError(t, os.MkdirAll(filepath.Dir(files[0]), 0700))
+	for _, file := range files {
+		require.NoError(t, os.WriteFile(file, []byte(`init_config: {password: 'ENC[shared]'}
+instances: [{custom_field: some_value, password: 'ENC[shared]'}, {password: raw-value}]
+logs: [{password: raw-value}]
+jmx_metrics: [{password: 'ENC[shared]'}]
+`), 0600))
+	}
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
 	providers.ResetReader([]string{confdPath})
 	t.Cleanup(func() { providers.ResetReader(nil) })
-
-	backendPayload := ic.getPayload(true).(*Payload)
-	require.Contains(t, backendPayload.FilesMetadata, configPath)
-	assert.Contains(t, backendPayload.FilesMetadata[configPath], "raw_config")
-
-	expvarPayload := ic.getPayload(false).(*Payload)
-	assert.Empty(t, expvarPayload.FilesMetadata)
+	payload := ic.getPayload(true).(*Payload)
+	require.Len(t, payload.FilesMetadata, 2)
+	for _, file := range files {
+		require.Contains(t, payload.FilesMetadata, file)
+		assert.Contains(t, payload.FilesMetadata[file], "raw_config")
+		encoded, err := json.Marshal(payload.FilesMetadata[file])
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "raw-value")
+		var decoded struct{ Secrets []map[string]string }
+		require.NoError(t, json.Unmarshal(encoded, &decoded))
+		assert.ElementsMatch(t, []map[string]string{
+			{"path": "init_config.password", "kind": "enc", "handle": "shared"},
+			{"path": "instances.0.password", "kind": "enc", "handle": "shared"},
+			{"path": "instances.1.password", "kind": "raw"},
+			{"path": "logs.0.password", "kind": "raw"},
+			{"path": "jmx_metrics.0.password", "kind": "enc", "handle": "shared"},
+		}, decoded.Secrets)
+	}
+	assert.Empty(t, ic.getPayload(false).(*Payload).FilesMetadata)
+	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	for _, file := range ic.getPayload(true).(*Payload).FilesMetadata {
+		assert.NotContains(t, file, "secrets")
+	}
 }
 
 func TestFlareProviderFilename(t *testing.T) {
@@ -331,56 +350,4 @@ func TestExpvarExist(t *testing.T) {
 		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.NotNil(t, expvar.Get("inventories"))
-}
-
-func TestFileSecretDeclarationsDistinguishFilesAndSections(t *testing.T) {
-	dir := t.TempDir()
-	files := []string{filepath.Join(dir, "http_check.d", "one.yaml"), filepath.Join(dir, "http_check.d", "two.yaml")}
-	require.NoError(t, os.MkdirAll(filepath.Dir(files[0]), 0700))
-	for _, file := range files {
-		require.NoError(t, os.WriteFile(file, []byte(`init_config:
-  password: ENC[shared]
-instances:
-- password: ENC[shared]
-- password: raw-value
-logs:
-- password: raw-log-value
-jmx_metrics:
-- password: ENC[shared]
-`), 0600))
-	}
-	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
-	providers.ResetReader([]string{dir})
-	t.Cleanup(func() { providers.ResetReader(nil) })
-	payload := ic.getPayload(true).(*Payload)
-	require.Len(t, payload.FilesMetadata, 2)
-	for _, file := range files {
-		require.Contains(t, payload.FilesMetadata, file)
-		fields := payload.FilesMetadata[file].(metadata)
-		encoded, err := json.Marshal(fields)
-		require.NoError(t, err)
-		assert.NotContains(t, string(encoded), "raw-value")
-		assert.NotContains(t, string(encoded), "raw-log-value")
-		type reference struct {
-			Path   string `json:"path"`
-			Kind   string `json:"kind"`
-			Handle string `json:"handle"`
-		}
-		var decoded struct {
-			Secrets []reference `json:"secrets"`
-		}
-		require.NoError(t, json.Unmarshal(encoded, &decoded))
-		assert.ElementsMatch(t, []reference{
-			{"init_config.password", "enc", "shared"},
-			{"instances.0.password", "enc", "shared"},
-			{"instances.1.password", "raw", ""},
-			{"logs.0.password", "raw", ""},
-			{"jmx_metrics.0.password", "enc", "shared"},
-		}, decoded.Secrets)
-	}
-	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
-	payload = ic.getPayload(true).(*Payload)
-	for _, file := range payload.FilesMetadata {
-		assert.NotContains(t, file, "secrets")
-	}
 }

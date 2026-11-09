@@ -1052,19 +1052,35 @@ api_key: datadog-secret
 		filepath.Join(tmpDir, "application_monitoring.yaml"): "tracing:\n  enabled: true\napi_key: application-secret\n",
 	}
 	for path, contents := range configFiles {
-		require.NoError(t, os.WriteFile(path, []byte(contents), 0600))
+		require.NoError(t, os.WriteFile(path, []byte(contents+"\nlogs_config:\n  api_key: ENC[shared_key]\n"), 0600))
 	}
 
-	ia := getTestInventoryPayload(t, map[string]any{
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles([]string{"logs_config.api_key"}, []string{"shared_key"})
+	secretsComp.SetSecrets(map[string]string{"shared_key": "resolved-key"})
+	provided := getProvides(t, map[string]any{
 		"inventories_configuration_enabled": true,
-	}, nil)
+		"logs_config.api_key":               "resolved-key",
+		"apm_config.debugger_api_key":       "raw-debugger-key",
+	}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := provided.Comp.(*inventoryagent)
 
 	payload := ia.getPayload().(*agentmetadata.Payload)
+	require.Contains(t, payload.Metadata, "enc_info")
+	encInfo := payload.Metadata["enc_info"].(map[string]interface{})
+	assert.Equal(t, []string{"shared_key"}, encInfo["handles"])
+	assert.Equal(t, []string{"logs_config.api_key"}, encInfo["paths"])
+	assert.Contains(t, encInfo["scrubbed"], "apm_config.debugger_api_key")
 	require.Len(t, payload.FilesMetadata, len(configFiles))
 	for path := range configFiles {
 		rawfile, found := payload.FilesMetadata[path]
 		require.True(t, found)
 		assert.NotContains(t, rawfile.RawConfig, "-secret")
+		require.Len(t, rawfile.Secrets, 2)
+		assert.Equal(t, "enc", rawfile.Secrets[0].Kind)
+		assert.Equal(t, "shared_key", rawfile.Secrets[0].Handle)
+		assert.Equal(t, "logs_config.api_key", rawfile.Secrets[0].Path)
+		assert.Equal(t, "raw", rawfile.Secrets[1].Kind)
 
 		hash := sha256.Sum256([]byte(rawfile.RawConfig))
 		assert.Equal(t, hex.EncodeToString(hash[:]), rawfile.Hash)
@@ -1075,6 +1091,12 @@ api_key: datadog-secret
 	assert.Contains(t, datadogRawConfig, `first: "preserve this style"`)
 	assert.Contains(t, datadogRawConfig, "unknown_setting:\n  nested: untouched")
 	assert.NotContains(t, datadogRawConfig, "comments are not safe to report")
+	ia.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	payload = ia.getPayload().(*agentmetadata.Payload)
+	assert.NotContains(t, payload.Metadata, "enc_info")
+	for _, file := range payload.FilesMetadata {
+		assert.Empty(t, file.Secrets)
+	}
 }
 
 func TestGetPayloadFilesMetadataSkipsUnsafeAndMissingFiles(t *testing.T) {
@@ -1137,45 +1159,4 @@ func TestGetProvidedConfiguration(t *testing.T) {
 	assert.Contains(t, payload.Metadata, "remote_configuration")
 	assert.Contains(t, payload.Metadata, "cli_configuration")
 	assert.Contains(t, payload.Metadata, "source_local_configuration")
-}
-
-func TestFileSecretDeclarationsAcrossAgentConfigs(t *testing.T) {
-	dir := t.TempDir()
-	configmock.New(t).SetConfigFile(filepath.Join(dir, "datadog.yaml"))
-	original := fetchSystemProbeFilename
-	t.Cleanup(func() { fetchSystemProbeFilename = original })
-	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string { return filepath.Join(dir, "system-probe.yaml") }
-	for _, file := range []string{"datadog.yaml", "system-probe.yaml", "security-agent.yaml", "application_monitoring.yaml"} {
-		require.NoError(t, os.WriteFile(filepath.Join(dir, file), []byte("api_key: ENC[shared_key]\npassword: raw-value"), 0600))
-	}
-	secretsComp := secretsmock.New(t)
-	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"shared_key"})
-	secretsComp.SetSecrets(map[string]string{"shared_key": "resolved-key"})
-	provided := getProvides(t, map[string]any{
-		"inventories_configuration_enabled": true,
-		"api_key":                           "resolved-key",
-		"apm_config.debugger_api_key":       "raw-debugger-key",
-	}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
-	ia := provided.Comp.(*inventoryagent)
-	payload := ia.getPayload().(*agentmetadata.Payload)
-	require.Len(t, payload.FilesMetadata, 4)
-	require.Contains(t, payload.Metadata, "enc_info")
-	encInfo := payload.Metadata["enc_info"].(map[string]interface{})
-	assert.Equal(t, []string{"shared_key"}, encInfo["handles"])
-	assert.Equal(t, []string{"api_key"}, encInfo["paths"])
-	assert.Contains(t, encInfo["scrubbed"], "apm_config.debugger_api_key")
-	for _, file := range payload.FilesMetadata {
-		require.Len(t, file.Secrets, 2)
-		assert.Equal(t, "enc", file.Secrets[0].Kind)
-		assert.Equal(t, "shared_key", file.Secrets[0].Handle)
-		assert.Equal(t, "api_key", file.Secrets[0].Path)
-		assert.Equal(t, "raw", file.Secrets[1].Kind)
-		assert.NotContains(t, file.RawConfig, "raw-value")
-	}
-	ia.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
-	payload = ia.getPayload().(*agentmetadata.Payload)
-	assert.NotContains(t, payload.Metadata, "enc_info")
-	for _, file := range payload.FilesMetadata {
-		assert.Empty(t, file.Secrets)
-	}
 }

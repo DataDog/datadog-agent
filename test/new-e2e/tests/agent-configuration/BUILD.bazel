@@ -45,7 +45,7 @@ dd_agent_go_test(
     ],
     embed = [":agent-configuration"],
     embedsrcs = [
-        "secret/fixtures/metadata-configs.json",
+        "secret/fixtures/metadata-configs.yaml",
         "secret/fixtures/metadata-secrets.py",
         "secret/fixtures/secret_script.py",
         "//test/new-e2e/tests/agent-configuration/sgc-embedded:fixtures/secrets.yaml",

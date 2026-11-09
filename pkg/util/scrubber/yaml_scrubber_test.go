@@ -171,6 +171,10 @@ func TestScrubYamlPreserveStructureRejectsInvalidYAML(t *testing.T) {
 			cleaned, err := ScrubYamlPreserveStructure([]byte(input))
 			assert.Error(t, err)
 			assert.Nil(t, cleaned)
+			cleaned, secrets, err := ScrubYamlWithSecrets([]byte(input))
+			assert.Error(t, err)
+			assert.Nil(t, cleaned)
+			assert.Nil(t, secrets)
 		})
 	}
 }
