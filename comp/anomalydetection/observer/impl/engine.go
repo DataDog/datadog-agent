@@ -163,7 +163,7 @@ type engine struct {
 
 	storage         *timeSeriesStorage
 	extractors      []observerdef.LogMetricsExtractor
-	detectors       []observerdef.Detector
+	detectors       []detectorRegistration
 	correlators     []observerdef.Correlator
 	logCounts       *materializedLogCountBucketizer
 	logKeyGenerator *SliceKeyGenerator
@@ -268,7 +268,7 @@ type engine struct {
 type engineConfig struct {
 	storage      *timeSeriesStorage
 	extractors   []observerdef.LogMetricsExtractor
-	detectors    []observerdef.Detector
+	detectors    []detectorRegistration
 	correlators  []observerdef.Correlator
 	metricFilter *metricsFilterRules
 	// scorer is the optional unified anomaly scorer. When non-nil, it is also
@@ -334,7 +334,8 @@ func newEngine(cfg engineConfig) (*engine, error) {
 	}
 
 	// Cache log observers from detectors.
-	for _, d := range e.detectors {
+	for _, registration := range e.detectors {
+		d := registration.detector
 		if lo, ok := d.(observerdef.LogObserver); ok {
 			e.logObservers = append(e.logObservers, lo)
 		}
@@ -598,11 +599,12 @@ func (e *engine) fanOutSeriesRemoval(refs []observerdef.SeriesRef) {
 	fanOutSeriesRemoval(detectors, refs)
 }
 
-func fanOutSeriesRemoval(detectors []observerdef.Detector, refs []observerdef.SeriesRef) {
+func fanOutSeriesRemoval(detectors []detectorRegistration, refs []observerdef.SeriesRef) {
 	if len(refs) == 0 || len(detectors) == 0 {
 		return
 	}
-	for _, d := range detectors {
+	for _, registration := range detectors {
+		d := registration.detector
 		if remover, ok := d.(observerdef.SeriesRemover); ok {
 			remover.RemoveSeries(refs)
 		}
@@ -724,7 +726,7 @@ func (e *engine) advanceWithReason(upToSec int64, reason advanceReason) advanceR
 	return result
 }
 
-func (e *engine) evictInactiveSeries(upToSec int64, detectors []observerdef.Detector) {
+func (e *engine) evictInactiveSeries(upToSec int64, detectors []detectorRegistration) {
 	e.mu.Lock()
 	cfg := e.storage.cfg
 	if cfg.InactiveSeriesTTLSeconds <= 0 || cfg.InactiveSeriesCheckIntervalSeconds <= 0 {
@@ -762,7 +764,7 @@ func (e *engine) evictInactiveSeries(upToSec int64, detectors []observerdef.Dete
 // correlators to upTo after processing would evict just-formed clusters before
 // they can be accumulated. We accumulate correlations BEFORE advancing so
 // clusters are captured while still alive.
-func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []observerdef.Detector, correlators []observerdef.Correlator) advanceResult {
+func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []detectorRegistration, correlators []observerdef.Correlator) advanceResult {
 	var allAnomalies []observerdef.Anomaly
 	var severityConfig observerdef.AnomalyScorerConfig
 	if e.onDetectorEmission != nil {
@@ -773,7 +775,8 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 	}
 
 	// Detect, deduplicate, and feed anomalies to correlators.
-	for _, detector := range detectors {
+	for _, registration := range detectors {
+		detector := registration.detector
 		// Use instrumented storage when digest recording is active.
 		storageForDetect := observerdef.StorageReader(e.storage)
 		if e.instrStorage != nil {
@@ -782,7 +785,7 @@ func (e *engine) runDetectorsAndCorrelatorsSnapshot(upTo int64, detectors []obse
 			storageForDetect = e.instrStorage
 		}
 
-		result := detector.Detect(storageForDetect, upTo)
+		result := detector.Detect(storageForDetect, upTo, registration.filter)
 		if e.trackDetectorOutputHistory && len(result.Anomalies) > 0 {
 			e.recordDetectorOutputs(detector.Name(), result.Anomalies)
 		}
@@ -1151,13 +1154,14 @@ func (e *engine) Storage() *timeSeriesStorage {
 
 // SetDetectors replaces the engine's detectors. Used when testbench components
 // are toggled. Also refreshes the cached log observers list.
-func (e *engine) SetDetectors(detectors []observerdef.Detector) {
+func (e *engine) SetDetectors(detectors []detectorRegistration) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	e.detectors = detectors
 	e.logObservers = nil
-	for _, d := range e.detectors {
+	for _, registration := range e.detectors {
+		d := registration.detector
 		if lo, ok := d.(observerdef.LogObserver); ok {
 			e.logObservers = append(e.logObservers, lo)
 		}
@@ -1197,7 +1201,8 @@ func (e *engine) Reset() {
 	e.inactiveSeriesEvictionChecked = false
 	e.lastInactiveSeriesEvictionCheck = 0
 
-	for _, detector := range e.detectors {
+	for _, registration := range e.detectors {
+		detector := registration.detector
 		if resetter, ok := detector.(interface{ Reset() }); ok {
 			resetter.Reset()
 		}
@@ -1287,7 +1292,8 @@ func (e *engine) resetAnalysisState() error {
 	e.lastInactiveSeriesEvictionCheck = 0
 	e.mu.Unlock()
 
-	for _, detector := range e.detectors {
+	for _, registration := range e.detectors {
+		detector := registration.detector
 		if resetter, ok := detector.(interface{ Reset() }); ok {
 			resetter.Reset()
 		}
@@ -1314,7 +1320,7 @@ func (e *engine) resetAnalysisState() error {
 // (e.g. the testbench passes PointRetentionSecs=0 for unbounded replay storage).
 // If scorer is non-nil it is appended to correlators so it participates in
 // the normal correlator loop.
-func (e *engine) ResetForReplay(detectors []observerdef.Detector, correlators []observerdef.Correlator, scorer *anomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig, baselineCfg BaselineConfig) error {
+func (e *engine) ResetForReplay(detectors []detectorRegistration, correlators []observerdef.Correlator, scorer *anomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig, baselineCfg BaselineConfig) error {
 	// Validate before mutating any state so a rejection leaves the engine as-is.
 	if err := validateUniqueExtractorNames(extractors); err != nil {
 		return err

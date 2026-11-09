@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -76,7 +77,7 @@ func hasNvidiaGPU() bool {
 // This runs on every Linux host, so a sysfs that cannot be read is only logged
 // at debug level.
 func hasAMDGPU() bool {
-	drmDir := filepath.Join(kernel.SysFSRoot(), "class", "drm")
+	drmDir := filepath.Join(sysfsroot.DeviceSysFSRoot(), "class", "drm")
 	entries, err := os.ReadDir(drmDir)
 	if err != nil {
 		if !os.IsNotExist(err) {

@@ -158,6 +158,10 @@ const (
 	OffsetNameTaskStructThread = "task_struct_thread_offset"
 	OffsetNameThreadStructTp   = "thread_struct_tp_offset"
 
+	// Executable file capabilities
+	OffsetNameCPUVFSCapDataStructPermitted   = "cpu_vfs_cap_data_permitted_offset"
+	OffsetNameCPUVFSCapDataStructInheritable = "cpu_vfs_cap_data_inheritable_offset"
+
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile     = "binprm_file_offset"
 	OffsetNameLinuxBinprmStructFilename = "linux_binprm_filename_offset"
