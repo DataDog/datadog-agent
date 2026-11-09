@@ -4368,6 +4368,10 @@ func (s *TracerSuite) TestClassificationGRPCRouting() {
 	if !kprobe.ClassificationSupported(cfg) {
 		t.Skip("protocol classification not supported")
 	}
+	// The stubs need prog array lookups that return program IDs (4.14) and BPF_PROG_GET_FD_BY_ID (4.13).
+	if kv, err := kernel.HostVersion(); err != nil || kv < kernel.VersionCode(4, 14, 0) {
+		t.Skip("prog array lookup by ID not supported")
+	}
 
 	tr := setupTracer(t, cfg)
 	progs, err := tr.GetMap(probes.ClassificationProgsMap)
@@ -4412,68 +4416,118 @@ func (s *TracerSuite) TestClassificationGRPCRouting() {
 	})
 
 	t.Run("unclassified payload skips gRPC", func(t *testing.T) {
-		// Swap the gRPC program for a stub that counts how often it is tail-called. bpf_stats cannot be used
-		// here because tail-called programs are not accounted.
-		counter, err := ebpf.NewMap(&ebpf.MapSpec{Type: ebpf.Array, KeySize: 4, ValueSize: 8, MaxEntries: 1})
+		// Tail-called programs are not accounted in bpf_stats, so count passes with stubs instead: one replaces
+		// the gRPC slot, the other wraps the dbs slot (the last application-layer program) and tail-calls the
+		// original, so every unclassified payload packet bumps the dbs counter.
+		const grpcIdx, dbsIdx = 0, 1
+		counters, err := ebpf.NewMap(&ebpf.MapSpec{Type: ebpf.Array, KeySize: 4, ValueSize: 8, MaxEntries: 2})
 		require.NoError(t, err)
-		t.Cleanup(func() { _ = counter.Close() })
-		stub, err := ebpf.NewProgram(&ebpf.ProgramSpec{
-			Type:    ebpf.SocketFilter,
-			License: "GPL",
-			Instructions: asm.Instructions{
-				asm.StoreImm(asm.RFP, -4, 0, asm.Word),
-				asm.Mov.Reg(asm.R2, asm.RFP),
-				asm.Add.Imm(asm.R2, -4),
-				asm.LoadMapPtr(asm.R1, counter.FD()),
-				asm.FnMapLookupElem.Call(),
-				asm.JEq.Imm(asm.R0, 0, "out"),
-				asm.Mov.Imm(asm.R1, 1),
-				asm.StoreXAdd(asm.R0, asm.R1, asm.DWord),
-				asm.Mov.Imm(asm.R0, 0).WithSymbol("out"),
-				asm.Return(),
-			},
-		})
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = stub.Close() })
-
-		key := uint32(netebpf.ClassificationGRPC)
-		var origID uint32
-		require.NoError(t, progs.Lookup(key, &origID))
-		orig, err := ebpf.NewProgramFromID(ebpf.ProgramID(origID))
-		require.NoError(t, err)
-		t.Cleanup(func() { _ = orig.Close() })
-		require.NoError(t, progs.Put(key, stub))
-		t.Cleanup(func() { assert.NoError(t, progs.Put(key, orig)) })
-
-		grpcCalls := func() uint64 {
+		t.Cleanup(func() { _ = counters.Close() })
+		passes := func(idx uint32) uint64 {
 			var n uint64
-			require.NoError(t, counter.Lookup(uint32(0), &n))
+			require.NoError(t, counters.Lookup(idx, &n))
 			return n
 		}
 
-		c, err := srv.Dial()
-		require.NoError(t, err)
-		defer c.Close()
+		swap := func(slot netebpf.ClassificationProgram, stub *ebpf.Program) *ebpf.Program {
+			key := uint32(slot)
+			var origID uint32
+			require.NoError(t, progs.Lookup(key, &origID))
+			orig, err := ebpf.NewProgramFromID(ebpf.ProgramID(origID))
+			require.NoError(t, err)
+			t.Cleanup(func() { _ = orig.Close() })
+			require.NoError(t, progs.Put(key, stub))
+			t.Cleanup(func() { assert.NoError(t, progs.Put(key, orig)) })
+			return orig
+		}
 
-		// Prove the stub is reachable: an HTTP2 preface on a new connection routes the entrypoint to it.
+		grpcStub := countingProgram(t, counters, grpcIdx, nil)
+		swap(netebpf.ClassificationGRPC, grpcStub)
+
+		dbsTail, err := ebpf.NewMap(&ebpf.MapSpec{Type: ebpf.ProgramArray, KeySize: 4, ValueSize: 4, MaxEntries: 1})
+		require.NoError(t, err)
+		t.Cleanup(func() { _ = dbsTail.Close() })
+		dbsStub := countingProgram(t, counters, dbsIdx, dbsTail)
+		origDBs := swap(netebpf.ClassificationDBs, dbsStub)
+		require.NoError(t, dbsTail.Put(uint32(0), origDBs))
+
+		// Prove the gRPC stub is reachable: an HTTP2 preface routes the entrypoint to it.
 		h2, err := srv.Dial()
 		require.NoError(t, err)
 		defer h2.Close()
 		_, err = h2.Write([]byte(http2.ClientPreface))
 		require.NoError(t, err)
-		require.Eventually(t, func() bool { return grpcCalls() > 0 }, 3*time.Second, 50*time.Millisecond, "gRPC slot never reached")
+		require.Eventually(t, func() bool { return passes(grpcIdx) > 0 }, 3*time.Second, 50*time.Millisecond, "gRPC slot never reached")
 
+		// The server acknowledges every message before the next is sent, so each message is its own segment, and
+		// the classifier, which runs synchronously on the packet tap, has processed it before the ack arrives.
 		const writes = 50
-		payload := bytes.Repeat([]byte{0xab}, 256)
-		before := grpcCalls()
+		const msgSize = 256
+		ackSrv := tracertestutil.NewTCPServer(func(c net.Conn) {
+			defer c.Close()
+			buf := make([]byte, msgSize)
+			for {
+				if _, err := io.ReadFull(c, buf); err != nil {
+					return
+				}
+				if _, err := c.Write([]byte{0xab}); err != nil {
+					return
+				}
+			}
+		})
+		require.NoError(t, ackSrv.Run())
+		t.Cleanup(ackSrv.Shutdown)
+
+		c, err := ackSrv.Dial()
+		require.NoError(t, err)
+		defer c.Close()
+		require.NoError(t, c.(*net.TCPConn).SetNoDelay(true))
+
+		grpcBefore, dbsBefore := passes(grpcIdx), passes(dbsIdx)
+		payload := bytes.Repeat([]byte{0xab}, msgSize)
+		ack := make([]byte, 1)
 		for i := 0; i < writes; i++ {
 			_, err := c.Write(payload)
 			require.NoError(t, err)
-			time.Sleep(time.Millisecond)
+			_, err = io.ReadFull(c, ack)
+			require.NoError(t, err)
 		}
-		time.Sleep(200 * time.Millisecond)
-		// Other HTTP2 traffic on the host can still reach the gRPC slot, so allow some slack. Without this
-		// routing rule every payload packet above also tail-calls it.
-		assert.Less(t, grpcCalls()-before, uint64(writes/2))
+		dbsPasses := passes(dbsIdx) - dbsBefore
+		grpcPasses := passes(grpcIdx) - grpcBefore
+		require.GreaterOrEqual(t, dbsPasses, uint64(writes), "payload packets did not reach the dbs classifier")
+		// Before this routing rule, every dbs pass tail-called gRPC. Other HTTP2 traffic on the host can still
+		// reach the gRPC slot directly, so allow some slack.
+		assert.Less(t, grpcPasses, dbsPasses/2, "dbs passes: %d", dbsPasses)
 	})
+}
+
+// countingProgram returns a socket filter that increments counters[idx] and then tail-calls tail[0] if tail is set.
+func countingProgram(t *testing.T, counters *ebpf.Map, idx int32, tail *ebpf.Map) *ebpf.Program {
+	insns := asm.Instructions{
+		asm.Mov.Reg(asm.R6, asm.R1),
+		asm.StoreImm(asm.RFP, -4, int64(idx), asm.Word),
+		asm.Mov.Reg(asm.R2, asm.RFP),
+		asm.Add.Imm(asm.R2, -4),
+		asm.LoadMapPtr(asm.R1, counters.FD()),
+		asm.FnMapLookupElem.Call(),
+		asm.JEq.Imm(asm.R0, 0, "out"),
+		asm.Mov.Imm(asm.R1, 1),
+		asm.StoreXAdd(asm.R0, asm.R1, asm.DWord),
+	}
+	if tail != nil {
+		insns = append(insns,
+			asm.Mov.Reg(asm.R1, asm.R6).WithSymbol("out"),
+			asm.LoadMapPtr(asm.R2, tail.FD()),
+			asm.Mov.Imm(asm.R3, 0),
+			asm.FnTailCall.Call(),
+			asm.Mov.Imm(asm.R0, 0),
+		)
+	} else {
+		insns = append(insns, asm.Mov.Imm(asm.R0, 0).WithSymbol("out"))
+	}
+	insns = append(insns, asm.Return())
+	prog, err := ebpf.NewProgram(&ebpf.ProgramSpec{Type: ebpf.SocketFilter, License: "GPL", Instructions: insns})
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = prog.Close() })
+	return prog
 }

@@ -287,8 +287,8 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     }
 }
 
-// The only API-layer program (gRPC) needs an HTTP2 application layer, which only the entrypoint classifies,
-// so routing from the application-layer programs skips the API layer.
+// The only API-layer program (gRPC) needs an HTTP2 application layer, which queues and dbs never set,
+// so routing from them skips the API layer.
 static __always_inline void application_layer_next_program(struct __sk_buff *skb, classification_context_t *classification_ctx) {
     classification_ctx->routing_skip_layers |= LAYER_API_BIT;
     classification_next_program(skb, classification_ctx);
