@@ -154,7 +154,7 @@ def write_test_binaries_bzl(_):
     """
     query_output = bazel(
         "query",
-        "kind(go_test, rdeps(//test/new-e2e/tests/..., //test/e2e-framework/testing/e2e))",
+        r"attr(tags, '\bmanual\b', kind(go_test, rdeps(//test/new-e2e/tests/..., //test/e2e-framework/testing/e2e)))",
         "--output=label",
         capture_output=True,
     )
