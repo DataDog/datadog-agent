@@ -27,16 +27,13 @@ import (
 
 // Layout of skb_parse_result_t in skb-parse-test.c: ret, skb_info_t, conn_tuple_t.
 const (
-	skbParseInfoOff = 8
-	skbParseTupOff  = 24
-	skbParseSport   = skbParseTupOff + 32
+	skbParseTupOff = 24
+	skbParseSport  = skbParseTupOff + 32
 )
 
 type skbParseFrame struct {
 	name string
 	data []byte
-	// bulk path must handle the untruncated frame
-	expectBulk bool
 }
 
 // TestReadConnTupleSKBEquivalence runs read_conn_tuple_skb_bulk, read_conn_tuple_skb_fields, and
@@ -80,7 +77,7 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 	seeds := [][]byte{make([]byte, resSize), bytes.Repeat([]byte{0xa5}, resSize)}
 	frames := skbParseFrames()
 
-	var runs, bulkRuns, rejected int
+	var runs, rejected int
 	key := uint32(0)
 	for _, f := range frames {
 		for n := 0; n <= len(f.data); n++ {
@@ -106,23 +103,14 @@ func TestReadConnTupleSKBEquivalence(t *testing.T) {
 				desc := fmt.Sprintf("%s len=%d seed=%d", f.name, n, si)
 
 				require.Equal(t, fields, combined, "combined differs from per-field: %s", desc)
-				switch {
-				case bulkRet >= 0:
-					bulkRuns++
-					require.Equal(t, fields, bulk, "bulk differs from per-field: %s", desc)
-				case bulkRet == -1:
-					require.Equal(t, seed[skbParseInfoOff:], bulk[skbParseInfoOff:], "bulk fallback wrote outputs: %s", desc)
-				default:
-					t.Fatalf("unexpected bulk return %d: %s", bulkRet, desc)
-				}
-				if n == len(f.data) && f.expectBulk {
-					require.GreaterOrEqual(t, bulkRet, int64(0), "bulk path not taken: %s", desc)
-				}
+				// bpf_skb_load_bytes is always available here, so the bulk parse handles every frame.
+				require.GreaterOrEqual(t, bulkRet, int64(0), "bulk path not taken: %s", desc)
+				require.Equal(t, fields, bulk, "bulk differs from per-field: %s", desc)
 				runs++
 			}
 		}
 	}
-	t.Logf("%d frames, %d runs, %d on the bulk path, %d short IPv4 inputs rejected by test-run", len(frames), runs, bulkRuns, rejected)
+	t.Logf("%d frames, %d runs, %d short IPv4 inputs rejected by test-run", len(frames), runs, rejected)
 
 	// Sanity check the harness offsets on one frame: an IPv4 TCP frame parses to its source port.
 	require.NoError(t, seedMap.Put(&key, seeds[0]))
@@ -225,41 +213,41 @@ func skbParseFrames() []skbParseFrame {
 	}
 	tcpData := tcpHdr(40000, 6379, 5, 0x18, 40)
 	frames := []skbParseFrame{
-		{"v4 tcp data", v4(5, tcp, tcpData), true},
-		{"v4 tcp ack", v4(5, tcp, tcpHdr(40000, 80, 5, 0x10, 0)), true},
-		{"v4 tcp ack timestamps", v4(5, tcp, tcpHdr(40000, 80, 8, 0x10, 0)), true},
-		{"v4 tcp fin", v4(5, tcp, tcpHdr(40000, 80, 5, 0x11, 0)), true},
-		{"v4 tcp rst", v4(5, tcp, tcpHdr(40000, 80, 5, 0x04, 0)), true},
-		{"v4 tcp doff 15", v4(5, tcp, tcpHdr(40000, 443, 15, 0x18, 10)), true},
-		{"v4 tcp doff 0", v4(5, tcp, tcpHdr(40000, 443, 0, 0x18, 30)), true},
-		{"v4 opts ihl 6 tcp", v4(6, tcp, tcpData), false},
-		{"v4 opts ihl 15 tcp", v4(15, tcp, tcpData), false},
-		{"v4 opts ihl 6 udp", v4(6, udp, udpHdr(5353, 53, 30)), false},
-		{"v4 ihl 0", v4(0, tcp, tcpData), true},
-		{"v4 ihl 4", v4(4, tcp, tcpData), true},
-		{"v4 udp dns", v4(5, udp, udpHdr(40001, 53, 33)), true},
-		{"v4 udp empty", v4(5, udp, udpHdr(40001, 53, 0)), false},
-		{"v4 icmp", v4(5, icmp, make([]byte, 56)), true},
-		{"v4 gre", v4(5, 47, make([]byte, 40)), true},
-		{"v6 tcp data", v6(tcp, tcpData), true},
-		{"v6 tcp ack", v6(tcp, tcpHdr(40000, 80, 5, 0x10, 0)), true},
-		{"v6 udp dns", v6(udp, udpHdr(40001, 53, 33)), true},
-		{"v6 udp empty", v6(udp, udpHdr(40001, 53, 0)), false},
-		{"v6 icmpv6", v6(icmp6, make([]byte, 32)), true},
-		{"v6 hop-by-hop then tcp", v6(0, concat([]byte{tcp, 0, 1, 4, 0, 0, 0, 0}, tcpData)), true},
-		{"arp", concat(ethHdr(0x0806), make([]byte, 28)), false},
-		{"arp padded", concat(ethHdr(0x0806), make([]byte, 46)), true},
-		{"vlan v4 tcp", concat(ethHdr(0x8100), []byte{0, 1, 0x08, 0x00}, ipv4Hdr(5, tcp, len(tcpData)), tcpData), true},
-		{"unknown ethertype", concat(ethHdr(0x88cc), make([]byte, 60)), true},
+		{"v4 tcp data", v4(5, tcp, tcpData)},
+		{"v4 tcp ack", v4(5, tcp, tcpHdr(40000, 80, 5, 0x10, 0))},
+		{"v4 tcp ack timestamps", v4(5, tcp, tcpHdr(40000, 80, 8, 0x10, 0))},
+		{"v4 tcp fin", v4(5, tcp, tcpHdr(40000, 80, 5, 0x11, 0))},
+		{"v4 tcp rst", v4(5, tcp, tcpHdr(40000, 80, 5, 0x04, 0))},
+		{"v4 tcp doff 15", v4(5, tcp, tcpHdr(40000, 443, 15, 0x18, 10))},
+		{"v4 tcp doff 0", v4(5, tcp, tcpHdr(40000, 443, 0, 0x18, 30))},
+		{"v4 opts ihl 6 tcp", v4(6, tcp, tcpData)},
+		{"v4 opts ihl 15 tcp", v4(15, tcp, tcpData)},
+		{"v4 opts ihl 6 udp", v4(6, udp, udpHdr(5353, 53, 30))},
+		{"v4 ihl 0", v4(0, tcp, tcpData)},
+		{"v4 ihl 4", v4(4, tcp, tcpData)},
+		{"v4 udp dns", v4(5, udp, udpHdr(40001, 53, 33))},
+		{"v4 udp empty", v4(5, udp, udpHdr(40001, 53, 0))},
+		{"v4 icmp", v4(5, icmp, make([]byte, 56))},
+		{"v4 gre", v4(5, 47, make([]byte, 40))},
+		{"v6 tcp data", v6(tcp, tcpData)},
+		{"v6 tcp ack", v6(tcp, tcpHdr(40000, 80, 5, 0x10, 0))},
+		{"v6 udp dns", v6(udp, udpHdr(40001, 53, 33))},
+		{"v6 udp empty", v6(udp, udpHdr(40001, 53, 0))},
+		{"v6 icmpv6", v6(icmp6, make([]byte, 32))},
+		{"v6 hop-by-hop then tcp", v6(0, concat([]byte{tcp, 0, 1, 4, 0, 0, 0, 0}, tcpData))},
+		{"arp", concat(ethHdr(0x0806), make([]byte, 28))},
+		{"arp padded", concat(ethHdr(0x0806), make([]byte, 46))},
+		{"vlan v4 tcp", concat(ethHdr(0x8100), []byte{0, 1, 0x08, 0x00}, ipv4Hdr(5, tcp, len(tcpData)), tcpData)},
+		{"unknown ethertype", concat(ethHdr(0x88cc), make([]byte, 60))},
 	}
 
 	// tot_len/payload_len that disagree with the frame, including lengths shorter than the headers.
 	short := v4(5, tcp, tcpData)
 	binary.BigEndian.PutUint16(short[16:], 10)
-	frames = append(frames, skbParseFrame{"v4 tot_len short", short, true})
+	frames = append(frames, skbParseFrame{"v4 tot_len short", short})
 	zero6 := v6(tcp, tcpData)
 	binary.BigEndian.PutUint16(zero6[18:], 0)
-	frames = append(frames, skbParseFrame{"v6 payload_len 0", zero6, true})
+	frames = append(frames, skbParseFrame{"v6 payload_len 0", zero6})
 
 	// Random headers with the ethertype, version/IHL, and protocol fields biased toward real values.
 	r := rand.New(rand.NewSource(1))
@@ -279,7 +267,7 @@ func skbParseFrames() []skbParseFrame {
 				b[20] = []byte{tcp, udp}[r.Intn(2)]
 			}
 		}
-		frames = append(frames, skbParseFrame{fmt.Sprintf("random %d", i), b, false})
+		frames = append(frames, skbParseFrame{fmt.Sprintf("random %d", i), b})
 	}
 	return frames
 }
