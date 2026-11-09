@@ -204,6 +204,12 @@ func (pn *ProcessNode) size() int64 {
 	return s
 }
 
+// hasActivity reports whether the node holds activity of its own, beside its process and children
+func (pn *ProcessNode) hasActivity() bool {
+	return len(pn.Files) > 0 || len(pn.DNSNames) > 0 || len(pn.IMDSEvents) > 0 || len(pn.NetworkDevices) > 0 ||
+		len(pn.Sockets) > 0 || len(pn.Syscalls) > 0 || len(pn.Capabilities) > 0
+}
+
 // NewProcessNode returns a new ProcessNode instance
 func NewProcessNode(entry *model.ProcessCacheEntry, generationType NodeGenerationType, resolvers *resolvers.EBPFResolvers) *ProcessNode {
 	// call the callback to resolve additional fields before copying them

@@ -191,6 +191,11 @@ type ActivityTree struct {
 	CookieToProcessNode *simplelru.LRU[cookieSelector, *ProcessNode]
 	ProcessNodes        []*ProcessNode `json:"-"`
 
+	// KeepUnattributedActivity enables UnattributedActivity
+	KeepUnattributedActivity bool
+	// UnattributedActivity holds the activity of the processes that can't be placed in the tree. Its process is unset.
+	UnattributedActivity *ProcessNode `json:"-"`
+
 	// top level lists used to summarize the content of the tree
 	DNSNames     *utils.StringKeys
 	SyscallsMask map[int]int
@@ -344,12 +349,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 	pnodes := at.ProcessNodes
 	var fnodes []*FileNode
 
-	for len(pnodes) > 0 {
-		node := pnodes[0]
-
-		at.Stats.ProcessNodes++
-		pnodes = append(pnodes, node.Children...)
-
+	countActivity := func(node *ProcessNode) {
 		at.Stats.DNSNodes += int64(len(node.DNSNames))
 		at.Stats.SocketNodes += int64(len(node.Sockets))
 
@@ -360,8 +360,19 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 		for _, f := range node.Files {
 			fnodes = append(fnodes, f)
 		}
+	}
+
+	for len(pnodes) > 0 {
+		node := pnodes[0]
+
+		at.Stats.ProcessNodes++
+		pnodes = append(pnodes, node.Children...)
+		countActivity(node)
 
 		pnodes = pnodes[1:]
+	}
+	if at.UnattributedActivity != nil {
+		countActivity(at.UnattributedActivity)
 	}
 
 	for len(fnodes) > 0 {
@@ -383,7 +394,7 @@ func (at *ActivityTree) ComputeActivityTreeStats() {
 
 // IsEmpty returns true if the tree is empty
 func (at *ActivityTree) IsEmpty() bool {
-	return len(at.ProcessNodes) == 0
+	return len(at.ProcessNodes) == 0 && at.UnattributedActivity == nil
 }
 
 // Debug dumps the content of an activity tree
@@ -577,12 +588,13 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	}
 
 	node, newProcessNode, err := at.createProcessNode(event.ProcessCacheEntry, imageTagID, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
-	if err != nil {
+	unattributed := errors.Is(err, ErrBrokenLineage) && at.canBeUnattributed(event, dryRun, insertMissingProcesses)
+	if err != nil && !unattributed {
 		return false, nil, nil, err
 	}
 	if newProcessNode && !insertMissingProcesses {
 		return true, nil, nil, nil
-	} else if node == nil {
+	} else if node == nil && !unattributed {
 		return false, nil, nil, ErrProcessNodeNotCreated
 	}
 
@@ -593,39 +605,77 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return false, nil, nil, event.Error
 	}
 
+	if unattributed {
+		node = at.getOrCreateUnattributedActivity(generationType)
+	}
+
 	at.Stats.counts[event.GetEventType()].processedCount.Inc()
+	newEntry, eventNodeBase := at.insertActivity(node, newProcessNode, event, imageTagID, generationType, dryRun, resolvers)
+	if unattributed && !node.hasActivity() {
+		// the unattributed activity only exists to hold activity, which a failed bind for instance doesn't have
+		at.Stats.SizeBytes -= node.size()
+		at.UnattributedActivity = nil
+		return false, nil, nil, ErrBrokenLineage
+	}
 	node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 
+	return newEntry, node, eventNodeBase, nil
+}
+
+// insertActivity inserts the activity of the event in its process node, returns true if it generated a new entry in the
+// tree, and the event-level node when applicable
+func (at *ActivityTree) insertActivity(node *ProcessNode, newProcessNode bool, event *model.Event, imageTagID uint64, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (bool, *NodeBase) {
 	switch event.GetEventType() {
 	case model.ExecEventType:
 		node.MatchedRules = model.AppendMatchedRule(node.MatchedRules, event.Rules)
-		return newProcessNode, node, nil, nil
+		return newProcessNode, nil
 	case model.FileOpenEventType:
-		newEntry, eventNodeBase := node.InsertFileEvent(&event.Open.File, event, imageTagID, generationType, at.Stats, dryRun, at.pathsReducer, resolvers)
-		return newEntry, node, eventNodeBase, nil
+		return node.InsertFileEvent(&event.Open.File, event, imageTagID, generationType, at.Stats, dryRun, at.pathsReducer, resolvers)
 	case model.DNSEventType:
-		return node.InsertDNSEvent(event, imageTagID, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), node, nil, nil
+		return node.InsertDNSEvent(event, imageTagID, generationType, at.Stats, at.DNSNames, dryRun, at.DNSMatchMaxDepth), nil
 	case model.IMDSEventType:
-		return node.InsertIMDSEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
+		return node.InsertIMDSEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.BindEventType:
-		newEntry, eventNodeBase := node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun)
-		return newEntry, node, eventNodeBase, nil
+		return node.InsertBindEvent(event, imageTagID, generationType, at.Stats, dryRun)
 	case model.ConnectEventType:
-		newEntry, eventNodeBase := node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
-		return newEntry, node, eventNodeBase, nil
+		return node.InsertConnectEvent(event, imageTagID, generationType, at.Stats, dryRun)
 	case model.SyscallsEventType:
-		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), node, nil, nil
+		return node.InsertSyscalls(event, imageTagID, at.SyscallsMask, at.Stats, dryRun), nil
 	case model.NetworkFlowMonitorEventType:
-		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), node, nil, nil
+		return node.InsertNetworkFlowMonitorEvent(event, imageTagID, generationType, at.Stats, dryRun), nil
 	case model.CapabilitiesEventType:
-		return node.InsertCapabilitiesUsageEvent(event, imageTagID, at.Stats, dryRun), node, nil, nil
+		return node.InsertCapabilitiesUsageEvent(event, imageTagID, at.Stats, dryRun), nil
 	case model.FileMountEventType, model.FileMoveMountEventType, model.PivotRootEventType:
-		return at.insertMountEvent(event, imageTagID, generationType, resolvers, dryRun), node, nil, nil
+		return at.insertMountEvent(event, imageTagID, generationType, resolvers, dryRun), nil
 	case model.ExitEventType:
 		node.Process.ExitTime = event.Timestamp
 	}
+	return false, nil
+}
 
-	return false, node, nil, nil
+// canBeUnattributed reports whether the activity of an event whose process can't be placed in the tree can be kept in
+// UnattributedActivity
+func (at *ActivityTree) canBeUnattributed(event *model.Event, dryRun bool, insertMissingProcesses bool) bool {
+	if !at.KeepUnattributedActivity || dryRun || !insertMissingProcesses {
+		return false
+	}
+	switch event.GetEventType() {
+	case model.FileOpenEventType, model.DNSEventType, model.IMDSEventType, model.BindEventType, model.ConnectEventType,
+		model.SyscallsEventType, model.NetworkFlowMonitorEventType, model.CapabilitiesEventType:
+		return true
+	}
+	return false
+}
+
+func (at *ActivityTree) getOrCreateUnattributedActivity(generationType NodeGenerationType) *ProcessNode {
+	if at.UnattributedActivity == nil {
+		at.UnattributedActivity = &ProcessNode{
+			NodeBase:       NewNodeBase(),
+			GenerationType: generationType,
+		}
+		at.Stats.SizeBytes += at.UnattributedActivity.size()
+	}
+	return at.UnattributedActivity
 }
 
 func isContainerRuntimePrefix(basename string) bool {
@@ -1172,6 +1222,9 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 	for _, rootNode := range at.ProcessNodes {
 		rootNode.TagAllNodes(imageTagID, timestamp)
 	}
+	if at.UnattributedActivity != nil {
+		at.UnattributedActivity.TagAllNodes(imageTagID, timestamp)
+	}
 	// every node may have grown a seen slot; the walk costs the same as tagging
 	at.recomputeSizeBytes()
 }
@@ -1180,8 +1233,11 @@ func (at *ActivityTree) TagAllNodes(imageTag string, timestamp time.Time) {
 // Called from ComputeActivityTreeStats and TagAllNodes to correct any accumulated drift.
 func (at *ActivityTree) recomputeSizeBytes() {
 	var total int64
-	openList := make([]*ProcessNode, len(at.ProcessNodes))
+	openList := make([]*ProcessNode, len(at.ProcessNodes), len(at.ProcessNodes)+1)
 	copy(openList, at.ProcessNodes)
+	if at.UnattributedActivity != nil {
+		openList = append(openList, at.UnattributedActivity)
+	}
 	for len(openList) > 0 {
 		pn := openList[len(openList)-1]
 		openList = openList[:len(openList)-1]
@@ -1260,6 +1316,7 @@ func (at *ActivityTree) FinalizePatterns() {
 	for _, pn := range at.ProcessNodes {
 		at.finalizePatternsOnProcess(pn, cfg.MinGroupSize)
 	}
+	at.finalizePatternsOnProcess(at.UnattributedActivity, cfg.MinGroupSize)
 }
 
 func (at *ActivityTree) finalizePatternsOnProcess(pn *ProcessNode, minGroupSize int) {
@@ -1311,6 +1368,17 @@ func (at *ActivityTree) EvictImageTag(imageTag string) {
 	at.ProcessNodes = newProcessNodes
 	at.forgetEvictedProcessNodes()
 
+	if ua := at.UnattributedActivity; ua != nil {
+		shouldRemove, removed := ua.EvictImageTag(imageTagID, DNSNames, SyscallsMask)
+		if !shouldRemove && !ua.hasActivity() {
+			shouldRemove, removed = true, removed+processSubtreeSizeBytes(ua)
+		}
+		if shouldRemove {
+			at.UnattributedActivity = nil
+		}
+		removedBytes += removed
+	}
+
 	newMounts := at.Mounts[:0]
 	for _, mn := range at.Mounts {
 		if mn.EvictImageTag(imageTagID) {
@@ -1350,6 +1418,14 @@ func (at *ActivityTree) visitFileNode(fileNode *FileNode, isPattern []bool, cb f
 func (at *ActivityTree) visit(cb func(processNode *ProcessNode)) {
 	for _, pn := range at.ProcessNodes {
 		at.visitProcessNode(pn, cb)
+	}
+}
+
+// visitActivity is visit followed by UnattributedActivity
+func (at *ActivityTree) visitActivity(cb func(processNode *ProcessNode)) {
+	at.visit(cb)
+	if at.UnattributedActivity != nil {
+		cb(at.UnattributedActivity)
 	}
 }
 
@@ -1406,7 +1482,7 @@ func (at *ActivityTree) ExtractPaths(_, fimEnabled, lineageEnabled bool) (map[st
 func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 	var syscalls []string
 
-	at.visit(func(processNode *ProcessNode) {
+	at.visitActivity(func(processNode *ProcessNode) {
 		for _, s := range processNode.Syscalls {
 			sycallKey := utils.SyscallKey{Arch: arch, ID: s.Syscall}
 			syscall, ok := utils.Syscalls[sycallKey]
@@ -1423,7 +1499,7 @@ func (at *ActivityTree) ExtractSyscalls(arch string) []string {
 func (at *ActivityTree) SyscallsByImageTagID() map[uint64][]uint32 {
 	sets := make(map[uint64]map[uint32]struct{})
 
-	at.visit(func(processNode *ProcessNode) {
+	at.visitActivity(func(processNode *ProcessNode) {
 		for _, syscallNode := range processNode.Syscalls {
 			if syscallNode.Syscall < 0 || uint64(syscallNode.Syscall) > math.MaxUint32 {
 				continue
@@ -1488,6 +1564,17 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 		if node.SeenIsEmpty() {
 			at.Stats.SizeBytes -= processSubtreeSizeBytes(node)
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
+			totalEvicted++
+		}
+	}
+
+	if ua := at.UnattributedActivity; ua != nil {
+		// without a process, there is no entry of the process cache that could keep it alive
+		_, removedBytes := ua.EvictUnusedNodes(before, nil, profileImageName, imageTags)
+		at.Stats.SizeBytes -= removedBytes
+		if ua.SeenIsEmpty() || !ua.hasActivity() {
+			at.Stats.SizeBytes -= processSubtreeSizeBytes(ua)
+			at.UnattributedActivity = nil
 			totalEvicted++
 		}
 	}

@@ -389,10 +389,29 @@ NEXT2:
 	return
 }
 
+func diffADUnattributedActivity(origin, target *activity_tree.ProcessNode, states map[string]bool) *activity_tree.ProcessNode {
+	switch {
+	case origin == nil && target == nil:
+		return nil
+	case origin == nil:
+		markADSubtree(target, addedADNode)
+		states[utils.NewGraphID(utils.NewNodeIDFromPtr(target)).String()] = true
+		return target
+	case target == nil:
+		markADSubtree(origin, removedADNode)
+		states[utils.NewGraphID(utils.NewNodeIDFromPtr(origin)).String()] = false
+		return origin
+	}
+	newNode := *target
+	newNode.DNSNames = diffADDNSNodes(origin.DNSNames, target.DNSNames, states, utils.NewGraphID(utils.NewNodeIDFromPtr(&newNode)))
+	return &newNode
+}
+
 func computeActivityDumpDiff(p1, p2 *profile.Profile, states map[string]bool) *profile.Profile {
 	p := profile.New()
 	p.ActivityTree = &activity_tree.ActivityTree{
-		ProcessNodes: diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
+		ProcessNodes:         diffADSubtree(p1.ActivityTree.ProcessNodes, p2.ActivityTree.ProcessNodes, states),
+		UnattributedActivity: diffADUnattributedActivity(p1.ActivityTree.UnattributedActivity, p2.ActivityTree.UnattributedActivity, states),
 	}
 	return p
 }

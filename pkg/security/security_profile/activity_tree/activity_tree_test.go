@@ -18,9 +18,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/path"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 func TestInsertFileEvent(t *testing.T) {
@@ -996,4 +998,113 @@ func TestActivityTree_BrokenLineageCookiesAfterEviction(t *testing.T) {
 			assert.ErrorIs(t, err, ErrBrokenLineage)
 		})
 	}
+}
+
+func TestActivityTree_UnattributedActivity(t *testing.T) {
+	// the lineage of this entry breaks at its parent, inside of the container
+	parent := model.NewPlaceholderProcessCacheEntry(10, 10, false)
+	parent.ContainerContext.ContainerID = "123"
+	entry := model.NewPlaceholderProcessCacheEntry(11, 11, false)
+	entry.ContainerContext.ContainerID = "123"
+	entry.FileEvent.PathnameStr = "/bin/bar"
+	entry.FileEvent.Inode = 11
+	entry.FileEvent.MountID = 1
+	entry.Ancestor = parent
+	entry.Parent = &parent.Process
+
+	newEvent := func(eventType model.EventType, timestamp time.Time) *model.Event {
+		evt := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type:              uint32(eventType),
+				Timestamp:         timestamp,
+				FieldHandlers:     &model.FakeFieldHandlers{},
+				ProcessContext:    &entry.ProcessContext,
+				ProcessCacheEntry: entry,
+			},
+		}
+		evt.Syscalls.Syscalls = []model.Syscall{1, 2}
+		return evt
+	}
+
+	t.Run("disabled", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+
+		_, _, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+		assert.ErrorIs(t, err, ErrBrokenLineage)
+		assert.Nil(t, tree.UnattributedActivity)
+	})
+
+	newFailedBind := func() *model.Event {
+		evt := newEvent(model.BindEventType, time.Now())
+		evt.Bind.AddrFamily = unix.AF_INET
+		evt.Bind.SyscallEvent.Retval = -1
+		return evt
+	}
+
+	t.Run("an event without activity leaves no bucket", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+		tree.KeepUnattributedActivity = true
+
+		_, _, _, err := tree.Insert(newFailedBind(), true, "v1", Runtime, nil)
+
+		assert.ErrorIs(t, err, ErrBrokenLineage)
+		assert.Nil(t, tree.UnattributedActivity)
+		assert.True(t, tree.IsEmpty())
+		assert.Zero(t, tree.Stats.SizeBytes)
+	})
+
+	t.Run("the bucket goes once its activity ages out", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+		tree.KeepUnattributedActivity = true
+		_, _, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now().Add(-time.Hour)), true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		_, _, _, err = tree.Insert(newFailedBind(), true, "v1", Runtime, nil)
+		require.NoError(t, err)
+		require.NotNil(t, tree.UnattributedActivity)
+
+		assert.Equal(t, 1, tree.EvictUnusedNodes(time.Now().Add(-time.Minute), nil, ""))
+		assert.Nil(t, tree.UnattributedActivity)
+	})
+
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	tree.KeepUnattributedActivity = true
+
+	_, _, _, err := tree.Insert(newEvent(model.ExecEventType, time.Now()), true, "v1", Runtime, nil)
+	assert.ErrorIs(t, err, ErrBrokenLineage, "an exec can't be kept without its process")
+	assert.Nil(t, tree.UnattributedActivity)
+
+	inserted, node, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.NotNil(t, tree.UnattributedActivity)
+	assert.Same(t, tree.UnattributedActivity, node)
+	assert.Empty(t, tree.ProcessNodes)
+	assert.False(t, tree.IsEmpty())
+	assert.Equal(t, []uint32{1, 2}, tree.SyscallsByImageTagID()[tree.GetImageTagID("v1")])
+
+	graph := tree.PrepareGraphData("test", "", nil)
+	graphNode := graph.Nodes[utils.NewGraphID(utils.NewNodeIDFromPtr(node))]
+	require.NotNil(t, graphNode)
+	assert.Contains(t, graphNode.Label, "Unattributed activity")
+	assert.Len(t, graph.SubGraphs, 1, "its syscalls")
+
+	inserted, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted, "the syscalls are already known")
+
+	tree.recomputeSizeBytes()
+	require.Positive(t, tree.Stats.SizeBytes)
+	tree.EvictImageTag("v1")
+	assert.Nil(t, tree.UnattributedActivity)
+	assert.True(t, tree.IsEmpty())
+	assert.Zero(t, tree.Stats.SizeBytes)
+
+	_, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now().Add(-time.Hour)), true, "v2", Runtime, nil)
+	require.NoError(t, err)
+	require.NotNil(t, tree.UnattributedActivity)
+	tree.recomputeSizeBytes()
+	require.Positive(t, tree.Stats.SizeBytes)
+	assert.Equal(t, 1, tree.EvictUnusedNodes(time.Now().Add(-time.Minute), nil, ""), "the manager only purges its sample cookies when nodes are evicted")
+	assert.Nil(t, tree.UnattributedActivity)
+	assert.Zero(t, tree.Stats.SizeBytes)
 }
