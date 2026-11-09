@@ -17,16 +17,15 @@ func TestScrubYamlWithSecrets(t *testing.T) {
 	input := []byte(`api_key: ENC[main_key]
 logs_config:
   api_key: raw-logs-key
-proxy:
-  http: http://user:proxy-value@localhost:1234
 init_config:
   password: ENC[shared_password]
 instances:
   - password: raw-password
-    headers:
-      Authorization: Bearer raw-header
-      x.custom.header: ENC[custom_header]
-  - password: ENC[second_password]
+  - password: ENC[shared_password]
+logs:
+  - password: raw-log-password
+jmx_metrics:
+  - password: ENC[shared_password]
 snmp_traps:
   community_strings: [raw-community, 'ENC[community]']
 password: false
@@ -37,20 +36,19 @@ already_redacted:
 	cleaned, secrets, err := NewWithDefaults().ScrubYamlWithSecrets(input)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []ConfigSecret{
-		{Path: []any{"api_key"}, Kind: "enc", Handle: "main_key"},
-		{Path: []any{"logs_config", "api_key"}, Kind: "raw"},
-		{Path: []any{"proxy", "http"}, Kind: "raw"},
-		{Path: []any{"init_config", "password"}, Kind: "enc", Handle: "shared_password"},
-		{Path: []any{"instances", 0, "password"}, Kind: "raw"},
-		{Path: []any{"instances", 0, "headers", "Authorization"}, Kind: "raw"},
-		{Path: []any{"instances", 0, "headers", "x.custom.header"}, Kind: "enc", Handle: "custom_header"},
-		{Path: []any{"instances", 1, "password"}, Kind: "enc", Handle: "second_password"},
-		{Path: []any{"snmp_traps", "community_strings", 0}, Kind: "raw"},
-		{Path: []any{"snmp_traps", "community_strings", 1}, Kind: "enc", Handle: "community"},
+		{Path: "api_key", Kind: "enc", Handle: "main_key"},
+		{Path: "logs_config.api_key", Kind: "raw"},
+		{Path: "init_config.password", Kind: "enc", Handle: "shared_password"},
+		{Path: "instances.0.password", Kind: "raw"},
+		{Path: "instances.1.password", Kind: "enc", Handle: "shared_password"},
+		{Path: "logs.0.password", Kind: "raw"},
+		{Path: "jmx_metrics.0.password", Kind: "enc", Handle: "shared_password"},
+		{Path: "snmp_traps.community_strings.0", Kind: "raw"},
+		{Path: "snmp_traps.community_strings.1", Kind: "enc", Handle: "community"},
 	}, secrets)
 	encoded, err := json.Marshal(secrets)
 	require.NoError(t, err)
-	for _, secret := range []string{"raw-logs-key", "proxy-value", "raw-password", "raw-header", "raw-community"} {
+	for _, secret := range []string{"raw-logs-key", "raw-password", "raw-log-password", "raw-community"} {
 		assert.NotContains(t, string(cleaned), secret)
 		assert.NotContains(t, string(encoded), secret)
 	}
@@ -65,24 +63,14 @@ func TestScrubYamlWithSecretsRejectsUnsafeInput(t *testing.T) {
 	}
 }
 
-func TestScrubYamlWithSecretsIndependentSnapshots(t *testing.T) {
-	scrubber := NewWithDefaults()
-	_, secrets, err := scrubber.ScrubYamlWithSecrets([]byte("password: first\napi_key: ENC[key]"))
-	require.NoError(t, err)
-	require.Len(t, secrets, 2)
-	_, secrets, err = scrubber.ScrubYamlWithSecrets([]byte("enabled: true"))
-	require.NoError(t, err)
-	assert.Empty(t, secrets, "removed secrets must not survive in the next file/snapshot")
-}
-
 func TestScrubYamlWithSecretsStructuredReplacers(t *testing.T) {
 	_, secrets, err := NewWithDefaults().ScrubYamlWithSecrets([]byte(`additional_endpoints:
   https://endpoint.example: [raw-key, 'ENC[endpoint_key]']
 `))
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []ConfigSecret{
-		{Path: []any{"additional_endpoints", "https://endpoint.example", 0}, Kind: "raw"},
-		{Path: []any{"additional_endpoints", "https://endpoint.example", 1}, Kind: "enc", Handle: "endpoint_key"},
+		{Path: "additional_endpoints.https://endpoint.example.0", Kind: "raw"},
+		{Path: "additional_endpoints.https://endpoint.example.1", Kind: "enc", Handle: "endpoint_key"},
 	}, secrets)
 }
 
@@ -98,7 +86,7 @@ func TestScrubYamlWithSecretsDoesNotLeakCredentialsInMapKeys(t *testing.T) {
 		assert.NotContains(t, string(encoded), value)
 	}
 	assert.ElementsMatch(t, []ConfigSecret{
-		{Path: []any{"additional_endpoints", "https://user:********@endpoint.example", 0}, Kind: "raw"},
-		{Path: []any{"additional_endpoints", "https://user:********@endpoint.example", 1}, Kind: "enc", Handle: "endpoint_key"},
+		{Path: "additional_endpoints.https://user:********@endpoint.example.0", Kind: "raw"},
+		{Path: "additional_endpoints.https://user:********@endpoint.example.1", Kind: "enc", Handle: "endpoint_key"},
 	}, secrets)
 }

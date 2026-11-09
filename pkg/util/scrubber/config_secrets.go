@@ -6,18 +6,17 @@
 package scrubber
 
 import (
-	"slices"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
 
 // ConfigSecret describes a secret declaration in a configuration file, never its value.
-// Path contains string mapping keys and integer sequence indexes, relative to the file.
-// An ENC declaration is reported even if the backend is unavailable or the file is
-// loaded by another process. Its presence does not imply successful resolution.
+// Path is relative to the file, using the dotted notation of enc_info.
+// Sequence indexes are path segments, for example instances.0.password.
 type ConfigSecret struct {
-	Path   []any  `json:"path"`
+	Path   string `json:"path"`
 	Kind   string `json:"kind"`
 	Handle string `json:"handle,omitempty"`
 }
@@ -44,11 +43,11 @@ func (c *Scrubber) ScrubYamlWithSecrets(input []byte) ([]byte, []ConfigSecret, e
 		return nil, nil, err
 	}
 	declarations := []ConfigSecret{}
-	c.configSecrets(&original, &scrubbed, nil, &declarations)
+	c.configSecrets(&original, &scrubbed, "", &declarations)
 	return cleaned, declarations, nil
 }
 
-func (c *Scrubber) configSecrets(original, cleaned *yaml.Node, path []any, out *[]ConfigSecret) {
+func (c *Scrubber) configSecrets(original, cleaned *yaml.Node, path string, out *[]ConfigSecret) {
 	switch original.Kind {
 	case yaml.DocumentNode:
 		if len(original.Content) != 0 {
@@ -71,7 +70,7 @@ func (c *Scrubber) configSecrets(original, cleaned *yaml.Node, path []any, out *
 			// A URL used as a map key can itself contain credentials. Do not
 			// bypass scrubbing by copying it into the metadata path.
 			safeKey := c.scrubYamlText(key)
-			c.configSecrets(original.Content[i+1], children[safeKey], append(slices.Clone(path), safeKey), out)
+			c.configSecrets(original.Content[i+1], children[safeKey], joinPath(path, safeKey), out)
 		}
 	case yaml.SequenceNode:
 		for i, child := range original.Content {
@@ -79,19 +78,19 @@ func (c *Scrubber) configSecrets(original, cleaned *yaml.Node, path []any, out *
 			if cleaned != nil && cleaned.Kind == yaml.SequenceNode && i < len(cleaned.Content) {
 				scrubbedChild = cleaned.Content[i]
 			}
-			c.configSecrets(child, scrubbedChild, append(slices.Clone(path), i), out)
+			c.configSecrets(child, scrubbedChild, joinPath(path, strconv.Itoa(i)), out)
 		}
 	case yaml.ScalarNode:
 		if original.Tag == "!!str" && IsEnc(original.Value) {
 			value := strings.TrimSpace(original.Value)
-			*out = append(*out, ConfigSecret{Path: slices.Clone(path), Kind: "enc", Handle: value[4 : len(value)-1]})
+			*out = append(*out, ConfigSecret{Path: path, Kind: "enc", Handle: value[4 : len(value)-1]})
 			return
 		}
 		if original.Tag == "!!null" || original.Tag == "!!bool" || strings.TrimSpace(original.Value) == "" || original.Value == defaultReplacement {
 			return
 		}
 		if cleaned == nil || cleaned.Kind != yaml.ScalarNode || original.Value != cleaned.Value {
-			*out = append(*out, ConfigSecret{Path: slices.Clone(path), Kind: "raw"})
+			*out = append(*out, ConfigSecret{Path: path, Kind: "raw"})
 		}
 	}
 }

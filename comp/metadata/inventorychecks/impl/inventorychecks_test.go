@@ -338,7 +338,7 @@ func TestFileSecretDeclarationsDistinguishFilesAndInstances(t *testing.T) {
 	files := []string{filepath.Join(dir, "http_check.d", "one.yaml"), filepath.Join(dir, "http_check.d", "two.yaml")}
 	require.NoError(t, os.MkdirAll(filepath.Dir(files[0]), 0700))
 	for _, file := range files {
-		require.NoError(t, os.WriteFile(file, []byte("init_config: {}\ninstances:\n- password: ENC[first]\n- password: raw-value\n"), 0600))
+		require.NoError(t, os.WriteFile(file, []byte("init_config:\n  password: ENC[shared]\ninstances:\n- password: ENC[shared]\n- password: raw-value\n"), 0600))
 	}
 	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
 	providers.ResetReader([]string{dir})
@@ -353,17 +353,19 @@ func TestFileSecretDeclarationsDistinguishFilesAndInstances(t *testing.T) {
 		assert.NotContains(t, string(encoded), "raw-value")
 		var decoded struct {
 			Secrets []struct {
-				Path   []any  `json:"path"`
+				Path   string `json:"path"`
 				Kind   string `json:"kind"`
 				Handle string `json:"handle"`
 			} `json:"secrets"`
 		}
 		require.NoError(t, json.Unmarshal(encoded, &decoded))
-		require.Len(t, decoded.Secrets, 2)
-		assert.Equal(t, []any{"instances", float64(0), "password"}, decoded.Secrets[0].Path)
-		assert.Equal(t, "first", decoded.Secrets[0].Handle)
-		assert.Equal(t, []any{"instances", float64(1), "password"}, decoded.Secrets[1].Path)
-		assert.Equal(t, "raw", decoded.Secrets[1].Kind)
+		require.Len(t, decoded.Secrets, 3)
+		assert.Equal(t, "init_config.password", decoded.Secrets[0].Path)
+		assert.Equal(t, "shared", decoded.Secrets[0].Handle)
+		assert.Equal(t, "instances.0.password", decoded.Secrets[1].Path)
+		assert.Equal(t, "shared", decoded.Secrets[1].Handle)
+		assert.Equal(t, "instances.1.password", decoded.Secrets[2].Path)
+		assert.Equal(t, "raw", decoded.Secrets[2].Kind)
 	}
 	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
 	payload = ic.getPayload(true).(*Payload)

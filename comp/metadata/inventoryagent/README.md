@@ -220,11 +220,11 @@ Here an example of an inventory payload:
 ### Secret declarations in configuration files
 
 Each `files_metadata[filename].secrets` array describes the secret declarations in
-that file. Entries have `kind` (`enc` or `raw`), `path` (string mapping keys and
-integer array indexes), and, for ENC declarations, `handle`. For example,
-`{"kind":"enc","path":["instances",0,"password"],"handle":"db_password"}`.
+that file. Entries have `kind` (`enc` or `raw`), `path` (a dotted path relative to the file,
+including list indexes), and, for ENC declarations, `handle`. For example,
+`{"kind":"enc","path":"instances.0.password","handle":"db_password"}`.
 The filename and path together identify a location, including when two files
 configure the same integration. Values and hashes are never included in these entries.
-An ENC declaration is reported independently of whether it was resolved; the
-existing `agent_metadata.enc_info` continues reporting resolved handles and hashes.
+Repeated handles retain one entry per location. These entries describe file
+contents; `agent_metadata.enc_info` continues reporting resolved handles and hashes.
 `metadata_skip_secrets` suppresses these entries as well as `enc_info`.

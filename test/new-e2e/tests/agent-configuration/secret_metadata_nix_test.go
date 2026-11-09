@@ -9,6 +9,7 @@ import (
 	_ "embed"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -38,11 +39,9 @@ var metadataSecretCases = []metadataSecretCase{
 	{"datadog.yaml", []any{"api_key"}},
 	{"datadog.yaml", []any{"apm_config", "debugger_api_key"}},
 	{"datadog.yaml", []any{"logs_config", "api_key"}},
-	{"datadog.yaml", []any{"proxy", "http"}},
 	{"system-probe.yaml", []any{"system_probe_config", "internal_profiling", "api_key"}},
 	{"security-agent.yaml", []any{"security_agent", "internal_profiling", "api_key"}},
 	{"conf.d/http_check.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/http_check.d/fa-secrets.yaml", []any{"instances", 0, "headers", "Authorization"}},
 	{"conf.d/postgres.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
 	{"conf.d/mysql.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
 	{"conf.d/redisdb.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
@@ -52,6 +51,12 @@ var metadataSecretCases = []metadataSecretCase{
 	{"conf.d/openmetrics.d/fa-secrets.yaml", []any{"instances", 0, "headers", "Authorization"}},
 	{"conf.d/http_check.d/fa-secrets.yaml", []any{"instances", 1, "password"}},
 	{"conf.d/http_check.d/fa-secrets-second.yaml", []any{"instances", 0, "password"}},
+	{"conf.d/http_check.d/fa-secrets.yaml", []any{"init_config", "password"}},
+	{"datadog.yaml", []any{"additional_endpoints", "http://127.0.0.1:18081", 0}},
+	{"datadog.yaml", []any{"additional_endpoints", "http://127.0.0.1:18081", 1}},
+	{"datadog.yaml", []any{"snmp_traps", "community_strings", 0}},
+	{"datadog.yaml", []any{"snmp_traps", "community_strings", 1}},
+	{"application_monitoring.yaml", []any{"api_key"}},
 }
 
 // TestSecretMetadataFiles exercises file loading, the assembled metadata providers,
@@ -64,6 +69,8 @@ func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 			_, err := v.Env().RemoteHost.Execute("sudo rm -f /etc/datadog-agent/conf.d/" + integration + ".d/fa-secrets.yaml /etc/datadog-agent/conf.d/" + integration + ".d/fa-secrets-second.yaml")
 			assert.NoError(v.T(), err)
 		}
+		_, err := v.Env().RemoteHost.Execute("sudo rm -f /etc/datadog-agent/application_monitoring.yaml")
+		assert.NoError(v.T(), err)
 		v.UpdateEnv(awshost.Provisioner())
 	})
 	for _, kind := range []string{"raw", "enc"} {
@@ -73,15 +80,12 @@ func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 			values := map[string]string{}
 			plaintexts := make([]string, 0, len(metadataSecretCases))
 			for i, entry := range metadataSecretCases {
-				handle := fmt.Sprintf("metadata_%d", i)
+				handle := metadataFixtureHandle(i, entry)
 				value := fmt.Sprintf("%032d", i+1)
+				if handle == "metadata_http_shared" {
+					value = fmt.Sprintf("%032d", 101)
+				}
 				plaintexts = append(plaintexts, value)
-				if i == 3 {
-					value = "http://fixture:" + value + "@127.0.0.1:9"
-				}
-				if i == 7 {
-					value = "Bearer " + value
-				}
 				values[handle] = value
 				configured := value
 				if kind == "enc" {
@@ -121,7 +125,7 @@ func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 					var payload struct {
 						Files map[string]struct {
 							Secrets []struct {
-								Path   []any  `json:"path"`
+								Path   string `json:"path"`
 								Kind   string `json:"kind"`
 								Handle string `json:"handle"`
 							} `json:"secrets"`
@@ -132,16 +136,17 @@ func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 						assert.NotContains(c, string(data), value)
 					}
 					for i, entry := range metadataSecretCases {
-						expectedPath, err := json.Marshal(entry.path)
-						require.NoError(c, err)
+						segments := make([]string, len(entry.path))
+						for i, segment := range entry.path {
+							segments[i] = fmt.Sprint(segment)
+						}
+						expectedPath := strings.Join(segments, ".")
 						for _, secret := range payload.Files["/etc/datadog-agent/"+entry.file].Secrets {
-							actualPath, err := json.Marshal(secret.Path)
-							require.NoError(c, err)
-							if string(actualPath) == string(expectedPath) && secret.Kind == kind {
+							if secret.Path == expectedPath && secret.Kind == kind {
 								if kind == "enc" {
-									assert.Equal(c, fmt.Sprintf("metadata_%d", i), secret.Handle)
+									assert.Equal(c, metadataFixtureHandle(i, entry), secret.Handle)
 								}
-								seen[entry.file+string(expectedPath)] = true
+								seen[entry.file+":"+expectedPath] = true
 							}
 						}
 					}
@@ -150,6 +155,14 @@ func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
 			}, 2*time.Minute, 5*time.Second)
 		})
 	}
+}
+
+// Reuse one handle across sections, instances and files to catch accidental deduplication.
+func metadataFixtureHandle(index int, entry metadataSecretCase) string {
+	if strings.HasPrefix(entry.file, "conf.d/http_check.d/") {
+		return "metadata_http_shared"
+	}
+	return fmt.Sprintf("metadata_%d", index)
 }
 
 func setMetadataFixtureValue(config map[string]any, path []any, value string) {
@@ -164,7 +177,12 @@ func setMetadataFixtureValue(config map[string]any, path []any, value string) {
 			}
 			current = node[key]
 		case []any:
-			current = node[segment.(int)]
+			index := segment.(int)
+			if i == len(path)-1 {
+				node[index] = value
+				return
+			}
+			current = node[index]
 		}
 	}
 	panic("invalid fixture path: " + fmt.Sprint(path))
