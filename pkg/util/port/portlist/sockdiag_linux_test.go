@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -202,10 +203,11 @@ func pollKnown(t *testing.T, includeLocalhost, useSockDiag bool) (map[string]str
 	orig := dumpTCPListeners
 	defer func() { dumpTCPListeners = orig }()
 	var dumpErr error
+	dumped := false
 	if useSockDiag {
 		dumpTCPListeners = func() ([]sockDiagListener, error) {
 			ls, err := orig()
-			dumpErr = err
+			dumped, dumpErr = true, err
 			return ls, err
 		}
 	} else {
@@ -220,6 +222,9 @@ func pollKnown(t *testing.T, includeLocalhost, useSockDiag bool) (map[string]str
 	}
 	if dumpErr != nil {
 		t.Fatalf("sock_diag dump failed: %v", dumpErr)
+	}
+	if useSockDiag && !dumped {
+		t.Fatal("sock_diag was not attempted (latched off?)")
 	}
 	known := make(map[string]string, len(li.known))
 	for ino, pm := range li.known {
@@ -498,8 +503,9 @@ func TestTCPOnlyFallsBackToProcNet(t *testing.T) {
 	}
 }
 
-// fakeNetlink feeds crafted datagrams to recvInetDiag through a socketpair.
-func fakeNetlink(t *testing.T, msgs ...[]byte) int {
+// fakeNetlink feeds crafted datagrams to recvInetDiag through a socketpair,
+// reporting them as sent by netlink port ID senderPid (0 is the kernel).
+func fakeNetlink(t *testing.T, senderPid uint32, msgs ...[]byte) recvFunc {
 	t.Helper()
 	fds, err := unix.Socketpair(unix.AF_UNIX, unix.SOCK_DGRAM|unix.SOCK_CLOEXEC, 0)
 	if err != nil {
@@ -511,7 +517,10 @@ func fakeNetlink(t *testing.T, msgs ...[]byte) int {
 			t.Fatal(err)
 		}
 	}
-	return fds[0]
+	return func(p []byte) (int, int, unix.Sockaddr, error) {
+		n, _, flags, _, err := unix.Recvmsg(fds[0], p, nil, unix.MSG_DONTWAIT)
+		return n, flags, &unix.SockaddrNetlink{Family: unix.AF_NETLINK, Pid: senderPid}, err
+	}
 }
 
 func nlmsg(typ uint16, flags uint16, seq uint32, payload []byte) []byte {
@@ -554,13 +563,13 @@ func TestRecvInetDiag(t *testing.T) {
 	cat := func(bs ...[]byte) []byte { return slices.Concat(bs...) }
 
 	t.Run("multipart", func(t *testing.T) {
-		fd := fakeNetlink(t,
+		recv := fakeNetlink(t, 0,
 			cat(nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, diagMsg(unix.AF_INET6, tcpStateListen, mapped, 80, 1)),
 				nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, diagMsg(unix.AF_INET6, 1, mapped, 81, 2))),
 			cat(nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, diagMsg(unix.AF_INET6, tcpStateListen, netip.IPv6Loopback(), 82, 3)),
 				nlmsg(unix.NLMSG_DONE, unix.NLM_F_MULTI, seq, errPayload(0))),
 		)
-		got, err := recvInetDiag(fd, make([]byte, sockDiagRecvBuf), unix.AF_INET6, seq, nil)
+		got, err := recvInetDiag(recv, make([]byte, sockDiagRecvBuf), unix.AF_INET6, seq, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -570,6 +579,20 @@ func TestRecvInetDiag(t *testing.T) {
 		}
 		if !slices.Equal(got, want) {
 			t.Fatalf("got %+v, want %+v", got, want)
+		}
+	})
+
+	t.Run("not_from_kernel", func(t *testing.T) {
+		recv := fakeNetlink(t, 4242, nlmsg(unix.NLMSG_DONE, unix.NLM_F_MULTI, seq, errPayload(0)))
+		if _, err := recvInetDiag(recv, make([]byte, sockDiagRecvBuf), unix.AF_INET, seq, nil); !errors.Is(err, errNotFromKernel) {
+			t.Fatalf("got %v, want errNotFromKernel", err)
+		}
+	})
+
+	t.Run("non_netlink_sender", func(t *testing.T) {
+		recv := func([]byte) (int, int, unix.Sockaddr, error) { return 0, 0, nil, nil }
+		if _, err := recvInetDiag(recv, make([]byte, sockDiagRecvBuf), unix.AF_INET, seq, nil); !errors.Is(err, errNotFromKernel) {
+			t.Fatalf("got %v, want errNotFromKernel", err)
 		}
 	})
 
@@ -587,11 +610,100 @@ func TestRecvInetDiag(t *testing.T) {
 		{"truncated", [][]byte{nlmsg(unix.SOCK_DIAG_BY_FAMILY, unix.NLM_F_MULTI, seq, diagMsg(unix.AF_INET, tcpStateListen, lo4, 80, 1))}, 20},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			fd := fakeNetlink(t, tc.msgs...)
-			if _, err := recvInetDiag(fd, make([]byte, tc.buf), unix.AF_INET, seq, nil); err == nil {
+			recv := fakeNetlink(t, 0, tc.msgs...)
+			if _, err := recvInetDiag(recv, make([]byte, tc.buf), unix.AF_INET, seq, nil); err == nil {
 				t.Fatal("expected an error")
 			}
 		})
+	}
+}
+
+// resetSockDiagLatch clears the process-wide latches for the test's duration.
+func resetSockDiagLatch(t *testing.T) {
+	sockDiagOff.Store(false)
+	sockDiagNoV6.Store(false)
+	t.Cleanup(func() {
+		sockDiagOff.Store(false)
+		sockDiagNoV6.Store(false)
+	})
+}
+
+func TestSockDiagLatch(t *testing.T) {
+	for _, tc := range []struct {
+		name  string
+		err   error
+		latch bool
+	}{
+		{"socket_EPROTONOSUPPORT", fmt.Errorf("netlink socket: %w", unix.EPROTONOSUPPORT), true},
+		{"socket_EAFNOSUPPORT", fmt.Errorf("netlink socket: %w", unix.EAFNOSUPPORT), true},
+		{"nlmsg_error_ENOENT", fmt.Errorf("sock_diag request: %w", unix.ENOENT), true},
+		{"nlmsg_error_EINVAL", fmt.Errorf("sock_diag request: %w", unix.EINVAL), true},
+		{"nlmsg_error_EPERM", fmt.Errorf("sock_diag request: %w", unix.EPERM), true},
+		{"socket_EACCES", fmt.Errorf("netlink socket: %w", unix.EACCES), true},
+		{"recv_EAGAIN", fmt.Errorf("receiving sock_diag reply: %w", unix.EAGAIN), false},
+		{"recv_EINTR", fmt.Errorf("receiving sock_diag reply: %w", unix.EINTR), false},
+		{"send_ENOBUFS", fmt.Errorf("sending sock_diag request: %w", unix.ENOBUFS), false},
+		{"truncated", errSockDiagTruncated, false},
+		{"dump_interrupted", errors.New("sock_diag dump interrupted"), false},
+		{"wrong_seq", errors.New("unexpected netlink seq 2, want 1"), false},
+		{"parse", errors.New("short inet_diag_msg (10 bytes)"), false},
+		{"not_from_kernel", errNotFromKernel, false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			resetSockDiagLatch(t)
+			orig := dumpTCPListeners
+			defer func() { dumpTCPListeners = orig }()
+			calls := 0
+			dumpTCPListeners = func() ([]sockDiagListener, error) {
+				calls++
+				return nil, tc.err
+			}
+			li := newLinuxImpl(true)
+			li.tcpOnly = true
+			const polls = 3
+			for i := 0; i < polls; i++ {
+				if _, err := li.AppendListeningPorts(nil); err != nil {
+					t.Fatal(err)
+				}
+			}
+			want := polls
+			if tc.latch {
+				want = 1
+			}
+			if calls != want {
+				t.Fatalf("sock_diag attempted %d times over %d polls, want %d", calls, polls, want)
+			}
+			if sockDiagOff.Load() != tc.latch {
+				t.Fatalf("latch = %v, want %v", sockDiagOff.Load(), tc.latch)
+			}
+		})
+	}
+}
+
+func TestSockDiagLatchConcurrent(t *testing.T) {
+	resetSockDiagLatch(t)
+	orig := dumpTCPListeners
+	defer func() { dumpTCPListeners = orig }()
+	dumpTCPListeners = func() ([]sockDiagListener, error) {
+		return nil, fmt.Errorf("sock_diag request: %w", unix.ENOENT)
+	}
+	var wg sync.WaitGroup
+	for i := 0; i < 8; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			li := newLinuxImpl(true)
+			li.tcpOnly = true
+			for j := 0; j < 5; j++ {
+				if err := li.appendSockDiagListeners(); err == nil {
+					t.Error("expected an error")
+				}
+			}
+		}()
+	}
+	wg.Wait()
+	if !sockDiagOff.Load() {
+		t.Fatal("latch not set")
 	}
 }
 

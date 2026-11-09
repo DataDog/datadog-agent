@@ -91,7 +91,7 @@ func (li *linuxImpl) AppendListeningPorts(base []Port) ([]Port, error) {
 		procFiles = procNetTCPFiles
 		if err := li.appendSockDiagListeners(); err == nil {
 			procFiles = nil
-		} else {
+		} else if err != errSockDiagOff {
 			log.Debugf("sock_diag listener dump failed, falling back to /proc/net: %v", err)
 		}
 	}
