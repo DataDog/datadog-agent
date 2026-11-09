@@ -25,32 +25,26 @@ Usage:
     )
 """
 
-load("@bazel_skylib//lib:paths.bzl", "paths")
 load("@bazel_skylib//rules:build_test.bzl", "build_test")
-load("@rules_cc//cc:find_cc_toolchain.bzl", "CC_TOOLCHAIN_ATTRS", "find_cc_toolchain", "use_cc_toolchain")
 
-def _find_nm(cc_toolchain):
-    """Returns the exec path of nm from the resolved C++ toolchain."""
-    if cc_toolchain.nm_executable:
-        return cc_toolchain.nm_executable
+# Bazel's default --strip=sometimes strips fastbuild binaries, which would make
+# every must_not_include check pass vacuously. Linux already sets
+# --strip=never, so this only adds a configuration elsewhere.
+def _unstripped_impl(_settings, _attr):
+    return {"//command_line_option:strip": "never"}
 
-    # Rule-based toolchains (e.g. @llvm) leave nm_executable empty because
-    # rules_cc has no nm action. llvm-nm ships next to llvm-strip and is part
-    # of the toolchain's all_files.
-    strip = cc_toolchain.strip_executable
-    strip_name = paths.basename(strip)
-    if strip_name.startswith("llvm-strip"):
-        return paths.join(paths.dirname(strip), strip_name.replace("llvm-strip", "llvm-nm", 1))
-    fail("Cannot find nm in C++ toolchain (strip is '%s')" % strip)
+_unstripped = transition(
+    implementation = _unstripped_impl,
+    inputs = [],
+    outputs = ["//command_line_option:strip"],
+)
 
 def _check_for_symbols_impl(ctx):
     binary = ctx.file.binary
-    cc_toolchain = find_cc_toolchain(ctx)
 
     out = ctx.actions.declare_file(ctx.label.name + ".status")
 
     args = ctx.actions.args()
-    args.add("--nm", _find_nm(cc_toolchain))
     args.add("--binary", binary)
     for pattern in ctx.attr.must_include:
         args.add("--must-include", pattern)
@@ -61,7 +55,7 @@ def _check_for_symbols_impl(ctx):
     ctx.actions.run(
         executable = ctx.executable._checker,
         arguments = [args],
-        inputs = depset([binary], transitive = [cc_toolchain.all_files]),
+        inputs = [binary],
         outputs = [out],
         mnemonic = "CheckForSymbols",
         progress_message = "Checking symbols in %s" % binary.short_path,
@@ -75,28 +69,27 @@ check_for_symbols = rule(
         "binary": attr.label(
             mandatory = True,
             allow_single_file = True,
-            doc = "The binary target whose symbol table should be inspected. Must produce exactly one default output file.",
+            cfg = _unstripped,
+            doc = "The Go binary target whose symbol table should be inspected. Must produce exactly one default output file. Always built unstripped.",
         ),
         "must_include": attr.string_list(
             default = [],
-            doc = "Regex patterns that must each match at least one line of `nm` output.",
+            doc = "Regex patterns (Go RE2 syntax) that must each match at least one symbol name.",
         ),
         "must_not_include": attr.string_list(
             default = [],
-            doc = "Regex patterns that must not match any line of `nm` output.",
+            doc = "Regex patterns (Go RE2 syntax) that must not match any symbol name.",
         ),
         "_checker": attr.label(
-            default = "//bazel/rules/check_for_symbols:checker",
+            default = "//bazel/rules/check_for_symbols/checker",
             executable = True,
             cfg = "exec",
         ),
-    } | CC_TOOLCHAIN_ATTRS,
-    toolchains = use_cc_toolchain(),
-    fragments = ["cpp"],
+    },
 )
 
 def check_for_symbols_test(name, binary, must_include = None, must_not_include = None, **kwargs):
-    """Verifies a binary's symbol table via `nm`.
+    """Verifies a binary's symbol table.
 
     Fails if any `must_include` pattern is absent from the symbol table, or
     any `must_not_include` pattern is present. Generalizes the legacy

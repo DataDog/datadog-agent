@@ -1,0 +1,21 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "checker_lib",
+    srcs = ["checker.go"],
+    importpath = "github.com/DataDog/datadog-agent/bazel/rules/check_for_symbols/checker",
+    visibility = ["//visibility:private"],
+)
+
+go_binary(
+    name = "checker",
+    embed = [":checker_lib"],
+    visibility = ["//visibility:public"],
+)
+
+dd_agent_go_test(
+    name = "checker_test",
+    srcs = ["checker_test.go"],
+    embed = [":checker_lib"],
+)
