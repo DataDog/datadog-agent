@@ -141,6 +141,22 @@ func TestName(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, ast.MakeInt(1), root.(*ast.Index).Subscript.(*ast.Literal).Value)
 
+	// a subscript is an operand or an arithmetic or bitwise operation
+	root, err = ParseExpression(`process.argv[process.argc - 1]`)
+	require.NoError(t, err)
+	require.Equal(t, `process.argv[(- process.argc 1)]`, ast.Sprint(root))
+	root, err = ParseExpression(`process.env[%{process.file.name}]`)
+	require.NoError(t, err)
+	require.Equal(t, `process.env[process.file.name]`, ast.Sprint(root))
+	_, err = ParseExpression(`process.env[process.pid == 1]`)
+	require.ErrorContains(t, err, "expected `]`, found `==`")
+
+	// a key in a dictionary is a string subscript
+	root, err = ParseExpression(`process.ancestors[A].env["my-var.1 [x]"]`)
+	require.NoError(t, err)
+	require.Equal(t, `process.ancestors[A].env["my-var.1 [x]"]`, ast.Sprint(root))
+	require.Equal(t, ast.MakeString("my-var.1 [x]"), root.(*ast.Index).Subscript.(*ast.Literal).Value)
+
 	// the selectors and the subscripts are tokens of their own
 	root, err = ParseExpression("process . ancestors [ A ]\n\t.uid")
 	require.NoError(t, err)
