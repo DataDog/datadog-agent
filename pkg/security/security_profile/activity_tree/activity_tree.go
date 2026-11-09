@@ -738,10 +738,11 @@ func GetNextAncestorBinaryOrArgv0(entry *model.ProcessContext) *model.ProcessCac
 }
 
 // buildBranchAndLookupCookies iterates over the ancestors of entry with 2 intentions in mind:
-//   - check if one of the ancestors of entry is already in the tree and has a shortcut thanks to its cookie
+//   - if lookupCookies is set, check if one of the ancestors of entry is already in the tree and has a shortcut thanks
+//     to its cookie
 //   - creates the list of ancestors "we care about" for the tree, i.e. the chain of ancestors created by calling
 //     "GetNextAncestorBinaryOrArgv0" and that match the tree selector.
-func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry, imageTagID uint64) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
+func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEntry, imageTagID uint64, lookupCookies bool) ([]*model.ProcessCacheEntry, *ProcessNode, error) {
 	var cs cookieSelector
 	var fastMatch *ProcessNode
 	var found bool
@@ -750,12 +751,14 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 
 	for nextAncestor != nil {
 		// look for the current ancestor
-		cs.fillFromEntry(nextAncestor)
-		if cs.isSet() {
-			fastMatch, found = at.CookieToProcessNode.Get(cs)
-			if found {
-				fastMatch.applyImageTagOnLineageIfNeeded(imageTagID)
-				return branch, fastMatch, nil
+		if lookupCookies {
+			cs.fillFromEntry(nextAncestor)
+			if cs.isSet() {
+				fastMatch, found = at.CookieToProcessNode.Get(cs)
+				if found {
+					fastMatch.applyImageTagOnLineageIfNeeded(imageTagID)
+					return branch, fastMatch, nil
+				}
 			}
 		}
 
@@ -812,13 +815,15 @@ func (at *ActivityTree) createProcessNode(entry *model.ProcessCacheEntry, imageT
 		return nil, false, nil
 	}
 
-	if _, err := entry.HasValidLineage(); err != nil && !at.lineageLeavesSelector(entry) {
+	// when the lineage breaks inside the selector, the top of the branch is unknown: the entry can only be placed below
+	// one of its ancestors that is already in the tree
+	_, lineageErr := entry.HasValidLineage()
+	brokenInSelector := lineageErr != nil && !at.lineageLeavesSelector(entry)
+
+	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry, imageTagID, brokenInSelector)
+	if brokenInSelector && quickMatch == nil {
 		return nil, false, ErrBrokenLineage
 	}
-
-	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
-	// insert.
-	branchToInsert, quickMatch, err := at.buildBranchAndLookupCookies(entry, imageTagID)
 	if err != nil {
 		return nil, false, err
 	}
@@ -857,6 +862,9 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			}
 		}
 		if matchingNode != nil {
+			if !dryRun {
+				at.cacheProcessNode(branchToInsert[i-branchIncrement+1], matchingNode)
+			}
 			parent = matchingNode
 			i -= branchIncrement
 			continue
@@ -873,6 +881,7 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 			// create the node
 			matchingNode = NewProcessNode(branchToInsert[j], generationType, r)
 			parent.AppendChild(matchingNode)
+			at.cacheProcessNode(branchToInsert[j], matchingNode)
 
 			// insert the new node in the list of children
 			at.Stats.counts[model.ExecEventType].addedCount[generationType].Inc()
@@ -892,6 +901,15 @@ func (at *ActivityTree) insertBranch(parent ProcessNodeParent, branchToInsert []
 		matchingNode.applyImageTagOnLineageIfNeeded(imageTagID)
 	}
 	return matchingNode, newNode, nil
+}
+
+// cacheProcessNode records node as the shortcut to the process of entry
+func (at *ActivityTree) cacheProcessNode(entry *model.ProcessCacheEntry, node *ProcessNode) {
+	var cs cookieSelector
+	cs.fillFromEntry(entry)
+	if cs.isSet() {
+		at.CookieToProcessNode.Add(cs, node)
+	}
 }
 
 // findBranch looks for the provided branch in the list of children. Returns the node that matches the
@@ -1248,7 +1266,7 @@ func (at *ActivityTree) finalizePatternsOnFile(fn *FileNode, minGroupSize int) {
 
 // EvictImageTag will remove every trace of the given image tag from the tree
 func (at *ActivityTree) EvictImageTag(imageTag string) {
-	// purge the cookies which todays are never set. TODO: once they'll get used, recompute them here
+	// the cookies may point to nodes that are about to be removed
 	at.CookieToProcessNode.Purge()
 
 	imageTagID := at.GetImageTagID(imageTag)
@@ -1449,6 +1467,11 @@ func (at *ActivityTree) EvictUnusedNodes(before time.Time, filepathsInProcessCac
 			at.ProcessNodes = append(at.ProcessNodes[:i], at.ProcessNodes[i+1:]...)
 			totalEvicted++
 		}
+	}
+
+	if totalEvicted > 0 {
+		// the cookies may point to evicted nodes
+		at.CookieToProcessNode.Purge()
 	}
 
 	return totalEvicted

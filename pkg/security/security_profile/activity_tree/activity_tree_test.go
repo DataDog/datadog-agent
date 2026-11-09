@@ -822,3 +822,53 @@ func TestEventErrorType(t *testing.T) {
 		})
 	}
 }
+
+func TestActivityTree_BrokenLineageCookies(t *testing.T) {
+	shim := model.NewPlaceholderProcessCacheEntry(1, 1, false)
+	shim.FileEvent.PathnameStr = "/usr/bin/containerd-shim-runc-v2"
+	shim.FileEvent.Inode = 1
+
+	newEntry := func(pid uint32, pathname string, ancestor *model.ProcessCacheEntry) *model.ProcessCacheEntry {
+		entry := model.NewPlaceholderProcessCacheEntry(pid, pid, false)
+		entry.ContainerContext.ContainerID = "123"
+		entry.FileEvent.PathnameStr = pathname
+		entry.FileEvent.Inode = uint64(pid)
+		entry.FileEvent.MountID = 1
+		entry.Cookie = uint64(pid)
+		entry.ExecTime = time.Unix(int64(pid), 0)
+		if ancestor != nil {
+			entry.Ancestor = ancestor
+			entry.Parent = &ancestor.Process
+		}
+		return entry
+	}
+
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+
+	// the lineage of these entries breaks at /bin/foo, inside of the container
+	brokenParent := newEntry(10, "/bin/foo", nil)
+	brokenChild := newEntry(11, "/bin/bar", brokenParent)
+	brokenSibling := newEntry(12, "/bin/baz", brokenParent)
+
+	_, _, err := tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	require.ErrorIs(t, err, ErrBrokenLineage)
+
+	node, newNode, err := tree.CreateProcessNode(newEntry(11, "/bin/bar", newEntry(10, "/bin/foo", shim)), "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	require.True(t, newNode)
+
+	found, newNode, err := tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.False(t, newNode)
+	assert.Same(t, node, found)
+
+	sibling, newNode, err := tree.CreateProcessNode(brokenSibling, "tag", Runtime, false, nil)
+	require.NoError(t, err)
+	assert.True(t, newNode)
+	require.Len(t, tree.ProcessNodes, 1)
+	assert.Same(t, tree.ProcessNodes[0], sibling.Parent)
+
+	require.Positive(t, tree.EvictUnusedNodes(time.Now(), nil, ""))
+	_, _, err = tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
+	assert.ErrorIs(t, err, ErrBrokenLineage)
+}

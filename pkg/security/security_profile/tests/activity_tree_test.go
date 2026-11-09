@@ -174,6 +174,49 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 			resultTree:            map[string][]string{},
 		},
 
+		// insert a process and its parent with their cookies, the next tests break their lineage inside of the container
+		{
+			testName:              "broken_lineage_inside_container_insert",
+			resetActivityTree:     true,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			completeLineage:       true,
+			setCookie:             true,
+			setCookieParent:       true,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  true,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar"}},
+		},
+		// the process is found thanks to its cookie
+		{
+			testName:              "broken_lineage_inside_container_known_process",
+			resetActivityTree:     false,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			granpaInsideContainer: true,
+			completeLineage:       false,
+			setCookie:             true,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  false,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar"}},
+		},
+		// a new child is inserted below its parent, found thanks to its cookie
+		{
+			testName:              "broken_lineage_inside_container_known_parent",
+			resetActivityTree:     false,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/baz",
+			granpaInsideContainer: true,
+			completeLineage:       false,
+			setCookieParent:       true,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  true,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar", "/bin/baz"}},
+		},
+
 		// check that a process with a different containerID will not be inserted
 		{
 			testName:              "containerID-mismatch",
