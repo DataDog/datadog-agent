@@ -414,7 +414,7 @@ func apmReceiverPort(datadogYAML string) string {
 // applyInstallEnv writes what install_mac_os.sh was given into the configuration.
 func applyInstallEnv(conf string, env installEnv) error {
 	nativeHostYAML := filepath.Join(conf, "ai_usage_native_host.yaml")
-	if id := env["DD_AI_USAGE_CHROME_EXTENSION_ID"]; id != "" {
+	if id := installChromeExtensionID(env); id != "" {
 		if content, err := os.ReadFile(nativeHostYAML); err == nil {
 			if regexp.MustCompile(`(?m)^\s*#?\s*chrome_extension_id:`).Match(content) {
 				content = replaceLines(content, `^# *chrome_extension_id:.*`, "chrome_extension_id: "+id)
@@ -521,7 +521,7 @@ type nativeHostManifest struct {
 // installNativeMessagingHosts registers the AI usage native host with Chrome for every user, by
 // writing the manifest into each user's home.
 func installNativeMessagingHosts(layout dmgLayout, env installEnv) {
-	extensionID := strings.TrimSpace(strings.ReplaceAll(env["DD_AI_USAGE_CHROME_EXTENSION_ID"], "\r", ""))
+	extensionID := installChromeExtensionID(env)
 	if extensionID == "" {
 		extensionID = configuredChromeExtensionID(filepath.Join(layout.confDir(), "ai_usage_native_host.yaml"))
 	}
@@ -612,6 +612,18 @@ func writeNativeHostManifest(home string, uid, gid int, manifest []byte) error {
 		_ = root.Remove(tmp)
 	}
 	return err
+}
+
+// installChromeExtensionID returns the Chrome extension ID install_mac_os.sh was given, or "" when
+// it was given none, or something that is not an extension ID, which is logged and ignored so the
+// configuration keeps the ID it had.
+func installChromeExtensionID(env installEnv) string {
+	id := strings.TrimSpace(strings.ReplaceAll(env["DD_AI_USAGE_CHROME_EXTENSION_ID"], "\r", ""))
+	if id != "" && !chromeExtensionIDPattern.MatchString(id) {
+		log.Warnf("DD_AI_USAGE_CHROME_EXTENSION_ID %q is not a Chrome extension ID; ignoring it", id)
+		return ""
+	}
+	return id
 }
 
 // configuredChromeExtensionID returns chrome_extension_id from the native host config.

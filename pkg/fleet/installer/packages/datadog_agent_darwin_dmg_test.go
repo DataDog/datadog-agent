@@ -61,7 +61,7 @@ func TestApplyInstallEnvSetsTheInstallScriptsSettings(t *testing.T) {
 		"DD_API_KEY":                      "0123",
 		"DD_SITE":                         "datad0g.com",
 		"DD_INFRASTRUCTURE_MODE":          "basic",
-		"DD_AI_USAGE_CHROME_EXTENSION_ID": "ext",
+		"DD_AI_USAGE_CHROME_EXTENSION_ID": strings.Repeat("abcdefghijklmnop", 2),
 	}))
 
 	content, err := os.ReadFile(filepath.Join(conf, "datadog.yaml"))
@@ -69,7 +69,24 @@ func TestApplyInstallEnvSetsTheInstallScriptsSettings(t *testing.T) {
 	assert.Equal(t, "api_key: 0123\nsite: datad0g.com\n\ninfrastructure_mode: basic\n", string(content))
 	nativeHost, err := os.ReadFile(filepath.Join(conf, "ai_usage_native_host.yaml"))
 	require.NoError(t, err)
-	assert.Equal(t, "chrome_extension_id: ext\n", string(nativeHost))
+	assert.Equal(t, "chrome_extension_id: "+strings.Repeat("abcdefghijklmnop", 2)+"\n", string(nativeHost))
+}
+
+// TestApplyInstallEnvIgnoresAnInvalidChromeExtensionID pins that an install-time value that is not a
+// Chrome extension ID never reaches the native host configuration, which keeps the ID it had.
+func TestApplyInstallEnvIgnoresAnInvalidChromeExtensionID(t *testing.T) {
+	for _, id := range []string{"ext", strings.Repeat("A", 32), "x\nchrome_extension_id: " + strings.Repeat("p", 32), strings.Repeat("a", 33)} {
+		conf := t.TempDir()
+		require.NoError(t, os.WriteFile(filepath.Join(conf, "datadog.yaml"), []byte("api_key: APIKEY\n"), 0o600))
+		original := "# chrome_extension_id: abc\n"
+		require.NoError(t, os.WriteFile(filepath.Join(conf, "ai_usage_native_host.yaml"), []byte(original), 0o600))
+
+		require.NoError(t, applyInstallEnv(conf, installEnv{"DD_AI_USAGE_CHROME_EXTENSION_ID": id}))
+
+		nativeHost, err := os.ReadFile(filepath.Join(conf, "ai_usage_native_host.yaml"))
+		require.NoError(t, err)
+		assert.Equal(t, original, string(nativeHost), "%q must not be written", id)
+	}
 }
 
 // TestSetUpConfigOnAFreshInstall pins the first install: datadog.yaml comes from the example with
@@ -345,6 +362,8 @@ func TestInstallNativeMessagingHostsExtensionID(t *testing.T) {
 		{name: "from the configuration", config: configured, want: configured},
 		{name: "default", want: defaultChromeExtensionID},
 		{name: "not an ID", env: `x/", "chrome-extension://evil`, want: defaultChromeExtensionID},
+		{name: "not an ID, configured", env: "NOT-AN-ID", config: configured, want: configured},
+		{name: "configured, not an ID", config: "NOT-AN-ID", want: defaultChromeExtensionID},
 		{name: "uppercase", env: strings.Repeat("A", 32), want: defaultChromeExtensionID},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
