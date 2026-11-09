@@ -601,9 +601,9 @@ func TestRootOwnerCELFilter(t *testing.T) {
 	}
 }
 
-// TestCheckStoreIncrementalHash verifies the incremental configHash maintained by
+// TestCheckStoreHash verifies the configHash maintained by
 // writeConfigs/deleteConfigs.
-func TestCheckStoreIncrementalHash(t *testing.T) {
+func TestCheckStoreHash(t *testing.T) {
 	cfg := []integration.Config{{Name: "check"}}
 	write := func(cs *CheckStore, key, uid string, gen int64) {
 		cr := newCR(key, "ns", "Deployment", "app", nil)
@@ -653,5 +653,23 @@ func TestCheckStoreIncrementalHash(t *testing.T) {
 		prevHash := cs.Hash()
 		write(cs, "a", "uid-b", 1)
 		require.NotEqual(t, prevHash, cs.Hash())
+	})
+
+	t.Run("checks and logs generation updates do not cancel", func(t *testing.T) {
+		// With XOR-combined FNV entry  hashes, this UID produces the same hash
+		// for generations 1 and 2 even though both entries have changed.
+		const key = "ddi-e2e-update/nginx-monitoring-update"
+		const uid = "7a8973da-6e33-5c9e-8150-54b725c7b7d4"
+		cs := NewCheckStore()
+		write(cs, key, uid, 1)
+		write(cs, logsStoreKey(key), uid, 1)
+		previousHash := cs.Hash()
+
+		write(cs, key, uid, 2)
+		write(cs, logsStoreKey(key), uid, 2)
+		require.NotEqual(t, previousHash, cs.Hash())
+		configs, hash := cs.ListConfigs()
+		require.Len(t, configs, 2)
+		require.Equal(t, cs.Hash(), hash)
 	})
 }

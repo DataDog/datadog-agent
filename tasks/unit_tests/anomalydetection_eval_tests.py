@@ -254,8 +254,8 @@ class TestLocalF1Pipeline(unittest.TestCase):
             os.makedirs(parquet)
             with open(os.path.join(parquet, "fixture.parquet"), "w") as f:
                 f.write("unused by mocked replay")
-            with open(os.path.join(root, "observer-eval-example.json"), "w") as f:
-                json.dump({}, f)
+            with open(os.path.join(root, "example", "episode.json"), "w") as f:
+                json.dump({"disruption": {"start": "2026-01-01T00:05:00Z"}}, f)
             score = {
                 "scoring_version": F1_SCORING_VERSION,
                 "f1": 0.5,
@@ -269,10 +269,15 @@ class TestLocalF1Pipeline(unittest.TestCase):
                 "num_filtered_recovery": 0,
             }
             ctx = Mock()
-            ctx.run.side_effect = [
-                SimpleNamespace(failed=False),
-                SimpleNamespace(failed=False, stdout=json.dumps(score)),
-            ]
+
+            def run(command, **_kwargs):
+                if "--headless" in command:
+                    with open(os.path.join(root, "observer-eval-example.json"), "w") as output:
+                        json.dump({}, output)
+                    return SimpleNamespace(failed=False)
+                return SimpleNamespace(failed=False, stdout=json.dumps(score))
+
+            ctx.run.side_effect = run
             with patch("builtins.print"):
                 report = eval_scenarios.body(
                     ctx,
