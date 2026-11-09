@@ -603,8 +603,9 @@ var (
 	MetricSecurityProfileV2EventsImmediate = newRuntimeMetric(".security_profile_v2.events.immediate")
 
 	// MetricSecurityProfileV2EventsWithError is the name of the metric used to report events that carry an error,
-	// whether the profile manager kept them in a profile or dropped them
-	// Tags: event_type, error_type, outcome (kept or dropped)
+	// whether the profile manager kept them in the process tree of a profile, kept them in its unattributed activity or
+	// dropped them
+	// Tags: event_type, error_type, outcome (kept, unattributed or dropped)
 	MetricSecurityProfileV2EventsWithError = newRuntimeMetric(".security_profile_v2.events.with_error")
 
 	// MetricSecurityProfileV2InsertionErrors is the name of the metric used to report activity-tree
