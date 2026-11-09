@@ -404,10 +404,10 @@ http_archive(
     files = {
         "BUILD.bazel": "//deps/jemalloc:overlay.BUILD.bazel",
     },
-    sha256 = "3826bc80232f22ed5c4662f3034f799ca316e819103bdc7bb99018a421706f92",
-    strip_prefix = "jemalloc-5.3.1",
+    sha256 = "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa",
+    strip_prefix = "jemalloc-5.3.0",
     urls = [
-        "https://github.com/jemalloc/jemalloc/releases/download/5.3.1/jemalloc-5.3.1.tar.bz2",
+        "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2",
     ],
 )
 
@@ -456,4 +456,20 @@ http_archive(
     urls = [
         "https://github.com/systemd/systemd/archive/refs/tags/v253.tar.gz",
     ],
+)
+
+# Static glibc (and libgcc_eh) for -static Linux links: hermetic-llvm ships shared-object glibc stubs only.
+# Same tarballs as the crosstool-NG GCC toolchains: glibc 2.17 on x86_64, 2.23 on aarch64.
+http_archive(
+    name = "glibc_static_x86_64",
+    build_file = "//deps:glibc_static.BUILD.bazel",
+    sha256 = "3e842665eecc8ebe8ebf8e6f391809a2124c362e97f3d7dfb2df78225c719342",
+    urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/98b584a9d5921dfe1262878d9d7fc322288f919c6e24763401f7cf29194de9c7/x86_64/x86_64-linux-gnu-gcc.tar.xz"],
+)
+
+http_archive(
+    name = "glibc_static_aarch64",
+    build_file = "//deps:glibc_static.BUILD.bazel",
+    sha256 = "26b924f31f21c2d84a3f78954d295ff6eaeaa758dca39cb3c25178c2cfd00692",
+    urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/3857f6dd078bb69ceb53e37536fa0e90eb7f3c2eefa1454f5f43376f02d8c9cc/aarch64/aarch64-linux-gnu-gcc.tar.xz"],
 )
