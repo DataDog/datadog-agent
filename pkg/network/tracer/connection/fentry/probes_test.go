@@ -9,13 +9,20 @@ package fentry
 
 import (
 	"fmt"
+	"syscall"
 	"testing"
 
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
+	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
 
 func TestSelectTCPRecvMsgReturn(t *testing.T) {
@@ -86,4 +93,60 @@ func TestEnabledProgramsTCPRecvMsgExit(t *testing.T) {
 	found := filterEnabled(enabled, tcpRecvMsgReturn, tcpRecvMsgNoAddrLenReturn, tcpRecvMsgPre5190Return)
 	assert.Equal(t, []string{expected}, found, "tcp_recvmsg has %d parameters", n)
 	t.Logf("tcp_recvmsg has %d parameters, enabled exit program: %v", n, found)
+}
+
+func TestLoadTracerRetriesWithoutTPBTF(t *testing.T) {
+	if err := ddfeatures.SupportsFentry("tcp_recvmsg"); err != nil {
+		t.Skipf("fentry not supported: %s", err)
+	}
+	prevAttempt := fentryTracerAttempt
+	t.Cleanup(func() {
+		fentryTracerAttempt = prevAttempt
+		util.NetDevQueueTPBTFRejected.Store(false)
+	})
+	util.NetDevQueueTPBTFRejected.Store(false)
+
+	var calls int
+	var rejectedOnRetry bool
+	fentryTracerAttempt = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+		calls++
+		if calls == 1 {
+			return nil, nil, fmt.Errorf("failed to init ebpf manager: %w",
+				fmt.Errorf("program %s: load program: %w", netDevQueueTPBTF, &ebpf.VerifierError{Cause: syscall.EACCES}))
+		}
+		rejectedOnRetry = util.NetDevQueueTPBTFRejected.Load()
+		return nil, nil, nil
+	}
+
+	cfg := config.New()
+	cfg.EnableFentry = true
+	_, _, err := LoadTracer(cfg, manager.Options{}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 2, calls)
+	assert.True(t, rejectedOnRetry)
+}
+
+func TestEnabledProgramsSkipsRejectedTPBTF(t *testing.T) {
+	if _, err := ddbtf.GetKernelSpec(); err != nil {
+		t.Skipf("no usable kernel BTF, fentry is unsupported: %s", err)
+	}
+	prev := netDevQueueTPBTFSupported
+	t.Cleanup(func() {
+		netDevQueueTPBTFSupported = prev
+		util.NetDevQueueTPBTFRejected.Store(false)
+	})
+	netDevQueueTPBTFSupported = func() bool { return true }
+
+	cfg := config.New()
+	cfg.CollectUDPv4Conns = false
+	cfg.CollectUDPv6Conns = false
+	for _, rejected := range []bool{false, true} {
+		util.NetDevQueueTPBTFRejected.Store(rejected)
+		enabled, err := enabledPrograms(cfg, true)
+		require.NoError(t, err)
+		_, tpBTF := enabled[netDevQueueTPBTF]
+		_, rawTP := enabled[netDevQueueRawTracepoint]
+		assert.Equal(t, !rejected, tpBTF, "rejected=%v", rejected)
+		assert.Equal(t, rejected, rawTP, "rejected=%v", rejected)
+	}
 }

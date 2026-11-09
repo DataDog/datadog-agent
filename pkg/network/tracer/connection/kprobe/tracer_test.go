@@ -8,6 +8,8 @@
 package kprobe
 
 import (
+	"fmt"
+	"syscall"
 	"testing"
 
 	manager "github.com/DataDog/ebpf-manager"
@@ -23,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/ebpf/prebuilt"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -330,7 +333,10 @@ func TestNetDevQueueProbeSelection(t *testing.T) {
 		t.Skip("raw tracepoints not supported")
 	}
 	prev := netDevQueueTPBTFSupported
-	t.Cleanup(func() { netDevQueueTPBTFSupported = prev })
+	t.Cleanup(func() {
+		netDevQueueTPBTFSupported = prev
+		util.NetDevQueueTPBTFRejected.Store(false)
+	})
 
 	netDevQueueProbes := []probes.ProbeFuncName{
 		probes.NetDevQueueTPBTF,
@@ -342,15 +348,18 @@ func TestNetDevQueueProbeSelection(t *testing.T) {
 		name            string
 		runtime, core   bool
 		tpBTFSupported  bool
+		tpBTFRejected   bool
 		expectedNetDevQ probes.ProbeFuncName
 	}{
-		{"CO-RE with tp_btf", false, true, true, probes.NetDevQueueTPBTF},
-		{"CO-RE without tp_btf", false, true, false, probes.NetDevQueueRawTracepoint},
-		{"runtime compiled", true, false, true, probes.NetDevQueueRawTracepoint},
-		{"prebuilt", false, false, true, probes.NetDevQueueRawTracepoint},
+		{"CO-RE with tp_btf", false, true, true, false, probes.NetDevQueueTPBTF},
+		{"CO-RE without tp_btf", false, true, false, false, probes.NetDevQueueRawTracepoint},
+		{"CO-RE with tp_btf rejected", false, true, true, true, probes.NetDevQueueRawTracepoint},
+		{"runtime compiled", true, false, true, false, probes.NetDevQueueRawTracepoint},
+		{"prebuilt", false, false, true, false, probes.NetDevQueueRawTracepoint},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			netDevQueueTPBTFSupported = func() bool { return tc.tpBTFSupported }
+			util.NetDevQueueTPBTFRejected.Store(tc.tpBTFRejected)
 			enabled, err := enabledProbes(cfg, tc.runtime, tc.core)
 			require.NoError(t, err)
 			for _, p := range netDevQueueProbes {
@@ -359,4 +368,63 @@ func TestNetDevQueueProbeSelection(t *testing.T) {
 			}
 		})
 	}
+}
+
+func verifierErrorFor(prog string) error {
+	return fmt.Errorf("failed to init ebpf manager: verifier error loading eBPF programs: %w",
+		fmt.Errorf("program %s: load program: %w", prog, &libebpf.VerifierError{Cause: syscall.EACCES}))
+}
+
+func TestLoadCORETracerRetriesWithoutTPBTF(t *testing.T) {
+	prevAttempt := coreTracerAttempt
+	t.Cleanup(func() {
+		coreTracerAttempt = prevAttempt
+		util.NetDevQueueTPBTFRejected.Store(false)
+	})
+
+	for _, tc := range []struct {
+		name          string
+		firstErr      error
+		expectedCalls int
+	}{
+		{"tp_btf verifier error", verifierErrorFor(probes.NetDevQueueTPBTF), 2},
+		{"other program verifier error", verifierErrorFor(probes.NetDevQueueRawTracepoint), 1},
+		{"tp_btf non-verifier error", fmt.Errorf("program %s: %w", probes.NetDevQueueTPBTF, assert.AnError), 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			util.NetDevQueueTPBTFRejected.Store(false)
+			var calls int
+			var rejectedOnRetry bool
+			coreTracerAttempt = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+				calls++
+				if calls == 1 {
+					return nil, nil, tc.firstErr
+				}
+				rejectedOnRetry = util.NetDevQueueTPBTFRejected.Load()
+				return nil, nil, nil
+			}
+
+			_, _, err := loadCORETracer(config.New(), manager.Options{}, nil)
+			assert.Equal(t, tc.expectedCalls, calls)
+			if tc.expectedCalls == 1 {
+				assert.ErrorIs(t, err, tc.firstErr)
+				assert.False(t, util.NetDevQueueTPBTFRejected.Load())
+				return
+			}
+			assert.NoError(t, err)
+			assert.True(t, rejectedOnRetry)
+		})
+	}
+
+	t.Run("no second retry", func(t *testing.T) {
+		util.NetDevQueueTPBTFRejected.Store(true)
+		var calls int
+		coreTracerAttempt = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+			calls++
+			return nil, nil, verifierErrorFor(probes.NetDevQueueTPBTF)
+		}
+		_, _, err := loadCORETracer(config.New(), manager.Options{}, nil)
+		assert.Error(t, err)
+		assert.Equal(t, 1, calls)
+	})
 }

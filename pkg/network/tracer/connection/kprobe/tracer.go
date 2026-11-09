@@ -53,6 +53,7 @@ var (
 
 	// these primarily exist for mocking out in tests
 	coreTracerLoader          = loadCORETracer
+	coreTracerAttempt         = loadCORETracerOnce
 	rcTracerLoader            = loadRuntimeCompiledTracer
 	prebuiltTracerLoader      = loadPrebuiltTracer
 	tracerLoaderFromAsset     = loadTracerFromAsset
@@ -250,6 +251,13 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	if err := m.InitWithOptions(buf, &mgrOpts); err != nil {
+		if closeProtocolClassifierSocketFilterFn != nil {
+			closeProtocolClassifierSocketFilterFn()
+		}
+		// Release what this attempt loaded and registered, since the caller may load again.
+		_ = m.Manager.Stop(manager.CleanAll)
+		ebpftelemetry.ClearHelperErrorKeys(m.Name)
+		ebpftelemetry.UnregisterTelemetry(m.Manager)
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
@@ -257,6 +265,16 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 }
 
 func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+	m, closeFn, err := coreTracerAttempt(config, mgrOpts, connCloseEventHandler)
+	// The tp_btf trial load can pass while the verifier rejects the full program.
+	if util.ShouldRetryWithoutTPBTF(err, probes.NetDevQueueTPBTF) {
+		log.Warnf("verifier rejected %s, retrying with the raw tracepoint: %s", probes.NetDevQueueTPBTF, err)
+		return coreTracerAttempt(config, mgrOpts, connCloseEventHandler)
+	}
+	return m, closeFn, err
+}
+
+func loadCORETracerOnce(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 	var m *ddebpf.Manager
 	var closeFn func()
 	var err error

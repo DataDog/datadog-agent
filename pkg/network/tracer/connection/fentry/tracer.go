@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/filter"
 	ssluprobes "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/ssl-uprobes"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const probeUID = "net"
@@ -51,6 +52,19 @@ func LoadTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHa
 		return nil, nil, fmt.Errorf("%w: %s", ErrorUnsupported, err)
 	}
 
+	m, closeFn, err := fentryTracerAttempt(config, mgrOpts, connCloseEventHandler)
+	// The tp_btf trial load can pass while the verifier rejects the full program.
+	if util.ShouldRetryWithoutTPBTF(err, netDevQueueTPBTF) {
+		log.Warnf("verifier rejected %s, retrying with the raw tracepoint: %s", netDevQueueTPBTF, err)
+		return fentryTracerAttempt(config, mgrOpts, connCloseEventHandler)
+	}
+	return m, closeFn, err
+}
+
+// fentryTracerAttempt exists for mocking out in tests
+var fentryTracerAttempt = loadFentryTracer
+
+func loadFentryTracer(config *config.Config, mgrOpts manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 	m := ddebpf.NewManagerWithDefault(&manager.Manager{}, "network", &ebpftelemetry.ErrorsTelemetryModifier{}, connCloseEventHandler)
 	var closeFn func()
 	err := ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer-fentry", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
