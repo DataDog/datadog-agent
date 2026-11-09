@@ -180,7 +180,8 @@ func (c *component) stop(ctx context.Context) error {
 	c.setState(rcx509client.StateStopping)
 
 	// Close has no deadline, so stop waiting when ctx is done; the client
-	// keeps shutting down in the background.
+	// keeps shutting down in the background. Pass ctx to Close instead once
+	// libdd-rc ships Close(ctx) (DataDog/libdd-rc#351).
 	done := make(chan error, 1)
 	go func() {
 		err := c.client.Close()

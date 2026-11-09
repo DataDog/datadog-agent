@@ -19,7 +19,7 @@ fi
 
 # AWS-LC is linked statically into the rc-x509 client, so the package must not
 # contain or dynamically reference a runtime AWS-LC shared object.
-packaged_shared_libraries="$(find "$stage" -type f \( -name 'libaws_lc*.so' -o -name 'libaws_lc*.so.*' -o -name 'libaws_lc*.dylib' \) -print)"
+packaged_shared_libraries="$(find "$stage" -type f \( -name 'libaws_lc*.so' -o -name 'libaws_lc*.so.*' \) -print)"
 if [[ -n "$packaged_shared_libraries" ]]; then
     echo "unexpected packaged AWS-LC shared library on Linux:" >&2
     printf '%s\n' "$packaged_shared_libraries" >&2

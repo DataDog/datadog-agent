@@ -28,7 +28,3 @@ go_test(
     }),
     deps = ["@libdd_rc_source//:rcx509"],
 )
-
-# Exercise the same native dependency collection and Mach-O rewriting used by
-# the real package graph without making the production Agent depend on rc-x509
-# yet. The archive deliberately mirrors the paths below /opt/datadog-agent.
