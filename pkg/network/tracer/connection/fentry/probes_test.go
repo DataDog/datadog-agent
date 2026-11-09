@@ -80,7 +80,7 @@ func TestEnabledProgramsTCPRecvMsgExit(t *testing.T) {
 	expected, err := selectTCPRecvMsgReturn(n)
 	require.NoError(t, err)
 
-	enabled, err := enabledPrograms(cfg, false)
+	enabled, err := enabledPrograms(cfg, false, false)
 	require.NoError(t, err)
 
 	found := filterEnabled(enabled, tcpRecvMsgReturn, tcpRecvMsgNoAddrLenReturn, tcpRecvMsgPre5190Return)
