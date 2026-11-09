@@ -1,8 +1,11 @@
 # RC Secrets workload preparation prototype
 
 This prototype connects the x509 Agent client to delegated authentication. It
-implements the merged `PrepareSecretDelivery` protocol; product-specific delivery
-handlers and the RC backend's secret retrieval/authorization remain separate work.
+implements the merged `PrepareSecretDelivery` protocol and a staging-only
+`DeliverPOCSecret` handler for the fixed `rc-secrets-poc: delivered` fixture.
+Successful decryption produces an acknowledgment; it does not apply a secret to
+Agent configuration. Production product authorization and retrieval remain
+separate work.
 The x509 client currently supports non-FIPS Linux and macOS builds.
 
 ## Flow
@@ -54,14 +57,23 @@ remote_configuration:
     enabled: true
     secrets:
       enabled: true
-      products: [example-product]
+      products: [rc-secrets-poc]
 ```
 
-The product name above is illustrative; configure the name used by your product
+The dummy handler requires both `site: datad0g.com` and `rc-secrets-poc` in the
+product list. Other products may use the preparation helper with their own
 handler. Empty product lists deny all preparations. The handler uses the
 `remote_configuration.api_key` delegated-auth instance when that override is
 configured, otherwise `api_key`. A static key or missing instance cannot substitute
 for workload identity, and there is no fallback between those instances.
+
+For this local demo, native logging is enabled when the dummy handler is
+registered. Run with
+`RC_LOG=warn,rc_x509_client::connection::handler::delegate::fsm::handshaking=debug`
+and read the verified ID from `connection handshake complete`. The ID changes
+on reconnect. Do not enable broad native debug logs: they may include protocol
+payloads. The runbook supplies isolated runtime/config paths and the complete
+backend invocation.
 
 ## Local checks
 
