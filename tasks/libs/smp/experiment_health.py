@@ -142,7 +142,8 @@ def build_payload(report, context, expected):
             message = 'Bounds result is missing or has invalid replica counts'
             if check:
                 passed, total = check['pass_count'], check['total_count']
-                if type(passed) is int and type(total) is int and 0 <= passed <= total and total > 0:
+                valid_counts = all(isinstance(value, int) and not isinstance(value, bool) for value in [passed, total])
+                if valid_counts and 0 <= passed <= total and total > 0:
                     outcome = 'pass' if passed == total else 'fail'
                     message = f'{passed}/{total} comparison replicas passed'
             attributes = {

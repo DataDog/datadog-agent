@@ -377,6 +377,32 @@ single-machine-performance-regression_detector:
     CONFIG_DIR: test/regression/container
     SELECT_EXPERIMENTS: "true"
 
+single-machine-performance-experiment-health-upload:
+  stage: functional_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["arch:amd64", "specific:true"]
+  needs:
+    - job: single-machine-performance-regression_detector
+      artifacts: true
+  when: manual
+  allow_failure: true
+  retry: 0
+  variables:
+    DD_ENV: ci-pilot
+    DD_CIVISIBILITY_LOGS_ENABLED: "false"
+  script:
+    - test -s outputs/experiment-health/experiment-health.junit.xml
+    - DATADOG_API_KEY="$("$CI_PROJECT_DIR"/tools/ci/fetch_secret.sh "$AGENT_API_KEY_ORG2" token)" || exit $?; export DATADOG_API_KEY
+    - >-
+      datadog-ci junit upload
+      --service datadog-agent-smp-experiment-health
+      --env ci-pilot
+      --skip-git-metadata-upload
+      --tags smp.pilot:true
+      --report-tags smp.pilot:true
+      --tags smp.pilot_upload_job_id:${CI_JOB_ID}
+      outputs/experiment-health/experiment-health.junit.xml
+
 single-machine-performance-metal-runners-regression_detector:
   extends:
     - .single-machine-performance-run_regression_detector

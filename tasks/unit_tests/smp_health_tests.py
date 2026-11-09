@@ -345,6 +345,33 @@ class TestHealthRendering(unittest.TestCase):
                 self.assertEqual(result.returncode, 0)
                 self.assertEqual((Path(tmp) / 'outputs/experiment-health/render-status.json').exists(), status)
 
+    def test_pilot_upload_is_manual_and_uses_only_the_new_report(self):
+        class Loader(yaml.SafeLoader):
+            pass
+
+        Loader.add_constructor('!reference', lambda loader, node: loader.construct_sequence(node))
+        pipeline = yaml.load(Path('.gitlab/childs/smp-regression-child-pipeline.yml').read_text(), Loader=Loader)
+        job = pipeline['single-machine-performance-experiment-health-upload']
+        self.assertEqual(job['when'], 'manual')
+        self.assertTrue(job['allow_failure'])
+        self.assertEqual(job['retry'], 0)
+        self.assertEqual(job['needs'], [{'job': 'single-machine-performance-regression_detector', 'artifacts': True}])
+        self.assertEqual(job['variables']['DD_CIVISIBILITY_LOGS_ENABLED'], 'false')
+        command = job['script'][-1]
+        result = subprocess.run(
+            ['bash', '-eu', '-c', 'datadog-ci() { printf "%s\\n" "$@"; }\n' + command],
+            env={**os.environ, 'CI_JOB_ID': '123'},
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        arguments = result.stdout.splitlines()
+        self.assertEqual(arguments[arguments.index('--service') + 1], SERVICE)
+        self.assertEqual(arguments[arguments.index('--env') + 1], 'ci-pilot')
+        self.assertIn('smp.pilot:true', arguments)
+        self.assertEqual(arguments[-1], 'outputs/experiment-health/experiment-health.junit.xml')
+        self.assertNotIn('--logs', arguments)
+
 
 if __name__ == '__main__':
     unittest.main()

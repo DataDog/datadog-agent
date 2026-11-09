@@ -2,7 +2,7 @@
 
 Use this guide to inspect the proposed experiment health report before platform ingestion. It applies to the container experiment lane. Metal and eBPF experiments keep their existing reports.
 
-The report uses service `datadog-agent-smp-experiment-health`. This change generates local artifacts only. It adds no Datadog upload or dashboard publication. Existing uploads and CI gates remain active.
+The report uses service `datadog-agent-smp-experiment-health`. CI generates artifacts automatically. A separate manual job uploads the new XML for a platform pilot. Existing uploads and CI gates remain active.
 
 ## Inspect a CI run
 
@@ -41,6 +41,20 @@ The command reads CI identifiers from the environment. Set `CI_COMMIT_BRANCH`, `
 
 Without resolved PR context, the summary classifies a development branch as `other`. It does not invent a PR identity. Without CI identifiers, the report uses zero placeholders for local review. Do not publish those local review results.
 
+## Inspect a platform pilot
+
+After the container report job completes, run `single-machine-performance-experiment-health-upload` in the same child pipeline. It uploads only the new report, under service `datadog-agent-smp-experiment-health` and environment `ci-pilot`.
+
+The job adds `smp.pilot:true`, disables report-log forwarding, and has no automatic retries. A separate service does not exclude the data from monitors that query all services. Repeated manual uploads can add duplicate test events.
+
+In Test Optimization Explorer, use this query:
+
+```text
+service:datadog-agent-smp-experiment-health env:ci-pilot @smp.pilot:true
+```
+
+Group by `smp.experiment`, `smp.check_kind`, and `smp.outcome`. Inspect a passing check, a failing check, and a diagnostic error when the source run contains them. Use `smp.pilot_upload_job_id` to isolate one upload.
+
 ## Compare several runs
 
 ```shell
@@ -59,4 +73,4 @@ Latest reported results can belong to an older PR commit. Always inspect `smp.co
 
 Use one PR run and one main run for artifact review. Compare check counts, advisory failures, missing results, and PR identity. Verify that the new step leaves existing gate outcomes unchanged.
 
-The [report contract](../../reference/smp-experiment-health.md) defines both dashboard views and their impact checks. A later change must explicitly enable uploads and publish the dashboard. That pilot must verify numeric attribute types, error mapping, service isolation, query filters, and event volume in Datadog.
+The [report contract](../../reference/smp-experiment-health.md) defines both dashboard views and their impact checks. The manual upload enables platform inspection before automatic ingestion. Verify numeric attribute types, error mapping, query filters, and event volume in Datadog.

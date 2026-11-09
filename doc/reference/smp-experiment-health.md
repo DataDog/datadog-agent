@@ -6,7 +6,7 @@ This contract supports experiment owners who need evidence before they promote a
 
 The proposed service is `datadog-agent-smp-experiment-health`. Every testcase has `smp.report_kind:experiment_health` and `smp.report_version:1`. Suites use `smp.health.<experiment>`. Names remain stable across branches, commits, and reruns.
 
-The CI change generates artifacts and never uploads the new XML. It does not add the XML to GitLab's `reports:junit` section. The existing explicit `outputs/junit.xml` upload remains unchanged. Platform activation needs a separate change with the new service and explicit XML path.
+The report job generates artifacts. A separate manual job uploads the new XML for a platform pilot. It does not add the XML to GitLab's `reports:junit` section. The existing explicit `outputs/junit.xml` upload remains unchanged. The manual upload uses the new service, environment `ci-pilot`, and tag `smp.pilot:true`. Automatic ingestion needs a separate change.
 
 ## Outcomes
 
@@ -49,10 +49,10 @@ Latest means latest reported within the selected time window, per experiment. It
 - The new container step runs one local selection and one local render. It also reads selected experiment definitions.
 - The step retains source JSON, normalized JSON, XML, and summaries for the existing artifact retention period.
 - A render failure creates a visible status artifact and warning. It does not change the gate result.
-- This change sends no new test events and publishes no dashboards or monitors. Standard Invoke task logging remains active.
-- Later ingestion adds one event per bounds check and configured goal, plus diagnostic rows. Review this volume before activation.
-- A separate service protects service-filtered consumers. Unfiltered cross-service totals can still change after activation.
+- The manual pilot sends new test events. Standard Invoke task logging remains active.
+- Each upload adds one event per bounds check and configured goal, plus diagnostic rows. Repeated manual uploads can distort event counts.
+- A separate service protects service-filtered consumers. Unfiltered cross-service totals and monitors can include pilot events.
 
-The platform pilot must test ingestion, attribute types, native error status, test identity, both views, and empty selections. Verify CI Tests dataset access and saved-query support before dashboard publication. Do not infer these platform behaviors from local XML validation.
+The platform pilot must test ingestion, attribute types, native error status, test identity, both views, and empty selections. Verify CI Tests dataset access and saved-query support during dashboard setup. Do not infer these platform behaviors from local XML validation.
 
 The SQL source follows the [CI Tests dataset](https://docs.datadoghq.com/ddsql_reference/data_directory/dd/dd.ci_tests.dataset/) and [DDSQL window functions](https://docs.datadoghq.com/ddsql_reference/).
