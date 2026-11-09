@@ -331,8 +331,8 @@ func (m *macosInstallSuite) TestInstallAgent() {
 }
 
 // TestLaunchDaemonsInstalledByInstaller checks that the .dmg postinstall script had the installer
-// write and load the Agent's stable LaunchDaemons, from the same definitions the package ships as a
-// fallback, and its own daemon's, and that nothing else was loaded.
+// write and load the Agent's stable LaunchDaemons and its own daemon's, and that nothing else was
+// loaded.
 func (m *macosInstallSuite) TestLaunchDaemonsInstalledByInstaller() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	macosLogDiagnosticsOnFailure(m.T(), macosTestClient)

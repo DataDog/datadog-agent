@@ -458,10 +458,9 @@ func TestPreRemoveIsIdempotent(t *testing.T) {
 	}
 }
 
-// TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails guards the postinstall fallback: when a
-// loaded job can't be unloaded, its file must stay as it was and the job must fail, so the
-// fallback finds a definition that differs from the shipped one and reloads the job, instead of
-// skipping a job that launchd still runs from its old, cached definition.
+// TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails pins that when a loaded job can't be
+// unloaded, its file stays as it was and the job fails: launchd still runs it from its old, cached
+// definition, so the file must not claim otherwise, and the install must report the failure.
 func TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
@@ -541,8 +540,8 @@ func TestPostInstallDMGLoadsTheJobsWhenSetupFails(t *testing.T) {
 }
 
 // TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount pins that the post-install does not
-// load jobs launchd cannot start: without the Agent's account it reports the failure, leaving the
-// jobs to the postinstall script's fallback, and still registers the package.
+// load jobs launchd cannot start: without the Agent's account it reports the failure, which fails
+// the install, and still registers the package.
 func TestPostInstallDMGLeavesTheJobsUnloadedWithoutTheAgentsAccount(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)

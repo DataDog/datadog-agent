@@ -4,8 +4,7 @@
 #
 # The installer does the install, as for deb and rpm: `installer postinst datadog-agent dmg` sets up
 # the Agent's account, directories, configuration, application, links and GUI, and loads its
-# LaunchDaemons. See pkg/fleet/installer/packages/datadog_agent_darwin_dmg.go. This script only
-# loads the Agent's LaunchDaemons itself when the installer is missing or fails.
+# LaunchDaemons. See pkg/fleet/installer/packages/datadog_agent_darwin_dmg.go.
 
 INSTALL_DIR=/opt/datadog-agent
 
@@ -18,140 +17,27 @@ mkdir -vp $LOG_DIR
 chmod 750 $LOG_DIR
 exec > $LOG_FILE 2>&1
 
-# The stable LaunchDaemons the Agent needs, in load order, and the root-owned directory the package
-# ships plain copies of their definitions in. These copies are the very files the installer embeds
-# (pkg/fleet/installer/packages/embedded/tmpl/gen/darwin), so the fallback below installs exactly
-# what `installer postinst` would have. They live under embedded/, which stays root-owned, never
-# under etc/, which belongs to the Agent's account: anything copied into /Library/LaunchDaemons is
-# run by launchd as root.
-FALLBACK_JOBS_DIR="$INSTALL_DIR/embedded/share/launchd"
-FALLBACK_JOBS="com.datadoghq.procmgr com.datadoghq.agent com.datadoghq.sysprobe com.datadoghq.data-plane"
-
-# The account the Agent's jobs run as. launchd cannot start them without it.
-DDAGENT_USER="_dd-agent"
-
-# ensure_ddagent_user creates the Agent's account if it is missing and enforces its properties, as
-# ensureAgentUser in pkg/fleet/installer/packages/datadog_agent_darwin_dmg.go does: the two must
-# agree. It is here for when the installer could not run at all; when the installer ran, it already
-# did the same with the same commands. It returns non-zero if the account is missing or could not
-# be set up.
-ensure_ddagent_user() {
-    if ! id -u "$DDAGENT_USER" >/dev/null 2>&1; then
-        echo "# Creating $DDAGENT_USER"
-        uid=450
-        while dscl . -list /Users UniqueID | awk '{print $2}' | grep -qx "$uid"; do
-            uid=$((uid + 1))
-        done
-        if [ "$uid" -ge 500 ]; then
-            echo "ERROR: No free UID in 450-499 for $DDAGENT_USER"
-            return 1
-        fi
-        dscl . -create "/Users/$DDAGENT_USER" || return 1
-        dscl . -create "/Users/$DDAGENT_USER" RealName "Datadog Agent" || return 1
-        dscl . -create "/Users/$DDAGENT_USER" UniqueID "$uid" || return 1
-    fi
-    dscl . -create "/Users/$DDAGENT_USER" UserShell /usr/bin/false || return 1
-    dscl . -create "/Users/$DDAGENT_USER" NFSHomeDirectory /var/empty || return 1
-    dscl . -create "/Users/$DDAGENT_USER" IsHidden 1 || return 1
-    dscl . -create "/Users/$DDAGENT_USER" PrimaryGroupID 1 || return 1
-    dscl . -create "/Users/$DDAGENT_USER" Password '*' || return 1
-    dscl . -delete "/Users/$DDAGENT_USER" AuthenticationAuthority 2>/dev/null || true
-    for group in admin wheel staff; do
-        if dseditgroup -o checkmember -m "$DDAGENT_USER" "$group" >/dev/null 2>&1; then
-            echo "Removing $DDAGENT_USER from group $group"
-            dseditgroup -o edit -d "$DDAGENT_USER" "$group" || return 1
-        fi
-    done
-    existing_uid=$(id -u "$DDAGENT_USER" 2>/dev/null) || return 1
-    if [ "$existing_uid" -ge 500 ]; then
-        echo "WARNING: $DDAGENT_USER has UID $existing_uid, in the interactive range; it is kept so file ownership stays valid"
-    fi
-    if sysadminctl -secureTokenStatus "$DDAGENT_USER" 2>&1 | grep -q "ENABLED"; then
-        echo "WARNING: $DDAGENT_USER has a Secure Token; daemon accounts should not hold one"
-    fi
-}
-
-# install_fallback_launchdaemons installs and loads the Agent's stable LaunchDaemons without the
-# installer: copy, chown, chmod, enable, bootstrap, as versions before the installer did. Every job
-# is reloaded, even one already loaded from the shipped definition: it only runs after the installer
-# failed, which may have left a job on its way out of the domain. Every job is attempted even if an
-# earlier one fails; it returns non-zero if any of them is not loaded at the end.
-#
-# No job is loaded on a fresh install, which has no configuration to run with, nor without the
-# Agent's account, which launchd cannot start them without.
-install_fallback_launchdaemons() {
-    if [ ! -f "$INSTALL_DIR/etc/datadog.yaml" ]; then
-        echo "ERROR: The installer failed on a fresh install; the Agent is not configured and was not started. Re-run the install."
-        return 1
-    fi
-    if ! ensure_ddagent_user; then
-        echo "ERROR: $DDAGENT_USER could not be set up; not loading the Agent's LaunchDaemons."
-        return 1
-    fi
-    failed=""
-    for label in $FALLBACK_JOBS; do
-        src="$FALLBACK_JOBS_DIR/$label.plist"
-        dst="/Library/LaunchDaemons/$label.plist"
-        if [ ! -f "$src" ] || [ -L "$src" ]; then
-            echo "ERROR: $src is missing; cannot install the $label LaunchDaemon"
-            failed="$failed $label"
-            continue
-        fi
-        echo "# Installing $label as a system-wide LaunchDaemon (fallback)"
-        launchctl bootout "system/$label" 2>/dev/null || true
-        # bootout returns before the job has left the domain, and bootstrapping it before then fails.
-        attempts=0
-        while [ $attempts -lt 30 ] && launchctl print "system/$label" >/dev/null 2>&1; do
-            sleep 1
-            attempts=$((attempts + 1))
-        done
-        if launchctl print "system/$label" >/dev/null 2>&1; then
-            echo "ERROR: $label is still loaded after bootout; not replacing its definition"
-            failed="$failed $label"
-            continue
-        fi
-        rm -f "$dst"
-        cp -f "$src" "$dst"
-        chown root:wheel "$dst"
-        chmod 644 "$dst"
-        launchctl enable "system/$label" 2>/dev/null || true
-        # Every job sets RunAtLoad, so bootstrapping it starts it. It is not kickstarted on top: a
-        # job launchd cannot spawn would block that call.
-        if ! launchctl bootstrap system "$dst" 2>&1; then
-            echo "ERROR: Failed to bootstrap $label."
-            failed="$failed $label"
-            continue
-        fi
-    done
-    if [ -n "$failed" ]; then
-        echo "ERROR: Could not install these LaunchDaemons:$failed"
-        return 1
-    fi
-}
-
 echo "# State at the beginning"
 echo "## Agent version"
 $INSTALL_DIR/bin/agent/agent version || true
 
-# A LaunchDaemon the fallback can't load is reported in the install log but doesn't fail the
-# install. This keeps the behavior of earlier versions, which only printed a warning when a
-# bootstrap failed. Failing here would make macOS installs stricter than they have ever been, and
-# would roll back the binaries this install just laid down, on every Mac it reaches.
+# A failed install is reported to Installer.app, MDM or `installer -pkg` by exiting non-zero. The
+# payload stays in place either way (macOS does not roll it back), so running the install again
+# picks up from there.
+status=0
 INSTALLER_BIN="$INSTALL_DIR/embedded/bin/installer"
-if [ -x "$INSTALLER_BIN" ]; then
-    if "$INSTALLER_BIN" postinst datadog-agent dmg 2>&1; then
-        echo "# The installer postinst succeeded"
-    else
-        echo "WARNING: The installer postinst failed; falling back to installing the Agent's LaunchDaemons directly. The configuration, permissions and GUI may be incomplete."
-        install_fallback_launchdaemons
-    fi
+if [ ! -x "$INSTALLER_BIN" ]; then
+    echo "ERROR: $INSTALLER_BIN is missing; the Agent was not set up."
+    status=1
+elif "$INSTALLER_BIN" postinst datadog-agent dmg 2>&1; then
+    echo "# The installer postinst succeeded"
 else
-    echo "WARNING: $INSTALLER_BIN missing; falling back to installing the Agent's LaunchDaemons directly."
-    install_fallback_launchdaemons
+    echo "ERROR: The installer postinst failed; the Agent may not be fully set up. Re-run the install."
+    status=1
 fi
 
 echo "# State at the end"
 echo "## Agent version"
 $INSTALL_DIR/bin/agent/agent version || true
 
-exit 0
+exit $status

@@ -46,8 +46,7 @@ type datadogAgentLaunchdJobs struct {
 // is a stable job only: unlike on Linux, it will get no experiment variant, since a configuration
 // experiment swaps the Agent's own jobs, not the daemon that supervises them.
 //
-// The root installer daemon is loaded last, once the Agent it reports on is up. The .dmg's
-// postinstall script leaves it out of its fallback: the Agent runs without it.
+// The root installer daemon is loaded last, once the Agent it reports on is up.
 var agentLaunchdJobs = datadogAgentLaunchdJobs{
 	LaunchdMainJobStable: "com.datadoghq.agent",
 	LaunchdJobsStable: []string{
@@ -109,8 +108,8 @@ func loadStableJob(ctx context.Context, client *launchd.Client, label string) er
 	job := launchd.Job{Label: label, Dir: launchdJobDir}
 	// Unload before rewriting so the new definition is the one launchd runs: launchd caches the
 	// definition it loaded, and bootstrapping over a loaded job is a no-op. If the job can't be
-	// unloaded, leave its file untouched and fail, so the postinstall fallback sees a definition
-	// that differs from the shipped one and reloads it instead of skipping it.
+	// unloaded, leave its file untouched and fail: the file then still matches what launchd runs,
+	// and the failed install says the new definition is not in use.
 	if err := client.Bootout(ctx, label); err != nil {
 		return fmt.Errorf("failed to unload %s before reloading it: %w", label, err)
 	}
@@ -144,8 +143,8 @@ func postInstallDatadogAgent(ctx HookContext) error {
 // postInstallDMG is the post-install the .dmg's postinstall script delegates to
 // `installer postinst datadog-agent dmg`: setting up the account, directories, configuration,
 // application and links (setUpDMGInstall), registering the Agent as a package, loading the stable
-// job set, and installing the GUI LaunchAgents (startDMGGUI). The script only loads the Agent's
-// LaunchDaemons itself when the installer is missing or fails.
+// job set, and installing the GUI LaunchAgents (startDMGGUI). If it fails, the script fails the
+// install.
 //
 // Every step runs even if an earlier one fails, and in this order so the installer daemon finds its
 // directories and the package registered when it starts: a failed registration only leaves Fleet
@@ -166,7 +165,7 @@ func postInstallDMG(ctx HookContext) error {
 	}
 	// The Agent's jobs run as its account, and launchd cannot start them without it. If the account
 	// could not be created, they are left unloaded and the hook fails, so the postinstall script
-	// reports the install as incomplete instead of waiting on jobs that will never run.
+	// fails the install instead of waiting on jobs that will never run.
 	if agentUserExists() {
 		if err := installStableJobs(ctx); err != nil {
 			errs = append(errs, err)

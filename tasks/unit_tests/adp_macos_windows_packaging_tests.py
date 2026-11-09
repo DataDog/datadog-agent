@@ -135,53 +135,25 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertIn("ADPWindowsProcmgrConfig", embed_go)
         self.assertIn("embedded.ADPWindowsProcmgrConfig", adp_procmgr)
 
-    def test_postinst_falls_back_to_the_shipped_launchdaemons(self):
-        # When `installer postinst datadog-agent dmg` fails or the installer is missing, postinst
-        # installs the Agent's stable LaunchDaemons itself, from plain copies of the installer's own
-        # embedded definitions shipped under the root-owned embedded/ tree, never under etc/.
+    def test_postinst_fails_the_install_when_the_installer_fails(self):
+        # postinst hands the whole install to `installer postinst datadog-agent dmg`, as deb and rpm
+        # do, and exits non-zero when the installer is missing or fails, so Installer.app, MDM or
+        # `installer -pkg` report the failure. It has no shell copy of the installer's work.
+        postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
         build_file = (REPO_ROOT / "packages/macos/app/BUILD.bazel").read_text()
-        embedded_build = (REPO_ROOT / "pkg/fleet/installer/packages/embedded/BUILD.bazel").read_text()
-        postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
 
-        self.assertIn('"//pkg/fleet/installer/packages/embedded:launchd_fallback_jobs"', build_file)
-        self.assertIn('prefix = "embedded/share/launchd"', build_file)
-        self.assertIn('":launchd_fallback_jobs"', build_file)
-        self.assertIn('FALLBACK_JOBS_DIR="$INSTALL_DIR/embedded/share/launchd"', postinst)
-        self.assertEqual(postinst.count("install_fallback_launchdaemons\n"), 2)
+        self.assertIn('"$INSTALLER_BIN" postinst datadog-agent dmg', postinst)
+        self.assertTrue(postinst.rstrip().endswith("exit $status"))
+        self.assertEqual(postinst.count("status=1"), 2)
+        for absent in ["launchctl", "dscl", "fallback", "embedded/share/launchd"]:
+            with self.subTest(absent=absent):
+                self.assertNotIn(absent, postinst)
+        self.assertNotIn("launchd_fallback_jobs", build_file)
 
-        for label in [
-            "com.datadoghq.procmgr",
-            "com.datadoghq.agent",
-            "com.datadoghq.sysprobe",
-            "com.datadoghq.data-plane",
-        ]:
-            with self.subTest(service=label):
-                self.assertIn(f'"tmpl/gen/darwin/{label}.plist"', embedded_build)
-                self.assertTrue(
-                    (REPO_ROOT / f"pkg/fleet/installer/packages/embedded/tmpl/gen/darwin/{label}.plist").is_file()
-                )
-                self.assertIn(label, postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
-        # The installer daemon is Fleet's, not the Agent's: the fallback does not install it.
-        self.assertNotIn("com.datadoghq.installer", postinst.split("FALLBACK_JOBS=", 1)[1].split("\n", 1)[0])
-
-    def test_postinst_fallback_fails_fast_instead_of_hanging(self):
-        # A job launchd cannot spawn, such as one whose account is missing, blocks
-        # `launchctl kickstart`, and Installer.app aborts the install after waiting on it. The
-        # fallback checks the configuration and the account before loading anything, and relies on
-        # RunAtLoad rather than kickstart to start the jobs.
-        postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
-        fallback = postinst.split("install_fallback_launchdaemons() {", 1)[1].split("\n}\n", 1)[0]
-
-        self.assertNotIn("launchctl kickstart", postinst)
-        config_check = fallback.find('[ ! -f "$INSTALL_DIR/etc/datadog.yaml" ]')
-        account_check = fallback.find("if ! ensure_ddagent_user; then")
-        bootstrap = fallback.find("launchctl bootstrap")
-        self.assertNotEqual(config_check, -1)
-        self.assertNotEqual(account_check, -1)
-        self.assertLess(config_check, bootstrap)
-        self.assertLess(account_check, bootstrap)
-        # The fallback never fails the install: macOS installs have only ever warned.
-        self.assertTrue(postinst.rstrip().endswith("exit 0"))
+    def test_launchdaemons_start_when_bootstrapped(self):
+        # The installer starts the jobs by bootstrapping them, never with `launchctl kickstart`: a
+        # job launchd cannot spawn, such as one whose account is missing, blocks that call, and
+        # Installer.app aborts the install after waiting on it.
         for label in [
             "com.datadoghq.procmgr",
             "com.datadoghq.agent",
@@ -194,28 +166,3 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
                     REPO_ROOT / f"pkg/fleet/installer/packages/embedded/tmpl/gen/darwin/{label}.plist"
                 ).read_text()
                 self.assertRegex(definition, r"<key>RunAtLoad</key>\s*<true/>")
-
-    def test_postinst_sets_up_the_account_as_the_installer_does(self):
-        # ensure_ddagent_user is the shell copy of ensureAgentUser, for when the installer could not
-        # run: both must set the same properties on the Agent's account.
-        postinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/postinst").read_text()
-        hook = (REPO_ROOT / "pkg/fleet/installer/packages/datadog_agent_darwin_dmg.go").read_text()
-
-        for attribute, value in [
-            ("RealName", '"Datadog Agent"'),
-            ("UserShell", "/usr/bin/false"),
-            ("NFSHomeDirectory", "/var/empty"),
-            ("IsHidden", "1"),
-            ("PrimaryGroupID", "1"),
-            ("Password", "'*'"),
-        ]:
-            with self.subTest(attribute=attribute):
-                self.assertIn(f'dscl . -create "/Users/$DDAGENT_USER" {attribute} {value}', postinst)
-                self.assertIn(f'"/Users/" + agentUser, "{attribute}", "{value.strip(chr(39)).strip(chr(34))}"', hook)
-        self.assertIn('dscl . -delete "/Users/$DDAGENT_USER" AuthenticationAuthority', postinst)
-        self.assertIn('"AuthenticationAuthority"', hook)
-        self.assertIn("for group in admin wheel staff; do", postinst)
-        self.assertIn('[]string{"admin", "wheel", "staff"}', hook)
-        self.assertIn("uid=450", postinst)
-        self.assertIn('[ "$uid" -ge 500 ]', postinst)
-        self.assertIn("for uid := 450; uid < 500; uid++", hook)
