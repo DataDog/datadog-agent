@@ -165,7 +165,7 @@ namespace Datadog.CustomActions
                 {
                     using var service = _registryServices.OpenRegistryKey(Registries.LocalMachine,
                         $@"SYSTEM\CurrentControlSet\Services\{name}");
-                    if (service == null)
+                    if (service is null)
                     {
                         continue;
                     }
@@ -174,8 +174,8 @@ namespace Datadog.CustomActions
                     {
                         continue;
                     }
-                    if (string.IsNullOrEmpty(serviceAccount) ||
-                        !_nativeMethods.LookupAccountName(serviceAccount, out _, out _, out var sid, out _))
+                    if (string.IsNullOrEmpty(serviceAccount)
+                        || !_nativeMethods.LookupAccountName(serviceAccount, out _, out _, out var sid, out _))
                     {
                         return ActionResult.Success;
                     }
@@ -194,8 +194,8 @@ namespace Datadog.CustomActions
                 // Passwords stay in LSA. Only capture identities for rollback, and
                 // preserve registrations if the current password cannot be associated
                 // with the installed account (including legacy secrets without a SID).
-                if (names.Count != 0 && AgentCredentials.RequiresPassword(_nativeMethods, accountSid) &&
-                    string.IsNullOrEmpty(AgentCredentials.ReadPassword(_nativeMethods, accountSid)))
+                if (names.Count != 0 && AgentCredentials.RequiresPassword(_nativeMethods, accountSid)
+                    && string.IsNullOrEmpty(AgentCredentials.ReadPassword(_nativeMethods, accountSid)))
                 {
                     _session.Log("Preserving services: the installed Agent user password is unavailable or unassociated");
                     return ActionResult.Success;
@@ -224,18 +224,24 @@ namespace Datadog.CustomActions
             var account = _session.Property("ServiceRemovalAccount");
             var names = _session.Property("ServiceRemovalNames");
             if (string.IsNullOrEmpty(names))
+            {
                 return ActionResult.Success;
+            }
             string password = null;
             try
             {
                 var sid = new SecurityIdentifier(_session.Property("ServiceRemovalSid"));
                 if (!_nativeMethods.LookupAccountName(account, out _, out _, out var currentSid, out _) || !sid.Equals(currentSid))
+                {
                     throw new InvalidOperationException("The outgoing account identity has changed");
+                }
                 if (AgentCredentials.RequiresPassword(_nativeMethods, sid))
                 {
                     password = AgentCredentials.ReadPassword(_nativeMethods, sid);
                     if (string.IsNullOrEmpty(password))
+                    {
                         throw new InvalidOperationException("No current password associated with the outgoing account");
+                    }
                 }
                 AgentCredentials.NormalizeServiceCredentials(_nativeMethods, sid, ref account, ref password);
             }

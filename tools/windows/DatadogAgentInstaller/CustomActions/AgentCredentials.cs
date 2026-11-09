@@ -8,19 +8,23 @@ namespace Datadog.CustomActions
     {
         internal static string AccountSidKey => ConfigureUserCustomActions.AgentPasswordPrivateDataKey() + "_sid";
 
-        internal static bool IsBuiltIn(SecurityIdentifier sid) =>
-            sid.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-            sid.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-            sid.IsWellKnown(WellKnownSidType.NetworkServiceSid);
+        internal static bool IsBuiltIn(SecurityIdentifier sid)
+        {
+            return sid.IsWellKnown(WellKnownSidType.LocalSystemSid)
+                || sid.IsWellKnown(WellKnownSidType.LocalServiceSid)
+                || sid.IsWellKnown(WellKnownSidType.NetworkServiceSid);
+        }
 
-        internal static bool RequiresPassword(INativeMethods native, SecurityIdentifier sid) =>
-            !IsBuiltIn(sid) && !native.IsServiceAccount(sid);
+        internal static bool RequiresPassword(INativeMethods native, SecurityIdentifier sid)
+        {
+            return !IsBuiltIn(sid) && !native.IsServiceAccount(sid);
+        }
 
         // Without an expected SID, retain the existing installation's legacy-secret lookup.
         // Removal and rollback require an explicit association with the outgoing account.
         internal static string ReadPassword(INativeMethods native, SecurityIdentifier expectedSid = null)
         {
-            if (expectedSid != null && native.FetchSecret(AccountSidKey) != expectedSid.Value)
+            if (expectedSid is not null && native.FetchSecret(AccountSidKey) != expectedSid.Value)
             {
                 return null;
             }
@@ -47,16 +51,26 @@ namespace Datadog.CustomActions
             ref string account, ref string password)
         {
             if (sid.IsWellKnown(WellKnownSidType.LocalSystemSid))
+            {
                 account = "LocalSystem";
+            }
             else if (sid.IsWellKnown(WellKnownSidType.LocalServiceSid))
+            {
                 account = "LocalService";
+            }
             else if (sid.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+            {
                 account = "NetworkService";
+            }
 
             if (IsBuiltIn(sid))
+            {
                 password = "";
+            }
             else if (!RequiresPassword(native, sid) || string.IsNullOrEmpty(password))
+            {
                 password = null;
+            }
         }
     }
 }
