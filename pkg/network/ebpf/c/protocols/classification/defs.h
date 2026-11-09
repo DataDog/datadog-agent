@@ -127,8 +127,8 @@ typedef enum {
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
 
-_Static_assert(CLASSIFICATION_GRPC_PROG + 1 == __PROG_ENCRYPTION,
-               "a new API-layer program must be reachable from application_layer_next_program");
+_Static_assert(__PROG_ENCRYPTION - __PROG_API == 2,
+               "application_layer_next_program skips the API layer, which is only correct while gRPC is its sole program");
 
 typedef enum {
     CLASSIFICATION_TLS_CLIENT_PROG,
