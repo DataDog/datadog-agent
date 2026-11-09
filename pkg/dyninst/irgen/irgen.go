@@ -618,7 +618,7 @@ func generateIR(
 	// Validate that all expression types were properly explored during
 	// expandTypesWithBudgets. This marks invalid segments for expressions
 	// that fail to resolve (e.g., type mismatches, missing fields).
-	exploreTypesForExpressions(typeCatalog, analyzedProbes)
+	exploreTypesForExpressions(typeCatalog, analyzedProbes, cfg.redaction)
 
 	// Finalize type information now that we have all referenced types.
 	if err := finalizeTypes(typeCatalog, materializedSubprograms); err != nil {
@@ -4441,9 +4441,14 @@ func resolvePointeeType[T ir.Type](tc *typeCatalog, t ir.Type) (T, error) {
 func exploreTypesForExpressions(
 	tc *typeCatalog,
 	analyzedProbes []analyzedProbe,
+	redactionPolicy *redaction.Config,
 ) {
 	for i := range analyzedProbes {
 		ap := &analyzedProbes[i]
+		var red *redaction.Config
+		if ap.probe.GetKind() == ir.ProbeKindMetric {
+			red = redactionPolicy
+		}
 		for j := range ap.expressions {
 			expr := &ap.expressions[j]
 			if expr.rootVariable == nil {
@@ -4454,7 +4459,7 @@ func exploreTypesForExpressions(
 				exprPath = ref.Ref
 			}
 			if _, err := exploreExpressionTypes(
-				expr.expr, expr.rootVariable.Type, tc, exprPath,
+				expr.expr, expr.rootVariable.Type, tc, exprPath, red,
 			); err != nil {
 				// Mark segment as invalid instead of failing.
 				if expr.segment != nil && ap.template != nil {
@@ -4518,7 +4523,7 @@ func exploreTypesForExpressions(
 					break
 				}
 				if _, err := exploreExpressionTypes(
-					sub, rootVar.Type, tc, "",
+					sub, rootVar.Type, tc, "", red,
 				); err != nil {
 					var unsup *unsupportedFeatureError
 					if errors.As(err, &unsup) {
@@ -4549,6 +4554,27 @@ func exploreExpressionTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string, // Path for error messages (e.g., "a.b.c")
+	red *redaction.Config,
+) (ir.Type, error) {
+	if err := checkExpressionTypeRedaction(currentType, tc, red); err != nil {
+		return nil, err
+	}
+	t, err := exploreExpressionTypesImpl(expr, currentType, tc, exprPath, red)
+	if err != nil {
+		return nil, err
+	}
+	if err := checkExpressionTypeRedaction(t, tc, red); err != nil {
+		return nil, err
+	}
+	return t, nil
+}
+
+func exploreExpressionTypesImpl(
+	expr exprlang.Expr,
+	currentType ir.Type,
+	tc *typeCatalog,
+	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
 	switch e := expr.(type) {
 	case *exprlang.RefExpr:
@@ -4587,7 +4613,7 @@ func exploreExpressionTypes(
 		}
 
 		// Explore base expression first and get its resolved type.
-		baseType, err := exploreExpressionTypes(base, currentType, tc, basePath)
+		baseType, err := exploreExpressionTypes(base, currentType, tc, basePath, red)
 		if err != nil {
 			return nil, err
 		}
@@ -4649,6 +4675,9 @@ func exploreExpressionTypes(
 				}
 			}
 
+			if err := checkExpressionTypeRedaction(curType, tc, red); err != nil {
+				return nil, err
+			}
 			// Handle structure field access.
 			structType, ok := curType.(*ir.StructureType)
 			if !ok {
@@ -4678,7 +4707,7 @@ func exploreExpressionTypes(
 			curType = field.Type
 			// Recursively explore field type if it's a pointer or struct.
 			if _, err := exploreExpressionTypes(
-				&exprlang.RefExpr{}, curType, tc, currentPath,
+				&exprlang.RefExpr{}, curType, tc, currentPath, red,
 			); err != nil {
 				return nil, err
 			}
@@ -4725,32 +4754,32 @@ func exploreExpressionTypes(
 
 		return curType, nil
 	case *exprlang.LenExpr:
-		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath, red)
 
 	case *exprlang.IsEmptyExpr:
-		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath)
+		return exploreLenExprTypes(e.Operand, currentType, tc, exprPath, red)
 
 	case *exprlang.EqExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.NeExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.LtExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.LeExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.GtExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 	case *exprlang.GeExpr:
-		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath)
+		return exploreComparisonExprTypes(e.Left, e.Right, currentType, tc, exprPath, red)
 
 	case *exprlang.IndexExpr:
-		return exploreIndexExprTypes(e, currentType, tc, exprPath)
+		return exploreIndexExprTypes(e, currentType, tc, exprPath, red)
 
 	case *exprlang.AnyExpr:
-		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath)
+		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath, red)
 
 	case *exprlang.AllExpr:
-		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath)
+		return exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath, red)
 
 	case *exprlang.FilterExpr:
 		// filter shares the predicate-validation semantics of any/all
@@ -4762,7 +4791,7 @@ func exploreExpressionTypes(
 		// Nested-position use (e.g. len(filter(...))) is rejected later
 		// by resolveExpression's FilterExpr case as an
 		// unsupportedFeatureError.
-		if _, err := exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath); err != nil {
+		if _, err := exploreAnyAllTypes(e.Base, e.Pred, currentType, tc, exprPath, red); err != nil {
 			return nil, err
 		}
 		return currentType, nil
@@ -4773,7 +4802,7 @@ func exploreExpressionTypes(
 		// type-explore path with a synthesized `@it == key` predicate — the
 		// emit layer will desugar the same way, so we want the same type
 		// check here. The result type is always bool.
-		resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath)
+		resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath, red)
 		if err != nil {
 			return nil, err
 		}
@@ -4790,7 +4819,7 @@ func exploreExpressionTypes(
 				Left:  &exprlang.RefExpr{Ref: "@it"},
 				Right: litExpr,
 			}
-			if _, err := exploreAnyAllTypes(e.Base, eq, currentType, tc, exprPath); err != nil {
+			if _, err := exploreAnyAllTypes(e.Base, eq, currentType, tc, exprPath, red); err != nil {
 				return nil, err
 			}
 			if tc.boolType == 0 {
@@ -4827,6 +4856,9 @@ func exploreExpressionTypes(
 			return nil, fmt.Errorf("failed to resolve map key type: %w", err)
 		}
 		keyType = tc.typesByID[keyType.GetID()]
+		if err := checkExpressionTypeRedaction(keyType, tc, red); err != nil {
+			return nil, err
+		}
 		if err := validateSwissMapKeyLiteral(litExpr, keyType); err != nil {
 			return nil, err
 		}
@@ -4850,8 +4882,9 @@ func exploreAnyAllTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
-	baseType, err := exploreExpressionTypes(base, currentType, tc, exprPath)
+	baseType, err := exploreExpressionTypes(base, currentType, tc, exprPath, red)
 	if err != nil {
 		return nil, err
 	}
@@ -4913,7 +4946,7 @@ func exploreAnyAllTypes(
 				"any/all predicate leaf references %q, which is not in scope", rootName,
 			)
 		}
-		if _, err := exploreExpressionTypes(sub, rootType, tc, rootName); err != nil {
+		if _, err := exploreExpressionTypes(sub, rootType, tc, rootName, red); err != nil {
 			return nil, err
 		}
 	}
@@ -4932,8 +4965,9 @@ func exploreComparisonExprTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
-	if _, err := exploreExpressionTypes(left, currentType, tc, exprPath); err != nil {
+	if _, err := exploreExpressionTypes(left, currentType, tc, exprPath, red); err != nil {
 		return nil, err
 	}
 	if _, ok := right.(*exprlang.LiteralExpr); !ok {
@@ -4952,9 +4986,10 @@ func exploreIndexExprTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
 	// Explore the base expression to resolve its type.
-	resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath)
+	resolvedType, err := exploreExpressionTypes(e.Base, currentType, tc, exprPath, red)
 	if err != nil {
 		return nil, err
 	}
@@ -4998,7 +5033,7 @@ func exploreIndexExprTypes(
 		}
 		return elemType, nil
 	case *ir.GoMapType:
-		return exploreSwissMapIndexTypes(t, litExpr, tc)
+		return exploreSwissMapIndexTypes(t, litExpr, tc, red)
 	default:
 		return nil, fmt.Errorf("index not supported on type %T (%q)", canonical, canonical.GetName())
 	}
@@ -5010,6 +5045,7 @@ func exploreSwissMapIndexTypes(
 	mapType *ir.GoMapType,
 	litExpr *exprlang.LiteralExpr,
 	tc *typeCatalog,
+	red *redaction.Config,
 ) (ir.Type, error) {
 	// Unwrap GoMapType → header type.
 	headerType := tc.typesByID[mapType.HeaderType.GetID()]
@@ -5030,6 +5066,9 @@ func exploreSwissMapIndexTypes(
 
 	// Validate the literal key matches the map's key type.
 	keyType = tc.typesByID[keyType.GetID()]
+	if err := checkExpressionTypeRedaction(keyType, tc, red); err != nil {
+		return nil, err
+	}
 	if err := validateSwissMapKeyLiteral(litExpr, keyType); err != nil {
 		return nil, err
 	}
@@ -5123,9 +5162,10 @@ func exploreLenExprTypes(
 	currentType ir.Type,
 	tc *typeCatalog,
 	exprPath string,
+	red *redaction.Config,
 ) (ir.Type, error) {
 	// Explore the operand to resolve its type.
-	resolvedType, err := exploreExpressionTypes(operand, currentType, tc, exprPath)
+	resolvedType, err := exploreExpressionTypes(operand, currentType, tc, exprPath, red)
 	if err != nil {
 		return nil, err
 	}

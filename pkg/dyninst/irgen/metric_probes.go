@@ -146,15 +146,36 @@ func analyzeMetricValue(
 	}, ir.Issue{}
 }
 
+func checkExpressionTypeRedaction(t ir.Type, tc *typeCatalog, red *redaction.Config) error {
+	if !red.HasRedactedTypes() {
+		return nil
+	}
+	seen := make(map[ir.TypeID]struct{})
+	for t != nil {
+		if canonical := tc.typesByID[t.GetID()]; canonical != nil {
+			t = canonical
+		}
+		if red.RedactType(t.GetName()) {
+			return fmt.Errorf("expression references redacted type %q", t.GetName())
+		}
+		if strings.Contains(t.GetName(), "go.shape.") {
+			return fmt.Errorf("cannot check redacted types for generic type %q", t.GetName())
+		}
+		if _, ok := seen[t.GetID()]; ok {
+			break
+		}
+		seen[t.GetID()] = struct{}{}
+		ptr, ok := t.(*ir.PointerType)
+		if !ok {
+			break
+		}
+		t = ptr.Pointee
+	}
+	return nil
+}
+
 // checkMetricValueType checks that a metric probe's value expression has a
 // type that the metric kind can report.
-//
-// TODO(andrei): also reject values read from, or through, a value of a type
-// redacted with DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES. The decoder redacts
-// such values in snapshots, but metric values never go through the decoder, so
-// a metric on acct.Balance reports the balance even when acct's type is
-// redacted. Java, .NET and Python don't check this for metric probes either;
-// PHP refuses to read members of objects of redacted types.
 func checkMetricValueType(kind ir.MetricKind, t ir.Type) error {
 	goKind, ok := t.GetGoKind()
 	if !ok {

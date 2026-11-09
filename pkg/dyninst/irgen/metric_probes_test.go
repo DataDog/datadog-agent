@@ -21,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
 
@@ -50,6 +51,77 @@ func onFunc(name string) string {
 
 func value(dsl, js string) string {
 	return fmt.Sprintf(`"value": {"dsl": %q, "json": %s}`, dsl, js)
+}
+
+func TestMetricProbeTypeRedaction(t *testing.T) {
+	for _, cfg := range testprogs.MustGetCommonConfigs(t) {
+		t.Run(cfg.String(), func(t *testing.T) {
+			obj, err := object.OpenElfFileWithDwarf(testprogs.MustGetBinary(t, "simple", cfg))
+			require.NoError(t, err)
+			defer func() { require.NoError(t, obj.Close()) }()
+			for _, tc := range []struct {
+				name, function, expression, redactedType string
+				condition                                bool
+			}{
+				{"scalar", "main.condInt64", `{"ref":"x"}`, "int64", false},
+				{"struct", "main.condStructArg", `{"getmember":[{"ref":"x"},"F64"]}`, "main.condFields", false},
+				{"pointer", "main.condPtrStructArg", `{"getmember":[{"ref":"x"},"F64"]}`, "*main.condFields", false},
+				{"pointee", "main.condPtrStructArg", `{"getmember":[{"ref":"x"},"F64"]}`, "main.condFields", false},
+				{"field", "main.condPtrStructArg", `{"getmember":[{"ref":"x"},"F64"]}`, "float64", false},
+				{"wildcard", "main.condPtrStructArg", `{"getmember":[{"ref":"x"},"F64"]}`, "main.cond*", false},
+				{"length", "main.lenSlice", `{"len":{"ref":"s"}}`, "[]int", false},
+				{"index", "main.condSliceArg", `{"index":[{"ref":"x"},0]}`, "int", false},
+				{"slice_element", "main.structSliceArg", `{"getmember":[{"index":[{"ref":"s"},0]},"Val"]}`, "main.indexMemberStruct", false},
+				{"map_key", "main.mapIndexStringKey", `{"index":[{"ref":"m"},"one"]}`, "string", false},
+				{"map_value", "main.mapIndexStringKey", `{"index":[{"ref":"m"},"one"]}`, "int", false},
+				{"comparison", "main.condStructArg", `{"gt":[{"getmember":[{"ref":"x"},"I32"]},0]}`, "main.condFields", false},
+				{"predicate", "main.anyAllStructSlice", `{"any":[{"ref":"xs"},{"gt":[{"getmember":[{"ref":"@it"},"I32"]},0]}]}`, "main.condFields", false},
+				{"condition", "main.condInt64", `{"gt":[{"ref":"x"},0]}`, "int64", true},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					if strings.HasPrefix(tc.name, "map_") && strings.HasPrefix(cfg.GOTOOLCHAIN, "go1.23") {
+						t.Skip("map indexing requires swiss maps")
+					}
+					kind, extra := "GAUGE", value(tc.name, tc.expression)
+					if tc.condition {
+						kind = "COUNT"
+						extra = fmt.Sprintf(`"when":{"dsl":%q,"json":%s}`, tc.name, tc.expression)
+					}
+					probe := mustParseProbe(t, metricProbeJSON(tc.name, kind, onFunc(tc.function), extra))
+					_, err := irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true))
+					require.NoError(t, err, "the probe must work without type redaction")
+					policy := redaction.NewConfig(nil, []string{tc.redactedType}, nil)
+					_, err = irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true), irgen.WithRedaction(policy))
+					var noProbes *ir.NoSuccessfulProbesError
+					require.ErrorAs(t, err, &noProbes)
+					require.Len(t, noProbes.Issues, 1)
+					require.Contains(t, noProbes.Issues[0].Message, "redacted type")
+				})
+			}
+			policy := redaction.NewConfig(nil, []string{"int32"}, nil)
+			probe := mustParseProbe(t, metricProbeJSON("unrelated", "GAUGE", onFunc("main.condPtrStructArg"), value("x.F64", `{"getmember":[{"ref":"x"},"F64"]}`)))
+			_, err = irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true), irgen.WithRedaction(policy))
+			require.NoError(t, err, "redacting an unread field must not reject the probe")
+		})
+	}
+}
+
+func TestGenericMetricProbeTypeRedaction(t *testing.T) {
+	cfg := testprogs.MustGetCommonConfigs(t)[0]
+	obj, err := object.OpenElfFileWithDwarf(testprogs.MustGetBinary(t, "sample", cfg))
+	require.NoError(t, err)
+	defer func() { require.NoError(t, obj.Close()) }()
+	probe := mustParseProbe(t, metricProbeJSON("generic", "COUNT", onFunc("main.(*Pair[...]).SetValue"), value("v", `{"ref":"v"}`)))
+	_, err = irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true))
+	require.NoError(t, err)
+	policy := redaction.NewConfig(nil, []string{"main.Credentials"}, nil)
+	_, err = irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true), irgen.WithRedaction(policy))
+	var noProbes *ir.NoSuccessfulProbesError
+	require.ErrorAs(t, err, &noProbes)
+	require.Contains(t, noProbes.Issues[0].Message, "cannot check redacted types for generic type")
+	probe = mustParseProbe(t, metricProbeJSON("calls", "COUNT", onFunc("main.(*Pair[...]).SetValue"), ""))
+	_, err = irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true), irgen.WithRedaction(policy))
+	require.NoError(t, err, "counting calls does not read generic values")
 }
 
 func TestMetricProbesDisabled(t *testing.T) {
