@@ -28,7 +28,6 @@ type USMEncoder interface {
 
 // USMConnectionIndex provides a generic container for USM data pre-aggregated by connection
 type USMConnectionIndex[K comparable, V any] struct {
-	lookupFn func(*network.ConnectionStats, map[types.ConnectionKey]*USMConnectionData[K, V]) *USMConnectionData[K, V]
 	data     map[types.ConnectionKey]*USMConnectionData[K, V]
 	protocol string
 	once     sync.Once
@@ -61,7 +60,6 @@ type USMKeyValue[K comparable, V any] struct {
 func GroupByConnection[K comparable, V any](protocol string, data map[K]V, keyGen func(K) types.ConnectionKey) *USMConnectionIndex[K, V] {
 	byConnection := &USMConnectionIndex[K, V]{
 		protocol: protocol,
-		lookupFn: USMLookup[K, V],
 
 		// Experimental: Connection Rollups
 		enableConnectionRollup: pkgconfigsetup.SystemProbe().GetBool("service_monitoring_config.enable_connection_rollup"),
@@ -119,23 +117,24 @@ func (bc *USMConnectionIndex[K, V]) Find(c *network.ConnectionStats) *USMConnect
 }
 
 func (bc *USMConnectionIndex[K, V]) find(c *network.ConnectionStats) *USMConnectionData[K, V] {
-	result := bc.lookupFn(c, bc.data)
+	result := USMLookup(c, bc.data)
 	if result != nil || !bc.enableConnectionRollup {
 		return result
 	}
 
 	// If no matches were found and we have connection rollups enabled, perfom
-	// 2 additional lookups with each port set to 0, on a copy so c is unchanged
+	// 2 additional lookups with each port set to 0, on a copy so c is unchanged.
+	// USMLookup is called directly so escape analysis keeps cc on the stack.
 	cc := *c
 	cc.SPort = 0
-	result = bc.lookupFn(&cc, bc.data)
+	result = USMLookup(&cc, bc.data)
 	if result != nil {
 		return result
 	}
 
 	cc.SPort = c.SPort
 	cc.DPort = 0
-	return bc.lookupFn(&cc, bc.data)
+	return USMLookup(&cc, bc.data)
 }
 
 // IsPIDCollision can be called on each lookup result returned by
