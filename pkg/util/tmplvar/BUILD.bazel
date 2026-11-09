@@ -6,10 +6,13 @@ go_library(
     srcs = [
         "parse.go",
         "resolver.go",
+        "telemetry.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/tmplvar",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/telemetry/def",
+        "//comp/core/telemetry/impl",
         "//comp/core/workloadmeta/def",
         "//pkg/api/util",
         "//pkg/config/setup",
@@ -23,6 +26,7 @@ dd_agent_go_test(
     srcs = [
         "parse_test.go",
         "resolver_test.go",
+        "telemetry_test.go",
     ],
     embed = [":tmplvar"],
     deps = [
