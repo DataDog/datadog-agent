@@ -410,10 +410,16 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 // Yaml helpers produce replacers that work on both a yaml object (aka map[interface{}]interface{}) and on a serialized
 // YAML string.
 
+// compileYAMLKeyRegex lowercases pattern because data-object scrubbing matches YAMLKeyRegex against strings.ToLower(key).
+// Patterns must not rely on uppercase regexp syntax such as \S or \W.
+func compileYAMLKeyRegex(pattern string) *regexp.Regexp {
+	return regexp.MustCompile(strings.ToLower(pattern))
+}
+
 func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 	return Replacer{
 		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:)\s+.+`, part)),
-		YAMLKeyRegex: regexp.MustCompile(part),
+		YAMLKeyRegex: compileYAMLKeyRegex(part),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -422,7 +428,7 @@ func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 	return Replacer{
 		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:)\s+.+`, key)),
-		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s$`, key)),
+		YAMLKeyRegex: compileYAMLKeyRegex(fmt.Sprintf(`^%s$`, key)),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -431,7 +437,7 @@ func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 	return Replacer{
 		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:)\s+.+`, ending)),
-		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^.*%s$`, ending)),
+		YAMLKeyRegex: compileYAMLKeyRegex(fmt.Sprintf(`^.*%s$`, ending)),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -440,7 +446,7 @@ func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 func matchYAMLKeyPrefixSuffix(prefix, suffix string, hints []string, repl []byte) Replacer {
 	return Replacer{
 		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:)\s+.+`, prefix, suffix)),
-		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s.*%s$`, prefix, suffix)),
+		YAMLKeyRegex: compileYAMLKeyRegex(fmt.Sprintf(`^%s.*%s$`, prefix, suffix)),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -449,7 +455,7 @@ func matchYAMLKeyPrefixSuffix(prefix, suffix string, hints []string, repl []byte
 // This only works on a YAML object not on serialized YAML data
 func matchYAMLOnly(key string, cb func(interface{}) interface{}) Replacer {
 	return Replacer{
-		YAMLKeyRegex: regexp.MustCompile(key),
+		YAMLKeyRegex: compileYAMLKeyRegex(key),
 		ProcessValue: cb,
 	}
 }
@@ -491,7 +497,7 @@ func matchYAMLKeyWithListValue(key string, hints string, repl []byte) Replacer {
 		                                                        lines starting   enclosed between `[` and `]`
 		                                                        with `-`
 		*/
-		YAMLKeyRegex: regexp.MustCompile(key),
+		YAMLKeyRegex: compileYAMLKeyRegex(key),
 		Hints:        []string{hints},
 		Repl:         repl,
 	}
@@ -674,18 +680,14 @@ func AddStrippedKeys(strippedKeys []string) {
 
 	if len(strippedKeys) > 0 {
 		quotedKeys := make([]string, len(strippedKeys))
-		lowerQuotedKeys := make([]string, len(strippedKeys))
 		for i, key := range strippedKeys {
 			quotedKeys[i] = regexp.QuoteMeta(key)
-			lowerQuotedKeys[i] = regexp.QuoteMeta(strings.ToLower(key))
 		}
 		replacer := matchYAMLKey(
 			fmt.Sprintf("(%s)", strings.Join(quotedKeys, "|")),
 			strippedKeys,
 			[]byte(`$1 "********"`),
 		)
-		// Data-object scrubbing matches YAMLKeyRegex against strings.ToLower(key).
-		replacer.YAMLKeyRegex = regexp.MustCompile(fmt.Sprintf(`^(%s)$`, strings.Join(lowerQuotedKeys, "|")))
 		// We add the new replacer to the default scrubber and to the list of dynamicReplacers so any new
 		// scubber will inherit it.
 		DefaultScrubber.AddReplacer(SingleLine, replacer)
