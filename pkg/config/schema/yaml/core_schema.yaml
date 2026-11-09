@@ -9416,7 +9416,7 @@ properties:
       enforce:
         node_type: setting
         type: boolean
-        default: true
+        default: false
         description: |-
           Reverts the settings that don't match the configuration schema to their default value. When disabled,
           invalid settings are still reported but keep their configured value.
