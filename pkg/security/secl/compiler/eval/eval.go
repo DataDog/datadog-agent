@@ -11,9 +11,7 @@ package eval
 import (
 	"fmt"
 	"net"
-	"regexp"
 	"slices"
-	"strconv"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
@@ -33,24 +31,8 @@ const (
 // BoolEvalFnc describe a eval function return a boolean
 type BoolEvalFnc = func(ctx *Context) bool
 
-var arrayIndexRE = regexp.MustCompile(`^(.+)\[(\d+)\]$`)
-
-// ExtractArrayIndexAccess extracts array index information from a field like "field[0]"
-// Returns: baseField, index, isArrayAccess, error
-func ExtractArrayIndexAccess(field string) (string, int, bool, error) {
-	if matches := arrayIndexRE.FindStringSubmatch(field); len(matches) == 3 {
-		baseField := matches[1]
-		index, err := strconv.Atoi(matches[2])
-		if err != nil {
-			return "", 0, false, fmt.Errorf("invalid array index in field: %s", field)
-		}
-		return baseField, index, true, nil
-	}
-	return field, 0, false, nil
-}
-
-// WrapEvaluatorWithArrayIndex wraps an array evaluator to return a specific index
-func WrapEvaluatorWithArrayIndex(evaluator interface{}, index int, field Field) (Evaluator, error) {
+// wrapEvaluatorWithArrayIndex wraps an array evaluator to return a specific index
+func wrapEvaluatorWithArrayIndex(evaluator interface{}, index int, field Field) (Evaluator, error) {
 	switch arrayEval := evaluator.(type) {
 	case *StringArrayEvaluator:
 		return &StringEvaluator{
