@@ -7,6 +7,7 @@ package quota
 
 import (
 	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -21,6 +22,8 @@ type plan struct {
 	// rest[i] lists the tags quota i still needs from the message, for i < full, or nil if the filter drops one.
 	rest    [][]string
 	anchors map[string][]int
+	// serviceAnchors holds the anchors on service:<value> keyed by value, for messages carrying their own service.
+	serviceAnchors map[string][]int
 }
 
 func newPlan(rs *ruleSet, snap *message.TagSnapshot, f sources.TagFilter) *plan {
@@ -48,37 +51,61 @@ func newPlan(rs *ruleSet, snap *message.TagSnapshot, f sources.TagFilter) *plan 
 		}
 		p.rest = append(p.rest, rest)
 		p.anchors[rest[0]] = append(p.anchors[rest[0]], i)
+		if service, ok := strings.CutPrefix(rest[0], "service:"); ok {
+			if p.serviceAnchors == nil {
+				p.serviceAnchors = map[string][]int{}
+			}
+			p.serviceAnchors[service] = append(p.serviceAnchors[service], i)
+		}
 	}
 	return p
 }
 
-// match returns the index of the first quota matched by the snapshot plus msgTags, or len(rs.quotas).
-func (p *plan) match(msgTags []string) int {
+// match returns the index of the first quota matched by the snapshot plus msgTags and service, or len(rs.quotas).
+func (p *plan) match(msgTags []string, service string) int {
 	best := p.full
 	if len(p.anchors) == 0 {
 		return best
 	}
 	for _, t := range msgTags {
-		for _, i := range p.anchors[t] {
-			if i >= best {
-				break
-			}
-			if containsAll(msgTags, p.rest[i][1:]) {
-				best = i
-				break
-			}
+		if candidates := p.anchors[t]; len(candidates) > 0 {
+			best = p.first(candidates, best, msgTags, service)
+		}
+	}
+	if service != "" && len(p.serviceAnchors) > 0 {
+		best = p.first(p.serviceAnchors[service], best, msgTags, service)
+	}
+	return best
+}
+
+// first returns the earliest candidate before best whose remaining tags the message has, or best.
+func (p *plan) first(candidates []int, best int, msgTags []string, service string) int {
+	for _, i := range candidates {
+		if i >= best {
+			break
+		}
+		if hasAll(msgTags, service, p.rest[i][1:]) {
+			return i
 		}
 	}
 	return best
 }
 
-func containsAll(have, want []string) bool {
+func hasAll(msgTags []string, service string, want []string) bool {
 	for _, t := range want {
-		if !slices.Contains(have, t) {
+		if !slices.Contains(msgTags, t) && !isService(t, service) {
 			return false
 		}
 	}
 	return true
+}
+
+func isService(tag, service string) bool {
+	if service == "" {
+		return false
+	}
+	v, ok := strings.CutPrefix(tag, "service:")
+	return ok && v == service
 }
 
 func (rs *ruleSet) planFor(snap *message.TagSnapshot, f sources.TagFilter) *plan {
@@ -96,8 +123,8 @@ func (rs *ruleSet) match(o *message.Origin) *quota {
 	if o != nil && o.LogSource != nil {
 		f, _ = o.LogSource.TagFilter()
 	}
-	if snap, msgTags, ok := o.TagSnapshot(); ok {
-		if i := rs.planFor(snap, f).match(msgTags); i < len(rs.quotas) {
+	if snap, msgTags, service, ok := o.TagSnapshot(); ok {
+		if i := rs.planFor(snap, f).match(msgTags, service); i < len(rs.quotas) {
 			return rs.quotas[i]
 		}
 		return nil

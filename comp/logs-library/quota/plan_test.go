@@ -27,6 +27,7 @@ type snapshotSource struct {
 	source      *sources.LogSource
 	static      []string
 	snapshotter message.TagSnapshotter
+	msgService  string
 }
 
 func newSnapshotSource(configTags, static []string, category string) *snapshotSource {
@@ -44,12 +45,14 @@ func (s *snapshotSource) msg(dynamic, msgTags []string) *message.Message {
 	origin := message.NewOrigin(s.source)
 	tags := slices.Concat(s.static, dynamic, msgTags)
 	origin.SetTagsWithSnapshot(tags, s.snapshotter.Get(s.source, s.static, dynamic), msgTags)
+	origin.SetService(s.msgService)
 	return message.NewMessage([]byte("hello"), origin, "", 0)
 }
 
 func (s *snapshotSource) fallbackMsg(dynamic, msgTags []string) *message.Message {
 	origin := message.NewOrigin(s.source)
 	origin.SetTags(slices.Concat(s.static, dynamic, msgTags))
+	origin.SetService(s.msgService)
 	return message.NewMessage([]byte("hello"), origin, "", 0)
 }
 
@@ -72,7 +75,7 @@ func transportMatch(rs *ruleSet, o *message.Origin) *quota {
 		tags = append(tags, "service:"+service)
 	}
 	for _, q := range rs.quotas {
-		if containsAll(tags, q.tags) {
+		if !slices.ContainsFunc(q.tags, func(t string) bool { return !slices.Contains(tags, t) }) {
 			return q
 		}
 	}
@@ -118,9 +121,10 @@ func TestPlanMatchesLinear(t *testing.T) {
 		filter := filters[rng.IntN(len(filters))]
 		setFilter(t, src.source, filter.include, filter.exclude)
 		for range 20 {
+			src.msgService = []string{"", "web", "api", "db"}[rng.IntN(4)]
 			dynamic, msgTags := pick(3), pick(2)
 			msg := src.msg(dynamic, msgTags)
-			_, _, ok := msg.Origin.TagSnapshot()
+			_, _, _, ok := msg.Origin.TagSnapshot()
 			require.True(t, ok)
 			want := transportMatch(rs, msg.Origin)
 			require.Same(t, want, rs.match(msg.Origin),
@@ -180,6 +184,24 @@ func TestTopLevelServiceMatches(t *testing.T) {
 	assert.Same(t, rs.quotas[1], rs.match(journal))
 }
 
+func TestMessageServiceMatchesThroughSnapshot(t *testing.T) {
+	rs := ruleSetOf(t, []string{"env:prod", "service:web"}, []string{"service:api", "team:a"}, []string{"service:db"})
+	src := newSnapshotSource(nil, []string{"env:prod"}, "")
+	snap := src.msg(nil, nil)
+	shared, _, _, _ := snap.Origin.TagSnapshot()
+
+	for service, want := range map[string]*quota{"web": rs.quotas[0], "api": nil, "db": rs.quotas[2], "": nil} {
+		src.msgService = service
+		msg := src.msg(nil, nil)
+		got, _, _, ok := msg.Origin.TagSnapshot()
+		require.True(t, ok)
+		require.Same(t, shared, got, "a per-message service must not replace the snapshot")
+		assert.Same(t, want, rs.match(msg.Origin), service)
+	}
+	src.msgService = "api"
+	assert.Same(t, rs.quotas[1], rs.match(src.msg(nil, []string{"team:a"}).Origin))
+}
+
 func TestFilteredMessageTagSkipsQuota(t *testing.T) {
 	rs := ruleSetOf(t, []string{"env:prod", "stream:stderr"}, []string{"env:prod"})
 	src := newSnapshotSource(nil, []string{"env:prod"}, "")
@@ -191,15 +213,15 @@ func TestFilteredMessageTagSkipsQuota(t *testing.T) {
 func TestPlanCachedPerFilter(t *testing.T) {
 	rs := ruleSetOf(t, []string{"team:a"})
 	src := newSnapshotSource(nil, []string{"team:a"}, "")
-	snap, _, _ := src.msg(nil, nil).Origin.TagSnapshot()
+	snap, _, _, _ := src.msg(nil, nil).Origin.TagSnapshot()
 	f, _ := tagfilter.Compile(nil, []string{"team:*"})
 	scoped := tagfilter.NewScoped(f, nil)
 
 	unfiltered := rs.planFor(snap, nil)
 	filtered := rs.planFor(snap, scoped)
 	assert.NotSame(t, unfiltered, filtered)
-	assert.Equal(t, 0, unfiltered.match(nil))
-	assert.Equal(t, 1, filtered.match(nil))
+	assert.Equal(t, 0, unfiltered.match(nil, ""))
+	assert.Equal(t, 1, filtered.match(nil, ""))
 	assert.Same(t, filtered, rs.planFor(snap, scoped))
 }
 
@@ -208,8 +230,8 @@ func TestPlanReusedUntilSnapshotOrRuleSetChanges(t *testing.T) {
 	src := newSnapshotSource(nil, nil, "")
 	m1 := src.msg([]string{"team:a"}, nil)
 	m2 := src.msg([]string{"team:a"}, nil)
-	s1, _, _ := m1.Origin.TagSnapshot()
-	s2, _, _ := m2.Origin.TagSnapshot()
+	s1, _, _, _ := m1.Origin.TagSnapshot()
+	s2, _, _, _ := m2.Origin.TagSnapshot()
 	require.Same(t, s1, s2)
 	assert.Same(t, rs.planFor(s1, nil), rs.planFor(s2, nil))
 
@@ -229,7 +251,7 @@ func TestSnapshotIgnoredAfterConfigTagsChange(t *testing.T) {
 	require.Same(t, rs.quotas[0], rs.match(msg.Origin))
 
 	src.source.Config.Tags = []string{"env:dev"}
-	_, _, ok := msg.Origin.TagSnapshot()
+	_, _, _, ok := msg.Origin.TagSnapshot()
 	assert.False(t, ok)
 	assert.Nil(t, rs.match(msg.Origin))
 }
@@ -305,6 +327,33 @@ func BenchmarkCheckSnapshot(b *testing.B) {
 				for b.Loop() {
 					i++
 					e.Check(filteredSrc.msg([]string{strconv.Itoa(i)}, msgTags))
+				}
+			})
+		}
+	}
+}
+
+func BenchmarkCheckMessageService(b *testing.B) {
+	static := []string{"env:prod", "team:a", "region:us"}
+	for _, n := range []int{10, 100, 500} {
+		configs := make(map[string][]byte, n)
+		for i := range n {
+			configs[strconv.Itoa(i)] = snap(time.Now().Add(time.Hour), []string{"service:svc" + strconv.Itoa(i)})
+		}
+		e := NewEnforcer()
+		e.Update(configs)
+		for _, service := range []string{"svc" + strconv.Itoa(n-1), "other"} {
+			src := newSnapshotSource(nil, static, "")
+			src.msgService = service
+			snapshotted, linear := src.msg(nil, nil), src.fallbackMsg(nil, nil)
+			b.Run(fmt.Sprintf("quotas=%d/service=%s/linear", n, service), func(b *testing.B) {
+				for b.Loop() {
+					e.Check(linear)
+				}
+			})
+			b.Run(fmt.Sprintf("quotas=%d/service=%s/snapshot", n, service), func(b *testing.B) {
+				for b.Loop() {
+					e.Check(snapshotted)
 				}
 			})
 		}

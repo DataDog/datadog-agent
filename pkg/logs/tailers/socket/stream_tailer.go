@@ -39,6 +39,7 @@ type StreamTailer struct {
 	stop            chan struct{}
 	done            chan struct{}
 	onDone          func() // called when readLoop exits (connection closed/error); used by listeners to prune dead tailers
+	tagSnapshots    message.TagSnapshotter
 }
 
 // NewStreamTailer returns a new StreamTailer.
@@ -105,7 +106,7 @@ func (t *StreamTailer) forwardMessages() {
 	for output := range t.decoder.OutputChan() {
 		if output.HasContent() {
 			origin := message.NewOrigin(t.source)
-			origin.SetTags(output.ParsingExtra.Tags)
+			origin.SetTagsWithSnapshot(output.ParsingExtra.Tags, t.tagSnapshots.Get(t.source, nil, nil), output.ParsingExtra.Tags)
 
 			output.Origin = origin
 			t.outputChan <- output

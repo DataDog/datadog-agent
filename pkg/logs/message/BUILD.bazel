@@ -8,6 +8,7 @@ go_library(
         "origin.go",
         "status.go",
         "tag_snapshot.go",
+        "tag_snapshot_testutil.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/message",
     visibility = ["//visibility:public"],

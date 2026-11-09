@@ -37,6 +37,13 @@ func TestTagSnapshotterReuse(t *testing.T) {
 	withService := s.Get(source, static, nil)
 	assert.NotSame(t, last, withService)
 	assert.Contains(t, slices.Collect(withService.All()), "service:web")
+
+	o := NewOrigin(source)
+	o.SetService("journal")
+	o.SetTagsWithSnapshot(nil, withService, nil)
+	_, _, service, ok := o.TagSnapshot()
+	assert.True(t, ok)
+	assert.Empty(t, service, "the configured service overrides the message's and is already in the snapshot")
 }
 
 func TestOriginTagSnapshot(t *testing.T) {
@@ -45,26 +52,28 @@ func TestOriginTagSnapshot(t *testing.T) {
 	o := NewOrigin(source)
 	o.SetTagsWithSnapshot([]string{"team:a", "stream:stderr"}, s.Get(source, nil, []string{"team:a"}), []string{"stream:stderr"})
 
-	shared, msgTags, ok := o.TagSnapshot()
+	shared, msgTags, service, ok := o.TagSnapshot()
 	assert.True(t, ok)
 	assert.NotNil(t, shared)
 	assert.Equal(t, []string{"stream:stderr"}, msgTags)
+	assert.Empty(t, service)
 
 	source.Config.SourceCategory = "changed"
-	_, _, ok = o.TagSnapshot()
+	_, _, _, ok = o.TagSnapshot()
 	assert.False(t, ok)
 	source.Config.SourceCategory = ""
 
 	o.SetService("journal")
-	_, _, ok = o.TagSnapshot()
-	assert.False(t, ok, "a message service the snapshot does not hold disables it")
+	_, _, service, ok = o.TagSnapshot()
+	assert.True(t, ok)
+	assert.Equal(t, "journal", service)
 	o.SetService("")
 
 	o.SetTags([]string{"team:a"})
-	_, _, ok = o.TagSnapshot()
+	_, _, _, ok = o.TagSnapshot()
 	assert.False(t, ok)
 
 	var nilOrigin *Origin
-	_, _, ok = nilOrigin.TagSnapshot()
+	_, _, _, ok = nilOrigin.TagSnapshot()
 	assert.False(t, ok)
 }

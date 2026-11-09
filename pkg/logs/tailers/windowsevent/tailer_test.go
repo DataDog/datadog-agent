@@ -125,6 +125,7 @@ func (s *ReadEventsSuite) TestReadEvents() {
 	for i := uint(0); i < s.numEvents; i++ {
 		msg := <-msgChan
 		s.Require().NotEmpty(msg.GetContent(), "Message must not be empty")
+		s.Require().NoError(message.CheckTagSnapshot(msg.Origin))
 		totalEvents++
 	}
 	s.Require().Equal(s.numEvents, totalEvents, "Received %d/%d events", totalEvents, s.numEvents)

@@ -204,13 +204,17 @@ func (o *Origin) SetTagsWithSnapshot(tags []string, shared *TagSnapshot, message
 	o.messageTags = messageTags
 }
 
-// TagSnapshot returns the shared tags and the message-specific tags that together match like HasTag.
-// ok is false when no snapshot was set, the source config changed since it was taken, or Service differs from it.
-func (o *Origin) TagSnapshot() (shared *TagSnapshot, messageTags []string, ok bool) {
-	if o == nil || o.shared == nil || o.LogSource == nil || !o.shared.describes(o.LogSource) || o.Service() != o.shared.service {
-		return nil, nil, false
+// TagSnapshot returns the shared tags plus the message's own tags and service, which together match like HasTag.
+// service is empty when the snapshot already holds it. ok is false when no snapshot was set or the source
+// config changed since it was taken.
+func (o *Origin) TagSnapshot() (shared *TagSnapshot, messageTags []string, service string, ok bool) {
+	if o == nil || o.shared == nil || o.LogSource == nil || !o.shared.describes(o.LogSource) {
+		return nil, nil, "", false
 	}
-	return o.shared, o.messageTags, true
+	if o.shared.service == "" {
+		service = o.service
+	}
+	return o.shared, o.messageTags, service, true
 }
 
 // SetSource sets the source of the origin.
