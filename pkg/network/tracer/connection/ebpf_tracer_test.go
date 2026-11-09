@@ -10,12 +10,14 @@ package connection
 
 import (
 	"testing"
+	"unsafe"
 
 	"github.com/cilium/ebpf"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/network/config"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 )
 
@@ -41,15 +43,10 @@ func TestConntrackNATMapLoadFailureFallsBack(t *testing.T) {
 		t.Skip("the sk tracer doesn't use the conntrack map")
 	}
 
+	// compare key sizes rather than map IDs, which old kernels don't report
 	ct, err := tr.GetMap(probes.ConntrackMap)
 	require.NoError(t, err)
-	ctInfo, err := ct.Info()
-	require.NoError(t, err)
-	badInfo, err := bad.Info()
-	require.NoError(t, err)
-	ctID, _ := ctInfo.ID()
-	badID, _ := badInfo.ID()
-	assert.NotEqual(t, badID, ctID, "tracer kept the bad map")
+	assert.Equal(t, uint32(unsafe.Sizeof(netebpf.ConntrackTuple{})), ct.KeySize(), "tracer kept the bad map")
 
 	// net_dev_queue is attached again, with its map at full size
 	skb, err := tr.GetMap(probes.ConnectionTupleToSocketSKBConnMap)

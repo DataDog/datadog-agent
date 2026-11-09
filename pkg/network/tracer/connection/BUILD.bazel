@@ -203,6 +203,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//pkg/network",
             "//pkg/network/config",
+            "//pkg/network/ebpf",
             "//pkg/network/ebpf/probes",
             "//pkg/process/util",
             "@com_github_cilium_ebpf//:ebpf",
@@ -245,6 +246,7 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/network",
             "//pkg/network/config",
+            "//pkg/network/ebpf",
             "//pkg/network/ebpf/probes",
             "//pkg/process/util",
             "@com_github_cilium_ebpf//:ebpf",
