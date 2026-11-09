@@ -8,7 +8,9 @@ package clusterinfo
 import (
 	"context"
 	"errors"
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -63,4 +65,45 @@ func TestGetClusterAgentEKSIdentityTagsReturnsClientError(t *testing.T) {
 	tags, err := GetClusterAgentEKSIdentityTags(t.Context())
 	assert.Nil(t, tags)
 	assert.ErrorIs(t, err, expected)
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryStopsOnClusterAgentAnswer(t *testing.T) {
+	original := getEKSClusterIdentity
+	t.Cleanup(func() { getEKSClusterIdentity = original })
+	expected := errors.New(`"https://dca:5005/api/v1/cluster/eks-identity" is unavailable: 404 Not Found`)
+	calls := 0
+	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+		calls++
+		return nil, expected
+	}
+
+	start := time.Now()
+	tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+	assert.Nil(t, tags)
+	assert.ErrorIs(t, err, expected)
+	assert.Equal(t, 1, calls)
+	assert.Less(t, time.Since(start), time.Second)
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesUnreachableClusterAgent(t *testing.T) {
+	original := getEKSClusterIdentity
+	t.Cleanup(func() { getEKSClusterIdentity = original })
+	calls := 0
+	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+		calls++
+		if calls == 1 {
+			return nil, fmt.Errorf("%w: temporary failure in clusterAgentClient", errClusterAgentUnreachable)
+		}
+		return &identity.ClusterIdentity{
+			ClusterName: "orders",
+			ClusterARN:  "arn:aws:eks:us-west-2:123456789012:cluster/orders",
+			AccountID:   "123456789012",
+			Region:      "us-west-2",
+		}, nil
+	}
+
+	tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+	require.NoError(t, err)
+	assert.Equal(t, 2, calls)
+	assert.Contains(t, tags, "eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders")
 }
