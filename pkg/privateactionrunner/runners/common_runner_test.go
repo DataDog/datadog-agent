@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
@@ -48,7 +47,7 @@ func TestHealthCheckLoop_HonorsRetryAfterMs(t *testing.T) {
 				return &opms.HealthCheckData{RetryAfter: retryAfterMs * time.Millisecond}, nil
 			},
 		},
-		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: &statsd.NoOpClient{}},
+		healthCheckInterval: time.Duration(defaultIntervalMs) * time.Millisecond, metricsClient: &statsd.NoOpClient{},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -86,7 +85,7 @@ func TestHealthCheckLoop_DefaultIntervalWhenRetryAfterIsZero(t *testing.T) {
 				return &opms.HealthCheckData{RetryAfter: 0}, nil
 			},
 		},
-		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: &statsd.NoOpClient{}},
+		healthCheckInterval: time.Duration(defaultIntervalMs) * time.Millisecond, metricsClient: &statsd.NoOpClient{},
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -120,7 +119,7 @@ func TestHealthCheckLoop_EmitsHealthCheckMetric(t *testing.T) {
 				return &opms.HealthCheckData{}, nil
 			},
 		},
-		config: &config.Config{HealthCheckInterval: defaultIntervalMs, MetricsClient: metricsClient},
+		healthCheckInterval: time.Duration(defaultIntervalMs) * time.Millisecond, metricsClient: metricsClient,
 	}
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)

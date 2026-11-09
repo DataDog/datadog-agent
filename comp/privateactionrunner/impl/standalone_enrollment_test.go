@@ -17,13 +17,14 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	"github.com/stretchr/testify/require"
 )
 
 func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
@@ -53,13 +54,13 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 	hostname, _ := hostnamemock.NewMock("test-host")
 	storage := enrollment.NewIdentityStorage(cfg, nil)
 	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
-	_, err := runner.getRunnerConfig(context.Background())
+	_, err := runner.getRunnerIdentity(context.Background())
 	require.NoError(t, err)
 	identity, err := storage.Load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 	require.NotEmpty(t, identity.PrivateKey)
-	_, err = runner.getRunnerConfig(context.Background())
+	_, err = runner.getRunnerIdentity(context.Background())
 	require.NoError(t, err)
 	require.EqualValues(t, 1, posts.Load(), "a saved identity follows existing reuse behavior")
 }

@@ -13,14 +13,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
 
@@ -64,7 +64,7 @@ func TestSignedEnvelopeVerifierAttachesAuthenticatedPublicKey(t *testing.T) {
 		keysManager: &staticKeysManager{keys: map[string]types.DecodedKey{
 			"key-id": &types.ED25519Key{KeyType: types.KeyTypeED25519, Key: public},
 		}, proof: directorProof},
-		config: &config.Config{OrgId: 42, RunnerId: "runner-id"},
+		config: &config.Identity{OrgId: 42, RunnerId: "runner-id"},
 	}
 
 	got, err := verifier.UnwrapTask(task)
@@ -120,7 +120,7 @@ func TestTaskVerifierRejectsUnsignedTask(t *testing.T) {
 	task := &types.Task{}
 	task.Data.Attributes = &types.Attributes{}
 
-	_, err := NewTaskVerifier(nil, &config.Config{}).UnwrapTask(task)
+	_, err := NewTaskVerifier(nil, &config.Identity{}).UnwrapTask(task)
 
 	require.ErrorContains(t, err, "task is missing signed envelope")
 }

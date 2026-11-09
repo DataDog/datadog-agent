@@ -17,6 +17,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
@@ -25,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T) {
@@ -70,7 +71,7 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 			hostname, _ := hostnamemock.NewMock("test-host")
 			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: enrollment.NewIdentityStorage(cfg, nil)}
 
-			_, err := runner.getRunnerConfig(context.Background())
+			_, err := runner.getRunnerIdentity(context.Background())
 			require.ErrorIs(t, err, opms.ErrEnrollmentRejected)
 			require.NotContains(t, err.Error(), "backoff")
 			_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
@@ -120,7 +121,7 @@ func TestExecutorSnapshotUsesMonolithPersistedIdentity(t *testing.T) {
 	require.NoError(t, storage.Persist(context.Background(), persisted))
 	hostname, _ := hostnamemock.NewMock("test-host")
 	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, identityStorage: storage}
-	resolved, err := runner.getRunnerConfig(context.Background())
+	resolved, err := runner.getRunnerIdentity(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, persisted.URN, resolved.Urn)
 	snapshot, err := executor.ControlPlaneConfig(cfg, resolved)

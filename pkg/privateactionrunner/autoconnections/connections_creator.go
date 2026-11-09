@@ -31,7 +31,6 @@ func NewConnectionsCreator(client ConnectionsClient, provider TagsProvider) Conn
 func CreateConnectionsIfEnabled(
 	ctx context.Context,
 	cfg model.Reader,
-	parCfg *parconfig.Config,
 	apiKey, appKey, runnerID string,
 	enrollmentResult *enrollment.Result,
 	tagsProvider TagsProvider,
@@ -43,15 +42,16 @@ func CreateConnectionsIfEnabled(
 		return
 	}
 
-	actionsAllowlist := make([]string, 0, len(parCfg.ActionsAllowlist))
-	for fqnPrefix := range parCfg.ActionsAllowlist {
+	allowlist := parconfig.MakeActionsAllowlist(cfg)
+	actionsAllowlist := make([]string, 0, len(allowlist))
+	for fqnPrefix := range allowlist {
 		actionsAllowlist = append(actionsAllowlist, fqnPrefix)
 	}
 	if len(actionsAllowlist) == 0 {
 		return
 	}
 
-	client, err := NewConnectionsAPIClient(cfg, parCfg.DatadogSite, apiKey, appKey)
+	client, err := NewConnectionsAPIClient(cfg, par.Site(cfg), apiKey, appKey)
 	if err != nil {
 		log.Warnf("Failed to create connections API client: %v", err)
 		return

@@ -9,6 +9,8 @@
 package privatebundles
 
 import (
+	"net/http"
+
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -67,7 +69,7 @@ type Registry struct {
 	Bundles map[string]types.Bundle
 }
 
-func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, _ pcapuploader.Component, _ hostnameinterface.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) (*Registry, error) {
+func NewRegistry(configuration config.Config, agentHTTPClient *http.Client, _ rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, _ pcapuploader.Component, _ hostnameinterface.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, helmactions helmactions.Component, ka kubeactions.Component) (*Registry, error) {
 	return &Registry{
 		Bundles: map[string]types.Bundle{
 			"com.datadoghq.gitlab.branches":                   com_datadoghq_gitlab_branches.NewGitlabBranches(),
@@ -99,7 +101,7 @@ func NewRegistry(configuration *config.Config, _ rcclient.Client, traceroute tra
 			"com.datadoghq.kubernetes.autoscaling":            com_datadoghq_kubernetes_autoscaling.NewKubernetesAutoscaling(),
 			"com.datadoghq.kubernetes.batch":                  com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
 			"com.datadoghq.kubernetes.core":                   com_datadoghq_kubernetes_core.NewKubernetesCore(),
-			"com.datadoghq.kubernetes.customresources":        com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration.KubernetesAllowedCustomResources),
+			"com.datadoghq.kubernetes.customresources":        com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration),
 			"com.datadoghq.kubernetes.discovery":              com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.kubernetes.kubeactions":            com_datadoghq_kubernetes_kubeactions.NewKubernetesKubeActions(ka),
 			"com.datadoghq.kubernetes.networking":             com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),

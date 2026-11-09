@@ -18,14 +18,14 @@ import (
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetControlPlaneConfigResponse, error) {
+func ControlPlaneConfig(config model.Reader, runner *parconfig.Identity) (*pb.GetControlPlaneConfigResponse, error) {
 	response := &pb.GetControlPlaneConfigResponse{
 		LogLevel: config.GetString("log_level"),
 	}
 	if runner == nil {
 		return response, nil
 	}
-	if runner.IdentityIsIncomplete() {
+	if runner.IsIncomplete() {
 		return nil, errors.New("runner identity is incomplete")
 	}
 	jwk, err := util.EcdsaToJWK(runner.PrivateKey)
@@ -36,7 +36,11 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetC
 	if err != nil {
 		return nil, err
 	}
-	endpoint := runner.APIBaseURL
+	settings := parconfig.New(config)
+	endpoint, err := settings.APIBaseURL()
+	if err != nil {
+		return nil, err
+	}
 	request, err := http.NewRequest(http.MethodPost, endpoint, nil)
 	if err != nil {
 		return nil, errors.New("invalid OPMS endpoint")
@@ -60,8 +64,8 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetC
 	}
 	response.Runtime = &pb.ControlPlaneRuntime{
 		OpmsBaseUrl:       endpoint,
-		TaskConcurrency:   runner.RunnerPoolSize,
-		OpmsExtraHeaders:  runner.OpmsExtraHeaders,
+		TaskConcurrency:   settings.TaskConcurrency(),
+		OpmsExtraHeaders:  settings.OPMSExtraHeaders(),
 		OpmsProxyUrl:      proxyURL,
 		SkipSslValidation: config.GetBool("skip_ssl_validation"),
 		MinTlsVersion:     config.GetString("min_tls_version"),

@@ -16,10 +16,9 @@ import (
 	"sync"
 	"time"
 
+	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-
-	statsdclient "github.com/DataDog/datadog-go/v5/statsd"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
@@ -42,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
@@ -55,6 +55,7 @@ import (
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -226,7 +227,10 @@ func NewPrivateActionRunner(
 	}, nil
 }
 
-func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.Config, error) {
+func (p *PrivateActionRunner) getRunnerIdentity(ctx context.Context) (*parconfig.Identity, error) {
+	if err := parconfig.Validate(p.coreConfig); err != nil {
+		return nil, err
+	}
 	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, p.hostnameGetter)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get agent identifier: %w", err)
@@ -244,13 +248,13 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		p.coreConfig.Set(par.URN, persistedIdentity.URN, model.SourceAgentRuntime)
 	}
 
-	cfg, err := parconfig.FromDDConfig(p.coreConfig, p.metricsClient)
+	cfg, err := parconfig.ReadIdentity(p.coreConfig)
 	if err != nil {
 		return nil, err
 	}
 
 	canSelfEnroll := p.coreConfig.GetBool(par.SelfEnroll)
-	if cfg.IdentityIsIncomplete() && canSelfEnroll {
+	if cfg.IsIncomplete() && canSelfEnroll {
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := p.performSelfEnrollment(ctx, cfg, agentIdentifier)
 		if err != nil {
@@ -259,7 +263,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		p.coreConfig.Set(par.PrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
 		p.coreConfig.Set(par.URN, updatedCfg.Urn, model.SourceAgentRuntime)
 		cfg = updatedCfg
-	} else if cfg.IdentityIsIncomplete() {
+	} else if cfg.IsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
 	}
 	return cfg, nil
@@ -328,8 +332,10 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	p.executorDone = make(chan struct{})
 	drainTimeout := 60 * time.Second
-	if cfg != nil && cfg.TaskTimeoutSeconds != nil {
-		drainTimeout = time.Duration(*cfg.TaskTimeoutSeconds) * time.Second
+	if cfg != nil {
+		if timeout := p.coreConfig.GetInt32(par.TaskTimeoutSeconds); timeout > 0 {
+			drainTimeout = time.Duration(timeout) * time.Second
+		}
 	}
 	idleTimeout := executorIdleTimeout(p.coreConfig.GetInt(par.IdleTimeoutSeconds))
 	if cfg == nil {
@@ -351,7 +357,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 	// The executor has its own span buffer; start its sender only after setup succeeds.
 	if cfg != nil {
-		p.startTelemetry(cfg)
+		p.startTelemetry()
 	}
 
 	go func() {
@@ -365,7 +371,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 
 // configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
-func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
+func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Identity, error) {
 	if !p.coreConfig.GetBool(par.Enabled) || !deployment.Requested(p.coreConfig) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
@@ -377,7 +383,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
-	cfg, err := p.getRunnerConfig(ctx)
+	cfg, err := p.getRunnerIdentity(ctx)
 	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
@@ -387,17 +393,17 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 		return runCtx, nil, err
 	}
 	commonTags := observability.CommonTags{
-		RunnerId: cfg.RunnerId, RunnerVersion: cfg.Version, Modes: cfg.Modes, ExtraTags: cfg.Tags,
+		RunnerId: cfg.RunnerId, RunnerVersion: version.AgentVersion, Modes: []modes.Mode{modes.ModePull},
 	}
 	runCtx = observability.AddCommonTagsToLogs(runCtx, commonTags)
-	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
+	metricsClient := observability.NewTaggedMetricsClient(p.metricsClient, commonTags.AsMetricTags())
 	p.logger.Info("Private action runner executor starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> URN : " + cfg.Urn)
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.coreConfig, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.pcapUploader, p.hostnameGetter, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	taskExecutor, err := runners.NewWorkflowTaskExecutor(p.coreConfig, metricsClient, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.pcapUploader, p.hostnameGetter, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
 	if err != nil {
 		return runCtx, nil, err
 	}
@@ -472,7 +478,7 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	// but allow Stop() to cancel as well.
 	ctx, p.cancelStart = context.WithCancel(ctx)
 	defer p.logger.Flush()
-	cfg, err := p.getRunnerConfig(ctx)
+	cfg, err := p.getRunnerIdentity(ctx)
 	if errors.Is(err, opms.ErrEnrollmentRejected) {
 		p.logger.Warnf("Private Action Runner enrollment rejected: %v", err)
 		if p.shutdowner != nil {
@@ -490,22 +496,22 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	}
 	commonTags := observability.CommonTags{
 		RunnerId:      cfg.RunnerId,
-		RunnerVersion: cfg.Version,
-		Modes:         cfg.Modes,
-		ExtraTags:     cfg.Tags,
+		RunnerVersion: version.AgentVersion,
+		Modes:         []modes.Mode{modes.ModePull},
 	}
 	ctx = observability.AddCommonTagsToLogs(ctx, commonTags)
 	// Stamp runner identity (runner_id, runner_version, modes) on every PAR metric so
 	// executions are attributable to the runner that produced them. Done here because
 	// runner_id is only finalized after enrollment.
-	cfg.MetricsClient = observability.NewTaggedMetricsClient(cfg.MetricsClient, commonTags.AsMetricTags())
+	metricsClient := observability.NewTaggedMetricsClient(p.metricsClient, commonTags.AsMetricTags())
 
-	p.startTelemetry(cfg)
+	p.startTelemetry()
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
-	p.logger.Info("==> Site : " + cfg.DatadogSite)
-	if endpoint, err := url.Parse(cfg.APIBaseURL); err == nil {
+	p.logger.Info("==> Site : " + par.Site(p.coreConfig))
+	endpointURL, _ := par.APIBaseURL(p.coreConfig, par.Site(p.coreConfig)) // Already validated during initialization.
+	if endpoint, err := url.Parse(endpointURL); err == nil {
 		p.logger.Info("==> API Host : " + endpoint.Host)
 	}
 	p.logger.Info("==> URN : " + cfg.Urn)
@@ -514,11 +520,11 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.coreConfig, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.pcapUploader, p.hostnameGetter, p.ipc.GetClient(), p.ha, p.ka)
+	p.workflowRunner, err = runners.NewWorkflowRunner(p.coreConfig, metricsClient, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.pcapUploader, p.hostnameGetter, p.ipc.GetClient(), p.ha, p.ka)
 	if err != nil {
 		return err
 	}
-	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg)
+	p.commonRunner = runners.NewCommonRunner(p.coreConfig, cfg, metricsClient)
 	err = p.workflowRunner.Start(ctx)
 	if err != nil {
 		return err
@@ -567,11 +573,11 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 	return stopErr
 }
 
-func (p *PrivateActionRunner) startTelemetry(cfg *parconfig.Config) {
+func (p *PrivateActionRunner) startTelemetry() {
 	p.telemetry = telemetry.NewTelemetry(
 		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
 		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
-		cfg.DatadogSite,
+		par.Site(p.coreConfig),
 		observability.ParService,
 	)
 }
@@ -597,7 +603,7 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 // The enrollment mode is controlled by the api_key_only_enrollment flag:
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
-func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Config, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Config, error) {
+func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Identity, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Identity, error) {
 	apiKey := p.coreConfig.GetString("api_key")
 	apiKeyOnlyEnrollment := p.coreConfig.GetBool(par.APIKeyOnlyEnrollment)
 
@@ -643,7 +649,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	cfg.RunnerId = urnParts.RunnerID
 
 	autoconnections.CreateConnectionsIfEnabled(
-		ctx, p.coreConfig, cfg, apiKey, appKey, urnParts.RunnerID,
+		ctx, p.coreConfig, apiKey, appKey, urnParts.RunnerID,
 		enrollmentResult, autoconnections.NewTagsProvider(p.tagger),
 	)
 

@@ -5,14 +5,17 @@
 
 package com_datadoghq_kubernetes_customresources
 
-import "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+import (
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+)
 
 type KubernetesCustomResources struct {
 	actions map[string]types.Action
 }
 
-func NewKubernetesCustomResources(allowedResources []string) *KubernetesCustomResources {
-	policy := newResourcePolicy(allowedResources)
+func NewKubernetesCustomResources(cfg config.Config) *KubernetesCustomResources {
+	policy := resourcePolicy{config: cfg}
 	return &KubernetesCustomResources{
 		actions: map[string]types.Action{
 			// Manual actions

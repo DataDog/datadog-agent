@@ -4,34 +4,37 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "config",
     srcs = [
-        "config_adapter.go",
-        "constants.go",
-        "transform.go",
+        "actions_allowlist.go",
+        "agent_config.go",
+        "config.go",
+        "identity.go",
+        "metrics.go",
+        "validation.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config",
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
         "//comp/dogstatsd/statsd/def",
+        "//pkg/config/model",
         "//pkg/config/utils",
         "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/actions",
-        "//pkg/privateactionrunner/adapters/modes",
-        "//pkg/privateactionrunner/observability",
         "//pkg/privateactionrunner/util",
         "//pkg/util/flavor",
-        "//pkg/util/http",
         "//pkg/util/log",
-        "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
-        "@com_github_gobwas_glob//:glob",
         "@io_k8s_apimachinery//pkg/util/sets",
     ],
 )
 
 dd_agent_go_test(
     name = "config_test",
-    srcs = ["transform_test.go"],
+    srcs = [
+        "actions_allowlist_test.go",
+        "metrics_test.go",
+        "validation_test.go",
+    ],
     embed = [":config"],
     deps = [
         "//comp/dogstatsd/statsd/def",

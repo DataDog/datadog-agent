@@ -24,6 +24,7 @@ go_library(
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/util/flavor",
         "//pkg/util/http",
+        "//pkg/version",
         "@com_github_datadog_jsonapi//:jsonapi",
         "@com_github_go_jose_go_jose_v4//:go-jose",
     ],
@@ -39,6 +40,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/modes",
         "//pkg/privateactionrunner/libs/par",

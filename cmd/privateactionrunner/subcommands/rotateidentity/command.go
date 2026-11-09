@@ -21,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -72,15 +71,11 @@ func run(logger log.Component, cfg config.Component, hostnameComp hostname.Compo
 		return fmt.Errorf("failed to persist new identity: %w", err)
 	}
 
-	// nil metrics client: identity rotation emits no metrics.
-	parCfg, err := parconfig.FromDDConfig(cfg, nil)
-	if err != nil {
-		logger.Warnf("Identity rotated, but failed to load runner config for auto-connection: %v", err)
-	} else if urnParts, err := parutil.ParseRunnerURN(result.URN); err != nil {
+	if urnParts, err := parutil.ParseRunnerURN(result.URN); err != nil {
 		logger.Warnf("Identity rotated, but failed to parse URN for auto-connection: %v", err)
 	} else {
 		autoconnections.CreateConnectionsIfEnabled(
-			ctx, cfg, parCfg,
+			ctx, cfg,
 			cfg.GetString("api_key"), cfg.GetString("app_key"), urnParts.RunnerID,
 			result, autoconnections.NewBasicTagsProvider(),
 		)

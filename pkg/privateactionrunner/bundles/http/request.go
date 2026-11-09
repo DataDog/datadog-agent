@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/httpclient"
@@ -23,8 +22,7 @@ import (
 )
 
 type Handler struct {
-	allowIMDSEndpoints bool
-	httpTimeout        time.Duration
+	config             config.Config
 	httpClientProvider httpclient.Provider
 }
 
@@ -33,10 +31,9 @@ func (h *Handler) WithHttpClientProvider(httpClientProvider httpclient.Provider)
 	return h
 }
 
-func NewHttpRequestAction(cfg *config.Config) *Handler {
+func NewHttpRequestAction(cfg config.Config) *Handler {
 	return &Handler{
-		allowIMDSEndpoints: cfg.AllowIMDSEndpoint,
-		httpTimeout:        cfg.HTTPTimeout,
+		config:             cfg,
 		httpClientProvider: httpclient.NewDefaultProvider(cfg),
 	}
 }
@@ -166,8 +163,7 @@ func (h *Handler) Run(
 	}
 	// MAKE REQUEST
 	client, err := h.httpClientProvider.NewClient(&httpclient.RunnerHttpClientConfig{
-		AllowIMDSEndpoints: h.allowIMDSEndpoints,
-		HTTPTimeout:        h.httpTimeout,
+		AllowIMDSEndpoints: h.config.HTTPAllowIMDSEndpoint(),
 		Transport: &httpclient.RunnerHttpTransportConfig{
 			InsecureSkipVerify: boolValueOrDefault(inputs.AllowExpiredCertificate, false),
 		},

@@ -14,7 +14,7 @@ type Jenkins struct {
 	actions map[string]types.Action
 }
 
-func NewJenkins(runnerConfig *config.Config) *Jenkins {
+func NewJenkins(runnerConfig config.Config) *Jenkins {
 	return &Jenkins{
 		actions: map[string]types.Action{
 			"buildJenkinsJob":  NewBuildJobHandler(runnerConfig),

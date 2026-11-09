@@ -13,7 +13,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"runtime"
 	"slices"
 	"strconv"
@@ -35,6 +34,7 @@ import (
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -152,30 +152,32 @@ type Client interface {
 }
 
 type client struct {
-	config     *config.Config
+	config     config.Config
+	identity   *config.Identity
 	httpClient *http.Client
 
 	runnerStartedAt    time.Time
 	lastTaskReceivedAt atomic.Pointer[time.Time]
 }
 
-func NewClient(coreCfg model.Reader, cfg *config.Config) Client {
+func NewClient(coreCfg model.Reader, identity *config.Identity) Client {
 	return &client{
 		httpClient: &http.Client{
-			Timeout:   time.Duration(cfg.OpmsRequestTimeout) * time.Millisecond,
+			Timeout:   30 * time.Second,
 			Transport: httputils.CreateHTTPTransport(coreCfg),
 		},
-		config:          cfg,
+		config:          config.New(coreCfg),
+		identity:        identity,
 		runnerStartedAt: time.Now().UTC(),
 	}
 }
 
-func (c *client) endpointURL(path string) string {
-	return EndpointURL(c.config, path)
-}
-
-func EndpointURL(cfg *config.Config, path string) string {
-	return strings.TrimSuffix(cfg.APIBaseURL, "/") + path
+func EndpointURL(cfg config.Config, path string) (string, error) {
+	endpoint, err := cfg.APIBaseURL()
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSuffix(endpoint, "/") + path, nil
 }
 
 func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, error) {
@@ -184,7 +186,7 @@ func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, e
 		return nil, 0, fmt.Errorf("error building dequeue request body: %w", err)
 	}
 
-	body, headers, err := c.makeRequest(ctx, http.MethodPost, c.endpointURL(dequeuePath), bytes.NewReader(reqBody), nil, http.StatusOK)
+	body, headers, err := c.makeRequest(ctx, http.MethodPost, dequeuePath, bytes.NewReader(reqBody), nil, http.StatusOK)
 	retryAfter := parseRetryAfterMs(headers)
 	if err != nil {
 		return nil, retryAfter, fmt.Errorf("error making request to dequeue task: %w", err)
@@ -255,7 +257,7 @@ func (c *client) PublishSuccess(
 		},
 	}
 
-	if _, err = c.makeTaskUpdateRequest(ctx, http.MethodPost, c.endpointURL(taskUpdatePath), request); err != nil {
+	if _, err = c.makeTaskUpdateRequest(ctx, http.MethodPost, taskUpdatePath, request); err != nil {
 		return fmt.Errorf("error updating success task status: %w", err)
 	}
 
@@ -287,7 +289,7 @@ func (c *client) PublishFailure(
 		},
 	}
 
-	if _, err := c.makeTaskUpdateRequest(ctx, http.MethodPost, c.endpointURL(taskUpdatePath), request); err != nil {
+	if _, err := c.makeTaskUpdateRequest(ctx, http.MethodPost, taskUpdatePath, request); err != nil {
 		return fmt.Errorf("error updating success task status: %w", err)
 	}
 
@@ -353,9 +355,7 @@ func createHealthCheckData(headers http.Header) *HealthCheckData {
 }
 
 func (c *client) HealthCheck(ctx context.Context) (*HealthCheckData, error) {
-	u, _ := url.Parse(c.endpointURL(healthCheckPath))
-
-	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, u.String(), nil, nil, http.StatusOK)
+	_, resHeaders, err := c.makeRequest(ctx, http.MethodGet, healthCheckPath, nil, nil, http.StatusOK)
 	if err != nil {
 		response := createHealthCheckData(resHeaders)
 		return response, fmt.Errorf("error making request to health check endpoint: %w", err)
@@ -377,7 +377,7 @@ func (c *client) Heartbeat(ctx context.Context, client actionsclientpb.Client, t
 		},
 	}
 
-	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, c.endpointURL(heartbeat), request); err != nil {
+	if _, err := c.makeHeartbeatRequest(ctx, http.MethodPost, heartbeat, request); err != nil {
 		var httpErr *HTTPError
 		if errors.As(err, &httpErr) && httpErr.StatusCode == http.StatusNotFound {
 			return fmt.Errorf("%w: %v", ErrJobNotFound, err)
@@ -422,26 +422,30 @@ func (c *client) makeRequest(
 	extraJwtClaims map[string]any,
 	expectedStatusCodes ...int,
 ) ([]byte, http.Header, error) {
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	endpoint, err := EndpointURL(c.config, url)
+	if err != nil {
+		return nil, nil, err
+	}
+	req, err := http.NewRequestWithContext(ctx, method, endpoint, body)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error creating HTTP request: %w", err)
 	}
 
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", "application/json")
-	signedJWT, err := util.GeneratePARJWT(c.config.OrgId, c.config.RunnerId, c.config.PrivateKey, extraJwtClaims)
+	signedJWT, err := util.GeneratePARJWT(c.identity.OrgId, c.identity.RunnerId, c.identity.PrivateKey, extraJwtClaims)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error signing JWT for request: %w", err)
 	}
 	req.Header.Set(app.JwtHeaderName, signedJWT)
-	req.Header.Set(app.VersionHeaderName, c.config.Version)
-	modesStr := modes.ToStrings(c.config.Modes)
+	req.Header.Set(app.VersionHeaderName, version.AgentVersion)
+	modesStr := modes.ToStrings([]modes.Mode{modes.ModePull})
 	req.Header.Set(app.ModeHeaderName, strings.Join(modesStr, ","))
 	req.Header.Set(app.PlatformHeaderName, runtime.GOOS)
 	req.Header.Set(app.ArchitectureHeaderName, runtime.GOARCH)
 	req.Header.Set(app.FlavorHeaderName, flavor.GetFlavor())
 	req.Header.Set(app.ContainerizedHeaderName, strconv.FormatBool(env.IsContainerized()))
-	for k, v := range c.config.OpmsExtraHeaders {
+	for k, v := range c.config.OPMSExtraHeaders() {
 		req.Header.Set(k, v)
 	}
 	res, err := c.httpClient.Do(req)

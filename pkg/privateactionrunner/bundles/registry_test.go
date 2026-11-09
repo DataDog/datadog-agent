@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
@@ -97,7 +98,7 @@ func TestRegistryGetBundle(t *testing.T) {
 
 func TestNewRegistryWiresAuthoredScriptCatalog(t *testing.T) {
 	rcClient := &testRCClient{}
-	registry, err := NewRegistry(&config.Config{AgentHTTPClient: http.DefaultClient}, rcClient, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry, err := NewRegistry(parconfig.New(coreconfig.NewMock(t)), http.DefaultClient, rcClient, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, rcClient.handler)
 

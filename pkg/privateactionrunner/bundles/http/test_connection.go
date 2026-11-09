@@ -20,7 +20,7 @@ type TestConnectionHandler struct {
 	httpHandler *Handler
 }
 
-func NewTestConnectionHandler(cfg *config.Config) *TestConnectionHandler {
+func NewTestConnectionHandler(cfg config.Config) *TestConnectionHandler {
 	return &TestConnectionHandler{
 		httpHandler: NewHttpRequestAction(cfg),
 	}

@@ -17,13 +17,13 @@ import (
 	"testing/synctest"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -109,8 +109,7 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 		// Use the real workflow wait group: Stop must wait for an in-flight poll.
 		// CommonRunner.Stop only cancels its loop; it does not wait for it.
 		cfg := coreconfig.NewMock(t)
-		runnerConfig, err := parconfig.FromDDConfig(cfg, nil)
-		require.NoError(t, err)
+		var err error
 		pollStarted := make(chan struct{})
 		markPollStarted := sync.OnceFunc(func() { close(pollStarted) })
 		opmsClient := &testopms.FakeOpmsClient{
@@ -120,7 +119,7 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 				return nil, 0, nil
 			},
 		}
-		runner.workflowRunner, err = runners.NewWorkflowRunner(runnerConfig, cfg, telemetryTestRCClient{}, telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil, nil, nil)
+		runner.workflowRunner, err = runners.NewWorkflowRunner(cfg, &statsd.NoOpClient{}, telemetryTestRCClient{}, telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		require.NoError(t, runner.workflowRunner.Start(context.Background()))
 		<-pollStarted

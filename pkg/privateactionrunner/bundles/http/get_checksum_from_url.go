@@ -42,7 +42,7 @@ type GetChecksumFromURLOutputs struct {
 	Checksum string `json:"checksum"`
 }
 
-func NewGetChecksumFromURLHandler(runnerConfig *config.Config) types.Action {
+func NewGetChecksumFromURLHandler(runnerConfig config.Config) types.Action {
 	return &GetChecksumFromURLHandler{
 		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig),
 	}

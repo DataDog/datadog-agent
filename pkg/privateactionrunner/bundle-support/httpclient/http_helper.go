@@ -9,6 +9,10 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
+	"strings"
+
+	"github.com/gobwas/glob"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -26,7 +30,7 @@ type Provider interface {
 }
 
 type defaultHTTPClientProvider struct {
-	runnerConfig        *config.Config
+	runnerConfig        config.Config
 	enforceURLAllowlist bool
 }
 
@@ -40,7 +44,7 @@ func WithURLAllowlistDisabled() ProviderOption {
 	}
 }
 
-func NewDefaultProvider(runnerConfig *config.Config, opts ...ProviderOption) Provider {
+func NewDefaultProvider(runnerConfig config.Config, opts ...ProviderOption) Provider {
 	p := &defaultHTTPClientProvider{
 		runnerConfig:        runnerConfig,
 		enforceURLAllowlist: true,
@@ -59,17 +63,16 @@ func (d defaultHTTPClientProvider) wrapClient(client HTTPClient) HTTPClient {
 }
 
 func (d defaultHTTPClientProvider) NewDefaultClient() (HTTPClient, error) {
-	client, err := NewRunnerHttpClient(&RunnerHttpClientConfig{
-		HTTPTimeout: d.runnerConfig.HTTPTimeout,
-	})
-	if err != nil {
-		return nil, util.DefaultActionErrorWithDisplayError(fmt.Errorf("error creating HTTP client: %w", err), "Failed to create HTTP client")
-	}
-	return d.wrapClient(client), nil
+	return d.NewClient(&RunnerHttpClientConfig{})
 }
 
 func (d defaultHTTPClientProvider) NewClient(clientConfig *RunnerHttpClientConfig) (HTTPClient, error) {
-	client, err := NewRunnerHttpClient(clientConfig)
+	// Zero selects the runner timeout, with the existing 30-second fallback.
+	effective := *clientConfig
+	if effective.HTTPTimeout == 0 {
+		effective.HTTPTimeout = d.runnerConfig.HTTPTimeout()
+	}
+	client, err := NewRunnerHttpClient(&effective)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(fmt.Errorf("error creating HTTP client: %w", err), "Failed to create HTTP client")
 	}
@@ -79,12 +82,30 @@ func (d defaultHTTPClientProvider) NewClient(clientConfig *RunnerHttpClientConfi
 // urlAllowlistClient wraps an HTTPClient to enforce the URL allowlist before making requests.
 type urlAllowlistClient struct {
 	inner  HTTPClient
-	config *config.Config
+	config config.Config
 }
 
 func (c *urlAllowlistClient) Do(req *http.Request) (*http.Response, error) {
-	if !c.config.IsURLInAllowlist(req.URL.String()) {
+	if !isURLAllowed(c.config.HTTPAllowlist(), req.URL) {
 		return nil, util.DefaultActionError(errors.New("request url is not allowed by runner policy: check your configuration file"))
 	}
 	return c.inner.Do(req)
+}
+
+func isURLAllowed(allowlist []string, target *url.URL) bool {
+	if allowlist == nil {
+		return true
+	}
+	hostname := strings.ToLower(target.Hostname())
+	for _, pattern := range allowlist {
+		pattern = strings.ToLower(pattern)
+		if pattern == hostname {
+			return true
+		}
+		matcher, err := glob.Compile(pattern)
+		if err == nil && matcher.Match(hostname) {
+			return true
+		}
+	}
+	return false
 }

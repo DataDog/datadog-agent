@@ -11,6 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -18,8 +21,7 @@ import (
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -31,20 +33,23 @@ import (
 )
 
 type WorkflowRunner struct {
-	config          *config.Config
-	opmsClient      opms.Client
-	keysManager     taskverifier.KeysManager
-	taskExecutor    *WorkflowTaskExecutor
-	encryptionStore *encryptioncontext.Store
-	sem             chan struct{}
-	shutdownChannel chan struct{}
-	wg              sync.WaitGroup
-	started         bool
+	metricsClient     statsd.ClientInterface
+	loopInterval      time.Duration
+	heartbeatInterval time.Duration
+	maxAttempts       int32
+	opmsClient        opms.Client
+	keysManager       taskverifier.KeysManager
+	taskExecutor      *WorkflowTaskExecutor
+	encryptionStore   *encryptioncontext.Store
+	sem               chan struct{}
+	shutdownChannel   chan struct{}
+	wg                sync.WaitGroup
+	started           bool
 }
 
 func NewWorkflowRunner(
-	configuration *config.Config,
-	coreConfig model.Reader,
+	coreConfig config.Component,
+	metricsClient statsd.ClientInterface,
 	rcClient rcclient.Client,
 	keysManager taskverifier.KeysManager,
 	verifier taskverifier.TaskVerifier,
@@ -58,19 +63,22 @@ func NewWorkflowRunner(
 	ka kubeactions.Component,
 ) (*WorkflowRunner, error) {
 	encryptionStore := encryptioncontext.NewStore()
-	taskExecutor, err := NewWorkflowTaskExecutor(configuration, coreConfig, rcClient, verifier, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
+	taskExecutor, err := NewWorkflowTaskExecutor(coreConfig, metricsClient, rcClient, verifier, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
 	if err != nil {
 		return nil, err
 	}
 
 	return &WorkflowRunner{
-		config:          configuration,
-		opmsClient:      opmsClient,
-		keysManager:     keysManager,
-		taskExecutor:    taskExecutor,
-		encryptionStore: encryptionStore,
-		sem:             make(chan struct{}, configuration.RunnerPoolSize), // todo: we may consider moving to the semaphore before release.
-		shutdownChannel: make(chan struct{}),
+		metricsClient:     metricsClient,
+		loopInterval:      time.Second,
+		heartbeatInterval: 20 * time.Second,
+		maxAttempts:       20,
+		opmsClient:        opmsClient,
+		keysManager:       keysManager,
+		taskExecutor:      taskExecutor,
+		encryptionStore:   encryptionStore,
+		sem:               make(chan struct{}, parconfig.New(coreConfig).TaskConcurrency()), // todo: we may consider moving to the semaphore before release.
+		shutdownChannel:   make(chan struct{}),
 	}, nil
 }
 
@@ -87,7 +95,7 @@ func (n *WorkflowRunner) Start(ctx context.Context) error {
 	go func() {
 		log.FromContext(ctx).Info("Waiting for KeysManager to be ready")
 		n.keysManager.WaitForReady()
-		observability.ReportKeysManagerReady(n.config.MetricsClient, log.FromContext(ctx), startTime)
+		observability.ReportKeysManagerReady(n.metricsClient, log.FromContext(ctx), startTime)
 		n.run(ctx)
 	}()
 	return nil
@@ -128,10 +136,10 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 
 	breaker := util.NewCircuitBreaker(
 		"wf-par-polling",
-		n.config.MinBackoff,
-		n.config.MaxBackoff,
-		n.config.WaitBeforeRetry,
-		n.config.MaxAttempts,
+		time.Second,
+		3*time.Minute,
+		5*time.Minute,
+		n.maxAttempts,
 	)
 
 	for {
@@ -160,7 +168,7 @@ func (n *WorkflowRunner) run(parentCtx context.Context) {
 		)
 
 		if task == nil {
-			sleepDuration := n.config.LoopInterval
+			sleepDuration := n.loopInterval
 			if retryAfterDuration > 0 {
 				sleepDuration = retryAfterDuration
 			}
@@ -214,7 +222,7 @@ func (n *WorkflowRunner) handleTask(ctx context.Context, preparedTask *PreparedW
 }
 
 func (n *WorkflowRunner) startHeartbeat(ctx context.Context, task *types.Task, logger log.Logger) {
-	ticker := time.NewTicker(n.config.HeartbeatInterval)
+	ticker := time.NewTicker(n.heartbeatInterval)
 	defer ticker.Stop()
 
 	for {

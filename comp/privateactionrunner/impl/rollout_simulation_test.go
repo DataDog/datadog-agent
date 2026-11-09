@@ -21,7 +21,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes/fake"
 
@@ -73,7 +72,7 @@ func (l *rolloutLeader) becomeLeader() {
 }
 
 type rolloutResult struct {
-	cfg *parconfig.Config
+	cfg *parconfig.Identity
 	err error
 }
 
@@ -87,7 +86,7 @@ type rolloutReplica struct {
 func (r *rolloutReplica) start() <-chan rolloutResult {
 	ch := make(chan rolloutResult, 1)
 	go func() {
-		cfg, err := r.runner.getRunnerConfig(r.ctx)
+		cfg, err := r.runner.getRunnerIdentity(r.ctx)
 		ch <- rolloutResult{cfg, err}
 	}()
 	return ch

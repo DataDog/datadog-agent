@@ -15,9 +15,11 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -98,8 +100,11 @@ func TestWorkflowTaskExecutorPrepareTaskPreservesDequeueMetadataAndResolvesCrede
 	verifier := &fakeTaskVerifier{unwrappedTask: unwrappedTask}
 	credentialResolver := &fakeCredentialResolver{credential: credential}
 	executor := &WorkflowTaskExecutor{
-		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
-		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+		config: parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+			"private_action_runner.default_actions_enabled": false,
+			"private_action_runner.actions_allowlist":       []string{"signed-bundle.signed-action"},
+		})),
 		taskVerifier: verifier,
 		resolver:     credentialResolver,
 	}
@@ -145,8 +150,11 @@ func TestWorkflowTaskExecutorPrepareTaskReturnsUnwrappedTaskWhenCredentialResolu
 	unwrappedTask := newWorkflowTask("signed-task", "signed-bundle", "signed-action", "")
 	verifier := &fakeTaskVerifier{unwrappedTask: unwrappedTask}
 	executor := &WorkflowTaskExecutor{
-		registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
-		config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"signed-bundle": sets.New("signed-action")}},
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{"signed-bundle": &fakeBundle{action: &recordingAction{}}}},
+		config: parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+			"private_action_runner.default_actions_enabled": false,
+			"private_action_runner.actions_allowlist":       []string{"signed-bundle.signed-action"},
+		})),
 		taskVerifier: verifier,
 		resolver:     &fakeCredentialResolver{err: resolveErr},
 	}
@@ -167,14 +175,15 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 		actionName = "echo"
 	)
 	action := &recordingAction{}
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"private_action_runner.default_actions_enabled": false,
+		"private_action_runner.actions_allowlist":       []string{},
+	})
 	executor := &WorkflowTaskExecutor{
 		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
 			bundleID: &fakeBundle{action: action},
 		}},
-		config: &config.Config{
-			ActionsAllowlist: map[string]sets.Set[string]{},
-			MetricsClient:    &statsd.NoOpClient{},
-		},
+		config: parconfig.New(cfg), metricsClient: &statsd.NoOpClient{},
 	}
 	task := newWorkflowTask("task-id", bundleID, actionName, "job-id")
 	prepared := &PreparedWorkflowTask{Task: task}
@@ -183,7 +192,7 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 	require.ErrorContains(t, err, "not allowlisted")
 	assert.False(t, action.called)
 
-	executor.config.ActionsAllowlist[bundleID] = sets.New(actionName)
+	cfg.Set(par.ActionsAllowlist, []string{bundleID + "." + actionName}, model.SourceAgentRuntime)
 	output, err := executor.RunTask(context.Background(), prepared)
 	require.NoError(t, err)
 	assert.Equal(t, "executed", output)
@@ -224,10 +233,10 @@ func TestWorkflowTaskExecutorRoutesNativeExecutionFQN(t *testing.T) {
 				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
 					publicBundle: nativeBundle,
 				}},
-				config: &config.Config{
-					ActionsAllowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
-					MetricsClient:    &statsd.NoOpClient{},
-				},
+				config: parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+					"private_action_runner.default_actions_enabled": false,
+					"private_action_runner.actions_allowlist":       []string{publicBundle + "." + actionName},
+				})), metricsClient: &statsd.NoOpClient{},
 			}
 			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
 			task.Data.Attributes.ExecutionFQN = tt.executionFQN
@@ -260,16 +269,16 @@ func TestWorkflowTaskExecutorRoutesNewPublicActionToAuthoredScript(t *testing.T)
 
 	tests := []struct {
 		name      string
-		allowlist map[string]sets.Set[string]
+		allowlist []string
 		wantError string
 	}{
 		{
 			name:      "public FQN is allowlisted",
-			allowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+			allowlist: []string{publicBundle + "." + actionName},
 		},
 		{
 			name:      "execution FQN cannot authorize public action",
-			allowlist: map[string]sets.Set[string]{scriptBundle + ".hosts": sets.New(actionName)},
+			allowlist: []string{scriptBundle + ".hosts." + actionName},
 			wantError: "not allowlisted",
 		},
 	}
@@ -285,10 +294,10 @@ func TestWorkflowTaskExecutorRoutesNewPublicActionToAuthoredScript(t *testing.T)
 			require.Nil(t, registry.GetBundle(publicBundle))
 			executor := &WorkflowTaskExecutor{
 				registry: registry,
-				config: &config.Config{
-					ActionsAllowlist: tt.allowlist,
-					MetricsClient:    &statsd.NoOpClient{},
-				},
+				config: parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+					"private_action_runner.default_actions_enabled": false,
+					"private_action_runner.actions_allowlist":       tt.allowlist,
+				})), metricsClient: &statsd.NoOpClient{},
 			}
 			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
 			task.Data.Attributes.ExecutionFQN = executionFQN
@@ -330,10 +339,7 @@ func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 		},
 	}
 	runner := &WorkflowRunner{
-		config: &config.Config{
-			LoopInterval: time.Hour,
-			MaxAttempts:  1,
-		},
+		loopInterval: time.Hour, maxAttempts: 1,
 		opmsClient:      opmsClient,
 		taskExecutor:    &WorkflowTaskExecutor{taskVerifier: &fakeTaskVerifier{err: verifyErr}},
 		sem:             make(chan struct{}, 1),
@@ -359,7 +365,7 @@ func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 
 func TestWorkflowRunner_StartHeartbeat_StopsOnJobNotFound(t *testing.T) {
 	runner := &WorkflowRunner{
-		config: &config.Config{HeartbeatInterval: 10 * time.Millisecond},
+		heartbeatInterval: 10 * time.Millisecond,
 		opmsClient: &testopms.FakeOpmsClient{
 			HeartbeatFn: func(_ context.Context, _ actionsclientpb.Client, _, _, _ string) error {
 				return opms.ErrJobNotFound
@@ -406,14 +412,18 @@ func TestPrepareTaskRejectsActionBeforeResolvingCredentials(t *testing.T) {
 		t.Run(test.name, func(t *testing.T) {
 			credentialResolver := &fakeCredentialResolver{}
 			unwrapped := newWorkflowTask("signed-task", "com.datadoghq.mongodb", "find", "")
+			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+				"private_action_runner.default_actions_enabled": false,
+				"private_action_runner.actions_allowlist":       []string{"com.datadoghq.http.sendRequest"},
+			})
 			executor := &WorkflowTaskExecutor{
 				registry:     &privatebundles.Registry{Bundles: map[string]types.Bundle{"com.datadoghq.mongodb": test.bundle}},
-				config:       &config.Config{ActionsAllowlist: map[string]sets.Set[string]{"com.datadoghq.http": sets.New("sendRequest")}},
+				config:       parconfig.New(cfg),
 				taskVerifier: &fakeTaskVerifier{unwrappedTask: unwrapped},
 				resolver:     credentialResolver,
 			}
 			if test.allowed {
-				executor.config.ActionsAllowlist["com.datadoghq.mongodb"] = sets.New("find")
+				cfg.Set(par.ActionsAllowlist, []string{"com.datadoghq.mongodb.find"}, model.SourceAgentRuntime)
 			}
 			prepared, failureTask, err := executor.PrepareTask(context.Background(), newWorkflowTask("wrapper", "com.datadoghq.http", "sendRequest", "job-id"))
 			require.ErrorContains(t, err, test.wantError)
@@ -449,7 +459,10 @@ func TestWorkflowTaskExecutorExecutionReporting(t *testing.T) {
 	}}
 	executor := &WorkflowTaskExecutor{
 		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{bundleID: &fakeBundle{action: action}}},
-		config:   &config.Config{ActionsAllowlist: map[string]sets.Set[string]{bundleID: sets.New("test")}, MetricsClient: &statsd.NoOpClient{}},
+		config: parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+			"private_action_runner.default_actions_enabled": false,
+			"private_action_runner.actions_allowlist":       []string{bundleID + "." + "test"},
+		})), metricsClient: &statsd.NoOpClient{},
 	}
 	logger := &executionLogger{}
 	task := newWorkflowTask("task-id", bundleID, "test", "job-id")
@@ -465,24 +478,23 @@ func TestWorkflowTaskExecutorRunPreparedUsesConfiguredTimeout(t *testing.T) {
 		bundleID   = "test-bundle"
 		actionName = "test-action"
 	)
-	int32Ptr := func(v int32) *int32 { return &v }
 
 	tests := []struct {
 		name          string
-		configTimeout *int32
+		configTimeout int32
 		taskTimeout   interface{}
 		wantTimeout   time.Duration
 		wantDeadline  bool
 	}{
-		{name: "task timeout above config is capped", configTimeout: int32Ptr(60), taskTimeout: float64(86400), wantTimeout: 60 * time.Second, wantDeadline: true},
-		{name: "task timeout at int32 max is capped", configTimeout: int32Ptr(60), taskTimeout: float64(math.MaxInt32), wantTimeout: 60 * time.Second, wantDeadline: true},
-		{name: "shorter input timeout belongs to the action", configTimeout: int32Ptr(60), taskTimeout: float64(5), wantTimeout: 60 * time.Second, wantDeadline: true},
-		{name: "task timeout equal to config is kept", configTimeout: int32Ptr(60), taskTimeout: float64(60), wantTimeout: 60 * time.Second, wantDeadline: true},
-		{name: "missing task timeout uses config", configTimeout: int32Ptr(60), wantTimeout: 60 * time.Second, wantDeadline: true},
-		{name: "invalid task timeout uses config", configTimeout: int32Ptr(60), taskTimeout: "86400", wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "task timeout above config is capped", configTimeout: 60, taskTimeout: float64(86400), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "task timeout at int32 max is capped", configTimeout: 60, taskTimeout: float64(math.MaxInt32), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "shorter input timeout belongs to the action", configTimeout: 60, taskTimeout: float64(5), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "task timeout equal to config is kept", configTimeout: 60, taskTimeout: float64(60), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "missing task timeout uses config", configTimeout: 60, wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "invalid task timeout uses config", configTimeout: 60, taskTimeout: "86400", wantTimeout: 60 * time.Second, wantDeadline: true},
 		{name: "unset config adds no deadline", taskTimeout: float64(120)},
-		{name: "negative config adds no deadline", configTimeout: int32Ptr(-1), taskTimeout: float64(120)},
-		{name: "zero config adds no deadline", configTimeout: int32Ptr(0), taskTimeout: float64(120)},
+		{name: "negative config adds no deadline", configTimeout: -1, taskTimeout: float64(120)},
+		{name: "zero config adds no deadline", configTimeout: 0, taskTimeout: float64(120)},
 		{name: "unset config and task timeout has no deadline"},
 	}
 
@@ -497,11 +509,11 @@ func TestWorkflowTaskExecutorRunPreparedUsesConfiguredTimeout(t *testing.T) {
 				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
 					bundleID: &fakeBundle{action: action},
 				}},
-				config: &config.Config{
-					ActionsAllowlist:   map[string]sets.Set[string]{bundleID: sets.New(actionName)},
-					MetricsClient:      &statsd.NoOpClient{},
-					TaskTimeoutSeconds: tc.configTimeout,
-				},
+				config: parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+					"private_action_runner.default_actions_enabled": false,
+					"private_action_runner.actions_allowlist":       []string{bundleID + "." + actionName},
+					"private_action_runner.task_timeout_seconds":    tc.configTimeout,
+				})), metricsClient: &statsd.NoOpClient{},
 			}
 			task := newWorkflowTask("task-id", bundleID, actionName, "job-id")
 			if tc.taskTimeout != nil {

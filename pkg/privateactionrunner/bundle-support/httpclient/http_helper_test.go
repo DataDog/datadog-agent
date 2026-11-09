@@ -14,7 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 func TestURLAllowlistClient(t *testing.T) {
@@ -64,9 +65,9 @@ func TestURLAllowlistClient(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			cfg := &config.Config{Allowlist: tt.allowlist}
+			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.http_allowlist": tt.allowlist})
 			inner := &fakeHTTPClient{response: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}}
-			client := &urlAllowlistClient{inner: inner, config: cfg}
+			client := &urlAllowlistClient{inner: inner, config: parconfig.New(cfg)}
 
 			req, _ := http.NewRequest("GET", tt.requestURL, nil)
 			resp, err := client.Do(req)
@@ -89,8 +90,8 @@ func TestURLAllowlistClient(t *testing.T) {
 }
 
 func TestNewDefaultProvider_EnforcesAllowlistByDefault(t *testing.T) {
-	cfg := &config.Config{Allowlist: []string{"allowed.example.com"}}
-	provider := NewDefaultProvider(cfg)
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.http_allowlist": []string{"allowed.example.com"}})
+	provider := NewDefaultProvider(parconfig.New(cfg))
 
 	client, err := provider.NewDefaultClient()
 	require.NoError(t, err)
@@ -100,8 +101,8 @@ func TestNewDefaultProvider_EnforcesAllowlistByDefault(t *testing.T) {
 }
 
 func TestNewDefaultProvider_WithURLAllowlistDisabled(t *testing.T) {
-	cfg := &config.Config{Allowlist: []string{"allowed.example.com"}}
-	provider := NewDefaultProvider(cfg, WithURLAllowlistDisabled())
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.http_allowlist": []string{"allowed.example.com"}})
+	provider := NewDefaultProvider(parconfig.New(cfg), WithURLAllowlistDisabled())
 
 	client, err := provider.NewDefaultClient()
 	require.NoError(t, err)
@@ -118,4 +119,20 @@ type fakeHTTPClient struct {
 func (f *fakeHTTPClient) Do(_ *http.Request) (*http.Response, error) {
 	f.called = true
 	return f.response, nil
+}
+
+func TestExistingClientReadsUpdatedAllowlist(t *testing.T) {
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.http_allowlist": []string{"allowed.example.com"}})
+	inner := &fakeHTTPClient{response: &http.Response{StatusCode: 200, Body: io.NopCloser(strings.NewReader(""))}}
+	client := &urlAllowlistClient{inner: inner, config: parconfig.New(cfg)}
+	req, err := http.NewRequest(http.MethodGet, "https://allowed.example.com", nil)
+	require.NoError(t, err)
+	resp, err := client.Do(req)
+	require.NoError(t, err)
+	require.NoError(t, resp.Body.Close())
+	cfg.SetInTest("private_action_runner.http_allowlist", []string{})
+	inner.called = false
+	_, err = client.Do(req)
+	require.ErrorContains(t, err, "request url is not allowed")
+	require.False(t, inner.called)
 }

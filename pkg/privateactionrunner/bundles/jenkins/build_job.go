@@ -27,7 +27,7 @@ func (h *BuildJobHandler) WithHttpClientProvider(httpClientProvider httpclient.P
 	return h
 }
 
-func NewBuildJobHandler(runnerConfig *config.Config) *BuildJobHandler {
+func NewBuildJobHandler(runnerConfig config.Config) *BuildJobHandler {
 	return &BuildJobHandler{
 		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig, httpclient.WithURLAllowlistDisabled()),
 	}

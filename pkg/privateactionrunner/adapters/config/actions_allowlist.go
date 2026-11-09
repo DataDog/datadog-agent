@@ -5,29 +5,119 @@
 
 package config
 
-import "time"
+import (
+	"slices"
+	"strings"
 
-const (
-	maxBackoff                   = 3 * time.Minute
-	minBackoff                   = 1 * time.Second
-	maxAttempts                  = 20
-	waitBeforeRetry              = 5 * time.Minute
-	loopInterval                 = 1 * time.Second
-	opmsRequestTimeout           = 30_000
-	defaultHealthCheckEndpoint   = "/healthz"
-	healthCheckInterval          = 30_000
-	defaultHTTPServerReadTimeout = 10_000
-	// defaultHTTPServerWriteTimeout defines how long a request is allowed to run for after the HTTP connection is established. If actions are timing out often, `httpServerWriteTimeout` can be adjusted in config.yaml to override this value. See the Golang docs under `WriteTimeout` for more information about how the server uses this value - https://pkg.go.dev/net/http#Server
-	defaultHTTPServerWriteTimeout = 60_000
-	runnerAccessTokenHeader       = "X-Datadog-Apps-On-Prem-Runner-Access-Token"
-	runnerAccessTokenIDHeader     = "X-Datadog-Apps-On-Prem-Runner-Access-Token-ID"
-	defaultPort                   = 9016
-	defaultJwtRefreshInterval     = 15 * time.Second
-	heartbeatInterval             = 20 * time.Second
-	defaultHTTPClientTimeout      = 30 * time.Second
-	// rshell commands belong to a namespace, currently only "rshell:" is supported.
-	RshellCommandNamespacePrefix = "rshell:"
+	"k8s.io/apimachinery/pkg/util/sets"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
+
+// ActionsAllowlist maps bundle IDs to allowed action names, including wildcards.
+type ActionsAllowlist map[string]sets.Set[string]
+
+// IsActionAllowed matches exact actions and integration/sub-bundle wildcards.
+func (a ActionsAllowlist) IsActionAllowed(bundleId, actionName string) bool {
+	if a[bundleId].Has(actionName) {
+		return true
+	}
+
+	// Wildcards may cover an integration and its sub-bundles, but must never
+	// enable the entire com.datadoghq namespace.
+	if !strings.HasPrefix(bundleId, "com.datadoghq.") {
+		return false
+	}
+	parts := strings.Split(bundleId, ".")
+	for _, part := range parts {
+		if part == "" || strings.Contains(part, "*") {
+			return false
+		}
+	}
+	for len(parts) >= 3 {
+		if a[strings.Join(parts, ".")].Has("*") {
+			return true
+		}
+		parts = parts[:len(parts)-1]
+	}
+	return false
+}
+
+// MakeActionsAllowlist combines operator rules with default and inherited actions.
+func MakeActionsAllowlist(config model.Reader) ActionsAllowlist {
+	actionFqns := slices.Clone(config.GetStringSlice(par.ActionsAllowlist))
+
+	if config.GetBool(par.DefaultActionsEnabled) {
+		if flavor.GetFlavor() == flavor.ClusterAgent {
+			actionFqns = append(actionFqns, DefaultClusterAgentActionFQNs...)
+		} else {
+			actionFqns = append(actionFqns, DefaultActionFQNs...)
+		}
+	}
+
+	// When the kubeactions subsystem is enabled and its Private Action Runner
+	// delivery path is on, auto-allow its bundle so the kubernetes-actions
+	// backend (dispatching via wf-actions-server) works without operators having
+	// to set actions_allowlist manually.
+	if config.GetBool("kubeactions.enabled") && config.GetBool("kubeactions.private_action_runner.enabled") {
+		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
+	}
+
+	allowlist := NewActionsAllowlist(actionFqns)
+	bundleInheritedActions := GetBundleInheritedAllowedActions(allowlist)
+	for bundleID, actionsSet := range bundleInheritedActions {
+		allowlist[bundleID] = allowlist[bundleID].Union(actionsSet)
+	}
+
+	return allowlist
+}
+
+// NewActionsAllowlist parses action FQNs without adding defaults or inherited actions.
+func NewActionsAllowlist(actionFqns []string) ActionsAllowlist {
+	allowlist := make(ActionsAllowlist)
+	for _, fqn := range actionFqns {
+		bundleName, actionName := actions.SplitFQN(fqn)
+		previous, ok := allowlist[bundleName]
+		if !ok {
+			previous = sets.New[string]()
+		}
+		allowlist[bundleName] = previous.Insert(actionName)
+	}
+
+	return allowlist
+}
+
+func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[string]) map[string]sets.Set[string] {
+	result := make(map[string]sets.Set[string])
+
+	for _, inheritedAction := range BundleInheritedAllowedActions {
+		actionBundleID, actionName := actions.SplitFQN(inheritedAction.ActionFQN)
+		actionBundleID = strings.ToLower(actionBundleID)
+		prefix := strings.ToLower(inheritedAction.ExpectedPrefix)
+
+		matched := false
+		for bundleID, actionsSet := range actionsAllowlist {
+			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
+			continue
+		}
+
+		if _, exists := result[actionBundleID]; !exists {
+			result[actionBundleID] = sets.New[string]()
+		}
+		result[actionBundleID].Insert(actionName)
+	}
+
+	return result
+}
 
 // BundleInheritedAllowedAction represents an action that is automatically allowed
 // if at least one other action matching the expected prefix is allowed

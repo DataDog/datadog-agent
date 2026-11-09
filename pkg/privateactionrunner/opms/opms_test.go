@@ -25,6 +25,7 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 )
@@ -46,20 +47,17 @@ func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
-		config: &config.Config{
-			APIBaseURL:         srv.URL,
-			OpmsRequestTimeout: 5000,
-			OrgId:              1,
-			RunnerId:           "test-runner",
-			PrivateKey:         newTestKey(t),
-		},
+		config:     config.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.par_dd_url": srv.URL})), identity: &config.Identity{OrgId: 1, RunnerId: "test-runner", PrivateKey: newTestKey(t)},
 		runnerStartedAt: time.Now().UTC(),
 	}
 }
 
 func TestEndpointURL(t *testing.T) {
-	client := &client{config: &config.Config{APIBaseURL: "https://api.datadoghq.com"}}
-	assert.Equal(t, "https://api.datadoghq.com/task", client.endpointURL("/task"))
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.par_dd_url": "https://api.datadoghq.com"})
+	client := &client{config: config.New(cfg)}
+	endpoint, err := EndpointURL(client.config, "/task")
+	require.NoError(t, err)
+	assert.Equal(t, "https://api.datadoghq.com/task", endpoint)
 	for _, test := range []struct {
 		name     string
 		ddHost   string
@@ -82,8 +80,10 @@ func TestEndpointURL(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			client.config.APIBaseURL = test.ddHost
-			assert.Equal(t, test.expected, client.endpointURL("/task"))
+			cfg.Set("private_action_runner.par_dd_url", test.ddHost, model.SourceAgentRuntime)
+			endpoint, err := EndpointURL(client.config, "/task")
+			require.NoError(t, err)
+			assert.Equal(t, test.expected, endpoint)
 		})
 	}
 }
@@ -260,7 +260,7 @@ func TestHealthCheckUsesPAROverride(t *testing.T) {
 		"private_action_runner.enabled":    true,
 		"remote_configuration.rc_dd_url":   "https://rc-proxy.example.com",
 	})
-	runner, err := config.FromDDConfig(cfg, nil)
+	runner, err := config.ReadIdentity(cfg)
 	require.NoError(t, err)
 	runner.PrivateKey, runner.OrgId, runner.RunnerId = newTestKey(t), 1, "test-runner"
 	_, err = NewClient(cfg, runner).HealthCheck(context.Background())
@@ -319,7 +319,7 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 func TestNewClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
-	parCfg := &config.Config{OpmsRequestTimeout: 5000}
+	parCfg := &config.Identity{}
 
 	c := NewClient(cfg, parCfg).(*client)
 
@@ -468,4 +468,28 @@ func TestHeartbeat_OtherErrorIsNotJobNotFound(t *testing.T) {
 
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, ErrJobNotFound), "500 must not be treated as job-not-found")
+}
+
+func TestClientReadsUpdatedEndpointAndHeaders(t *testing.T) {
+	requestHeaders := make(chan string, 2)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requestHeaders <- r.Header.Get("X-Test-Credential")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+	client := newTestClient(t, server)
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.par_dd_url": server.URL})
+	client.config = config.New(cfg)
+	cfg.Set("private_action_runner.opms_extra_headers", map[string]string{"X-Test-Credential": "initial"}, model.SourceAgentRuntime)
+	_, err := client.HealthCheck(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "initial", <-requestHeaders)
+	cfg.Set("private_action_runner.opms_extra_headers", map[string]string{"X-Test-Credential": "rotated"}, model.SourceAgentRuntime)
+	_, err = client.HealthCheck(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, "rotated", <-requestHeaders)
+	cfg.Set("private_action_runner.par_dd_url", "https://user:password@example.com", model.SourceAgentRuntime)
+	_, err = client.HealthCheck(context.Background())
+	require.ErrorContains(t, err, "must not contain credentials")
+	require.Empty(t, requestHeaders)
 }

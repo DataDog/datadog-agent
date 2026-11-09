@@ -7,30 +7,21 @@ package com_datadoghq_kubernetes_customresources
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilvalidation "k8s.io/apimachinery/pkg/util/validation"
 	kubernetesscheme "k8s.io/client-go/kubernetes/scheme"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 // resourcePolicy owns authorization of task-provided Kubernetes resources.
 // A nil allowlist selects backward-compatible CRD mode. A non-nil allowlist,
 // including an empty one, selects exact-match mode.
 type resourcePolicy struct {
-	allowedResources map[string]struct{}
-}
-
-func newResourcePolicy(allowedResources []string) resourcePolicy {
-	if allowedResources == nil {
-		return resourcePolicy{}
-	}
-
-	allowed := make(map[string]struct{}, len(allowedResources))
-	for _, resource := range allowedResources {
-		allowed[resource] = struct{}{}
-	}
-	return resourcePolicy{allowedResources: allowed}
+	config config.Config
 }
 
 func (p resourcePolicy) groupVersionResource(group, version, resource string) (schema.GroupVersionResource, error) {
@@ -51,8 +42,8 @@ func (p resourcePolicy) groupVersionResource(group, version, resource string) (s
 	if group != "" {
 		key = group + "/" + key
 	}
-	if p.allowedResources != nil {
-		if _, allowed := p.allowedResources[key]; !allowed {
+	if resources, configured := p.config.KubernetesAllowedCustomResources(); configured {
+		if !slices.Contains(resources, key) {
 			return schema.GroupVersionResource{}, fmt.Errorf("Kubernetes resource %q is not in private_action_runner.kubernetes_allowed_custom_resources", key)
 		}
 		return gvr, nil

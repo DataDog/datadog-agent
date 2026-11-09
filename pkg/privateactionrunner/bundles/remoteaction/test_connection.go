@@ -16,10 +16,10 @@ import (
 )
 
 type TestConnectionHandler struct {
-	cfg *config.Config
+	cfg config.Config
 }
 
-func NewTestConnectionHandler(cfg *config.Config) *TestConnectionHandler {
+func NewTestConnectionHandler(cfg config.Config) *TestConnectionHandler {
 	return &TestConnectionHandler{cfg: cfg}
 }
 
@@ -43,12 +43,16 @@ func (h *TestConnectionHandler) Run(
 	task *types.Task,
 	credentials *privateconnection.PrivateCredentials,
 ) (any, error) {
+	runnerID, err := h.cfg.RunnerID()
+	if err != nil {
+		return nil, err
+	}
 	return &TestConnectionOutputs{
 		Success: true,
 		AgentInfo: AgentInfo{
 			Version:  parversion.RunnerVersion,
 			Flavor:   flavor.GetFlavor(),
-			RunnerID: h.cfg.RunnerId,
+			RunnerID: runnerID,
 		},
 	}, nil
 }

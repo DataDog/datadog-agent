@@ -9,6 +9,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
@@ -18,18 +20,21 @@ import (
 )
 
 type CommonRunner struct {
-	opmsClient opms.Client
-	config     *config.Config
-	cancel     context.CancelFunc
+	opmsClient          opms.Client
+	metricsClient       statsd.ClientInterface
+	healthCheckInterval time.Duration
+	cancel              context.CancelFunc
 }
 
 func NewCommonRunner(
 	coreCfg model.Reader,
-	configuration *config.Config,
+	identity *config.Identity,
+	metricsClient statsd.ClientInterface,
 ) *CommonRunner {
 	return &CommonRunner{
-		opmsClient: opms.NewClient(coreCfg, configuration),
-		config:     configuration,
+		opmsClient:          opms.NewClient(coreCfg, identity),
+		metricsClient:       metricsClient,
+		healthCheckInterval: 30 * time.Second,
 	}
 }
 
@@ -52,7 +57,7 @@ func (n *CommonRunner) Stop(ctx context.Context) error {
 }
 
 func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
-	defaultInterval := time.Millisecond * time.Duration(n.config.HealthCheckInterval)
+	defaultInterval := n.healthCheckInterval
 	timer := time.NewTimer(defaultInterval)
 	defer timer.Stop()
 
@@ -66,7 +71,7 @@ func (n *CommonRunner) healthCheckLoop(ctx context.Context) {
 		case <-timer.C:
 			logger := log.FromContext(ctx)
 			healthResponse, err := n.opmsClient.HealthCheck(ctx)
-			observability.ReportHealthCheck(n.config.MetricsClient)
+			observability.ReportHealthCheck(n.metricsClient)
 			if healthResponse != nil && healthResponse.ServerTime != nil {
 				logger = logger.With(log.String("server-time", healthResponse.ServerTime.UTC().Format(time.RFC3339)))
 			}

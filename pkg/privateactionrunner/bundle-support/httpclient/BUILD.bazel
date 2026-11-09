@@ -14,6 +14,7 @@ go_library(
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/httpclient",
         "//pkg/privateactionrunner/util",
+        "@com_github_gobwas_glob//:glob",
     ],
 )
 
@@ -22,6 +23,7 @@ dd_agent_go_test(
     srcs = ["http_helper_test.go"],
     embed = [":httpclient"],
     deps = [
+        "//comp/core/config",
         "//pkg/privateactionrunner/adapters/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
