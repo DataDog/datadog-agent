@@ -830,7 +830,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 	if !opts.staticOpts.disableRuntimeSecurity {
 		msgSender := newFakeMsgSender(testMod)
 
-		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity)
+		cmdServer, err := module.NewCommandServer(secconfig.RuntimeSecurity, ipcComp)
 		if err != nil {
 			return nil, err
 		}
