@@ -742,6 +742,7 @@ func TestStartupCleanup_SiblingWithoutResources(t *testing.T) {
 			filter.SetKind("EnvoyFilter")
 			filter.SetNamespace("istio-system")
 			filter.SetName("datadog-appsec-envoyfilter")
+			filter.SetLabels(map[string]string{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue})
 			class := &unstructured.Unstructured{}
 			class.SetAPIVersion("gateway.networking.k8s.io/v1")
 			class.SetKind("GatewayClass")

@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -53,7 +54,7 @@ func newTestEnvoyGatewaySidecarPattern(t *testing.T, client dynamic.Interface, l
 			},
 		},
 		Injection: appsecconfig.Injection{
-			CommonLabels:      map[string]string{"app": "datadog"},
+			CommonLabels:      map[string]string{"app": "datadog", "app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue},
 			CommonAnnotations: map[string]string{"managed-by": "datadog"},
 		},
 	}
@@ -61,6 +62,17 @@ func newTestEnvoyGatewaySidecarPattern(t *testing.T, client dynamic.Interface, l
 	pattern, ok := New(client, logger, config, recorder).(appsecconfig.SidecarInjectionPattern)
 	require.True(t, ok)
 	return pattern
+}
+
+// seedOwningGateway creates the Gateway named by newEnvoyGatewayDataPlanePod's labels.
+func seedOwningGateway(t *testing.T, client *dynamicfake.FakeDynamicClient) {
+	t.Helper()
+	gw := &unstructured.Unstructured{}
+	gw.SetAPIVersion("gateway.networking.k8s.io/v1")
+	gw.SetKind("Gateway")
+	gw.SetNamespace("eg-ns")
+	gw.SetName("eg")
+	require.NoError(t, client.Tracker().Create(gatewayGVR, gw, "eg-ns"))
 }
 
 func newEnvoyGatewayDataPlanePod(name string) *corev1.Pod {
@@ -114,6 +126,7 @@ func TestEnvoyGatewaySidecarMutatePodHappyPath(t *testing.T) {
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	recorder := record.NewFakeRecorder(100)
 	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+	seedOwningGateway(t, client)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
 	require.True(t, pattern.IsPodEligible(pod, envoyGatewaySystemNamespace))
@@ -188,6 +201,7 @@ func TestEnvoyGatewaySidecarMutatePodRecreatesBackendWhenPolicyExists(t *testing
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds(), existingPolicy)
 	recorder := record.NewFakeRecorder(100)
 	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+	seedOwningGateway(t, client)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
 	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
@@ -204,6 +218,7 @@ func TestEnvoyGatewaySidecarMutatePodIsIdempotent(t *testing.T) {
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	recorder := record.NewFakeRecorder(100)
 	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+	seedOwningGateway(t, client)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 
 	require.True(t, pattern.IsPodEligible(pod, envoyGatewaySystemNamespace))
@@ -227,6 +242,7 @@ func TestEnvoyGatewaySidecarMutatePodFailOpenWhenEnvoyContainerMissing(t *testin
 	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
 	recorder := record.NewFakeRecorder(100)
 	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, recorder)
+	seedOwningGateway(t, client)
 	pod := newEnvoyGatewayDataPlanePod("envoy-eg")
 	pod.Spec.Containers = []corev1.Container{{Name: "shutdown-manager"}}
 
@@ -493,6 +509,7 @@ func TestEnvoyGatewaySidecarBackendCheckUsesControllerNamespace(t *testing.T) {
 		},
 	}
 	seedConfigMap(t, client, "custom-control", "extensionApis:\n  enableBackend: true\n")
+	seedOwningGateway(t, client)
 
 	pattern, ok := New(client, logger, config, recorder).(appsecconfig.SidecarInjectionPattern)
 	require.True(t, ok)
@@ -511,4 +528,24 @@ func TestEnvoyGatewaySidecarBackendCheckUsesControllerNamespace(t *testing.T) {
 			draining = false
 		}
 	}
+}
+
+func TestEnvoyGatewaySidecarMutatePodSkipsMissingGateway(t *testing.T) {
+	ctx := context.Background()
+	logger := logmock.New(t)
+	client := dynamicfake.NewSimpleDynamicClientWithCustomListKinds(runtime.NewScheme(), envoyGatewaySidecarListKinds())
+	pattern := newTestEnvoyGatewaySidecarPattern(t, client, logger, record.NewFakeRecorder(100))
+	pod := newEnvoyGatewayDataPlanePod("envoy-eg") // its owning Gateway eg-ns/eg does not exist
+
+	outcome, err := pattern.MutatePod(pod, envoyGatewaySystemNamespace, client)
+
+	assert.Equal(t, appsecconfig.MutationSkipped, outcome)
+	var skipped *appsecconfig.MutationSkippedReason
+	require.ErrorAs(t, err, &skipped)
+	assert.Equal(t, appsecconfig.SkipReasonGatewayNotFound, skipped.Reason)
+	assert.Nil(t, findContainer(pod, sidecar.SidecarContainerName), "pod must not be mutated")
+	_, err = client.Resource(extensionGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "no EnvoyExtensionPolicy may be created for a missing Gateway")
+	_, err = client.Resource(backendGVR).Namespace("eg-ns").Get(ctx, extProcName, metav1.GetOptions{})
+	assert.True(t, apierrors.IsNotFound(err), "no Backend may be created for a missing Gateway")
 }
