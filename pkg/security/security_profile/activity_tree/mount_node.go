@@ -133,6 +133,7 @@ func (at *ActivityTree) demoteBaseMountNamespace(nsID uint32) {
 		if existing, ok := at.mountIndex[nonBaseKey]; ok {
 			before := existing.size()
 			existing.mergeSeen(&mn.NodeBase)
+			existing.mergeLastAnomalySent(&mn.NodeBase)
 			at.Stats.SizeBytes += (existing.size() - before) - mn.size()
 			continue
 		}
@@ -239,6 +240,21 @@ func (at *ActivityTree) InsertMount(cgroupInode uint64, nsID uint32, mountPoint,
 
 func (at *ActivityTree) insertMountEvent(event *model.Event, imageTagID uint64, generationType NodeGenerationType, res *resolvers.EBPFResolvers, dryRun bool) bool {
 	m := &event.Mount.Mount
+	cgroupInode, mountPoint := mountEventLocation(event, res)
+	return at.InsertMount(cgroupInode, m.NamespaceInode, mountPoint, m.RootStr, m.FSType, m.MountFlags, imageTagID, generationType, event.ResolveEventTime(), dryRun)
+}
+
+// MountNodeForEvent returns the mount node that insertMountEvent inserted, or found, for this event
+func (at *ActivityTree) MountNodeForEvent(event *model.Event, res *resolvers.EBPFResolvers) *MountNode {
+	m := &event.Mount.Mount
+	cgroupInode, mountPoint := mountEventLocation(event, res)
+	key := mountNodeKey{mountPoint: mountPoint, filesystem: m.FSType, mountFlags: m.MountFlags, inBaseNamespace: at.isBaseMountNamespace(cgroupInode, m.NamespaceInode)}
+	return at.mountIndex[key]
+}
+
+// mountEventLocation returns the cgroup inode of the workload of a mount event, and its resolved mount point
+func mountEventLocation(event *model.Event, res *resolvers.EBPFResolvers) (uint64, string) {
+	m := &event.Mount.Mount
 
 	var cgroupInode uint64
 	if event.ProcessContext != nil {
@@ -256,6 +272,5 @@ func (at *ActivityTree) insertMountEvent(event *model.Event, imageTagID uint64, 
 			mountPoint = resolved
 		}
 	}
-
-	return at.InsertMount(cgroupInode, m.NamespaceInode, mountPoint, m.RootStr, m.FSType, m.MountFlags, imageTagID, generationType, event.ResolveEventTime(), dryRun)
+	return cgroupInode, mountPoint
 }
