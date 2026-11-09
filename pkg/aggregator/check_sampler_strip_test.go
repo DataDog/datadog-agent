@@ -260,3 +260,30 @@ func TestCheckSamplerOnlyMergesSeriesThatAddUp(t *testing.T) {
 	}
 	assert.NotEmpty(t, out.series, "the series that don't add up are sent with their tags")
 }
+
+func TestCheckSamplerDoesNotStripSketchesStampedPerSecond(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	table := newStrippedIdentityTable()
+	cs := newCheckSampler(2, true, false, time.Hour, true, false, tags.NewStore(true, "test"), checkid.ID("check:0"), nooptagger.NewComponent(), table)
+	matcher := stripPodMatcher(t, "my.counter", "my.dist")
+	flushMatcher := metricname.NewMatcher(nil, false)
+
+	cs.addSample(podSample("my.counter", metrics.CounterType, "a", 1, 100.1), matcher)
+	cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, 100.1), matcher)
+	cs.commit(101.4, &flushMatcher)
+	out := flushSampler(cs)
+
+	require.Len(t, out.mergedSeries, 1, "counters are still stripped and merged")
+	assert.Empty(t, out.mergedSketches)
+	require.Len(t, out.sketches, 1)
+	assert.Contains(t, tagsOf(out.sketches[0].Tags), "pod:a", "sketches stamped per second aren't stripped")
+	assert.Equal(t, int64(100), out.sketches[0].Points[0].Ts)
+	assert.Len(t, table.byKey, 1, "only the counter has a stripped identity")
+}
+
+func TestBecomesSketch(t *testing.T) {
+	assert.True(t, becomesSketch(&metrics.MetricSample{Mtype: metrics.DistributionType}))
+	assert.True(t, becomesSketch(&metrics.HistogramBucket{}), "histogram buckets are interpolated into sketches")
+	assert.False(t, becomesSketch(&metrics.MetricSample{Mtype: metrics.CounterType}))
+	assert.False(t, becomesSketch(&metrics.MetricSample{Mtype: metrics.HistogramType}), "ordinary histograms become series")
+}

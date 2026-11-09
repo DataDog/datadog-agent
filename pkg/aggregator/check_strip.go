@@ -123,7 +123,7 @@ func (t *strippedIdentityTable) get(ref uint32) *strippedIdentity {
 // (ShouldStripTags allocates), and restrip updates contexts when rules change. The resolver's buffers must hold the
 // context's tags.
 func (cr *contextResolver) trackOutput(context *Context, metricSampleContext metrics.MetricSampleContext, filterList filterlist.TagMatcher) {
-	if !typeStripsAtOutput(metricSampleContext.GetMetricType()) {
+	if !typeStripsAtOutput(metricSampleContext.GetMetricType()) || (cr.sketchesPerTimestamp && becomesSketch(metricSampleContext)) {
 		context.stripFlags.set(hasUnstrippableType)
 		cr.releaseStripped(context)
 		return
@@ -205,4 +205,11 @@ func (cr *contextResolver) restrip(filterList filterlist.TagMatcher) {
 		cr.releaseStripped(context)
 		context.strippedIdentityRef = ref
 	}
+}
+
+// becomesSketch returns whether a sample goes into a sketch: distributions and histogram buckets. Sketches stamped per
+// second of submission (check_sampler_sketches_at_commit off) can't be merged across sources, so they aren't stripped.
+func becomesSketch(metricSampleContext metrics.MetricSampleContext) bool {
+	_, bucket := metricSampleContext.(*metrics.HistogramBucket)
+	return bucket || metricSampleContext.GetMetricType() == metrics.DistributionType
 }

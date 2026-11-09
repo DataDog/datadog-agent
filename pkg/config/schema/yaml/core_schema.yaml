@@ -6237,7 +6237,7 @@ properties:
     description: |-
       Whether distributions and histogram buckets submitted by checks are timestamped when the check
       run completes, one point per run, like other check metrics. Set to false to timestamp them per
-      second of submission instead.
+      second of submission instead. When false, metric_tag_filterlist doesn't strip tags from them.
     comment: |-
       Temporary opt-out for timestamping check sketches at commit, to be removed once the new behavior
       has shipped without issue.

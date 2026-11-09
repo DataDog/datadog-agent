@@ -107,6 +107,8 @@ type contextResolver struct {
 	tagFilterEnabled bool
 	// stripped is set for check samplers, which keep the full tags of contexts and strip only their output.
 	stripped *strippedIdentityTable
+	// sketchesPerTimestamp is set when check_sampler_sketches_at_commit is off: the check sampler's sketches aren't stripped.
+	sketchesPerTimestamp bool
 }
 
 // generateContextKey generates the contextKey associated with the context of the metricSample
@@ -390,9 +392,10 @@ type countBasedContextResolver struct {
 
 // newCountBasedContextResolver returns a resolver that records in stripped, if it's set, the identities contexts strip
 // to at output, instead of tracking stripped contexts.
-func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, stripped *strippedIdentityTable) *countBasedContextResolver {
+func newCountBasedContextResolver(expireCountInterval int, cache *tags.Store, tagger tagger.Component, id string, stripped *strippedIdentityTable, sketchesPerTimestamp bool) *countBasedContextResolver {
 	resolver := newContextResolver(tagger, cache, id)
 	resolver.stripped = stripped
+	resolver.sketchesPerTimestamp = sketchesPerTimestamp
 	return &countBasedContextResolver{
 		resolver:            resolver,
 		expireCount:         0,
