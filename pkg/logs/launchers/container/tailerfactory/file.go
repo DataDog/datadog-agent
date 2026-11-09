@@ -22,6 +22,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
@@ -70,6 +71,8 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 		case "docker":
 			return tf.makeDockerFileSource(source)
 		case "podman":
+			return tf.makeDockerFileSource(source)
+		case config.ContainerdType:
 			return tf.makeDockerFileSource(source)
 		default:
 			return nil, fmt.Errorf("file tailing is not supported for source type %s", source.Config.Type)
@@ -172,6 +175,16 @@ func (tf *factory) findDockerLogPath(containerID string) (string, error) {
 	overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
 		return filepath.Join(overridePath, "containers", containerID, containerID+"-json.log"), nil
+	}
+
+	// On ECS Managed Instances daemon mode the json-file log driver writes to a
+	// fixed, platform-managed path rather than a docker/containerd data root.
+	// Use the same daemon-mode check as the Chooser (containersorpods package) so
+	// the two agree on what counts as "MI" - sidecar mode has no host-wide log
+	// visibility and never reaches this path in practice, but scope it explicitly
+	// rather than relying on that as an accident of the Chooser's own gating.
+	if env.IsECSManagedInstancesDaemonMode(pkgconfigsetup.Datadog()) {
+		return filepath.Join("/var/log/ecs/json-file", containerID, containerID+"-json.log"), nil
 	}
 
 	switch runtime.GOOS {

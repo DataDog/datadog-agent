@@ -29,6 +29,7 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -491,6 +492,99 @@ func TestDockerOverride(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "file", child.Config.Type)
 	require.Equal(t, p, child.Config.Path)
+}
+
+func TestFindDockerLogPath_ecsManagedInstances(t *testing.T) {
+	fileTestSetup(t)
+	// IsECSManagedInstancesDaemonMode consults both the cached env.Feature (set
+	// here via SetFeatures) and, through IsECSSidecarMode, the raw
+	// AWS_EXECUTION_ENV var directly - both must agree for the daemon-mode check
+	// to pass.
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	p, err := tf.findDockerLogPath("abc")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join("/var/log/ecs/json-file", "abc", "abc-json.log"), p)
+}
+
+func TestFindDockerLogPath_ecsManagedInstances_dockerPathOverrideTakesPrecedence(t *testing.T) {
+	fileTestSetup(t)
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+
+	tmp := t.TempDir()
+	mockConfig := configmock.New(t)
+	customPath := filepath.Join(tmp, "custom", "path")
+	mockConfig.SetInTest("logs_config.docker_path_override", customPath)
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	p, err := tf.findDockerLogPath("abc")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(customPath, "containers", "abc", "abc-json.log"), p)
+}
+
+func TestFindDockerLogPath_ecsManagedInstances_sidecarModeNotScoped(t *testing.T) {
+	fileTestSetup(t)
+	// Sidecar mode has no host-wide log visibility and should not resolve to the
+	// daemon-only /var/log/ecs/json-file path - it must fall through to the normal
+	// docker-data-root-relative path instead.
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("ecs_deployment_mode", "sidecar")
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+
+	p, err := tf.findDockerLogPath("abc")
+	require.NoError(t, err)
+	require.Equal(t, filepath.Join(platformDockerLogsBasePath, "containers", "abc", "abc-json.log"), p)
+	require.NotContains(t, p, "/var/log/ecs/json-file")
+}
+
+func TestMakeFileSource_containerd_success(t *testing.T) {
+	fileTestSetup(t)
+
+	// Config.Type == "containerd" (as resolved by autodiscovery for MI daemon-mode
+	// containers) must route through the same file-tailing path as "docker"/"podman".
+	// AWS_EXECUTION_ENV is deliberately left unset here so findDockerLogPath falls
+	// through to the swappable dockerLogsBasePathNix/Win test fixture instead of the
+	// real, unswappable /var/log/ecs/json-file path (covered separately above).
+	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
+	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
+	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "containerd",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+	require.Equal(t, "file", child.Config.Type)
+	require.Equal(t, p, child.Config.Path)
+	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
 }
 
 func TestMakeK8sSource(t *testing.T) {
