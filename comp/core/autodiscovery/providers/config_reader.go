@@ -49,6 +49,7 @@ type configFormat struct {
 // ConfigFormatWrapper is a wrapper for the config format
 type ConfigFormatWrapper struct {
 	ConfigFormat string
+	Secrets      []scrubber.ConfigSecret
 	Filename     string
 	Hash         string
 	IsDiscovery  bool // Marks this config as a discovery template (instances will be populated at runtime later)
@@ -559,12 +560,15 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 	}
 
 	var scrubbedConfigFormat string
+	var secretLocations []scrubber.ConfigSecret
 	if withFormat {
 		serializedConfigFormat, err := yaml.Marshal(cf)
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
-		scrubbedConfigFormat, err = scrubber.ScrubYamlString(string(serializedConfigFormat))
+		var scrubbed []byte
+		scrubbed, secretLocations, err = scrubber.ScrubYamlWithSecrets(serializedConfigFormat)
+		scrubbedConfigFormat = string(scrubbed)
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err
 		}
@@ -652,7 +656,7 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 	}
 	hash := sha256.Sum256([]byte(scrubbedConfigFormat))
 
-	return conf, ConfigFormatWrapper{ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:]), IsDiscovery: cf.Discovery != nil}, err
+	return conf, ConfigFormatWrapper{Secrets: secretLocations, ConfigFormat: scrubbedConfigFormat, Filename: fpath, Hash: hex.EncodeToString(hash[:]), IsDiscovery: cf.Discovery != nil}, err
 }
 
 func containsString(slice []string, str string) bool {

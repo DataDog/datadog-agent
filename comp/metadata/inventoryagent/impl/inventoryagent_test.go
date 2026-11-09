@@ -1138,3 +1138,30 @@ func TestGetProvidedConfiguration(t *testing.T) {
 	assert.Contains(t, payload.Metadata, "cli_configuration")
 	assert.Contains(t, payload.Metadata, "source_local_configuration")
 }
+
+func TestFileSecretDeclarationsAcrossAgentConfigs(t *testing.T) {
+	dir := t.TempDir()
+	configmock.New(t).SetConfigFile(filepath.Join(dir, "datadog.yaml"))
+	original := fetchSystemProbeFilename
+	t.Cleanup(func() { fetchSystemProbeFilename = original })
+	fetchSystemProbeFilename = func(_ option.Option[sysprobeconfig.Component]) string { return filepath.Join(dir, "system-probe.yaml") }
+	for _, file := range []string{"datadog.yaml", "system-probe.yaml", "security-agent.yaml", "application_monitoring.yaml"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, file), []byte("api_key: ENC[unresolved_key]\npassword: raw-value"), 0600))
+	}
+	ia := getTestInventoryPayload(t, map[string]any{"inventories_configuration_enabled": true}, nil)
+	payload := ia.getPayload().(*agentmetadata.Payload)
+	require.Len(t, payload.FilesMetadata, 4)
+	for _, file := range payload.FilesMetadata {
+		require.Len(t, file.Secrets, 2)
+		assert.Equal(t, "enc", file.Secrets[0].Kind)
+		assert.Equal(t, "unresolved_key", file.Secrets[0].Handle)
+		assert.Equal(t, []any{"api_key"}, file.Secrets[0].Path)
+		assert.Equal(t, "raw", file.Secrets[1].Kind)
+		assert.NotContains(t, file.RawConfig, "raw-value")
+	}
+	ia.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	payload = ia.getPayload().(*agentmetadata.Payload)
+	for _, file := range payload.FilesMetadata {
+		assert.Empty(t, file.Secrets)
+	}
+}

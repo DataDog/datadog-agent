@@ -70,6 +70,7 @@ dd_agent_go_test(
         "//comp/serializer/logscompression/fx-mock",
         "//pkg/collector/check",
         "//pkg/collector/check/id",
+        "//pkg/config/model",
         "//pkg/jmxfetch",
         "//pkg/logs/sources",
         "//pkg/serializer",

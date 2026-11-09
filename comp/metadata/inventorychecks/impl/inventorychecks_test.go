@@ -6,6 +6,7 @@
 package inventorychecksimpl
 
 import (
+	"encoding/json"
 	"errors"
 	"expvar"
 	"fmt"
@@ -39,6 +40,7 @@ import (
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	serializermock "github.com/DataDog/datadog-agent/pkg/serializer/mocks"
@@ -329,4 +331,43 @@ func TestExpvarExist(t *testing.T) {
 		t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil,
 	)
 	assert.NotNil(t, expvar.Get("inventories"))
+}
+
+func TestFileSecretDeclarationsDistinguishFilesAndInstances(t *testing.T) {
+	dir := t.TempDir()
+	files := []string{filepath.Join(dir, "http_check.d", "one.yaml"), filepath.Join(dir, "http_check.d", "two.yaml")}
+	require.NoError(t, os.MkdirAll(filepath.Dir(files[0]), 0700))
+	for _, file := range files {
+		require.NoError(t, os.WriteFile(file, []byte("init_config: {}\ninstances:\n- password: ENC[first]\n- password: raw-value\n"), 0600))
+	}
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
+	providers.ResetReader([]string{dir})
+	t.Cleanup(func() { providers.ResetReader(nil) })
+	payload := ic.getPayload(true).(*Payload)
+	require.Len(t, payload.FilesMetadata, 2)
+	for _, file := range files {
+		require.Contains(t, payload.FilesMetadata, file)
+		fields := payload.FilesMetadata[file].(metadata)
+		encoded, err := json.Marshal(fields)
+		require.NoError(t, err)
+		assert.NotContains(t, string(encoded), "raw-value")
+		var decoded struct {
+			Secrets []struct {
+				Path   []any  `json:"path"`
+				Kind   string `json:"kind"`
+				Handle string `json:"handle"`
+			} `json:"secrets"`
+		}
+		require.NoError(t, json.Unmarshal(encoded, &decoded))
+		require.Len(t, decoded.Secrets, 2)
+		assert.Equal(t, []any{"instances", float64(0), "password"}, decoded.Secrets[0].Path)
+		assert.Equal(t, "first", decoded.Secrets[0].Handle)
+		assert.Equal(t, []any{"instances", float64(1), "password"}, decoded.Secrets[1].Path)
+		assert.Equal(t, "raw", decoded.Secrets[1].Kind)
+	}
+	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	payload = ic.getPayload(true).(*Payload)
+	for _, file := range payload.FilesMetadata {
+		assert.NotContains(t, file, "secrets")
+	}
 }

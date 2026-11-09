@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "scrubber",
     srcs = [
+        "config_secrets.go",
         "default.go",
         "json_scrubber.go",
         "scrubber.go",
@@ -20,6 +21,7 @@ go_library(
 dd_agent_go_test(
     name = "scrubber_test",
     srcs = [
+        "config_secrets_test.go",
         "default_test.go",
         "json_scrubber_test.go",
         "scrubber_test.go",
