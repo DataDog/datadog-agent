@@ -242,3 +242,108 @@ func TestFentryKprobeFallback(t *testing.T) {
 		})
 	}
 }
+
+func TestConntrackNATMapUnsharedBeforeKprobeFallback(t *testing.T) {
+	prevFentryLoader := fentryTracerLoader
+	prevKprobeLoader := kprobeTracerLoader
+	t.Cleanup(func() {
+		fentryTracerLoader = prevFentryLoader
+		kprobeTracerLoader = prevKprobeLoader
+	})
+
+	unsupportedErr := fmt.Errorf("%w: %s", fentry.ErrorUnsupported, "tcp_recvmsg attach probe failed")
+	// errs are what each load returns while the map is shared, and once it's unshared
+	type errs struct{ shared, unshared error }
+	tests := []struct {
+		name          string
+		fentry        errs
+		kprobe        errs
+		allowFallback bool
+		wantCalls     []string
+		wantType      TracerType
+		wantErr       bool
+	}{
+		{
+			name:          "fentry retried unshared before kprobe",
+			fentry:        errs{assert.AnError, nil},
+			allowFallback: true,
+			wantCalls:     []string{"fentry/shared", "fentry/unshared"},
+			wantType:      TracerTypeFentry,
+		},
+		{
+			name:          "kprobe loads unshared when fentry fails both ways",
+			fentry:        errs{assert.AnError, assert.AnError},
+			allowFallback: true,
+			wantCalls:     []string{"fentry/shared", "fentry/unshared", "kprobe/unshared"},
+			wantType:      TracerTypeKProbeCORE,
+		},
+		{
+			name:      "fentry retried unshared without kprobe fallback",
+			fentry:    errs{assert.AnError, assert.AnError},
+			wantCalls: []string{"fentry/shared", "fentry/unshared"},
+			wantErr:   true,
+		},
+		{
+			name:      "disabled fentry isn't retried, kprobe is",
+			fentry:    errs{fentry.ErrorDisabled, fentry.ErrorDisabled},
+			kprobe:    errs{assert.AnError, nil},
+			wantCalls: []string{"fentry/shared", "kprobe/shared", "kprobe/unshared"},
+			wantType:  TracerTypeKProbeCORE,
+		},
+		{
+			name:          "unsupported fentry isn't retried",
+			fentry:        errs{unsupportedErr, unsupportedErr},
+			allowFallback: true,
+			wantCalls:     []string{"fentry/shared", "kprobe/shared"},
+			wantType:      TracerTypeKProbeCORE,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &config.Config{AllowKprobeFallback: tt.allowFallback, MaxTrackedConnections: 1024}
+			var calls []string
+			// records the call, checking the map, its lookup mode and the skb cache size agree
+			record := func(name string, o manager.Options, e errs) error {
+				shared := o.MapEditors[probes.ConntrackMap] != nil
+				mode, skbEntries := natLookupSKBCache, cfg.MaxTrackedConnections
+				if shared {
+					mode, skbEntries = natLookupConntrack, 1
+				}
+				assert.Contains(t, o.ConstantEditors, manager.ConstantEditor{Name: "nat_lookup_mode", Value: mode}, name)
+				assert.Equal(t, skbEntries, o.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap].MaxEntries, name)
+				if shared {
+					calls = append(calls, name+"/shared")
+					return e.shared
+				}
+				calls = append(calls, name+"/unshared")
+				return e.unshared
+			}
+			fentryTracerLoader = func(_ *config.Config, o manager.Options, _ *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+				if err := record("fentry", o, tt.fentry); err != nil {
+					return nil, nil, err
+				}
+				return &ddebpf.Manager{}, func() {}, nil
+			}
+			kprobeTracerLoader = func(_ *config.Config, o manager.Options, _ *perf.EventHandler) (*ddebpf.Manager, func(), kprobe.TracerType, error) {
+				if err := record("kprobe", o, tt.kprobe); err != nil {
+					return nil, nil, kprobe.TracerTypeCORE, err
+				}
+				return &ddebpf.Manager{}, func() {}, kprobe.TracerTypeCORE, nil
+			}
+
+			o := manager.Options{MapSpecEditors: map[string]manager.MapSpecEditor{}}
+			setNATLookupMode(&o, natLookupSKBCache)
+			// the loaders are fakes, so the map is never used
+			shareConntrackNATMap(&o, &ebpf.Map{})
+			_, _, tracerType, err := loadFentryOrKprobeTracer(cfg, o, nil)
+			assert.Equal(t, tt.wantCalls, calls)
+			if tt.wantErr {
+				require.Error(t, err)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.wantType, tracerType)
+		})
+	}
+}

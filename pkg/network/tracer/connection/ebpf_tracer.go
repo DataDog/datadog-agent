@@ -187,7 +187,9 @@ type ebpfTracer struct {
 // as any other load failure rather than exempted from the fallback setting.
 // The returned TracerType is only meaningful when the error is nil.
 func loadFentryOrKprobeTracer(config *config.Config, mgrOptions manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), TracerType, error) {
-	m, closeTracerFn, err := fentryTracerLoader(config, mgrOptions, connCloseEventHandler)
+	m, closeTracerFn, err := loadUnsharingOnFailure(config, &mgrOptions, "fentry", func(o manager.Options) (*ddebpf.Manager, func(), error) {
+		return fentryTracerLoader(config, o, connCloseEventHandler)
+	})
 	if err == nil {
 		log.Info("fentry tracer loaded successfully")
 		return m, closeTracerFn, TracerTypeFentry, nil
@@ -208,7 +210,14 @@ func loadFentryOrKprobeTracer(config *config.Config, mgrOptions manager.Options,
 		fentryErr = err
 	}
 
-	m, closeTracerFn, kprobeTracerType, err := kprobeTracerLoader(config, mgrOptions, connCloseEventHandler)
+	var kprobeTracerType kprobe.TracerType
+	m, closeTracerFn, err = loadUnsharingOnFailure(config, &mgrOptions, "kprobe", func(o manager.Options) (*ddebpf.Manager, func(), error) {
+		var m *ddebpf.Manager
+		var closeFn func()
+		var err error
+		m, closeFn, kprobeTracerType, err = kprobeTracerLoader(config, o, connCloseEventHandler)
+		return m, closeFn, err
+	})
 	if err != nil {
 		if fentryErr != nil {
 			return nil, nil, 0, fmt.Errorf("kprobe tracer failed to load: %w (after fentry tracer failed to load: %w)", err, fentryErr)
@@ -236,6 +245,18 @@ func shareConntrackNATMap(o *manager.Options, m *ebpf.Map) {
 	}
 	// only net_dev_queue fills it, and that isn't attached
 	o.MapSpecEditors[probes.ConnectionTupleToSocketSKBConnMap] = manager.MapSpecEditor{MaxEntries: 1, EditorFlag: manager.EditMaxEntries}
+}
+
+// loadUnsharingOnFailure runs load, and if that fails while the eBPF conntracker's map is shared, unshares it and
+// runs load again. Unsharing persists in o, so a later fallback to another tracer doesn't share the map either.
+func loadUnsharingOnFailure(config *config.Config, o *manager.Options, name string, load func(manager.Options) (*ddebpf.Manager, func(), error)) (*ddebpf.Manager, func(), error) {
+	m, closeFn, err := load(*o)
+	if err == nil || o.MapEditors[probes.ConntrackMap] == nil || errors.Is(err, fentry.ErrorDisabled) || errors.Is(err, fentry.ErrorUnsupported) {
+		return m, closeFn, err
+	}
+	log.Warnf("%s tracer failed to load with the eBPF conntracker's map, retrying with net_dev_queue: %s", name, err)
+	unshareConntrackNATMap(o, config)
+	return load(*o)
 }
 
 // unshareConntrackNATMap undoes shareConntrackNATMap.
@@ -336,11 +357,6 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component, opts o
 			shareConntrackNATMap(&mgrOptions, opts.conntrackNATMap)
 		}
 		m, closeTracerFn, tracerType, err = loadFentryOrKprobeTracer(config, mgrOptions, connCloseEventHandler)
-		if err != nil && opts.conntrackNATMap != nil {
-			log.Warnf("tracer failed to load with the eBPF conntracker's map, loading it with net_dev_queue instead: %s", err)
-			unshareConntrackNATMap(&mgrOptions, config)
-			m, closeTracerFn, tracerType, err = loadFentryOrKprobeTracer(config, mgrOptions, connCloseEventHandler)
-		}
 		if err != nil {
 			return nil, err
 		}
