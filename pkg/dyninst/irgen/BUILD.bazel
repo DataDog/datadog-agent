@@ -71,6 +71,7 @@ dd_agent_go_test(
         "issues_test.go",
         "main_test.go",
         "metric_probes_test.go",
+        "metric_types_test.go",
         "moduledata_test.go",
         "redaction_test.go",
         "return_names_test.go",

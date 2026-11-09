@@ -151,6 +151,10 @@ Non-goals for this version:
 - A value of any other type (string, struct, slice, …) makes the probe fail
   installation with an ERROR status naming the expression and its type.
 - Counts accumulate as `int64`. An unsigned value above `math.MaxInt64` wraps.
+- Gauge instances must share a value encoding. Mixing signed and unsigned
+  integers, integers and floats, or float32 and float64 rejects the probe.
+  Different signed integer widths are compatible; unsigned integers and bool
+  are also compatible.
 - Kind names are matched case-insensitively (`COUNT`, `count`).
 - Values and conditions cannot read redacted types, including intermediate
   objects and collection elements. When type-redaction rules are configured,

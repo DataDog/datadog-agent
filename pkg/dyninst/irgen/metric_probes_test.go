@@ -124,6 +124,28 @@ func TestGenericMetricProbeTypeRedaction(t *testing.T) {
 	require.NoError(t, err, "counting calls does not read generic values")
 }
 
+func TestGenericGaugeIncompatibleTypes(t *testing.T) {
+	for _, cfg := range testprogs.MustGetCommonConfigs(t) {
+		t.Run(cfg.String(), func(t *testing.T) {
+			obj, err := object.OpenElfFileWithDwarf(testprogs.MustGetBinary(t, "sample", cfg))
+			require.NoError(t, err)
+			defer func() { require.NoError(t, obj.Close()) }()
+			where := onFunc("main.(*Pair[...]).SetValue")
+			probe := mustParseProbe(t, metricProbeJSON("generic", "GAUGE", where, value("v", `{"ref":"v"}`)))
+			_, err = irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true))
+			var noProbes *ir.NoSuccessfulProbesError
+			require.ErrorAs(t, err, &noProbes)
+			require.Len(t, noProbes.Issues, 1)
+			require.Equal(t, ir.IssueKindUnsupportedFeature, noProbes.Issues[0].Kind)
+			require.Contains(t, noProbes.Issues[0].Message, "incompatible gauge value types")
+
+			probe = mustParseProbe(t, metricProbeJSON("generic", "COUNT", where, value("v", `{"ref":"v"}`)))
+			_, err = irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true))
+			require.NoError(t, err, "counts use the same encoding for all integer and boolean types")
+		})
+	}
+}
+
 func TestMetricProbesDisabled(t *testing.T) {
 	cfg := testprogs.MustGetCommonConfigs(t)[0]
 	bin := testprogs.MustGetBinary(t, "simple", cfg)

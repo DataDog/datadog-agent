@@ -8096,7 +8096,11 @@ func populateProbeEventsExpressions(
 	}
 
 	for _, probe := range probes {
-		if issue, failed2 := failedProbes[probe]; failed2 {
+		issue, failed2 := failedProbes[probe]
+		if !failed2 {
+			issue = checkMetricGaugeTypes(probe)
+		}
+		if !issue.IsNone() {
 			failed = append(failed, ir.ProbeIssue{
 				ProbeDefinition: probe.ProbeDefinition,
 				Issue:           issue,

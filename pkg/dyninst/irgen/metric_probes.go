@@ -146,6 +146,45 @@ func analyzeMetricValue(
 	}, ir.Issue{}
 }
 
+func checkMetricGaugeTypes(probe *ir.Probe) ir.Issue {
+	mp, ok := probe.ProbeDefinition.(ir.MetricProbeDefinition)
+	if !ok || mp.GetMetricKind() != ir.MetricKindGauge {
+		return ir.Issue{}
+	}
+	var first ir.Type
+	for _, inst := range probe.Instances {
+		for _, event := range inst.Events {
+			for _, expr := range event.Type.Expressions {
+				if expr.Kind != ir.RootExpressionKindMetricValue {
+					continue
+				}
+				t := expr.Expression.Type
+				if first == nil {
+					first = t
+				} else if metricGaugeEncoding(first) != metricGaugeEncoding(t) {
+					return ir.Issue{
+						Kind:    ir.IssueKindUnsupportedFeature,
+						Message: fmt.Sprintf("incompatible gauge value types %q and %q across probe instances", first.GetName(), t.GetName()),
+					}
+				}
+			}
+		}
+	}
+	return ir.Issue{}
+}
+
+func metricGaugeEncoding(t ir.Type) reflect.Kind {
+	kind, _ := t.GetGoKind()
+	switch kind {
+	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
+		return reflect.Int64
+	case reflect.Uint, reflect.Uint8, reflect.Uint16, reflect.Uint32, reflect.Uint64, reflect.Uintptr, reflect.Bool:
+		return reflect.Uint64
+	default:
+		return kind
+	}
+}
+
 func checkExpressionTypeRedaction(t ir.Type, tc *typeCatalog, red *redaction.Config) error {
 	if !red.HasRedactedTypes() {
 		return nil
