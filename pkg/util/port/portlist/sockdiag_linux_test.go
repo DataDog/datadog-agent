@@ -17,6 +17,7 @@ import (
 	"runtime"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	"golang.org/x/sys/unix"
@@ -236,20 +237,20 @@ func fmtPort(p Port) string {
 }
 
 func mapDiff(want, got map[string]string) string {
-	var s string
+	var b strings.Builder
 	for k, v := range want {
 		if g, ok := got[k]; !ok {
-			s += fmt.Sprintf("  only procfs: %s %s\n", k, v)
+			fmt.Fprintf(&b, "  only procfs: %s %s\n", k, v)
 		} else if g != v {
-			s += fmt.Sprintf("  differs: %s procfs=%q sock_diag=%q\n", k, v, g)
+			fmt.Fprintf(&b, "  differs: %s procfs=%q sock_diag=%q\n", k, v, g)
 		}
 	}
 	for k, v := range got {
 		if _, ok := want[k]; !ok {
-			s += fmt.Sprintf("  only sock_diag: %s %s\n", k, v)
+			fmt.Fprintf(&b, "  only sock_diag: %s %s\n", k, v)
 		}
 	}
-	return s
+	return b.String()
 }
 
 type wantSock struct {
