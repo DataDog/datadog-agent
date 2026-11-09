@@ -1,28 +1,19 @@
 """Agent assets - typically configuration files that ship with the product."""
 
 load("@bazel_skylib//rules:diff_test.bzl", "diff_test")
-load("@rules_pkg//pkg:install.bzl", "pkg_install")
 load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files")
-load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+load("//packages/rules:agent_path.bzl", "etc_dir")
 
 pkg_files(
     name = "config_files",
     srcs = [
-        "//pkg/config:system_probe_config",
-    ] + select({
-        "//packages/agent:iot_flavor": [
-            "//pkg/config:iot_agent_config",
-        ],
-        "//conditions:default": [
-            "//pkg/config:agent_config",
-        ],
-    }),
+        "//pkg/config:agent_config",
+    ],
     attributes = pkg_attributes(mode = "0644"),
-    prefix = select(ETC_DIR_SELECTOR),
-    renames = select({
-        "//packages/agent:iot_flavor": {"//pkg/config:iot_agent_config": "datadog.yaml"},
-        "//conditions:default": None,
-    }),
+    prefix = etc_dir(),
+    renames = {
+        "//pkg/config:agent_config": "datadog.yaml.example",
+    },
     visibility = ["//packages/agent:__subpackages__"],
 )
 
@@ -31,14 +22,13 @@ pkg_filegroup(
     srcs = [
         ":config_files",
         "//cmd/agent/dist/conf.d:all_files",
-    ],
-    visibility = ["//packages/agent:__subpackages__"],
-)
-
-pkg_install(
-    name = "install",
-    srcs = [
-        ":all_files",
+    ] + select({
+        "@platforms//os:windows": ["//cmd/agent/dist/protected:all_files"],
+        "//conditions:default": [],
+    }),
+    visibility = [
+        "//packages/agent:__subpackages__",
+        "//packages/heroku:__subpackages__",
     ],
 )
 
@@ -48,7 +38,7 @@ pkg_files(
         "config.py",
     ],
     attributes = pkg_attributes(mode = "0644"),
-    prefix = select(ETC_DIR_SELECTOR),
+    prefix = "bin/agent/dist",
 )
 
 pkg_filegroup(
@@ -61,13 +51,7 @@ pkg_filegroup(
     visibility = [
         "//cmd/agent:__subpackages__",
         "//packages/agent:__subpackages__",
-    ],
-)
-
-pkg_install(
-    name = "python_install",
-    srcs = [
-        ":all_python_files",
+        "//packages/heroku:__subpackages__",
     ],
 )
 

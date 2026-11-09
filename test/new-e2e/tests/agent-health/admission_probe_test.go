@@ -21,11 +21,14 @@ import (
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenariokindvm "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner/parameters"
 )
 
 //go:embed fixtures/admission_probe_helm_values.yaml
@@ -41,6 +44,7 @@ const (
 
 type admissionProbeSuite struct {
 	e2e.BaseSuite[environments.Kubernetes]
+	remotePersistenceStartup remotePersistenceStartup
 }
 
 func TestAdmissionProbeSuite(t *testing.T) {
@@ -48,6 +52,9 @@ func TestAdmissionProbeSuite(t *testing.T) {
 	e2e.Run(t, &admissionProbeSuite{},
 		e2e.WithProvisioner(provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenariokindvm.WithInternetAccess(),
+				scenariokindvm.WithPreAgentWorkloadApp(deployRemotePersistenceBackend),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(admissionProbeHelmValues),
 				),
@@ -74,100 +81,78 @@ func (suite *admissionProbeSuite) TestAdmissionProbeIssueLifecycle() {
 	// =========================================================================
 	// Phase 1: Verify probe is healthy
 	// =========================================================================
-	suite.T().Run("ProbeHealthy", func(t *testing.T) {
-		require.EventuallyWithT(t, func(ct *assert.CollectT) {
-			stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
-				clusterAgentNamespace, clusterAgentPod.Name, "cluster-agent",
-				[]string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"},
-			)
-			assert.NoError(ct, err)
+	require.EventuallyWithT(suite.T(), func(ct *assert.CollectT) {
+		stdout, _, err := suite.Env().KubernetesCluster.KubernetesClient.PodExec(
+			clusterAgentNamespace, clusterAgentPod.Name, "cluster-agent",
+			[]string{"env", "DD_LOG_LEVEL=off", "datadog-cluster-agent", "status", "--json"},
+		)
+		assert.NoError(ct, err)
 
-			var status map[string]interface{}
-			assert.NoError(ct, json.Unmarshal([]byte(stdout), &status))
+		var status map[string]any
+		assert.NoError(ct, json.Unmarshal([]byte(stdout), &status))
 
-			webhook, ok := status["admissionWebhook"].(map[string]interface{})
-			if !assert.True(ct, ok, "admissionWebhook section not found in status") {
-				return
-			}
-			probeSection, ok := webhook["Probe"].(map[string]interface{})
-			if !assert.True(ct, ok, "Probe section not found in admissionWebhook status") {
-				return
-			}
-			assert.Equal(ct, true, probeSection["LastExecutionSuccess"])
-		}, 3*time.Minute, 15*time.Second, "Probe has not completed a successful execution")
-	})
+		webhook, ok := status["admissionWebhook"].(map[string]any)
+		if !assert.True(ct, ok, "admissionWebhook section not found in status") {
+			return
+		}
+		probeSection, ok := webhook["Probe"].(map[string]any)
+		if !assert.True(ct, ok, "Probe section not found in admissionWebhook status") {
+			return
+		}
+		assert.Equal(ct, true, probeSection["LastExecutionSuccess"])
+	}, 3*time.Minute, 15*time.Second, "Probe has not completed a successful execution")
 
-	// =========================================================================
-	// Phase 2: Block connectivity and verify issue detection
-	// =========================================================================
 	suite.T().Run("IssueDetection", func(t *testing.T) {
 		suite.blockWebhookFromAPIServer(t)
 
 		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
 
-		// Wait for the health report containing the admission probe issue to arrive in fakeintake.
-		// This is the authoritative assertion: it verifies the full pipeline
-		// (probe detection → health platform → forwarder → fakeintake).
 		var detectedIssue *healthplatform.Issue
 		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
 			assert.NoError(ct, err)
-			assert.NotEmpty(ct, payloads, "No health report received in fakeintake")
-			if len(payloads) == 0 {
-				return
+			for _, p := range payloads {
+				for _, iss := range findIssuesByID(t, p, admissionProbeIssueID) {
+					if iss.PersistedIssue != nil &&
+						(iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_ACTIVE) {
+						detectedIssue = iss
+						return
+					}
+				}
 			}
-			latest := payloads[len(payloads)-1]
-			if issues := findIssuesByID(t, latest, admissionProbeIssueID); len(issues) > 0 {
-				detectedIssue = issues[0]
-			}
-			assert.NotNil(ct, detectedIssue, "Admission probe issue not in fakeintake report")
-		}, 4*time.Minute, 15*time.Second, "Health report with admission probe issue not received in fakeintake")
+			assert.Fail(ct, "admission probe issue not found as ACTIVE in fakeintake")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "admission probe issue not detected in fakeintake")
 
 		require.NotNil(t, detectedIssue)
 		assert.Equal(t, admissionProbeIssueID, detectedIssue.Id)
+		assert.Equal(t, "Admission Controller Unreachable", detectedIssue.IssueName)
+		assert.Equal(t, "admission_controller_unreachable", detectedIssue.IssueType)
 		assert.Equal(t, "availability", detectedIssue.Category)
 		assert.Equal(t, healthplatform.IssueSeverity_ISSUE_SEVERITY_HIGH, detectedIssue.Severity)
 		assert.Equal(t, "cluster-agent", detectedIssue.Source)
 		assert.NotNil(t, detectedIssue.Remediation)
 		assert.NotEmpty(t, detectedIssue.Remediation.Steps)
-
 		require.NotNil(t, detectedIssue.PersistedIssue)
-		assert.Contains(t,
-			[]healthplatform.IssueState{
-				healthplatform.IssueState_ISSUE_STATE_NEW,
-				healthplatform.IssueState_ISSUE_STATE_ONGOING,
-			},
-			detectedIssue.PersistedIssue.State)
-
-		t.Logf("Phase 2 passed: admission probe issue detected (state=%v)", detectedIssue.PersistedIssue.State)
+		assert.Equal(t, healthplatform.IssueState_ISSUE_STATE_ACTIVE, detectedIssue.PersistedIssue.State)
 	})
 
-	// =========================================================================
-	// Phase 3: Restore connectivity and verify resolution
-	// =========================================================================
+	suite.unblockWebhookFromAPIServer(suite.T())
+
 	suite.T().Run("Resolution", func(t *testing.T) {
-		suite.unblockWebhookFromAPIServer(t)
-
-		require.NoError(t, fakeIntake.FlushServerAndResetAggregators())
-
-		// Once resolved, the issue should be absent from all subsequent health reports.
-		require.Never(t, func() bool {
+		require.EventuallyWithT(t, func(ct *assert.CollectT) {
 			payloads, err := fakeIntake.GetAgentHealth()
-			if err != nil {
-				return false
-			}
-			for _, payload := range payloads {
-				if len(findIssuesByID(t, payload, admissionProbeIssueID)) > 0 {
-					return true
+			assert.NoError(ct, err)
+			for _, p := range payloads {
+				for _, iss := range findIssuesByID(t, p, admissionProbeIssueID) {
+					if iss.PersistedIssue != nil && iss.PersistedIssue.State == healthplatform.IssueState_ISSUE_STATE_RESOLVED {
+						return
+					}
 				}
 			}
-			return false
-		}, 3*time.Minute, 15*time.Second, "Admission probe issue still present after restoring connectivity")
-
-		t.Log("Phase 3 passed: admission probe issue resolved")
+			assert.Fail(ct, "no payload found with the issue in RESOLVED state")
+		}, defaultIssueTimeout, defaultIssuePollInterval, "admission probe issue never transitioned to RESOLVED")
 	})
 
-	suite.T().Log("=== Full admission probe lifecycle test passed ===")
 }
 
 // ============================================================================
@@ -203,15 +188,19 @@ func (suite *admissionProbeSuite) deployDisruptorPod(ctx context.Context, nodeNa
 	require.NoError(suite.T(), err, "Failed to get agent DaemonSet")
 	agentImage := ds.Spec.Template.Spec.Containers[0].Image
 
+	// Pass registry credentials so the disruptor pod can pull the image if it is not cached on the node.
+	imagePullSecrets := suite.createImagePullSecret(ctx)
+
 	pod := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      disruptorPodName,
 			Namespace: disruptorNamespace,
 		},
 		Spec: corev1.PodSpec{
-			NodeName:    nodeName,
-			HostPID:     hostPID,
-			HostNetwork: true,
+			NodeName:         nodeName,
+			HostPID:          hostPID,
+			HostNetwork:      true,
+			ImagePullSecrets: imagePullSecrets,
 			Containers: []corev1.Container{
 				{
 					Name:    "disruptor",
@@ -262,6 +251,47 @@ func (suite *admissionProbeSuite) cleanupDisruptorPod(ctx context.Context) {
 		[]string{"sh", "-c", "IPTABLES=$(which iptables 2>/dev/null || echo 'nsenter -t 1 -m -- iptables'); $IPTABLES -D OUTPUT -p tcp --dport 8000 -j DROP 2>/dev/null; true"},
 	)
 	_ = client.CoreV1().Pods(disruptorNamespace).Delete(ctx, disruptorPodName, metav1.DeleteOptions{})
+	_ = client.CoreV1().Secrets(disruptorNamespace).Delete(ctx, utils.DefaultImagePullSecretName, metav1.DeleteOptions{})
+}
+
+// createImagePullSecret creates an image pull secret in disruptorNamespace from the
+// image pull registry credentials of the runner profile, like utils.NewImagePullSecret
+// does for the apps deployed by the provisioners.
+// It returns nil when no registry credentials are configured.
+func (suite *admissionProbeSuite) createImagePullSecret(ctx context.Context) []corev1.LocalObjectReference {
+	store := runner.GetProfile().ParamStore()
+	registry, err := store.GetWithDefault(parameters.ImagePullRegistry, "")
+	require.NoError(suite.T(), err, "Failed to read image pull registry")
+	password, err := store.GetWithDefault(parameters.ImagePullPassword, "")
+	require.NoError(suite.T(), err, "Failed to read image pull password")
+	if registry == "" || password == "" {
+		return nil
+	}
+	username, err := store.GetWithDefault(parameters.ImagePullUsername, "")
+	require.NoError(suite.T(), err, "Failed to read image pull username")
+
+	dockerConfigJSON, err := utils.DockerConfigJSON(registry, username, password)
+	require.NoError(suite.T(), err, "Failed to build image pull secret")
+
+	client := suite.Env().KubernetesCluster.Client()
+	name := utils.DefaultImagePullSecretName
+
+	// Delete any leftover secret from a previous run
+	_ = client.CoreV1().Secrets(disruptorNamespace).Delete(ctx, name, metav1.DeleteOptions{})
+
+	_, err = client.CoreV1().Secrets(disruptorNamespace).Create(ctx, &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      name,
+			Namespace: disruptorNamespace,
+		},
+		Type: corev1.SecretTypeDockerConfigJson,
+		StringData: map[string]string{
+			corev1.DockerConfigJsonKey: dockerConfigJSON,
+		},
+	}, metav1.CreateOptions{})
+	require.NoError(suite.T(), err, "Failed to create image pull secret in namespace %s", disruptorNamespace)
+
+	return []corev1.LocalObjectReference{{Name: name}}
 }
 
 // blockWebhookFromAPIServer applies an iptables OUTPUT rule in the node's network namespace

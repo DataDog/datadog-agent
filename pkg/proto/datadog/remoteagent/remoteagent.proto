@@ -26,7 +26,7 @@ message RegisterRemoteAgentRequest {
   string flavor = 2;
   // Human-friendly display name of the remote agent.
   //
-  // SHOULD be the common name for the remote agent, such as "OpenTelemetry Collector".
+  // MUST be a non-empty common name for the remote agent, such as "OpenTelemetry Collector".
   string display_name = 3;
   // gRPC endpoint address where the remote agent can be reached.
   //
@@ -35,6 +35,8 @@ message RegisterRemoteAgentRequest {
   // Supported schemes:
   // - "https://host:port" for TCP with TLS (recommended for network endpoints).
   // - "unix:///absolute/path" for Unix domain socket with TLS.
+  // - "vsock://cid:port" for AF_VSOCK with TLS (used when the remote agent and core agent
+  //   run in separate VMs, e.g. on kata/microVM clusters).
   //
   // SHOULD present a valid certificate where possible.
   string api_endpoint_uri = 4;
@@ -42,6 +44,10 @@ message RegisterRemoteAgentRequest {
   //
   // Service names MUST be the full name of the gRPC service, such as "datadog.remoteagent.status.v1.StatusProvider".
   repeated string services = 5;
+  // Unique ID for this remote agent process lifetime. Generate it once at process startup
+  // and reuse it across registrations; a restarted process MUST use a new ID even if it
+  // reuses its PID. Empty for older remote agents that do not support this field.
+  string process_instance_id = 6;
 }
 
 message RegisterRemoteAgentResponse {
@@ -53,7 +59,7 @@ message RegisterRemoteAgentResponse {
   string session_id = 1;
   // Recommended refresh interval for the remote agent.
   //
-  // This is the interval at which the remote agent should call the RegisterRemoteAgent RPC in order to assert that the
+  // This is the interval at which the remote agent should call the RefreshRemoteAgent RPC in order to assert that the
   // remote agent is live and healthy.
   //
   // The remote agent SHOULD refresh its status every `recommended_refresh_interval_secs` seconds.

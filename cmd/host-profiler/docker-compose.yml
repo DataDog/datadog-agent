@@ -22,8 +22,9 @@ services:
       context: ../..
       dockerfile: tools/host-profiler/Dockerfile
       args:
-        UID: ${UID}
-        GID: ${GID}
+        # default user/group ids in Datadog workspaces, also works for uid-squashed mounts (colima/virtiofs)
+        UID: ${UID:-2000}
+        GID: ${GID:-501}
     privileged: true
     pid: "host"
     cgroup: "host"
@@ -33,7 +34,7 @@ services:
       DOCKER_DD_AGENT: "true"
       DD_SITE: ${DD_SITE:-datadoghq.com}
       DO_NOT_START_PROFILER:
-      DD_HOSTPROFILER_DEBUG:
+      DD_HOSTPROFILER_DEBUG_EXPORTER_VERBOSITY:
       DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS: ${DD_HOSTPROFILER_ADDITIONAL_HTTP_HEADERS:-${WORKSPACE_NAME:+{"x-datadog-profiling-metadata":"workspace:${WORKSPACE_NAME}"}}}
     volumes:
       - ../..:/app
@@ -41,7 +42,6 @@ services:
       - agent-ipc:/etc/datadog-agent:ro
     secrets:
       - dd-api-key
-      - dd-app-key
 
 volumes:
   agent-ipc:
@@ -49,5 +49,3 @@ volumes:
 secrets:
   dd-api-key:
     environment: DD_API_KEY
-  dd-app-key:
-    environment: DD_APP_KEY

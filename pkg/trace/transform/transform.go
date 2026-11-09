@@ -8,6 +8,7 @@ package transform
 
 import (
 	"context"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -45,6 +46,7 @@ func otelSpanToDDSpanMinimal(
 	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
 	peerTagKeys []string,
+	primaryTagKeys []string,
 	spanAccessor semantics.Accessor,
 ) *pb.Span {
 	spanKind := otelspan.Kind()
@@ -74,6 +76,8 @@ func otelSpanToDDSpanMinimal(
 		ddspan.Name = GetOTelOperationNameV1(otelspan, otelres, lib, conf.OTLPReceiver.SpanNameAsResourceName, conf.OTLPReceiver.SpanNameRemappings, true)
 		ddspan.Resource = GetOTelResourceV1(otelspan, otelres)
 	}
+	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
+	ddspan.Name, _ = normalizeutil.NormalizeName(ddspan.Name)
 
 	// correct span type logic if using new resource receiver, keep same if on v1. separate from OperationAndResourceNameV2Enabled.
 	if !conf.HasFeature("disable_receive_resource_spans_v2") {
@@ -110,6 +114,40 @@ func otelSpanToDDSpanMinimal(
 			ddspan.Meta[peerTagKey] = peerTagVal
 		}
 	}
+	// This path bypasses the trace-agent's normalization step so we explicitly do it here.
+	if pSvc, ok := ddspan.Meta[string(semantics.ConceptPeerService)]; ok {
+		ddspan.Meta[string(semantics.ConceptPeerService)], _ = normalizeutil.NormalizePeerService(pSvc)
+	}
+	if bSvc, ok := ddspan.Meta[string(semantics.ConceptDDBaseService)]; ok {
+		ddspan.Meta[string(semantics.ConceptDDBaseService)], _ = normalizeutil.NormalizePeerService(bSvc)
+	}
+	ddspan.Duration, _ = normalizeutil.FixDuration(ddspan.Start, ddspan.Duration)
+	ddspan.Start, _ = normalizeutil.FixStartTime(ddspan.Start, ddspan.Duration)
+	// Copy span-derived primary tag values into Meta so the APM stats
+	// Concentrator's matchingAdditionalMetricTags (which reads span.Meta[key])
+	// can aggregate on them. The minimal conversion does not copy all
+	// attributes, so these must be pulled in explicitly like peer tags above.
+	for _, primaryTagKey := range primaryTagKeys {
+		if primaryTagVal := GetOTelAttrFromEitherMap(sattr, rattr, false, primaryTagKey); primaryTagVal != "" {
+			ddspan.Meta[primaryTagKey] = primaryTagVal
+		}
+	}
+	// Preserve the raw W3C tracestate so downstream consumers of the minimal
+	// span (e.g. the APM stats Concentrator) can recover head-sampling
+	// probability and weight stats accordingly. The full OtelSpanToDDSpan
+	// conversion already does this; mirror it here.
+	// An explicit _sample_rate attribute set by an upstream tracer takes
+	// precedence over the value decoded from the tracestate below. Apply it first
+	// so SetSampleRateFromTracestate's "gated on absence" guard preserves it.
+	SetSampleRateFromAttribute(ddspan, sattr)
+	if ts := otelspan.TraceState().AsRaw(); ts != "" {
+		ddspan.Meta["w3c.tracestate"] = ts
+		// Decode the head-based sampling probability from the tracestate and set
+		// _sample_rate so the APM stats Concentrator scales stats back up by the
+		// head-sampling weight (1/_sample_rate). Gated on absence to preserve any
+		// explicit upstream value (including the _sample_rate attribute above).
+		SetSampleRateFromTracestate(ddspan, ts)
+	}
 	return ddspan
 }
 
@@ -122,9 +160,10 @@ func OtelSpanToDDSpanMinimal(
 	isTopLevel, topLevelByKind bool,
 	conf *config.AgentConfig,
 	peerTagKeys []string,
+	primaryTagKeys []string,
 ) *pb.Span {
 	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
-	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys, spanAccessor)
+	return otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, peerTagKeys, primaryTagKeys, spanAccessor)
 }
 
 func isDatadogAPMConventionKey(k string) bool {
@@ -186,14 +225,18 @@ func GetOTelHostname(span ptrace.Span, res pcommon.Resource, tr *attributes.Tran
 	src, srcok := tr.ResourceToSource(ctx, res, SignalTypeSet, nil)
 	if !srcok {
 		if v := GetOTelAttrValInResAndSpanAttrs(span, res, false, "_dd.hostname"); v != "" {
-			src = source.Source{Kind: source.HostnameKind, Identifier: v}
+			src = source.Source{
+				Kind:             source.HostnameKind,
+				Identifier:       v, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+				SourceIdentifier: source.SourceIdentifier{Primary: v},
+			}
 			srcok = true
 		}
 	}
 	if srcok {
 		switch src.Kind {
 		case source.HostnameKind:
-			return src.Identifier
+			return src.Identifier //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
 		default:
 			// We are not on a hostname (serverless), hence the hostname is empty
 			return ""
@@ -273,7 +316,9 @@ func OtelSpanToDDSpan(
 	// Create one shared accessor for all span+resource lookups in this function and in the
 	// minimal span conversion below, avoiding repeated allocation of accessor objects.
 	spanAccessor := semantics.NewOTelSpanAccessor(otelspan.Attributes(), otelres.Attributes())
-	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil, spanAccessor)
+	// primaryTagKeys is nil here: the full conversion below copies all span and
+	// resource attributes into Meta, so span-derived primary tags are already present.
+	ddspan := otelSpanToDDSpanMinimal(otelspan, otelres, lib, isTopLevel, topLevelByKind, conf, nil, nil, spanAccessor)
 
 	// Span attributes take precedence over resource attributes in the event of key collisions; so, use span attributes first
 	otelspan.Attributes().Range(func(k string, v pcommon.Value) bool {
@@ -302,16 +347,23 @@ func OtelSpanToDDSpan(
 	}
 	TagSpanIfContainsExceptionEvent(otelspan, ddspan)
 	if otelspan.Links().Len() > 0 {
-		ddspan.Meta["_dd.span_links"] = MarshalLinks(otelspan.Links())
+		ddspan.SpanLinks = OTelSpanLinksToDD(otelspan.Links())
 	}
 
-	if otelspan.TraceState().AsRaw() != "" {
-		ddspan.Meta["w3c.tracestate"] = otelspan.TraceState().AsRaw()
-	}
+	// Note: w3c.tracestate is set by otelSpanToDDSpanMinimal above.
+	scopeConventionGateEnabled := !conf.HasFeature("disable_otel_scope_convention")
 	if lib.Name() != "" {
+		if scopeConventionGateEnabled {
+			ddspan.Meta[string(semconv.OtelScopeNameKey)] = lib.Name()
+		}
+		// otel.library.name is a deprecated alias of otel.scope.name but MUST still be
+		// reported with the same value for backward compatibility.
 		ddspan.Meta[string(semconv.OtelLibraryNameKey)] = lib.Name()
 	}
 	if lib.Version() != "" {
+		if scopeConventionGateEnabled {
+			ddspan.Meta[string(semconv.OtelScopeVersionKey)] = lib.Version()
+		}
 		ddspan.Meta[string(semconv.OtelLibraryVersionKey)] = lib.Version()
 	}
 	ddspan.Meta[string(semconv.OtelStatusCodeKey)] = otelspan.Status().Code().String()
@@ -330,6 +382,12 @@ func OtelSpanToDDSpan(
 	}
 
 	otelres.Attributes().Range(func(k string, v pcommon.Value) bool {
+		// Span attributes take precedence over resource attributes. Numeric span attributes
+		// are stored in Metrics rather than Meta, so skip resource attributes whose key is
+		// already present in Metrics to avoid emitting a stale duplicate in Meta.
+		if _, ok := ddspan.Metrics[GetDDKeyForOTLPAttribute(k)]; ok {
+			return true
+		}
 		value := v.AsString()
 		conditionallyMapOTLPAttributeToMeta(k, value, ddspan)
 		return true
@@ -373,6 +431,11 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 			str.WriteString(",")
 		}
 		var wrote bool
+		// Counted locally and added to DroppedAttributesCount() when the field is emitted,
+		// rather than written back with SetDroppedAttributesCount. Both forms report
+		// DroppedAttributesCount()+N, so the JSON is identical; the write-back additionally
+		// mutated events owned by the caller, which panics once they are read-only.
+		var dropped uint32
 		str.WriteString("{")
 		if v := e.Timestamp(); v != 0 {
 			str.WriteString(`"time_unix_nano":`)
@@ -415,16 +478,20 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 					}
 					j++
 				} else {
+					// Unreachable: json.Marshal cannot fail on a Go string (invalid UTF-8 is
+					// coerced to U+FFFD, not rejected). Kept because json.Marshal returns an
+					// error that has to go somewhere -- discarding it would write a nil key
+					// and emit a bare ":". Unlike the value branch above, which json.Marshal
+					// does reject for NaN/Inf doubles.
 					log.Errorf("Error parsing the following attribute key on span event %v, dropping attribute: %v", e.Name(), k)
-					e.SetDroppedAttributesCount(e.DroppedAttributesCount() + 1)
+					dropped++
 				}
-				j++
 				return true
 			})
 			str.WriteString("}")
 			wrote = true
 		}
-		if v := e.DroppedAttributesCount(); v != 0 {
+		if v := e.DroppedAttributesCount() + dropped; v != 0 {
 			if wrote {
 				str.WriteString(",")
 			}
@@ -437,52 +504,52 @@ func MarshalEvents(events ptrace.SpanEventSlice) string {
 	return str.String()
 }
 
-// MarshalLinks marshals span links into JSON.
-func MarshalLinks(links ptrace.SpanLinkSlice) string {
-	var str strings.Builder
-	str.WriteString("[")
+// OTelSpanLinksToDD converts OTel span links into Datadog span links.
+func OTelSpanLinksToDD(links ptrace.SpanLinkSlice) []*pb.SpanLink {
+	ddLinks := make([]*pb.SpanLink, 0, links.Len())
 	for i := 0; i < links.Len(); i++ {
 		l := links.At(i)
-		if i > 0 {
-			str.WriteString(",")
+		traceID := l.TraceID()
+		ddLink := &pb.SpanLink{
+			TraceID:     OTelTraceIDToUint64(traceID),
+			TraceIDHigh: binary.BigEndian.Uint64(traceID[:8]),
+			SpanID:      OTelSpanIDToUint64(l.SpanID()),
+			Tracestate:  l.TraceState().AsRaw(),
 		}
-		t := l.TraceID()
-		str.WriteString(`{"trace_id":"`)
-		str.WriteString(hex.EncodeToString(t[:]))
-		s := l.SpanID()
-		str.WriteString(`","span_id":"`)
-		str.WriteString(hex.EncodeToString(s[:]))
-		str.WriteString(`"`)
-		if ts := l.TraceState().AsRaw(); len(ts) > 0 {
-			str.WriteString(`,"tracestate":"`)
-			str.WriteString(ts)
-			str.WriteString(`"`)
+		if flags := l.Flags(); flags != 0 {
+			// Only the low 8 bits are W3C trace flags; OTLP uses bits 8 and 9 for is_remote. The
+			// high bit marks the flags as set, telling "not sampled" apart from "unknown".
+			ddLink.Flags = flags&0xff | 1<<31
 		}
 		if l.Attributes().Len() > 0 {
-			str.WriteString(`,"attributes":{`)
-			var b bool
+			ddLink.Attributes = make(map[string]string, l.Attributes().Len())
 			l.Attributes().Range(func(k string, v pcommon.Value) bool {
-				if b {
-					str.WriteString(",")
-				}
-				b = true
-				str.WriteString(`"`)
-				str.WriteString(k)
-				str.WriteString(`":"`)
-				str.WriteString(v.AsString())
-				str.WriteString(`"`)
+				flattenLinkAttribute(ddLink.Attributes, k, v)
 				return true
 			})
-			str.WriteString("}")
 		}
-		if l.DroppedAttributesCount() > 0 {
-			str.WriteString(`,"dropped_attributes_count":`)
-			str.WriteString(strconv.FormatUint(uint64(l.DroppedAttributesCount()), 10))
-		}
-		str.WriteString("}")
+		ddLinks = append(ddLinks, ddLink)
 	}
-	str.WriteString("]")
-	return str.String()
+	return ddLinks
+}
+
+// flattenLinkAttribute sets the OTel attribute k=v in the string-valued Datadog span link
+// attributes, flattening slices into "k.0", "k.1", ... and maps into "k.<key>" as tracers do.
+func flattenLinkAttribute(attrs map[string]string, k string, v pcommon.Value) {
+	switch v.Type() {
+	case pcommon.ValueTypeSlice:
+		s := v.Slice()
+		for i := 0; i < s.Len(); i++ {
+			flattenLinkAttribute(attrs, k+"."+strconv.Itoa(i), s.At(i))
+		}
+	case pcommon.ValueTypeMap:
+		v.Map().Range(func(mk string, mv pcommon.Value) bool {
+			flattenLinkAttribute(attrs, k+"."+mk, mv)
+			return true
+		})
+	default:
+		attrs[k] = v.AsString()
+	}
 }
 
 // SetMetaOTLP sets the k/v OTLP attribute pair as a tag on span s.

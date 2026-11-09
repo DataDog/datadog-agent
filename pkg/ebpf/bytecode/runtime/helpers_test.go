@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package runtime
 
@@ -38,7 +38,7 @@ func TestGetAvailableHelpers(t *testing.T) {
 		YumReposDir:     cfg.YumReposDir,
 		ZypperReposDir:  cfg.ZypperReposDir,
 	}
-	kernelHeaders := headers.GetKernelHeaders(opts)
+	kernelHeaders := headers.GetKernelHeaders(opts, ebpf.SecureCacheDir)
 	fns, err := getAvailableHelpers(kernelHeaders)
 	require.NoError(t, err)
 	assert.NotEmpty(t, fns, "number of available helpers")

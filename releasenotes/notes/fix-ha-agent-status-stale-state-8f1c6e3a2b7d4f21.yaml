@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix ``agent status`` (and the ``JSON``/``HTML`` status renderers) showing a stale HA Agent
+    ``state`` (active/standby). The status page previously read a snapshot cached by the periodic
+    inventory metadata collector, which could lag up to ``inventories_max_interval`` (10 minutes by
+    default) behind the agent's actual HA state. The status page now reflects the live state on
+    every call, matching the behavior already used by the flare payload.

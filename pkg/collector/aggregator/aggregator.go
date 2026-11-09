@@ -36,7 +36,7 @@ func SubmitMetric(checkID *C.char, metricType C.metric_type_t, metricName *C.cha
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -78,7 +78,7 @@ func SubmitServiceCheck(checkID *C.char, scName *C.char, status C.int, tags **C.
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -113,7 +113,7 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting metric to the Sender: %v", err)
 		return
@@ -134,10 +134,25 @@ func SubmitEvent(checkID *C.char, event *C.event_t) {
 	sender.Event(_event)
 }
 
-// SubmitHistogramBucket is the method exposed to scripts to submit metrics
+// SubmitHistogramBucket is the method exposed to scripts to submit histogram buckets that are
+// each in their own context, usually because the bucket bounds are encoded in the tags.
 //
 //export SubmitHistogramBucket
 func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.float, upperBound C.float, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
+	submitHistogramBucket(checkID, metricName, value, float64(lowerBound), float64(upperBound), monotonic, hostname, tags, flushFirstValue, false)
+}
+
+// SubmitHistogramBucketMulti is the method exposed to scripts to submit histogram buckets that
+// share their context with the other buckets of their histogram, so the tags don't need to
+// encode the bucket bounds. The bounds are doubles because the sender tells these buckets apart
+// by their bounds, and a float can round adjacent bounds to the same value.
+//
+//export SubmitHistogramBucketMulti
+func SubmitHistogramBucketMulti(checkID *C.char, metricName *C.char, value C.longlong, lowerBound C.double, upperBound C.double, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool) {
+	submitHistogramBucket(checkID, metricName, value, float64(lowerBound), float64(upperBound), monotonic, hostname, tags, flushFirstValue, true)
+}
+
+func submitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong, lowerBound float64, upperBound float64, monotonic C.int, hostname *C.char, tags **C.char, flushFirstValue C.bool, multipleBuckets bool) {
 	goCheckID := C.GoString(checkID)
 	checkContext, err := GetCheckContext()
 	if err != nil {
@@ -145,7 +160,7 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(goCheckID))
+	sender, err := checkContext.GetSender(checkid.ID(goCheckID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting histogram bucket to the Sender: %v", err)
 		return
@@ -153,14 +168,43 @@ func SubmitHistogramBucket(checkID *C.char, metricName *C.char, value C.longlong
 
 	_name := C.GoString(metricName)
 	_value := int64(value)
-	_lowerBound := float64(lowerBound)
-	_upperBound := float64(upperBound)
 	_monotonic := (monotonic != 0)
 	_hostname := C.GoString(hostname)
 	_tags := CStringArrayToSlice(unsafe.Pointer(tags))
 	_flushFirstValue := bool(flushFirstValue)
 
-	sender.OpenmetricsBucket(_name, _value, _lowerBound, _upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	if multipleBuckets {
+		// The sender tracks the state of each bucket by context and bounds
+		sender.HistogramBucket(_name, _value, lowerBound, upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	} else {
+		sender.OpenmetricsBucket(_name, _value, lowerBound, upperBound, _monotonic, _hostname, _tags, _flushFirstValue)
+	}
+}
+
+// LogMsg routes a shared library check's log line through the agent logger.
+// Levels must stay in sync with the LogLevel enum in pkg/collector/sharedlibrary/rustchecks/core/src/aggregator.rs.
+// Not named LogMessage to avoid a cgo symbol collision with pkg/collector/python's LogMessage export.
+//
+//export LogMsg
+func LogMsg(message *C.char, level C.int) {
+	msg := C.GoString(message)
+
+	switch level {
+	case 50: // CRITICAL
+		log.Critical(msg)
+	case 40: // ERROR
+		log.Error(msg)
+	case 30: // WARNING
+		log.Warn(msg)
+	case 20: // INFO
+		log.Info(msg)
+	case 10: // DEBUG
+		log.Debug(msg)
+	case 7: // TRACE
+		log.Trace(msg)
+	default:
+		log.Info(msg)
+	}
 }
 
 // SubmitEventPlatformEvent is the method exposed to scripts to submit event platform events
@@ -174,7 +218,7 @@ func SubmitEventPlatformEvent(checkID *C.char, rawEventPtr *C.char, rawEventSize
 		return
 	}
 
-	sender, err := checkContext.senderManager.GetSender(checkid.ID(_checkID))
+	sender, err := checkContext.GetSender(checkid.ID(_checkID))
 	if err != nil || sender == nil {
 		log.Errorf("Error submitting event platform event to the Sender: %v", err)
 		return

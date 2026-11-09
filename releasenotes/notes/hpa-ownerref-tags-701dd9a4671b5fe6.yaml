@@ -1,0 +1,11 @@
+---
+enhancements:
+  - |
+    The ``kubernetes_state_core`` check now tags ``kube_horizontalpodautoscaler_*``
+    metrics with ``kube_ownerref_kind`` and ``kube_ownerref_name`` when the
+    HorizontalPodAutoscaler has an owner reference, for example one managed by
+    KEDA's ``ScaledObject``/``ScaledJob`` or another custom controller. This
+    makes it possible to identify and filter HPA metrics by the resource that
+    controls them. No configuration is required, and this applies regardless
+    of whether the cluster serves the ``autoscaling/v2`` or
+    ``autoscaling/v2beta2`` API.

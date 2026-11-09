@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The Cluster Agent external metrics provider now returns HTTP 422 instead
+    of HTTP 500 when a DatadogMetric query has no matching series or contains
+    only null values. This allows clients such as KEDA to use their configured
+    unavailable-metric fallback values while preserving HTTP 500 responses for
+    server errors.

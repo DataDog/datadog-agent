@@ -5,7 +5,6 @@
 
 //go:build windows
 
-// Package networkv2 provides a check for network connection and socket statistics
 package networkv2
 
 import (
@@ -19,7 +18,7 @@ import (
 	"golang.org/x/sys/windows"
 
 	"github.com/shirou/gopsutil/v4/net"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -27,12 +26,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/option"
-)
-
-const (
-	// CheckName is the name of the check
-	CheckName = "network"
 )
 
 var (
@@ -71,13 +64,6 @@ var (
 	}
 )
 
-// NetworkCheck represent a network check
-type NetworkCheck struct {
-	core.CheckBase
-	net    networkStats
-	config networkConfig
-}
-
 type networkInstanceConfig struct {
 	CollectRateMetrics       bool     `yaml:"collect_rate_metrics"`
 	CollectCountMetrics      bool     `yaml:"collect_count_metrics"`
@@ -87,13 +73,6 @@ type networkInstanceConfig struct {
 	ExcludedInterfaces       []string `yaml:"excluded_interfaces"`
 	ExcludedInterfaceRe      string   `yaml:"excluded_interface_re"`
 	ExcludedInterfacePattern *regexp.Regexp
-}
-
-type networkInitConfig struct{}
-
-type networkConfig struct {
-	instance networkInstanceConfig
-	initConf networkInitConfig
 }
 
 type networkStats interface {
@@ -346,13 +325,6 @@ func (c *NetworkCheck) Configure(senderManager sender.SenderManager, _ uint64, r
 	}
 
 	return nil
-}
-
-// Factory creates a new check factory
-func Factory(cfg config.Component) option.Option[func() check.Check] {
-	return option.New(func() check.Check {
-		return newCheck(cfg)
-	})
 }
 
 func newCheck(_ config.Component) check.Check {

@@ -12,7 +12,6 @@ type Count struct {
 	sampled bool
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (c *Count) addSample(sample *MetricSample, _ float64) {
 	c.value += sample.Value
 	c.sampled = true
@@ -37,4 +36,8 @@ func (c *Count) flush(timestamp float64) ([]*Serie, error) {
 
 func (c *Count) isStateful() bool {
 	return false
+}
+
+func (c *Count) metricType() MetricType {
+	return CountType
 }

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import io
 import os
 import os.path
 import platform
@@ -9,14 +8,17 @@ import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from pathlib import Path
 from time import sleep
-from typing import cast
 
 from invoke.context import Context, MockContext
 from invoke.exceptions import Exit
-from invoke.runners import Local, Result
+from invoke.runners import Local
 
+from tasks.flavor import FipsBackend
+from tasks.libs.build.bazel import bazel
+from tasks.libs.common.color import color_message
 from tasks.libs.common.retry import run_command_with_retry
-from tasks.libs.common.utils import timed
+from tasks.libs.common.utils import join_command, timed
+from tasks.schema.generate import schema_codegen
 
 
 def download_go_dependencies(
@@ -97,22 +99,19 @@ def _with_pdb_extldflag(ldflags: str, bin_path: str) -> str:
     return (ldflags + suffix) if ldflags else suffix.lstrip()
 
 
-def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str] | None:
+def _with_hermetic_mingw_path(ctx: Context, env: dict[str, str] | None) -> dict[str, str]:
     """
     Prepend the Bazel hermetic MinGW (GNU ld >= 2.44) to PATH for a Windows cgo
     build, so the linker emits PDBs that Microsoft dbghelp/symstore can read. The
     build image's default mingw is ld 2.43, whose `--pdb` output those tools
-    can't parse (WINA-2770). Returns env unchanged if it can't be resolved.
+    can't parse (WINA-2770).
 
     TODO: remove once migrated fully to the Bazel MinGW toolchain.
     """
-    # bazel fetch is idempotent: it extracts @winlibs_mingw64 only if missing.
-    if not ctx.run("bazelisk fetch --repo=@winlibs_mingw64", hide=True, warn=True).ok:
-        return env
-    res = ctx.run("bazelisk info output_base", hide=True, warn=True)
-    if not res.ok:
-        return env
-    mingw_bin = f"{res.stdout.strip()}/external/+winlibs_mingw_repository+winlibs_mingw64/bin"
+    # bazel cquery is idempotent: it fetches/extracts @winlibs_mingw64 only if missing.
+    gcc = bazel("cquery", "@winlibs_mingw64//:gcc", "--output=files", capture_output=True).strip()
+    output_base = bazel("info", "output_base", capture_output=True).strip()
+    mingw_bin = Path(output_base, gcc).parent
     path = (env or {}).get("PATH") or os.environ.get("PATH", "")
     return {**(env or {}), "PATH": f"{mingw_bin}{os.pathsep}{path}"}
 
@@ -133,160 +132,98 @@ def go_build(
     check_deadcode: bool = False,
     coverage: bool = False,
     trimpath: bool = True,
-) -> Result:
+    fips_backend: FipsBackend = FipsBackend.none,
+) -> None:
+    env = env or {}
+    if check_deadcode and sys.platform == "aix":
+        print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
+        check_deadcode = False
+
+    # TODO: remove once Bazel is used to build the Agent
+    schema_codegen(ctx)
+
     # When targeting Windows with a known output path, ensure the parent
     # directory exists and ask mingw ld to emit a PDB next to the binary
     # so cdb/WPA/xperf can resolve Go symbols. ld writes the PDB during
     # the link step — before `go build` copies the .exe to bin_path —
     # which is why the pre-create is needed.
-    target_is_windows = (
-        sys.platform == "win32" or (env or {}).get("GOOS") == "windows" or os.getenv("GOOS") == "windows"
-    )
-    if bin_path and target_is_windows:
+    target_os = env.get("GOOS") or os.getenv("GOOS") or platform.system().lower()
+    if bin_path and target_os == "windows":
         os.makedirs(os.path.dirname(os.path.abspath(str(bin_path))) or ".", exist_ok=True)
         if os.environ.get("DD_GO_PDB", "1") != "0":
             ldflags = _with_pdb_extldflag(ldflags or "", str(bin_path))
             if sys.platform == "win32":
                 env = _with_hermetic_mingw_path(ctx, env)
 
-    cmd = "go build"
+    args = ["build"]
     if coverage:
-        cmd += " -cover -covermode=atomic"
+        args += ["-cover", "-covermode=atomic"]
         build_tags = build_tags or []
         build_tags.append("e2ecoverage")
     if mod:
-        cmd += f" -mod={mod}"
+        args.append(f"-mod={mod}")
     if race:
-        cmd += " -race"
+        args.append("-race")
     if rebuild:
-        cmd += " -a"
+        args.append("-a")
     if verbose:
-        cmd += " -v"
+        args.append("-v")
     if echo:
-        cmd += " -x"
+        args.append("-x")
     if build_tags:
-        cmd += f" -tags \"{' '.join(build_tags)}\""
+        # sort build tags to have the same order and ensure caching hits properly
+        args += ["-tags", ",".join(sorted(build_tags))]
     if bin_path:
-        cmd += f" -o {bin_path}"
+        args += ["-o", str(bin_path)]
     if gcflags:
-        cmd += f" -gcflags=\"{gcflags}\""
+        args.append(f"-gcflags={gcflags}")
     if check_deadcode:
         ldflags = (ldflags or "") + " -dumpdep"
     if ldflags:
-        cmd += f" -ldflags=\"{ldflags}\""
+        args.append(f"-ldflags={ldflags}")
     if trimpath and 'DELVE' not in os.environ:
-        cmd += " -trimpath"
+        args.append("-trimpath")
 
-    cmd += f" {entrypoint}"
+    args.append(str(entrypoint))
 
-    if check_deadcode:
-        result = _handle_pipe_to_whydeadcode(ctx, os.path.basename(entrypoint), cmd, env)
+    if fips_backend == FipsBackend.boringcrypto:
+        env = env | {"GOEXPERIMENT": "boringcrypto"}
+    elif fips_backend == FipsBackend.msgo and target_os == "linux":
+        env = env | {"GOEXPERIMENT": "ms_nocgo_opensslcrypto"}
+
+    if fips_backend == FipsBackend.msgo:
+        stderr = bazel("run", "//:msgo", "--", "-C", os.getcwd(), *args, capture_stderr=check_deadcode, env=env)
     else:
-        result = cast(Result, ctx.run(cmd, env=env))
+        runner = Local(ctx)
+        runner.read_chunk_size = 1024 * 1024 * 10  # see https://github.com/pyinvoke/invoke/issues/774
+        _ = runner.read_chunk_size  # please linters
+        runner.input_sleep = 0
+        _ = runner.input_sleep  # please linters
+        stderr = runner.run(join_command(["go", *args]), env=env, hide="stderr" if check_deadcode else None).stderr
 
-    if sys.platform == "win32" or result.exited != 0 or bin_path is None:
-        return result
+    # whydeadcode --ignore-unrecognized-input prints dead code call stack on stdout
+    # it returns 0, even if dead code elimination is disabled
+    # so we check whether stdout is empty to know if dead code elimination is disabled
+    if check_deadcode and (
+        whydeadcode_out := bazel(
+            "run",
+            *(f"--run_env={k}={v}" for k, v in env.items()),
+            "@com_github_aarzilli_whydeadcode//:whydeadcode",
+            "--",
+            "--ignore-unrecognized-input",
+            input=stderr,
+            capture_output=True,
+        )
+    ):
+        print(
+            f"dead code elimination is disabled for {os.path.basename(entrypoint)} on {sys.platform} {platform.machine()} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcode_out}"
+        )
+
+    if sys.platform == "win32" or bin_path is None:
+        return
 
     if os.path.exists(bin_path):
         uid = os.environ.get("HOST_UID", "-1")
         gid = os.environ.get("HOST_GID", "-1")
         if uid != "-1" and gid != "-1":
             os.chown(bin_path, int(uid), int(gid))
-
-    return result
-
-
-def _handle_pipe_to_whydeadcode(ctx: Context, name: str, cmd: str, env: dict[str, str] | None = None) -> Result:
-    """
-    - Runs `go build` with the `dumpdep` flag in a custom runner. This runner reads big chunks to improve invoke I/O performance, see https://github.com/pyinvoke/invoke/issues/774
-    - Calls `whydeadcode` in the same runner using an associated custom reader.
-    """
-    runner = Local(ctx)
-    runner.read_chunk_size = 1024 * 1024 * 10
-    _ = runner.read_chunk_size  # please linters
-    runner.input_sleep = 0
-    _ = runner.input_sleep  # please linters
-
-    # -dumpdep is very verbose so we hide that
-    # any unrecognized log line is shown by whydeadcode anyway
-    result = cast(Result, runner.run(cmd, env=env, hide="stderr"))
-
-    # worst case it's already installed and nothing happens
-    with ctx.cd("internal/tools"):
-        # pass the env to the command so that it can check GOPATH/GOBIN if provided
-        ctx.run("go install github.com/aarzilli/whydeadcode", env=env)
-
-    # whydeadcode prints unexpected input on stderr (eg. build warnings), and
-    # dead code call stack on stdout
-    # it returns non-zero if non-expected input is passed, and 0 otherwise, even if dead code elimination is disabled
-    # so we check whether stdout is empty to know if dead code elimination is disabled
-    whydeadcoderes = cast(
-        Result, runner.run("whydeadcode", in_stream=CustomReader(result.stderr), warn=True, hide="out", env=env)
-    )
-    arch = platform.machine()
-    osname = sys.platform
-    dce_enabled = not bool(whydeadcoderes.stdout)
-    if not dce_enabled:
-        print(
-            f"dead code elimination is disabled for {name} on {osname} {arch} by the following call stack (only the first one is guaranteed to be a true positive):\n{whydeadcoderes.stdout}"
-        )
-
-    _emit_dce_metric(name, dce_enabled, osname, arch)
-
-    return result
-
-
-def _emit_dce_metric(name: str, dce_enabled: bool, osname: str, arch: str) -> None:
-    """Emit a gauge metric for dead code elimination status. Only runs in CI on the main branch."""
-    from tasks.libs.common.utils import running_in_ci
-
-    if not running_in_ci():
-        return
-    if os.environ.get("CI_COMMIT_BRANCH") != "main":
-        return
-
-    import datetime
-
-    from tasks.libs.common.datadog_api import create_gauge, send_metrics
-
-    tags = [
-        f"binary:{name}",
-        f"os:{osname}",
-        f"arch:{arch}",
-    ]
-    for env_var, tag_name in [
-        ("BUCKET_BRANCH", "bucket_branch"),
-        ("CI_COMMIT_REF_NAME", "git_ref"),
-        ("CI_PIPELINE_ID", "pipeline_id"),
-        ("CI_COMMIT_SHA", "ci_commit_sha"),
-    ]:
-        value = os.environ.get(env_var)
-        if value:
-            tags.append(f"{tag_name}:{value}")
-
-    timestamp = int(datetime.datetime.utcnow().timestamp())
-    metric = create_gauge(
-        "datadog.agent.go.dead_code_elimination.enabled",
-        timestamp,
-        1 if dce_enabled else 0,
-        tags=tags,
-    )
-
-    try:
-        send_metrics([metric])
-    except Exception as e:
-        print(f"[WARN] Failed to send DCE metric to Datadog: {e}", file=sys.stderr)
-
-
-class CustomReader(io.StringIO):
-    """
-    Custom reader to read 10MiB at a time.
-    This is a workaround to increase invoke performance at reading from stdin
-    See https://github.com/pyinvoke/invoke/issues/819
-    """
-
-    def __init__(self, data: str):
-        super().__init__(data)
-
-    def read(self, n: int | None = None) -> str:
-        return super().read(1024 * 1024 * 10)

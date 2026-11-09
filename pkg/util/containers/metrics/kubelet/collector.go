@@ -16,6 +16,8 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/containers/metrics/provider"
 	kutil "github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
@@ -65,6 +67,13 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 		return collectorMetadata, provider.ErrPermaFail
 	}
 
+	// Cluster Checks Runners have no reachable local Kubelet: never let this
+	// collector be retried, otherwise the background collector discovery
+	// ticker will hammer the kubelet client forever and spam WARN logs.
+	if helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
+		return collectorMetadata, provider.ErrPermaFail
+	}
+
 	client, err := kutil.GetKubeUtil()
 	if err != nil {
 		return collectorMetadata, provider.ConvertRetrierErr(err)
@@ -96,7 +105,11 @@ func newKubeletCollector(_ *provider.Cache, wmeta workloadmeta.Component) (provi
 
 // ContainerIDForPodUIDAndContName returns a container ID for the given pod uid
 // and container name. Returns ("", nil) if the containerd ID was not found.
-func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, initCont bool, _ time.Duration) (string, error) {
+// All of the pod's containers are searched: container names are unique within
+// a pod, so the init container flag isn't needed and is ignored. This resolves
+// native sidecars (init containers with restartPolicy Always) when the caller
+// doesn't know the container is an init container.
+func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName string, _ bool, _ time.Duration) (string, error) {
 	pod, err := kc.metadataStore.GetKubernetesPod(podUID)
 	if err != nil {
 		if pkgerrors.IsNotFound(err) {
@@ -105,16 +118,11 @@ func (kc *kubeletCollector) ContainerIDForPodUIDAndContName(podUID, contName str
 		return "", err
 	}
 
-	var containers []workloadmeta.OrchestratorContainer
-	if initCont {
-		containers = pod.InitContainers
-	} else {
-		containers = append(pod.Containers, pod.EphemeralContainers...)
-	}
-
-	for _, container := range containers {
-		if container.Name == contName {
-			return container.ID, nil
+	for _, containers := range [][]workloadmeta.OrchestratorContainer{pod.Containers, pod.EphemeralContainers, pod.InitContainers} {
+		for _, container := range containers {
+			if container.Name == contName {
+				return container.ID, nil
+			}
 		}
 	}
 

@@ -152,6 +152,56 @@ func TestGetResourceExecute(t *testing.T) {
 			wantStatus:   StatusFailed,
 			wantContains: "not allowed for security reasons",
 		},
+		{
+			testName:     "namespace is not case folded",
+			objects:      []runtime.Object{newUnstructuredConfigMap("kube-system", "kubeadm-config", map[string]interface{}{"key": "value"})},
+			apiVersion:   "v1",
+			kind:         "configmaps",
+			namespace:    "Kube-System",
+			name:         "kubeadm-config",
+			wantStatus:   StatusFailed,
+			wantContains: "failed to get resource configmaps/Kube-System/kubeadm-config",
+		},
+		{
+			testName:     "kind with path traversal is rejected",
+			objects:      nil,
+			apiVersion:   "v1",
+			kind:         "configmaps/../secrets",
+			namespace:    "default",
+			name:         "my-secret",
+			wantStatus:   StatusFailed,
+			wantContains: "invalid resource kind",
+		},
+		{
+			testName:     "kind escaping the namespace is rejected",
+			objects:      nil,
+			apiVersion:   "v1",
+			kind:         "../kube-system/secrets",
+			namespace:    "default",
+			name:         "my-secret",
+			wantStatus:   StatusFailed,
+			wantContains: "invalid resource kind",
+		},
+		{
+			testName:     "version with path traversal is rejected",
+			objects:      nil,
+			apiVersion:   "apps/v1/../../../api/v1/namespaces/default/secrets",
+			kind:         "configmaps",
+			namespace:    "default",
+			name:         "my-secret",
+			wantStatus:   StatusFailed,
+			wantContains: "invalid api version",
+		},
+		{
+			testName:     "group with path traversal is rejected",
+			objects:      nil,
+			apiVersion:   "../v1",
+			kind:         "configmaps",
+			namespace:    "default",
+			name:         "my-config",
+			wantStatus:   StatusFailed,
+			wantContains: "invalid api group",
+		},
 	}
 
 	for _, tt := range tests {
@@ -177,6 +227,41 @@ func TestGetResourceExecute(t *testing.T) {
 			} else {
 				assert.Empty(t, result.Payloads)
 			}
+		})
+	}
+}
+
+func TestParseGetResourceGVR(t *testing.T) {
+	tests := []struct {
+		apiVersion string
+		kind       string
+		want       schema.GroupVersionResource
+		wantErr    string
+	}{
+		{apiVersion: "v1", kind: "configmaps", want: schema.GroupVersionResource{Version: "v1", Resource: "configmaps"}},
+		{apiVersion: "apps/v1", kind: "Deployments", want: schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}},
+		{apiVersion: "datadoghq.com/v1alpha1", kind: "datadogmetrics", want: schema.GroupVersionResource{Group: "datadoghq.com", Version: "v1alpha1", Resource: "datadogmetrics"}},
+		{apiVersion: "v1", kind: "configmaps/../secrets", wantErr: "invalid resource kind"},
+		{apiVersion: "v1", kind: "secrets/", wantErr: "invalid resource kind"},
+		{apiVersion: "v1", kind: "..", wantErr: "invalid resource kind"},
+		{apiVersion: "v1", kind: "pods.metrics", wantErr: "invalid resource kind"},
+		{apiVersion: "apps/v1/..", kind: "deployments", wantErr: "invalid api version"},
+		{apiVersion: "..", kind: "configmaps", wantErr: "invalid api version"},
+		{apiVersion: "a/b/v1", kind: "configmaps", wantErr: "invalid api version"},
+		{apiVersion: "../v1", kind: "configmaps", wantErr: "invalid api group"},
+		{apiVersion: "/v1", kind: "configmaps", wantErr: "invalid api group"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.apiVersion+"|"+tt.kind, func(t *testing.T) {
+			got, err := ParseGetResourceGVR(tt.apiVersion, tt.kind)
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

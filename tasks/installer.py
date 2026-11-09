@@ -6,13 +6,15 @@ import glob
 import hashlib
 import sys
 from os import getenv, makedirs, path
+from pathlib import PurePosixPath
 
 from invoke import task
 
 from tasks.build_tags import (
     compute_build_tags_for_flavor,
 )
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
+from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags
 from tasks.windows_resources import build_messagetable, build_rc, versioninfo_vars
@@ -20,6 +22,8 @@ from tasks.windows_resources import build_messagetable, build_rc, versioninfo_va
 DIR_BIN = path.join(".", "bin", "installer")
 INSTALLER_BIN = path.join(DIR_BIN, bin_name("installer"))
 INSTALL_SCRIPT_TEMPLATE = path.join("pkg", "fleet", "installer", "setup", "install.sh")
+
+BAZEL_TARGET = "//cmd/installer:installer"
 
 
 @task
@@ -35,11 +39,30 @@ def build(
     go_mod="readonly",
     no_strip_binary=True,
     no_cgo=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
+    enable_bazel=False,
 ):
     """
     Build the installer.
     """
+
+    if enable_bazel:
+        if sys.platform == 'win32':
+            raise NotImplementedError("--enable-bazel does not support Windows.")
+        if race:
+            raise NotImplementedError("--enable-bazel does not support --race.")
+        if build_include is not None or build_exclude is not None:
+            raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
+        if install_path is not None or run_path is not None:
+            raise NotImplementedError("--enable-bazel does not support --install-path/--run-path.")
+        if output_bin is not None:
+            raise NotImplementedError("--enable-bazel does not support --output-bin.")
+        if not no_strip_binary:
+            raise NotImplementedError("--enable-bazel does not support --no-strip-binary=False.")
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=INSTALLER_BIN)
+        return
 
     ldflags, gcflags, env = get_build_flags(ctx, install_path=install_path, run_path=run_path)
 
@@ -57,15 +80,21 @@ def build(
         build="installer",
         build_include=build_include,
         build_exclude=build_exclude,
-        flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base,
+        flavor=fips_backend.agent_flavor(),
     )
 
     installer_bin = INSTALLER_BIN
     if output_bin:
         installer_bin = output_bin
 
-    if no_cgo and not fips_mode:
+    if no_cgo:
         env["CGO_ENABLED"] = "0"
+        if fips_backend == FipsBackend.msgo and install_path:
+            rpath = [f"{install_path}/embedded/lib"]  # OpenSSL is dlopen'ed from there at runtime
+            package_path = PurePosixPath(install_path).parent
+            if package_path.parent.name == "datadog-packages":
+                rpath.append(f"{package_path}/stable/embedded/lib")  # OpenSSL is dlopen'ed from there at upgrade time
+            ldflags += f" -r {':'.join(rpath)}"
     else:
         env["CGO_ENABLED"] = "1"
 
@@ -84,6 +113,7 @@ def build(
         bin_path=installer_bin,
         check_deadcode=getenv("DEPLOY_AGENT") == "true",
         env=env,
+        fips_backend=fips_backend,
     )
 
 

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package tracer
 
@@ -31,6 +31,7 @@ import (
 	"syscall"
 	"testing"
 	"time"
+	"unsafe"
 
 	manager "github.com/DataDog/ebpf-manager"
 	"github.com/cilium/ebpf"
@@ -46,14 +47,19 @@ import (
 	"go4.org/intern"
 	"golang.org/x/sys/unix"
 
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/config/sysctl"
+	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/network/events"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/protocols"
@@ -734,7 +740,7 @@ func (s *TracerSuite) TestGatewayLookupEnabled() {
 
 		cfg := testConfig()
 		cfg.EnableGatewayLookup = true
-		tr, err := newTracer(cfg, nil, nil)
+		tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 		require.NoError(t, err)
 		require.NotNil(t, tr)
 		t.Cleanup(tr.Stop)
@@ -841,7 +847,7 @@ func (s *TracerSuite) TestGatewayLookupSubnetLookupError() {
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
 	// create the tracer without starting it
-	tr, err := newTracer(cfg, nil, nil)
+	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -911,7 +917,7 @@ func (s *TracerSuite) TestGatewayLookupCrossNamespace() {
 
 	cfg := testConfig()
 	cfg.EnableGatewayLookup = true
-	tr, err := newTracer(cfg, nil, nil)
+	tr, err := newTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	require.NotNil(t, tr)
 	t.Cleanup(tr.Stop)
@@ -1861,9 +1867,6 @@ func (s *TracerSuite) TestSendfileRegression() {
 }
 
 func httpSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return kv >= usmconfig.MinimumKernelVersion
 }
 
@@ -1884,7 +1887,7 @@ func skipCOREIfBTFFieldMissing(t *testing.T, fields ...string) {
 	if ebpftest.GetBuildMode() != ebpftest.CORE {
 		return
 	}
-	spec, err := ddebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		t.Skipf("BTF not available: %v", err)
 	}
@@ -2864,6 +2867,96 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	return
 }
 
+// classifierEntryMaxSize bounds the size of the protocol classification entry program after verification and JIT
+// constant blinding. It's the only classification program attached to a socket, and attaching charges that size
+// against net.core.optmem_max: 20 KiB on kernels before 6.8 and on GKE COS, which also sets
+// net.core.bpf_jit_harden=2. 7.85.0 failed to attach there. The budget is 1 KiB below 20 KiB because the same program
+// can come out larger on other kernels (about 100 bytes larger on GKE COS than on Ubuntu 24.04), and the kernel also
+// charges a small header. To stay under it, avoid inlining the same helper more than once, or move code into the
+// tail-called programs (see classification_progs).
+const classifierEntryMaxSize = 19 * 1024
+
+func (s *TracerSuite) TestProtocolClassifierEntrySize() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+
+	// Constant blinding is done by the JIT, so without it the program would be measured unblinded.
+	jitEnable, err := os.ReadFile("/proc/sys/net/core/bpf_jit_enable")
+	if err != nil || strings.TrimSpace(string(jitEnable)) == "0" {
+		t.Skip("BPF JIT is disabled, so constants can't be blinded")
+	}
+
+	// Blind constants like GKE COS does, since that's what makes the program biggest.
+	const jitHarden = "/proc/sys/net/core/bpf_jit_harden"
+	orig, err := os.ReadFile(jitHarden)
+	require.NoError(t, err)
+	if err := os.WriteFile(jitHarden, []byte("2"), 0644); err != nil {
+		t.Skipf("can't enable constant blinding: %s", err)
+	}
+	t.Cleanup(func() { _ = os.WriteFile(jitHarden, orig, 0644) })
+
+	// Make sure the tracer can attach the program however big it is, so the test measures it against the budget
+	// rather than failing to attach: before 6.8, net.core.optmem_max defaults to 20 KiB.
+	const optmemMax = "/proc/sys/net/core/optmem_max"
+	origOptmem, err := os.ReadFile(optmemMax)
+	require.NoError(t, err)
+	if limit, err := strconv.Atoi(strings.TrimSpace(string(origOptmem))); err != nil || limit < 1<<18 {
+		if err := os.WriteFile(optmemMax, []byte(strconv.Itoa(1<<18)), 0644); err != nil {
+			t.Skipf("can't raise net.core.optmem_max: %s", err)
+		}
+		t.Cleanup(func() { _ = os.WriteFile(optmemMax, origOptmem, 0644) })
+	}
+
+	setupTracer(t, cfg)
+
+	// Find this tracer's entry program through the program IDs it registered with pkg/ebpf, which records each
+	// program's full name from the eBPF manager. The kernel truncates program names (and before 4.15 doesn't keep
+	// them), and other processes may load programs with the same name.
+	entryName := string(probes.ProtocolClassifierEntrySocketFilter)
+	size := 0
+	var id ebpf.ProgramID
+	for {
+		id, err = ebpf.ProgramGetNextID(id)
+		if errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		require.NoError(t, err)
+
+		if name, err := ddebpf.GetProgNameFromProgID(uint32(id)); err != nil || name != entryName {
+			continue
+		}
+		if module, err := ddebpf.GetModuleFromProgID(uint32(id)); err != nil || module != "npm_tracer" {
+			continue
+		}
+		prog, err := ebpf.NewProgramFromID(id)
+		if err != nil {
+			continue // registered by a tracer from an earlier test, unloaded since
+		}
+		info, err := prog.Info()
+		prog.Close()
+		require.NoError(t, err)
+		// Program IDs only increase, so the last match is the one this test's tracer loaded.
+		size, err = info.TranslatedSize()
+		require.NoError(t, err)
+	}
+
+	require.NotZero(t, size, "%s not loaded", entryName)
+	if ebpftest.GetBuildMode() == ebpftest.CORE && kv < kernel.VersionCode(5, 0, 0) {
+		// The CO-RE program comes out larger on older kernels (19,920 bytes on Ubuntu 18.04's 4.18 and 20,408 on Amazon
+		// Linux 2's 4.14), too close to the limit for a budget meant to leave room for newer kernels like GKE COS's.
+		// Constant blinding is off by default on those kernels, and enabling it there isn't a configuration this test
+		// covers.
+		t.Skipf("%s is %d bytes after constant blinding in CO-RE mode; the budget doesn't apply before kernel 5.0", entryName, size)
+	}
+	assert.LessOrEqual(t, size, classifierEntryMaxSize,
+		"%s is %d bytes after constant blinding; keep it under %d so it can be attached on hosts with net.core.optmem_max=20480 (e.g. GKE COS nodes, which also blind constants)",
+		entryName, size, classifierEntryMaxSize)
+}
+
 func (s *TracerSuite) TestTLSClassification() {
 	t := s.T()
 	cfg := testConfig()
@@ -2930,6 +3023,53 @@ func (s *TracerSuite) TestTLSClassification() {
 			},
 		})
 	}
+	// A connection_protocol entry can outlive its connection, so a new connection reusing the same tuple can start
+	// with the encryption layer already known. Its handshake must still be parsed so the new connection gets TLS tags.
+	tests = append(tests, tlsTest{
+		name: "Stale-TLS-Entry",
+		postTracerSetup: func(t *testing.T) (uint16, uint16) {
+			scenario := uint16(tls.VersionTLS12)
+			// IPv4 explicitly: localhost can resolve to ::1, and setConnectionProtocol seeds an IPv4 tuple.
+			srv := usmtestutil.NewTLSServerWithSpecificVersion("127.0.0.1:0", func(conn net.Conn) {
+				defer conn.Close()
+				tracertestutil.SetTestDeadline(conn)
+				_, _ = io.Copy(conn, conn)
+			}, scenario)
+			done := make(chan struct{})
+			require.NoError(t, srv.Run(done))
+			t.Cleanup(func() { close(done) })
+
+			addr := srv.Address()
+			_, portStr, err := net.SplitHostPort(addr)
+			require.NoError(t, err)
+			portInt, err := strconv.Atoi(portStr)
+			require.NoError(t, err)
+
+			conn, err := tracertestutil.DialTCP("tcp", addr)
+			require.NoError(t, err)
+			defer conn.Close()
+
+			// Simulate the leaked entry: mark the tuple as TLS before any payload is sent.
+			setConnectionProtocol(t, tr, conn, netebpf.ProtocolStack{
+				Encryption: protocols.FromProtocolType(protocols.TLS),
+			})
+
+			tlsConn := tls.Client(conn, &tls.Config{
+				MinVersion:             scenario,
+				MaxVersion:             scenario,
+				InsecureSkipVerify:     true,
+				SessionTicketsDisabled: true,
+			})
+			require.NoError(t, tlsConn.Handshake())
+
+			return uint16(portInt), scenario
+		},
+		validation: func(t *testing.T, tr *Tracer, port uint16, scenario uint16) {
+			require.EventuallyWithT(t, func(ct *assert.CollectT) {
+				require.True(ct, validateTLSTags(ct, tr, port, scenario), "TLS tags not set")
+			}, 3*time.Second, 100*time.Millisecond, "couldn't find TLS connection matching: dst port %v", port)
+		},
+	})
 	tests = append(tests, tlsTest{
 		name: "Invalid-TLS-Handshake",
 		postTracerSetup: func(t *testing.T) (uint16, uint16) {
@@ -3005,6 +3145,38 @@ func (s *TracerSuite) TestTLSClassification() {
 			tt.validation(t, tr, port, scenario)
 		})
 	}
+}
+
+// setConnectionProtocol writes stack into the connection_protocol map for both directions of an IPv4 TCP conn, keyed
+// the way the socket filter looks it up (no PID or netns).
+func setConnectionProtocol(t *testing.T, tr *Tracer, conn net.Conn, stack netebpf.ProtocolStack) {
+	t.Helper()
+	connProtocolMap, err := tr.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+
+	local := conn.LocalAddr().(*net.TCPAddr)
+	remote := conn.RemoteAddr().(*net.TCPAddr)
+	// An IPv4 key on an IPv6 conn would never be looked up, silently turning the caller's test into a no-op.
+	require.NotNil(t, local.IP.To4(), "setConnectionProtocol only supports IPv4 connections, got %v", local)
+	require.NotNil(t, remote.IP.To4(), "setConnectionProtocol only supports IPv4 connections, got %v", remote)
+	localLow, localHigh := util.ToLowHigh(util.AddressFromNetIP(local.IP))
+	remoteLow, remoteHigh := util.ToLowHigh(util.AddressFromNetIP(remote.IP))
+	value := netebpf.ProtocolStackWrapper{Updated: 1, Stack: stack}
+
+	key := netebpf.ConnTuple{
+		Saddr_h:  localHigh,
+		Saddr_l:  localLow,
+		Daddr_h:  remoteHigh,
+		Daddr_l:  remoteLow,
+		Sport:    uint16(local.Port),
+		Dport:    uint16(remote.Port),
+		Metadata: uint32(netebpf.TCP) | uint32(netebpf.IPv4),
+	}
+	require.NoError(t, connProtocolMap.Put(unsafe.Pointer(&key), unsafe.Pointer(&value)))
+
+	key.Saddr_h, key.Saddr_l, key.Daddr_h, key.Daddr_l = remoteHigh, remoteLow, localHigh, localLow
+	key.Sport, key.Dport = uint16(remote.Port), uint16(local.Port)
+	require.NoError(t, connProtocolMap.Put(unsafe.Pointer(&key), unsafe.Pointer(&value)))
 }
 
 func validateTLSTags(t *assert.CollectT, tr *Tracer, port uint16, scenario uint16) bool {
@@ -4102,4 +4274,175 @@ options ndots:1`
 		require.True(ct, ok, "container didn't have a resolv.conf")
 		require.Equal(ct, trueResolvConf, resolvConf.Get(), "resolv.conf was found, but didn't match expected value")
 	}, 5*time.Second, 200*time.Millisecond, "failed to find DNS connection with proper resolv.conf")
+}
+
+// TestNetNSContainerAttribution mimics Istio ambient's ztunnel: a process in one container enters
+// another pod's network namespace (setns) and opens sockets there. Those sockets must be attributed
+// to the pod that owns the namespace, while the process's sockets in its own namespace keep its
+// container.
+func (s *TracerSuite) TestNetNSContainerAttribution() {
+	t := s.T()
+	cfg := testConfig()
+	// eBPF-less mode captures packets in the root namespace, so it doesn't see traffic inside another one
+	skipOnEbpflessNotSupported(t, cfg)
+	cfg.EnableProcessEventMonitoring = true
+	tr := setupTracer(t, cfg)
+	require.NotNil(t, tr.processCache)
+
+	newPodNS := func() (vnetns.NsHandle, uint32) {
+		name := netlinktestutil.AddNS(t)
+		testutil.RunCommands(t, []string{"ip -n " + name + " link set lo up"}, false)
+		handle, err := vnetns.GetFromName(name)
+		require.NoError(t, err)
+		t.Cleanup(func() { handle.Close() })
+		ino, err := netns.GetInoForNs(handle)
+		require.NoError(t, err)
+		return handle, ino
+	}
+	podNSHandle, podNSIno := newPodNS()
+	// a pod with two application containers: which one owns the traffic is ambiguous
+	multiNSHandle, multiNSIno := newPodNS()
+
+	// the proxy runs in its own pod namespace, as ztunnel does, so its own sockets aren't in the root namespace
+	proxyNSHandle, proxyNSIno := newPodNS()
+
+	const (
+		tunnelPort = 15008
+		proxyPID   = 1001 // stand-in PIDs, mapped to namespaces below rather than read from procfs
+		appPID     = 1002
+		helperPID  = 1003
+		webPID     = 1004
+		workerPID  = 1005
+	)
+	r, err := newNetNSContainerResolver([]string{"ztunnel"}, []string{"vault-agent"}, []int{tunnelPort})
+	require.NoError(t, err)
+	r.readNetNS = func(pid int) (uint32, error) {
+		switch pid {
+		case proxyPID:
+			return proxyNSIno, nil
+		case appPID, helperPID:
+			return podNSIno, nil
+		case webPID, workerPID:
+			return multiNSIno, nil
+		}
+		return 0, errors.New("unknown pid")
+	}
+	r.process([]workloadmeta.Event{
+		testContainerEvent(workloadmeta.EventTypeSet, "proxy-container", "ztunnel", proxyPID),
+		testContainerEvent(workloadmeta.EventTypeSet, "app-container", "router", appPID),
+		// a helper sharing the pod's namespace doesn't make the pod ambiguous
+		testContainerEvent(workloadmeta.EventTypeSet, "vault-agent", "vault", helperPID),
+		testContainerEvent(workloadmeta.EventTypeSet, "web-container", "web", webPID),
+		testContainerEvent(workloadmeta.EventTypeSet, "worker-container", "worker", workerPID),
+	})
+	tr.netnsResolver.Store(r)
+
+	// the test process plays the proxy: its own container, with process tags
+	proxyCID := intern.GetByString("proxy-container")
+	appCID := intern.GetByString("app-container")
+	tr.processCache.add(&events.Process{
+		Pid:         uint32(os.Getpid()),
+		Tags:        []*intern.Value{intern.GetByString("service:ztunnel")},
+		ContainerID: proxyCID,
+		StartTime:   time.Now().Add(-time.Hour).UnixNano(),
+		Expiry:      time.Now().Add(5 * time.Minute).Unix(),
+	})
+
+	// connection inside the pod's namespace, opened after setns
+	var podServer *tracertestutil.TCPServer
+	var podConn net.Conn
+	err = netns.WithNS(podNSHandle, func() error {
+		podServer = tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("127.0.0.1:%d", tunnelPort), func(_ net.Conn) {})
+		if err := podServer.Run(); err != nil {
+			return err
+		}
+		var dialErr error
+		podConn, dialErr = podServer.Dial()
+		return dialErr
+	})
+	require.NoError(t, err)
+	t.Cleanup(podServer.Shutdown)
+	t.Cleanup(func() { podConn.Close() })
+
+	// another leg in the pod's namespace, off the tunnel port, as the proxy's capture and delivery legs are
+	var legServer *tracertestutil.TCPServer
+	var legConn net.Conn
+	err = netns.WithNS(podNSHandle, func() error {
+		legServer = tracertestutil.NewTCPServerOnAddress("127.0.0.1:0", func(_ net.Conn) {})
+		if err := legServer.Run(); err != nil {
+			return err
+		}
+		var dialErr error
+		legConn, dialErr = legServer.Dial()
+		return dialErr
+	})
+	require.NoError(t, err)
+	t.Cleanup(legServer.Shutdown)
+	t.Cleanup(func() { legConn.Close() })
+
+	// connection inside the multi-container pod's namespace
+	var multiServer *tracertestutil.TCPServer
+	var multiConn net.Conn
+	err = netns.WithNS(multiNSHandle, func() error {
+		multiServer = tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("127.0.0.1:%d", tunnelPort), func(_ net.Conn) {})
+		if err := multiServer.Run(); err != nil {
+			return err
+		}
+		var dialErr error
+		multiConn, dialErr = multiServer.Dial()
+		return dialErr
+	})
+	require.NoError(t, err)
+	t.Cleanup(multiServer.Shutdown)
+	t.Cleanup(func() { multiConn.Close() })
+
+	// control connection in the proxy's own namespace
+	var ownServer *tracertestutil.TCPServer
+	var ownConn net.Conn
+	err = netns.WithNS(proxyNSHandle, func() error {
+		ownServer = tracertestutil.NewTCPServerOnAddress(fmt.Sprintf("127.0.0.1:%d", tunnelPort), func(_ net.Conn) {})
+		if err := ownServer.Run(); err != nil {
+			return err
+		}
+		var dialErr error
+		ownConn, dialErr = ownServer.Dial()
+		return dialErr
+	})
+	require.NoError(t, err)
+	t.Cleanup(ownServer.Shutdown)
+	t.Cleanup(func() { ownConn.Close() })
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		conns, cleanup := getConnections(collect, tr)
+		defer cleanup()
+
+		pod, ok := findConnection(podConn.LocalAddr(), podConn.RemoteAddr(), conns)
+		require.True(collect, ok, "connection in the pod namespace not found")
+		assert.Equal(collect, podNSIno, pod.NetNS)
+		assert.Equal(collect, appCID, pod.ContainerID.Source, "socket in the pod namespace must be attributed to the pod")
+		assert.Empty(collect, pod.Tags, "the proxy's process tags must not move onto the pod")
+		assert.Equal(collect, proxyCID, pod.NetNSOriginalContainerID)
+
+		// the accepted side is how a proxy delivers into the pod
+		accepted, ok := findConnection(podConn.RemoteAddr(), podConn.LocalAddr(), conns)
+		require.True(collect, ok, "accepted connection in the pod namespace not found")
+		assert.Equal(collect, appCID, accepted.ContainerID.Source, "accepted socket in the pod namespace must be attributed to the pod")
+
+		leg, ok := findConnection(legConn.LocalAddr(), legConn.RemoteAddr(), conns)
+		require.True(collect, ok, "off-tunnel connection in the pod namespace not found")
+		assert.Equal(collect, proxyCID, leg.ContainerID.Source, "a leg off the tunnel port duplicates the app's own socket, so it stays on the proxy")
+		assert.Nil(collect, leg.NetNSOriginalContainerID)
+
+		multi, ok := findConnection(multiConn.LocalAddr(), multiConn.RemoteAddr(), conns)
+		require.True(collect, ok, "connection in the multi-container namespace not found")
+		assert.Equal(collect, proxyCID, multi.ContainerID.Source, "a multi-container pod is ambiguous, so the socket keeps the proxy's container")
+		assert.Nil(collect, multi.NetNSOriginalContainerID)
+
+		own, ok := findConnection(ownConn.LocalAddr(), ownConn.RemoteAddr(), conns)
+		require.True(collect, ok, "connection in the proxy's own namespace not found")
+		assert.Equal(collect, proxyNSIno, own.NetNS)
+		assert.Equal(collect, proxyCID, own.ContainerID.Source, "socket in the proxy's own namespace keeps its container")
+		assert.Nil(collect, own.NetNSOriginalContainerID)
+		assert.NotEmpty(collect, own.Tags)
+	}, 3*time.Second, 100*time.Millisecond)
 }

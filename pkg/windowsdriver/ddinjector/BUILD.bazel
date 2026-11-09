@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "ddinjector",
@@ -7,27 +8,26 @@ go_library(
         "ddinjector_testutil.go",
         "types.go",
     ],
-    cdeps = ["//pkg/windowsdriver/include:ddinjector_public"],  # keep
+    cdeps = ["//pkg/windowsdriver/include:ddinjector_public"],
     cgo = True,
     importpath = "github.com/DataDog/datadog-agent/pkg/windowsdriver/ddinjector",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "//comp/core/telemetry/def",
             "//pkg/util/log",
+            "//pkg/util/winutil",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "ddinjector_test",
     srcs = ["ddinjector_test.go"],
     embed = [":ddinjector"],
-    gotags = ["test"],
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     deps = select({
         "@rules_go//go/platform:windows": [
             "@com_github_stretchr_testify//assert",

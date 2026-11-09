@@ -1,6 +1,6 @@
 {
   "error_patterns": [
-    "ProfileDefinition/properties/name/type\\] expected string, but got number",
-    "ProfileDefinition/additionalProperties] additionalProperties 'unknown_field' not allowed"
+    "ProfileDefinition/properties/name/type\\]: got number, want string",
+    "ProfileDefinition/additionalProperties\\]: additional properties 'unknown_field' not allowed"
   ]
 }

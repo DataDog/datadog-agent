@@ -907,7 +907,114 @@ class TestCheckForChanges(unittest.TestCase):
         self.assertEqual(print_mock.call_count, 1)
 
 
+class TestGetModulePseudoVersion(unittest.TestCase):
+    SUFFIX = "20261029172903-795d6adf0d67"
+
+    def refs(self, merged_tags, commit_tags=()):
+        return {"merged_tags": list(merged_tags), "commit_tags": list(commit_tags), "suffix": self.SUFFIX}
+
+    def test_prerelease_base(self):
+        refs = self.refs(["pkg/gohai/v0.53.2-rc.9", "pkg/gohai/v0.53.2-rc.19", "pkg/gohai/v0.53.2-rc.18"])
+        self.assertEqual(
+            release._get_module_pseudo_version(GoModule("pkg/gohai"), refs), f"v0.53.2-rc.19.0.{self.SUFFIX}"
+        )
+
+    def test_release_base_bumps_patch(self):
+        # A release sorts above its release candidates
+        refs = self.refs(["pkg/gohai/v0.59.1-rc.1", "pkg/gohai/v0.59.1", "pkg/gohai/v0.59.0"])
+        self.assertEqual(release._get_module_pseudo_version(GoModule("pkg/gohai"), refs), f"v0.59.2-0.{self.SUFFIX}")
+
+    def test_tag_on_commit(self):
+        refs = self.refs(["pkg/gohai/v0.53.2-rc.18", "pkg/gohai/v0.53.2-rc.19"], ["pkg/gohai/v0.53.2-rc.19"])
+        self.assertEqual(release._get_module_pseudo_version(GoModule("pkg/gohai"), refs), "v0.53.2-rc.19")
+
+    def test_ignores_other_modules_and_invalid_tags(self):
+        refs = self.refs(
+            [
+                "pkg/gohai/v.0.47.0-devel",
+                "pkg/gohai/v0.53",
+                "pkg/gohai/v2.0.0",
+                "pkg/gohai/v0.0.0-20240101000000-abcdefabcdef",
+                "pkg/gohai/sub/v0.60.0",
+                "pkg/trace/v0.60.0",
+                "7.60.0",
+                "pkg/gohai/v0.52.0",
+            ]
+        )
+        self.assertEqual(release._get_module_pseudo_version(GoModule("pkg/gohai"), refs), f"v0.52.1-0.{self.SUFFIX}")
+
+    def test_no_tag(self):
+        self.assertEqual(
+            release._get_module_pseudo_version(GoModule("pkg/gohai"), self.refs(["7.60.0"])), f"v0.0.0-{self.SUFFIX}"
+        )
+
+    def test_get_commit_refs(self):
+        commit = "795d6adf0d67cf2a84fa2b1ab5e080358c4803dd"
+        c = MockContext(
+            run={
+                "git rev-parse --is-shallow-repository": Result("false\n"),
+                "git fetch --tags --force origin": Result(""),
+                f"git log -1 --format=%ct {commit}": Result("1793294943\n"),
+                f"git tag --merged {commit}": Result("pkg/gohai/v0.53.2-rc.18\npkg/gohai/v0.53.2-rc.19\n"),
+                f"git tag --points-at {commit}": Result(""),
+            }
+        )
+        self.assertEqual(
+            release._get_commit_refs(c, commit),
+            {
+                "merged_tags": ["pkg/gohai/v0.53.2-rc.18", "pkg/gohai/v0.53.2-rc.19"],
+                "commit_tags": [],
+                "suffix": self.SUFFIX,
+            },
+        )
+
+    def test_get_commit_refs_unshallows(self):
+        commit = "795d6adf0d67cf2a84fa2b1ab5e080358c4803dd"
+        c = MockContext(
+            run={
+                "git rev-parse --is-shallow-repository": Result("true\n"),
+                "git fetch --tags --force --unshallow origin": Result(""),
+                f"git log -1 --format=%ct {commit}": Result("1793294943\n"),
+                f"git tag --merged {commit}": Result(""),
+                f"git tag --points-at {commit}": Result(""),
+            }
+        )
+        release._get_commit_refs(c, commit)
+        c.run.assert_any_call("git fetch --tags --force --unshallow origin", hide=True)
+
+
 class TestUpdateModules(unittest.TestCase):
+    @patch('tasks.release._get_commit_refs', return_value={"suffix": "refs"})
+    @patch('tasks.release._get_module_pseudo_version', return_value="v0.53.5-0.20260817123456-abcdef123456")
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_uses_pseudo_versions_for_agent6_rc_dependencies(
+        self, get_module_pseudo_version_mock, get_commit_refs_mock
+    ):
+        c = MockContext(run=Result("rccommit\n"))
+        consumer = GoModule('pkg/consumer')
+        consumer._dependencies = ['pkg/dependency']
+        dependency = GoModule('pkg/dependency')
+        dependency._dependencies = []
+        with patch('tasks.release.get_default_modules') as mock_modules:
+            mock_dict = MagicMock()
+            mock_dict.values.return_value = [consumer]
+            mock_dict.__getitem__.return_value = dependency
+            mock_modules.return_value = mock_dict
+
+            release.update_modules(c, version="6.53.5-rc.2")
+
+        get_commit_refs_mock.assert_called_once_with(c, "rccommit")
+        get_module_pseudo_version_mock.assert_called_once_with(dependency, {"suffix": "refs"})
+        c.run.assert_has_calls(
+            [
+                call("git rev-parse HEAD", hide=True),
+                call(
+                    "go mod edit -require=github.com/DataDog/datadog-agent/pkg/dependency@v0.53.5-0.20260817123456-abcdef123456 "
+                    + consumer.go_mod_path()
+                ),
+            ]
+        )
+
     @patch('tasks.release.agent_context', new=MagicMock())
     def test_update_module_no_run_for_optional_in_agent_6(self):
         c = MockContext(run=Result("yolo"))
@@ -948,6 +1055,16 @@ class TestUpdateModules(unittest.TestCase):
 
 
 class TestTagModules(unittest.TestCase):
+    @patch('tasks.release.__tag_single_module')
+    @patch('tasks.release.agent_context', new=MagicMock())
+    def test_skips_agent6_rc_tags(self, tag_single_module_mock):
+        c = MockContext(run=Result("yolo"))
+
+        release.tag_modules(c, version="6.53.5-rc.2")
+
+        tag_single_module_mock.assert_not_called()
+        self.assertEqual(c.run.call_count, 0)
+
     @patch('tasks.release.__tag_single_module', new=MagicMock(side_effect=[[str(i)] for i in range(2)]))
     @patch('tasks.release.agent_context', new=MagicMock())
     @patch.dict(os.environ, {'GITLAB_CI': 'false', 'GITHUB_ACTIONS': 'false'})

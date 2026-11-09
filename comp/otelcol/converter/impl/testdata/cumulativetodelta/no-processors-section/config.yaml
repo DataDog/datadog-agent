@@ -1,0 +1,7 @@
+# There is no top-level processors section at all: the converter must create it
+# when injecting the processor.
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [datadog]

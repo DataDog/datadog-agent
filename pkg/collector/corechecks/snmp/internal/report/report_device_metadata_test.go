@@ -19,6 +19,8 @@ import (
 	"github.com/stretchr/testify/mock"
 
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
@@ -29,7 +31,14 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
+func setupHostname(t *testing.T) {
+	mockConfig := configmock.New(t)
+	cache.Cache.Delete(cache.BuildAgentKey("hostname"))
+	mockConfig.SetInTest("hostname", "my-hostname")
+}
+
 func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.T) {
+	setupHostname(t)
 	var b bytes.Buffer
 	w := bufio.NewWriter(&b)
 	l, err := log.LoggerFromWriterWithMinLevelAndLvlFuncMsgFormat(w, log.TraceLvl)
@@ -51,7 +60,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -164,7 +173,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
             "profile_version": 10,
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "router"
+			"device_type": "router",
+			"agent_hostname": "my-hostname"
         }
     ],
     "collect_timestamp":1415792726
@@ -183,13 +193,14 @@ func Test_metricSender_reportNetworkDeviceMetadata_withoutInterfaces(t *testing.
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_profileDeviceVendorFallback(t *testing.T) {
+	setupHostname(t)
 	profile.SetConfdPathAndCleanProfiles()
 
 	var storeWithoutIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -248,7 +259,8 @@ profiles:
             "vendor": "f5",
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "load_balancer"
+			"device_type": "load_balancer",
+			"agent_hostname": "my-hostname"
         }
     ],
     "collect_timestamp":1415792726
@@ -262,6 +274,7 @@ profiles:
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagnoses(t *testing.T) {
+	setupHostname(t)
 	var storeWithIfName = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{
 			"1.3.6.1.2.1.31.1.1.1.1": {
@@ -282,7 +295,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -394,7 +407,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 			"ping_status":2,
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "switch"
+			"device_type": "switch",
+			"agent_hostname": "my-hostname"
         }
     ],
     "interfaces": [
@@ -444,11 +458,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_withDeviceInterfacesAndDiagno
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testing.T) {
+	setupHostname(t)
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -508,7 +523,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "firewall"
+			"device_type": "firewall",
+			"agent_hostname": "my-hostname"
         }
     ],
     "collect_timestamp":1415792726
@@ -522,11 +538,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_fallbackOnFieldValue(t *testi
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing.T) {
+	setupHostname(t)
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -582,7 +599,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "other"
+			"device_type": "other",
+			"agent_hostname": "my-hostname"
         }
     ],
     "collect_timestamp":1415792726
@@ -596,11 +614,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_Nil(t *testing
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testing.T) {
+	setupHostname(t)
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -657,7 +676,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "other"
+			"device_type": "other",
+			"agent_hostname": "my-hostname"
         }
     ],
     "collect_timestamp":1415792726
@@ -671,11 +691,12 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_True(t *testin
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testing.T) {
+	setupHostname(t)
 	var emptyMetadataStore = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -732,7 +753,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
             "name": "my-fallback-value",
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "other"
+			"device_type": "other",
+			"agent_hostname": "my-hostname"
         }
     ],
     "collect_timestamp":1415792726
@@ -746,6 +768,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_pingCanConnect_False(t *testi
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
+	setupHostname(t)
 	var store = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{
 			// Outside IPs
@@ -878,7 +901,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
 		},
 	}
 
-	sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+	sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
 		sender: sender,
@@ -1004,7 +1027,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_vpnTunnels(t *testing.T) {
             "ping_status": 1,
             "subnet": "127.0.0.0/29",
             "integration": "snmp",
-            "device_type": "other"
+            "device_type": "other",
+            "agent_hostname": "my-hostname"
         }
     ],
     "vpn_tunnels": [
@@ -1495,6 +1519,7 @@ func Test_resolveLocalInterface_physicalPreferenceTiebreaker(t *testing.T) {
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysical(t *testing.T) {
+	setupHostname(t)
 	// Test various ifType values and their corresponding is_physical values
 	// Physical types: 6 (ethernetCsmacd), 62 (fastEther), 69 (fastEtherFX), 117 (gigabitEthernet)
 	// Non-physical type: 24 (softwareLoopback)
@@ -1527,7 +1552,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysica
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID")
+	sender := mocksender.NewMockSender(t, "testID")
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -1618,7 +1643,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysica
 			"ping_status":1,
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "switch"
+			"device_type": "switch",
+			"agent_hostname": "my-hostname"
         }
     ],
     "interfaces": [
@@ -1682,6 +1708,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeAndIsPhysica
 }
 
 func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeZero(t *testing.T) {
+	setupHostname(t)
 	// Test case when ifType is not collected (0) - is_physical should be nil (omitted from JSON)
 	var storeWithoutIfType = &valuestore.ResultValueStore{
 		ColumnValues: valuestore.ColumnResultValuesType{
@@ -1697,7 +1724,7 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeZero(t *test
 			},
 		},
 	}
-	sender := mocksender.NewMockSender("testID")
+	sender := mocksender.NewMockSender(t, "testID")
 	sender.On("EventPlatformEvent", mock.Anything, mock.Anything).Return()
 	sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 	ms := &MetricSender{
@@ -1783,7 +1810,8 @@ func Test_metricSender_reportNetworkDeviceMetadata_withInterfaceTypeZero(t *test
 			"ping_status":1,
             "subnet": "127.0.0.0/29",
 			"integration": "snmp",
-			"device_type": "switch"
+			"device_type": "switch",
+			"agent_hostname": "my-hostname"
         }
     ],
     "interfaces": [

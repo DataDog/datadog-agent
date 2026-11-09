@@ -7,10 +7,19 @@
       "pattern": "^https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/"
     },
     {
-      "pattern": "^https://github.com/DataDog/single-machine-performance":
+      "pattern": "^https://github.com/DataDog/single-machine-performance"
+    },
+    {
+      "pattern": "^https://www\\.doxygen\\.nl(/|$)"
     },
     {
       "pattern": "^/security/threats/"
+    },
+    {
+      "pattern": "^https://www\\.cvedetails\\.com/"
+    },
+    {
+      "pattern": "^https://medium\\.com/"
     }
   ],
   "replacementPatterns": [

@@ -1,4 +1,4 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "types",
@@ -15,12 +15,4 @@ go_library(
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
     ],
-)
-
-go_test(
-    name = "types_test",
-    srcs = ["task_test.go"],
-    embed = [":types"],
-    gotags = ["test"],
-    deps = ["@com_github_stretchr_testify//assert"],
 )

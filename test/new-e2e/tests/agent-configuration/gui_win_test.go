@@ -41,7 +41,7 @@ func TestGUIWindowsSuite(t *testing.T) {
 
 	e2e.Run(t, &guiWindowsSuite{}, e2e.WithProvisioner(awshost.ProvisionerNoFakeIntake(
 		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+			ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()),
 			ec2.WithAgentOptions(
 				agentparams.WithAgentConfig(guiWinConfig),
 				agentparams.WithAdditionalInstallParameters(

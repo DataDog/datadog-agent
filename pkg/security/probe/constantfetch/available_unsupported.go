@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build linux && !linux_bpf
+//go:build linux && !bpf
 
 // Package constantfetch holds constantfetch related files
 package constantfetch
@@ -38,6 +38,11 @@ func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
 	return false, errors.New("unsupported BTF request")
 }
 
+// GetExitItimersTakesTaskStructWithBtf not available
+func GetExitItimersTakesTaskStructWithBtf() (bool, error) {
+	return false, errors.New("unsupported BTF request")
+}
+
 // GetHasVFSRenameStructArgs not available
 func GetHasVFSRenameStructArgs() (bool, error) {
 	return false, errors.New("unsupported BTF request")
@@ -46,9 +51,4 @@ func GetHasVFSRenameStructArgs() (bool, error) {
 // GetBTFFunctionArgCount not available
 func GetBTFFunctionArgCount(_ string) (int, error) {
 	return 0, errors.New("unsupported BTF request")
-}
-
-// AreFentryTailCallsBroken not available
-func AreFentryTailCallsBroken() (bool, error) {
-	return false, errors.New("unsupported BTF request")
 }

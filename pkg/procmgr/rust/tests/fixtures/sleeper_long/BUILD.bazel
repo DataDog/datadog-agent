@@ -1,0 +1,5 @@
+filegroup(
+    name = "sleeper_long",
+    srcs = glob(["*"]),
+    visibility = ["//pkg/procmgr/rust/tests/fixtures:__pkg__"],
+)

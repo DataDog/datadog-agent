@@ -1,0 +1,19 @@
+# dotagents declarations for this repo (https://github.com/getsentry/dotagents).
+# Run `mise run dotagents install` (or `sync`) to write each tool's MCP config.
+agents = ["claude", "codex", "cursor", "vscode", "opencode"]
+
+[[mcp]]
+name = "api"
+url = "https://mcp.datadoghq.com/v1/mcp?toolsets=all"
+
+[[mcp]]
+name = "ci"
+url = "https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp"
+
+[[mcp]]
+name = "google-workspace"
+url = "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp"
+
+[[mcp]]
+name = "atlassian"
+url = "https://mcp.atlassian.com/v1/mcp/authv2"

@@ -1,0 +1,32 @@
+load("@rules_go//go:def.bzl", "go_binary", "go_library")
+
+go_binary(
+    name = "generate_luts",
+    embed = [":internal_lib"],
+    tags = ["manual"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:private"],
+)
+
+go_library(
+    name = "internal_lib",
+    srcs = ["generate_luts.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/network/protocols/http/gotls/lookup/internal",
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:private"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/network/go/bininspect",
+            "//pkg/network/go/goversion",
+            "//pkg/network/go/lutgen",
+            "//pkg/util/safeelf",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/network/go/bininspect",
+            "//pkg/network/go/goversion",
+            "//pkg/network/go/lutgen",
+            "//pkg/util/safeelf",
+        ],
+        "//conditions:default": [],
+    }),
+)

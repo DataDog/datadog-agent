@@ -45,13 +45,14 @@ func (h *Host) uploadFixtures() {
 	require.NoError(h.t(), err)
 }
 
-// StartExamplePythonApp starts an example Python app
-func (h *Host) StartExamplePythonApp() {
+// StartExamplePythonApp starts an example Python app with the selected interpreter.
+func (h *Host) StartExamplePythonApp(pythonExecutable string) {
 	h.WaitForTraceAgentSocketReady()
 	env := map[string]string{
-		"DD_SERVICE": "example-python-app",
-		"DD_ENV":     "e2e-installer",
-		"DD_VERSION": "1.0",
+		"DD_SERVICE":        "example-python-app",
+		"DD_ENV":            "e2e-installer",
+		"DD_VERSION":        "1.0",
+		"PYTHON_EXECUTABLE": pythonExecutable,
 	}
 	h.remote.MustExecute(`sudo -E /opt/fixtures/run_http_server.sh`, client.WithEnvVariables(env))
 }
@@ -74,7 +75,7 @@ func (h *Host) CallExamplePythonApp(traceID string) {
 func (h *Host) StartExamplePythonAppInDocker() {
 	h.WaitForTraceAgentSocketReady()
 	h.remote.MustExecute(fmt.Sprintf("sudo docker run --name python-app -d -p 8081:8080 -v /opt/fixtures/http_server.py:/usr/src/app/http_server.py %s python /usr/src/app/http_server.py",
-		h.dockerImage("dockerhub/library/python:3.8-slim", "python:3.8-slim")))
+		h.dockerImage("dockerhub/library/python:3.9-slim", "python:3.9-slim")))
 }
 
 // StopExamplePythonAppInDocker stops the example Python app in Docker

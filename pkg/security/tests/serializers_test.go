@@ -43,7 +43,7 @@ func fetchRealisticEventSerializerInner(tb testing.TB) *serializers.EventSeriali
 	if err != nil {
 		tb.Fatal(err)
 	}
-	defer test.Close()
+	defer test.CloseTest()
 
 	_, testFilePtr, err := test.Path("test-open")
 	if err != nil {

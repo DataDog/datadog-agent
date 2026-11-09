@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -48,6 +48,7 @@ func (suite *ProviderFailoverIntegrationSuite) SetupTest() {
 	suite.provider = newProvider(
 		2, // Only 2 pipelines to increase contention
 		&diagnostic.BufferedMessageReceiver{},
+		nil,
 		nil,
 		endpoints,
 		nil,
@@ -179,6 +180,7 @@ func (suite *ProviderFailoverIntegrationSuite) TestRapidStartStopCycles() {
 		p := newProvider(
 			2,
 			&diagnostic.BufferedMessageReceiver{},
+			nil,
 			nil,
 			endpoints,
 			nil,

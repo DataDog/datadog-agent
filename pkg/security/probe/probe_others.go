@@ -104,6 +104,11 @@ func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
 }
 
+// IsCapabilitiesMonitoringEnabled returns whether capabilities monitoring is enabled
+func (p *Probe) IsCapabilitiesMonitoringEnabled() bool {
+	return p.Config.Probe.CapabilitiesMonitoringEnabled
+}
+
 // IsActivityDumpEnabled returns whether activity dump is enabled
 func (p *Probe) IsActivityDumpEnabled() bool {
 	return p.Config.RuntimeSecurity.ActivityDumpEnabled
@@ -126,6 +131,9 @@ func (p *Probe) RefreshUserCache(_ containerutils.ContainerID) error {
 
 // HandleActions executes the actions of a triggered rule
 func (p *Probe) HandleActions(_ *rules.Rule, _ eval.Event) {}
+
+// EnrichRuleEvent is a no-op on unsupported platforms
+func (p *Probe) EnrichRuleEvent(_ *model.Event) {}
 
 // EnableEnforcement sets the enforcement mode
 func (p *Probe) EnableEnforcement(_ bool) {}

@@ -24,7 +24,8 @@ type DebugView interface {
 	// Reset clears all engine state, resets storage, and reconfigures components.
 	// storageCfg is forwarded to the engine so callers control retention policy
 	// (e.g. testbench passes StorageConfig{PointRetentionSecs: 0} for unbounded replay storage).
-	Reset(settings ComponentSettings, storageCfg StorageConfig)
+	// It returns an error if the new component set is invalid.
+	Reset(settings ComponentSettings, storageCfg StorageConfig) error
 	// GetReplayProgress returns lock-free replay progress counters.
 	GetReplayProgress() ReplayProgress
 	// SetReplayPhase updates the replay phase string for progress reporting.
@@ -36,25 +37,29 @@ type DebugView interface {
 	AddTelemetry(name string, value float64, timestamp int64, tags []string)
 	// ReplayStoredData resets analysis state (preserving extractor context)
 	// then replays all data currently in storage through the scheduler in
-	// chronological order. Call after Flush().
-	ReplayStoredData()
+	// chronological order. Call after Flush(). It returns an error if the
+	// analysis state cannot be reset.
+	ReplayStoredData() error
 	// StorageReader returns a read-only view of the engine's time-series storage.
 	// Used by the testbench to compute windowed log rates in change messages.
 	StorageReader() observerdef.StorageReader
-	// IngestLogSync feeds a log directly into the engine, bypassing the
-	// dispatch channel. Synchronous: returns after IngestLog and any
-	// scheduler-triggered advances complete. Testbench-only — never call
-	// from production hot paths; not safe to interleave with live ObserveLog.
-	IngestLogSync(source string, msg observerdef.LogView)
 	// IngestMetricSync feeds a metric directly into the engine, bypassing
-	// the dispatch channel. Synchronous; same caveats as IngestLogSync.
-	IngestMetricSync(source string, sample observerdef.MetricView)
-	// IngestLogNoAdvance feeds a log directly into the engine without driving
-	// any scheduler-triggered advances. Used during batch pre-loading in the
-	// testbench replay path so that extractor state is built up and log
+	// the dispatch channel. Synchronous: returns after IngestMetric and any
+	// scheduler-triggered advances complete. contextKey must be non-zero.
+	// Testbench-only.
+	IngestMetricSync(source string, sample observerdef.MetricView, contextKey uint64)
+	// IngestLogAndAdvance feeds a log directly into the engine and synchronously
+	// executes scheduler-triggered advances. Used by one-shot headless streams.
+	IngestLogAndAdvance(source string, msg observerdef.LogView)
+	// FinishReplayStream flushes the scheduler at end-of-input without resetting
+	// analysis state or replaying retained storage.
+	FinishReplayStream()
+	// IngestLogForReplay feeds a log directly into the engine without driving
+	// any scheduler-triggered advances. Used while pre-loading retained data so
+	// that extractor state is built up and log
 	// metrics are written to storage, but detector/correlator advances are
 	// deferred to the subsequent ReplayStoredData call.
-	IngestLogNoAdvance(source string, msg observerdef.LogView)
+	IngestLogForReplay(source string, msg observerdef.LogView)
 }
 
 // StateView is a read-only window into engine state.
@@ -66,9 +71,15 @@ type StateView interface {
 	GetSeriesRange(ref observerdef.SeriesRef, start, end int64, agg observerdef.Aggregate) *observerdef.Series
 	ScenarioBounds() (start, end int64, ok bool)
 
-	// Anomalies
+	// Anomalies (full history is available only when replay/debug tracking is enabled)
 	Anomalies() []observerdef.Anomaly
+	// DetectorOutputAnomalies returns every detector result before downstream
+	// filtering when replay tracking is enabled.
+	DetectorOutputAnomalies() []observerdef.Anomaly
 	TotalAnomalyCount() int
+
+	// Scoring
+	ScoreState() observerdef.AnomalyScoreState
 	UniqueAnomalySourceCount() int
 	DetectorAnomalies(name string) []observerdef.Anomaly
 	AnomaliesByDetector() map[string][]observerdef.Anomaly
@@ -87,8 +98,8 @@ type StateView interface {
 	LatestDataTime() int64
 	MaxTimestamp() int64
 
-	// Storage stats (excluding a given namespace, typically TelemetryNamespace)
-	TotalSeriesCount(excludeNamespace string) int
+	// Storage stats
+	TotalSeriesCount() int
 	TotalSampleCount(excludeNamespace string) int64
 
 	// GetSeriesAll returns all points for a series.

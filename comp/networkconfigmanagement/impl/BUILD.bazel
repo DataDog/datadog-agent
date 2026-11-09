@@ -1,15 +1,18 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
     srcs = [
         "devicecontext.go",
+        "devicemap.go",
         "getconfigs.go",
         "logwrapper.go",
         "map.go",
         "networkdeviceconfig.go",
         "newcomponent.go",
         "newcomponent_stub.go",
+        "rollback.go",
         "rollback_endpoint.go",
         "store_endpoint.go",
         "types.go",
@@ -39,11 +42,15 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
-    srcs = ["networkdeviceconfig_test.go"],
+    srcs = [
+        "devicemap_test.go",
+        "networkdeviceconfig_test.go",
+        "newcomponent_test.go",
+    ],
     embed = [":impl"],
-    gotags = ["test"],
+    gotags_sets = [["ncm"]],
     deps = [
         "//comp/core/config",
         "//comp/core/log/def",
@@ -56,6 +63,7 @@ go_test(
         "//pkg/networkconfigmanagement/remote",
         "//pkg/networkconfigmanagement/report",
         "//pkg/networkconfigmanagement/store",
+        "//pkg/networkconfigmanagement/types",
         "//pkg/networkdevice/integrations",
         "//pkg/networkdevice/metadata",
         "//pkg/util/cache",

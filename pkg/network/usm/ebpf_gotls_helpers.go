@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package usm
 
@@ -108,7 +108,7 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[int
 		if errors.Is(err, safeelf.ErrNoSymbols) {
 			p.binNoSymbolsMetric.Add(1)
 		}
-		if errors.Is(err, binversion.ErrNotGoExe) {
+		if isExpectedGoTLSInspectionError(err) {
 			return map[int]*uprobes.InspectionResult{0: {Error: err}}, nil
 		}
 		return nil, fmt.Errorf("error extracting inspection data from %s: %w", path, err)
@@ -122,6 +122,12 @@ func (p *goTLSBinaryInspector) Inspect(fpath utils.FilePath, requestSets map[int
 	p.binAnalysisMetric.Add(elapsed.Milliseconds())
 
 	return map[int]*uprobes.InspectionResult{0: {SymbolMap: inspectionResult.Functions}}, nil
+}
+
+func isExpectedGoTLSInspectionError(err error) bool {
+	return errors.Is(err, binversion.ErrNotGoExe) ||
+		errors.Is(err, safeelf.ErrNoSymbols) ||
+		errors.Is(err, bininspect.ErrSymbolsNotFound)
 }
 
 // Cleanup removes the inspection result for the binary at the given path from the map.

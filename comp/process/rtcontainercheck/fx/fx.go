@@ -14,6 +14,6 @@ import (
 // Module defines the fx options for this component.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(rtcontainercheckimpl.NewCheck),
+		fxutil.ProvideComponentConstructor(rtcontainercheckimpl.NewComponent),
 	)
 }

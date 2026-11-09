@@ -1,0 +1,16 @@
+auth_token_file_path: /tmp/agent-auth-token
+
+dd_url: http://127.0.0.1:9091
+
+# Disable cloud detection. This stops the Agent from poking around the
+# execution environment & network. This is particularly important if the target
+# has network access.
+cloud_provider_metadata: []
+
+# Hold the Agent Data Plane pre-flight open for the whole run.
+#
+# The pre-flight starts ADP as a child of the Agent and stops it again after 90s. That step down
+# in total RSS lands in the middle of a replicate here, so the gate ends up measuring when the
+# timer fired as much as what the Agent costs. 30m is well past the ~10 minute experiment, so ADP
+# is resident for every sample instead.
+data_plane.preflight_mode_duration: 30m

@@ -1,0 +1,15 @@
+description: Datadog Private Action Runner - On-Demand Executor
+command: '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
+args:
+  - run-executor
+  - --executor-socket
+  - '\\.\pipe\dd-par-executor'
+  - --ipc-cert-file
+  - '{{.EtcDir}}/ipc_cert.pem'
+  - --cfgpath
+  - '{{.EtcDir}}/datadog.yaml'
+auto_start: false
+condition_path_exists: '{{.InstallDir}}/bin/agent/privateactionrunner.exe'
+restart: never
+stdout: inherit
+stderr: inherit

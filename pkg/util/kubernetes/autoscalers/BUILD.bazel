@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "autoscalers",
@@ -8,6 +9,7 @@ go_library(
         "datadogexternal_errors.go",
         "datadogexternal_util.go",
         "discover.go",
+        "hpa_compat.go",
         "processor.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers",
@@ -23,27 +25,38 @@ go_library(
         "@com_github_datadog_watermarkpodautoscaler_apis//datadoghq/v1alpha1",
         "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
         "@io_k8s_api//autoscaling/v2:autoscaling",
-        "@io_k8s_api//autoscaling/v2beta1",
-        "@io_k8s_api//autoscaling/v2beta2",
+        "@io_k8s_api//core/v1:core",
+        "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_client_go//discovery",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//informers",
         "@io_k8s_client_go//kubernetes",
         "@org_golang_x_sync//errgroup",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "autoscalers_test",
     srcs = [
         "autoscalers_test.go",
         "datadogexternal_errors_test.go",
         "datadogexternal_test.go",
         "datadogexternal_util_test.go",
+        "hpa_compat_test.go",
         "processor_test.go",
     ],
     embed = [":autoscalers"],
-    gotags = ["test"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//comp/autoscaling/datadogclient/mock",
         "//comp/core/telemetry/def",
@@ -56,10 +69,18 @@ go_test(
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_gopkg_zorkian_go_datadog_api_v2//:go-datadog-api_v2",
-        "@io_k8s_api//autoscaling/v2beta1",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+        "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
+        "@io_k8s_apimachinery//pkg/apis/meta/v1/unstructured",
+        "@io_k8s_apimachinery//pkg/runtime",
+        "@io_k8s_apimachinery//pkg/runtime/schema",
         "@io_k8s_apimachinery//pkg/types",
         "@io_k8s_apimachinery//pkg/util/rand",
+        "@io_k8s_client_go//dynamic/dynamicinformer",
+        "@io_k8s_client_go//dynamic/fake",
+        "@io_k8s_client_go//informers",
+        "@io_k8s_client_go//kubernetes/fake",
     ],
 )

@@ -6,11 +6,7 @@
 package ad
 
 import (
-	"fmt"
 	"testing"
-
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -123,6 +119,53 @@ func TestScheduleIntegrationConfig(t *testing.T) {
 	assert.Equal(t, "foo", logSource.Config.Service)
 	assert.Equal(t, "bar", logSource.Config.Source)
 	assert.Equal(t, "integration", logSource.Config.Type)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+}
+
+func TestScheduleInstrumentationChecksPreservesExplicitLogType(t *testing.T) {
+	scheduler, spy := setup()
+	configSource := integration.Config{
+		LogsConfig:    []byte(`[{"service":"foo","source":"bar","type":"tcp","port":10514}]`),
+		ADIdentifiers: []string{"kube_container_name://app"},
+		Provider:      names.InstrumentationChecks,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck:  false,
+	}
+
+	scheduler.Schedule([]integration.Config{configSource})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
+	assert.Equal(t, config.DockerType, logSource.Name)
+	assert.Equal(t, "foo", logSource.Config.Service)
+	assert.Equal(t, "bar", logSource.Config.Source)
+	assert.Equal(t, config.TCPType, logSource.Config.Type)
+	assert.Equal(t, 10514, logSource.Config.Port)
+	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
+}
+
+func TestScheduleInstrumentationChecksUsesServiceTypeByDefault(t *testing.T) {
+	scheduler, spy := setup()
+	configSource := integration.Config{
+		LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
+		ADIdentifiers: []string{"kube_container_name://app"},
+		Provider:      names.InstrumentationChecks,
+		TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
+		ClusterCheck:  false,
+	}
+
+	scheduler.Schedule([]integration.Config{configSource})
+
+	require.Equal(t, 1, len(spy.Events))
+	require.True(t, spy.Events[0].Add)
+	logSource := spy.Events[0].Source
+	assert.Equal(t, config.DockerType, logSource.Name)
+	assert.Equal(t, "foo", logSource.Config.Service)
+	assert.Equal(t, "bar", logSource.Config.Source)
+	assert.Equal(t, config.DockerType, logSource.Config.Type)
 	assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
 }
 
@@ -282,6 +325,7 @@ func TestProcessLogConfigAllowedWhenNoConflict(t *testing.T) {
 	assert.Equal(t, "process-config", logSource.Name)
 	assert.Equal(t, "process-service", logSource.Config.Service)
 	assert.Equal(t, "/var/log/process.log", logSource.Config.Path)
+	assert.True(t, logSource.Config.NoFollow)
 }
 
 func TestNonFileTypeProcessLogConfigAllowed(t *testing.T) {
@@ -305,41 +349,7 @@ func TestNonFileTypeProcessLogConfigAllowed(t *testing.T) {
 	assert.Equal(t, "process-config", logSource.Name)
 	assert.Equal(t, "process-service", logSource.Config.Service)
 	assert.Equal(t, "tcp", logSource.Config.Type)
-}
-
-func TestIgnoreRemoteConfigIfDisabled(t *testing.T) {
-	mockConfig := configmock.New(t)
-	for _, rcLogCfgSchedEnabled := range []bool{true, false} {
-		testName := fmt.Sprintf("allow_log_config_scheduling=%t", rcLogCfgSchedEnabled)
-		t.Run(testName, func(t *testing.T) {
-			scheduler, spy := setup()
-			configSource := integration.Config{
-				LogsConfig:    []byte(`[{"service":"foo","source":"bar"}]`),
-				ADIdentifiers: []string{"docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b"},
-				Provider:      names.RemoteConfig,
-				TaggerEntity:  "container_id://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-				ServiceID:     "docker://a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b",
-				ClusterCheck:  false,
-			}
-			configmock.New(t)
-			mockConfig.Set("remote_configuration.agent_integrations.allow_log_config_scheduling", rcLogCfgSchedEnabled, model.SourceFile)
-			scheduler.Schedule([]integration.Config{configSource})
-			if rcLogCfgSchedEnabled {
-				require.Equal(t, 1, len(spy.Events))
-				require.True(t, spy.Events[0].Add)
-				logSource := spy.Events[0].Source
-				assert.Equal(t, config.DockerType, logSource.Name)
-				// We use the docker socket, not sourceType here
-				assert.Equal(t, sourcesPkg.SourceType(""), logSource.GetSourceType())
-				assert.Equal(t, "foo", logSource.Config.Service)
-				assert.Equal(t, "bar", logSource.Config.Source)
-				assert.Equal(t, config.DockerType, logSource.Config.Type)
-				assert.Equal(t, "a1887023ed72a2b0d083ef465e8edfe4932a25731d4bda2f39f288f70af3405b", logSource.Config.Identifier)
-			} else {
-				require.Equal(t, 0, len(spy.Events)) // no events
-			}
-		})
-	}
+	assert.False(t, logSource.Config.NoFollow)
 }
 
 func TestScheduleWithNilLogConfigurations(t *testing.T) {
@@ -448,4 +458,54 @@ func TestCreateSourcesWithNilConfigurations(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestUnscheduleDetectsAnotherConfigForSameContainer replays a container that
+// has two logs configs scheduled at once, differing only by name (autodiscovery
+// names the logs config of a pod after its first check, and the order of a
+// multi-check annotation is not deterministic). Unscheduling one of them still
+// removes every source of the container, and reports the other config.
+func TestUnscheduleDetectsAnotherConfigForSameContainer(t *testing.T) {
+	scheduler, spy := setup()
+	const containerID = "d264ffd438fe2d18f58cc863dda72ed11fec66822f00b2abd531158a28d70f48"
+	logsConfig := func(name string) integration.Config {
+		return integration.Config{
+			Name:          name,
+			LogsConfig:    []byte(`[{"service":"vault","source":"vault"}]`),
+			ADIdentifiers: []string{"vault"},
+			Provider:      names.KubeContainer,
+			TaggerEntity:  "container_id://" + containerID,
+			ServiceID:     "containerd://" + containerID,
+		}
+	}
+
+	scheduler.Schedule([]integration.Config{logsConfig("vault"), logsConfig("openmetrics")})
+	require.Len(t, spy.Events, 2)
+	vaultSource, openmetricsSource := spy.Events[0].Source, spy.Events[1].Source
+
+	// The container launcher derives a file source from one of them.
+	fileSource := sourcesPkg.NewLogSource("infra-vault-uk1/infra-vault-2/vault", &config.LogsConfig{
+		Type:       config.FileType,
+		Identifier: containerID,
+		Path:       "/var/log/pods/infra-vault-uk1_infra-vault-2_654ddc7b/vault/*.log",
+	})
+	fileSource.ParentSource = vaultSource
+	otherSource := sourcesPkg.NewLogSource("other", &config.LogsConfig{Type: config.ContainerdType, Identifier: "other"})
+	spy.Sources = []*sourcesPkg.LogSource{vaultSource, openmetricsSource, fileSource, otherSource}
+	spy.Events = nil
+
+	// Unscheduling openmetrics reports vault, still scheduled for the container.
+	assert.Equal(t, []string{"vault"}, scheduler.removeSourcesFor(containerID, "openmetrics"))
+
+	// Every source of the container is removed, as before.
+	var removed []*sourcesPkg.LogSource
+	for _, event := range spy.Events {
+		require.False(t, event.Add)
+		removed = append(removed, event.Source)
+	}
+	assert.ElementsMatch(t, []*sourcesPkg.LogSource{vaultSource, openmetricsSource, fileSource}, removed)
+
+	// With a single config for the container, nothing is reported.
+	spy.Sources = []*sourcesPkg.LogSource{vaultSource, fileSource}
+	assert.Empty(t, scheduler.removeSourcesFor(containerID, "vault"))
 }

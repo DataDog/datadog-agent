@@ -361,14 +361,18 @@ func getContainersLanguagesFromPodDetail(podDetail *pbgo.PodLanguageDetails, exp
 	return &containersLanguages
 }
 
-// getOwnersLanguages constructs OwnersLanguages from owners (i.e. k8s parent resource)
+// getOwnersLanguages constructs OwnersLanguages from owners (i.e. k8s parent resource).
+// A pod is only attributed to a Deployment when its owner reference is a ReplicaSet and its
+// name is consistent with that owner (see deploymentOwnerForPod), which rejects forged pods
+// whose name does not match their owner reference. This is a heuristic, not a complete guarantee.
 func getOwnersLanguages(requestData *pbgo.ParentLanguageAnnotationRequest, expirationTime time.Time) *OwnersLanguages {
 	ownersContainersLanguages := newOwnersLanguages()
 
-	podDetails := requestData.PodDetails
-
-	for _, podDetail := range podDetails {
-		namespacedOwnerRef := langUtil.GetNamespacedBaseOwnerReference(podDetail)
+	for _, podDetail := range requestData.PodDetails {
+		namespacedOwnerRef, ok := deploymentOwnerForPod(podDetail)
+		if !ok {
+			continue
+		}
 
 		if _, found := langUtil.SupportedBaseOwners[namespacedOwnerRef.Kind]; found {
 			containersLanguages := *getContainersLanguagesFromPodDetail(podDetail, expirationTime)

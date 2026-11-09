@@ -44,6 +44,14 @@ Package demultiplexer defines the aggregator demultiplexer
 
 Package demultiplexerendpoint component provides the /dogstatsd-contexts-dump API endpoint that can register via Fx value groups.
 
+### [comp/aggregator/dogstatsdclientdropdetector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclientdropdetector)
+
+Package dogstatsdclientdropdetector defines the DogStatsD client drop detector component.
+
+### [comp/aggregator/dogstatsdclienttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/aggregator/dogstatsdclienttelemetry)
+
+Package dogstatsdclienttelemetry defines the DogStatsD client telemetry component.
+
 ## [comp/api](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/api) (Component Bundle)
 
 *Datadog Team*: agent-runtimes
@@ -101,6 +109,8 @@ agent flavors and binaries.
 
 ### [comp/core/agenttelemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/agenttelemetry)
 
+*Datadog Team*: fleet-remediation
+
 Package agenttelemetry implements a component to generate Agent telemetry
 
 ### [comp/core/autodiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/autodiscovery)
@@ -111,7 +121,7 @@ Package autodiscovery provides the autodiscovery component for the Datadog Agent
 
 ### [comp/core/config](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/config)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package config implements a component to handle agent configuration.  This
 component temporarily wraps pkg/config.
@@ -124,31 +134,39 @@ Package configfilesdiscovery defines the config files discovery component.
 
 ### [comp/core/configstream](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstream)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package configstream implements a component to handle streaming configuration events to subscribers.
 
 ### [comp/core/configstreamconsumer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configstreamconsumer)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package configstreamconsumer implements a component that consumes config streams from the core agent.
 
 ### [comp/core/configsync](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/configsync)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package configsync implements synchronizing the configuration using the core agent config API
 
+### [comp/core/delegatedauth](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/delegatedauth)
+
+*Datadog Team*: credential-management delegated-auth-login
+
+Package delegatedauth manages cloud-based delegated authentication for the agent.
+It fetches and refreshes Datadog API keys from cloud providers and writes them
+to the agent's configuration.
+
 ### [comp/core/diagnose](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/diagnose)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package diagnose provides the diagnose suite for the agent.
 
 ### [comp/core/flare](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/flare)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package flare implements a component to generate flares from the agent.
 
@@ -158,7 +176,7 @@ Package fxinstrumentation enables the Fx initialization spans to be sent to Data
 
 ### [comp/core/gui](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/gui)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package gui provides the GUI server component for the Datadog Agent.
 
@@ -194,7 +212,7 @@ doesn't exist or doesn't contain a PID for a running process.
 
 ### [comp/core/profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/profiler)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package profiler provides a flare folder containing the output of various agent's pprof servers
 
@@ -209,25 +227,31 @@ status and emit flare data
 
 ### [comp/core/remoteflags](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/remoteflags)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package remoteflags provides the Remote Flags component for dynamic feature flag management.
 
+### [comp/core/schema](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/schema)
+
+*Datadog Team*: fleet-automation
+
+Package schema provides a component validating the Agent configurations against their schemas
+
 ### [comp/core/secrets](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/secrets)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package secrets decodes secret values by invoking the configured executable command
 
 ### [comp/core/settings](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/settings)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package settings defines the interface for the component that manage settings that can be changed at runtime
 
 ### [comp/core/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/status)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-remediation
 
 Package status displays information about the agent.
 
@@ -245,6 +269,8 @@ component temporarily wraps pkg/config.
 Package tagger provides the tagger interface for the Datadog Agent
 
 ### [comp/core/telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/core/telemetry)
+
+*Datadog Team*: fleet-remediation
 
 Package telemetry defines the interfaces for the telemetry component.
 
@@ -334,7 +360,7 @@ Package orchestratorinterface defines the interface for the orchestrator forward
 
 ## [comp/healthplatform](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform) (Component Bundle)
 
-*Datadog Team*: agent-health
+*Datadog Team*: fleet-remediation
 
 Package healthplatform implements the "healthplatform" bundle, providing the
 health platform component for detecting and reporting agent health issues.
@@ -354,6 +380,10 @@ The registry is the single source of truth for issue templates and built-in heal
 It is built once at startup from all registered issue modules and shared by the runner
 (for template lookup on IssueReport) and the bundle (for bootstrapping built-in checks).
 
+### [comp/healthplatform/store/remote](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store/remote)
+
+Package remote defines the remote health-platform issue loader component.
+
 ### [comp/healthplatform/runner](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/runner)
 
 Package runner defines the interface for the health platform runner component.
@@ -366,11 +396,15 @@ store, and returns the set of IssueIds that were reported.
 Package scheduler defines the interface for the health platform scheduler
 (the periodic runner of built-in health checks).
 
+### [comp/healthplatform/status](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/status)
+
+Package status defines the interface for the health platform status component.
+
 ### [comp/healthplatform/store](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/healthplatform/store)
 
 Package store provides the interface for the health platform store component.
 The store is the central state owner: it receives issue reports, owns the
-in-memory issue map, persists state to disk, and exposes the local
+in-memory issue map, persists lifecycle state, and exposes the local
 /health-platform/issues HTTP endpoint.
 
 ## [comp/host-profiler](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler) (Component Bundle)
@@ -382,6 +416,24 @@ Package hostprofiler implements the "host-profiler" bundle,
 ### [comp/host-profiler/collector](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/host-profiler/collector)
 
 Package collector defines the host profiler collector component.
+
+## [comp/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions) (Component Bundle)
+
+*Datadog Team*: container-integrations
+
+Package kubeactions implements the "kubeactions" bundle, providing components
+for executing Kubernetes and Helm actions on behalf of the cluster agent.
+
+### [comp/kubeactions/helmactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions/helmactions)
+
+Package helmactions provides a component for executing Helm actions.
+
+### [comp/kubeactions/kubeactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions)
+
+Package kubeactions provides a component for executing Kubernetes actions
+(delete pod, restart/patch/rollback deployment, get resource) on behalf of
+the cluster agent, and for reporting their progress and results to the
+backend via the Event Platform.
 
 ## [comp/logs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs) (Component Bundle)
 
@@ -412,6 +464,12 @@ send logs.
 
 Package kubehealth provides a dependency-injectible health object for kubernetes liveness checks
 
+### [comp/logs/severityprovider](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/severityprovider)
+
+*Datadog Team*: agent-log-pipelines agent-anomaly-detection
+
+Package severityprovider defines the severity provider component.
+
 ### [comp/logs/streamlogs](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/logs/streamlogs)
 
 Package streamlogs is metadata provider for streamlogs
@@ -428,7 +486,7 @@ Package kubehealth provides a dependency-injectible health object for kubernetes
 
 ## [comp/metadata](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata) (Component Bundle)
 
-*Datadog Team*: agent-configuration
+*Datadog Team*: fleet-automation
 
 Package metadata implements the "metadata" bundle, providing services and support for all the metadata payload sent
 by the Agent.
@@ -457,7 +515,7 @@ Package host implements a component to generate the 'host' metadata payload (als
 
 ### [comp/metadata/hostgpu](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/hostgpu)
 
-*Datadog Team*: ebpf-platform
+*Datadog Team*: accelerator-telemetry
 
 Package hostgpu exposes the interface for the component to generate the 'host_gpu' metadata payload for inventory.
 
@@ -496,6 +554,18 @@ Package runner implements a component to generate metadata payload at the right 
 ### [comp/metadata/securityagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/securityagent)
 
 Package securityagent is the metadata provider for security-agent process
+
+### [comp/metadata/serverlessaas](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessaas)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessaas defines the Azure App Service extension metadata component.
+
+### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessinit defines the serverless-init metadata provider.
 
 ### [comp/metadata/systemprobe](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/systemprobe)
 
@@ -600,7 +670,7 @@ Package apiserver initializes the api server that powers many subcommands.
 
 ### [comp/process/connectionscheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/process/connectionscheck)
 
-*Datadog Team*: cloud-network-monitoring universal-service-monitoring
+*Datadog Team*: cloud-network-monitoring ebpf-platform
 
 Package connectionscheck implements a component to handle Connections data collection in the Process Agent.
 
@@ -767,21 +837,13 @@ Package payloadmodifier defines the trace payload modifier component interface
 
 Package status implements the core status component information provider interface
 
-### [comp/trace-telemetry](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/trace-telemetry)
-
-*Datadog Team*: agent-runtimes
-
-Package tracetelemetry sends telemetry about the trace-agent and its state
-
 ## [comp/updater](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater) (Component Bundle)
 
-*Datadog Team*: fleet windows-products
+*Datadog Team*: fleet
 
 Package updater implements the updater component.
 
 ### [comp/updater/daemonchecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/daemonchecker)
-
-*Datadog Team*: fleet
 
 Package daemonchecker retrieves the running status of the installer daemon
 
@@ -794,8 +856,6 @@ Package localapi is the updater local api component.
 Package localapiclient provides the local API client component.
 
 ### [comp/updater/ssistatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/updater/ssistatus)
-
-*Datadog Team*: fleet
 
 Package ssistatus is a component to regularly retrieve the status of APM Single Step Instrumentation and
 add it to the inventoryagent payload.
@@ -810,26 +870,26 @@ Package updater is the updater component.
 
 ### [comp/anomalydetection/logssource](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/logssource)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package logssource provides a component that feeds container and kubelet
 journald logs into the observer without requiring the logs agent to be enabled.
 
 ### [comp/anomalydetection/observer](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/observer)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package observer provides a component for observing data flowing through the agent.
 
 ### [comp/anomalydetection/recorder](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/recorder)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
-Package recorder provides a middleware component for recording and replaying observer data.
+Package recorder defines middleware and writer contracts for recording observer data.
 
 ### [comp/anomalydetection/reporter](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/anomalydetection/reporter)
 
-*Datadog Team*: q-branch
+*Datadog Team*: agent-anomaly-detection
 
 Package reporter defines the reporter component contracts.
 Concrete reporters are provided through the `anomalydetection_reporters` Fx group.
@@ -842,8 +902,6 @@ Package datadogclient provides a client to query the datadog API
 
 ### [comp/connectivitychecker](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/connectivitychecker)
 
-*Datadog Team*: fleet
-
 Package connectivitychecker is responsible for running connectivity checks that will be sent to the backend via the inventory agent.
 
 ### [comp/dataobs/queryactions](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataobs/queryactions)
@@ -851,6 +909,12 @@ Package connectivitychecker is responsible for running connectivity checks that 
 *Datadog Team*: data-observability
 
 Package queryactions provides the Data Observability query actions component
+
+### [comp/dataplane/preflightmode](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/dataplane/preflightmode)
+
+*Datadog Team*: agent-data-plane
+
+Package preflightmode pre-flights the Agent Data Plane (ADP).
 
 ### [comp/etw](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/etw)
 
@@ -869,8 +933,6 @@ to DataDog.
 
 ### [comp/fleetstatus](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/fleetstatus)
 
-*Datadog Team*: fleet
-
 Package fleetstatus implements the core status component information provider interface
 
 ### [comp/haagent](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/haagent)
@@ -878,6 +940,12 @@ Package fleetstatus implements the core status component information provider in
 *Datadog Team*: network-device-monitoring-core
 
 Package haagent handles states for HA Agent feature.
+
+### [comp/intakerouting](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/intakerouting)
+
+*Datadog Team*: agent-data-plane
+
+Package intakerouting asks the Datadog backend where to send telemetry.
 
 ### [comp/languagedetection/client](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/languagedetection/client)
 
@@ -891,11 +959,29 @@ Package client implements a component to send process metadata to the Cluster-Ag
 
 Package logonduration provides a component that monitors the duration of a user logon after boot and forwards them to the Datadog Event Management v2 API.
 
+### [comp/metriclookback](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metriclookback)
+
+*Datadog Team*: q-branch
+
+Package metriclookback defines the metric lookback component.
+
+### [comp/ndmconnectivitycheck](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package ndmconnectivitycheck provides the interactive NDM connectivity check.
+
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 
 *Datadog Team*: ndm-integrations
 
 Package networkconfigmanagement provides the component for retrieving network device configurations.
+
+### [comp/networkpcap/uploader](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkpcap/uploader)
+
+*Datadog Team*: cloud-network-monitoring
+
+Package uploader sends network packet captures to the networkpcap intake as streamed multipart uploads
 
 ### [comp/notableevents](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/notableevents)
 
@@ -917,6 +1003,12 @@ last-written timestamp so callers can measure how long the agent was offline.
 
 Package privateactionrunner provides a component that enables private actions executions
 
+### [comp/privateactionrunner/phonehome](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome)
+
+*Datadog Team*: action-platform
+
+Package phonehome defines the core-owned PAR startup gate.
+
 ### [comp/publishermetadatacache](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/publishermetadatacache)
 
 *Datadog Team*: windows-products
@@ -925,7 +1017,7 @@ Package publishermetadatacache provides a cache for Windows Event Log publisher 
 
 ### [comp/rdnsquerier](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/rdnsquerier)
 
-*Datadog Team*: ndm-integrations
+*Datadog Team*: ndm-integrations network-path
 
 Package rdnsquerier provides the reverse DNS querier component.
 

@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"math/bits"
 	"slices"
 
@@ -71,6 +72,11 @@ const (
 	columnOriginRef
 	columnDictUnitStr
 	columnUnitRef
+	columnReserved27
+	columnReserved28
+	columnReserved29
+	columnPointFlags
+	columnValsUint64
 	numberOfColumns
 )
 
@@ -102,14 +108,22 @@ var columnNames = []string{
 	"OriginInfo",
 	"DictUnitStr",
 	"UnitRef",
+	"Reserved27",
+	"Reserved28",
+	"Reserved29",
+	"PointFlags",
+	"ValsUint64",
 }
 
 // Constants for type column
 const (
-	metricCount  = 0x01
-	metricRate   = 0x02
-	metricGauge  = 0x03
-	metricSketch = 0x04
+	metricCount                    = 0x01
+	metricRate                     = 0x02
+	metricGauge                    = 0x03
+	metricSketch                   = 0x04
+	metricReserved5                = 0x05
+	metricOtelExplicitHistogram    = 0x06
+	metricOtelExponentialHistogram = 0x07
 
 	valueZero    int64 = 0x00
 	valueSint64  int64 = 0x10
@@ -118,6 +132,10 @@ const (
 
 	flagNoIndex = 0x100
 	flagHasUnit = 0x200
+
+	pointFlagsHaveMin = 0x01
+	pointFlagsHaveMax = 0x02
+	pointFlagsHaveSum = 0x04
 )
 
 const (
@@ -149,6 +167,8 @@ type payloadsBuilderV3 struct {
 
 	resourcesBuf []metrics.Resource
 
+	sketchStats []v3SketchStat
+
 	scratchBuf []byte
 
 	stats v3stats
@@ -158,7 +178,7 @@ type v3stats struct {
 	valuesZero, valuesSint64, valuesFloat32, valuesFloat64 uint64
 }
 
-func newPayloadsBuilderV3WithConfig(
+func newSeriesPayloadBuilderV3WithConfig(
 	config config.Component,
 	compression compression.Component,
 	pipelineConfig PipelineConfig,
@@ -167,6 +187,40 @@ func newPayloadsBuilderV3WithConfig(
 	maxCompressedSize := config.GetInt("serializer_max_series_payload_size")
 	maxUncompressedSize := config.GetInt("serializer_max_series_uncompressed_payload_size")
 	maxPointsPerPayload := config.GetInt("serializer_max_series_points_per_payload")
+
+	if level := config.GetInt("serializer_experimental_use_v3_api.compression_level"); level > 0 {
+		compression = selector.NewCompressor(config.GetString("serializer_compressor_kind"), level)
+	}
+
+	return newPayloadsBuilderV3(
+		maxCompressedSize,
+		maxUncompressedSize,
+		maxPointsPerPayload,
+		compression,
+		pipelineConfig,
+		pipelineContext,
+	)
+}
+
+func newSketchesPayloadBuilderV3WithConfig(
+	config config.Component,
+	compression compression.Component,
+	pipelineConfig PipelineConfig,
+	pipelineContext *PipelineContext,
+) (*payloadsBuilderV3, error) {
+	maxCompressedSize := config.GetInt("serializer_experimental_use_v3_api.sketches.max_compressed_payload_size")
+	if maxCompressedSize <= 0 {
+		maxCompressedSize = config.GetInt("serializer_max_payload_size")
+	}
+	maxUncompressedSize := config.GetInt("serializer_experimental_use_v3_api.sketches.max_uncompressed_payload_size")
+	if maxUncompressedSize <= 0 {
+		maxUncompressedSize = config.GetInt("serializer_max_uncompressed_payload_size")
+	}
+	maxPointsPerPayload := config.GetInt("serializer_experimental_use_v3_api.sketches.max_points_per_payload")
+	// Unlike series, sketches point limit is disabled by default.
+	if maxPointsPerPayload <= 0 {
+		maxPointsPerPayload = math.MaxInt
+	}
 
 	if level := config.GetInt("serializer_experimental_use_v3_api.compression_level"); level > 0 {
 		compression = selector.NewCompressor(config.GetString("serializer_compressor_kind"), level)
@@ -492,18 +546,23 @@ func (pb *payloadsBuilderV3) writeSerieToTxn(serie *metrics.Serie) {
 	}
 }
 
-func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
-	if !pb.pipelineConfig.Filter.Filter(sketch) {
+var _ metrics.DistributionWriter = (*payloadsBuilderV3)(nil)
+
+// v3SketchStat holds the per-point summary values that cannot be streamed directly:
+// the value-type narrowing pass must see every point before choosing the column for
+// sum/min/max (and cnt shares that column when it is Sint64).
+type v3SketchStat struct {
+	cnt           int64
+	min, max, sum float64
+}
+
+func (pb *payloadsBuilderV3) writeSketch(dist metrics.Distribution) error {
+	if !pb.pipelineConfig.Filter.Filter(dist) {
 		return nil
 	}
 
-	if ok, err := pb.checkPointsLimit(len(sketch.Points)); !ok {
-		return err
-	}
-
 	for {
-		pb.writeSketchToTxn(sketch)
-		err := pb.finishTxn(len(sketch.Points))
+		err := dist.WriteTo(pb)
 		if err == errRetry {
 			continue
 		}
@@ -511,80 +570,362 @@ func (pb *payloadsBuilderV3) writeSketch(sketch *metrics.SketchSeries) error {
 	}
 }
 
-func (pb *payloadsBuilderV3) writeSketchToTxn(sketch *metrics.SketchSeries) {
+func (pb *payloadsBuilderV3) distributionCommon(meta metrics.DistributionMetadata, numPoints int) (bool, error) {
+	if ok, err := pb.checkPointsLimit(numPoints); !ok {
+		return ok, err
+	}
+
 	pb.txn.Reset()
 
 	pb.resourcesBuf = pb.resourcesBuf[:0]
-	if sketch.Host != "" {
+	if meta.Host != "" {
 		pb.resourcesBuf = append(pb.resourcesBuf, metrics.Resource{
 			Type: resourceTypeHost,
-			Name: sketch.Host,
+			Name: meta.Host,
 		})
 	}
 
-	pb.writeMetricCommon(
-		sketch.Name,
-		sketch.Tags,
-		0,
-		"",
-		sketch.Source,
-		len(sketch.Points),
-	)
+	// interval 0 preserves the current wire behavior for sketches.
+	pb.writeMetricCommon(meta.Name, meta.Tags, 0, "", meta.Source, numPoints)
+
+	return true, nil
+}
+
+// WriteDDSketch implements metrics.DistributionWriter.
+func (pb *payloadsBuilderV3) WriteDDSketch(meta metrics.DistributionMetadata, numPoints int, points metrics.DDSketchPoints) error {
+	if ok, err := pb.distributionCommon(meta, numPoints); !ok {
+		return err
+	}
+
+	pb.sketchStats = pb.sketchStats[:0]
+	for i := 0; i < numPoints; i++ {
+		// Must not hold k and n across loop iterations.
+		ts, cnt, min, max, sum, _, k, n := points.GetDDSketchPoint(i)
+		pb.sketchStats = append(pb.sketchStats, v3SketchStat{cnt: cnt, min: min, max: max, sum: sum})
+
+		pb.writePointCommon(ts)
+
+		kDelta := deltaEncoder{}
+		for j := range k {
+			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[j])))
+			pb.txn.Uint64(columnSketchBinCnts, uint64(n[j]))
+		}
+		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
+	}
 
 	// find a single smallest type that can fit all summary values
 	// without loss of precision
 	pointKind := pointKindZero
-	for _, pnt := range sketch.Points {
-		_, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
-		pointKind = pointKind.unionOf(bSum)
-		pointKind = pointKind.unionOf(bMin)
-		pointKind = pointKind.unionOf(bMax)
+	for _, s := range pb.sketchStats {
+		pointKind = pointKind.unionOf(s.sum)
+		pointKind = pointKind.unionOf(s.min)
+		pointKind = pointKind.unionOf(s.max)
 	}
 	valueType := pointKind.toValueType()
 
 	typeValue := valueType | metricSketch
-	if sketch.NoIndex {
+	if meta.NoIndex {
 		typeValue |= flagNoIndex
 	}
 
 	pb.txn.Int64(columnType, typeValue)
 
-	for _, pnt := range sketch.Points {
-		pb.writePointCommon(pnt.Ts)
-		bCnt, bMin, bMax, bSum, _ := pnt.Sketch.BasicStats()
-
+	for _, s := range pb.sketchStats {
 		switch valueType {
 		case valueZero:
 			pb.stats.valuesZero += 3
 		case valueSint64:
-			pb.txn.Sint64(columnValueSint64, int64(bSum))
-			pb.txn.Sint64(columnValueSint64, int64(bMin))
-			pb.txn.Sint64(columnValueSint64, int64(bMax))
+			pb.txn.Sint64(columnValueSint64, int64(s.sum))
+			pb.txn.Sint64(columnValueSint64, int64(s.min))
+			pb.txn.Sint64(columnValueSint64, int64(s.max))
 			pb.stats.valuesSint64 += 3
 		case valueFloat32:
-			pb.txn.Float32(columnValueFloat32, float32(bSum))
-			pb.txn.Float32(columnValueFloat32, float32(bMin))
-			pb.txn.Float32(columnValueFloat32, float32(bMax))
+			pb.txn.Float32(columnValueFloat32, float32(s.sum))
+			pb.txn.Float32(columnValueFloat32, float32(s.min))
+			pb.txn.Float32(columnValueFloat32, float32(s.max))
 			pb.stats.valuesFloat32 += 3
 		case valueFloat64:
-			pb.txn.Float64(columnValueFloat64, bSum)
-			pb.txn.Float64(columnValueFloat64, bMin)
-			pb.txn.Float64(columnValueFloat64, bMax)
+			pb.txn.Float64(columnValueFloat64, s.sum)
+			pb.txn.Float64(columnValueFloat64, s.min)
+			pb.txn.Float64(columnValueFloat64, s.max)
 			pb.stats.valuesFloat64 += 3
 		}
 
 		// can share column with sum, min max, if so, cnt must be last.
-		pb.txn.Sint64(columnValueSint64, bCnt)
+		pb.txn.Sint64(columnValueSint64, s.cnt)
 		pb.stats.valuesSint64++
-
-		k, n := pnt.Sketch.Cols()
-		kDelta := deltaEncoder{}
-		for i := range k {
-			pb.txn.Sint64(columnSketchBinKeys, kDelta.encode(int64(k[i])))
-			pb.txn.Uint64(columnSketchBinCnts, uint64(n[i]))
-		}
-		pb.txn.Uint64(columnSketchNumBins, uint64(len(k)))
 	}
+
+	return pb.finishTxn(numPoints)
+}
+
+type histogramPointFlags uint64
+
+func (f histogramPointFlags) haveMin(haveMin bool) histogramPointFlags {
+	if haveMin {
+		f |= pointFlagsHaveMin
+	}
+	return f
+}
+
+func (f histogramPointFlags) haveMax(haveMax bool) histogramPointFlags {
+	if haveMax {
+		f |= pointFlagsHaveMax
+	}
+	return f
+}
+
+func (f histogramPointFlags) haveSum(haveSum bool) histogramPointFlags {
+	if haveSum {
+		f |= pointFlagsHaveSum
+	}
+	return f
+}
+
+func (f histogramPointFlags) value() uint64 {
+	return uint64(f)
+}
+
+// WriteOtelExplicitHistogram implements metrics.DistributionWriter.
+func (pb *payloadsBuilderV3) WriteOtelExplicitHistogram(
+	meta metrics.DistributionMetadata,
+	numPoints int,
+	points metrics.OtelExplicitHistogramPoints,
+) error {
+	if ok, err := pb.distributionCommon(meta, numPoints); !ok {
+		return err
+	}
+
+	pointKind := pointKindZero
+
+	for i := 0; i < numPoints; i++ {
+		_, haveMin, haveMax, haveSum, min, max, sum, _, bounds, _ := points.GetOtelExplicitHistogramPoint(i)
+
+		if haveSum {
+			pointKind = pointKind.unionOf(sum)
+		}
+		if haveMin {
+			pointKind = pointKind.unionOf(min)
+		}
+		if haveMax {
+			pointKind = pointKind.unionOf(max)
+		}
+		for _, b := range bounds {
+			pointKind = pointKind.unionOf(b)
+		}
+	}
+
+	valueType := pointKind.toValueType()
+	typeValue := valueType | metricOtelExplicitHistogram
+	if meta.NoIndex {
+		typeValue |= flagNoIndex
+	}
+
+	pb.txn.Int64(columnType, typeValue)
+
+	for i := 0; i < numPoints; i++ {
+		ts, haveMin, haveMax, haveSum, min, max, sum, cnt, bounds, counts := points.GetOtelExplicitHistogramPoint(i)
+
+		pb.writePointCommon(ts)
+
+		pb.txn.Uint64(columnSketchNumBins, uint64(len(counts)))
+		for _, c := range counts {
+			pb.txn.Uint64(columnSketchBinCnts, c)
+		}
+
+		pb.txn.Uint64(columnPointFlags, histogramPointFlags(0).haveMin(haveMin).haveMax(haveMax).haveSum(haveSum).value())
+		pb.txn.Uint64(columnValsUint64, cnt)
+
+		switch valueType {
+		case valueZero:
+			if haveSum {
+				pb.stats.valuesZero++
+			}
+			if haveMin {
+				pb.stats.valuesZero++
+			}
+			if haveMax {
+				pb.stats.valuesZero++
+			}
+			pb.stats.valuesZero += uint64(len(bounds))
+		case valueSint64:
+			if haveSum {
+				pb.txn.Sint64(columnValueSint64, int64(sum))
+				pb.stats.valuesSint64++
+			}
+			if haveMin {
+				pb.txn.Sint64(columnValueSint64, int64(min))
+				pb.stats.valuesSint64++
+			}
+			if haveMax {
+				pb.txn.Sint64(columnValueSint64, int64(max))
+				pb.stats.valuesSint64++
+			}
+			for _, b := range bounds {
+				pb.txn.Sint64(columnValueSint64, int64(b))
+			}
+			pb.stats.valuesSint64 += uint64(len(bounds))
+		case valueFloat32:
+			if haveSum {
+				pb.txn.Float32(columnValueFloat32, float32(sum))
+				pb.stats.valuesFloat32++
+			}
+			if haveMin {
+				pb.txn.Float32(columnValueFloat32, float32(min))
+				pb.stats.valuesFloat32++
+			}
+			if haveMax {
+				pb.txn.Float32(columnValueFloat32, float32(max))
+				pb.stats.valuesFloat32++
+			}
+			for _, b := range bounds {
+				pb.txn.Float32(columnValueFloat32, float32(b))
+			}
+			pb.stats.valuesFloat32 += uint64(len(bounds))
+		case valueFloat64:
+			if haveSum {
+				pb.txn.Float64(columnValueFloat64, sum)
+				pb.stats.valuesFloat64++
+			}
+			if haveMin {
+				pb.txn.Float64(columnValueFloat64, min)
+				pb.stats.valuesFloat64++
+			}
+			if haveMax {
+				pb.txn.Float64(columnValueFloat64, max)
+				pb.stats.valuesFloat64++
+			}
+			for _, b := range bounds {
+				pb.txn.Float64(columnValueFloat64, b)
+			}
+			pb.stats.valuesFloat64 += uint64(len(bounds))
+		}
+
+	}
+
+	return pb.finishTxn(numPoints)
+}
+
+// WriteOtelExponentialHistogram implements metrics.DistributionWriter.
+func (pb *payloadsBuilderV3) WriteOtelExponentialHistogram(
+	meta metrics.DistributionMetadata,
+	numPoints int,
+	points metrics.OtelExponentialHistogramPoints,
+) error {
+	if ok, err := pb.distributionCommon(meta, numPoints); !ok {
+		return err
+	}
+
+	pointKind := pointKindZero
+
+	for i := 0; i < numPoints; i++ {
+		_, haveMin, haveMax, haveSum, min, max, sum, zeroThr, _, _, _, _, _, _, _ := points.GetOtelExponentialHistogramPoint(i)
+
+		if haveMin {
+			pointKind = pointKind.unionOf(min)
+		}
+		if haveMax {
+			pointKind = pointKind.unionOf(max)
+		}
+		if haveSum {
+			pointKind = pointKind.unionOf(sum)
+		}
+		pointKind = pointKind.unionOf(zeroThr)
+	}
+
+	valueType := pointKind.toValueType()
+	typeValue := valueType | metricOtelExponentialHistogram
+	if meta.NoIndex {
+		typeValue |= flagNoIndex
+	}
+
+	pb.txn.Int64(columnType, typeValue)
+
+	for i := 0; i < numPoints; i++ {
+		ts, haveMin, haveMax, haveSum, min, max, sum, zeroThr, cnt, zeroCnt, scale, posOffs, negOffs, posCnt, negCnt := points.GetOtelExponentialHistogramPoint(i)
+
+		pb.writePointCommon(ts)
+
+		pb.txn.Uint64(columnSketchNumBins, uint64(len(posCnt)))
+		for _, c := range posCnt {
+			pb.txn.Uint64(columnSketchBinCnts, c)
+		}
+
+		pb.txn.Uint64(columnSketchNumBins, uint64(len(negCnt)))
+		for _, c := range negCnt {
+			pb.txn.Uint64(columnSketchBinCnts, c)
+		}
+
+		// excluded from stats since value compaction doesn't apply to these
+		pb.txn.Sint64(columnValueSint64, int64(scale))
+		pb.txn.Sint64(columnValueSint64, int64(posOffs))
+		pb.txn.Sint64(columnValueSint64, int64(negOffs))
+
+		pb.txn.Uint64(columnPointFlags, histogramPointFlags(0).haveMin(haveMin).haveMax(haveMax).haveSum(haveSum).value())
+		pb.txn.Uint64(columnValsUint64, cnt)
+		pb.txn.Uint64(columnValsUint64, zeroCnt)
+
+		switch valueType {
+		case valueZero:
+			pb.stats.valuesZero++
+			if haveSum {
+				pb.stats.valuesZero++
+			}
+			if haveMin {
+				pb.stats.valuesZero++
+			}
+			if haveMax {
+				pb.stats.valuesZero++
+			}
+		case valueSint64:
+			if haveSum {
+				pb.txn.Sint64(columnValueSint64, int64(sum))
+				pb.stats.valuesSint64++
+			}
+			if haveMin {
+				pb.txn.Sint64(columnValueSint64, int64(min))
+				pb.stats.valuesSint64++
+			}
+			if haveMax {
+				pb.txn.Sint64(columnValueSint64, int64(max))
+				pb.stats.valuesSint64++
+			}
+			pb.txn.Sint64(columnValueSint64, int64(zeroThr))
+			pb.stats.valuesSint64++
+		case valueFloat32:
+			if haveSum {
+				pb.txn.Float32(columnValueFloat32, float32(sum))
+				pb.stats.valuesFloat32++
+			}
+			if haveMin {
+				pb.txn.Float32(columnValueFloat32, float32(min))
+				pb.stats.valuesFloat32++
+			}
+			if haveMax {
+				pb.txn.Float32(columnValueFloat32, float32(max))
+				pb.stats.valuesFloat32++
+			}
+			pb.txn.Float32(columnValueFloat32, float32(zeroThr))
+			pb.stats.valuesFloat32++
+		case valueFloat64:
+			if haveSum {
+				pb.txn.Float64(columnValueFloat64, sum)
+				pb.stats.valuesFloat64++
+			}
+			if haveMin {
+				pb.txn.Float64(columnValueFloat64, min)
+				pb.stats.valuesFloat64++
+			}
+			if haveMax {
+				pb.txn.Float64(columnValueFloat64, max)
+				pb.stats.valuesFloat64++
+			}
+			pb.txn.Float64(columnValueFloat64, zeroThr)
+			pb.stats.valuesFloat64++
+		}
+	}
+
+	return pb.finishTxn(numPoints)
 }
 
 func (pb *payloadsBuilderV3) updateValuesStats() {

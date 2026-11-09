@@ -30,6 +30,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:            true,
+				OnDemand:           true,
 				EnabledNamespaces:  []string{"application"},
 				DisabledNamespaces: []string{},
 				LibVersions: map[string]string{
@@ -38,6 +39,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				InjectorImageTag: "foo",
 				Targets:          []Target{},
 				InjectionMode:    "auto",
+				APMBasic:         APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -52,6 +54,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:            true,
+				OnDemand:           true,
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{"default"},
 				LibVersions: map[string]string{
@@ -60,6 +63,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 				InjectorImageTag: "foo",
 				Targets:          []Target{},
 				InjectionMode:    "auto",
+				APMBasic:         APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -68,6 +72,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:           true,
+				OnDemand:          true,
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
@@ -108,6 +113,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					},
 				},
 				InjectionMode: "auto",
+				APMBasic:      APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -116,6 +122,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			shouldErr:  false,
 			expected: &InstrumentationConfig{
 				Enabled:           true,
+				OnDemand:          true,
 				EnabledNamespaces: []string{},
 				InjectorImageTag:  "0",
 				LibVersions:       map[string]string{},
@@ -165,6 +172,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					},
 				},
 				InjectionMode: "auto",
+				APMBasic:      APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -172,6 +180,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			configPath: "testdata/filter_service_env_var_from.yaml",
 			expected: &InstrumentationConfig{
 				Enabled:            true,
+				OnDemand:           true,
 				EnabledNamespaces:  []string{},
 				DisabledNamespaces: []string{},
 				InjectorImageTag:   "0",
@@ -192,6 +201,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 					},
 				},
 				InjectionMode: "auto",
+				APMBasic:      APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
 			},
 		},
 		{
@@ -457,7 +467,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			libVersions: map[string]string{
 				"java":   "v1",
 				"python": "v4",
-				"js":     "v5",
+				"js":     "v6",
 				"dotnet": "v3",
 				"ruby":   "v2",
 				"php":    "v1",
@@ -482,7 +492,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			libVersions: map[string]string{
 				"java":   "v1",
 				"python": "v4",
-				"js":     "v5",
+				"js":     "v6",
 				"dotnet": "v3",
 				"ruby":   "v2",
 				"c":      "v0",
@@ -541,7 +551,7 @@ func TestGetPinnedLibraries(t *testing.T) {
 			libVersions: map[string]string{
 				"java":   "v1",
 				"python": "v4",
-				"js":     "v5",
+				"js":     "v6",
 				"dotnet": "v3",
 				"ruby":   "v2",
 				"php":    "v1",

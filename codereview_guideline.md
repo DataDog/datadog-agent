@@ -20,6 +20,9 @@ check whether an E2E test asserts the expected data arrives in fakeintake. Unit
 tests alone are not sufficient for validating the agent's end-to-end data
 pipeline.
 
+When a PR creates a new E2E test, use the `e2e-audit` skill to verify that its
+assertions require the deployed Agent or its real environment.
+
 ### Branch-conditional CI creates blind spots
 Most E2E tests only run on `main`, release branches (`N.N.x`), and RC tags —
 not on PR branches. Be extra careful reviewing:
@@ -34,7 +37,9 @@ The agent ships on Linux, Windows, and macOS. Platform-specific code paths (via
 `runtime.GOOS`, build tags, OS-specific file paths) are a frequent source of
 bugs — typically the "other" platform is untested. The same applies to
 packaging: Windows MSI and Linux deb/rpm have independent logic that can
-silently diverge.
+silently diverge. Verifying the other platform is cheap — see "Typechecking code
+for another platform" in `AGENTS.md` — so ask for it rather than assuming CI
+will catch it.
 
 ### Concurrency and component lifecycle
 The agent runs many concurrent goroutines with explicit `Start()`/`Stop()`
@@ -56,14 +61,6 @@ incorrect assumptions.
 
 Apply these when the PR touches Go code.
 
-### Atomics — use `go.uber.org/atomic`, not `sync/atomic`
-The standard `sync/atomic` package has an alignment bug on 32-bit and some ARM
-platforms and allows mixing atomic and non-atomic access to the same variable.
-Flag any new use of `sync/atomic`; the project standard is `go.uber.org/atomic`.
-Atomic values in structs must be declared as a pointer (`*atomic.Uint64` etc.)
-to guarantee alignment, unless placed as the first field with a comment
-explaining why a pointer was not used.
-
 ### Testing: `require` vs `assert`
 Use `require` (from `github.com/stretchr/testify/require`) when each assertion
 depends on the previous one succeeding — it aborts the test immediately on
@@ -73,9 +70,20 @@ errors that are then immediately dereferenced.
 
 ### Testing: avoid time-dependent tests
 Flag tests that sleep (`time.Sleep`, ticker-based waits) to wait for background
-work. These are a primary source of flakes and slow CI. The correct pattern is
-to inject a `clock.Mock` from `github.com/benbjohnson/clock` and advance time
-deterministically with `clk.Add(...)`.
+work. These are a primary source of flakes and slow CI. Two patterns fix this:
+
+- **`testing/synctest`** (stdlib), preferred for new tests — timers inside a
+  `synctest.Test` bubble fire on virtual time, so the code under test keeps
+  calling `time.Now`/`time.NewTicker` directly.
+- **`clock.Mock`** from `github.com/benbjohnson/clock`, advanced with
+  `clk.Add(...)` — for tests that must step time explicitly while goroutines
+  run, and to match files that already use it.
+
+Flag a new `clock.Clock` parameter or field whose only purpose is testability
+when `synctest` would cover the test. Flag a `synctest` test that waits on a
+real mutex, socket or subprocess: those are not durably blocking, so they stall
+virtual time and need a fake instead. The mechanics of both patterns are in
+`docs/public/guidelines/languages/go.md` § Testing → Time.
 
 ### Logging: log level misuse
 Flag log statements that use the wrong level:

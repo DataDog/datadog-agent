@@ -9,6 +9,7 @@
 package networkconfigmanagement
 
 import (
+	"context"
 	"fmt"
 	"time"
 
@@ -36,7 +37,7 @@ type Check struct {
 
 // Run executes the check to retrieve network device configurations from a device
 func (c *Check) Run() error {
-	return c.ncmComp.ReportConfigWithSender(c.checkContext.Device.DeviceID(), c.sender)
+	return c.ncmComp.ReportConfig(context.Background(), c.checkContext.Device.DeviceID(), c.sender)
 }
 
 // Configure sets up the check with the provided configuration and sender manager

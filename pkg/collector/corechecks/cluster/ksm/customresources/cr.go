@@ -125,7 +125,9 @@ func StartDiscovery(ctx context.Context) *discovery.CRDiscoverer {
 		CRDsCacheCountGauge:     crdsCacheCountGauge,
 	}
 
-	clientConfig, err := apiserver.GetClientConfig(time.Duration(setup.Datadog().GetInt64("kubernetes_apiserver_client_timeout"))*time.Second, 10, 20)
+	// The discoverer runs a CRD informer: use the informer timeout, as the
+	// standard client timeout would cut its watches short.
+	clientConfig, err := apiserver.GetClientConfig(time.Duration(setup.Datadog().GetInt64("kubernetes_apiserver_informer_client_timeout"))*time.Second, 10, 20)
 	if err != nil {
 		panic(err)
 	}
@@ -150,7 +152,7 @@ func GetCustomResourceFactories(discovererInstance *discovery.CRDiscoverer, reso
 		} else {
 			factories = make([]customresource.RegistryFactory, 0, len(customResourceStateMetricFactories))
 			for _, factory := range customResourceStateMetricFactories {
-				factories = append(factories, NewCustomResourceFactory(factory, c.DynamicCl))
+				factories = append(factories, NewCustomResourceFactory(factory, c.DynamicInformerCl))
 			}
 		}
 	}
@@ -177,8 +179,14 @@ func GetCustomResourceClientsAndCollectors(factories []customresource.RegistryFa
 			Resource: factory.Name(),
 		}
 
-		cl := c.DynamicCl.Resource(gvr)
-		clients[factory.Name()] = cl
+		cl := c.DynamicInformerCl.Resource(gvr)
+		// Key the client by the fully-qualified GVR string rather than the
+		// bare resource (plural) name. Two CRDs can share the same Kind/plural
+		// across different API groups (e.g. Artifactory and SonarQube both
+		// exposing "projects"); keying by name alone would collide them onto a
+		// single client and cause "Unexpected watch event object gvk" errors
+		// and mixed counts. This matches the lookup key used by the builder.
+		clients[gvr.String()] = cl
 		collectors = append(collectors, gvr.String())
 	}
 

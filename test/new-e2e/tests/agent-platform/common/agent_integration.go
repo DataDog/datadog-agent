@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
@@ -90,4 +90,13 @@ func installIntegration(t *testing.T, client *TestClient, integration string) {
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(interval)), backoff.WithMaxTries(uint(maxRetries)))
 
 	require.NoError(t, err)
+}
+
+// CheckGstatus runs the bundled gstatus, which loads its modules and `packaging` with the embedded Python.
+func CheckGstatus(t *testing.T, client *TestClient) {
+	t.Run("gstatus", func(tt *testing.T) {
+		output, err := client.Host.Execute(client.Helper.GetInstallFolder() + "embedded/sbin/gstatus --version")
+		require.NoError(tt, err)
+		require.Contains(tt, output, "gstatus v1.0.9")
+	})
 }

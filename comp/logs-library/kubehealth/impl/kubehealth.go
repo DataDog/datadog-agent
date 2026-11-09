@@ -24,8 +24,8 @@ func newRegistrar() *RegistrarImpl {
 	return &RegistrarImpl{}
 }
 
-// NewProvides provides a new Registrar
-func NewProvides() Provides {
+// NewComponent provides a new Registrar
+func NewComponent() Provides {
 	return Provides{
 		Comp: newRegistrar(),
 	}

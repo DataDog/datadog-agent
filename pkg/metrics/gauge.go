@@ -11,7 +11,6 @@ type Gauge struct {
 	sampled bool
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (g *Gauge) addSample(sample *MetricSample, _ float64) {
 	g.gauge = sample.Value
 	g.sampled = true
@@ -36,4 +35,8 @@ func (g *Gauge) flush(timestamp float64) ([]*Serie, error) {
 
 func (g *Gauge) isStateful() bool {
 	return false
+}
+
+func (g *Gauge) metricType() MetricType {
+	return GaugeType
 }

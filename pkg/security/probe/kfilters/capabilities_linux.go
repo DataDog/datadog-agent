@@ -138,8 +138,10 @@ func init() {
 	allCapabilities["chdir"] = mergeCapabilities(buildFileCapabilities("chdir", "file"), processCapabilities)
 	allCapabilities["bpf"] = bpfCapabilities
 	allCapabilities["sysctl"] = sysctlCapabilities
+	allCapabilities["bind"] = bindCapabilities
 	allCapabilities["connect"] = connectCapabilities
 	allCapabilities["prctl"] = prctlCapabilities
 	allCapabilities["setsockopt"] = setsockoptCapabilities
 	allCapabilities["socket"] = socketCapabilities
+	allCapabilities["unshare"] = unshareCapabilities
 }

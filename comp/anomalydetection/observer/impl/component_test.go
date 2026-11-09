@@ -1,0 +1,277 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+package observerimpl
+
+import (
+	"fmt"
+	"strings"
+	"testing"
+
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/stretchr/testify/require"
+)
+
+type testLifecycle struct {
+	hooks []compdef.Hook
+}
+
+func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *testing.T) {
+	detectors := []detectorRegistration{{detector: NewBOCPDDetector(DefaultBOCPDConfig())}}
+
+	for name, test := range map[string]struct {
+		yaml string
+		want int64
+	}{
+		"unset":      {want: 1816},
+		"zero":       {yaml: "anomaly_detection:\n  storage:\n    point_retention: 0s\n", want: 1816},
+		"short":      {yaml: "anomaly_detection:\n  storage:\n    point_retention: 30s\n", want: 1816},
+		"sufficient": {yaml: "anomaly_detection:\n  storage:\n    point_retention: 3200s\n", want: 3200},
+	} {
+		t.Run(name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, test.yaml)
+			storageCfg := storageConfigFromAgentConfig(cfg, detectors)
+			require.Equal(t, test.want, storageCfg.PointRetentionSecs)
+			require.Equal(t, 120, storageCfg.MaxPointsPerSeries)
+		})
+	}
+}
+
+func TestStorageConfigFromAgentConfigValidatesSeriesCapacity(t *testing.T) {
+	defaults := DefaultStorageConfig()
+	tests := []struct {
+		name      string
+		maxSeries int
+		ratio     float64
+		wantMax   int
+		wantRatio float64
+	}{
+		{name: "valid lower bounds", maxSeries: 1, ratio: 0, wantMax: 1, wantRatio: 0},
+		{name: "valid ratio below one", maxSeries: 123, ratio: 0.999, wantMax: 123, wantRatio: 0.999},
+		{name: "zero max and ratio one use defaults", maxSeries: 0, ratio: 1, wantMax: defaults.MaxSeries, wantRatio: defaults.EvictionFloorRatio},
+		{name: "negative values use defaults", maxSeries: -1, ratio: -0.1, wantMax: defaults.MaxSeries, wantRatio: defaults.EvictionFloorRatio},
+		{name: "ratio above one uses default", maxSeries: 123, ratio: 1.1, wantMax: 123, wantRatio: defaults.EvictionFloorRatio},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+anomaly_detection:
+  storage:
+    max_series: %d
+    eviction_floor_ratio: %g
+`, tc.maxSeries, tc.ratio))
+
+			got := storageConfigFromAgentConfig(cfg, nil)
+			require.Equal(t, tc.wantMax, got.MaxSeries)
+			require.Equal(t, tc.wantRatio, got.EvictionFloorRatio)
+		})
+	}
+}
+
+func TestMaxDetectorPoints(t *testing.T) {
+	bocpdConfig := DefaultBOCPDConfig()
+	bocpdConfig.WarmupPoints = 40
+	detectors := []detectorRegistration{
+		{detector: NewBOCPDDetector(bocpdConfig)},
+		{detector: NewHoltResidualDetector(DefaultHoltResidualConfig())},
+		{detector: NewTukeyBiweightDetector(DefaultTukeyBiweightConfig())},
+		{detector: NewScanMWDetector(DefaultScanMWConfig())},
+		{detector: NewScanWelchDetector(DefaultScanWelchConfig())},
+	}
+	require.Equal(t, 120, maxDetectorPoints(detectors))
+}
+
+func (l *testLifecycle) Append(h compdef.Hook) {
+	l.hooks = append(l.hooks, h)
+}
+
+func requireNoObserverMetricFamilies(t *testing.T, telemetryComp telemetry.Component) {
+	t.Helper()
+
+	metricFamilies, err := telemetryComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+
+	for _, family := range metricFamilies {
+		if strings.HasPrefix(family.GetName(), "observer__") {
+			t.Fatalf("unexpected observer metric family initialized: %s", family.GetName())
+		}
+	}
+}
+
+func TestNewComponentReturnsErrorForInvalidMetricProcessingRulesConfig(t *testing.T) {
+	testCases := []struct {
+		name        string
+		yaml        string
+		errContains string
+	}{
+		{
+			name: "invalid rule type",
+			yaml: `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+  metrics:
+    enabled: true
+    processing_rules:
+      - type: invalid_type
+        name: bad_rule
+`,
+			errContains: `anomaly_detection.metrics.processing_rules: rule "bad_rule": unsupported type "invalid_type"`,
+		},
+		{
+			name: "invalid name pattern",
+			yaml: `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+  metrics:
+    enabled: true
+    processing_rules:
+      - type: exclude_at_match
+        name: bad_pattern
+        name_pattern: kubernetes.*.cpu
+`,
+			errContains: "anomaly_detection.metrics.processing_rules: rule \"bad_pattern\": name_pattern must be a prefix with an optional trailing *",
+		},
+		{
+			name: "invalid allowed metric type",
+			yaml: `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+  metrics:
+    enabled: true
+    allowed_types:
+      - Gauge
+      - bogus_type
+`,
+			errContains: `anomaly_detection.metrics.allowed_types: invalid metric type "bogus_type" (valid types: Unknown, Gauge, Rate, Count, MonotonicCount, Counter, Histogram, Historate, Set, Distribution, GaugeWithTimestamp, CountWithTimestamp)`,
+		},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, tc.yaml)
+			lc := &testLifecycle{}
+			telComp := telemetryimpl.NewMock(t)
+
+			_, err := NewComponent(Requires{
+				Lifecycle: lc,
+				Config:    cfg,
+				Telemetry: telComp,
+			})
+			require.Error(t, err)
+			require.Contains(t, err.Error(), tc.errContains)
+		})
+	}
+}
+
+func TestNewComponentWithAnalysisDisabledUsesNoopHandleAndDoesNotInitializeObserverMetrics(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  metrics:
+    enabled: true
+    processing_rules:
+      - type: exclude_at_match
+        name: drop_dogstatsd
+        source: dogstatsd
+`)
+	lc := &testLifecycle{}
+	telComp := telemetryimpl.NewMock(t)
+
+	provides, err := NewComponent(Requires{
+		Lifecycle: lc,
+		Config:    cfg,
+		Telemetry: telComp,
+	})
+	require.NoError(t, err)
+
+	handle := provides.Comp.GetHandle("dogstatsd")
+	_, ok := handle.(*noopObserveHandle)
+	require.Truef(t, ok, `GetHandle("dogstatsd") returned %T, want *noopObserveHandle`, handle)
+
+	requireNoObserverMetricFamilies(t, telComp)
+}
+
+func TestNewComponentReadsInactiveSeriesEvictionStorageConfig(t *testing.T) {
+	tt := []struct {
+		name          string
+		storageConfig string
+		wantTTL       int64
+		wantInterval  int64
+	}{
+		{
+			name: "configured",
+			storageConfig: `
+    inactive_series_ttl: 30m
+    inactive_series_check_interval: 10m`,
+			wantTTL:      30 * 60,
+			wantInterval: 10 * 60,
+		},
+		{
+			name: "disabled with zero",
+			storageConfig: `
+    inactive_series_ttl: 0s
+    inactive_series_check_interval: 0s`,
+			wantTTL:      0,
+			wantInterval: 0,
+		},
+		{
+			name: "negative values retain defaults",
+			storageConfig: `
+    inactive_series_ttl: -1s
+    inactive_series_check_interval: -1s`,
+			wantTTL:      storageInactiveSeriesTTLSeconds,
+			wantInterval: storageInactiveSeriesCheckIntervalSeconds,
+		},
+	}
+
+	for _, tc := range tt {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  reporting:
+    events:
+      enabled: true
+  storage:
+`+tc.storageConfig)
+
+			provides, err := NewComponent(Requires{
+				Lifecycle: &testLifecycle{},
+				Config:    cfg,
+				Telemetry: telemetryimpl.NewMock(t),
+			})
+			require.NoError(t, err)
+			obs, ok := provides.Comp.(*observerImpl)
+			require.True(t, ok)
+			require.Equal(t, tc.wantTTL, obs.engine.storage.cfg.InactiveSeriesTTLSeconds)
+			require.Equal(t, tc.wantInterval, obs.engine.storage.cfg.InactiveSeriesCheckIntervalSeconds)
+		})
+	}
+}
+
+func TestLogPatternLimitFromAgentConfig(t *testing.T) {
+	for _, test := range []struct {
+		value string
+		want  int
+	}{
+		{"7", 7}, {"0", 3000}, {"-1", 3000},
+	} {
+		t.Run(test.value, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, "anomaly_detection:\n  detectors:\n    log_pattern_extractor:\n      max_patterns: "+test.value+"\n")
+			settings := settingsFromAgentConfig(defaultCatalog(), cfg)
+			actual := settings.configs[LogPatternExtractorName].(LogPatternExtractorConfig)
+			require.Equal(t, test.want, actual.MaxPatterns)
+			require.Equal(t, test.want, NewLogPatternExtractor(actual).taggedClusterer.MaxPatterns)
+		})
+	}
+}

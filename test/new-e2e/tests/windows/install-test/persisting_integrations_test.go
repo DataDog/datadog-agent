@@ -12,7 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
+	"golang.org/x/text/encoding/unicode"
+	"golang.org/x/text/transform"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	windowsCommon "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common"
@@ -56,7 +58,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
@@ -79,7 +81,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests
@@ -89,7 +91,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	t, err := NewTester(s, vm, testerOptions...)
 	s.Require().NoError(err, "should create tester")
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// Get Display Version
@@ -100,7 +102,7 @@ func (s *testPersistingIntegrationsSuite) TestPersistingIntegrations() {
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// check that the pip package is still installed
 	s.checkPipPackageInstalled(vm, pipPackage)
@@ -138,7 +140,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
@@ -163,7 +165,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests
@@ -173,7 +175,7 @@ func (s *testDisablePersistingIntegrationsSuite) TestDisablePersistingIntegratio
 	t, err := NewTester(s, vm, testerOptions...)
 	s.Require().NoError(err, "should create tester")
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// Get Display Version
@@ -211,14 +213,14 @@ func (s *testIntegrationInstallFailure) TestIntegrationInstallFailure() {
 
 	// upgrade to the new version, but intentionally fail with our persistence flag
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
-		_, err := windowsAgent.InstallAgent(vm,
+		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.AgentPackage),
 			windowsAgent.WithWixFailWhenDeferred(),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// TODO: we shouldn't have to start the agent manually after rollback
@@ -267,7 +269,7 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// create folder in protected location with the ddagentuser as the owner
@@ -303,14 +305,14 @@ func (s *testIntegrationFolderPermissions) TestIntegrationFolderPermissions() {
 	// now we are ignoring the results of the custom action, which means that the install will pass
 	// but the integrations will not be installed as the folder permissions are incorrect
 	if !s.Run(fmt.Sprintf("Install %s with failure", s.upgradeAgentPackge.AgentVersion()), func() {
-		_, err := windowsAgent.InstallAgent(vm,
+		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithInstallLogFile(logFilePath),
 			windowsAgent.WithIntegrationsPersistence("1"),
 		)
 		s.Require().NoError(err, "should install agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// the previous version should be functional
@@ -362,7 +364,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// install third party integration
@@ -383,7 +385,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 
 	// upgrade to the new version, but intentionally fail with our persistence flag
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.upgradeAgentPackge.AgentVersion()), func() {
-		_, err := windowsAgent.InstallAgent(vm,
+		_, err := s.InstallAgent(vm,
 			windowsAgent.WithPackage(s.upgradeAgentPackge),
 			windowsAgent.WithWixFailWhenDeferred(),
 			windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "upgrade.log")),
@@ -391,7 +393,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		)
 		s.Require().Error(err, "should fail to install agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// verify that test==1.0.0 is still in .post_python_installed_packages.txt
@@ -417,7 +419,7 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 	s.Require().NoError(err, "should write file")
 
 	// check to see if datadog-ping==1.0.2 is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// upgrade again without failure
 	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
@@ -429,10 +431,10 @@ func (s *testIntegrationRollback) TestIntegrationRollback() {
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	s.uninstallAgent()
 
@@ -466,7 +468,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 		)
 		s.Require().NoError(err, "Agent should be %s", s.AgentPackage.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
@@ -494,7 +496,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 		)
 		s.Require().NoError(err, "should upgrade to agent %s", s.upgradeAgentPackge.AgentVersion())
 	}) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// run tests
@@ -504,7 +506,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	t, err := NewTester(s, vm, testerOptions...)
 	s.Require().NoError(err, "should create tester")
 	if !t.TestInstallExpectations(s.T()) {
-		s.T().FailNow()
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
 	// Get Display Version
@@ -515,7 +517,7 @@ func (s *testPersistingIntegrationsDuringUninstall) TestPersistingIntegrationsDu
 	assert.NotEqual(s.T(), productVersionPre, productVersionPost, "product version should be different after upgrade")
 
 	// check that the third party integration is still installed
-	s.checkIntegrationInstall(vm, thirdPartyIntegration)
+	s.checkIntegrationInstall(vm, thirdPartyIntegration, filepath.Join(s.SessionOutputDir(), "upgrade.log"))
 
 	// check that the pip package is still installed
 	s.checkPipPackageInstalled(vm, pipPackage)
@@ -613,12 +615,35 @@ func (s *baseAgentMSISuite) getInstalledIntegrations(vm *components.RemoteHost) 
 	return out, nil
 }
 
-func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string) {
+func (s *baseAgentMSISuite) checkIntegrationInstall(vm *components.RemoteHost, integration string, msiLogFile string) {
 	out, err := s.getInstalledIntegrations(vm)
 	s.Require().NoError(err, "should get installed integrations")
 
 	// we use strings.Contains to limit output on failure
-	assert.True(s.T(), strings.Contains(out, integration), "third party integration should be installed")
+	if !assert.True(s.T(), strings.Contains(out, integration), "third party integration should be installed") {
+		// Check the MSI log for known transient failure modes to aid investigation
+		if content, readErr := readMSILog(msiLogFile); readErr == nil {
+			for _, line := range strings.Split(content, "\n") {
+				if strings.Contains(line, "DownloadHTTPError") {
+					s.T().Logf("NOTE: %s: TUF DownloadHTTPError detected — the post-upgrade integration restore failed because the download service was temporarily unavailable. This is a transient infrastructure flake unrelated to the MSI code. For a permanent fix, contact agent-delivery/agent-integrations.\n  %s", filepath.Base(msiLogFile), strings.TrimSpace(line))
+				}
+			}
+		}
+	}
+}
+
+// readMSILog reads an MSI log file and returns its contents as a UTF-8 string.
+// MSI log files are written in UTF-16LE with a BOM.
+func readMSILog(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	decoded, _, err := transform.Bytes(unicode.UTF16(unicode.LittleEndian, unicode.UseBOM).NewDecoder(), data)
+	if err != nil {
+		return "", err
+	}
+	return string(decoded), nil
 }
 
 func (s *baseAgentMSISuite) checkIntegrationNotInstalled(vm *components.RemoteHost, integration string) {

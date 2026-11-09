@@ -14,7 +14,9 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"sync"
 
+	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/fx"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -29,6 +31,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup" //nolint:depguard
 	sbompb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
+	sbompkg "github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -36,23 +39,17 @@ import (
 )
 
 const (
-	collectorID           = "sbom-collector"
-	LastAccessProperty    = "LastSeenRunning"
-	HasSetSuidBitProperty = "HasSetSuidBit"
-	RunningAsRootProperty = "RunningAsRoot"
-)
+	collectorID = "sbom-collector"
 
-// normalizeVersion normalizes version strings to handle epoch differences
-// e.g., "1:4.4.36-4build1" and "4.4.36-4build1" should both map to "4.4.36-4build1"
-// Returns both the normalized version (without epoch) and the original version
-func normalizeVersion(version string) (normalized string, hasEpoch bool) {
-	// Check if version has epoch prefix (e.g., "1:4.4.36-4build1")
-	if idx := strings.Index(version, ":"); idx > 0 {
-		// Extract the part after the epoch
-		return version[idx+1:], true
-	}
-	return version, false
-}
+	// maxPendingReports bounds the reports waiting for the SBOM of their image.
+	maxPendingReports = 256
+
+	// Runtime property names, aliased from pkg/sbom so that the producer of
+	// the enriched SBOM and this merger agree on them.
+	LastAccessProperty    = sbompkg.LastAccessProperty
+	HasSetSuidBitProperty = sbompkg.HasSetSuidBitProperty
+	RunningAsRootProperty = sbompkg.RunningAsRootProperty
+)
 
 type client struct {
 	cl sbompb.SBOMCollectorClient
@@ -82,6 +79,150 @@ func (s *stream) Recv() (interface{}, error) {
 type streamHandler struct {
 	agentConfig       model.Reader
 	systemProbeConfig model.Reader
+	pending           *pendingReports
+}
+
+// errNotReady marks a report that arrived before its container, its image or
+// the SBOM of its image, which the collector keeps to merge later.
+var errNotReady = errors.New("not ready")
+
+// pendingReports holds the latest report of each container that arrived before
+// the SBOM of its image could take it.
+type pendingReports struct {
+	mu      sync.Mutex
+	reports *simplelru.LRU[string, pendingReport]
+	next    uint64            // order of the next report to arrive
+	merged  map[string]uint64 // per image, the order below which reports are stale
+	changed chan struct{}     // wakes the merges
+}
+
+// pendingReport is a report and its order of arrival.
+type pendingReport struct {
+	msg   *sbompb.SBOMMessage
+	order uint64
+}
+
+func newPendingReports() *pendingReports {
+	reports, _ := simplelru.NewLRU[string, pendingReport](maxPendingReports, nil)
+	return &pendingReports{reports: reports, merged: make(map[string]uint64), changed: make(chan struct{}, 1)}
+}
+
+// add keeps msg as the latest report of its container, and wakes the merges.
+func (p *pendingReports) add(msg *sbompb.SBOMMessage) {
+	p.mu.Lock()
+	p.reports.Add(msg.ID, pendingReport{msg: msg, order: p.next})
+	p.next++
+	p.mu.Unlock()
+	p.wake()
+}
+
+// wake asks the merge goroutine for a pass.
+func (p *pendingReports) wake() {
+	select {
+	case p.changed <- struct{}{}:
+	default:
+	}
+}
+
+// remove drops the report of container id, or only msg when msg is set, and
+// reports whether it dropped one.
+func (p *pendingReports) remove(id string, msg *sbompb.SBOMMessage) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if kept, ok := p.reports.Peek(id); ok && (msg == nil || kept.msg == msg) {
+		return p.reports.Remove(id)
+	}
+	return false
+}
+
+// list returns the pending reports, oldest first.
+func (p *pendingReports) list() []pendingReport {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return p.reports.Values()
+}
+
+// took notes that image took a report newer than every report below order.
+func (p *pendingReports) took(image string, order uint64) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.merged[image] = max(p.merged[image], order)
+}
+
+// tookLatest notes that image took a report newer than every pending one.
+func (p *pendingReports) tookLatest(image string) {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	p.merged[image] = p.next
+}
+
+// stale reports whether image took a report newer than the report of order.
+func (p *pendingReports) stale(image string, order uint64) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return order < p.merged[image]
+}
+
+// forget drops the reports of the containers that events remove, and the order
+// of the reports the removed images took.
+func (p *pendingReports) forget(events []workloadmeta.Event) {
+	for _, ev := range events {
+		if ev.Type != workloadmeta.EventTypeUnset {
+			continue
+		}
+		switch id := ev.Entity.GetID(); id.Kind {
+		case workloadmeta.KindContainer:
+			p.remove(id.ID, nil)
+		case workloadmeta.KindContainerImageMetadata:
+			p.mu.Lock()
+			delete(p.merged, id.ID)
+			p.mu.Unlock()
+		}
+	}
+}
+
+// merge returns the events merging the newest report of each ready image, and
+// drops the reports older than one the image took. Every store change calls it,
+// so it decodes only the reports it merges.
+func (p *pendingReports) merge(store workloadmeta.Component) []workloadmeta.CollectorEvent {
+	var ready []pendingReport
+	newest := make(map[string]int) // index in ready of the report of each image
+	for _, r := range p.list() {
+		image, _, err := readyImage(store, r.msg.ID)
+		if err != nil {
+			continue
+		}
+		if p.stale(image.ID, r.order) {
+			p.remove(r.msg.ID, r.msg)
+			continue
+		}
+		if i, ok := newest[image.ID]; ok {
+			p.remove(ready[i].msg.ID, ready[i].msg)
+			ready[i] = r
+			continue
+		}
+		newest[image.ID] = len(ready)
+		ready = append(ready, r)
+	}
+
+	var merged []workloadmeta.CollectorEvent
+	for _, r := range ready {
+		event, err := workloadmetaEventFromSBOMEventSet(store, r.msg)
+		if errors.Is(err, errNotReady) || !p.remove(r.msg.ID, r.msg) {
+			continue
+		}
+		if err != nil {
+			log.Warnf("error converting a pending SBOM report: %v", err)
+			continue
+		}
+		p.took(event.Entity.GetID().ID, r.order+1)
+		merged = append(merged, workloadmeta.CollectorEvent{
+			Type:   event.Type,
+			Source: workloadmeta.SourceRemoteSBOMCollector,
+			Entity: event.Entity,
+		})
+	}
+	return merged
 }
 
 // workloadmetaEventFromSBOMEventSet converts the given SBOM message into a workloadmeta event
@@ -96,6 +237,14 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		return workloadmeta.Event{}, fmt.Errorf("failed to unmarshal SBOM: %w", err)
 	}
 
+	// The host SBOM stays out of workloadmeta, so the sbom check merges the
+	// report of the host itself.
+	if event.Kind == sbompkg.HostKind {
+		log.Debug("Received forwarded SBOM for the host")
+		sbompkg.SetHostUsage(&newBom)
+		return workloadmeta.Event{}, nil
+	}
+
 	if event.Kind != string(workloadmeta.KindContainer) {
 		return workloadmeta.Event{}, fmt.Errorf("expected KindContainer, got %s", event.Kind)
 	}
@@ -106,19 +255,71 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 
 	log.Debugf("Received forwarded SBOM for container %s", event.ID)
 
+	existingImage, imageID, err := readyImage(store, event.ID)
+	if err != nil {
+		return workloadmeta.Event{}, err
+	}
+
+	log.Debugf("Container %s uses image %s, updating image SBOM", event.ID, imageID)
+
+	// Decompress existing image SBOM to get CycloneDXBOM
+	existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
+	if err != nil || existingSBOM == nil || existingSBOM.CycloneDXBOM == nil {
+		return workloadmeta.Event{}, fmt.Errorf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
+	}
+
+	// Merge runtime properties from new BOM into existing image SBOM
+	finalBom := sbomutil.MergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
+	log.Debugf("Merged runtime properties for image %s SBOM", imageID)
+
+	// Compress the final merged SBOM, preserving scan metadata from the existing
+	// SBOM so Status/GenerationTime/etc. survive the runtime-enrichment update.
+	sbomToCompress := &workloadmeta.SBOM{
+		CycloneDXBOM:       finalBom,
+		Status:             existingImage.SBOM.Status,
+		GenerationTime:     existingImage.SBOM.GenerationTime,
+		GenerationDuration: existingImage.SBOM.GenerationDuration,
+		GenerationMethod:   existingImage.SBOM.GenerationMethod,
+		Error:              existingImage.SBOM.Error,
+		OSFallback:         existingImage.SBOM.OSFallback,
+	}
+
+	finalCompressedSBOM, err := sbomutil.CompressSBOM(sbomToCompress)
+	if err != nil {
+		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
+	}
+
+	// Emit the enriched SBOM under the resolved image's own EntityID, so it lands
+	// on the same ContainerImageMetadata the runtime collector populates and
+	// workloadmeta merges the two sources. existingImage is looked up by
+	// container.Image.ID, or by matching RepoDigest when the kubelet reports that
+	// ID as a manifest/repo digest, so its ID can differ from imageID.
+	return workloadmeta.Event{
+		Type: workloadmeta.EventTypeSet,
+		Entity: &workloadmeta.ContainerImageMetadata{
+			EntityID: workloadmeta.EntityID{
+				Kind: workloadmeta.KindContainerImageMetadata,
+				ID:   existingImage.EntityID.ID,
+			},
+			SBOM: finalCompressedSBOM,
+		},
+	}, nil
+}
+
+// readyImage returns the image of container id and the ID the container gives it,
+// once its SBOM can take a report, or else an error wrapping errNotReady.
+func readyImage(store workloadmeta.Component, id string) (*workloadmeta.ContainerImageMetadata, string, error) {
 	// Get container to find its image
-	container, err := store.GetContainer(event.ID)
+	container, err := store.GetContainer(id)
 	if err != nil || container == nil {
-		return workloadmeta.Event{}, fmt.Errorf("container %s not found in workloadmeta: %w", event.ID, err)
+		return nil, "", fmt.Errorf("container %s not found in workloadmeta: %w", id, errNotReady)
 	}
 
 	// Get the image ID from the container
 	imageID := container.Image.ID
 	if imageID == "" {
-		return workloadmeta.Event{}, fmt.Errorf("container %s has no image ID", event.ID)
+		return nil, "", fmt.Errorf("container %s has no image ID: %w", id, errNotReady)
 	}
-
-	log.Debugf("Container %s uses image %s, updating image SBOM", event.ID, imageID)
 
 	// Get existing image to merge SBOM data
 	existingImage, err := store.GetImage(imageID)
@@ -138,210 +339,141 @@ func workloadmetaEventFromSBOMEventSet(store workloadmeta.Component, event *sbom
 		}
 	}
 	if existingImage == nil {
-		log.Debugf("Ignoring system-probe SBOM for image %s: image not found in workloadmeta", imageID)
-		return workloadmeta.Event{}, nil
+		return nil, "", fmt.Errorf("image %s not found in workloadmeta: %w", imageID, errNotReady)
 	}
 
 	if existingImage.SBOM == nil {
-		log.Debugf("Existing image %s has no SBOM, skipping", imageID)
-		return workloadmeta.Event{}, fmt.Errorf("existing image %s has no SBOM to merge with", imageID)
+		return nil, "", fmt.Errorf("existing image %s has no SBOM to merge with: %w", imageID, errNotReady)
 	}
 
-	if existingImage.SBOM.Status == workloadmeta.Pending || existingImage.SBOM.Status == "" {
-		log.Debugf("Image %s SBOM is still in state '%s', skipping merge for now", imageID, existingImage.SBOM.Status)
-		return workloadmeta.Event{}, fmt.Errorf("image %s SBOM is still pending", imageID)
+	// A failed scan merged here would outlive the retry that replaces it, since
+	// this collector's source takes precedence in the store. So would an SBOM
+	// of the OS packages alone, left by a scan that ran out of time.
+	if existingImage.SBOM.Status != workloadmeta.Success {
+		return nil, "", fmt.Errorf("image %s SBOM is in state %q: %w", imageID, existingImage.SBOM.Status, errNotReady)
+	}
+	if existingImage.SBOM.OSFallback {
+		return nil, "", fmt.Errorf("image %s SBOM lists the OS packages alone: %w", imageID, errNotReady)
 	}
 
-	// Decompress existing image SBOM to get CycloneDXBOM
-	existingSBOM, err := sbomutil.UncompressSBOM(existingImage.SBOM)
-	if err != nil || existingSBOM == nil || existingSBOM.CycloneDXBOM == nil {
-		return workloadmeta.Event{}, fmt.Errorf("Failed to decompress existing SBOM for image %s: %v, using new SBOM", imageID, err)
-	}
-
-	// Merge runtime properties from new BOM into existing image SBOM
-	finalBom := mergeRuntimeProperties(existingSBOM.CycloneDXBOM, &newBom)
-	log.Debugf("Merged runtime properties for image %s SBOM", imageID)
-
-	// Compress the final merged SBOM, preserving scan metadata from the existing
-	// SBOM so Status/GenerationTime/etc. survive the runtime-enrichment update.
-	sbomToCompress := &workloadmeta.SBOM{
-		CycloneDXBOM:       finalBom,
-		Status:             existingImage.SBOM.Status,
-		GenerationTime:     existingImage.SBOM.GenerationTime,
-		GenerationDuration: existingImage.SBOM.GenerationDuration,
-		GenerationMethod:   existingImage.SBOM.GenerationMethod,
-		Error:              existingImage.SBOM.Error,
-	}
-
-	finalCompressedSBOM, err := sbomutil.CompressSBOM(sbomToCompress)
-	if err != nil {
-		return workloadmeta.Event{}, fmt.Errorf("failed to compress SBOM for image %s: %w", imageID, err)
-	}
-
-	// Return event to update the ContainerImageMetadata entity
-	return workloadmeta.Event{
-		Type: workloadmeta.EventTypeSet,
-		Entity: &workloadmeta.ContainerImageMetadata{
-			EntityID: workloadmeta.EntityID{
-				Kind: workloadmeta.KindContainerImageMetadata,
-				ID:   imageID,
-			},
-			SBOM: finalCompressedSBOM,
-		},
-	}, nil
+	return existingImage, imageID, nil
 }
 
-// mergeRuntimeProperties merges runtime properties from newBom into existingBom.
-// Returns a new BOM whose component list is deduplicated (by name+normalised version) and
-// enriched with runtime properties (LastSeenRunning / HasSetSuidBit / RunningAsRoot) taken
-// from newBom.  Deduplication is necessary because a previously-merged SBOM stored in the
-// image entity may already carry both an original Trivy entry and a runtime-enriched copy of
-// the same package; without it every merge round would re-emit both copies.
-func mergeRuntimeProperties(existingBom, newBom *cyclonedx_v1_4.Bom) *cyclonedx_v1_4.Bom {
-	if newBom == nil || len(newBom.Components) == 0 {
-		return existingBom
+// collector merges the reports of system-probe into image SBOMs, and forgets
+// them once the runtime removes their image.
+type collector struct {
+	*remote.GenericCollector
+}
+
+// Start starts the stream of reports, the watch of removed images and the merges
+// of the pending reports.
+func (c *collector) Start(ctx context.Context, store workloadmeta.Component) error {
+	if err := c.GenericCollector.Start(ctx, store); err != nil {
+		return err
 	}
-
-	// Build a lookup map from newBom (system-probe) components by name+normalised version.
-	// We normalise versions to handle epoch differences (e.g. "1:4.4.36" vs "4.4.36").
-	newComponentsMap := make(map[string]*cyclonedx_v1_4.Component)
-	for _, comp := range newBom.Components {
-		if comp != nil {
-			normalizedVersion, _ := normalizeVersion(comp.Version)
-			key := comp.Name + "@" + normalizedVersion
-			newComponentsMap[key] = comp
-		}
+	forgetRemovedImages(ctx, store)
+	if handler, ok := c.StreamHandler.(*streamHandler); ok && handler.pending != nil {
+		mergePendingReports(ctx, store, handler.pending)
 	}
+	return nil
+}
 
-	// Shallow-copy the BOM envelope; Components is rebuilt below.
-	mergedBom := &cyclonedx_v1_4.Bom{
-		SpecVersion:        existingBom.SpecVersion,
-		Version:            existingBom.Version,
-		SerialNumber:       existingBom.SerialNumber,
-		Metadata:           existingBom.Metadata,
-		Services:           existingBom.Services,
-		ExternalReferences: existingBom.ExternalReferences,
-		Dependencies:       existingBom.Dependencies,
-		Compositions:       existingBom.Compositions,
-		Vulnerabilities:    existingBom.Vulnerabilities,
-	}
+// mergePendingReports merges the pending reports as the store changes. Merges
+// notify the store from a second goroutine, as the subscription gets the events.
+func mergePendingReports(ctx context.Context, store workloadmeta.Component, pending *pendingReports) {
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainer).
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		Build()
+	ch := store.Subscribe(collectorID+"-pending", workloadmeta.NormalPriority, filter)
 
-	// seen tracks which name@version keys have already been emitted so that duplicate
-	// entries for the same package (which can accumulate across merge rounds) are dropped.
-	seen := make(map[string]struct{}, len(existingBom.Components))
-
-	for _, existingComp := range existingBom.Components {
-		if existingComp == nil {
-			continue
-		}
-
-		normalizedVersion, _ := normalizeVersion(existingComp.Version)
-		key := existingComp.Name + "@" + normalizedVersion
-
-		// Emit only the first occurrence of each package.
-		if _, already := seen[key]; already {
-			continue
-		}
-		seen[key] = struct{}{}
-
-		// Copy all fields so we do not mutate the original BOM.
-		mergedComp := &cyclonedx_v1_4.Component{
-			Type:               existingComp.Type,
-			MimeType:           existingComp.MimeType,
-			BomRef:             existingComp.BomRef,
-			Supplier:           existingComp.Supplier,
-			Author:             existingComp.Author,
-			Publisher:          existingComp.Publisher,
-			Group:              existingComp.Group,
-			Name:               existingComp.Name,
-			Version:            existingComp.Version,
-			Description:        existingComp.Description,
-			Scope:              existingComp.Scope,
-			Hashes:             existingComp.Hashes,
-			Licenses:           existingComp.Licenses,
-			Copyright:          existingComp.Copyright,
-			Cpe:                existingComp.Cpe,
-			Purl:               existingComp.Purl,
-			Swid:               existingComp.Swid,
-			Modified:           existingComp.Modified,
-			Pedigree:           existingComp.Pedigree,
-			ExternalReferences: existingComp.ExternalReferences,
-			Components:         existingComp.Components,
-			Properties:         existingComp.Properties,
-			Evidence:           existingComp.Evidence,
-			ReleaseNotes:       existingComp.ReleaseNotes,
-		}
-
-		// Add or update runtime properties from newBom.
-		if newComp, exists := newComponentsMap[key]; exists && newComp.Properties != nil {
-			updateProperty := func(propertyName string) {
-				var newProp *cyclonedx_v1_4.Property
-				for _, prop := range newComp.Properties {
-					if prop != nil && prop.Name == propertyName {
-						newProp = prop
-						break
-					}
-				}
-				if newProp == nil {
+	go func() {
+		defer store.Unsubscribe(ch)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case bundle, ok := <-ch:
+				if !ok {
 					return
 				}
-				if mergedComp.Properties == nil {
-					mergedComp.Properties = []*cyclonedx_v1_4.Property{}
+				bundle.Acknowledge()
+				pending.forget(bundle.Events)
+				pending.wake()
+			}
+		}
+	}()
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-pending.changed:
+				if events := pending.merge(store); len(events) > 0 {
+					store.Notify(events)
 				}
-				for j, prop := range mergedComp.Properties {
-					if prop != nil && prop.Name == propertyName {
-						mergedComp.Properties[j] = newProp
-						log.Tracef("Updated %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
-						return
-					}
+			}
+		}
+	}()
+}
+
+// forgetRemovedImages unsets the image entities of this collector once the
+// runtime removes their image.
+func forgetRemovedImages(ctx context.Context, store workloadmeta.Component) {
+	filter := workloadmeta.NewFilterBuilder().
+		AddKind(workloadmeta.KindContainerImageMetadata).
+		SetSource(workloadmeta.SourceRuntime).
+		SetEventType(workloadmeta.EventTypeUnset).
+		Build()
+	ch := store.Subscribe(collectorID, workloadmeta.NormalPriority, filter)
+
+	go func() {
+		defer store.Unsubscribe(ch)
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case bundle, ok := <-ch:
+				if !ok {
+					return
 				}
-				mergedComp.Properties = append(mergedComp.Properties, newProp)
-				log.Tracef("Added %s for component %s@%s", propertyName, existingComp.Name, existingComp.Version)
-			}
-
-			updateProperty(LastAccessProperty)
-			updateProperty(HasSetSuidBitProperty)
-			updateProperty(RunningAsRootProperty)
-		}
-
-		// If LastAccessProperty is not present in the merged component (neither from
-		// existingBom nor from newBom), set it to zero so downstream consumers can
-		// distinguish "never seen running" from "unknown".
-		hasLastAccess := false
-		for _, prop := range mergedComp.Properties {
-			if prop != nil && prop.Name == LastAccessProperty {
-				hasLastAccess = true
-				break
+				bundle.Acknowledge()
+				if len(bundle.Events) == 0 {
+					continue
+				}
+				events := make([]workloadmeta.CollectorEvent, 0, len(bundle.Events))
+				for _, ev := range bundle.Events {
+					events = append(events, workloadmeta.CollectorEvent{
+						Type:   workloadmeta.EventTypeUnset,
+						Source: workloadmeta.SourceRemoteSBOMCollector,
+						Entity: &workloadmeta.ContainerImageMetadata{EntityID: ev.Entity.GetID()},
+					})
+				}
+				store.Notify(events)
 			}
 		}
-		if !hasLastAccess {
-			if mergedComp.Properties == nil {
-				mergedComp.Properties = []*cyclonedx_v1_4.Property{}
-			}
-			zeroValue := "0"
-			mergedComp.Properties = append(mergedComp.Properties, &cyclonedx_v1_4.Property{
-				Name:  LastAccessProperty,
-				Value: &zeroValue,
-			})
-			log.Tracef("Set %s to zero for component %s@%s", LastAccessProperty, existingComp.Name, existingComp.Version)
-		}
-
-		mergedBom.Components = append(mergedBom.Components, mergedComp)
-	}
-
-	return mergedBom
+	}()
 }
 
 // NewCollector returns a remote process collector for workloadmeta if any
 func NewCollector(ipc ipc.Component) (workloadmeta.CollectorProvider, error) {
+	cfg := pkgconfigsetup.Datadog() //nolint:depguard
+	// TODO(components): make sure StreamHandler uses the config component not pkg/config
+	handler := &streamHandler{agentConfig: cfg, systemProbeConfig: pkgconfigsetup.SystemProbe()}
+	// A report waits only for an image SBOM that the runtime collectors scan.
+	if cfg.GetBool("container_image.enabled") && cfg.GetBool("sbom.container_image.enabled") {
+		handler.pending = newPendingReports()
+	}
 	return workloadmeta.CollectorProvider{
-		Collector: &remote.GenericCollector{
-			CollectorID: collectorID,
-			// TODO(components): make sure StreamHandler uses the config component not pkg/config
-			StreamHandler: &streamHandler{agentConfig: pkgconfigsetup.Datadog(), systemProbeConfig: pkgconfigsetup.SystemProbe()},
-			Config:        pkgconfigsetup.Datadog(), //nolint:depguard
-			Catalog:       workloadmeta.NodeAgent,
-			IPC:           ipc,
+		Collector: &collector{
+			GenericCollector: &remote.GenericCollector{
+				CollectorID:   collectorID,
+				StreamHandler: handler,
+				Config:        cfg,
+				Catalog:       workloadmeta.NodeAgent,
+				IPC:           ipc,
+			},
 		},
 	}, nil
 }
@@ -392,10 +524,8 @@ func (s *streamHandler) IsEnabled() bool {
 		return false
 	}
 
-	sbomEnrichmentEnabled := s.agentConfig.GetBool("sbom.enrichment.usage.enabled")
-	runtimeSecuritySBOMDisabled := s.systemProbeConfig.IsConfigured("runtime_security_config.sbom.enabled") && !s.systemProbeConfig.GetBool("runtime_security_config.sbom.enabled")
-
-	return sbomEnrichmentEnabled && !runtimeSecuritySBOMDisabled
+	// system-probe serves runtime usage on this setting alone
+	return sbompkg.UsageEnrichmentEnabled(s.agentConfig)
 }
 
 func (s *streamHandler) NewClient(cc grpc.ClientConnInterface) remote.GrpcClient {
@@ -412,20 +542,35 @@ func (s *streamHandler) HandleResponse(store workloadmeta.Component, resp interf
 	}
 
 	var collectorEvents []workloadmeta.CollectorEvent
-	collectorEvents = handleEvents(store, collectorEvents, []*sbompb.SBOMMessage{response}, workloadmetaEventFromSBOMEventSet)
+	collectorEvents = s.handleEvents(store, collectorEvents, []*sbompb.SBOMMessage{response}, workloadmetaEventFromSBOMEventSet)
 	log.Tracef("collected [%d] events", len(collectorEvents))
 	return collectorEvents, nil
 }
 
-func handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.CollectorEvent, sbomEvents []*sbompb.SBOMMessage, convertFunc func(workloadmeta.Component, *sbompb.SBOMMessage) (workloadmeta.Event, error)) []workloadmeta.CollectorEvent {
+func (s *streamHandler) handleEvents(store workloadmeta.Component, collectorEvents []workloadmeta.CollectorEvent, sbomEvents []*sbompb.SBOMMessage, convertFunc func(workloadmeta.Component, *sbompb.SBOMMessage) (workloadmeta.Event, error)) []workloadmeta.CollectorEvent {
 	for _, protoEvent := range sbomEvents {
 		workloadmetaEvent, err := convertFunc(store, protoEvent)
+		if errors.Is(err, errNotReady) {
+			if s.pending == nil {
+				log.Debugf("dropping an SBOM report: %v", err)
+				continue
+			}
+			log.Debugf("keeping an SBOM report for later: %v", err)
+			s.pending.add(protoEvent)
+			continue
+		}
 		if err != nil {
 			log.Warnf("error converting workloadmeta event: %v", err)
 			continue
 		}
+		if s.pending != nil && protoEvent != nil {
+			s.pending.remove(protoEvent.ID, nil)
+		}
 		if workloadmetaEvent.Entity == nil {
 			continue
+		}
+		if s.pending != nil {
+			s.pending.tookLatest(workloadmetaEvent.Entity.GetID().ID)
 		}
 
 		collectorEvent := workloadmeta.CollectorEvent{
@@ -445,5 +590,9 @@ func (s *streamHandler) IsResyncComplete(_ interface{}) bool {
 	return true
 }
 
-func (s *streamHandler) HandleResync(_ workloadmeta.Component, _ []workloadmeta.CollectorEvent) {
+// HandleResync notifies the events of the first response after a reconnect, as
+// Run does for any other response. The SBOM stream sends each report as it
+// comes, so the first one after a reconnect is one update among the others.
+func (s *streamHandler) HandleResync(store workloadmeta.Component, events []workloadmeta.CollectorEvent) {
+	store.Notify(events)
 }

@@ -11,8 +11,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/externalmetrics/model"
+	autoscalingstore "github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/util/backoff"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/autoscalers"
@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	metricRetrieverStoreID autoscaling.SenderID = "mr"
+	metricRetrieverStoreID autoscalingstore.SenderID = "mr"
 )
 
 // Backoff range for number of retries R:

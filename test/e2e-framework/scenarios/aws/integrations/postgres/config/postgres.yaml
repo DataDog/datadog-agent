@@ -1,0 +1,33 @@
+## Datadog Agent postgres integration config for the aws/postgres lab.
+## Deployed to conf.d/postgres.d/conf.yaml on the host Agent. The check connects
+## over TCP to the Dockerized PostgreSQL 16 server published on host loopback.
+## Credentials match components/integration/postgres/postgres-init.sql (lab-only).
+init_config:
+
+instances:
+  - host: localhost
+    port: 5432
+    username: datadog
+    password: datadog_monitor_pw
+    dbname: labdb
+
+    ## Collect per-relation (table/index) metrics for the seeded schema so the
+    ## postgresql.table.*, postgresql.index.*, and postgresql.relation.* families
+    ## populate.
+    relations:
+      - relation_regex: .*
+
+    ## Collect bgwriter, archiver, replication-slot, and other database-wide stats.
+    collect_activity_metrics: true
+    collect_database_size_metrics: true
+    collect_bloat_metrics: true
+    collect_function_metrics: true
+    collect_count_metrics: true
+
+    ## Enable Database Monitoring so query metrics (pg_stat_statements) and
+    ## query-sample collection run against the workload.
+    dbm: true
+
+    tags:
+      - lab:postgres
+      - env:agint-lab

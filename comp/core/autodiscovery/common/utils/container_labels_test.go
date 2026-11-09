@@ -195,6 +195,33 @@ func TestExtractTemplatesFromContainerLabels(t *testing.T) {
 					ADIdentifiers: []string{adID},
 				},
 			},
+			errs: []error{
+				errors.New("com.datadoghq.ad.checks takes precedence, ignoring com.datadoghq.ad.check_names: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
+		},
+		{
+			name: "standalone ignore_autodiscovery_tags next to a v2 configuration",
+			annotations: map[string]string{
+				"com.datadoghq.ad.checks": `{
+					"apache": {
+						"instances": [
+							{"apache_status_url":"http://%%host%%/server-status?auto"}
+						]
+					}
+				}`,
+				"com.datadoghq.ad.ignore_autodiscovery_tags": "true",
+			},
+			output: []integration.Config{
+				{
+					Name:          "apache",
+					Instances:     []integration.Data{integration.Data(`{"apache_status_url":"http://%%host%%/server-status?auto"}`)},
+					InitConfig:    integration.Data("{}"),
+					ADIdentifiers: []string{adID},
+				},
+			},
+			errs: []error{
+				errors.New("com.datadoghq.ad.checks takes precedence, ignoring com.datadoghq.ad.ignore_autodiscovery_tags: Autodiscovery only applies the check configuration with the highest priority (v2, then v1, then legacy)"),
+			},
 		},
 	}
 

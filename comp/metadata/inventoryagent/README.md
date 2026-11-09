@@ -12,6 +12,12 @@ update every minute (see `inventories_min_interval`).
 
 The `Set` method from the component allow the rest of the codebase to add any information to the payload.
 
+## Shared payload code
+
+`agentmetadata.NewData` and its `Init` method collect the common fields: versions, startup time, installation
+information, hostname source, and infrastructure mode. `GetPayload` combines those fields with caller-supplied
+metadata and the optional scrubbed configuration. The component calls `Init` only when `inventories_enabled` is true.
+
 ## Agent Configuration
 
 The agent configurations are scrubbed from any sensitive information (same logic than for the flare). The `Format`
@@ -26,6 +32,9 @@ The payload is a JSON dict with the following fields
 - `hostname` - **string**: the hostname of the agent as shown on the status page.
 - `uuid` - **string**: a unique identifier of the agent, used in case the hostname is empty.
 - `timestamp` - **int**: the timestamp when the payload was created.
+- `files_metadata` - **dict of string to object**: the scrubbed contents of the configuration files, keyed by file path. YAML setting order is preserved, while comments are omitted to avoid possibly outputting secrets. Each object contains:
+  - `raw_config` - **string**: the scrubbed configuration file.
+  - `hash` - **string**: the SHA-256 hash of `raw_config`.
 - `agent_metadata` - **dict of string to JSON type**:
   - `hostname_source` - **string**: the source for the agent hostname (see pkg/util/hostname/providers.go:GetWithProvider).
   - `agent_version` - **string**: the version of the Agent.
@@ -44,6 +53,10 @@ The payload is a JSON dict with the following fields
   - `config_proxy_https` - **string**: the configuration value `proxy.https` (scrubbed)
   - `config_eks_fargate` - **bool**: the configuration value `eks_fargate`
   - `diagnostics` - **dict of string to JSON type**: the result of series of connectivity checks performed on the agent including description, error and metadata
+  - `enc_info` - **dict of string to array of string**: the paths of secret settings, their handles, and scrubbed leafs (scrubbed)
+    - `paths` - **array of strings**: the paths of settings that contain secrets
+    - `handles` - **array of strings**: the handles that correspond to these paths
+    - `scrubbed` - **array of strings**: the keys of non-default settings whose values were scrubbed, either because the key is known to be sensitive (ex: `authKey`) or because the value looks like a credential (ex: a raw API key). Keys already covered by `paths` are omitted
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).
   - `install_method_tool_version` - **string**: the tool version used to install the agent (ie: Chef version, Ansible
     version, ...). This defaults to `"undefined"` when not installed through a tool (like when installed with apt, source
@@ -61,6 +74,10 @@ The payload is a JSON dict with the following fields
      (see: `process_config.container_collection.enabled`)
   - `feature_networks_enabled` - **bool**: True if the Network Performance Monitoring is enabled (see:
     `network_config.enabled` config option in `system-probe.yaml`).
+  - `feature_network_path_remote_config_enabled` - **bool**: True if Remote Config is enabled for Network Path (see:
+    `network_path.remote_config.enabled` config option).
+  - `feature_network_path_connections_monitoring_enabled` - **bool**: True if connections monitoring is enabled for Network Path (see:
+    `network_path.connections_monitoring.enabled` config option).
   - `feature_traceroute_enabled` - **bool**: True if the Traceroute module is enabled in the System Probe (see: `traceroute.enabled` config option in `system-probe.yaml`).
   - `feature_oom_kill_enabled` - **bool**: True if the OOM Kill check is enabled for System Probe (see: `system_probe_config.enable_oom_kill` config option in `system-probe.yaml`).
   - `feature_synthetics_collector_enabled` - **bool**: True if Synthetics Test module is enabled.
@@ -114,17 +131,17 @@ The payload is a JSON dict with the following fields
     as well as any settings explicitly set by the agent (for example the number of workers is dynamically set by the
     agent itself based on the load).
   - `file_configuration` - **string**: the Agent configuration specified by the configuration file (scrubbed), as a YAML string.
-    Only the settings written in the configuration file are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings written in the configuration file are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `environment_variable_configuration` - **string**: the Agent configuration specified by the environment variables (scrubbed), as a YAML string.
-    Only the settings written in the environment variables are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings written in the environment variables are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `agent_runtime_configuration` - **string**: the Agent configuration set by the agent itself (scrubbed), as a YAML string.
-    Only the settings set by the agent itself are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings set by the agent itself are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `remote_configuration` - **string**: the Agent configuration specified by the Remote Configuration (scrubbed), as a YAML string.
-    Only the settings currently used by Remote Configuration are included, and their value might not match what's applyed by the agent because they can be overriden by other sources.
+    Only the settings currently used by Remote Configuration are included, and their value might not match what's applied by the agent because they can be overridden by other sources.
   - `fleet_policies_configuration` - **string**: the Agent configuration specified by the Fleet Automation Policies (scrubbed), as a YAML string.
-    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applyed by the agent since they can be overriden by other sources.
+    Only the settings currently used by Fleet Automation Policies are included, and their value might not match what's applied by the agent since they can be overridden by other sources.
   - `cli_configuration` - **string**: the Agent configuration specified by the CLI (scrubbed), as a YAML string.
-    Only the settings set in the CLI are included, they cannot be overriden by any other sources.
+    Only the settings set in the CLI are included, they cannot be overridden by any other sources.
   - `source_local_configuration` - **string**: the Agent configuration synchronized from the local Agent process, as a YAML string.
   - `ecs_fargate_task_arn` - **string**: if the Agent runs in ECS Fargate, contains the Agent's Task ARN. Else, is empty.
   - `ecs_fargate_cluster_name` - **string**: if the Agent runs in ECS Fargate, contains the Agent's cluster name. Else, is empty.
@@ -132,7 +149,7 @@ The payload is a JSON dict with the following fields
   - `config_id` -- **string**: the Fleet Config ID, the configuration value `config_id`.
   - `auto_instrumentation_modes` -- **array of string**: The injection types enabled for APM Auto-Instrumentation.
   - `infrastructure_mode` -- **string**: The monitoring mode the agent is configured in, each mode offers different
-    amount of feature (default is `full`, other potential values are `end_user_device` or `basic`).
+    amount of feature (default is `full`; other values include `end_user_device`, `basic`, `cloud_cost_only`, and `none`).
   - `application_monitoring_config` -- **string**: the Application Monitoring configuration, as a YAML string.
 
 ("scrubbed" indicates that secrets are removed from the field value just as they are in logs)
@@ -156,12 +173,19 @@ Here an example of an inventory payload:
         "config_proxy_http": "",
         "config_proxy_https": "http://localhost:9999",
         "config_site": "",
+        "enc_info": {
+          "paths": ["api_key", "password"],
+          "handles": ["name", "pswd"],
+          "scrubbed": ["client_secret"]
+        },
         "feature_imdsv2_enabled": false,
         "feature_apm_enabled": true,
         "feature_cspm_enabled": false,
         "feature_cws_enabled": false,
         "feature_logs_enabled": true,
         "feature_networks_enabled": false,
+        "feature_network_path_remote_config_enabled": false,
+        "feature_network_path_connections_monitoring_enabled": false,
         "feature_traceroute_enabled": false,
         "feature_synthetics_collector_enabled": false,
         "feature_process_enabled": false,
@@ -181,7 +205,13 @@ Here an example of an inventory payload:
         "cli_configuration": "log_level: \"warn\"",
         "source_local_configuration": "",
         "config_id": "my-config"
-    }
+    },
+    "files_metadata": {
+        "/etc/datadog-agent/datadog.yaml": {
+            "hash": "8e9f...",
+            "raw_config": "api_key: '***************************aaaa'\nsite: datadoghq.com\n"
+        }
+    },
     "hostname": "my-host",
     "timestamp": 1631281754507358895
 }

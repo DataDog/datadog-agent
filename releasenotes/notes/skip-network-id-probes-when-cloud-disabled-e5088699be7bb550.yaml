@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Skip cloud provider network ID probes when ``cloud_provider_metadata`` is empty. Previously,
+    ``GetNetworkID`` would probe GCE and EC2 metadata endpoints on every host metadata collection
+    cycle (every 5-30 minutes) even when all cloud providers were disabled by configuration.
+    The probes now short-circuit immediately, avoiding unnecessary work in on-premises environments.

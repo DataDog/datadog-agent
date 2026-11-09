@@ -8,23 +8,8 @@
 package setup
 
 import (
-	"path/filepath"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
-
-const (
-	// defaultGuiPort is the default GUI port (-1 means disabled on Linux)
-	defaultGuiPort = -1
-)
-
-// called by init in config.go, to ensure any os-specific config is done
-// in time
-func osinit() {
-	defaultSystemProbeBPFDir = filepath.Join(defaultpaths.GetInstallPath(), "embedded/share/system-probe/ebpf")
-}
 
 // FleetConfigOverride is a no-op on Linux
-func FleetConfigOverride(_ pkgconfigmodel.Config) {
-}
+func FleetConfigOverride(_ pkgconfigmodel.Config) {}

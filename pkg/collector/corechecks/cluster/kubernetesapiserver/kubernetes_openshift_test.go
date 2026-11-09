@@ -41,7 +41,7 @@ func TestReportClusterQuotas(t *testing.T) {
 	err = kubeASCheck.Configure(aggregator.NewNoOpSenderManager(), integration.FakeConfigHash, instanceCfg, initCfg, "test", "provider")
 	require.NoError(t, err)
 
-	mocked := mocksender.NewMockSender(kubeASCheck.ID())
+	mocked := mocksender.NewMockSender(t, kubeASCheck.ID())
 	mocked.SetupAcceptAll()
 	kubeASCheck.reportClusterQuotas(list.Items, mocked)
 	mocked.AssertNumberOfCalls(t, "Gauge", 9*3)

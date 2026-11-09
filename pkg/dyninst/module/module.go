@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package module
 
@@ -18,15 +18,19 @@ import (
 
 	"golang.org/x/sys/unix"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/actuator"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dispatcher"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/eventbuf"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/irgen"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/loader"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/module/tombstone"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/uploader"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
@@ -51,12 +55,30 @@ type Module struct {
 	}
 }
 
+// Option configures a Module.
+type Option func(*options)
+
+type options struct {
+	statsd ddgostatsd.ClientInterface
+}
+
+// WithStatsd sets the statsd client that the module reports metrics to. Without
+// one, no metrics are reported.
+func WithStatsd(client ddgostatsd.ClientInterface) Option {
+	return func(o *options) { o.statsd = client }
+}
+
 // NewModule creates a new dynamic instrumentation module.
 func NewModule(
 	config *Config,
 	remoteConfigSubscriber procsubscribe.RemoteConfigSubscriber,
+	opts ...Option,
 ) (_ *Module, err error) {
-	realDeps, err := makeRealDependencies(config, remoteConfigSubscriber)
+	var o options
+	for _, opt := range opts {
+		opt(&o)
+	}
+	realDeps, err := makeRealDependencies(config, remoteConfigSubscriber, o.statsd)
 	if err != nil {
 		return nil, err
 	}
@@ -220,6 +242,7 @@ func (c *realDependencies) shutdown() {
 func makeRealDependencies(
 	config *Config,
 	remoteConfigSubscriber procsubscribe.RemoteConfigSubscriber,
+	statsd ddgostatsd.ClientInterface,
 ) (_ realDependencies, retErr error) {
 	var ret realDependencies
 	defer func() {
@@ -286,11 +309,15 @@ func makeRealDependencies(
 		ret.loader.OutputReader(), ret.loader.DropNotifyReader())
 	ret.procSubscriber = procsubscribe.NewSubscriber(
 		remoteConfigSubscriber,
+		procsubscribe.WithStatsd(statsd),
 	)
 
 	approximateBootTime := time.Now().Add(time.Duration(-ts.Nano()))
 	ret.decoderFactory = decoderFactory{approximateBootTime: approximateBootTime}
-	ret.symdbManager = newSymdbManager(symdbUploaderURL, ret.objectLoader, config.SymDBCacheDir)
+	ret.symdbManager = newSymdbManager(
+		symdbUploaderURL, ret.objectLoader, config.SymDBCacheDir,
+		withStatsd(statsd),
+	)
 	ret.attacher = &defaultAttacher{}
 	ret.programCompiler = &stackMachineCompiler{}
 	return ret, nil
@@ -307,6 +334,9 @@ func (m *Module) GetStats() map[string]any {
 	}
 	if m.runtimeStats != nil {
 		stats["runtime"] = m.runtimeStats.asStats()
+	}
+	if sub := m.shutdown.realDependencies.procSubscriber; sub != nil {
+		stats["processDiscovery"] = sub.Stats()
 	}
 	return stats
 }
@@ -372,12 +402,13 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 		for i := range updates {
 			update := &updates[i]
 			runtimeID := m.store.ensureExists(update)
+			m.diagnostics.retain(runtimeID, configuredProbes(update))
+			probes := m.validProbes(runtimeID, update)
 			actuatorUpdates = append(actuatorUpdates, actuator.ProcessUpdate{
 				Info:   update.Info,
-				Probes: update.Probes,
+				Probes: probes,
 			})
-			m.diagnostics.retain(runtimeID, update.Probes)
-			for _, probe := range update.Probes {
+			for _, probe := range probes {
 				m.diagnostics.reportReceived(runtimeID, probe)
 			}
 			if update.ShouldUploadSymDB {
@@ -398,4 +429,61 @@ func (m *Module) handleProcessesUpdate(update process.ProcessesUpdate) {
 			m.actuator.HandleUpdate(actuator.ProcessesUpdate{Processes: actuatorUpdates})
 		}
 	}
+}
+
+// configuredProbes returns all the probes configured for the process, whether
+// or not they can be instrumented.
+func configuredProbes(update *process.Config) []ir.ProbeIDer {
+	probes := make([]ir.ProbeIDer, 0, len(update.Probes)+len(update.InvalidProbes))
+	for _, probe := range update.Probes {
+		probes = append(probes, probe)
+	}
+	for _, probe := range update.InvalidProbes {
+		probes = append(probes, probe)
+	}
+	return probes
+}
+
+// validProbes reports an error for each probe configured for the process whose
+// definition is invalid, and returns the probes that remain.
+func (m *Module) validProbes(
+	runtimeID procRuntimeID, update *process.Config,
+) []ir.ProbeDefinition {
+	for _, invalid := range update.InvalidProbes {
+		m.reportInvalidProbe(runtimeID, invalid, invalid.Issue)
+	}
+	valid := make([]ir.ProbeDefinition, 0, len(update.Probes))
+	for _, probe := range update.Probes {
+		if err := validateProbe(probe); err != nil {
+			m.reportInvalidProbe(runtimeID, probe, ir.Issue{
+				Kind:    ir.IssueKindInvalidProbeDefinition,
+				Message: err.Error(),
+			})
+			continue
+		}
+		valid = append(valid, probe)
+	}
+	return valid
+}
+
+func (m *Module) reportInvalidProbe(
+	runtimeID procRuntimeID, probe ir.ProbeIDer, issue ir.Issue,
+) {
+	if m.diagnostics.reportError(
+		runtimeID, probe, (*irIssueError)(&issue), issue.Kind.String(),
+	) {
+		log.Debugf(
+			"reported issue %v for probe %v %v: %v",
+			issue.Kind, probe.GetID(), probe.GetVersion(), issue.Message,
+		)
+	}
+}
+
+// validateProbe checks that a probe's definition is one that can be
+// instrumented. Only probes defined in the Remote Config format are checked.
+func validateProbe(probe ir.ProbeDefinition) error {
+	if p, ok := probe.(rcjson.Probe); ok {
+		return rcjson.Validate(p)
+	}
+	return nil
 }

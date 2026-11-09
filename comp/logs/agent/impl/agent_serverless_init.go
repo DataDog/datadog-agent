@@ -12,11 +12,12 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers"
 	"github.com/DataDog/datadog-agent/pkg/logs/launchers/channel"
 	filelauncher "github.com/DataDog/datadog-agent/pkg/logs/launchers/file"
@@ -28,6 +29,10 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
+func (*logAgent) configureTagFilters() {}
+
+func (*logAgent) startTagFiltering() {}
+
 // Note: Building the logs-agent for serverless separately removes the
 // dependency on autodiscovery, file launchers, and some schedulers
 // thereby decreasing the binary size.
@@ -37,6 +42,7 @@ import (
 // It is using a NullAuditor because we've nothing to do after having sent the logs to the intake.
 func (a *logAgent) SetupPipeline(
 	processingRules []*config.ProcessingRule,
+	_ *tagfilter.Filters,
 	wmeta option.Option[workloadmeta.Component],
 	_ integrations.Component,
 	fingerprintConfig types.FingerprintConfig,
@@ -44,12 +50,16 @@ func (a *logAgent) SetupPipeline(
 	diagnosticMessageReceiver := diagnostic.NewBufferedMessageReceiver(streamlogs.Formatter{}, a.hostname, a.config)
 	destinationsCtx := client.NewDestinationsContext()
 
-	// setup the pipeline provider that provides pairs of processor and sender
+	// setup the pipeline provider that Provides pairs of processor and sender
 	pipelineProvider := pipeline.NewProvider(
 		a.config.GetInt("logs_config.pipelines"),
 		a.auditor,
 		diagnosticMessageReceiver,
-		processingRules, a.endpoints,
+		processingRules,
+		// jsonServerlessInitEncoder caches one process-global tag string, which
+		// cannot represent per-source filters.
+		nil,
+		a.endpoints,
 		destinationsCtx,
 		NewStatusProvider(),
 		a.hostname,
@@ -68,7 +78,7 @@ func (a *logAgent) SetupPipeline(
 	fileScanPeriod := time.Duration(a.config.GetFloat64("logs_config.file_scan_period") * float64(time.Second))
 	fileWildcardSelectionMode := a.config.GetString("logs_config.file_wildcard_selection_mode")
 	fileOpener := opener.NewFileOpener()
-	fingerprinter := file.NewFingerprinter(fingerprintConfig, fileOpener)
+	fingerprinter := file.NewFingerprinterWithUnreliableMount(fingerprintConfig, fileOpener, config.UnreliableMountEnabled(a.config))
 	lnchrs.AddLauncher(filelauncher.NewLauncher(
 		fileLimits,
 		filelauncher.DefaultSleepDuration,

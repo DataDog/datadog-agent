@@ -1,0 +1,65 @@
+http_archive = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_archive")
+
+VERSION = "1.8.0"
+
+SOURCE_URL_BASE = "https://binaries.ddbuild.io/saluki"
+
+HASHES = {
+    "linux-amd64": "cfc7a4c844a8541e6c8c34e63914589860c41d3fb0b7e7aad208946a443b9bd3",
+    "linux-arm64": "9a5940bea016f8b1c6f152237123f74fff0d3fdb3b1d15c02f2b35d372247a38",
+    "fips-linux-amd64": "03062dac0b90e3d0e646025f986450f48896a7b45953a17a76b229a0da262fd9",
+    "fips-linux-arm64": "757864046c97b5b0bfcc6aa1f22581c74c3fb497d16ba81e2223d342304a7747",
+    "darwin-amd64": "f9ad4e1024f8bc1ae5561a4756b50b70672e08ac2b7760753e51e4f6b8c6b6c8",
+    "darwin-arm64": "7ff440748db5ac462bf3cf6934868f0e7148398da22ebc32d256e0f98f2d6f0d",
+    "windows-amd64": "b6e2ec0f7fc62560b7168a9aa40f99c6f89bec58305e5c3786b6bce7dd95a9e3",
+    "windows-amd64-fips": "5351016ece6104e1555b82a10797fa7dcaed7ad4e535e4feac162ce628e4fe44",
+}
+
+_BUILD_FILE_CONTENT = """\
+filegroup(
+    name = "binary",
+    srcs = glob(["**/{binary_name}"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_3rdparty",
+    srcs = glob(["**/LICENSE-3rdparty.csv"]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "license_files",
+    srcs = glob(["**/LICENSES/**"], allow_empty = True),
+    visibility = ["//visibility:public"],
+)
+"""
+
+# hash key -> os; the repo name suffix is the hash key with "-" replaced by "_"
+_ARTIFACTS = {
+    "linux-amd64": "linux",
+    "linux-arm64": "linux",
+    "fips-linux-amd64": "linux",
+    "fips-linux-arm64": "linux",
+    "darwin-amd64": "darwin",
+    "darwin-arm64": "darwin",
+    "windows-amd64": "windows",
+    "windows-amd64-fips": "windows",
+}
+
+[
+    http_archive(
+        name = "agent_data_plane_{}".format(hash_key.replace("-", "_")),
+        build_file_content = _BUILD_FILE_CONTENT.format(
+            binary_name = "agent-data-plane.exe" if os == "windows" else "agent-data-plane",
+        ),
+        sha256 = HASHES[hash_key],
+        url = "{base}/agent-data-plane-{version}-{target}.{ext}".format(
+            base = SOURCE_URL_BASE,
+            ext = "zip" if os == "windows" else "tar.gz",
+            target = hash_key,
+            version = VERSION,
+        ),
+    )
+    for hash_key, os in _ARTIFACTS.items()
+]

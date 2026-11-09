@@ -22,10 +22,11 @@ func TestArgumentPropertySource(t *testing.T) {
 		"-Ddefined.something",
 	}
 	tests := []struct {
-		name     string
-		prefix   string
-		args     []string
-		expected map[string]string
+		name          string
+		prefix        string
+		args          []string
+		expected      map[string]string
+		expectedNames []string
 	}{
 		{
 			name:   "should parse spring boot app args",
@@ -35,6 +36,7 @@ func TestArgumentPropertySource(t *testing.T) {
 				"spring.profiles.active": "prod",
 				"d":                      "",
 			},
+			expectedNames: []string{"d", "spring.profiles.active"},
 		},
 		{
 			name:   "should parse system properties",
@@ -44,6 +46,7 @@ func TestArgumentPropertySource(t *testing.T) {
 				"spring.application.name": "test",
 				"defined.something":       "",
 			},
+			expectedNames: []string{"defined.something", "spring.application.name"},
 		},
 	}
 	for _, tt := range tests {
@@ -54,6 +57,7 @@ func TestArgumentPropertySource(t *testing.T) {
 				require.True(t, ok)
 				require.Equal(t, expected, value)
 			}
+			require.Equal(t, tt.expectedNames, argSource.Names())
 		})
 	}
 }

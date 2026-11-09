@@ -1,5 +1,10 @@
 #!/bin/bash
 # shellcheck source=/dev/null
+
+# Drop Bazel-generated symlinks to actual JUnit reports to prevent the same report from being processed twice and to
+# avoid GitLab failing on `ERROR: Uploading artifacts as "junit" [...] error [...] "junit.xml" is not a regular file`.
+[ -d .cache ] && find .cache -type l -name 'junit-*.xml' -delete
+
 # junit file name can differ in kitchen or macos context
 junit_files="junit-*.tgz"
 if [[ -n "$1" ]]; then

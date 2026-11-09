@@ -12,12 +12,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	compressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx-mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
@@ -74,6 +74,7 @@ func createTestProviderWithFailover(t *testing.T, numberOfPipelines int) *provid
 	p := newProvider(
 		numberOfPipelines,
 		&diagnostic.BufferedMessageReceiver{},
+		nil,
 		nil,
 		endpoints,
 		nil,
@@ -180,6 +181,7 @@ func TestProviderStopStopsSamplerBeforePipelines(t *testing.T) {
 	p := newProvider(
 		1,
 		&diagnostic.BufferedMessageReceiver{},
+		nil,
 		nil,
 		endpoints,
 		nil,

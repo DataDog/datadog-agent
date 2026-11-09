@@ -9,8 +9,9 @@ A shared Go library for remote agents (system-probe, trace-agent, process-agent,
 - **Readiness gating**: `Start` blocks until the first config snapshot is received, aborting startup if `Params.ReadyTimeout` (default: 60s) is exceeded.
 - **Single source of truth**: Streamed config is written into `config.Component` via `model.Writer`. Callers read config through `config.Component` directly — not through this component.
 - **Ordered updates**: Sequential application by sequence ID; stale updates dropped, discontinuities trigger resync.
-- **Restart safety**: `lastSeqID` is never reset on reconnect. If the core agent restarts and its sequence counter resets, the consumer logs an error and refuses the new snapshot until the sub-process itself restarts.
-- **Telemetry**: Metrics for time-to-first-snapshot, reconnects, sequence ID, and dropped updates.
+- **Session lifecycle**: The RAR session is refreshed at the interval the registry recommends, and re-minted whenever the registry rejects it (`PermissionDenied`/`Unauthenticated`), so a dropped stream recovers on its own. The core agent also refreshes the session for as long as it holds the stream, which keeps clients that predate this behaviour alive during a rolling upgrade.
+- **Restart safety**: Sequence IDs are per core-agent process and restart at 0, so they are reset at the start of every stream. The server always leads a new subscription with a full snapshot, which is applied regardless of how its sequence ID compares to the previous stream's — a core agent restart no longer strands the sub-process on its boot-time config.
+- **Telemetry**: Metrics for time-to-first-snapshot, reconnects, sequence ID, dropped updates, and session churn.
 
 ## Architecture
 
@@ -112,6 +113,8 @@ func configstreamFxOptions() fx.Option {
 | `configstream_consumer.reconnect_count` | Counter | Stream reconnections |
 | `configstream_consumer.last_sequence_id` | Gauge | Last received config sequence ID |
 | `configstream_consumer.dropped_stale_updates` | Counter | Stale updates dropped |
+| `configstream_consumer.session_registrations` | Counter | RAR registrations, including re-registrations after a lost session |
+| `configstream_consumer.session_refresh_failures` | Counter | Failed RAR session refreshes |
 
 ## Testing
 
@@ -132,12 +135,15 @@ func configstreamFxOptions() fx.Option {
 - **Startup timeout (no snapshot received within `ReadyTimeout`)**
   Core agent must be running, config stream enabled, and RAR returning a valid session. Check core agent logs for config stream and RAR errors.
 
-- **"core agent may have restarted" error in logs**
-  The consumer received a snapshot with a lower sequence ID than its last-known value, indicating the core agent restarted. Restart the sub-process to accept the new configuration.
+- **Repeated `session_id '<uuid>' not found` / `dropping session` in logs**
+  The RAR session was reaped or the core agent restarted. The consumer re-registers on its own; a steadily climbing `configstream_consumer.session_registrations` alongside `session_refresh_failures` points at connectivity to the core agent rather than at the session itself.
+
+- **`Ignoring stale snapshot` in logs**
+  A snapshot arrived out of order within a single stream. This is not the core-agent-restart case, which is handled by resetting the sequence ID on each new stream.
 
 ## Related documentation
 
 - **Producer**: `../configstream/README.md` — core agent config streaming service and gRPC contract.
 - **Test client**: `cmd/config-stream-client/README.md` — standalone client for end-to-end testing.
 
-**Team**: agent-configuration
+**Team**: fleet-automation

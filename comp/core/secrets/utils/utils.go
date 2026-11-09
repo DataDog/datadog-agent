@@ -55,7 +55,7 @@ func (w *Walker) slice(currentSlice []interface{}, yamlPath []string) error {
 				return err
 			}
 			currentSlice[idx] = newValue
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			if err := w.hash(v, path); err != nil {
 				return err
 			}
@@ -70,12 +70,9 @@ func (w *Walker) slice(currentSlice []interface{}, yamlPath []string) error {
 
 // hash handles map types, the Walker will recursively explore each element of the map continuing its search for
 // strings to replace.
-func (w *Walker) hash(currentMap map[interface{}]interface{}, yamlPath []string) error {
+func (w *Walker) hash(currentMap map[string]interface{}, yamlPath []string) error {
 	for configKey := range currentMap {
-		path := yamlPath
-		if newkey, ok := configKey.(string); ok {
-			path = append(path, newkey)
-		}
+		path := append(yamlPath, configKey)
 
 		switch v := currentMap[configKey].(type) {
 		case string:
@@ -84,7 +81,7 @@ func (w *Walker) hash(currentMap map[interface{}]interface{}, yamlPath []string)
 			} else {
 				return err
 			}
-		case map[interface{}]interface{}:
+		case map[string]interface{}:
 			if err := w.hash(v, path); err != nil {
 				return err
 			}
@@ -101,7 +98,7 @@ func (w *Walker) hash(currentMap map[interface{}]interface{}, yamlPath []string)
 // be called allowing it to overwrite the string value.
 func (w *Walker) Walk(data *interface{}) error {
 	switch v := (*data).(type) {
-	case map[interface{}]interface{}:
+	case map[string]interface{}:
 		return w.hash(v, nil)
 	case []interface{}:
 		return w.slice(v, nil)

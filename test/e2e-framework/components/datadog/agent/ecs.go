@@ -94,7 +94,7 @@ func ecsLinuxAgentSingleContainerDefinition(e config.Env, apiKeySSMParamName pul
 		Cpu:       pulumi.IntPtr(200),
 		Memory:    pulumi.IntPtr(512),
 		Name:      pulumi.String("datadog-agent"),
-		Image:     pulumi.String(dockerAgentFullImagePath(e, "public.ecr.aws/datadog/agent", "", false, false, false, false)),
+		Image:     pulumi.String(dockerAgentFullImagePath(e, "", "", false, false, false, false)),
 		Essential: pulumi.BoolPtr(true),
 		LinuxParameters: ecs.TaskDefinitionLinuxParametersArgs{
 			Capabilities: ecs.TaskDefinitionKernelCapabilitiesArgs{
@@ -294,6 +294,10 @@ func ecsFakeintakeAdditionalEndpointsEnv(fi *fakeintake.Fakeintake) ([]ecs.TaskD
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{
 			Name:  pulumi.StringPtr("DD_PROCESS_CONFIG_PROCESS_DD_URL"),
+			Value: fi.URL.ToStringOutput(),
+		},
+		ecs.TaskDefinitionKeyValuePairArgs{
+			Name:  pulumi.StringPtr("DD_HEALTH_PLATFORM_FORWARDER_DD_URL"),
 			Value: fi.URL.ToStringOutput(),
 		},
 		ecs.TaskDefinitionKeyValuePairArgs{

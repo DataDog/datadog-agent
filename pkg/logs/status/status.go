@@ -115,7 +115,7 @@ type Status struct {
 	UseHTTP              bool                   `json:"use_http"`
 	ComponentUtilization []ComponentUtilization `json:"component_utilization"`
 	Backpressure         BackpressureStatus     `json:"backpressure"`
-	// BackpressureTable is the preformatted text table, omitted from JSON; use ComponentUtilization for structured access.
+	// BackpressureTable is the preformatted text section, omitted from JSON; use Backpressure and ComponentUtilization for structured access.
 	BackpressureTable string `json:"-"`
 }
 

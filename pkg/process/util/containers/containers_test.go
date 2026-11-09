@@ -7,6 +7,7 @@ package containers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"testing"
@@ -16,6 +17,7 @@ import (
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
@@ -31,6 +33,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestGetContainers(t *testing.T) {
@@ -728,7 +731,7 @@ func TestGetContainersExcludesFilteredContainers(t *testing.T) {
 
 	// Configure container exclusion by name
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("container_exclude", "name:excluded-container-name")
+	mockConfig.SetInTest("container_exclude", []string{"name:excluded-container-name"})
 
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
 	filter := filterStore.GetContainerSharedMetricFilters()
@@ -851,6 +854,104 @@ func TestGetContainersExcludesFilteredContainers(t *testing.T) {
 		1: "included-id",
 		2: "included-id",
 	}, pidToCid, "PID mapping should only contain PIDs from included container")
+}
+
+// erroringTagger wraps a tagger.Component and forces Tag to return an error,
+// to exercise the error-logging path in GetContainers.
+type erroringTagger struct {
+	tagger.Component
+}
+
+func (erroringTagger) Tag(types.EntityID, types.TagCardinality) ([]string, error) {
+	return nil, errors.New("forced tag error")
+}
+
+// TestGetContainersDoesNotPanicOnShortID ensures GetContainers does not panic
+// when a container has an ID shorter than the short-ID length (here, empty) and
+// the tagger returns an error, which previously triggered a slice-out-of-range
+// panic from container.ID[:12].
+func TestGetContainersDoesNotPanicOnShortID(t *testing.T) {
+	metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		fx.Supply(context.Background()),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	// Force the tagger to error so the error-logging branch runs.
+	errTagger := erroringTagger{Component: taggerfxmock.SetupFakeTagger(t)}
+	filter := workloadfilterfxmock.SetupMockFilter(t).GetContainerSharedMetricFilters()
+	containerProvider := NewContainerProvider(mock.NewMetricsProvider(), metadataProvider, filter, errTagger)
+
+	// A running container with an empty ID is enough: the panic happened while
+	// logging the tagger error, before any metrics were gathered.
+	metadataProvider.Set(&workloadmeta.Container{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: ""},
+		Runtime:  workloadmeta.ContainerRuntimeContainerd,
+		State:    workloadmeta.ContainerState{Running: true, Status: workloadmeta.ContainerStatusRunning},
+	})
+
+	assert.NotPanics(t, func() {
+		_, _, _, err := containerProvider.GetContainers(0, nil)
+		assert.NoError(t, err)
+	})
+}
+
+// The container payload is built from per-entity tags, which the Tagger global
+// entity never reaches, so the infrastructure mode mark has to be appended here
+// for a cost-only Agent's containers to be identifiable downstream.
+func TestGetContainersInfraTags(t *testing.T) {
+	tests := []struct {
+		name          string
+		infraMode     string
+		collectorTags []string
+		expectedTags  []string
+	}{
+		{
+			name:         "cloud_cost_only marks the container",
+			infraMode:    "cloud_cost_only",
+			expectedTags: []string{"infra_mode:cloud_cost_only"},
+		},
+		{
+			name:         "full leaves the container unmarked",
+			infraMode:    "full",
+			expectedTags: []string{},
+		},
+		{
+			name:          "a mark already carried by collector tags is not duplicated",
+			infraMode:     "cloud_cost_only",
+			collectorTags: []string{"infra_mode:cloud_cost_only"},
+			expectedTags:  []string{"infra_mode:cloud_cost_only"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			metadataProvider := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				core.MockBundle(),
+				fx.Supply(context.Background()),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+
+			fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+				"infrastructure_mode": tc.infraMode,
+			})
+
+			filter := workloadfilterfxmock.SetupMockFilter(t).GetContainerSharedMetricFilters()
+			containerProvider := NewContainerProvider(mock.NewMetricsProvider(), metadataProvider, filter, fakeTagger)
+
+			metadataProvider.Set(&workloadmeta.Container{
+				EntityID:      workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: "cID1"},
+				Runtime:       workloadmeta.ContainerRuntimeContainerd,
+				CollectorTags: tc.collectorTags,
+				State:         workloadmeta.ContainerState{Running: true, Status: workloadmeta.ContainerStatusRunning},
+			})
+
+			processContainers, _, _, err := containerProvider.GetContainers(0, nil)
+			assert.NoError(t, err)
+			require.Len(t, processContainers, 1)
+			assert.Equal(t, tc.expectedTags, processContainers[0].Tags)
+		})
+	}
 }
 
 func compareResults(a, b interface{}) string {

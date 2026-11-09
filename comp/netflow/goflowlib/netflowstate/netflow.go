@@ -10,12 +10,17 @@ package netflowstate
 import (
 	"bytes"
 	"context"
-	"github.com/DataDog/datadog-agent/comp/netflow/common"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
-	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
-	"github.com/netsampler/goflow2/utils"
+	"maps"
 	"sync"
 	"time"
+
+	"github.com/netsampler/goflow2/utils"
+
+	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/additionalfields"
+	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib/dpioptions"
 
 	"github.com/netsampler/goflow2/decoders/netflow"
 	"github.com/netsampler/goflow2/decoders/netflow/templates"
@@ -25,6 +30,22 @@ import (
 	"github.com/netsampler/goflow2/transport"
 	"github.com/prometheus/client_golang/prometheus"
 )
+
+// Used to map biflow byte/packet counts through additional fields (see formatdriver.go).
+var builtInBiflowMappings = map[uint16]config.Mapping{
+	231: {Field: 231, Type: common.Integer, Destination: "datadog.initiator_octets", Endian: common.BigEndian},
+	232: {Field: 232, Type: common.Integer, Destination: "datadog.responder_octets", Endian: common.BigEndian},
+	298: {Field: 298, Type: common.Integer, Destination: "datadog.initiator_packets", Endian: common.BigEndian},
+	299: {Field: 299, Type: common.Integer, Destination: "datadog.responder_packets", Endian: common.BigEndian},
+}
+
+// Used to map the application of flows through additional fields:
+// the applicationId is resolved at flush time by the dpi cache, while Palo Alto sends the applicationName directly on flows.
+var builtInDPIMappings = map[uint16]config.Mapping{
+	95: {Field: 95, Type: common.Integer, Destination: dpi.ApplicationIDField, Endian: common.BigEndian},
+	// Palo Alto App-ID (NetFlow v9 has no PEN, so we assume this field number is Palo Alto's)
+	56701: {Field: 56701, Type: common.String, Destination: dpi.ApplicationNameField},
+}
 
 // StateNetFlow holds a NetflowV9/IPFIX producer
 type StateNetFlow struct {
@@ -37,6 +58,9 @@ type StateNetFlow struct {
 	samplinglock *sync.RWMutex
 	sampling     map[string]producer.SamplingRateSystem
 
+	namespace string
+	appCache  dpi.Cache
+
 	Config       *producer.ProducerConfig
 	configMapped *producer.ProducerConfigMapped
 
@@ -47,13 +71,16 @@ type StateNetFlow struct {
 	mappedFieldsConfig map[uint16]config.Mapping
 }
 
-// NewStateNetFlow initializes a new Netflow/IPFIX producer, with the goflow default producer and the additional fields producer
-func NewStateNetFlow(mappingConfs []config.Mapping) *StateNetFlow {
+// NewStateNetFlow initializes a new Netflow/IPFIX producer, with the goflow default producer and the additional fields producer.
+// DPI is enabled when appCache is not nil: application ids are collected on flows and options records are sent to appCache.
+func NewStateNetFlow(mappingConfs []config.Mapping, enableBiflowParsing bool, namespace string, appCache dpi.Cache) *StateNetFlow {
 	return &StateNetFlow{
 		ctx:                context.Background(),
 		samplinglock:       &sync.RWMutex{},
 		sampling:           make(map[string]producer.SamplingRateSystem),
-		mappedFieldsConfig: mapFieldsConfig(mappingConfs),
+		namespace:          namespace,
+		appCache:           appCache,
+		mappedFieldsConfig: mapFieldsConfig(mappingConfs, enableBiflowParsing, appCache != nil),
 	}
 }
 
@@ -144,6 +171,8 @@ func (s *StateNetFlow) DecodeFlow(msg interface{}) error {
 		}
 	}
 
+	s.submitApplications(msgDec, samplerAddress)
+
 	timeTrackStop := time.Now()
 	utils.DecoderTime.With(
 		prometheus.Labels{
@@ -158,8 +187,30 @@ func (s *StateNetFlow) initConfig() {
 	s.configMapped = producer.NewProducerConfigMapped(s.Config)
 }
 
-func mapFieldsConfig(mappingConfs []config.Mapping) map[uint16]config.Mapping {
+// submitApplications sends the applications announced in the options records of the exporter to the dpi cache
+func (s *StateNetFlow) submitApplications(msgDec interface{}, samplerAddress []byte) {
+	if s.appCache == nil {
+		return
+	}
+	apps := dpioptions.DecodeApplications(msgDec)
+	if len(apps) == 0 {
+		return
+	}
+	records := make([]dpi.ApplicationRecord, 0, len(apps))
+	for _, app := range apps {
+		records = append(records, dpi.ApplicationRecord{Namespace: s.namespace, ExporterAddr: samplerAddress, Application: app})
+	}
+	s.appCache.Submit(records)
+}
+
+func mapFieldsConfig(mappingConfs []config.Mapping, enableBiflowParsing bool, enableDPI bool) map[uint16]config.Mapping {
 	mappedFieldsConfig := make(map[uint16]config.Mapping)
+	if enableBiflowParsing {
+		maps.Copy(mappedFieldsConfig, builtInBiflowMappings)
+	}
+	if enableDPI {
+		maps.Copy(mappedFieldsConfig, builtInDPIMappings)
+	}
 	for _, conf := range mappingConfs {
 		mappedFieldsConfig[conf.Field] = conf
 	}

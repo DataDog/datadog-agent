@@ -18,12 +18,12 @@
           {
             "function": "main.testThreeStringsInStructPointer",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 34
+            "lineNumber": 39
           },
           {
             "function": "main.executeStringFuncs",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/strings.go",
-            "lineNumber": 62
+            "lineNumber": 78
           },
           {
             "function": "main.runAll",
@@ -33,7 +33,7 @@
           {
             "function": "main.main",
             "fileName": "github.com/DataDog/datadog-agent/pkg/dyninst/testprogs/progs/sample/main.go",
-            "lineNumber": 39
+            "lineNumber": 40
           },
           {
             "function": "runtime.main",

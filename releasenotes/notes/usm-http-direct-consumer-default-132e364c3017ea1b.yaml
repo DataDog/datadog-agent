@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    Universal Service Monitoring (USM) now uses the direct consumer for HTTP
+    monitoring by default on kernels ``>= 5.8.0``, reducing the latency of HTTP
+    event collection. On older kernels the batch consumer continues to be used.
+    The previous behavior can be restored by setting
+    ``service_monitoring_config.http.use_direct_consumer`` to ``false``.

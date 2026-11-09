@@ -6,10 +6,9 @@
 package observerimpl
 
 import (
-	"fmt"
 	"math"
-	"sort"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -24,72 +23,82 @@ type scanmwStateKey struct {
 // (metrics_detector_bocpd.go). If more scan-based detectors are added,
 // consider extracting a shared scanSeriesState base.
 type scanmwSeriesState struct {
-	lastWriteGen       int64
-	lastProcessedCount int // visible point count (PointCountUpTo) at last Detect
+	lastObservedTime   int64
+	observedPoints     int // cumulative completed points, independent of storage eviction
+	lastProcessedCount int // cumulative point count at the last scan
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	// 0 initially (scan full history), advances to changepoint timestamp on fire.
 	segmentStartTime int64
-
-	// Reusable point buffer — grows once per series, reused across scans
-	// to avoid per-call allocation from GetSeriesRange.
-	buf []observer.Point
 }
 
-// ScanMWDetector detects changepoints by scanning all possible split points
-// with the Mann-Whitney U test. It picks the split that gives the most
-// significant test result (smallest p-value), making it a non-parametric
-// changepoint detector that's robust to distribution shape.
-//
-// Uses an efficient O(n log n) implementation: ranks are assigned once via
-// sorting, then the rank sum is updated incrementally as the split point moves.
-//
-// Implements Detector (streaming) — after finding a changepoint, advances
-// the segment start so subsequent scans only examine post-change data.
+// ScanMWConfig contains construction-time statistical parameters.
+// Only MinPoints and MaxPoints are exposed through Agent/testbench settings.
+type ScanMWConfig struct {
+	MinSegment            int     `json:"-"` // minimum points on each side of a split
+	MinPoints             int     `json:"min_points"`
+	MaxPoints             int     `json:"max_points"`
+	SignificanceThreshold float64 `json:"-"` // maximum accepted p-value
+	MinEffectSize         float64 `json:"-"` // minimum absolute rank-biserial correlation
+	MinDeviationMAD       float64 `json:"-"` // median separation in pre-segment MADs
+}
+
+// DefaultScanMWConfig preserves unrestricted detection on averages and counts.
+func DefaultScanMWConfig() ScanMWConfig {
+	return ScanMWConfig{
+		MinSegment:            12,
+		MinPoints:             30,
+		MaxPoints:             scanMaxPoints,
+		SignificanceThreshold: 1e-8,
+		MinEffectSize:         0.85,
+		MinDeviationMAD:       3.0,
+	}
+}
+
+// ScanMWDetector scans candidate splits with a Mann-Whitney U test using ranks
+// assigned once per scan (O(n log n)). After a changepoint, only the new segment
+// is scanned. Configuration is immutable; state is single-writer.
 type ScanMWDetector struct {
-	// MinSegment is the minimum number of points in each segment.
-	// Default: 12
-	MinSegment int
+	config ScanMWConfig
+	ready  bool
 
-	// MinPoints is the minimum total points before detection runs.
-	// Default: 30
-	MinPoints int
-
-	// SignificanceThreshold is the maximum p-value for the best split to be
-	// considered a changepoint. Default: 1e-8
-	SignificanceThreshold float64
-
-	// MinEffectSize is the minimum |rank-biserial correlation| for reporting.
-	// Default: 0.85
-	MinEffectSize float64
-
-	// MinDeviationMAD is the minimum |post_median - pre_median| / MAD.
-	// Default: 3.0
-	MinDeviationMAD float64
-
-	// Aggregations to run detection on. Default: [Average, Count]
-	Aggregations []observer.Aggregate
-
-	// per-series state keyed by ref+agg
 	series map[scanmwStateKey]*scanmwSeriesState
+	// Shared scratch avoids retaining a scan buffer per series and aggregation.
+	scanBuf   []observer.Point
+	workspace scanDetectorWorkspace
 
 	// Cache the discovered series list across Detect calls.
 	cachedRefs []observer.SeriesRef
 	cachedGen  uint64
 }
 
-// NewScanMWDetector creates a ScanMW detector with default settings.
-func NewScanMWDetector() *ScanMWDetector {
+// NewScanMWDetector normalizes and copies configuration once at construction.
+func NewScanMWDetector(cfg ScanMWConfig) *ScanMWDetector {
+	defaults := DefaultScanMWConfig()
+	if cfg.MinSegment <= 0 {
+		cfg.MinSegment = defaults.MinSegment
+	}
+	if cfg.MinPoints <= 0 {
+		cfg.MinPoints = defaults.MinPoints
+	}
+	if cfg.MaxPoints <= 0 {
+		cfg.MaxPoints = defaults.MaxPoints
+	}
+	if cfg.MaxPoints < cfg.MinPoints {
+		logging.Warnf("ScanMW max_points=%d is below min_points=%d; using %d", cfg.MaxPoints, cfg.MinPoints, cfg.MinPoints)
+		cfg.MaxPoints = cfg.MinPoints
+	}
+	if cfg.SignificanceThreshold <= 0 {
+		cfg.SignificanceThreshold = defaults.SignificanceThreshold
+	}
+	if cfg.MinEffectSize <= 0 {
+		cfg.MinEffectSize = defaults.MinEffectSize
+	}
+	if cfg.MinDeviationMAD <= 0 {
+		cfg.MinDeviationMAD = defaults.MinDeviationMAD
+	}
 	return &ScanMWDetector{
-		MinSegment:            12,
-		MinPoints:             30,
-		SignificanceThreshold: 1e-8,
-		MinEffectSize:         0.85,
-		MinDeviationMAD:       3.0,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		},
+		config: cfg,
 		series: make(map[scanmwStateKey]*scanmwSeriesState),
 	}
 }
@@ -99,25 +108,28 @@ func (d *ScanMWDetector) Name() string {
 	return "scanmw"
 }
 
+func (d *ScanMWDetector) Ready() bool { return d.ready }
+
+// DetectorPointWindow implements observer.DetectorPointWindowRequirement.
+func (d *ScanMWDetector) DetectorPointWindow() observer.DetectorPointWindow {
+	return observer.DetectorPointWindow{MinPoints: d.config.MinPoints, MaxPoints: d.config.MaxPoints}
+}
+
 // Reset clears all per-series state for replay/reanalysis.
 func (d *ScanMWDetector) Reset() {
 	d.series = make(map[scanmwStateKey]*scanmwSeriesState)
 	d.cachedRefs = nil
 	d.cachedGen = 0
+	d.ready = false
 }
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
-// Each per-series entry holds a reusable point buffer that grows to the
-// segment size, so without this teardown the map keeps growing with the
-// cumulative series count even after storage shrinks. Called by the engine
-// right after timeSeriesStorage.RemoveSeriesByKeys returns the freed refs.
 func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
-	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, scanmwStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -131,16 +143,15 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 //
 // Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go Detect loop)
 // and ScanWelch — consider dedup if more scan-based detectors are added.
-func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
-	d.ensureDefaults()
-
+func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
+		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
 	}
 
-	// Bulk-fetch write generations in a single lock acquisition.
+	// Bulk-fetch visible point counts for series activation.
 	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
@@ -148,53 +159,63 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
-		for _, agg := range d.Aggregations {
+		for _, agg := range aggregations[:numAggregations] {
+			if !supportsSeriesAggregate(storage, ref, agg) {
+				continue
+			}
 			sk := scanmwStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
+			if !exists && status.pointCount < d.config.MinPoints {
+				continue
+			}
+			activated := !exists
 			if !exists {
 				state = &scanmwSeriesState{}
 				d.series[sk] = state
 			}
 
-			// Skip unless at least MinSegment new points are visible since the
-			// last scan. Gating on visible point count (not WriteGeneration
-			// alone) is required for replay: storage may already hold future
-			// points, so WriteGeneration reaches its final value before the
-			// simulated dataTime has advanced far enough to expose them, which
-			// would otherwise suppress every scan. WriteGeneration is still
-			// checked to catch same-bucket merges that leave the count
-			// unchanged but move stored values. Mirrors the BOCPD replay gate.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
-				continue
-			}
-
-			// Collect points into reusable buffer to avoid per-call allocation.
-			state.buf = state.buf[:0]
-			var seriesMeta *observer.Series
-			storage.ForEachPoint(ref, state.segmentStartTime, dataTime, agg, func(s *observer.Series, p observer.Point) {
-				if seriesMeta == nil {
-					sCopy := *s
-					seriesMeta = &sCopy
-				}
-				state.buf = append(state.buf, p)
+			// Count newly visible completed buckets, not storage writes. Preloaded
+			// replay has already written future points; streaming writes them as
+			// time advances. Retained point counts also stop growing on eviction.
+			storage.ForEachPoint(ref, state.lastObservedTime, dataTime, agg, func(_ *observer.Series, p observer.Point) {
+				state.observedPoints++
+				state.lastObservedTime = p.Timestamp
 			})
-
-			if seriesMeta == nil || len(state.buf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
-				state.lastWriteGen = status.writeGeneration
+			if !activated && state.observedPoints < state.lastProcessedCount+d.config.MinSegment {
 				continue
 			}
 
-			anomaly, changeIdx, found := d.scanMW(state.buf, seriesMeta, agg)
+			var seriesMeta *observer.Series
+			seriesMeta, d.scanBuf = collectLastPoints(storage, ref, dataTime, d.config.MaxPoints, agg, d.scanBuf)
+			if state.segmentStartTime > 0 {
+				kept := d.scanBuf[:0]
+				for _, p := range d.scanBuf {
+					if p.Timestamp > state.segmentStartTime {
+						kept = append(kept, p)
+					}
+				}
+				d.scanBuf = kept
+			}
+
+			if seriesMeta == nil || len(d.scanBuf) < d.config.MinPoints {
+				state.lastProcessedCount = state.observedPoints
+				continue
+			}
+			d.ready = true
+
+			anomaly, changeIdx, found := d.scanMW(d.scanBuf, seriesMeta, agg)
 			if found {
 				anomaly.SourceRef = &observer.QueryHandle{Ref: ref, Aggregate: agg}
 				allAnomalies = append(allAnomalies, anomaly)
-				state.segmentStartTime = state.buf[changeIdx].Timestamp - 1
+				state.segmentStartTime = d.scanBuf[changeIdx].Timestamp - 1
 			}
 
-			state.lastProcessedCount = status.pointCount
-			state.lastWriteGen = status.writeGeneration
+			if activated {
+				state.lastProcessedCount = 1 + ((state.observedPoints-1)/d.config.MinSegment)*d.config.MinSegment
+			} else {
+				state.lastProcessedCount = state.observedPoints
+			}
 		}
 	}
 
@@ -206,15 +227,12 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
 
-	values := make([]float64, n)
-	for i, p := range points {
-		values[i] = p.Value
-	}
+	values := d.workspace.valuesFromPoints(points)
 
 	// Efficient O(n log n) scan: assign ranks once, then slide the split point.
-	ranks, tieCorrection := assignRanks(values)
+	ranks, tieCorrection := d.workspace.assignRanks(values)
 
-	minSeg := d.MinSegment
+	minSeg := d.config.MinSegment
 	var R1 float64
 	for i := 0; i < minSeg; i++ {
 		R1 += ranks[i]
@@ -263,7 +281,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		bestPValue = 1.0
 	}
 
-	if bestPValue >= d.SignificanceThreshold {
+	if bestPValue >= d.config.SignificanceThreshold {
 		return observer.Anomaly{}, 0, false
 	}
 
@@ -276,123 +294,48 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	bestU := math.Min(bestU1, float64(bestK)*float64(n-bestK)-bestU1)
 
 	effectSize := rankBiserialCorrelation(bestU, bestK, n-bestK)
-	if math.Abs(effectSize) < d.MinEffectSize {
+	if math.Abs(effectSize) < d.config.MinEffectSize {
 		return observer.Anomaly{}, 0, false
 	}
 
 	// Check robust deviation at best split.
 	preVals := values[:bestK]
 	postVals := values[bestK:]
-	preMedian := detectorMedian(preVals)
-	postMedian := detectorMedian(postVals)
-	preMAD := detectorMAD(preVals, preMedian, false)
+	preMedian := d.workspace.median(preVals)
+	postMedian := d.workspace.median(postVals)
+	preMAD := d.workspace.mad(preVals, preMedian)
 
 	denom := preMAD
 	if denom < 1e-10 {
 		denom = math.Max(math.Abs(preMedian)*0.01, 1e-6)
 	}
 	deviation := math.Abs(postMedian-preMedian) / denom
-	if deviation < d.MinDeviationMAD {
+	if deviation < d.config.MinDeviationMAD {
 		return observer.Anomaly{}, 0, false
 	}
 
 	changePtTime := points[bestK].Timestamp
-	direction := "increased"
-	if postMedian < preMedian {
-		direction = "decreased"
-	}
-
 	score := -math.Log10(bestPValue)
 	if math.IsInf(score, 1) {
 		score = 300.0
 	}
 
-	seriesName := series.Name + ":" + aggSuffix(agg)
 	anomaly := observer.Anomaly{
-		Type:         observer.AnomalyTypeMetric,
-		Source:       observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Tags: series.Tags, Aggregate: agg},
-		DetectorName: d.Name(),
-		Title:        "ScanMW changepoint: " + seriesName,
-		Description: fmt.Sprintf("%s %s (pre_median=%.4f, post_median=%.4f, p=%.2e, effect=%.2f, %.1f MADs)",
-			seriesName, direction, preMedian, postMedian, bestPValue, effectSize, deviation),
+		Type:                observer.AnomalyTypeMetric,
+		Source:              observer.SeriesDescriptor{Namespace: series.Namespace, Name: series.Name, Host: series.Host, Tags: series.Tags, Aggregate: agg},
+		DetectorName:        d.Name(),
 		Timestamp:           changePtTime,
 		Score:               &score,
-		SamplingIntervalSec: medianPointInterval(points),
+		SamplingIntervalSec: d.workspace.medianPointInterval(points),
 		DebugInfo: &observer.AnomalyDebugInfo{
 			BaselineMedian: preMedian,
 			BaselineMAD:    preMAD,
 			CurrentValue:   postMedian,
 			DeviationSigma: deviation,
+			PValue:         bestPValue,
+			EffectSize:     effectSize,
 		},
 	}
 
 	return anomaly, bestK, true
-}
-
-// ensureDefaults fills in zero-valued config fields with sensible defaults.
-func (d *ScanMWDetector) ensureDefaults() {
-	if d.MinSegment <= 0 {
-		d.MinSegment = 12
-	}
-	if d.MinPoints <= 0 {
-		d.MinPoints = 30
-	}
-	if d.SignificanceThreshold <= 0 {
-		d.SignificanceThreshold = 1e-8
-	}
-	if d.MinEffectSize <= 0 {
-		d.MinEffectSize = 0.85
-	}
-	if d.MinDeviationMAD <= 0 {
-		d.MinDeviationMAD = 3.0
-	}
-	if d.series == nil {
-		d.series = make(map[scanmwStateKey]*scanmwSeriesState)
-	}
-	if len(d.Aggregations) == 0 {
-		d.Aggregations = []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		}
-	}
-}
-
-// assignRanks computes the average rank of each value in its original position.
-// Returns (ranks, tieCorrection) where tieCorrection = sum(t^3 - t) for tie groups.
-func assignRanks(values []float64) ([]float64, float64) {
-	n := len(values)
-
-	type indexedValue struct {
-		value float64
-		index int
-	}
-
-	indexed := make([]indexedValue, n)
-	for i, v := range values {
-		indexed[i] = indexedValue{value: v, index: i}
-	}
-
-	sort.Slice(indexed, func(i, j int) bool {
-		return indexed[i].value < indexed[j].value
-	})
-
-	ranks := make([]float64, n)
-	tieCorrection := 0.0
-
-	i := 0
-	for i < n {
-		j := i
-		for j < n && indexed[j].value == indexed[i].value {
-			j++
-		}
-		avgRank := float64(i+1+j) / 2.0
-		tieSize := float64(j - i)
-		for k := i; k < j; k++ {
-			ranks[indexed[k].index] = avgRank
-		}
-		tieCorrection += tieSize*tieSize*tieSize - tieSize
-		i = j
-	}
-
-	return ranks, tieCorrection
 }

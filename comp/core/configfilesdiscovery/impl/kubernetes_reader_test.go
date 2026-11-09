@@ -1,0 +1,484 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build cri && containerd
+
+package configfilesdiscoveryimpl
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"strconv"
+	"testing"
+	"time"
+
+	containerdoci "github.com/containerd/containerd/v2/pkg/oci"
+	"github.com/opencontainers/runtime-spec/specs-go"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+)
+
+// configFilePaths returns the paths of files in their existing order.
+func configFilePaths(files []ConfigFile) []string {
+	if files == nil {
+		return nil
+	}
+	paths := make([]string, 0, len(files))
+	for _, file := range files {
+		paths = append(paths, file.Path)
+	}
+	return paths
+}
+
+func TestKubernetesReaderReportsRuntime(t *testing.T) {
+	reader := &kubernetesConfigReader{containerID: "container-id", client: &fakeKubernetesClient{}}
+
+	assert.Equal(t, RuntimeKubernetes, reader.Runtime())
+}
+
+func TestKubernetesReaderCloseClosesClient(t *testing.T) {
+	client := &fakeKubernetesClient{}
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+	reader.Close()
+
+	assert.Equal(t, 1, client.closeCalls)
+}
+
+func TestNewKubernetesConfigReaderRejectsInvalidTargets(t *testing.T) {
+	tests := []struct {
+		name   string
+		target target
+	}{
+		{
+			name:   "non kubernetes runtime",
+			target: target{runtime: RuntimeDocker, entityID: "container-id"},
+		},
+		{
+			name:   "empty container id",
+			target: target{runtime: RuntimeKubernetes},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			reader, err := newKubernetesConfigReader(tt.target, nil)
+
+			require.Error(t, err)
+			assert.Nil(t, reader)
+		})
+	}
+}
+
+func TestKubernetesReaderReadFileReturnsFullContent(t *testing.T) {
+	tests := []struct {
+		name    string
+		content []byte
+	}{
+		{
+			name:    "below limit",
+			content: []byte("port 6379\n"),
+		},
+		{
+			name:    "at limit",
+			content: bytes.Repeat([]byte("a"), maxConfigFileSize),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeKubernetesClient{stdout: tt.content}
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
+
+			require.NoError(t, err)
+			assert.Equal(t, "/etc/redis/redis.conf", file.Path)
+			assert.Equal(t, tt.content, file.Content)
+			assert.False(t, file.Truncated)
+			require.Len(t, client.execCalls, 1)
+			assert.Equal(t, kubernetesExecCall{
+				containerID: "container-id",
+				cmd:         []string{"head", "-c", strconv.Itoa(maxConfigFileSize + 1), "/etc/redis/redis.conf"},
+				timeout:     kubernetesReadFileTimeout,
+			}, client.execCalls[0])
+		})
+	}
+}
+
+func TestKubernetesReaderReadFileTruncatesLargeContent(t *testing.T) {
+	content := bytes.Repeat([]byte("a"), maxConfigFileSize+1)
+	client := &fakeKubernetesClient{stdout: content}
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+	file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
+
+	require.NoError(t, err)
+	assert.Equal(t, "/etc/redis/redis.conf", file.Path)
+	assert.Equal(t, content[:maxConfigFileSize], file.Content)
+	assert.True(t, file.Truncated)
+	require.Len(t, client.execCalls, 1)
+	assert.Equal(t, []string{"head", "-c", strconv.Itoa(maxConfigFileSize + 1), "/etc/redis/redis.conf"}, client.execCalls[0].cmd)
+}
+
+func TestKubernetesReaderReadFileErrors(t *testing.T) {
+	execErr := errors.New("runtime unavailable")
+	tests := []struct {
+		name          string
+		path          string
+		stdout        []byte
+		stderr        []byte
+		exitCode      int32
+		execErr       error
+		wantExecCalls int
+		wantErrorIs   error
+		wantContains  string
+	}{
+		{
+			name:          "exec error",
+			path:          "/etc/redis/redis.conf",
+			execErr:       execErr,
+			wantExecCalls: 1,
+			wantErrorIs:   execErr,
+		},
+		{
+			name:          "nonzero exit with stderr",
+			path:          "/etc/redis/redis.conf",
+			stderr:        []byte("cat: /etc/redis/redis.conf: No such file"),
+			exitCode:      1,
+			wantExecCalls: 1,
+			wantContains:  "No such file",
+		},
+		{
+			name:          "nonzero exit without stderr",
+			path:          "/etc/redis/redis.conf",
+			exitCode:      2,
+			wantExecCalls: 1,
+			wantContains:  "exited with code 2",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeKubernetesClient{
+				stdout:   tt.stdout,
+				stderr:   tt.stderr,
+				exitCode: tt.exitCode,
+				execErr:  tt.execErr,
+			}
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, tt.path))
+
+			require.Error(t, err)
+			assert.Empty(t, file)
+			if tt.wantErrorIs != nil {
+				assert.ErrorIs(t, err, tt.wantErrorIs)
+			}
+			if tt.wantContains != "" {
+				assert.ErrorContains(t, err, tt.wantContains)
+			}
+			assert.Len(t, client.execCalls, tt.wantExecCalls)
+		})
+	}
+}
+
+func TestKubernetesReaderReadMatchingFiles(t *testing.T) {
+	tests := []struct {
+		name        string
+		pattern     string
+		maxMatches  int
+		stdout      []byte
+		wantPaths   []string
+		wantLimited bool
+		wantCommand []string
+	}{
+		{
+			name:        "literal file",
+			pattern:     "/etc/redis/redis.conf",
+			maxMatches:  2,
+			stdout:      []byte("/etc/redis/redis.conf\x00"),
+			wantPaths:   []string{"/etc/redis/redis.conf"},
+			wantCommand: []string{"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery", "/etc/redis/redis.conf", "/etc/redis/redis.conf", strconv.Itoa(kubernetesFindOutputLimit + 1)},
+		},
+		{
+			name:        "wildcard parses nul delimited names and limits lexically",
+			pattern:     "/etc/redis/conf.d/*.conf",
+			maxMatches:  2,
+			stdout:      []byte("/etc/redis/conf.d/z.conf\x00/etc/redis/conf.d/a file.conf\x00/etc/redis/conf.d/b.conf\x00/etc/redis/conf.d/a file.conf\x00/outside.conf\x00"),
+			wantPaths:   []string{"/etc/redis/conf.d/a file.conf", "/etc/redis/conf.d/b.conf"},
+			wantLimited: true,
+			wantCommand: []string{"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery", "/etc/redis/conf.d", "/etc/redis/conf.d/*.conf", strconv.Itoa(kubernetesFindOutputLimit + 1)},
+		},
+		{
+			name:        "intermediate symlink is not traversed",
+			pattern:     "/etc/redis/link/token",
+			maxMatches:  1,
+			wantCommand: []string{"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery", "/etc/redis/link", "/etc/redis/link/token", strconv.Itoa(kubernetesFindOutputLimit + 1)},
+		},
+		{
+			name:        "bounded discovery drops an incomplete path",
+			pattern:     "/etc/redis/*.conf",
+			maxMatches:  1,
+			stdout:      append([]byte("/etc/redis/a.conf\x00"), bytes.Repeat([]byte("x"), kubernetesFindOutputLimit+1-len("/etc/redis/a.conf\x00"))...),
+			wantPaths:   []string{"/etc/redis/a.conf"},
+			wantLimited: true,
+			wantCommand: []string{"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery", "/etc/redis", "/etc/redis/*.conf", strconv.Itoa(kubernetesFindOutputLimit + 1)},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeKubernetesClient{stdout: tt.stdout}
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+			search := verifyTestConfigFileSearch(t, "/etc/redis", tt.pattern)
+			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern(tt.pattern))
+
+			require.NoError(t, err)
+			files := readConfigFileResults(t, results)
+			assert.Equal(t, tt.wantPaths, configFilePaths(files))
+			assert.Equal(t, tt.wantLimited, limited)
+			require.Len(t, client.execCalls, 1+len(tt.wantPaths))
+			assert.Equal(t, tt.wantCommand, client.execCalls[0].cmd)
+			assert.Equal(t, kubernetesReadFileTimeout, client.execCalls[0].timeout)
+		})
+	}
+}
+
+func TestKubernetesReaderReadMatchingFilesErrors(t *testing.T) {
+	expectedErr := errors.New("exec failed")
+	tests := []struct {
+		name          string
+		pattern       string
+		maxMatches    int
+		execErr       error
+		exitCode      int32
+		wantExecCalls int
+		wantErrorIs   error
+	}{
+		{name: "non positive limit", pattern: "/etc/redis/*.conf", maxMatches: 0},
+		{name: "exec error", pattern: "/etc/redis/*.conf", maxMatches: 1, execErr: expectedErr, wantExecCalls: 1, wantErrorIs: expectedErr},
+		{name: "cancellation", pattern: "/etc/redis/*.conf", maxMatches: 1, execErr: context.Canceled, wantExecCalls: 1, wantErrorIs: context.Canceled},
+		{name: "nonzero exit", pattern: "/etc/redis/*.conf", maxMatches: 1, exitCode: 1, wantExecCalls: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeKubernetesClient{execErr: tt.execErr, exitCode: tt.exitCode}
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+			search := verifyTestConfigFileSearch(t, "/etc/redis", tt.pattern)
+			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern(tt.pattern))
+
+			require.Error(t, err)
+			assert.Nil(t, results)
+			assert.False(t, limited)
+			assert.Len(t, client.execCalls, tt.wantExecCalls)
+			if tt.wantErrorIs != nil {
+				assert.ErrorIs(t, err, tt.wantErrorIs)
+			}
+		})
+	}
+}
+
+func TestKubernetesReaderReadMatchingFilesRetainsReadErrorsInOrder(t *testing.T) {
+	client := &fakeKubernetesClient{
+		execResults: []kubernetesExecResult{
+			{stdout: []byte("/etc/redis/a.conf\x00/etc/redis/b.conf\x00")},
+			{},
+			{stdout: []byte("/etc/redis/b.conf\x00port 6380\n")},
+		},
+	}
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+	search := verifyTestConfigFileSearch(t, "/etc/redis", "/etc/redis/*.conf")
+
+	results, limited, err := reader.ReadMatchingFiles(context.Background(), search, 2, matchTestFilePattern("/etc/redis/*.conf"))
+
+	require.NoError(t, err)
+	assert.False(t, limited)
+	require.Len(t, results, 2)
+	assert.Equal(t, "/etc/redis/a.conf", results[0].Path().String())
+	_, err = results[0].Read()
+	require.Error(t, err)
+	assert.Equal(t, "/etc/redis/b.conf", results[1].Path().String())
+	file, err := results[1].Read()
+	require.NoError(t, err)
+	assert.Equal(t, []byte("port 6380\n"), file.Content)
+}
+
+func TestKubernetesReaderReadEnvVarsSkipsSpecForNilPredicate(t *testing.T) {
+	client := &fakeKubernetesClient{}
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+	env, err := reader.ReadEnvVars(context.Background(), nil)
+
+	require.NoError(t, err)
+	assert.Empty(t, env)
+	assert.Empty(t, client.specCalls)
+}
+
+func TestKubernetesReaderReadEnvVarsFiltersWithPredicate(t *testing.T) {
+	client := &fakeKubernetesClient{
+		spec: &containerdoci.Spec{
+			Process: &specs.Process{
+				Env: []string{"KAFKA_NODE_ID=1"},
+			},
+		},
+	}
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "KAFKA_NODE_ID"
+	})
+
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"KAFKA_NODE_ID": "1",
+	}, env)
+	assert.Equal(t, []string{"container-id"}, client.specCalls)
+}
+
+func TestKubernetesReaderReadEnvVarsSurfacesSpecErrors(t *testing.T) {
+	expectedErr := errors.New("spec unavailable")
+	client := &fakeKubernetesClient{specErr: expectedErr}
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "KAFKA_NODE_ID"
+	})
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Nil(t, env)
+	assert.Equal(t, []string{"container-id"}, client.specCalls)
+}
+
+func TestKubernetesReaderReadRuntimeCommandline(t *testing.T) {
+	tests := []struct {
+		name    string
+		process *specs.Process
+		want    TargetCommandline
+	}{
+		{
+			name: "command and working directory",
+			process: &specs.Process{
+				Args: []string{
+					"/usr/local/bin/redis-server",
+					"/usr/local/etc/redis/redis.conf",
+					"--loglevel",
+					"warning",
+				},
+				Cwd: "/usr/local/etc/redis",
+			},
+			want: TargetCommandline{
+				Args: []string{
+					"/usr/local/bin/redis-server",
+					"/usr/local/etc/redis/redis.conf",
+					"--loglevel",
+					"warning",
+				},
+				WorkingDir: "/usr/local/etc/redis",
+			},
+		},
+		{
+			name:    "empty working directory",
+			process: &specs.Process{Args: []string{"redis-server", "redis.conf"}},
+			want: TargetCommandline{
+				Args:       []string{"redis-server", "redis.conf"},
+				WorkingDir: "/",
+			},
+		},
+		{
+			name: "missing process",
+			want: TargetCommandline{WorkingDir: "/"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeKubernetesClient{
+				spec: &containerdoci.Spec{Process: tt.process},
+			}
+			reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+			commandline, err := reader.ReadRuntimeCommandline(context.Background())
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, commandline)
+			assert.Equal(t, []string{"container-id"}, client.specCalls)
+		})
+	}
+}
+
+func TestKubernetesReaderReadRuntimeCommandlineSurfacesSpecErrors(t *testing.T) {
+	expectedErr := errors.New("command line unavailable")
+	client := &fakeKubernetesClient{specErr: expectedErr}
+	reader := &kubernetesConfigReader{containerID: "container-id", client: client}
+
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
+
+	require.ErrorIs(t, err, expectedErr)
+	assert.Empty(t, commandline)
+	assert.Equal(t, []string{"container-id"}, client.specCalls)
+}
+
+type fakeKubernetesClient struct {
+	execCalls   []kubernetesExecCall
+	execResults []kubernetesExecResult
+	stdout      []byte
+	stderr      []byte
+	exitCode    int32
+	execErr     error
+	specCalls   []string
+	spec        *containerdoci.Spec
+	specErr     error
+	closeCalls  int
+}
+
+type kubernetesExecCall struct {
+	containerID string
+	cmd         []string
+	timeout     time.Duration
+}
+
+type kubernetesExecResult struct {
+	stdout   []byte
+	stderr   []byte
+	exitCode int32
+	err      error
+}
+
+func (c *fakeKubernetesClient) execSync(_ context.Context, containerID string, cmd []string, timeout time.Duration) ([]byte, []byte, int32, error) {
+	c.execCalls = append(c.execCalls, kubernetesExecCall{
+		containerID: containerID,
+		cmd:         append([]string(nil), cmd...),
+		timeout:     timeout,
+	})
+	if len(c.execResults) != 0 {
+		result := c.execResults[0]
+		c.execResults = c.execResults[1:]
+		return result.stdout, result.stderr, result.exitCode, result.err
+	}
+	if c.execErr != nil {
+		return nil, nil, 0, c.execErr
+	}
+	if len(cmd) > 8 && cmd[8] == "-exec" {
+		return append([]byte(cmd[6]), 0), nil, 0, nil
+	}
+	return c.stdout, c.stderr, c.exitCode, nil
+}
+
+func (c *fakeKubernetesClient) containerSpec(_ context.Context, containerID string) (*containerdoci.Spec, error) {
+	c.specCalls = append(c.specCalls, containerID)
+	if c.specErr != nil {
+		return nil, c.specErr
+	}
+	return c.spec, nil
+}
+
+func (c *fakeKubernetesClient) close() {
+	c.closeCalls++
+}

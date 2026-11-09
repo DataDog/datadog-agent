@@ -19,6 +19,24 @@ var (
 	ErrImageIsSha256 = errors.New("invalid image name (is a sha256)")
 )
 
+// SplitRepoTag splits a Docker-style "repoTag" string into the repository name
+// and the image tag. It correctly handles registries that include a port (for
+// example `myregistry.local:5000/foo/bar:1.2.3`), unlike a naive split on the
+// first colon.
+//
+// A colon is only considered a tag separator when it appears after the last
+// slash in the input — otherwise it is part of a registry `host:port`.
+// If no tag separator is found, the whole string is returned as the repo name
+// and the tag is empty.
+func SplitRepoTag(repoTag string) (string, string) {
+	lastColon := strings.LastIndex(repoTag, ":")
+	lastSlash := strings.LastIndex(repoTag, "/")
+	if lastSlash < lastColon {
+		return repoTag[:lastColon], repoTag[lastColon+1:]
+	}
+	return repoTag, ""
+}
+
 // SplitImageName splits a valid image name (from ResolveImageName) and returns:
 //   - the "long image name" with registry and prefix, without tag
 //   - the registry

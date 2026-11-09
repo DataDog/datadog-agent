@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 package modules
 
@@ -12,13 +12,13 @@ import (
 	"errors"
 	"fmt"
 
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"google.golang.org/grpc"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	dimod "github.com/DataDog/datadog-agent/pkg/dyninst/module"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	ddgrpc "github.com/DataDog/datadog-agent/pkg/util/grpc"
 )
@@ -28,20 +28,20 @@ func init() { registerModule(DynamicInstrumentation) }
 // DynamicInstrumentation is a system probe module which allows you to add instrumentation into
 // running Go services without restarts.
 var DynamicInstrumentation = &module.Factory{
-	Name: config.DynamicInstrumentationModule,
+	Name: sysconfigtypes.DynamicInstrumentationModule,
 	Fn: func(agentConfiguration *sysconfigtypes.Config, deps module.FactoryDependencies) (module.Module, error) {
 		config, err := dimod.NewConfig(agentConfiguration)
 		if err != nil {
 			return nil, fmt.Errorf("invalid dynamic instrumentation module configuration: %w", err)
 		}
-		ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+		ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 		if err != nil {
 			return nil, fmt.Errorf("failed to get ipc address: %w", err)
 		}
 		client, err := ddgrpc.GetDDAgentSecureClient(
 			context.Background(),
 			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
+			pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 			deps.Ipc.GetTLSClientConfig().Clone(),
 			grpc.WithPerRPCCredentials(ddgrpc.NewBearerTokenAuth(deps.Ipc.GetAuthToken())),
 		)
@@ -49,7 +49,7 @@ var DynamicInstrumentation = &module.Factory{
 			return nil, fmt.Errorf("failed to create gRPC client for RC subscription: %w", err)
 		}
 
-		m, err := dimod.NewModule(config, client)
+		m, err := dimod.NewModule(config, client, dimod.WithStatsd(deps.Statsd))
 		if err != nil {
 			if errors.Is(err, ebpf.ErrNotImplemented) {
 				return nil, module.ErrNotEnabled

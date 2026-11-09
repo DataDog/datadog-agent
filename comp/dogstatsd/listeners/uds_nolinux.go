@@ -31,8 +31,6 @@ func enableUDSPassCred(_ syscall.RawConn) error {
 }
 
 // processUDSOrigin returns a "not implemented" error on non-linux hosts
-//
-//nolint:revive // TODO(AML) Fix revive linter
 func processUDSOrigin(_ []byte, _ option.Option[workloadmeta.Component], _ pidmap.Component) (int, string, error) {
 	return 0, packets.NoOrigin, ErrLinuxOnly
 }

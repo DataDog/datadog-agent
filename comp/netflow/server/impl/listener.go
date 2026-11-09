@@ -6,11 +6,13 @@
 package serverimpl
 
 import (
+	"go.uber.org/atomic"
+
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	"github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/flowaggregator"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
-	"go.uber.org/atomic"
 )
 
 // netflowListener contains state of goflow listener and the related netflow config
@@ -26,6 +28,11 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 	listenerAtomicErr := atomic.NewString("")
 	listenerFlowCount := atomic.NewInt64(0)
 
+	var appCache dpi.Cache
+	if listenerConfig.EnableDPI {
+		appCache = flowAgg.GetApplicationCache()
+	}
+
 	flowState, err := goflowlib.StartFlowRoutine(
 		listenerConfig.FlowType,
 		listenerConfig.BindHost,
@@ -33,6 +40,8 @@ func startFlowListener(listenerConfig config.ListenerConfig, flowAgg *flowaggreg
 		listenerConfig.Workers,
 		listenerConfig.Namespace,
 		listenerConfig.Mapping,
+		listenerConfig.EnableBiflowParsing,
+		appCache,
 		flowAgg.GetFlowInChan(),
 		logger,
 		listenerAtomicErr,

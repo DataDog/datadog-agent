@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package gotype
 
@@ -36,13 +36,8 @@ func FuzzParseTypeAndCallMethods(f *testing.F) {
 		require.NoError(f, err)
 		defer func() { err = errors.Join(err, lt.Close()); require.NoError(f, err) }()
 
-		tlSection := mef.Section(".typelink")
-		require.NotNil(f, tlSection)
-		tlMap, err := mef.SectionData(tlSection)
+		tl, err := ReadTypeLinks(mef)
 		require.NoError(f, err)
-		defer func() { err = errors.Join(err, tlMap.Close()); require.NoError(f, err) }()
-
-		tl := ParseTypeLinks(tlMap.Data())
 		for id := range tl.TypeIDs() {
 			f.Add(lt.data, lt.dataAddress, id)
 		}

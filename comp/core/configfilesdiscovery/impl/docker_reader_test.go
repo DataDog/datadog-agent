@@ -20,7 +20,7 @@ import (
 )
 
 func TestDockerReaderReportsRuntime(t *testing.T) {
-	reader := newDockerConfigReaderWithClient("container-id", &fakeDockerClient{})
+	reader := &dockerConfigReader{containerID: "container-id", client: &fakeDockerClient{}}
 
 	assert.Equal(t, RuntimeDocker, reader.Runtime())
 }
@@ -42,24 +42,12 @@ func TestNewDockerConfigReaderRejectsInvalidTargets(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			reader, err := newDockerConfigReader(tt.target)
+			reader, err := newDockerConfigReader(tt.target, nil)
 
 			require.Error(t, err)
 			assert.Nil(t, reader)
 		})
 	}
-}
-
-func TestNewDockerConfigReaderSurfacesDockerClientErrors(t *testing.T) {
-	expectedErr := errors.New("docker unavailable")
-	newClient := func() (dockerConfigClient, error) {
-		return nil, expectedErr
-	}
-
-	reader, err := newDockerConfigReaderWithClientFactory(target{runtime: RuntimeDocker, entityID: "container-id"}, newClient)
-
-	require.ErrorIs(t, err, expectedErr)
-	assert.Nil(t, reader)
 }
 
 func TestDockerReaderReadFileReturnsFullContent(t *testing.T) {
@@ -86,9 +74,9 @@ func TestDockerReaderReadFileReturnsFullContent(t *testing.T) {
 					content: tt.content,
 				})),
 			}
-			reader := newDockerConfigReaderWithClient("container-id", client)
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			file, err := reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
+			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 			require.NoError(t, err)
 			assert.Equal(t, "/etc/redis/redis.conf", file.Path)
@@ -112,9 +100,9 @@ func TestDockerReaderReadFileTruncatesLargeContent(t *testing.T) {
 			content: content,
 		})),
 	}
-	reader := newDockerConfigReaderWithClient("container-id", client)
+	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	file, err := reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
+	file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 	require.NoError(t, err)
 	assert.Equal(t, "/etc/redis/redis.conf", file.Path)
@@ -157,9 +145,9 @@ func TestDockerReaderReadFileClosesArchiveBody(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			body := closeTracker(tt.archive)
 			client := &fakeDockerClient{copyBody: body}
-			reader := newDockerConfigReaderWithClient("container-id", client)
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			_, _ = reader.ReadFile(context.Background(), "/etc/redis/redis.conf")
+			_, _ = reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, "/etc/redis/redis.conf"))
 
 			assert.True(t, body.closed)
 		})
@@ -176,21 +164,6 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 		wantCopyCalls int
 		wantErrorIs   error
 	}{
-		{
-			name:          "empty path",
-			path:          "",
-			wantCopyCalls: 0,
-		},
-		{
-			name:          "relative path",
-			path:          "etc/redis/redis.conf",
-			wantCopyCalls: 0,
-		},
-		{
-			name:          "parent traversal",
-			path:          "/etc/../redis/redis.conf",
-			wantCopyCalls: 0,
-		},
 		{
 			name:          "copy error",
 			path:          "/etc/redis/redis.conf",
@@ -247,9 +220,9 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 				copyBody: tt.copyBody,
 				copyErr:  tt.copyErr,
 			}
-			reader := newDockerConfigReaderWithClient("container-id", client)
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-			file, err := reader.ReadFile(context.Background(), tt.path)
+			file, err := reader.ReadFile(context.Background(), verifyTestConfigFilePath(t, tt.path))
 
 			require.Error(t, err)
 			assert.Empty(t, file)
@@ -261,9 +234,169 @@ func TestDockerReaderReadFileErrors(t *testing.T) {
 	}
 }
 
-func TestDockerReaderReadEnvVarsSkipsInspectForEmptyWhitelist(t *testing.T) {
+func TestDockerReaderReadMatchingFiles(t *testing.T) {
+	tests := []struct {
+		name            string
+		root            string
+		pattern         string
+		maxMatches      int
+		discoveryOutput dockerExecOutput
+		files           map[string][]byte
+		wantFiles       []ConfigFile
+		wantLimited     bool
+		wantSearchRoot  string
+	}{
+		{
+			name:            "literal file",
+			root:            "/etc/redis",
+			pattern:         "/etc/redis/redis.conf",
+			maxMatches:      2,
+			discoveryOutput: dockerExecOutput{stdout: []byte("/etc/redis/redis.conf\x00")},
+			files:           map[string][]byte{"/etc/redis/redis.conf": []byte("port 6379\n")},
+			wantFiles:       []ConfigFile{{Path: "/etc/redis/redis.conf", Content: []byte("port 6379\n")}},
+			wantSearchRoot:  "/etc/redis/redis.conf",
+		},
+		{
+			name:            "wildcard lists names without reading unrelated contents",
+			root:            "/data",
+			pattern:         "/data/*.conf",
+			maxMatches:      2,
+			discoveryOutput: dockerExecOutput{stdout: []byte("/data/c.conf\x00/data/dump.rdb\x00/data/a.conf\x00/data/b.conf\x00/data/appendonly.aof\x00/outside.conf\x00")},
+			files: map[string][]byte{
+				"/data/a.conf": []byte("a"),
+				"/data/b.conf": []byte("b"),
+			},
+			wantFiles: []ConfigFile{
+				{Path: "/data/a.conf", Content: []byte("a")},
+				{Path: "/data/b.conf", Content: []byte("b")},
+			},
+			wantLimited:    true,
+			wantSearchRoot: "/data",
+		},
+		{
+			name:            "intermediate symlink is not traversed",
+			root:            "/etc/redis",
+			pattern:         "/etc/redis/link/token",
+			maxMatches:      1,
+			discoveryOutput: dockerExecOutput{},
+			wantSearchRoot:  "/etc/redis/link",
+		},
+		{
+			name:            "bounded discovery keeps only terminated paths",
+			root:            "/etc/redis",
+			pattern:         "/etc/redis/*.conf",
+			maxMatches:      2,
+			discoveryOutput: dockerExecOutput{stdout: []byte("/etc/redis/a.conf\x00/etc/redis/incomplete"), stdoutLimited: true},
+			files:           map[string][]byte{"/etc/redis/a.conf": []byte("a")},
+			wantFiles:       []ConfigFile{{Path: "/etc/redis/a.conf", Content: []byte("a")}},
+			wantLimited:     true,
+			wantSearchRoot:  "/etc/redis",
+		},
+		{
+			name:            "large matching file is truncated by the container command",
+			root:            "/etc/redis",
+			pattern:         "/etc/redis/large.conf",
+			maxMatches:      1,
+			discoveryOutput: dockerExecOutput{stdout: []byte("/etc/redis/large.conf\x00")},
+			files:           map[string][]byte{"/etc/redis/large.conf": bytes.Repeat([]byte("a"), maxConfigFileSize+1)},
+			wantFiles:       []ConfigFile{{Path: "/etc/redis/large.conf", Content: bytes.Repeat([]byte("a"), maxConfigFileSize), Truncated: true}},
+			wantSearchRoot:  "/etc/redis/large.conf",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeDockerClient{
+				execOutputs: []dockerExecOutput{tt.discoveryOutput},
+				files:       tt.files,
+			}
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
+
+			search := verifyTestConfigFileSearch(t, tt.root, tt.pattern)
+			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern(tt.pattern))
+
+			require.NoError(t, err)
+			files := readConfigFileResults(t, results)
+			assert.Equal(t, tt.wantFiles, files)
+			assert.Equal(t, tt.wantLimited, limited)
+			assert.Empty(t, client.copyCalls)
+			require.Len(t, client.execCalls, 1+len(tt.wantFiles))
+			assert.Equal(t, dockerExecCall{
+				containerID: "container-id",
+				command:     []string{"find", "-P", tt.wantSearchRoot, "-type", "f", "-path", tt.pattern, "-print0"},
+				stdoutLimit: dockerFindOutputLimit,
+			}, client.execCalls[0])
+			for i, wantFile := range tt.wantFiles {
+				assert.Equal(t, dockerExecCall{
+					containerID: "container-id",
+					command: buildReadFileWithinSearchCommand(
+						verifyTestConfigFilePath(t, tt.wantSearchRoot),
+						verifyTestConfigFilePath(t, wantFile.Path),
+					),
+					stdoutLimit: len(wantFile.Path) + 1 + maxConfigFileSize + 1,
+				}, client.execCalls[i+1])
+			}
+		})
+	}
+}
+
+func TestDockerReaderReadMatchingFilesErrors(t *testing.T) {
+	expectedErr := errors.New("exec failed")
+	tests := []struct {
+		name          string
+		maxMatches    int
+		execOutputs   []dockerExecOutput
+		execErr       error
+		wantExecCalls int
+		wantErrorIs   error
+	}{
+		{name: "non positive limit", maxMatches: 0},
+		{name: "exec error", maxMatches: 1, execErr: expectedErr, wantExecCalls: 1, wantErrorIs: expectedErr},
+		{name: "cancellation", maxMatches: 1, execErr: context.Canceled, wantExecCalls: 1, wantErrorIs: context.Canceled},
+		{name: "find unavailable", maxMatches: 1, execOutputs: []dockerExecOutput{{stderr: []byte("find: not found"), exitCode: 127}}, wantExecCalls: 1},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeDockerClient{execOutputs: tt.execOutputs, execErr: tt.execErr}
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
+
+			search := verifyTestConfigFileSearch(t, "/etc/redis", "/etc/redis/*.conf")
+			results, limited, err := reader.ReadMatchingFiles(context.Background(), search, tt.maxMatches, matchTestFilePattern("/etc/redis/*.conf"))
+
+			require.Error(t, err)
+			assert.Nil(t, results)
+			assert.False(t, limited)
+			assert.Empty(t, client.copyCalls)
+			assert.Len(t, client.execCalls, tt.wantExecCalls)
+			if tt.wantErrorIs != nil {
+				assert.ErrorIs(t, err, tt.wantErrorIs)
+			}
+		})
+	}
+}
+
+func TestDockerReaderReadMatchingFilesRetainsReadErrors(t *testing.T) {
+	client := &fakeDockerClient{
+		execOutputs: []dockerExecOutput{{stdout: []byte("/etc/redis/unreadable.conf\x00")}},
+	}
+	reader := &dockerConfigReader{containerID: "container-id", client: client}
+	search := verifyTestConfigFileSearch(t, "/etc/redis", "/etc/redis/*.conf")
+
+	results, limited, err := reader.ReadMatchingFiles(context.Background(), search, 1, matchTestFilePattern("/etc/redis/*.conf"))
+
+	require.NoError(t, err)
+	assert.False(t, limited)
+	require.Len(t, results, 1)
+	assert.Equal(t, "/etc/redis/unreadable.conf", results[0].Path().String())
+	_, err = results[0].Read()
+	require.Error(t, err)
+	assert.Empty(t, client.copyCalls)
+}
+
+func TestDockerReaderReadEnvVarsSkipsInspectForNilPredicate(t *testing.T) {
 	client := &fakeDockerClient{}
-	reader := newDockerConfigReaderWithClient("container-id", client)
+	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
 	env, err := reader.ReadEnvVars(context.Background(), nil)
 
@@ -272,31 +405,19 @@ func TestDockerReaderReadEnvVarsSkipsInspectForEmptyWhitelist(t *testing.T) {
 	assert.Empty(t, client.getEnvCalls)
 }
 
-func TestDockerReaderReadEnvVarsFiltersRequestedNames(t *testing.T) {
+func TestDockerReaderReadEnvVarsFiltersWithPredicate(t *testing.T) {
 	client := &fakeDockerClient{
-		env: []string{
-			"REDIS_PASSWORD=first",
-			"MALFORMED",
-			"WITH_EQUALS=a=b=c",
-			"EMPTY=",
-			"REDIS_PASSWORD=last",
-			"UNREQUESTED=value",
-		},
+		env: []string{"KAFKA_NODE_ID=1"},
 	}
-	reader := newDockerConfigReaderWithClient("container-id", client)
+	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), []string{
-		"REDIS_PASSWORD",
-		"WITH_EQUALS",
-		"EMPTY",
-		"MISSING",
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "KAFKA_NODE_ID"
 	})
 
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{
-		"REDIS_PASSWORD": "last",
-		"WITH_EQUALS":    "a=b=c",
-		"EMPTY":          "",
+		"KAFKA_NODE_ID": "1",
 	}, env)
 	assert.Equal(t, []string{"container-id"}, client.getEnvCalls)
 }
@@ -304,88 +425,127 @@ func TestDockerReaderReadEnvVarsFiltersRequestedNames(t *testing.T) {
 func TestDockerReaderReadEnvVarsSurfacesGetEnvErrors(t *testing.T) {
 	expectedErr := errors.New("env unavailable")
 	client := &fakeDockerClient{getEnvErr: expectedErr}
-	reader := newDockerConfigReaderWithClient("container-id", client)
+	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	env, err := reader.ReadEnvVars(context.Background(), []string{"REDIS_PASSWORD"})
+	env, err := reader.ReadEnvVars(context.Background(), func(name string) bool {
+		return name == "KAFKA_NODE_ID"
+	})
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Nil(t, env)
 	assert.Equal(t, []string{"container-id"}, client.getEnvCalls)
 }
 
-func TestDockerReaderReadCommandlineReturnsTargetCommandline(t *testing.T) {
-	client := &fakeDockerClient{
-		commandPath: "/usr/local/bin/redis-server",
-		commandArgs: []string{
-			"/usr/local/etc/redis/redis.conf",
-			"--loglevel",
-			"warning",
+func TestDockerReaderReadRuntimeCommandline(t *testing.T) {
+	tests := []struct {
+		name        string
+		commandPath string
+		commandArgs []string
+		workingDir  string
+		want        TargetCommandline
+	}{
+		{
+			name:        "command and working directory",
+			commandPath: "/usr/local/bin/redis-server",
+			commandArgs: []string{
+				"/usr/local/etc/redis/redis.conf",
+				"--loglevel",
+				"warning",
+			},
+			workingDir: "/usr/local/etc/redis",
+			want: TargetCommandline{
+				Args: []string{
+					"/usr/local/bin/redis-server",
+					"/usr/local/etc/redis/redis.conf",
+					"--loglevel",
+					"warning",
+				},
+				WorkingDir: "/usr/local/etc/redis",
+			},
 		},
-		workingDir: "/usr/local/etc/redis",
-	}
-	reader := newDockerConfigReaderWithClient("container-id", client)
-
-	commandline, err := reader.ReadCommandline(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{
-		Args: []string{
-			"/usr/local/bin/redis-server",
-			"/usr/local/etc/redis/redis.conf",
-			"--loglevel",
-			"warning",
+		{
+			name:        "empty command path",
+			commandArgs: []string{"redis-server"},
+			want:        TargetCommandline{Args: []string{"redis-server"}, WorkingDir: "/"},
 		},
-		WorkingDir: "/usr/local/etc/redis",
-	}, commandline)
-	assert.Equal(t, []string{"container-id"}, client.getCommandlineCalls)
-}
-
-func TestDockerReaderReadCommandlineAllowsEmptyCommandPath(t *testing.T) {
-	client := &fakeDockerClient{
-		commandArgs: []string{"redis-server"},
-	}
-	reader := newDockerConfigReaderWithClient("container-id", client)
-
-	commandline, err := reader.ReadCommandline(context.Background())
-
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{Args: []string{"redis-server"}, WorkingDir: "/"}, commandline)
-}
-
-func TestDockerReaderReadCommandlineDefaultsEmptyWorkingDirToRoot(t *testing.T) {
-	client := &fakeDockerClient{
-		commandPath: "redis-server",
-		commandArgs: []string{
-			"redis.conf",
+		{
+			name:        "empty working directory",
+			commandPath: "redis-server",
+			commandArgs: []string{"redis.conf"},
+			want: TargetCommandline{
+				Args:       []string{"redis-server", "redis.conf"},
+				WorkingDir: "/",
+			},
 		},
 	}
-	reader := newDockerConfigReaderWithClient("container-id", client)
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &fakeDockerClient{
+				commandPath: tt.commandPath,
+				commandArgs: tt.commandArgs,
+				workingDir:  tt.workingDir,
+			}
+			reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	require.NoError(t, err)
-	assert.Equal(t, TargetCommandline{
-		Args:       []string{"redis-server", "redis.conf"},
-		WorkingDir: "/",
-	}, commandline)
+			commandline, err := reader.ReadRuntimeCommandline(context.Background())
+
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, commandline)
+			assert.Equal(t, []string{"container-id"}, client.getCommandlineCalls)
+		})
+	}
 }
 
-func TestDockerReaderReadCommandlineSurfacesGetCommandlineErrors(t *testing.T) {
+func TestDockerReaderReadRuntimeCommandlineSurfacesGetCommandlineErrors(t *testing.T) {
 	expectedErr := errors.New("command line unavailable")
 	client := &fakeDockerClient{getCommandlineErr: expectedErr}
-	reader := newDockerConfigReaderWithClient("container-id", client)
+	reader := &dockerConfigReader{containerID: "container-id", client: client}
 
-	commandline, err := reader.ReadCommandline(context.Background())
+	commandline, err := reader.ReadRuntimeCommandline(context.Background())
 
 	require.ErrorIs(t, err, expectedErr)
 	assert.Empty(t, commandline)
 	assert.Equal(t, []string{"container-id"}, client.getCommandlineCalls)
 }
 
+func TestDockerExecOutputBufferBoundsOutput(t *testing.T) {
+	buffer := &dockerExecOutputBuffer{limit: 4}
+
+	written, err := buffer.Write([]byte("abcd"))
+
+	require.NoError(t, err)
+	assert.Equal(t, 4, written)
+	assert.Equal(t, []byte("abcd"), buffer.Bytes())
+	assert.False(t, buffer.limited)
+
+	written, err = buffer.Write([]byte("ef"))
+
+	require.ErrorIs(t, err, errDockerExecOutputLimit)
+	assert.Zero(t, written)
+	assert.Equal(t, []byte("abcd"), buffer.Bytes())
+	assert.True(t, buffer.limited)
+}
+
+func TestDockerExecOutputBufferRetainsPrefixOnOverflow(t *testing.T) {
+	buffer := &dockerExecOutputBuffer{limit: 4}
+
+	written, err := buffer.Write([]byte("abcdef"))
+
+	require.ErrorIs(t, err, errDockerExecOutputLimit)
+	assert.Equal(t, 4, written)
+	assert.Equal(t, []byte("abcd"), buffer.Bytes())
+	assert.True(t, buffer.limited)
+}
+
 type fakeDockerClient struct {
 	copyCalls           []dockerCopyCall
 	copyBody            io.ReadCloser
 	copyErr             error
+	execCalls           []dockerExecCall
+	execOutputs         []dockerExecOutput
+	execErr             error
+	files               map[string][]byte
 	getEnvCalls         []string
 	env                 []string
 	getEnvErr           error
@@ -401,12 +561,55 @@ type dockerCopyCall struct {
 	path        string
 }
 
+type dockerExecCall struct {
+	containerID string
+	command     []string
+	stdoutLimit int
+}
+
 func (c *fakeDockerClient) getFile(_ context.Context, containerID string, path string) (io.ReadCloser, error) {
 	c.copyCalls = append(c.copyCalls, dockerCopyCall{containerID: containerID, path: path})
 	if c.copyErr != nil {
 		return nil, c.copyErr
 	}
 	return c.copyBody, nil
+}
+
+func (c *fakeDockerClient) execSync(_ context.Context, containerID string, command []string, stdoutLimit int) (dockerExecOutput, error) {
+	c.execCalls = append(c.execCalls, dockerExecCall{
+		containerID: containerID,
+		command:     append([]string(nil), command...),
+		stdoutLimit: stdoutLimit,
+	})
+	if c.execErr != nil {
+		return dockerExecOutput{}, c.execErr
+	}
+	if len(c.execOutputs) != 0 {
+		output := c.execOutputs[0]
+		c.execOutputs = c.execOutputs[1:]
+		return limitFakeDockerExecOutput(output, stdoutLimit), nil
+	}
+	if len(command) > 8 && command[8] == "-exec" {
+		filePath := command[6]
+		content, found := c.files[filePath]
+		if !found {
+			return dockerExecOutput{}, nil
+		}
+		stdout := append([]byte(filePath), 0)
+		stdout = append(stdout, content...)
+		return limitFakeDockerExecOutput(dockerExecOutput{stdout: stdout}, stdoutLimit), nil
+	}
+	return dockerExecOutput{}, nil
+}
+
+// limitFakeDockerExecOutput applies the production stdout bound to fake exec
+// output while preserving an explicitly configured limited result.
+func limitFakeDockerExecOutput(output dockerExecOutput, stdoutLimit int) dockerExecOutput {
+	if len(output.stdout) > stdoutLimit {
+		output.stdout = output.stdout[:stdoutLimit]
+		output.stdoutLimited = true
+	}
+	return output
 }
 
 func (c *fakeDockerClient) getEnv(_ context.Context, containerID string) ([]string, error) {

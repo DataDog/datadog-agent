@@ -19,6 +19,7 @@ namespace Datadog.CustomActions
         private readonly string _overrideRegistryUrl;
         private readonly string _remoteUpdates;
         private readonly string _infrastructureMode;
+        private readonly string _logLevel;
         private readonly RollbackDataStore _rollbackDataStore;
 
         public InstallOciPackages(ISession session)
@@ -30,6 +31,7 @@ namespace Datadog.CustomActions
             _overrideRegistryUrl = session.Property("DD_INSTALLER_REGISTRY_URL");
             _remoteUpdates = session.Property("DD_REMOTE_UPDATES");
             _infrastructureMode = session.Property("DD_INFRASTRUCTURE_MODE");
+            _logLevel = session.Property("DD_LOG_LEVEL");
             _installerExecutable = System.IO.Path.Combine(installDir, "bin", "datadog-installer.exe");
             _rollbackDataStore = new RollbackDataStore(session, "InstallOciPackages", new FileSystemServices(), new ServiceController());
         }
@@ -102,6 +104,24 @@ namespace Datadog.CustomActions
                 env["DD_INFRASTRUCTURE_MODE"] = _infrastructureMode;
             }
 
+            if (!string.IsNullOrEmpty(_logLevel))
+            {
+                env["DD_LOG_LEVEL"] = _logLevel;
+            }
+
+            var agentEnvironment = _session.Property("DD_ENV");
+            if (!string.IsNullOrEmpty(agentEnvironment))
+            {
+                env["DD_ENV"] = agentEnvironment;
+            }
+
+            // Enable Cloud Network Monitoring (network_config.enabled in system-probe.yaml)
+            var networkEnabled = _session.Property("DD_SYSTEM_PROBE_NETWORK_ENABLED");
+            if (!string.IsNullOrEmpty(networkEnabled))
+            {
+                env["DD_SYSTEM_PROBE_NETWORK_ENABLED"] = networkEnabled;
+            }
+
             var appKey = _session.Property("DD_APP_KEY");
             if (!string.IsNullOrEmpty(appKey))
             {
@@ -118,6 +138,12 @@ namespace Datadog.CustomActions
             if (!string.IsNullOrEmpty(parActionsAllowlist))
             {
                 env["DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST"] = parActionsAllowlist;
+            }
+
+            var parSplitEnabled = _session.Property("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED");
+            if (!string.IsNullOrEmpty(parSplitEnabled))
+            {
+                env["DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"] = parSplitEnabled;
             }
 
             return env;

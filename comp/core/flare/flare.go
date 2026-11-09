@@ -80,10 +80,10 @@ func newFlare(deps dependencies) provides {
 		providers: fxutil.GetAndFilterGroup(deps.Providers),
 	}
 
-	// Adding legacy and internal providers. Registering then as Provider through FX create cycle dependencies.
+	// Register legacy and internal providers here because registering them through Fx creates dependency cycles.
 	//
-	// Do not extend this list, this is legacy behavior that should be remove at some point. To add data to a flare
-	// use the flare provider system: https://datadoghq.dev/datadog-agent/components/shared_features/flares/
+	// Do not extend this legacy list. To add flare data, follow the provider guide at
+	// https://datadoghq.dev/datadog-agent/how-to/components/flares/.
 	f.providers = append(
 		f.providers,
 		pkgFlare.ExtraFlareProviders(deps.WMeta, deps.IPC)...,
@@ -137,6 +137,16 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 		f.log.Infof("Unrecognized value passed via enable_streamlogs, creating flare without streamlogs enabled: %q", streamlogs)
 	}
 
+	flareSource := task.Config.TaskArgs["source"]
+
+	var tags []string
+	if rawTags, ok := task.Config.TaskArgs["tags"]; ok && rawTags != "" {
+		if err := json.Unmarshal([]byte(rawTags), &tags); err != nil {
+			f.log.Infof("Could not parse flare tags %q from agent task, ignoring: %v", rawTags, err)
+			tags = nil
+		}
+	}
+
 	filePath, err := f.CreateWithArgs(flareArgs, 0, nil, []byte{})
 	if err != nil {
 		return true, err
@@ -144,7 +154,8 @@ func (f *flare) onAgentTaskEvent(taskType rcclienttypes.TaskType, task rcclientt
 
 	f.log.Infof("Flare was created by remote-config at %s", filePath)
 
-	_, err = f.Send(filePath, caseID, userHandle, helpers.NewRemoteConfigFlareSource(task.Config.UUID))
+	source := helpers.NewRemoteConfigFlareSource(task.Config.UUID).WithFlareSourceTags(flareSource, tags)
+	_, err = f.Send(filePath, caseID, userHandle, source)
 	return true, err
 }
 
@@ -248,9 +259,8 @@ func (f *flare) create(flareArgs types.FlareArgs, providerTimeout time.Duration,
 		if ipcError != nil {
 			msg = fmt.Sprintf("unable to contact the agent to retrieve flare: %s", ipcError)
 		}
-		content := fmt.Sprintf("%s\nFlare creation time: %s", msg, time.Now().UTC().Format(time.RFC3339))
+		content := fmt.Sprintf("%s\nFlare creation time: %s\nGo version: %s", msg, time.Now().UTC().Format(time.RFC3339), runtime.Version())
 		if bi, ok := runtimedebug.ReadBuildInfo(); ok {
-			content += "\nGo version: " + bi.GoVersion
 			for _, s := range bi.Settings {
 				switch s.Key {
 				case "vcs.revision", "vcs.time", "vcs.modified":

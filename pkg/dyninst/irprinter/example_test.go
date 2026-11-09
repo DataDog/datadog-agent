@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package irprinter
 
@@ -94,7 +94,8 @@ func ExamplePrintJSON() {
 	//   "Issues": [],
 	//   "GoModuledataInfo": {
 	//     "FirstModuledataAddr": "0xdeadbeef",
-	//     "TypesOffset": 1234
+	//     "TypesOffset": 1234,
+	//     "ETypesOffset": 1242
 	//   },
 	//   "GoMapHashInfo": {
 	//     "UseAeshashAddr": 0,
@@ -146,7 +147,10 @@ func ExamplePrintYAML() {
 	//       GoKind: 2
 	// MaxTypeID: 3
 	// Issues: []
-	// GoModuledataInfo: {FirstModuledataAddr: "0xdeadbeef", TypesOffset: 1234}
+	// GoModuledataInfo:
+	//     FirstModuledataAddr: "0xdeadbeef"
+	//     TypesOffset: 1234
+	//     ETypesOffset: 1242
 	// GoMapHashInfo: {UseAeshashAddr: 0, AeskeyschedAddr: 0}
 	// CommonTypes:
 	//     G: 4 StructureType runtime.g
@@ -164,6 +168,7 @@ func constructExampleProgram() *ir.Program {
 		GoModuledataInfo: ir.GoModuledataInfo{
 			FirstModuledataAddr: 0xdeadbeef,
 			TypesOffset:         1234,
+			ETypesOffset:        1242,
 		},
 		CommonTypes: ir.CommonTypes{
 			G: &ir.StructureType{

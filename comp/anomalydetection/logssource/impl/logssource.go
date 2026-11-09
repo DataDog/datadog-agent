@@ -10,12 +10,13 @@ import (
 	"context"
 	"time"
 
+	anomalydetectionconfig "github.com/DataDog/datadog-agent/comp/anomalydetection/config"
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	logssource "github.com/DataDog/datadog-agent/comp/anomalydetection/logssource/def"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	autodiscovery "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -43,7 +44,6 @@ type Requires struct {
 	compdef.In
 
 	Lc          compdef.Lifecycle
-	Log         log.Component
 	Config      config.Component
 	Hostname    hostname.Component
 	WMeta       option.Option[workloadmeta.Component]
@@ -55,7 +55,7 @@ type Requires struct {
 	// Autodiscovery is optional: when absent the AD scheduler is simply not started
 	// and the observer falls back to generic container and kubelet log collection
 	// without AD-scheduled config overlays.
-	Autodiscovery autodiscovery.Component `fx:"optional"`
+	Autodiscovery autodiscovery.Component `optional:"true"`
 }
 
 // Provides defines the output of the logssource component.
@@ -78,7 +78,7 @@ type logssourceComponent struct{}
 //
 // The component is a no-op when any of these are true:
 //   - the observer is unavailable
-//   - anomaly_detection.enabled is false and anomaly_detection.recording.enabled is false
+//   - no observer-requiring gate is enabled and anomaly_detection.recording.enabled is false
 //   - anomaly_detection.logs.enabled is false and anomaly_detection.recording.enabled is false
 //   - only container sources are enabled and workloadmeta is unavailable
 //   - all source-specific gates are disabled
@@ -93,13 +93,13 @@ func NewComponent(deps Requires) (Provides, error) {
 	obs, obsOk := deps.Observer.Get()
 	wmeta, wmetaOk := deps.WMeta.Get()
 
-	analysisEnabled := deps.Config.GetBool("anomaly_detection.enabled")
+	observerRequired := anomalydetectionconfig.ObserverRequired(deps.Config)
 	logSourceSettings := newLogSourceSettings(deps.Config)
-	recordingEnabled := deps.Config.GetBool("anomaly_detection.recording.enabled")
+	recordingEnabled := anomalydetectionconfig.RecordingEnabled(deps.Config)
 
 	// Skip when the observer is absent, neither logs ingestion nor recording is
 	// requested, or no enabled source can start.
-	if !logSourceSettings.shouldStart(obsOk, wmetaOk, analysisEnabled, recordingEnabled) {
+	if !logSourceSettings.shouldStart(obsOk, wmetaOk, observerRequired, recordingEnabled) {
 		return Provides{Comp: &logssourceComponent{}}, nil
 	}
 	containerSourcesActive := logSourceSettings.containerSourcesEnabled && wmetaOk
@@ -108,21 +108,22 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	processingRules, err := logsconfig.GlobalProcessingRules(deps.Config)
 	if err != nil {
-		deps.Log.Warnf("observer logssource: invalid global processing rules, proceeding without them: %v", err)
+		logging.Warnf("logssource invalid global processing rules, proceeding without them: %v", err)
 		processingRules = nil
 	}
 
 	var pauseFilter workloadfilter.FilterBundle
+	var logsFilter workloadfilter.FilterBundle
 	if fs, ok := deps.FilterStore.Get(); ok {
 		pauseFilter = fs.GetContainerPausedFilters()
+		if recordingEnabled {
+			// AAD log exclusions are recorder-scoped. Leave generic log
+			// collection unchanged when recording is disabled.
+			logsFilter = fs.GetContainerAutodiscoveryFilters(workloadfilter.LogsFilter)
+		}
 	}
 
-	var samplerOnDropped func(source, priority string)
-	if obsOk {
-		samplerOnDropped = obs.RecordSamplerDropped
-	}
-	sampler := newLogSamplerFromConfig(deps.Config, samplerOnDropped)
-	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle, sampler)
+	pipeline := newObserverPipeline(deps.Config, processingRules, deps.Hostname, observerHandle)
 	logSources := sources.NewLogSources()
 	tracker := tailers.NewTailerTracker()
 	launchersMgr := launchers.NewLaunchers(logSources, pipeline, deps.Auditor, tracker)
@@ -134,7 +135,7 @@ func NewComponent(deps Requires) (Provides, error) {
 	if containerSourcesActive {
 		fingerprintCfg, err := logsconfig.GlobalFingerprintConfig(deps.Config)
 		if err != nil {
-			deps.Log.Warnf("observer logssource: invalid fingerprint config, proceeding with defaults: %v", err)
+			logging.Warnf("logssource invalid fingerprint config, proceeding with defaults: %v", err)
 			fingerprintCfg = &types.FingerprintConfig{}
 		}
 		fileOpener := opener.NewFileOpener()
@@ -152,7 +153,7 @@ func NewComponent(deps Requires) (Provides, error) {
 		launchersMgr.AddLauncher(fileLauncher)
 		launchersMgr.AddLauncher(containerLauncher.NewLauncher(logSources, option.New(wmeta), deps.Tagger))
 
-		sp = newSourceProvider(wmeta, logSources, pauseFilter)
+		sp = newSourceProvider(wmeta, logSources, pauseFilter, logsFilter)
 
 		services := service.NewServices()
 		adMgr = newADSourceManager(logSources, services, sp)
@@ -161,21 +162,21 @@ func NewComponent(deps Requires) (Provides, error) {
 			adScheduler = logsadscheduler.NewNamed(deps.Autodiscovery, "observer-logssource AD scheduler")
 		}
 	} else if logSourceSettings.containerSourcesEnabled {
-		deps.Log.Debugf("[observer/logssource] container log sources not started: workloadmeta unavailable")
+		logging.Debugf("logssource container log sources not started: workloadmeta unavailable")
 	}
 
 	if containerSourcesActive || logSourceSettings.kubeletSourceEnabled {
 		launchersMgr.AddLauncher(journaldlauncher.NewLauncher(flare.NewFlareController(), deps.Tagger))
 	}
 	if logSourceSettings.kubeletSourceEnabled {
-		registerKubeletJournaldSource(logSources, deps.Log)
+		registerKubeletJournaldSource(logSources)
 	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
 	deps.Lc.Append(compdef.Hook{
 		OnStart: func(_ context.Context) error {
-			deps.Log.Infof("[observer/logssource] starting log pipeline")
+			logging.Infof("logssource starting log pipeline")
 			pipeline.start()
 			launchersMgr.Start()
 			if adScheduler != nil {

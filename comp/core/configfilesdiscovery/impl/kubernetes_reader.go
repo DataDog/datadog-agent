@@ -1,0 +1,252 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+//go:build cri && containerd
+
+package configfilesdiscoveryimpl
+
+import (
+	"bytes"
+	"context"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+	"time"
+
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	containerdutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
+	criutil "github.com/DataDog/datadog-agent/pkg/util/containers/cri"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
+	containerdoci "github.com/containerd/containerd/v2/pkg/oci"
+)
+
+const (
+	kubernetesContainerdNamespace = "k8s.io"
+	kubernetesReadFileTimeout     = 5 * time.Second
+	kubernetesReadFileOutputLimit = maxConfigFileSize + 1
+	kubernetesFindOutputLimit     = 256 * 1024
+)
+
+const kubernetesFindConfigFilesScript = `find -P "$1" -type f -path "$2" -print0 | head -c "$3"`
+
+// kubernetesConfigClient is the narrow runtime boundary the Kubernetes reader
+// needs: CRI for file bytes and containerd for the OCI process spec.
+type kubernetesConfigClient interface {
+	execSync(context.Context, string, []string, time.Duration) ([]byte, []byte, int32, error)
+	containerSpec(context.Context, string) (*containerdoci.Spec, error)
+	close()
+}
+
+func newKubernetesConfigClient() (kubernetesConfigClient, error) {
+	cri, err := criutil.GetUtil()
+	if err != nil {
+		return nil, err
+	}
+
+	containerd, err := containerdutil.NewContainerdUtil()
+	if err != nil {
+		return nil, err
+	}
+
+	return kubernetesRuntimeConfigClient{
+		cri:        cri,
+		containerd: containerd,
+		namespace:  kubernetesContainerdNamespace,
+	}, nil
+}
+
+type kubernetesConfigReader struct {
+	containerID string
+	client      kubernetesConfigClient
+	store       workloadmeta.Component
+}
+
+func newKubernetesConfigReader(t target, store workloadmeta.Component) (ConfigReader, error) {
+	if t.runtime != RuntimeKubernetes {
+		return nil, fmt.Errorf("unsupported runtime %q", t.runtime)
+	}
+	if t.entityID == "" {
+		return nil, errors.New("empty kubernetes container id")
+	}
+
+	client, err := newKubernetesConfigClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return &kubernetesConfigReader{
+		containerID: t.entityID,
+		client:      client,
+		store:       store,
+	}, nil
+}
+
+func (r *kubernetesConfigReader) Runtime() RuntimeType {
+	return RuntimeKubernetes
+}
+
+func (r *kubernetesConfigReader) Close() {
+	r.client.close()
+}
+
+func (r *kubernetesConfigReader) ReadFile(ctx context.Context, filePath VerifiedConfigFilePath) (ConfigFile, error) {
+	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, kubernetesReadFileCommand(filePath.String()), kubernetesReadFileTimeout)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("exec read config file in kubernetes container: %w", err)
+	}
+	if exitCode != 0 {
+		return ConfigFile{}, kubernetesExecExitError(exitCode, stderr)
+	}
+
+	content, truncated, err := readLimitedFileContent(bytes.NewReader(stdout), maxConfigFileSize)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("read kubernetes config file output: %w", err)
+	}
+
+	return ConfigFile{
+		Path:      filePath.String(),
+		Content:   content,
+		Truncated: truncated,
+	}, nil
+}
+
+// ReadMatchingFiles uses find without following symlinks below the trusted
+// search root, then reads the accepted regular files in lexical order.
+func (r *kubernetesConfigReader) ReadMatchingFiles(ctx context.Context, search ConfigFileSearch, maxMatches int, matches ConfigFilePathMatcher) ([]ConfigFileReadResult, bool, error) {
+	if maxMatches <= 0 {
+		return nil, false, errors.New("maximum file matches must be positive")
+	}
+
+	searchRoot := configFileSearchRoot(search)
+	command := kubernetesFindConfigFilesCommand(searchRoot, search.Pattern())
+	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, command, kubernetesReadFileTimeout)
+	if err != nil {
+		return nil, false, fmt.Errorf("exec find config files in kubernetes container: %w", err)
+	}
+	if exitCode != 0 {
+		return nil, false, kubernetesExecExitError(exitCode, stderr)
+	}
+
+	discoveryLimited := len(stdout) > kubernetesFindOutputLimit
+	if discoveryLimited {
+		stdout = stdout[:kubernetesFindOutputLimit]
+	}
+	return readMatchingConfigFiles(stdout, discoveryLimited, search, maxMatches, matches, func(filePath VerifiedConfigFilePath) (ConfigFile, error) {
+		return r.readFileWithinSearch(ctx, searchRoot, filePath)
+	})
+}
+
+// readFileWithinSearch revalidates and reads filePath without following a
+// symlink observed below searchRoot.
+func (r *kubernetesConfigReader) readFileWithinSearch(ctx context.Context, searchRoot VerifiedConfigFilePath, filePath VerifiedConfigFilePath) (ConfigFile, error) {
+	command := buildReadFileWithinSearchCommand(searchRoot, filePath)
+	stdout, stderr, exitCode, err := r.client.execSync(ctx, r.containerID, command, kubernetesReadFileTimeout)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("exec read scoped config file in kubernetes container: %w", err)
+	}
+	if exitCode != 0 {
+		return ConfigFile{}, kubernetesExecExitError(exitCode, stderr)
+	}
+	file, err := decodeReadFileWithinSearchOutput(stdout, stderr, searchRoot, filePath)
+	if err != nil {
+		return ConfigFile{}, fmt.Errorf("decode scoped kubernetes config file: %w", err)
+	}
+	return file, nil
+}
+
+func kubernetesReadFileCommand(cleanPath string) []string {
+	return []string{"head", "-c", strconv.Itoa(kubernetesReadFileOutputLimit), cleanPath}
+}
+
+// kubernetesFindConfigFilesCommand returns a command that bounds find output
+// while passing the verified root and pattern as shell arguments.
+func kubernetesFindConfigFilesCommand(searchRoot VerifiedConfigFilePath, pattern VerifiedConfigFilePattern) []string {
+	return []string{
+		"sh", "-c", kubernetesFindConfigFilesScript, "configfilesdiscovery",
+		searchRoot.String(), pattern.String(), strconv.Itoa(kubernetesFindOutputLimit + 1),
+	}
+}
+
+func (r *kubernetesConfigReader) ReadEnvVars(ctx context.Context, predicate ConfigEnvVarPredicate) (map[string]string, error) {
+	if predicate == nil {
+		return map[string]string{}, nil
+	}
+
+	spec, err := r.client.containerSpec(ctx, r.containerID)
+	if err != nil {
+		return nil, fmt.Errorf("get kubernetes container OCI spec: %w", err)
+	}
+	if spec == nil || spec.Process == nil {
+		return map[string]string{}, nil
+	}
+
+	return filterEnvVars(spec.Process.Env, predicate), nil
+}
+
+func (r *kubernetesConfigReader) ReadRuntimeCommandline(ctx context.Context) (TargetCommandline, error) {
+	spec, err := r.client.containerSpec(ctx, r.containerID)
+	if err != nil {
+		return TargetCommandline{}, fmt.Errorf("get kubernetes container OCI spec: %w", err)
+	}
+
+	commandline := TargetCommandline{WorkingDir: "/"}
+	if spec == nil || spec.Process == nil {
+		return commandline, nil
+	}
+
+	commandline.Args = append([]string(nil), spec.Process.Args...)
+	if spec.Process.Cwd != "" {
+		commandline.WorkingDir = spec.Process.Cwd
+	}
+
+	return commandline, nil
+}
+
+func (r *kubernetesConfigReader) ReadLiveProcessCommandlines(context.Context) []TargetCommandline {
+	return readContainerProcessCommandlines(r.store, r.containerID)
+}
+
+func kubernetesExecExitError(exitCode int32, stderr []byte) error {
+	stderrText := strings.TrimSpace(string(stderr))
+	if stderrText == "" {
+		return fmt.Errorf("exec read config file in kubernetes container exited with code %d", exitCode)
+	}
+	return fmt.Errorf("exec read config file in kubernetes container exited with code %d: %s", exitCode, stderrText)
+}
+
+type kubernetesRuntimeConfigClient struct {
+	cri        criExecClient
+	containerd containerdutil.ContainerdItf
+	namespace  string
+}
+
+type criExecClient interface {
+	ExecSync(context.Context, string, []string, time.Duration) ([]byte, []byte, int32, error)
+}
+
+func (c kubernetesRuntimeConfigClient) execSync(ctx context.Context, containerID string, cmd []string, timeout time.Duration) ([]byte, []byte, int32, error) {
+	return c.cri.ExecSync(ctx, containerID, cmd, timeout)
+}
+
+func (c kubernetesRuntimeConfigClient) close() {
+	if err := c.containerd.Close(); err != nil {
+		log.Debugf("failed to close containerd client for config files discovery: %v", err)
+	}
+}
+
+func (c kubernetesRuntimeConfigClient) containerSpec(ctx context.Context, containerID string) (*containerdoci.Spec, error) {
+	container, err := c.containerd.ContainerWithContext(ctx, c.namespace, containerID)
+	if err != nil {
+		return nil, err
+	}
+
+	info, err := c.containerd.Info(c.namespace, container)
+	if err != nil {
+		return nil, err
+	}
+
+	return c.containerd.Spec(c.namespace, info, containerdutil.DefaultAllowedSpecMaxSize)
+}

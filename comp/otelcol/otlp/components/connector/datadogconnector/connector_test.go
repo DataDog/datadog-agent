@@ -1,0 +1,1103 @@
+// Copyright The OpenTelemetry Authors
+// SPDX-License-Identifier: Apache-2.0
+
+package datadogconnector
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"regexp"
+	"slices"
+	"sort"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/testutil"
+	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
+	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	otelstats "github.com/DataDog/datadog-agent/pkg/trace/otel/stats"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
+	"github.com/DataDog/datadog-agent/pkg/trace/stats"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/connector/connectortest"
+	"go.opentelemetry.io/collector/consumer/consumertest"
+	"go.opentelemetry.io/collector/featuregate"
+	"go.opentelemetry.io/collector/pdata/pcommon"
+	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.opentelemetry.io/collector/pdata/ptrace"
+	"go.uber.org/zap"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/testing/protocmp"
+
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
+	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/featuregates"
+)
+
+var datadogComponentType = component.MustNewType("datadog")
+
+// create test to create a connector, check that basic code compiles
+func TestNewConnector(t *testing.T) {
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil)
+
+	creationParams := connectortest.NewNopSettings(datadogComponentType)
+	cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+
+	tconn, err := factory.CreateTracesToMetrics(t.Context(), creationParams, cfg, consumertest.NewNop())
+	assert.NoError(t, err)
+
+	_, ok := tconn.(*traceToMetricConnector)
+	assert.True(t, ok) // checks if the created connector implements the connectorImp struct
+}
+
+func TestTraceToTraceConnector(t *testing.T) {
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil)
+
+	creationParams := connectortest.NewNopSettings(datadogComponentType)
+	cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+
+	tconn, err := factory.CreateTracesToTraces(t.Context(), creationParams, cfg, consumertest.NewNop())
+	assert.NoError(t, err)
+
+	_, ok := tconn.(*traceToTraceConnector)
+	assert.True(t, ok) // checks if the created connector implements the connectorImp struct
+}
+
+func createConnector(t *testing.T) (*traceToMetricConnector, *consumertest.MetricsSink) {
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.ResourceAttributesAsContainerTags = []string{"cloud.availability_zone", "cloud.region", "az"}
+	return createConnectorCfg(t, cfg)
+}
+
+const (
+	fallBackHostname = "test-host"
+)
+
+func createConnectorCfg(t *testing.T, cfg *datadogconfig.ConnectorComponentConfig) (*traceToMetricConnector, *consumertest.MetricsSink) {
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, testutil.NewTestTaggerClient(), func(_ context.Context) (string, error) {
+		return fallBackHostname, nil
+	}, nil)
+
+	creationParams := connectortest.NewNopSettings(datadogComponentType)
+	metricsSink := &consumertest.MetricsSink{}
+
+	cfg.Traces.BucketInterval = 1 * time.Second
+	tconn, err := factory.CreateTracesToMetrics(t.Context(), creationParams, cfg, metricsSink)
+	assert.NoError(t, err)
+
+	connector, ok := tconn.(*traceToMetricConnector)
+	require.True(t, ok)
+	oconf := obfuscate.Config{Redis: obfuscate.RedisConfig{Enabled: false}}
+	connector.obfuscator = obfuscate.NewObfuscator(oconf)
+	return connector, metricsSink
+}
+
+var (
+	spanStartTimestamp = pcommon.NewTimestampFromTime(time.Date(2020, 2, 11, 20, 26, 12, 321, time.UTC))
+	spanEventTimestamp = pcommon.NewTimestampFromTime(time.Date(2020, 2, 11, 20, 26, 13, 123, time.UTC))
+	spanEndTimestamp   = pcommon.NewTimestampFromTime(time.Date(2020, 2, 11, 20, 26, 13, 789, time.UTC))
+)
+
+func generateTrace(extraAttributes map[string]string) ptrace.Traces {
+	td := ptrace.NewTraces()
+	res := td.ResourceSpans().AppendEmpty().Resource()
+	res.Attributes().EnsureCapacity(3)
+	res.Attributes().PutStr("resource-attr1", "resource-attr-val1")
+	res.Attributes().PutStr("container.id", "my-container-id")
+	res.Attributes().PutStr("cloud.availability_zone", "my-zone")
+	res.Attributes().PutStr("cloud.region", "my-region")
+	// add a custom Resource attribute
+	res.Attributes().PutStr("az", "my-az")
+	// Sorted key order: pdata attribute maps preserve insertion order, Go map iteration does not.
+	keys := make([]string, 0, len(extraAttributes))
+	for k := range extraAttributes {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		res.Attributes().PutStr(k, extraAttributes[k])
+	}
+
+	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	ss.EnsureCapacity(1)
+	fillSpanOne(ss.AppendEmpty())
+	return td
+}
+
+func fillSpanOne(span ptrace.Span) {
+	span.SetName("operationA")
+	span.SetStartTimestamp(spanStartTimestamp)
+	span.SetEndTimestamp(spanEndTimestamp)
+	span.SetDroppedAttributesCount(1)
+	span.SetTraceID([16]byte{0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F, 0x10})
+	span.SetSpanID([8]byte{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18})
+	evs := span.Events()
+	ev0 := evs.AppendEmpty()
+	ev0.SetTimestamp(spanEventTimestamp)
+	ev0.SetName("event-with-attr")
+	ev0.Attributes().PutStr("span-event-attr", "span-event-attr-val")
+	ev0.SetDroppedAttributesCount(2)
+	ev1 := evs.AppendEmpty()
+	ev1.SetTimestamp(spanEventTimestamp)
+	ev1.SetName("event")
+	ev1.SetDroppedAttributesCount(2)
+	span.SetDroppedEventsCount(1)
+	status := span.Status()
+	status.SetCode(ptrace.StatusCodeError)
+	status.SetMessage("status-cancelled")
+}
+
+//nolint:staticcheck // SA1019: Using deprecated Translator type for StatsToMetrics functionality
+func newTranslatorWithStatsChannel(t *testing.T, logger *zap.Logger, ch chan []byte) *otlpmetrics.Translator {
+	options := []otlpmetrics.TranslatorOption{
+		otlpmetrics.WithHistogramMode(otlpmetrics.HistogramModeDistributions),
+
+		otlpmetrics.WithNumberMode(otlpmetrics.NumberModeCumulativeToDelta),
+		otlpmetrics.WithHistogramAggregations(),
+		otlpmetrics.WithStatsOut(ch),
+	}
+
+	set := componenttest.NewNopTelemetrySettings()
+	set.Logger = logger
+
+	attributesTranslator, err := attributes.NewTranslator(set)
+	require.NoError(t, err)
+	// We use the deprecated NewTranslator because the new NewDefaultTranslator
+	// doesn't provide the StatsToMetrics method which is required for APM stats conversion.
+	//nolint:staticcheck // SA1019: Using deprecated NewTranslator for StatsToMetrics functionality
+	tr, err := otlpmetrics.NewTranslator(
+		set,
+		attributesTranslator,
+		options...,
+	)
+
+	require.NoError(t, err)
+	return tr
+}
+
+func TestContainerTagsAndHostname(t *testing.T) {
+	connector, metricsSink := createConnector(t)
+	err := connector.Start(t.Context(), componenttest.NewNopHost())
+	if err != nil {
+		t.Errorf("Error starting connector: %v", err)
+		return
+	}
+	defer func() {
+		_ = connector.Shutdown(t.Context())
+	}()
+
+	trace1 := generateTrace(nil)
+
+	err = connector.ConsumeTraces(t.Context(), trace1)
+	assert.NoError(t, err)
+
+	// Send two traces to ensure unique container tags are added to the cache
+	trace2 := generateTrace(nil)
+	err = connector.ConsumeTraces(t.Context(), trace2)
+	assert.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return len(metricsSink.AllMetrics()) > 0
+	}, time.Minute, 100*time.Millisecond)
+
+	// check if the container tags are added to the metrics
+	metrics := metricsSink.AllMetrics()
+	assert.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+
+	err = proto.Unmarshal(msg, sp)
+	require.NoError(t, err)
+
+	tags := sp.Stats[0].Tags
+	assert.Len(t, tags, 3)
+	assert.ElementsMatch(t, []string{"region:my-region", "zone:my-zone", "az:my-az"}, tags)
+
+	hostname := sp.Stats[0].Hostname
+	assert.Equal(t, fallBackHostname, hostname)
+}
+
+func TestHostnameFromAttributesPreferred(t *testing.T) {
+	connector, metricsSink := createConnector(t)
+	err := connector.Start(t.Context(), componenttest.NewNopHost())
+	if err != nil {
+		t.Errorf("Error starting connector: %v", err)
+		return
+	}
+	defer func() {
+		_ = connector.Shutdown(t.Context())
+	}()
+
+	trace1 := generateTrace(map[string]string{"host": "preferred-host"})
+
+	err = connector.ConsumeTraces(t.Context(), trace1)
+	assert.NoError(t, err)
+
+	// Send two traces to ensure unique container tags are added to the cache
+	trace2 := generateTrace(map[string]string{"host": "preferred-host"})
+	err = connector.ConsumeTraces(t.Context(), trace2)
+	assert.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return len(metricsSink.AllMetrics()) > 0
+	}, time.Minute, 100*time.Millisecond)
+
+	// check if the container tags are added to the metrics
+	metrics := metricsSink.AllMetrics()
+	assert.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+
+	err = proto.Unmarshal(msg, sp)
+	require.NoError(t, err)
+
+	tags := sp.Stats[0].Tags
+	assert.Len(t, tags, 3)
+	assert.ElementsMatch(t, []string{"region:my-region", "zone:my-zone", "az:my-az"}, tags)
+
+	hostname := sp.Stats[0].Hostname
+	assert.Equal(t, "preferred-host", hostname)
+}
+
+var (
+	testTraceID = [16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}
+	testSpanID1 = [8]byte{1, 2, 3, 4, 5, 6, 7, 8}
+	testSpanID2 = [8]byte{2, 2, 3, 4, 5, 6, 7, 8}
+	testSpanID3 = [8]byte{3, 2, 3, 4, 5, 6, 7, 8}
+	testSpanID4 = [8]byte{4, 2, 3, 4, 5, 6, 7, 8}
+)
+
+func TestMeasuredAndClientKind(t *testing.T) {
+	t.Run("OperationAndResourceNameV1", func(t *testing.T) {
+		testMeasuredAndClientKind(t, false)
+	})
+	t.Run("OperationAndResourceNameV2", func(t *testing.T) {
+		testMeasuredAndClientKind(t, true)
+	})
+}
+
+func testMeasuredAndClientKind(t *testing.T, enableOperationAndResourceNameV2 bool) {
+	if err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", enableOperationAndResourceNameV2); err != nil {
+		t.Fatal(err)
+	}
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.ComputeTopLevelBySpanKind = true
+	connector, metricsSink := createConnectorCfg(t, cfg)
+	err := connector.Start(t.Context(), componenttest.NewNopHost())
+	if err != nil {
+		t.Errorf("Error starting connector: %v", err)
+		return
+	}
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	td := ptrace.NewTraces()
+	res := td.ResourceSpans().AppendEmpty().Resource()
+	res.Attributes().PutStr("service.name", "svc")
+	res.Attributes().PutStr("deployment.environment.name", "my-env")
+
+	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	// Root span
+	s1 := ss.AppendEmpty()
+	s1.SetName("parent")
+	s1.SetKind(ptrace.SpanKindServer)
+	s1.SetTraceID(testTraceID)
+	s1.SetSpanID(testSpanID1)
+	// Child span with internal kind does not get stats
+	s2 := ss.AppendEmpty()
+	s2.SetName("child1")
+	s2.SetKind(ptrace.SpanKindInternal)
+	s2.SetTraceID(testTraceID)
+	s2.SetSpanID(testSpanID2)
+	s2.SetParentSpanID(testSpanID1)
+	// Child span with internal kind and the _dd.measured key gets stats
+	s3 := ss.AppendEmpty()
+	s3.SetName("child2")
+	s3.SetKind(ptrace.SpanKindInternal)
+	s3.SetTraceID(testTraceID)
+	s3.SetSpanID(testSpanID3)
+	s3.SetParentSpanID(testSpanID1)
+	s3.Attributes().PutInt("_dd.measured", 1)
+	// Child span with client kind gets stats
+	s4 := ss.AppendEmpty()
+	s4.SetName("child3")
+	s4.SetKind(ptrace.SpanKindClient)
+	s4.SetTraceID(testTraceID)
+	s4.SetSpanID(testSpanID4)
+	s4.SetParentSpanID(testSpanID1)
+
+	err = connector.ConsumeTraces(t.Context(), td)
+	assert.NoError(t, err)
+
+	timeout := time.Now().Add(1 * time.Minute)
+	for time.Now().Before(timeout) {
+		if len(metricsSink.AllMetrics()) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	metrics := metricsSink.AllMetrics()
+	require.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+
+	err = proto.Unmarshal(msg, sp)
+	require.NoError(t, err)
+	assert.Len(t, sp.Stats, 1)
+	assert.Len(t, sp.Stats[0].Stats, 1)
+	assert.Equal(t, "my-env", sp.Stats[0].Env)
+	assert.Len(t, sp.Stats[0].Stats[0].Stats, 3)
+	cgss := sp.Stats[0].Stats[0].Stats
+	sort.Slice(cgss, func(i, j int) bool {
+		return cgss[i].Resource < cgss[j].Resource
+	})
+	expected := []*pb.ClientGroupedStats{
+		{
+			Service:      "svc",
+			Name:         "opentelemetry.internal",
+			Resource:     "child2",
+			Type:         "custom",
+			Hits:         1,
+			TopLevelHits: 0,
+			SpanKind:     "internal",
+			IsTraceRoot:  pb.Trilean_FALSE,
+		},
+		{
+			Service:      "svc",
+			Name:         "opentelemetry.client",
+			Resource:     "child3",
+			Type:         "http",
+			Hits:         1,
+			TopLevelHits: 0,
+			SpanKind:     "client",
+			IsTraceRoot:  pb.Trilean_FALSE,
+		},
+		{
+			Service:      "svc",
+			Name:         "opentelemetry.server",
+			Resource:     "parent",
+			Type:         "web",
+			Hits:         1,
+			TopLevelHits: 1,
+			SpanKind:     "server",
+			IsTraceRoot:  pb.Trilean_TRUE,
+		},
+	}
+
+	if enableOperationAndResourceNameV2 {
+		expected[0].Name = "Internal"
+		expected[1].Name = "client.request"
+		expected[2].Name = "server.request"
+	}
+
+	if diff := cmp.Diff(
+		cgss,
+		expected,
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "duration", "okSummary", "errorSummary")); diff != "" {
+		t.Errorf("Diff between APM stats -want +got:\n%v", diff)
+	}
+}
+
+func TestObfuscate(t *testing.T) {
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.BucketInterval = time.Second
+
+	prevVal := featuregates.ReceiveResourceSpansV2FeatureGate.IsEnabled()
+	require.NoError(t, featuregate.GlobalRegistry().Set("datadog.EnableReceiveResourceSpansV2", true))
+	defer func() {
+		require.NoError(t, featuregate.GlobalRegistry().Set("datadog.EnableReceiveResourceSpansV2", prevVal))
+	}()
+	if err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true); err != nil {
+		t.Fatal(err)
+	}
+
+	connector, metricsSink := createConnectorCfg(t, cfg)
+
+	err := connector.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	td := ptrace.NewTraces()
+	res := td.ResourceSpans().AppendEmpty().Resource()
+	res.Attributes().PutStr("service.name", "svc")
+	res.Attributes().PutStr("deployment.environment.name", "my-env")
+
+	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	s := ss.AppendEmpty()
+	s.SetName("name")
+	s.SetKind(ptrace.SpanKindClient)
+	s.SetTraceID(testTraceID)
+	s.SetSpanID(testSpanID1)
+	s.Attributes().PutStr("db.system", "mysql")
+	s.Attributes().PutStr("db.operation.name", "SELECT")
+	s.Attributes().PutStr("db.query.text", "SELECT username FROM users WHERE id = 123") // id value 123 should be obfuscated
+
+	err = connector.ConsumeTraces(t.Context(), td)
+	require.NoError(t, err)
+
+	timeout := time.Now().Add(1 * time.Minute)
+	for time.Now().Before(timeout) {
+		if len(metricsSink.AllMetrics()) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	metrics := metricsSink.AllMetrics()
+	require.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+
+	err = proto.Unmarshal(msg, sp)
+	require.NoError(t, err)
+	assert.Len(t, sp.Stats, 1)
+	assert.Len(t, sp.Stats[0].Stats, 1)
+	assert.Equal(t, "my-env", sp.Stats[0].Env)
+	assert.Len(t, sp.Stats[0].Stats[0].Stats, 1)
+	cgss := sp.Stats[0].Stats[0].Stats
+	expected := []*pb.ClientGroupedStats{
+		{
+			Service:      "svc",
+			Name:         "mysql.query",
+			Resource:     "SELECT username FROM users WHERE id = ?",
+			Type:         "sql",
+			Hits:         1,
+			TopLevelHits: 1,
+			SpanKind:     "client",
+			IsTraceRoot:  pb.Trilean_TRUE,
+			PeerTags:     []string{"db.system:mysql"},
+		},
+	}
+	if diff := cmp.Diff(
+		cgss,
+		expected,
+		protocmp.Transform(),
+		protocmp.IgnoreFields(&pb.ClientGroupedStats{}, "duration", "okSummary", "errorSummary")); diff != "" {
+		t.Errorf("Diff between APM stats -want +got:\n%v", diff)
+	}
+}
+
+func TestSpanDerivedPrimaryTags(t *testing.T) {
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.BucketInterval = time.Second
+	cfg.Traces.SpanDerivedPrimaryTags = []string{"team"}
+
+	connector, metricsSink := createConnectorCfg(t, cfg)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	td := ptrace.NewTraces()
+	res := td.ResourceSpans().AppendEmpty().Resource()
+	res.Attributes().PutStr("service.name", "svc")
+	res.Attributes().PutStr("deployment.environment.name", "my-env")
+
+	ss := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	s := ss.AppendEmpty()
+	s.SetName("name")
+	s.SetKind(ptrace.SpanKindServer)
+	s.SetTraceID(testTraceID)
+	s.SetSpanID(testSpanID1)
+	// "team" is configured as a span-derived primary tag and should appear on the stats.
+	s.Attributes().PutStr("team", "checkout")
+
+	require.NoError(t, connector.ConsumeTraces(t.Context(), td))
+
+	timeout := time.Now().Add(1 * time.Minute)
+	for time.Now().Before(timeout) {
+		if len(metricsSink.AllMetrics()) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	metrics := metricsSink.AllMetrics()
+	require.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err := tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+	require.NoError(t, proto.Unmarshal(msg, sp))
+
+	require.Len(t, sp.Stats, 1)
+	require.Len(t, sp.Stats[0].Stats, 1)
+	require.Len(t, sp.Stats[0].Stats[0].Stats, 1)
+	assert.Equal(t, []string{"team:checkout"}, sp.Stats[0].Stats[0].Stats[0].AdditionalMetricTags)
+}
+
+// TestPeerTagsFollowRegistrySwap verifies that peer tags added by a semantic
+// registry swap (e.g. a Remote Config update) after the connector was created
+// are copied onto the spans fed to the concentrator and show up in the stats.
+func TestPeerTagsFollowRegistrySwap(t *testing.T) {
+	original := semantics.DefaultRegistry()
+	t.Cleanup(func() { semantics.UpdateRegistry(original) })
+
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.BucketInterval = time.Second
+	cfg.Traces.PeerTagsAggregation = true
+
+	connector, metricsSink := createConnectorCfg(t, cfg)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	// Swap in a registry identical to the live one, except that the peer.service
+	// concept gains a new precursor attribute.
+	const customPeerTag = "x.custom.peer"
+	concepts := make(map[string]semantics.ConceptMapping)
+	for concept, tags := range original.GetAllEquivalences() {
+		concepts[string(concept)] = semantics.ConceptMapping{Canonical: string(concept), Fallbacks: tags}
+	}
+	peerService := concepts[string(semantics.ConceptPeerService)]
+	peerService.Fallbacks = append(slices.Clone(peerService.Fallbacks), semantics.TagInfo{Name: customPeerTag, Provider: semantics.ProviderDatadog, Type: semantics.ValueTypeString})
+	concepts[string(semantics.ConceptPeerService)] = peerService
+	payload, err := json.Marshal(map[string]any{
+		"version":  "test-peer-tags-swap",
+		"metadata": map[string]string{"content_hash": "test-peer-tags-swap"},
+		"concepts": concepts,
+	})
+	require.NoError(t, err)
+	custom, err := semantics.NewRegistryFromJSON(payload)
+	require.NoError(t, err)
+	require.NotContains(t, connector.concentrator.PeerTagKeys(), customPeerTag, "the custom peer tag must only arrive through the registry swap")
+	semantics.UpdateRegistry(custom)
+
+	td := ptrace.NewTraces()
+	res := td.ResourceSpans().AppendEmpty().Resource()
+	res.Attributes().PutStr("service.name", "svc")
+	res.Attributes().PutStr("deployment.environment.name", "my-env")
+
+	s := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans().AppendEmpty()
+	s.SetName("name")
+	s.SetKind(ptrace.SpanKindClient)
+	s.SetTraceID(testTraceID)
+	s.SetSpanID(testSpanID1)
+	s.Attributes().PutStr(customPeerTag, "remote-svc")
+
+	require.NoError(t, connector.ConsumeTraces(t.Context(), td))
+
+	timeout := time.Now().Add(1 * time.Minute)
+	for time.Now().Before(timeout) {
+		if len(metricsSink.AllMetrics()) > 0 {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+
+	metrics := metricsSink.AllMetrics()
+	require.Len(t, metrics, 1)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+	require.NoError(t, proto.Unmarshal(msg, sp))
+
+	require.Len(t, sp.Stats, 1)
+	require.Len(t, sp.Stats[0].Stats, 1)
+	require.Len(t, sp.Stats[0].Stats[0].Stats, 1)
+	assert.Equal(t, []string{customPeerTag + ":remote-svc"}, sp.Stats[0].Stats[0].Stats[0].PeerTags)
+}
+
+type errorSink struct {
+	consumertest.MetricsSink
+	mu         sync.Mutex
+	err        error
+	errorCount int
+}
+
+func (es *errorSink) setError(err error) {
+	es.mu.Lock()
+	es.err = err
+	es.mu.Unlock()
+}
+
+func (es *errorSink) getErrorCount() int {
+	es.mu.Lock()
+	defer es.mu.Unlock()
+	return es.errorCount
+}
+
+func (es *errorSink) Reset() {
+	es.mu.Lock()
+	defer es.mu.Unlock()
+	es.errorCount = 0
+	es.MetricsSink.Reset()
+}
+
+func (es *errorSink) ConsumeMetrics(ctx context.Context, md pmetric.Metrics) error {
+	es.mu.Lock()
+	defer es.mu.Unlock()
+	if err := es.err; err != nil {
+		es.errorCount++
+		return es.err
+	}
+	return es.MetricsSink.ConsumeMetrics(ctx, md)
+}
+
+func TestError(t *testing.T) {
+	factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil)
+	cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.BucketInterval = time.Millisecond * 100
+	metricsSink := &errorSink{}
+	conn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, metricsSink)
+	require.NoError(t, err)
+
+	require.NoError(t, conn.Start(t.Context(), componenttest.NewNopHost()))
+
+	// First payload will trigger a downstream error
+	metricsSink.setError(errors.New("error"))
+	err = conn.ConsumeTraces(t.Context(), generateTrace(nil))
+	assert.NoError(t, err)
+
+	// Check that we registered an error and no panic occurred
+	require.Eventually(t, func() bool {
+		return metricsSink.getErrorCount() > 0
+	}, 500*time.Millisecond, 100*time.Millisecond)
+	assert.Zero(t, metricsSink.DataPointCount())
+	metricsSink.Reset()
+
+	// Second payload will be successfully accepted
+	metricsSink.setError(nil)
+	err = conn.ConsumeTraces(t.Context(), generateTrace(nil))
+	assert.NoError(t, err)
+
+	// Check that metrics were received, and no error was registered
+	require.Eventually(t, func() bool {
+		return metricsSink.DataPointCount() > 0
+	}, 500*time.Millisecond, 100*time.Millisecond)
+	assert.Zero(t, metricsSink.getErrorCount())
+
+	err = conn.Shutdown(t.Context())
+	require.NoError(t, err)
+}
+
+// TestSamplingWeightFromTracestate verifies that W3C tracestate th values drive
+// Concentrator weighting. The Concentrator reads _sample_rate from the root span
+// of each trace chunk and applies that weight to every span in the chunk, so the
+// th value on the root span controls the Hits count for the whole trace.
+func TestSamplingWeightFromTracestate(t *testing.T) {
+	if err := featuregate.GlobalRegistry().Set("datadog.EnableOperationAndResourceNameV2", true); err != nil {
+		t.Fatal(err)
+	}
+	cfg := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil).CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+	cfg.Traces.ComputeTopLevelBySpanKind = true
+	connector, metricsSink := createConnectorCfg(t, cfg)
+	err := connector.Start(t.Context(), componenttest.NewNopHost())
+	require.NoError(t, err)
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	// Trace A: single root Server span with ot=th:8 (50% sampling).
+	// weight = 1/0.5 = 2, so Hits should be 2.
+	traceA := ptrace.NewTraces()
+	resA := traceA.ResourceSpans().AppendEmpty().Resource()
+	resA.Attributes().PutStr("service.name", "weight-test-svc")
+	resA.Attributes().PutStr("deployment.environment.name", "test-env")
+	ssA := traceA.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	spanA := ssA.AppendEmpty()
+	spanA.SetName("sampled-op")
+	spanA.SetKind(ptrace.SpanKindServer)
+	spanA.SetTraceID(pcommon.TraceID([16]byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+	spanA.SetSpanID(pcommon.SpanID([8]byte{0xAA, 0xBB, 0xCC, 0xDD, 0xEE, 0xFF, 0x11, 0x22}))
+	spanA.SetStartTimestamp(spanStartTimestamp)
+	spanA.SetEndTimestamp(spanEndTimestamp)
+	spanA.TraceState().FromRaw("ot=th:8") // 50% sampling → weight=2
+
+	// Trace B: single root Server span with no tracestate.
+	// weight = 1, so Hits should be 1.
+	traceB := ptrace.NewTraces()
+	resB := traceB.ResourceSpans().AppendEmpty().Resource()
+	resB.Attributes().PutStr("service.name", "weight-test-svc")
+	resB.Attributes().PutStr("deployment.environment.name", "test-env")
+	ssB := traceB.ResourceSpans().At(0).ScopeSpans().AppendEmpty().Spans()
+	spanB := ssB.AppendEmpty()
+	spanB.SetName("unsampled-op")
+	spanB.SetKind(ptrace.SpanKindServer)
+	spanB.SetTraceID(pcommon.TraceID([16]byte{2, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}))
+	spanB.SetSpanID(pcommon.SpanID([8]byte{0x33, 0x44, 0x55, 0x66, 0x77, 0x88, 0x99, 0xAA}))
+	spanB.SetStartTimestamp(spanStartTimestamp)
+	spanB.SetEndTimestamp(spanEndTimestamp)
+	// no tracestate
+
+	err = connector.ConsumeTraces(t.Context(), traceA)
+	require.NoError(t, err)
+	err = connector.ConsumeTraces(t.Context(), traceB)
+	require.NoError(t, err)
+
+	require.Eventually(t, func() bool {
+		return len(metricsSink.AllMetrics()) > 0
+	}, time.Minute, 100*time.Millisecond)
+
+	metrics := metricsSink.AllMetrics()
+	require.NotEmpty(t, metrics)
+
+	ch := make(chan []byte, 100)
+	tr := newTranslatorWithStatsChannel(t, zap.NewNop(), ch)
+	_, err = tr.MapMetrics(t.Context(), metrics[0], nil, nil)
+	require.NoError(t, err)
+	msg := <-ch
+	sp := &pb.StatsPayload{}
+	require.NoError(t, proto.Unmarshal(msg, sp))
+
+	require.NotEmpty(t, sp.Stats)
+	require.NotEmpty(t, sp.Stats[0].Stats)
+
+	hitsByResource := make(map[string]uint64)
+	for _, bucket := range sp.Stats[0].Stats {
+		for _, cgs := range bucket.Stats {
+			hitsByResource[cgs.Resource] += cgs.Hits
+		}
+	}
+
+	// Trace A root has th:8 → _sample_rate=0.5 → weight=2 → Hits=2.
+	assert.Equal(t, uint64(2), hitsByResource["sampled-op"], "span with th:8 tracestate should have Hits=2 (weight=2)")
+	// Trace B root has no tracestate → weight=1 → Hits=1.
+	assert.Equal(t, uint64(1), hitsByResource["unsampled-op"], "span with no tracestate should have Hits=1 (weight=1)")
+}
+
+// readOnlySafetyTrace builds traces touching every part of the pdata tree the connector walks.
+func readOnlySafetyTrace() ptrace.Traces {
+	td := generateTrace(map[string]string{
+		"service.name":                "read-only-svc",
+		"deployment.environment.name": "test-env",
+	})
+
+	span := td.ResourceSpans().At(0).ScopeSpans().At(0).Spans().At(0)
+	span.SetKind(ptrace.SpanKindServer)
+	span.TraceState().FromRaw("ot=th:8")
+	span.Attributes().PutStr("http.method", "GET")
+	span.Attributes().PutStr("db.statement", "SELECT * FROM users WHERE id = 42")
+	span.Attributes().PutInt("http.status_code", 500)
+	link := span.Links().AppendEmpty()
+	link.SetTraceID([16]byte{9, 9, 9, 9, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16})
+	link.SetSpanID([8]byte{9, 9, 9, 9, 5, 6, 7, 8})
+	link.TraceState().FromRaw("ot=th:4")
+	link.Attributes().PutStr("link-attr", "link-attr-val")
+	link.SetDroppedAttributesCount(3)
+	span.SetDroppedLinksCount(1)
+
+	// A second scope, and a client span so peer tags and span-kind logic run too.
+	scope := td.ResourceSpans().At(0).ScopeSpans().AppendEmpty()
+	scope.Scope().SetName("second-scope")
+	scope.Scope().SetVersion("v2")
+	scope.Scope().Attributes().PutStr("scope-attr", "scope-attr-val")
+	client := scope.Spans().AppendEmpty()
+	fillSpanOne(client)
+	client.SetName("operationB")
+	client.SetKind(ptrace.SpanKindClient)
+	client.SetSpanID([8]byte{0x21, 0x22, 0x23, 0x24, 0x25, 0x26, 0x27, 0x28})
+	client.SetParentSpanID([8]byte{0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18})
+	client.Attributes().PutStr("peer.service", "downstream-svc")
+
+	// A second resource, so the per-resource loop runs more than once.
+	other := td.ResourceSpans().AppendEmpty()
+	other.Resource().Attributes().PutStr("service.name", "other-svc")
+	other.Resource().Attributes().PutStr("container.id", "other-container-id")
+	other.Resource().SetDroppedAttributesCount(2)
+	fillSpanOne(other.ScopeSpans().AppendEmpty().Spans().AppendEmpty())
+
+	return td
+}
+
+func marshalTraces(t *testing.T, td ptrace.Traces) string {
+	t.Helper()
+	b, err := (&ptrace.JSONMarshaler{}).MarshalTraces(td)
+	require.NoError(t, err)
+	return string(b)
+}
+
+// TestConsumeReadOnlyTraces: with the datadog exporter no longer mutating, the fanout
+// consumer marks the shared ptrace.Traces read-only instead of cloning it, so any write on
+// this connector's path now panics.
+func TestConsumeReadOnlyTraces(t *testing.T) {
+	connector, _ := createConnector(t)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	readOnly := readOnlySafetyTrace()
+	before := marshalTraces(t, readOnly)
+	readOnly.MarkReadOnly()
+
+	require.NotPanics(t, func() {
+		require.NoError(t, connector.ConsumeTraces(t.Context(), readOnly))
+	})
+	assert.Equal(t, before, marshalTraces(t, readOnly),
+		"the connector must not modify the traces it is handed")
+}
+
+// TestReadOnlyTracesProduceIdenticalStats: same corpus, same concentrator inputs, read-only
+// or not. Compares the translation step directly to stay independent of bucket timing.
+func TestReadOnlyTracesProduceIdenticalStats(t *testing.T) {
+	connector, _ := createConnector(t)
+
+	inputsFor := func(td ptrace.Traces) []stats.Input {
+		return otelstats.OTLPTracesToConcentratorInputsWithObfuscation(
+			td, connector.tcfg, connector.ctagKeys, connector.concentrator.PeerTagKeys(),
+			connector.primaryTagKeys, connector.obfuscator)
+	}
+
+	// A copy, not a second build: the comparison below can then only fail on a mutation.
+	mutable := readOnlySafetyTrace()
+	readOnly := ptrace.NewTraces()
+	mutable.CopyTo(readOnly)
+	readOnly.MarkReadOnly()
+
+	var fromMutable, fromReadOnly []stats.Input
+	require.NotPanics(t, func() {
+		fromMutable = inputsFor(mutable)
+		fromReadOnly = inputsFor(readOnly)
+	})
+
+	require.NotEmpty(t, fromMutable)
+	sortInputs(fromMutable)
+	sortInputs(fromReadOnly)
+	if diff := cmp.Diff(fromMutable, fromReadOnly, protocmp.Transform()); diff != "" {
+		t.Errorf("read-only traces produced different concentrator inputs (-mutable +readonly):\n%s", diff)
+	}
+	assert.Equal(t, marshalTraces(t, mutable), marshalTraces(t, readOnly))
+}
+
+// sortInputs makes the output deterministic: the translation indexes spans by ID in maps,
+// so input order follows Go's randomized map iteration.
+func sortInputs(inputs []stats.Input) {
+	for _, input := range inputs {
+		for _, pt := range input.Traces {
+			if pt.TraceChunk != nil {
+				sort.Slice(pt.TraceChunk.Spans, func(i, j int) bool {
+					return pt.TraceChunk.Spans[i].SpanID < pt.TraceChunk.Spans[j].SpanID
+				})
+			}
+		}
+		sort.Slice(input.Traces, func(i, j int) bool {
+			return input.Traces[i].Root.SpanID < input.Traces[j].Root.SpanID
+		})
+	}
+	sort.Slice(inputs, func(i, j int) bool {
+		if inputs[i].ContainerID != inputs[j].ContainerID {
+			return inputs[i].ContainerID < inputs[j].ContainerID
+		}
+		return inputs[i].Traces[0].Root.SpanID < inputs[j].Traces[0].Root.SpanID
+	})
+}
+
+// TestConsumeReadOnlyTracesConcurrent: the exporter and this connector now read the same
+// ptrace.Traces concurrently instead of each getting a copy. Meaningful under -race.
+func TestConsumeReadOnlyTracesConcurrent(t *testing.T) {
+	connector, _ := createConnector(t)
+	require.NoError(t, connector.Start(t.Context(), componenttest.NewNopHost()))
+	defer func() {
+		require.NoError(t, connector.Shutdown(t.Context()))
+	}()
+
+	shared := readOnlySafetyTrace()
+	before := marshalTraces(t, shared)
+	shared.MarkReadOnly()
+
+	const consumers = 8
+	var wg sync.WaitGroup
+	errs := make([]error, consumers)
+	for i := range consumers {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			errs[i] = connector.ConsumeTraces(t.Context(), shared)
+		}()
+	}
+	wg.Wait()
+	for _, err := range errs {
+		require.NoError(t, err)
+	}
+	assert.Equal(t, before, marshalTraces(t, shared))
+}
+
+// TestAgentIgnoreResources covers how the span filter of ignoredRootsFilter fits in ConsumeTraces;
+// see root_filter_test.go for the root filter itself.
+func TestAgentIgnoreResources(t *testing.T) {
+	for _, tt := range []struct {
+		name               string
+		traces             ptrace.Traces
+		agentIgnore        []string
+		connectorIgnore    []string
+		wantStatsResources []string
+	}{
+		{
+			name: "matching root drops the trace with its children",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore:        []string{"(GET|POST) /health"},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name: "root is matched before the connector's ignore_resources removes it",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+			}),
+			agentIgnore:     []string{"(GET|POST) /health"},
+			connectorIgnore: []string{"GET /healthcheck"},
+		},
+		{
+			name: "root is matched before obfuscation",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindClient, map[string]string{"db.system": "redis", "db.statement": "SET key value"}},
+			}),
+			agentIgnore: []string{"^SET key value$"},
+		},
+		{
+			name: "resource with client-computed stats still gets no stats",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", "_dd.stats_computed": "true"}},
+				{2, 2, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore: []string{"(GET|POST) /health"},
+		},
+		{
+			name: "false client-computed stats marker does not keep ignored traces",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", "_dd.stats_computed": "false"}},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			}),
+			agentIgnore:        []string{"(GET|POST) /health"},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name: "no agent ignore_resources keeps every trace",
+			traces: newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, healthcheckAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+			}),
+			wantStatsResources: []string{"GET /healthcheck", "SELECT ?"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			agentConf := config.New()
+			agentConf.Ignore["resource"] = tt.agentIgnore
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentConfig(agentConf))
+			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+			cfg.Traces.IgnoreResources = tt.connectorIgnore
+			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
+			require.NoError(t, err)
+			connector := tconn.(*traceToMetricConnector)
+			before := marshalTraces(t, tt.traces)
+
+			require.NoError(t, connector.ConsumeTraces(t.Context(), tt.traces))
+
+			var resources []string
+			for _, csp := range connector.concentrator.Flush(true).Stats {
+				for _, b := range csp.Stats {
+					for _, s := range b.Stats {
+						resources = append(resources, s.Resource)
+					}
+				}
+			}
+			assert.ElementsMatch(t, tt.wantStatsResources, resources)
+			assert.Equal(t, before, marshalTraces(t, tt.traces), "input traces must not be modified")
+		})
+	}
+}
+
+// TestAgentFilterTags covers how apm_config.filter_tags and apm_config.filter_tags_regex fit in ConsumeTraces;
+// see root_filter_test.go for the root filter itself.
+func TestAgentFilterTags(t *testing.T) {
+	probeAttrs := map[string]string{"http.request.method": "GET", "http.route": "/healthcheck", "http.useragent": "kube-probe/1.30"}
+	for _, tt := range []struct {
+		name               string
+		rejectTags         []*config.Tag
+		rejectTagsRegex    []*config.TagRegex
+		wantStatsResources []string
+	}{
+		{
+			name:               "rejected root tag drops the trace with its children",
+			rejectTags:         []*config.Tag{{K: "http.useragent", V: "kube-probe/1.30"}},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name:               "rejected root tag regex drops the trace with its children",
+			rejectTagsRegex:    []*config.TagRegex{{K: "http.useragent", V: regexp.MustCompile("^kube-probe/")}},
+			wantStatsResources: []string{"GET /users"},
+		},
+		{
+			name:               "no agent filter_tags keeps every trace",
+			wantStatsResources: []string{"GET /healthcheck", "SELECT ?", "GET /users"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			traces := newTestTraces([]testSpan{
+				{1, 1, 0, ptrace.SpanKindServer, probeAttrs},
+				{1, 2, 1, ptrace.SpanKindClient, dbAttrs},
+				{2, 3, 0, ptrace.SpanKindServer, usersAttrs},
+			})
+			// container tags are moved out of a copy of the resource, the input resource must stay as is
+			traces.ResourceSpans().At(0).Resource().Attributes().PutStr("datadog.container.tag.team", "payments")
+			agentConf := config.New()
+			agentConf.RejectTags, agentConf.RejectTagsRegex = tt.rejectTags, tt.rejectTagsRegex
+			factory := NewConnectorFactory(datadogComponentType, component.StabilityLevelBeta, component.StabilityLevelBeta, nil, nil, nil, WithAgentConfig(agentConf))
+			cfg := factory.CreateDefaultConfig().(*datadogconfig.ConnectorComponentConfig)
+			tconn, err := factory.CreateTracesToMetrics(t.Context(), connectortest.NewNopSettings(datadogComponentType), cfg, consumertest.NewNop())
+			require.NoError(t, err)
+			connector := tconn.(*traceToMetricConnector)
+			before := marshalTraces(t, traces)
+
+			require.NoError(t, connector.ConsumeTraces(t.Context(), traces))
+
+			var resources []string
+			for _, csp := range connector.concentrator.Flush(true).Stats {
+				for _, b := range csp.Stats {
+					for _, s := range b.Stats {
+						resources = append(resources, s.Resource)
+					}
+				}
+			}
+			assert.ElementsMatch(t, tt.wantStatsResources, resources)
+			assert.Equal(t, before, marshalTraces(t, traces), "input traces must not be modified")
+		})
+	}
+}

@@ -21,6 +21,7 @@ import (
 	"go.uber.org/atomic"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -59,12 +60,12 @@ func NewRCPolicyProvider(dumpPolicies bool, setEnforcementCallback func(bool), i
 		return nil, fmt.Errorf("failed to parse agent version: %w", err)
 	}
 
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, fmt.Errorf("failed to get ipc address: %w", err)
 	}
 
-	c, err := client.NewGRPCClient(ipcAddress, pkgconfigsetup.GetIPCPort(),
+	c, err := client.NewGRPCClient(ipcAddress, pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
 		ipc.GetAuthToken(),
 		ipc.GetTLSClientConfig(),
 		client.WithAgent(agentName, agentVersion.String()),

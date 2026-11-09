@@ -18,7 +18,8 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
 // DatadogBinaries is the list of Datadog agent binary names used to filter
@@ -60,20 +61,20 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 		// Copy the dynamic instrumentation tombstone file if it exists.
 		// This file persists probe definitions across restarts and is
 		// valuable for debugging even when system-probe is not running.
-		dyninstTombstonePath := filepath.Join(os.TempDir(), "datadog-agent", "system-probe", "dynamic-instrumentation", "debugger-probes-tombstone.json")
+		dyninstTombstonePath := filepath.Join(defaultpaths.GetDefaultRunPath(), "system-probe", "dynamic-instrumentation", "debugger-probes-tombstone.json")
 		fb.CopyFileTo(dyninstTombstonePath, filepath.Join("system-probe", "dyninst_tombstone.json")) //nolint:errcheck
 	}
 }
 
 func getSystemProbeConntrackCached() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/cached")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.NetworkTracerModule, "/debug/conntrack/cached")
 	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 
 func getSystemProbeConntrackHost() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/host")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.NetworkTracerModule, "/debug/conntrack/host")
 	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 
@@ -97,7 +98,7 @@ func getSystemProbeSelinuxSemoduleList() ([]byte, error) {
 
 func getSystemProbeDiscoveryState() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
-	url := sysprobeclient.ModuleURL(sysconfig.DiscoveryModule, "/state")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.DiscoveryModule, "/state")
 	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 

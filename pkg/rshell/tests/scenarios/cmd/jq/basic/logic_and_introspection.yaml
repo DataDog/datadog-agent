@@ -1,0 +1,9 @@
+description: jq supports fallback, boolean operators, and comparisons.
+input:
+  script: |+
+    printf '%s\n' '{"active":true,"count":2}' | jq -c '[.missing // 7, (.active and (.count > 1)), (false or .active)]'
+expect:
+  stdout: |+
+    [7,true,true]
+  stderr: |+
+  exit_code: 0

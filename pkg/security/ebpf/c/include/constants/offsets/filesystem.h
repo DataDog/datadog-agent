@@ -26,6 +26,18 @@ static __attribute__((always_inline)) struct inode* get_dentry_inode(struct dent
     return inode;
 }
 
+static void __attribute__((always_inline)) read_dentry_parent(struct dentry *dentry, struct dentry **parent) {
+    u64 dentry_d_parent_offset;
+    LOAD_CONSTANT("dentry_d_parent_offset", dentry_d_parent_offset);
+    bpf_probe_read(parent, sizeof(*parent), (void *)dentry + dentry_d_parent_offset);
+}
+
+static struct dentry *__attribute__((always_inline)) get_dentry_parent(struct dentry *dentry) {
+    struct dentry *parent;
+    read_dentry_parent(dentry, &parent);
+    return parent;
+}
+
 static dev_t __attribute__((always_inline)) get_sb_dev(struct super_block *sb) {
     u64 sb_dev_offset;
     LOAD_CONSTANT("sb_dev_offset", sb_dev_offset);
@@ -68,40 +80,40 @@ static u32 __attribute__((always_inline)) get_mount_offset_of_mount_id(void) {
     return offset; // offsetof(struct mount, mnt_id)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mount_id_unique(void) {
+static __always_inline u32 get_mount_offset_of_mount_id_unique(void) {
     u64 offset;
     LOAD_CONSTANT("mount_id_unique_offset", offset);
     return offset; // offsetof(struct mount, mnt_id_unique)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mount_ns(void) {
+static __always_inline u32 get_mount_offset_of_mount_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mount_ns_offset", offset);
     return offset; // offsetof(struct mount, mnt_ns)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_nscommon_inum(void) {
-    u64 offset;
-    LOAD_CONSTANT("ns_common_inum_offset", offset);
-    return offset; // offsetof(struct ns_common, inum)
-}
-
-u32 __attribute__((always_inline)) get_mount_offset_of_parent(void) {
+static __always_inline u32 get_mount_offset_of_parent(void) {
     u64 offset;
     LOAD_CONSTANT("mount_parent_offset", offset);
     return offset; // offsetof(struct mount, mnt_parent)
 }
 
-u32 __attribute__((always_inline)) get_mount_offset_of_mountpoint(void) {
+static __always_inline u32 get_mount_offset_of_mountpoint(void) {
     u64 offset;
     LOAD_CONSTANT("mount_mountpoint_offset", offset);
     return offset; // offsetof(struct mount, mnt_mp)
 }
 
-u32 __attribute__((always_inline)) get_mnt_namespace_ns(void) {
+static __always_inline u32 get_mnt_namespace_ns(void) {
     u64 offset;
     LOAD_CONSTANT("mnt_namespace_ns", offset);
     return offset; // offsetof(struct mnt_namespace, ns)
+}
+
+static __always_inline u32 get_ns_common_inum_offset(void) {
+    u64 offset;
+    LOAD_CONSTANT("ns_common_inum_offset", offset);
+    return offset; // offsetof(struct ns_common, inum)
 }
 
 static int __attribute__((always_inline)) get_vfsmount_mount_id(struct vfsmount *mnt) {
@@ -157,34 +169,63 @@ static struct dentry *__attribute__((always_inline)) get_mount_mountpoint_dentry
     return dentry;
 }
 
-u64 __attribute__((always_inline)) get_mount_mount_id_unique(void *mnt) {
+static __always_inline u64 get_mount_mount_id_unique(void *mnt) {
     u64 mount_id;
 
     bpf_probe_read(&mount_id, sizeof(mount_id), (char *)mnt + get_mount_offset_of_mount_id_unique());
     return mount_id;
 }
 
-u32 __attribute__((always_inline)) get_mount_mount_ns_inum(void *mnt) {
-    void* mnt_ns = NULL;
-    u32   inum = 0;
-
-    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
+static __always_inline u32 get_mnt_namespace_inum(void *mnt_ns) {
     if (!mnt_ns) {
         return 0;
     }
 
-    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_mount_offset_of_nscommon_inum());
+    u32 inum = 0;
+    u32 ns_inum_offset = get_ns_common_inum_offset();
+    if (ns_inum_offset == 0) {
+        // Before Linux 3.19 (no struct ns_common), struct mnt_namespace starts with
+        // atomic_t count followed by unsigned int proc_inum at offset 4.
+        bpf_probe_read(&inum, sizeof(inum), mnt_ns + sizeof(atomic_t));
+        return inum;
+    }
+
+    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + ns_inum_offset);
     return inum;
 }
 
-struct mount * __attribute__((always_inline)) get_mount_parent(void *mnt) {
+static __always_inline u32 get_mount_mount_ns_inum(void *mnt) {
+    void* mnt_ns = NULL;
+
+    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
+    return get_mnt_namespace_inum(mnt_ns);
+}
+
+static void * __attribute__((always_inline)) get_vfsmount_mount(struct vfsmount *mnt) {
+    return (void *)((char *)mnt - MNT_OFFSETOF_MNT);
+}
+
+// MNT_NS_INTERNAL, from fs/mount.h: the sentinel the kernel stores in mount.mnt_ns for mounts
+// that belong to no mount namespace at all.
+#define MNT_NS_INTERNAL_PTR ((void *)(long)-EINVAL)
+
+// is_internal_mount returns whether the mount is one the kernel keeps to itself.
+static int __attribute__((always_inline)) is_internal_mount(struct vfsmount *mnt) {
+    void *mnt_ns = NULL;
+
+    // on a failed read mnt_ns stays NULL and we report "not internal"
+    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), (char *)get_vfsmount_mount(mnt) + get_mount_offset_of_mount_ns());
+    return mnt_ns == MNT_NS_INTERNAL_PTR;
+}
+
+static __always_inline struct mount *get_mount_parent(void *mnt) {
     struct mount *mnt_parent = NULL;
 
     bpf_probe_read(&mnt_parent, sizeof(mnt_parent), mnt + get_mount_offset_of_parent());
     return mnt_parent;
 }
 
-struct mountpoint * __attribute__((always_inline)) get_mount_mountpoint(void *mnt) {
+static __always_inline struct mountpoint *get_mount_mountpoint(void *mnt) {
     struct mountpoint *mnt_mp = NULL;
 
     bpf_probe_read(&mnt_mp, sizeof(mnt_mp), mnt + get_mount_offset_of_mountpoint());
@@ -255,6 +296,29 @@ static unsigned long __attribute__((always_inline)) get_dentry_ino(struct dentry
     return get_inode_ino(get_dentry_inode(dentry));
 }
 
+// Callers that resolve names in an unrolled loop must compute the inode/ino offsets once
+// and pass it to get_inode_ino_at/get_dentry_ino_at, otherwise the repeated constant loads inflate
+// the program past the instruction limit enforced on older kernels (< 5.2).
+
+static struct inode *__attribute__((always_inline)) get_dentry_inode_at(struct dentry *dentry, u64 d_inode_offset) {
+    struct inode *inode;
+    bpf_probe_read(&inode, sizeof(inode), (void *)dentry + d_inode_offset);
+    return inode;
+}
+
+static unsigned long __attribute__((always_inline)) get_inode_ino_at(struct inode *inode, u64 inode_ino_offset) {
+    unsigned long ino;
+    bpf_probe_read(&ino, sizeof(ino), (void *)inode + inode_ino_offset);
+    return ino;
+}
+
+static unsigned long __attribute__((always_inline)) get_dentry_ino_at(struct dentry *dentry, u64 d_inode_offset, u64 inode_ino_offset) {
+    if (!dentry) {
+        return 0;
+    }
+    return get_inode_ino_at(get_dentry_inode_at(dentry, d_inode_offset), inode_ino_offset);
+}
+
 static struct dentry *__attribute__((always_inline)) get_path_dentry(struct path *path) {
     u64 offset;
     LOAD_CONSTANT("path_dentry_offset", offset);
@@ -287,13 +351,32 @@ static unsigned long __attribute__((always_inline)) get_path_ino(struct path *pa
     return get_dentry_ino(dentry);
 }
 
-static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
-	u64 dentry_d_name_offset;
-	LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+static u64 __attribute__((always_inline)) get_dentry_name_offset(void) {
+    u64 dentry_d_name_offset;
+    LOAD_CONSTANT("dentry_d_name_offset", dentry_d_name_offset);
+    u64 qstr_name_offset;
+    LOAD_CONSTANT("qstr_name_offset", qstr_name_offset);
+    return dentry_d_name_offset + qstr_name_offset;
+}
 
-    struct qstr qstr;
-    bpf_probe_read(&qstr, sizeof(qstr), (void *)dentry + dentry_d_name_offset);
-    bpf_probe_read_str(buffer, n, (void *)qstr.name);
+// Callers that resolve names in an unrolled loop must compute get_dentry_name_offset once
+// and pass it to get_dentry_name_ptr_at(), otherwise the repeated constant loads inflate
+// the program past the instruction limit enforced on older kernels (< 5.2).
+static const char *__attribute__((always_inline)) get_dentry_name_ptr_at(struct dentry *dentry, u64 name_offset) {
+    // read the qstr.name pointer directly using the load-time offset, so we don't
+    // rely on the compile-time layout of struct qstr from the kernel headers
+    const char *name;
+    bpf_probe_read(&name, sizeof(name), (void *)dentry + name_offset);
+    return name;
+}
+
+static const char *__attribute__((always_inline)) get_dentry_name_ptr(struct dentry *dentry) {
+    return get_dentry_name_ptr_at(dentry, get_dentry_name_offset());
+}
+
+static void __attribute__((always_inline)) get_dentry_name(struct dentry *dentry, void *buffer, size_t n) {
+    const char *name = get_dentry_name_ptr(dentry);
+    bpf_probe_read_str(buffer, n, (void *)name);
 }
 
 static int __attribute__((always_inline)) get_sizeof_inode() {
@@ -578,6 +661,12 @@ static __attribute__((always_inline)) u64 get_iokiocb_ctx_offset() {
     u64 iokiocb_ctx_offset;
     LOAD_CONSTANT("iokiocb_ctx_offset", iokiocb_ctx_offset);
     return iokiocb_ctx_offset;
+}
+
+static __attribute__((always_inline)) u64 get_iokiocb_opcode_offset() {
+    u64 iokiocb_opcode_offset;
+    LOAD_CONSTANT("iokiocb_opcode_offset", iokiocb_opcode_offset);
+    return iokiocb_opcode_offset;
 }
 
 static __attribute__((always_inline)) u64 get_getattr2() {

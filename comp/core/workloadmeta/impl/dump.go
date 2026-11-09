@@ -35,6 +35,8 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 			info = e.String(verbose)
 		case *wmdef.KubernetesMetadata:
 			info = e.String(verbose)
+		case *wmdef.KubernetesNode:
+			info = e.String(verbose)
 		case *wmdef.GPU:
 			info = e.String(verbose)
 		case *wmdef.Kubelet:
@@ -42,6 +44,12 @@ func (w *workloadmeta) Dump(verbose bool) wmdef.WorkloadDumpResponse {
 		case *wmdef.CRD:
 			info = e.String(verbose)
 		case *wmdef.KubeCapabilities:
+			info = e.String(verbose)
+		case *wmdef.KubernetesKueueWorkload:
+			info = e.String(verbose)
+		case *wmdef.KubernetesKAIPodGroup:
+			info = e.String(verbose)
+		case *wmdef.KubernetesAutoscaler:
 			info = e.String(verbose)
 		default:
 			return "", fmt.Errorf("unsupported type %T", e)

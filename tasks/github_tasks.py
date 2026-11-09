@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import functools
 import json
 import os
 from collections import Counter
@@ -8,66 +9,24 @@ from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.tasks import task
 
-from tasks.libs.ciproviders.github_actions_tools import (
-    download_artifacts,
-    download_with_retry,
-    follow_workflow_run,
-    print_failed_jobs_logs,
-    print_workflow_conclusion,
-    trigger_windows_bump_workflow,
-)
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.datadog_api import send_event
-from tasks.libs.owners.linter import codeowner_has_orphans, directory_has_packages_without_owner
+from tasks.libs.owners.linter import (
+    ai_artefacts_have_owner,
+    codeowner_has_orphans,
+    directory_has_packages_without_owner,
+    skills_use_agents_directory,
+)
 from tasks.libs.owners.parsing import read_owners
 from tasks.libs.pipeline.notifications import DEFAULT_SLACK_CHANNEL, GITHUB_SLACK_MAP
-from tasks.libs.releasing.version import current_version
 from tasks.libs.types.types import PermissionCheck
 
 ALL_TEAMS = '@datadog/agent-community-eng'
-
-
-def _update_windows_runner_version(new_version=None, repo="ci-platform-machine-images"):
-    if new_version is None:
-        raise Exit(message="workflow needs the 'new_version' field value to be not None")
-    args_per_repo = {
-        "ci-platform-machine-images": {
-            "workflow_name": "windows-runner-agent-bump.yml",
-            "github_action_ref": "main",
-        },
-    }
-
-    run = trigger_windows_bump_workflow(
-        repo=repo,
-        workflow_name=args_per_repo[repo]["workflow_name"],
-        github_action_ref=args_per_repo[repo]["github_action_ref"],
-        new_version=new_version,
-    )
-    full_repo = f"DataDog/{repo}"
-    workflow_conclusion, workflow_url = follow_workflow_run(run, full_repo, 0.5)
-
-    if workflow_conclusion != "success":
-        if workflow_conclusion == "failure":
-            print_failed_jobs_logs(run)
-        return workflow_conclusion
-
-    print_workflow_conclusion(workflow_conclusion, workflow_url)
-
-    download_with_retry(download_artifacts, run, ".", 3, 5, full_repo)
-
-    with open("PR_URL_ARTIFACT") as f:
-        PR_URL = f.read().strip()
-
-    if not PR_URL:
-        raise Exit(message="Failed to fetch artifact from the workflow. (Empty artifact)")
-
-    message = f":robobits: A new windows-runner bump PR to {new_version} has been generated. Please take a look :frog-review:\n:pr: {PR_URL} :ty:"
-
-    from slack_sdk import WebClient
-
-    client = WebClient(token=os.environ["SLACK_DATADOG_AGENT_BOT_TOKEN"])
-    client.chat_postMessage(channel="ci-infra-support", text=message)
-    return workflow_conclusion
+QA_LABELS = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
+QA_SKIP_LABEL = 'qa/no-code-change'
+CHANGELOG_SKIP_LABEL = 'changelog/no-changelog'
+# Identity of the GitHub app token used by the add-label-pr workflows
+LABEL_BOT = 'dd-octo-sts[bot]'
 
 
 @task
@@ -93,24 +52,7 @@ def is_pr_ready(ctx, git_ref: str, target_branch: str | None = None):
 
 
 @task
-def update_windows_runner_version(
-    ctx,
-    new_version=None,
-):
-    """
-    Trigger a workflow on the ci-platform-machine-images repository to bump windows gitlab runner
-    """
-    if new_version is None:
-        new_version = str(current_version(ctx, "7"))
-
-    repo = "ci-platform-machine-images"
-    conclusion = _update_windows_runner_version(new_version, repo)
-    if conclusion != "success":
-        raise Exit(message=f"Windows runner bump workflow {conclusion} for {repo}", code=1)
-
-
-@task
-def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
+def lint_codeowner(ctx, owners_file=".github/CODEOWNERS"):
     """
     Run multiple checks on the provided CODEOWNERS file
     """
@@ -125,7 +67,12 @@ def lint_codeowner(_, owners_file=".github/CODEOWNERS"):
     owners = read_owners(owners_file)
 
     # Define linters
-    linters = [directory_has_packages_without_owner, codeowner_has_orphans]
+    linters = [
+        directory_has_packages_without_owner,
+        codeowner_has_orphans,
+        functools.partial(ai_artefacts_have_owner, ctx),
+        functools.partial(skills_use_agents_directory, ctx),
+    ]
 
     # Execute linters
     for linter in linters:
@@ -238,16 +185,53 @@ def _assign_pr_team_labels(gh, pr_id, teams):
 
 
 @task
-def handle_community_pr(_, repo='', pr_id=-1, labels=''):
+def assign_no_shipped_change_labels(_, pr_id=-1):
     """
-    Will set labels and notify teams about a newly opened community PR
+    Assigns the 'changelog/no-changelog' and 'qa/no-code-change' labels if the PR
+    changes no file used to build an Agent package or image.
+    Removes them if they were assigned by this task and the PR now changes shipped files.
+    """
+    from tasks.libs.ciproviders.github_api import GithubAPI
+    from tasks.libs.common.shipped_files import touches_shipped_files
+
+    gh = GithubAPI('DataDog/datadog-agent')
+    pr = gh.get_pr(pr_id)
+    # A file renamed out of a shipped path removes it from the deliveries
+    files = gh.get_pr_files_with_previous_names(pr_id)
+    labels = set(gh.get_pr_labels(pr_id))
+    # The API lists at most 3000 files, consider the remaining ones as shipped
+    shipped = pr.changed_files > 3000 or touches_shipped_files(files)
+
+    if not shipped:
+        has_release_note = any(file.startswith(('releasenotes/notes/', 'releasenotes-dca/notes/')) for file in files)
+        if CHANGELOG_SKIP_LABEL not in labels and not has_release_note:
+            gh.add_pr_label(pr_id, CHANGELOG_SKIP_LABEL)
+            print(CHANGELOG_SKIP_LABEL, 'label assigned to the pull request')
+        if not labels & QA_LABELS:
+            gh.add_pr_label(pr_id, QA_SKIP_LABEL)
+            print(QA_SKIP_LABEL, 'label assigned to the pull request')
+        return
+
+    # Bot authored PRs set these labels themselves, with the same identity as this task
+    if pr.user.login.endswith('[bot]'):
+        return
+    for label in (CHANGELOG_SKIP_LABEL, QA_SKIP_LABEL):
+        if label in labels and gh.get_pr_label_author(pr_id, label) == LABEL_BOT:
+            _remove_pr_label(gh, pr_id, label)
+            print(label, 'label removed from the pull request as it now changes shipped files')
+
+
+@task
+def notify_community_pr(_, repo='', pr_id=-1):
+    """
+    Will notify the teams owning the changed files about a community PR
     """
     from slack_sdk import WebClient
 
     from tasks.libs.ciproviders.github_api import GithubAPI
 
-    # Get review teams / channels
     gh = GithubAPI()
+    pr = gh.get_pr(pr_id)
 
     # Find teams corresponding to file changes
     teams = _get_teams(gh.get_pr_files(pr_id)) or [ALL_TEAMS]
@@ -256,17 +240,9 @@ def handle_community_pr(_, repo='', pr_id=-1, labels=''):
     # Remove duplicates
     channels = list(set(channels))
 
-    # Update labels
-    for label in labels.split(','):
-        if label:
-            gh.add_pr_label(pr_id, label)
-
-    if teams != [ALL_TEAMS]:
-        _assign_pr_team_labels(gh, pr_id, teams)
-
     # Create message
-    pr = gh.get_pr(pr_id)
-    title = pr.title.strip()
+    # Escape Slack control characters: the title comes from an external contributor
+    title = pr.title.strip().replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;')
     message = f':pr: *New Community PR*\n{title} <{pr.html_url}|{repo}#{pr_id}>'
 
     # Post message
@@ -431,8 +407,7 @@ def pr_merge_dd_event_sender(
 
     tags = [f'repo:{pr.base.repo.full_name}', f'pr_id:{pr.number}', f'author:{pr.user.login}']
     labels = set(github.get_pr_labels(pr.number))
-    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
-    qa_labels = all_qa_labels.intersection(labels)
+    qa_labels = QA_LABELS.intersection(labels)
     if len(qa_labels) == 0:
         tags.append('qa_label:missing')
     else:
@@ -566,8 +541,7 @@ def check_qa_labels(_, labels: str):
     Check if the PR has one of qa/[done|no-code-change|rc-required] label
     """
     labels = set(labels.split(" "))
-    all_qa_labels = {'qa/done', 'qa/no-code-change', 'qa/rc-required'}
-    qa_labels = all_qa_labels.intersection(labels)
+    qa_labels = QA_LABELS.intersection(labels)
     docs = "\n".join(
         [
             "You must set one of:",

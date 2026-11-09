@@ -17,17 +17,19 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/DataDog/zstd"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
+	"github.com/DataDog/datadog-agent/cmd/agent/subcommands/dogstatsdcommon"
 	"github.com/DataDog/datadog-agent/comp/core"
 	cconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
@@ -52,11 +54,13 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "top",
 		Short: "Display metrics with most contexts in the aggregator",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(topContexts,
+			return fxutil.OneShot(
+				topContexts,
 				fx.Supply(&topFlags),
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true),
+				}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -73,10 +77,12 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Use:   "dump-contexts",
 		Short: "Write currently tracked contexts as JSON",
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return fxutil.OneShot(dumpContexts,
+			return fxutil.OneShot(
+				dumpContexts,
 				fx.Supply(core.BundleParams{
 					ConfigParams: cconfig.NewAgentParams(globalParams.ConfFilePath, cconfig.WithExtraConfFiles(globalParams.ExtraConfFilePath), cconfig.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true)}),
+					LogParams:    log.ForOneShot(command.LoggerName, topFlags.logLevelDefaultOff.Value(), true),
+				}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -87,7 +93,7 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 }
 
 func triggerDump(config cconfig.Component, client ipc.HTTPClient) (string, error) {
-	addr, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
+	addr, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", err
 	}
@@ -109,6 +115,10 @@ func triggerDump(config cconfig.Component, client ipc.HTTPClient) (string, error
 }
 
 func dumpContexts(config cconfig.Component, _ log.Component, client ipc.HTTPClient) error {
+	if err := dogstatsdcommon.CheckDataPlaneOwnsDogstatsd(config); err != nil {
+		return err
+	}
+
 	path, err := triggerDump(config, client)
 	if err != nil {
 		return err
@@ -129,6 +139,10 @@ func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, cli
 
 	path := flags.path
 	if path == "" {
+		if err := dogstatsdcommon.CheckDataPlaneOwnsDogstatsd(config); err != nil {
+			return err
+		}
+
 		path, err = triggerDump(config, client)
 		if err != nil {
 			return err
@@ -145,7 +159,10 @@ func topContexts(config cconfig.Component, flags *topFlags, _ log.Component, cli
 	var r io.Reader = bufio.NewReader(f)
 
 	if strings.HasSuffix(path, ".zstd") {
-		d := zstd.NewReader(r)
+		d, err := zstd.NewReader(r)
+		if err != nil {
+			return err
+		}
 		defer d.Close()
 		r = d
 	}

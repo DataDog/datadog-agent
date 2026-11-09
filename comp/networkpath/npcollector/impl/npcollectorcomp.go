@@ -12,37 +12,42 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	npcollector "github.com/DataDog/datadog-agent/comp/networkpath/npcollector/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/def"
 	nooprdnsquerier "github.com/DataDog/datadog-agent/comp/rdnsquerier/impl-none"
+	rctypes "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 )
 
 type dependencies struct {
 	compdef.In
-	Lc          compdef.Lifecycle
-	EpForwarder eventplatform.Component
-	Traceroute  traceroute.Component
-	Logger      log.Component
-	AgentConfig config.Component
-	RDNSQuerier rdnsquerier.Component
-	Statsd      statsd.ClientInterface
+	Lc             compdef.Lifecycle
+	EpForwarder    eventplatform.Component
+	Traceroute     traceroute.Component
+	Logger         log.Component
+	AgentConfig    config.Component
+	SysprobeConfig sysprobeconfig.Component
+	RDNSQuerier    rdnsquerier.Component
+	Statsd         statsd.ClientInterface
 }
 
 // Provides defines the output of the npcollector component
 type Provides struct {
 	compdef.Out
 
-	Comp npcollector.Component
+	Comp       npcollector.Component
+	RCListener rctypes.ListenerProvider
 }
 
-// NewNpCollector creates a new npcollector component.
-func NewNpCollector(deps dependencies) Provides {
+// NewComponent creates a new npcollector component.
+func NewComponent(deps dependencies) Provides {
 	var collector *npCollectorImpl
 
-	configs := newConfig(deps.AgentConfig, deps.Logger)
+	configs := newConfig(deps.AgentConfig, deps.SysprobeConfig, deps.Logger)
 	deps.Logger.Debugf("Network Path Configs: %+v", configs)
 	if configs.networkPathCollectorEnabled() {
 		deps.Logger.Debug("Network Path Collector enabled")
@@ -80,7 +85,15 @@ func NewNpCollector(deps dependencies) Provides {
 		collector = newNoopNpCollectorImpl()
 	}
 
-	return Provides{
-		Comp: collector,
+	return Provides{Comp: collector, RCListener: newRCListener(deps.AgentConfig, collector)}
+}
+
+func newRCListener(cfg config.Component, collector *npCollectorImpl) rctypes.ListenerProvider {
+	var listener rctypes.ListenerProvider
+	if cfg.GetBool("network_path.remote_config.enabled") {
+		listener.ListenerProvider = rctypes.RCListener{
+			data.ProductNetworkPath: collector.UpdateRemoteConfig,
+		}
 	}
+	return listener
 }

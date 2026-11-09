@@ -6,6 +6,7 @@
 package testutils
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 
@@ -17,7 +18,7 @@ import (
 type InjectionMode string
 
 const (
-	// InjectionModeAuto uses init containers (the current default injection method).
+	// InjectionModeAuto lets the webhook pick the injection method.
 	InjectionModeAuto InjectionMode = "auto"
 	// InjectionModeInitContainer uses init containers to copy library files.
 	InjectionModeInitContainer InjectionMode = "init_container"
@@ -25,6 +26,51 @@ const (
 	InjectionModeCSI InjectionMode = "csi"
 	// InjectionModeImageVolume uses image volumes to mount library files.
 	InjectionModeImageVolume InjectionMode = "image_volume"
+)
+
+// Annotation keys written by the admission webhook to record the outcome of an
+// injection attempt. They are duplicated here (rather than imported) because
+// the source of truth in
+// pkg/clusteragent/admission/mutate/autoinstrumentation/annotation is built
+// behind the "kubeapiserver" build tag, which these test utilities must not
+// require.
+const (
+	// EffectiveInjectionModeAnnotation records the injection mode actually used by the webhook.
+	EffectiveInjectionModeAnnotation = "internal.apm.datadoghq.com/effective-injection-mode"
+	// CSIDriverStatusAnnotation records the observed Datadog CSI driver state.
+	CSIDriverStatusAnnotation = "internal.apm.datadoghq.com/csi-driver-status"
+	// InjectionStatusAnnotation records the overall outcome of the injection attempt.
+	InjectionStatusAnnotation = "internal.apm.datadoghq.com/injection-status"
+	// InjectedLibrariesAnnotation records the JSON array of components the webhook attempted to inject.
+	InjectedLibrariesAnnotation = "internal.apm.datadoghq.com/injected-libraries"
+	// AppliedConfigAnnotation is the JSON of the configuration selected for injection.
+	AppliedConfigAnnotation = "internal.apm.datadoghq.com/applied-config"
+	// InjectionSourceAnnotation identifies the source that selected the libraries.
+	InjectionSourceAnnotation = "internal.apm.datadoghq.com/injection-source"
+)
+
+// CSIDriverStatus annotation values (kept in sync with the annotation package).
+const (
+	// CSIDriverStatusAPMEnabled means the Datadog CSI driver is installed and advertises APM SSI support.
+	CSIDriverStatusAPMEnabled = "apm-enabled"
+	// CSIDriverStatusAPMDisabled means the driver is installed but APM SSI support is not advertised.
+	CSIDriverStatusAPMDisabled = "apm-disabled"
+	// CSIDriverStatusNotInstalled means the Datadog CSI driver object was not found in the cluster.
+	CSIDriverStatusNotInstalled = "not-installed"
+)
+
+// InjectionStatus annotation values (kept in sync with the annotation package).
+const (
+	// InjectionStatusInjected means the injector and all requested libraries were successfully injected.
+	InjectionStatusInjected = "injected"
+	// InjectionStatusPartial means the injector succeeded but at least one library was skipped.
+	InjectionStatusPartial = "partial"
+	// InjectionStatusSkipped means injection was skipped before it started.
+	InjectionStatusSkipped = "skipped"
+	// InjectionStatusError means a fatal error prevented the injector from running.
+	InjectionStatusError = "error"
+	// InjectionStatusBlocked means a remote-config policy denied injection.
+	InjectionStatusBlocked = "blocked"
 )
 
 // InjectionValidator validates injection-specific aspects of a pod.
@@ -53,7 +99,8 @@ type PodValidator struct {
 }
 
 // NewPodValidator initializes a new PodValidator from a Kubernetes pod spec. It creates container validators for
-// every container and init container in the pod.
+// every container and init container in the pod. With InjectionModeAuto, the mode is read from the
+// effective-injection-mode annotation, and defaults to init containers when the annotation is absent.
 func NewPodValidator(pod *corev1.Pod, mode InjectionMode) *PodValidator {
 	v := &PodValidator{
 		raw:                 pod,
@@ -62,15 +109,16 @@ func NewPodValidator(pod *corev1.Pod, mode InjectionMode) *PodValidator {
 		volumes:             newVolumeMap(pod.Spec.Volumes),
 	}
 
+	if effective, ok := pod.Annotations[EffectiveInjectionModeAnnotation]; mode == InjectionModeAuto && ok {
+		mode = InjectionMode(strings.TrimSuffix(effective, " (auto)"))
+	}
+
 	// Set injection validator based on mode
 	switch mode {
 	case InjectionModeCSI:
 		v.injection = newCSIInjectionValidator(v, pod)
 	case InjectionModeImageVolume:
 		v.injection = newImageVolumeInjectionValidator(v, pod)
-	// Auto mode currently uses init containers as the default injection method
-	case InjectionModeAuto, InjectionModeInitContainer:
-		fallthrough
 	default:
 		v.injection = newInitContainerInjectionValidator(v, pod)
 	}
@@ -152,6 +200,76 @@ func (v *PodValidator) RequireAnnotations(t *testing.T, expected map[string]stri
 	}
 }
 
+// EffectiveAutoMode returns the value the webhook records in the
+// effective-injection-mode annotation when "auto" mode resolves to the given
+// concrete mode (e.g. EffectiveAutoMode(InjectionModeCSI) == "csi (auto)").
+func EffectiveAutoMode(resolved InjectionMode) string {
+	return string(resolved) + " (auto)"
+}
+
+// RequireMissingAnnotations ensures the pod does not carry any of the given annotation keys.
+func (v *PodValidator) RequireMissingAnnotations(t *testing.T, keys []string) {
+	for _, key := range keys {
+		_, exists := v.raw.Annotations[key]
+		require.False(t, exists, "annotation %s should not exist", key)
+	}
+}
+
+// RequireEffectiveInjectionMode ensures the webhook recorded the given resolved injection mode on the pod.
+// The expected value is the raw annotation value: the bare mode for explicit modes (e.g. "csi") and the
+// resolved mode suffixed with " (auto)" when "auto" mode was used (use EffectiveAutoMode to build it).
+func (v *PodValidator) RequireEffectiveInjectionMode(t *testing.T, expected string) {
+	v.RequireAnnotations(t, map[string]string{EffectiveInjectionModeAnnotation: expected})
+}
+
+// RequireInjectionStatus ensures the webhook recorded the given overall injection status on the pod.
+// Use the InjectionStatus* constants for the expected value.
+func (v *PodValidator) RequireInjectionStatus(t *testing.T, expected string) {
+	v.RequireAnnotations(t, map[string]string{InjectionStatusAnnotation: expected})
+}
+
+// RequireCSIDriverStatus ensures the webhook recorded the given Datadog CSI driver status on the pod.
+// Use the CSIDriverStatus* constants for the expected value.
+func (v *PodValidator) RequireCSIDriverStatus(t *testing.T, expected string) {
+	v.RequireAnnotations(t, map[string]string{CSIDriverStatusAnnotation: expected})
+}
+
+// RequireAppliedConfigName ensures applied-config is set and its JSON name matches expected.
+func (v *PodValidator) RequireAppliedConfigName(t *testing.T, expected string) {
+	requireAppliedJSONName(t, v.raw, AppliedConfigAnnotation, expected)
+}
+
+func requireAppliedJSONName(t *testing.T, pod *corev1.Pod, key, expected string) {
+	t.Helper()
+	raw, exists := pod.Annotations[key]
+	require.True(t, exists, "annotation %s should exist", key)
+	var payload struct {
+		Name string `json:"name"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(raw), &payload), "annotation %s is not JSON: %s", key, raw)
+	require.Equal(t, expected, payload.Name, "annotation %s name", key)
+}
+
+// RequireInjectedLibraries ensures the injected-libraries annotation lists exactly the expected
+// component-name -> status pairs (e.g. {"injector":"injected","python":"injected"}). Image references
+// are intentionally not asserted as they depend on the resolved registry and digest.
+func (v *PodValidator) RequireInjectedLibraries(t *testing.T, expected map[string]string) {
+	raw, ok := v.raw.Annotations[InjectedLibrariesAnnotation]
+	require.True(t, ok, "injected-libraries annotation does not exist")
+
+	var entries []struct {
+		Name   string `json:"name"`
+		Status string `json:"status"`
+	}
+	require.NoError(t, json.Unmarshal([]byte(raw), &entries), "injected-libraries annotation is not valid JSON")
+
+	got := make(map[string]string, len(entries))
+	for _, e := range entries {
+		got[e.Name] = e.Status
+	}
+	require.Equal(t, expected, got, "injected-libraries components/statuses do not match")
+}
+
 // RequireVolumeNames ensures the list of volume names exist in the pod.
 func (v *PodValidator) RequireVolumeNames(t *testing.T, expected []string) {
 	for _, name := range expected {
@@ -166,6 +284,13 @@ func (v *PodValidator) RequireMissingVolumeNames(t *testing.T, missing []string)
 		_, exists := v.volumes[name]
 		require.False(t, exists, "volume name %s should not exist in pod", name)
 	}
+}
+
+const instrumentationInstallTypeEnvVar = "DD_INSTRUMENTATION_INSTALL_TYPE"
+
+// RequireInstallType ensures DD_INSTRUMENTATION_INSTALL_TYPE is set on the given containers.
+func (v *PodValidator) RequireInstallType(t *testing.T, expected string, expectedContainers []string) {
+	v.RequireEnvs(t, map[string]string{instrumentationInstallTypeEnvVar: expected}, expectedContainers)
 }
 
 // RequireEnvs ensures the expected env vars exist in the expected containers with the expected values.

@@ -45,6 +45,8 @@ const (
 	// ConditionReasonLimitedByConstraint indicates the recommendation was clamped by configured constraints
 	// (e.g. min/max replicas for horizontal, minAllowed/maxAllowed for vertical).
 	ConditionReasonLimitedByConstraint ConditionReasonType = "LimitedByConstraint"
+	// ConditionReasonForcedByAnnotation is used when values are overridden by an ops annotation.
+	ConditionReasonForcedByAnnotation ConditionReasonType = "ForcedByAnnotation"
 	// ConditionReasonLimitedByScalingBehavior indicates scaling was limited by behavior settings
 	// (e.g. stabilization window, scaling rules).
 	ConditionReasonLimitedByScalingBehavior ConditionReasonType = "LimitedByScalingBehavior"

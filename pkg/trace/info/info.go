@@ -26,6 +26,7 @@ import (
 
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
 	"github.com/DataDog/datadog-agent/pkg/trace/watchdog"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
@@ -118,7 +119,7 @@ const (
 {{.Program}}
 {{.Banner}}
 
-  Not running or unreachable on 127.0.0.1:{{.DebugPort}}
+  Not running or unreachable on {{.DebugAddr}}
 
 `
 
@@ -147,7 +148,8 @@ func UpdateReceiverStats(rs *ReceiverStats) {
 	}
 
 	ift.receiverStats = s
-	ift.languages = rs.Languages()
+	// rs' read lock is already held; Languages would re-acquire it.
+	ift.languages = rs.languagesLocked()
 }
 
 // Languages returns all the known languages seen
@@ -206,6 +208,23 @@ func publishUptime() interface{} {
 	return int(time.Since(ift.start) / time.Second)
 }
 
+// TraceSemanticsInfo is the operator-facing snapshot of the live trace-semantics
+// registry, rendered in the APM Agent status section.
+type TraceSemanticsInfo struct {
+	ContentHash string
+	Version     string
+	Source      string
+}
+
+func publishTraceSemanticsInfo() interface{} {
+	live := semantics.DefaultRegistry()
+	return TraceSemanticsInfo{
+		ContentHash: live.ContentHash(),
+		Version:     live.Version(),
+		Source:      live.Source(),
+	}
+}
+
 type infoString string
 
 func (s infoString) String() string { return string(s) }
@@ -258,7 +277,7 @@ func getProgramBanner(version string) (string, string) {
 // If error is nil, means the program is running.
 // If not, it displays a pretty-printed message anyway (for support)
 func Info(w io.Writer, conf *config.AgentConfig) error {
-	url := fmt.Sprintf("https://127.0.0.1:%d/debug/vars", conf.DebugServerPort)
+	url := fmt.Sprintf("https://%s/debug/vars", conf.DebugServerAddr())
 	tr := &http.Transport{TLSClientConfig: conf.IPCTLSClientConfig}
 	client := http.Client{Timeout: 3 * time.Second, Transport: tr}
 	resp, err := client.Get(url)
@@ -271,11 +290,11 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		_ = ift.notRunningTmpl.Execute(w, struct {
 			Banner    string
 			Program   string
-			DebugPort int
+			DebugAddr string
 		}{
 			Banner:    banner,
 			Program:   program,
-			DebugPort: conf.DebugServerPort,
+			DebugAddr: conf.DebugServerAddr(),
 		})
 		return err
 	}
@@ -361,6 +380,7 @@ func initInfo(conf *config.AgentConfig, ift *tracker) error {
 	expvar.Publish("ratebyservice", expvar.Func(publishRateByService))
 	expvar.Publish("ratebyservice_filtered", expvar.Func(publishRateByServiceFiltered))
 	expvar.Publish("watchdog", expvar.Func(publishWatchdogInfo))
+	expvar.Publish("trace_semantics", expvar.Func(publishTraceSemanticsInfo))
 
 	// copy the config to ensure we don't expose sensitive data such as API keys
 	c := *conf

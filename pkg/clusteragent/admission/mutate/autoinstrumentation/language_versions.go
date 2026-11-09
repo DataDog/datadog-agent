@@ -9,7 +9,8 @@ package autoinstrumentation
 
 import (
 	"fmt"
-	"slices"
+
+	"github.com/DataDog/datadog-agent/pkg/ssi"
 )
 
 const (
@@ -63,18 +64,6 @@ func (l language) libInfoWithResolver(ctrName, registry string, version string) 
 	}
 }
 
-// supportedLanguages defines a list of the languages that we will attempt
-// to do injection on.
-var supportedLanguages = []language{
-	java,
-	js,
-	python,
-	dotnet,
-	ruby,
-	php, // PHP only works with injection v2, no environment variables are set in any case
-	c,
-}
-
 // defaultInjectedLanguages defines the languages included in the default/all bundle.
 var defaultInjectedLanguages = []language{
 	java,
@@ -95,7 +84,7 @@ func defaultInjectedLanguagesMap() map[language]bool {
 }
 
 func (l language) isSupported() bool {
-	return slices.Contains(supportedLanguages, l)
+	return ssi.IsLanguageSupported(string(l))
 }
 
 // defaultVersionMagicString is a magic string that indicates that the user
@@ -105,13 +94,13 @@ const defaultVersionMagicString = "default"
 // languageVersions defines the major library versions we consider "default" for each
 // supported language. If not set, we will default to "latest", see defaultLibVersion.
 //
-// If this language does not appear in supportedLanguages, it will not be injected.
+// If this language does not appear in ssi.SupportedLanguages, it will not be injected.
 var languageVersions = map[language]string{
 	java:   "v1", // https://datadoghq.atlassian.net/browse/APMON-1064
 	dotnet: "v3", // https://datadoghq.atlassian.net/browse/APMON-1390
 	python: "v4", // https://datadoghq.atlassian.net/browse/INPLAT-852
 	ruby:   "v2", // https://datadoghq.atlassian.net/browse/APMON-1066
-	js:     "v5", // https://datadoghq.atlassian.net/browse/APMON-1065
+	js:     "v6",
 	php:    "v1", // https://datadoghq.atlassian.net/browse/APMON-1128
 	c:      "v0",
 }

@@ -42,6 +42,23 @@ type ObservationPoint struct {
 	Interface Interface `json:"interface"`
 }
 
+// DPI contains deep packet inspection application enrichment
+type DPI struct {
+	ApplicationID          uint64 `json:"application_id,omitempty"`
+	ApplicationName        string `json:"application_name,omitempty"`
+	ApplicationDescription string `json:"application_description,omitempty"`
+	Category               string `json:"category,omitempty"`
+	SubCategory            string `json:"sub_category,omitempty"`
+	ApplicationGroup       string `json:"application_group,omitempty"`
+	P2PTechnology          string `json:"p2p_technology,omitempty"`
+	TunnelTechnology       string `json:"tunnel_technology,omitempty"`
+	EncryptedTechnology    string `json:"encrypted_technology,omitempty"`
+	TrafficClass           string `json:"traffic_class,omitempty"`
+	BusinessRelevance      string `json:"business_relevance,omitempty"`
+	ApplicationSet         string `json:"application_set,omitempty"`
+	ApplicationFamily      string `json:"application_family,omitempty"`
+}
+
 // AdditionalFields contains additional configured fields
 type AdditionalFields = map[string]any
 
@@ -57,6 +74,9 @@ type FlowPayload struct {
 	Packets          uint64           `json:"packets"`
 	EtherType        string           `json:"ether_type,omitempty"`
 	IPProtocol       string           `json:"ip_protocol"`
+	TOS              uint32           `json:"tos"`
+	DSCP             uint32           `json:"dscp"`
+	DSCPName         string           `json:"dscp_name"`
 	Device           Device           `json:"device"`
 	Exporter         Exporter         `json:"exporter"`
 	Source           Endpoint         `json:"source"`
@@ -66,6 +86,7 @@ type FlowPayload struct {
 	Host             string           `json:"host"`
 	TCPFlags         []string         `json:"tcp_flags,omitempty"`
 	NextHop          NextHop          `json:"next_hop,omitempty"`
+	DPI              DPI              `json:"dpi"`
 	AdditionalFields AdditionalFields `json:"additional_fields,omitempty"`
 }
 
@@ -81,6 +102,9 @@ func (p FlowPayload) MarshalJSON() ([]byte, error) {
 		"bytes":           p.Bytes,
 		"packets":         p.Packets,
 		"ip_protocol":     p.IPProtocol,
+		"tos":             p.TOS,
+		"dscp":            p.DSCP,
+		"dscp_name":       p.DSCPName,
 		"device":          p.Device,
 		"exporter":        p.Exporter,
 		"source":          p.Source,
@@ -89,6 +113,7 @@ func (p FlowPayload) MarshalJSON() ([]byte, error) {
 		"egress":          p.Egress,
 		"host":            p.Host,
 		"next_hop":        p.NextHop,
+		"dpi":             p.DPI,
 	}
 
 	// omit empty

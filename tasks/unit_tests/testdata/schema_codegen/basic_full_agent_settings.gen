@@ -1,0 +1,21 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// NOTE! This is a generated file, do not modify it. Created by `dda inv schema.codegen`
+
+package generatedsettings
+
+import (
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+)
+
+// InitCoreAgentFull registers the settings used only by the full core Agent.
+func InitCoreAgentFull(config pkgconfigmodel.Setup) {
+	config.BindEnvAndSetDefault("my_setting", "abc")
+}
+
+// InitCommonBase registers the settings shared by the core Agent and serverless-init.
+func InitCommonBase(config pkgconfigmodel.Setup) {
+}

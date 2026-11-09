@@ -18,7 +18,7 @@ import (
 	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
 	"github.com/DataDog/datadog-agent/pkg/collector/externalhost"
@@ -89,7 +89,7 @@ func testSetExternalTags(t *testing.T) {
 
 	yamlPayload, _ := yaml.Marshal(payload)
 	assert.Equal(t,
-		"- - test_hostname\n  - test_source_type:\n    - tag1\n    - tag2\n",
+		"- - test_hostname\n  - test_source_type:\n        - tag1\n        - tag2\n",
 		string(yamlPayload))
 }
 
@@ -177,7 +177,7 @@ func testObfuscaterConfig(t *testing.T) {
 }
 
 func testReportIssue(t *testing.T) {
-	hp := healthplatformmock.Mock(t)
+	hp := healthplatformmock.New(t)
 	SetHealthPlatform(hp)
 	t.Cleanup(func() { SetHealthPlatform(nil) })
 

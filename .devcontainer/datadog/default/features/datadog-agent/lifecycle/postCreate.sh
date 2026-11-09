@@ -1,18 +1,18 @@
 #!/bin/bash
 
-
-# Install Claude MCPs
-# Datadog
-claude mcp add --transport http datadog-mcp https://mcp.datadoghq.com/api/unstable/mcp-server/mcp?toolsets=all --scope user
-
-# Atlassian
-claude mcp add --transport http --scope user atlassian https://mcp.atlassian.com/v1/mcp
-
-# Google
-claude mcp add datadog-google-workspace --transport http https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp --scope user
-
-# DDCI
-claude mcp add --transport http "ddci-mcp-prod" 'https://ddci-mcp.mcp.us1.ddbuild.io/internal/mcp' --scope user
+# Match bits' supplementary group to the host Docker socket GID. The socket is
+# bind-mounted at runtime, so its GID cannot be determined while building the image.
+if [[ -S /var/run/docker.sock ]]; then
+    socket_gid=$(stat -c '%g' /var/run/docker.sock)
+    socket_group=$(getent group "$socket_gid" | cut -d: -f1 || true)
+    if [[ -z "$socket_group" ]]; then
+        socket_group=dockersock
+        sudo groupadd --gid "$socket_gid" "$socket_group"
+    fi
+    if ! id -nG bits | tr ' ' '\n' | grep -qx "$socket_group"; then
+        sudo usermod --append --groups "$socket_group" bits
+    fi
+fi
 
 # Run install tools
 cd ~/dd/datadog-agent

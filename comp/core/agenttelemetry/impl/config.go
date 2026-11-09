@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"strings"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -40,6 +40,10 @@ type Profile struct {
 	Metric   *AgentMetricConfig `yaml:"metric,omitempty"`
 	Schedule *Schedule          `yaml:"schedule,omitempty"`
 	Events   []*Event           `yaml:"events"`
+	// RemoteFlag optionally gates the whole profile behind a remote flag
+	// (see remoteflag.go). When set, the profile is only collected while that
+	// flag is enabled through Remote Config; it is off by default.
+	RemoteFlag string `yaml:"remote_flag,omitempty"`
 
 	// compiled
 	metricsMap        map[string]*MetricConfig
@@ -116,10 +120,11 @@ type Event struct {
 //
 // profiles[].metric.metrics[].preserve_tags (optional)
 // -----------------------------------------------------
-// List of tags to preserve when aggregating the metric. If not specified, or [] is specified,
-// metric will be aggregated without any tags. If specified, only these tags are kept; all
-// others are dropped and their timeseries values are summed. In case none of the tags match
-// any timeseries, those timeseries are removed from the metric's JSON object.
+// Every emitted metric includes the mandatory system tag "emitter". preserve_tags allowlists
+// additional user labels to keep during aggregation. If omitted or empty, timeseries aggregate
+// by emitter alone. If specified, only emitter and the listed labels are emitted; timeseries
+// missing every listed label are removed from the metric's JSON object. Listing emitter remains
+// accepted for compatibility but is a no-op because emitter is always included.
 // The primary goal is to prevent accidental privacy leaks by requiring explicit tag allowlists.
 //
 // profiles[].metric.metrics[].aggregate_tags (deprecated alias for preserve_tags)
@@ -130,9 +135,14 @@ type Event struct {
 //
 // profiles[].metric.metrics[].aggregate_total (optional)
 // -----------------------------------------------------
-// When included, specifies whether the metric should be aggregated as a total. A
-// special tag "total" will be added to the metric's JSON object (accordingly "total" is a
-// reserved tag). Only meaningful when preserve_tags is also specified.
+// When included, emits one total independently for each emitter. A special tag "total"
+// containing that emitter's source-timeseries count is added to the metric's JSON object
+// (accordingly "total" is a reserved tag).
+//
+// profiles[].remote_flag (optional)
+// ---------------------------------
+// When specified, the profile is only collected while the named remote flag is enabled
+// through Remote Config.
 //
 // profiles[].schedule (optional)
 // --------------------------------
@@ -183,7 +193,7 @@ type Event struct {
 // The value is required and used in the corresponding payload
 
 // Default agent telemetry profiles config if not specified in the agent config file.
-// Note: If "preserve_tags" are not specified, metric will be aggregated without any tags.
+// Note: If "preserve_tags" are not specified, metric will be aggregated by emitter only.
 //
 //go:embed defaultProfiles.yaml
 var defaultProfiles string
@@ -256,15 +266,23 @@ func compileMetric(p *Profile, m *MetricConfig) error {
 	if len(tags) == 0 {
 		tags = m.AggregateTags
 	}
-	if len(tags) == 0 {
-		m.preserveTagsExists = false
-	} else {
-		m.preserveTagsExists = true
-		m.preserveTagsMap = make(map[string]any)
-		for _, t := range tags {
-			m.preserveTagsMap[t] = struct{}{}
+	// AggregateTotal synthesizes total=<timeseries count>; preserving a source
+	// total tag could emit two series with the same metric name and tags.
+	if m.AggregateTotal {
+		for _, tag := range tags {
+			if tag == "total" {
+				return fmt.Errorf("profile '%s' metric '%s' cannot preserve reserved tag 'total' when aggregate_total is enabled", p.Name, m.Name)
+			}
 		}
 	}
+	m.preserveTagsMap = make(map[string]any)
+	for _, tag := range tags {
+		if tag == emitterTagName {
+			continue
+		}
+		m.preserveTagsMap[tag] = struct{}{}
+	}
+	m.preserveTagsExists = len(m.preserveTagsMap) > 0
 
 	return nil
 }
@@ -274,6 +292,10 @@ func validateProfiles(cfg *Config) error {
 	for i, p := range cfg.Profiles {
 		if len(p.Name) == 0 {
 			return fmt.Errorf("profile requires 'name' attribute to be specified. Profile index: %d", i)
+		}
+
+		if p.RemoteFlag != "" && p.RemoteFlag != flagTroubleshooting {
+			return fmt.Errorf("profile '%s' references unknown remote flag '%s'", p.Name, p.RemoteFlag)
 		}
 	}
 

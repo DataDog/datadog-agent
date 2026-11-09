@@ -7,7 +7,7 @@ Invoke the unit tests, with options to configure the build environment.
 
 Runs unit tests for rtloader, Go, and MSI .NET.
 
-Can upload coverage reports to Codecov and test results to Datadog CI.
+Can upload coverage reports to Datadog and test results to Datadog CI.
 
 .PARAMETER BuildOutOfSource
 Specifies whether to build out of source. Default is $false.
@@ -22,14 +22,14 @@ Specifies whether to install dependencies (python requirements, go deps, etc.). 
 Specifies whether to check the Go version. If not provided, it defaults to the value of the environment variable GO_VERSION_CHECK or $true if the environment variable is not set.
 
 .PARAMETER UploadCoverage
-Specifies whether to upload coverage reports to Codecov. Default is $false.
+Specifies whether to upload coverage reports to Datadog. Default is $false.
 
-Requires the CODECOV_TOKEN environment variable to be set.
+Requires the AGENT_API_KEY_ORG2 environment variable to be set.
 
 .PARAMETER UploadTestResults
 Specifies whether to upload test results to Datadog CI. Default is $false.
 
-Requires the API_KEY_ORG2 environment variable to be set.
+Requires the AGENT_API_KEY_ORG2 environment variable to be set.
 
 Requires JUNIT_TAR environment variable to be set.
 
@@ -64,14 +64,14 @@ Invoke-BuildScript `
             exit 1
         }
         if ($UploadCoverage) {
-            if ([string]::IsNullOrEmpty($Env:CODECOV_TOKEN)) {
-                Write-Host -ForegroundColor Red "CODECOV_TOKEN environment variable is required for uploading coverage reports to Codecov"
+            if ([string]::IsNullOrEmpty($Env:AGENT_API_KEY_ORG2)) {
+                Write-Host -ForegroundColor Red "AGENT_API_KEY_ORG2 environment variable is required for uploading coverage reports to Datadog"
                 exit 1
             }
         }
         if ($UploadTestResults) {
-            if ([string]::IsNullOrEmpty($Env:API_KEY_ORG2)) {
-                Write-Host -ForegroundColor Red "API_KEY_ORG2 environment variable is required for junit upload to Datadog CI"
+            if ([string]::IsNullOrEmpty($Env:AGENT_API_KEY_ORG2)) {
+                Write-Host -ForegroundColor Red "AGENT_API_KEY_ORG2 environment variable is required for junit upload to Datadog CI"
                 exit 1
             }
             if ([string]::IsNullOrEmpty($Env:JUNIT_TAR)) {
@@ -82,13 +82,8 @@ Invoke-BuildScript `
         # Add the dev\lib directory to the PATH so that the go tests can find the rtloader DLL
         # TODO: This is a weird way to load the rtloader DLLs
         $env:PATH="$(Get-Location)\dev\lib;$env:PATH"
-        # Create ddagentuser for secrets tests if it doesn't already exist
-        if (-not (Get-LocalUser -Name "ddagentuser" -ErrorAction SilentlyContinue)) {
-            $Password = ConvertTo-SecureString "dummyPW_:-gch6Rejae9" -AsPlainText -Force
-            New-LocalUser -Name "ddagentuser" -Description "Test user for the secrets feature on windows." -Password $Password
-        }
         # Generate the datadog.yaml config file to be used in integration tests
-        & dda inv -- -e schema.template --schema=./pkg/config/schema/yaml/core_schema.yaml --build-type=agent-py3 --os-target=windows --output=./datadog.yaml
+        & dda inv -- -e schema.template --schema=./pkg/config/schema/yaml/core_schema.yaml --build-type=datadog-agent --os-target=windows --output=./datadog.yaml
         # Build inputs needed for go builds
         & .\tasks\winbuildscripts\pre-go-build.ps1
     }
@@ -153,8 +148,9 @@ Invoke-BuildScript `
         $TEST_WASHER_FLAG="--test-washer"
     }
     $Env:Python3_ROOT_DIR=$Env:TEST_EMBEDDED_PY3
-    & dda inv -- -e test --junit-tar="$Env:JUNIT_TAR" `
-        --race --profile --rerun-fails=2 --coverage --cpus 8 `
+    # incident-59224/incident-59369: set --build-cpus=4 as 6+ concurrent linkers exhaust 20 GB
+    & dda inv -- -e test-legacy --junit-tar="$Env:JUNIT_TAR" `
+        --race --rerun-fails=2 --coverage --cpus 8 --build-cpus=4 `
         --python-home-3=$Env:Python3_ROOT_DIR `
         --result-json $internal_result_json `
         --build-stdlib `
@@ -164,20 +160,19 @@ Invoke-BuildScript `
 
     if ($UploadCoverage) {
         try {
-            $Env:CODECOV_TOKEN = Get-VaultSecret -parameterName "$Env:CODECOV_TOKEN" -ErrorAction Stop
-            & dda inv -- -e coverage.upload-to-codecov $Env:COVERAGE_CACHE_FLAG
+            & dda inv -- -e coverage.manage-coverage-cache $Env:COVERAGE_CACHE_FLAG
             if ($LASTEXITCODE -ne 0) {
-                throw "coverage upload failed with exit code $LASTEXITCODE"
+                throw "coverage cache operation failed with exit code $LASTEXITCODE"
             }
         }
         catch {
             # Non-fatal: print but do not fail the script
-            Write-Host -ForegroundColor Red "coverage upload failed (non-fatal): $($_.Exception.Message)"
+            Write-Host -ForegroundColor Red "coverage cache operation failed (non-fatal): $($_.Exception.Message)"
         }
-        # Upload coverage to Datadog Code Coverage (side-by-side with Codecov)
+        # Upload coverage to Datadog Code Coverage
         try {
-            $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2" -ErrorAction Stop
-            & datadog-ci.exe coverage upload --format=go-coverprofile coverage.out
+            $Env:DD_API_KEY = Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token -ErrorAction Stop
+            & dda inv -- -e coverage.upload-to-datadog --coverage-file coverage.out
             if ($LASTEXITCODE -ne 0) {
                 throw "Datadog coverage upload failed with exit code $LASTEXITCODE"
             }
@@ -192,7 +187,7 @@ Invoke-BuildScript `
             Get-ChildItem -Filter "junit-out-*.xml" -Recurse | ForEach-Object {
                 Copy-Item -Path $_.FullName -Destination C:\mnt
             }
-            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "$Env:API_KEY_ORG2" -ErrorAction Stop
+            $Env:DATADOG_API_KEY = Get-VaultSecret -parameterName "$Env:AGENT_API_KEY_ORG2" -parameterField token -ErrorAction Stop
             & dda inv -- -e junit-upload --tgz-path $Env:JUNIT_TAR --result-json $internal_result_json
             if($LASTEXITCODE -ne 0){
                 throw "junit upload failed with exit code $LASTEXITCODE"

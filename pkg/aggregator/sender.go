@@ -13,10 +13,13 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/collector/check/stats"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/metrics/event"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/serializer/types"
+	"github.com/DataDog/datadog-agent/pkg/util/infratags"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -30,6 +33,7 @@ type RawSender interface {
 // checkSender implements Sender
 type checkSender struct {
 	id                      checkid.ID
+	metricSource            metrics.MetricSource
 	defaultHostname         string
 	defaultHostnameDisabled bool
 	metricStats             stats.SenderStats
@@ -44,6 +48,11 @@ type checkSender struct {
 	checkTags               []string
 	service                 string
 	noIndex                 bool
+	infraTagger             *infratags.MetricTagger // nil = no infra mode tagging
+	// infraModeEventTags is `infra_mode:<mode>` for marked modes, else nil.
+	// Resolved at construction and appended on Event only. Kept separate from
+	// infraTagger so event marking does not use the metrics allowlist.
+	infraModeEventTags []string
 }
 
 // senderItem knows how the aggregator should handle it
@@ -105,6 +114,7 @@ func newCheckSender(
 ) *checkSender {
 	return &checkSender{
 		id:                      id,
+		metricSource:            metrics.CheckNameToMetricSource(checkid.IDToCheckName(id)),
 		defaultHostname:         defaultHostname,
 		itemsOut:                itemsOut,
 		serviceCheckOut:         serviceCheckOut,
@@ -114,6 +124,7 @@ func newCheckSender(
 		orchestratorMetadataOut: orchestratorMetadataOut,
 		orchestratorManifestOut: orchestratorManifestOut,
 		eventPlatformOut:        eventPlatformOut,
+		infraModeEventTags:      configutils.MarkedInfraModeTags(pkgconfigsetup.Datadog()),
 	}
 }
 
@@ -127,6 +138,11 @@ func (s *checkSender) DisableDefaultHostname(disable bool) {
 // They will be appended to each send (metric, event and service)
 func (s *checkSender) SetCheckCustomTags(tags []string) {
 	s.checkTags = tags
+}
+
+// SetInfraTagger sets the MetricTagger that appends infra_mode tags to every metric sample.
+func (s *checkSender) SetInfraTagger(tagger *infratags.MetricTagger) {
+	s.infraTagger = tagger
 }
 
 // SetCheckService appends the service as a tag for metrics, events, and service checks
@@ -184,6 +200,8 @@ func (s *checkSender) sendMetricSample(
 	timestamp float64,
 ) {
 	tags = append(tags, s.checkTags...)
+	// add infra tags only for metrics
+	tags = s.infraTagger.AppendTags(tags)
 
 	if log.ShouldLog(log.TraceLvl) {
 		log.Trace(mType.String(), " sample: ", metric, ": ", value, " for hostname: ", hostname, " tags: ", tags)
@@ -203,7 +221,7 @@ func (s *checkSender) sendMetricSample(
 		Timestamp:       timestamp,
 		FlushFirstValue: flushFirstValue,
 		NoIndex:         s.noIndex || noIndex,
-		Source:          metrics.CheckNameToMetricSource(checkid.IDToCheckName(s.id)),
+		Source:          s.metricSource,
 	}
 
 	if hostname == "" && !s.defaultHostnameDisabled {
@@ -289,17 +307,21 @@ func (s *checkSender) OpenmetricsBucket(metric string, value int64, lowerBound, 
 
 func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound, upperBound float64, monotonic bool, hostname string, tags []string, flushFirstValue, multipleBuckets bool) {
 	tags = append(tags, s.checkTags...)
+	// add infra tags only for metrics (same as sendMetricSample)
+	tags = s.infraTagger.AppendTags(tags)
 
-	log.Tracef(
-		"Histogram Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",
-		metric,
-		value,
-		lowerBound,
-		upperBound,
-		monotonic,
-		hostname,
-		tags,
-	)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Tracef(
+			"Histogram Bucket %s submitted: %v [%f-%f] monotonic: %v for host %s tags: %v",
+			metric,
+			value,
+			lowerBound,
+			upperBound,
+			monotonic,
+			hostname,
+			tags,
+		)
+	}
 
 	histogramBucket := &metrics.HistogramBucket{
 		Name:            metric,
@@ -367,7 +389,9 @@ func (s *checkSender) SendRawServiceCheck(sc *servicecheck.ServiceCheck) {
 
 // ServiceCheck submits a service check
 func (s *checkSender) ServiceCheck(checkName string, status servicecheck.ServiceCheckStatus, hostname string, tags []string, message string) {
-	log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Trace("Service check submitted: ", checkName, ": ", status.String(), " for hostname: ", hostname, " tags: ", tags)
+	}
 	serviceCheck := servicecheck.ServiceCheck{
 		CheckName: checkName,
 		Status:    status,
@@ -391,8 +415,11 @@ func (s *checkSender) ServiceCheck(checkName string, status servicecheck.Service
 // Event submits an event
 func (s *checkSender) Event(e event.Event) {
 	e.Tags = append(e.Tags, s.checkTags...)
+	e.Tags = append(e.Tags, s.infraModeEventTags...)
 
-	log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
+	if log.ShouldLog(log.TraceLvl) {
+		log.Trace("Event submitted: ", e.Title, " for hostname: ", e.Host, " tags: ", e.Tags)
+	}
 
 	if e.Host == "" && !s.defaultHostnameDisabled {
 		e.Host = s.defaultHostname

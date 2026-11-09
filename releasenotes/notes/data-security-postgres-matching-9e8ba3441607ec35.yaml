@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    The Data Security check now resolves its PostgreSQL source from fully
+    templated autodiscovery configurations, so scan targets are matched
+    reliably when the PostgreSQL integration is configured with template
+    variables such as ``%%host%%``.

@@ -60,18 +60,6 @@ namespace Datadog.AgentCustomActions
         }
 
         [CustomAction]
-        public static ActionResult ReportFailure(Session session)
-        {
-            return Datadog.CustomActions.Telemetry.ReportFailure(session);
-        }
-
-        [CustomAction]
-        public static ActionResult ReportSuccess(Session session)
-        {
-            return Datadog.CustomActions.Telemetry.ReportSuccess(session);
-        }
-
-        [CustomAction]
         public static ActionResult EnsureNpmServiceDependency(Session session)
         {
             return Datadog.CustomActions.ServiceCustomAction.EnsureNpmServiceDependency(session);
@@ -81,6 +69,18 @@ namespace Datadog.AgentCustomActions
         public static ActionResult CleanupFiles(Session session)
         {
             return Datadog.CustomActions.CleanUpFilesCustomAction.CleanupFiles(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirOnRollback(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirOnRollback(session);
+        }
+
+        [CustomAction]
+        public static ActionResult RemoveEmptyInstallDirAfterUninstall(Session session)
+        {
+            return Datadog.CustomActions.CleanUpFilesCustomAction.RemoveEmptyInstallDirAfterUninstall(session);
         }
 
         [CustomAction]
@@ -195,6 +195,18 @@ namespace Datadog.AgentCustomActions
         public static ActionResult DDCreateFolders(Session session)
         {
             return Datadog.CustomActions.ConfigCustomActions.DDCreateFolders(session);
+        }
+
+        [CustomAction]
+        public static ActionResult EnsureSecureConfigRoot(Session session)
+        {
+            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRoot(session);
+        }
+
+        [CustomAction]
+        public static ActionResult EnsureSecureConfigRootUI(Session session)
+        {
+            return Datadog.CustomActions.PrerequisitesCustomActions.EnsureSecureConfigRootUI(session);
         }
 
         [CustomAction]

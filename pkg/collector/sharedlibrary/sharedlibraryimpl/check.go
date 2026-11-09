@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"time"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
@@ -153,8 +153,16 @@ func (c *Check) Configure(_ sender.SenderManager, integrationConfigDigest uint64
 		return err
 	}
 
-	// See if a collection interval was specified
-	if commonOptions.MinCollectionInterval > 0 {
+	// See if a collection interval was specified. An explicit
+	// min_collection_interval: 0 schedules a one-shot check (interval 0).
+	if commonOptions.MinCollectionInterval == 0 {
+		var rawInst integration.RawMap
+		if err := yaml.Unmarshal(instanceConfig, &rawInst); err == nil {
+			if _, ok := rawInst["min_collection_interval"]; ok {
+				c.interval = 0
+			}
+		}
+	} else if commonOptions.MinCollectionInterval > 0 {
 		c.interval = time.Duration(commonOptions.MinCollectionInterval) * time.Second
 	}
 

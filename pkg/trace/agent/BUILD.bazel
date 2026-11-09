@@ -1,4 +1,12 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# Parsed by //pkg/trace/testutil/dupcheck to check that its corpus covers every
+# span type obfuscateSpanInternal branches on.
+exports_files(
+    ["obfuscate.go"],
+    visibility = ["//pkg/trace/testutil/dupcheck:__pkg__"],
+)
 
 go_library(
     name = "agent",
@@ -38,7 +46,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "agent_test",
     srcs = [
         "agent_test.go",
@@ -49,7 +57,6 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":agent"],
-    gotags = ["test"],
     deps = [
         "//comp/trace/compression/impl-gzip",
         "//pkg/obfuscate",
@@ -71,12 +78,14 @@ go_test(
         "//pkg/trace/traceutil",
         "//pkg/trace/traceutil/normalize",
         "//pkg/trace/writer",
+        "//pkg/util/log",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_datadog_go_v5//statsd/mocks",
         "@com_github_go_viper_mapstructure_v2//:mapstructure",
         "@com_github_golang_mock//gomock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@com_github_tinylib_msgp//msgp",
         "@org_golang_google_protobuf//proto",
         "@org_uber_go_atomic//:atomic",
     ] + select({

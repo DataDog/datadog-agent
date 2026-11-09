@@ -37,41 +37,41 @@ func TestAssertSketchSeriesEqual(t *testing.T) {
 		{
 			name: "Name",
 			s: [2]SketchSeries{
-				{Name: "a"},
-				{Name: "b"},
+				{DistributionMetadata: DistributionMetadata{Name: "a"}},
+				{DistributionMetadata: DistributionMetadata{Name: "b"}},
 			},
 		}, {
 			name: "Tags same len",
 			s: [2]SketchSeries{
-				{Tags: tagset.CompositeTagsFromSlice([]string{"a"})},
-				{Tags: tagset.CompositeTagsFromSlice([]string{"b"})},
+				{DistributionMetadata: DistributionMetadata{Tags: tagset.CompositeTagsFromSlice([]string{"a"})}},
+				{DistributionMetadata: DistributionMetadata{Tags: tagset.CompositeTagsFromSlice([]string{"b"})}},
 			},
 		}, {
 			name: "Tags/diff len",
 			s: [2]SketchSeries{
-				{Tags: tagset.CompositeTagsFromSlice([]string{"a"})},
-				{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})},
+				{DistributionMetadata: DistributionMetadata{Tags: tagset.CompositeTagsFromSlice([]string{"a"})}},
+				{DistributionMetadata: DistributionMetadata{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})}},
 			},
 		}, {
 			// AssertSerieEqual and friends don't catch this case.
 			// TODO: fix them
 			name: "Tags/exp=nil",
 			s: [2]SketchSeries{
-				{Tags: tagset.CompositeTagsFromSlice(nil)},
-				{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})},
+				{DistributionMetadata: DistributionMetadata{Tags: tagset.CompositeTagsFromSlice(nil)}},
+				{DistributionMetadata: DistributionMetadata{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})}},
 			},
 		},
 		{
 			name: "Tags/act=nil",
 			s: [2]SketchSeries{
-				{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})},
-				{Tags: tagset.CompositeTagsFromSlice(nil)},
+				{DistributionMetadata: DistributionMetadata{Tags: tagset.CompositeTagsFromSlice([]string{"a", "b"})}},
+				{DistributionMetadata: DistributionMetadata{Tags: tagset.CompositeTagsFromSlice(nil)}},
 			},
 		}, {
 			name: "Host",
 			s: [2]SketchSeries{
-				{Host: "a"},
-				{Host: "b"},
+				{DistributionMetadata: DistributionMetadata{Host: "a"}},
+				{DistributionMetadata: DistributionMetadata{Host: "b"}},
 			},
 		}, {
 			name: "Points/same len/diff sketch",

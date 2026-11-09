@@ -29,7 +29,7 @@ type secretWindowsRuntimeSuite struct {
 func TestSecretWindowsRuntimeSuite(t *testing.T) {
 	t.Parallel()
 	e2e.Run(t, &secretWindowsRuntimeSuite{}, e2e.WithProvisioner(awshost.Provisioner(
-		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault))),
+		awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess())),
 	)))
 }
 
@@ -54,7 +54,7 @@ hostname: ENC[hostname]`
 	v.UpdateEnv(
 		awshost.Provisioner(
 			awshost.WithRunOptions(
-				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault)),
+				ec2.WithEC2InstanceOptions(ec2.WithOS(os.WindowsServerDefault), ec2.WithInternetAccess()),
 				ec2.WithAgentOptions(agentParams...),
 			),
 		),

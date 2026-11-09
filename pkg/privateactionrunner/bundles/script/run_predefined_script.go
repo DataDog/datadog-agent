@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/tmpl"
+	workflowjsonschema "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/workflowjsonschema"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -109,7 +110,7 @@ func evaluateScriptWithParameters(scriptConfig RunPredefinedScriptConfig, parame
 		parameters = map[string]interface{}{}
 	}
 	if scriptConfig.ParameterSchema != nil {
-		if err := validateParameters(parameters, scriptConfig.ParameterSchema); err != nil {
+		if err := workflowjsonschema.ValidateParameters(scriptConfig.ParameterSchema, parameters); err != nil {
 			return nil, err
 		}
 	}

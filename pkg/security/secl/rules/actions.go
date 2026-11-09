@@ -7,8 +7,8 @@
 package rules
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
 // Action represents the action to take when a rule is triggered
@@ -18,10 +18,11 @@ type Action struct {
 	InternalCallback    *InternalCallbackDefinition
 	FilterEvaluator     *eval.RuleEvaluator
 	ScopeFieldEvaluator eval.Evaluator
+	CaptureMatcher      *eval.CaptureStringMatcher
 }
 
 // CompileFilter compiles the filter expression
-func (a *Action) CompileFilter(parsingContext *ast.ParsingContext, model eval.Model, evalOpts *eval.Opts) error {
+func (a *Action) CompileFilter(parsingContext *parser.ParsingContext, model eval.Model, evalOpts *eval.Opts) error {
 	if a.Def.Filter == nil || *a.Def.Filter == "" {
 		return nil
 	}
@@ -54,6 +55,21 @@ func (a *Action) CompileScopeField(model eval.Model) error {
 	}
 
 	a.ScopeFieldEvaluator = evaluator
+	return nil
+}
+
+// CompileCaptureMatcher compiles the capture pattern
+func (a *Action) CompileCaptureMatcher() error {
+	if a.Def.Set == nil || len(a.Def.Set.Capture) == 0 {
+		return nil
+	}
+
+	var matcher eval.CaptureStringMatcher
+	if err := matcher.Compile(a.Def.Set.Capture); err != nil {
+		return &ErrCapture{Pattern: a.Def.Set.Capture, Err: err}
+	}
+
+	a.CaptureMatcher = &matcher
 	return nil
 }
 

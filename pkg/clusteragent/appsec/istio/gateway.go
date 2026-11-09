@@ -100,23 +100,15 @@ func (g *istioNativeGatewayPattern) Deleted(ctx context.Context, obj *unstructur
 	objNamespace := obj.GetNamespace()
 	g.logger.Debugf("Processing deleted Istio native gateway: %s/%s", objNamespace, name)
 
-	// Distinguish watch-event mode (resource was actually deleted from the cluster) from cleanup mode
-	// (cleanupPattern iterates live resources and calls Deleted without removing them).
 	// Coordination checks — "skip if other gateways still exist" — only apply to watch events.
-	// In cleanup mode we must always proceed to delete the EnvoyFilter.
-	_, errGet := g.client.Resource(istioGatewayGVR).Namespace(objNamespace).Get(ctx, name, metav1.GetOptions{})
-	if errGet != nil && !k8serrors.IsNotFound(errGet) {
-		// On a transient API error we cannot determine the calling context. Return the error
-		// so the work item is requeued; this prevents accidentally entering cleanup mode and
-		// prematurely deleting the shared EnvoyFilter during watch-event processing.
-		return fmt.Errorf("could not determine calling context for Istio Gateway %s/%s: %w", objNamespace, name, errGet)
-	}
-	isWatchEvent := k8serrors.IsNotFound(errGet)
+	// In cleanup mode (cleanupPattern) we must always proceed to delete the EnvoyFilter.
+	isWatchEvent := !appsecconfig.IsCleanup(ctx)
 
 	if isWatchEvent {
 		// Watch-event mode: only delete the filter if no other gateways still need it.
-		// Limit: 1 is sufficient — we only need to know whether any gateway remains.
-		list, err := g.client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{Limit: 1})
+		// Limit: 1 is sufficient — we only need to know whether any gateway remains. Opted-out
+		// Gateways (including one that just opted out) do not need the filter.
+		list, err := g.client.Resource(istioGatewayGVR).Namespace(v1.NamespaceAll).List(ctx, metav1.ListOptions{Limit: 1, LabelSelector: optOutLabelSelector})
 		if err != nil && !k8serrors.IsNotFound(err) {
 			return fmt.Errorf("could not list remaining Istio gateways: %w", err)
 		}
@@ -137,13 +129,17 @@ func (g *istioNativeGatewayPattern) Deleted(ctx context.Context, obj *unstructur
 	}
 
 	namespace := g.config.IstioNamespace
-	_, err := g.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
+	filter, err := g.client.Resource(filterGVR).Namespace(namespace).Get(ctx, envoyFilterName, metav1.GetOptions{})
 	if k8serrors.IsNotFound(err) {
 		g.logger.Debug("Envoy Filter already deleted")
 		return nil
 	}
 	if err != nil {
 		return fmt.Errorf("could not check if Envoy Filter was already deleted: %w", err)
+	}
+	if !appsecconfig.IsManagedByDatadog(filter.GetLabels()) {
+		g.logger.Warnf("Not deleting EnvoyFilter %s/%s: it was not created by the Datadog Cluster Agent", namespace, envoyFilterName)
+		return nil
 	}
 
 	err = g.client.Resource(filterGVR).

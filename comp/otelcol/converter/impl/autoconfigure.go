@@ -35,30 +35,54 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	if c.coreConfig != nil {
 		enabledFeatures = c.coreConfig.GetStringSlice("otelcollector.converter.features")
 	} else {
-		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog"}
+		enabledFeatures = []string{"infraattributes", "prometheus", "pprof", "zpages", "health_check", "ddflare", "datadog", "opamp", "cumulativetodelta"}
 	}
 
-	// extensions (pprof, zpages, health_check, ddflare, datadog)
+	// extensions (pprof, zpages, health_check, ddflare, datadog, opamp)
+	standalone := c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone")
 	extensions := createExtensions(enabledFeatures)
 	for _, extension := range extensions {
 		if !slices.Contains(enabledFeatures, extension.Name) || extensionIsInServicePipeline(conf, extension) {
 			continue
 		}
+		// datadog and opamp are mutually exclusive, split on the deployment mode:
+		// the datadog extension reports to the core Agent, which standalone mode does
+		// not have, while opamp reports to the backend directly and is meaningful only
+		// when there is no core Agent already doing so.
+		if extension.Name == datadogName && standalone {
+			continue
+		}
+		if extension.Name == opampName && !standalone {
+			continue
+		}
+		// Both need a core-agent API key; without one, neither reuse nor add them.
+		if (extension.Name == datadogName || extension.Name == opampName) && (c.coreConfig == nil || c.coreConfig.GetString("api_key") == "") {
+			continue
+		}
+		// Reuse before building the datadog config below, whose hostname lookup is a
+		// blocking core-agent RPC in connected mode.
+		if c.reuseExtension(conf, extension.Name) {
+			continue
+		}
+		if extension.Name == opampName {
+			endpoint := c.coreConfig.GetString("otelcollector.opamp.endpoint")
+			if endpoint == "" {
+				endpoint = "https://opamp." + c.resolvedSite() + "/v1/opamp"
+			}
+			extension.Config = map[string]any{
+				"server": map[string]any{
+					"http": map[string]any{
+						"endpoint": endpoint,
+						"headers": map[string]any{
+							"DD-API-KEY": c.coreConfig.GetString("api_key"),
+						},
+					},
+				},
+				"reports_raw_config": c.coreConfig.GetBool("otelcollector.opamp.reports_raw_config"),
+			}
+		}
 		if extension.Name == datadogName {
-			if c.coreConfig == nil || c.coreConfig.GetString("api_key") == "" {
-				continue
-			}
-			// User already defined a datadog extension but forgot to wire it into
-			// service.extensions — reuse their definition instead of creating a
-			// second datadog/dd-autoconfigured.
-			if existingID := findExistingExtensionID(conf, datadogName); existingID != "" {
-				wireExtensionIDToPipeline(conf, existingID)
-				continue
-			}
-			site := defaultSite
-			if c.coreConfig.GetString("site") != "" {
-				site = c.coreConfig.GetString("site")
-			}
+			site := c.resolvedSite()
 			deploymentType := "daemonset"
 			if c.coreConfig.GetBool("otelcollector.gateway.mode") {
 				deploymentType = "gateway"
@@ -80,29 +104,40 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 			}
 		}
 		addComponentToConfig(conf, extension)
-		addExtensionToPipeline(conf, extension)
+		c.addExtensionToPipeline(conf, extension)
 	}
 
 	// dogtel extension (standalone mode only)
 	if c.coreConfig != nil && c.coreConfig.GetBool("otel_standalone") && !extensionIsInServicePipeline(conf, dogtelComponent) {
-		if existingID := findExistingExtensionID(conf, dogtelName); existingID != "" {
-			// User already defined a dogtel extension but forgot to wire it into
-			// service.extensions — reuse their definition instead of creating a
-			// second dogtel/dd-autoconfigured with empty config.
-			wireExtensionIDToPipeline(conf, existingID)
-		} else {
+		if !c.reuseExtension(conf, dogtelName) {
 			addComponentToConfig(conf, dogtelComponent)
-			addExtensionToPipeline(conf, dogtelComponent)
+			c.addExtensionToPipeline(conf, dogtelComponent)
 		}
 	}
 
-	// infra attributes processor
+	// infra attributes processor (all pipeline types; safe in mixed-exporter
+	// pipelines because it only adds resource attributes)
 	if slices.Contains(enabledFeatures, "infraattributes") {
-		addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor)
+		c.addProcessorToPipelines(conf, infraAttributesProcessor, pipelineAll, datadogTarget, false)
 	}
 	// prometheus receiver
 	if slices.Contains(enabledFeatures, "prometheus") {
 		addPrometheusReceiver(conf, findInternalMetricsAddress(conf))
+	}
+	// cumulativetodelta processor (metrics pipelines only — the processor only
+	// implements CreateMetrics, so it must never land in a traces/logs pipeline).
+	// warnOnMixedExporters: it changes metric temporality for every exporter in the
+	// pipeline, so warn (but still inject) when a metrics pipeline also fans out to a
+	// non-Datadog exporter, and let the user decide whether to split it.
+	// It runs after the prometheus receiver so that the internal telemetry pipeline,
+	// whose metrics are cumulative, gets it too.
+	if slices.Contains(enabledFeatures, "cumulativetodelta") {
+		c.addProcessorToPipelines(conf, cumulativeToDeltaProcessor, pipelineMetrics, datadogTarget, true)
+		// A DaemonSet in the DaemonSet+Gateway setup sends metrics to the Gateway: convert
+		// here, before the Gateway Service spreads one series across replicas.
+		if c.coreConfig != nil && c.coreConfig.GetBool("otelcollector.gateway.daemonset") {
+			c.addProcessorToPipelines(conf, cumulativeToDeltaProcessor, pipelineMetrics, gatewayTarget, true)
+		}
 	}
 
 	// add datadog agent sourced config
@@ -131,9 +166,151 @@ func (c *ddConverter) warnIfHostmetricsInConnectedMode(conf *confmap.Conf) {
 	}
 }
 
+// resolvedSite returns the configured Datadog site, falling back to the default
+// when unset. It must only be called with a non-nil coreConfig.
+func (c *ddConverter) resolvedSite() string {
+	if site := c.coreConfig.GetString("site"); site != "" {
+		return site
+	}
+	return defaultSite
+}
+
 func componentName(fullName string) string {
-	parts := strings.SplitN(fullName, "/", 2)
-	return parts[0]
+	base, _, _ := strings.Cut(fullName, "/")
+	return base
+}
+
+// pipelineType selects which service pipelines a processor is injected into.
+// Note: Go does not fully prevent an out-of-set value (an untyped string constant
+// still converts), but the named type + constants document intent and keep call
+// sites free of magic strings.
+type pipelineType string
+
+const (
+	// pipelineAll injects into every pipeline type (traces, metrics, logs).
+	pipelineAll pipelineType = ""
+	// pipelineMetrics injects into metrics pipelines only.
+	pipelineMetrics pipelineType = "metrics"
+)
+
+// exporterTarget is the set of exporters (base component names) a processor is
+// injected for, and their name in the mixed-exporter warning.
+type exporterTarget struct {
+	exporters []string
+	name      string
+}
+
+var (
+	datadogTarget = exporterTarget{exporters: []string{"datadog"}, name: "Datadog"}
+	// Exporters a DaemonSet in the DaemonSet+Gateway setup uses to reach the Gateway;
+	// otlp and otlphttp are the deprecated aliases of otlp_grpc and otlp_http.
+	gatewayTarget = exporterTarget{exporters: []string{"otlp", "otlp_grpc", "otlphttp", "otlp_http", "loadbalancing"}, name: "Gateway"}
+)
+
+// pipelineExportsTo reports whether the pipeline exports to one of t's exporters.
+// Matching is by base component name, so <type>/<name> counts too.
+func pipelineExportsTo(componentsMap map[string]any, t exporterTarget) bool {
+	exporters, ok := componentsMap["exporters"].([]any)
+	if !ok {
+		return false
+	}
+	for _, exporter := range exporters {
+		if s, ok := exporter.(string); ok && slices.Contains(t.exporters, componentName(s)) {
+			return true
+		}
+	}
+	return false
+}
+
+// pipelineHasOtherExporter reports whether the pipeline exports to an exporter outside t.
+func pipelineHasOtherExporter(componentsMap map[string]any, t exporterTarget) bool {
+	exporters, ok := componentsMap["exporters"].([]any)
+	if !ok {
+		return false
+	}
+	for _, exporter := range exporters {
+		if s, ok := exporter.(string); ok && !slices.Contains(t.exporters, componentName(s)) {
+			return true
+		}
+	}
+	return false
+}
+
+// pipelineHasProcessor reports whether the pipeline already lists a processor with
+// the given base component name (so a user-defined processor is not duplicated).
+func pipelineHasProcessor(componentsMap map[string]any, name string) bool {
+	processors, ok := componentsMap["processors"].([]any)
+	if !ok {
+		return false
+	}
+	for _, processor := range processors {
+		if s, ok := processor.(string); ok && componentName(s) == name {
+			return true
+		}
+	}
+	return false
+}
+
+// addProcessorToPipelines injects comp (a processor) into every pipeline that
+// exports to one of t's exporters, appending it to the end of the pipeline's
+// processors list. pt restricts the eligible pipeline types (pipelineAll = every
+// type, pipelineMetrics = metrics only). It is a no-op for a pipeline that already
+// defines a processor with the same base name.
+//
+// When warnOnMixedExporters is set, injecting into a pipeline that also exports to
+// an exporter outside t emits a warning (the processor is still injected). Collector
+// processors are pipeline-scoped and run before the fan-out to all exporters, so a
+// processor that rewrites data — e.g. cumulativetodelta changing metric temporality —
+// also alters what the other exporter receives. This is the user's pipeline
+// topology to own; we surface it loudly and let them split the pipeline if unintended.
+func (c *ddConverter) addProcessorToPipelines(conf *confmap.Conf, comp component, pt pipelineType, t exporterTarget, warnOnMixedExporters bool) {
+	stringMapConf := conf.ToStringMap()
+	service, ok := stringMapConf["service"].(map[string]any)
+	if !ok {
+		return
+	}
+	pipelinesMap, ok := service["pipelines"].(map[string]any)
+	if !ok {
+		return
+	}
+
+	componentAddedToConfig := false
+	for pipelineName, components := range pipelinesMap {
+		// Restrict to the requested pipeline type when one is set. componentName
+		// strips any "/<name>" suffix so both "metrics" and "metrics/foo" match.
+		// A malformed single pipeline is skipped, not fatal to the whole pass —
+		// otherwise map-iteration order would nondeterministically drop injection
+		// into the remaining (valid) pipelines.
+		if pt != pipelineAll && componentName(pipelineName) != string(pt) {
+			continue
+		}
+		componentsMap, ok := components.(map[string]any)
+		if !ok {
+			continue
+		}
+		if !pipelineExportsTo(componentsMap, t) || pipelineHasProcessor(componentsMap, comp.Name) {
+			continue
+		}
+		// Loudly flag mixed-exporter pipelines: the processor is pipeline-scoped, so it
+		// rewrites data for the other exporter(s) too. The user owns the topology
+		// — inform them and let them split the pipeline (or disable the feature) if the
+		// side effect is unwanted.
+		if warnOnMixedExporters && c.logger != nil && pipelineHasOtherExporter(componentsMap, t) {
+			c.logger.Warn("Auto-injected the " + comp.Name + " processor into metrics pipeline \"" +
+				pipelineName + "\", which also exports to a non-" + t.name + " exporter. Because Collector " +
+				"processors are pipeline-scoped, cumulative metrics are now converted to delta for ALL " +
+				"exporters in this pipeline, not only " + t.name + " — this changes the temporality other exporters " +
+				"receive. If that is unintended, route the " + t.name + " exporter through its own metrics pipeline, " +
+				"or disable this by removing \"cumulativetodelta\" from otelcollector.converter.features.")
+		}
+		// The target exporter is present but this processor is not yet in the
+		// pipeline: add it once to the top-level config, then to this pipeline.
+		if !componentAddedToConfig {
+			addComponentToConfig(conf, comp)
+			componentAddedToConfig = true
+		}
+		addComponentToPipeline(conf, comp, pipelineName)
+	}
 }
 
 // addComponentToConfig adds comp to the collector config. It supports receivers,

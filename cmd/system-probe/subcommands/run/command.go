@@ -10,22 +10,17 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	_ "net/http/pprof" // activate pprof profiling
 	"os"
 	"os/signal"
 	"os/user"
-	"path/filepath"
-	"strconv"
-	"strings"
 	"syscall"
 	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
-	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/cmd/agent/common/signals"
 	"github.com/DataDog/datadog-agent/cmd/system-probe/api"
@@ -33,6 +28,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/system-probe/common"
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
 	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
@@ -42,6 +38,7 @@ import (
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
 	healthprobe "github.com/DataDog/datadog-agent/comp/core/healthprobe/def"
 	healthprobefx "github.com/DataDog/datadog-agent/comp/core/healthprobe/fx"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
@@ -50,8 +47,8 @@ import (
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
-	remoteagent "github.com/DataDog/datadog-agent/comp/core/remoteagent/def"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
@@ -59,8 +56,10 @@ import (
 	sysprobeconfigfx "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/fx"
 	sysprobeconfigimpl "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/impl"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	nooptaggerfx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-noop"
 	remoteTaggerFx "github.com/DataDog/datadog-agent/comp/core/tagger/fx-remote"
 	telemetryfx "github.com/DataDog/datadog-agent/comp/core/telemetry/fx"
+	workloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx"
 	remoteWorkloadfilterfx "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-remote"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-remote"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
@@ -81,7 +80,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/lockcontention"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
 	ddruntime "github.com/DataDog/datadog-agent/pkg/runtime"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
@@ -103,11 +102,14 @@ type spLiteExecCmd struct {
 	Env  []string
 }
 
+// These are supplied for testability.
+type spliteExecFunc func(string, []string, []string) error
+type spliteExecutableFunc func() (string, error)
+
 // configPrefix is the system-probe config namespace (avoids importing pkg/system-probe/config and its setup dependency cycle).
 const configPrefix = "system_probe_config."
 
-// configstreamConsumerEnabledEnvVar is the environment variable that controls whether the configstream consumer is enabled.
-const configstreamConsumerEnabledEnvVar = "DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED"
+const systemProbeBootstrapClient = "system-probe"
 
 type cliParams struct {
 	*command.GlobalParams
@@ -120,6 +122,12 @@ const configSyncTimeout = 10 * time.Second
 
 // Commands returns a slice of subcommands for the 'system-probe' command.
 func Commands(globalParams *command.GlobalParams) []*cobra.Command {
+	return commands(globalParams, spliteExecFunc(syscall.Exec), spliteExecutableFunc(os.Executable))
+}
+
+// commands allows tests to intercept the system-probe-lite handoff while
+// exercising the same Fx options as the production command.
+func commands(globalParams *command.GlobalParams, execFn spliteExecFunc, executableFn spliteExecutableFunc) []*cobra.Command {
 	cliParams := &cliParams{
 		GlobalParams: globalParams,
 	}
@@ -128,17 +136,29 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Short: "Run the System Probe",
 		Long:  `Runs the system-probe in the foreground`,
 		RunE: func(_ *cobra.Command, _ []string) error {
+			coreAgentIPC := coreAgentIPCEnabled(globalParams.ConfFilePath, globalParams.FleetPoliciesDirPath)
 			opts := []fx.Option{
 				fx.Invoke(func(_ log.Component) {
 					ddruntime.SetMaxProcs()
 				}),
-				fx.Supply(config.NewAgentParams(globalParams.DatadogConfFilePath())),
+				fx.Supply(execFn),
+				fx.Supply(executableFn),
+				fx.Invoke(tryExecSPLite),
+				fx.Supply(config.NewAgentParams(
+					globalParams.DatadogConfFilePath(),
+					config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+				)),
 				fx.Supply(sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.ConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath))),
 				fx.Supply(pidimpl.NewParams(cliParams.pidfilePath)),
-				getSharedFxOption(),
+				getSharedFxOption(coreAgentIPC),
 			}
-			if isConfigstreamEnabled(globalParams.DatadogConfFilePath()) {
-				opts = append(opts, configstreamFxOptions())
+			// The config component takes the consumer as an optional dependency, so it can
+			// simply be left out when there is no core agent to stream the config from.
+			if coreAgentIPC {
+				opts = append(opts,
+					fx.Supply(configstreamconsumer.NewParams(systemProbeBootstrapClient, globalParams.DatadogConfFilePath())),
+					configstreamconsumerfx.Module(),
+				)
 			}
 			return fxutil.OneShot(run, opts...)
 		},
@@ -148,14 +168,38 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 	return []*cobra.Command{runCmd}
 }
 
-func getSharedFxOption() fx.Option {
+// tryExecSPLite checks for a system-probe-lite handoff while Fx is
+// building the application, to do it as early as possible. It runs before
+// fxutil.OneShot starts lifecycle hooks for the full system-probe graph. Using
+// the graph's config components means an active config stream applies its
+// initial snapshot before this decision, and config loading errors still abort
+// startup normally. Resolving pid.Component writes and validates the PID file
+// that system-probe-lite will remove on exit.
+func tryExecSPLite(sysConfig sysprobeconfig.Component, _ pid.Component, pidParams pidimpl.Params, logger log.Component, executableFn spliteExecutableFunc, execFn spliteExecFunc) {
+	if cmd := maybeSPLite(sysConfig, pidParams.PIDfilePath, logger, executableFn); cmd != nil {
+		logger.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
+		logger.Flush()
+		if err := execFn(cmd.Path, cmd.Args, cmd.Env); err != nil {
+			logger.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
+		}
+	}
+}
+
+// getSharedFxOption returns the fx options shared by every way of running system-probe.
+// When coreAgentIPC is false, system-probe runs isolated from the core agent by design
+// (e.g. inside a microVM), so every component that would talk to it is replaced by a
+// local or no-op implementation, or left out.
+func getSharedFxOption(coreAgentIPC bool) fx.Option {
 	return fx.Options(
+		coreAgentFxOptions(coreAgentIPC),
 		fx.Supply(log.ForDaemon(command.LoggerName, "log_file", common.DefaultLogFile())),
 		config.Module(),
+		schemanoopfx.Module(),
 		delegatedauthnoopfx.Module(),
 		sysprobeconfigfx.Module(),
 		systemprobeloggerfx.Module(),
 		telemetryfx.Module(),
+		agenttelemetryfx.Module(),
 		pidfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
 		secretsnoopfx.Module(),
@@ -168,13 +212,10 @@ func getSharedFxOption() fx.Option {
 			}
 		}),
 		healthprobefx.Module(),
-		wmcatalog.GetCatalog(),
 		workloadmetafx.Module(workloadmeta.Params{
 			AgentType: workloadmeta.Remote,
 		}),
-		remoteWorkloadfilterfx.Module(),
 		ipcfx.ModuleReadWrite(),
-		remoteTaggerFx.Module(tagger.NewRemoteParams()),
 		autoexitfx.Module(),
 		fx.Provide(func(sysprobeconfig sysprobeconfig.Component) settings.Params {
 			profilingGoRoutines := commonsettings.NewProfilingGoroutines()
@@ -201,12 +242,6 @@ func getSharedFxOption() fx.Option {
 		fx.Provide(func(config config.Component, statsd statsd.Component) (ddgostatsd.ClientInterface, error) {
 			return statsd.CreateForHostPort(configutils.GetBindHost(config), config.GetInt("dogstatsd_port"))
 		}),
-		remotehostnameimpl.Module(
-			remotehostnameimpl.WithMaxAttempts(10),
-			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
-		),
-		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
-		remoteagentfx.Module(),
 		fxinstrumentation.Module(),
 		localtraceroute.Module(),
 		connectionsforwarderfx.Module(),
@@ -217,75 +252,34 @@ func getSharedFxOption() fx.Option {
 	)
 }
 
-// configstreamFxOptions returns FX options for the config stream consumer.
-// Only include this when remote_agent.configstream.consumer.enabled is true.
-func configstreamFxOptions() fx.Option {
+// coreAgentFxOptions returns the components that depend on reaching the core agent.
+func coreAgentFxOptions(coreAgentIPC bool) fx.Option {
+	if !coreAgentIPC {
+		return fx.Options(
+			nooptaggerfx.Module(),
+			workloadfilterfx.Module(),
+			hostnameimpl.Module(),
+			// Remote Configuration is served by the core agent: turn it off so that
+			// neither the RC client nor the CWS RC policy provider try to reach it.
+			// A decorator, unlike an invoke, applies before any component sees the
+			// config, whatever the order fx builds them in.
+			fx.Decorate(func(cfg config.Component) config.Component {
+				cfg.Set("remote_configuration.enabled", false, model.SourceAgentRuntime)
+				return cfg
+			}),
+		)
+	}
 	return fx.Options(
-		// Expose config.Component as model.Writer for the config stream consumer to write remote config into.
-		fx.Provide(func(c config.Component) model.Writer {
-			return c
-		}),
-		// SessionIDProvider from RAR: only system-probe's remote agent implements this.
-		fx.Provide(func(ra remoteagent.Component) configstreamconsumer.SessionIDProvider {
-			if ra == nil {
-				return nil
-			}
-			if p, ok := ra.(configstreamconsumer.SessionIDProvider); ok {
-				return p
-			}
-			return nil
-		}),
-		fx.Provide(func(c config.Component, sessionProvider configstreamconsumer.SessionIDProvider) configstreamconsumer.Params {
-			host := c.GetString("cmd_host")
-			port := c.GetInt("cmd_port")
-			if port <= 0 {
-				port = 5001
-			}
-			return configstreamconsumer.Params{
-				ClientName:        "system-probe",
-				CoreAgentAddress:  net.JoinHostPort(host, strconv.Itoa(port)),
-				SessionIDProvider: sessionProvider,
-			}
-		}),
-		configstreamconsumerfx.Module(),
-		// Trigger instantiation; OnStart handles the blocking wait internally.
-		fx.Invoke(func(_ configstreamconsumer.Component) {}),
+		wmcatalog.GetCatalog(),
+		remoteWorkloadfilterfx.Module(),
+		remoteTaggerFx.Module(tagger.NewRemoteParams()),
+		remotehostnameimpl.Module(
+			remotehostnameimpl.WithMaxAttempts(10),
+			remotehostnameimpl.WithMaxRetryDelay(15*time.Second),
+		),
+		configsyncfx.Module(configsync.NewParams(configSyncTimeout, true, configSyncTimeout)),
+		remoteagentfx.Module(),
 	)
-}
-
-// isConfigstreamEnabled is a pre-FX feature flag check; the env var takes precedence over YAML.
-func isConfigstreamEnabled(cliConfigPath string) bool {
-	if v, ok := os.LookupEnv(configstreamConsumerEnabledEnvVar); ok {
-		if enabled, err := strconv.ParseBool(v); err == nil {
-			return enabled
-		}
-	}
-	for _, path := range []string{cliConfigPath, config.DefaultConfPath} {
-		if path == "" {
-			continue
-		}
-		if !strings.HasSuffix(path, ".yaml") && !strings.HasSuffix(path, ".yml") {
-			path = filepath.Join(path, "datadog.yaml")
-		}
-		data, err := os.ReadFile(path)
-		if err != nil {
-			continue
-		}
-		var cfg struct {
-			RemoteAgent struct {
-				ConfigStream struct {
-					Consumer struct {
-						Enabled bool `yaml:"enabled"`
-					} `yaml:"consumer"`
-				} `yaml:"configstream"`
-			} `yaml:"remote_agent"`
-		}
-		if err := yaml.Unmarshal(data, &cfg); err != nil {
-			return false
-		}
-		return cfg.RemoteAgent.ConfigStream.Consumer.Enabled
-	}
-	return false
 }
 
 // run starts the main loop.
@@ -297,17 +291,8 @@ func run(
 	_ autoexit.Component,
 	settings settings.Component,
 	_ ipc.Component,
-	pidParams pidimpl.Params,
 	deps module.FactoryDependencies,
 ) error {
-	if cmd := maybeSPLite(deps.SysprobeConfig, pidParams.PIDfilePath, deps.Log); cmd != nil {
-		deps.Log.Infof("execing into system-probe-lite: %s %v", cmd.Path, cmd.Args)
-		deps.Log.Flush()
-		if err := syscall.Exec(cmd.Path, cmd.Args, cmd.Env); err != nil {
-			deps.Log.Warnf("failed to exec into system-probe-lite: %s, falling back to running discovery in system-probe", err)
-		}
-	}
-
 	defer stopSystemProbe()
 
 	if deps.SysprobeConfig.GetBool("system_probe_config.disable_thp") {
@@ -402,7 +387,7 @@ func startSystemProbe(rcclient rcclient.Component, settings settings.Component, 
 			if pc := ebpftelemetry.NewPerfUsageCollector(); pc != nil {
 				deps.Telemetry.RegisterCollector(pc)
 			}
-			if lcc := ddebpf.NewLockContentionCollector(); lcc != nil {
+			if lcc := lockcontention.NewLockContentionCollector(); lcc != nil {
 				deps.Telemetry.RegisterCollector(lcc)
 			}
 			if ec := ebpftelemetry.NewEBPFErrorsCollector(); ec != nil {

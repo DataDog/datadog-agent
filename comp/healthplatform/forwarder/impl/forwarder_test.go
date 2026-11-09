@@ -62,7 +62,9 @@ func TestSend(t *testing.T) {
 		},
 	}
 
-	require.NoError(t, fwd.Send(context.Background(), report))
+	n, err := fwd.Send(context.Background(), report)
+	require.NoError(t, err)
+	assert.Positive(t, n)
 
 	assert.Equal(t, "application/json", receivedRequest.Header.Get("Content-Type"))
 	assert.Equal(t, "test-api-key", receivedRequest.Header.Get("DD-API-KEY"))
@@ -86,26 +88,29 @@ func TestSendHTTPError(t *testing.T) {
 	fwd := newTestForwarder(t, cfg)
 	fwd.intakeURL = server.URL
 
-	err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+	n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "unexpected status code: 500")
+	assert.Zero(t, n)
 }
 
 func TestSendNoAPIKey(t *testing.T) {
 	cfg := config.NewMock(t)
 	fwd := newTestForwarder(t, cfg)
 
-	err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
+	n, err := fwd.Send(context.Background(), &healthplatform.HealthReport{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "API key not configured")
+	assert.Zero(t, n)
 }
 
 func TestBuildIntakeURL(t *testing.T) {
 	tests := []struct {
-		name     string
-		site     string
-		ddURL    string
-		expected string
+		name      string
+		site      string
+		ddURL     string
+		healthURL string
+		expected  string
 	}{
 		{
 			name:     "default site",
@@ -117,10 +122,22 @@ func TestBuildIntakeURL(t *testing.T) {
 			expected: "https://agenthealth-intake.datadoghq.eu./api/v2/agenthealth",
 		},
 		{
-			name:     "custom dd_url overrides",
-			site:     "datadoghq.eu",
-			ddURL:    "https://custom.example.com",
-			expected: "https://custom.example.com/api/v2/agenthealth",
+			name:     "main dd_url is ignored",
+			site:     "datad0g.com",
+			ddURL:    "https://agent.datad0g.com",
+			expected: "https://agenthealth-intake.datad0g.com./api/v2/agenthealth",
+		},
+		{
+			name:      "health_platform.forwarder.dd_url overrides site",
+			site:      "datadoghq.eu",
+			healthURL: "https://proxy.example.com",
+			expected:  "https://proxy.example.com/api/v2/agenthealth",
+		},
+		{
+			name:      "health_platform.forwarder.dd_url wins over main dd_url",
+			ddURL:     "https://agent.datad0g.com",
+			healthURL: "https://proxy.example.com",
+			expected:  "https://proxy.example.com/api/v2/agenthealth",
 		},
 	}
 
@@ -132,6 +149,9 @@ func TestBuildIntakeURL(t *testing.T) {
 			}
 			if tt.ddURL != "" {
 				cfg.SetInTest("dd_url", tt.ddURL)
+			}
+			if tt.healthURL != "" {
+				cfg.SetInTest("health_platform.forwarder.dd_url", tt.healthURL)
 			}
 			assert.Equal(t, tt.expected, buildIntakeURL(cfg))
 		})

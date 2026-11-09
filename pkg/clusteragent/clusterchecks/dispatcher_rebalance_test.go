@@ -18,7 +18,8 @@ import (
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -43,1411 +44,7 @@ func (d *rebalanceTestClcRunnerClient) GetRunnerStats(ip string) (types.CLCRunne
 
 func (d *rebalanceTestClcRunnerClient) GetRunnerWorkers(string) (types.Workers, error) {
 	// Return default worker count
-	return types.Workers{Count: pkgconfigsetup.DefaultNumWorkers}, nil
-}
-
-func TestRebalance(t *testing.T) {
-	for i, tc := range []struct {
-		in  map[string]*nodeStore
-		out map[string]*nodeStore
-	}{
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 200,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 200,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					name: "C",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 5,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 90,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC2": types.CLCRunnerStats{
-							AverageExecutionTime: 110,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"D": {
-					name: "D",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					name: "C",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 5,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 90,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC2": types.CLCRunnerStats{
-							AverageExecutionTime: 110,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"D": {
-					name: "D",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB3": types.CLCRunnerStats{
-							AverageExecutionTime: 200,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB4": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
-							AverageExecutionTime: 5,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkD1": types.CLCRunnerStats{
-							AverageExecutionTime: 90,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkD2": types.CLCRunnerStats{
-							AverageExecutionTime: 110,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB3": types.CLCRunnerStats{
-							AverageExecutionTime: 200,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
-							AverageExecutionTime: 5,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkD1": types.CLCRunnerStats{
-							AverageExecutionTime: 90,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkD2": types.CLCRunnerStats{
-							AverageExecutionTime: 110,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB4": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB3": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB4": types.CLCRunnerStats{
-							AverageExecutionTime: 40,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB5": types.CLCRunnerStats{
-							AverageExecutionTime: 60,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-
-						"checkB4": types.CLCRunnerStats{
-							AverageExecutionTime: 40,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB5": types.CLCRunnerStats{
-							AverageExecutionTime: 60,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB3": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkD1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkD2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE3": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE3": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkD1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkD2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        5,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        20,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        5,
-							IsClusterCheck:       true,
-						},
-						"checkD1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        50,
-							IsClusterCheck:       true,
-						},
-						"checkD2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        600,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        300,
-							IsClusterCheck:       true,
-						},
-						"checkE2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE3": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        1000,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE3": types.CLCRunnerStats{
-							AverageExecutionTime: 500,
-							MetricSamples:        1000,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"B": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"C": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkC0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        5,
-							IsClusterCheck:       true,
-						},
-						"checkC1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        20,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"D": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkD0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        5,
-							IsClusterCheck:       true,
-						},
-						"checkD1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        50,
-							IsClusterCheck:       true,
-						},
-						"checkD2": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        600,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-				"E": {
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkE0": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkE1": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        300,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       true,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-					},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkA3": types.CLCRunnerStats{
-							AverageExecutionTime: 300,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-					},
-				},
-				"B": {
-					name: "B",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkB0": types.CLCRunnerStats{
-							AverageExecutionTime: 50,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkB1": types.CLCRunnerStats{
-							AverageExecutionTime: 20,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-						"checkB2": types.CLCRunnerStats{
-							AverageExecutionTime: 100,
-							MetricSamples:        10,
-							IsClusterCheck:       false,
-						},
-					},
-				},
-			},
-		},
-		{
-			in: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 1000,
-							MetricSamples:        1000,
-							LastExecFailed:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							LastExecFailed:       false,
-						},
-					},
-				},
-				"B": {
-					name:           "B",
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-			},
-			out: map[string]*nodeStore{
-				"A": {
-					name: "A",
-					clcRunnerStats: types.CLCRunnersStats{
-						"checkA0": types.CLCRunnerStats{
-							AverageExecutionTime: 1000,
-							MetricSamples:        1000,
-							LastExecFailed:       true,
-						},
-						"checkA1": types.CLCRunnerStats{
-							AverageExecutionTime: 10,
-							MetricSamples:        10,
-							LastExecFailed:       false,
-						},
-					},
-				},
-				"B": {
-					name:           "B",
-					clcRunnerStats: types.CLCRunnersStats{},
-				},
-			},
-		},
-	} {
-		t.Run(fmt.Sprintf("case %d", i), func(t *testing.T) {
-			// Tests have been written with this value hardcoded
-			// Changing the values rather than re-writing all the tests.
-			originalCheckExecutionTimeWeight := checkExecutionTimeWeight
-			originalMetricSamplesWeight := checkMetricSamplesWeight
-			checkExecutionTimeWeight = 0.8
-			checkMetricSamplesWeight = 0.2
-			defer func() {
-				checkExecutionTimeWeight = originalCheckExecutionTimeWeight
-				checkMetricSamplesWeight = originalMetricSamplesWeight
-			}()
-
-			fakeTagger := taggerfxmock.SetupFakeTagger(t)
-			dispatcher := newDispatcher(fakeTagger)
-
-			// Create a mock CLC runner client to avoid nil pointer errors
-			mockClient := &rebalanceTestClcRunnerClient{
-				testStats: make(map[string]types.CLCRunnersStats),
-			}
-			dispatcher.clcRunnersClient = mockClient
-
-			// prepare store
-			dispatcher.store.active = true
-			for node, store := range tc.in {
-				// Give each node a unique IP so the mock can distinguish them
-				nodeIP := fmt.Sprintf("10.0.0.%d", len(mockClient.testStats)+1)
-				dispatcher.store.nodes[node] = newNodeStore(node, nodeIP)
-				// setup input
-				dispatcher.store.nodes[node].clcRunnerStats = store.clcRunnerStats
-				// Store the test data in the mock so it can return it
-				mockClient.testStats[nodeIP] = store.clcRunnerStats
-				// Each cluster-check ID is its own single-instance config
-				// (digest == checkID). Skip non-cluster checks so
-				// updateRunnersStats doesn't flip their IsClusterCheck flag.
-				for checkID, stats := range store.clcRunnerStats {
-					if !stats.IsClusterCheck {
-						continue
-					}
-					digest := checkID
-					dispatcher.store.idToDigest[checkid.ID(checkID)] = digest
-					dispatcher.store.digestToConfig[digest] = integration.Config{Name: checkID}
-					dispatcher.store.digestToNode[digest] = node
-				}
-			}
-
-			// Use busyness-based rebalancing directly for these legacy tests
-			// (preserves test coverage for busyness algorithm while allowing utilization as default)
-			dispatcher.rebalanceUsingBusyness()
-
-			// assert runner stats repartition is updated correctly
-			for node, store := range tc.out {
-				assert.EqualValues(t, store.clcRunnerStats, dispatcher.store.nodes[node].clcRunnerStats)
-			}
-
-			requireNotLocked(t, dispatcher.store)
-		})
-	}
+	return types.Workers{Count: constants.DefaultNumWorkers}, nil
 }
 
 func TestMoveCheck(t *testing.T) {
@@ -1518,47 +115,50 @@ func TestMoveCheck(t *testing.T) {
 	}
 }
 
-func TestCalculateAvg(t *testing.T) {
-	// checkMetricSamplesWeight affects this test. To avoid coupling this test
-	// with the actual value, overwrite here and restore after the test.
-	originalMetricSamplesWeight := checkMetricSamplesWeight
-	checkMetricSamplesWeight = 1
-	defer func() {
-		checkMetricSamplesWeight = originalMetricSamplesWeight
-	}()
-
+func TestMoveConfigNotOnSource(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
-
-	// The busyness of this node is 3 (1 + 2)
-	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "")
-	testDispatcher.store.nodes["node1"].clcRunnerStats = types.CLCRunnersStats{
-		"check1": types.CLCRunnerStats{
-			MetricSamples:  1,
-			IsClusterCheck: true,
-		},
-		"check2": types.CLCRunnerStats{
-			MetricSamples:  2,
-			IsClusterCheck: true,
-		},
+	dispatcher := newDispatcher(fakeTagger)
+	config := integration.Config{
+		Name:       "check1",
+		Instances:  []integration.Data{integration.Data("")},
+		InitConfig: integration.Data(""),
 	}
+	digest := config.Digest()
+	id := checkid.BuildID(config.Name, config.FastDigest(), config.Instances[0], config.InitConfig)
 
-	// The busyness of this node is 7 (3 + 4)
-	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "")
-	testDispatcher.store.nodes["node2"].clcRunnerStats = types.CLCRunnersStats{
-		"check3": types.CLCRunnerStats{
-			MetricSamples:  3,
-			IsClusterCheck: true,
-		},
-		"check4": types.CLCRunnerStats{
-			MetricSamples:  4,
-			IsClusterCheck: true,
-		},
+	for _, node := range []string{"nodeA", "nodeB", "nodeC"} {
+		dispatcher.store.nodes[node] = newNodeStore(node, "")
 	}
+	dispatcher.addConfig(config, "nodeA")
+	dispatcher.store.nodes["nodeA"].clcRunnerStats = types.CLCRunnersStats{string(id): types.CLCRunnerStats{}}
 
-	avg, err := testDispatcher.calculateAvg()
-	require.NoError(t, err)
-	assert.Equal(t, 5, avg)
+	// Re-dispatched to nodeC after the rebalance snapshot saw it on nodeA.
+	dispatcher.addConfig(config, "nodeC")
+
+	err := dispatcher.moveConfig("nodeA", "nodeB", digest)
+	assert.Error(t, err)
+
+	assert.Equal(t, "nodeC", dispatcher.store.digestToNode[digest])
+	assert.Empty(t, dispatcher.store.nodes["nodeA"].digestToConfig)
+	assert.Empty(t, dispatcher.store.nodes["nodeB"].digestToConfig)
+	assert.Contains(t, dispatcher.store.nodes["nodeC"].digestToConfig, digest)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+func TestRebalanceAlreadyInProgress(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	dispatcher.rebalanceMu.Lock()
+	_, err := dispatcher.rebalance(true)
+	assert.ErrorIs(t, err, types.ErrRebalanceInProgress)
+	dispatcher.rebalanceMu.Unlock()
+
+	_, err = dispatcher.rebalance(true)
+	assert.NoError(t, err)
+
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestRebalanceUsingUtilization(t *testing.T) {
@@ -1569,6 +169,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 	//   other tests specific for the configsDistribution struct that test more
 	//   complex scenarios.
 
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1581,9 +182,9 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
-	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = constants.DefaultNumWorkers
 
 	node1Stats := map[string]types.CLCRunnerStats{
 		// This is the check with the highest utilization. The code will try to
@@ -1665,6 +266,7 @@ func TestRebalanceUsingUtilization(t *testing.T) {
 // configs are stacked on node1 alongside a lightweight config on node2, the
 // utilization rebalancer moves one heavy config to node2, spreading the load.
 func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1676,9 +278,9 @@ func TestRebalanceUsingUtilization_GroupsAndSpreadsMultiInstanceConfigs(t *testi
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
-	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = constants.DefaultNumWorkers
 
 	// node1: two heavy multi-instance configs. node2: one lightweight config.
 	node1Stats := map[string]types.CLCRunnerStats{
@@ -1799,9 +401,9 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
-	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = constants.DefaultNumWorkers
 
 	// All three checks start on node1: two with AverageExecutionTime == 0
 	// (pinned) and one with real data (eligible to move).
@@ -1865,6 +467,7 @@ func TestRebalanceUsingUtilization_PinsChecksWithoutExecutionTime(t *testing.T) 
 // first while both runners still look empty, which anchors it to its current
 // (overloaded) runner.
 func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *testing.T) {
+	configmock.New(t).SetInTest("cluster_checks.stickiness_enabled", false)
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
 	testDispatcher := newDispatcher(fakeTagger)
 
@@ -1882,9 +485,9 @@ func TestRebalanceUsingUtilization_PinnedLoadAccountedBeforeGreedyPlacement(t *t
 
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 	testDispatcher.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
-	testDispatcher.store.nodes["node2"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node2"].workers = constants.DefaultNumWorkers
 
 	// node1: pinned (0.6 workers) + movable (0.7 workers). node2: empty.
 	// With a default 15s interval, AvgExecTime in ms equals workersNeeded * 15000.
@@ -1934,7 +537,7 @@ func TestCurrentDistribution_SeparatesConfigsByDigest(t *testing.T) {
 	testDispatcher := newDispatcher(fakeTagger)
 	testDispatcher.store.active = true
 	testDispatcher.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
-	testDispatcher.store.nodes["node1"].workers = pkgconfigsetup.DefaultNumWorkers
+	testDispatcher.store.nodes["node1"].workers = constants.DefaultNumWorkers
 
 	testDispatcher.store.nodes["node1"].clcRunnerStats = map[string]types.CLCRunnerStats{
 		"checkPgA": {AverageExecutionTime: 1000, IsClusterCheck: true},
@@ -1962,63 +565,6 @@ func TestCurrentDistribution_SeparatesConfigsByDigest(t *testing.T) {
 	assert.Equal(t, "postgres", dist.Configs["digestPgB"].CheckName)
 }
 
-// Verifies pickConfigToMove aggregates weight by digest so a multi-instance
-// config can outrank a single-instance one with higher per-check weight.
-func TestRebalanceUsingBusyness_GroupsInstancesByConfig(t *testing.T) {
-	originalCheckExecutionTimeWeight := checkExecutionTimeWeight
-	originalMetricSamplesWeight := checkMetricSamplesWeight
-	checkExecutionTimeWeight = 0.8
-	checkMetricSamplesWeight = 0.2
-	defer func() {
-		checkExecutionTimeWeight = originalCheckExecutionTimeWeight
-		checkMetricSamplesWeight = originalMetricSamplesWeight
-	}()
-
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	testDispatcher := newDispatcher(fakeTagger)
-
-	mockClient := &rebalanceTestClcRunnerClient{
-		testStats: make(map[string]types.CLCRunnersStats),
-	}
-	testDispatcher.clcRunnersClient = mockClient
-
-	testDispatcher.store.active = true
-	testDispatcher.store.nodes["A"] = newNodeStore("A", "10.0.0.1")
-	testDispatcher.store.nodes["B"] = newNodeStore("B", "10.0.0.2")
-
-	// Per-checkID, checkH0 (250) looks heaviest; aggregated per-config,
-	// digestMulti (3 × 125) outweighs digestHeavy.
-	nodeAStats := map[string]types.CLCRunnerStats{
-		"checkH0": {AverageExecutionTime: 250, MetricSamples: 0, IsClusterCheck: true},
-		"checkM0": {AverageExecutionTime: 125, MetricSamples: 0, IsClusterCheck: true},
-		"checkM1": {AverageExecutionTime: 125, MetricSamples: 0, IsClusterCheck: true},
-		"checkM2": {AverageExecutionTime: 125, MetricSamples: 0, IsClusterCheck: true},
-	}
-	testDispatcher.store.nodes["A"].clcRunnerStats = nodeAStats
-	mockClient.testStats["10.0.0.1"] = nodeAStats
-	mockClient.testStats["10.0.0.2"] = types.CLCRunnersStats{}
-
-	testDispatcher.store.idToDigest = map[checkid.ID]string{
-		"checkH0": "digestHeavy",
-		"checkM0": "digestMulti",
-		"checkM1": "digestMulti",
-		"checkM2": "digestMulti",
-	}
-	testDispatcher.store.digestToConfig = map[string]integration.Config{
-		"digestHeavy": {Name: "heavy", Instances: []integration.Data{integration.Data("")}},
-		"digestMulti": {Name: "multi", Instances: []integration.Data{integration.Data("a"), integration.Data("b"), integration.Data("c")}},
-	}
-	testDispatcher.store.digestToNode = map[string]string{
-		"digestHeavy": "A",
-		"digestMulti": "A",
-	}
-
-	digest, weight, err := testDispatcher.pickConfigToMove("A")
-	require.NoError(t, err)
-	assert.Equal(t, "digestMulti", digest)
-	assert.Greater(t, weight, 200)
-}
-
 func TestRebalanceIsWorthIt(t *testing.T) {
 	workersPerRunner := map[string]int{
 		"runner1": 3,
@@ -2028,23 +574,23 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 
 	// The proposed solution is worth it if it leaves less unused runners
 
-	currentDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	currentDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	currentDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	currentDistribution.addConfig("check2", "check2", 1, "runner1", false)
 
-	proposedDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	proposedDistribution := newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	proposedDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	proposedDistribution.addConfig("check2", "check2", 1, "runner2", false)
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 
 	// The proposed	solution is worth it if it has fewer runners with a high utilization
-	currentDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	currentDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	currentDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	currentDistribution.addConfig("check2", "check2", 1, "runner1", false)
 	currentDistribution.addConfig("check3", "check3", 1, "runner1", false)
 
-	proposedDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0)
+	proposedDistribution = newConfigsDistribution(workersPerRunner, false, 4.0, 1.0, 0.05)
 	proposedDistribution.addConfig("check1", "check1", 1, "runner1", false)
 	proposedDistribution.addConfig("check2", "check2", 1, "runner2", false)
 	proposedDistribution.addConfig("check3", "check3", 1, "runner3", false)

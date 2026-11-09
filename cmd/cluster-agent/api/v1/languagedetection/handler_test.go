@@ -104,6 +104,7 @@ func TestLeaderHandlerSpan_Success(t *testing.T) {
 	defer mt.Stop()
 
 	mockStore := newMockStore(t)
+
 	handler := &languageDetectionHandler{
 		cfg: handlerConfig{
 			enabled:     true,
@@ -117,7 +118,7 @@ func TestLeaderHandlerSpan_Success(t *testing.T) {
 		PodDetails: []*pbgo.PodLanguageDetails{
 			{
 				Namespace: "default",
-				Name:      "pod-a",
+				Name:      "deploy-a-12345-98765",
 				ContainerDetails: []*pbgo.ContainerLanguageDetails{
 					{
 						ContainerName: "container-1",

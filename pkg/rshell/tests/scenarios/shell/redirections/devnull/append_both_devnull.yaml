@@ -1,0 +1,8 @@
+description: Append redirect both stdout and stderr to /dev/null with &>>.
+input:
+  script: |+
+    echo hello &>>/dev/null
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

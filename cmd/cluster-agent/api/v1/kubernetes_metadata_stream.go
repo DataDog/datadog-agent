@@ -14,12 +14,17 @@ import (
 	"sync"
 	"time"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/ext"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"k8s.io/apimachinery/pkg/util/sets"
 
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -31,6 +36,17 @@ const (
 	// prevent the client from treating an idle stream as dead.
 	keepAliveInterval   = 9 * time.Minute
 	wmetaSubscriberName = "kube-metadata-stream"
+	// Keep a bounded history of shared diffs. Streams that fall behind receive
+	// a full state instead, so coalesced notifications cannot lose deletions.
+	metadataHistorySize = 128
+)
+
+var metadataStreamHistoryResyncs = telemetryimpl.GetCompatComponent().NewCounterWithOpts(
+	"metadata_streaming",
+	"history_resyncs",
+	nil,
+	"Number of full metadata states successfully sent because an agent fell behind the retained version history",
+	telemetry.Options{NoDoubleUnderscoreSep: true},
 )
 
 type podServiceEntry struct {
@@ -44,19 +60,103 @@ type namespaceEntry struct {
 	annotations map[string]string
 }
 
+type kueueQueueEntry struct {
+	namespace        string
+	name             string
+	queueType        workloadmeta.KueueQueueType
+	clusterQueueName string
+	labels           map[string]string
+	annotations      map[string]string
+	uid              string
+}
+
+type kueueResourceFlavorEntry struct {
+	name               string
+	labels             map[string]string
+	annotations        map[string]string
+	uid                string
+	nodeAffinityLabels map[string]string
+}
+
+type kueuePodSetAssignmentEntry struct {
+	name    string
+	flavors map[string]string
+}
+
+type kueueWorkloadEntry struct {
+	namespace              string
+	name                   string
+	queueName              string
+	clusterQueueName       string
+	labels                 map[string]string
+	annotations            map[string]string
+	uid                    string
+	podSetAssignments      []kueuePodSetAssignmentEntry
+	podTemplateLabels      map[string]string
+	podTemplateAnnotations map[string]string
+}
+
+type kaiPodGroupEntry struct {
+	namespace   string
+	name        string
+	queueName   string
+	labels      map[string]string
+	annotations map[string]string
+	uid         string
+}
+
+// kaiPodRef is the node and PodGroup of a pod that KAI assigned to a PodGroup.
+type kaiPodRef struct {
+	nodeName    string
+	podGroupKey string
+}
+
+type autoscalerEntry struct {
+	namespace      string
+	name           string
+	autoscalerKind workloadmeta.AutoscalerKind
+	targetKind     workloadmeta.AutoscalerTargetKind
+	targetName     string
+}
+
+type metadataSnapshot struct {
+	namespaces           map[string]namespaceEntry
+	kueueQueues          map[string]kueueQueueEntry
+	kueueResourceFlavors map[string]kueueResourceFlavorEntry
+	kueueWorkloads       map[string]kueueWorkloadEntry
+	autoscalers          map[string]autoscalerEntry
+}
+
 // KubeMetadataStreamServer streams pod-to-service mappings and namespace
 // labels/annotations from the DCA to node agents.
 type KubeMetadataStreamServer struct {
 	store *controllers.MetaBundleStore
 	wmeta workloadmeta.Component
 
-	namespacesMutex sync.RWMutex
-	namespaces      map[string]namespaceEntry // keys are namespace names
+	metadataMutex   sync.RWMutex
+	metadata        metadataSnapshot
+	metadataVersion uint64
+	// Responses are immutable after publication and shared by all streams.
+	metadataHistory [metadataHistorySize]*pb.KubeMetadataStreamResponse
 	// namespaceSubscribers holds notification channels per node name. A node
 	// can have multiple subscribers because more than one process (for example,
 	// the running agent plus "agent diagnose", "agent check", etc.) may stream
-	// metadata for the same node concurrently.
+	// metadata for the same node concurrently. Subscribers are also notified
+	// when the KAI PodGroups of their node change.
 	namespaceSubscribers map[string][]chan struct{}
+
+	// KAI PodGroups are kept out of the shared history: each stream sends only
+	// the PodGroups of its node's pods, diffed against what it last sent, like
+	// pod-to-service mappings.
+	kaiEnabled   bool
+	kaiPodGroups map[string]kaiPodGroupEntry
+	// kaiPods indexes the pods assigned to a PodGroup by pod UID.
+	kaiPods map[string]kaiPodRef
+	// kaiNodePodGroups counts the pods of each PodGroup per node, and
+	// kaiPodGroupNodes is the reverse index used to notify the nodes of a
+	// changed PodGroup.
+	kaiNodePodGroups map[string]map[string]int
+	kaiPodGroupNodes map[string]map[string]int
 }
 
 // NewKubeMetadataStreamServer creates a new KubeMetadataStreamServer
@@ -64,18 +164,33 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 	return &KubeMetadataStreamServer{
 		store:                store,
 		wmeta:                wmeta,
-		namespaces:           make(map[string]namespaceEntry),
+		metadata:             newMetadataSnapshot(),
 		namespaceSubscribers: make(map[string][]chan struct{}),
+		kaiEnabled:           pkgconfigsetup.Datadog().GetBool("cluster_agent.kai_scheduler.enabled"),
+		kaiPodGroups:         make(map[string]kaiPodGroupEntry),
+		kaiPods:              make(map[string]kaiPodRef),
+		kaiNodePodGroups:     make(map[string]map[string]int),
+		kaiPodGroupNodes:     make(map[string]map[string]int),
 	}
 }
 
-// Start subscribes to workloadmeta for namespace metadata changes and
-// maintains the namespace state. It must be called before serving streams.
+func newMetadataSnapshot() metadataSnapshot {
+	return metadataSnapshot{
+		namespaces:           make(map[string]namespaceEntry),
+		kueueQueues:          make(map[string]kueueQueueEntry),
+		kueueResourceFlavors: make(map[string]kueueResourceFlavorEntry),
+		kueueWorkloads:       make(map[string]kueueWorkloadEntry),
+		autoscalers:          make(map[string]autoscalerEntry),
+	}
+}
+
+// Start subscribes to workloadmeta for metadata changes and maintains state.
+// It must be called before serving streams.
 func (srv *KubeMetadataStreamServer) Start(ctx context.Context) {
 	ch := srv.wmeta.Subscribe(
 		wmetaSubscriberName,
 		workloadmeta.NormalPriority,
-		namespaceMetadataFilter(),
+		kubeMetadataStreamFilter(srv.kaiEnabled),
 	)
 
 	go func() {
@@ -89,7 +204,7 @@ func (srv *KubeMetadataStreamServer) Start(ctx context.Context) {
 					return
 				}
 				bundle.Acknowledge()
-				srv.processNamespaceEvents(bundle.Events)
+				srv.processWmetaEvents(bundle.Events)
 			}
 		}
 	}()
@@ -108,10 +223,12 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 
 	// Send initial full state
 	lastSentPodServicesState := srv.buildPodServiceMappingsSnapshot(nodeName)
-	lastSentNamespacesState := srv.buildNamespacesSnapshot()
-	initialResp := fullStateResponse(lastSentPodServicesState, lastSentNamespacesState)
+	metadata, lastSentMetadataVersion := srv.buildMetadataSnapshotWithVersion()
+	lastSentKAIPodGroupsState := srv.buildKAIPodGroupsSnapshot(nodeName)
+	initialResp := fullStateResponse(lastSentPodServicesState, metadata, lastSentKAIPodGroupsState)
 	initialSendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_full_state",
 		tracer.ResourceName("sendFullState"),
+		tracer.Tag(ext.SpanKind, ext.SpanKindServer),
 		tracer.Tag("node_name", nodeName),
 	)
 	if err := grpc.DoWithTimeout(func() error {
@@ -142,47 +259,46 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				IsFullState: false,
 				Mappings:    podServiceMappingsDiff,
 			}
-			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
-				tracer.ResourceName("sendDiff"),
-				tracer.Tag("node_name", nodeName),
-				tracer.Tag("event_type", "pod_services"),
-			)
 			if err := grpc.DoWithTimeout(func() error {
 				return stream.Send(resp)
 			}, streamSendTimeout); err != nil {
 				log.Warnf("Error sending pod-service metadata diff for node %s: %s", nodeName, err)
-				sendSpan.Finish(tracer.WithError(err))
 				return err
 			}
-			sendSpan.Finish()
 			lastSentPodServicesState = currentPodServiceMappingsState
 			ticker.Reset(keepAliveInterval)
 
 		case <-namespacesNotifyCh:
-			currentNamespacesState := srv.buildNamespacesSnapshot()
-			namespacesDiff := computeNamespacesDiff(lastSentNamespacesState, currentNamespacesState)
-			if len(namespacesDiff) == 0 {
-				continue
+			updates, version, ok := srv.metadataUpdatesSince(lastSentMetadataVersion)
+			currentKAIPodGroupsState := srv.buildKAIPodGroupsSnapshot(nodeName)
+			if !ok {
+				// A full state replaces all client caches, including pod-service
+				// mappings and KAI PodGroups. Refresh their baselines along with
+				// the metadata cursor.
+				lastSentPodServicesState = srv.buildPodServiceMappingsSnapshot(nodeName)
+				metadata, currentVersion := srv.buildMetadataSnapshotWithVersion()
+				updates = []*pb.KubeMetadataStreamResponse{fullStateResponse(lastSentPodServicesState, metadata, currentKAIPodGroupsState)}
+				version = currentVersion
+			} else if kaiPodGroupsDiff := computeKAIPodGroupsDiff(lastSentKAIPodGroupsState, currentKAIPodGroupsState); len(kaiPodGroupsDiff) > 0 {
+				updates = append(updates, &pb.KubeMetadataStreamResponse{
+					IsFullState:  false,
+					KaiPodGroups: kaiPodGroupsDiff,
+				})
 			}
-			resp := &pb.KubeMetadataStreamResponse{
-				IsFullState:       false,
-				NamespaceMetadata: namespacesDiff,
+			for _, resp := range updates {
+				if err := grpc.DoWithTimeout(func() error {
+					return stream.Send(resp)
+				}, streamSendTimeout); err != nil {
+					log.Warnf("Error sending metadata update for node %s: %s", nodeName, err)
+					return err
+				}
+				if !ok {
+					metadataStreamHistoryResyncs.Inc()
+				}
+				ticker.Reset(keepAliveInterval)
 			}
-			sendSpan := tracer.StartSpan("cluster_agent.metadata_stream.send_diff",
-				tracer.ResourceName("sendDiff"),
-				tracer.Tag("node_name", nodeName),
-				tracer.Tag("event_type", "namespaces"),
-			)
-			if err := grpc.DoWithTimeout(func() error {
-				return stream.Send(resp)
-			}, streamSendTimeout); err != nil {
-				log.Warnf("Error sending namespace metadata diff for node %s: %s", nodeName, err)
-				sendSpan.Finish(tracer.WithError(err))
-				return err
-			}
-			sendSpan.Finish()
-			lastSentNamespacesState = currentNamespacesState
-			ticker.Reset(keepAliveInterval)
+			lastSentMetadataVersion = version
+			lastSentKAIPodGroupsState = currentKAIPodGroupsState
 
 		case <-ticker.C:
 			// Send empty keepalive
@@ -202,35 +318,325 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 	}
 }
 
-func (srv *KubeMetadataStreamServer) processNamespaceEvents(events []workloadmeta.Event) {
-	srv.namespacesMutex.Lock()
-	defer srv.namespacesMutex.Unlock()
+func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Event) {
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
 
+	// Snapshot and compare once per bundle, not once per connected agent. Only
+	// bundles with shared metadata are snapshotted: pod and KAI PodGroup bundles
+	// are frequent and would copy it for nothing.
+	var previous *metadataSnapshot
+	snapshotShared := func() {
+		if previous == nil {
+			snapshot := srv.metadata.clone()
+			previous = &snapshot
+		}
+	}
 	changed := false
+	kaiNodes := make(map[string]struct{})
 	for _, event := range events {
-		metadata := event.Entity.(*workloadmeta.KubernetesMetadata)
-		namespaceName := metadata.Name
-
-		switch event.Type {
-		case workloadmeta.EventTypeSet:
-			srv.namespaces[namespaceName] = namespaceEntry{
-				labels:      metadata.Labels,
-				annotations: metadata.Annotations,
+		switch entity := event.Entity.(type) {
+		case *workloadmeta.KubernetesMetadata:
+			snapshotShared()
+			if srv.metadata.processNamespaceEvent(event.Type, entity) {
+				changed = true
 			}
-			changed = true
-		case workloadmeta.EventTypeUnset:
-			if _, exists := srv.namespaces[namespaceName]; exists {
-				delete(srv.namespaces, namespaceName)
+		case *workloadmeta.KubernetesKueueQueue:
+			snapshotShared()
+			if srv.metadata.processKueueQueueEvent(event.Type, entity) {
+				changed = true
+			}
+		case *workloadmeta.KubernetesKueueResourceFlavor:
+			snapshotShared()
+			if srv.metadata.processKueueResourceFlavorEvent(event.Type, entity) {
+				changed = true
+			}
+		case *workloadmeta.KubernetesKueueWorkload:
+			snapshotShared()
+			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
+				changed = true
+			}
+		case *workloadmeta.KubernetesKAIPodGroup:
+			if srv.processKAIPodGroupEvent(event.Type, entity) {
+				for nodeName := range srv.kaiPodGroupNodes[entity.EntityID.ID] {
+					kaiNodes[nodeName] = struct{}{}
+				}
+			}
+		case *workloadmeta.KubernetesPod:
+			for _, nodeName := range srv.processKAIPodEvent(event.Type, entity) {
+				kaiNodes[nodeName] = struct{}{}
+			}
+		case *workloadmeta.KubernetesAutoscaler:
+			snapshotShared()
+			if srv.metadata.processAutoscalerEvent(event.Type, entity) {
 				changed = true
 			}
 		default:
-			log.Errorf("Unknown event type %d for namespace %s", event.Type, namespaceName)
+			log.Errorf("Unexpected workloadmeta entity %T in kube metadata stream", event.Entity)
 		}
 	}
 
 	if changed {
-		srv.notifyNamespaceSubscribers()
+		diff := computeMetadataDiff(*previous, srv.metadata)
+		if !diff.isEmpty() {
+			srv.metadataVersion++
+			srv.metadataHistory[srv.metadataVersion%metadataHistorySize] = diff.response(false)
+			// Notifying all subscribers also covers the nodes in kaiNodes.
+			srv.notifyNamespaceSubscribers()
+			return
+		}
 	}
+	srv.notifyNodeSubscribers(kaiNodes)
+}
+
+// metadataUpdatesSince returns shared, ordered diffs up to the current version.
+// A false result means the cursor is too old and needs a full-state resync.
+func (srv *KubeMetadataStreamServer) metadataUpdatesSince(version uint64) ([]*pb.KubeMetadataStreamResponse, uint64, bool) {
+	srv.metadataMutex.RLock()
+	defer srv.metadataMutex.RUnlock()
+
+	if srv.metadataVersion-version > metadataHistorySize {
+		return nil, srv.metadataVersion, false
+	}
+	if version == srv.metadataVersion {
+		return nil, version, true
+	}
+	updates := make([]*pb.KubeMetadataStreamResponse, 0, srv.metadataVersion-version)
+	for next := version + 1; next <= srv.metadataVersion; next++ {
+		updates = append(updates, srv.metadataHistory[next%metadataHistorySize])
+	}
+	return updates, srv.metadataVersion, true
+}
+
+func (s *metadataSnapshot) processNamespaceEvent(eventType workloadmeta.EventType, metadata *workloadmeta.KubernetesMetadata) bool {
+	namespaceName := metadata.Name
+
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.namespaces[namespaceName] = namespaceEntry{
+			labels:      metadata.Labels,
+			annotations: metadata.Annotations,
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.namespaces[namespaceName]; exists {
+			delete(s.namespaces, namespaceName)
+			return true
+		}
+	default:
+		log.Errorf("Unknown event type %d for namespace %s", eventType, namespaceName)
+	}
+	return false
+}
+
+func (s *metadataSnapshot) processKueueQueueEvent(eventType workloadmeta.EventType, queue *workloadmeta.KubernetesKueueQueue) bool {
+	key := queue.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.kueueQueues[key] = kueueQueueEntry{
+			namespace:        queue.Namespace,
+			name:             queue.Name,
+			queueType:        queue.QueueType,
+			clusterQueueName: queue.ClusterQueueName,
+			labels:           queue.Labels,
+			annotations:      queue.Annotations,
+			uid:              queue.UID,
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.kueueQueues[key]; exists {
+			delete(s.kueueQueues, key)
+			return true
+		}
+	default:
+		log.Errorf("Unknown event type %d for Kueue queue %s", eventType, key)
+	}
+	return false
+}
+
+func (s *metadataSnapshot) processKueueResourceFlavorEvent(eventType workloadmeta.EventType, flavor *workloadmeta.KubernetesKueueResourceFlavor) bool {
+	key := flavor.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.kueueResourceFlavors[key] = kueueResourceFlavorEntry{
+			name:               flavor.Name,
+			labels:             flavor.Labels,
+			annotations:        flavor.Annotations,
+			uid:                flavor.UID,
+			nodeAffinityLabels: flavor.NodeAffinityLabels,
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.kueueResourceFlavors[key]; exists {
+			delete(s.kueueResourceFlavors, key)
+			return true
+		}
+	default:
+		log.Errorf("Unknown event type %d for Kueue resource flavor %s", eventType, key)
+	}
+	return false
+}
+
+func (s *metadataSnapshot) processKueueWorkloadEvent(eventType workloadmeta.EventType, workload *workloadmeta.KubernetesKueueWorkload) bool {
+	key := workload.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.kueueWorkloads[key] = kueueWorkloadEntry{
+			namespace:              workload.Namespace,
+			name:                   workload.Name,
+			queueName:              workload.QueueName,
+			clusterQueueName:       workload.ClusterQueueName,
+			labels:                 workload.Labels,
+			annotations:            workload.Annotations,
+			uid:                    workload.UID,
+			podSetAssignments:      kueuePodSetAssignmentEntries(workload.PodSetAssignments),
+			podTemplateLabels:      workload.PodTemplateLabels,
+			podTemplateAnnotations: workload.PodTemplateAnnotations,
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.kueueWorkloads[key]; exists {
+			delete(s.kueueWorkloads, key)
+			return true
+		}
+	case workloadmeta.EventTypeAll:
+		log.Errorf("Unexpected event type %d for Kueue Workload %s", eventType, key)
+	default:
+		log.Errorf("Unknown event type %d for Kueue Workload %s", eventType, key)
+	}
+	return false
+}
+
+// processKAIPodGroupEvent applies the event and returns whether the PodGroup
+// changed. Must be called with metadataMutex held.
+func (srv *KubeMetadataStreamServer) processKAIPodGroupEvent(eventType workloadmeta.EventType, podGroup *workloadmeta.KubernetesKAIPodGroup) bool {
+	key := podGroup.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		entry := kaiPodGroupEntry{
+			namespace:   podGroup.Namespace,
+			name:        podGroup.Name,
+			queueName:   podGroup.QueueName,
+			labels:      podGroup.Labels,
+			annotations: podGroup.Annotations,
+			uid:         podGroup.UID,
+		}
+		if prev, exists := srv.kaiPodGroups[key]; exists && kaiPodGroupEqual(prev, entry) {
+			return false
+		}
+		srv.kaiPodGroups[key] = entry
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := srv.kaiPodGroups[key]; exists {
+			delete(srv.kaiPodGroups, key)
+			return true
+		}
+	default:
+		log.Errorf("Unknown event type %d for KAI PodGroup %s", eventType, key)
+	}
+	return false
+}
+
+func (s *metadataSnapshot) processAutoscalerEvent(eventType workloadmeta.EventType, autoscaler *workloadmeta.KubernetesAutoscaler) bool {
+	key := autoscaler.EntityID.ID
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		s.autoscalers[key] = autoscalerEntry{
+			namespace:      autoscaler.Namespace,
+			name:           autoscaler.Name,
+			autoscalerKind: autoscaler.AutoscalerKind,
+			targetKind:     autoscaler.TargetKind,
+			targetName:     autoscaler.TargetName,
+		}
+		return true
+	case workloadmeta.EventTypeUnset:
+		if _, exists := s.autoscalers[key]; exists {
+			delete(s.autoscalers, key)
+			return true
+		}
+	default:
+		log.Errorf("Unknown event type %d for autoscaler %s", eventType, key)
+	}
+	return false
+}
+
+// processKAIPodEvent updates the node index from the pod's node and KAI
+// PodGroup annotation, and returns the nodes whose PodGroups may have changed.
+// A pod that is not scheduled yet or has no PodGroup is not indexed. Must be
+// called with metadataMutex held.
+func (srv *KubeMetadataStreamServer) processKAIPodEvent(eventType workloadmeta.EventType, pod *workloadmeta.KubernetesPod) []string {
+	podUID := pod.EntityID.ID
+	prev, indexed := srv.kaiPods[podUID]
+
+	var current kaiPodRef
+	switch eventType {
+	case workloadmeta.EventTypeSet:
+		if podGroupName := pod.Annotations[kubernetes.KAIPodGroupAnnotationKey]; podGroupName != "" && pod.NodeName != "" {
+			current = kaiPodRef{
+				nodeName:    pod.NodeName,
+				podGroupKey: workloadmeta.GenerateKAIPodGroupEntityID(pod.Namespace, podGroupName),
+			}
+		}
+	case workloadmeta.EventTypeUnset:
+	default:
+		log.Errorf("Unknown event type %d for pod %s", eventType, podUID)
+		return nil
+	}
+
+	if current == prev {
+		return nil
+	}
+
+	var nodes []string
+	if indexed {
+		srv.removeKAIPodRef(prev)
+		delete(srv.kaiPods, podUID)
+		nodes = append(nodes, prev.nodeName)
+	}
+	if current.podGroupKey != "" {
+		srv.addKAIPodRef(current)
+		srv.kaiPods[podUID] = current
+		nodes = append(nodes, current.nodeName)
+	}
+	return nodes
+}
+
+func (srv *KubeMetadataStreamServer) addKAIPodRef(ref kaiPodRef) {
+	incrementNestedCount(srv.kaiNodePodGroups, ref.nodeName, ref.podGroupKey)
+	incrementNestedCount(srv.kaiPodGroupNodes, ref.podGroupKey, ref.nodeName)
+}
+
+func (srv *KubeMetadataStreamServer) removeKAIPodRef(ref kaiPodRef) {
+	decrementNestedCount(srv.kaiNodePodGroups, ref.nodeName, ref.podGroupKey)
+	decrementNestedCount(srv.kaiPodGroupNodes, ref.podGroupKey, ref.nodeName)
+}
+
+func incrementNestedCount(counts map[string]map[string]int, outer, inner string) {
+	if counts[outer] == nil {
+		counts[outer] = make(map[string]int)
+	}
+	counts[outer][inner]++
+}
+
+func decrementNestedCount(counts map[string]map[string]int, outer, inner string) {
+	counts[outer][inner]--
+	if counts[outer][inner] <= 0 {
+		delete(counts[outer], inner)
+		if len(counts[outer]) == 0 {
+			delete(counts, outer)
+		}
+	}
+}
+
+func kueuePodSetAssignmentEntries(assignments []workloadmeta.KueuePodSetAssignment) []kueuePodSetAssignmentEntry {
+	entries := make([]kueuePodSetAssignmentEntry, 0, len(assignments))
+	for _, assignment := range assignments {
+		entries = append(entries, kueuePodSetAssignmentEntry{
+			name:    assignment.Name,
+			flavors: assignment.Flavors,
+		})
+	}
+	return entries
 }
 
 func (srv *KubeMetadataStreamServer) notifyNamespaceSubscribers() {
@@ -238,8 +644,21 @@ func (srv *KubeMetadataStreamServer) notifyNamespaceSubscribers() {
 		for _, ch := range channels {
 			select {
 			// Non-blocking send: if a signal is already pending, we drop it.
-			// This is safe because the consumer re-reads the full state from
-			// the store on each signal.
+			// The consumer replays shared diffs since its last version, or
+			// resyncs the full state if those diffs are no longer retained.
+			case ch <- struct{}{}:
+			default:
+			}
+		}
+	}
+}
+
+// notifyNodeSubscribers notifies the subscribers of the given nodes. Must be
+// called with metadataMutex held.
+func (srv *KubeMetadataStreamServer) notifyNodeSubscribers(nodeNames map[string]struct{}) {
+	for nodeName := range nodeNames {
+		for _, ch := range srv.namespaceSubscribers[nodeName] {
+			select {
 			case ch <- struct{}{}:
 			default:
 			}
@@ -248,8 +667,8 @@ func (srv *KubeMetadataStreamServer) notifyNamespaceSubscribers() {
 }
 
 func (srv *KubeMetadataStreamServer) subscribeToNamespaceEvents(nodeName string) <-chan struct{} {
-	srv.namespacesMutex.Lock()
-	defer srv.namespacesMutex.Unlock()
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
 
 	ch := make(chan struct{}, 1)
 	srv.namespaceSubscribers[nodeName] = append(srv.namespaceSubscribers[nodeName], ch)
@@ -262,8 +681,8 @@ func (srv *KubeMetadataStreamServer) subscribeToNamespaceEvents(nodeName string)
 }
 
 func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName string, ch <-chan struct{}) {
-	srv.namespacesMutex.Lock()
-	defer srv.namespacesMutex.Unlock()
+	srv.metadataMutex.Lock()
+	defer srv.metadataMutex.Unlock()
 
 	channels := srv.namespaceSubscribers[nodeName]
 	for i, c := range channels {
@@ -282,16 +701,61 @@ func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName str
 }
 
 func (srv *KubeMetadataStreamServer) buildNamespacesSnapshot() map[string]namespaceEntry {
-	srv.namespacesMutex.RLock()
-	defer srv.namespacesMutex.RUnlock()
+	return srv.buildMetadataSnapshot().namespaces
+}
 
-	snapshot := make(map[string]namespaceEntry, len(srv.namespaces))
-	for ns, entry := range srv.namespaces {
-		snapshot[ns] = namespaceEntry{
-			labels:      entry.labels,
-			annotations: entry.annotations,
+func (srv *KubeMetadataStreamServer) buildKueueQueuesSnapshot() map[string]kueueQueueEntry {
+	return srv.buildMetadataSnapshot().kueueQueues
+}
+
+func (srv *KubeMetadataStreamServer) buildKueueResourceFlavorsSnapshot() map[string]kueueResourceFlavorEntry {
+	return srv.buildMetadataSnapshot().kueueResourceFlavors
+}
+
+func (srv *KubeMetadataStreamServer) buildKueueWorkloadsSnapshot() map[string]kueueWorkloadEntry {
+	return srv.buildMetadataSnapshot().kueueWorkloads
+}
+
+func (srv *KubeMetadataStreamServer) buildAutoscalersSnapshot() map[string]autoscalerEntry {
+	return srv.buildMetadataSnapshot().autoscalers
+}
+
+func (srv *KubeMetadataStreamServer) buildMetadataSnapshot() metadataSnapshot {
+	snapshot, _ := srv.buildMetadataSnapshotWithVersion()
+	return snapshot
+}
+
+func (srv *KubeMetadataStreamServer) buildMetadataSnapshotWithVersion() (metadataSnapshot, uint64) {
+	srv.metadataMutex.RLock()
+	defer srv.metadataMutex.RUnlock()
+
+	return srv.metadata.clone(), srv.metadataVersion
+}
+
+// buildKAIPodGroupsSnapshot returns the KAI PodGroups of the pods scheduled on
+// a node, keyed by workloadmeta entity ID.
+func (srv *KubeMetadataStreamServer) buildKAIPodGroupsSnapshot(nodeName string) map[string]kaiPodGroupEntry {
+	srv.metadataMutex.RLock()
+	defer srv.metadataMutex.RUnlock()
+
+	podGroupKeys := srv.kaiNodePodGroups[nodeName]
+	snapshot := make(map[string]kaiPodGroupEntry, len(podGroupKeys))
+	for key := range podGroupKeys {
+		// A pod can reference a PodGroup that is not known yet, or already deleted.
+		if entry, exists := srv.kaiPodGroups[key]; exists {
+			snapshot[key] = entry
 		}
 	}
+	return snapshot
+}
+
+func (s metadataSnapshot) clone() metadataSnapshot {
+	snapshot := newMetadataSnapshot()
+	maps.Copy(snapshot.namespaces, s.namespaces)
+	maps.Copy(snapshot.kueueQueues, s.kueueQueues)
+	maps.Copy(snapshot.kueueResourceFlavors, s.kueueResourceFlavors)
+	maps.Copy(snapshot.kueueWorkloads, s.kueueWorkloads)
+	maps.Copy(snapshot.autoscalers, s.autoscalers)
 	return snapshot
 }
 
@@ -305,14 +769,19 @@ func (srv *KubeMetadataStreamServer) buildPodServiceMappingsSnapshot(nodeName st
 	return bundleToPodServiceMappingsSnapshot(bundle)
 }
 
-func namespaceMetadataFilter() *workloadmeta.Filter {
-	return workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(
+func kubeMetadataStreamFilter(kaiEnabled bool) *workloadmeta.Filter {
+	builder := workloadmeta.NewFilterBuilder().AddKindWithEntityFilter(
 		workloadmeta.KindKubernetesMetadata,
 		func(entity workloadmeta.Entity) bool {
 			metadata := entity.(*workloadmeta.KubernetesMetadata)
 			return workloadmeta.IsNamespaceMetadata(metadata)
 		},
-	).Build()
+	).AddKind(workloadmeta.KindKubernetesKueueQueue).AddKind(workloadmeta.KindKubernetesKueueResourceFlavor).AddKind(workloadmeta.KindKubernetesKueueWorkload).AddKind(workloadmeta.KindKubernetesAutoscaler)
+	if kaiEnabled {
+		// Pods map each KAI PodGroup to the nodes that need it.
+		builder = builder.AddKind(workloadmeta.KindKubernetesKAIPodGroup).AddKind(workloadmeta.KindKubernetesPod)
+	}
+	return builder.Build()
 }
 
 func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) map[string]podServiceEntry {
@@ -331,9 +800,8 @@ func bundleToPodServiceMappingsSnapshot(bundle *apiserver.MetadataMapperBundle) 
 }
 
 // fullStateResponse creates a KubeMetadataStreamResponse with
-// is_full_state=true containing all current mappings and namespace labels and
-// annotations.
-func fullStateResponse(podServices map[string]podServiceEntry, namespaces map[string]namespaceEntry) *pb.KubeMetadataStreamResponse {
+// is_full_state=true containing all current mappings and metadata.
+func fullStateResponse(podServices map[string]podServiceEntry, metadata metadataSnapshot, kaiPodGroups map[string]kaiPodGroupEntry) *pb.KubeMetadataStreamResponse {
 	mappings := make([]*pb.PodServiceMapping, 0, len(podServices))
 	for _, entry := range podServices {
 		mappings = append(mappings, &pb.PodServiceMapping{
@@ -344,20 +812,42 @@ func fullStateResponse(podServices map[string]podServiceEntry, namespaces map[st
 		})
 	}
 
-	namespacesMetadata := make([]*pb.NamespaceMetadata, 0, len(namespaces))
-	for namespace, entry := range namespaces {
-		namespacesMetadata = append(namespacesMetadata, &pb.NamespaceMetadata{
-			Namespace:   namespace,
-			Labels:      entry.labels,
-			Annotations: entry.annotations,
-			Type:        pb.KubeMetadataEventType_SET,
-		})
-	}
+	resp := computeMetadataDiff(newMetadataSnapshot(), metadata).response(true)
+	resp.Mappings = mappings
+	resp.KaiPodGroups = computeKAIPodGroupsDiff(nil, kaiPodGroups)
+	return resp
+}
 
+type metadataDiff struct {
+	namespaces           []*pb.NamespaceMetadata
+	kueueQueues          []*pb.KueueQueue
+	kueueResourceFlavors []*pb.KueueResourceFlavor
+	kueueWorkloads       []*pb.KueueWorkload
+	autoscalers          []*pb.KubernetesAutoscaler
+}
+
+func computeMetadataDiff(old, current metadataSnapshot) metadataDiff {
+	return metadataDiff{
+		namespaces:           computeNamespacesDiff(old.namespaces, current.namespaces),
+		kueueQueues:          computeKueueQueueDiff(old.kueueQueues, current.kueueQueues),
+		kueueResourceFlavors: computeKueueResourceFlavorDiff(old.kueueResourceFlavors, current.kueueResourceFlavors),
+		kueueWorkloads:       computeKueueWorkloadDiff(old.kueueWorkloads, current.kueueWorkloads),
+		autoscalers:          computeAutoscalerDiff(old.autoscalers, current.autoscalers),
+	}
+}
+
+func (d metadataDiff) isEmpty() bool {
+	return len(d.namespaces)+len(d.kueueQueues)+len(d.kueueResourceFlavors)+len(d.kueueWorkloads)+len(d.autoscalers) == 0
+}
+
+func (d metadataDiff) response(isFullState bool) *pb.KubeMetadataStreamResponse {
 	return &pb.KubeMetadataStreamResponse{
-		IsFullState:       true,
-		Mappings:          mappings,
-		NamespaceMetadata: namespacesMetadata,
+		IsFullState:           isFullState,
+		NamespaceMetadata:     d.namespaces,
+		KueueQueues:           d.kueueQueues,
+		KueueResourceFlavors:  d.kueueResourceFlavors,
+		KueueWorkloads:        d.kueueWorkloads,
+		KubernetesAutoscalers: d.autoscalers,
 	}
 }
 
@@ -418,4 +908,239 @@ func computeNamespacesDiff(old, current map[string]namespaceEntry) []*pb.Namespa
 	}
 
 	return diff
+}
+
+func computeKueueQueueDiff(old, current map[string]kueueQueueEntry) []*pb.KueueQueue {
+	var diff []*pb.KueueQueue
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || !kueueQueueEqual(prev, cur) {
+			diff = append(diff, protoKueueQueue(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoKueueQueue(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
+func computeKueueResourceFlavorDiff(old, current map[string]kueueResourceFlavorEntry) []*pb.KueueResourceFlavor {
+	var diff []*pb.KueueResourceFlavor
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || !kueueResourceFlavorEqual(prev, cur) {
+			diff = append(diff, protoKueueResourceFlavor(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoKueueResourceFlavor(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
+func computeKueueWorkloadDiff(old, current map[string]kueueWorkloadEntry) []*pb.KueueWorkload {
+	var diff []*pb.KueueWorkload
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || !kueueWorkloadEqual(prev, cur) {
+			diff = append(diff, protoKueueWorkload(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoKueueWorkload(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
+// computeKAIPodGroupsDiff compares old and new KAI PodGroup snapshots and returns set/unset events.
+func computeKAIPodGroupsDiff(old, current map[string]kaiPodGroupEntry) []*pb.KAIPodGroup {
+	var diff []*pb.KAIPodGroup
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || !kaiPodGroupEqual(prev, cur) {
+			diff = append(diff, protoKAIPodGroup(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoKAIPodGroup(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
+func computeAutoscalerDiff(old, current map[string]autoscalerEntry) []*pb.KubernetesAutoscaler {
+	var diff []*pb.KubernetesAutoscaler
+
+	for key, cur := range current {
+		prev, existed := old[key]
+		if !existed || prev != cur {
+			diff = append(diff, protoAutoscaler(cur, pb.KubeMetadataEventType_SET))
+		}
+	}
+
+	for key, prev := range old {
+		if _, exists := current[key]; !exists {
+			diff = append(diff, protoAutoscaler(prev, pb.KubeMetadataEventType_UNSET))
+		}
+	}
+
+	return diff
+}
+
+func protoKueueQueue(entry kueueQueueEntry, eventType pb.KubeMetadataEventType) *pb.KueueQueue {
+	return &pb.KueueQueue{
+		Namespace:    entry.namespace,
+		Name:         entry.name,
+		QueueType:    protoKueueQueueType(entry.queueType),
+		ClusterQueue: entry.clusterQueueName,
+		Labels:       entry.labels,
+		Annotations:  entry.annotations,
+		Uid:          entry.uid,
+		Type:         eventType,
+	}
+}
+
+func protoKueueResourceFlavor(entry kueueResourceFlavorEntry, eventType pb.KubeMetadataEventType) *pb.KueueResourceFlavor {
+	return &pb.KueueResourceFlavor{
+		Name:               entry.name,
+		Labels:             entry.labels,
+		Annotations:        entry.annotations,
+		Uid:                entry.uid,
+		NodeAffinityLabels: entry.nodeAffinityLabels,
+		Type:               eventType,
+	}
+}
+
+func protoKueueWorkload(entry kueueWorkloadEntry, eventType pb.KubeMetadataEventType) *pb.KueueWorkload {
+	return &pb.KueueWorkload{
+		Namespace:              entry.namespace,
+		Name:                   entry.name,
+		Queue:                  entry.queueName,
+		ClusterQueue:           entry.clusterQueueName,
+		Labels:                 entry.labels,
+		Annotations:            entry.annotations,
+		Uid:                    entry.uid,
+		PodSetAssignments:      protoKueuePodSetAssignments(entry.podSetAssignments),
+		PodTemplateLabels:      entry.podTemplateLabels,
+		PodTemplateAnnotations: entry.podTemplateAnnotations,
+		Type:                   eventType,
+	}
+}
+
+func protoKAIPodGroup(entry kaiPodGroupEntry, eventType pb.KubeMetadataEventType) *pb.KAIPodGroup {
+	return &pb.KAIPodGroup{
+		Namespace:   entry.namespace,
+		Name:        entry.name,
+		Queue:       entry.queueName,
+		Labels:      entry.labels,
+		Annotations: entry.annotations,
+		Uid:         entry.uid,
+		Type:        eventType,
+	}
+}
+
+func protoAutoscaler(entry autoscalerEntry, eventType pb.KubeMetadataEventType) *pb.KubernetesAutoscaler {
+	return &pb.KubernetesAutoscaler{
+		Namespace:      entry.namespace,
+		Name:           entry.name,
+		AutoscalerKind: string(entry.autoscalerKind),
+		TargetKind:     string(entry.targetKind),
+		TargetName:     entry.targetName,
+		Type:           eventType,
+	}
+}
+
+func protoKueuePodSetAssignments(assignments []kueuePodSetAssignmentEntry) []*pb.KueuePodSetAssignment {
+	if assignments == nil {
+		return nil
+	}
+
+	protoAssignments := make([]*pb.KueuePodSetAssignment, 0, len(assignments))
+	for _, assignment := range assignments {
+		protoAssignments = append(protoAssignments, &pb.KueuePodSetAssignment{
+			Name:    assignment.name,
+			Flavors: assignment.flavors,
+		})
+	}
+	return protoAssignments
+}
+
+func kueueQueueEqual(left, right kueueQueueEntry) bool {
+	return left.namespace == right.namespace &&
+		left.name == right.name &&
+		left.queueType == right.queueType &&
+		left.clusterQueueName == right.clusterQueueName &&
+		left.uid == right.uid &&
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations)
+}
+
+func kueueResourceFlavorEqual(left, right kueueResourceFlavorEntry) bool {
+	return left.name == right.name &&
+		left.uid == right.uid &&
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations) &&
+		maps.Equal(left.nodeAffinityLabels, right.nodeAffinityLabels)
+}
+
+func kueueWorkloadEqual(left, right kueueWorkloadEntry) bool {
+	return left.namespace == right.namespace &&
+		left.name == right.name &&
+		left.queueName == right.queueName &&
+		left.clusterQueueName == right.clusterQueueName &&
+		left.uid == right.uid &&
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations) &&
+		kueuePodSetAssignmentsEqual(left.podSetAssignments, right.podSetAssignments) &&
+		maps.Equal(left.podTemplateLabels, right.podTemplateLabels) &&
+		maps.Equal(left.podTemplateAnnotations, right.podTemplateAnnotations)
+}
+
+func kaiPodGroupEqual(left, right kaiPodGroupEntry) bool {
+	return left.namespace == right.namespace &&
+		left.name == right.name &&
+		left.queueName == right.queueName &&
+		left.uid == right.uid &&
+		maps.Equal(left.labels, right.labels) &&
+		maps.Equal(left.annotations, right.annotations)
+}
+
+func kueuePodSetAssignmentsEqual(left, right []kueuePodSetAssignmentEntry) bool {
+	if len(left) != len(right) {
+		return false
+	}
+	for i := range left {
+		if left[i].name != right[i].name || !maps.Equal(left[i].flavors, right[i].flavors) {
+			return false
+		}
+	}
+	return true
+}
+
+func protoKueueQueueType(queueType workloadmeta.KueueQueueType) pb.KueueQueueType {
+	switch queueType {
+	case workloadmeta.KueueClusterQueue:
+		return pb.KueueQueueType_CLUSTER_QUEUE
+	default:
+		return pb.KueueQueueType_LOCAL_QUEUE
+	}
 }

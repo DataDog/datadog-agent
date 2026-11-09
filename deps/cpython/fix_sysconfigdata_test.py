@@ -27,6 +27,9 @@ _FIXTURE = textwrap.dedent(f"""\
         "VERSION": "3.13.0",
         "LIBDIR": "{_SANDBOX_PREFIX}/lib",
         "INCLUDEPY": "{_SANDBOX_PREFIX}/include/python3.13",
+        "MODULE__SQLITE3_LDFLAGS": "/execroot/_main/bazel-out/arch/bin/external/+repo+cpython/python_unix.ext_build_deps/lib/libsqlite3.dylib",
+        "MODULE_ZLIB_LDFLAGS": "-L/execroot/_main/bazel-out/arch/bin/external/+repo+cpython/python_unix.ext_build_deps/lib -lz",
+        "MODULE__SQLITE3_STATE": "yes",
         "prefix": "{_SANDBOX_PREFIX}",
     }}
 """)
@@ -57,9 +60,12 @@ class TestFixSysconfigdata(unittest.TestCase):
         self.assertEqual(build_time_vars["INCLUDEPY"], _PREFIX + "/include/python3.13")
         self.assertEqual(build_time_vars["prefix"], _PREFIX)
 
-        # FLAGS_TO_CLEAR: wiped entirely
+        # FLAGS_TO_CLEAR and CPython's stdlib extension-module build metadata are wiped entirely
         self.assertEqual(build_time_vars["CFLAGS"], "")
         self.assertEqual(build_time_vars["LDFLAGS"], "")
+        self.assertEqual(build_time_vars["MODULE__SQLITE3_LDFLAGS"], "")
+        self.assertEqual(build_time_vars["MODULE_ZLIB_LDFLAGS"], "")
+        self.assertEqual(build_time_vars["MODULE__SQLITE3_STATE"], "yes")
 
         # Tool paths reduced to basename (via _fix_tool_path)
         self.assertEqual(build_time_vars["CC"], "gcc")
@@ -82,10 +88,10 @@ class TestFixSysconfigdata(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             fixture = textwrap.dedent("""\
     build_time_vars = {
-        "CC": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh",
-        "AR": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain_llvm/bin/llvm-ar",
-        "LDSHARED": "/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh -shared -Wl,-z,relro -B/execroot/_main/bin -L/bazel-out/k8-opt/lib",
-        "CONFIGURED_CC": "--cc=/execroot/_main/external/toolchains_llvm++llvm+llvm_toolchain/bin/cc_wrapper.sh -O2",
+        "CC": "/execroot/_main/external/+toolchain/bin/clang",
+        "AR": "/execroot/_main/external/+toolchain/bin/llvm-ar",
+        "LDSHARED": "/execroot/_main/external/+toolchain/bin/clang -shared -Wl,-z,relro -B/execroot/_main/bin -L/bazel-out/k8-opt/lib",
+        "CONFIGURED_CC": "--cc=/execroot/_main/external/+toolchain/bin/clang -O2",
     }
 """)
             path = os.path.join(tmpdir, "_sysconfigdata__test.py")

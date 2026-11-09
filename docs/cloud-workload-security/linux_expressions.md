@@ -59,6 +59,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `rmdir` | File | A directory was removed | 7.27 |
 | `selinux` | Kernel | An SELinux operation was run | 7.30 |
 | `setgid` | Process | A process changed its effective gid | 7.27 |
+| `setns` | Kernel | A thread joined an existing namespace | 7.86 |
 | `setrlimit` | Process | A setrlimit command was executed | 7.68 |
 | `setsockopt` | Network | A setsockopt was executed | 7.68 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
@@ -69,6 +70,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `sysctl` | Kernel | A sysctl parameter was read or modified | 7.65 |
 | `unlink` | File | A file was deleted | 7.27 |
 | `unload_module` | Kernel | A kernel module was deleted | 7.35 |
+| `unshare` | Kernel | A process created new namespaces | 7.84 |
 | `utimes` | File | Change file access/modification times | 7.27 |
 
 ## FIM triggers
@@ -200,7 +202,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`process.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`process.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -208,7 +212,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -218,6 +224,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`process.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.ancestors.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`process.ancestors.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`process.ancestors.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`process.ancestors.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`process.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`process.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -285,7 +295,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`process.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -310,10 +320,15 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`process.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`process.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`process.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
+| [`process.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`process.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`process.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`process.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`process.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -321,7 +336,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -331,6 +348,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`process.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`process.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`process.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`process.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`process.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`process.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -406,7 +427,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`process.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`process.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`process.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`process.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`process.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`process.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`process.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`process.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -414,7 +437,9 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`process.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`process.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`process.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`process.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`process.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`process.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`process.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`process.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -424,6 +449,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`process.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.parent.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`process.parent.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`process.parent.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`process.parent.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`process.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`process.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -490,7 +519,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`process.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`process.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`process.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -509,7 +538,7 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`process.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`process.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`process.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`process.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`process.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`process.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`process.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -581,7 +610,9 @@ A process used some capabilities
 | Property | Definition |
 | -------- | ------------- |
 | [`capabilities.attempted`](#capabilities-attempted-doc) | Bitmask of the capabilities that the process attempted to use since it started running |
+| [`capabilities.attempted_host_userns`](#capabilities-attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace |
 | [`capabilities.used`](#capabilities-used-doc) | Bitmask of the capabilities that the process successfully used since it started running |
+| [`capabilities.used_host_userns`](#capabilities-used_host_userns-doc) | Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace |
 
 ### Event `capset`
 
@@ -806,10 +837,15 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exec.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`exec.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`exec.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
+| [`exec.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`exec.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`exec.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exec.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exec.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exec.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`exec.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`exec.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`exec.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exec.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`exec.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -817,7 +853,9 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`exec.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exec.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exec.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`exec.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exec.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exec.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exec.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exec.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -827,6 +865,10 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`exec.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`exec.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`exec.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`exec.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`exec.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`exec.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`exec.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`exec.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exec.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -901,7 +943,7 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exec.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exec.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`exec.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exec.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`exec.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`exec.syscall.path`](#exec-syscall-path-doc) | path argument of the syscall |
 | [`exec.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
@@ -934,10 +976,15 @@ A process was terminated
 | [`exit.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`exit.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`exit.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`exit.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
+| [`exit.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`exit.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`exit.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`exit.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`exit.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`exit.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`exit.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`exit.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`exit.cause`](#exit-cause-doc) | Cause of the process termination (one of EXITED, SIGNALED, COREDUMPED) |
 | [`exit.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`exit.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
@@ -947,7 +994,9 @@ A process was terminated
 | [`exit.code`](#exit-code-doc) | Exit code of the process or number of the signal that caused the process to terminate |
 | [`exit.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`exit.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`exit.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`exit.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`exit.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`exit.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`exit.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`exit.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -957,6 +1006,10 @@ A process was terminated
 | [`exit.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`exit.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`exit.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`exit.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`exit.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`exit.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`exit.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`exit.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`exit.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exit.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1023,7 +1076,7 @@ A process was terminated
 | [`exit.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`exit.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`exit.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`exit.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`exit.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`exit.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`exit.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`exit.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1049,8 +1102,10 @@ An IMDS event was captured
 | Property | Definition |
 | -------- | ------------- |
 | [`imds.aws.is_imds_v2`](#imds-aws-is_imds_v2-doc) | a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2 conventions |
-| [`imds.aws.security_credentials.type`](#imds-aws-security_credentials-type-doc) | the security credentials type |
+| [`imds.aws.security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
+| [`imds.aws.security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`imds.cloud_provider`](#imds-cloud_provider-doc) | the intended cloud provider of the IMDS event |
+| [`imds.credential_source`](#imds-credential_source-doc) | the credential endpoint that served the IMDS event |
 | [`imds.host`](#imds-host-doc) | the host of the HTTP protocol |
 | [`imds.server`](#imds-server-doc) | the server header of a response |
 | [`imds.type`](#imds-type-doc) | the type of IMDS event |
@@ -1259,6 +1314,7 @@ A filesystem was mounted
 | Property | Definition |
 | -------- | ------------- |
 | [`mount.detached`](#mount-detached-doc) | Mount is detached from the VFS |
+| [`mount.flags`](#mount-flags-doc) | Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout |
 | [`mount.fs_type`](#mount-fs_type-doc) | Type of the mounted file system |
 | [`mount.mountpoint.path`](#mount-mountpoint-path-doc) | Path of the mount point |
 | [`mount.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
@@ -1267,7 +1323,7 @@ A filesystem was mounted
 | [`mount.syscall.fs_type`](#mount-syscall-fs_type-doc) | File system type argument of the syscall |
 | [`mount.syscall.mountpoint.path`](#mount-syscall-mountpoint-path-doc) | Mount point path argument of the syscall |
 | [`mount.syscall.source.path`](#mount-syscall-source-path-doc) | Source path argument of the syscall |
-| [`mount.visible`](#mount-visible-doc) | Mount is not visible in the VFS |
+| [`mount.visible`](#mount-visible-doc) | Mount is visible in the VFS |
 
 ### Event `mprotect`
 
@@ -1405,7 +1461,9 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`ptrace.tracee.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`ptrace.tracee.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1413,7 +1471,9 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1423,6 +1483,10 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`ptrace.tracee.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.ancestors.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`ptrace.tracee.ancestors.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`ptrace.tracee.ancestors.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`ptrace.tracee.ancestors.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`ptrace.tracee.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`ptrace.tracee.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1490,7 +1554,7 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1515,10 +1579,15 @@ A ptrace command was executed
 | [`ptrace.tracee.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`ptrace.tracee.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`ptrace.tracee.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`ptrace.tracee.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
+| [`ptrace.tracee.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`ptrace.tracee.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`ptrace.tracee.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`ptrace.tracee.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`ptrace.tracee.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1526,7 +1595,9 @@ A ptrace command was executed
 | [`ptrace.tracee.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1536,6 +1607,10 @@ A ptrace command was executed
 | [`ptrace.tracee.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`ptrace.tracee.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`ptrace.tracee.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`ptrace.tracee.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`ptrace.tracee.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`ptrace.tracee.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`ptrace.tracee.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1611,7 +1686,9 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`ptrace.tracee.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`ptrace.tracee.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`ptrace.tracee.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`ptrace.tracee.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`ptrace.tracee.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`ptrace.tracee.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`ptrace.tracee.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`ptrace.tracee.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1619,7 +1696,9 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`ptrace.tracee.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`ptrace.tracee.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`ptrace.tracee.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`ptrace.tracee.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`ptrace.tracee.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`ptrace.tracee.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`ptrace.tracee.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`ptrace.tracee.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1629,6 +1708,10 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`ptrace.tracee.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.parent.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`ptrace.tracee.parent.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`ptrace.tracee.parent.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`ptrace.tracee.parent.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`ptrace.tracee.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`ptrace.tracee.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1695,7 +1778,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`ptrace.tracee.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`ptrace.tracee.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1714,7 +1797,7 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`ptrace.tracee.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`ptrace.tracee.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`ptrace.tracee.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`ptrace.tracee.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`ptrace.tracee.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`ptrace.tracee.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`ptrace.tracee.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -1894,6 +1977,33 @@ A process changed its effective gid
 | [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
 | [`setgid.group`](#setgid-group-doc) | New group of the process |
 
+### Event `setns`
+
+A thread joined an existing namespace
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setns.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
+| [`setns.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
+| [`setns.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.mntns_host`](#setns-mntns_host-doc) | Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved |
+| [`setns.mntns_outside_base`](#setns-mntns_outside_base-doc) | Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved |
+| [`setns.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
+| [`setns.nstype`](#setns-nstype-doc) | Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined |
+| [`setns.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
+| [`setns.previous.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
+| [`setns.previous.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces |
+| [`setns.previous.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
+| [`setns.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setns.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces |
+| [`setns.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
+| [`setns.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
+
 ### Event `setrlimit`
 
 A setrlimit command was executed
@@ -1914,7 +2024,9 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`setrlimit.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`setrlimit.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -1922,7 +2034,9 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -1932,6 +2046,10 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`setrlimit.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`setrlimit.target.ancestors.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`setrlimit.target.ancestors.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`setrlimit.target.ancestors.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`setrlimit.target.ancestors.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`setrlimit.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`setrlimit.target.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1999,7 +2117,7 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`setrlimit.target.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2024,10 +2142,15 @@ A setrlimit command was executed
 | [`setrlimit.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`setrlimit.target.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`setrlimit.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`setrlimit.target.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
+| [`setrlimit.target.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`setrlimit.target.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`setrlimit.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`setrlimit.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`setrlimit.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2035,7 +2158,9 @@ A setrlimit command was executed
 | [`setrlimit.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2045,6 +2170,10 @@ A setrlimit command was executed
 | [`setrlimit.target.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`setrlimit.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`setrlimit.target.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`setrlimit.target.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`setrlimit.target.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`setrlimit.target.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`setrlimit.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`setrlimit.target.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2120,7 +2249,9 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`setrlimit.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`setrlimit.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`setrlimit.target.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`setrlimit.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`setrlimit.target.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`setrlimit.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`setrlimit.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`setrlimit.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2128,7 +2259,9 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`setrlimit.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`setrlimit.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`setrlimit.target.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`setrlimit.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`setrlimit.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`setrlimit.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`setrlimit.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`setrlimit.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2138,6 +2271,10 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`setrlimit.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`setrlimit.target.parent.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`setrlimit.target.parent.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`setrlimit.target.parent.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`setrlimit.target.parent.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`setrlimit.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`setrlimit.target.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2204,7 +2341,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`setrlimit.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`setrlimit.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`setrlimit.target.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2223,7 +2360,7 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`setrlimit.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`setrlimit.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`setrlimit.target.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`setrlimit.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`setrlimit.target.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`setrlimit.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`setrlimit.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2328,7 +2465,9 @@ A signal was sent
 | [`signal.target.ancestors.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.ancestors.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.ancestors.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.ancestors.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`signal.target.ancestors.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.ancestors.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`signal.target.ancestors.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.ancestors.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.ancestors.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2336,7 +2475,9 @@ A signal was sent
 | [`signal.target.ancestors.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.ancestors.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.ancestors.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.ancestors.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.ancestors.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.ancestors.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.ancestors.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.ancestors.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.ancestors.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2346,6 +2487,10 @@ A signal was sent
 | [`signal.target.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`signal.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.ancestors.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`signal.target.ancestors.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`signal.target.ancestors.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`signal.target.ancestors.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`signal.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`signal.target.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2413,7 +2558,7 @@ A signal was sent
 | [`signal.target.ancestors.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.ancestors.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.ancestors.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.ancestors.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.ancestors.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`signal.target.ancestors.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.ancestors.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.ancestors.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2438,10 +2583,15 @@ A signal was sent
 | [`signal.target.argv`](#common-process-argv-doc) | Arguments of the process (as an array, excluding argv0) |
 | [`signal.target.argv0`](#common-process-argv0-doc) | First argument of the process |
 | [`signal.target.auid`](#common-credentials-auid-doc) | Login UID of the process |
+| [`signal.target.aws_security_credentials.access_key_id`](#common-awssecuritycredentials-access_key_id-doc) | The access key ID of the security credentials in the IMDS answer |
+| [`signal.target.aws_security_credentials.length`](#common-string-length-doc) | Length of the corresponding element |
+| [`signal.target.aws_security_credentials.type`](#common-awssecuritycredentials-type-doc) | The security credentials type |
 | [`signal.target.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`signal.target.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`signal.target.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2449,7 +2599,9 @@ A signal was sent
 | [`signal.target.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2459,6 +2611,10 @@ A signal was sent
 | [`signal.target.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`signal.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`signal.target.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`signal.target.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`signal.target.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`signal.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`signal.target.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2534,7 +2690,9 @@ A signal was sent
 | [`signal.target.parent.cap_effective`](#common-credentials-cap_effective-doc) | Effective capability set of the process |
 | [`signal.target.parent.cap_permitted`](#common-credentials-cap_permitted-doc) | Permitted capability set of the process |
 | [`signal.target.parent.caps_attempted`](#common-process-caps_attempted-doc) | Bitmask of the capabilities that the process attempted to use |
+| [`signal.target.parent.caps_attempted_host_userns`](#common-process-caps_attempted_host_userns-doc) | Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace |
 | [`signal.target.parent.caps_used`](#common-process-caps_used-doc) | Bitmask of the capabilities that the process successfully used |
+| [`signal.target.parent.caps_used_host_userns`](#common-process-caps_used_host_userns-doc) | Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace |
 | [`signal.target.parent.cgroup.created_at`](#common-cgroupcontext-created_at-doc) | Timestamp of the creation of the cgroup |
 | [`signal.target.parent.cgroup.file.inode`](#common-pathkey-inode-doc) | Inode of the file |
 | [`signal.target.parent.cgroup.file.mount_id`](#common-pathkey-mount_id-doc) | Mount ID of the file |
@@ -2542,7 +2700,9 @@ A signal was sent
 | [`signal.target.parent.cgroup.version`](#common-cgroupcontext-version-doc) | [Experimental] Version of the cgroup API |
 | [`signal.target.parent.comm`](#common-process-comm-doc) | Comm attribute of the process |
 | [`signal.target.parent.container.created_at`](#common-containercontext-created_at-doc) | Timestamp of the creation of the container |
+| [`signal.target.parent.container.ecs_task_id`](#common-containercontext-ecs_task_id-doc) | ECS task ID |
 | [`signal.target.parent.container.id`](#common-containercontext-id-doc) | ID of the container |
+| [`signal.target.parent.container.pod_uid`](#common-containercontext-pod_uid-doc) | Kubernetes pod UID |
 | [`signal.target.parent.container.tags`](#common-containercontext-tags-doc) | Tags of the container |
 | [`signal.target.parent.created_at`](#common-process-created_at-doc) | Timestamp of the creation of the process |
 | [`signal.target.parent.egid`](#common-credentials-egid-doc) | Effective GID of the process |
@@ -2552,6 +2712,10 @@ A signal was sent
 | [`signal.target.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`signal.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.parent.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`signal.target.parent.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`signal.target.parent.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`signal.target.parent.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`signal.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`signal.target.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2618,7 +2782,7 @@ A signal was sent
 | [`signal.target.parent.mntns`](#common-pidcontext-mntns-doc) | MNTNS ID of the process |
 | [`signal.target.parent.netns`](#common-pidcontext-netns-doc) | NetNS ID of the process |
 | [`signal.target.parent.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.parent.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.parent.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`signal.target.parent.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.parent.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.parent.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2637,7 +2801,7 @@ A signal was sent
 | [`signal.target.parent.user_session.ssh_public_key`](#common-sshsessioncontext-ssh_public_key-doc) | SSH public key used for authentication (if applicable) |
 | [`signal.target.parent.user_session.ssh_session_id`](#common-sshsessioncontext-ssh_session_id-doc) | Unique identifier of the SSH user session on the host |
 | [`signal.target.pid`](#common-pidcontext-pid-doc) | Process ID of the process (also called thread group ID) |
-| [`signal.target.ppid`](#common-process-ppid-doc) | Parent process ID |
+| [`signal.target.ppid`](#common-pidcontext-ppid-doc) | Parent process ID |
 | [`signal.target.sid`](#common-pidcontext-sid-doc) | Session ID of the process |
 | [`signal.target.tid`](#common-pidcontext-tid-doc) | Thread ID of the thread |
 | [`signal.target.tty_name`](#common-process-tty_name-doc) | Name of the TTY associated with the process |
@@ -2768,6 +2932,15 @@ A kernel module was deleted
 | [`unload_module.name`](#unload_module-name-doc) | Name of the kernel module that was deleted |
 | [`unload_module.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
 
+### Event `unshare`
+
+A process created new namespaces
+
+| Property | Definition |
+| -------- | ------------- |
+| [`unshare.flags`](#unshare-flags-doc) | Namespace flags requested by the unshare call |
+| [`unshare.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+
 ### Event `utimes`
 
 Change file access/modification times
@@ -2806,6 +2979,15 @@ Change file access/modification times
 
 
 ## Attributes documentation
+
+
+### `*.access_key_id` {#common-awssecuritycredentials-access_key_id-doc}
+Type: string
+
+Definition: The access key ID of the security credentials in the IMDS answer
+
+`*.access_key_id` has 7 possible prefixes:
+`exec.aws_security_credentials` `exit.aws_security_credentials` `imds.aws.security_credentials` `process.aws_security_credentials` `ptrace.tracee.aws_security_credentials` `setrlimit.target.aws_security_credentials` `signal.target.aws_security_credentials`
 
 
 ### `*.args` {#common-process-args-doc}
@@ -2915,6 +3097,15 @@ Definition: Login UID of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.available` {#common-filecapabilities-available-doc}
+Type: bool
+
+Definition: Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection
+
+`*.available` has 14 possible prefixes:
+`exec.file.capabilities` `exit.file.capabilities` `process.ancestors.file.capabilities` `process.file.capabilities` `process.parent.file.capabilities` `ptrace.tracee.ancestors.file.capabilities` `ptrace.tracee.file.capabilities` `ptrace.tracee.parent.file.capabilities` `setrlimit.target.ancestors.file.capabilities` `setrlimit.target.file.capabilities` `setrlimit.target.parent.file.capabilities` `signal.target.ancestors.file.capabilities` `signal.target.file.capabilities` `signal.target.parent.file.capabilities`
+
+
 ### `*.cap_effective` {#common-credentials-cap_effective-doc}
 Type: int
 
@@ -2951,6 +3142,18 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `*.caps_attempted_host_userns` {#common-process-caps_attempted_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace
+
+`*.caps_attempted_host_userns` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `*.caps_used` {#common-process-caps_used-doc}
 Type: int
 
@@ -2961,6 +3164,27 @@ Definition: Bitmask of the capabilities that the process successfully used
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
 
+
+
+### `*.caps_used_host_userns` {#common-process-caps_used_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace
+
+`*.caps_used_host_userns` has 14 possible prefixes:
+`exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `*.cgroupns` {#common-namespaceids-cgroupns-doc}
+Type: int
+
+Definition: Cgroup namespace ID, 0 if it couldn't be resolved
+
+`*.cgroupns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.change_time` {#common-filefields-change_time-doc}
@@ -3015,6 +3239,24 @@ Definition: Amount of data transmitted or received
 
 `*.data_size` has 2 possible prefixes:
 `network_flow_monitor.flows.egress` `network_flow_monitor.flows.ingress`
+
+
+### `*.ecs_task_id` {#common-containercontext-ecs_task_id-doc}
+Type: string
+
+Definition: ECS task ID
+
+`*.ecs_task_id` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
+
+
+### `*.effective` {#common-filecapabilities-effective-doc}
+Type: bool
+
+Definition: File effective capability bit, which requests that capabilities granted during exec also become effective
+
+`*.effective` has 14 possible prefixes:
+`exec.file.capabilities` `exit.file.capabilities` `process.ancestors.file.capabilities` `process.file.capabilities` `process.parent.file.capabilities` `ptrace.tracee.ancestors.file.capabilities` `ptrace.tracee.file.capabilities` `ptrace.tracee.parent.file.capabilities` `setrlimit.target.ancestors.file.capabilities` `setrlimit.target.file.capabilities` `setrlimit.target.parent.file.capabilities` `signal.target.ancestors.file.capabilities` `signal.target.file.capabilities` `signal.target.parent.file.capabilities`
 
 
 ### `*.egid` {#common-credentials-egid-doc}
@@ -3251,6 +3493,18 @@ Definition: Indicator of the file layer, for example, in an OverlayFS
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.inheritable` {#common-filecapabilities-inheritable-doc}
+Type: int
+
+Definition: Inheritable capabilities attached to the executable file
+
+`*.inheritable` has 14 possible prefixes:
+`exec.file.capabilities` `exit.file.capabilities` `process.ancestors.file.capabilities` `process.file.capabilities` `process.parent.file.capabilities` `ptrace.tracee.ancestors.file.capabilities` `ptrace.tracee.file.capabilities` `ptrace.tracee.parent.file.capabilities` `setrlimit.target.ancestors.file.capabilities` `setrlimit.target.file.capabilities` `setrlimit.target.parent.file.capabilities` `signal.target.ancestors.file.capabilities` `signal.target.file.capabilities` `signal.target.parent.file.capabilities`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `*.inode` {#common-pathkey-inode-doc}
 Type: int
 
@@ -3267,6 +3521,15 @@ Definition: IP address
 
 `*.ip` has 9 possible prefixes:
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
+
+
+### `*.ipcns` {#common-namespaceids-ipcns-doc}
+Type: int
+
+Definition: IPC namespace ID, 0 if it couldn't be resolved
+
+`*.ipcns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.is_exec` {#common-process-is_exec-doc}
@@ -3370,8 +3633,17 @@ Type: int
 
 Definition: Length of the corresponding element
 
-`*.length` has 100 possible prefixes:
-`accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+`*.length` has 106 possible prefixes:
+`accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.aws_security_credentials` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.aws_security_credentials` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.aws_security_credentials` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.aws_security_credentials` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.aws_security_credentials` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.aws_security_credentials` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
+
+
+### `*.mntns` {#common-namespaceids-mntns-doc}
+Type: int
+
+Definition: Mount namespace ID, 0 if it couldn't be resolved
+
+`*.mntns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.mntns` {#common-pidcontext-mntns-doc}
@@ -3448,6 +3720,15 @@ exec.file.name == "apt"
 {{< /code-block >}}
 
 Matches the execution of any file named apt.
+
+### `*.netns` {#common-namespaceids-netns-doc}
+Type: int
+
+Definition: Network namespace ID, 0 if it couldn't be resolved
+
+`*.netns` has 2 possible prefixes:
+`setns` `setns.previous`
+
 
 ### `*.netns` {#common-networkdevicecontext-netns-doc}
 Type: int
@@ -3577,6 +3858,18 @@ open.file.path == "/etc/passwd"
 
 Matches any process opening the /etc/passwd file.
 
+### `*.permitted` {#common-filecapabilities-permitted-doc}
+Type: int
+
+Definition: Permitted capabilities attached to the executable file, before any process bounding-set filtering
+
+`*.permitted` has 14 possible prefixes:
+`exec.file.capabilities` `exit.file.capabilities` `process.ancestors.file.capabilities` `process.file.capabilities` `process.parent.file.capabilities` `ptrace.tracee.ancestors.file.capabilities` `ptrace.tracee.file.capabilities` `ptrace.tracee.parent.file.capabilities` `setrlimit.target.ancestors.file.capabilities` `setrlimit.target.file.capabilities` `setrlimit.target.parent.file.capabilities` `signal.target.ancestors.file.capabilities` `signal.target.file.capabilities` `signal.target.parent.file.capabilities`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `*.pid` {#common-pidcontext-pid-doc}
 Type: int
 
@@ -3584,6 +3877,24 @@ Definition: Process ID of the process (also called thread group ID)
 
 `*.pid` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.pidns` {#common-namespaceids-pidns-doc}
+Type: int
+
+Definition: ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved
+
+`*.pidns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
+### `*.pod_uid` {#common-containercontext-pod_uid-doc}
+Type: string
+
+Definition: Kubernetes pod UID
+
+`*.pod_uid` has 14 possible prefixes:
+`exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
 
 
 ### `*.port` {#common-ipportcontext-port-doc}
@@ -3595,7 +3906,7 @@ Definition: Port number
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
 
 
-### `*.ppid` {#common-process-ppid-doc}
+### `*.ppid` {#common-pidcontext-ppid-doc}
 Type: int
 
 Definition: Parent process ID
@@ -3609,8 +3920,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 28 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `utimes`
+`*.retval` has 30 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setns` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `unshare` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3730,6 +4041,15 @@ Definition: Thread ID of the thread
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.timens` {#common-namespaceids-timens-doc}
+Type: int
+
+Definition: Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces
+
+`*.timens` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.tty_name` {#common-process-tty_name-doc}
 Type: string
 
@@ -3737,6 +4057,15 @@ Definition: Name of the TTY associated with the process
 
 `*.tty_name` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.type` {#common-awssecuritycredentials-type-doc}
+Type: string
+
+Definition: The security credentials type
+
+`*.type` has 7 possible prefixes:
+`exec.aws_security_credentials` `exit.aws_security_credentials` `imds.aws.security_credentials` `process.aws_security_credentials` `ptrace.tracee.aws_security_credentials` `setrlimit.target.aws_security_credentials` `signal.target.aws_security_credentials`
 
 
 ### `*.type` {#common-networkcontext-type-doc}
@@ -3794,6 +4123,24 @@ Definition: User of the file's owner
 
 `*.user` has 46 possible prefixes:
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.userns` {#common-namespaceids-userns-doc}
+Type: int
+
+Definition: User namespace ID, 0 if it couldn't be resolved
+
+`*.userns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
+### `*.utsns` {#common-namespaceids-utsns-doc}
+Type: int
+
+Definition: UTS namespace ID, 0 if it couldn't be resolved
+
+`*.utsns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.version` {#common-cgroupcontext-version-doc}
@@ -3914,10 +4261,30 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `capabilities.attempted_host_userns` {#capabilities-attempted_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `capabilities.used` {#capabilities-used-doc}
 Type: int
 
 Definition: Bitmask of the capabilities that the process successfully used since it started running
+
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
+### `capabilities.used_host_userns` {#capabilities-used_host_userns-doc}
+Type: int
+
+Definition: Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace
 
 
 Constants: [Kernel Capability constants](#kernel-capability-constants)
@@ -4293,17 +4660,20 @@ Definition: a boolean which specifies if the IMDS event follows IMDSv1 or IMDSv2
 
 
 
-### `imds.aws.security_credentials.type` {#imds-aws-security_credentials-type-doc}
-Type: string
-
-Definition: the security credentials type
-
-
-
 ### `imds.cloud_provider` {#imds-cloud_provider-doc}
 Type: string
 
 Definition: the intended cloud provider of the IMDS event
+
+
+
+### `imds.credential_source` {#imds-credential_source-doc}
+Type: int
+
+Definition: the credential endpoint that served the IMDS event
+
+
+Constants: [Credential sources](#credential-sources)
 
 
 
@@ -4452,6 +4822,13 @@ Definition: Mount is detached from the VFS
 
 
 
+### `mount.flags` {#mount-flags-doc}
+Type: int
+
+Definition: Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout
+
+
+
 ### `mount.fs_type` {#mount-fs_type-doc}
 Type: string
 
@@ -4504,7 +4881,7 @@ Definition: Source path argument of the syscall
 ### `mount.visible` {#mount-visible-doc}
 Type: bool
 
-Definition: Mount is not visible in the VFS
+Definition: Mount is visible in the VFS
 
 
 
@@ -4722,6 +5099,30 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
+
+
+
+### `setns.mntns_host` {#setns-mntns_host-doc}
+Type: bool
+
+Definition: Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved
+
+
+
+### `setns.mntns_outside_base` {#setns-mntns_outside_base-doc}
+Type: bool
+
+Definition: Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved
+
+
+
+### `setns.nstype` {#setns-nstype-doc}
+Type: int
+
+Definition: Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined
+
+
+Constants: [Clone flags](#clone-flags)
 
 
 
@@ -5013,6 +5414,16 @@ Definition: Path argument of the syscall
 Type: string
 
 Definition: Name of the kernel module that was deleted
+
+
+
+### `unshare.flags` {#unshare-flags-doc}
+Type: int
+
+Definition: Namespace flags requested by the unshare call
+
+
+Constants: [Clone flags](#clone-flags)
 
 
 
@@ -5388,6 +5799,26 @@ Boolean constants are the supported boolean constants.
 | `true` | all |
 | `false` | all |
 
+### `Clone flags` {#clone-flags}
+Clone flags are the supported namespace flags for the unshare syscall.
+
+| Name | Architectures |
+| ---- |---------------|
+| `CLONE_NEWNS` | all |
+| `CLONE_NEWCGROUP` | all |
+| `CLONE_NEWUTS` | all |
+| `CLONE_NEWIPC` | all |
+| `CLONE_NEWUSER` | all |
+| `CLONE_NEWPID` | all |
+| `CLONE_NEWNET` | all |
+| `CLONE_NEWTIME` | all |
+| `CLONE_FILES` | all |
+| `CLONE_FS` | all |
+| `CLONE_SYSVSEM` | all |
+| `CLONE_THREAD` | all |
+| `CLONE_SIGHAND` | all |
+| `CLONE_VM` | all |
+
 ### `CompressionType` {#compressiontype}
 Compression algorithm.
 
@@ -5400,6 +5831,15 @@ Compression algorithm.
 | `7Z` | all |
 | `BZIP2` | all |
 | `XZ` | all |
+
+### `Credential sources` {#credential-sources}
+Credential sources are the endpoints that can serve cloud credentials.
+
+| Name | Architectures |
+| ---- |---------------|
+| `IMDS` | all |
+| `EKS_POD_IDENTITY` | all |
+| `ECS` | all |
 
 ### `DNS Responses` {#dns-responses}
 DNS Responses are the supported response codes

@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
@@ -26,7 +25,9 @@ import (
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
 	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
@@ -35,11 +36,13 @@ import (
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/agentperformance"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common"
 	commontesting "github.com/DataDog/datadog-agent/pkg/collector/corechecks/containers/kubelet/common/testing"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
@@ -51,11 +54,9 @@ type ProviderTestSuite struct {
 }
 
 func (suite *ProviderTestSuite) SetupTest() {
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
-
 	mockConfig := configmock.New(suite.T())
 
-	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender := mocksender.NewMockSender(suite.T(), checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 
@@ -93,10 +94,10 @@ func (suite *ProviderTestSuite) SetupTest() {
 		fx.Provide(func() ipc.Component { return ipcmock.New(suite.T()) }),
 	))
 
-	mockConfig.SetInTest("container_exclude", "name:agent-excluded")
+	mockConfig.SetInTest("container_exclude", []string{"name:agent-excluded"})
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(suite.T())
 
-	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger)
+	suite.provider = NewProvider(mockFilterStore, wmeta, config, common.NewPodUtils(fakeTagger), fakeTagger, nil)
 }
 
 func TestProviderTestSuite(t *testing.T) {
@@ -173,6 +174,46 @@ func (suite *ProviderTestSuite) TestTransformRunningPods() {
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.restarts", 0, "", append(config.Tags, "kube_container_name:datadog-agent", "kube_namespace:default"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.restarts", 0, "", append(config.Tags, "kube_container_name:running-init", "kube_namespace:default"))
 	suite.mockSender.AssertMetric(suite.T(), "Gauge", common.KubeletMetricsPrefix+"containers.restarts", 0, "", append(config.Tags, "pod_name:demo-app-success-c485bc67b-klj45", "kube_namespace:default"))
+}
+
+func (suite *ProviderTestSuite) TestAgentTerminationExitCode() {
+	tel := telemetrymock.New(suite.T())
+	suite.provider.agentPerformance = agentperformance.NewRecorder(tel)
+	fakeTagger := taggerfxmock.SetupFakeTagger(suite.T())
+	containerID := taggertypes.NewEntityID("container_id", "test-container")
+	fakeTagger.SetTags(containerID, "foo", []string{"kube_namespace:default"}, nil, nil, nil)
+	suite.provider.tagger = fakeTagger
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "test-pod"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:   "cluster-agent-pod",
+			Labels: map[string]string{kubernetes.KubeAppComponentLabelKey: "cluster-agent"},
+		},
+	}
+	status := &workloadmeta.KubernetesContainerStatus{
+		Name: "cluster-agent",
+		State: workloadmeta.KubernetesContainerState{
+			Terminated: &workloadmeta.KubernetesContainerStateTerminated{Reason: "Error", ExitCode: 1},
+		},
+		LastTerminationState: workloadmeta.KubernetesContainerState{
+			Terminated: &workloadmeta.KubernetesContainerStateTerminated{Reason: "Error", ExitCode: 137},
+		},
+	}
+
+	suite.provider.generateContainerStatusMetrics(suite.mockSender, pod, status, containerID)
+
+	metrics, err := tel.GetGaugeMetric("agent_performance", agentperformance.ContainerTerminated)
+	if !assert.NoError(suite.T(), err) || !assert.Len(suite.T(), metrics, 2) {
+		return
+	}
+	exitCodes := make(map[string]float64, len(metrics))
+	for _, metric := range metrics {
+		assert.Equal(suite.T(), "cluster-agent", metric.Tags()[tags.ContainerName])
+		assert.Equal(suite.T(), "error", metric.Tags()["reason"])
+		exitCodes[metric.Tags()["exit_code"]] = metric.Value()
+	}
+	assert.Equal(suite.T(), map[string]float64{"1": 1, "137": 1}, exitCodes)
 }
 
 func (suite *ProviderTestSuite) TestTransformCrashedPods() {
@@ -342,7 +383,7 @@ func (suite *ProviderTestSuite) fillWorkloadmetaStore(testDataFile string) error
 	}
 
 	var podList kubelet.PodList
-	if err := jsoniter.Unmarshal(data, &podList); err != nil {
+	if err := kubelet.NewPodUnmarshaller().Unmarshal(data, &podList); err != nil {
 		return err
 	}
 

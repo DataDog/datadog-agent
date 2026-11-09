@@ -10,11 +10,11 @@ import (
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/logs/diagnostic"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 )
 
@@ -26,7 +26,6 @@ type observerPipeline struct {
 	outputChan     chan *message.Message
 	drainDone      chan struct{}
 	observerHandle observer.Handle
-	sampler        *logSampler
 }
 
 func newObserverPipeline(
@@ -34,7 +33,6 @@ func newObserverPipeline(
 	processingRules []*logsconfig.ProcessingRule,
 	hostname hostnameinterface.Component,
 	observerHandle observer.Handle,
-	sampler *logSampler,
 ) *observerPipeline {
 	chanSize := cfg.GetInt("logs_config.message_channel_size")
 	inputChan := make(chan *message.Message, chanSize)
@@ -46,6 +44,7 @@ func newObserverPipeline(
 		inputChan,
 		outputChan,
 		processingRules,
+		nil, // Tag filters are intake-only; AAD reads canonical Origin tags.
 		processor.PassthroughEncoder,
 		diagnostic.NewBufferedMessageReceiver(nil, hostname, cfg),
 		hostname,
@@ -58,7 +57,6 @@ func newObserverPipeline(
 		outputChan:     outputChan,
 		drainDone:      make(chan struct{}),
 		observerHandle: observerHandle,
-		sampler:        sampler,
 	}
 }
 
@@ -66,15 +64,18 @@ func newObserverPipeline(
 // The drain goroutine MUST outlive proc.Stop() — see logssource.go OnStop for
 // the required shutdown sequence.
 func (p *observerPipeline) start() {
-	go func() {
-		defer close(p.drainDone)
-		for msg := range p.outputChan {
-			if p.sampler == nil || p.sampler.ShouldForward(msg) {
-				p.observerHandle.ObserveLog(&messageLogView{msg: msg})
-			}
-		}
-	}()
+	go p.drainOutputChan()
 	p.proc.Start()
+}
+
+// drainOutputChan consumes p.outputChan until it is closed, forwarding each
+// message to the observer.
+// It closes p.drainDone when it returns.
+func (p *observerPipeline) drainOutputChan() {
+	defer close(p.drainDone)
+	for msg := range p.outputChan {
+		p.observerHandle.ObserveLog(&messageLogView{msg: msg})
+	}
 }
 
 // NextPipelineChan implements pipeline.Provider.
@@ -115,6 +116,12 @@ type messageLogView struct {
 	msg *message.Message
 }
 
+func (v *messageLogView) GetSource() string {
+	if v.msg == nil || v.msg.Origin == nil {
+		return ""
+	}
+	return v.msg.Origin.Source()
+}
 func (v *messageLogView) GetContent() string           { return string(v.msg.GetContent()) }
 func (v *messageLogView) GetStatus() string            { return v.msg.GetStatus() }
 func (v *messageLogView) Tags() []string               { return v.msg.Tags() }

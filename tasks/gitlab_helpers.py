@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import os
-import tempfile
 
 import yaml
 from invoke import task
@@ -14,7 +13,6 @@ from tasks.kernel_matrix_testing.ci import get_kmt_dashboard_links
 from tasks.libs.ciproviders.gitlab_api import (
     compute_gitlab_ci_config_diff,
     get_all_gitlab_ci_configurations,
-    get_gitlab_repo,
     post_process_gitlab_ci_configuration,
     print_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
@@ -103,59 +101,6 @@ def create_gitlab_annotations_report(ci_job_id: str, ci_job_name: str):
     return links
 
 
-def print_gitlab_object(get_object, ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """Prints one or more Gitlab objects in JSON and potentially query them with jq."""
-
-    repo = get_gitlab_repo(repo)
-    ids = [i for i in ids.split(",") if i]
-    for id in ids:
-        obj = get_object(repo, id)
-
-        if jq:
-            jq_flags = "-C" if jq_colors else ""
-            with tempfile.NamedTemporaryFile('w', delete=True) as f:
-                f.write(obj.to_json())
-                f.flush()
-
-                ctx.run(f"cat '{f.name}' | jq {jq_flags} '{jq}'")
-        else:
-            obj.pprint()
-
-
-@task
-def print_pipeline(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """Prints one or more Gitlab pipelines in JSON and potentially query them with jq.
-
-    Usage:
-        $ dda inv gitlab.print-pipeline 1234
-        $ dda inv gitlab.print-pipeline 1234 -j .source
-        $ dda inv gitlab.print-pipeline 1234 -j .duration,.ref,.status,.sha
-    """
-
-    def get_pipeline(repo, id):
-        return repo.pipelines.get(id)
-
-    print_gitlab_object(get_pipeline, ctx, ids, repo, jq, jq_colors)
-
-
-@task
-def print_job(ctx, ids, repo='DataDog/datadog-agent', jq: str | None = None, jq_colors=True):
-    """Prints one or more Gitlab jobs in JSON and potentially query them with jq.
-
-    Usage:
-        $ dda inv gitlab.print-job 1234
-        $ dda inv gitlab.print-job 1234 -j '.commit.id'
-        $ dda inv gitlab.print-job 1234 -j '.pipeline.id'
-        $ dda inv gitlab.print-job 1234 -j '.web_url.stage,.ref,.duration,.status'
-        $ dda inv gitlab.print-job 1234 -j '.artifacts | length'
-    """
-
-    def get_job(repo, id):
-        return repo.jobs.get(id)
-
-    print_gitlab_object(get_job, ctx, ids, repo, jq, jq_colors)
-
-
 @task
 @experimental(
     'This task takes into account only explicit dependencies (job `needs` / `dependencies`), implicit dependencies (stages order) are ignored'
@@ -230,16 +175,6 @@ def gen_config_subset(ctx, jobs, dry_run=False, force=False):
             f.write(content)
 
         print(color_message('The .gitlab-ci.yml file has been updated', Color.GREEN))
-
-
-@task
-def print_job_trace(_, job_id, repo='DataDog/datadog-agent'):
-    """Prints the trace (the log) of a Gitlab job."""
-
-    repo = get_gitlab_repo(repo)
-    trace = str(repo.jobs.get(job_id, lazy=True).trace(), 'utf-8')
-
-    print(trace)
 
 
 @task

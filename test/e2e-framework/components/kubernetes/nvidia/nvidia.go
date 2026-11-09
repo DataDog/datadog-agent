@@ -90,9 +90,9 @@ func NewKindCluster(env config.Env, vm *remote.Host, name string, clusterOpts *K
 }
 
 func configureContainerToolkit(env config.Env, vm *remote.Host, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (pulumi.Resource, error) {
-	// Ensure we have Docker. Callers on AWS (e.g. GPU K8s provisioner) should install the ECR
-	// credentials helper via docker.InstallECRCredentialsHelper before NewKindCluster and pass
-	// it in opts so image pulls to ECR work; this package stays cloud-agnostic.
+	// Ensure we have Docker. Callers on AWS (e.g. GPU K8s provisioner) should call
+	// docker.SetupECRDockerAuth before NewKindCluster and pass it in opts so image
+	// pulls to ECR work; this package stays cloud-agnostic.
 	dockerManager, err := docker.NewManager(env, vm, opts...)
 	if err != nil {
 		return nil, err
@@ -128,13 +128,7 @@ func configureContainerToolkit(env config.Env, vm *remote.Host, clusterOpts *Kin
 }
 
 // installNvkind installs the nvkind tool with all the necessary requisites
-func installNvkind(env config.Env, vm *remote.Host, kindVersion string, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (command.Command, error) {
-	// kind is a requisite for nvkind, as it calls it under the hood
-	kindInstall, err := kubernetes.InstallKindBinary(env, vm, kindVersion, opts...)
-	if err != nil {
-		return nil, fmt.Errorf("failed to install kind: %w", err)
-	}
-
+func installNvkind(env config.Env, vm *remote.Host, clusterOpts *KindClusterOptions, opts ...pulumi.ResourceOption) (command.Command, error) {
 	// kubectl is a requisite for nvkind, it's called under the hood
 	kubectlInstall, err := vm.OS.Runner().Command(
 		env.CommonNamer().ResourceName("kubectl-install"),
@@ -168,7 +162,7 @@ func installNvkind(env config.Env, vm *remote.Host, kindVersion string, clusterO
 			// Ensure it gets installed to the global $PATH to avoid having to copy it or change $PATH
 			Create: pulumi.Sprintf("sudo GOBIN=/usr/local/bin go install %s@%s", nvkindPackage, clusterOpts.nvkindVersion),
 		},
-		utils.MergeOptions(opts, utils.PulumiDependsOn(golangInstall, kindInstall, kubectlInstall))...,
+		utils.MergeOptions(opts, utils.PulumiDependsOn(golangInstall, kubectlInstall))...,
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to install nvkind: %w", err)
@@ -188,7 +182,7 @@ func initNvkindCluster(env config.Env, vm *remote.Host, name string, clusterOpts
 		}
 
 		// Install nvkind to create the cluster
-		nvkindInstall, err := installNvkind(env, vm, kindVersionConfig.KindVersion, clusterOpts, opts...)
+		nvkindInstall, err := installNvkind(env, vm, clusterOpts, opts...)
 		if err != nil {
 			return fmt.Errorf("failed to install nvkind: %w", err)
 		}

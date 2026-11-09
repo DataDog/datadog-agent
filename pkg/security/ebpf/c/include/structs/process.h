@@ -5,12 +5,20 @@
 #include "events_context.h"
 #include "dentry_resolver.h"
 
+struct file_capabilities_t {
+    u64 permitted;
+    u64 inheritable;
+    u32 effective;
+    u32 available;
+};
+
 struct process_entry_t {
     struct file_t executable;
 
     u64 exec_timestamp;
     char tty_name[TTY_NAME_LEN];
     char comm[TASK_COMM_LEN];
+    struct file_capabilities_t file_capabilities;
 };
 
 struct proc_cache_t {
@@ -31,10 +39,19 @@ struct credentials_t {
     u64 cap_permitted;
 };
 
+struct namespace_ids_t {
+    u32 mnt;
+    u32 net;
+    u32 pid;
+    u32 user;
+    u32 uts;
+    u32 ipc;
+    u32 cgroup;
+    u32 time;
+};
+
 struct pid_cache_t {
     u64 cookie;
-    u32 ppid;
-    u32 padding;
     u64 fork_timestamp;
     u64 exit_timestamp;
     u64 user_session_id;
@@ -75,12 +92,6 @@ union selinux_write_payload_t {
         u16 disable_value;
         u16 enforce_value;
     } status;
-};
-
-struct span_tls_t {
-    u64 format;
-    u64 max_threads;
-    void *base;
 };
 
 #endif

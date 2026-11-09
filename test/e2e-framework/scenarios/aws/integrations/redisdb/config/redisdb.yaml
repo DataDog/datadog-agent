@@ -1,0 +1,29 @@
+init_config:
+
+instances:
+    # Standalone Redis 7.2 OSS runs in a Docker container published on the
+    # host's loopback interface (localhost:6379). The Datadog Agent runs
+    # directly on the VM and connects over TCP.
+  - host: localhost
+    port: 6379
+
+    ## Collect per-command statistics from `INFO commandstats`.
+    command_stats: true
+
+    ## Collect CLIENT metrics (number of clients, etc.).
+    collect_client_metrics: true
+
+    ## Pull more slowlog entries so the workload's slow commands surface.
+    slowlog-max-len: 128
+
+    ## Track lengths of the keys created by the background workload.
+    keys:
+      - 'dd:workload:list'
+      - 'dd:workload:set'
+      - 'dd:workload:hash'
+      - 'dd:workload:zset'
+    warn_on_missing_keys: false
+
+    tags:
+      - 'redis_role:standalone'
+      - 'lab:redisdb'

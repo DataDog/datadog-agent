@@ -1,0 +1,149 @@
+-- allium: 3
+-- timestamp_detector.allium
+
+-- Scope: A labelling heuristic that recognises log lines whose
+--   token sequence resembles known timestamp formats. When such a
+--   line arrives in a labelling chain, TimestampDetector claims it
+--   as "start_group" — instructing downstream aggregators to treat
+--   the line as the beginning of a new aggregate group.
+-- Includes: The TimestampDetector entity, fulfilment of the
+--   Heuristic contract at the TimestampDetection surface, the
+--   shape-matching condition TimestampDetector evaluates, and its
+--   advisory (non-terminating) behaviour within a labelling chain.
+-- Excludes:
+--   - The mechanism by which the match probability is computed.
+--     The detector relies on a static probabilistic model of token
+--     sequences derived from a corpus of known timestamp formats;
+--     this spec treats that probability function as opaque. Its
+--     internals (the token-graph construction, the corpus of
+--     formats, the minimum-token-length threshold beneath which
+--     probability is zero) are implementation details that do not
+--     change the observable behaviour at this surface.
+--   - The position of TimestampDetector within any specific
+--     labeller's chain. TimestampDetector satisfies the Heuristic
+--     contract; how a particular labeller orders it relative to
+--     other heuristics is that labeller's configuration concern.
+
+use "./labeler.allium" as labeler
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity TimestampDetector {
+    -- A configured instance of the timestamp-shape heuristic. Two
+    -- fields distinguish one TimestampDetector from another:
+    --
+    -- assigner_id:     the identifier the detector writes into
+    --                  context.label_assigned_by when it claims the
+    --                  label — observable downstream as the
+    --                  "this label was set by the timestamp
+    --                  detector" provenance signal.
+    -- match_threshold: the probability cutoff above which the
+    --                  detector claims the label. A line's token
+    --                  sequence whose match probability exceeds
+    --                  this value is treated as timestamp-shaped;
+    --                  one whose probability is at or below it is
+    --                  not. The threshold is supplied at
+    --                  construction and is not modified during the
+    --                  detector's lifetime.
+    assigner_id: String
+    match_threshold: Decimal
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface TimestampDetection {
+    -- The boundary between a labelling chain and one
+    -- TimestampDetector instance. The chain invokes
+    -- process_and_continue on the detector with the chain's shared
+    -- HeuristicContext; this surface supplies the detector's
+    -- contribution to the labelling decision.
+
+    context detector: TimestampDetector
+
+    contracts:
+        fulfils Heuristic
+
+    @guarantee InputImmutability
+        -- TimestampDetector reads context.tokens but never modifies
+        -- it. It does not read or modify context.raw_message or
+        -- context.token_indices. Honours the Heuristic contract's
+        -- InputImmutability invariant.
+
+    @guarantee LabelDomain
+        -- When TimestampDetector claims the label, it sets
+        -- context.label to start_group — a value in the Label enum.
+        -- TimestampDetector never produces any other label value
+        -- and never leaves context.label in an invalid state.
+
+    @guarantee LabelAssignedByConsistency
+        -- When TimestampDetector sets context.label, it also sets
+        -- context.label_assigned_by to its assigner_id (identifying
+        -- itself as the assigner). When TimestampDetector does NOT
+        -- set context.label, it leaves context.label_assigned_by
+        -- unchanged. Honours the Heuristic contract's
+        -- LabelAssignedByConsistency invariant.
+
+    @guarantee TerminationSemantics
+        -- process_and_continue always returns true: TimestampDetector
+        -- is an advisory heuristic that never terminates the
+        -- labelling chain. Whether or not it claims the label,
+        -- subsequent heuristics in the chain still run and may
+        -- overwrite the label.
+
+    @guidance
+        -- Detection condition: TimestampDetector compares the
+        -- token sequence in context.tokens against a probabilistic
+        -- model of known timestamp shapes. The model yields a
+        -- match probability in [0, 1]. TimestampDetector treats the
+        -- line as timestamp-shaped when the probability is strictly
+        -- greater than detector.match_threshold.
+        --
+        -- The probability function is opaque at this surface: it
+        -- is built from a static corpus of timestamp formats
+        -- (literal strings such as "2024-03-28T13:45:30.123456Z",
+        -- "28/Mar/2024:13:45:30", "Jun 09 2024 15:28:14", and
+        -- similar) tokenised through the same Tokenization
+        -- contract used elsewhere in the pipeline. The function is
+        -- pure and deterministic — it has no per-call state and
+        -- depends only on the input token sequence.
+        --
+        -- Conditional behaviour when process_and_continue is
+        -- invoked:
+        --
+        -- 1. If context.tokens is empty, TimestampDetector takes
+        --    no action: it returns true without inspecting or
+        --    modifying context. The detector cannot evaluate a
+        --    timestamp shape without tokens to inspect.
+        --
+        -- 2. Otherwise, if the match probability of context.tokens
+        --    against the timestamp model is strictly greater than
+        --    detector.match_threshold, TimestampDetector claims the
+        --    label by setting context.label to start_group and
+        --    context.label_assigned_by to its assigner_id. It then
+        --    returns true.
+        --
+        -- 3. Otherwise (tokens present, probability at or below
+        --    threshold), TimestampDetector takes no action beyond
+        --    inspecting tokens: it returns true without modifying
+        --    context.
+        --
+        -- TimestampDetector does not consult
+        -- context.label_assigned_by. Within a labelling chain, a
+        -- prior heuristic that intended to claim the label
+        -- terminates the chain via a false return value, so
+        -- TimestampDetector only runs when no prior heuristic has
+        -- claimed the label. If TimestampDetector is placed in an
+        -- analytics-style chain where prior heuristics did not
+        -- terminate, a claim by TimestampDetector overwrites any
+        -- existing label.
+        --
+        -- Choosing start_group is deliberate: a timestamp-prefixed
+        -- log line is the canonical marker for the beginning of a
+        -- new multi-line log entry. Subsequent lines without a
+        -- timestamp prefix are typically continuations of the
+        -- entry that started at the most recent timestamp.
+}

@@ -77,12 +77,18 @@ func SshRunCommand(sshClient *ssh.Client, command string, logger io.Writer) ([]b
 
 	var err error
 	for range NR_SSH_COMMAND_RETRIES {
-		sshSession, err := sshClient.NewSession()
+		var sshSession *ssh.Session
+		// Assign to the outer err (not ":=") so the last failure is returned
+		// once retries are exhausted; shadowing it here made this function
+		// return (nil, nil) on persistent failures.
+		sshSession, err = sshClient.NewSession()
 		if err != nil {
 			return nil, err
 		}
 
-		output, err := sshSession.CombinedOutput(command)
+		var output []byte
+		output, err = sshSession.CombinedOutput(command)
+		sshSession.Close()
 		if err == nil {
 			return output, nil
 		}

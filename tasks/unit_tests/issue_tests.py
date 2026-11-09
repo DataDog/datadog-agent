@@ -446,23 +446,35 @@ class TestGetTeamFileCounts(unittest.TestCase):
         self.assertEqual(counts['network-team'], 0)
 
 
+def _make_pr(changed_files, additions, deletions, comment_logins):
+    pr = types.SimpleNamespace(changed_files=changed_files, additions=additions, deletions=deletions)
+    pr.get_review_comments = lambda: [
+        types.SimpleNamespace(user=types.SimpleNamespace(login=login)) for login in comment_logins
+    ]
+    return pr
+
+
 class TestGetPrSize(unittest.TestCase):
     def test_small(self):
-        pr = types.SimpleNamespace(changed_files=2, additions=50, deletions=30, review_comments=1)
+        pr = _make_pr(2, 50, 30, ['alice'])
+        self.assertEqual(get_pr_size(pr), 'small')
+
+    def test_small_ignores_bot_comments(self):
+        pr = _make_pr(2, 50, 30, ['alice', 'bob', 'dependabot[bot]', 'dependabot[bot]'])
         self.assertEqual(get_pr_size(pr), 'small')
 
     def test_medium(self):
-        pr = types.SimpleNamespace(changed_files=6, additions=200, deletions=100, review_comments=3)
+        pr = _make_pr(6, 200, 100, ['alice', 'bob', 'carol'])
         self.assertEqual(get_pr_size(pr), 'medium')
 
     def test_large_by_files(self):
-        pr = types.SimpleNamespace(changed_files=15, additions=10, deletions=5, review_comments=0)
+        pr = _make_pr(15, 10, 5, [])
         self.assertEqual(get_pr_size(pr), 'large')
 
     def test_large_by_lines(self):
-        pr = types.SimpleNamespace(changed_files=1, additions=600, deletions=100, review_comments=0)
+        pr = _make_pr(1, 600, 100, [])
         self.assertEqual(get_pr_size(pr), 'large')
 
     def test_large_by_comments(self):
-        pr = types.SimpleNamespace(changed_files=1, additions=10, deletions=5, review_comments=10)
+        pr = _make_pr(1, 10, 5, ['alice'] * 10)
         self.assertEqual(get_pr_size(pr), 'large')

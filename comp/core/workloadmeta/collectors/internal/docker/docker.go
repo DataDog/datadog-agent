@@ -235,22 +235,11 @@ func (c *collector) generateEventsFromImageList(ctx context.Context) error {
 		return err
 	}
 
-	events := make([]workloadmeta.CollectorEvent, 0, len(images))
-
-	for _, img := range images {
-		imgMetadata, err := c.getImageMetadata(ctx, img.ID, nil)
-		if err != nil {
-			log.Warnf("%s", err.Error())
-			continue
-		}
-
-		event := workloadmeta.CollectorEvent{
-			Source: workloadmeta.SourceRuntime,
-			Type:   workloadmeta.EventTypeSet,
-			Entity: imgMetadata,
-		}
-
-		events = append(events, event)
+	events, err := collectInitialImageEvents(ctx, images, func(ctx context.Context, imageID string) (*workloadmeta.ContainerImageMetadata, error) {
+		return c.getImageMetadata(ctx, imageID, nil)
+	})
+	if err != nil {
+		return err
 	}
 
 	if len(events) > 0 {
@@ -658,6 +647,14 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		return nil, err
 	}
 
+	var created time.Time
+	if imgInspect.Created != "" {
+		created, err = time.Parse(time.RFC3339Nano, imgInspect.Created)
+		if err != nil {
+			log.Debugf("Cannot parse creation time %q for image %q: %s", imgInspect.Created, imgInspect.ID, err)
+		}
+	}
+
 	return &workloadmeta.ContainerImageMetadata{
 		EntityID: workloadmeta.EntityID{
 			Kind: workloadmeta.KindContainerImageMetadata,
@@ -674,6 +671,7 @@ func (c *collector) getImageMetadata(ctx context.Context, imageID string, newSBO
 		OSVersion:    imgInspect.OsVersion,
 		Architecture: imgInspect.Architecture,
 		Variant:      imgInspect.Variant,
+		Created:      created,
 		Layers:       layersFromDockerHistoryAndInspect(imageHistory, imgInspect),
 		SBOM:         csbom,
 	}, nil

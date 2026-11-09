@@ -10,7 +10,7 @@ package containerd
 import (
 	"errors"
 
-	"github.com/containerd/containerd"
+	containerd "github.com/containerd/containerd/v2/client"
 
 	cutil "github.com/DataDog/datadog-agent/pkg/util/containerd"
 )

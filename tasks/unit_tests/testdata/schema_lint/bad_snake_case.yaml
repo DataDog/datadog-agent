@@ -1,0 +1,47 @@
+properties:
+  camelCase:
+    node_type: setting
+    type: string
+    default: hello
+  UPPER_prefix:
+    node_type: setting
+    type: string
+    default: hello
+  double__underscore:
+    node_type: setting
+    type: string
+    default: hello
+  _leading_underscore:
+    node_type: setting
+    type: string
+    default: hello
+  trailing_underscore_:
+    node_type: setting
+    type: string
+    default: hello
+  kebab-case:
+    node_type: setting
+    type: string
+    default: hello
+  BadSection:
+    node_type: section
+    properties:
+      good_child:
+        node_type: setting
+        type: string
+        default: hello
+  valid_section:
+    node_type: section
+    properties:
+      nestedBad:
+        node_type: setting
+        type: string
+        default: hello
+      valid_v2_setting:
+        node_type: setting
+        type: string
+        default: hello
+  valid_setting:
+    node_type: setting
+    type: string
+    default: hello

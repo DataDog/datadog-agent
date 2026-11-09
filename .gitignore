@@ -7,6 +7,12 @@ vendor/
 bin/
 /dev/
 /site/
+# local git worktrees
+.worktrees/
+# Remote content fetched while building the documentation.
+/.docs-cache/
+# Link check results remembered between runs.
+/.lycheecache
 __pycache__
 .pytest_cache
 venv*/
@@ -27,6 +33,8 @@ target
 *.syso
 *.log
 /main
+# Version cache written by during releasing.
+/agent-version.cache
 
 # Build System Protocol (Bazel <-> JetBrains IDEs)
 /.bazelbsp/
@@ -121,7 +129,6 @@ dogstatsd-msg.h
 # omnibus files
 omnibus/.tarball-version
 omnibus/files/sources
-omnibus/resources/agent/msi/cal/packages/
 
 # serverless artifact
 cmd/serverless/serverless
@@ -148,14 +155,6 @@ pkg/util/winutil/messagestrings/*.h
 pkg/util/winutil/messagestrings/*.rc
 pkg/util/winutil/messagestrings/*.bin
 
-# dev VM
-.vagrant
-Vagrantfile
-packer.json
-*.box
-devenv/iso
-devenv/output-virtualbox-iso/
-devenv/packer_cache
 test_output*.json
 module_test_output.json
 e2e_test_output.json
@@ -210,7 +209,6 @@ test/fakeintake/build/*
 kmt-deps/
 test/new-e2e/system-probe/test-json-review/test-json-review
 test/new-e2e/system-probe/test-runner/test-runner
-test/new-e2e/start-microvms
 
 # trace-agent generates install.json files during tests
 pkg/serverless/trace/**/install.json
@@ -226,7 +224,7 @@ flake-finder-gitlab-ci.yml
 go.work.sum
 
 
-#### Cursor related files
+#### AI agents related files
 
 # Personal rules
 **/.cursor/rules/personal/
@@ -238,15 +236,27 @@ CLAUDE_PERSONAL.md
 **/.claude/settings.local.json
 **/CLAUDE.local.md
 
-# Claude Code auto-jira work tracking (local only, never commit)
+# auto-jira work tracking (local only, never commit)
 AUTO_JIRA.md
-.claude/skills/auto-jira/SKILL.notes.md
+.agents/skills/auto-jira/SKILL.notes.md
+
+# follow-pr worktree-local autonomy preferences (local only, never commit)
+.agents/skills/follow-pr/config.toml
 
 # Claude Code worktrees (local development, not for repo)
 .claude/worktrees/
 
-# Zed config
-.zed
+# Pi subagents (local development, not for repo)
+.pi-subagents/
+
+# Codex (commit the shared MCP config; ignore everything else Codex writes)
+.codex/*
+!.codex/config.toml
+
+# Zed config (commit shared project config; ignore everything else)
+.zed/*
+!.zed/settings.json
+!.zed/tasks.json
 
 # Devcontainer
 .devcontainer/
@@ -257,3 +267,14 @@ pkg/config/schema/compressed/*.zstd
 .python-nix-home
 .venv-nix
 flake.lock
+
+# NCM local config store (runtime artifact)
+.run/ncm_config.db
+
+# Code generated from the config schema
+# in-repo copy only: the pkg/config/setup/generatedsettings snapshot is committed
+pkg/config/setup/generatedsettings_local/*.go
+!pkg/config/setup/generatedsettings_local/doc.go
+
+# Local EKS kubeconfig files
+*kubeconfig.yaml

@@ -1,0 +1,12 @@
+# Derived from uutils test_truncate.rs::test_truncate_help.
+description: --help prints usage to stdout and exits 0.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate --help
+expect:
+  stdout_contains: ["Usage: truncate"]
+  stderr: |+
+  exit_code: 0
+skip_assert_against_bash: true

@@ -36,6 +36,7 @@ func snmpVMProvisioner(opts ...awshost.ProvisionerOption) provisioners.Provision
 	allOpts := []awshost.ProvisionerOption{
 		awshost.WithRunOptions(
 			scenec2.WithDocker(),
+			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess()),
 			scenec2.WithAgentOptions(
 				agentparams.WithFile("/etc/datadog-agent/conf.d/snmp.d/snmp.yaml", snmpVMConfig, true),
 			),
@@ -63,10 +64,12 @@ func (v *snmpVMSuite) TestAPIKeyRefresh() {
 		checkBasicMetrics(c, fakeIntake)
 	}, 2*time.Minute, 10*time.Second)
 
+	agentHostname := v.Env().Agent.Client.Hostname()
+
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 6*time.Minute, 10*time.Second)
 
 	apiKey1 := strings.Repeat("0", 32)
@@ -112,7 +115,7 @@ secret_backend_arguments:
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 6*time.Minute, 10*time.Second)
 
 	secretClient.SetSecret("api_key", apiKey2)
@@ -134,6 +137,6 @@ secret_backend_arguments:
 	require.EventuallyWithT(v.T(), func(c *assert.CollectT) {
 		ndmPayload := checkLastNDMPayload(c, fakeIntake, "default")
 		require.NotEmpty(c, ndmPayload.Devices)
-		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0])
+		checkCiscoNexusDeviceMetadata(c, ndmPayload.Devices[0], agentHostname)
 	}, 6*time.Minute, 10*time.Second)
 }

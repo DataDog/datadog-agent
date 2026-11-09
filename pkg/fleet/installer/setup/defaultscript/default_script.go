@@ -29,7 +29,7 @@ var (
 	defaultLibraryVersions = map[string]string{
 		common.DatadogAPMLibraryJavaPackage:   "1",
 		common.DatadogAPMLibraryRubyPackage:   "2",
-		common.DatadogAPMLibraryJSPackage:     "5",
+		common.DatadogAPMLibraryJSPackage:     "6",
 		common.DatadogAPMLibraryDotNetPackage: "3",
 		common.DatadogAPMLibraryPythonPackage: "3",
 		common.DatadogAPMLibraryPHPPackage:    "1",
@@ -43,7 +43,6 @@ var (
 		"DD_INSTALLER",
 		"DD_AGENT_FLAVOR",
 		"DD_UPGRADE",
-		"DD_INSTALL_ONLY",
 		"DD_FIPS_MODE",
 	}
 
@@ -52,6 +51,7 @@ var (
 	supportedEnvVars = []string{
 		"DD_ENV",
 		"DD_SITE",
+		"DD_LOG_LEVEL",
 		"DD_TAGS",
 		"DD_HOST_TAGS",
 		"DD_URL",
@@ -59,6 +59,7 @@ var (
 		"DD_FIPS_MODE",
 		"DD_SYSTEM_PROBE_ENSURE_CONFIG",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED",
+		"DD_SYSTEM_PROBE_NETWORK_ENABLED",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED",
 		"DD_SBOM_HOST_ENABLED",
 		"DD_COMPLIANCE_CONFIG_ENABLED",
@@ -88,7 +89,7 @@ var (
 func SetupDefaultScript(s *common.Setup) error {
 	// Telemetry
 	telemetrySupportedEnvVars(s, supportedEnvVars...)
-	if err := exitOnUnsupportedEnvVars(unsupportedEnvVars...); err != nil {
+	if err := exitOnUnsupportedEnvVars(unsupportedEnvVarsForPlatform()...); err != nil {
 		return err
 	}
 
@@ -99,6 +100,9 @@ func SetupDefaultScript(s *common.Setup) error {
 	// Config management
 	setConfigTags(s)
 	setConfigSecurityProducts(s)
+	if err := setConfigNetworkMonitoring(s); err != nil {
+		return err
+	}
 	if err := setConfigProcessAgent(s); err != nil {
 		return err
 	}
@@ -159,6 +163,25 @@ func setConfigSecurityProducts(s *common.Setup) {
 		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Enabled = config.BoolToPtr(true)
 		s.Config.SystemProbeYAML.RuntimeSecurityConfig.SBOM.Host.Enabled = config.BoolToPtr(true)
 	}
+}
+
+// setConfigNetworkMonitoring sets network_config.enabled in system-probe.yaml from
+// DD_SYSTEM_PROBE_NETWORK_ENABLED, to enable Cloud Network Monitoring. It must run after
+// setConfigSecurityProducts, which replaces SystemProbeYAML.
+func setConfigNetworkMonitoring(s *common.Setup) error {
+	val, ok := os.LookupEnv("DD_SYSTEM_PROBE_NETWORK_ENABLED")
+	if !ok {
+		return nil
+	}
+	enabled, err := strconv.ParseBool(val)
+	if err != nil {
+		return fmt.Errorf("invalid boolean value %q for DD_SYSTEM_PROBE_NETWORK_ENABLED: %w", val, err)
+	}
+	if s.Config.SystemProbeYAML == nil {
+		s.Config.SystemProbeYAML = &config.SystemProbeConfig{}
+	}
+	s.Config.SystemProbeYAML.NetworkConfig.Enabled = config.BoolToPtr(enabled)
+	return nil
 }
 
 // setConfigProcessAgent sets the process_config collection toggles from environment variables.
@@ -324,6 +347,16 @@ func getLibraryVersion(env *env.Env, library string) string {
 		return versionTag + "-1"
 	}
 	return versionTag
+}
+
+// unsupportedEnvVarsForPlatform returns the environment variables rejected by the
+// default script on the current platform. DD_INSTALL_ONLY is supported only by
+// the Windows executable setup flow.
+func unsupportedEnvVarsForPlatform() []string {
+	if runtime.GOOS == "windows" {
+		return unsupportedEnvVars
+	}
+	return append(unsupportedEnvVars, "DD_INSTALL_ONLY")
 }
 
 func exitOnUnsupportedEnvVars(envVars ...string) error {

@@ -1,7 +1,14 @@
 ---
+agents:
+  enabled: true
 clusterAgent:
   admissionController:
     configMode: "hostip"
+  env:
+    # Disable gradual rollout so the injector resolves deterministically to the
+    # plain image tag (NoOpResolver) rather than a digest.
+    - name: DD_ADMISSION_CONTROLLER_AUTO_INSTRUMENTATION_GRADUAL_ROLLOUT_ENABLED
+      value: "false"
 
 datadog:
   csi:

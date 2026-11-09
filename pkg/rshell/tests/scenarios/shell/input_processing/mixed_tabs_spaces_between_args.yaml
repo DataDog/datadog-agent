@@ -1,0 +1,7 @@
+description: Mixed tabs and spaces between arguments are treated as separators.
+input:
+  script: "echo \t hello \t\t world\n"
+expect:
+  stdout: "hello world\n"
+  stderr: ""
+  exit_code: 0

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -88,10 +89,8 @@ func IsNetworkFlowMonitorNotSupported(kv *kernel.Version) bool {
 }
 
 // IsCapabilitiesMonitoringSupported returns if the capabilities monitoring feature is supported
-// override_creds/restore_creds kernel functions must not be inlined
-// https://github.com/torvalds/linux/commit/6771e004b40962402d0e973fc7d2e0e61364fdfb
 func IsCapabilitiesMonitoringSupported(kv *kernel.Version) bool {
-	return kv.HasBPFForEachMapElemHelper() && kv.Code != 0 && kv.Code < kernel.Kernel6_14
+	return kv.HasBPFForEachMapElemHelper() && kv.Code != 0
 }
 
 // NewAgentContainerContext returns the agent container context
@@ -118,4 +117,14 @@ func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 	}
 	acc.ContainerID = cid
 	return acc, nil
+}
+
+// propagateSpanContext persists the span context of a fork or an exec on the
+// process it created.
+func propagateSpanContext(ev *model.Event) {
+	if eventType := ev.GetEventType(); eventType == model.ForkEventType || eventType == model.ExecEventType {
+		if ev.ProcessCacheEntry != nil {
+			ev.ProcessCacheEntry.SetSpanContext(ev.SpanContext)
+		}
+	}
 }

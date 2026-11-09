@@ -12,7 +12,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 
-	"github.com/alessio/shellescape"
+	"al.essio.dev/pkg/shellescape"
 	"github.com/pulumi/pulumi-command/sdk/go/command/remote"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 )

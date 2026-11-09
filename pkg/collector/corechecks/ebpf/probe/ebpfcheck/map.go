@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package ebpfcheck
 
@@ -74,7 +74,7 @@ func mapMemlock(fd uint32) (uint64, error) {
 		rest = bytes.TrimSpace(rest)
 		memlock, err := strconv.ParseUint(string(rest), 10, 64)
 		if err != nil {
-			return 0, fmt.Errorf("can't parse field memlock: %v", err)
+			return 0, fmt.Errorf("can't parse field memlock: %w", err)
 		}
 		return memlock, nil
 	}

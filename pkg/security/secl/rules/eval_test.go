@@ -11,8 +11,8 @@ package rules
 import (
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -33,15 +33,15 @@ func TestIteratorCache(t *testing.T) {
 			ProcessContext: model.ProcessContext{
 				Process: model.Process{
 					PIDContext: model.PIDContext{
-						Pid: 111,
+						Pid:  111,
+						PPid: 111,
 					},
-					PPid: 111,
 				},
 			},
 		},
 	}
 
-	evalRule, err := eval.NewRule("test", `exec.file.uid == 22 && process.ancestors.pid == 111 && process.ancestors.ppid == 111`, ast.NewParsingContext(false), &eval.Opts{})
+	evalRule, err := eval.NewRule("test", `exec.file.uid == 22 && process.ancestors.pid == 111 && process.ancestors.ppid == 111`, parser.NewParsingContext(false), &eval.Opts{})
 	if err != nil {
 		t.Error(err)
 	}

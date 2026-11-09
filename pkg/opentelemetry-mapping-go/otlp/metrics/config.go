@@ -30,6 +30,8 @@ type translatorConfig struct {
 	InstrumentationLibraryMetadataAsTags bool
 	InstrumentationScopeMetadataAsTags   bool
 	InferDeltaInterval                   bool
+	GaugeInterval                        bool
+	SummaryCumulativeToDelta             bool
 
 	originProduct OriginProduct
 
@@ -57,6 +59,9 @@ type translatorConfig struct {
 	// customMapper allows overriding the default metric mapping behavior.
 	// If nil, the Translator uses itself as the mapper.
 	customMapper mapper
+
+	// withUnits reports whether to set Datadog units on metrics.
+	withUnits bool
 }
 
 // TranslatorOption is a translator creation option.
@@ -148,7 +153,7 @@ const (
 )
 
 // WithHistogramMode sets the histograms mode.
-// The default mode is HistogramModeOff.
+// The default mode is HistogramModeDistributions.
 func WithHistogramMode(mode HistogramMode) TranslatorOption {
 	return func(t *translatorConfig) error {
 		switch mode {
@@ -250,10 +255,38 @@ func WithInferDeltaInterval() TranslatorOption {
 	}
 }
 
+// WithGaugeInterval uses the positive integer datapoint attribute datadog.gauge.interval
+// as the reporting interval in seconds for number metrics mapped to Datadog gauges.
+// By default the interval is set to 0. The attribute is retained as a metric tag.
+func WithGaugeInterval() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.GaugeInterval = true
+		return nil
+	}
+}
+
+// WithSummaryCumulativeToDelta makes the minimal translator send Summary count and sum
+// as deltas (Datadog counts), like the default translator. It keeps a cache, so it only
+// works with a long-lived translator.
+func WithSummaryCumulativeToDelta() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.SummaryCumulativeToDelta = true
+		return nil
+	}
+}
+
 // WithoutRuntimeMetricMappings enables mapping of runtime metrics.
 func WithoutRuntimeMetricMappings() TranslatorOption {
 	return func(t *translatorConfig) error {
 		t.withRuntimeRemapping = false
+		return nil
+	}
+}
+
+// WithUnits maps OTLP UCUM units to Datadog units.
+func WithUnits() TranslatorOption {
+	return func(t *translatorConfig) error {
+		t.withUnits = true
 		return nil
 	}
 }

@@ -41,11 +41,11 @@ func (l *LogLevelRuntimeSetting) Name() string {
 
 // Get returns the current value of the runtime setting
 func (l *LogLevelRuntimeSetting) Get(_ config.Component) (interface{}, error) {
-	level, err := log.GetLogLevel()
+	level, err := log.GetLogLevelSpec()
 	if err != nil {
 		return "", err
 	}
-	return level.String(), nil
+	return level, nil
 }
 
 // Set changes the value of the runtime setting

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "modifier",
@@ -7,17 +8,18 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/util/log",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "modifier_test",
     srcs = ["tracer_payload_modifier_test.go"],
     embed = [":modifier"],
-    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace",
+        "//pkg/proto/pbgo/trace/idx",
         "//pkg/trace/agent",
         "@com_github_stretchr_testify//assert",
     ],

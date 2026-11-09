@@ -41,6 +41,7 @@ func (m *PolicyMacro) MergeWith(m2 *PolicyMacro) error {
 		}
 		m.Def.Values = append(m.Def.Values, m2.Def.Values...)
 	case OverridePolicy:
+		m.Def.Expression = m2.Def.Expression
 		m.Def.Values = m2.Def.Values
 	}
 	return nil
@@ -326,17 +327,6 @@ RULES:
 			UsedBy:   []PolicyInfo{p.Info}, // get a copy of the policy information in the UsedBy field as well as the Policy field can be modified on a per-rule basis when merging rules from different policies
 		}
 		p.Rules = append(p.Rules, rule)
-		for _, filter := range ruleFilters {
-			rule.Accepted, rule.Error = filter.IsRuleAccepted(ruleDef)
-			if rule.Error != nil {
-				errs = multierror.Append(errs, &ErrRuleLoad{Rule: rule, Err: rule.Error})
-			}
-
-			if !rule.Accepted {
-				rule.FilterType = filter.GetType()
-				continue RULES
-			}
-		}
 
 		if rule.Def.ID == "" {
 			rule.Error = &ErrRuleLoad{Rule: rule, Err: ErrRuleWithoutID}
@@ -359,6 +349,18 @@ RULES:
 			rule.Error = &ErrRuleLoad{Rule: rule, Err: ErrRuleWithoutExpression}
 			errs = multierror.Append(errs, rule.Error)
 			continue
+		}
+
+		for _, filter := range ruleFilters {
+			rule.Accepted, rule.Error = filter.IsRuleAccepted(ruleDef)
+			if rule.Error != nil {
+				errs = multierror.Append(errs, &ErrRuleLoad{Rule: rule, Err: rule.Error})
+			}
+
+			if !rule.Accepted {
+				rule.FilterType = filter.GetType()
+				continue RULES
+			}
 		}
 	}
 

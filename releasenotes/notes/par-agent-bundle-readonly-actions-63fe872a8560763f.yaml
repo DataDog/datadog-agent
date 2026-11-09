@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Added a ``com.datadoghq.remoteaction.agent`` Private Action Runner bundle
+    exposing read-only datadog-agent operations (status, diagnose, and
+    configuration) as remote actions executed against the local Agent's
+    authenticated IPC API. (Preview)

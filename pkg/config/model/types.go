@@ -9,7 +9,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"strings"
 	"time"
 )
 
@@ -20,6 +19,18 @@ var ErrConfigFileNotFound = errors.New("Config File Not Found")
 func NewConfigFileNotFoundError(err error) error {
 	return fmt.Errorf("%w: %w", ErrConfigFileNotFound, err)
 }
+
+// SchemaID identifies the configuration schema a config follows. The schemas themselves and their validation
+// live in pkg/config/schema, which is kept out of this package so binaries that don't validate their
+// configuration don't link the JSON schema library.
+type SchemaID string
+
+const (
+	// CoreSchema identifies the core schema (ie the schema for datadog.yaml)
+	CoreSchema SchemaID = "core"
+	// SystemProbeSchema identifies the system probe schema (ie the schema for system_probe.yaml)
+	SystemProbeSchema SchemaID = "system_probe"
+)
 
 // Source stores what edits a setting as a string
 type Source string
@@ -94,6 +105,13 @@ var sourcesPriority = map[Source]int{
 	SourceCLI:                11,
 }
 
+// DirectSetting is one key/value/source assignment for nodetreemodel's DirectBulkSet.
+type DirectSetting struct {
+	Key    string
+	Value  interface{}
+	Source Source
+}
+
 // ValueWithSource is a tuple for a source and a value, not necessarily the applied value in the main config
 type ValueWithSource struct {
 	Source Source
@@ -130,16 +148,17 @@ type Proxy struct {
 	NoProxy []string `mapstructure:"no_proxy"`
 }
 
-// NotificationReceiver represents the callback type to receive notifications each time the `Set` method is called. The
-// configuration will call each NotificationReceiver registered through the 'OnUpdate' method, therefore
-// 'NotificationReceiver' should not be blocking.
-type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64)
+// NotificationReceiver represents the callback type to receive notifications each time the `Set` or
+// `UnsetForSource` method is called. The configuration will call each NotificationReceiver
+// registered through the 'OnUpdate' method, therefore 'NotificationReceiver' should not be blocking.
+//
+// source and newValue describe what the setting resolves to after the change. unsetSource is empty
+// except for a removal, where it names the layer that was cleared and source is the layer now
+// winning, or SourceUnknown when none is left.
+type NotificationReceiver func(setting string, source Source, oldValue, newValue any, sequenceID uint64, unsetSource Source)
 
 // Reader is a subset of Config that only allows reading of configuration
 type Reader interface {
-	// GetLibType returns the lib used to power the configuration (viper / tee / nodetreemodel)
-	GetLibType() string
-
 	Get(key string) interface{}
 	GetString(key string) string
 	GetBool(key string) bool
@@ -156,10 +175,11 @@ type Reader interface {
 	GetSizeInBytes(key string) uint
 	GetProxies() *Proxy
 	GetSequenceID() uint64
+	// GetSchemaID returns the ID of the schema the config follows
+	GetSchemaID() SchemaID
 
 	GetSource(key string) Source
 	GetAllSources(key string) []ValueWithSource
-	GetSubfields(key string) []string
 
 	ConfigFileUsed() string
 	ExtraConfigFilesUsed() []string
@@ -185,12 +205,6 @@ type Reader interface {
 	// can modify env vars and the config will rebuild itself, etc)
 	SetTestOnlyDynamicSchema(allow bool)
 
-	// IsSet return true if a non nil values is found in the configuration, including defaults. This is legacy
-	// behavior from viper and don't answer the need to know if something was set by the user (see IsConfigured for
-	// this).
-	//
-	// Deprecated: this method will be removed once all settings have a default, use 'IsConfigured' instead.
-	IsSet(key string) bool
 	// IsConfigured returns true if a setting is configured by the user. This means that either:
 	//  1. The key is for a leaf, and the setting has a non-nil value on a non-default source OR
 	//  2. The key is for an inner node, and one of its children IsConfigured
@@ -203,17 +217,12 @@ type Reader interface {
 	// IsSetting returns whether the key identifies a setting (and not a section)
 	IsSetting(key string) bool
 
-	// GetKnownKeysLowercased returns all the keys that meet at least one of these criteria:
-	// 1) have a default, 2) have an environment variable binded, 3) are an alias or 4) have been SetKnown()
-	// Note that it returns the keys lowercased.
-	GetKnownKeysLowercased() map[string]interface{}
-
 	// GetEnvVars returns a list of the env vars that the config supports.
 	// These have had the EnvPrefix applied, as well as the EnvKeyReplacer.
 	GetEnvVars() []string
 
 	// Warnings returns pointer to a list of warnings (completes config.Component interface)
-	Warnings() *Warnings
+	Warnings() []string
 
 	// StartTime returns the time at which the agent process started (completes config.Component interface)
 	StartTime() time.Time
@@ -229,11 +238,39 @@ type Reader interface {
 	Stringify(source Source, opts ...StringifyOption) string
 }
 
+// EnvVarControl is implemented by configs whose env layer can be inspected and dropped, so a
+// process taking its configuration from elsewhere can stop env vars from overriding it.
+type EnvVarControl interface {
+	// EnvVarSettings maps each setting the env layer is providing to the env vars bound to it.
+	EnvVarSettings() map[string][]string
+	// ClearEnvVars empties the env layer.
+	ClearEnvVars()
+}
+
 // Writer is a subset of Config that only allows writing the configuration
 type Writer interface {
 	Set(key string, value interface{}, source Source)
+	// SetWithLock writes a setting while holding the config lock.
+	//
+	// The callback receives the current value for that key from the required source or bellow if none exist yet.
+	// This allows the callback to compute a result without copying data from higher source into lower ones. For
+	// example, requesting an update on 'SourceSecret' will receive the value from that layer of bellow, never a
+	// higher one.
+	//
+	// The callback receives a copy of that value. The callback must only do bounded in-memory work and MUST NOT
+	// call back into the config: the lock is not reentrant. Returning apply=false cancel the update.
+	//
+	// SetWithLock returns true if key final value changed (ie: data was written to the config at the requested layer and
+	// is not shadow by a value at a higher layer).
+	SetWithLock(key string, source Source, update func(oldValue interface{}, oldSource Source) (newValue interface{}, apply bool)) bool
 	SetInTest(key string, value interface{})
 	UnsetForSource(key string, source Source)
+	// DirectBulkSet writes settings already resolved by another config, keeping each one in the
+	// source layer it came from so the result mirrors the sender. It exists for config streaming
+	// and nothing else should call it: unlike Set it accepts SourceEnvVar, which makes it unfit
+	// for applying a live change. shouldNotify notifies receivers for every setting whose resolved
+	// value changed, which a snapshot replacing a config the process already runs on requires.
+	DirectBulkSet(settings []DirectSetting, shouldNotify bool)
 }
 
 // ReaderWriter is a subset of Config that allows reading and writing the configuration
@@ -252,8 +289,6 @@ type Setup interface {
 	SetDefault(key string, value interface{})
 
 	SetEnvPrefix(in string)
-	BindEnv(key string, envvars ...string)
-	SetEnvKeyReplacer(r *strings.Replacer)
 
 	// ParseEnvSplitComma registers a transformer to parse the env var for key as a comma-separated list.
 	ParseEnvSplitComma(key string)
@@ -267,9 +302,6 @@ type Setup interface {
 	ParseEnvAsStringSlice(key string, fx func(string) []string)
 	ParseEnvAsMapStringInterface(key string, fx func(string) map[string]interface{})
 
-	// SetKnown adds a key to the set of known valid config keys
-	SetKnown(key string)
-
 	// API not implemented by viper.Viper and that have proven useful for our config usage
 
 	// BindEnvAndSetDefault sets the default value for a config parameter and adds an env binding
@@ -278,6 +310,13 @@ type Setup interface {
 	// If env is provided, it will override the name of the environment variable used for this
 	// config key
 	BindEnvAndSetDefault(key string, val interface{}, env ...string)
+
+	// BindEnvAndSetDefaultWithDeprecation fully declares a setting with a default value, a list of deprecated names and
+	// optional env var overrides.
+	// If no env vars are declared, one will be derived from the key name.
+	// Settings in the deprecated names list take precedence over the official and will automatically generate a warning.
+	// Name in the list must be sorted by priority (oldest name first).
+	BindEnvAndSetDefaultWithDeprecation(key string, defaultVal interface{}, deprecatedNames []string, envvars ...string)
 
 	AddConfigPath(in string)
 	AddExtraConfigPaths(in []string) error
@@ -299,6 +338,10 @@ type Compound interface {
 	// NOTE: This method should not be used by any new callsites, it is needed
 	// currently because of the unique requirements of OTel's configuration.
 	RevertFinishedBackToBuilder() BuildableConfig
+
+	// Validate checks the configuration, using validator to validate it against its schema. When enforceSchema is
+	// true, the settings that don't match the schema are reverted to their default.
+	Validate(validator SchemaValidator, enforceSchema bool)
 }
 
 // Config is an interface that can read/write the config after it has been
@@ -306,9 +349,6 @@ type Compound interface {
 type Config interface {
 	ReaderWriter
 	Compound
-	// TODO: This method shouldn't be here, but it is depended upon by an external repository
-	// https://github.com/open-telemetry/opentelemetry-collector-contrib/blob/e7c3295769637e61558c6892be732398840dd5f5/pkg/datadog/agentcomponents/agentcomponents.go#L166
-	SetKnown(key string)
 }
 
 // BuildableConfig is the most-general interface for the Config, it can be

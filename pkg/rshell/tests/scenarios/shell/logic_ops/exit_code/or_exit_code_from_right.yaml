@@ -1,0 +1,8 @@
+description: When left fails in ||, exit code is from the right side.
+input:
+  script: |+
+    false || exit 3
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 3

@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    Single Step Instrumentation's tracer config mechanisms (the ``ddTraceConfigs``
+    ``Targets`` field, remote-config policies, and the
+    ``admission.datadoghq.com/apm-inject.tracer-configs`` pod annotation) now also
+    accept ``OTEL_`` prefixed environment variable names, in addition to the
+    existing ``DD_`` prefix. This allows configuring a tracer's native OpenTelemetry
+    mode (e.g. ``OTEL_TRACES_EXPORTER``, ``OTEL_EXPORTER_OTLP_ENDPOINT``) through
+    SSI.

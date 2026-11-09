@@ -1,15 +1,10 @@
-### Install tools
+### Generate `api/api*.pb.go`
 
-From the repository root run the following:
+Run one of the following from anywhere in the repo:
 ```
-dda inv install-tools
-```
-to install the correct version of required tools
+# generate api/api.pb.go, api/api_grpc.pb.go, and api/api_vtproto.pb.go:
+bazel run //pkg/security/proto/api:write_pb_go
 
-
-### Generate `api.pb.go`
-
-From the repository root run the following:
-```
-dda inv -e security-agent.generate-cws-proto
+# generate all files in the repo, including the above:
+bazel run //:write_all
 ```

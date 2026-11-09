@@ -367,6 +367,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: s2
           Offset: 18
           Kind: argument
@@ -380,6 +381,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: i
           Offset: 34
           Kind: argument
@@ -393,6 +395,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 115
       Name: Probe[main.callMe]Return
@@ -426,6 +429,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 95
       Name: '[0]uint8'
@@ -1641,7 +1645,10 @@ Types:
       GoKind: 26
 MaxTypeID: 116
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x191340", TypesOffset: 296}
+GoModuledataInfo:
+    FirstModuledataAddr: "0x191340"
+    TypesOffset: 296
+    ETypesOffset: 304
 GoMapHashInfo: {UseAeshashAddr: "0x1c0b09", AeskeyschedAddr: "0x1c1200"}
 CommonTypes:
     G: 24 StructureType runtime.g

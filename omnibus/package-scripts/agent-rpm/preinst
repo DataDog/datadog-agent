@@ -132,8 +132,11 @@ else
     fi
 fi
 
-# Delete Python bytecode caches in the embedded dir.
-# This MUST be done after using pip or any python, because executing python might generate .pyc files.
-find "$INSTALL_DIR/embedded" -type d -name __pycache__ -prune -exec rm -rf {} + || true
+# Delete all the .pyc/.pyo files in the embedded dir that are part of the old agent's package
+# This MUST be done after using pip or any python, because executing python might generate .pyc files
+if [ -f "$INSTALL_DIR/embedded/.py_compiled_files.txt" ]; then
+    # (commented lines are filtered out)
+    cat $INSTALL_DIR/embedded/.py_compiled_files.txt | grep -v '^#' | xargs rm -f
+fi
 
 exit 0

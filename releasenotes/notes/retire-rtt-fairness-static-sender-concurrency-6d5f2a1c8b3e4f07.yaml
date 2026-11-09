@@ -1,0 +1,24 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+upgrade:
+  - |
+    The logs Agent now sends log payloads at a fixed higher concurrency by default instead
+    of scaling the number of concurrent senders dynamically with intake latency (the
+    previous "RTT fairness" behavior). This improves throughput for high-latency and
+    high-volume workloads without manual tuning.
+
+    The Agent now uses a static send concurrency of ``logs_config.pipelines`` x 10 (for
+    example, 40 concurrent senders on a host with the default 4 pipelines).
+
+    **Connection impact — please review before upgrading:** because the Agent now runs more
+    senders concurrently by default, it may open more simultaneous connections to the logs
+    intake (up to the static concurrency above). If you need to limit connections — for
+    example behind a proxy or on a connection-constrained network — set
+    ``logs_config.batch_max_concurrent_send`` to a lower value (``1`` keeps a single sender
+    per pipeline).

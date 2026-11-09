@@ -41,6 +41,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -56,7 +57,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -75,7 +76,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 					},
@@ -89,6 +90,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				MetricsEnabled:               true,
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
@@ -119,7 +121,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes":        nil,
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -156,7 +159,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"metrics": map[string]any{
@@ -176,6 +179,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Metrics: map[string]any{
 					"delta_ttl":                              2000,
 					"resource_attributes_as_tags":            true,
@@ -205,7 +209,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes":        nil,
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -242,7 +247,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"metrics": map[string]any{
@@ -261,6 +266,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -279,7 +285,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -298,7 +304,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 					},
@@ -312,6 +318,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Metrics: map[string]any{
 					"delta_ttl":                              1500,
 					"resource_attributes_as_tags":            false,
@@ -376,12 +383,76 @@ func TestNewMap(t *testing.T) {
 			},
 		},
 		{
+			name: "only metrics, metrics_attributes_as_tags on",
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:                    5003,
+				MetricsEnabled:               true,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
+				MetricsInfraAttrsAsTags:      true,
+				Metrics: map[string]any{
+					"delta_ttl":                              1500,
+					"resource_attributes_as_tags":            false,
+					"instrumentation_scope_metadata_as_tags": false,
+					"histograms": map[string]any{
+						"mode":                   "nobuckets",
+						"send_count_sum_metrics": true,
+					},
+				},
+				Debug: map[string]any{
+					"verbosity": "none",
+				},
+			},
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"http": map[string]any{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]any{
+					"infraattributes": map[string]any{"metrics_attributes_as_tags": true},
+				},
+				"exporters": map[string]any{
+					"serializer": map[string]any{
+						"metrics": map[string]any{
+							"delta_ttl":                              1500,
+							"resource_attributes_as_tags":            false,
+							"instrumentation_scope_metadata_as_tags": false,
+							"histograms": map[string]any{
+								"mode":                   "nobuckets",
+								"send_count_sum_metrics": true,
+							},
+						},
+						"sending_queue": map[string]any{
+							"batch": map[string]any{},
+						},
+					},
+				},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"metrics": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes"},
+							"exporters":  []any{"serializer"},
+						},
+					},
+				},
+			},
+		},
+		{
 			name: "only gRPC, only Traces, logging with normal verbosity",
 			pcfg: PipelineConfig{
 				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
 				TracePort:                    5003,
 				TracesEnabled:                true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Debug: map[string]any{
 					"verbosity": "normal",
 				},
@@ -397,7 +468,7 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -419,7 +490,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp", "debug"},
 						},
 					},
@@ -433,6 +504,7 @@ func TestNewMap(t *testing.T) {
 				TracePort:                    5003,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Metrics: map[string]any{
 					"delta_ttl":                   1500,
 					"resource_attributes_as_tags": false,
@@ -505,6 +577,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				MetricsEnabled:               true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Metrics: map[string]any{
 					"delta_ttl":                   2000,
 					"resource_attributes_as_tags": true,
@@ -533,7 +606,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": nil,
+					"infraattributes":        nil,
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -572,7 +646,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp", "debug"},
 						},
 						"metrics": map[string]any{
@@ -592,6 +666,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Debug: map[string]any{
 					"verbosity": "none",
 				},
@@ -607,7 +682,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -631,7 +707,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"logs": map[string]any{
@@ -652,6 +728,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -688,7 +765,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -734,7 +812,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"metrics": map[string]any{
@@ -760,6 +838,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -796,7 +875,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -842,7 +922,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"metrics": map[string]any{
@@ -867,6 +947,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -892,7 +973,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -920,7 +1002,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp"},
 						},
 						"logs": map[string]any{
@@ -940,6 +1022,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1032,6 +1115,7 @@ func TestNewMap(t *testing.T) {
 				TracesEnabled:                true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1054,7 +1138,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1085,7 +1170,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp", "debug"},
 						},
 						"logs": map[string]any{
@@ -1105,6 +1190,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1199,6 +1285,7 @@ func TestNewMap(t *testing.T) {
 				MetricsEnabled:               true,
 				LogsEnabled:                  true,
 				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
 				Logs: map[string]interface{}{
 					"batch": map[string]interface{}{
 						"min_size":      100,
@@ -1234,7 +1321,8 @@ func TestNewMap(t *testing.T) {
 					},
 				},
 				"processors": map[string]any{
-					"infraattributes": any(nil),
+					"infraattributes":        any(nil),
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
 				},
 				"exporters": map[string]any{
 					"otlp": map[string]any{
@@ -1282,7 +1370,7 @@ func TestNewMap(t *testing.T) {
 					"pipelines": map[string]any{
 						"traces": map[string]any{
 							"receivers":  []any{"otlp"},
-							"processors": []any{"infraattributes"},
+							"processors": []any{"infraattributes/traces"},
 							"exporters":  []any{"otlp", "debug"},
 						},
 						"metrics": map[string]any{
@@ -1294,6 +1382,154 @@ func TestNewMap(t *testing.T) {
 							"receivers":  []any{"otlp"},
 							"processors": []any{"infraattributes"},
 							"exporters":  []any{"logsagent", "debug"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "only Traces, container_tag_promotion off",
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "off",
+				Debug: map[string]any{
+					"verbosity": "none",
+				},
+			},
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]any{
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "off"},
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
+							"insecure": true,
+						},
+						"compression": "none",
+						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]any{
+							"enabled": false,
+						},
+					},
+				},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes/traces"},
+							"exporters":  []any{"otlp"},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "only Traces, container_tag_promotion rename",
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
+				TracesContainerTagPromotion:  "rename",
+				Debug: map[string]any{
+					"verbosity": "none",
+				},
+			},
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]any{
+					"infraattributes/traces": map[string]any{"trace_container_tag_promotion": "rename"},
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
+							"insecure": true,
+						},
+						"compression": "none",
+						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]any{
+							"enabled": false,
+						},
+					},
+				},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes/traces"},
+							"exporters":  []any{"otlp"},
+						},
+					},
+				},
+			},
+		},
+		{
+			// An empty container_tag_promotion leaves the processor node unset so it
+			// falls back to the processor's own default ("off").
+			name: "only Traces, container_tag_promotion unset",
+			pcfg: PipelineConfig{
+				OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("bindhost", 1234, 0),
+				TracePort:                    5003,
+				TracesEnabled:                true,
+				TracesInfraAttributesEnabled: true,
+				Debug: map[string]any{
+					"verbosity": "none",
+				},
+			},
+			ocfg: map[string]any{
+				"receivers": map[string]any{
+					"otlp": map[string]any{
+						"protocols": map[string]any{
+							"grpc": map[string]any{
+								"endpoint": "bindhost:1234",
+							},
+						},
+					},
+				},
+				"processors": map[string]any{
+					"infraattributes/traces": any(nil),
+				},
+				"exporters": map[string]any{
+					"otlp": map[string]any{
+						"tls": map[string]any{
+							"insecure": true,
+						},
+						"compression": "none",
+						"endpoint":    "localhost:5003",
+						"sending_queue": map[string]any{
+							"enabled": false,
+						},
+					},
+				},
+				"service": map[string]any{
+					"telemetry": map[string]any{"metrics": map[string]any{"level": "none"}},
+					"pipelines": map[string]any{
+						"traces": map[string]any{
+							"receivers":  []any{"otlp"},
+							"processors": []any{"infraattributes/traces"},
+							"exporters":  []any{"otlp"},
 						},
 					},
 				},
@@ -1311,6 +1547,68 @@ func TestNewMap(t *testing.T) {
 	}
 }
 
+// TestBuildMapSharedInfraAttributesProcessor ensures that the per-signal
+// options that configure the shared `infraattributes` processor
+// (metrics_attributes_as_tags for metrics, logs_tags_as_ddtags for logs) both
+// survive when metrics and logs pipelines are enabled together. The metrics and
+// logs default pipeline configs each declare an empty `infraattributes:` block,
+// and confmap/koanf overwrites a map value with a nil one during merge, so a
+// naive per-pipeline merge lets whichever pipeline is merged last clobber the
+// other's option (regression for OTELS-1131).
+func TestBuildMapSharedInfraAttributesProcessor(t *testing.T) {
+	tests := []struct {
+		name                    string
+		metricsInfraAttrsAsTags bool
+		logsTagsAsDDTags        bool
+		wantMetricsAttrsAsTags  bool
+		wantLogsTagsAsDDTags    bool
+	}{
+		{
+			name:                    "metrics_attributes_as_tags with logs enabled",
+			metricsInfraAttrsAsTags: true,
+			logsTagsAsDDTags:        false,
+			wantMetricsAttrsAsTags:  true,
+			wantLogsTagsAsDDTags:    false,
+		},
+		{
+			name:                    "logs_tags_as_ddtags with metrics enabled",
+			metricsInfraAttrsAsTags: false,
+			logsTagsAsDDTags:        true,
+			wantMetricsAttrsAsTags:  false,
+			wantLogsTagsAsDDTags:    true,
+		},
+		{
+			name:                    "both options enabled",
+			metricsInfraAttrsAsTags: true,
+			logsTagsAsDDTags:        true,
+			wantMetricsAttrsAsTags:  true,
+			wantLogsTagsAsDDTags:    true,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			pcfg := PipelineConfig{
+				OTLPReceiverConfig:      testutil.OTLPConfigFromPorts("bindhost", 0, 1234),
+				TracePort:               5003,
+				MetricsEnabled:          true,
+				LogsEnabled:             true,
+				MetricsInfraAttrsAsTags: tc.metricsInfraAttrsAsTags,
+				LogsTagsAsDDTags:        tc.logsTagsAsDDTags,
+				Metrics:                 map[string]any{},
+			}
+			cfg, err := buildMap(pcfg)
+			require.NoError(t, err)
+
+			infraAttrs, _ := cfg.Get(buildKey("processors", "infraattributes")).(map[string]any)
+			assert.Equal(t, tc.wantMetricsAttrsAsTags, infraAttrs["metrics_attributes_as_tags"] == true,
+				"metrics_attributes_as_tags on shared infraattributes processor")
+			assert.Equal(t, tc.wantLogsTagsAsDDTags, infraAttrs["logs_tags_as_ddtags"] == true,
+				"logs_tags_as_ddtags on shared infraattributes processor")
+		})
+	}
+}
+
 func TestUnmarshal(t *testing.T) {
 	pcfg := PipelineConfig{
 		OTLPReceiverConfig:           testutil.OTLPConfigFromPorts("localhost", 4317, 4318),
@@ -1319,6 +1617,7 @@ func TestUnmarshal(t *testing.T) {
 		TracesEnabled:                true,
 		LogsEnabled:                  true,
 		TracesInfraAttributesEnabled: true,
+		TracesContainerTagPromotion:  "off",
 		Metrics: map[string]any{
 			"delta_ttl":                              2000,
 			"resource_attributes_as_tags":            true,

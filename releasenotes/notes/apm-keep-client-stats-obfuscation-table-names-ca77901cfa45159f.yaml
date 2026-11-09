@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    APM: Disable client side stats obfuscation when a non-default SQL obfuscation config is used.

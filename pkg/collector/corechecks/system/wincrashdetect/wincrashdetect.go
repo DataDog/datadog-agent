@@ -11,7 +11,7 @@ package wincrashdetect
 import (
 	"fmt"
 
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 	"golang.org/x/sys/windows/registry"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"

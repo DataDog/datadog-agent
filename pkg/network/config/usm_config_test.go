@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
@@ -226,7 +227,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_HTTP_MONITORING", "false")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
@@ -245,7 +246,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "false")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
@@ -273,7 +274,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "false")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.False(t, cfg.EnableHTTPMonitoring)
@@ -285,7 +286,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
@@ -297,7 +298,7 @@ func TestEnableHTTPMonitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP_MONITORING", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.True(t, cfg.EnableHTTPMonitoring)
@@ -1013,7 +1014,7 @@ func TestEnableHTTP2Monitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_HTTP2_MONITORING", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		// HTTP2 may be disabled by adjust_usm.go on kernels < 5.2
@@ -1026,7 +1027,7 @@ func TestDefaultDisabledHTTP2Support(t *testing.T) {
 	mock.NewSystemProbe(t)
 	cfg := New()
 
-	_, err := sysconfig.New("", "")
+	_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 	require.NoError(t, err)
 
 	assert.False(t, cfg.EnableHTTP2Monitoring)
@@ -1076,7 +1077,7 @@ func TestEnableKafkaMonitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_KAFKA_ENABLED", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.True(t, cfg.EnableKafkaMonitoring)
@@ -1095,7 +1096,7 @@ func TestEnableKafkaMonitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_ENABLE_KAFKA_MONITORING", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.True(t, cfg.EnableKafkaMonitoring)
@@ -1190,7 +1191,7 @@ func TestEnablePostgresMonitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_POSTGRES_ENABLED", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.True(t, cfg.EnablePostgresMonitoring)
@@ -1267,7 +1268,7 @@ func TestEnableRedisMonitoring(t *testing.T) {
 		t.Setenv("DD_SERVICE_MONITORING_CONFIG_REDIS_ENABLED", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		// Redis may be disabled by adjust_usm.go on kernels < 5.4
@@ -1763,22 +1764,22 @@ func TestHTTPUseDirectConsumer(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 
-		assert.False(t, cfg.HTTPUseDirectConsumer)
+		assert.True(t, cfg.HTTPUseDirectConsumer)
 	})
 
 	t.Run("via YAML", func(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
-		mockSystemProbe.SetInTest("service_monitoring_config.http.use_direct_consumer", true)
+		mockSystemProbe.SetInTest("service_monitoring_config.http.use_direct_consumer", false)
 		cfg := New()
 
-		assert.True(t, cfg.HTTPUseDirectConsumer)
+		assert.False(t, cfg.HTTPUseDirectConsumer)
 	})
 
 	t.Run("via ENV variable", func(t *testing.T) {
 		mock.NewSystemProbe(t)
-		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_USE_DIRECT_CONSUMER", "true")
+		t.Setenv("DD_SERVICE_MONITORING_CONFIG_HTTP_USE_DIRECT_CONSUMER", "false")
 		cfg := New()
 
-		assert.True(t, cfg.HTTPUseDirectConsumer)
+		assert.False(t, cfg.HTTPUseDirectConsumer)
 	})
 }

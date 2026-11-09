@@ -26,8 +26,8 @@ import (
 )
 
 var (
-	modkernel32 = windows.NewLazyDLL("kernel32.dll")
-	modPsapi    = windows.NewLazyDLL("psapi.dll")
+	modkernel32 = windows.NewLazySystemDLL("kernel32.dll")
+	modPsapi    = windows.NewLazySystemDLL("psapi.dll")
 
 	procGlobalMemoryStatusEx = modkernel32.NewProc("GlobalMemoryStatusEx")
 	procGetPerformanceInfo   = modPsapi.NewProc("GetPerformanceInfo")

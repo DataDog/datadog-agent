@@ -1,3 +1,6 @@
+load(":dd_pkg_owned_dirs_test.bzl", "dd_pkg_owned_dirs_test_suite")
 load(":package_naming_test.bzl", "package_naming_test_suite")
 
 package_naming_test_suite(name = "_package_naming_tests")
+
+dd_pkg_owned_dirs_test_suite(name = "_dd_pkg_owned_dirs_tests")

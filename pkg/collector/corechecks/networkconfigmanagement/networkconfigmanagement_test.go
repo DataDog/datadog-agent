@@ -58,7 +58,7 @@ ssh:
 
 func TestCheck_Configure_ValidConfig(t *testing.T) {
 	check := createTestCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 
 	require.NoError(t, err)
@@ -93,7 +93,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			check := createTestCheck(t)
-			senderManager := mocksender.CreateDefaultDemultiplexer()
+			senderManager := mocksender.CreateDefaultDemultiplexer(t)
 
 			err := check.Configure(senderManager, integration.FakeConfigHash, tt.config, baseInitConfig, "test", "provider")
 
@@ -105,7 +105,7 @@ func TestCheck_Configure_InvalidConfig(t *testing.T) {
 
 func TestCheck_Run_Success(t *testing.T) {
 	check := createTestCheck(t)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check.Configure(senderManager, integration.FakeConfigHash, validConfig, baseInitConfig, "test", "provider")
 	require.NoError(t, err)
 	err = check.Run()

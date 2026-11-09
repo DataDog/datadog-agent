@@ -27,7 +27,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -37,6 +37,7 @@ type cliParams struct {
 	timeout    int
 	JSON       bool
 	PrettyJSON bool
+	logLevel   string
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -65,7 +66,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
 					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-					LogParams:    log.ForOneShot(globalParams.LoggerName, "off", true)}),
+					LogParams:    log.ForOneShot(globalParams.LoggerName, cliParams.logLevel, false)}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -75,11 +76,12 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	cmd.Flags().IntVarP(&cliParams.timeout, "timeout", "t", 20, "timeout in second to query the Agent")
 	cmd.Flags().BoolVarP(&cliParams.JSON, "json", "j", false, "print out raw json")
 	cmd.Flags().BoolVarP(&cliParams.PrettyJSON, "pretty-json", "p", false, "pretty print JSON")
+	cmd.Flags().StringVar(&cliParams.logLevel, "log_level", "off", "Override the log level for this command for debugging purposes")
 	return cmd
 }
 
 func requestHealth(_ log.Component, config config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return err
 	}

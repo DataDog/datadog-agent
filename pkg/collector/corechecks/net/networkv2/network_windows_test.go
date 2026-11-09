@@ -293,7 +293,7 @@ collect_connection_state: true
 collect_count_metrics: true
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -478,7 +478,7 @@ excluded_interfaces:
     - lo0
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
@@ -589,7 +589,7 @@ func TestExcludedInterfacesRe(t *testing.T) {
 excluded_interface_re: "eth[0-9]"
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -680,7 +680,7 @@ collect_connection_state: true
 combine_connection_states: false
 `)
 
-	mockSender := mocksender.NewMockSender(networkCheck.ID())
+	mockSender := mocksender.NewMockSender(t, networkCheck.ID())
 	err := networkCheck.Configure(mockSender.GetSenderManager(), integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "")
 	assert.Nil(t, err)
 	assert.Equal(t, false, networkCheck.config.instance.CombineConnectionStates)

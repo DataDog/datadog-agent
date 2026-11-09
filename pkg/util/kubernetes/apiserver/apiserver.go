@@ -21,6 +21,7 @@ import (
 
 	v1 "k8s.io/api/core/v1"
 	"k8s.io/apiextensions-apiserver/pkg/client/clientset/clientset"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/fields"
@@ -45,10 +46,13 @@ import (
 	apiv1 "github.com/DataDog/datadog-agent/pkg/clusteragent/api/v1"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
+	"github.com/DataDog/datadog-agent/pkg/version"
 
 	apiextentionsinformer "k8s.io/apiextensions-apiserver/pkg/client/informers/externalversions"
 )
@@ -75,6 +79,10 @@ const (
 	// This is mostly required for built-in controllers in Cluster Agent (ExternalMetrics, Autoscaling that can generate a high number of `Update` requests)
 	controllerClientQPSLimit = 150
 	controllerClientQPSBurst = 300
+	// Leader election operations are low-frequency (one lease update every ~15-60s) but must be
+	// isolated from other components so they cannot be starved by other components' API traffic.
+	leaderElectionClientQPSLimit = 20
+	leaderElectionClientQPSBurst = 40
 )
 
 // APIClient provides authenticated access to the
@@ -82,10 +90,16 @@ const (
 type APIClient struct {
 	//
 	// Normal (low timeout) clients
+	// Do not use them for Informers/Watch calls: the timeout closes every watch after
+	// `kubernetes_apiserver_client_timeout` and fails slow initial lists.
 	//
 
 	// Cl holds the main kubernetes client
 	Cl kubernetes.Interface
+
+	// LeaderElectionCl holds a dedicated kubernetes client for leader election with independently
+	// managed client-side rate limiting, so leader election is never starved by other components.
+	LeaderElectionCl kubernetes.Interface
 
 	// DynamicCl holds a dynamic kubernetes client
 	DynamicCl dynamic.Interface
@@ -197,6 +211,16 @@ func GetAPIClient() (*APIClient, error) {
 	return globalAPIClient, nil
 }
 
+// GetClusterID returns the cluster ID from the ConfigMap of the Cluster Agent, and creates the ConfigMap when it is missing.
+// It does not expose the APIClient type, because each package that uses this type adds several KiB to the binary.
+func GetClusterID() (string, error) {
+	client, err := GetAPIClient()
+	if err != nil {
+		return "", err
+	}
+	return common.GetOrCreateClusterID(client.Cl.CoreV1())
+}
+
 // WaitForAPIClient waits for availability of APIServer Client before returning
 func WaitForAPIClient(ctx context.Context) (*APIClient, error) {
 	globalAPIClientOnce.Do(initAPIClient)
@@ -255,6 +279,11 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 	clientConfig.Timeout = timeout
 	clientConfig.QPS = qps
 	clientConfig.Burst = burst
+	// client-go derives its User-Agent from the client-go library version, which
+	// is not compiled into the Agent and therefore reports as v0.0.0 in apiserver
+	// audit logs (e.g. GKE control-plane telemetry). Set it explicitly so the
+	// Agent flavor and version issuing the call can be identified.
+	clientConfig.UserAgent = fmt.Sprintf("datadog-%s/%s", strings.ReplaceAll(flavor.GetFlavor(), "_", "-"), version.AgentVersion)
 	clientConfig.Wrap(func(rt http.RoundTripper) http.RoundTripper {
 		return NewCustomRoundTripper(rt, timeout)
 	})
@@ -359,6 +388,12 @@ func (c *APIClient) connect() error {
 		return err
 	}
 
+	c.LeaderElectionCl, err = GetKubeClient(c.defaultClientTimeout, leaderElectionClientQPSLimit, leaderElectionClientQPSBurst)
+	if err != nil {
+		log.Infof("Could not get leader election apiserver client: %v", err)
+		return err
+	}
+
 	c.DynamicCl, err = getKubeDynamicClient(c.defaultClientTimeout, controllerClientQPSLimit, controllerClientQPSBurst)
 	if err != nil {
 		log.Infof("Could not get apiserver dynamic client: %v", err)
@@ -420,13 +455,14 @@ func (c *APIClient) connect() error {
 	if pkgconfigsetup.Datadog().GetBool("admission_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("compliance_config.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("orchestrator_explorer.enabled") ||
+		// needed to watch HPAs on clusters that don't serve autoscaling/v2 (Kubernetes < 1.23)
+		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.use_datadogmetric_crd") ||
 		pkgconfigsetup.Datadog().GetBool("external_metrics_provider.wpa_controller") ||
 		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("cluster_checks.enabled") ||
 		pkgconfigsetup.Datadog().GetBool("autoscaling.workload.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") ||
-		pkgconfigsetup.Datadog().GetBool("instrumentation_crd_controller.enabled") {
+		pkgconfigsetup.Datadog().GetBool("autoscaling.cluster.enabled") {
 		c.DynamicInformerFactory = dynamicinformer.NewDynamicSharedInformerFactory(c.DynamicInformerCl, c.defaultInformerResyncPeriod)
 	}
 
@@ -485,6 +521,9 @@ func (c *APIClient) ComponentStatuses() (*v1.ComponentStatusList, error) {
 func (c *APIClient) getOrCreateConfigMap(name, namespace string) (cmEvent *v1.ConfigMap, err error) {
 	cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Get(context.TODO(), name, metav1.GetOptions{})
 	if err != nil {
+		if !apierrors.IsNotFound(err) {
+			return nil, fmt.Errorf("could not get the ConfigMap %s: %w", name, err)
+		}
 		log.Errorf("Could not get the ConfigMap %s: %s, trying to create it.", name, err.Error())
 		cmEvent, err = c.Cl.CoreV1().ConfigMaps(namespace).Create(context.TODO(), &v1.ConfigMap{
 			ObjectMeta: metav1.ObjectMeta{

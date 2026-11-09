@@ -112,7 +112,7 @@
 //			// Sub test 2
 //		})
 //
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: debug")))))
 //
 //		// Second group of subsets
 //		suite.T().Run("MySubTest3", func(t *testing.T) {
@@ -129,7 +129,7 @@
 //			// Sub test 2
 //		})
 //
-//		v.UpdateEnv(awshost.Provisioner(awshost.WithAgentOptions(agentparams.WithAgentConfig("log_level: info"))))
+//		v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(ec2.WithAgentOptions(agentparams.WithAgentConfig("log_level: info")))))
 //
 //		// Second group of subsets
 //		suite.T().Run("MySubTest3", func(t *testing.T) {
@@ -147,20 +147,20 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"reflect"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"gopkg.in/zorkian/go-datadog-api.v2"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
 
-	"github.com/DataDog/datadog-agent/pkg/util/pointer"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws/ec2/pool"
+	testingcomponents "github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
@@ -230,17 +230,18 @@ func (bs *BaseSuite[Env]) Env() *Env {
 	return bs.env
 }
 
-// Logf satisfies the common.Context interface by delegating to the underlying *testing.T
+// Logf satisfies the common.Context interface by delegating to the formatted test logger.
 func (bs *BaseSuite[Env]) Logf(format string, args ...any) {
 	bs.T().Helper()
-	bs.T().Logf(format, args...)
+	// The formatted test logger includes a timestamp which is important for diagnosing slow
+	// commands during tests. The gitlab job log line timestamps are incorrect.
+	utils.Logf(bs.T(), format, args...)
 }
 
-// FailNow satisfies the common.Context interface by logging the message and stopping the test.
+// FailNow satisfies the common.Context interface by recording a structured assertion and stopping the test.
 func (bs *BaseSuite[Env]) FailNow(format string, args ...any) {
 	bs.T().Helper()
-	bs.T().Logf(format, args...)
-	bs.T().FailNow()
+	bs.Require().FailNow(fmt.Sprintf(format, args...))
 }
 
 // EventuallyWithT is a wrapper around testify.Suite.EventuallyWithT that catches panics to fail test without skipping TeardownSuite
@@ -302,7 +303,7 @@ func (bs *BaseSuite[Env]) CleanupOnSetupFailure() {
 		defer func() {
 			utils.Logf(bs.T(), "Calling TearDownSuite after SetupSuite failed with the following error: %v", err)
 			bs.TearDownSuite()
-			bs.T().Fatal("TearDownSuite called after SetupSuite failed")
+			bs.Require().FailNow("TearDownSuite called after SetupSuite failed")
 		}()
 
 		// run environment diagnose
@@ -333,7 +334,8 @@ func (bs *BaseSuite[Env]) UpdateEnv(newProvisioners ...provisioners.Provisioner)
 		targetProvisioners[provisioner.ID()] = provisioner
 	}
 	if err := bs.reconcileEnv(targetProvisioners); err != nil {
-		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
+		// Record a non-fatal assertion before panicking so AfterTest observes the failure.
+		bs.Assert().Fail("failed to update environment", "%v", err)
 		panic(err)
 	}
 }
@@ -471,7 +473,9 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 			}
 
 			// set the env here so the tearDown can call diagnose too if it fails
-			bs.env = newEnv
+			if bs.env == nil {
+				bs.env = newEnv
+			}
 			return fmt.Errorf("your stack '%s' provisioning failed, check logs above. Provisioner was %s, failed with err: %v", bs.params.stackName, id, err)
 		}
 
@@ -496,6 +500,24 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 		return fmt.Errorf("unable to build env: %T from resources for stack: %s, err: %v", newEnv, bs.params.stackName, err)
 	}
 
+	// From here on newEnv may hold a live pool lease that teardown cannot see yet, because
+	// bs.env is only assigned on success below. Release it on any error path, or the
+	// member stays in-use forever -- there is no staleness reclaim. Armed before
+	// registration so a partial multi-host registration is also rolled back.
+	releaseOnFailure := true
+	defer func() {
+		if releaseOnFailure {
+			bs.releasePoolInstanceForEnv(newEnv)
+		}
+	}()
+
+	// Publish the first lease of any macOS pool member this run just created, before
+	// Init builds clients against it. Unlike the release at teardown, a failure here
+	// aborts: a registered-but-unleased instance is undiscoverable by every later run.
+	if err := bs.registerPoolInstanceIfNeeded(newEnv); err != nil {
+		return fmt.Errorf("unable to register macOS pool instance: %w", err)
+	}
+
 	// If env implements Initializable, we call Init
 	if initializable, ok := any(newEnv).(common.Initializable); ok {
 		if err := initializable.Init(bs); err != nil {
@@ -505,6 +527,7 @@ func (bs *BaseSuite[Env]) reconcileEnv(targetProvisioners provisioners.Provision
 
 	// On success we update the current environment
 	// We need top copy provisioners to protect against external modifications
+	releaseOnFailure = false
 	bs.currentProvisioners = provisioners.CopyProvisioners(targetProvisioners)
 	bs.env = newEnv
 	return nil
@@ -612,7 +635,8 @@ func (bs *BaseSuite[Env]) BeforeTest(string, string) {
 	// In `Test` scope we can `panic`, it will be recovered and `AfterTest` will be called.
 	// Next tests will be called as well
 	if err := bs.reconcileEnv(bs.originalProvisioners); err != nil {
-		bs.T().Fail() // We need to call Fail otherwise bs.T().Failed() will be false in AfterTest
+		// Record a non-fatal assertion before panicking so AfterTest observes the failure.
+		bs.Assert().Fail("failed to restore original environment", "%v", err)
 		panic(err)
 	}
 }
@@ -659,6 +683,12 @@ func (bs *BaseSuite[Env]) AfterTest(suiteName, testName string) {
 	}
 }
 
+// stacksCleanedUpByJob returns true if the stacks are cleaned up by the GitLab job after_script rather than by
+// the tests, see the `new-e2e-tests.cleanup-job-stacks` invoke task.
+func stacksCleanedUpByJob() bool {
+	return os.Getenv("GITLAB_CI") == "true" && os.Getenv("REMOTE_STACK_CLEANING") == "true"
+}
+
 // IsWithinCI returns true if the test suite is running in a CI environment.
 func (bs *BaseSuite[Env]) IsWithinCI() bool {
 	return os.Getenv("GITLAB_CI") == "true" || os.Getenv("GITHUB_ACTIONS") == "true"
@@ -681,6 +711,11 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	}
 	bs.cleanupCalled = true
 	bs.endTime = time.Now()
+
+	// Runs via defer, not inline, so it still executes across the devMode/initOnly
+	// early returns below and across the FailNow()/runtime.Goexit() branch further
+	// down — the same Goexit-safety reasoning as the t.Cleanup hook in SetupSuite.
+	defer bs.releasePoolInstanceIfAny()
 
 	if bs.params.devMode {
 		return
@@ -710,14 +745,13 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 	defer cancel()
 
 	for id, provisioner := range bs.originalProvisioners {
-		// Look up the Pulumi stack name for the diagnose and remote-cleanup paths. The
-		// local Destroy path uses bs.params.stackName directly and does not depend on
-		// this lookup, so a failure here must NOT skip Destroy. In practice this lookup
-		// only fails when no Pulumi state exists (e.g. our unit tests with mock
-		// provisioners).
+		// Look up the Pulumi stack name for the diagnose path. The Destroy path uses
+		// bs.params.stackName directly and does not depend on this lookup, so a failure
+		// here must NOT skip Destroy. In practice this lookup only fails when no Pulumi
+		// state exists (e.g. our unit tests with mock provisioners).
 		stackName, stackNameErr := infra.GetStackManager().GetPulumiStackName(bs.params.stackName)
 		if stackNameErr != nil {
-			utils.Logf(bs.T(), "unable to get pulumi stack name (used by diagnose / remote cleanup): %v", stackNameErr)
+			utils.Logf(bs.T(), "unable to get pulumi stack name (used by diagnose): %v", stackNameErr)
 		}
 
 		// Run provisioner Diagnose before tearing down the stack. Requires the looked-up stack name.
@@ -734,37 +768,110 @@ func (bs *BaseSuite[Env]) TearDownSuite() {
 			}
 		}
 
-		if bs.IsWithinCI() && os.Getenv("REMOTE_STACK_CLEANING") == "true" {
-			// Remote cleanup requires the looked-up Pulumi stack name. Skip if unavailable.
-			if stackNameErr != nil {
-				utils.Logf(bs.T(), "skipping remote stack cleaning because pulumi stack name lookup failed")
-				continue
-			}
-			fullStackName := "organization/e2eci/" + stackName
-			utils.Logf(bs.T(), "Remote stack cleaning enabled for stack %s", fullStackName)
-
-			// If we are within CI, we let the stack be destroyed by the stackcleaner-worker service
-			// After 10s, the API will time out without an error, this can happen on high workload but the stack will still be created from the agent-ci-api
-			cmd := exec.Command("dda", "inv", "agent-ci-api", "stackcleaner/stack", "--env", "prod", "--ty", "stackcleaner_workflow_request", "--attrs", fmt.Sprintf("stack_name=%s,job_name=%s,job_id=%s,pipeline_id=%s,ref=%s,ignore_lock=bool:true,ignore_not_found=bool:false,cancel_first=bool:true", fullStackName, os.Getenv("CI_JOB_NAME"), os.Getenv("CI_JOB_ID"), os.Getenv("CI_PIPELINE_ID"), os.Getenv("CI_COMMIT_REF_NAME")), "--timeout", "10", "--ignore-timeout-error")
-			out, err := cmd.CombinedOutput()
-			if err != nil {
-				utils.Logf(bs.T(), "WARNING: Unable to destroy stack %s: %s", stackName, out)
-				_, err := bs.datadogClient.PostEvent(&datadog.Event{
-					Title: pointer.Ptr("Unable to destroy stack " + stackName),
-					Text:  pointer.Ptr(fmt.Sprintf("Unable to destroy stack %s: %s", stackName, out)),
-					Tags:  []string{"test:e2e", "stack:destroy", "stack_name:" + stackName, "service:stackcleaner-worker", "ci.job.name:" + os.Getenv("CI_JOB_NAME"), "ci.job.id:" + os.Getenv("CI_JOB_ID"), "ci.pipeline.id:" + os.Getenv("CI_PIPELINE_ID")},
-				})
-				if err != nil {
-					utils.Logf(bs.T(), "Unable to post event: %v", err)
-				}
-			} else {
-				utils.Logf(bs.T(), "Stack %s will be cleaned up by the stackcleaner-worker service", fullStackName)
-			}
+		if stacksCleanedUpByJob() {
+			utils.Logf(bs.T(), "Stack %s will be cleaned up by the job after_script", bs.params.stackName)
 		} else {
 			utils.Logf(bs.T(), "Destroying stack %s with provisioner %s", bs.params.stackName, id)
 			if err := provisioner.Destroy(ctx, bs.params.stackName, newTestLogger(bs.T())); err != nil {
 				utils.Errorf(bs.T(), "unable to delete stack: %s, provisioner %s, err: %v", bs.params.stackName, id, err)
 			}
+		}
+	}
+}
+
+// registerPoolInstanceIfNeeded publishes the first lease of any macOS pool member that
+// env just created, and stores the resulting token on the host so teardown can release
+// it. A member awaiting registration has a PoolInstanceID but no PoolLeaseToken.
+func (bs *BaseSuite[Env]) registerPoolInstanceIfNeeded(env *Env) error {
+	if env == nil {
+		return nil
+	}
+
+	v := reflect.ValueOf(env)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return nil
+	}
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		return nil
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		remoteHost, ok := field.Interface().(*testingcomponents.RemoteHost)
+		if !ok || remoteHost == nil {
+			continue
+		}
+		if remoteHost.PoolInstanceID == "" || remoteHost.PoolLeaseToken != "" {
+			continue // not a pool member, or already leased
+		}
+		if remoteHost.PoolBaselineImageID == "" {
+			return fmt.Errorf("macOS pool instance %s has no baseline image to register", remoteHost.PoolInstanceID)
+		}
+
+		ctx, cancel := bs.providerContext(deleteTimeout)
+		token, err := pool.PublishInitialLease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket,
+			remoteHost.PoolInstanceID, remoteHost.PoolBaselineImageID, remoteHost.PoolStackID)
+		if errors.Is(err, pool.ErrLeaseAlreadyExists) {
+			// Expected when UpdateEnv re-enters reconcileEnv: adopt the live lease
+			// rather than failing.
+			token, err = pool.CurrentLeaseToken(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket, remoteHost.PoolInstanceID)
+		}
+		cancel()
+		if err != nil {
+			return fmt.Errorf("instance %s: %w", remoteHost.PoolInstanceID, err)
+		}
+
+		// Teardown reads this field, so writing it here is what wires release up.
+		remoteHost.PoolLeaseToken = token
+	}
+	return nil
+}
+
+// releasePoolInstanceIfAny reverts and releases any macOS EC2 pool instance backing
+// bs.env, so pool leases are freed regardless of dev mode or destroy success. It is
+// a no-op when the environment never went through the macOS pool path.
+func (bs *BaseSuite[Env]) releasePoolInstanceIfAny() {
+	bs.releasePoolInstanceForEnv(bs.env)
+}
+
+// releasePoolInstanceForEnv reverts and releases any macOS EC2 pool instance backing env.
+// Errors are logged, never propagated: it runs on teardown and on setup-failure rollback,
+// where a hard failure would mask the original error.
+func (bs *BaseSuite[Env]) releasePoolInstanceForEnv(env *Env) {
+	if env == nil {
+		return
+	}
+
+	v := reflect.ValueOf(env)
+	if v.Kind() != reflect.Ptr || v.IsNil() {
+		return
+	}
+	v = v.Elem()
+	if v.Kind() != reflect.Struct {
+		return
+	}
+
+	for i := 0; i < v.NumField(); i++ {
+		field := v.Field(i)
+		if !field.CanInterface() {
+			continue
+		}
+		remoteHost, ok := field.Interface().(*testingcomponents.RemoteHost)
+		if !ok || remoteHost == nil || remoteHost.PoolInstanceID == "" {
+			continue
+		}
+
+		ctx, cancel := bs.providerContext(deleteTimeout)
+		err := pool.RevertAndRelease(ctx, remoteHost.PoolRegion, remoteHost.PoolProfile, remoteHost.PoolLeaseBucket, remoteHost.PoolInstanceID, remoteHost.PoolLeaseToken, bs.params.devMode)
+		cancel()
+		if err != nil {
+			utils.Errorf(bs.T(), "unable to revert/release macOS pool instance %s: %v", remoteHost.PoolInstanceID, err)
+		} else {
+			utils.Logf(bs.T(), "reverted and released macOS pool instance %s successfully", remoteHost.PoolInstanceID)
 		}
 	}
 }
@@ -844,5 +951,7 @@ func Run[Env any, T Suite[Env]](t *testing.T, s T, options ...SuiteOption) {
 	}
 
 	s.init(options, s)
+	// https://github.com/DataDog/dd-trace-go/blob/v2.10.1/internal/civisibility/integrations/gotesting/orchestrion.yml#L243
+	instrumentTestifySuiteRun(t, s)
 	suite.Run(t, s)
 }

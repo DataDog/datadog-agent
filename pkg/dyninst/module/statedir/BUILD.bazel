@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "statedir",
+    srcs = ["statedir.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/dyninst/module/statedir",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+)

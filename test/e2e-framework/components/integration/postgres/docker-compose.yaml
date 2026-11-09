@@ -1,0 +1,61 @@
+# Unless explicitly stated otherwise all files in this repository are licensed
+# under the Apache License Version 2.0.
+# This product includes software developed at Datadog (https://www.datadoghq.com/).
+# Copyright 2025-present Datadog, Inc.
+#
+# PostgreSQL 16 server plus a continuous workload generator for the Datadog
+# postgres integration lab. The server is reachable on the host at
+# localhost:5432 so the host-installed Datadog Agent's postgres check can
+# connect over TCP as the `datadog` monitoring user.
+#
+# Images use ${DD_REGISTRY:-docker.io}. NewAWSManager injects DD_REGISTRY
+# (ECR Docker Hub pull-through cache) into every ComposeStrUp call.
+version: "3.9"
+
+services:
+  postgres:
+    image: ${DD_REGISTRY:-docker.io}/library/postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    container_name: postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres_admin_pw
+      POSTGRES_DB: labdb
+    # Enable pg_stat_statements so the check can collect query metrics.
+    command:
+      - postgres
+      - -c
+      - shared_preload_libraries=pg_stat_statements
+      - -c
+      - pg_stat_statements.track=all
+      - -c
+      - track_activity_query_size=4096
+      - -c
+      - track_io_timing=on
+    ports:
+      # Bind to localhost on the host so the host Agent connects via TCP.
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - ./postgres-init.sql:/docker-entrypoint-initdb.d/00-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d labdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  postgres-workload:
+    image: ${DD_REGISTRY:-docker.io}/library/postgres:18@sha256:4ef4dbc939d61acea57712655ddb4b4ab27419c913f94cca0cd57cb3ea3c2280
+    container_name: postgres-workload
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      PGHOST: postgres
+      PGPORT: "5432"
+      PGUSER: app_user
+      PGPASSWORD: app_user_pw
+      PGDATABASE: labdb
+    volumes:
+      - ./postgres-workload.sh:/opt/postgres-workload.sh:ro
+    entrypoint: ["/bin/bash", "/opt/postgres-workload.sh"]

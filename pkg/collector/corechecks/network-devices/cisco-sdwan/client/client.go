@@ -7,6 +7,7 @@
 package client
 
 import (
+	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"errors"
@@ -17,6 +18,10 @@ import (
 	"strconv"
 	"sync"
 	"time"
+
+	"golang.org/x/time/rate"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/cisco-sdwan/client/middleware"
 )
 
 const timeFormat = "2006-01-02T15:04:05"
@@ -46,6 +51,9 @@ type Client struct {
 	maxPages            int
 	maxCount            string // Stored as string to be passed as an HTTP param
 	lookback            time.Duration
+	maxRetryDuration    time.Duration // 0 means retries are only bounded by maxAttempts
+	rateLimiter         *rate.Limiter // nil means requests are not rate limited, applied by the transport
+	rateLimitMaxWait    time.Duration
 }
 
 // ClientOptions are the functional options for the Cisco SD-WAN client
@@ -64,8 +72,7 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	}
 
 	httpClient := &http.Client{
-		Timeout: defaultHTTPTimeout * time.Second,
-		Jar:     cookieJar,
+		Jar: cookieJar,
 	}
 
 	scheme := defaultHTTPScheme
@@ -93,6 +100,14 @@ func NewClient(endpoint, username, password string, useHTTP bool, options ...Cli
 	for _, opt := range options {
 		opt(client)
 	}
+
+	// Options may replace the base transport, wrap it once they are all applied. The timeout
+	// is enforced below the rate limiter so waiting for a token does not count against it.
+	var transport http.RoundTripper = middleware.NewTimeoutTransport(httpClient.Transport, defaultHTTPTimeout*time.Second)
+	if client.rateLimiter != nil {
+		transport = middleware.NewRateLimitedTransport(transport, client.rateLimiter, client.rateLimitMaxWait)
+	}
+	httpClient.Transport = transport
 
 	return client, nil
 }
@@ -141,37 +156,46 @@ func WithTLSConfig(insecure bool, CAFile string) (ClientOptions, error) {
 	}, nil
 }
 
-// WithMaxAttempts is a functional option to set the client max attempts
 func WithMaxAttempts(maxAttempts int) ClientOptions {
 	return func(c *Client) {
 		c.maxAttempts = maxAttempts
 	}
 }
 
-// WithMaxCount is a functional option to set the client max count
+func WithMaxRetryDuration(maxRetryDuration time.Duration) ClientOptions {
+	return func(c *Client) {
+		c.maxRetryDuration = maxRetryDuration
+	}
+}
+
 func WithMaxCount(maxCount int) ClientOptions {
 	return func(c *Client) {
 		c.maxCount = strconv.Itoa(maxCount)
 	}
 }
 
-// WithMaxPages is a functional option to set the client max pages
 func WithMaxPages(maxPages int) ClientOptions {
 	return func(c *Client) {
 		c.maxPages = maxPages
 	}
 }
 
-// WithLookback is a functional option to set the client lookback interval
 func WithLookback(lookback time.Duration) ClientOptions {
 	return func(c *Client) {
 		c.lookback = lookback
 	}
 }
 
+func WithRateLimit(requestsPerSecond float64, burst int, maxWait time.Duration) ClientOptions {
+	return func(c *Client) {
+		c.rateLimiter = rate.NewLimiter(rate.Limit(requestsPerSecond), burst)
+		c.rateLimitMaxWait = maxWait
+	}
+}
+
 // GetDevices get all devices from this SD-WAN network
-func (client *Client) GetDevices() ([]Device, error) {
-	devices, err := getAllEntries[Device](client, "/dataservice/device", nil)
+func (client *Client) GetDevices(ctx context.Context) ([]Device, error) {
+	devices, err := getAllEntries[Device](ctx, client, "/dataservice/device", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -179,8 +203,8 @@ func (client *Client) GetDevices() ([]Device, error) {
 }
 
 // GetDevicesCounters get all devices from this SD-WAN network
-func (client *Client) GetDevicesCounters() ([]DeviceCounters, error) {
-	counters, err := getAllEntries[DeviceCounters](client, "/dataservice/device/counters", nil)
+func (client *Client) GetDevicesCounters(ctx context.Context) ([]DeviceCounters, error) {
+	counters, err := getAllEntries[DeviceCounters](ctx, client, "/dataservice/device/counters", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -188,12 +212,12 @@ func (client *Client) GetDevicesCounters() ([]DeviceCounters, error) {
 }
 
 // GetVEdgeInterfaces gets all Viptela device interfaces
-func (client *Client) GetVEdgeInterfaces() ([]InterfaceState, error) {
+func (client *Client) GetVEdgeInterfaces(ctx context.Context) ([]InterfaceState, error) {
 	params := map[string]string{
 		"count": client.maxCount,
 	}
 
-	interfaces, err := getAllEntries[InterfaceState](client, "/dataservice/data/device/state/Interface", params)
+	interfaces, err := getAllEntries[InterfaceState](ctx, client, "/dataservice/data/device/state/Interface", params)
 	if err != nil {
 		return nil, err
 	}
@@ -201,12 +225,12 @@ func (client *Client) GetVEdgeInterfaces() ([]InterfaceState, error) {
 }
 
 // GetCEdgeInterfaces gets all Cisco device interfaces
-func (client *Client) GetCEdgeInterfaces() ([]CEdgeInterfaceState, error) {
+func (client *Client) GetCEdgeInterfaces(ctx context.Context) ([]CEdgeInterfaceState, error) {
 	params := map[string]string{
 		"count": client.maxCount,
 	}
 
-	interfaces, err := getAllEntries[CEdgeInterfaceState](client, "/dataservice/data/device/state/CEdgeInterface", params)
+	interfaces, err := getAllEntries[CEdgeInterfaceState](ctx, client, "/dataservice/data/device/state/CEdgeInterface", params)
 	if err != nil {
 		return nil, err
 	}
@@ -215,7 +239,7 @@ func (client *Client) GetCEdgeInterfaces() ([]CEdgeInterfaceState, error) {
 }
 
 // GetInterfacesMetrics gets interface metrics
-func (client *Client) GetInterfacesMetrics() ([]InterfaceStats, error) {
+func (client *Client) GetInterfacesMetrics(ctx context.Context) ([]InterfaceStats, error) {
 	startDate, endDate := client.statisticsTimeRange()
 
 	params := map[string]string{
@@ -225,7 +249,7 @@ func (client *Client) GetInterfacesMetrics() ([]InterfaceStats, error) {
 		"count":     client.maxCount,
 	}
 
-	interfaces, err := getAllEntries[InterfaceStats](client, "/dataservice/data/device/statistics/interfacestatistics", params)
+	interfaces, err := getAllEntries[InterfaceStats](ctx, client, "/dataservice/data/device/statistics/interfacestatistics", params)
 	if err != nil {
 		return nil, err
 	}
@@ -234,7 +258,7 @@ func (client *Client) GetInterfacesMetrics() ([]InterfaceStats, error) {
 }
 
 // GetDeviceHardwareMetrics gets device hardware metrics
-func (client *Client) GetDeviceHardwareMetrics() ([]DeviceStatistics, error) {
+func (client *Client) GetDeviceHardwareMetrics(ctx context.Context) ([]DeviceStatistics, error) {
 	startDate, endDate := client.statisticsTimeRange()
 
 	params := map[string]string{
@@ -244,7 +268,7 @@ func (client *Client) GetDeviceHardwareMetrics() ([]DeviceStatistics, error) {
 		"count":     client.maxCount,
 	}
 
-	interfaces, err := getAllEntries[DeviceStatistics](client, "/dataservice/data/device/statistics/devicesystemstatusstatistics", params)
+	interfaces, err := getAllEntries[DeviceStatistics](ctx, client, "/dataservice/data/device/statistics/devicesystemstatusstatistics", params)
 	if err != nil {
 		return nil, err
 	}
@@ -253,7 +277,7 @@ func (client *Client) GetDeviceHardwareMetrics() ([]DeviceStatistics, error) {
 }
 
 // GetApplicationAwareRoutingMetrics gets application aware routing metrics
-func (client *Client) GetApplicationAwareRoutingMetrics() ([]AppRouteStatistics, error) {
+func (client *Client) GetApplicationAwareRoutingMetrics(ctx context.Context) ([]AppRouteStatistics, error) {
 	startDate, endDate := client.statisticsTimeRange()
 
 	params := map[string]string{
@@ -263,7 +287,7 @@ func (client *Client) GetApplicationAwareRoutingMetrics() ([]AppRouteStatistics,
 		"count":     client.maxCount,
 	}
 
-	appRoutes, err := getAllEntries[AppRouteStatistics](client, "/dataservice/data/device/statistics/approutestatsstatistics", params)
+	appRoutes, err := getAllEntries[AppRouteStatistics](ctx, client, "/dataservice/data/device/statistics/approutestatsstatistics", params)
 	if err != nil {
 		return nil, err
 	}
@@ -272,12 +296,12 @@ func (client *Client) GetApplicationAwareRoutingMetrics() ([]AppRouteStatistics,
 }
 
 // GetControlConnectionsState gets control connection states
-func (client *Client) GetControlConnectionsState() ([]ControlConnections, error) {
+func (client *Client) GetControlConnectionsState(ctx context.Context) ([]ControlConnections, error) {
 	params := map[string]string{
 		"count": client.maxCount,
 	}
 
-	controlConnections, err := getAllEntries[ControlConnections](client, "/dataservice/data/device/state/ControlConnection", params)
+	controlConnections, err := getAllEntries[ControlConnections](ctx, client, "/dataservice/data/device/state/ControlConnection", params)
 	if err != nil {
 		return nil, err
 	}
@@ -286,12 +310,12 @@ func (client *Client) GetControlConnectionsState() ([]ControlConnections, error)
 }
 
 // GetOMPPeersState get OMP peer states
-func (client *Client) GetOMPPeersState() ([]OMPPeer, error) {
+func (client *Client) GetOMPPeersState(ctx context.Context) ([]OMPPeer, error) {
 	params := map[string]string{
 		"count": client.maxCount,
 	}
 
-	ompPeers, err := getAllEntries[OMPPeer](client, "/dataservice/data/device/state/OMPPeer", params)
+	ompPeers, err := getAllEntries[OMPPeer](ctx, client, "/dataservice/data/device/state/OMPPeer", params)
 	if err != nil {
 		return nil, err
 	}
@@ -300,12 +324,12 @@ func (client *Client) GetOMPPeersState() ([]OMPPeer, error) {
 }
 
 // GetBFDSessionsState gets BFD session states
-func (client *Client) GetBFDSessionsState() ([]BFDSession, error) {
+func (client *Client) GetBFDSessionsState(ctx context.Context) ([]BFDSession, error) {
 	params := map[string]string{
 		"count": client.maxCount,
 	}
 
-	bfdSessions, err := getAllEntries[BFDSession](client, "/dataservice/data/device/state/BFDSessions", params)
+	bfdSessions, err := getAllEntries[BFDSession](ctx, client, "/dataservice/data/device/state/BFDSessions", params)
 	if err != nil {
 		return nil, err
 	}
@@ -314,12 +338,12 @@ func (client *Client) GetBFDSessionsState() ([]BFDSession, error) {
 }
 
 // GetHardwareStates gets hardware states
-func (client *Client) GetHardwareStates() ([]HardwareEnvironment, error) {
+func (client *Client) GetHardwareStates(ctx context.Context) ([]HardwareEnvironment, error) {
 	params := map[string]string{
 		"count": client.maxCount,
 	}
 
-	hardwareStates, err := getAllEntries[HardwareEnvironment](client, "/dataservice/data/device/state/HardwareEnvironment", params)
+	hardwareStates, err := getAllEntries[HardwareEnvironment](ctx, client, "/dataservice/data/device/state/HardwareEnvironment", params)
 	if err != nil {
 		return nil, err
 	}
@@ -328,7 +352,7 @@ func (client *Client) GetHardwareStates() ([]HardwareEnvironment, error) {
 }
 
 // GetCloudExpressMetrics gets cloud applications metrics
-func (client *Client) GetCloudExpressMetrics() ([]CloudXStatistics, error) {
+func (client *Client) GetCloudExpressMetrics(ctx context.Context) ([]CloudXStatistics, error) {
 	startDate, endDate := client.statisticsTimeRange()
 
 	params := map[string]string{
@@ -338,7 +362,7 @@ func (client *Client) GetCloudExpressMetrics() ([]CloudXStatistics, error) {
 		"count":     client.maxCount,
 	}
 
-	cloudApplications, err := getAllEntries[CloudXStatistics](client, "/dataservice/data/device/statistics/cloudxstatistics", params)
+	cloudApplications, err := getAllEntries[CloudXStatistics](ctx, client, "/dataservice/data/device/statistics/cloudxstatistics", params)
 	if err != nil {
 		return nil, err
 	}
@@ -347,12 +371,12 @@ func (client *Client) GetCloudExpressMetrics() ([]CloudXStatistics, error) {
 }
 
 // GetBGPNeighbors gets BGP neighbors
-func (client *Client) GetBGPNeighbors() ([]BGPNeighbor, error) {
+func (client *Client) GetBGPNeighbors(ctx context.Context) ([]BGPNeighbor, error) {
 	params := map[string]string{
 		"count": client.maxCount,
 	}
 
-	bgpNeighbors, err := getAllEntries[BGPNeighbor](client, "/dataservice/data/device/state/BGPNeighbor", params)
+	bgpNeighbors, err := getAllEntries[BGPNeighbor](ctx, client, "/dataservice/data/device/state/BGPNeighbor", params)
 	if err != nil {
 		return nil, err
 	}

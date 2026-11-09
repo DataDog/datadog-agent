@@ -754,7 +754,9 @@ func TestFlush(t *testing.T) {
 	t.Run("SyslogFraming/partial octet-counted is emitted at EOF", func(t *testing.T) {
 		gotContent := []string{}
 		outputFn := func(msg *message.Message, _ int) {
-			gotContent = append(gotContent, string(msg.GetContent()))
+			if len(msg.GetContent()) > 0 {
+				gotContent = append(gotContent, string(msg.GetContent()))
+			}
 		}
 		fr := NewFramer(outputFn, SyslogFraming, contentLenLimit)
 
@@ -763,7 +765,8 @@ func TestFlush(t *testing.T) {
 		require.Empty(t, gotContent)
 
 		fr.Flush()
-		require.Equal(t, []string{"200 <134>partial"}, gotContent, "partial octet-counted frame should be emitted at EOF")
+		require.Len(t, gotContent, 1, "partial octet-counted frame should be emitted at EOF")
+		assert.Equal(t, "200 <134>partial", gotContent[0])
 	})
 
 	t.Run("SyslogFraming/empty buffer is no-op", func(t *testing.T) {

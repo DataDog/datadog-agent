@@ -15,6 +15,7 @@ pub struct Config {
 
 impl Config {
     /// Create a configuration map base on a YAML string
+    #[allow(clippy::should_implement_trait)]
     pub fn from_str(config_yaml_str: &str) -> Result<Self> {
         let map = serde_yaml::from_str(config_yaml_str)?;
         Ok(Self { map })

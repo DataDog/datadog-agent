@@ -228,7 +228,11 @@
           "type": "string"
         },
         "policy": {
-          "type": "string"
+          "type": "string",
+          "enum": [
+            "drop",
+            "allow"
+          ]
         },
         "scope": {
           "type": "string",
@@ -410,6 +414,10 @@
         },
         "field": {
           "type": "string"
+        },
+        "capture": {
+          "type": "string",
+          "description": "A regular expression with a single capture group applied to 'field' to extract the value to store"
         },
         "expression": {
           "type": "string"

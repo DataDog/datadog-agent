@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"slices"
+	"strconv"
 	"time"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
@@ -20,7 +21,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
 	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
-	"github.com/twmb/murmur3"
 	autoscalingv2 "k8s.io/api/autoscaling/v2"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -45,18 +45,6 @@ const (
 	// CustomRecommenderAnnotationKey is the key used to store custom recommender configuration in annotations
 	CustomRecommenderAnnotationKey = "autoscaling.datadoghq.com/custom-recommender"
 )
-
-// resyncLabelKeysFromPodAutoscaler lists the label keys read by UpdateFromPodAutoscaler.
-var resyncLabelKeysFromPodAutoscaler = []string{
-	ProfileLabelKey,
-}
-
-// resyncAnnotationKeysFromPodAutoscaler lists the annotation keys read by UpdateFromPodAutoscaler.
-var resyncAnnotationKeysFromPodAutoscaler = []string{
-	PreviewAnnotationKey,
-	ProfileTemplateHashAnnotation,
-	CustomRecommenderAnnotationKey,
-}
 
 // PodAutoscalerInternal holds the necessary data to work with the `DatadogPodAutoscaler` CRD.
 type PodAutoscalerInternal struct {
@@ -96,10 +84,21 @@ type PodAutoscalerInternal struct {
 	// previewOptions holds the parsed preview feature flags from the DPA annotations
 	previewOptions previewOptions
 
-	// metadataHash fingerprints the K8s state read by UpdateFromPodAutoscaler
-	// (.metadata.generation plus watched labels/annotations), so that a single
-	// equality check captures both spec changes and out-of-spec edits.
-	metadataHash uint64
+	// paused is set from the pause annotation on the DPA object
+	paused bool
+
+	// fallbackForced is set from the force-fallback annotation on the DPA object
+	fallbackForced bool
+
+	// forcedReplicas is set from the force-replicas annotation on the DPA object: nil when the
+	// annotation is absent or its value is not a positive integer.
+	forcedReplicas *int32
+
+	// forcedResources is set from the force-resources annotation on the DPA object: nil when the
+	// annotation is absent or invalid. The vertical controller and the pod patcher overlay it on the
+	// recommendation; it is not a source of its own. It is never mutated once parsed, so it can be
+	// shared between copies of the autoscaler.
+	forcedResources []datadoghqcommon.DatadogPodAutoscalerContainerResources
 
 	// scalingValues represents the active scaling values that should be used
 	scalingValues ScalingValues
@@ -218,6 +217,7 @@ func NewPodAutoscalerInternal(podAutoscaler *datadoghq.DatadogPodAutoscaler) Pod
 		name:      podAutoscaler.Name,
 	}
 	pai.UpdateFromPodAutoscaler(podAutoscaler)
+	pai.UpdateFromOpsAnnotations(podAutoscaler.Annotations)
 	pai.UpdateFromStatus(&podAutoscaler.Status)
 
 	return pai
@@ -279,20 +279,6 @@ func parsePreviewAnnotationString(raw string) previewOptions {
 	return opts
 }
 
-// setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
-// to keep them in sync. Passing an empty string removes the annotation.
-func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
-	if previewAnnotation == "" {
-		delete(p.upstreamCR.Annotations, PreviewAnnotationKey)
-	} else {
-		if p.upstreamCR.Annotations == nil {
-			p.upstreamCR.Annotations = make(map[string]string)
-		}
-		p.upstreamCR.Annotations[PreviewAnnotationKey] = previewAnnotation
-	}
-	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
-}
-
 // UpdateFromProfile updates the spec from a profile template while preserving scaling state.
 // previewAnnotation is the raw value of the profile's preview annotation (e.g.
 // `{"burstable":true}`), stored in a dedicated field rather than written to upstreamCR,
@@ -319,16 +305,7 @@ func (p *PodAutoscalerInternal) UpdateFromProfile(
 }
 
 // UpdateFromPodAutoscaler updates the PodAutoscalerInternal from a PodAutoscaler object inside K8S.
-// For local-owner DPAs it short-circuits when the cached metadata fingerprint is unchanged.
 func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq.DatadogPodAutoscaler) {
-	if podAutoscaler.Spec.Owner == datadoghqcommon.DatadogPodAutoscalerLocalOwner {
-		newHash := computePodAutoscalerMetadataHash(podAutoscaler)
-		if p.metadataHash == newHash {
-			return
-		}
-		p.metadataHash = newHash
-	}
-
 	if v, ok := podAutoscaler.Labels[ProfileLabelKey]; ok {
 		p.profileName = v
 	}
@@ -349,6 +326,17 @@ func (p *PodAutoscalerInternal) UpdateFromPodAutoscaler(podAutoscaler *datadoghq
 	// without branching on profile-managed vs standalone.
 	// For profile-managed DPAs, UpdateFromProfile() will overwrite this with the profile value.
 	p.previewOptions = parsePreviewAnnotationString(podAutoscaler.Annotations[PreviewAnnotationKey])
+}
+
+// UpdateFromOpsAnnotations updates the PodAutoscalerInternal from the operational annotations
+// (pause, force-fallback, force-replicas, force-resources). They are set by the user on the
+// Kubernetes object whatever the owner, so they are read separately from UpdateFromPodAutoscaler,
+// which the leader only calls for local owners once the object exists.
+func (p *PodAutoscalerInternal) UpdateFromOpsAnnotations(annotations map[string]string) {
+	p.paused = parseOpsBoolAnnotation(annotations, PauseAnnotationKey)
+	p.fallbackForced = parseOpsBoolAnnotation(annotations, ForceFallbackAnnotationKey)
+	p.forcedReplicas = parseForceReplicasAnnotation(annotations[ForceReplicasAnnotationKey])
+	p.forcedResources = parseForceResourcesAnnotation(annotations[ForceResourcesAnnotationKey])
 }
 
 // UpdateFromSettings updates the PodAutoscalerInternal from a new settings
@@ -507,6 +495,12 @@ func (p *PodAutoscalerInternal) UpdateFromVerticalAction(action *datadoghqcommon
 	}
 }
 
+// ClearHorizontalLimitReason clears the reason the last horizontal action was limited, when there is
+// no longer anything to scale to: nothing is being limited.
+func (p *PodAutoscalerInternal) ClearHorizontalLimitReason() {
+	p.horizontalLastLimitReason = ""
+}
+
 // ClearHorizontalState clears horizontal scaling status data when horizontal scaling is disabled.
 func (p *PodAutoscalerInternal) ClearHorizontalState() {
 	p.horizontalLastActions = nil
@@ -589,6 +583,12 @@ func (p *PodAutoscalerInternal) SetProfileName(name string) {
 // SetDeleted flags the PodAutoscaler as deleted
 func (p *PodAutoscalerInternal) SetDeleted() {
 	p.deleted = true
+}
+
+// ClearDeleted clears the deletion flag, e.g. when a profile re-claims a generated
+// DPA that a prior reconcile marked deleted.
+func (p *PodAutoscalerInternal) ClearDeleted() {
+	p.deleted = false
 }
 
 // UpdateFromStatus updates the PodAutoscalerInternal from an existing status.
@@ -731,6 +731,36 @@ func (p *PodAutoscalerInternal) IsBurstable() bool {
 		return *spec.Options.Burstable
 	}
 	return p.previewOptions.Burstable
+}
+
+// IsPaused returns true if the pause annotation stops all actions of the autoscaler.
+func (p *PodAutoscalerInternal) IsPaused() bool {
+	return p.paused
+}
+
+// IsFallbackForced returns true if the force-fallback annotation is set.
+func (p *PodAutoscalerInternal) IsFallbackForced() bool {
+	return p.fallbackForced
+}
+
+// ForcedReplicas returns the replica count pinned by the force-replicas annotation, if any.
+func (p *PodAutoscalerInternal) ForcedReplicas() (int32, bool) {
+	if p.forcedReplicas == nil {
+		return 0, false
+	}
+
+	return *p.forcedReplicas, true
+}
+
+// ForcedResources returns the container resources overridden by annotation, nil if none.
+func (p *PodAutoscalerInternal) ForcedResources() []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	return p.forcedResources
+}
+
+// IsLocalFallbackEnabled returns true unless the spec disables the horizontal local fallback.
+func (p *PodAutoscalerInternal) IsLocalFallbackEnabled() bool {
+	spec := p.Spec()
+	return spec == nil || spec.Fallback == nil || spec.Fallback.Horizontal.Enabled
 }
 
 // PreviewAnnotation returns the JSON-encoded preview annotation forwarded from the cluster
@@ -1057,14 +1087,19 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 		status.CurrentReplicas = p.currentReplicas
 	}
 
-	// Produce Horizontal status only if we have a desired number of replicas
-	if horizontalEnabled && p.scalingValues.Horizontal != nil {
-		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
-			Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
+	// Produce Horizontal status only if we have a desired number of replicas, or scaling actions of a
+	// replica count pinned by the force-replicas annotation: the pin applies without a
+	// recommendation, and what it did must be visible in the status. The target only reports the
+	// recommendation.
+	_, pinned := p.ForcedReplicas()
+	if horizontalEnabled && (p.scalingValues.Horizontal != nil || (pinned && len(p.horizontalLastActions) > 0)) {
+		status.Horizontal = &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{}
+		if p.scalingValues.Horizontal != nil {
+			status.Horizontal.Target = &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{
 				Source:      p.scalingValues.Horizontal.Source,
 				GeneratedAt: metav1.NewTime(p.scalingValues.Horizontal.Timestamp),
 				Replicas:    p.scalingValues.Horizontal.Replicas,
-			},
+			}
 		}
 
 		if lenActions := len(p.horizontalLastActions); lenActions > 0 {
@@ -1127,10 +1162,13 @@ func (p *PodAutoscalerInternal) BuildStatus(currentTime metav1.Time, currentStat
 	}
 	status.Conditions = append(status.Conditions, newConditionFromError(true, currentTime, globalError, datadoghqcommon.DatadogPodAutoscalerErrorCondition, existingConditions))
 
-	// Building active condition, should handle multiple reasons, currently only disabled if target replicas = 0
-	if p.currentReplicas != nil && *p.currentReplicas == 0 {
+	// Building active condition: disabled while locally paused, or if target replicas = 0
+	switch {
+	case p.paused:
+		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, LocallyPausedReason, "Autoscaling locally paused by the "+PauseAnnotationKey+" annotation", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
+	case p.currentReplicas != nil && *p.currentReplicas == 0:
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionFalse, "", "Target has been scaled to 0 replicas", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
-	} else {
+	default:
 		status.Conditions = append(status.Conditions, newCondition(corev1.ConditionTrue, "", "", currentTime, datadoghqcommon.DatadogPodAutoscalerActiveCondition, existingConditions))
 	}
 
@@ -1227,12 +1265,32 @@ func (v *VerticalScalingValues) ContainerResourcesForStatus() []datadoghqcommon.
 				cp.Limits[res] = qty.DeepCopy()
 			}
 		}
+		if cr.Runtime != nil && cr.Runtime.Gomemlimit != "" {
+			cp.Runtime = &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{
+				Gomemlimit: cr.Runtime.Gomemlimit,
+			}
+		}
 		result[i] = cp
 	}
 	return result
 }
 
 // Private helpers
+
+// setPreviewAnnotation updates both the parsed previewOptions field and the upstreamCR annotation
+// to keep them in sync. Passing an empty string removes the annotation.
+func (p *PodAutoscalerInternal) setPreviewAnnotation(previewAnnotation string) {
+	if previewAnnotation == "" {
+		delete(p.upstreamCR.Annotations, PreviewAnnotationKey)
+	} else {
+		if p.upstreamCR.Annotations == nil {
+			p.upstreamCR.Annotations = make(map[string]string)
+		}
+		p.upstreamCR.Annotations[PreviewAnnotationKey] = previewAnnotation
+	}
+	p.previewOptions = parsePreviewAnnotationString(previewAnnotation)
+}
+
 func (p *PodAutoscalerInternal) updateCustomRecommenderConfiguration(annotations map[string]string) {
 	annotation, err := parseCustomConfigurationAnnotation(annotations)
 	if err != nil {
@@ -1439,17 +1497,36 @@ func parseCustomConfigurationAnnotation(annotations map[string]string) (*Recomme
 	return &customConfiguration, nil
 }
 
-// computePodAutoscalerMetadataHash returns a fingerprint of the K8s state
-// read by UpdateFromPodAutoscaler — .metadata.generation plus the watched
-// labels/annotations — used to identify any change worth re-syncing.
-func computePodAutoscalerMetadataHash(podAutoscaler *datadoghq.DatadogPodAutoscaler) uint64 {
-	hasher := murmur3.New64()
-	_, _ = fmt.Fprintf(hasher, "G\x00%d\x00", podAutoscaler.Generation)
-	for _, key := range resyncLabelKeysFromPodAutoscaler {
-		_, _ = hasher.Write([]byte("L\x00" + key + "\x00" + podAutoscaler.Labels[key] + "\x00"))
+// parseOpsBoolAnnotation parses a boolean operational annotation. An absent or invalid value
+// is treated as not set.
+func parseOpsBoolAnnotation(annotations map[string]string, key string) bool {
+	value, err := strconv.ParseBool(annotations[key])
+	if err != nil {
+		return false
 	}
-	for _, key := range resyncAnnotationKeysFromPodAutoscaler {
-		_, _ = hasher.Write([]byte("A\x00" + key + "\x00" + podAutoscaler.Annotations[key] + "\x00"))
+
+	return value
+}
+
+// parseForceReplicasAnnotation parses the force-replicas annotation value. An absent value, or one that
+// is not a positive integer, is ignored: the autoscaler never scales to zero.
+func parseForceReplicasAnnotation(value string) *int32 {
+	replicas, err := strconv.ParseInt(value, 10, 32)
+	if err != nil || replicas <= 0 {
+		return nil
 	}
-	return hasher.Sum64()
+
+	return pointer.Ptr(int32(replicas))
+}
+
+// parseForceResourcesAnnotation parses the force-resources annotation value, a JSON list of container
+// resources as in the DPA. A value that is not such a list is ignored. The values are checked when
+// they are merged on the recommendation.
+func parseForceResourcesAnnotation(value string) []datadoghqcommon.DatadogPodAutoscalerContainerResources {
+	var forced []datadoghqcommon.DatadogPodAutoscalerContainerResources
+	if err := json.Unmarshal([]byte(value), &forced); err != nil || len(forced) == 0 {
+		return nil
+	}
+
+	return forced
 }

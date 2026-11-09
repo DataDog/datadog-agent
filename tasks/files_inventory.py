@@ -39,9 +39,11 @@ def _compare_inventories(
         size_percent = None
         size_bytes = None
         if size_change:
-            size_percent = (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100
+            size_percent = (
+                (current.size_bytes - previous.size_bytes) / previous.size_bytes * 100 if previous.size_bytes else 100.0
+            )
             size_bytes = current.size_bytes - previous.size_bytes
-            if size_percent > 10:
+            if abs(size_percent) > 10:
                 changed_flags |= FileChange.Flags.Size
         if current.chmod != previous.chmod:
             changed_flags |= FileChange.Flags.Permissions
@@ -65,8 +67,10 @@ def _compare_inventories(
     return added_files, removed_files, changed_files
 
 
-@task
-def compare_inventories(_, parent_inventory_report, current_inventory_report):
+def _compare_inventory_reports(parent_inventory_report, current_inventory_report) -> tuple[bool, str]:
+    """
+    Compare two inventory reports and return whether any change was detected along with the comment body.
+    """
     with open(parent_inventory_report) as f:
         parent_inventory = yaml.safe_load(f)
     with open(current_inventory_report) as f:
@@ -76,10 +80,14 @@ def compare_inventories(_, parent_inventory_report, current_inventory_report):
     added, removed, changed = _compare_inventories(parent_file_inventory, current_file_inventory)
     if len(added) == 0 and len(removed) == 0 and len(changed) == 0:
         print(color_message('✅ No change detected', 'green'))
-        body = "No change detected"
-    else:
-        _print_inventory_diff(added, removed, changed)
-        body = _inventory_changes_to_comment(added, removed, changed)
+        return False, "No change detected\n\n"
+    _print_inventory_diff(added, removed, changed)
+    return True, _inventory_changes_to_comment(added, removed, changed)
+
+
+@task
+def compare_inventories(_, parent_inventory_report, current_inventory_report):
+    _, body = _compare_inventory_reports(parent_inventory_report, current_inventory_report)
     return body
 
 
@@ -120,12 +128,12 @@ def _inventory_changes_to_comment(added, removed, changed):
         body += f"<details><summary>\n\n### {len(added)} Added files:\n\n</summary>\n\n"
         for f in added:
             body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
-        body += "</details>"
+        body += "</details>\n\n"
     if len(removed):
         body += f"<details><summary>\n\n### {len(removed)} Removed files:\n\n</summary>\n\n"
         for f in removed:
             body += f"* `{f.relative_path}` ({byte_to_string(f.size_bytes)})\n"
-        body += "</details>"
+        body += "</details>\n\n"
     if len(changed):
         body += f"<details><summary>\n\n### {len(changed)} Changed files:\n\n</summary>\n\n"
         for path, change in changed.items():
@@ -137,7 +145,7 @@ def _inventory_changes_to_comment(added, removed, changed):
             if change.flags & (FileChange.Flags.Owner | FileChange.Flags.Group):
                 change_str += f'  * File owner/group changed: {change.previous.owner}:{change.previous.group} -> {change.current.owner}:{change.current.group}\n'
             body += change_str
-        body += "</details>"
+        body += "</details>\n\n"
     return body
 
 
@@ -162,23 +170,34 @@ def _filter_files(path: str) -> bool:
     ]
 
 
+# Each entry maps {reports_folder}/{package_prefix}*.deb to a
+# static_quality_gate_{gate_prefix}_deb_{arch} gate (see test/static/static_quality_gates.yml).
+_PRODUCTS = [
+    {'package_prefix': 'datadog-agent', 'gate_prefix': 'agent'},
+    # armhf isn't cross-compiled by Bazel yet, so it's skipped below.
+    {'package_prefix': 'datadog-iot-agent', 'gate_prefix': 'iot_agent'},
+]
+
+
 @task
 def check(ctx, branch_name, reports_folder):
-    package_types = ['deb', 'rpm']
     parent_sha = get_ancestor(ctx, branch_name)
     pr_comment = f"File checks results against ancestor [{parent_sha[:8]}](https://github.com/DataDog/datadog-agent/commit/{parent_sha}):\n\n"
+    has_changes = False
 
-    for package_type in package_types:
-        for artifact in glob.glob(f'{reports_folder}/datadog-agent*.{package_type}'):
-            # deb pattern is $packagename-$version
-            # rpm pattern is $packagename_$version
+    for product in _PRODUCTS:
+        for artifact in glob.glob(f'{reports_folder}/{product["package_prefix"]}*.deb'):
+            # deb pattern is $packagename_$version
             if '-dbg-' in artifact or '-dbg_' in artifact:
+                continue
+            # armhf cross-compilation isn't wired up for these checks yet.
+            if 'armhf' in artifact:
                 continue
             pr_comment += f'### Results for {os.path.basename(artifact)}:\n'
             arch = "amd64"
             if 'aarch64' in artifact or 'arm64' in artifact:
                 arch = "arm64"
-            gate_short_name = f'agent_{package_type}_{arch}'
+            gate_short_name = f'{product["gate_prefix"]}_deb_{arch}'
             report_filename = f'{gate_short_name}_{arch}_size_report_{os.environ["CI_COMMIT_SHORT_SHA"]}.yml'
             _measure_package_local(
                 ctx=ctx,
@@ -197,12 +216,18 @@ def check(ctx, branch_name, reports_folder):
 
             parent_report_file = tempfile.NamedTemporaryFile()
             _get_parent_report(ctx, parent_sha, gate_short_name, parent_report_file.file.name)
-            body = compare_inventories(ctx, parent_report_file.file.name, report_filename)
+            artifact_has_changes, body = _compare_inventory_reports(parent_report_file.file.name, report_filename)
+            has_changes |= artifact_has_changes
             pr_comment += body
 
     github = GithubAPI()
     prs = list(github.get_pr_for_branch(branch_name))
     if len(prs):
-        pr_commenter(ctx, title='Files inventory check summary', body=pr_comment, pr=prs[0])
+        if has_changes:
+            pr_commenter(ctx, title='Files inventory check summary', body=pr_comment, pr=prs[0])
+        else:
+            # Remove the comment from a previous run so the PR doesn't show outdated results
+            print(color_message('No file change detected in any package, removing PR comment if any', 'green'))
+            pr_commenter(ctx, title='Files inventory check summary', pr=prs[0], delete=True, force_delete=True)
     else:
         print(color_message(f"Can't fetch PR assciated with branch {branch_name}", "red"))

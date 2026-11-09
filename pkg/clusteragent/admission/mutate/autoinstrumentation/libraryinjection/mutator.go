@@ -18,6 +18,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/autoinstrumentation/annotation"
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
+	"github.com/DataDog/datadog-agent/pkg/ssi"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -70,6 +71,9 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 	factory := NewProviderFactory(InjectionMode(cfg.InjectionMode))
 	provider := factory.GetProviderForPod(pod, cfg)
 	annotation.Set(pod, annotation.EffectiveInjectionMode, provider.GetName())
+	if auto, ok := provider.(*AutoProvider); ok {
+		annotation.Set(pod, annotation.AutoInjectionModeReason, auto.Reason())
+	}
 
 	// Inject the APM injector
 	injectorResult := provider.InjectInjector(pod, cfg.Injector)
@@ -104,7 +108,7 @@ func InjectAPMLibraries(pod *corev1.Pod, cfg LibraryInjectionConfig) error {
 		entry := &injectedEntries[len(injectedEntries)-1]
 
 		// Validate language before injection
-		if !IsLanguageSupported(lib.Language) {
+		if !ssi.IsLanguageSupported(lib.Language) {
 			metrics.LibInjectionErrors.Inc(lib.Language, strconv.FormatBool(cfg.AutoDetected), cfg.InjectionType)
 			injectionErr = fmt.Errorf("language %s is not supported", lib.Language)
 			entry.Status = string(MutationStatusSkipped)

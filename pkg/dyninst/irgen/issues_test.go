@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package irgen_test
 
@@ -19,6 +19,33 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/rcjson"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/testprogs"
 )
+
+func TestZeroReferenceDepthDoesNotFailOtherProbes(t *testing.T) {
+	cfg := testprogs.MustGetCommonConfigs(t)[0]
+	bin := testprogs.MustGetBinary(t, "rc_tester", cfg)
+	probes := testprogs.MustGetProbeDefinitions(t, "rc_tester")
+	found := false
+	for _, probe := range probes {
+		if probe.GetID() == "http_handler" {
+			depth := 0
+			probe.(*rcjson.SnapshotProbe).Capture = &rcjson.Capture{MaxReferenceDepth: &depth}
+			found = true
+		}
+	}
+	require.True(t, found)
+	obj, err := object.OpenElfFileWithDwarf(bin)
+	require.NoError(t, err)
+	defer func() { require.NoError(t, obj.Close()) }()
+	program, err := irgen.GenerateIR(1, obj, probes)
+	require.NoError(t, err)
+	require.Empty(t, program.Issues)
+	for _, expected := range probes {
+		require.True(t, slices.ContainsFunc(program.Probes, func(probe *ir.Probe) bool {
+			return probe.ProbeDefinition.GetID() == expected.GetID()
+		}))
+	}
+	verifyIR(t, program)
+}
 
 func TestMissingProbeIssue(t *testing.T) {
 	const testProg = "simple"

@@ -305,6 +305,52 @@ func TestReceiverStatsZeroValueStatsNotPublished(t *testing.T) {
 	})
 }
 
+func TestReceiverStatsMaxTagStats(t *testing.T) {
+	// tagsFor builds a distinct tag combination per i, as requests reporting
+	// distinct Datadog-Meta-Tracer-Version values would.
+	tagsFor := func(i int) Tags {
+		return Tags{Lang: "go", TracerVersion: fmt.Sprintf("1.%d.0", i)}
+	}
+
+	t.Run("upToLimit", func(t *testing.T) {
+		rs := NewReceiverStats(false)
+		for i := 0; i < maxTagStats; i++ {
+			rs.GetTagStats(tagsFor(i))
+		}
+		assert.Equal(t, maxTagStats, len(rs.Stats))
+	})
+
+	t.Run("resetAtLimit", func(t *testing.T) {
+		rs := NewReceiverStats(false)
+		for i := 0; i < maxTagStats; i++ {
+			rs.GetTagStats(tagsFor(i))
+		}
+
+		// the combination which does not fit empties the map, so the map never
+		// holds more than maxTagStats entries however many arrive
+		ts := rs.GetTagStats(tagsFor(maxTagStats))
+		assert.Equal(t, 1, len(rs.Stats))
+		assert.Contains(t, rs.Stats, tagsFor(maxTagStats))
+
+		// the caller still gets the entry which is in the map, so its counters
+		// are published
+		ts.TracesReceived.Inc()
+		assert.EqualValues(t, 1, rs.GetTagStats(tagsFor(maxTagStats)).TracesReceived.Load())
+	})
+
+	t.Run("knownTagsNeverReachLimit", func(t *testing.T) {
+		// traffic which reports an already known tag combination does not grow
+		// the map, so a busy Agent with few tracers never resets
+		rs := NewReceiverStats(false)
+		for i := 0; i < maxTagStats*2; i++ {
+			rs.GetTagStats(tagsFor(0)).TracesReceived.Inc()
+		}
+
+		assert.Equal(t, 1, len(rs.Stats))
+		assert.EqualValues(t, maxTagStats*2, rs.GetTagStats(tagsFor(0)).TracesReceived.Load())
+	})
+}
+
 func assertStatsAreReset(t *testing.T, rs *ReceiverStats) {
 	for _, tagstats := range rs.Stats {
 		stats := tagstats.Stats

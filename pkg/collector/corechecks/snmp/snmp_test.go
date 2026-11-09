@@ -541,7 +541,7 @@ metrics:
     OID: 1.2.3.4.5.2
     name: SomeCounter64Metric
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -931,7 +931,8 @@ profiles:
       "subnet": "127.0.0.0/30",
       "serial_number": "a-serial-num",
 	  "integration": "snmp",
-	  "device_type": "load_balancer"
+	  "device_type": "load_balancer",
+	  "agent_hostname": "my-hostname"
     }
   ],
   "interfaces": [
@@ -1007,7 +1008,7 @@ collect_device_metadata: false
 ip_address: 1.2.3.4
 community_string: public
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1056,7 +1057,7 @@ network_address: 10.10.10.0/24
 community_string: abc
 namespace: nsSubnet
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 	err = check2.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test", "provider")
@@ -1315,7 +1316,7 @@ metrics:
     OID: 1.2.3
     name: myMetric
 `)
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := chk.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 
@@ -1610,7 +1611,8 @@ tags:
       "sys_object_id": "1.2.3.4",
       "subnet": "127.0.0.0/30",
 	  "integration": "snmp",
-	  "device_type": "other"
+	  "device_type": "other",
+	  "agent_hostname": "my-hostname"
     }
   ],
   "interfaces": [
@@ -1770,7 +1772,8 @@ tags:
       "status": 2,
       "subnet": "127.0.0.0/30",
 	  "integration": "snmp",
-	  "device_type": "other"
+	  "device_type": "other",
+	  "agent_hostname": "my-hostname"
     }
   ],
   "diagnoses": [
@@ -2096,7 +2099,8 @@ metric_tags:
       "name": "foo_sys_name",
       "subnet": "10.10.0.0/30",
 	  "integration": "snmp",
-	  "device_type": "other"
+	  "device_type": "other",
+	  "agent_hostname": "my-hostname"
     }
   ],
   "interfaces": [
@@ -2717,7 +2721,7 @@ namespace: namespace
 		DeviceIP: "2.2.2.2",
 	}, false).Once()
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	err := check1.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig1, []byte(``), "test", "provider")
 	assert.Nil(t, err)
 	err = check2.Configure(senderManager, integration.FakeConfigHash, rawInstanceConfig2, []byte(``), "test", "provider")

@@ -12,6 +12,6 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 )
 
-func maybeSPLite(_ sysprobeconfig.Component, _ string, _ log.Component) *spLiteExecCmd {
+func maybeSPLite(_ sysprobeconfig.Component, _ string, _ log.Component, _ spliteExecutableFunc) *spLiteExecCmd {
 	return nil
 }

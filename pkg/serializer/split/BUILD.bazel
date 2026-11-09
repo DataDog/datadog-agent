@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "split",
@@ -8,5 +9,16 @@ go_library(
     deps = [
         "//comp/serializer/metricscompression/def",
         "//pkg/serializer/marshaler",
+    ],
+)
+
+dd_agent_go_test(
+    name = "split_test",
+    srcs = ["split_test.go"],
+    embed = [":split"],
+    deps = [
+        "//comp/serializer/metricscompression/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

@@ -11,6 +11,7 @@ import (
 	"net"
 	"strconv"
 
+	"github.com/DataDog/datadog-agent/comp/host-profiler/cgroup"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/extensions/hpflareextension"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/collector/impl/params"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/version"
@@ -23,13 +24,30 @@ const (
 	infraAttributesName = "infraattributes"
 	hpflareName         = "hpflare"
 	ddprofilingName     = "ddprofiling"
+
+	maxReportIntervalSeconds   = 24 * 60 * 60
+	maxReportMaxPathsPerReport = 100_000
 )
 
 func buildReceivers(conf confMap, agent configManager) []any {
 	receivers := make(confMap)
 
 	profiling := make(confMap)
+	if agent.hostProfilerConfig.ReporterInterval != "" {
+		_ = confmaputils.Set(profiling, "reporter_interval", agent.hostProfilerConfig.ReporterInterval)
+	}
+	if agent.hostProfilerConfig.EBPFDebugLogs {
+		_ = confmaputils.Set(profiling, "verbose_mode", true)
+	}
+	if agent.hostProfilerConfig.IncludeEnvVars != "" {
+		_ = confmaputils.Set(profiling, "include_env_vars", agent.hostProfilerConfig.IncludeEnvVars)
+	}
+	_ = confmaputils.Set(profiling, "send_error_frames", agent.hostProfilerConfig.SendErrorFrames)
+	_ = confmaputils.Set(profiling, "filter_min_process_age", agent.hostProfilerConfig.FilterMinProcessAge.String())
 	_ = confmaputils.Set(profiling, "symbol_uploader::enabled", true)
+	for option, value := range agent.hostProfilerConfig.SymbolUploaderOptions {
+		_ = confmaputils.Set(profiling, "symbol_uploader::"+option, value)
+	}
 
 	symbolEndpoints := make([]any, 0, agent.endpointsTotalLength)
 	for _, endpoint := range agent.endpoints {
@@ -42,6 +60,12 @@ func buildReceivers(conf confMap, agent configManager) []any {
 	}
 
 	_ = confmaputils.Set(profiling, "symbol_uploader::symbol_endpoints", symbolEndpoints)
+	if interval := agent.hostProfilerConfig.SymbolUploaderReport.Interval; interval > 0 && interval <= maxReportIntervalSeconds {
+		_ = confmaputils.Set(profiling, "symbol_uploader::report::interval", interval)
+	}
+	if maxPaths := agent.hostProfilerConfig.SymbolUploaderReport.MaxPathsPerReport; maxPaths > 0 && maxPaths <= maxReportMaxPathsPerReport {
+		_ = confmaputils.Set(profiling, "symbol_uploader::report::max_paths_per_report", maxPaths)
+	}
 
 	receivers["profiling"] = profiling
 	conf["receivers"] = receivers
@@ -66,6 +90,7 @@ func buildExporters(conf confMap, agent configManager) []any {
 		headers["dd-api-key"] = key
 		headers["dd-evp-origin"] = version.BundledProfilerName
 		headers["dd-evp-origin-version"] = version.ProfilerVersion
+		headers["dd-otel-metric-config"] = `{"resource_attributes_as_tags": true}`
 		return confMap{
 			"endpoint":    fmt.Sprintf(endpointFormat, site),
 			"compression": "zstd",
@@ -168,6 +193,18 @@ func buildMetricsPipeline(conf confMap, enableGoRuntimeMetrics bool, healthMetri
 		metricsReceivers = append(metricsReceivers, "otlp")
 	}
 
+	if containerID, err := cgroup.GetSelfContainerID(); err == nil {
+		const containerIDProcessorName = "resource/dd-profiler-metrics-containerid"
+		processors[containerIDProcessorName] = confMap{
+			"attributes": []any{confMap{
+				"key":    version.OTelContainerIDKey,
+				"value":  containerID,
+				"action": "insert",
+			}},
+		}
+		metricsProcessors = append([]any{containerIDProcessorName}, metricsProcessors...)
+	}
+
 	metricsPipeline["receivers"] = metricsReceivers
 	metricsPipeline["processors"] = metricsProcessors
 	metricsPipeline["exporters"] = profilesExporters
@@ -196,6 +233,10 @@ func buildConfig(agent configManager, p params.CollectorParams) confMap {
 		ddprofilingConf := make(confMap)
 		if agent.hostProfilerConfig.DDProfiling.Period > 0 {
 			_ = confmaputils.Set(ddprofilingConf, "profiler_options::period", agent.hostProfilerConfig.DDProfiling.Period)
+		}
+		if agent.hostProfilerConfig.DDProfiling.Port > 0 {
+			// The ddprofiling extension expects a bare port for its "endpoint" field.
+			_ = confmaputils.Set(ddprofilingConf, "endpoint", strconv.Itoa(agent.hostProfilerConfig.DDProfiling.Port))
 		}
 		_ = confmaputils.Set(config, "extensions::"+ddprofilingName, ddprofilingConf)
 		serviceExtensions = append(serviceExtensions, ddprofilingName)

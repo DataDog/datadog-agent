@@ -21,6 +21,7 @@ import (
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/e2e/client/agentclient"
 )
 
 const (
@@ -59,6 +60,9 @@ var linuxPlatform = platformConfig{
 	checkSvcRunning:   "systemctl is-active datadog-agent-procmgr",
 	svcRunningOutput:  "active",
 	cliCmd:            func(args string) string { return linuxCLIBin + " " + args },
+	killPIDCmd: func(pid uint32) string {
+		return fmt.Sprintf("sudo kill -9 %d", pid)
+	},
 }
 
 type procmgrLinuxSuite struct {
@@ -68,6 +72,8 @@ type procmgrLinuxSuite struct {
 
 func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 	t.Parallel()
+	ddotConfig, err := embedded.GetProcmgrProcess("datadog-agent-ddot.yaml")
+	require.NoError(t, err)
 	s := &procmgrLinuxSuite{}
 	s.platform = linuxPlatform
 	e2e.Run(t, s, e2e.WithProvisioner(
@@ -75,8 +81,9 @@ func TestProcmgrSmokeLinuxSuite(t *testing.T) {
 			awshost.WithRunOptions(
 				scenec2.WithAgentOptions(
 					agentparams.WithFile(linuxConfigDir+"/test-sleep.yaml", linuxTestProcessConfig, true),
-					agentparams.WithFile(linuxConfigDir+"/datadog-agent-ddot.yaml", embedded.DDOTProcessConfig, true),
+					agentparams.WithFile(linuxConfigDir+"/datadog-agent-ddot.yaml", string(ddotConfig), true),
 					agentparams.WithFile(linuxConfigDir+"/missing-binary.yaml", linuxMissingBinaryConfig, true),
+					agentparams.WithFile(linuxConfigDir+"/datadog-agent-par-control.yaml", skippedCatalogProcessYAML("/nonexistent/par-control", "/nonexistent/par-control"), true),
 				),
 			),
 		),
@@ -142,6 +149,18 @@ func (s *procmgrLinuxSuite) installRealDDOT() bool {
 	return true
 }
 
+func (s *procmgrLinuxSuite) TestDDOTAgentServiceRunningTelemetry() {
+	s.requireDDOT()
+	s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
+
+	// The COAT reporter refreshes on its own cadence rather than per diagnose call, so the first
+	// snapshot after DDOT is up can predate agent_service_running.
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		output := s.Env().Agent.Client.Diagnose(agentclient.WithArgs([]string{"show-metadata", "agent-full-telemetry"}))
+		assertAgentServiceRunningExclusive(ct, output, "ddot", "procmgr")
+	}, 7*time.Minute, 10*time.Second)
+}
+
 func (s *procmgrLinuxSuite) TestDDOTProcessRunning() {
 	s.requireDDOT()
 
@@ -184,6 +203,44 @@ func (s *procmgrLinuxSuite) TestDDOTProcessDescribe() {
 		assertHasField(t, out, "PID")
 		assertHasField(t, out, "UUID")
 	}, 60*time.Second, 2*time.Second)
+}
+
+// TestDDOTReloadAfterYamlChange edits processes.d while DDOT is running under dd-procmgrd, runs
+// reload, and asserts the collector respawns (new PID, still Running). Covers the config-diff
+// restart path used when operators change stdout/stderr, env, args, etc.
+func (s *procmgrLinuxSuite) TestDDOTReloadAfterYamlChange() {
+	s.requireDDOT()
+
+	yamlPath := linuxConfigDir + "/datadog-agent-ddot.yaml"
+	sedRestoreDesc := "s/^description: E2E-reload-after-yaml/description: Datadog Distribution of OpenTelemetry Collector/"
+	sedApplyE2EDesc := "s/^description: Datadog Distribution of OpenTelemetry Collector/description: E2E-reload-after-yaml/"
+
+	originalPID := s.waitForRunningProcess("datadog-agent-ddot", ddotExtBinaryPath, 60*time.Second)
+
+	s.T().Cleanup(func() {
+		_, _ = s.Env().RemoteHost.Execute(`sudo sed -i '` + sedRestoreDesc + `' ` + yamlPath)
+		_, _ = s.Env().RemoteHost.Execute(s.platform.cliCmd("reload"))
+	})
+
+	s.Env().RemoteHost.MustExecute(`sudo sed -i '` + sedApplyE2EDesc + `' ` + yamlPath)
+
+	reloadOut := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("reload"))
+	assert.Contains(s.T(), reloadOut, "datadog-agent-ddot", "reload output: %s", reloadOut)
+	assert.Contains(s.T(), reloadOut, "Modified", "reload output: %s", reloadOut)
+
+	require.EventuallyWithT(s.T(), func(ct *assert.CollectT) {
+		out := s.Env().RemoteHost.MustExecuteOn(ct, s.platform.cliCmd("describe datadog-agent-ddot"))
+		assertField(ct, out, "State", "Running")
+		p := fieldValue(out, "PID")
+		if !assert.NotEmpty(ct, p) || !assert.NotEqual(ct, "-", p) {
+			return
+		}
+		assert.NotEqual(ct, originalPID, p, "DDOT should respawn with a new PID after reload")
+		s.assertProcessBinary(ct, p, ddotExtBinaryPath)
+	}, 60*time.Second, 2*time.Second)
+
+	out := s.Env().RemoteHost.MustExecute(s.platform.cliCmd("describe datadog-agent-ddot"))
+	assertField(s.T(), out, "Description", "E2E-reload-after-yaml")
 }
 
 // ---------------------------------------------------------------------------

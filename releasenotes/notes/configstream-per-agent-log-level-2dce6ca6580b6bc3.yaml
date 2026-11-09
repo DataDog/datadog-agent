@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    Added four new configuration settings that override the global ``log_level``
+    for a single Agent process: ``security_agent.log_level``
+    (``DD_SECURITY_AGENT_LOG_LEVEL``), ``process_config.log_level``
+    (``DD_PROCESS_CONFIG_LOG_LEVEL``, ``DD_PROCESS_AGENT_LOG_LEVEL``),
+    ``apm_config.log_level`` (``DD_APM_LOG_LEVEL``) and ``system_probe.log_level``
+    (``DD_SYSTEM_PROBE_LOG_LEVEL``). They default to an empty string, meaning no
+    override. These per-Agent keys allow a distinct log level to be kept for each
+    Agent process when configuration streaming makes the core Agent the source of
+    truth for configuration. Because the core Agent streams them, each Agent's log
+    level also becomes reconfigurable at runtime.

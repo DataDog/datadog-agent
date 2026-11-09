@@ -259,11 +259,7 @@ class GithubAPI:
         """
         pr = self._repository.get_pull(int(pull_number))
         for file in pr.get_files():
-            if (
-                file.filename.startswith("releasenotes/notes/")
-                or file.filename.startswith("releasenotes-dca/notes/")
-                or file.filename.startswith("releasenotes-installscript/notes")
-            ):
+            if file.filename.startswith("releasenotes/notes/") or file.filename.startswith("releasenotes-dca/notes/"):
                 return True
         return False
 
@@ -297,65 +293,6 @@ class GithubAPI:
         if pattern is None or len(pattern) == 0:
             return list(tags)
         return [t for t in tags if t.name.startswith(pattern)]
-
-    def trigger_workflow(self, workflow_name, ref, inputs=None):
-        """
-        Create a pipeline targeting a given reference of a project.
-        ref must be a branch or a tag.
-        """
-        workflow = self._repository.get_workflow(workflow_name)
-        if workflow is None:
-            return False
-        if inputs is None:
-            inputs = {}
-        return workflow.create_dispatch(ref, inputs)
-
-    def workflow_run(self, run_id):
-        """
-        Gets info on a specific workflow.
-        """
-        return self._repository.get_workflow_run(run_id)
-
-    def download_artifact(self, artifact, destination_dir):
-        """
-        Downloads the artifact identified by artifact_id to destination_dir.
-        """
-        url = artifact.archive_download_url
-
-        return self.download_from_url(url, destination_dir, destination_file=artifact.id)
-
-    def download_from_url(self, url, destination_dir, destination_file):
-        import requests
-
-        headers = {
-            "Authorization": f'{self._auth.token_type} {self._auth.token}',
-            "Accept": "application/vnd.github.v3+json",
-        }
-        # Retrying this request if needed is handled by the caller
-        with requests.get(url, headers=headers, stream=True, timeout=10) as r:
-            r.raise_for_status()
-            zip_target_path = os.path.join(destination_dir, f"{destination_file}.zip")
-            with open(zip_target_path, "wb") as f:
-                for chunk in r.iter_content(chunk_size=8192):
-                    f.write(chunk)
-        return zip_target_path
-
-    def download_logs(self, run_id, destination_dir):
-        run = self._repository.get_workflow_run(run_id)
-        logs_url = run.logs_url
-        _, headers, _ = run._requester.requestJson("GET", logs_url)
-
-        return self.download_from_url(headers["location"], destination_dir, run.id)
-
-    def workflow_run_for_ref_after_date(self, workflow_name, ref, oldest_date):
-        """
-        Gets all the workflow triggered after a given date
-        """
-        workflow = self._repository.get_workflow(workflow_name)
-        runs = workflow.get_runs(branch=ref)
-        recent_runs = [run for run in runs if run.created_at > oldest_date]
-
-        return sorted(recent_runs, key=lambda run: run.created_at, reverse=True)
 
     def latest_release(self, major_version=7) -> str:
         if major_version == 6:
@@ -433,6 +370,18 @@ class GithubAPI:
 
         return [label.name for label in pr.get_labels()]
 
+    def get_pr_label_author(self, pr_id: int, label: str) -> str | None:
+        """
+        Returns the login of the last actor who added the label to the pull request
+        """
+        pr = self.get_pr(pr_id)
+        author = None
+        for event in pr.as_issue().get_events():
+            if event.event == "labeled" and event.label and event.label.name == label:
+                author = event.actor.login if event.actor else None
+
+        return author
+
     def update_review_complexity_labels(self, pr_id: int, new_label: str) -> None:
         """
         Updates the review complexity label of a pull request
@@ -457,6 +406,19 @@ class GithubAPI:
 
         return [f.filename for f in pr.get_files()]
 
+    def get_pr_files_with_previous_names(self, pr_id: int) -> list[str]:
+        """
+        Returns the files involved in the PR, including the previous path of renamed files
+        """
+        pr = self.get_pr(pr_id)
+        files = []
+        for f in pr.get_files():
+            files.append(f.filename)
+            if f.previous_filename:
+                files.append(f.previous_filename)
+
+        return files
+
     def get_team_members(self, team_slug: str) -> Iterable[NamedUser]:
         """
         Get the members of a team.
@@ -478,6 +440,23 @@ class GithubAPI:
         By default this is not scoped to the repository, it is a global Github search.
         """
         return self._github.search_issues(query)
+
+    def create_branch(self, branch_name: str, sha: str, reset: bool = False):
+        """
+        Create a branch pointing at the given commit.
+        With reset, an existing branch without an open PR is moved to the commit instead, for
+        example a branch left by a failed run or by a PR closed without merge.
+        """
+        try:
+            return self._repository.create_git_ref(ref=f"refs/heads/{branch_name}", sha=sha)
+        except GithubException as e:
+            if not reset or e.status != 422:
+                raise
+        if self.get_pr_for_branch(branch_name).totalCount > 0:
+            raise Exit(f"Branch {branch_name} already exists with an open PR", code=1)
+        ref = self._repository.get_git_ref(f"heads/{branch_name}")
+        ref.edit(sha=sha, force=True)
+        return ref
 
     def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
         # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
@@ -628,10 +607,12 @@ class GithubAPI:
         return None
 
 
-def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
+def create_datadog_agent_pr(
+    title, base_branch, target_branch, milestone_name, other_labels=None, body="", repository=GITHUB_REPO_NAME
+):
     print(color_message("Creating PR", "bold"))
 
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
+    github = GithubAPI(repository=repository)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -686,7 +667,9 @@ Make sure that milestone is open before trying again.""",
     return updated_pr.html_url
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+def create_release_pr(
+    title, base_branch, target_branch, version, changelog_pr=False, milestone=None, repository=GITHUB_REPO_NAME
+):
     if milestone:
         milestone_name = milestone
     else:
@@ -700,7 +683,7 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")
 
-    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
+    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels, repository=repository)
 
 
 def generate_local_github_token(ctx):
@@ -736,20 +719,22 @@ def get_pr_size(pr) -> str:
     # - hard PRs are merged in more than 1 week
     # More details: https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4271079846/Code+Review+Experience+Improvement#Complexity-label
     _SIZE_CRITERIA = {
-        'easy': {'files': 4, 'lines': 150, 'comments': 2},
+        'easy': {'files': 4, 'lines': 150, 'comments': 3},
         'hard': {'files': 12, 'lines': 650, 'comments': 9},
     }
-
+    human_review_comments = sum(
+        1 for comment in pr.get_review_comments() if comment.user is not None and "[bot]" not in comment.user.login
+    )
     if (
         pr.changed_files < _SIZE_CRITERIA['easy']['files']
         and pr.additions + pr.deletions < _SIZE_CRITERIA['easy']['lines']
-        and pr.review_comments < _SIZE_CRITERIA['easy']['comments']
+        and human_review_comments < _SIZE_CRITERIA['easy']['comments']
     ):
         return 'small'
     if (
         pr.changed_files > _SIZE_CRITERIA['hard']['files']
         or pr.additions + pr.deletions > _SIZE_CRITERIA['hard']['lines']
-        or pr.review_comments > _SIZE_CRITERIA['hard']['comments']
+        or human_review_comments > _SIZE_CRITERIA['hard']['comments']
     ):
         return 'large'
     return 'medium'

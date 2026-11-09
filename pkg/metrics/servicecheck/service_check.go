@@ -16,8 +16,6 @@ import (
 )
 
 // ServiceCheckStatus represents the status associated with a service check
-//
-//nolint:revive // TODO(AML) Fix revive linter
 type ServiceCheckStatus int
 
 // Enumeration of the existing service check statuses, and their values

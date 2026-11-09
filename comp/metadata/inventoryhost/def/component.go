@@ -6,7 +6,7 @@
 // Package inventoryhost exposes the interface for the component to generate the 'host_metadata' metadata payload for inventory.
 package inventoryhost
 
-// team: agent-configuration
+// team: fleet-automation
 
 // Component is the component type.
 type Component interface {

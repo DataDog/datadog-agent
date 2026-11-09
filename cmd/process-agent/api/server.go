@@ -10,6 +10,7 @@ import (
 
 	"go.uber.org/fx"
 
+	"github.com/DataDog/datadog-agent/comp/api/api/apiimpl/observability"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
@@ -41,23 +42,26 @@ func injectDeps(deps APIServerDeps, handler func(APIServerDeps, http.ResponseWri
 
 //nolint:revive // TODO(PROC) Fix revive linter
 func SetupAPIServerHandlers(deps APIServerDeps, r *http.ServeMux) {
-	r.HandleFunc("GET /config", deps.Settings.GetFullConfig("process_config"))
-	r.HandleFunc("GET /config/without-defaults", deps.Settings.GetFullConfigWithoutDefaults("process_config"))
-	r.HandleFunc("GET /config/all", deps.Settings.GetFullConfig("")) // Get all fields from process-agent Config object
-	r.HandleFunc("GET /config/list-runtime", deps.Settings.ListConfigurable)
-	r.HandleFunc("GET /config/{setting}", deps.Settings.GetValue)
-	r.HandleFunc("POST /config/{setting}", deps.Settings.SetValue)
+	// Routes are registered through observability.WrapWithRouteTemplate so the
+	// api_server request telemetry reports the route template in the path tag
+	// rather than "unknown".
+	observability.WrapWithRouteTemplate(r, "GET", "/config", http.HandlerFunc(deps.Settings.GetFullConfig("process_config")))
+	observability.WrapWithRouteTemplate(r, "GET", "/config/without-defaults", http.HandlerFunc(deps.Settings.GetFullConfigWithoutDefaults("process_config")))
+	observability.WrapWithRouteTemplate(r, "GET", "/config/all", http.HandlerFunc(deps.Settings.GetFullConfig(""))) // Get all fields from process-agent Config object
+	observability.WrapWithRouteTemplate(r, "GET", "/config/list-runtime", http.HandlerFunc(deps.Settings.ListConfigurable))
+	observability.WrapWithRouteTemplate(r, "GET", "/config/{setting}", http.HandlerFunc(deps.Settings.GetValue))
+	observability.WrapWithRouteTemplate(r, "POST", "/config/{setting}", http.HandlerFunc(deps.Settings.SetValue))
 
-	r.HandleFunc("GET /agent/status", injectDeps(deps, statusHandler))
-	r.HandleFunc("GET /agent/tagger-list", injectDeps(deps, getTaggerList))
-	r.HandleFunc("GET /agent/workload-list/short", func(w http.ResponseWriter, _ *http.Request) {
+	observability.WrapWithRouteTemplate(r, "GET", "/agent/status", injectDeps(deps, statusHandler))
+	observability.WrapWithRouteTemplate(r, "GET", "/agent/tagger-list", injectDeps(deps, getTaggerList))
+	observability.WrapWithRouteTemplate(r, "GET", "/agent/workload-list/short", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		workloadList(w, false, deps.WorkloadMeta)
-	})
-	r.HandleFunc("GET /agent/workload-list/verbose", func(w http.ResponseWriter, _ *http.Request) {
+	}))
+	observability.WrapWithRouteTemplate(r, "GET", "/agent/workload-list/verbose", http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		workloadList(w, true, deps.WorkloadMeta)
-	})
-	r.HandleFunc("GET /check/{check}", checkHandler)
-	r.HandleFunc("GET /secret/refresh", injectDeps(deps, secretRefreshHandler))
+	}))
+	observability.WrapWithRouteTemplate(r, "GET", "/check/{check}", http.HandlerFunc(checkHandler))
+	observability.WrapWithRouteTemplate(r, "GET", "/secret/refresh", injectDeps(deps, secretRefreshHandler))
 	// Special handler to compute running agent Code coverage
 	coverage.SetupCoverageHandler(r)
 }

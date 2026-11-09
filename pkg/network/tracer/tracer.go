@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package tracer
 
@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	stdatomic "sync/atomic"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
@@ -22,6 +23,7 @@ import (
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode/runtime"
 	ebpftelemetry "github.com/DataDog/datadog-agent/pkg/ebpf/telemetry"
@@ -100,6 +102,7 @@ type Tracer struct {
 
 	processCache   *processCache
 	containerStore *containers.ContainerStore
+	netnsResolver  stdatomic.Pointer[netnsContainerResolver]
 
 	timeResolver *ktime.Resolver
 
@@ -170,13 +173,13 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	if err != nil {
 		return nil, err
 	}
-	telemetryimpl.GetCompatComponent().RegisterCollector(tr.ebpfTracer)
+	telemetryComponent.RegisterCollector(tr.ebpfTracer)
 
 	tr.conntracker, err = newConntracker(cfg, telemetryComponent)
 	if err != nil {
 		return nil, err
 	}
-	telemetryimpl.GetCompatComponent().RegisterCollector(tr.conntracker)
+	telemetryComponent.RegisterCollector(tr.conntracker)
 
 	if cfg.EnableGatewayLookup {
 		tr.gwLookup = network.NewGatewayLookup(cfg.GetRootNetNs, cfg.MaxTrackedConnections, telemetryComponent)
@@ -208,7 +211,7 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 		if tr.processCache, err = newProcessCache(cfg.MaxProcessesTracked); err != nil {
 			return nil, fmt.Errorf("could not create process cache; %w", err)
 		}
-		telemetryimpl.GetCompatComponent().RegisterCollector(tr.processCache)
+		telemetryComponent.RegisterCollector(tr.processCache)
 
 		if tr.timeResolver, err = ktime.NewResolver(); err != nil {
 			return nil, fmt.Errorf("could not create time resolver: %w", err)
@@ -362,6 +365,7 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	}
 
 	c.ContainerID.Source, c.ContainerID.Dest = nil, nil
+	c.NetNSOriginalContainerID = nil
 
 	ts := t.timeResolver.ResolveMonotonicTimestamp(c.LastUpdateEpoch)
 	p, ok := t.processCache.Get(c.Pid, ts.UnixNano())
@@ -381,6 +385,35 @@ func (t *Tracer) addProcessInfo(c *network.ConnectionStats) {
 	if p.ContainerID != nil {
 		c.ContainerID.Source = p.ContainerID
 	}
+
+	if r := t.netnsResolver.Load(); r != nil && r.onTunnel(c.SPort, c.DPort) {
+		if cid, ok := r.resolve(c.NetNS, c.ContainerID.Source); ok {
+			c.NetNSOriginalContainerID = c.ContainerID.Source
+			c.ContainerID.Source = cid
+			// the process tags (service, env, version) describe the proxy, not the pod
+			c.Tags = nil
+		}
+	}
+}
+
+// EnableNetNSContainerAttribution attributes sockets that an allowlisted proxy creates inside another
+// container's network namespace to that container. It has no effect without process event monitoring.
+func (t *Tracer) EnableNetNSContainerAttribution(ctx context.Context, wmeta workloadmeta.Component) error {
+	if !t.config.EnableNetNSContainerAttribution {
+		return nil
+	}
+	if t.processCache == nil {
+		log.Warn("not enabling network namespace container attribution, because it depends on process event monitoring which is disabled")
+		return nil
+	}
+	r, err := newNetNSContainerResolver(t.config.NetNSContainerAttributionOwnerImages, t.config.NetNSContainerAttributionIgnoredContainers, t.config.NetNSContainerAttributionPorts)
+	if err != nil {
+		return fmt.Errorf("could not create network namespace container resolver: %w", err)
+	}
+	r.start(ctx, wmeta)
+	t.netnsResolver.Store(r)
+	log.Infof("network namespace container attribution enabled for owner images %v on ports %v", t.config.NetNSContainerAttributionOwnerImages, t.config.NetNSContainerAttributionPorts)
+	return nil
 }
 
 // Pause bypasses the eBPF programs
@@ -405,6 +438,10 @@ func (t *Tracer) Resume() error {
 	return nil
 }
 
+// PrepareStop does nothing here. Only the Windows tracer has a collection path
+// that shutdown can be left waiting on; see the Windows implementation.
+func (t *Tracer) PrepareStop() {}
+
 // Stop stops the tracer
 func (t *Tracer) Stop() {
 	if t.reverseDNS != nil {
@@ -412,7 +449,7 @@ func (t *Tracer) Stop() {
 	}
 	if t.ebpfTracer != nil {
 		t.ebpfTracer.Stop()
-		telemetryimpl.GetCompatComponent().UnregisterCollector(t.ebpfTracer)
+		t.telemetryComp.UnregisterCollector(t.ebpfTracer)
 	}
 	if t.usmMonitor != nil {
 		t.usmMonitor.Stop()
@@ -422,12 +459,12 @@ func (t *Tracer) Stop() {
 	}
 	if t.conntracker != nil {
 		t.conntracker.Close()
-		telemetryimpl.GetCompatComponent().UnregisterCollector(t.conntracker)
+		t.telemetryComp.UnregisterCollector(t.conntracker)
 	}
 	if t.processCache != nil {
 		events.UnregisterHandler(t.processCache)
 		t.processCache.Stop()
-		telemetryimpl.GetCompatComponent().UnregisterCollector(t.processCache)
+		t.telemetryComp.UnregisterCollector(t.processCache)
 	}
 	if t.containerStore != nil {
 		events.UnregisterHandler(t.containerStore)
@@ -491,6 +528,11 @@ func (t *Tracer) GetActiveConnections(clientID string) (*network.Connections, fu
 // RegisterClient registers a clientID with the tracer
 func (t *Tracer) RegisterClient(clientID string) error {
 	t.state.RegisterClient(clientID)
+	return nil
+}
+
+// GetProcessCacheTags is not implemented on Linux
+func (t *Tracer) GetProcessCacheTags() map[uint32][]string {
 	return nil
 }
 

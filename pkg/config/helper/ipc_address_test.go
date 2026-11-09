@@ -1,0 +1,103 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package helper
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+)
+
+const (
+	localhostStr = "localhost"
+	localhostV4  = "127.0.0.1"
+	localhostV6  = "::1"
+)
+
+func TestGetIPCAddress(t *testing.T) {
+	t.Run("default value", func(t *testing.T) {
+		cfg := getConfig(t)
+		val, err := GetIPCAddress(cfg)
+		require.NoError(t, err)
+		require.Equal(t, localhostStr, val)
+	})
+
+	t.Run("ipc_address from file", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("ipc_address", localhostV4, model.SourceFile)
+		val, err := GetIPCAddress(cfg)
+		require.NoError(t, err)
+		require.Equal(t, localhostV4, val)
+	})
+
+	t.Run("ipc_address from env", func(t *testing.T) {
+		cfg := getConfig(t)
+		t.Setenv("DD_IPC_ADDRESS", localhostV4)
+		val, err := GetIPCAddress(cfg)
+		require.NoError(t, err)
+		require.Equal(t, localhostV4, val)
+	})
+
+	t.Run("ipc_address takes precedence over cmd_host", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("ipc_address", localhostV4, model.SourceFile)
+		cfg.Set("cmd_host", localhostV6, model.SourceFile)
+		val, err := GetIPCAddress(cfg)
+		require.NoError(t, err)
+		require.Equal(t, localhostV4, val)
+	})
+
+	t.Run("ipc_address takes precedence over cmd_host", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("cmd_host", localhostV6, model.SourceFile)
+		val, err := GetIPCAddress(cfg)
+		require.NoError(t, err)
+		require.Equal(t, localhostV6, val)
+	})
+
+	t.Run("error if not local", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("cmd_host", "111.111.111.111", model.SourceFile)
+		_, err := GetIPCAddress(cfg)
+		require.Error(t, err)
+	})
+}
+
+func TestAPMDebugHost(t *testing.T) {
+	t.Run("localhost", func(t *testing.T) {
+		require.Equal(t, localhostV4, APMDebugHost(getConfig(t)))
+	})
+
+	t.Run("ipv6", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("cmd_host", localhostV6, model.SourceFile)
+		require.Equal(t, localhostV6, APMDebugHost(cfg))
+	})
+
+	t.Run("other ipv4 loopback falls back", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("cmd_host", "127.0.0.2", model.SourceFile)
+		require.Equal(t, localhostV4, APMDebugHost(cfg))
+	})
+
+	t.Run("not local falls back", func(t *testing.T) {
+		cfg := getConfig(t)
+		cfg.Set("cmd_host", "111.111.111.111", model.SourceFile)
+		require.Equal(t, localhostV4, APMDebugHost(cfg))
+	})
+}
+
+func getConfig(_ *testing.T) model.Config {
+	cfg := nodetreemodel.NewNodeTreeConfig("datadog", model.CoreSchema) // nolint: forbidigo // legit use case
+	cfg.SetTestOnlyDynamicSchema(true)
+	cfg.BindEnvAndSetDefault("ipc_address", "localhost")
+	cfg.BindEnvAndSetDefault("cmd_host", localhostStr)
+	cfg.BuildSchema()
+	return cfg
+}

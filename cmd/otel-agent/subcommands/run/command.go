@@ -10,8 +10,10 @@ package run
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
+	"time"
 
 	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"go.opentelemetry.io/collector/confmap"
@@ -24,7 +26,6 @@ import (
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	delegatedauthnoopfx "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameimpl"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -35,6 +36,7 @@ import (
 	pid "github.com/DataDog/datadog-agent/comp/core/pid/def"
 	pidfx "github.com/DataDog/datadog-agent/comp/core/pid/fx"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -50,6 +52,7 @@ import (
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/fx"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/comp/forwarder/orchestrator/orchestratorinterface"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	hostfx "github.com/DataDog/datadog-agent/comp/metadata/host/fx"
@@ -68,19 +71,21 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompression "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/def"
-	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx-otel"
+	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	traceagentfx "github.com/DataDog/datadog-agent/comp/trace/agent/fx"
 	traceagentcomp "github.com/DataDog/datadog-agent/comp/trace/agent/impl"
-	gzipfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-gzip"
+	zstdfx "github.com/DataDog/datadog-agent/comp/trace/compression/fx-zstd"
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfigimpl "github.com/DataDog/datadog-agent/comp/trace/config/impl"
 	payloadmodifierfx "github.com/DataDog/datadog-agent/comp/trace/payload-modifier/fx"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	utilhttp "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 
 	"go.uber.org/fx"
@@ -129,7 +134,7 @@ func runOTelAgentCommand(ctx context.Context, params *cliParams, opts ...fx.Opti
 
 	uris := buildConfigURIs(params)
 
-	if err == agentConfig.ErrNoDDExporter {
+	if err == agentConfig.ErrNoDDExporter && !acfg.GetBool("otel_standalone") {
 		return fxutil.Run(
 			fx.Supply(uris),
 			fx.Provide(func() coreconfig.Component {
@@ -237,7 +242,21 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 
 		pidfx.Module(),
 		fx.Supply(pidimpl.NewParams(params.pidfilePath)),
-		fx.Provide(func(c defaultforwarder.Component) (defaultforwarder.Forwarder, error) {
+		fx.Provide(func(c defaultforwarder.Component, cfg coreconfig.Component, l log.Component, sec secrets.Component) (defaultforwarder.Forwarder, error) {
+			if serializerexporter.IsSyncForwarderEnabled() {
+				eds, err := configutils.GetMultipleEndpoints(cfg)
+				if err != nil {
+					return nil, fmt.Errorf("building sync forwarder endpoints: %w", err)
+				}
+				timeout := time.Duration(cfg.GetInt("forwarder_timeout")) * time.Second
+				if timeout == 0 {
+					timeout = serializerexporter.LegacyForwarderTimeout
+				}
+				return defaultforwarderimpl.NewOTelSyncForwarder(cfg, l, sec, eds, &http.Client{
+					Timeout:   timeout,
+					Transport: utilhttp.CreateHTTPTransport(cfg),
+				})
+			}
 			return defaultforwarder.Forwarder(c), nil
 		}),
 		fx.Provide(newOrchestratorinterfaceimpl),
@@ -248,23 +267,10 @@ func commonAgentFxOptions(ctx context.Context, params *cliParams, acfg coreconfi
 		fx.Provide(func(cfg traceconfigdef.Component) telemetry.TelemetryCollector {
 			return telemetry.NewCollector(cfg.Object())
 		}),
-		gzipfx.Module(),
+		zstdfx.Module(),
 		// ctx is required to be supplied from here, as Windows needs to inject its own context
 		// to allow the agent to work as a service.
 		fx.Provide(func() context.Context { return ctx }), // fx.Supply(ctx) fails with a missing type error.
-		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
-		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, _ configsync.Component) (traceconfigdef.Component, error) {
-			// TODO: this would be much better if we could leverage traceconfig.Module
-			//       Must add a new parameter to traceconfig.Module to handle this.
-			provides, err := traceconfigimpl.NewComponent(traceconfigimpl.Requires{
-				Params: params,
-				Config: cfg,
-				Tagger: taggerComp,
-				IPC:    ipcComp,
-			})
-			return provides.Comp, err
-		}),
 		fx.Supply(traceconfigdef.Params{FailIfAPIKeyMissing: false}),
 		fx.Supply(&traceagentcomp.Params{
 			CPUProfile:               "",
@@ -291,9 +297,21 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 		// Real secrets backend so ENC[] handles in OTel/DD config are resolved locally
 		secretsfx.Module(),
 		// Resolve hostname locally; no core agent to ask
-		hostnameimpl.Module(),
+		fx.Provide(newStandaloneHostname),
+		// Trace config using the locally resolved hostname, since the trace config can't
+		// get it from a core agent.
+		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
+		//       to avoid this sort of dependency tree hack.
+		fx.Provide(func(ctx context.Context, params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, h hostnameinterface.Component, _ configsync.Component) (traceconfigdef.Component, error) {
+			if err := setStandaloneTraceHostname(ctx, cfg, h); err != nil {
+				return nil, err
+			}
+			return newTraceConfig(params, cfg, taggerComp, ipcComp)
+		}),
 		// No on-init config sync (no core agent to sync from); periodic sync is also
-		// effectively disabled by the default agent_ipc.config_refresh_interval=0
+		// force-disabled in agent_config.go (agent_ipc.config_refresh_interval=0 via
+		// SourceAgentRuntime) so it can't be re-enabled by an env var meant for a
+		// colocated core agent.
 		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, false, params.SyncOnInitTimeout)),
 		// Local workloadmeta-backed tagger so the infraattributes processor can enrich
 		// spans with K8s tags (pod, namespace, deployment, ...) without a core agent
@@ -310,11 +328,30 @@ func connectedAgentFxOptions(params *cliParams) fx.Option {
 		secretsnoopfx.Module(),
 		// Ask core agent for hostname first, fall back to local resolution
 		remotehostnameimpl.Module(),
+		// Trace config getting its hostname from the core agent
+		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
+		//       to avoid this sort of dependency tree hack.
+		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, _ configsync.Component) (traceconfigdef.Component, error) {
+			return newTraceConfig(params, cfg, taggerComp, ipcComp)
+		}),
 		// Sync config from core agent on init and periodically
 		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
 		// Remote tagger proxying tag lookups to core agent
 		remoteTaggerFx.Module(tagger.OptionalRemoteParams{Disable: isCmdPortNegative}, tagger.NewRemoteParams()),
 	)
+}
+
+// newTraceConfig creates the trace config component.
+// TODO: this would be much better if we could leverage traceconfig.Module, which
+// needs a new parameter to handle this.
+func newTraceConfig(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component) (traceconfigdef.Component, error) {
+	provides, err := traceconfigimpl.NewComponent(traceconfigimpl.Requires{
+		Params: params,
+		Config: cfg,
+		Tagger: taggerComp,
+		IPC:    ipcComp,
+	})
+	return provides.Comp, err
 }
 
 // ForwarderBundle returns the fx.Option for the forwarder bundle.
@@ -334,8 +371,10 @@ func buildConfigURIs(params *cliParams) []string {
 	// Apply overrides
 	uris := append([]string{}, params.ConfPaths...)
 
-	// Add fleet policy config if DD_FLEET_POLICIES_DIR is set
-	if fleetPoliciesDir := os.Getenv("DD_FLEET_POLICIES_DIR"); fleetPoliciesDir != "" {
+	// Add fleet policy config when a fleet policies directory is configured.
+	// On Windows, managed procmgr children omit DD_FLEET_POLICIES_DIR from processes.d and
+	// resolve the directory via registry with a stable managed-path fallback (see paths.FleetPoliciesDirForManagedProcess).
+	if fleetPoliciesDir := resolveFleetPoliciesDir(); fleetPoliciesDir != "" {
 		resolvedFleetPoliciesDir, err := filepath.EvalSymlinks(fleetPoliciesDir)
 		if err != nil {
 			if os.IsNotExist(err) {
@@ -372,4 +411,13 @@ func buildConfigURIs(params *cliParams) []string {
 	uris = append(uris, params.Sets...)
 
 	return uris
+}
+
+// resolveFleetPoliciesDir returns DD_FLEET_POLICIES_DIR when set, otherwise a
+// platform-specific fleet policies directory (registry or stable managed dir on Windows).
+func resolveFleetPoliciesDir() string {
+	if v := os.Getenv("DD_FLEET_POLICIES_DIR"); v != "" {
+		return v
+	}
+	return fleetPoliciesDirFromPlatform()
 }

@@ -21,6 +21,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 
 	datadoghqcommon "github.com/DataDog/datadog-operator/api/datadoghq/common"
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha2"
@@ -936,32 +937,298 @@ func TestContainerResourcesForStatus(t *testing.T) {
 	}
 }
 
-// TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata verifies that, for local-owner DPAs,
-// UpdateFromPodAutoscaler picks up changes to the watched labels/annotations even when
-// .metadata.generation is unchanged (e.g. an annotation-only edit to PreviewAnnotationKey).
-func TestUpdateFromPodAutoscalerResyncsOnWatchedMetadata(t *testing.T) {
-	dpa := &datadoghq.DatadogPodAutoscaler{
-		ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default", Generation: 1},
-		Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+func TestContainerResourcesForStatus_WithRuntimeValues(t *testing.T) {
+	t.Run("runtime values are included in status output", func(t *testing.T) {
+		v := &VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+					Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+				},
+			},
+		}
+		got := v.ContainerResourcesForStatus()
+		require.Len(t, got, 1)
+		require.NotNil(t, got[0].Runtime)
+		assert.Equal(t, "256MiB", got[0].Runtime.Gomemlimit)
+	})
+
+	t.Run("container without runtime has no Runtime field in output", func(t *testing.T) {
+		v := &VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{
+					Name:     "app",
+					Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")},
+					Runtime:  &datadoghqcommon.DatadogPodAutoscalerContainerRuntimeValues{Gomemlimit: "256MiB"},
+				},
+				{Name: "sidecar", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("128Mi")}},
+			},
+		}
+		got := v.ContainerResourcesForStatus()
+		require.Len(t, got, 2)
+		require.NotNil(t, got[0].Runtime, "app must have Runtime set")
+		assert.Equal(t, "256MiB", got[0].Runtime.Gomemlimit)
+		assert.Nil(t, got[1].Runtime, "sidecar must not have Runtime set")
+	})
+
+	t.Run("no Runtime field produces nil Runtime in output", func(t *testing.T) {
+		v := &VerticalScalingValues{
+			ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+				{Name: "app", Requests: corev1.ResourceList{corev1.ResourceMemory: resource.MustParse("256Mi")}},
+			},
+		}
+		got := v.ContainerResourcesForStatus()
+		require.Len(t, got, 1)
+		assert.Nil(t, got[0].Runtime)
+	})
+}
+
+func TestUpdateFromPodAutoscaler(t *testing.T) {
+	t.Run("annotation change", func(t *testing.T) {
+		dpa := &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default", Generation: 1},
+			Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+		}
+
+		pai := NewPodAutoscalerInternal(dpa)
+		assert.False(t, pai.IsBurstable())
+
+		// Annotation-only edit (no generation bump): must be picked up immediately.
+		dpa.Annotations = map[string]string{PreviewAnnotationKey: `{"burstable":true}`}
+		pai.UpdateFromPodAutoscaler(dpa)
+		assert.True(t, pai.IsBurstable(), "annotation-only edit must be picked up")
+
+		// A tags annotation-only edit (no generation bump) must refresh the cached upstream CR.
+		dpa.Annotations["ad.datadoghq.com/tags"] = `{"team":"foo"}`
+		pai.UpdateFromPodAutoscaler(dpa)
+		assert.Equal(t, `{"team":"foo"}`, pai.UpstreamCR().Annotations["ad.datadoghq.com/tags"])
+	})
+
+	t.Run("status change", func(t *testing.T) {
+		dpa := &datadoghq.DatadogPodAutoscaler{
+			ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default", Generation: 1},
+			Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+			Status: datadoghqcommon.DatadogPodAutoscalerStatus{
+				Horizontal: &datadoghqcommon.DatadogPodAutoscalerHorizontalStatus{
+					Target: &datadoghqcommon.DatadogPodAutoscalerHorizontalRecommendation{Replicas: 3},
+				},
+			},
+		}
+
+		pai := NewPodAutoscalerInternal(dpa)
+		assert.Equal(t, int32(3), pai.UpstreamCR().Status.Horizontal.Target.Replicas)
+
+		// Status-only update (generation unchanged): upstreamCR must reflect the new status.
+		dpa.Status.Horizontal.Target.Replicas = 7
+		pai.UpdateFromPodAutoscaler(dpa)
+		assert.Equal(t, int32(7), pai.UpstreamCR().Status.Horizontal.Target.Replicas, "status-only update must be picked up")
+	})
+}
+
+func TestUpdateFromOpsAnnotations(t *testing.T) {
+	tests := []struct {
+		name                   string
+		annotations            map[string]string
+		expectedPaused         bool
+		expectedFallbackForced bool
+	}{
+		{
+			name:        "no annotations",
+			annotations: nil,
+		},
+		{
+			name:                   "both enabled",
+			annotations:            map[string]string{PauseAnnotationKey: "true", ForceFallbackAnnotationKey: "true"},
+			expectedPaused:         true,
+			expectedFallbackForced: true,
+		},
+		{
+			// "false" means "do not force", which is the same as not setting the annotation.
+			// It must not be read as "disable the fallback", which remains a spec field.
+			name:        "explicit false is equivalent to absent",
+			annotations: map[string]string{PauseAnnotationKey: "false", ForceFallbackAnnotationKey: "false"},
+		},
+		{
+			// A typo must not be able to freeze autoscaling on a workload indefinitely,
+			// so an unparseable value is ignored exactly like an absent one.
+			name:        "unparseable values are treated as not set",
+			annotations: map[string]string{PauseAnnotationKey: "yes-please", ForceFallbackAnnotationKey: "sure"},
+		},
+		{
+			name:           "boolean spellings accepted by strconv",
+			annotations:    map[string]string{PauseAnnotationKey: "1"},
+			expectedPaused: true,
+		},
 	}
 
-	pai := NewPodAutoscalerInternal(dpa)
-	assert.False(t, pai.IsBurstable())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := PodAutoscalerInternal{}
+			pai.UpdateFromOpsAnnotations(tt.annotations)
 
-	// Annotation-only edit: same generation, new preview annotation.
-	dpa.Annotations = map[string]string{PreviewAnnotationKey: `{"burstable":true}`}
-	pai.UpdateFromPodAutoscaler(dpa)
-	assert.True(t, pai.IsBurstable(), "annotation-only edit must be picked up")
+			assert.Equal(t, tt.expectedPaused, pai.IsPaused())
+			assert.Equal(t, tt.expectedFallbackForced, pai.IsFallbackForced())
+		})
+	}
+}
 
-	// Calling again with the same object is a no-op (gate kicks in).
-	previousHash := pai.metadataHash
-	pai.UpdateFromPodAutoscaler(dpa)
-	assert.Equal(t, previousHash, pai.metadataHash)
+func TestUpdateFromOpsAnnotationsForceReplicas(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		expected *int32
+	}{
+		{name: "positive integer", value: "28", expected: pointer.Ptr[int32](28)},
+		{name: "one", value: "1", expected: pointer.Ptr[int32](1)},
+		// Scaling to zero is not something the autoscaler does, so "0" is a mistake rather
+		// than a way to stop a workload.
+		{name: "zero is invalid", value: "0"},
+		{name: "negative is invalid", value: "-3"},
+		{name: "non-numeric is invalid", value: "lots"},
+		{name: "float is invalid", value: "2.5"},
+		{name: "empty is unset", value: ""},
+	}
 
-	// An unrelated annotation change does not retrigger the parse but is harmless.
-	dpa.Annotations["unrelated"] = "x"
-	pai.UpdateFromPodAutoscaler(dpa)
-	assert.True(t, pai.IsBurstable())
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := PodAutoscalerInternal{}
+			pai.UpdateFromOpsAnnotations(map[string]string{ForceReplicasAnnotationKey: tt.value})
+
+			replicas, forced := pai.ForcedReplicas()
+			if tt.expected == nil {
+				assert.False(t, forced, "value %q must be ignored", tt.value)
+				return
+			}
+			assert.True(t, forced)
+			assert.Equal(t, *tt.expected, replicas)
+		})
+	}
+}
+
+// TestSetActiveScalingValuesForcedReplicas verifies that the pinned count does not replace the
+// active scaling values: the recommendations keep being tracked, in the status and in the history
+// used by the stabilization windows, so that they are used again as soon as the annotation is removed.
+func TestSetActiveScalingValuesForcedReplicas(t *testing.T) {
+	currentTime := time.Now()
+
+	pai := PodAutoscalerInternal{}
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceReplicasAnnotationKey: "28"})
+	pai.UpdateFromMainValues(ScalingValues{
+		Horizontal: &HorizontalScalingValues{
+			Source:    datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource,
+			Timestamp: currentTime,
+			Replicas:  5,
+		},
+	}, 1)
+
+	pai.SetActiveScalingValues(currentTime, pointer.Ptr(datadoghqcommon.DatadogPodAutoscalerAutoscalingValueSource), nil)
+
+	require.NotNil(t, pai.ScalingValues().Horizontal)
+	assert.Equal(t, int32(5), pai.ScalingValues().Horizontal.Replicas)
+	require.Len(t, pai.HorizontalLastRecommendations(), 1)
+	assert.Equal(t, int32(5), pai.HorizontalLastRecommendations()[0].Replicas)
+
+	status := pai.BuildStatus(metav1.NewTime(currentTime), nil)
+	require.NotNil(t, status.Horizontal)
+	assert.Equal(t, int32(5), status.Horizontal.Target.Replicas, "the status target is the recommendation, the pin is in the HorizontalScalingLimited condition")
+}
+
+// TestParseForceReplicasAnnotation checks that only a positive integer pins a replica count: any other
+// value is ignored, as if the annotation were absent.
+func TestParseForceReplicasAnnotation(t *testing.T) {
+	for _, tt := range []struct {
+		value    string
+		expected *int32
+	}{
+		{value: "", expected: nil},
+		{value: "28", expected: pointer.Ptr[int32](28)},
+		{value: "abc", expected: nil},
+		{value: "0", expected: nil},
+		{value: "-3", expected: nil},
+		{value: "28 ", expected: nil},
+	} {
+		t.Run(tt.value, func(t *testing.T) {
+			assert.Equal(t, tt.expected, parseForceReplicasAnnotation(tt.value))
+		})
+	}
+}
+
+// TestUpdateFromOpsAnnotationsClearedOnRemoval verifies that removing the annotations resumes the
+// autoscaler, i.e. that the parsed state is not sticky.
+func TestUpdateFromOpsAnnotationsClearedOnRemoval(t *testing.T) {
+	pai := PodAutoscalerInternal{}
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "true", ForceFallbackAnnotationKey: "true"})
+	assert.True(t, pai.IsPaused())
+	assert.True(t, pai.IsFallbackForced())
+
+	pai.UpdateFromOpsAnnotations(nil)
+	assert.False(t, pai.IsPaused())
+	assert.False(t, pai.IsFallbackForced())
+}
+
+func TestIsLocalFallbackEnabled(t *testing.T) {
+	disabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: false}}
+	enabled := &datadoghq.DatadogFallbackPolicy{Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{Enabled: true}}
+
+	for _, tt := range []struct {
+		name     string
+		fallback *datadoghq.DatadogFallbackPolicy
+		forced   bool
+		expected bool
+	}{
+		{name: "no fallback policy", expected: true},
+		{name: "enabled", fallback: enabled, expected: true},
+		{name: "disabled", fallback: disabled, expected: false},
+		// The annotation never overrides the spec.
+		{name: "disabled and forced", fallback: disabled, forced: true, expected: false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			pai := FakePodAutoscalerInternal{Spec: &datadoghq.DatadogPodAutoscalerSpec{Fallback: tt.fallback}}.Build()
+			if tt.forced {
+				pai.UpdateFromOpsAnnotations(map[string]string{ForceFallbackAnnotationKey: "true"})
+			}
+			assert.Equal(t, tt.expected, pai.IsLocalFallbackEnabled())
+		})
+	}
+}
+
+// TestBuildStatusLocallyPaused verifies that pausing is reported through the Active condition.
+func TestBuildStatusLocallyPaused(t *testing.T) {
+	findActive := func(status datadoghqcommon.DatadogPodAutoscalerStatus) *datadoghqcommon.DatadogPodAutoscalerCondition {
+		for i := range status.Conditions {
+			if status.Conditions[i].Type == datadoghqcommon.DatadogPodAutoscalerActiveCondition {
+				return &status.Conditions[i]
+			}
+		}
+		return nil
+	}
+
+	pai := NewPodAutoscalerInternal(&datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{Name: "dpa", Namespace: "default"},
+		Spec:       datadoghq.DatadogPodAutoscalerSpec{Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner},
+	})
+
+	active := findActive(pai.BuildStatus(metav1.Now(), nil))
+	require.NotNil(t, active)
+	assert.Equal(t, corev1.ConditionTrue, active.Status)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "true"})
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	require.NotNil(t, active)
+	assert.Equal(t, corev1.ConditionFalse, active.Status)
+	assert.Equal(t, LocallyPausedReason, active.Reason)
+	assert.Contains(t, active.Message, PauseAnnotationKey)
+
+	// Paused takes precedence over a target scaled to 0: it is the actionable reason.
+	pai.SetCurrentReplicas(0)
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	assert.Equal(t, LocallyPausedReason, active.Reason)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{PauseAnnotationKey: "not-a-bool"})
+	active = findActive(pai.BuildStatus(metav1.Now(), nil))
+	assert.NotEqual(t, LocallyPausedReason, active.Reason, "an unparseable value is ignored")
 }
 
 // TestSetActiveScalingValues_NilSource_ClearsVertical verifies that a nil verticalActiveSource
@@ -996,4 +1263,73 @@ func TestSetActiveScalingValues_NilSource_ClearsVertical(t *testing.T) {
 		"SetActiveScalingValues(nil source) must set scalingValues.Vertical to nil, not "+
 			"self-assign the sentinel-containing constrained value; the sentinel would cause "+
 			"applyVerticalConstraints(burstable=false) to early-return and suppress the rollout")
+}
+
+func BenchmarkUpdateFromPodAutoscaler(b *testing.B) {
+	dpa := &datadoghq.DatadogPodAutoscaler{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:       "burner-server",
+			Namespace:  "default",
+			Generation: 1,
+			Labels: map[string]string{
+				ProfileLabelKey: "default-profile",
+			},
+			Annotations: map[string]string{
+				PreviewAnnotationKey:           `{"burstable":true}`,
+				ProfileTemplateHashAnnotation:  "abc123def456",
+				CustomRecommenderAnnotationKey: `{"endpoint":"https://recommender.internal/v1"}`,
+			},
+		},
+		Spec: datadoghq.DatadogPodAutoscalerSpec{
+			Owner: datadoghqcommon.DatadogPodAutoscalerLocalOwner,
+		},
+	}
+
+	pai := NewPodAutoscalerInternal(dpa)
+
+	b.ReportAllocs()
+	for b.Loop() {
+		pai.UpdateFromPodAutoscaler(dpa)
+	}
+}
+
+func TestParseForceResourcesAnnotation(t *testing.T) {
+	forced := parseForceResourcesAnnotation(`[{"name": "app", "requests": {"cpu": "2", "memory": "200Mi"}, "limits": {"cpu": "4"}}, {"name": "sidecar", "limits": {"memory": "1Gi"}}]`)
+	require.Len(t, forced, 2)
+	app, sidecar := forced[0], forced[1]
+	assert.Equal(t, "app", app.Name, "the annotation order is kept")
+	assert.Equal(t, "sidecar", sidecar.Name)
+	assert.True(t, app.Requests[corev1.ResourceCPU].Equal(resource.MustParse("2")))
+	assert.True(t, app.Limits[corev1.ResourceCPU].Equal(resource.MustParse("4")))
+	assert.True(t, app.Requests[corev1.ResourceMemory].Equal(resource.MustParse("200Mi")))
+	assert.NotContains(t, app.Limits, corev1.ResourceMemory, "a limit that is not set is not forced")
+	assert.NotContains(t, sidecar.Requests, corev1.ResourceMemory)
+
+	// The values are checked when merged on the recommendation; only a value that is not a list of
+	// container resources is ignored here.
+	for name, value := range map[string]string{
+		"absent":           ``,
+		"empty list":       `[]`,
+		"bad JSON":         `[{"name": `,
+		"object, not list": `{"app": {"cpu": {"request": "1"}}}`,
+		"invalid quantity": `[{"name": "app", "requests": {"memory": "200Mb"}}]`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			assert.Nil(t, parseForceResourcesAnnotation(value))
+		})
+	}
+}
+
+// TestUpdateFromOpsAnnotationsForcedResources checks that an invalid force-resources annotation is
+// ignored, as if it were absent.
+func TestUpdateFromOpsAnnotationsForcedResources(t *testing.T) {
+	pai := PodAutoscalerInternal{}
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceResourcesAnnotationKey: `[{"name": "app", "requests": {"cpu": "2"}}]`})
+	require.Len(t, pai.ForcedResources(), 1)
+
+	pai.UpdateFromOpsAnnotations(map[string]string{ForceResourcesAnnotationKey: `[{"name": "app", "requests": {"memory": "200Mb"}}]`})
+	assert.Nil(t, pai.ForcedResources())
+
+	pai.UpdateFromOpsAnnotations(nil)
+	assert.Nil(t, pai.ForcedResources())
 }

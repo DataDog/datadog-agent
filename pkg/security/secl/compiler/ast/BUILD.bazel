@@ -1,20 +1,16 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "ast",
-    srcs = ["secl.go"],
+    srcs = [
+        "ast.go",
+        "expr.go",
+        "literal.go",
+        "ops.go",
+        "print.go",
+        "value.go",
+        "visit.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast",
     visibility = ["//visibility:public"],
-    deps = [
-        "@com_github_alecthomas_participle//:participle",
-        "@com_github_alecthomas_participle//lexer",
-        "@com_github_alecthomas_participle//lexer/ebnf",
-    ],
-)
-
-go_test(
-    name = "ast_test",
-    srcs = ["secl_test.go"],
-    embed = [":ast"],
-    gotags = ["test"],
 )

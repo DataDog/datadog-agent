@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/internal_profiling.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/internal_profiling.yaml
 node_type: section
 type: object
 properties:
@@ -13,7 +13,7 @@ properties:
     default: false
   cpu_duration:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
@@ -45,7 +45,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: internal profiling
   extra_tags:
     node_type: setting
     type: array
@@ -58,7 +57,7 @@ properties:
     default: 0
   period:
     node_type: setting
-    type: number
+    type: string
     default: 5m0s
     format: duration
     tags:

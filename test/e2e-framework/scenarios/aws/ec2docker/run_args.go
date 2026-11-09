@@ -42,7 +42,7 @@ func newParams() *Params {
 	// We use nil arrays to decide if we should create or not
 	return &Params{
 		Name:              defaultVMName,
-		vmOptions:         []ec2.VMOption{},
+		vmOptions:         []ec2.VMOption{ec2.WithOS(compos.UbuntuDefault)},
 		agentOptions:      []dockeragentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 	}
@@ -70,9 +70,6 @@ func ParamsFromEnvironment(e aws.Environment) *Params {
 	} else {
 		if e.InfraOSDescriptor() != "" {
 			p.vmOptions = append(p.vmOptions, ec2.WithOS(osDesc))
-		}
-		if e.InfraOSImageIDUseLatest() {
-			p.vmOptions = append(p.vmOptions, ec2.WithLatestAMI())
 		}
 	}
 

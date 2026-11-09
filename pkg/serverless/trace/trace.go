@@ -27,6 +27,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	serverlessmodifier "github.com/DataDog/datadog-agent/pkg/serverless/trace/modifier"
 	"github.com/DataDog/datadog-agent/pkg/trace/agent"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -43,8 +44,9 @@ type ServerlessTraceAgent interface {
 	Flush()
 	Process(p *api.Payload)
 	SetTags(map[string]string)
+	UpdateRuntimeTags(map[string]string)
 	SetTargetTPS(float64)
-	SetSpanModifier(agent.SpanModifier)
+	SetSpanModifier(agent.SpanModifierWithV1)
 	GetSpanModifier() agent.SpanModifier
 }
 
@@ -103,6 +105,10 @@ type StartServerlessTraceAgentArgs struct {
 	AdditionalProfileTags map[string]string
 	FunctionTags          string
 	RCService             *remoteconfig.CoreAgentService
+
+	// StopTimeout bounds Stop()'s wait for the trace agent's Run loop to exit.
+	// If zero, defaults to 3 seconds.
+	StopTimeout time.Duration
 }
 
 // Start starts the agent
@@ -134,17 +140,28 @@ func StartServerlessTraceAgent(args StartServerlessTraceAgentArgs) ServerlessTra
 				ta.Concentrator = &noopConcentrator{}
 			}
 
-			ta.SpanModifier = &spanModifier{
+			sm := &spanModifier{
 				ddOrigin: getDDOrigin(),
 			}
-			ta.TracerPayloadModifier = serverlessmodifier.NewTracerPayloadModifier(args.FunctionTags)
+			ta.SpanModifier = sm
+			ta.SpanModifierV1 = sm
+			tpm := serverlessmodifier.NewTracerPayloadModifier(args.FunctionTags)
+			ta.TracerPayloadModifier = tpm
+			ta.TracerPayloadModifierV1 = tpm
 
 			ta.DiscardSpan = filterSpan
+			ta.DiscardSpanV1 = filterSpanV1
 			startTraceAgentConfigEndpoint(args.RCService, tc)
+			stopTimeout := args.StopTimeout
+			if stopTimeout == 0 {
+				stopTimeout = 3 * time.Second
+			}
 			go ta.Run()
 			return &serverlessTraceAgent{
-				ta:     ta,
-				cancel: cancel,
+				ta:          ta,
+				convertToV1: !tc.HasFeature("disable-convert-traces"),
+				cancel:      cancel,
+				stopTimeout: stopTimeout,
 			}
 		}
 	} else {
@@ -168,8 +185,13 @@ func startTraceAgentConfigEndpoint(rcService *remoteconfig.CoreAgentService, tc 
 }
 
 type serverlessTraceAgent struct {
-	ta     *agent.Agent
-	cancel context.CancelFunc
+	ta          *agent.Agent
+	cancel      context.CancelFunc
+	stopTimeout time.Duration
+
+	// convertToV1 mirrors the receiver's convert-traces behavior: payloads
+	// are converted to v1 unless the disable-convert-traces feature is set.
+	convertToV1 bool
 }
 
 // Flush performs a synchronous flushing in the trace agent
@@ -177,9 +199,44 @@ func (t *serverlessTraceAgent) Flush() {
 	t.ta.FlushSync()
 }
 
+// FlushAll sends the open stats buckets along with everything Flush sends.
+// Flush alone leaves the newest ~20-30s of stats in memory, in both the
+// concentrator and the ClientStatsAggregator; only shutdown sends them. Unlike
+// Stop, FlushAll keeps the trace agent running and doesn't wait on the
+// receiver.
+func (t *serverlessTraceAgent) FlushAll() {
+	t.ta.ForceFlushSync()
+}
+
+// FlushAll isn't part of ServerlessTraceAgent; callers find it with a type
+// assertion. This check makes renaming or removing it a compile error instead
+// of a silent fallback to Flush.
+var _ interface{ FlushAll() } = (*serverlessTraceAgent)(nil)
+
 // Process processes a payload in the trace agent.
+//
+// Like the receiver, the payload is converted to the v1 (string-indexed)
+// format and processed by the v1 path unless the disable-convert-traces
+// feature is set, in which case the legacy path is used. An empty
+// originPayloadVersion skips the _dd.convertedv1 debug attribute, since
+// these payloads are generated in-process rather than received on the wire.
+//
+// TODO(v1): once the legacy processing path is removed, callers should build
+// v1 payloads directly and this conversion should be dropped.
 func (t *serverlessTraceAgent) Process(p *api.Payload) {
-	t.ta.Process(p)
+	if !t.convertToV1 {
+		t.ta.Process(p)
+		return
+	}
+	t.ta.ProcessV1(&api.PayloadV1{
+		Source:                 p.Source,
+		TracerPayload:          api.ConvertToIdx(p.TracerPayload, ""),
+		ClientComputedTopLevel: p.ClientComputedTopLevel,
+		ClientComputedStats:    p.ClientComputedStats,
+		ClientDroppedP0s:       p.ClientDroppedP0s,
+		ProcessTags:            p.ProcessTags,
+		ContainerTags:          p.ContainerTags,
+	})
 }
 
 type taggable interface {
@@ -194,13 +251,22 @@ func (t *serverlessTraceAgent) SetTags(tags map[string]string) {
 	}
 }
 
+// UpdateRuntimeTags updates the tags applied by the span modifier only. Unlike
+// SetTags, it does not touch the trace agent's GlobalTags, so it is safe to
+// call concurrently with span processing.
+func (t *serverlessTraceAgent) UpdateRuntimeTags(tags map[string]string) {
+	if tagger, ok := t.ta.SpanModifier.(taggable); ok {
+		tagger.SetTags(tags)
+	}
+}
+
 // Stop cancels the trace agent's context and waits for its Run loop to finish.
 // The Run loop handles the full shutdown sequence: draining in-flight traces,
 // flushing stats producers, sending buffered data to the network, and stopping
 // all writers and components.
 func (t *serverlessTraceAgent) Stop() {
 	t.cancel()
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), t.stopTimeout)
 	defer cancel()
 	if err := t.ta.WaitForStopped(ctx); err != nil {
 		log.Warnf("Trace agent did not stop in time, continuing shutdown: %v", err)
@@ -212,9 +278,11 @@ func (t *serverlessTraceAgent) SetTargetTPS(tps float64) {
 	t.ta.PrioritySampler.UpdateTargetTPS(tps)
 }
 
-// SetSpanModifier sets the span modifier to the trace agent.
-func (t *serverlessTraceAgent) SetSpanModifier(sm agent.SpanModifier) {
+// SetSpanModifier sets the span modifier for both the legacy and V1 processing
+// paths.
+func (t *serverlessTraceAgent) SetSpanModifier(sm agent.SpanModifierWithV1) {
 	t.ta.SpanModifier = sm
+	t.ta.SpanModifierV1 = sm
 }
 
 // GetSpanModifier returns the span modifier from the trace agent.
@@ -266,6 +334,51 @@ func filterSpan(span *pb.Span) bool {
 	return false
 }
 
+// filterSpanV1 is the V1 (idx) equivalent of filterSpan. It returns true if a
+// span was generated by internal infrastructure calls that should not be visible
+// to customers (e.g., StatsD, internal DNS lookups, serverless agent communication).
+func filterSpanV1(span *idx.InternalSpan) bool {
+	// Filters out HTTP calls to internal infrastructure
+	if httpURL, ok := span.GetAttributeAsString(httpURLMetaKey); ok {
+		if strings.HasPrefix(httpURL, agentURLPrefix) {
+			log.Debugf("Detected span with http url %s, removing it", httpURL)
+			return true
+		}
+
+		if strings.HasPrefix(httpURL, statsDURLPrefix) {
+			log.Debugf("Detected span with http url %s, removing it", httpURL)
+			return true
+		}
+	}
+
+	// Filters out TCP spans to internal infrastructure
+	if tcpHost, ok := span.GetAttributeAsString(tcpRemoteHostMetaKey); ok {
+		if tcpPort, ok := span.GetAttributeAsString(tcpRemotePortMetaKey); ok {
+			tcpURLPrefix := "http://" + tcpHost + ":" + tcpPort
+			if strings.HasPrefix(tcpURLPrefix, agentURLPrefix) {
+				log.Debugf("Detected span with tcp url %s, removing it", tcpURLPrefix)
+				return true
+			}
+
+			if strings.HasPrefix(tcpURLPrefix, statsDURLPrefix) {
+				log.Debugf("Detected span with tcp url %s, removing it", tcpURLPrefix)
+				return true
+			}
+		}
+	}
+
+	// Filters out DNS spans to localhost and internal addresses
+	if dnsAddress, ok := span.GetAttributeAsString(dnsAddressMetaKey); ok {
+		if strings.HasPrefix(dnsAddress, dnsNonRoutableAddressURLPrefix) ||
+			strings.HasPrefix(dnsAddress, dnsLocalHostAddressURLPrefix) {
+			log.Debugf("Detected span with dns url %s, removing it", dnsAddress)
+			return true
+		}
+	}
+
+	return false
+}
+
 // getDDOrigin returns the value for the _dd.origin tag based on the cloud service type
 func getDDOrigin() string {
 	return cloudservice.GetCloudServiceType().GetOrigin()
@@ -286,10 +399,11 @@ func NewNoopTraceAgent() ServerlessTraceAgent {
 
 type noopTraceAgent struct{}
 
-func (t noopTraceAgent) Stop()                               {}
-func (t noopTraceAgent) Flush()                              {}
-func (t noopTraceAgent) Process(*api.Payload)                {}
-func (t noopTraceAgent) SetTags(map[string]string)           {}
-func (t noopTraceAgent) SetTargetTPS(float64)                {}
-func (t noopTraceAgent) SetSpanModifier(agent.SpanModifier)  {}
-func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier { return nil }
+func (t noopTraceAgent) Stop()                                    {}
+func (t noopTraceAgent) Flush()                                   {}
+func (t noopTraceAgent) Process(*api.Payload)                     {}
+func (t noopTraceAgent) SetTags(map[string]string)                {}
+func (t noopTraceAgent) UpdateRuntimeTags(map[string]string)      {}
+func (t noopTraceAgent) SetTargetTPS(float64)                     {}
+func (t noopTraceAgent) SetSpanModifier(agent.SpanModifierWithV1) {}
+func (t noopTraceAgent) GetSpanModifier() agent.SpanModifier      { return nil }

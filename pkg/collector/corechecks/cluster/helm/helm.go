@@ -16,7 +16,7 @@ import (
 	"sync"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/informers"
@@ -27,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics/servicecheck"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
@@ -95,7 +96,7 @@ func newCheck() check.Check {
 		CheckBase:         core.NewCheckBase(CheckName),
 		instance:          &checkConfig{},
 		store:             newReleasesStore(),
-		runLeaderElection: !pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()),
+		runLeaderElection: !helper.IsCLCRunner(pkgconfigsetup.Datadog()),
 		eventsManager:     &eventsManager{},
 	}
 }

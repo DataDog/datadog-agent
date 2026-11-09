@@ -75,7 +75,6 @@ var (
 		common.KubeletMetricsPrefix + "io.read_bytes",
 		common.KubeletMetricsPrefix + "filesystem.usage",
 		common.KubeletMetricsPrefix + "filesystem.usage_pct",
-		common.KubeletMetricsPrefix + "memory.limits",
 		common.KubeletMetricsPrefix + "memory.usage",
 		common.KubeletMetricsPrefix + "memory.usage_pct",
 		common.KubeletMetricsPrefix + "memory.sw_limit",
@@ -108,7 +107,6 @@ var (
 		common.KubeletMetricsPrefix + "network.tx_errors",
 		common.KubeletMetricsPrefix + "io.write_bytes",
 		common.KubeletMetricsPrefix + "io.read_bytes",
-		common.KubeletMetricsPrefix + "memory.limits",
 		common.KubeletMetricsPrefix + "memory.usage_pct",
 		common.KubeletMetricsPrefix + "memory.sw_limit",
 		common.KubeletMetricsPrefix + "memory.sw_in_use",
@@ -134,7 +132,7 @@ func (suite *ProviderTestSuite) SetupTest() {
 		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
 	))
 
-	mockSender := mocksender.NewMockSender(checkid.ID(suite.T().Name()))
+	mockSender := mocksender.NewMockSender(suite.T(), checkid.ID(suite.T().Name()))
 	mockSender.SetupAcceptAll()
 	suite.mockSender = mockSender
 

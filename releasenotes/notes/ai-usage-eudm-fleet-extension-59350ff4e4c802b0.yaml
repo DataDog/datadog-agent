@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    On Windows, the AI Usage Chrome Native Messaging host is now delivered as a
+    fleet-managed Agent extension that is only installed when End User Device
+    Monitoring is enabled (``infrastructure_mode: end_user_device``). It is no
+    longer unconditionally installed by the MSI, and is skipped on Agent
+    upgrades when End User Device Monitoring is disabled.

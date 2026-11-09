@@ -19,6 +19,8 @@ const (
 	CheckCmdName = "check-cmd"
 	// CelIdentifierPrefix is the prefix used to identify CEL-based AD identifiers.
 	CelIdentifierPrefix = "cel://"
+	// KubeContainerNameIdentifierPrefix is the prefix used to identify Kubernetes containers by container name.
+	KubeContainerNameIdentifierPrefix = "kube_container_name://"
 )
 
 // CelIdentifier represents a CEL-based AD identifier.
@@ -40,3 +42,8 @@ const (
 	// CelEndpointIdentifier is the CEL identifier for endpoint resources.
 	CelEndpointIdentifier CelIdentifier = CelIdentifierPrefix + "kube_endpoint"
 )
+
+// KubeContainerNameIdentifier returns the AD identifier for a Kubernetes container name.
+func KubeContainerNameIdentifier(containerName string) string {
+	return KubeContainerNameIdentifierPrefix + containerName
+}

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package decode
 
@@ -24,6 +24,10 @@ func formatType(
 	data []byte,
 	limits *formatLimits,
 ) error {
+	if c.redaction.RedactType(t.GetName()) {
+		writeBoundedString(buf, limits, formatRedacted)
+		return nil
+	}
 	// Get decoderType from encodingContext.
 	decoderType, ok := c.getType(t.GetID())
 	if !ok {

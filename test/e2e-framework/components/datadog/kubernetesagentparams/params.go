@@ -19,6 +19,7 @@ import (
 )
 
 const (
+	defaultBaseName       = "dda"
 	defaultAgentNamespace = "datadog"
 	DatadogHelmRepo       = "https://helm.datadoghq.com"
 )
@@ -36,6 +37,7 @@ const (
 //   - [WithHelmChartPath]
 //   - [WithHelmValues]
 //   - [WithNamespace]
+//   - [WithOpenShiftControlPlaneMonitoring]
 //   - [WithDeployWindows]
 //   - [WithFakeintake]
 //   - [WithoutLogsContainerCollectAll]
@@ -43,10 +45,22 @@ const (
 // [Functional options pattern]: https://dave.cheney.net/2014/10/17/functional-options-for-friendly-apis
 
 type Params struct {
+	// BaseName is the base name used to derive the Helm release and Pulumi resource
+	// names for this Agent installation. It defaults to "dda". Override it (e.g. via
+	// WithBaseName) when deploying multiple Agent installations in the same cluster to
+	// avoid resource name collisions.
+	BaseName string
 	// AgentFullImagePath is the full path of the docker agent image to use.
 	AgentFullImagePath string
 	// ClusterAgentFullImagePath is the full path of the docker cluster agent image to use.
 	ClusterAgentFullImagePath string
+	// AgentImageTag is the agent image tag (e.g. a version like "7.55.0") to use when no
+	// full image path is given. Ignored when AgentFullImagePath is set. See
+	// WithAgentVersion.
+	AgentImageTag string
+	// ClusterAgentImageTag is the cluster agent image tag to use when no full image path
+	// is given. Ignored when ClusterAgentFullImagePath is set. See WithClusterAgentVersion.
+	ClusterAgentImageTag string
 	// Namespace is the namespace to deploy the agent to.
 	Namespace string
 	// Hostname is the hostname of the agent.
@@ -88,12 +102,15 @@ type Params struct {
 	// HelmChartVersion overrides the default Helm chart version for this installation.
 	// When empty, the framework default HelmVersion is used.
 	HelmChartVersion string
+	// OpenShiftControlPlaneMonitoring enables OpenShift control plane monitoring setup.
+	OpenShiftControlPlaneMonitoring bool
 }
 
 type Option = func(*Params) error
 
 func NewParams(env config.Env, options ...Option) (*Params, error) {
 	version := &Params{
+		BaseName:      defaultBaseName,
 		Namespace:     defaultAgentNamespace,
 		HelmRepoURL:   DatadogHelmRepo,
 		HelmChartPath: "datadog",
@@ -106,6 +123,16 @@ func NewParams(env config.Env, options ...Option) (*Params, error) {
 	}
 
 	return common.ApplyOption(version, options)
+}
+
+// WithBaseName sets the base name used to derive the Helm release and Pulumi
+// resource names for the Agent installation. Use it to deploy several Agent
+// installations in the same cluster without resource name collisions.
+func WithBaseName(baseName string) func(*Params) error {
+	return func(p *Params) error {
+		p.BaseName = baseName
+		return nil
+	}
 }
 
 // WithClusterName sets the name of the cluster. Should only be used if you know what you are doing. Must no be necessary in most cases.
@@ -137,6 +164,28 @@ func WithAgentFullImagePath(fullImagePath string) func(*Params) error {
 func WithClusterAgentFullImagePath(fullImagePath string) func(*Params) error {
 	return func(p *Params) error {
 		p.ClusterAgentFullImagePath = fullImagePath
+		return nil
+	}
+}
+
+// WithAgentVersion sets the agent version to deploy, used as the image tag when no full
+// image path is provided. A full image path (WithAgentFullImagePath) takes precedence.
+// The version is used verbatim as the tag: FIPS/OTel then only select the repository and
+// JMX has no effect at all, so pass a version that already carries the suffix the variant
+// needs (e.g. "7.55.0-fips", "7.55.0-jmx") when combining this with WithFIPS/WithJMX.
+func WithAgentVersion(version string) func(*Params) error {
+	return func(p *Params) error {
+		p.AgentImageTag = version
+		return nil
+	}
+}
+
+// WithClusterAgentVersion sets the cluster agent version to deploy, used as the image
+// tag when no full image path is provided. A full image path
+// (WithClusterAgentFullImagePath) takes precedence. Used verbatim, as WithAgentVersion.
+func WithClusterAgentVersion(version string) func(*Params) error {
+	return func(p *Params) error {
+		p.ClusterAgentImageTag = version
 		return nil
 	}
 }
@@ -203,6 +252,19 @@ func WithHelmChartPath(chartPath string) func(*Params) error {
 func WithHelmValues(values string) func(*Params) error {
 	return func(p *Params) error {
 		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(values))
+		return nil
+	}
+}
+
+// WithOpenShiftControlPlaneMonitoring configures OpenShift control plane monitoring.
+func WithOpenShiftControlPlaneMonitoring() func(*Params) error {
+	return func(p *Params) error {
+		p.OpenShiftControlPlaneMonitoring = true
+		p.HelmValues = append(p.HelmValues, pulumi.NewStringAsset(`
+providers:
+  openshift:
+    controlPlaneMonitoring: true
+`))
 		return nil
 	}
 }

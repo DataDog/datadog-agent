@@ -22,48 +22,58 @@ type OrchestratorPayload struct {
 	Tags          []string
 	CollectedTime time.Time
 
-	Pod                                  *agentmodel.Pod
-	PodParentCollector                   *agentmodel.CollectorPod
-	ReplicaSet                           *agentmodel.ReplicaSet
-	ReplicaSetParentCollector            *agentmodel.CollectorReplicaSet
-	Deployment                           *agentmodel.Deployment
-	DeploymentParentCollector            *agentmodel.CollectorDeployment
-	Service                              *agentmodel.Service
-	ServiceParentCollector               *agentmodel.CollectorService
-	Node                                 *agentmodel.Node
-	NodeParentCollector                  *agentmodel.CollectorNode
-	Cluster                              *agentmodel.Cluster
-	ClusterParentCollector               *agentmodel.CollectorCluster
-	Namespace                            *agentmodel.Namespace
-	NamespaceParentCollector             *agentmodel.CollectorNamespace
-	Job                                  *agentmodel.Job
-	JobParentCollector                   *agentmodel.CollectorJob
-	CronJob                              *agentmodel.CronJob
-	CronJobParentCollector               *agentmodel.CollectorCronJob
-	DaemonSet                            *agentmodel.DaemonSet
-	DaemonSetParentCollector             *agentmodel.CollectorDaemonSet
-	StatefulSet                          *agentmodel.StatefulSet
-	StatefulSetParentCollector           *agentmodel.CollectorStatefulSet
-	PersistentVolume                     *agentmodel.PersistentVolume
-	PersistentVolumeParentCollector      *agentmodel.CollectorPersistentVolume
-	PersistentVolumeClaim                *agentmodel.PersistentVolumeClaim
-	PersistentVolumeClaimParentCollector *agentmodel.CollectorPersistentVolumeClaim
-	Role                                 *agentmodel.Role
-	RoleParentCollector                  *agentmodel.CollectorRole
-	RoleBinding                          *agentmodel.RoleBinding
-	RoleBindingParentCollector           *agentmodel.CollectorRoleBinding
-	ClusterRole                          *agentmodel.ClusterRole
-	ClusterRoleParentCollector           *agentmodel.CollectorClusterRole
-	ClusterRoleBinding                   *agentmodel.ClusterRoleBinding
-	ClusterRoleBindingParentCollector    *agentmodel.CollectorClusterRoleBinding
-	ServiceAccount                       *agentmodel.ServiceAccount
-	ServiceAccountParentCollector        *agentmodel.CollectorServiceAccount
-	Ingress                              *agentmodel.Ingress
-	IngressParentCollector               *agentmodel.CollectorIngress
-	VerticalPodAutoscaler                *agentmodel.VerticalPodAutoscaler
-	VerticalPodAutoscalerParentCollector *agentmodel.CollectorVerticalPodAutoscaler
-	ECSTask                              *agentmodel.ECSTask
-	ECSTaskParentCollector               *agentmodel.CollectorECSTask
+	Pod                                    *agentmodel.Pod
+	PodParentCollector                     *agentmodel.CollectorPod
+	ReplicaSet                             *agentmodel.ReplicaSet
+	ReplicaSetParentCollector              *agentmodel.CollectorReplicaSet
+	Deployment                             *agentmodel.Deployment
+	DeploymentParentCollector              *agentmodel.CollectorDeployment
+	Service                                *agentmodel.Service
+	ServiceParentCollector                 *agentmodel.CollectorService
+	Node                                   *agentmodel.Node
+	NodeParentCollector                    *agentmodel.CollectorNode
+	Cluster                                *agentmodel.Cluster
+	ClusterParentCollector                 *agentmodel.CollectorCluster
+	Namespace                              *agentmodel.Namespace
+	NamespaceParentCollector               *agentmodel.CollectorNamespace
+	Job                                    *agentmodel.Job
+	JobParentCollector                     *agentmodel.CollectorJob
+	CronJob                                *agentmodel.CronJob
+	CronJobParentCollector                 *agentmodel.CollectorCronJob
+	DaemonSet                              *agentmodel.DaemonSet
+	DaemonSetParentCollector               *agentmodel.CollectorDaemonSet
+	StatefulSet                            *agentmodel.StatefulSet
+	StatefulSetParentCollector             *agentmodel.CollectorStatefulSet
+	PersistentVolume                       *agentmodel.PersistentVolume
+	PersistentVolumeParentCollector        *agentmodel.CollectorPersistentVolume
+	PersistentVolumeClaim                  *agentmodel.PersistentVolumeClaim
+	PersistentVolumeClaimParentCollector   *agentmodel.CollectorPersistentVolumeClaim
+	Role                                   *agentmodel.Role
+	RoleParentCollector                    *agentmodel.CollectorRole
+	RoleBinding                            *agentmodel.RoleBinding
+	RoleBindingParentCollector             *agentmodel.CollectorRoleBinding
+	ClusterRole                            *agentmodel.ClusterRole
+	ClusterRoleParentCollector             *agentmodel.CollectorClusterRole
+	ClusterRoleBinding                     *agentmodel.ClusterRoleBinding
+	ClusterRoleBindingParentCollector      *agentmodel.CollectorClusterRoleBinding
+	ServiceAccount                         *agentmodel.ServiceAccount
+	ServiceAccountParentCollector          *agentmodel.CollectorServiceAccount
+	Ingress                                *agentmodel.Ingress
+	IngressParentCollector                 *agentmodel.CollectorIngress
+	VerticalPodAutoscaler                  *agentmodel.VerticalPodAutoscaler
+	VerticalPodAutoscalerParentCollector   *agentmodel.CollectorVerticalPodAutoscaler
+	ECSTask                                *agentmodel.ECSTask
+	ECSTaskParentCollector                 *agentmodel.CollectorECSTask
+	StorageClass                           *agentmodel.StorageClass
+	StorageClassParentCollector            *agentmodel.CollectorStorageClass
+	HorizontalPodAutoscaler                *agentmodel.HorizontalPodAutoscaler
+	HorizontalPodAutoscalerParentCollector *agentmodel.CollectorHorizontalPodAutoscaler
+	NetworkPolicy                          *agentmodel.NetworkPolicy
+	NetworkPolicyParentCollector           *agentmodel.CollectorNetworkPolicy
+	LimitRange                             *agentmodel.LimitRange
+	LimitRangeParentCollector              *agentmodel.CollectorLimitRange
+	PodDisruptionBudget                    *agentmodel.PodDisruptionBudget
+	PodDisruptionBudgetParentCollector     *agentmodel.CollectorPodDisruptionBudget
 }
 
 func (p OrchestratorPayload) name() string {
@@ -335,6 +345,66 @@ func ParseOrchestratorPayload(payload api.Payload) ([]*OrchestratorPayload, erro
 				UID:                    task.Arn,
 				Name:                   task.Arn,
 				Tags:                   task.Tags,
+			})
+		}
+	case *agentmodel.CollectorStorageClass:
+		for _, storageClass := range body.StorageClasses {
+			out = append(out, &OrchestratorPayload{
+				Type:                        msg.Header.Type,
+				CollectedTime:               payload.Timestamp,
+				StorageClass:                storageClass,
+				StorageClassParentCollector: body,
+				UID:                         storageClass.Metadata.Uid,
+				Name:                        storageClass.Metadata.Name,
+				Tags:                        append(body.Tags, storageClass.Tags...),
+			})
+		}
+	case *agentmodel.CollectorHorizontalPodAutoscaler:
+		for _, horizontalPodAutoscaler := range body.HorizontalPodAutoscalers {
+			out = append(out, &OrchestratorPayload{
+				Type:                                   msg.Header.Type,
+				CollectedTime:                          payload.Timestamp,
+				HorizontalPodAutoscaler:                horizontalPodAutoscaler,
+				HorizontalPodAutoscalerParentCollector: body,
+				UID:                                    horizontalPodAutoscaler.Metadata.Uid,
+				Name:                                   horizontalPodAutoscaler.Metadata.Name,
+				Tags:                                   append(body.Tags, horizontalPodAutoscaler.Tags...),
+			})
+		}
+	case *agentmodel.CollectorNetworkPolicy:
+		for _, networkPolicy := range body.NetworkPolicies {
+			out = append(out, &OrchestratorPayload{
+				Type:                         msg.Header.Type,
+				CollectedTime:                payload.Timestamp,
+				NetworkPolicy:                networkPolicy,
+				NetworkPolicyParentCollector: body,
+				UID:                          networkPolicy.Metadata.Uid,
+				Name:                         networkPolicy.Metadata.Name,
+				Tags:                         append(body.Tags, networkPolicy.Tags...),
+			})
+		}
+	case *agentmodel.CollectorLimitRange:
+		for _, limitRange := range body.LimitRanges {
+			out = append(out, &OrchestratorPayload{
+				Type:                      msg.Header.Type,
+				CollectedTime:             payload.Timestamp,
+				LimitRange:                limitRange,
+				LimitRangeParentCollector: body,
+				UID:                       limitRange.Metadata.Uid,
+				Name:                      limitRange.Metadata.Name,
+				Tags:                      append(body.Tags, limitRange.Tags...),
+			})
+		}
+	case *agentmodel.CollectorPodDisruptionBudget:
+		for _, podDisruptionBudget := range body.PodDisruptionBudgets {
+			out = append(out, &OrchestratorPayload{
+				Type:                               msg.Header.Type,
+				CollectedTime:                      payload.Timestamp,
+				PodDisruptionBudget:                podDisruptionBudget,
+				PodDisruptionBudgetParentCollector: body,
+				UID:                                podDisruptionBudget.Metadata.Uid,
+				Name:                               podDisruptionBudget.Metadata.Name,
+				Tags:                               append(body.Tags, podDisruptionBudget.Tags...),
 			})
 		}
 

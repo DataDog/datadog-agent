@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
+	"go.uber.org/atomic"
 )
 
 // SourceType used for log line parsing logic.
@@ -34,7 +35,7 @@ const (
 type LogSource struct {
 	Name     string
 	Config   *config.LogsConfig
-	Status   *status.LogStatus
+	status   *status.LogStatus
 	inputs   map[string]bool
 	lock     *sync.Mutex
 	Messages *config.Messages
@@ -48,9 +49,12 @@ type LogSource struct {
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats     *statstracker.Tracker
-	BytesRead        *status.CountInfo
+	BytesRead        atomic.Int64
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
+	// tagFilterState is read on every message, so it's cached behind an atomic
+	// pointer rather than lock.
+	tagFilterState atomic.Pointer[tagFilterState]
 }
 
 // NewLogSource creates a new log source.
@@ -58,17 +62,15 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 	source := &LogSource{
 		Name:             name,
 		Config:           cfg,
-		Status:           status.NewLogStatus(),
+		status:           status.NewLogStatus(),
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
-		BytesRead:        status.NewCountInfo("Bytes Read"),
 		ProcessingInfo:   status.NewProcessingInfo(),
 		info:             status.NewInfoRegistry(),
 		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
-	source.RegisterInfo(source.BytesRead)
 	source.RegisterInfo(source.ProcessingInfo)
 	source.RegisterInfo(source.LatencyStats)
 	return source
@@ -97,6 +99,45 @@ func (s *LogSource) GetInputs() []string {
 		inputs = append(inputs, input)
 	}
 	return inputs
+}
+
+// Status returns the status tracker for this source.
+func (s *LogSource) Status() *status.LogStatus {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.status
+}
+
+// SetStatus sets the status tracker for this source. This is used when a source inherits
+// the status of another one, e.g. when a tailer is reused across sources.
+func (s *LogSource) SetStatus(newStatus *status.LogStatus) {
+	s.lock.Lock()
+	s.status = newStatus
+	s.lock.Unlock()
+}
+
+// GetTailingMode returns the tailing mode configured for this source.
+func (s *LogSource) GetTailingMode() string {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.Config.TailingMode
+}
+
+// PublicJSON returns the public JSON representation of the source's logs config.
+// The lock is held because Config.TailingMode can be mutated at runtime by
+// SetTailingMode on another goroutine.
+func (s *LogSource) PublicJSON() ([]byte, error) {
+	s.lock.Lock()
+	defer s.lock.Unlock()
+	return s.Config.PublicJSON()
+}
+
+// SetTailingMode sets the tailing mode configured for this source. This is mutated after
+// creation when a tailing mode is inferred at launch time, so it must go through the lock.
+func (s *LogSource) SetTailingMode(mode string) {
+	s.lock.Lock()
+	s.Config.TailingMode = mode
+	s.lock.Unlock()
 }
 
 // SetSourceType sets a format that give information on how the source lines should be parsed
@@ -132,6 +173,26 @@ func (s *LogSource) GetInfoStatus() map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.info.Rendered()
+}
+
+type tagFilterState struct {
+	filter TagFilter
+}
+
+// TagFilter returns the tag filter currently cached for this source, without
+// resolving it, and whether resolution has happened.
+func (s *LogSource) TagFilter() (TagFilter, bool) {
+	state := s.tagFilterState.Load()
+	if state == nil {
+		return nil, false
+	}
+	return state.filter, true
+}
+
+// SetTagFilterIfUnset caches f if this source has not already been resolved.
+// It returns true only to the caller that installs the filter.
+func (s *LogSource) SetTagFilterIfUnset(f TagFilter) bool {
+	return s.tagFilterState.CompareAndSwap(nil, &tagFilterState{filter: f})
 }
 
 // HideFromStatus hides the source from the status output
@@ -190,14 +251,15 @@ func (s *LogSource) Dump(multiline bool) string {
 	fmt.Fprintf(&b, ws("&LogsSource @ %p = {"), s)
 	fmt.Fprintf(&b, ws("Name: %#v,"), s.Name)
 	fmt.Fprintf(&b, ws("Config: %s,"), indent(s.Config.Dump(multiline)))
-	fmt.Fprintf(&b, ws("Status: %s,"), indent(s.Status.Dump()))
+	fmt.Fprintf(&b, ws("Status: %s,"), indent(s.status.Dump()))
 	fmt.Fprintf(&b, ws("inputs: %#v,"), s.inputs)
 	fmt.Fprintf(&b, ws("Messages: %#v,"), s.Messages.GetMessages())
 	fmt.Fprintf(&b, ws("sourceType: %#v,"), s.sourceType)
 	fmt.Fprintf(&b, ws("info: %#v,"), s.info)
 	fmt.Fprintf(&b, ws("parentSource: %p,"), s.ParentSource)
 	fmt.Fprintf(&b, ws("LatencyStats: %#v,"), s.LatencyStats)
-	fmt.Fprintf(&b, ws("ProcessingInfo: %#v,"), s.ProcessingInfo)
+	// ProcessingInfo has its own locking; %#v would bypass it via reflection.
+	fmt.Fprintf(&b, ws("ProcessingInfo: %s,"), s.ProcessingInfo)
 	fmt.Fprintf(&b, ws("hiddenFromStatus: %t}"), s.hiddenFromStatus)
 	return b.String()
 }

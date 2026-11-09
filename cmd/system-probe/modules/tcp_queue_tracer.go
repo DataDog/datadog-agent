@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 package modules
 
@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength"
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 )
@@ -25,7 +24,7 @@ func init() { registerModule(TCPQueueLength) }
 
 // TCPQueueLength Factory
 var TCPQueueLength = &module.Factory{
-	Name: config.TCPQueueLengthTracerModule,
+	Name: sysconfigtypes.TCPQueueLengthTracerModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		t, err := tcpqueuelength.NewTracer(ebpf.NewConfig())
 		if err != nil {

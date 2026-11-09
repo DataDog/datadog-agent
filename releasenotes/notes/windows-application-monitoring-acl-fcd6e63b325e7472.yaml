@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Fixed an issue on Windows where ``C:\ProgramData\Datadog\application_monitoring.yaml``
+    was not readable by IIS App Pool identities (and other non-administrator accounts),
+    causing the .NET tracer to silently ignore fleet-managed stable configuration with an
+    ``Access is denied`` error.
+    The Fleet installer now grants ``Everyone`` read access on
+    ``application_monitoring.yaml`` when the file is created or updated (at install time
+    and via remote config experiments), matching the world-readable (``0644``) behavior
+    on Linux.

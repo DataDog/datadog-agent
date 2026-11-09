@@ -46,22 +46,28 @@ type podInfo struct {
 //     the spot/on-demand decision before the pod is visible in Kubernetes.
 //   - The Kubernetes watch calls addedOrUpdated/deleted as pods appear
 //     converting in-flight admission counts into UID-keyed records.
+//     An admission whose pod creation was rejected never appears in the watch, so in-flight
+//     admission counts are cleared when pod set was not updated for admissionTTL.
 //
 // Pods are grouped first by top-level owner (e.g. Deployment) and then by direct owner
 // (e.g. ReplicaSet). This enables O(1) per-workload operations.
 type podTracker struct {
 	defaultConfig workloadSpotConfig
 	configSource  func(objectRef) (workloadSpotConfig, bool)
+	telemetry     *telemetry
+	admissionTTL  time.Duration
 
 	mu              sync.RWMutex
 	podSets         map[objectRef]map[objectRef]*ownerPodSet
 	pendingSpotPods map[string]pendingSpotPod
 }
 
-func newPodTracker(defaultConfig workloadSpotConfig, configSource func(objectRef) (workloadSpotConfig, bool)) *podTracker {
+func newPodTracker(defaultConfig workloadSpotConfig, configSource func(objectRef) (workloadSpotConfig, bool), tel *telemetry, admissionTTL time.Duration) *podTracker {
 	return &podTracker{
 		defaultConfig:   defaultConfig,
 		configSource:    configSource,
+		telemetry:       tel,
+		admissionTTL:    admissionTTL,
 		podSets:         make(map[objectRef]map[objectRef]*ownerPodSet),
 		pendingSpotPods: make(map[string]pendingSpotPod),
 	}
@@ -134,6 +140,7 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 		return
 	}
 	ps.track(pod.ID, isSpot, podInfo{name: pod.Name, phase: pod.Phase}, time.Now())
+	t.updateWorkloadMetricsLocked(o.topLevelOwner)
 
 	if isSpot {
 		if pod.Phase == string(corev1.PodPending) {
@@ -146,7 +153,11 @@ func (t *podTracker) addedOrUpdated(pod *workloadmeta.KubernetesPod) {
 				log.Debugf("Tracking pending spot pod %s", pod.ID)
 			}
 		} else {
-			delete(t.pendingSpotPods, pod.ID)
+			if prev, exists := t.pendingSpotPods[pod.ID]; exists {
+				delete(t.pendingSpotPods, pod.ID)
+				// Run in a goroutine to not hold mutex longer than necessary
+				go t.telemetry.observePendingSeconds(time.Since(prev.createdAt))
+			}
 		}
 	}
 }
@@ -185,10 +196,12 @@ func (t *podTracker) deletePodLocked(o podOwnership, uid string) {
 		}
 	}
 	delete(t.pendingSpotPods, uid)
+	t.updateWorkloadMetricsLocked(o.topLevelOwner)
 }
 
 // getPodSetLocked returns the ownerPodSet for the given ownership, creating it if absent,
 // and always applies the latest config from configSource to the returned pod set.
+// It drops expired in-flight admissions of an existing pod set.
 // When configSource has no entry for the top-level owner it removes
 // tracking state for the owner and returns (nil, false).
 // Must be called with t.mu held.
@@ -209,16 +222,19 @@ func (t *podTracker) getPodSetLocked(o podOwnership) (*ownerPodSet, bool) {
 	if !exists {
 		ps = t.newOwnerPodSet()
 		owners[o.directOwner] = ps
+	} else {
+		ps.expireAdmissions(t.admissionTTL)
 	}
 	ps.config = cfg
 	return ps, true
 }
 
-// getPodToDelete returns the uid, name, and namespace of a pod to delete to make progress toward
-// the desired config across all tracked owners, or empty strings if no deletion is needed.
+// getPodToDelete returns the top-level owner, uid, name, and whether the selected pod is
+// spot-assigned, for a pod to delete to make progress toward the desired config across all
+// tracked owners. Returns zero values if no deletion is needed.
 // When a pod is selected, lastUpdate is stamped on its owner's ownerPodSet to prevent selecting the
 // same owner again before the deletion takes effect.
-func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) (string, string, string) {
+func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) (objectRef, string, string, bool) {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 
@@ -230,18 +246,21 @@ func (t *podTracker) getPodToDelete(rebalanceStabilizationPeriod time.Duration) 
 			t.untrackLocked(topLevel)
 			continue
 		}
-		for owner, ps := range owners {
+		for _, ps := range owners {
 			ps.config = cfg
 			if ps.config.isDisabled(now) {
 				continue
 			}
-			if uid, name := ps.getPodToDelete(lastUpdatedBefore); uid != "" {
+			if n := ps.expireAdmissions(t.admissionTTL); n > 0 {
+				log.Debugf("Expired %d in-flight admissions for %s that did not become pods", n, topLevel)
+			}
+			if uid, name, isSpot := ps.getPodToDelete(lastUpdatedBefore); uid != "" {
 				ps.lastUpdate = now // suppress re-selection until stabilization period elapses
-				return uid, name, owner.Namespace
+				return topLevel, uid, name, isSpot
 			}
 		}
 	}
-	return "", "", ""
+	return objectRef{}, "", "", false
 }
 
 // getPendingSpotPods returns spot-assigned pods that have been pending since before the given time keyed by pod UID.
@@ -281,6 +300,7 @@ func (t *podTracker) untrackLocked(topLevelOwner objectRef) {
 			delete(t.pendingSpotPods, uid)
 		}
 	}
+	t.telemetry.deleteWorkload(topLevelOwner)
 }
 
 func (t *podTracker) newOwnerPodSet() *ownerPodSet {
@@ -291,6 +311,30 @@ func (t *podTracker) newOwnerPodSet() *ownerPodSet {
 	}
 }
 
+// updateWorkloadMetricsLocked updates the stored workload snapshot for the given top-level owner.
+// Must be called with t.mu held.
+func (t *podTracker) updateWorkloadMetricsLocked(topLevelOwner objectRef) {
+	_, hasConfig := t.configSource(topLevelOwner)
+	if !hasConfig {
+		t.telemetry.deleteWorkload(topLevelOwner)
+		return
+	}
+	owners, ok := t.podSets[topLevelOwner]
+	if !ok {
+		t.telemetry.deleteWorkload(topLevelOwner)
+		return
+	}
+	snap := workloadSnapshot{ref: topLevelOwner}
+	for _, ps := range owners {
+		snap.spot += len(ps.spotUIDs)
+		snap.onDemand += len(ps.onDemandUIDs)
+		excessSpot, excessOnDemand := ps.excess()
+		snap.excessSpot += excessSpot
+		snap.excessOnDemand += excessOnDemand
+	}
+	t.telemetry.observeWorkload(snap)
+}
+
 // admit increments the in-flight admission count for the given spot/on-demand decision and returns isSpot.
 func (ps *ownerPodSet) admit(isSpot bool) bool {
 	if isSpot {
@@ -298,7 +342,19 @@ func (ps *ownerPodSet) admit(isSpot bool) bool {
 	} else {
 		ps.admissionOnDemandCount++
 	}
+	ps.lastUpdate = time.Now()
 	return isSpot
+}
+
+// expireAdmissions clears in-flight admissions if the pod set was not updated for admissionTTL
+// and returns how many it cleared. Must be called before the update that refreshes lastUpdate.
+func (ps *ownerPodSet) expireAdmissions(admissionTTL time.Duration) int {
+	if !ps.hasAdmissions() || time.Since(ps.lastUpdate) <= admissionTTL {
+		return 0
+	}
+	n := ps.admissionSpotCount + ps.admissionOnDemandCount
+	ps.admissionSpotCount, ps.admissionOnDemandCount = 0, 0
+	return n
 }
 
 // track upserts the pod UID with its info, decrementing the in-flight admission count on first appearance.
@@ -321,41 +377,54 @@ func (ps *ownerPodSet) track(uid string, isSpot bool, info podInfo, now time.Tim
 	ps.lastUpdate = now
 }
 
-// getPodToDelete returns the uid and name of a pod to delete to make progress toward the desired config.
-// It returns empty strings if no deletion is needed.
-func (ps *ownerPodSet) getPodToDelete(lastUpdatedBefore time.Time) (string, string) {
+// getPodToDelete returns the uid, name, and whether the selected pod is spot-assigned,
+// to make progress toward the desired config. Returns empty strings if no deletion is needed.
+func (ps *ownerPodSet) getPodToDelete(lastUpdatedBefore time.Time) (string, string, bool) {
 	if ps.hasAdmissions() {
-		return "", ""
+		return "", "", false
 	}
 
 	if ps.lastUpdate.After(lastUpdatedBefore) {
-		return "", ""
+		return "", "", false
 	}
 
 	if ps.hasPending() {
-		return "", ""
+		return "", "", false
 	}
 
+	excessSpot, excessOnDemand := ps.excess()
+	if excessSpot > 0 {
+		uid, name := pickPod(ps.spotUIDs)
+		return uid, name, true
+	}
+	if excessOnDemand > 0 {
+		uid, name := pickPod(ps.onDemandUIDs)
+		return uid, name, false
+	}
+	return "", "", false
+}
+
+// excess returns the number of pods on each capacity type that the rebalancer would have to evict to converge.
+// By construction at most one of the two is non-zero.
+func (ps *ownerPodSet) excess() (excessSpot, excessOnDemand int) {
 	spot, onDemand := len(ps.spotUIDs), len(ps.onDemandUIDs)
 
 	if onDemand < ps.config.minOnDemand {
-		// minOnDemand not satisfied: remove a spot pod to compensate.
-		return pickPod(ps.spotUIDs)
+		return ps.config.minOnDemand - onDemand, 0
 	}
 
 	total := spot + onDemand
-
 	desiredSpot := total * ps.config.percentage / 100
 	if spot > desiredSpot {
-		return pickPod(ps.spotUIDs)
+		return spot - desiredSpot, 0
 	}
 
 	desiredOnDemand := max(total-desiredSpot, ps.config.minOnDemand)
 	if onDemand > desiredOnDemand {
-		return pickPod(ps.onDemandUIDs)
+		return 0, onDemand - desiredOnDemand
 	}
 
-	return "", ""
+	return 0, 0
 }
 
 // hasAdmissions returns true if pod set has admitted but not yet tracked pods.

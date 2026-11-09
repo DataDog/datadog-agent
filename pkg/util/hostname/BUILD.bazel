@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "hostname",
@@ -7,6 +8,8 @@ go_library(
         "container.go",
         "container_stub.go",
         "drift.go",
+        "eudm.go",
+        "fqdn_aix.go",
         "fqdn_nix.go",
         "fqdn_windows.go",
         "os_hostname_linux.go",
@@ -23,57 +26,62 @@ go_library(
         "//comp/core/telemetry/impl",
         "//pkg/config/env",
         "//pkg/config/setup",
+        "//pkg/config/setup/constants",
         "//pkg/util/cache",
         "//pkg/util/cloudproviders/azure",
         "//pkg/util/cloudproviders/gce",
         "//pkg/util/ec2",
         "//pkg/util/fargate",
+        "//pkg/util/hostname/eudm",
         "//pkg/util/hostname/validate",
         "//pkg/util/log",
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
             "//pkg/util/system",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
             "//pkg/util/system",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
     }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "hostname_test",
     srcs = [
         "common_test.go",
         "container_test.go",
         "drift_test.go",
+        "eudm_test.go",
+        "fqdn_aix_test.go",
         "providers_test.go",
     ],
     embed = [":hostname"],
-    gotags = ["test"],
     deps = [
+        "//comp/core/hostname/hostnameinterface/def",
+        "//comp/core/telemetry/impl",
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/util/cache",
@@ -87,27 +95,27 @@ go_test(
         "@rules_go//go/platform:android": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
         ],
         "@rules_go//go/platform:ios": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/util/docker",
             "//pkg/util/kubelet",
-            "//pkg/util/kubernetes",
+            "//pkg/util/kubernetes/hostname",
         ],
         "//conditions:default": [],
     }),

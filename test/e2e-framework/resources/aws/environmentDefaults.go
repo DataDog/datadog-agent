@@ -40,6 +40,7 @@ type ddInfra struct {
 	defaultVPCID                   string
 	defaultSubnets                 []SubnetConfig
 	defaultSecurityGroups          []string
+	noInternetSecurityGroupNames   []string
 	defaultInstanceType            string
 	defaultInstanceProfileName     string
 	defaultARMInstanceType         string
@@ -48,7 +49,10 @@ type ddInfra struct {
 	defaultShutdownBehavior        string
 	defaultInternalRegistry        string
 	defaultInternalDockerhubMirror string
+	defaultDatadogPublicRegistry   string
 	useMacosCompatibleSubnets      bool // Some subnets are not compatible with macOS hosts. macOS hosts are supported only in us-east-1a and us-east-1b
+	leaseBucket                    string
+	trackSSHActivity               bool // Enabled by create-vm and the agent-health demo lab. Requires the instance profile to be allowed to call ec2:CreateTags on the instance itself
 
 	ecs ddInfraECS
 	eks ddInfraEKS
@@ -83,6 +87,7 @@ type ddInfraEKS struct {
 	windowsLTSCNodeGroup                 bool
 	gpuNodeGroup                         bool
 	gpuInstanceType                      string
+	autoMode                             bool
 }
 
 type DDInfraEKSPodSubnets struct {
@@ -127,7 +132,9 @@ func sandboxDefault() environmentDefault {
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
+			defaultDatadogPublicRegistry:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog",
 			useMacosCompatibleSubnets:      false,
+			leaseBucket:                    "datadog-agent-sandbox-e2e-pools",
 
 			ecs: ddInfraECS{
 				execKMSKeyID:                "arn:aws:kms:us-east-1:601427279990:key/c84f93c2-a562-4a59-a326-918fbe7235c7",
@@ -158,7 +165,7 @@ func agentSandboxDefault() environmentDefault {
 	return environmentDefault{
 		aws: awsProvider{
 			region:  string(aws.RegionUSEast1),
-			profile: "exec-sso-agent-sandbox-account-admin",
+			profile: "exec-sso-agent-sandbox-account-admin-8h",
 		},
 		ddInfra: ddInfra{
 			defaultVPCID: "vpc-029c0faf8f49dee8d",
@@ -168,6 +175,7 @@ func agentSandboxDefault() environmentDefault {
 				{ID: "subnet-003831c49a10df3dd", MacOSCompatible: false},
 			},
 			defaultSecurityGroups:          []string{"sg-038231b976eb13d44", "sg-05466e7ce253d21b1"},
+			noInternetSecurityGroupNames:   []string{"no-internet-access"},
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
@@ -176,7 +184,9 @@ func agentSandboxDefault() environmentDefault {
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
+			defaultDatadogPublicRegistry:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog",
 			useMacosCompatibleSubnets:      false,
+			leaseBucket:                    "datadog-agent-sandbox-e2e-pools",
 			ecs: ddInfraECS{
 				execKMSKeyID:                "arn:aws:kms:us-east-1:376334461865:key/1d1fe533-a4f1-44ee-99ec-225b44fcb9ed",
 				fargateFakeintakeClusterArn: []string{"arn:aws:ecs:us-east-1:376334461865:cluster/fakeintake-ecs-2", "arn:aws:ecs:us-east-1:376334461865:cluster/fakeintake-ecs-3", "arn:aws:ecs:us-east-1:376334461865:cluster/fakeintake-ecs"},
@@ -197,7 +207,7 @@ func agentSandboxDefault() environmentDefault {
 
 			eks: ddInfraEKS{
 				readOnlySSORole:     "arn:aws:iam::376334461865:role/AWSReservedSSO_read-only_14b5d3ee971c41e7",
-				accountAdminSSORole: "arn:aws:iam::376334461865:role/AWSReservedSSO_account-admin_6b545a7026a0a2d4",
+				accountAdminSSORole: "arn:aws:iam::376334461865:role/AWSReservedSSO_account-admin-8h_8fadaeaca2040435",
 				podSubnets: []DDInfraEKSPodSubnets{
 					{
 						AZ:       "us-east-1a",
@@ -233,11 +243,13 @@ func agentQADefault() environmentDefault {
 		ddInfra: ddInfra{
 			defaultVPCID: "vpc-0097b9307ec2c8139",
 			defaultSubnets: []SubnetConfig{
-				{ID: "subnet-04bf3124d5c31c2e0", MacOSCompatible: true},  // us-east-1a
-				{ID: "subnet-06eecbdafc2dac21e", MacOSCompatible: false}, // us-east-1d
-				{ID: "subnet-0dabe4bab92b2b9a7", MacOSCompatible: true},  // us-east-1b
+				{ID: "subnet-0dabe4bab92b2b9a7", MacOSCompatible: true},    // us-east-1a (ci-us-east-1a)
+				{ID: "subnet-0a3f12f04bf8b0770", MacOSCompatible: true}, // us-east-1a (ci-us-east-1a-2)
+				{ID: "subnet-04bf3124d5c31c2e0", MacOSCompatible: true},    // us-east-1b (ci-us-east-1b)
+				{ID: "subnet-06eecbdafc2dac21e", MacOSCompatible: false},   // us-east-1d (ci-us-east-1d)
 			},
 			defaultSecurityGroups:          []string{"sg-05e9573fcc582f22c", "sg-0498c960a173dff1e"},
+			noInternetSecurityGroupNames:   []string{"no-internet-access"},
 			defaultInstanceType:            "t3.medium",
 			defaultInstanceProfileName:     "ec2InstanceRole",
 			defaultARMInstanceType:         "t4g.medium",
@@ -246,7 +258,9 @@ func agentQADefault() environmentDefault {
 			defaultShutdownBehavior:        "stop",
 			defaultInternalRegistry:        "669783387624.dkr.ecr.us-east-1.amazonaws.com",
 			defaultInternalDockerhubMirror: "669783387624.dkr.ecr.us-east-1.amazonaws.com/dockerhub",
+			defaultDatadogPublicRegistry:   "669783387624.dkr.ecr.us-east-1.amazonaws.com/ecr-public/datadog",
 			useMacosCompatibleSubnets:      false,
+			leaseBucket:                    "datadog-agent-qa-e2e-pools",
 			ecs: ddInfraECS{
 				execKMSKeyID:                "arn:aws:kms:us-east-1:669783387624:key/384373bc-6d99-4d68-84b5-b76b756b0af3",
 				fargateFakeintakeClusterArn: []string{"arn:aws:ecs:us-east-1:669783387624:cluster/fakeintake-ecs", "arn:aws:ecs:us-east-1:669783387624:cluster/fakeintake-ecs-2", "arn:aws:ecs:us-east-1:669783387624:cluster/fakeintake-ecs-3"},
@@ -316,7 +330,13 @@ func tsePlaygroundDefault() environmentDefault {
 			defaultWindowsInstanceType: "t3.large",
 			defaultInstanceStorageSize: 200,
 			defaultShutdownBehavior:    "stop",
-			useMacosCompatibleSubnets:  false,
+			// This account has no pull-through cache, so pull straight from the public registries.
+			defaultInternalDockerhubMirror: "registry-1.docker.io",
+			defaultDatadogPublicRegistry:   "public.ecr.aws/datadog",
+			useMacosCompatibleSubnets:      false,
+			// Not currently used to acquire macOS pool instances; defaulted to the
+			// sandbox bucket as a safe fallback.
+			leaseBucket: "datadog-agent-sandbox-e2e-pools",
 
 			ecs: ddInfraECS{
 				execKMSKeyID:                "arn:aws:kms:us-east-1:570690476889:key/f1694e5a-bb52-42a7-b414-dfd34fbd6759",

@@ -19,7 +19,7 @@ type Dependencies struct {
 	Demultiplexer demultiplexer.Component
 }
 
-// GetForwarder returns the event platform forwarder from the demultiplexer.
-func GetForwarder(deps Dependencies) (forwarder.Component, error) {
+// NewComponent returns the event platform forwarder from the demultiplexer.
+func NewComponent(deps Dependencies) (forwarder.Component, error) {
 	return deps.Demultiplexer.GetEventPlatformForwarder()
 }

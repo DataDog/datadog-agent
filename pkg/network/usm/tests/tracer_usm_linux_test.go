@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package tests
 
@@ -19,6 +19,7 @@ import (
 	neturl "net/url"
 	"os"
 	"os/exec"
+	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -40,6 +41,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	grpchelpers "github.com/DataDog/datadog-agent/comp/api/grpcserver/helpers"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/ebpftest"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
@@ -58,6 +60,7 @@ import (
 	protocolsUtils "github.com/DataDog/datadog-agent/pkg/network/protocols/testutil"
 	gotlstestutil "github.com/DataDog/datadog-agent/pkg/network/protocols/tls/gotls/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/fentry"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/usm"
@@ -94,20 +97,17 @@ const (
 )
 
 func httpSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return kv >= usmconfig.MinimumKernelVersion
 }
 
 func httpsSupported() bool {
-	if ebpftest.GetBuildMode() == ebpftest.Fentry {
-		return false
-	}
 	return usmconfig.TLSSupported(tracertestutil.Config())
 }
 
 func classificationSupported(config *config.Config) bool {
+	if ebpftest.GetBuildMode() == ebpftest.Fentry {
+		return fentry.ClassificationSupported(config)
+	}
 	return kprobe.ClassificationSupported(config)
 }
 
@@ -139,7 +139,7 @@ type USMSuite struct {
 }
 
 func TestUSMSuite(t *testing.T) {
-	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
+	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModesForConnectionTracer(), "", func(t *testing.T) {
 		suite.Run(t, new(USMSuite))
 	})
 }
@@ -188,7 +188,7 @@ func (s *USMSuite) TestProtocolClassification() {
 	cfg.EnablePostgresMonitoring = true
 	cfg.EnableGoTLSSupport = gotlstestutil.GoTLSSupported(t, cfg)
 	cfg.BypassEnabled = true
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -518,9 +518,6 @@ func (s *USMSuite) TestTLSClassification() {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if ebpftest.GetBuildMode() == ebpftest.Fentry {
-				t.Skip("protocol classification not supported for fentry tracer")
-			}
 			t.Cleanup(func() { tr.RemoveClient(clientID) })
 			t.Cleanup(func() { _ = tr.Pause() })
 
@@ -706,7 +703,7 @@ func TestFullMonitorWithTracer(t *testing.T) {
 	cfg.EnableGoTLSSupport = true
 	cfg.EnableNodeJSMonitoring = true
 
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 
@@ -756,48 +753,222 @@ func testUnclassifiedProtocol(t *testing.T, tr *tracer.Tracer, clientHost, targe
 
 			},
 			validation: func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
-				m, err := tr.GetMap(probes.ConnectionProtocolMap)
-				require.NoError(t, err)
-
 				client := ctx.extras["client"].(net.Conn)
 				defer client.Close()
-				localAddrString, _, err := net.SplitHostPort(client.LocalAddr().(*net.TCPAddr).String())
-				require.NoError(t, err)
-				localAddr, err := netip.ParseAddr(localAddrString)
-				require.NoError(t, err)
-				remoteAddrString, _, err := net.SplitHostPort(client.RemoteAddr().(*net.TCPAddr).String())
-				require.NoError(t, err)
-				remoteAddr, err := netip.ParseAddr(remoteAddrString)
-				require.NoError(t, err)
-
-				ll, lh := util.ToLowHighIP(localAddr)
-				rl, rh := util.ToLowHighIP(remoteAddr)
-				key := netebpf.ConnTuple{
-					Saddr_h:  lh,
-					Saddr_l:  ll,
-					Daddr_h:  rh,
-					Daddr_l:  rl,
-					Sport:    uint16(client.LocalAddr().(*net.TCPAddr).Port),
-					Dport:    uint16(client.RemoteAddr().(*net.TCPAddr).Port),
-					Metadata: uint32(netebpf.TCP),
-				}
-				inverseKey := netebpf.ConnTuple{
-					Saddr_h:  key.Daddr_h,
-					Saddr_l:  key.Daddr_l,
-					Daddr_h:  key.Saddr_h,
-					Daddr_l:  key.Saddr_l,
-					Sport:    key.Dport,
-					Dport:    key.Sport,
-					Metadata: key.Metadata,
-				}
-				value := netebpf.ProtocolStackWrapper{}
-				keyExistence := m.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&value))
-				require.ErrorIs(t, keyExistence, ebpf.ErrKeyNotExist)
-				keyExistence = m.Lookup(unsafe.Pointer(&inverseKey), unsafe.Pointer(&value))
-				require.ErrorIs(t, keyExistence, ebpf.ErrKeyNotExist)
+				requireNoProtocolMapEntry(t, tr, client)
 			},
 		},
 	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testProtocolClassificationInner(t, tt, tr)
+		})
+	}
+}
+
+// requireNoProtocolMapEntry asserts that the classifier recorded nothing for
+// the client's connection: no entry in ConnectionProtocolMap under either the
+// connection tuple or its inverse. This is stricter than looking for a
+// connection with an empty protocol stack, which can be satisfied by any
+// connection between the same addresses. The connection must still be open.
+func requireNoProtocolMapEntry(t *testing.T, tr *tracer.Tracer, client net.Conn) {
+	t.Helper()
+	m, err := tr.GetMap(probes.ConnectionProtocolMap)
+	require.NoError(t, err)
+
+	localAddrString, _, err := net.SplitHostPort(client.LocalAddr().(*net.TCPAddr).String())
+	require.NoError(t, err)
+	localAddr, err := netip.ParseAddr(localAddrString)
+	require.NoError(t, err)
+	remoteAddrString, _, err := net.SplitHostPort(client.RemoteAddr().(*net.TCPAddr).String())
+	require.NoError(t, err)
+	remoteAddr, err := netip.ParseAddr(remoteAddrString)
+	require.NoError(t, err)
+
+	ll, lh := util.ToLowHighIP(localAddr)
+	rl, rh := util.ToLowHighIP(remoteAddr)
+	key := netebpf.ConnTuple{
+		Saddr_h:  lh,
+		Saddr_l:  ll,
+		Daddr_h:  rh,
+		Daddr_l:  rl,
+		Sport:    uint16(client.LocalAddr().(*net.TCPAddr).Port),
+		Dport:    uint16(client.RemoteAddr().(*net.TCPAddr).Port),
+		Metadata: uint32(netebpf.TCP),
+	}
+	inverseKey := netebpf.ConnTuple{
+		Saddr_h:  key.Daddr_h,
+		Saddr_l:  key.Daddr_l,
+		Daddr_h:  key.Saddr_h,
+		Daddr_l:  key.Saddr_l,
+		Sport:    key.Dport,
+		Dport:    key.Sport,
+		Metadata: key.Metadata,
+	}
+	value := netebpf.ProtocolStackWrapper{}
+	keyExistence := m.Lookup(unsafe.Pointer(&key), unsafe.Pointer(&value))
+	require.ErrorIs(t, keyExistence, ebpf.ErrKeyNotExist, "unexpected protocol map entry %+v", value)
+	keyExistence = m.Lookup(unsafe.Pointer(&inverseKey), unsafe.Pointer(&value))
+	require.ErrorIs(t, keyExistence, ebpf.ErrKeyNotExist, "unexpected protocol map entry for inverse tuple %+v", value)
+}
+
+// testRedisRESPValidation exercises is_redis() over a raw socket, covering both
+// directions of the guarantee it has to provide: valid RESP frames must still be
+// classified as Redis, and payloads that merely begin with a RESP type byte must
+// not be.
+//
+// The second half is the regression test for the TLS-reported-as-plaintext bug.
+// is_redis() used to accept any buffer whose first byte was one of the 14 RESP
+// type bytes, i.e. ~5.5% of arbitrary payloads. TLS ciphertext hit that often
+// enough to lock the application layer to Redis, and once the app layer is set,
+// protocol_classifier_entrypoint stops calling is_tls() for the life of the
+// connection — so encrypted connections were reported with tls_encrypted:false.
+// On one staging cluster that was 6.00k connections in an hour.
+//
+// Deliberately raw-socket rather than Docker-based: this asserts on the byte
+// validation itself, so it must not depend on a Redis server being reachable.
+func testRedisRESPValidation(t *testing.T, tr *tracer.Tracer, clientHost, targetHost, serverHost string) {
+	// Each case gets its own server, on its own ephemeral port. Sharing one
+	// would make the positive assertions meaningless: validateProtocolConnection
+	// matches *any* connection between the target and server addresses carrying
+	// the expected stack, so a case expecting Redis can be satisfied by a
+	// connection an earlier case already classified — it passes without the
+	// payload under test ever having been accepted. Observed: with a
+	// deliberately crippled validator that cannot accept "+PONG\r\n", the
+	// simple-string case still passed, matching a leftover connection from a
+	// previous case. Ephemeral rather than fixed ports so the test cannot
+	// collide with a real service on the host.
+	defaultDialer := &net.Dialer{
+		LocalAddr: &net.TCPAddr{
+			IP: net.ParseIP(clientHost),
+		},
+	}
+
+	// Stand-in for TLS ciphertext. Contains no \r and no \n on purpose: that
+	// makes rejection deterministic rather than dependent on whether the bytes
+	// chosen happen to contain a CRLF.
+	cipherTail := []byte{0x9f, 0x1a, 0x03, 0xc7, 0x5e, 0xb2, 0x41, 0xf8, 0x2d, 0x96, 0x77, 0x08, 0xe4, 0x3b, 0xa1, 0x60}
+	withCipherTail := func(prefix string) []byte {
+		return append([]byte(prefix), cipherTail...)
+	}
+
+	redisStack := &protocols.Stack{Application: protocols.Redis}
+	unclassified := &protocols.Stack{}
+
+	cases := []struct {
+		name     string
+		payload  []byte
+		expected *protocols.Stack
+	}{
+		// Valid RESP must still be classified as Redis.
+		{"resp array command", []byte("*1\r\n$4\r\nPING\r\n"), redisStack},
+		{"resp bulk string", []byte("$6\r\nfoobar\r\n"), redisStack},
+		{"resp simple string", []byte("+PONG\r\n"), redisStack},
+		{"resp error", []byte("-ERR unknown command\r\n"), redisStack},
+		// Not -ERR or -WRONGTYPE, so this goes through the text class.
+		{"resp error via text class", []byte("-NOPE x\r\n"), redisStack},
+		{"resp integer", []byte(":42\r\n"), redisStack},
+		{"resp negative integer", []byte(":-1\r\n"), redisStack},
+		{"resp explicitly positive integer", []byte(":+5\r\n"), redisStack},
+		{"resp null bulk string", []byte("$-1\r\n"), redisStack},
+		{"resp null array", []byte("*-1\r\n"), redisStack},
+		{"resp simple string with digits", []byte("+123\r\n"), redisStack},
+		{"resp3 null", []byte("_\r\n"), redisStack},
+		{"resp3 boolean", []byte("#t\r\n"), redisStack},
+		{"resp3 big number", []byte("(12345\r\n"), redisStack},
+		{"resp3 bulk error", []byte("!21\r\n"), redisStack},
+		{"resp3 set", []byte("~2\r\n"), redisStack},
+		{"resp3 double", []byte(",1.5\r\n"), redisStack},
+		{"resp3 double with negative exponent", []byte(",1e-7\r\n"), redisStack},
+		{"resp3 double with positive exponent", []byte(",1e+7\r\n"), redisStack},
+		{"resp3 double inf", []byte(",inf\r\n"), redisStack},
+		{"resp3 double negative inf", []byte(",-inf\r\n"), redisStack},
+		{"resp3 double nan", []byte(",nan\r\n"), redisStack},
+		{"resp 100MB bulk string", []byte("$100000000\r\n"), redisStack},
+		// RESP_FIELD_MAX_LEN is 10: the longest first field accepted.
+		{"resp integer at max field length", []byte(":1000000000\r\n"), redisStack},
+		{"resp integer past max field length", []byte(":10000000000\r\n"), unclassified},
+
+		// A RESP type byte followed by ciphertext must not be classified as
+		// Redis. Every one of these was a false positive before the fix.
+		{"array prefix then ciphertext", withCipherTail("*"), unclassified},
+		{"bulk prefix then ciphertext", withCipherTail("$"), unclassified},
+		{"simple string prefix then ciphertext", withCipherTail("+"), unclassified},
+		{"error prefix then ciphertext", withCipherTail("-"), unclassified},
+		{"integer prefix then ciphertext", withCipherTail(":"), unclassified},
+		{"map prefix then ciphertext", withCipherTail("%"), unclassified},
+		{"push prefix then ciphertext", withCipherTail(">"), unclassified},
+		{"verbatim string prefix then ciphertext", withCipherTail("="), unclassified},
+
+		// Payloads that get past buf[1], so a validator that only looks at
+		// the byte after the type prefix would wrongly accept them.
+		{"empty field", []byte("*\r\n"), unclassified},
+		{"CR without LF", []byte("*12\rX"), unclassified},
+		{"bad character mid-field", []byte("$12a\r\n"), unclassified},
+		{"count with no terminator in buffer", withCipherTail("*12"), unclassified},
+		{"simple string with no CRLF", withCipherTail("+OK"), unclassified},
+		{"resp3 null with payload", []byte("_x\r\n"), unclassified},
+		{"resp3 boolean not t or f", []byte("#x\r\n"), unclassified},
+		{"sign-only length", []byte("$-\r\n"), unclassified},
+		{"sign-only integer", []byte(":+\r\n"), unclassified},
+		{"plus-signed length", []byte("$+5\r\n"), unclassified},
+		{"double with a character outside its class", []byte(",1_5\r\n"), unclassified},
+	}
+
+	tests := make([]protocolClassificationAttributes, 0, len(cases))
+	for _, tc := range cases {
+		server := tracertestutil.NewTCPServerOnAddress(net.JoinHostPort(serverHost, "0"), func(c net.Conn) {
+			_, _ = io.Copy(c, c)
+		})
+		require.NoError(t, server.Run())
+		t.Cleanup(server.Shutdown)
+
+		// DNAT rewrites only the destination address, so the target shares
+		// the server's port.
+		port := strconv.Itoa(server.Addr().(*net.TCPAddr).Port)
+		serverAddress := net.JoinHostPort(serverHost, port)
+		targetAddress := net.JoinHostPort(targetHost, port)
+
+		validation := validateProtocolConnection(tc.expected)
+		if tc.expected == unclassified {
+			// Finding a connection with an empty stack is not enough on its
+			// own: also require that the classifier recorded nothing at all
+			// for this exact connection, as testUnclassifiedProtocol does.
+			validation = func(t *testing.T, ctx testContext, tr *tracer.Tracer) {
+				validateProtocolConnection(unclassified)(t, ctx, tr)
+				requireNoProtocolMapEntry(t, tr, ctx.extras["client"].(net.Conn))
+			}
+		}
+
+		tests = append(tests, protocolClassificationAttributes{
+			name: tc.name,
+			context: testContext{
+				serverPort:    port,
+				serverAddress: serverAddress,
+				targetAddress: targetAddress,
+				extras:        make(map[string]interface{}),
+			},
+			postTracerSetup: func(t *testing.T, ctx testContext) {
+				c, err := defaultDialer.Dial("tcp", ctx.targetAddress)
+				require.NoError(t, err)
+				// Closed in cleanup, after validation, so that the connection
+				// is still open when its protocol map entry is looked up.
+				t.Cleanup(func() { _ = c.Close() })
+				ctx.extras["client"] = c
+
+				_, err = c.Write(tc.payload)
+				require.NoError(t, err)
+
+				// Read the echo back, so the server-to-client direction carries
+				// the same bytes and the exchange has completed before the
+				// classification is inspected.
+				_, err = io.ReadFull(c, make([]byte, len(tc.payload)))
+				require.NoError(t, err)
+			},
+			validation: validation,
+		})
+	}
+
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			testProtocolClassificationInner(t, tt, tr)
@@ -1988,12 +2159,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := &nethttp.Client{
-					Transport: &http2.Transport{
-						AllowHTTP: true,
-						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-							return net.Dial(network, addr)
-						},
-					},
+					Transport: func() *nethttp.Transport {
+						protocols := new(nethttp.Protocols)
+						protocols.SetUnencryptedHTTP2(true)
+						return &nethttp.Transport{Protocols: protocols}
+					}(),
 				}
 
 				resp, err := client.Post("http://"+ctx.targetAddress, "application/json", bytes.NewReader([]byte("test")))
@@ -2044,12 +2214,11 @@ func testHTTP2ProtocolClassification(t *testing.T, tr *tracer.Tracer, clientHost
 			},
 			postTracerSetup: func(t *testing.T, ctx testContext) {
 				client := &nethttp.Client{
-					Transport: &http2.Transport{
-						AllowHTTP: true,
-						DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-							return net.Dial(network, addr)
-						},
-					},
+					Transport: func() *nethttp.Transport {
+						protocols := new(nethttp.Protocols)
+						protocols.SetUnencryptedHTTP2(true)
+						return &nethttp.Transport{Protocols: protocols}
+					}(),
 				}
 
 				req, err := nethttp.NewRequest("POST", "http://"+ctx.targetAddress, bytes.NewReader([]byte("test")))
@@ -2234,6 +2403,10 @@ func testProtocolClassificationLinux(t *testing.T, tr *tracer.Tracer, clientHost
 			testFunc: testRedisProtocolClassification,
 		},
 		{
+			name:     "redis RESP validation",
+			testFunc: testRedisRESPValidation,
+		},
+		{
 			name:     "amqp",
 			testFunc: testAMQPProtocolClassification,
 		},
@@ -2392,12 +2565,11 @@ func testHTTP2Sketches(t *testing.T, tr *tracer.Tracer) {
 	t.Cleanup(srvDoneFn)
 
 	client := &nethttp.Client{
-		Transport: &http2.Transport{
-			AllowHTTP: true,
-			DialTLSContext: func(_ context.Context, network, addr string, _ *tls.Config) (net.Conn, error) {
-				return net.Dial(network, addr)
-			},
-		},
+		Transport: func() *nethttp.Transport {
+			protocols := new(nethttp.Protocols)
+			protocols.SetUnencryptedHTTP2(true)
+			return &nethttp.Transport{Protocols: protocols}
+		}(),
 	}
 
 	testHTTPLikeSketches(t, tr, client, httpURL, true)
@@ -2646,6 +2818,9 @@ func testRedisSketches(t *testing.T, tr *tracer.Tracer) {
 func (s *USMSuite) TestVerifySketches() {
 	t := s.T()
 	skipIfKernelIsNotSupported(t, usmconfig.MinimumKernelVersion)
+	if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled && runtime.GOARCH == "arm64" {
+		flake.MarkOnJobName(t, "ubuntu_26.04")
+	}
 
 	cfg := usm.NewUSMEmptyConfig()
 	cfg.EnableHTTPMonitoring = true
@@ -2655,7 +2830,7 @@ func (s *USMSuite) TestVerifySketches() {
 	cfg.EnableRedisMonitoring = kv >= redis.MinimumKernelVersion
 	cfg.RedisTrackResources = true
 
-	tr, err := tracer.NewTracer(cfg, nil, nil)
+	tr, err := tracer.NewTracer(cfg, telemetryimpl.NewMock(t), nil)
 	require.NoError(t, err)
 	t.Cleanup(tr.Stop)
 	require.NoError(t, tr.RegisterClient(clientID))

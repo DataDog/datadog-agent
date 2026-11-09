@@ -359,8 +359,8 @@ fn size_verified_zip_reader(
     let compressed_reader = zip_file.reader();
 
     let verified_reader: Box<dyn Read + '_> = match compression_method {
-        CompressionMethod::Store => Box::new(zip_file.verifying_reader(compressed_reader)),
-        CompressionMethod::Deflate => {
+        CompressionMethod::STORE => Box::new(zip_file.verifying_reader(compressed_reader)),
+        CompressionMethod::DEFLATE => {
             Box::new(zip_file.verifying_reader(DeflateDecoder::new(compressed_reader)))
         }
         unsupported => {

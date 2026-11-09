@@ -601,6 +601,50 @@ static_quality_gate_docker_agent_amd64:
         self.assertIn("static_quality_gate_agent_deb_amd64", gate_names)
         self.assertIn("static_quality_gate_docker_agent_amd64", gate_names)
 
+    def test_create_gates_from_config_multiple_files(self):
+        main_config = mock_open(
+            read_data="""
+static_quality_gate_agent_deb_amd64:
+  max_on_wire_size: "1000 MiB"
+  max_on_disk_size: "2000 MiB"
+"""
+        ).return_value
+        cluster_agent_config = mock_open(
+            read_data="""
+static_quality_gate_docker_cluster_agent_amd64:
+  max_on_wire_size: "75 MiB"
+  max_on_disk_size: "214 MiB"
+"""
+        ).return_value
+
+        with patch('builtins.open', side_effect=[main_config, cluster_agent_config]):
+            gates = QualityGateFactory.create_gates_from_config(["main.yml", "cluster_agent.yml"])
+
+        gate_names = [gate.config.gate_name for gate in gates]
+        self.assertEqual(len(gates), 2)
+        self.assertIn("static_quality_gate_agent_deb_amd64", gate_names)
+        self.assertIn("static_quality_gate_docker_cluster_agent_amd64", gate_names)
+
+    def test_create_gates_from_config_duplicate_gate_raises(self):
+        main_config = mock_open(
+            read_data="""
+static_quality_gate_agent_deb_amd64:
+  max_on_wire_size: "1000 MiB"
+  max_on_disk_size: "2000 MiB"
+"""
+        ).return_value
+        duplicate_config = mock_open(
+            read_data="""
+static_quality_gate_agent_deb_amd64:
+  max_on_wire_size: "1000 MiB"
+  max_on_disk_size: "2000 MiB"
+"""
+        ).return_value
+
+        with patch('builtins.open', side_effect=[main_config, duplicate_config]):
+            with self.assertRaises(ValueError):
+                QualityGateFactory.create_gates_from_config(["main.yml", "duplicate.yml"])
+
 
 class TestGateListGeneration(unittest.TestCase):
     def test_create_quality_gate_config(self):

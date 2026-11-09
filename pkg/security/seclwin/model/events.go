@@ -107,8 +107,8 @@ const (
 	AcceptEventType
 	// BindEventType Bind event
 	BindEventType
-	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
-	UnshareMountNsEventType
+	// UnshareEventType is sent when a process creates new namespaces via the unshare syscall
+	UnshareEventType
 	// SyscallsEventType Syscalls event
 	SyscallsEventType
 	// IMDSEventType is sent when an IMDS request or answer is captured
@@ -145,12 +145,20 @@ const (
 	TracerMemfdSealEventType
 	// PivotRootEventType is sent when pivot_root completes successfully
 	PivotRootEventType
+	// SampleRefreshEventType is sent when a dedup map detects a duplicate and refreshes a cookie timestamp
+	SampleRefreshEventType
 	// SetSidEventType is sent when setsid completes successfully
 	SetSidEventType
 	// NopEventType nop event
 	NopEventType
 	// SocketEventType is sent when a socket is created
 	SocketEventType
+	// UnshareMountNsEventType is sent when a new mount is created from a mount namespace copy
+	UnshareMountNsEventType
+	// OTelProcessCtxEventType is sent when a process publishes its OTel process context
+	OTelProcessCtxEventType
+	// SetNSEventType is sent when a thread joins an existing namespace
+	SetNSEventType
 	// MaxKernelEventType is used internally to get the maximum number of kernel events.
 	MaxKernelEventType
 
@@ -282,6 +290,8 @@ func (t EventType) String() string {
 		return "accept"
 	case ConnectEventType:
 		return "connect"
+	case UnshareEventType:
+		return "unshare"
 	case UnshareMountNsEventType:
 		return "unshare_mntns"
 	case SyscallsEventType:
@@ -346,12 +356,18 @@ func (t EventType) String() string {
 		return "tracer_memfd_seal"
 	case PivotRootEventType:
 		return "pivot_root"
+	case SampleRefreshEventType:
+		return "sample_refresh"
 	case SetSidEventType:
 		return "setsid"
 	case NopEventType:
 		return "nop"
 	case SocketEventType:
 		return "socket"
+	case OTelProcessCtxEventType:
+		return "otel_process_ctx"
+	case SetNSEventType:
+		return "setns"
 	default:
 		return "unknown"
 	}

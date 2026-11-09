@@ -17,7 +17,9 @@ import (
 	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	ddErrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/hostname"
@@ -40,14 +42,15 @@ type ClusterChecksConfigProvider struct {
 	identifier       string
 	flushedConfigs   bool
 	nodeType         types.NodeType
+	group            string
 }
 
 // NewClusterChecksConfigProvider returns a new ConfigProvider collecting
 // cluster check configurations from the cluster-agent.
 // Connectivity is not checked at this stage to allow for retries, Collect will do it.
-func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.ConfigurationProviders, _ *telemetry.Store) (providerTypes.ConfigProvider, error) {
+func NewClusterChecksConfigProvider(providerConfig *constants.ConfigurationProviders, _ *telemetry.Store) (providerTypes.ConfigProvider, error) {
 	if providerConfig == nil {
-		providerConfig = &pkgconfigsetup.ConfigurationProviders{}
+		providerConfig = &constants.ConfigurationProviders{}
 	}
 
 	c := &ClusterChecksConfigProvider{
@@ -71,10 +74,15 @@ func NewClusterChecksConfigProvider(providerConfig *pkgconfigsetup.Configuration
 	}
 
 	// Set nodeType based on config
-	if pkgconfigsetup.IsCLCRunner(pkgconfigsetup.Datadog()) {
+	if helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
 		c.nodeType = types.NodeTypeCLCRunner
 	} else {
 		c.nodeType = types.NodeTypeNodeAgent
+	}
+
+	c.group = pkgconfigsetup.Datadog().GetString("clc_runner_group")
+	if c.group != "" {
+		log.Infof("Advertising cluster checks runner group %q", c.group)
 	}
 
 	if providerConfig.GraceTimeSeconds > 0 {
@@ -128,6 +136,7 @@ func (c *ClusterChecksConfigProvider) IsUpToDate(ctx context.Context) (bool, err
 	status := types.NodeStatus{
 		LastChange: c.lastChange,
 		NodeType:   c.nodeType,
+		Group:      c.group,
 	}
 
 	reply, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)
@@ -227,6 +236,7 @@ func (c *ClusterChecksConfigProvider) postHeartbeat(ctx context.Context) error {
 	status := types.NodeStatus{
 		LastChange: types.ExtraHeartbeatLastChangeValue,
 		NodeType:   c.nodeType,
+		Group:      c.group,
 	}
 
 	_, err := c.dcaClient.PostClusterCheckStatus(ctx, c.identifier, status)

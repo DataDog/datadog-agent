@@ -12,9 +12,11 @@ package windowsuser
 
 import (
 	"fmt"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 // TestAgentUserPassword gets the password for the agent user from the LSA.
@@ -76,4 +78,29 @@ func TestAgentUser(t *testing.T) {
 	netIsServiceAccount, err := NetIsServiceAccount(user)
 	assert.NoError(t, err)
 	fmt.Println("NetIsServiceAccount:", netIsServiceAccount)
+}
+
+// TestAgentUserKeepRightsFromRegistry prints the DDAGENTUSER_KEEP_RIGHTS value stored in the
+// registry, if any. Run after installing with DDAGENTUSER_KEEP_RIGHTS=1 to verify it was stored,
+// and again after a full uninstall to verify it was cleared.
+func TestAgentUserKeepRightsFromRegistry(t *testing.T) {
+	keepRights, err := GetAgentUserKeepRightsFromRegistry()
+	assert.NoError(t, err)
+	fmt.Println("keepRights: ", keepRights)
+}
+
+// getTestAgentUser returns the agent user name used for the unit tests.
+//
+// Returns the agent user name from the registry, and can be overridden by setting the DD_AGENT_USER_NAME environment variable.
+func getTestAgentUser(t *testing.T) string {
+	var err error
+	user := os.Getenv("DD_AGENT_USER_NAME")
+	if user != "" {
+		return user
+	}
+
+	user, err = GetAgentUserNameFromRegistry()
+	require.NoError(t, err, "failed to get agent user from registry, please set DD_AGENT_USER_NAME")
+
+	return user
 }

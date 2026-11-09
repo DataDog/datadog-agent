@@ -148,6 +148,12 @@ func (e *UnknownAttachmentError) Unwrap() error {
 	return e.Err
 }
 
+// IsUnknownAttachmentError returns true if the error is an UnknownAttachmentError
+func IsUnknownAttachmentError(err error) bool {
+	var unknownErr *UnknownAttachmentError
+	return errors.As(err, &unknownErr)
+}
+
 // NewUnknownAttachmentError creates a new `UnknownAttachmentError` instance wrapping
 // the given error.
 func NewUnknownAttachmentError(err error) *UnknownAttachmentError {
@@ -186,6 +192,10 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 		// by checking if the process root directory exists.
 		processRoot := fmt.Sprintf("%s/%d", r.procRoot, pid)
 		if _, statErr := os.Stat(processRoot); statErr != nil {
+			return ErrProcessDoesNotExist
+		}
+		// container runtime processes do not exist in container
+		if namespacedPath == "/runc" {
 			return ErrProcessDoesNotExist
 		}
 
@@ -233,8 +243,8 @@ func (r *FileRegistry) Register(namespacedPath string, pid uint32, activationCB,
 			return err
 		}
 
-		// short living process would be hard to catch and will failed when we try to open the library
-		// so let's failed silently
+		// short living process would be hard to catch and will fail when we try to open the library
+		// so let's fail silently
 		if errors.Is(err, os.ErrNotExist) {
 			return err
 		}

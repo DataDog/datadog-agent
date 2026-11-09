@@ -276,6 +276,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     },
                     "type": "array",
                     "description": "Capabilities that the process successfully used since it started running"
+                },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace"
                 }
             },
             "additionalProperties": false,
@@ -312,6 +326,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "Container ID"
                 },
+                "pod_uid": {
+                    "type": "string",
+                    "description": "Kubernetes pod UID"
+                },
+                "ecs_task_id": {
+                    "type": "string",
+                    "description": "ECS task ID"
+                },
                 "source": {
                     "type": "string",
                     "description": "Source of the container entry (event or procfs)"
@@ -329,21 +351,6 @@ Workload Protection events for Linux systems have the following JSON schema:
             "additionalProperties": false,
             "type": "object",
             "description": "ContainerContextSerializer serializes a container context to JSON"
-        },
-        "DDContext": {
-            "properties": {
-                "span_id": {
-                    "type": "string",
-                    "description": "Span ID used for APM correlation"
-                },
-                "trace_id": {
-                    "type": "string",
-                    "description": "Trace ID used for APM correlation"
-                }
-            },
-            "additionalProperties": false,
-            "type": "object",
-            "description": "DDContextSerializer serializes a span context to JSON"
         },
         "DNSEvent": {
             "properties": {
@@ -642,6 +649,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "metadata": {
                     "$ref": "#/$defs/FileMetadata"
+                },
+                "capabilities": {
+                    "$ref": "#/$defs/FileCapabilities",
+                    "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
                 }
             },
             "additionalProperties": false,
@@ -651,6 +662,41 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "gid"
             ],
             "description": "FileSerializer serializes a file to JSON"
+        },
+        "FileCapabilities": {
+            "properties": {
+                "permitted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Permitted capabilities attached to the executable, before the bounding-set check."
+                },
+                "inheritable": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Inheritable capabilities attached to the executable."
+                },
+                "effective": {
+                    "type": "boolean",
+                    "description": "File effective capability bit, not a capability set."
+                },
+                "available": {
+                    "type": "boolean",
+                    "description": "Whether valid file capabilities were collected during exec or procfs resolution."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "permitted",
+                "inheritable",
+                "effective",
+                "available"
+            ],
+            "description": "FileCapabilitiesSerializer serializes the executable's file capabilities."
         },
         "FileEvent": {
             "properties": {
@@ -798,6 +844,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "metadata": {
                     "$ref": "#/$defs/FileMetadata"
                 },
+                "capabilities": {
+                    "$ref": "#/$defs/FileCapabilities",
+                    "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
+                },
                 "destination": {
                     "$ref": "#/$defs/File",
                     "description": "Target file information"
@@ -916,6 +966,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "server": {
                     "type": "string",
                     "description": "server is the server header of a response"
+                },
+                "credential_source": {
+                    "type": "string",
+                    "description": "credential_source is the credential endpoint that served the IMDS event"
                 },
                 "aws": {
                     "$ref": "#/$defs/AWSIMDSEvent",
@@ -1186,7 +1240,14 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "visible": {
                     "type": "boolean",
-                    "description": "Mount is not visible in the VFS tree"
+                    "description": "Mount is visible in the VFS tree"
+                },
+                "flags": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Per-mount attribute flags expressed as MOUNT_ATTR_* names"
                 }
             },
             "additionalProperties": false,
@@ -1198,6 +1259,45 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "device"
             ],
             "description": "MountEventSerializer serializes a mount event to JSON"
+        },
+        "NamespaceIDs": {
+            "properties": {
+                "mntns": {
+                    "type": "integer",
+                    "description": "Mount namespace ID"
+                },
+                "netns": {
+                    "type": "integer",
+                    "description": "Network namespace ID"
+                },
+                "pidns": {
+                    "type": "integer",
+                    "description": "ID of the PID namespace future children are created in (pid_for_children)"
+                },
+                "userns": {
+                    "type": "integer",
+                    "description": "User namespace ID"
+                },
+                "utsns": {
+                    "type": "integer",
+                    "description": "UTS namespace ID"
+                },
+                "ipcns": {
+                    "type": "integer",
+                    "description": "IPC namespace ID"
+                },
+                "cgroupns": {
+                    "type": "integer",
+                    "description": "Cgroup namespace ID"
+                },
+                "timens": {
+                    "type": "integer",
+                    "description": "Time namespace ID"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved"
         },
         "NetworkContext": {
             "properties": {
@@ -1430,6 +1530,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "array",
                     "description": "CapsUsed lists the capabilities that this process effectively made use of"
                 },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+                },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
                     "description": "Context of the user session for this event"
@@ -1512,8 +1626,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "description": "List of AWS Security Credentials that the process had access to"
                 },
                 "tracer": {
-                    "$ref": "#/$defs/TracerMetadata",
-                    "description": "Metadata from APM tracer instrumentation"
+                    "$ref": "#/$defs/Tracer",
+                    "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
@@ -1613,6 +1727,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "array",
                     "description": "CapsUsed lists the capabilities that this process effectively made use of"
                 },
+                "caps_attempted_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+                },
+                "caps_used_host_userns": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+                },
                 "user_session": {
                     "$ref": "#/$defs/UserSessionContext",
                     "description": "Context of the user session for this event"
@@ -1695,8 +1823,8 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "description": "List of AWS Security Credentials that the process had access to"
                 },
                 "tracer": {
-                    "$ref": "#/$defs/TracerMetadata",
-                    "description": "Metadata from APM tracer instrumentation"
+                    "$ref": "#/$defs/Tracer",
+                    "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
                 },
                 "variables": {
                     "$ref": "#/$defs/Variables",
@@ -1969,6 +2097,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "event_type_state": {
                     "type": "string",
                     "description": "State of the event type in this profile"
+                },
+                "profile_already_sent": {
+                    "type": "boolean",
+                    "description": "True if the profile had already been persisted to the backend when this event was emitted"
                 }
             },
             "additionalProperties": false,
@@ -1978,23 +2110,78 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "version",
                 "tags",
                 "event_in_profile",
-                "event_type_state"
+                "event_type_state",
+                "profile_already_sent"
             ],
             "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
+        },
+        "SetNSEvent": {
+            "properties": {
+                "nstype": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
+                },
+                "mntns": {
+                    "type": "integer",
+                    "description": "Mount namespace ID"
+                },
+                "netns": {
+                    "type": "integer",
+                    "description": "Network namespace ID"
+                },
+                "pidns": {
+                    "type": "integer",
+                    "description": "ID of the PID namespace future children are created in (pid_for_children)"
+                },
+                "userns": {
+                    "type": "integer",
+                    "description": "User namespace ID"
+                },
+                "utsns": {
+                    "type": "integer",
+                    "description": "UTS namespace ID"
+                },
+                "ipcns": {
+                    "type": "integer",
+                    "description": "IPC namespace ID"
+                },
+                "cgroupns": {
+                    "type": "integer",
+                    "description": "Cgroup namespace ID"
+                },
+                "timens": {
+                    "type": "integer",
+                    "description": "Time namespace ID"
+                },
+                "previous": {
+                    "$ref": "#/$defs/NamespaceIDs",
+                    "description": "Namespace IDs of the thread before the syscall"
+                },
+                "mntns_host": {
+                    "type": "boolean",
+                    "description": "Indicates that the mount namespace of the thread after the syscall is the host's initial one"
+                },
+                "mntns_outside_base": {
+                    "type": "boolean",
+                    "description": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "SetNSEventSerializer serializes a setns event"
         },
         "SetSockOptEvent": {
             "properties": {
                 "socket_type": {
                     "type": "string",
-                    "description": "Socket file descriptor"
+                    "description": "Socket type"
                 },
                 "socket_family": {
                     "type": "string",
                     "description": "Socket family"
-                },
-                "filter_len": {
-                    "type": "integer",
-                    "description": "Length of the filter"
                 },
                 "socket_protocol": {
                     "type": "string",
@@ -2008,17 +2195,21 @@ Workload Protection events for Linux systems have the following JSON schema:
                     "type": "string",
                     "description": "Name of the option being set"
                 },
+                "filter_len": {
+                    "type": "integer",
+                    "description": "Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
+                },
                 "is_filter_truncated": {
                     "type": "boolean",
-                    "description": "Filter truncated"
+                    "description": "Filter truncation flag (available when OptName == SO_ATTACH_FILTER)"
                 },
                 "filter": {
                     "type": "string",
-                    "description": "Filter instructions"
+                    "description": "Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
                 },
                 "filter_hash": {
                     "type": "string",
-                    "description": "Filter hash"
+                    "description": "Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
                 }
             },
             "additionalProperties": false,
@@ -2293,6 +2484,43 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "object",
             "description": "TLSContextSerializer defines a tls context serializer"
         },
+        "Trace": {
+            "properties": {
+                "span_id": {
+                    "type": "string",
+                    "description": "Span ID used for APM correlation"
+                },
+                "trace_id": {
+                    "type": "string",
+                    "description": "Trace ID used for APM correlation"
+                },
+                "attributes": {
+                    "additionalProperties": {
+                        "type": "string"
+                    },
+                    "type": "object",
+                    "description": "Custom OTel thread-local attributes from the span context"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "TraceSerializer serializes a span context to JSON"
+        },
+        "Tracer": {
+            "properties": {
+                "trace": {
+                    "$ref": "#/$defs/Trace",
+                    "description": "Captured APM span context for this process."
+                },
+                "metadata": {
+                    "$ref": "#/$defs/TracerMetadata",
+                    "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "TracerSerializer groups the per-process APM tracer information surfaced under the \"tracer\" key in the serialized process: the captured span context (.trace) and the static tracer metadata (.metadata)."
+        },
         "TracerMetadata": {
             "properties": {
                 "schema_version": {
@@ -2337,6 +2565,20 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "tracer_version",
                 "hostname"
             ]
+        },
+        "UnshareEvent": {
+            "properties": {
+                "flags": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Namespace flags requested by the unshare call"
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "description": "UnshareEventSerializer serializes an unshare event"
         },
         "UserContext": {
             "properties": {
@@ -2459,7 +2701,12 @@ Workload Protection events for Linux systems have the following JSON schema:
             "$ref": "#/$defs/NetworkContext"
         },
         "dd": {
-            "$ref": "#/$defs/DDContext"
+            "$ref": "#/$defs/Trace",
+            "description": "DD holds the APM correlation span context under the \"dd\" key, the\nshape the Datadog backend expects at ingest. This field is consumed\nby the intake and not surfaced back to end users."
+        },
+        "trace": {
+            "$ref": "#/$defs/Trace",
+            "description": "Trace is the same span/trace/attributes payload, exposed under a\nuser-facing key. Built from newTraceSerializer just like the \"dd\"\nfield above \u2014 the two pointers reference the same serializer\ninstance, so the two views can never drift."
         },
         "security_profile": {
             "$ref": "#/$defs/SecurityProfileContext"
@@ -2542,8 +2789,14 @@ Workload Protection events for Linux systems have the following JSON schema:
         "setrlimit": {
             "$ref": "#/$defs/SetrlimitEvent"
         },
+        "setns": {
+            "$ref": "#/$defs/SetNSEvent"
+        },
         "socket": {
             "$ref": "#/$defs/SocketEvent"
+        },
+        "unshare": {
+            "$ref": "#/$defs/UnshareEvent"
         }
     },
     "additionalProperties": false,
@@ -2568,7 +2821,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `container` | $ref | Please see [ContainerContext](#containercontext) |
 | `signature` | string |  |
 | `network` | $ref | Please see [NetworkContext](#networkcontext) |
-| `dd` | $ref | Please see [DDContext](#ddcontext) |
+| `dd` | $ref | Please see [Trace](#trace) |
+| `trace` | $ref | Please see [Trace](#trace) |
 | `security_profile` | $ref | Please see [SecurityProfileContext](#securityprofilecontext) |
 | `cgroup` | $ref | Please see [CGroupContext](#cgroupcontext) |
 | `selinux` | $ref | Please see [SELinuxEvent](#selinuxevent) |
@@ -2596,7 +2850,9 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `capabilities` | $ref | Please see [CapabilitiesEvent](#capabilitiesevent) |
 | `prctl` | $ref | Please see [PrCtlEvent](#prctlevent) |
 | `setrlimit` | $ref | Please see [SetrlimitEvent](#setrlimitevent) |
+| `setns` | $ref | Please see [SetNSEvent](#setnsevent) |
 | `socket` | $ref | Please see [SocketEvent](#socketevent) |
+| `unshare` | $ref | Please see [UnshareEvent](#unshareevent) |
 
 ## `AWSIMDSEvent`
 
@@ -3018,6 +3274,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             },
             "type": "array",
             "description": "Capabilities that the process successfully used since it started running"
+        },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace"
         }
     },
     "additionalProperties": false,
@@ -3031,6 +3301,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | ----- | ----------- |
 | `caps_attempted` | Capabilities that the process attempted to use since it started running |
 | `caps_used` | Capabilities that the process successfully used since it started running |
+| `caps_attempted_host_userns` | Capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace |
+| `caps_used_host_userns` | Capabilities that the process successfully used since it started running, through checks that always target the initial user namespace |
 
 
 ## `ConnectEvent`
@@ -3079,6 +3351,14 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Container ID"
         },
+        "pod_uid": {
+            "type": "string",
+            "description": "Kubernetes pod UID"
+        },
+        "ecs_task_id": {
+            "type": "string",
+            "description": "ECS task ID"
+        },
         "source": {
             "type": "string",
             "description": "Source of the container entry (event or procfs)"
@@ -3103,6 +3383,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | Field | Description |
 | ----- | ----------- |
 | `id` | Container ID |
+| `pod_uid` | Kubernetes pod UID |
+| `ecs_task_id` | ECS task ID |
 | `source` | Source of the container entry (event or procfs) |
 | `created_at` | Creation time of the container |
 | `variables` | Variable values |
@@ -3110,34 +3392,6 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [Variables](#variables) |
-
-## `DDContext`
-
-
-{{< code-block lang="json" collapsible="true" >}}
-{
-    "properties": {
-        "span_id": {
-            "type": "string",
-            "description": "Span ID used for APM correlation"
-        },
-        "trace_id": {
-            "type": "string",
-            "description": "Trace ID used for APM correlation"
-        }
-    },
-    "additionalProperties": false,
-    "type": "object",
-    "description": "DDContextSerializer serializes a span context to JSON"
-}
-
-{{< /code-block >}}
-
-| Field | Description |
-| ----- | ----------- |
-| `span_id` | Span ID used for APM correlation |
-| `trace_id` | Trace ID used for APM correlation |
-
 
 ## `DNSEvent`
 
@@ -3525,6 +3779,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "metadata": {
             "$ref": "#/$defs/FileMetadata"
+        },
+        "capabilities": {
+            "$ref": "#/$defs/FileCapabilities",
+            "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
         }
     },
     "additionalProperties": false,
@@ -3573,10 +3831,62 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_origin` | MountOrigin origin of the mount |
 | `mount_visible` | MountVisible origin of the mount |
 | `mount_detached` | MountDetached origin of the mount |
+| `capabilities` | Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage. |
 
 | References |
 | ---------- |
 | [FileMetadata](#filemetadata) |
+| [FileCapabilities](#filecapabilities) |
+
+## `FileCapabilities`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "permitted": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Permitted capabilities attached to the executable, before the bounding-set check."
+        },
+        "inheritable": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Inheritable capabilities attached to the executable."
+        },
+        "effective": {
+            "type": "boolean",
+            "description": "File effective capability bit, not a capability set."
+        },
+        "available": {
+            "type": "boolean",
+            "description": "Whether valid file capabilities were collected during exec or procfs resolution."
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "permitted",
+        "inheritable",
+        "effective",
+        "available"
+    ],
+    "description": "FileCapabilitiesSerializer serializes the executable's file capabilities."
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `permitted` | Permitted capabilities attached to the executable, before the bounding-set check. |
+| `inheritable` | Inheritable capabilities attached to the executable. |
+| `effective` | File effective capability bit, not a capability set. |
+| `available` | Whether valid file capabilities were collected during exec or procfs resolution. |
+
 
 ## `FileEvent`
 
@@ -3728,6 +4038,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "metadata": {
             "$ref": "#/$defs/FileMetadata"
         },
+        "capabilities": {
+            "$ref": "#/$defs/FileCapabilities",
+            "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -3791,6 +4105,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_origin` | MountOrigin origin of the mount |
 | `mount_visible` | MountVisible origin of the mount |
 | `mount_detached` | MountDetached origin of the mount |
+| `capabilities` | Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage. |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |
@@ -3799,6 +4114,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [FileMetadata](#filemetadata) |
+| [FileCapabilities](#filecapabilities) |
 | [File](#file) |
 
 ## `FileMetadata`
@@ -3929,6 +4245,10 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "server is the server header of a response"
         },
+        "credential_source": {
+            "type": "string",
+            "description": "credential_source is the credential endpoint that served the IMDS event"
+        },
         "aws": {
             "$ref": "#/$defs/AWSIMDSEvent",
             "description": "AWS holds the AWS specific data parsed from the IMDS event"
@@ -3953,6 +4273,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `host` | host is the host of the HTTP protocol |
 | `user_agent` | user_agent is the user agent of the HTTP client |
 | `server` | server is the server header of a response |
+| `credential_source` | credential_source is the credential endpoint that served the IMDS event |
 | `aws` | AWS holds the AWS specific data parsed from the IMDS event |
 
 | References |
@@ -4327,7 +4648,14 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "visible": {
             "type": "boolean",
-            "description": "Mount is not visible in the VFS tree"
+            "description": "Mount is visible in the VFS tree"
+        },
+        "flags": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Per-mount attribute flags expressed as MOUNT_ATTR_* names"
         }
     },
     "additionalProperties": false,
@@ -4357,11 +4685,70 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mountpoint.path_error` | Mount point path error |
 | `source.path_error` | Mount source path error |
 | `detached` | Mount is not attached to the VFS tree |
-| `visible` | Mount is not visible in the VFS tree |
+| `visible` | Mount is visible in the VFS tree |
+| `flags` | Per-mount attribute flags expressed as MOUNT_ATTR_* names |
 
 | References |
 | ---------- |
 | [File](#file) |
+
+## `NamespaceIDs`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "mntns": {
+            "type": "integer",
+            "description": "Mount namespace ID"
+        },
+        "netns": {
+            "type": "integer",
+            "description": "Network namespace ID"
+        },
+        "pidns": {
+            "type": "integer",
+            "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+            "type": "integer",
+            "description": "User namespace ID"
+        },
+        "utsns": {
+            "type": "integer",
+            "description": "UTS namespace ID"
+        },
+        "ipcns": {
+            "type": "integer",
+            "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+            "type": "integer",
+            "description": "Cgroup namespace ID"
+        },
+        "timens": {
+            "type": "integer",
+            "description": "Time namespace ID"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `mntns` | Mount namespace ID |
+| `netns` | Network namespace ID |
+| `pidns` | ID of the PID namespace future children are created in (pid_for_children) |
+| `userns` | User namespace ID |
+| `utsns` | UTS namespace ID |
+| `ipcns` | IPC namespace ID |
+| `cgroupns` | Cgroup namespace ID |
+| `timens` | Time namespace ID |
+
 
 ## `NetworkContext`
 
@@ -4695,6 +5082,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "array",
             "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+        },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
             "description": "Context of the user session for this event"
@@ -4777,8 +5178,8 @@ Workload Protection events for Linux systems have the following JSON schema:
             "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-            "$ref": "#/$defs/TracerMetadata",
-            "description": "Metadata from APM tracer instrumentation"
+            "$ref": "#/$defs/Tracer",
+            "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
         },
         "variables": {
             "$ref": "#/$defs/Variables",
@@ -4818,6 +5219,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `credentials` | Credentials associated with the process |
 | `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
 | `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
+| `caps_attempted_host_userns` | CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace |
+| `caps_used_host_userns` | CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
@@ -4836,7 +5239,13 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
-| `tracer` | Metadata from APM tracer instrumentation |
+| `tracer` | Tracer bundles the per-process APM tracer state: the captured span
+(trace_id / span_id / attributes) under "trace", and the tracer
+metadata under "metadata". For a process that fork+exec'd a
+subprocess, .trace carries the parent's span captured by
+fill_span_context at sched_process_fork; the top-level event
+"dd"/"trace" fields are built by newTraceSerializer which walks the
+ancestor lineage to find the same value. |
 | `variables` | Variable values |
 
 | References |
@@ -4847,7 +5256,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
-| [TracerMetadata](#tracermetadata) |
+| [Tracer](#tracer) |
 | [Variables](#variables) |
 
 ## `ProcessContext`
@@ -4937,6 +5346,20 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "array",
             "description": "CapsUsed lists the capabilities that this process effectively made use of"
         },
+        "caps_attempted_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace"
+        },
+        "caps_used_host_userns": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace"
+        },
         "user_session": {
             "$ref": "#/$defs/UserSessionContext",
             "description": "Context of the user session for this event"
@@ -5019,8 +5442,8 @@ Workload Protection events for Linux systems have the following JSON schema:
             "description": "List of AWS Security Credentials that the process had access to"
         },
         "tracer": {
-            "$ref": "#/$defs/TracerMetadata",
-            "description": "Metadata from APM tracer instrumentation"
+            "$ref": "#/$defs/Tracer",
+            "description": "Tracer bundles the per-process APM tracer state: the captured span\n(trace_id / span_id / attributes) under \"trace\", and the tracer\nmetadata under \"metadata\". For a process that fork+exec'd a\nsubprocess, .trace carries the parent's span captured by\nfill_span_context at sched_process_fork; the top-level event\n\"dd\"/\"trace\" fields are built by newTraceSerializer which walks the\nancestor lineage to find the same value."
         },
         "variables": {
             "$ref": "#/$defs/Variables",
@@ -5075,6 +5498,8 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `credentials` | Credentials associated with the process |
 | `caps_attempted` | CapsAttempted lists the capabilities that this process tried to use |
 | `caps_used` | CapsUsed lists the capabilities that this process effectively made use of |
+| `caps_attempted_host_userns` | CapsAttemptedHostUserNS lists the capabilities that this process tried to use through checks that always target the initial user namespace |
+| `caps_used_host_userns` | CapsUsedHostUserNS lists the capabilities that this process effectively made use of through checks that always target the initial user namespace |
 | `user_session` | Context of the user session for this event |
 | `executable` | File information of the executable |
 | `interpreter` | File information of the interpreter |
@@ -5093,7 +5518,13 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `source` | Process source |
 | `syscalls` | List of syscalls captured to generate the event |
 | `aws_security_credentials` | List of AWS Security Credentials that the process had access to |
-| `tracer` | Metadata from APM tracer instrumentation |
+| `tracer` | Tracer bundles the per-process APM tracer state: the captured span
+(trace_id / span_id / attributes) under "trace", and the tracer
+metadata under "metadata". For a process that fork+exec'd a
+subprocess, .trace carries the parent's span captured by
+fill_span_context at sched_process_fork; the top-level event
+"dd"/"trace" fields are built by newTraceSerializer which walks the
+ancestor lineage to find the same value. |
 | `variables` | Variable values |
 | `parent` | Parent process |
 | `ancestors` | Ancestor processes |
@@ -5107,7 +5538,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | [CGroupContext](#cgroupcontext) |
 | [ContainerContext](#containercontext) |
 | [SyscallsEvent](#syscallsevent) |
-| [TracerMetadata](#tracermetadata) |
+| [Tracer](#tracer) |
 | [Variables](#variables) |
 | [Process](#process) |
 
@@ -5472,6 +5903,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "event_type_state": {
             "type": "string",
             "description": "State of the event type in this profile"
+        },
+        "profile_already_sent": {
+            "type": "boolean",
+            "description": "True if the profile had already been persisted to the backend when this event was emitted"
         }
     },
     "additionalProperties": false,
@@ -5481,7 +5916,8 @@ Workload Protection events for Linux systems have the following JSON schema:
         "version",
         "tags",
         "event_in_profile",
-        "event_type_state"
+        "event_type_state",
+        "profile_already_sent"
     ],
     "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
 }
@@ -5495,7 +5931,92 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `tags` | List of tags associated to this profile |
 | `event_in_profile` | True if the corresponding event is part of this profile |
 | `event_type_state` | State of the event type in this profile |
+| `profile_already_sent` | True if the profile had already been persisted to the backend when this event was emitted |
 
+
+## `SetNSEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "nstype": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
+        },
+        "mntns": {
+            "type": "integer",
+            "description": "Mount namespace ID"
+        },
+        "netns": {
+            "type": "integer",
+            "description": "Network namespace ID"
+        },
+        "pidns": {
+            "type": "integer",
+            "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+            "type": "integer",
+            "description": "User namespace ID"
+        },
+        "utsns": {
+            "type": "integer",
+            "description": "UTS namespace ID"
+        },
+        "ipcns": {
+            "type": "integer",
+            "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+            "type": "integer",
+            "description": "Cgroup namespace ID"
+        },
+        "timens": {
+            "type": "integer",
+            "description": "Time namespace ID"
+        },
+        "previous": {
+            "$ref": "#/$defs/NamespaceIDs",
+            "description": "Namespace IDs of the thread before the syscall"
+        },
+        "mntns_host": {
+            "type": "boolean",
+            "description": "Indicates that the mount namespace of the thread after the syscall is the host's initial one"
+        },
+        "mntns_outside_base": {
+            "type": "boolean",
+            "description": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "SetNSEventSerializer serializes a setns event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `nstype` | Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0 |
+| `mntns` | Mount namespace ID |
+| `netns` | Network namespace ID |
+| `pidns` | ID of the PID namespace future children are created in (pid_for_children) |
+| `userns` | User namespace ID |
+| `utsns` | UTS namespace ID |
+| `ipcns` | IPC namespace ID |
+| `cgroupns` | Cgroup namespace ID |
+| `timens` | Time namespace ID |
+| `previous` | Namespace IDs of the thread before the syscall |
+| `mntns_host` | Indicates that the mount namespace of the thread after the syscall is the host's initial one |
+| `mntns_outside_base` | Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one |
+
+| References |
+| ---------- |
+| [NamespaceIDs](#namespaceids) |
 
 ## `SetSockOptEvent`
 
@@ -5505,15 +6026,11 @@ Workload Protection events for Linux systems have the following JSON schema:
     "properties": {
         "socket_type": {
             "type": "string",
-            "description": "Socket file descriptor"
+            "description": "Socket type"
         },
         "socket_family": {
             "type": "string",
             "description": "Socket family"
-        },
-        "filter_len": {
-            "type": "integer",
-            "description": "Length of the filter"
         },
         "socket_protocol": {
             "type": "string",
@@ -5527,17 +6044,21 @@ Workload Protection events for Linux systems have the following JSON schema:
             "type": "string",
             "description": "Name of the option being set"
         },
+        "filter_len": {
+            "type": "integer",
+            "description": "Length of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
+        },
         "is_filter_truncated": {
             "type": "boolean",
-            "description": "Filter truncated"
+            "description": "Filter truncation flag (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter": {
             "type": "string",
-            "description": "Filter instructions"
+            "description": "Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         },
         "filter_hash": {
             "type": "string",
-            "description": "Filter hash"
+            "description": "Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER)"
         }
     },
     "additionalProperties": false,
@@ -5556,15 +6077,15 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 | Field | Description |
 | ----- | ----------- |
-| `socket_type` | Socket file descriptor |
+| `socket_type` | Socket type |
 | `socket_family` | Socket family |
-| `filter_len` | Length of the filter |
 | `socket_protocol` | Socket protocol |
 | `level` | Level at which the option is defined |
 | `optname` | Name of the option being set |
-| `is_filter_truncated` | Filter truncated |
-| `filter` | Filter instructions |
-| `filter_hash` | Filter hash |
+| `filter_len` | Length of the BPF filter (available when OptName == SO_ATTACH_FILTER) |
+| `is_filter_truncated` | Filter truncation flag (available when OptName == SO_ATTACH_FILTER) |
+| `filter` | Instructions of the BPF filter (available when OptName == SO_ATTACH_FILTER) |
+| `filter_hash` | Hash of the BPF filter (available when OptName == SO_ATTACH_FILTER) |
 
 
 ## `SetrlimitEvent`
@@ -5972,6 +6493,75 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 
 
+## `Trace`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "span_id": {
+            "type": "string",
+            "description": "Span ID used for APM correlation"
+        },
+        "trace_id": {
+            "type": "string",
+            "description": "Trace ID used for APM correlation"
+        },
+        "attributes": {
+            "additionalProperties": {
+                "type": "string"
+            },
+            "type": "object",
+            "description": "Custom OTel thread-local attributes from the span context"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "TraceSerializer serializes a span context to JSON"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `span_id` | Span ID used for APM correlation |
+| `trace_id` | Trace ID used for APM correlation |
+| `attributes` | Custom OTel thread-local attributes from the span context |
+
+
+## `Tracer`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "trace": {
+            "$ref": "#/$defs/Trace",
+            "description": "Captured APM span context for this process."
+        },
+        "metadata": {
+            "$ref": "#/$defs/TracerMetadata",
+            "description": "Metadata from APM tracer instrumentation (for example, schema version,\nlanguage, or version)."
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "TracerSerializer groups the per-process APM tracer information surfaced under the \"tracer\" key in the serialized process: the captured span context (.trace) and the static tracer metadata (.metadata)."
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `trace` | Captured APM span context for this process. |
+| `metadata` | Metadata from APM tracer instrumentation (for example, schema version,
+language, or version). |
+
+| References |
+| ---------- |
+| [Trace](#trace) |
+| [TracerMetadata](#tracermetadata) |
+
 ## `TracerMetadata`
 
 
@@ -6024,6 +6614,32 @@ Workload Protection events for Linux systems have the following JSON schema:
 
 {{< /code-block >}}
 
+
+
+## `UnshareEvent`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "flags": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Namespace flags requested by the unshare call"
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "description": "UnshareEventSerializer serializes an unshare event"
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `flags` | Namespace flags requested by the unshare call |
 
 
 ## `UserContext`

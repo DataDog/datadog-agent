@@ -10,7 +10,7 @@ Review the [supported environments](../README.md#supported-environments) before 
 
 ## Prerequisites
 
-Deploy the Datadog Agent with the Datadog Helm chart version **3.220.0** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
+Deploy the Datadog Agent with the Datadog Helm chart version **3.240.2** or later. See the [Datadog Agent installation guide](https://app.datadoghq.com/fleet/install-agent/latest?platform=kubernetes).
 
 ## Deploy
 
@@ -21,9 +21,23 @@ datadog:
   hostProfiler:
     enabled: true
     image: "registry.datadoghq.com/ddot-ebpf:7.81.0-preview-host-profiler-1.0"
+agents:
+  containers:
+    hostProfiler:
+      # Explicit zero requests avoid reserving CPU or memory on every node,
+      # while limits cap runaway usage.
+      resources:
+        requests:
+          cpu: "0"
+          memory: "0"
+        limits:
+          cpu: "500m"
+          memory: "1Gi"
 ```
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
+
+For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
 
 2. Upgrade your existing Datadog Agent Helm release with the updated values. Adapt this command to your Helm or GitOps workflow, and include any existing values files you already use for the release:
 
@@ -40,6 +54,21 @@ The Host Profiler infers most configuration from the Datadog Agent configuration
 After you apply the updated values, Helm rolls out a new Agent DaemonSet revision with the Host Profiler sidecar. Wait for that rollout to complete before verifying profiles.
 
 After deploying the Host Profiler, profiles appear on the [Datadog Profiler](https://app.datadoghq.com/profiling) page within a few minutes. If profiles do not appear, see the [Troubleshooting](../troubleshooting.md) guide.
+
+## SELinux
+
+The Datadog Helm chart configures the Host Profiler with the `spc_t` SELinux type by default. If `spc_t` is not available in your environment, set `agents.containers.hostProfiler.securityContext.seLinuxOptions.type` to an equivalent type supported by your distribution and security policy:
+
+```yaml
+agents:
+  containers:
+    hostProfiler:
+      securityContext:
+        seLinuxOptions:
+          type: <SELINUX_TYPE>
+```
+
+The chart applies this type to the Host Profiler and its seccomp setup init container. The replacement must provide the host and process access required by the Host Profiler.
 
 ## AppArmor (optional)
 

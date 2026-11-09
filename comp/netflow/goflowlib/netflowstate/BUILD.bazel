@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "netflowstate",
@@ -11,7 +12,9 @@ go_library(
     deps = [
         "//comp/netflow/common",
         "//comp/netflow/config/def",
+        "//comp/netflow/dpi",
         "//comp/netflow/goflowlib/additionalfields",
+        "//comp/netflow/goflowlib/dpioptions",
         "@com_github_netsampler_goflow2//decoders/netflow",
         "@com_github_netsampler_goflow2//decoders/netflow/templates",
         "@com_github_netsampler_goflow2//format",
@@ -23,13 +26,16 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "netflowstate_test",
     srcs = ["netflow_test.go"],
     embed = [":netflowstate"],
-    gotags = ["test"],
     deps = [
+        "//comp/netflow/common",
+        "//comp/netflow/config/def",
+        "//comp/netflow/dpi",
         "//comp/netflow/testutil",
+        "@com_github_netsampler_goflow2//decoders/netflow",
         "@com_github_netsampler_goflow2//decoders/netflow/templates",
         "@com_github_netsampler_goflow2//decoders/netflow/templates/memory",
         "@com_github_netsampler_goflow2//utils",

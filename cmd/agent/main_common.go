@@ -7,7 +7,7 @@
 
 package main
 
-// nolint: deadcode, unused
+//nolint:unused
 func setProcessName(_ string) error {
 	return nil
 }

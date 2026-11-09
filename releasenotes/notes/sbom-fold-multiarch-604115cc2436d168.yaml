@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment reports the usage of a dpkg package installed for
+    two architectures, such as ``libc6:amd64`` and ``libc6:i386``. Its component
+    reported a ``LastSeenRunning`` of 0 whatever ran.

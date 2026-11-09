@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package http
 
@@ -105,7 +105,8 @@ func (e *EbpfEvent) String() string {
 	var output strings.Builder
 	output.WriteString("ebpfTx{")
 	output.WriteString("Conn Tuple: " + ebpf.ConnTuple(e.Tuple).String() + "', ")
-	output.WriteString("Method: '" + Method(e.Http.Request_method).String() + "', ")
+	output.WriteString("Method: '" + e.Method().String() + "', ")
+	output.WriteString("Status: " + strconv.FormatUint(uint64(e.StatusCode()), 10) + ", ")
 	output.WriteString("Tags: '0x" + strconv.FormatUint(e.Http.Tags, 16) + "', ")
 	output.WriteString("Request Start: " + strconv.FormatUint(e.Http.Request_started, 10) + "', ")
 	output.WriteString("Response Last Seen: " + strconv.FormatUint(e.Http.Response_last_seen, 10) + "', ")

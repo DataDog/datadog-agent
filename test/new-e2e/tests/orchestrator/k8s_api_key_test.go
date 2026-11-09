@@ -38,6 +38,8 @@ func (suite *k8sSuite) TestZzzClusterAgentAPIKeyRefresh() {
 	suite.UpdateEnv(
 		awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenariokindvm.WithInternetAccess(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithNamespace(namespace),
 					kubernetesagentparams.WithHelmValues(fmt.Sprintf(agentAPIKeyRefreshValuesFmt, suite.Env().FakeIntake.URL)),

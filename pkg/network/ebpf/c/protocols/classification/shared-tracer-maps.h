@@ -32,12 +32,9 @@ static __always_inline protocol_stack_t* get_protocol_stack_if_exists(conn_tuple
     return __get_protocol_stack_if_exists(&normalized_tup);
 }
 
-// Returns the protocol_stack_t associated with the given connection tuple.
-// If the tuple is not found, creates a new entry and returns it.
-static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple_t *skb_tup) {
-    conn_tuple_t normalized_tup = *skb_tup;
-    normalize_tuple(&normalized_tup);
-    protocol_stack_t *wrapper = __get_protocol_stack_if_exists(&normalized_tup);
+// Like get_or_create_protocol_stack, for a tuple that is already normalized.
+static __always_inline protocol_stack_t* __get_or_create_protocol_stack(conn_tuple_t *normalized_tup) {
+    protocol_stack_t *wrapper = __get_protocol_stack_if_exists(normalized_tup);
     if (wrapper) {
         return wrapper;
     }
@@ -59,8 +56,16 @@ static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple
     // Since connection_protocol is shared between programs running in different contexts, it gets effected by the
     // above scenario.
     // However the EBUSY error does not carry any signal for us since this is caused by a kernel bug.
-    bpf_map_update_with_telemetry(connection_protocol, &normalized_tup, &empty_wrapper, BPF_NOEXIST, -EEXIST, -EBUSY);
-    return __get_protocol_stack_if_exists(&normalized_tup);
+    bpf_map_update_with_telemetry(connection_protocol, normalized_tup, &empty_wrapper, BPF_NOEXIST, -EEXIST, -EBUSY);
+    return __get_protocol_stack_if_exists(normalized_tup);
+}
+
+// Returns the protocol_stack_t associated with the given connection tuple.
+// If the tuple is not found, creates a new entry and returns it.
+static __always_inline protocol_stack_t* get_or_create_protocol_stack(conn_tuple_t *skb_tup) {
+    conn_tuple_t normalized_tup = *skb_tup;
+    normalize_tuple(&normalized_tup);
+    return __get_or_create_protocol_stack(&normalized_tup);
 }
 
 __maybe_unused static __always_inline void update_protocol_stack(conn_tuple_t* skb_tup, protocol_t cur_fragment_protocol) {

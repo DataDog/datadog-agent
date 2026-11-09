@@ -103,9 +103,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.ancestors.cgroup.created_at",
@@ -143,9 +153,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.ancestors.container.tags",
@@ -191,6 +211,26 @@
           "name": "process.ancestors.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "process.ancestors.file.change_time",
@@ -530,7 +570,7 @@
         {
           "name": "process.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.ancestors.sid",
@@ -653,6 +693,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "process.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "process.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "process.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -668,9 +723,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.cgroup.created_at",
@@ -708,9 +773,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.container.tags",
@@ -756,6 +831,26 @@
           "name": "process.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "process.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "process.file.change_time",
@@ -1133,9 +1228,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "process.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "process.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "process.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "process.parent.cgroup.created_at",
@@ -1173,9 +1278,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "process.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "process.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "process.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "process.parent.container.tags",
@@ -1221,6 +1336,26 @@
           "name": "process.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "process.parent.file.change_time",
@@ -1555,7 +1690,7 @@
         {
           "name": "process.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.parent.sid",
@@ -1650,7 +1785,7 @@
         {
           "name": "process.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "process.sid",
@@ -1894,9 +2029,19 @@
           "property_doc_link": "capabilities-attempted-doc"
         },
         {
+          "name": "capabilities.attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace",
+          "property_doc_link": "capabilities-attempted_host_userns-doc"
+        },
+        {
           "name": "capabilities.used",
           "definition": "Bitmask of the capabilities that the process successfully used since it started running",
           "property_doc_link": "capabilities-used-doc"
+        },
+        {
+          "name": "capabilities.used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace",
+          "property_doc_link": "capabilities-used_host_userns-doc"
         }
       ]
     },
@@ -2801,6 +2946,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "exec.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exec.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "exec.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -2816,9 +2976,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "exec.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "exec.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exec.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "exec.cgroup.created_at",
@@ -2856,9 +3026,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exec.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exec.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exec.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exec.container.tags",
@@ -2904,6 +3084,26 @@
           "name": "exec.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "exec.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "exec.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "exec.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "exec.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "exec.file.change_time",
@@ -3278,7 +3478,7 @@
         {
           "name": "exec.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "exec.sid",
@@ -3415,6 +3615,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "exit.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "exit.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "exit.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -3430,9 +3645,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "exit.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "exit.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "exit.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "exit.cause",
@@ -3480,9 +3705,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "exit.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "exit.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "exit.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "exit.container.tags",
@@ -3528,6 +3763,26 @@
           "name": "exit.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "exit.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "exit.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "exit.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "exit.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "exit.file.change_time",
@@ -3862,7 +4117,7 @@
         {
           "name": "exit.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "exit.sid",
@@ -3964,14 +4219,24 @@
           "property_doc_link": "imds-aws-is_imds_v2-doc"
         },
         {
+          "name": "imds.aws.security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
           "name": "imds.aws.security_credentials.type",
-          "definition": "the security credentials type",
-          "property_doc_link": "imds-aws-security_credentials-type-doc"
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
         },
         {
           "name": "imds.cloud_provider",
           "definition": "the intended cloud provider of the IMDS event",
           "property_doc_link": "imds-cloud_provider-doc"
+        },
+        {
+          "name": "imds.credential_source",
+          "definition": "the credential endpoint that served the IMDS event",
+          "property_doc_link": "imds-credential_source-doc"
         },
         {
           "name": "imds.host",
@@ -4874,6 +5139,11 @@
           "property_doc_link": "mount-detached-doc"
         },
         {
+          "name": "mount.flags",
+          "definition": "Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout",
+          "property_doc_link": "mount-flags-doc"
+        },
+        {
           "name": "mount.fs_type",
           "definition": "Type of the mounted file system",
           "property_doc_link": "mount-fs_type-doc"
@@ -4915,7 +5185,7 @@
         },
         {
           "name": "mount.visible",
-          "definition": "Mount is not visible in the VFS",
+          "definition": "Mount is visible in the VFS",
           "property_doc_link": "mount-visible-doc"
         }
       ]
@@ -5448,9 +5718,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.cgroup.created_at",
@@ -5488,9 +5768,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.container.tags",
@@ -5536,6 +5826,26 @@
           "name": "ptrace.tracee.ancestors.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.file.change_time",
@@ -5875,7 +6185,7 @@
         {
           "name": "ptrace.tracee.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.ancestors.sid",
@@ -5998,6 +6308,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "ptrace.tracee.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "ptrace.tracee.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "ptrace.tracee.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -6013,9 +6338,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.cgroup.created_at",
@@ -6053,9 +6388,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.container.tags",
@@ -6101,6 +6446,26 @@
           "name": "ptrace.tracee.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "ptrace.tracee.file.change_time",
@@ -6478,9 +6843,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "ptrace.tracee.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "ptrace.tracee.parent.cgroup.created_at",
@@ -6518,9 +6893,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "ptrace.tracee.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "ptrace.tracee.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "ptrace.tracee.parent.container.tags",
@@ -6566,6 +6951,26 @@
           "name": "ptrace.tracee.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.change_time",
@@ -6900,7 +7305,7 @@
         {
           "name": "ptrace.tracee.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.parent.sid",
@@ -6995,7 +7400,7 @@
         {
           "name": "ptrace.tracee.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "ptrace.tracee.sid",
@@ -7760,6 +8165,115 @@
       ]
     },
     {
+      "name": "setns",
+      "definition": "A thread joined an existing namespace",
+      "type": "Kernel",
+      "from_agent_version": "7.86",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "setns.cgroupns",
+          "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-cgroupns-doc"
+        },
+        {
+          "name": "setns.ipcns",
+          "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-ipcns-doc"
+        },
+        {
+          "name": "setns.mntns",
+          "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-mntns-doc"
+        },
+        {
+          "name": "setns.mntns_host",
+          "definition": "Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved",
+          "property_doc_link": "setns-mntns_host-doc"
+        },
+        {
+          "name": "setns.mntns_outside_base",
+          "definition": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved",
+          "property_doc_link": "setns-mntns_outside_base-doc"
+        },
+        {
+          "name": "setns.netns",
+          "definition": "Network namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-netns-doc"
+        },
+        {
+          "name": "setns.nstype",
+          "definition": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined",
+          "property_doc_link": "setns-nstype-doc"
+        },
+        {
+          "name": "setns.pidns",
+          "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-pidns-doc"
+        },
+        {
+          "name": "setns.previous.cgroupns",
+          "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-cgroupns-doc"
+        },
+        {
+          "name": "setns.previous.ipcns",
+          "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-ipcns-doc"
+        },
+        {
+          "name": "setns.previous.mntns",
+          "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-mntns-doc"
+        },
+        {
+          "name": "setns.previous.netns",
+          "definition": "Network namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-netns-doc"
+        },
+        {
+          "name": "setns.previous.pidns",
+          "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-pidns-doc"
+        },
+        {
+          "name": "setns.previous.timens",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+          "property_doc_link": "common-namespaceids-timens-doc"
+        },
+        {
+          "name": "setns.previous.userns",
+          "definition": "User namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-userns-doc"
+        },
+        {
+          "name": "setns.previous.utsns",
+          "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-utsns-doc"
+        },
+        {
+          "name": "setns.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        },
+        {
+          "name": "setns.timens",
+          "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+          "property_doc_link": "common-namespaceids-timens-doc"
+        },
+        {
+          "name": "setns.userns",
+          "definition": "User namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-userns-doc"
+        },
+        {
+          "name": "setns.utsns",
+          "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+          "property_doc_link": "common-namespaceids-utsns-doc"
+        }
+      ]
+    },
+    {
       "name": "setrlimit",
       "definition": "A setrlimit command was executed",
       "type": "Process",
@@ -7837,9 +8351,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.ancestors.cgroup.created_at",
@@ -7877,9 +8401,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.container.tags",
@@ -7925,6 +8459,26 @@
           "name": "setrlimit.target.ancestors.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "setrlimit.target.ancestors.file.change_time",
@@ -8264,7 +8818,7 @@
         {
           "name": "setrlimit.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.ancestors.sid",
@@ -8387,6 +8941,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "setrlimit.target.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "setrlimit.target.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "setrlimit.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -8402,9 +8971,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.cgroup.created_at",
@@ -8442,9 +9021,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.container.tags",
@@ -8490,6 +9079,26 @@
           "name": "setrlimit.target.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "setrlimit.target.file.change_time",
@@ -8867,9 +9476,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "setrlimit.target.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "setrlimit.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "setrlimit.target.parent.cgroup.created_at",
@@ -8907,9 +9526,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "setrlimit.target.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "setrlimit.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "setrlimit.target.parent.container.tags",
@@ -8955,6 +9584,26 @@
           "name": "setrlimit.target.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "setrlimit.target.parent.file.change_time",
@@ -9289,7 +9938,7 @@
         {
           "name": "setrlimit.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.parent.sid",
@@ -9384,7 +10033,7 @@
         {
           "name": "setrlimit.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "setrlimit.target.sid",
@@ -9803,9 +10452,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.ancestors.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.ancestors.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.ancestors.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.ancestors.cgroup.created_at",
@@ -9843,9 +10502,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.ancestors.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.ancestors.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.ancestors.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.ancestors.container.tags",
@@ -9891,6 +10560,26 @@
           "name": "signal.target.ancestors.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "signal.target.ancestors.file.change_time",
@@ -10230,7 +10919,7 @@
         {
           "name": "signal.target.ancestors.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.ancestors.sid",
@@ -10353,6 +11042,21 @@
           "property_doc_link": "common-credentials-auid-doc"
         },
         {
+          "name": "signal.target.aws_security_credentials.access_key_id",
+          "definition": "The access key ID of the security credentials in the IMDS answer",
+          "property_doc_link": "common-awssecuritycredentials-access_key_id-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.length",
+          "definition": "Length of the corresponding element",
+          "property_doc_link": "common-string-length-doc"
+        },
+        {
+          "name": "signal.target.aws_security_credentials.type",
+          "definition": "The security credentials type",
+          "property_doc_link": "common-awssecuritycredentials-type-doc"
+        },
+        {
           "name": "signal.target.cap_effective",
           "definition": "Effective capability set of the process",
           "property_doc_link": "common-credentials-cap_effective-doc"
@@ -10368,9 +11072,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.cgroup.created_at",
@@ -10408,9 +11122,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.container.tags",
@@ -10456,6 +11180,26 @@
           "name": "signal.target.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "signal.target.file.change_time",
@@ -10833,9 +11577,19 @@
           "property_doc_link": "common-process-caps_attempted-doc"
         },
         {
+          "name": "signal.target.parent.caps_attempted_host_userns",
+          "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_attempted_host_userns-doc"
+        },
+        {
           "name": "signal.target.parent.caps_used",
           "definition": "Bitmask of the capabilities that the process successfully used",
           "property_doc_link": "common-process-caps_used-doc"
+        },
+        {
+          "name": "signal.target.parent.caps_used_host_userns",
+          "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+          "property_doc_link": "common-process-caps_used_host_userns-doc"
         },
         {
           "name": "signal.target.parent.cgroup.created_at",
@@ -10873,9 +11627,19 @@
           "property_doc_link": "common-containercontext-created_at-doc"
         },
         {
+          "name": "signal.target.parent.container.ecs_task_id",
+          "definition": "ECS task ID",
+          "property_doc_link": "common-containercontext-ecs_task_id-doc"
+        },
+        {
           "name": "signal.target.parent.container.id",
           "definition": "ID of the container",
           "property_doc_link": "common-containercontext-id-doc"
+        },
+        {
+          "name": "signal.target.parent.container.pod_uid",
+          "definition": "Kubernetes pod UID",
+          "property_doc_link": "common-containercontext-pod_uid-doc"
         },
         {
           "name": "signal.target.parent.container.tags",
@@ -10921,6 +11685,26 @@
           "name": "signal.target.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "signal.target.parent.file.change_time",
@@ -11255,7 +12039,7 @@
         {
           "name": "signal.target.parent.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.parent.sid",
@@ -11350,7 +12134,7 @@
         {
           "name": "signal.target.ppid",
           "definition": "Parent process ID",
-          "property_doc_link": "common-process-ppid-doc"
+          "property_doc_link": "common-pidcontext-ppid-doc"
         },
         {
           "name": "signal.target.sid",
@@ -11870,6 +12654,25 @@
       ]
     },
     {
+      "name": "unshare",
+      "definition": "A process created new namespaces",
+      "type": "Kernel",
+      "from_agent_version": "7.84",
+      "experimental": false,
+      "properties": [
+        {
+          "name": "unshare.flags",
+          "definition": "Namespace flags requested by the unshare call",
+          "property_doc_link": "unshare-flags-doc"
+        },
+        {
+          "name": "unshare.retval",
+          "definition": "Return value of the syscall",
+          "property_doc_link": "common-syscallevent-retval-doc"
+        }
+      ]
+    },
+    {
       "name": "utimes",
       "definition": "Change file access/modification times",
       "type": "File",
@@ -12025,6 +12828,24 @@
     }
   ],
   "properties_doc": [
+    {
+      "name": "*.access_key_id",
+      "link": "common-awssecuritycredentials-access_key_id-doc",
+      "type": "string",
+      "definition": "The access key ID of the security credentials in the IMDS answer",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
     {
       "name": "*.args",
       "link": "common-process-args-doc",
@@ -12225,6 +13046,31 @@
       "examples": []
     },
     {
+      "name": "*.available",
+      "link": "common-filecapabilities-available-doc",
+      "type": "bool",
+      "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.cap_effective",
       "link": "common-credentials-cap_effective-doc",
       "type": "int",
@@ -12300,6 +13146,31 @@
       "examples": []
     },
     {
+      "name": "*.caps_attempted_host_userns",
+      "link": "common-process-caps_attempted_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use through checks that always target the initial user namespace",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.caps_used",
       "link": "common-process-caps_used-doc",
       "type": "int",
@@ -12322,6 +13193,44 @@
       ],
       "constants": "Kernel Capability constants",
       "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.caps_used_host_userns",
+      "link": "common-process-caps_used_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used through checks that always target the initial user namespace",
+      "prefixes": [
+        "exec",
+        "exit",
+        "process",
+        "process.ancestors",
+        "process.parent",
+        "ptrace.tracee",
+        "ptrace.tracee.ancestors",
+        "ptrace.tracee.parent",
+        "setrlimit.target",
+        "setrlimit.target.ancestors",
+        "setrlimit.target.parent",
+        "signal.target",
+        "signal.target.ancestors",
+        "signal.target.parent"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "*.cgroupns",
+      "link": "common-namespaceids-cgroupns-doc",
+      "type": "int",
+      "definition": "Cgroup namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
       "examples": []
     },
     {
@@ -12489,6 +13398,56 @@
       "prefixes": [
         "network_flow_monitor.flows.egress",
         "network_flow_monitor.flows.ingress"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ecs_task_id",
+      "link": "common-containercontext-ecs_task_id-doc",
+      "type": "string",
+      "definition": "ECS task ID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.effective",
+      "link": "common-filecapabilities-effective-doc",
+      "type": "bool",
+      "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
       ],
       "constants": "",
       "constants_link": "",
@@ -13302,6 +14261,31 @@
       "examples": []
     },
     {
+      "name": "*.inheritable",
+      "link": "common-filecapabilities-inheritable-doc",
+      "type": "int",
+      "definition": "Inheritable capabilities attached to the executable file",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.inode",
       "link": "common-pathkey-inode-doc",
       "type": "int",
@@ -13387,6 +14371,19 @@
         "network_flow_monitor.flows.source",
         "packet.destination",
         "packet.source"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.ipcns",
+      "link": "common-namespaceids-ipcns-doc",
+      "type": "int",
+      "definition": "IPC namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -13630,10 +14627,12 @@
         "chown.file.path",
         "connect.addr.hostname",
         "dns.question.name",
+        "exec.aws_security_credentials",
         "exec.file.name",
         "exec.file.path",
         "exec.interpreter.file.name",
         "exec.interpreter.file.path",
+        "exit.aws_security_credentials",
         "exit.file.name",
         "exit.file.path",
         "exit.interpreter.file.name",
@@ -13656,6 +14655,7 @@
         "process.ancestors.file.path",
         "process.ancestors.interpreter.file.name",
         "process.ancestors.interpreter.file.path",
+        "process.aws_security_credentials",
         "process.file.name",
         "process.file.path",
         "process.interpreter.file.name",
@@ -13669,6 +14669,7 @@
         "ptrace.tracee.ancestors.file.path",
         "ptrace.tracee.ancestors.interpreter.file.name",
         "ptrace.tracee.ancestors.interpreter.file.path",
+        "ptrace.tracee.aws_security_credentials",
         "ptrace.tracee.file.name",
         "ptrace.tracee.file.path",
         "ptrace.tracee.interpreter.file.name",
@@ -13690,6 +14691,7 @@
         "setrlimit.target.ancestors.file.path",
         "setrlimit.target.ancestors.interpreter.file.name",
         "setrlimit.target.ancestors.interpreter.file.path",
+        "setrlimit.target.aws_security_credentials",
         "setrlimit.target.file.name",
         "setrlimit.target.file.path",
         "setrlimit.target.interpreter.file.name",
@@ -13705,6 +14707,7 @@
         "signal.target.ancestors.file.path",
         "signal.target.ancestors.interpreter.file.name",
         "signal.target.ancestors.interpreter.file.path",
+        "signal.target.aws_security_credentials",
         "signal.target.file.name",
         "signal.target.file.path",
         "signal.target.interpreter.file.name",
@@ -13719,6 +14722,19 @@
         "unlink.file.path",
         "utimes.file.name",
         "utimes.file.path"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.mntns",
+      "link": "common-namespaceids-mntns-doc",
+      "type": "int",
+      "definition": "Mount namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
       ],
       "constants": "",
       "constants_link": "",
@@ -14109,6 +15125,19 @@
           "description": "Matches the execution of any file named apt."
         }
       ]
+    },
+    {
+      "name": "*.netns",
+      "link": "common-namespaceids-netns-doc",
+      "type": "int",
+      "definition": "Network namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
     },
     {
       "name": "*.netns",
@@ -14641,6 +15670,31 @@
       ]
     },
     {
+      "name": "*.permitted",
+      "link": "common-filecapabilities-permitted-doc",
+      "type": "int",
+      "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "*.pid",
       "link": "common-pidcontext-pid-doc",
       "type": "int",
@@ -14660,6 +15714,44 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.pidns",
+      "link": "common-namespaceids-pidns-doc",
+      "type": "int",
+      "definition": "ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.pod_uid",
+      "link": "common-containercontext-pod_uid-doc",
+      "type": "string",
+      "definition": "Kubernetes pod UID",
+      "prefixes": [
+        "exec.container",
+        "exit.container",
+        "process.ancestors.container",
+        "process.container",
+        "process.parent.container",
+        "ptrace.tracee.ancestors.container",
+        "ptrace.tracee.container",
+        "ptrace.tracee.parent.container",
+        "setrlimit.target.ancestors.container",
+        "setrlimit.target.container",
+        "setrlimit.target.parent.container",
+        "signal.target.ancestors.container",
+        "signal.target.container",
+        "signal.target.parent.container"
       ],
       "constants": "",
       "constants_link": "",
@@ -14687,7 +15779,7 @@
     },
     {
       "name": "*.ppid",
-      "link": "common-process-ppid-doc",
+      "link": "common-pidcontext-ppid-doc",
       "type": "int",
       "definition": "Parent process ID",
       "prefixes": [
@@ -14735,6 +15827,7 @@
         "removexattr",
         "rename",
         "rmdir",
+        "setns",
         "setrlimit",
         "setsockopt",
         "setxattr",
@@ -14743,6 +15836,7 @@
         "splice",
         "unlink",
         "unload_module",
+        "unshare",
         "utimes"
       ],
       "constants": "Error constants",
@@ -15059,6 +16153,19 @@
       "examples": []
     },
     {
+      "name": "*.timens",
+      "link": "common-namespaceids-timens-doc",
+      "type": "int",
+      "definition": "Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.tty_name",
       "link": "common-process-tty_name-doc",
       "type": "string",
@@ -15078,6 +16185,24 @@
         "signal.target",
         "signal.target.ancestors",
         "signal.target.parent"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.type",
+      "link": "common-awssecuritycredentials-type-doc",
+      "type": "string",
+      "definition": "The security credentials type",
+      "prefixes": [
+        "exec.aws_security_credentials",
+        "exit.aws_security_credentials",
+        "imds.aws.security_credentials",
+        "process.aws_security_credentials",
+        "ptrace.tracee.aws_security_credentials",
+        "setrlimit.target.aws_security_credentials",
+        "signal.target.aws_security_credentials"
       ],
       "constants": "",
       "constants_link": "",
@@ -15266,6 +16391,32 @@
       "examples": []
     },
     {
+      "name": "*.userns",
+      "link": "common-namespaceids-userns-doc",
+      "type": "int",
+      "definition": "User namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.utsns",
+      "link": "common-namespaceids-utsns-doc",
+      "type": "int",
+      "definition": "UTS namespace ID, 0 if it couldn't be resolved",
+      "prefixes": [
+        "setns",
+        "setns.previous"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.version",
       "link": "common-cgroupcontext-version-doc",
       "type": "int",
@@ -15447,10 +16598,34 @@
       "examples": []
     },
     {
+      "name": "capabilities.attempted_host_userns",
+      "link": "capabilities-attempted_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process attempted to use since it started running, through checks that always target the initial user namespace",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
       "name": "capabilities.used",
       "link": "capabilities-used-doc",
       "type": "int",
       "definition": "Bitmask of the capabilities that the process successfully used since it started running",
+      "prefixes": [
+        "capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
+    },
+    {
+      "name": "capabilities.used_host_userns",
+      "link": "capabilities-used_host_userns-doc",
+      "type": "int",
+      "definition": "Bitmask of the capabilities that the process successfully used since it started running, through checks that always target the initial user namespace",
       "prefixes": [
         "capabilities"
       ],
@@ -16035,18 +17210,6 @@
       "examples": []
     },
     {
-      "name": "imds.aws.security_credentials.type",
-      "link": "imds-aws-security_credentials-type-doc",
-      "type": "string",
-      "definition": "the security credentials type",
-      "prefixes": [
-        "imds.aws.security_credentials"
-      ],
-      "constants": "",
-      "constants_link": "",
-      "examples": []
-    },
-    {
       "name": "imds.cloud_provider",
       "link": "imds-cloud_provider-doc",
       "type": "string",
@@ -16056,6 +17219,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "imds.credential_source",
+      "link": "imds-credential_source-doc",
+      "type": "int",
+      "definition": "the credential endpoint that served the IMDS event",
+      "prefixes": [
+        "imds"
+      ],
+      "constants": "Credential sources",
+      "constants_link": "credential-sources",
       "examples": []
     },
     {
@@ -16287,6 +17462,18 @@
       "examples": []
     },
     {
+      "name": "mount.flags",
+      "link": "mount-flags-doc",
+      "type": "int",
+      "definition": "Per-mount attributes represented as a bitmask using the canonical MOUNT_ATTR_* layout",
+      "prefixes": [
+        "mount"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "mount.fs_type",
       "link": "mount-fs_type-doc",
       "type": "string",
@@ -16374,7 +17561,7 @@
       "name": "mount.visible",
       "link": "mount-visible-doc",
       "type": "bool",
-      "definition": "Mount is not visible in the VFS",
+      "definition": "Mount is visible in the VFS",
       "prefixes": [
         "mount"
       ],
@@ -16716,6 +17903,42 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.mntns_host",
+      "link": "setns-mntns_host-doc",
+      "type": "bool",
+      "definition": "Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.mntns_outside_base",
+      "link": "setns-mntns_outside_base-doc",
+      "type": "bool",
+      "definition": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "setns.nstype",
+      "link": "setns-nstype-doc",
+      "type": "int",
+      "definition": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined",
+      "prefixes": [
+        "setns"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
       "examples": []
     },
     {
@@ -17184,6 +18407,18 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "unshare.flags",
+      "link": "unshare-flags-doc",
+      "type": "int",
+      "definition": "Namespace flags requested by the unshare call",
+      "prefixes": [
+        "unshare"
+      ],
+      "constants": "Clone flags",
+      "constants_link": "clone-flags",
       "examples": []
     },
     {
@@ -18509,6 +19744,69 @@
       ]
     },
     {
+      "name": "Clone flags",
+      "link": "clone-flags",
+      "description": "Clone flags are the supported namespace flags for the unshare syscall.",
+      "all": [
+        {
+          "name": "CLONE_NEWNS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWCGROUP",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUTS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWIPC",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWUSER",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWPID",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWNET",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_NEWTIME",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FILES",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_FS",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SYSVSEM",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_THREAD",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_SIGHAND",
+          "architecture": "all"
+        },
+        {
+          "name": "CLONE_VM",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
       "name": "CompressionType",
       "link": "compressiontype",
       "description": "Compression algorithm.",
@@ -18539,6 +19837,25 @@
         },
         {
           "name": "XZ",
+          "architecture": "all"
+        }
+      ]
+    },
+    {
+      "name": "Credential sources",
+      "link": "credential-sources",
+      "description": "Credential sources are the endpoints that can serve cloud credentials.",
+      "all": [
+        {
+          "name": "IMDS",
+          "architecture": "all"
+        },
+        {
+          "name": "EKS_POD_IDENTITY",
+          "architecture": "all"
+        },
+        {
+          "name": "ECS",
           "architecture": "all"
         }
       ]

@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Agent GUI now follows symbolic links when processing conf.d items.

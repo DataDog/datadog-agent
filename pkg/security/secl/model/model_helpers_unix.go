@@ -17,7 +17,6 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model/utils"
 )
 
 const (
@@ -26,6 +25,7 @@ const (
 	UnknownFS = "unknown" // UnknownFS unknown filesystem
 
 	ErrPathMustBeAbsolute = "all the path have to be absolute"            // ErrPathMustBeAbsolute tells when a path is not absolute
+	ErrPathMustBeClean    = "paths must be in canonical form"             // ErrPathMustBeClean tells when a path contains a trailing slash, `.` segments or duplicate slashes
 	ErrPathDepthLimit     = "path depths have to be shorter than"         // ErrPathDepthLimit tells when a path is too long
 	ErrPathSegmentLimit   = "each segment of a path must be shorter than" // ErrPathSegmentLimit tells when a patch reached the segment limit
 
@@ -54,11 +54,7 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 			return nil
 		}
 
-		if value != path.Clean(value) {
-			return errAbs
-		}
-
-		if value == "*" {
+		if value == "*" || value == "*/" {
 			return errAbs
 		}
 
@@ -82,6 +78,13 @@ func validatePath(field eval.Field, fieldValue eval.FieldValue) error {
 			if len(segment) > MaxSegmentLength {
 				return errSegment
 			}
+		}
+
+		if cleaned := path.Clean(value); cleaned != value {
+			if strings.TrimRight(value, "/") == cleaned {
+				return fmt.Errorf("invalid path `%s`, %s, trailing slashes are not allowed: use `%s` to match the directory itself or `%s/*` to match its content", value, ErrPathMustBeClean, cleaned, cleaned)
+			}
+			return fmt.Errorf("invalid path `%s`, %s, `.` segments and duplicate slashes are not allowed: use `%s` instead", value, ErrPathMustBeClean, cleaned)
 		}
 	}
 
@@ -149,10 +152,19 @@ func (c *Credentials) Equals(o *Credentials) bool {
 		c.CapPermitted == o.CapPermitted
 }
 
-// SetSpan sets the span
-func (p *Process) SetSpan(spanID uint64, traceID utils.TraceID) {
-	p.SpanID = spanID
-	p.TraceID = traceID
+// SetSpanContext attaches the captured APM correlation span context to the
+// process. Used by ResolveSpanContext to persist the span a fork or an exec
+// captured onto the process it created.
+// Carries SpanID, TraceID, ExtraAttrsID and any extra Attributes.
+func (p *Process) SetSpanContext(sc SpanContext) {
+	p.Tracer.Trace = sc
+}
+
+// SetSpanContextAttributes updates only the Attributes field of the process's
+// SpanContext: the OTel attributes are resolved after the fork or the exec that
+// stamped the rest of it.
+func (p *Process) SetSpanContextAttributes(attrs map[string]string) {
+	p.Tracer.Trace.Attributes = attrs
 }
 
 // GetPathResolutionError returns the path resolution error as a string if there is one
@@ -168,6 +180,15 @@ func (p *Process) HasInterpreter() bool {
 // IsNotKworker returns true if the process isn't a kworker
 func (p *Process) IsNotKworker() bool {
 	return !p.IsKworker
+}
+
+// GetInitialMntNS returns the mount namespace the process had at fork or exec, unlike MntNS
+// which follows its later unshare and setns calls
+func (p *Process) GetInitialMntNS() uint32 {
+	if p.InitialMntNS != 0 {
+		return p.InitialMntNS
+	}
+	return p.MntNS
 }
 
 // GetProcessArgv returns the unscrubbed args of the event as an array. Use with caution.
@@ -322,12 +343,13 @@ func (m *Mount) GetFSType() string {
 }
 
 const (
-	ProcessCacheEntryFromUnknown     = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
-	ProcessCacheEntryFromPlaceholder        // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
-	ProcessCacheEntryFromEvent              // ProcessCacheEntryFromEvent defines a process cache entry from event
-	ProcessCacheEntryFromKernelMap          // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
-	ProcessCacheEntryFromProcFS             // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
-	ProcessCacheEntryFromSnapshot           // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	ProcessCacheEntryFromUnknown       = iota // ProcessCacheEntryFromUnknown defines a process cache entry from unknown
+	ProcessCacheEntryFromPlaceholder          // ProcessCacheEntryFromPlaceholder defines the source of a placeholder process cache entry
+	ProcessCacheEntryFromEvent                // ProcessCacheEntryFromEvent defines a process cache entry from event
+	ProcessCacheEntryFromKernelMap            // ProcessCacheEntryFromKernelMap defines a process cache entry from kernel map
+	ProcessCacheEntryFromProcFS               // ProcessCacheEntryFromProcFS defines a process cache entry from procfs. Note that some exec parent may be missing.
+	ProcessCacheEntryFromSnapshot             // ProcessCacheEntryFromSnapshot defines a process cache entry from snapshot
+	ProcessCacheEntryFromUnknownLoader        // ProcessCacheEntryFromUnknownLoader defines a synthetic process cache entry attached to a snapshot event whose real loader could not be identified
 )
 
 // ProcessSources defines process sources
@@ -338,6 +360,7 @@ var ProcessSources = [...]string{
 	"map",
 	"procfs_fallback",
 	"procfs_snapshot",
+	"unknown_loader",
 }
 
 // ProcessSourceToString returns the string corresponding to a process source
@@ -402,6 +425,9 @@ func (dfh *FakeFieldHandlers) ResolveAWSSecurityCredentials(_ *Event, _ *Process
 // ResolveSyscallCtxArgs resolves syscall context
 func (dfh *FakeFieldHandlers) ResolveSyscallCtxArgs(_ *Event, _ *SyscallContext) {}
 
+// ResolveSpanContext resolves the span context of the event
+func (dfh *FakeFieldHandlers) ResolveSpanContext(ev *Event) *SpanContext { return &ev.SpanContext }
+
 // SELinuxEventKind represents the event kind for SELinux events
 type SELinuxEventKind uint32
 
@@ -421,4 +447,5 @@ type ExtraFieldHandlers interface {
 	ResolveK8SUserSessionContext(event *Event, evtCtx *K8SSessionContext)
 	ResolveAWSSecurityCredentials(event *Event, process *Process) []AWSSecurityCredentials
 	ResolveSyscallCtxArgs(ev *Event, e *SyscallContext)
+	ResolveSpanContext(ev *Event) *SpanContext
 }

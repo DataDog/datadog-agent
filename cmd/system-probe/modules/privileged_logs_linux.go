@@ -8,7 +8,6 @@ package modules
 import (
 	privilegedlogsmodule "github.com/DataDog/datadog-agent/pkg/privileged-logs/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
@@ -16,7 +15,7 @@ func init() { registerModule(PrivilegedLogs) }
 
 // PrivilegedLogs is a module that provides privileged logs access capabilities
 var PrivilegedLogs = &module.Factory{
-	Name: config.PrivilegedLogsModule,
+	Name: sysconfigtypes.PrivilegedLogsModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return privilegedlogsmodule.NewPrivilegedLogsModule(), nil
 	},

@@ -10,9 +10,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 )
 
 func TestStatusOut(t *testing.T) {
@@ -58,4 +61,66 @@ func TestStatusOut(t *testing.T) {
 			test.assertFunc(t)
 		})
 	}
+}
+
+type recordingClient struct {
+	ipc.HTTPClient
+	url string
+}
+
+func (c *recordingClient) Get(rawURL string, _ ...ipc.RequestOption) ([]byte, error) {
+	c.url = rawURL
+	return []byte(`{}`), nil
+}
+
+func TestPopulateStatusDialsDebugServer(t *testing.T) {
+	tests := []struct {
+		cmdHost string
+		url     string
+	}{
+		{cmdHost: "localhost", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "127.0.0.1", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "::1", url: "https://[::1]:5012/debug/vars"},
+		{cmdHost: "127.0.0.2", url: "https://127.0.0.1:5012/debug/vars"},
+		{cmdHost: "111.111.111.111", url: "https://127.0.0.1:5012/debug/vars"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.cmdHost, func(t *testing.T) {
+			cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+				"cmd_host":              tt.cmdHost,
+				"apm_config.debug.port": 5012,
+			})
+			client := &recordingClient{}
+			statusProvider{Config: cfg, Client: client}.populateStatus()
+			assert.Equal(t, tt.url, client.url)
+		})
+	}
+}
+
+func TestSemanticCoreRendered(t *testing.T) {
+	stats := map[string]interface{}{
+		"apmStats": map[string]interface{}{
+			"pid":                    "123",
+			"uptime":                 10,
+			"memstats":               map[string]interface{}{"Alloc": float64(1024)},
+			"config":                 map[string]interface{}{"Hostname": "h", "ReceiverHost": "localhost", "ReceiverPort": float64(8126), "Endpoints": []interface{}{}},
+			"receiver":               []interface{}{},
+			"ratebyservice_filtered": map[string]interface{}{},
+			"trace_writer":           map[string]interface{}{"Payloads": float64(0), "Traces": float64(0), "Events": float64(0), "Bytes": float64(0), "Errors": float64(0)},
+			"stats_writer":           map[string]interface{}{"Payloads": float64(0), "StatsBuckets": float64(0), "Bytes": float64(0), "Errors": float64(0)},
+			"trace_semantics": map[string]interface{}{
+				"Source":      "remote-config",
+				"ContentHash": "hash-rc",
+				"Version":     "rc-1.0",
+			},
+		},
+	}
+
+	b := new(bytes.Buffer)
+	require.NoError(t, status.RenderText(templatesFS, "traceagent.tmpl", b, stats))
+	out := b.String()
+	assert.Contains(t, out, "Trace Semantics")
+	assert.Contains(t, out, "Source: Remote Config")
+	assert.Contains(t, out, "hash-rc")
+	assert.Contains(t, out, "rc-1.0")
 }

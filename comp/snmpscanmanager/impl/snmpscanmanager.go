@@ -210,22 +210,32 @@ func (m *snmpScanManagerImpl) scanWorker() {
 func (m *snmpScanManagerImpl) processScanRequest(req snmpscanmanager.ScanRequest) error {
 	snmpConfig, namespace, err := m.snmpConfigProvider.GetDeviceConfig(req.DeviceIP, m.agentConfig, m.httpClient)
 	if err != nil {
-		m.onDeviceScanFailure(req, false)
+		m.onDeviceScanFailure(req, err, false)
 		return err
+	}
+
+	bulkBatchSize := m.agentConfig.GetInt("network_devices.default_scan.bulk_batch_size")
+	if bulkBatchSize < 0 {
+		// A negative value would wrap around when cast to uint32; fall back to
+		// letting the scanner apply its own default instead.
+		bulkBatchSize = 0
 	}
 
 	err = m.scanner.ScanDeviceAndSendData(m.ctx, snmpConfig, namespace,
 		snmpscan.ScanParams{
-			ScanType:     metadata.DefaultScan,
-			CallInterval: snmpCallInterval,
-			MaxCallCount: maxSnmpCallCount,
+			ScanType:        metadata.DefaultScan,
+			CallInterval:    snmpCallInterval,
+			MaxCallCount:    maxSnmpCallCount,
+			BulkBatchSize:   uint32(bulkBatchSize),
+			FlushEveryNOIDs: m.agentConfig.GetInt("network_devices.default_scan.flush_every_n_oids"),
+			FlushInterval:   m.agentConfig.GetDuration("network_devices.default_scan.flush_interval"),
 		})
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
 			return nil
 		}
 
-		m.onDeviceScanFailure(req, isRetryableError(err))
+		m.onDeviceScanFailure(req, err, isRetryableError(err))
 		return err
 	}
 
@@ -253,8 +263,12 @@ func (m *snmpScanManagerImpl) onDeviceScanSuccess(req snmpscanmanager.ScanReques
 	m.scheduleScanRefresh(req, now)
 }
 
-func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanRequest, canRetry bool) {
+func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanRequest, err error, canRetry bool) {
 	now := time.Now()
+
+	if !canRetry {
+		m.log.Warnf("Default scan for device %s failed with a non-retryable error, will not be retried", req.DeviceIP)
+	}
 
 	m.mtx.Lock()
 	var failuresCount int
@@ -273,6 +287,7 @@ func (m *snmpScanManagerImpl) onDeviceScanFailure(req snmpscanmanager.ScanReques
 		ScanStatus: failedScan,
 		ScanEndTs:  now,
 		Failures:   failuresCount,
+		Error:      err.Error(),
 	}
 	m.mtx.Unlock()
 
@@ -382,12 +397,16 @@ func (m *snmpScanManagerImpl) scheduleScanRefresh(req snmpscanmanager.ScanReques
 func (m *snmpScanManagerImpl) scheduleScanRetry(req snmpscanmanager.ScanRequest, lastScanTs time.Time, failuresCount int) {
 	idx := failuresCount - 1
 	if idx < 0 || idx >= len(scanRetryDelays) {
+		m.log.Warnf("Giving up on default scan for device %s after %d failed attempts", req.DeviceIP, failuresCount)
 		return
 	}
 
+	delay := scanRetryDelays[idx]
+	m.log.Infof("Scheduling default scan retry %d/%d for device %s in %s", failuresCount, len(scanRetryDelays), req.DeviceIP, delay)
+
 	m.scanScheduler.QueueScanTask(scanTask{
 		req:        req,
-		nextScanTs: lastScanTs.Add(scanRetryDelays[idx]),
+		nextScanTs: lastScanTs.Add(delay),
 	})
 }
 

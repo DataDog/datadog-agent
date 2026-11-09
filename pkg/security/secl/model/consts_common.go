@@ -14,7 +14,7 @@ import (
 	"sync"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/usersession"
 )
@@ -92,6 +92,25 @@ const (
 	// IMDSOracleCloudProvider is used to report that the IMDS event is for Oracle
 	IMDSOracleCloudProvider = "oracle"
 )
+
+// CredentialSource identifies the endpoint that served an IMDS event
+type CredentialSource uint32
+
+const (
+	// CredentialSourceUnknown is used when the credential endpoint could not be resolved
+	CredentialSourceUnknown CredentialSource = iota
+	// CredentialSourceIMDS is the cloud provider instance metadata service
+	CredentialSourceIMDS
+	// CredentialSourceEKSPodIdentity is the EKS Pod Identity Agent
+	CredentialSourceEKSPodIdentity
+	// CredentialSourceECS is the ECS task credential endpoint
+	CredentialSourceECS
+)
+
+// String returns the SECL representation of the credential source
+func (cs CredentialSource) String() string {
+	return credentialSourceStrings[cs]
+}
 
 // EventSource is the source of the event
 type EventSource = string
@@ -229,16 +248,16 @@ var (
 		"BADALG":   21,
 	}
 
-	// BooleanConstants holds the evaluator for boolean constants
+	// BooleanConstants holds the values of the boolean constants
 	// generate_constants:Boolean constants,Boolean constants are the supported boolean constants.
-	BooleanConstants = map[string]interface{}{
+	BooleanConstants = map[string]ast.Node{
 		// boolean
-		"true":  &eval.BoolEvaluator{Value: true},
-		"false": &eval.BoolEvaluator{Value: false},
+		"true":  &ast.Literal{Value: ast.MakeBool(true)},
+		"false": &ast.Literal{Value: ast.MakeBool(false)},
 	}
 
 	// seclConstants are constants supported in runtime security agent rules
-	seclConstants = map[string]interface{}{}
+	seclConstants = map[string]ast.Node{}
 
 	// L3ProtocolConstants is the list of supported L3 protocols
 	// generate_constants:L3 protocols,L3 protocols are the supported Layer 3 protocols.
@@ -391,6 +410,14 @@ var (
 		"EGRESS":  Egress,
 	}
 
+	// CredentialSourceConstants is the list of supported credential sources
+	// generate_constants:Credential sources,Credential sources are the endpoints that can serve cloud credentials.
+	CredentialSourceConstants = map[string]CredentialSource{
+		"IMDS":             CredentialSourceIMDS,
+		"EKS_POD_IDENTITY": CredentialSourceEKSPodIdentity,
+		"ECS":              CredentialSourceECS,
+	}
+
 	// exitCauseConstants is the list of supported Exit causes
 	exitCauseConstants = map[string]sharedconsts.ExitCause{
 		"EXITED":     sharedconsts.ExitExited,
@@ -484,6 +511,7 @@ var (
 	l3ProtocolStrings          = map[L3Protocol]string{}
 	l4ProtocolStrings          = map[L4Protocol]string{}
 	networkDirectionStrings    = map[NetworkDirection]string{}
+	credentialSourceStrings    = map[CredentialSource]string{}
 	networkProtocolTypeStrings = map[NetworkProtocolType]string{}
 	addressFamilyStrings       = map[uint16]string{}
 	tlsVersionStrings          = map[uint16]string{}
@@ -507,6 +535,7 @@ const (
 // SyscallDriftEventReason describes why a syscall drift event was sent
 type SyscallDriftEventReason uint64
 
+// mirrors the SYSCALL_MONITOR_REASON_* constants of the eBPF side
 const (
 	// SyscallMonitorPeriodReason means that the event was sent because the syscall cache entry was dirty for longer than syscall_monitor.period
 	SyscallMonitorPeriodReason SyscallDriftEventReason = iota + 1
@@ -530,62 +559,69 @@ func (r SyscallDriftEventReason) String() string {
 
 func initErrorConstants() {
 	for k, v := range errorConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 	}
 }
 
 func initDNSQClassConstants() {
 	for k, v := range DNSQClassConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		dnsQClassStrings[uint32(v)] = k
 	}
 }
 
 func initDNSResponseCodeConstants() {
 	for k, v := range DNSResponseCodeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		dnsResponseCodeStrings[uint32(v)] = k
 	}
 }
 
 func initDNSQTypeConstants() {
 	for k, v := range DNSQTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		dnsQTypeStrings[uint32(v)] = k
 	}
 }
 
 func initL3ProtocolConstants() {
 	for k, v := range L3ProtocolConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		l3ProtocolStrings[v] = k
 	}
 }
 
 func initL4ProtocolConstants() {
 	for k, v := range L4ProtocolConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		l4ProtocolStrings[v] = k
 	}
 }
 
 func initNetworkProtocolTypeConstants() {
 	for k, v := range NetworkProtocolTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		networkProtocolTypeStrings[v] = k
 	}
 }
 
 func initNetworkDirectionContants() {
 	for k, v := range NetworkDirectionConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		networkDirectionStrings[v] = k
+	}
+}
+
+func initCredentialSourceConstants() {
+	for k, v := range CredentialSourceConstants {
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
+		credentialSourceStrings[v] = k
 	}
 }
 
 func initAddressFamilyConstants() {
 	for k, v := range addressFamilyConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 	}
 
 	for k, v := range addressFamilyConstants {
@@ -595,7 +631,7 @@ func initAddressFamilyConstants() {
 
 func initExitCauseConstants() {
 	for k, v := range exitCauseConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 	}
 }
 
@@ -605,56 +641,56 @@ func initBoolConstants() {
 
 func initSSLVersionConstants() {
 	for k, v := range tlsVersionContants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		tlsVersionStrings[v] = k
 	}
 }
 
 func initABIConstants() {
 	for k, v := range ABIConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		abiStrings[v] = k
 	}
 }
 
 func initArchitectureConstants() {
 	for k, v := range ArchitectureConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		architectureStrings[v] = k
 	}
 }
 
 func initCompressionTypeConstants() {
 	for k, v := range CompressionTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		compressionTypeStrings[v] = k
 	}
 }
 
 func initFileTypeConstants() {
 	for k, v := range FileTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		fileTypeStrings[v] = k
 	}
 }
 
 func initLinkageTypeConstants() {
 	for k, v := range LinkageTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		linkageTypeStrings[v] = k
 	}
 }
 
 func initUserSessionTypes() {
 	for k, v := range UserSessionTypes {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		userSessionTypeStrings[v] = k
 	}
 }
 
 func initSSHAuthMethodConstants() {
 	for k, v := range SSHAuthMethodConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		sshAuthMethodStrings[v] = k
 	}
 }
@@ -685,6 +721,7 @@ func initConstants() {
 	initL4ProtocolConstants()
 	initNetworkProtocolTypeConstants()
 	initNetworkDirectionContants()
+	initCredentialSourceConstants()
 	initAddressFamilyConstants()
 	initExitCauseConstants()
 	initBPFMapNamesConstants()
@@ -697,6 +734,7 @@ func initConstants() {
 	initSetSockOptOptNameConstantsTCP()
 	initSetSockOptOptNameConstantsIPv6()
 	initRlimitConstants()
+	initCloneFlagsConstants()
 	initABIConstants()
 	initArchitectureConstants()
 	initCompressionTypeConstants()
@@ -726,7 +764,7 @@ var constantsInitialized sync.Once
 
 // SECLConstants returns the constants supported in runtime security agent rules,
 // initializing these constants during the first call
-func SECLConstants() map[string]interface{} {
+func SECLConstants() map[string]ast.Node {
 	constantsInitialized.Do(func() {
 		initConstants()
 	})

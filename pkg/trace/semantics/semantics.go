@@ -12,7 +12,6 @@
 //   - rpc.system is superseded by rpc.system.name (OTel semconv v1.39.0); add rpc.system.name
 //     as a fallback or promote it to canonical. Note: this affects getOTelOperationNameV2,
 //     so a release note is required.
-//   - db.system is deprecated in favor of db.system.name; add db.system.name to mappings.
 package semantics
 
 // Provider indicates the source of a semantic attribute definition.
@@ -59,6 +58,7 @@ const (
 	ConceptHTTPStatusCode Concept = "http.status_code"
 	ConceptHTTPMethod     Concept = "http.method"
 	ConceptHTTPRoute      Concept = "http.route"
+	ConceptURLTemplate    Concept = "url.template"
 	ConceptGRPCStatusCode Concept = "rpc.grpc.status_code"
 	ConceptSpanKind       Concept = "span.kind"
 	ConceptDDBaseService  Concept = "_dd.base_service"
@@ -162,4 +162,18 @@ type Registry interface {
 
 	// Version returns the semantic registry version string.
 	Version() string
+
+	// ContentHash returns the producer-declared registry version label verbatim.
+	// It is not an integrity check or a key for invalidating derived state.
+	ContentHash() string
+
+	// Fingerprint returns the locally computed identity of the payload this
+	// registry was built from. It is the correct key for deciding registry
+	// publication and invalidating registry-derived state. It is never published,
+	// persisted, or compared against a producer-supplied hash, and carries no
+	// cross-process or cross-version meaning.
+	Fingerprint() string
+
+	// Source reports where the registry came from (SourceEmbedded or SourceRemoteConfig).
+	Source() string
 }

@@ -2,7 +2,8 @@
 docker_build_fakeintake:
   stage: container_build
   rules:
-    - !reference [.except_mergequeue]
+    - !reference [.except_light_pipeline]
+    - !reference [.except_fakeintake_off_main]
     - !reference [.on_fakeintake_changes]
     - !reference [.on_fakeintake_changes_on_main]
   needs: []
@@ -48,9 +49,27 @@ docker_build_fakeintake:
     - !reference [.login_to_docker_readonly]
     - |
       echo "Building with GO_BASE_IMAGE_REGISTRY=${GO_REGISTRY} ALPINE_BASE_IMAGE_REGISTRY=${ALPINE_REGISTRY}"
-      docker buildx build --push --pull --platform ${PLATFORMS} \
+      # Force Docker media types to prevent buildx from switching to OCI manifests (#incident-59848)
+      docker buildx build --output=type=image,push=true,oci-mediatypes=false --pull --platform ${PLATFORMS} \
         --build-arg=CI \
         --build-arg=GO_BASE_IMAGE_REGISTRY=${GO_REGISTRY} \
         --build-arg=ALPINE_BASE_IMAGE_REGISTRY=${ALPINE_REGISTRY} \
         --file ${DOCKERFILE} --tag ${TARGET} $BUILD_CONTEXT
   retry: 2
+
+docker_sign_fakeintake:
+  extends: .docker_build_amd64
+  stage: container_build
+  rules: !reference [docker_build_fakeintake, rules]
+  needs: [docker_build_fakeintake]
+  id_tokens:
+    # A job's own id_tokens replace the default ones: keep the CI identities token.
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+    DDSIGN_ID_TOKEN:
+      aud: image-integrity
+  variables:
+    TARGET: !reference [docker_build_fakeintake, variables, TARGET]
+  script:
+    - DIGEST=$(crane digest ${TARGET})
+    - ddsign sign ${TARGET}@${DIGEST}

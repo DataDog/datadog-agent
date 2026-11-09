@@ -8,7 +8,12 @@
 package admission
 
 import (
+	"bytes"
+	"context"
 	"encoding/json"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -83,4 +88,235 @@ func TestProbeResponse_ProbeObject(t *testing.T) {
 	annotations, ok := patch[0]["value"].(map[string]interface{})
 	require.True(t, ok)
 	assert.Equal(t, "true", annotations[admicommon.ProbeReceivedAnnotationKey])
+}
+
+// newTestServer skips NewServer to avoid leaking a health.RegisterReadiness
+// goroutine that these tests never drain or deregister.
+func newTestServer(t *testing.T) *Server {
+	t.Helper()
+	s := &Server{mux: http.NewServeMux()}
+	s.initDecoder()
+	return s
+}
+
+// countingFiller hands out up to `remaining` bytes without allocating them
+// up front, and records how many were actually read.
+type countingFiller struct {
+	remaining int64
+	read      int64
+}
+
+func (f *countingFiller) Read(p []byte) (int, error) {
+	if f.remaining <= 0 {
+		return 0, io.EOF
+	}
+	n := len(p)
+	if int64(n) > f.remaining {
+		n = int(f.remaining)
+	}
+	for i := range p[:n] {
+		p[i] = 'a'
+	}
+	f.remaining -= int64(n)
+	f.read += int64(n)
+	return n, nil
+}
+
+func TestHandleBodyLimits(t *testing.T) {
+	// Well over maxRequestBodyBytes (7 MiB), but small enough to not stress the runner.
+	const oversizedBodySize = 32 << 20
+
+	validReview := []byte(`{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview","request":{"uid":"test-uid"}}`)
+
+	tests := []struct {
+		name           string
+		method         string
+		contentType    string
+		body           []byte
+		oversized      bool
+		wantStatus     int
+		wantWebhookHit bool
+	}{
+		{
+			name:        "oversized body is rejected before being fully buffered",
+			method:      http.MethodPost,
+			contentType: jsonContentType,
+			oversized:   true,
+			wantStatus:  http.StatusRequestEntityTooLarge,
+		},
+		{
+			name:        "oversized body with wrong content type is rejected without reading",
+			method:      http.MethodPost,
+			contentType: "text/plain",
+			oversized:   true,
+			wantStatus:  http.StatusBadRequest,
+		},
+		{
+			name:        "oversized body with wrong method is rejected without reading",
+			method:      http.MethodGet,
+			contentType: jsonContentType,
+			oversized:   true,
+			wantStatus:  http.StatusMethodNotAllowed,
+		},
+		{
+			name:           "valid v1 review is accepted",
+			method:         http.MethodPost,
+			contentType:    jsonContentType,
+			body:           validReview,
+			wantStatus:     http.StatusOK,
+			wantWebhookHit: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestServer(t)
+			hit := false
+			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(_ *Request) *admiv1.AdmissionResponse {
+				hit = true
+				return &admiv1.AdmissionResponse{Allowed: true}
+			}, nil, nil)
+
+			var body io.Reader
+			var filler *countingFiller
+			if tt.oversized {
+				filler = &countingFiller{remaining: oversizedBodySize}
+				body = filler
+			} else {
+				body = bytes.NewReader(tt.body)
+			}
+
+			req := httptest.NewRequest(tt.method, "/injectconfig", body)
+			req.Header.Set("Content-Type", tt.contentType)
+			w := httptest.NewRecorder()
+
+			s.mux.ServeHTTP(w, req)
+
+			assert.Equal(t, tt.wantStatus, w.Code)
+			assert.Equal(t, tt.wantWebhookHit, hit)
+			if filler != nil {
+				// Handler must not buffer meaningfully more than the cap.
+				assert.LessOrEqual(t, filler.read, maxRequestBodyBytes()+int64(64<<10),
+					"handler buffered more than the configured cap")
+			}
+		})
+	}
+}
+
+func TestHandlePassesRequestContextToWebhook(t *testing.T) {
+	s := newTestServer(t)
+	var webhookContext context.Context
+	s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(request *Request) *admiv1.AdmissionResponse {
+		webhookContext = request.Context
+		return &admiv1.AdmissionResponse{Allowed: true}
+	}, nil, nil)
+
+	body := bytes.NewReader([]byte(`{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview","request":{"uid":"test-uid"}}`))
+	request := httptest.NewRequest(http.MethodPost, "/injectconfig", body)
+	request.Header.Set("Content-Type", jsonContentType)
+	requestContext, cancel := context.WithCancel(request.Context())
+	request = request.WithContext(requestContext)
+	response := httptest.NewRecorder()
+
+	s.mux.ServeHTTP(response, request)
+	require.NotNil(t, webhookContext)
+	cancel()
+
+	assert.ErrorIs(t, webhookContext.Err(), context.Canceled)
+}
+
+func TestHandleBodyLimitAppliesToEveryRoute(t *testing.T) {
+	s := newTestServer(t)
+	for _, uri := range []string{"/injectconfig", "/autoscaling"} {
+		s.Register(uri, "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
+			t.Fatalf("webhook func should not be called for an oversized request to %s", uri)
+			return nil
+		}, nil, nil)
+	}
+
+	for _, uri := range []string{"/injectconfig", "/autoscaling"} {
+		filler := &countingFiller{remaining: 32 << 20}
+		req := httptest.NewRequest(http.MethodPost, uri, filler)
+		req.Header.Set("Content-Type", jsonContentType)
+		w := httptest.NewRecorder()
+
+		s.mux.ServeHTTP(w, req)
+
+		assert.Equal(t, http.StatusRequestEntityTooLarge, w.Code, "route %s", uri)
+		assert.LessOrEqual(t, filler.read, maxRequestBodyBytes()+int64(64<<10), "route %s", uri)
+	}
+}
+
+func TestHandleReviewWithoutRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "v1 review without request", body: `{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview"}`},
+		{name: "v1 review with null request", body: `{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview","request":null}`},
+		{name: "v1beta1 review without request", body: `{"apiVersion":"admission.k8s.io/v1beta1","kind":"AdmissionReview"}`},
+		{name: "v1beta1 review with null request", body: `{"apiVersion":"admission.k8s.io/v1beta1","kind":"AdmissionReview","request":null}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestServer(t)
+			hit := false
+			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
+				hit = true
+				return &admiv1.AdmissionResponse{Allowed: true}
+			}, nil, nil)
+
+			req := httptest.NewRequest(http.MethodPost, "/injectconfig", bytes.NewReader([]byte(tt.body)))
+			req.Header.Set("Content-Type", jsonContentType)
+			w := httptest.NewRecorder()
+
+			assert.NotPanics(t, func() { s.mux.ServeHTTP(w, req) })
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.False(t, hit, "webhook func should not be called without a request")
+		})
+	}
+}
+
+func TestHandleWebhookResponse(t *testing.T) {
+	tests := []struct {
+		name       string
+		apiVersion string
+		response   *admiv1.AdmissionResponse
+		wantStatus int
+	}{
+		{name: "v1 webhook without response", apiVersion: "admission.k8s.io/v1", wantStatus: http.StatusInternalServerError},
+		{name: "v1beta1 webhook without response", apiVersion: "admission.k8s.io/v1beta1", wantStatus: http.StatusInternalServerError},
+		{name: "v1 webhook with response", apiVersion: "admission.k8s.io/v1", response: &admiv1.AdmissionResponse{Allowed: true}, wantStatus: http.StatusOK},
+		{name: "v1beta1 webhook with response", apiVersion: "admission.k8s.io/v1beta1", response: &admiv1.AdmissionResponse{Allowed: true}, wantStatus: http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestServer(t)
+			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
+				return tt.response
+			}, nil, nil)
+
+			body := `{"apiVersion":"` + tt.apiVersion + `","kind":"AdmissionReview","request":{"uid":"test-uid","operation":"UPDATE"}}`
+			req := httptest.NewRequest(http.MethodPost, "/injectconfig", bytes.NewReader([]byte(body)))
+			req.Header.Set("Content-Type", jsonContentType)
+			w := httptest.NewRecorder()
+
+			assert.NotPanics(t, func() { s.mux.ServeHTTP(w, req) })
+			require.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+			var review struct {
+				Response struct {
+					UID     string `json:"uid"`
+					Allowed bool   `json:"allowed"`
+				} `json:"response"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &review))
+			assert.Equal(t, "test-uid", review.Response.UID)
+			assert.True(t, review.Response.Allowed)
+		})
+	}
 }

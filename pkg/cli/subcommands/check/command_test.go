@@ -22,39 +22,50 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	adcmock "github.com/DataDog/datadog-agent/comp/core/autodiscovery/mock"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/scheduler"
+	"github.com/DataDog/datadog-agent/comp/core/config"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	workloadfilterfxmock "github.com/DataDog/datadog-agent/comp/core/workloadfilter/fx-mock"
-	wmcatalog "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/catalog-core"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
 func TestCommand(t *testing.T) {
-	commands := []*cobra.Command{
-		MakeCommand(func() GlobalParams {
-			// the config needs an existing config file when initializing
-			config := path.Join(t.TempDir(), "datadog.yaml")
-			err := os.WriteFile(config, []byte("hostname: test"), 0644)
-			require.NoError(t, err)
+	// the config needs an existing config file when initializing
+	confFilePath := path.Join(t.TempDir(), "datadog.yaml")
+	err := os.WriteFile(confFilePath, []byte("hostname: test"), 0644)
+	require.NoError(t, err)
 
+	commands := []*cobra.Command{
+		// run() is substituted by the assertFn below, so no real workloadmeta
+		// collector is needed; an empty catalog avoids building collectors like
+		// sbomcollector that require a real IPC auth token unavailable in tests.
+		MakeCommand(func() GlobalParams {
 			return GlobalParams{
-				ConfFilePath: config,
+				ConfFilePath: confFilePath,
 			}
-		}, wmcatalog.GetCatalog()),
+		}, fx.Options()),
 	}
 
 	fxutil.TestOneShotSubcommand(t,
 		commands,
 		// this command has a lot of options, so just test a few
-		[]string{"check", "cleopatra", "--delay", "1", "--flare"},
+		[]string{"check", "cleopatra", "--delay", "1", "--flare", "--workloadmeta-timeout", "7"},
 		run,
-		func(cliParams *cliParams, _ core.BundleParams) {
+		func(cliParams *cliParams, coreParams core.BundleParams) {
 			require.Equal(t, []string{"cleopatra"}, cliParams.args)
 			require.Equal(t, 1, cliParams.checkDelay)
 			require.True(t, cliParams.saveFlare)
+			require.Equal(t, uint(7), cliParams.workloadmetaTimeout)
+			// the one-shot command must never bind the running agent's cmd_port,
+			// agent_ipc port or unix socket
+			expectedConfigParams := config.NewAgentParams(confFilePath,
+				config.WithCLIOverride("cmd_port", 0),
+				config.WithCLIOverride("agent_ipc.port", 0),
+				config.WithCLIOverride("agent_ipc.use_socket", false))
+			require.Equal(t, expectedConfigParams, coreParams.ConfigParams)
 		})
 }
 
@@ -107,6 +118,9 @@ instances:
 
 func TestCommandWithInstanceID(t *testing.T) {
 	commands := []*cobra.Command{
+		// run() is substituted by the assertFn below, so no real workloadmeta
+		// collector is needed; an empty catalog avoids building collectors like
+		// sbomcollector that require a real IPC auth token unavailable in tests.
 		MakeCommand(func() GlobalParams {
 			config := path.Join(t.TempDir(), "datadog.yaml")
 			err := os.WriteFile(config, []byte("hostname: test"), 0644)
@@ -115,7 +129,7 @@ func TestCommandWithInstanceID(t *testing.T) {
 			return GlobalParams{
 				ConfFilePath: config,
 			}
-		}, wmcatalog.GetCatalog()),
+		}, fx.Options()),
 	}
 
 	fxutil.TestOneShotSubcommand(t,

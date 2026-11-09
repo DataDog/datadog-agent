@@ -306,6 +306,14 @@
       "alt_version_names": [
         "resolute"
       ]
+    },
+    "amazon_6.12": {
+      "image": "amzn2023-x86_64-6.12.qcow2.xz",
+      "image_version": "20260623_da9ee25c",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "kernel": "6.12.90-120.164.amzn2023",
+      "os_version": "2023"
     }
   },
   "arm64": {
@@ -576,6 +584,14 @@
       "alt_version_names": [
         "resolute"
       ]
+    },
+    "amazon_6.12": {
+      "image": "amzn2023-arm64-6.12.qcow2.xz",
+      "image_version": "20260623_da9ee25c",
+      "os_name": "Amazon Linux",
+      "os_id": "amzn",
+      "kernel": "6.12.90-120.164.amzn2023",
+      "os_version": "2023"
     }
   }
 }

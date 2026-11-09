@@ -69,7 +69,7 @@ func TestProcessCheckEnablementOnCoreAgent(t *testing.T) {
 				fx.Provide(func() statsd.ClientInterface {
 					return &statsd.NoOpClient{}
 				}),
-				fxutil.ProvideComponentConstructor(NewCheck),
+				fxutil.ProvideComponentConstructor(NewComponent),
 				fx.Provide(func() ipc.Component { return ipcmock.New(t) }),
 			))
 			assert.Equal(t, tc.enabled, c.Object().IsEnabled())

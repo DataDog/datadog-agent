@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "datastreams",
@@ -14,15 +15,14 @@ go_library(
         "//pkg/config/remote/data",
         "//pkg/remoteconfig/state",
         "//pkg/util/log",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "datastreams_test",
     srcs = ["kafka_actions_test.go"],
     embed = [":datastreams"],
-    gotags = ["test"],
     deps = [
         "//comp/core/autodiscovery/def",
         "//comp/core/autodiscovery/integration",
@@ -32,6 +32,6 @@ go_test(
         "//pkg/util/fxutil",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-        "@in_yaml_go_yaml_v2//:yaml",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

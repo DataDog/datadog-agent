@@ -48,7 +48,7 @@ func TestSuccessfulCreateAndSetAuthToken(t *testing.T) {
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	assert.NoError(t, err)
 
 	// Check that the auth_token content is the same as the one in the file
@@ -77,7 +77,7 @@ func TestSuccessfulLoadAuthToken(t *testing.T) {
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
-	RWComp, err := NewReadWriteComponent(reqs)
+	RWComp, err := NewComponent(reqs)
 	assert.NoError(t, err)
 
 	// Check that SetAuthToken returns no error
@@ -113,7 +113,7 @@ func TestDeadline(t *testing.T) {
 		Log:  logmock.New(t),
 		Conf: mockConfig,
 	}
-	_, err = NewReadWriteComponent(reqs)
+	_, err = NewComponent(reqs)
 	duration := time.Since(start)
 	assert.Error(t, err)
 	assert.LessOrEqual(t, duration, mockConfig.GetDuration("auth_init_timeout")+time.Second)
@@ -243,7 +243,7 @@ func TestClusterTrustChain_NoCA_SkipVerification(t *testing.T) {
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NotNil(t, comp.Comp)
 
@@ -265,7 +265,7 @@ func TestClusterTrustChain_NoCA_RequireVerification(t *testing.T) {
 		Conf: mockConfig,
 	}
 
-	_, err := NewReadWriteComponent(reqs)
+	_, err := NewComponent(reqs)
 	require.Error(t, err, "IPC component creation should fail when TLS verification is enabled without CA")
 	assert.Contains(t, err.Error(), "cluster_trust_chain.enable_tls_verification cannot be true if cluster_trust_chain.ca_cert_file_path is not set")
 }
@@ -295,7 +295,7 @@ func TestClusterTrustChain_WithCA_SkipVerification_ClusterAgent(t *testing.T) {
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 
 	// Check that CrossNodeClientTLSConfig is set to InsecureSkipVerify
@@ -345,7 +345,7 @@ func TestClusterTrustChain_WithCA_RequireVerification_ClusterAgent(t *testing.T)
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NotNil(t, comp.Comp)
 
@@ -392,7 +392,7 @@ func TestClusterTrustChain_WithCA_CLCRunner(t *testing.T) {
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NotNil(t, comp.Comp)
 
@@ -436,7 +436,7 @@ func TestClusterTrustChain_WithCA_NodeAgent(t *testing.T) {
 		Conf: mockConfig,
 	}
 
-	comp, err := NewReadWriteComponent(reqs)
+	comp, err := NewComponent(reqs)
 	require.NoError(t, err)
 	require.NotNil(t, comp.Comp)
 

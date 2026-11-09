@@ -1,0 +1,9 @@
+description: "Inline var assignment is temporary and does not persist past the command"
+input:
+  script: |
+    X=before
+    X=temp echo "during"
+    echo "after=$X"
+expect:
+  stdout: "during\nafter=before\n"
+  exit_code: 0

@@ -23,3 +23,11 @@ properties:
       linux: 1
       darwin: 2
       windows: 3
+      aix: 4
+  missing_aix:
+    node_type: setting
+    type: number
+    platform_default:
+      linux: 1
+      darwin: 2
+      windows: 3

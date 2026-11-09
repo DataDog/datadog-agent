@@ -14,7 +14,6 @@ import (
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	"github.com/DataDog/datadog-agent/pkg/discovery/module/splite"
-	systemprobeconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
@@ -36,20 +35,20 @@ func shouldExecSPLite(sysprobeConfig sysprobeconfig.Component, cfg *sysconfigtyp
 	}
 
 	// Exec system-probe-lite if only the discovery module is enabled
-	return cfg.Enabled && len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(systemprobeconfig.DiscoveryModule)
+	return cfg.Enabled && len(cfg.EnabledModules) == 1 && cfg.ModuleIsEnabled(sysconfigtypes.DiscoveryModule)
 }
 
 // maybeSPLite checks if system-probe should exec into system-probe-lite,
 // and if so, returns the resolved command. Returns nil if splite is not
 // applicable or the binary was not found.
-func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component) *spLiteExecCmd {
+func maybeSPLite(sysprobeConfig sysprobeconfig.Component, pidFilePath string, log log.Component, executableFn spliteExecutableFunc) *spLiteExecCmd {
 	cfg := sysprobeConfig.SysProbeObject()
 	if !shouldExecSPLite(sysprobeConfig, cfg) {
 		return nil
 	}
 
 	// Resolve binary path — system-probe-lite is expected next to system-probe
-	execPath, err := os.Executable()
+	execPath, err := executableFn()
 	if err != nil {
 		log.Warnf("cannot determine system-probe executable path: %s, falling back to running discovery in system-probe", err)
 		return nil

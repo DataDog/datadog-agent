@@ -11,11 +11,19 @@ package netns
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
+	manager "github.com/DataDog/ebpf-manager"
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/vishvananda/netlink"
+	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -24,10 +32,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
-	"github.com/DataDog/datadog-go/v5/statsd"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/hashicorp/golang-lru/v2/simplelru"
-	"github.com/vishvananda/netlink"
 )
 
 var (
@@ -37,6 +41,24 @@ var (
 	flushNamespacesPeriod = 30 * time.Second
 )
 
+// linkListAttempts is the number of times an interface dump is retried. The kernel marks a dump it
+// could not keep consistent - the link table changed while it was being generated - and our netlink
+// fork reports that as EINTR; re-issuing the dump is the only way to recover from it. Beware that a
+// newer netlink reports it as ErrDumpInterrupted instead, which would stop this retry from firing.
+const linkListAttempts = 3
+
+func listLinks(sock *netlink.Handle) ([]netlink.Link, error) {
+	var links []netlink.Link
+	var err error
+
+	for range linkListAttempts {
+		if links, err = sock.LinkList(); !errors.Is(err, unix.EINTR) {
+			break
+		}
+	}
+	return links, err
+}
+
 // Resolver is used to store namespace handles
 type Resolver struct {
 	sync.RWMutex
@@ -45,10 +67,13 @@ type Resolver struct {
 	config     *config.Config
 	manager    *manager.Manager
 
-	networkNamespaces *simplelru.LRU[uint32, *NetworkNamespace]
-	tcRequests        chan TcClassifierRequest
-	ctx               context.Context
-	wg                sync.WaitGroup
+	networkNamespaces   *simplelru.LRU[uint32, *NetworkNamespace]
+	tcRequests          chan TcClassifierRequest
+	netnsHandleRequests chan networkNamespaceHandleRequest
+	errorCounters       map[string]*atomic.Int64
+	ctx                 context.Context
+	cancel              context.CancelFunc
+	wg                  sync.WaitGroup
 }
 
 // NewResolver returns a new instance of Resolver
@@ -60,10 +85,20 @@ func NewResolver(config *config.Config, manager *manager.Manager, statsdClient s
 		tcResolver: tcResolver,
 		tcRequests: make(chan TcClassifierRequest, 16),
 		ctx:        context.Background(),
+
+		netnsHandleRequests: make(chan networkNamespaceHandleRequest, 1024),
+
+		errorCounters: newErrorCounters(),
 	}
 
 	lru, err := simplelru.NewLRU(1024, func(_ uint32, value *NetworkNamespace) {
-		nr.flushNetworkNamespace(value)
+		value.Lock()
+		defer value.Unlock()
+
+		// this callback is fired while the entry is being removed from the LRU, so it
+		// must only release the resources and never mutate the LRU (doing so would
+		// re-enter this callback and deadlock on value's lock)
+		nr.flushNetworkNamespaceResources(value)
 		tcResolver.FlushNetworkNamespaceID(value.nsID, manager)
 	})
 	if err != nil {
@@ -88,7 +123,7 @@ func (nr *Resolver) SaveNetworkNamespaceHandle(nsID uint32, nsPath *utils.NSPath
 	nr.Unlock()
 
 	if isNew && netns != nil {
-		netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(netns)
 	}
 
@@ -107,7 +142,7 @@ func (nr *Resolver) SaveNetworkNamespaceHandleLazy(nsID uint32, nsPathFunc func(
 	nr.Unlock()
 
 	if isNew && netns != nil {
-		netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(netns)
 	}
 
@@ -187,13 +222,15 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 
 	ntl, err := nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 	if err != nil {
+		nr.countError(errorClassNetlinkSocket)
 		seclog.Errorf("couldn't open netlink socket: %s", err)
 		return 0
 	}
 
-	links, err := ntl.Sock.LinkList()
+	links, err := listLinks(ntl.Sock)
 	if err != nil {
-		seclog.Errorf("couldn't list network interfaces in namespace %d: %s", netns.nsID, err)
+		nr.countError(errorClassLinkList)
+		seclog.Debugf("couldn't list network interfaces in namespace %d: %s", netns.nsID, err)
 		return 0
 	}
 
@@ -216,7 +253,7 @@ func (nr *Resolver) snapshotNetworkDevices(netns *NetworkNamespace) int {
 				attachedDeviceCountNoLazyDeletion++
 			}
 		} else {
-			seclog.Errorf("error setting up new tc classifier on snapshot: %v", err)
+			nr.reportTCClassifierError(err, device)
 		}
 	}
 
@@ -288,7 +325,7 @@ func (nr *Resolver) SyncCache() bool {
 	nr.Unlock()
 
 	for _, entry := range newEntries {
-		entry.netns.dequeueNetworkDevices(nr.tcResolver, nr.manager)
+		entry.netns.dequeueNetworkDevices(nr)
 		nr.snapshotNetworkDevices(entry.netns)
 	}
 
@@ -321,15 +358,23 @@ func (nr *Resolver) Start(ctx context.Context) error {
 		return nil
 	}
 
-	nr.ctx = ctx
+	nr.ctx, nr.cancel = context.WithCancel(ctx)
 	nr.startTcClassifierLoopGoroutine()
 
 	nr.wg.Add(1)
 	go func() {
 		defer nr.wg.Done()
-		nr.flushNamespaces(ctx)
+		nr.flushNamespaces(nr.ctx)
 	}()
 	return nil
+}
+
+// Stop stops the goroutines started by Start and waits for them to exit
+func (nr *Resolver) Stop() {
+	if nr.cancel != nil {
+		nr.cancel()
+	}
+	nr.wg.Wait()
 }
 
 func (nr *Resolver) manualFlushNamespaces() {
@@ -369,11 +414,21 @@ func (nr *Resolver) FlushNetworkNamespace(netns *NetworkNamespace) {
 // flushNetworkNamespace flushes the cached entries for the provided network namespace.
 func (nr *Resolver) flushNetworkNamespace(netns *NetworkNamespace) {
 	if _, ok := nr.networkNamespaces.Peek(netns.nsID); ok {
-		// remove the entry now, removing the entry will call this function again
+		// the entry is still tracked: removing it from the LRU triggers the eviction
+		// callback which locks the namespace and performs the actual flush
 		_ = nr.networkNamespaces.Remove(netns.nsID)
 		return
 	}
 
+	// the entry is no longer in the LRU, flush its resources directly
+	netns.Lock()
+	defer netns.Unlock()
+	nr.flushNetworkNamespaceResources(netns)
+}
+
+// flushNetworkNamespaceResources releases the resources associated with the provided
+// network namespace. The caller must hold netns' lock.
+func (nr *Resolver) flushNetworkNamespaceResources(netns *NetworkNamespace) {
 	// if we can, make sure the manager has a valid netlink socket to this handle before removing everything
 	handle, err := netns.getNamespaceHandleDup()
 	if err == nil {
@@ -407,6 +462,11 @@ func (nr *Resolver) preventNetworkNamespaceDrift(probesCount map[uint32]int) {
 
 	// compute the list of network namespaces without any probe
 	for _, nsID := range nr.networkNamespaces.Keys() {
+		// snapshots clone TC programs that the manager tears down right after the resolver stops
+		if nr.ctx.Err() != nil {
+			return
+		}
+
 		netns, _ := nr.networkNamespaces.Peek(nsID)
 
 		netns.Lock()
@@ -472,14 +532,14 @@ func (nr *Resolver) SendStats() error {
 	if lonelyNetworkNamespacesCount > 0 {
 		_ = nr.client.Gauge(metrics.MetricNamespaceResolverLonelyNetworkNamespace, lonelyNetworkNamespacesCount, []string{}, 1.0)
 	}
+
+	nr.sendErrorStats()
 	return nil
 }
 
 // Close closes this resolver and frees all the resources
 func (nr *Resolver) Close() {
-	close(nr.tcRequests)
-
-	nr.wg.Wait()
+	nr.Stop()
 
 	if nr.networkNamespaces != nil {
 		nr.Lock()
@@ -557,7 +617,7 @@ func (nr *Resolver) dump(params *api.DumpNetworkNamespaceParams) []NetworkNamesp
 
 			ntl, err = nr.manager.GetNetlinkSocket(uint64(handle.Fd()), netns.nsID)
 			if err == nil {
-				links, err = ntl.Sock.LinkList()
+				links, err = listLinks(ntl.Sock)
 				if err == nil {
 					for _, link := range links {
 						netnsDump.Devices = append(netnsDump.Devices, NetworkDeviceDump{

@@ -1,0 +1,61 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "constantfetch",
+    srcs = [
+        "available.go",
+        "available_unsupported.go",
+        "btfhub.go",
+        "btfhub_amd64.go",
+        "btfhub_arm64.go",
+        "constant_names.go",
+        "core.go",
+        "fallback.go",
+        "fetcher.go",
+        "offset_guesser.go",
+        "tracepoints.go",
+    ],
+    # keep
+    embedsrcs = select({
+        "@rules_go//go/platform:linux_amd64": [
+            "constants_amd64.json",
+        ],
+        "@rules_go//go/platform:linux_arm64": [
+            "constants_arm64.json",
+        ],
+        "//conditions:default": [],
+    }),
+    importpath = "github.com/DataDog/datadog-agent/pkg/security/probe/constantfetch",
+    # All the code is tag guarded with linux
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/btf",
+            "//pkg/security/ebpf",
+            "//pkg/security/ebpf/kernel",
+            "//pkg/security/ebpf/probes",
+            "//pkg/security/probe/config",
+            "//pkg/security/seclog",
+            "//pkg/security/utils",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_datadog_ebpf_manager//tracefs",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//pkg/ebpf",
+            "//pkg/ebpf/btf",
+            "//pkg/security/ebpf",
+            "//pkg/security/ebpf/kernel",
+            "//pkg/security/ebpf/probes",
+            "//pkg/security/probe/config",
+            "//pkg/security/seclog",
+            "//pkg/security/utils",
+            "@com_github_cilium_ebpf//btf",
+            "@com_github_datadog_ebpf_manager//:ebpf-manager",
+            "@com_github_datadog_ebpf_manager//tracefs",
+        ],
+        "//conditions:default": [],
+    }),
+)

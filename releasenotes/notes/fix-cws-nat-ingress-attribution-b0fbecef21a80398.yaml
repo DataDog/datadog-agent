@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CWS: Network packets of NAT-translated connections (for example source-port
+    masquerading) are now correctly attributed to the owning process on the
+    ingress path.

@@ -29,9 +29,37 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes/argorollouts"
 )
 
-func nginxConfFromPort(port int) string {
+const defaultWorkerProcesses = "auto"
+
+// K8sAppOption configures the Kubernetes nginx workload.
+type K8sAppOption func(*k8sAppOptions)
+
+type k8sAppOptions struct {
+	workerProcesses           string
+	withoutDatadogAnnotations bool
+}
+
+// WithWorkerProcesses overrides the nginx worker_processes directive.
+func WithWorkerProcesses(workerProcesses string) K8sAppOption {
+	return func(opts *k8sAppOptions) {
+		opts.workerProcesses = workerProcesses
+	}
+}
+
+// WithoutDatadogAnnotations disables the default Datadog Autodiscovery annotations on the Nginx Deployment and Service.
+func WithoutDatadogAnnotations() K8sAppOption {
+	return func(opts *k8sAppOptions) {
+		opts.withoutDatadogAnnotations = true
+	}
+}
+
+func nginxConfFromPort(port int, workerProcesses string) string {
+	if workerProcesses == "" {
+		workerProcesses = defaultWorkerProcesses
+	}
+
 	return `
-worker_processes  auto;
+worker_processes  ` + workerProcesses + `;
 events {
     worker_connections  4096;
 }
@@ -52,7 +80,17 @@ http {
 // K8sAppDefinition defines a Kubernetes application, with a deployment, a service, a pod disruption budget and an HPA.
 // It also creates a DatadogMetric and an HPA if dependsOnCrd is not nil.
 func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, nginxPort int, runtimeClass string, withDatadogAutoscaling bool, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
+	return K8sAppDefinitionWithOptions(e, kubeProvider, namespace, nginxPort, runtimeClass, withDatadogAutoscaling, nil, opts...)
+}
+
+// K8sAppDefinitionWithOptions defines a Kubernetes nginx application with additional app options.
+func K8sAppDefinitionWithOptions(e config.Env, kubeProvider *kubernetes.Provider, namespace string, nginxPort int, runtimeClass string, withDatadogAutoscaling bool, appOptions []K8sAppOption, opts ...pulumi.ResourceOption) (*componentskube.Workload, error) {
 	opts = append(opts, pulumi.Provider(kubeProvider), pulumi.Parent(kubeProvider), pulumi.DeletedWith(kubeProvider))
+
+	config := k8sAppOptions{}
+	for _, opt := range appOptions {
+		opt(&config)
+	}
 
 	k8sComponent := &componentskube.Workload{}
 	// The pulumi component resource names need to be unique. We adopt a naming convention of `namespace/componentName`.
@@ -127,7 +165,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			},
 		},
 		Data: pulumi.StringMap{
-			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort)),
+			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort, config.workerProcesses)),
 		},
 	}, opts...)
 	if err != nil {
@@ -145,7 +183,18 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		})
 	}
 
-	nginxManifest, err := k8s.NewNginxDeploymentManifest(namespace, nginxPort, k8s.WithRuntimeClass(runtimeClass), k8s.WithServiceAccount(sa), k8s.WithConfigMap(), k8s.WithImagePullSecrets(imagePullSecrets))
+	deploymentModifiers := []k8s.DeploymentModifier{
+		k8s.WithRuntimeClass(runtimeClass),
+		k8s.WithServiceAccount(sa),
+		k8s.WithConfigMap(),
+		k8s.WithImagePullSecrets(imagePullSecrets),
+		// Mapped to `service` by test/new-e2e/tests/containers/values.yaml
+		k8s.WithAnnotations(map[string]string{"x-service-name": "nginx-from-annotation"}),
+	}
+	if config.withoutDatadogAnnotations {
+		deploymentModifiers = append(deploymentModifiers, k8s.WithoutDatadogAnnotations())
+	}
+	nginxManifest, err := k8s.NewNginxDeploymentManifest(e, namespace, nginxPort, deploymentModifiers...)
 	if err != nil {
 		return nil, err
 	}
@@ -332,11 +381,17 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 	}
 
-	if _, err := corev1.NewService(e.Ctx(), namespace+"/nginx", k8s.NewNginxServiceManifest(namespace, nginxPort), opts...); err != nil {
+	serviceManifest := k8s.NewNginxServiceManifest(namespace, nginxPort)
+	if config.withoutDatadogAnnotations {
+		if err := k8s.WithoutDatadogServiceAnnotations(serviceManifest); err != nil {
+			return nil, err
+		}
+	}
+	if _, err := corev1.NewService(e.Ctx(), namespace+"/nginx", serviceManifest, opts...); err != nil {
 		return nil, err
 	}
 
-	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(namespace, k8s.WithImagePullSecrets(imagePullSecrets))
+	nginxQueryManifest, err := k8s.NewNginxQueryDeploymentManifest(e, namespace, k8s.WithImagePullSecrets(imagePullSecrets))
 	if err != nil {
 		return nil, err
 	}
@@ -412,7 +467,7 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 			},
 		},
 		Data: pulumi.StringMap{
-			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort)),
+			"nginx.conf": pulumi.String(nginxConfFromPort(nginxPort, "")),
 		},
 	}, opts...)
 	if err != nil {
@@ -456,7 +511,7 @@ func K8sRolloutAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, na
 					Containers: &corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("nginx"),
-							Image: pulumi.String("ghcr.io/datadog/apps-nginx-server:" + apps.Version),
+							Image: pulumi.String(apps.Image(e, "apps-nginx-server")),
 							Ports: &corev1.ContainerPortArray{
 								&corev1.ContainerPortArgs{
 									Name:          pulumi.String("http"),

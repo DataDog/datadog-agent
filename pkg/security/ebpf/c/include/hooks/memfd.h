@@ -69,14 +69,14 @@ HOOK_SYSCALL_ENTRY2(memfd_create, const char *, uname, unsigned int, flags) {
 }
 
 HOOK_SYSCALL_EXIT(memfd_create) {
-    struct syscall_cache_t *syscall = pop_syscall(EVENT_TRACER_MEMFD_CREATE);
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_TRACER_MEMFD_CREATE);
     if (!syscall) {
         return 0;
     }
 
     int retval = SYSCALL_PARMRET(ctx);
     if (retval < 0) {
-        return 0;
+        goto pop_and_exit;
     }
 
     // Create tracking entry with PID and suffix as key, fd as value
@@ -95,6 +95,8 @@ HOOK_SYSCALL_EXIT(memfd_create) {
     u32 fd = (u32)retval;
     bpf_map_update_elem(&memfd_tracking, &key, &fd, BPF_ANY);
 
+pop_and_exit:
+    pop_syscall(EVENT_TRACER_MEMFD_CREATE);
     return 0;
 }
 
@@ -103,7 +105,9 @@ static int __attribute__((always_inline)) handle_memfd_fcntl(ctx_t *ctx) {
     unsigned int cmd = (unsigned int)CTX_PARM2(ctx);
     unsigned int arg = (unsigned int)CTX_PARM3(ctx);
 
-    if ((cmd != F_ADD_SEALS) || !(arg & F_SEAL_WRITE)) {
+    // dd-trace-go seals F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_WRITE|F_SEAL_SEAL while
+    // libdatadog seals F_SEAL_SHRINK|F_SEAL_GROW|F_SEAL_SEAL.
+    if ((cmd != F_ADD_SEALS) || !(arg & F_SEAL_WRITE || arg & F_SEAL_SEAL)) {
         return 0;
     }
 
@@ -148,7 +152,7 @@ static int __attribute__((always_inline)) handle_memfd_fcntl(ctx_t *ctx) {
     event.fd = *fd;
 
     struct proc_cache_t *entry = fill_process_context(&event.process);
-    // We don't call fill_span_context(&event.span) to avoid issues with the
+    // We don't call fill_span_context(&event.span, &event.go_labels) to avoid issues with the
     // verifier on 4.14. We know that we don't need the span context for these
     // internal events.
     fill_cgroup_context(entry, &event.cgroup);

@@ -60,14 +60,12 @@ func (s *ECSFargateSuite) TestProcessCheck() {
 		payloads, err := s.Env().FakeIntake.Client().GetProcesses()
 		assert.NoError(c, err, "failed to get process payloads from fakeintake")
 
-		assertProcessCollectedNew(c, payloads, false, "stress-ng-cpu [run]")
-		// Process checks run in the core agent, so process-agent should not be collected
-		requireProcessNotCollected(c, payloads, "process-agent")
-		assertContainersCollectedNew(c, payloads, []string{"stress-ng"})
+		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollected(c, payloads, []string{"stress-ng"})
 		assertContainerStates(c, payloads, map[string]agentmodel.ContainerState{
 			"stress-ng": agentmodel.ContainerState_running,
 		})
-		assertFargateHostname(t, payloads)
+		assertFargateHostname(c, payloads)
 	}, 5*time.Minute, 10*time.Second)
 }
 

@@ -22,7 +22,6 @@ func NewCounter(interval int64) *Counter {
 	}
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (c *Counter) addSample(sample *MetricSample, _ float64) {
 	c.value += sample.Value * (1 / sample.SampleRate)
 	c.sampled = true
@@ -47,4 +46,8 @@ func (c *Counter) flush(timestamp float64) ([]*Serie, error) {
 
 func (c *Counter) isStateful() bool {
 	return false
+}
+
+func (c *Counter) metricType() MetricType {
+	return CounterType
 }

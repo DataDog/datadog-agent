@@ -39,7 +39,7 @@ const (
 	maxParentDiscarderDepth = 3
 
 	// allEventTypes is a mask to match all the events
-	allEventTypes = math.MaxUint32 //nolint:deadcode,unused
+	allEventTypes = math.MaxUint32 //nolint:unused
 
 	// inode/mountid that won't be resubmitted
 	maxRecentlyAddedCacheSize = uint64(64)
@@ -491,7 +491,7 @@ func dumpInodeDiscarders(resolver *dentry.Resolver, inodeMap *ebpf.Map) ([]Inode
 			MountID:              inodeEntry.PathKey.MountID,
 		}
 
-		path, err := resolver.Resolve(inodeEntry.PathKey, false)
+		path, err := resolver.Resolve(inodeEntry.PathKey, false, dentry.CallerDiscarder)
 		if err == nil {
 			record.FilePath = path
 		}

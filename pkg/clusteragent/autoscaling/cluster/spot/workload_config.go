@@ -24,9 +24,19 @@ type workloadConfigStore interface {
 	// If already disabled returns existing timestamp and false,
 	// otherwise sets disabledUntil and returns the new timestamp and true.
 	disable(key objectRef, now time.Time, until time.Time) (time.Time, bool)
+	// countByKind returns the number of workloads grouped by kind.
+	countByKind() map[string]int
+	// countDisabledByKind returns the number of workloads
+	// for which spot-scheduling is disabled grouped by kind.
+	countDisabledByKind(now time.Time) map[string]int
 }
 
 // spotConfigStore is a thread-safe key-value store of workload spot configs.
+// It is optimised for read-heavy access: getConfig is called on every pod
+// admission while writes (setConfig, deleteConfig, disable) come from a
+// single-threaded workload controller and are rare. A single RWMutex is
+// sufficient — concurrent reads do not block each other, and the brief
+// write-lock windows are never on the critical path.
 type spotConfigStore struct {
 	mu      sync.RWMutex
 	configs map[objectRef]workloadSpotConfig
@@ -55,6 +65,30 @@ func (s *spotConfigStore) deleteConfig(key objectRef) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	delete(s.configs, key)
+}
+
+// countByKind returns the number of managed workloads grouped by kind.
+func (s *spotConfigStore) countByKind() map[string]int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	byKind := make(map[string]int)
+	for key := range s.configs {
+		byKind[key.Kind]++
+	}
+	return byKind
+}
+
+// countDisabledByKind returns the number of workloads currently in on-demand fallback mode grouped by kind.
+func (s *spotConfigStore) countDisabledByKind(now time.Time) map[string]int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	byKind := make(map[string]int)
+	for key, cfg := range s.configs {
+		if cfg.isDisabled(now) {
+			byKind[key.Kind]++
+		}
+	}
+	return byKind
 }
 
 func (s *spotConfigStore) disable(key objectRef, now time.Time, until time.Time) (time.Time, bool) {

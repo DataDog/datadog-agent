@@ -42,18 +42,27 @@ func nextSegment(str string) (bool, string, int) {
 	return star, str[start:end], end
 }
 
-func index(s, substr string, caseInsensitive bool) int {
+func hasSuffix(s, suffix string, caseInsensitive bool) bool {
 	if caseInsensitive {
-		return strcase.Index(s, substr)
+		return strcase.HasSuffix(s, suffix)
 	}
-	return strings.Index(s, substr)
+	return strings.HasSuffix(s, suffix)
 }
 
-func hasPrefix(s, prefix string, caseInsensitive bool) bool {
+func cut(s, sep string, caseInsensitive bool) (string, bool) {
 	if caseInsensitive {
-		return strcase.HasPrefix(s, prefix)
+		_, after, found := strcase.Cut(s, sep)
+		return after, found
 	}
-	return strings.HasPrefix(s, prefix)
+	_, after, found := strings.Cut(s, sep)
+	return after, found
+}
+
+func cutPrefix(s, prefix string, caseInsensitive bool) (string, bool) {
+	if caseInsensitive {
+		return strcase.CutPrefix(s, prefix)
+	}
+	return strings.CutPrefix(s, prefix)
 }
 
 // PatternMatches matches a pattern against a string
@@ -72,23 +81,27 @@ func PatternMatchesWithSegments(patternElem patternElement, str string, caseInse
 		return len(str) == 0
 	}
 
-	for _, seg := range patternElem.segments {
+	for i, seg := range patternElem.segments {
+		isLast := i == len(patternElem.segments)-1
 		if seg.star {
 			// there is no pattern to match after the last star
 			if len(seg.segment) == 0 {
 				return true
 			}
-
-			index := index(str, seg.segment, caseInsensitive)
-			if index == -1 {
+			if isLast {
+				return hasSuffix(str, seg.segment, caseInsensitive)
+			}
+			after, found := cut(str, seg.segment, caseInsensitive)
+			if !found {
 				return false
 			}
-			str = str[index+len(seg.segment):]
+			str = after
 		} else {
-			if !hasPrefix(str, seg.segment, caseInsensitive) {
+			after, found := cutPrefix(str, seg.segment, caseInsensitive)
+			if !found {
 				return false
 			}
-			str = str[len(seg.segment):]
+			str = after
 		}
 	}
 

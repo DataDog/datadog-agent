@@ -262,6 +262,48 @@ probes:
     captureSnapshot: true
     capture:
       maxLength: 11
+  - id: testInvalidUtf8Strings
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testInvalidUtf8Strings
+    template: "{a}, {b}"
+    segments:
+      - json:
+          ref: "a"
+        dsl: "a"
+      - str: ", "
+      - json:
+          ref: "b"
+        dsl: "b"
+    captureSnapshot: true
+  - id: testMultibyteUtf8String
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMultibyteUtf8String
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testMultibyteUtf8StringWithSizeLimit
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testMultibyteUtf8String
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+    capture:
+      maxLength: 11
   - id: testEmptyString
     type: LOG_PROBE
     tags:
@@ -889,6 +931,30 @@ probes:
           ref: "cs"
         dsl: "cs"
     captureSnapshot: true
+  - id: testByteSliceInvalidUtf8
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testByteSliceInvalidUtf8
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
+  - id: testByteSliceMultibyteUtf8
+    type: LOG_PROBE
+    tags:
+      - "foo:bar"
+    where:
+      methodName: main.testByteSliceMultibyteUtf8
+    template: "{x}"
+    segments:
+      - json:
+          ref: "x"
+        dsl: "x"
+    captureSnapshot: true
   - id: testStruct
     type: LOG_PROBE
     tags:
@@ -1456,6 +1522,7 @@ probes:
   - id: testInlinedSumArray
     type: LOG_PROBE
     tags:
+      - "version_diff:go1.27.2"
       - "foo:bar"
     where:
       methodName: main.testInlinedSumArray
@@ -1713,6 +1780,20 @@ probes:
     captureSnapshot: true
     capture:
       maxReferenceDepth: 1
+  # testCaptureContextImpl captures main.contextImpl, a struct that implements
+  # context.Context but is inspected for its fields. Its interface fields must
+  # decode to their real concrete types rather than being routed through the
+  # context chain-walk.
+  - id: testCaptureContextImpl
+    type: LOG_PROBE
+    where:
+      methodName: main.testCaptureContextImpl
+    template: "{c}"
+    segments:
+      - json:
+          ref: "c"
+        dsl: "c"
+    captureSnapshot: true
   - id: testStructWithCyclicSlices
     type: LOG_PROBE
     where:
@@ -2064,7 +2145,7 @@ probes:
       methodName: main.testInlinedPrint
       sourceFile: inlined.go
       lines:
-        - "14"
+        - "17"
     template: "{x}"
     segments:
       - json:
@@ -2079,7 +2160,7 @@ probes:
       methodName: main.testInlinedBCA
       sourceFile: inlined.go
       lines:
-        - "63"
+        - "66"
     template: "testInlinedBCA"
     segments:
       - str: "testInlinedBCA"
@@ -2092,7 +2173,7 @@ probes:
       methodName: main.testInlinedBCB
       sourceFile: inlined.go
       lines:
-        - "67"
+        - "70"
     template: "testInlinedBCB"
     segments:
       - str: "testInlinedBCB"
@@ -2105,7 +2186,7 @@ probes:
       methodName: main.testInlinedSq
       sourceFile: inlined.go
       lines:
-        - "75"
+        - "78"
     template: "{x}"
     segments:
       - json:
@@ -2120,7 +2201,7 @@ probes:
       methodName: main.testFramelessArray
       sourceFile: inlined.go
       lines:
-        - "93"
+        - "96"
     template: "{a}"
     segments:
       - json:
@@ -2135,7 +2216,7 @@ probes:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "230"
+        - "233"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -2145,12 +2226,13 @@ probes:
   - id: testLongFunctionWithChangingStateLineB
     type: LOG_PROBE
     tags:
+      - "version_diff:go1.27.2"
       - "version_diff:go1.26rc1"
     where:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "237"
+        - "240"
     template: "testLongFunctionWithChangingState"
     segments:
       - str: "testLongFunctionWithChangingState"
@@ -2160,12 +2242,13 @@ probes:
   - id: testLongFunctionWithChangingStateLineC
     type: LOG_PROBE
     tags:
+      - "version_diff:go1.27.2"
       - "version_diff:go1.26rc1"
     where:
       methodName: main.testLongFunctionWithChangingState
       sourceFile: complex.go
       lines:
-        - "242"
+        - "245"
     captureSnapshot: true
     sampling:
       snapshotsPerSecond: 100
@@ -2600,7 +2683,7 @@ probes:
       methodName: main.testInlinedPrint
       sourceFile: inlined.go
       lines:
-        - "14"
+        - "17"
     captureSnapshot: false
     captureExpressions:
       - name: "x_val"
@@ -2616,7 +2699,7 @@ probes:
       methodName: main.testInlinedPrint
       sourceFile: inlined.go
       lines:
-        - "14"
+        - "17"
     template: "x={x}"
     segments:
       - str: "x="
@@ -2638,7 +2721,7 @@ probes:
       methodName: main.testInlinedPrint
       sourceFile: inlined.go
       lines:
-        - "14"
+        - "17"
     captureSnapshot: false
     captureExpressions:
       - name: "x_val"
@@ -2671,13 +2754,15 @@ probes:
   - id: testErrorAtLine
     type: LOG_PROBE
     tags:
+      - "version_diff:go1.27.2"
       - "config_diff:arch=amd64,toolchain=go1.26rc1"
+      - "config_diff:arch=arm64,toolchain=go1.27.3"
       - "skip_integration:arch=arm64,toolchain=go1.25.0" # https://github.com/golang/go/issues/74576
     where:
       methodName: main.testErrorAtLine
       sourceFile: complex.go
       lines:
-        - "108"
+        - "111"
     template: "x={x}, err={err}"
     segments:
       - str: "x="
@@ -2977,3 +3062,15 @@ probes:
           ref: "c"
         dsl: "c"
     captureSnapshot: true
+  - id: testHandleOrder
+    type: LOG_PROBE
+    where:
+      methodName: "main.(*Server).handleOrder"
+    template: "{req}"
+    segments:
+      - json:
+          ref: "req"
+        dsl: "req"
+    captureSnapshot: true
+    sampling:
+      snapshotsPerSecond: 10

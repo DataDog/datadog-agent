@@ -1,0 +1,8 @@
+description: tr rejects multi-byte mappings when translating complemented character classes.
+input:
+  script: |+
+    echo 'ab!' | tr -c '[:lower:]' ab
+expect:
+  stdout: ""
+  stderr: "tr: when translating with complemented character classes,\nstring2 must map all characters in the domain to one\n"
+  exit_code: 1

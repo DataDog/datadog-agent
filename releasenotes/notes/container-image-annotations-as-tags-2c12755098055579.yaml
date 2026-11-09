@@ -1,0 +1,12 @@
+---
+features:
+  - |
+    Added a new ``container_image_annotations_as_tags`` configuration option that
+    maps container image OCI annotations to tags. The resulting tags are attached
+    to container image entities (appearing on the Container Images page) and are
+    also propagated to the containers using the image, so they apply to
+    ``container.*`` metrics. Container image annotations (for example, the
+    ``containerd.io/snapshot/nydus-*`` annotations) are exposed by the Containerd
+    and CRI-O workloadmeta collectors, enabling fleet-wide tracking of alternative
+    image formats such as Nydus. This option is not supported with the Docker
+    runtime, which does not expose OCI image annotations.

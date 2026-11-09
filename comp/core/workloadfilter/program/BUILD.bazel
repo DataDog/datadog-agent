@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "program",
@@ -21,25 +22,32 @@ go_library(
         "//pkg/proto/pbgo/core",
         "//pkg/util/log",
         "@com_github_cespare_xxhash_v2//:xxhash",
-        "@com_github_google_cel_go//cel:go_default_library",
         "@com_github_patrickmn_go_cache//:go-cache",
+        "@dev_cel_cel_go//cel:go_default_library",
         "@org_golang_google_grpc//metadata",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "program_test",
     srcs = [
         "annotations_program_test.go",
         "cel_program_test.go",
     ],
     embed = [":program"],
-    gotags = ["test"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "containerd",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/mock",
-        "@com_github_google_cel_go//cel:go_default_library",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@dev_cel_cel_go//cel:go_default_library",
     ],
 )

@@ -20,6 +20,7 @@ import (
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
+	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	corecheckLoader "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cloud/hostinfo"
@@ -40,6 +41,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/apm"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/embed/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
+	amdgpu "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/amd"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/nccl"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/network"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/net/networkv2"
@@ -64,6 +66,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/disk/io"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/filehandles"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/memory"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/powershell"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/thermal"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/uptime"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/windowscertificate"
@@ -71,29 +75,36 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/winproc"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/systemd"
 	telemetryCheck "github.com/DataDog/datadog-agent/pkg/collector/corechecks/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/vdi"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
 // RegisterChecks registers all core checks
 func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Component, tagger tagger.Component, cfg config.Component,
 	telemetry telemetry.Component, rcClient rcclient.Component, flare flare.Component, snmpScanManager snmpscanmanager.Component,
-	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component],
+	traceroute traceroute.Component, ncmComp option.Option[networkconfigmanagement.Component], gpuReadiness *gpu.Readiness,
 ) {
+	telemetryForMode := telemetryProviderForLoadMode(telemetry)
+
 	// Required checks
 	corecheckLoader.RegisterCheck(cpu.CheckName, cpu.Factory())
 	corecheckLoader.RegisterCheck(memory.CheckName, memory.Factory())
 	corecheckLoader.RegisterCheck(uptime.CheckName, uptime.Factory())
 	corecheckLoader.RegisterCheck(hostinfo.CheckName, hostinfo.Factory())
-	corecheckLoader.RegisterCheck(telemetryCheck.CheckName, telemetryCheck.Factory(telemetry))
+	corecheckLoader.RegisterContextualCheck(telemetryCheck.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return telemetryCheck.Factory(telemetryForMode(ctx))
+	}))
 	corecheckLoader.RegisterCheck(ntp.CheckName, ntp.Factory())
 	corecheckLoader.RegisterCheck(wlan.CheckName, wlan.Factory())
 	corecheckLoader.RegisterCheck(snmp.CheckName, snmp.Factory(cfg, rcClient, snmpScanManager))
-	corecheckLoader.RegisterCheck(networkpath.CheckName, networkpath.Factory(telemetry, traceroute))
+	corecheckLoader.RegisterContextualCheck(networkpath.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return networkpath.Factory(telemetryForMode(ctx), traceroute)
+	}))
 	corecheckLoader.RegisterCheck(io.CheckName, io.Factory())
 	corecheckLoader.RegisterCheck(filehandles.CheckName, filehandles.Factory())
 	corecheckLoader.RegisterCheck(containerimage.CheckName, containerimage.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store))
-	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, filterStore, tagger))
+	corecheckLoader.RegisterCheck(containerlifecycle.CheckName, containerlifecycle.Factory(store, tagger))
+	corecheckLoader.RegisterCheck(generic.CheckName, generic.Factory(store, filterStore, tagger, telemetry))
 	corecheckLoader.RegisterCheck(agentprofiling.CheckName, agentprofiling.Factory(flare, cfg))
 
 	// Flavor specific checks
@@ -103,8 +114,15 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	corecheckLoader.RegisterCheck(helm.CheckName, helm.Factory())
 	corecheckLoader.RegisterCheck(pod.CheckName, pod.Factory(store, cfg, tagger))
 	corecheckLoader.RegisterCheck(kubeletconfig.CheckName, kubeletconfig.Factory(store, cfg, tagger))
-	corecheckLoader.RegisterCheck(gpu.CheckName, gpu.Factory(tagger, telemetry, store))
-	corecheckLoader.RegisterCheck(nccl.CheckName, nccl.Factory(tagger, telemetry, store))
+	corecheckLoader.RegisterContextualCheck(gpu.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return gpu.Factory(tagger, telemetryForMode(ctx), store, gpuReadiness)
+	}))
+	corecheckLoader.RegisterContextualCheck(amdgpu.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return amdgpu.Factory(tagger, telemetryForMode(ctx), store)
+	}))
+	corecheckLoader.RegisterContextualCheck(nccl.CheckName, contextualCoreFactory(func(ctx corecheckLoader.ConstructionContext) option.Option[func() check.Check] {
+		return nccl.Factory(tagger, telemetryForMode(ctx), store)
+	}))
 	corecheckLoader.RegisterCheck(ecs.CheckName, ecs.Factory(store, tagger))
 	corecheckLoader.RegisterCheck(apm.CheckName, apm.Factory())
 	corecheckLoader.RegisterCheck(process.CheckName, process.Factory())
@@ -123,22 +141,25 @@ func RegisterChecks(store workloadmeta.Component, filterStore workloadfilter.Com
 	}
 	corecheckLoader.RegisterCheck(wincrashdetect.CheckName, wincrashdetect.Factory())
 	corecheckLoader.RegisterCheck(windowscertificate.CheckName, windowscertificate.Factory())
+	corecheckLoader.RegisterCheck(powershell.CheckName, powershell.Factory())
 	corecheckLoader.RegisterCheck(winkmem.CheckName, winkmem.Factory())
 	corecheckLoader.RegisterCheck(winproc.CheckName, winproc.Factory())
 	corecheckLoader.RegisterCheck(systemd.CheckName, systemd.Factory())
 	corecheckLoader.RegisterCheck(orchestrator.CheckName, orchestrator.Factory(store, cfg, tagger))
-	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, filterStore, tagger))
+	corecheckLoader.RegisterCheck(docker.CheckName, docker.Factory(store, filterStore, tagger, telemetry))
 	corecheckLoader.RegisterCheck(sbom.CheckName, sbom.Factory(store, filterStore, cfg, tagger))
-	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store, filterStore, tagger))
-	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, filterStore, tagger))
-	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, filterStore, tagger))
+	corecheckLoader.RegisterCheck(kubelet.CheckName, kubelet.Factory(store, filterStore, tagger, telemetry))
+	corecheckLoader.RegisterCheck(containerd.CheckName, containerd.Factory(store, filterStore, tagger, telemetry))
+	corecheckLoader.RegisterCheck(cri.CheckName, cri.Factory(store, filterStore, tagger, telemetry))
 	corecheckLoader.RegisterCheck(kata.CheckName, kata.Factory(store, tagger))
-	corecheckLoader.RegisterCheck(csidriver.CheckName, csidriver.Factory())
+	corecheckLoader.RegisterCheck(csidriver.CheckName, csidriver.Factory(telemetry))
 	corecheckLoader.RegisterCheck(ciscosdwan.CheckName, ciscosdwan.Factory())
 	corecheckLoader.RegisterCheck(discovery.CheckName, discovery.Factory())
 	corecheckLoader.RegisterCheck(versa.CheckName, versa.Factory())
 	corecheckLoader.RegisterCheck(ncm.CheckName, ncm.Factory(cfg, ncmComp))
 	corecheckLoader.RegisterCheck(battery.CheckName, battery.Factory())
+	corecheckLoader.RegisterCheck(thermal.CheckName, thermal.Factory())
+	corecheckLoader.RegisterCheck(vdi.CheckName, vdi.Factory())
 
 	registerSystemProbeChecks(tagger)
 }

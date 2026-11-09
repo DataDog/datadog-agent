@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "kubelet",
@@ -13,21 +14,32 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//pkg/config/env",
+        "//pkg/config/setup",
+        "//pkg/util/ddot",
         "//pkg/util/hostname/validate",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/kubernetes/nodename",
         "//pkg/util/log",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "kubelet_test",
     srcs = ["hostname_test.go"],
     embed = [":kubelet"],
-    gotags = ["test"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+    ]],
+    include_default = False,
     deps = [
         "//pkg/config/env",
         "//pkg/config/mock",
+        "//pkg/util/flavor",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
         "@com_github_stretchr_testify//assert",

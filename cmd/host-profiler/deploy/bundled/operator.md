@@ -38,9 +38,26 @@ spec:
               # Drop default capabilities and add only the ones the Host Profiler needs.
               drop: ["ALL"]
               add: ["BPF", "PERFMON", "SYS_PTRACE", "SYS_RESOURCE", "DAC_READ_SEARCH", "SYSLOG", "CHECKPOINT_RESTORE", "IPC_LOCK"]
+            # Keep AppArmor unconfined so it does not block cross-process access.
+            appArmorProfile:
+              type: Unconfined
+            # Use spc_t, or an equivalent type, so SELinux permits the required host and process access.
+            seLinuxOptions:
+              type: spc_t
+          # Explicit zero requests avoid reserving CPU or memory on every node,
+          # while limits cap runaway usage.
+          resources:
+            requests:
+              cpu: "0"
+              memory: "0"
+            limits:
+              cpu: "500m"
+              memory: "1Gi"
 ```
 
 The preview image is available in Datadog's production container registries. If your cluster pulls images from another Datadog registry, replace the `registry.datadoghq.com` prefix in the image override with your preferred registry prefix. See [Changing your container registry](https://docs.datadoghq.com/containers/guide/changing_container_registry/).
+
+For expected overhead, default limits, and tuning guidance, see [Overhead and resource usage](../faq.md#what-overhead-should-i-expect).
 
 Apply the updated `DatadogAgent` Custom Resource through your usual workflow.
 

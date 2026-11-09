@@ -7,6 +7,8 @@
 - [Why isn't host profiling included directly in DDOT?](#why-isnt-host-profiling-included-directly-in-ddot)
 - [How does the Host Profiler relate to OpenTelemetry?](#how-does-the-host-profiler-relate-to-opentelemetry)
 - [What does the Datadog Host Profiler distribution add?](#what-does-the-datadog-host-profiler-distribution-add)
+- [What overhead should I expect?](#what-overhead-should-i-expect)
+- [How do I configure resource requests and limits?](#how-do-i-configure-resource-requests-and-limits)
 - [Do I need debug symbols?](#do-i-need-debug-symbols)
 - [What security privileges does the Host Profiler require?](#what-security-privileges-does-the-host-profiler-require)
 
@@ -60,6 +62,30 @@ It provides:
 
 The long-term goal is to make these benefits available with upstream OpenTelemetry distributions directly. The preview distribution provides them out of the box today.
 
+## What overhead should I expect?
+
+The Host Profiler is designed to run continuously on every supported node.
+
+In Datadog's internal deployments, the Host Profiler runs on thousands of hosts in densely packed Kubernetes clusters. In that environment, average usage per Host Profiler container is:
+
+- **CPU**: about `15m` (15 millicores)
+- **Memory**: about `350 MB`
+
+Actual usage depends on node density, process churn, and debug symbol processing.
+
+The provided manifests set limits of `500m` CPU and `1Gi` memory to cap usage while leaving room for temporary spikes. If you observe sustained usage considerably above these averages, contact Datadog Support so we can help review your workload characteristics and tune the deployment.
+
+## How do I configure resource requests and limits?
+
+The provided manifests set Host Profiler container requests to `0` and limits to `500m` CPU and `1Gi` memory. This caps profiler usage without reserving CPU or memory on every node.
+
+Tune these values when needed:
+
+- **Resource requests**: set nonzero requests if your cluster requires them, or if you want the scheduler to reserve capacity for the profiler.
+- **Dense nodes**: increase limits on nodes with many running processes.
+- **Large debug symbols**: set the memory limit above the size of the largest debug symbol file, with headroom. During upload, the profiler copies and prepares symbol data before sending it to Datadog.
+- **Guaranteed QoS**: set requests equal to limits for every container in the pod, including init containers. In bundled Agent deployments, Agent containers also affect pod QoS.
+
 ## Do I need debug symbols?
 
 For compiled languages such as C, C++, Rust, and Go, debug symbols are required for function names to appear in profiles.
@@ -86,7 +112,8 @@ The Host Profiler does not run as a privileged container.
 
 In Kubernetes, it runs as a host-level DaemonSet with `hostPID: true` so it can observe processes on the node. The deployment manifests add only the Linux capabilities required for eBPF-based host profiling.
 
-Seccomp and AppArmor provide additional hardening:
+The deployment examples configure SELinux compatibility, seccomp, and AppArmor as follows:
 
+- **SELinux** is configured with the `spc_t` super-privileged container type so that SELinux does not block the host and process access required by the Host Profiler. This type does not provide additional SELinux confinement. If `spc_t` is unavailable, replace it with an equivalent type supported by your distribution and security policy. The deployment guide or manifest for your deployment path shows where to configure this value.
 - **seccomp** restricts the syscalls the container can make beyond what those capabilities allow. The seccomp profile ships at `/etc/dd-host-profiler/seccomp.json` inside the image and is applied automatically in the Helm-based guides and the OpenTelemetry Operator guide. In the Datadog Operator preview path, seccomp is optional and must be provisioned manually if you want the extra hardening; a future Operator version is expected to configure it by default.
 - **AppArmor** is optional where available. The provided profile restricts which binaries the profiler can execute: only `objcopy`, used for symbol extraction, is permitted.

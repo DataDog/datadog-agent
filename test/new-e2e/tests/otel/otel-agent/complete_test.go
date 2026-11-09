@@ -48,6 +48,8 @@ agents:
 		e2e.WithProvisioner(
 			provkindvm.Provisioner(
 				provkindvm.WithRunOptions(
+					// TODO: Mirror Kubernetes component and workload images internally.
+					scenkindvm.WithInternetAccess(),
 					scenkindvm.WithAgentOptions(
 						kubernetesagentparams.WithHelmValues(values),
 						kubernetesagentparams.WithOTelAgent(),
@@ -77,6 +79,10 @@ func (s *completeTestSuite) TestOTLPMetrics() {
 
 func (s *completeTestSuite) TestOTLPLogs() {
 	utils.TestLogs(s, minimalParams)
+}
+
+func (s *completeTestSuite) TestOTLPCompression() {
+	utils.TestCompression(s, utils.DefaultDDOTCompression())
 }
 
 func (s *completeTestSuite) TestHosts() {

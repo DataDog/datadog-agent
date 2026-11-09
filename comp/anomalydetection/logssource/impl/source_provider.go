@@ -10,12 +10,12 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadfilterutil "github.com/DataDog/datadog-agent/comp/core/workloadfilter/util/workloadmeta"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // wmetaStore is the subset of workloadmeta.Component used by sourceProvider.
@@ -24,6 +24,7 @@ type wmetaStore interface {
 	Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle
 	Unsubscribe(ch chan workloadmeta.EventBundle)
 	GetContainer(id string) (*workloadmeta.Container, error)
+	GetKubernetesPodForContainer(containerID string) (*workloadmeta.KubernetesPod, error)
 }
 
 // sourceProvider translates workloadmeta container events into LogSources,
@@ -32,6 +33,7 @@ type sourceProvider struct {
 	wmeta       wmetaStore
 	logSources  *sources.LogSources
 	pauseFilter workloadfilter.FilterBundle
+	logsFilter  workloadfilter.FilterBundle
 
 	mu            sync.Mutex
 	activeSources map[string]*sources.LogSource // keyed by container ID
@@ -40,11 +42,12 @@ type sourceProvider struct {
 	stopped sync.WaitGroup
 }
 
-func newSourceProvider(wmeta wmetaStore, logSources *sources.LogSources, pauseFilter workloadfilter.FilterBundle) *sourceProvider {
+func newSourceProvider(wmeta wmetaStore, logSources *sources.LogSources, pauseFilter, logsFilter workloadfilter.FilterBundle) *sourceProvider {
 	return &sourceProvider{
 		wmeta:         wmeta,
 		logSources:    logSources,
 		pauseFilter:   pauseFilter,
+		logsFilter:    logsFilter,
 		activeSources: make(map[string]*sources.LogSource),
 		suppressedIDs: make(map[string]struct{}),
 	}
@@ -96,6 +99,10 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	if sp.isPauseContainer(c) || isAgentContainer(c) {
 		return
 	}
+	if sp.isExcludedByLogsAnnotation(c) {
+		logging.Debugf("logssource skipped container source %s: excluded by pod annotation", c.EntityID.ID)
+		return
+	}
 	// For containerd/non-Docker runtimes on Kubernetes, wait for kubelet
 	// enrichment before emitting a source. The containerd collector publishes
 	// container entities before the kubelet collector attaches the
@@ -110,6 +117,9 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 			return
 		}
 	}
+
+	runtimeSource := string(c.Runtime)
+
 	sp.mu.Lock()
 	if _, exists := sp.activeSources[c.EntityID.ID]; exists {
 		sp.mu.Unlock()
@@ -121,6 +131,7 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 	}
 	src := sources.NewLogSource(c.EntityID.ID, &logsconfig.LogsConfig{
 		Type:       string(c.Runtime),
+		Source:     runtimeSource, // enables msg.Origin.Source() for log filter matching
 		Identifier: c.EntityID.ID,
 	})
 	sp.activeSources[c.EntityID.ID] = src
@@ -139,7 +150,7 @@ func (sp *sourceProvider) handleSet(c *workloadmeta.Container) {
 		return
 	}
 
-	log.Infof("[observer/logssource] added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
+	logging.Infof("logssource added container source: %s (runtime=%s)", c.Image.ShortName, c.Runtime)
 }
 
 func (sp *sourceProvider) handleUnset(c *workloadmeta.Container) {
@@ -167,6 +178,33 @@ func (sp *sourceProvider) isPauseContainer(c *workloadmeta.Container) bool {
 		return sp.pauseFilter.IsExcluded(workloadfilterutil.CreateContainer(c, nil))
 	}
 	return strings.Contains(strings.ToLower(c.Image.ShortName), "pause")
+}
+
+// isExcludedByLogsAnnotation returns true when the container's pod excludes its
+// logs with the standard AD logs annotations (for example
+// ad.datadoghq.com/<container>.logs_exclude).
+func (sp *sourceProvider) isExcludedByLogsAnnotation(c *workloadmeta.Container) bool {
+	if sp.logsFilter == nil || sp.wmeta == nil {
+		return false
+	}
+	pod, err := sp.wmeta.GetKubernetesPodForContainer(c.EntityID.ID)
+	if err != nil || pod == nil {
+		return false
+	}
+	return sp.logsFilter.IsExcluded(workloadfilterutil.CreateContainer(c, workloadfilterutil.CreatePod(pod)))
+}
+
+// isExcludedByLogsAnnotationID applies the same logs-annotation check to a
+// container identified by an AD log source.
+func (sp *sourceProvider) isExcludedByLogsAnnotationID(containerID string) bool {
+	if sp == nil || sp.logsFilter == nil || sp.wmeta == nil || containerID == "" {
+		return false
+	}
+	container, err := sp.wmeta.GetContainer(containerID)
+	if err != nil || container == nil {
+		return false
+	}
+	return sp.isExcludedByLogsAnnotation(container)
 }
 
 // isAgentContainer returns true for containers that appear to be Datadog agents,
@@ -205,7 +243,7 @@ func (sp *sourceProvider) suppressIdentifier(containerID string) {
 
 	if exists {
 		sp.logSources.RemoveSource(evicted)
-		log.Debugf("[observer/logssource] removed generic container source %s: AD source takes priority", containerID)
+		logging.Debugf("logssource removed generic container source %s: AD source takes priority", containerID)
 	}
 }
 

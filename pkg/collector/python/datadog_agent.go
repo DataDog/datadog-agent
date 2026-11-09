@@ -71,7 +71,8 @@ func GetHostname(hostname **C.char) {
 //
 //export GetHostTags
 func GetHostTags(hostTags **C.char) {
-	tags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+	// Python checks may attach these to metrics: omit infra_mode.
+	tags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog(), false)
 	tagsBytes, err := json.Marshal(tags)
 	if err != nil {
 		log.Warnf("Error getting host tags: %v. Invalid tags: %v", err, tags)
@@ -118,7 +119,7 @@ func Headers(jsonPayload **C.char) {
 //export GetConfig
 func GetConfig(key *C.char, jsonPayload **C.char) {
 	goKey := C.GoString(key)
-	if !pkgconfigsetup.Datadog().IsSet(goKey) {
+	if !pkgconfigsetup.Datadog().IsKnown(goKey) {
 		*jsonPayload = nil
 		return
 	}

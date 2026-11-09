@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package procsubscribe_test
 
@@ -13,10 +13,12 @@ import (
 	"fmt"
 	"net"
 	"os"
+	"slices"
 	"sync"
 	"testing"
 	"time"
 
+	ddgostatsd "github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
@@ -28,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/procsubscribe/procscan"
@@ -50,6 +53,7 @@ const (
 var (
 	md1 = tracermetadata.TracerMetadata{
 		RuntimeID:      runtimeID1,
+		TracerLanguage: "go",
 		ServiceName:    "svc",
 		ServiceEnv:     "prod",
 		ServiceVersion: "1.0.0",
@@ -172,7 +176,6 @@ func TestRemoteConfigProcessSubscriberTracksUpdatesAndRemovals(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 		procsubscribe.WithWaitFunc(waitRequests.Wait),
 	)
 	t.Cleanup(subscriber.Close)
@@ -189,7 +192,7 @@ func TestRemoteConfigProcessSubscriberTracksUpdatesAndRemovals(t *testing.T) {
 	w2.Close()
 	s := <-streams
 	// Now only the scanner should come and wait.
-	scanWait := waitRequests.expect(t, 3*time.Second)
+	scanWait := waitRequests.expect(t, procsubscribe.DefaultScanInterval)
 
 	mockClock.Add(time.Millisecond)
 
@@ -323,7 +326,6 @@ func TestRetrackAfterNewStream(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 
@@ -375,6 +377,110 @@ func TestRetrackAfterNewStream(t *testing.T) {
 	subscriber.Close()
 }
 
+func TestDiscoveryMetrics(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	statsdClient := &recordingStatsdClient{}
+	scanner := &stubScanner{
+		results: []scanResult{
+			{
+				added: []procscan.DiscoveredProcess{
+					{
+						PID:            uint32(pid1),
+						StartTime:      mockClock.Now().Add(-90 * time.Second),
+						Attempts:       3,
+						TracerMetadata: md1,
+						Executable:     process.Executable{Path: "/exe1"},
+					},
+				},
+			},
+		},
+	}
+
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithStatsd(statsdClient),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Subscribe(func(process.ProcessesUpdate) {})
+	subscriber.Start()
+
+	s := <-streams
+	trackReq, err := s.stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, runtimeID1, trackReq.GetRuntimeId())
+	tags := []string{"language:go"}
+	require.Equal(t, []distributionCall{
+		{
+			name:  "datadog.dynamic_instrumentation.process_discovery_scan_attempts",
+			value: 3,
+			tags:  tags,
+		},
+		{
+			name:  "datadog.dynamic_instrumentation.process_discovery_latency_seconds",
+			value: 90,
+			tags:  tags,
+		},
+	}, statsdClient.distributionCalls())
+
+	// Reconnecting re-tracks every process, but does not report their
+	// discovery again.
+	s.errCh <- errors.New("boom")
+	s = <-streams
+	trackReq, err = s.stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, runtimeID1, trackReq.GetRuntimeId())
+	require.Len(t, statsdClient.distributionCalls(), 2)
+}
+
+func TestDiscoveryMetricsWithoutStartTime(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	statsdClient := &recordingStatsdClient{}
+	scanner := &stubScanner{
+		results: []scanResult{
+			{
+				added: []procscan.DiscoveredProcess{
+					{
+						PID:            uint32(pid1),
+						Attempts:       3,
+						TracerMetadata: md1,
+						Executable:     process.Executable{Path: "/exe1"},
+					},
+				},
+			},
+		},
+	}
+
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithStatsd(statsdClient),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Subscribe(func(process.ProcessesUpdate) {})
+	subscriber.Start()
+
+	s := <-streams
+	trackReq, err := s.stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, runtimeID1, trackReq.GetRuntimeId())
+	require.Equal(t, []distributionCall{
+		{
+			name:  "datadog.dynamic_instrumentation.process_discovery_scan_attempts",
+			value: 3,
+			tags:  []string{"language:go"},
+		},
+	}, statsdClient.distributionCalls())
+}
+
 func TestRemoteConfigSymDBUpdates(t *testing.T) {
 	goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
@@ -398,7 +504,6 @@ func TestRemoteConfigSymDBUpdates(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -516,7 +621,6 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 
@@ -574,6 +678,194 @@ func TestContainerAndGitInfoParsing(t *testing.T) {
 	subscriber.Close()
 }
 
+// TestInvalidProbesArePassedOn verifies that probes whose definitions fail to
+// parse are passed on along with the reason, so that they can be reported.
+func TestInvalidProbesArePassedOn(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	scanner := &stubScanner{
+		results: []scanResult{
+			{
+				added: []procscan.DiscoveredProcess{
+					{
+						PID:            uint32(pid1),
+						TracerMetadata: md1,
+						Executable:     process.Executable{Path: "/exe1"},
+					},
+				},
+			},
+		},
+	}
+
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+	)
+	t.Cleanup(subscriber.Close)
+
+	updatesCh := make(chan process.ProcessesUpdate, 2)
+	subscriber.Subscribe(func(update process.ProcessesUpdate) {
+		updatesCh <- update
+	})
+	subscriber.Start()
+
+	s := <-streams
+
+	mockClock.Add(time.Millisecond)
+
+	trackReq, err := s.stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, runtimeID1, trackReq.GetRuntimeId())
+
+	const (
+		path1 = "datadog/1/LIVE_DEBUGGING/logProbe_probe-1/config"
+		path2 = "datadog/1/LIVE_DEBUGGING/triggerProbe_probe-2/config"
+		path3 = "datadog/1/LIVE_DEBUGGING/logProbe_probe-3/config"
+		path4 = "datadog/1/LIVE_DEBUGGING/logProbe_probe-4/config"
+
+		goodSegments = `[{"str":"hello"}]`
+		badSegments  = `[{"unknown":"hello"}]`
+	)
+	logProbe := func(id string, version int, segments string) []byte {
+		return fmt.Appendf(nil,
+			`{"id":%q,"version":%d,"type":"LOG_PROBE",`+
+				`"where":{"methodName":"main.f"},"template":"hello","segments":%s}`,
+			id, version, segments,
+		)
+	}
+	sendFiles := func(files []*pbgo.File, matched ...string) {
+		require.NoError(t, s.stream.Send(&pbgo.ConfigSubscriptionResponse{
+			Client:         client1,
+			MatchedConfigs: matched,
+			TargetFiles:    files,
+		}))
+	}
+
+	sendFiles([]*pbgo.File{
+		{Path: path1, Raw: logProbe("probe-1", 1, goodSegments)},
+		{Path: path2, Raw: []byte(
+			`{"id":"probe-2","version":2,"type":"TRIGGER_PROBE","where":{"methodName":"main.f"}}`,
+		)},
+		{Path: path3, Raw: logProbe("probe-3", 3, badSegments)},
+		// This one does not even say which probe it is, so the failure is
+		// only logged.
+		{Path: path4, Raw: []byte(`{"id":`)},
+	}, path1, path2, path3, path4)
+
+	update := receiveSoon(t, updatesCh)
+	require.Len(t, update.Updates, 1)
+	cfg := update.Updates[0]
+	require.Len(t, cfg.Probes, 1)
+	require.Equal(t, "probe-1", cfg.Probes[0].GetID())
+	require.Len(t, cfg.InvalidProbes, 2)
+	require.Equal(t, process.InvalidProbe{
+		ID:      "probe-2",
+		Version: 2,
+		Issue: ir.Issue{
+			Kind:    ir.IssueKindUnsupportedFeature,
+			Message: "probe type TRIGGER_PROBE is not supported",
+		},
+	}, cfg.InvalidProbes[0])
+	malformed := cfg.InvalidProbes[1]
+	require.Equal(t, "probe-3", malformed.ID)
+	require.Equal(t, 3, malformed.Version)
+	require.Equal(t, ir.IssueKindInvalidProbeDefinition, malformed.Issue.Kind)
+	require.Contains(t, malformed.Issue.Message, "unknown segment type")
+
+	// Probe 1 is updated to a definition that does not parse, probe 3 is
+	// fixed, and probe 2 is deleted.
+	sendFiles([]*pbgo.File{
+		{Path: path1, Raw: logProbe("probe-1", 2, badSegments)},
+		{Path: path3, Raw: logProbe("probe-3", 4, goodSegments)},
+	}, path1, path3)
+
+	update = receiveSoon(t, updatesCh)
+	require.Len(t, update.Updates, 1)
+	cfg = update.Updates[0]
+	require.Len(t, cfg.Probes, 1)
+	require.Equal(t, "probe-3", cfg.Probes[0].GetID())
+	require.Equal(t, 4, cfg.Probes[0].GetVersion())
+	require.Len(t, cfg.InvalidProbes, 1)
+	require.Equal(t, "probe-1", cfg.InvalidProbes[0].ID)
+	require.Equal(t, 2, cfg.InvalidProbes[0].Version)
+
+	subscriber.Close()
+}
+
+// Scans happen on a fixed interval. How long a scan took does not feed back
+// into when the next one starts, so an ordinary scan cannot delay discovery for
+// everything else on the host. TestSlowScansAreThrottled covers the one case
+// where the duration does feed back.
+func TestScanIntervalIsFixed(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	// Slow enough that a penalty proportional to the scan would be obvious, and
+	// far enough inside the rest budget that the floor does not engage.
+	scanDuration := procsubscribe.DefaultScanInterval / procsubscribe.MinScanRestMultiple / 10
+	scanner := procsubscribe.ProcessScannerFunc(
+		func() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
+			mockClock.Add(scanDuration)
+			return nil, nil, nil
+		},
+	)
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	waitRequests := make(waitRequestChan)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithWaitFunc(waitRequests.Wait),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Start()
+
+	w1, w2 := waitRequests.expect(t, 0), waitRequests.expect(t, 0)
+	w1.Close()
+	w2.Close()
+	<-streams
+	// Two intervals, to show the delay does not creep as scans accumulate.
+	waitRequests.expect(t, procsubscribe.DefaultScanInterval).Close()
+	waitRequests.expect(t, procsubscribe.DefaultScanInterval)
+}
+
+// A scan slow enough that resting the fixed interval would spend more than the
+// loop's share of a core rests a multiple of its own duration instead, so
+// scanning stays bounded however slow a scan gets.
+func TestSlowScansAreThrottled(t *testing.T) {
+	goleak.VerifyNone(t, goleak.IgnoreCurrent())
+
+	mockClock := clock.NewMock()
+	scanDuration := procsubscribe.DefaultScanInterval
+	scanner := procsubscribe.ProcessScannerFunc(
+		func() ([]procscan.DiscoveredProcess, []procscan.ProcessID, error) {
+			mockClock.Add(scanDuration)
+			return nil, nil, nil
+		},
+	)
+	streams, remoteSub := runFakeAgentSecureServer(t)
+	waitRequests := make(waitRequestChan)
+	subscriber := procsubscribe.NewSubscriber(
+		remoteSub,
+		procsubscribe.WithProcessScanner(scanner),
+		procsubscribe.WithClock(mockClock),
+		procsubscribe.WithWaitFunc(waitRequests.Wait),
+	)
+	t.Cleanup(subscriber.Close)
+	subscriber.Start()
+
+	w1, w2 := waitRequests.expect(t, 0), waitRequests.expect(t, 0)
+	w1.Close()
+	w2.Close()
+	<-streams
+	rest := procsubscribe.MinScanRestMultiple * scanDuration
+	waitRequests.expect(t, rest).Close()
+	waitRequests.expect(t, rest)
+}
+
 func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 	goleak.VerifyNone(t, goleak.IgnoreCurrent())
 
@@ -585,7 +877,6 @@ func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 		procsubscribe.WithWaitFunc(waitRequests.Wait),
 	)
 	t.Cleanup(subscriber.Close)
@@ -596,7 +887,7 @@ func TestExponentialBackoffUpToMaxDelayForNewStream(t *testing.T) {
 	w2.Close()
 	t.Logf("waiting for scanner to start")
 	s := <-streams
-	scanWait := waitRequests.expect(t, 3*time.Second)
+	scanWait := waitRequests.expect(t, procsubscribe.DefaultScanInterval)
 	defer scanWait.Close()
 
 	var durations []time.Duration
@@ -644,7 +935,6 @@ func TestSymDBStatePreservedWhenNotInMatchedConfigs(t *testing.T) {
 		remoteSub,
 		procsubscribe.WithProcessScanner(scanner),
 		procsubscribe.WithClock(mockClock),
-		procsubscribe.WithJitterFactor(0),
 	)
 	t.Cleanup(subscriber.Close)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -764,6 +1054,37 @@ func (s *stubScanner) Scan() ([]procscan.DiscoveredProcess, []procscan.ProcessID
 	added := append([]procscan.DiscoveredProcess(nil), res.added...)
 	removed := append([]procscan.ProcessID(nil), res.removed...)
 	return added, removed, res.err
+}
+
+func (s *stubScanner) LiveProcesses() []procscan.ProcessID { return nil }
+
+type distributionCall struct {
+	name  string
+	value float64
+	tags  []string
+}
+
+type recordingStatsdClient struct {
+	ddgostatsd.NoOpClient
+	mu            sync.Mutex
+	distributions []distributionCall
+}
+
+func (c *recordingStatsdClient) Distribution(
+	name string, value float64, tags []string, _ float64,
+) error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.distributions = append(
+		c.distributions, distributionCall{name: name, value: value, tags: tags},
+	)
+	return nil
+}
+
+func (c *recordingStatsdClient) distributionCalls() []distributionCall {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	return slices.Clone(c.distributions)
 }
 
 type fakeAgentSecureServer struct {

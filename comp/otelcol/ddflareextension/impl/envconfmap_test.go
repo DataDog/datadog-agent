@@ -6,7 +6,6 @@
 package ddflareextensionimpl
 
 import (
-	"context"
 	"os"
 	"path"
 	"strings"
@@ -18,7 +17,7 @@ import (
 	"go.opentelemetry.io/collector/confmap/provider/fileprovider"
 	"go.opentelemetry.io/collector/confmap/provider/yamlprovider"
 	"go.opentelemetry.io/collector/otelcol"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 )
 
 const yamlStr = `exporters:
@@ -44,13 +43,13 @@ func TestEnvConfMap_useEnvVarNames(t *testing.T) {
 
 	provided = envConfMap.useEnvVarNames(provided)
 	expected := `exporters:
-  datadog:
-    api:
-      key: ${env:ENV1}
-      site: ${env:ENV2}
-    hostname: otelcol-docker
-    traces:
-      span_name_as_resource_name: true`
+    datadog:
+        api:
+            key: ${env:ENV1}
+            site: ${env:ENV2}
+        hostname: otelcol-docker
+        traces:
+            span_name_as_resource_name: true`
 
 	require.Equal(t, expected, mapToYAML(t, provided))
 }
@@ -69,10 +68,10 @@ func TestEnvConfMap_useEnvVarValues(t *testing.T) {
 
 	results := envConfMap.useEnvVarValues(provided)
 	expected := `exporters:
-  datadog:
-    api:
-      key: REDACTED
-      site: datadoghq.com`
+    datadog:
+        api:
+            key: REDACTED
+            site: datadoghq.com`
 
 	require.Equal(t, expected, mapToYAML(t, results))
 
@@ -84,7 +83,6 @@ func newEnvConfMapFromYAML(t *testing.T, yamlStr string) *envConfMap {
 	err := os.WriteFile(path, []byte(yamlStr), 0644)
 	require.NoError(t, err)
 
-	ctx := context.Background()
 	configProviderSettings := otelcol.ConfigProviderSettings{
 		ResolverSettings: confmap.ResolverSettings{
 			URIs: []string{path},
@@ -97,7 +95,7 @@ func newEnvConfMapFromYAML(t *testing.T, yamlStr string) *envConfMap {
 		},
 	}
 
-	envConfMap, err := newEnvConfMap(ctx, configProviderSettings)
+	envConfMap, err := newEnvConfMap(t.Context(), configProviderSettings)
 	require.NoError(t, err)
 	return envConfMap
 }

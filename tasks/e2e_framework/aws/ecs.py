@@ -99,10 +99,7 @@ def _show_connection_message(
     print(f"\nYou can run the following command to list tasks on the ECS cluster\n\n{command}\n")
 
     if interactive:
-        import pyperclip
-
-        input("Press a key to copy command to clipboard...")
-        pyperclip.copy(command)
+        tool.copy_to_clipboard_if_supported(command, prompt="Press a key to copy command to clipboard...")
 
 
 @task(help={"stack_name": doc.stack_name})

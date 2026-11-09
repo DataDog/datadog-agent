@@ -14,6 +14,6 @@ import (
 // Module conditionally provides the remote config service.
 func Module() fxutil.Module {
 	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(rcserviceimpl.NewRemoteConfigServiceOptional),
+		fxutil.ProvideComponentConstructor(rcserviceimpl.NewComponent),
 	)
 }

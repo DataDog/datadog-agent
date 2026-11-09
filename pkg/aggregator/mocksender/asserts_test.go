@@ -91,7 +91,7 @@ func TestExpectedInActual(t *testing.T) {
 }
 
 func TestMockedServiceCheck(t *testing.T) {
-	sender := NewMockSender("1")
+	sender := NewMockSender(t, "1")
 	sender.SetupAcceptAll()
 
 	tags := []string{"one", "two"}
@@ -116,7 +116,7 @@ func TestMockedServiceCheck(t *testing.T) {
 }
 
 func TestMockedEvent(t *testing.T) {
-	sender := NewMockSender("2")
+	sender := NewMockSender(t, "2")
 	sender.SetupAcceptAll()
 
 	tags := []string{"one", "two"}

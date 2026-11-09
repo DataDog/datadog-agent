@@ -1,13 +1,17 @@
 import unittest
 from unittest.mock import MagicMock, patch
 
+from invoke.context import Context
+
 from tasks.gotest import (
     _minimize_bazel_patterns,
-    _parse_bazel_test_line,
     _target_to_bazel_pattern,
     find_impacted_packages,
+    get_go_modified_files,
+    get_modified_packages,
     should_run_all_tests,
 )
+from tasks.modules import GoModule
 
 
 class TestUtils(unittest.TestCase):
@@ -82,6 +86,62 @@ class TestUtils(unittest.TestCase):
         self.assertFalse(should_run_all_tests(None, trigger_files))
 
 
+class TestGetModifiedPackages(unittest.TestCase):
+    """Tests for the package selection used by `linter.go -o` and `test -o`."""
+
+    @patch(
+        "tasks.gotest.get_go_modified_files",
+        new=MagicMock(return_value=["comp/api/api/def/foo.go", "comp/api/api/def/bar.go"]),
+    )
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="comp/api/api/def"))
+    @patch("tasks.gotest.get_module_by_path", new=MagicMock(return_value=GoModule("comp/api/api/def")))
+    def test_no_duplicate_target_for_files_in_same_package(self):
+        # Several files in the same package of a nested module must yield a single
+        # target, in both `test_targets` and `lint_targets`.
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules[0].test_targets, ["./."])
+        self.assertEqual(modules[0].lint_targets, ["./."])
+
+    @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["pkg/aggregator/foo.go"]))
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
+    @patch(
+        "tasks.gotest.get_module_by_path",
+        new=MagicMock(return_value=GoModule(".", test_targets=["./pkg", "./cmd", "./comp"])),
+    )
+    def test_file_in_package_under_target_dir(self):
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(len(modules), 1)
+        self.assertEqual(modules[0].test_targets, ["./pkg/aggregator"])
+
+    @patch("tasks.gotest.get_go_modified_files", new=MagicMock(return_value=["internal/somepkg/foo.go"]))
+    @patch("tasks.gotest.get_go_module", new=MagicMock(return_value="."))
+    @patch(
+        "tasks.gotest.get_module_by_path",
+        new=MagicMock(return_value=GoModule(".", test_targets=["./pkg", "./cmd", "./comp"])),
+    )
+    def test_not_targeted_when_directory_name_contains_target(self):
+        # `internal/somepkg` must not match the `./pkg` target.
+        modules = get_modified_packages(Context())
+
+        self.assertEqual(modules, [])
+
+
+class TestGetGoModifiedFiles(unittest.TestCase):
+    @patch("tasks.gotest._get_release_json_value", new=MagicMock(return_value="main"))
+    @patch("tasks.gotest.get_modified_files", new=MagicMock(return_value=["pkg/existing/foo.go", "docs/readme.md"]))
+    @patch(
+        "tasks.gotest.get_untracked_files",
+        new=MagicMock(return_value=["pkg/newpkg/foo.go", "pkg/existing/foo.go", "pkg/newpkg/notes.txt"]),
+    )
+    def test_untracked_files_are_included(self):
+        files = get_go_modified_files(Context())
+
+        self.assertEqual(files, ["pkg/existing/foo.go", "pkg/newpkg/foo.go"])
+
+
 class TestTargetToBazelPattern(unittest.TestCase):
     def test_dot(self):
         self.assertEqual(_target_to_bazel_pattern('.'), '//...')
@@ -140,55 +200,3 @@ class TestMinimizeBazelPatterns(unittest.TestCase):
         patterns = ['//comp/...', '//comp/core/...', '//pkg/...', '//pkg/util/log/...', '//cmd/...']
         result = _minimize_bazel_patterns(patterns)
         self.assertEqual(sorted(result), ['//cmd/...', '//comp/...', '//pkg/...'])
-
-
-class TestParseBazelTestLine(unittest.TestCase):
-    def test_passed_with_timing(self):
-        line = '//pkg/util/log:log_test                                     PASSED in 0.521s'
-        label, status, timing, cached = _parse_bazel_test_line(line)
-        self.assertEqual(label, '//pkg/util/log:log_test')
-        self.assertEqual(status, 'PASSED')
-        self.assertEqual(timing, '0.521s')
-        self.assertFalse(cached)
-
-    def test_failed_with_timing(self):
-        line = '//pkg/process/util:util_test                                FAILED in 0.345s'
-        label, status, timing, cached = _parse_bazel_test_line(line)
-        self.assertEqual(label, '//pkg/process/util:util_test')
-        self.assertEqual(status, 'FAILED')
-        self.assertEqual(timing, '0.345s')
-        self.assertFalse(cached)
-
-    def test_skipped_no_timing(self):
-        line = '//pkg/api/security:security_test                            SKIPPED'
-        label, status, timing, cached = _parse_bazel_test_line(line)
-        self.assertEqual(label, '//pkg/api/security:security_test')
-        self.assertEqual(status, 'SKIPPED')
-        self.assertIsNone(timing)
-        self.assertFalse(cached)
-
-    def test_cached_passed(self):
-        line = '//pkg/aggregator/ckey:ckey_test                             (cached) PASSED in 1.234s'
-        label, status, timing, cached = _parse_bazel_test_line(line)
-        self.assertEqual(label, '//pkg/aggregator/ckey:ckey_test')
-        self.assertEqual(status, 'PASSED')
-        self.assertEqual(timing, '1.234s')
-        self.assertTrue(cached)
-
-    def test_leading_whitespace_ignored(self):
-        line = '   //pkg/util/log:log_test PASSED in 0.1s'
-        result = _parse_bazel_test_line(line)
-        self.assertIsNotNone(result)
-        self.assertEqual(result[1], 'PASSED')
-
-    def test_info_line_returns_none(self):
-        self.assertIsNone(_parse_bazel_test_line('INFO: Build completed successfully, 1 total action'))
-
-    def test_analyzing_line_returns_none(self):
-        self.assertIsNone(_parse_bazel_test_line('Analyzing: 8 targets (0 packages loaded, 0 targets configured)'))
-
-    def test_empty_line_returns_none(self):
-        self.assertIsNone(_parse_bazel_test_line(''))
-
-    def test_non_label_line_returns_none(self):
-        self.assertIsNone(_parse_bazel_test_line('Computing main repo mapping:'))

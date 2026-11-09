@@ -829,7 +829,7 @@ func TestServiceFiltering(t *testing.T) {
 			filterStore := newFilterStoreObject(t, mockConfig)
 			filterBundle := filterStore.GetKubeServiceFilters(tt.filters)
 
-			service := workloadfilter.CreateKubeService(tt.serviceName, tt.namespace, tt.annotations)
+			service := workloadfilter.CreateKubeService(tt.serviceName, tt.namespace, tt.annotations, nil)
 
 			res := filterBundle.GetResult(service)
 			assert.Equal(t, tt.expected, res)
@@ -907,7 +907,7 @@ func TestEndpointFiltering(t *testing.T) {
 			filterStore := newFilterStoreObject(t, mockConfig)
 			filterBundle := filterStore.GetKubeEndpointFilters(tt.filters)
 
-			endpoint := workloadfilter.CreateKubeEndpoint(tt.endpointName, tt.namespace, tt.annotations)
+			endpoint := workloadfilter.CreateKubeEndpoint(tt.endpointName, tt.namespace, tt.annotations, nil)
 
 			res := filterBundle.GetResult(endpoint)
 			assert.Equal(t, tt.expected, res)
@@ -1177,13 +1177,23 @@ cel_workload_exclude:
   rules:
     containers:
       - "container.name != 'this'"
+- products: ["metrics"]
+  rules:
+    pods:
+      - "pod.labels['team'] == 'x'"
+    kube_services:
+      - "kube_service.labels['app'] == 'redis'"
+    kube_endpoints:
+      - "kube_endpoint.labels['app'] == 'redis'"
+    containers:
+      - "container.pod.labels['app'] == 'redis'"
 `
 
 	mockConfig := configmock.NewFromYAML(t, yamlConfig)
 	filterStore := newFilterStoreObject(t, mockConfig)
 
 	t.Run("CEL exclude kube_service", func(t *testing.T) {
-		svc := workloadfilter.CreateKubeService("", "", nil)
+		svc := workloadfilter.CreateKubeService("", "", nil, nil)
 		filterBundle := filterStore.GetKubeServiceFilters([][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceFilter(workloadfilter.KubeServiceCELMetrics)}})
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, true, filterBundle.IsExcluded(svc))
@@ -1216,6 +1226,58 @@ cel_workload_exclude:
 		assert.Nil(t, filterBundle.GetErrors())
 		assert.Equal(t, false, filterBundle.IsExcluded(container))
 	})
+
+	t.Run("CEL exclude pod by label", func(t *testing.T) {
+		pod := workloadmetafilter.CreatePod(
+			&workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "my-pod",
+					Namespace: "test",
+					Labels:    map[string]string{"team": "x"},
+				},
+			},
+		)
+		filterBundle := filterStore.GetPodFilters([][]workloadfilter.PodFilter{{workloadfilter.PodFilter(workloadfilter.PodCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, true, filterBundle.IsExcluded(pod))
+	})
+
+	t.Run("CEL exclude kube_service by label", func(t *testing.T) {
+		svc := workloadfilter.CreateKubeService("", "", nil, map[string]string{"app": "redis"})
+		filterBundle := filterStore.GetKubeServiceFilters([][]workloadfilter.KubeServiceFilter{{workloadfilter.KubeServiceFilter(workloadfilter.KubeServiceCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, true, filterBundle.IsExcluded(svc))
+	})
+
+	t.Run("CEL exclude kube_endpoint by label", func(t *testing.T) {
+		ep := workloadfilter.CreateKubeEndpoint("", "", nil, map[string]string{"app": "redis"})
+		filterBundle := filterStore.GetKubeEndpointFilters([][]workloadfilter.KubeEndpointFilter{{workloadfilter.KubeEndpointFilter(workloadfilter.KubeEndpointCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, true, filterBundle.IsExcluded(ep))
+	})
+
+	t.Run("CEL exclude container by pod label", func(t *testing.T) {
+		pod := workloadmetafilter.CreatePod(
+			&workloadmeta.KubernetesPod{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name:      "my-pod",
+					Namespace: "test",
+					Labels:    map[string]string{"app": "redis"},
+				},
+			},
+		)
+		container := workloadmetafilter.CreateContainer(
+			&workloadmeta.Container{
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: "other",
+				},
+			},
+			pod,
+		)
+		filterBundle := filterStore.GetContainerFilters([][]workloadfilter.ContainerFilter{{workloadfilter.ContainerFilter(workloadfilter.ContainerCELMetrics)}})
+		assert.Nil(t, filterBundle.GetErrors())
+		assert.Equal(t, true, filterBundle.IsExcluded(container))
+	})
 }
 
 func TestCELWorkloadExcludeFilteringRuntimeErrors(t *testing.T) {
@@ -1231,6 +1293,7 @@ cel_workload_exclude:
   rules:
     pods:
       - "pod.annotations['non-existent-key'] != 'x'"
+      - "pod.labels['non-existent-key'] != 'x'"
 `
 
 	mockConfig := configmock.NewFromYAML(t, yamlConfig)

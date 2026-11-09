@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -27,6 +28,22 @@ var unifiedServiceTagMap = map[string][]string{
 	tags.Env:     {string(conventions.DeploymentEnvironmentKey), "deployment.environment.name"},
 	tags.Version: {string(conventions.ServiceVersionKey)},
 }
+
+// knownConventionKeys is the set of resource-attribute keys that the
+// downstream trace-agent / Datadog exporter already promotes into
+// `_dd.tags.container` through its own convention mappings. The infra
+// attributes processor's container-tag-promotion logic (see
+// ContainerTagPromotionMode) skips these keys, since prefixing them would
+// either create duplicate entries (in `duplicate` mode) or break downstream
+// consumers reading the raw key (in `rename` mode).
+var knownConventionKeys = func() map[string]struct{} {
+	m := make(map[string]struct{}, 2*len(attributes.ContainerMappings))
+	for otelKey, ddName := range attributes.ContainerMappings {
+		m[ddName] = struct{}{}  // trace-agent source 3 (containerDDTags)
+		m[otelKey] = struct{}{} // trace-agent source 1 (OTel semconv)
+	}
+	return m
+}()
 
 type infraTagsProcessor struct {
 	tagger   types.TaggerClient
@@ -49,41 +66,58 @@ func newInfraTagsProcessor(
 	return infraTagsProcessor
 }
 
-// ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes
-func (p infraTagsProcessor) ProcessTags(
+// ProcessTags collects entities/tags from resourceAttributes and adds infra tags to resourceAttributes.
+//
+// Called once per resource of a batch with the same tagBatch, which memoizes the tagger
+// lookups. See tagBatch.
+//
+// The promote parameter controls how tags that are NOT recognized container-tag
+// conventions are surfaced for downstream `_dd.tags.container` promotion. Known
+// DD / OTel conventions (knownConventionKeys), USM keys, and the
+// `datadog.host.name` host attribute are exempt and always written under their
+// canonical key. promote is ignored when divertToDDTags is true.
+//
+// If divertToDDTags is true, custom tags (i.e. those NOT covered by the
+// exemptions above) are appended to *ddtags as "key:value" pairs instead of
+// being written to resourceAttributes; ddtags must be non-nil in that case.
+// This is used by the logs pipeline to turn tagger tags into real Datadog log
+// tags rather than log attributes. Exempted keys are always written to
+// resourceAttributes regardless of divertToDDTags, since the Datadog logs
+// intake already promotes them into tags on its own.
+func (b *tagBatch) ProcessTags(
 	logger *zap.Logger,
 	cardinality types.TagCardinality,
 	resourceAttributes pcommon.Map,
 	allowHostnameOverride bool,
+	promote ContainerTagPromotionMode,
+	divertToDDTags bool,
+	ddtags *[]string,
 ) {
+	if divertToDDTags && ddtags == nil {
+		panic("infraattributesprocessor: divertToDDTags is true but ddtags is nil")
+	}
 	if _, ok := resourceAttributes.Get(string(conventions.ContainerIDKey)); !ok {
 		originInfo := originInfoFromAttributes(resourceAttributes, cardinality)
-		if containerID, err := p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
+		if containerID, err := b.p.tagger.GenerateContainerIDFromOriginInfo(originInfo); err == nil {
 			resourceAttributes.PutStr(string(conventions.ContainerIDKey), containerID)
 		}
 	}
 
-	entityIDs := entityIDsFromAttributes(resourceAttributes)
-	tagMap := make(map[string]string)
+	globalTags := b.globalTags(logger, cardinality)
+	// Resolved up front so tagMap can be allocated at its final size.
+	entityTags, tagCount := b.resolve(logger, entityIDsFromAttributes(resourceAttributes), cardinality)
+	tagMap := make(map[string]string, tagCount+len(globalTags))
 
-	// Get all unique tags from resource attributes and global tags
-	for _, entityID := range entityIDs {
-		entityTags, err := p.tagger.Tag(entityID, cardinality)
-		if err != nil {
-			logger.Error("Cannot get tags for entity", zap.String("entityID", entityID.String()), zap.Error(err))
-			continue
-		}
-		for _, tag := range entityTags {
+	// Get all unique tags from resource attributes and global tags. Entity tags go first,
+	// keeping precedence over global ones.
+	for _, tags := range entityTags {
+		for _, tag := range tags {
 			k, v := splitTag(tag)
 			_, hasTag := tagMap[k]
 			if k != "" && v != "" && !hasTag {
 				tagMap[k] = v
 			}
 		}
-	}
-	globalTags, err := p.tagger.GlobalTags(cardinality)
-	if err != nil {
-		logger.Error("Cannot get global tags", zap.Error(err))
 	}
 	for _, tag := range globalTags {
 		k, v := splitTag(tag)
@@ -97,7 +131,7 @@ func (p infraTagsProcessor) ProcessTags(
 	for k, v := range tagMap {
 		otelAttrs, ust := unifiedServiceTagMap[k]
 		if !ust {
-			resourceAttributes.PutStr(k, v)
+			writeTagAttribute(resourceAttributes, k, v, promote, divertToDDTags, ddtags)
 			continue
 		}
 
@@ -115,9 +149,59 @@ func (p infraTagsProcessor) ProcessTags(
 	}
 
 	if allowHostnameOverride {
-		if hostname, found := p.hostname.Get(); found {
+		if hostname, found := b.p.hostname.Get(); found {
 			resourceAttributes.PutStr("datadog.host.name", hostname)
 		}
+	}
+}
+
+// writeTagAttribute writes a non-USM tag into resource attributes, honoring
+// the container-tag-promotion mode. Keys already carrying the
+// `datadog.container.tag.` prefix and keys in knownConventionKeys are always
+// written as-is (idempotency / convention exemption); only truly custom keys
+// are subject to duplication / renaming.
+//
+// If divertToDDTags is true, a truly custom key is instead appended to
+// *ddtags as "k:v" and NOT written to resourceAttributes (promote is ignored
+// in this case, since it only makes sense for the resource-attribute path).
+// Keys in attributes.KubernetesDDTags are exempted from this diversion: the
+// OTLP logs translator (attributes.TagsFromAttributes) already promotes them
+// from resource attributes into tags downstream, so they must stay on
+// resourceAttributes rather than being moved into ddtags.
+func writeTagAttribute(resourceAttributes pcommon.Map, k, v string, promote ContainerTagPromotionMode, divertToDDTags bool, ddtags *[]string) {
+	if strings.HasPrefix(k, attributes.CustomContainerTagPrefix) {
+		resourceAttributes.PutStr(k, v)
+		return
+	}
+	if _, isKnown := knownConventionKeys[k]; isKnown {
+		resourceAttributes.PutStr(k, v)
+		return
+	}
+	if divertToDDTags {
+		if _, isKnownDDTag := attributes.KubernetesDDTags[k]; isKnownDDTag {
+			resourceAttributes.PutStr(k, v)
+			return
+		}
+		*ddtags = append(*ddtags, k+":"+v)
+		return
+	}
+	switch promote {
+	case ContainerTagPromotionDuplicate:
+		resourceAttributes.PutStr(k, v)
+		putStrIfAbsent(resourceAttributes, attributes.CustomContainerTagPrefix+k, v)
+	case ContainerTagPromotionRename:
+		putStrIfAbsent(resourceAttributes, attributes.CustomContainerTagPrefix+k, v)
+	default: // "", ContainerTagPromotionOff
+		resourceAttributes.PutStr(k, v)
+	}
+}
+
+// putStrIfAbsent writes k=v only when k is not already present in attrs.
+// Used by the promotion logic to avoid overwriting a `datadog.container.tag.<X>`
+// value the user set themselves.
+func putStrIfAbsent(attrs pcommon.Map, k, v string) {
+	if _, exists := attrs.Get(k); !exists {
+		attrs.PutStr(k, v)
 	}
 }
 
@@ -156,7 +240,7 @@ func originInfoFromAttributes(attrs pcommon.Map, cardinality types.TagCardinalit
 // entityIDsFromAttributes gets the entity IDs from resource attributes.
 // If not found, an empty string slice is returned.
 func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
-	entityIDs := make([]types.EntityID, 0, 8)
+	entityIDs := make([]types.EntityID, 0, maxEntitiesPerResource)
 	// Prefixes come from pkg/util/kubernetes/kubelet and pkg/util/containers.
 	if containerID, ok := attrs.Get(string(conventions.ContainerIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.ContainerID, containerID.AsString()))
@@ -181,7 +265,7 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 	}
 
 	if nodeName, ok := attrs.Get(string(conventions.K8SNodeNameKey)); ok {
-		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesMetadata, "/nodes//"+nodeName.AsString()))
+		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesNode, nodeName.AsString()))
 	}
 	if podUID, ok := attrs.Get(string(conventions.K8SPodUIDKey)); ok {
 		entityIDs = append(entityIDs, types.NewEntityID(types.KubernetesPodUID, podUID.AsString()))
@@ -193,9 +277,9 @@ func entityIDsFromAttributes(attrs pcommon.Map) []types.EntityID {
 }
 
 func splitTag(tag string) (key string, value string) {
-	split := strings.SplitN(tag, ":", 2)
-	if len(split) < 2 || split[0] == "" || split[1] == "" {
+	key, value, found := strings.Cut(tag, ":")
+	if !found || key == "" || value == "" {
 		return "", ""
 	}
-	return split[0], split[1]
+	return key, value
 }

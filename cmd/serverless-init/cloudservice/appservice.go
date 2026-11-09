@@ -9,7 +9,11 @@ package cloudservice
 import (
 	"maps"
 	"os"
+	"strings"
 
+	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
+	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil"
@@ -58,6 +62,55 @@ func (a *AppService) GetTags() map[string]string {
 	return tags
 }
 
+func (a *AppService) CanCollectMetadata() bool { return true }
+
+// GetMetadata lowercases the ARM ID of a web app, in the payload only. A
+// function app keeps the ARM ID casing.
+func (a *AppService) GetMetadata() serverlessdef.CloudServiceMetadata {
+	aasTags := traceutil.GetAppServicesTags()
+
+	workloadType := workloadTypeAzureAppService
+	resourceID := aasTags[traceutil.AASResourceID]
+	if _, isFunctionApp := os.LookupEnv("FUNCTIONS_WORKER_RUNTIME"); isFunctionApp {
+		workloadType = workloadTypeAzureFunction
+	} else {
+		resourceID = strings.ToLower(resourceID)
+	}
+
+	return serverlessdef.CloudServiceMetadata{
+		WorkloadType:        workloadType,
+		ResourceID:          resourceID,
+		ResourceName:        os.Getenv(WebsiteName),
+		Region:              os.Getenv(RegionName),
+		AzureSubscriptionID: aasTags[traceutil.AASSubscriptionID],
+		AzureResourceGroup:  aasTags[traceutil.AASResourceGroup],
+		RuntimeCandidates: []string{
+			os.Getenv("FUNCTIONS_WORKER_RUNTIME"),
+			appServiceStackRuntime(),
+		},
+	}
+}
+
+func appServiceStackRuntime() string {
+	// DOCKER, SITECONTAINERS, and other non-language stacks do not identify a runtime.
+	switch os.Getenv(WebsiteStack) {
+	case "NODE":
+		return serverlessdef.RuntimeNodeJS
+	case "PYTHON":
+		return serverlessdef.RuntimePython
+	case "JAVA", "TOMCAT":
+		return serverlessdef.RuntimeJava
+	case "DOTNETCORE":
+		return serverlessdef.RuntimeDotNet
+	case "PHP":
+		return serverlessdef.RuntimePHP
+	case "RUBY":
+		return serverlessdef.RuntimeRuby
+	default:
+		return ""
+	}
+}
+
 func (a *AppService) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {
 	baseTags := map[string]string{
 		"name":            tagValueOrUnknown(tags["app_name"]),
@@ -102,9 +155,14 @@ func (a *AppService) Init(_ *TracingContext) error {
 	return nil
 }
 
+// Run uses the default run behaviour for AppService.
+func (a *AppService) Run(modeConf mode.Conf, logConfig *serverlessInitLog.Config) error {
+	return defaultRun(modeConf, logConfig)
+}
+
 // Shutdown emits the shutdown metric for AppService
-func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
-	if enhancedMetricsEnabled {
+func (a *AppService) Shutdown(metricAgent *serverlessMetrics.ServerlessMetricAgent, enhancedMetricsEnabled bool, _ error) {
+	if metricAgent != nil && enhancedMetricsEnabled {
 		metricAgent.AddEnhancedMetric(appServiceShutdownMetricName, 1.0, a.GetSource(), 0)
 		metricAgent.AddLegacyEnhancedMetric(appServiceLegacyShutdownMetricName, 1.0, a.GetSource())
 	}
@@ -113,11 +171,6 @@ func (a *AppService) Shutdown(metricAgent serverlessMetrics.ServerlessMetricAgen
 func (a *AppService) AddStartMetric(metricAgent *serverlessMetrics.ServerlessMetricAgent) {
 	metricAgent.AddEnhancedMetric(appServiceStartMetricName, 1.0, a.GetSource(), 0)
 	metricAgent.AddLegacyEnhancedMetric(appServiceLegacyStartMetricName, 1.0, a.GetSource())
-}
-
-// ShouldForceFlushAllOnForceFlushToSerializer is false usually.
-func (a *AppService) ShouldForceFlushAllOnForceFlushToSerializer() bool {
-	return false
 }
 
 func isAppService() bool {

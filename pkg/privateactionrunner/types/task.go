@@ -9,7 +9,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
@@ -27,6 +26,7 @@ type Task struct {
 type Attributes struct {
 	Name                  string                                          `json:"name"`
 	BundleID              string                                          `json:"bundle_id"`
+	ExecutionFQN          string                                          `json:"execution_fqn,omitempty"`
 	SecDatadogHeaderValue string                                          `json:"sec_datadog_header_value"`
 	Inputs                map[string]interface{}                          `json:"inputs"`
 	Client                actionsclientpb.Client                          `json:"client"`
@@ -36,46 +36,22 @@ type Attributes struct {
 	ConnectionInfo        *privateactionspb.ConnectionInfo                `json:"connection_info"`
 	TraceId               uint64                                          `json:"trace_id,omitempty"`
 	SpanId                uint64                                          `json:"span_id,omitempty"`
-}
-
-// TimeoutSeconds returns the timeout from the task inputs if present, positive, and within int32
-// range. Returns nil (fall back to config) for missing, non-integer, non-positive, or out-of-range values.
-func (task *Task) TimeoutSeconds() *int32 {
-	if task.Data.Attributes == nil {
-		return nil
-	}
-	v, ok := task.Data.Attributes.Inputs["timeout"]
-	if !ok {
-		return nil
-	}
-
-	var n int64
-	switch t := v.(type) {
-	case float64:
-		if t != math.Trunc(t) {
-			// Non-integer float (e.g. 1.5) — reject.
-			return nil
-		}
-		n = int64(t)
-	case int32:
-		n = int64(t)
-	case int64:
-		n = t
-	case int:
-		n = int64(t)
-	default:
-		return nil
-	}
-
-	if n <= 0 || n > math.MaxInt32 {
-		return nil
-	}
-	val := int32(n)
-	return &val
+	// SystemInputs carries backend-resolved policy and other backend-provided
+	// inputs, separate from user-provided action inputs.
+	SystemInputs    *privateactionspb.SystemInputs `json:"system_inputs,omitempty"`
+	VerificationKey *TaskVerificationKey           `json:"-"`
 }
 
 func (task *Task) GetFQN() string {
 	return fmt.Sprintf("%s.%s", task.Data.Attributes.BundleID, task.Data.Attributes.Name)
+}
+
+// GetExecutionFQN returns the signed execution target, falling back to the public FQN for older tasks.
+func (task *Task) GetExecutionFQN() string {
+	if task.Data.Attributes.ExecutionFQN != "" {
+		return task.Data.Attributes.ExecutionFQN
+	}
+	return task.GetFQN()
 }
 
 func (task *Task) Validate() error {

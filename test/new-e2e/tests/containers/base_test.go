@@ -6,6 +6,7 @@
 package containers
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"regexp"
@@ -48,6 +49,8 @@ type testMetricArgs struct {
 	Filter   testMetricFilterArgs
 	Expect   testMetricExpectArgs
 	Optional testMetricExpectArgs
+	// Timeout is how long to wait for a matching metric. Defaults to 2 minutes.
+	Timeout time.Duration `yaml:"timeout,omitempty"`
 }
 
 type testMetricFilterArgs struct {
@@ -187,7 +190,7 @@ func (suite *baseSuite[Env]) testMetric(args *testMetricArgs) {
 					}),
 				)
 			}
-		}, 2*time.Minute, 10*time.Second, "Failed finding `%s` with proper tags and value", prettyMetricQuery)
+		}, cmp.Or(args.Timeout, 2*time.Minute), 10*time.Second, "Failed finding `%s` with proper tags and value", prettyMetricQuery)
 	})
 }
 
@@ -292,9 +295,18 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 
 			// Check tags
 			if expectedTags != nil {
-				// Allow additional logsource tags (e.g. logsource:stdout, logsource:stderr) without failing the test.
+				// Allow additional tags that the Agent may legitimately attach but that
+				// are not deterministic per log line, so they must not fail the assertion:
+				//   - logsource:*            e.g. logsource:stdout, logsource:stderr
+				//   - multiline:*            added by auto multi-line detection when lines are
+				//                            combined (e.g. multiline:auto_multiline, multiline:go_stack).
+				//                            auto_multi_line_detection defaults to true, so any log
+				//                            line may carry this tag depending on its content.
+				//   - truncated:*            added when a log line is truncated.
 				optionalTags := []*regexp.Regexp{
 					regexp.MustCompile("logsource:.*"),
+					regexp.MustCompile("multiline:.*"),
+					regexp.MustCompile("truncated:.*"),
 				}
 				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, optionalTags, false)
 				assert.NoErrorf(c, err, "Tags mismatch on `%s`", prettyLogQuery)

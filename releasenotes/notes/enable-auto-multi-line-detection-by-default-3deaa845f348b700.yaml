@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Automatic multi-line log detection (``logs_config.auto_multi_line_detection``)
+    is now enabled by default. Multi-line log messages such as stack traces and
+    JSON blobs are aggregated into a single log entry out of the box, instead of
+    being split into separate entries. To restore the previous behavior, set
+    ``logs_config.auto_multi_line_detection`` to ``false`` (or the environment
+    variable ``DD_LOGS_CONFIG_AUTO_MULTI_LINE_DETECTION=false``).

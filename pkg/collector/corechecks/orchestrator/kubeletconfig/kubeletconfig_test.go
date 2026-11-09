@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2017-present Datadog, Inc.
 
-//go:build kubelet && orchestrator && test
+//go:build kubelet && kubeapiserver && test
 
 package kubeletconfig
 
@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	jsoniter "github.com/json-iterator/go"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/fx"
@@ -67,7 +66,6 @@ type KubeletConfigTestSuite struct {
 func (suite *KubeletConfigTestSuite) SetupSuite() {
 	kubelet.ResetGlobalKubeUtil()
 	kubelet.ResetCache()
-	jsoniter.RegisterTypeDecoder("kubelet.PodList", nil)
 	mockConfig := configmock.New(suite.T())
 	mockConfig.SetInTest("cluster_agent.enabled", true)
 	mockConfig.SetInTest("kubernetes_kubelet_host", "127.0.0.1")
@@ -115,6 +113,85 @@ func (suite *KubeletConfigTestSuite) TearDownSuite() {
 
 func TestKubeletConfigTestSuite(t *testing.T) {
 	suite.Run(t, new(KubeletConfigTestSuite))
+}
+
+func TestNewCheckInfraTags(t *testing.T) {
+	tests := []struct {
+		name      string
+		infraMode string
+		extraTags []string
+		expected  []string
+	}{
+		{
+			name:      "cloud_cost_only marks the payload",
+			infraMode: "cloud_cost_only",
+			expected:  []string{"infra_mode:cloud_cost_only"},
+		},
+		{
+			name:      "full leaves the payload unmarked",
+			infraMode: "full",
+			expected:  nil,
+		},
+		{
+			name:      "the legacy extra_tags workaround is not duplicated",
+			infraMode: "cloud_cost_only",
+			extraTags: []string{"infra_mode:cloud_cost_only"},
+			expected:  []string{"infra_mode:cloud_cost_only"},
+		},
+		{
+			name:      "configured extra tags are preserved",
+			infraMode: "cloud_cost_only",
+			extraTags: []string{"team:container-platform"},
+			expected:  []string{"team:container-platform", "infra_mode:cloud_cost_only"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("orchestrator_explorer.extra_tags", tc.extraTags)
+
+			fakeTagger := taggerfxmock.SetupFakeTaggerWithOverrides(t, map[string]interface{}{
+				"infrastructure_mode": tc.infraMode,
+			})
+
+			check := newCheck(nil, mockConfig, fakeTagger).(*Check)
+			require.Equal(t, tc.expected, check.config.ExtraTags)
+		})
+	}
+}
+
+func TestResolveManifestTypeMeta(t *testing.T) {
+	const realAPIVersion = "kubelet.config.k8s.io/v1beta1"
+	const realKind = "KubeletConfiguration"
+
+	tests := []struct {
+		name           string
+		spec           workloadmeta.KubeletConfigSpec
+		wantKind       string
+		wantAPIVersion string
+	}{
+		{
+			name:           "apiVersion populated + kind populated (modern kubelet)",
+			spec:           workloadmeta.KubeletConfigSpec{APIVersion: realAPIVersion, Kind: realKind},
+			wantKind:       realKind,
+			wantAPIVersion: realAPIVersion,
+		},
+		{
+			name:           "apiVersion empty + kind empty (legacy kubelet)",
+			spec:           workloadmeta.KubeletConfigSpec{},
+			wantKind:       kubeletVirtualKind,
+			wantAPIVersion: kubeletVirtualAPIVersion,
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			gotKind, gotAPIVersion := resolveManifestTypeMeta(tc.spec)
+			require.Equal(t, tc.wantKind, gotKind)
+			require.Equal(t, tc.wantAPIVersion, gotAPIVersion)
+		})
+	}
 }
 
 func (suite *KubeletConfigTestSuite) TestKubeletConfigCheck() {

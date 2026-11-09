@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package runtime
 
@@ -16,12 +16,37 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/protectedfile"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
+
+// runtimeDirLogState dedupes the runtime-directory warnings, which would
+// otherwise repeat once per asset compiled (SecureCacheDir runs inside the
+// per-asset compile()).
+var runtimeDirLogState struct {
+	sync.Mutex
+	seen map[string]struct{}
+}
+
+// logRuntimeDirOnce reports whether the given reason has not yet been logged,
+// recording it so subsequent identical reasons are suppressed.
+func logRuntimeDirOnce(reason string) bool {
+	runtimeDirLogState.Lock()
+	defer runtimeDirLogState.Unlock()
+	if _, ok := runtimeDirLogState.seen[reason]; ok {
+		return false
+	}
+	if runtimeDirLogState.seen == nil {
+		runtimeDirLogState.seen = make(map[string]struct{})
+	}
+	runtimeDirLogState.seen[reason] = struct{}{}
+	return true
+}
 
 // asset represents an asset that needs its content integrity checked at runtime
 type asset struct {
@@ -79,7 +104,15 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 			YumReposDir:     config.YumReposDir,
 			ZypperReposDir:  config.ZypperReposDir,
 		}
-		kernelHeaders = headers.GetKernelHeaders(headerOpts)
+		// Called only if the header search reaches the downloaded-header path, and
+		// before that directory is read from, deleted in, or written to. Configured,
+		// /lib/modules and kheaders.tar.xz sources return without it, so supplying
+		// headers by those means does not require this directory to be securable.
+		// SecureCacheDir verifies every component of the path it is given, so passing the
+		// leaf checks "system-probe" and "kernel-headers" rather than assuming they
+		// are safe because the directory above them is. GetKernelHeaders wraps
+		// the error to say which directory it was.
+		kernelHeaders = headers.GetKernelHeaders(headerOpts, ebpf.SecureCacheDir)
 		if len(kernelHeaders) == 0 {
 			a.tm.compilationResult = headerFetchErr
 			return nil, errors.New("unable to find kernel headers")
@@ -96,8 +129,17 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 	}
 	defer f.Close()
 
-	if err := os.MkdirAll(outputDir, 0755); err != nil {
-		return nil, fmt.Errorf("unable to create compiler output directory %s: %w", outputDir, err)
+	if err := ebpf.SecureCacheDir(outputDir); err != nil {
+		err = fmt.Errorf("compiler output directory: %w", err)
+		// Surface the policy refusal distinctly so operators can tell "runtime
+		// compilation disabled because the output directory is not under root's
+		// control" apart from an ordinary compilation failure. compile() runs
+		// once per asset, so dedupe by reason to avoid one warning per asset for
+		// the same misconfigured directory.
+		if logRuntimeDirOnce(err.Error()) {
+			log.Warnf("skipping runtime compilation: %v", err)
+		}
+		return nil, err
 	}
 
 	diskProtectedFile, err := createProtectedFile(fmt.Sprintf("%s-%s", a.filename, a.hash), outputDir, f)
@@ -161,8 +203,8 @@ func (a *asset) compile(config *ebpf.Config, opts CompileOptions) (CompiledOutpu
 }
 
 // creates a ram backed file from the given reader. The file is made immutable
-func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFile, error) {
-	protectedFile, err := NewProtectedFile(name, runtimeDir, source)
+func createProtectedFile(name, runtimeDir string, source io.Reader) (protectedfile.ProtectedFile, error) {
+	protectedFile, err := protectedfile.NewProtectedFile(name, runtimeDir, source)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create protected file: %w", err)
 	}
@@ -171,7 +213,7 @@ func createProtectedFile(name, runtimeDir string, source io.Reader) (ProtectedFi
 }
 
 // verify reads the asset from the reader and verifies the content hash matches what is expected.
-func (a *asset) verify(source ProtectedFile) error {
+func (a *asset) verify(source protectedfile.ProtectedFile) error {
 	sum, err := sha256Reader(source)
 	if err != nil {
 		return fmt.Errorf("hash file %s: %w", source.Name(), err)

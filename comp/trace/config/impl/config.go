@@ -17,9 +17,8 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"strings"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -38,6 +37,7 @@ import (
 
 const (
 	apiKeyConfigKey          = "api_key"
+	appKeyConfigKey          = "app_key"
 	apmConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
 )
 
@@ -63,9 +63,6 @@ type cfg struct {
 
 	// coreConfig relates to the main agent config component
 	coreConfig coreconfig.Component
-
-	// warnings are the warnings generated during setup
-	warnings *model.Warnings
 
 	// UpdateAPIKeyFn is the callback func for API Key updates
 	updateAPIKeyFn func(oldKey, newKey string)
@@ -93,13 +90,22 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	c.SetMaxMemCPU(env.IsContainerized())
 
-	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64) {
+	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		log.Debugf("OnUpdate: %s", setting)
+		if setting == appKeyConfigKey {
+			// The AI Guard proxy reads this key per request, so a rotated application key takes
+			// effect without a restart. Whether the route is registered at all is still decided
+			// at startup, so a key added to a running Agent needs one.
+			if newAppKey, ok := newValue.(string); ok {
+				c.UpdateApplicationKey(pkgconfigutils.SanitizeAPIKey(newAppKey))
+			}
+			return
+		}
 		if setting != apiKeyConfigKey {
 			return
 		}
 
-		if c.coreConfig.IsSet(apmConfigAPIKeyConfigKey) {
+		if c.coreConfig.IsConfigured(apmConfigAPIKeyConfigKey) {
 			// apm_config.api_key is deprecated. Since it overrides core api_key values during config setup,
 			// if used, core API Key refresh is skipped. TODO: check usage of apm_config.api_key and remove it.
 			log.Warn("cannot refresh api_key on trace-agent while `apm_config.api_key` is set. `apm_config.api_key` is deprecated, use core `api_key` instead")
@@ -134,10 +140,6 @@ func (c *cfg) OnUpdateAPIKey(callback func(oldKey, newKey string)) {
 	c.updateAPIKeyFn = callback
 }
 
-func (c *cfg) Warnings() *model.Warnings {
-	return c.warnings
-}
-
 func (c *cfg) Object() *pkgtraceconfig.AgentConfig {
 	return c.AgentConfig
 }
@@ -158,15 +160,11 @@ func (c *cfg) SetHandler() http.Handler {
 				value := html.UnescapeString(values[len(values)-1])
 				switch key {
 				case "log_level":
-					lvl := strings.ToLower(value)
-					if lvl == "warning" {
-						lvl = "warn"
-					}
-					if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
+					if err := pkgconfigutils.SetLogLevel(value, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
 						httpError(w, http.StatusInternalServerError, err)
 						return
 					}
-					log.Infof("Switched log level to %s", lvl)
+					log.Infof("Switched log level to %s", value)
 				default:
 					log.Infof("Unsupported config change requested (key: %q).", key)
 				}

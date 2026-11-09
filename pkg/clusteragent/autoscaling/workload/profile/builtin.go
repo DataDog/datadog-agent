@@ -34,7 +34,8 @@ const (
 )
 
 var (
-	strategyMax = datadoghqcommon.DatadogPodAutoscalerMaxChangeStrategySelect
+	strategyMax      = datadoghqcommon.DatadogPodAutoscalerMaxChangeStrategySelect
+	strategyDisabled = datadoghqcommon.DatadogPodAutoscalerDisabledStrategySelect
 
 	builtinProfiles = []datadoghq.DatadogPodAutoscalerClusterProfile{
 		{
@@ -48,7 +49,7 @@ var (
 					ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
-							StabilizationWindowSeconds: 300,
+							StabilizationWindowSeconds: 190,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},
@@ -101,7 +102,7 @@ var (
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 							Strategy:                   &strategyMax,
-							StabilizationWindowSeconds: 600,
+							StabilizationWindowSeconds: 130,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},
@@ -154,7 +155,7 @@ var (
 						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
 						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
 							Strategy:                   &strategyMax,
-							StabilizationWindowSeconds: 900,
+							StabilizationWindowSeconds: 70,
 							Rules: []datadoghqcommon.DatadogPodAutoscalerScalingRule{
 								{Type: datadoghqcommon.DatadogPodAutoscalerPercentScalingRuleType, Value: 50, PeriodSeconds: 120},
 							},
@@ -190,6 +191,42 @@ var (
 							Triggers: datadoghq.HorizontalFallbackTriggers{
 								StaleRecommendationThresholdSeconds: 600,
 							},
+						},
+					},
+				},
+			},
+		},
+		{
+			TypeMeta: podAutoscalerClusterProfileMeta,
+			ObjectMeta: metav1.ObjectMeta{
+				Name:   "datadog-vertical-balanced",
+				Labels: map[string]string{builtinLabelKey: builtinLabelValue},
+			},
+			Spec: datadoghq.DatadogPodAutoscalerProfileSpec{
+				Template: datadoghq.DatadogPodAutoscalerTemplate{
+					ApplyPolicy: &datadoghq.DatadogPodAutoscalerApplyPolicy{
+						Mode: datadoghq.DatadogPodAutoscalerApplyModeApply,
+						ScaleUp: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+							Strategy: &strategyDisabled,
+						},
+						ScaleDown: &datadoghqcommon.DatadogPodAutoscalerScalingPolicy{
+							Strategy: &strategyDisabled,
+						},
+						Update: &datadoghqcommon.DatadogPodAutoscalerUpdatePolicy{
+							Strategy: datadoghqcommon.DatadogPodAutoscalerAutoUpdateStrategy,
+						},
+					},
+					Constraints: &datadoghqcommon.DatadogPodAutoscalerConstraints{
+						Containers: []datadoghqcommon.DatadogPodAutoscalerContainerConstraints{
+							{
+								Name:    "*",
+								Enabled: pointer.Ptr(true),
+							},
+						},
+					},
+					Fallback: &datadoghq.DatadogFallbackPolicy{
+						Horizontal: datadoghq.DatadogPodAutoscalerHorizontalFallbackPolicy{
+							Enabled: false,
 						},
 					},
 				},

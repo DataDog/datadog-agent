@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Data Security scan tasks deleted from Remote Configuration are now
+    unscheduled instead of staying scheduled.

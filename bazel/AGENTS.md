@@ -9,16 +9,31 @@ Use `bazelisk` (or the `bazel` symlink it installs) to invoke Bazel. Bazelisk au
 specified in `.bazelversion`. Never invoke a pinned `bazel` binary directly — the version must match.
 
 ```sh
-# Format and lint all BUILD/.bzl files
+# CI runs this when Bazel files change. Re-run it after formatting.
+bazel run //bazel/buildifier:test
+
+# Rewrite BUILD, .bzl, and MODULE.bazel when the test fails
 bazel run //bazel/buildifier
 
 # Resolve and fetch all external deps (updates MODULE.bazel.lock as a side-effect)
 bazel mod deps
 
-# Enable the internal remote cache (Datadog network only)
-# Add to user.bazelrc at the workspace root (gitignored):
+# The internal remote cache (Datadog network only) is auto-selected by
+# tools/bazel on local builds. Override with DD_BAZEL_REMOTE_CACHE=auto|on|off,
+# or force it explicitly via user.bazelrc at the workspace root (gitignored):
 echo 'common --config=cache' >> user.bazelrc
 ```
+
+Remote cache selection lives in `bazel/tools/remote-cache-select.sh` (sourced by
+`tools/bazel`; `tools/bazel.bat` mirrors it inline). `auto` enables the cache
+only when the frontend is reachable and a token source exists; a command-line
+`--config=cache` / `--config=no-remote-cache`, or an rc-level
+`common --config=no-remote-cache` in `user.bazelrc` / `~/.bazelrc`, always wins.
+In containers `auto`
+requires a Vault session that can read `identity/oidc/token/buildbarn` (in a
+Datadog workspace: `ddtool auth login --datacenter us1.ddbuild.io`) or a token
+injected via the `BUILDBARN_ID_TOKEN` environment variable (minted on the host
+from Vault).
 
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
@@ -104,8 +119,10 @@ This repo uses **Bzlmod** (MODULE.bazel). WORKSPACE is fully removed in Bazel 9 
   extensions for complex logic.
 - Keep `use_repo(...)` lists accurate. Run `bazel mod tidy` after extension changes to update them automatically.
 - `bazel mod explain <module>` shows why a version is selected. `bazel mod graph` visualises the full dependency graph.
-- In CI, pass `--lockfile_mode=error` to fail the build if the lockfile would need updating — prevents stale lockfiles
-  from silently merging. Only `registryFileHashes` sections are safe to resolve manually in merge conflicts.
+- CI checks lock freshness with `bazel mod deps --lockfile_mode=refresh` followed by `git diff --exit-code`
+  (see `.gitlab/build/bazel/lint.yml`). Prefer that over `--lockfile_mode=error`, which can miss stale cached
+  repository checks and does not report discrepancies exhaustively. Only `registryFileHashes` sections are safe
+  to resolve manually in merge conflicts.
 
 ## Module extensions
 
@@ -117,8 +134,7 @@ Usage pattern in `MODULE.bazel`:
 
 ```python
 go_deps = use_extension("@gazelle//:extensions.bzl", "go_deps")
-# TODO: simplify to //:go.work once all Go modules are migrated (see deps/go.MODULE.bazel)
-go_deps.from_file(go_work = "@bazelify_go_work//:go.work")
+go_deps.from_file(go_work = "//:go.work")
 use_repo(go_deps, "com_github_some_dep", ...)
 ```
 
@@ -187,16 +203,73 @@ generators and for other languages, sourced from third-party rulesets or written
 **The workflow for any new package is always:**
 
 ```sh
-bazel run //:gazelle -- update ./path/to/package   # generate or update BUILD.bazel
-bazel run //bazel/buildifier                       # format
+bazel run //:gazelle -- ./path/to/package   # generate or update BUILD.bazel
+bazel run //bazel/buildifier                # format
+bazel run //bazel/buildifier:test           # same check as CI
 ```
 
 Do not hand-write `BUILD.bazel` content that Gazelle can infer. A Gazelle extension's job is precisely to keep that
 content in sync with source files automatically. When a new language or generator is added to the binary, its rules
 become part of the same automated workflow — you do not need to know which extensions are loaded.
 
+After deleting a package's last test file, check for an obsolete `dd_agent_go_test` rule: Gazelle can retain the macro
+and its stale source references. Remove the obsolete rule and its unused load explicitly.
+
 Only add rules manually when they express something that no Gazelle extension can derive from source (e.g., integration
 test targets that wire together multiple packages, or targets with non-standard attributes).
+
+#### Only add `# keep` when Gazelle would otherwise change the code
+
+A `# keep` comment is only useful when Gazelle would rewrite or drop the value it annotates. Do not add one:
+
+- on attributes Gazelle never manages (`target_compatible_with`, `tags`, `data`, `env`, `gotags`, `linkmode`, ...),
+- on top-level assignments or other non-rule statements,
+- on a value or rule that already matches what Gazelle generates.
+
+To check whether a `# keep` is needed, remove it, run `bazel run //:gazelle -- ./path/to/package`, and keep it only if
+the resulting diff is non-empty. If you do add one, explain why on the same line (`# keep: <reason>`).
+
+#### `test/new-e2e/tests/` is not migrated — exclude new suite directories
+
+Most of `test/new-e2e/tests/` is listed in the root `BUILD.bazel` `# gazelle:exclude` block. Those suites provision real
+cloud infrastructure via Pulumi; CI runs `bazel test --config=no-dd-agent-go-tests //...`, so a `go_test` target for a
+suite would be *executed* by that job and fail in the sandbox (no credentials, no network). Only the helper
+`go_library` packages under `test/new-e2e/` are migrated — no e2e suite has a `go_test` target.
+
+When adding a suite directory, add a matching `# gazelle:exclude test/new-e2e/tests/<area>` to the root `BUILD.bazel`
+in the same change. Without it Gazelle generates a `go_test` on the next `bazel run //:gazelle` and keeps re-adding it
+after every deletion.
+
+Do not reach for `select()` on `deps` to keep a platform-specific suite file out of the build. E2E test binaries are
+cross-platform by design: the binary runs on the CI host while the *target VM* is Windows/Linux. Files like
+`foo_win_test.go` carry no Go build constraint (`_win` is not a `GOOS` — only `_windows` is), and constraining them
+would stop Windows suites from ever running from Linux CI.
+
+#### A directory-scoped run deletes `write_pb_go` rules
+
+The `write_pb_go` extension (`bazel/rules/write_pb_go/_gazelle_extension.go`) matches a
+`go_library` holding checked-in `*.pb.go` files against the `go_proto_library` that generates them. It
+accumulates `go_proto_library` info as Gazelle walks directories and relies on the proto directory being
+visited *before* the Go directory (there is a `TODO` on that traversal-order dependency). A scoped run
+never visits the proto directory, so the match fails and the extension deletes the rule as stale:
+
+```sh
+bazel run //:gazelle -- pkg/proto/pbgo/trace   # DELETES the write_pb_go rule (and its load)
+bazel run //:gazelle                           # keeps it — the proto dir is visited too
+```
+
+So for any directory with checked-in generated `.pb.go` files (`pkg/proto/pbgo/...`), run Gazelle
+repo-wide, or `git diff` the BUILD file afterwards and restore the `write_pb_go` rule plus its
+`load("//bazel/rules/write_pb_go:defs.bzl", "write_pb_go")`.
+
+#### `@//` in a generated dep means Gazelle found no target
+
+A label like `"@//test/new-e2e/tests/windows/common"` (rather than `"//test/..."`) is Gazelle's module-path fallback: the
+import matched a local `go.work` module, but no `go_library` was indexed at that path, so no rule was found to point at.
+It always fails at analysis with `no such target '//...:<dir>'`. The usual cause is a `# gazelle:ignore` in the target
+package — e.g. `test/new-e2e/tests/windows/common`, which cannot be migrated while its
+`//go:embed fixtures/get-acl-helpers.ps1` refers to a `gazelle:exclude`d directory (no `embedsrcs` is generated, so the
+package does not compile). Fix the dependency's package or exclude the consumer; never hand-edit the `@//` label.
 
 ### Always name files `BUILD.bazel`, never `BUILD`
 
@@ -214,12 +287,15 @@ case-sensitive filesystem — Docker Desktop can expose the two as the same inod
 
 ### Formatting and structure
 
-- `buildifier` is mandatory. Run `bazel run //bazel/buildifier` before committing. It is the single source of truth for
-  formatting — do not debate style in code review.
+- `buildifier` is mandatory. When a change touches `BUILD`, `BUILD.bazel`, `*.bzl`, `MODULE.bazel`,
+  or `*.bazelrc`, run `bazel run //bazel/buildifier:test` before committing. That is what
+  `bazel:run-buildifier-test` runs. If it fails, `bazel run //bazel/buildifier` and re-run the test.
+  Do not debate style in code review.
 - File structure order: package description comment → `load()` statements → `package()` → rules (leaves first).
 - Standalone comments (not attached to a specific rule) require an empty line after them; attached comments do not.
 - Single blank line between top-level definitions.
 - No strict line length limit — labels can be long and tools generate BUILD files.
+- Use of `buildifier`, `gazelle` are enforced with unit tests, and the task is mechanical, so it is not noteworthy.  Don't note it in a PR's "how you validated your changes" section.
 
 ### Syntax restrictions
 
@@ -285,6 +361,33 @@ is written in the Starlark∩Python subset so it is both `load()`ed by `//BUILD.
 step. Edit that file to add or change a tag, using `set([...])` (a `{...}` literal is a dict in
 Starlark). The `AgentFlavor` mapping stays in `build_tags.py`, since Starlark has no enums.
 
+Unit tests are flavorless. `dd_agent_go_test` always uses the minimal `test` tag and derives extra,
+package-local tag combinations from `//go:build` constraints. Dependency-only optimization tags in
+`DEP_ONLY_TAGS` are not propagated through ordinary test graphs. The inheritable
+`# gazelle:go_canonical_test_tag_set tag tag ...` directive (one line per combination) defines canonical combinations for the
+tags it names. Gazelle uses those combinations instead of unsafe partial modes and only considers
+embedded library constraints when a configured combination satisfies them.
+
+Some `//go:build` constraints name a tag that a canonical set covers *and* a tag that no canonical
+set mentions. `//go:build trivy && containerd` is one: `containerd` belongs to the canonical set
+`containerd cel`, but no canonical set mentions `trivy`, so that set on its own cannot compile the
+file. Gazelle does not give up there — it derives the minimal combination the constraint needs
+(`containerd trivy`) and adds every canonical set that shares a tag with it, producing
+`cel containerd trivy`. The canonical grouping is still honoured, and the sources still get a test
+target.
+
+This only applies when the canonical set and the constraint can coexist. A constraint that
+contradicts a canonical set produces no combination at all, and its sources stay out of the wildcard
+test runs. For example `//go:build kubeapiserver && !kubelet` grows to include `kubelet`, because
+`kubeapiserver` and `kubelet` share the canonical set
+`cel clusterchecks kubeapiserver kubelet` — and the result then fails the constraint's
+own `!kubelet`.
+
+Combinations built this way can be long, and target names are budgeted against the Windows runfiles
+path length (see the Windows section). When `dd_agent_go_test` fails with a path-length error, add a
+short suffix for the combination to `_TAG_SET_SUFFIX_ALIASES` in
+`//bazel/rules/go:dd_agent_go_test.bzl`.
+
 ## Starlark language
 
 Starlark is Python-like but with deliberate restrictions for hermeticity and parallelism. Key divergences:
@@ -309,7 +412,7 @@ Starlark is Python-like but with deliberate restrictions for hermeticity and par
   used outside their file.
 - Rule implementation functions are always private: `_myrule_impl` for `myrule`.
 - `print()` is for debugging only. Never leave `print()` calls in committed code unless guarded by `if DEBUG:` with
-  `DEBUG = False`.
+  `DEBUG = False`, or denoting an actionable warning, whose message then starts with `WARNING: `.
 - **Prefer rules over macros.** Macros expand before analysis, making `bazel query` output hard to interpret and aspects
   unaware of them. Use macros only for targets intended to be referenced directly at the CLI.
 - Internal macro targets (not meant to be used directly) must have:
@@ -648,6 +751,30 @@ target_compatible_with = select({
 })
 ```
 
+A named target that is `target_compatible_with` an incompatible platform reports
+`Target //foo:bar was skipped`, and `bazel run` then fails with
+`ERROR: No targets found to run`. That is the expected outcome, not a bug — check
+the target's constraints before assuming the rule is broken.
+
+### Running Windows-only generators from Linux
+
+Some code generators reflect over the Go types compiled *into* the generator
+binary (e.g. `//pkg/security/generators/backend_doc`, which produces
+`backend_<os>.schema.json` from the `serializers` types). Their per-platform
+output therefore cannot be cross-compiled: it needs a binary built *for* that
+platform and then actually executed.
+
+For Windows, such a generator runs through `@rules_wine`. The module
+downloads a pinned Wine and executes it from a throwaway prefix; on Linux and
+macOS arm64 an x86_64 payload runs under FEX inside a native arm64 Wine. Follow
+the `backend_windows_schema_gen` pattern: a `go_cross_binary` of the generator
+for `windows_amd64`, a native `run_binary` on Windows, a rule that calls
+`windows_actions` elsewhere, and an `alias` that selects on
+`@platforms//os:windows`. Intel macOS has no default distribution. Wine is for
+local regeneration only: tag the Wine target, the alias and its
+`write_source_file` `manual`, and check the committed output with a `diff_test`
+against the native target, which only runs on Windows.
+
 ## Depsets and rule performance
 
 Accumulating deps with plain lists is O(n²). Use depsets.
@@ -820,8 +947,23 @@ local and remote execution to be configured.
 All Windows developers are expected to have **Developer Mode enabled**, which grants the necessary privileges for
 symlink creation without administrator elevation. The `.bazelrc` sets `--enable_runfiles` accordingly.
 
+**Runfiles file junctions.** `--enable_runfiles` builds the runfiles tree with directory junctions. Windows junctions
+cannot point at files, so a file runfile shows up as a directory (`d----l`) and `open()` fails with `Permission
+denied` / `The directory name is invalid`. `pkg_install` copies from that tree, not from the MANIFEST real path. For
+generated trees that must be reachable as a directory (not file-by-file), `copy_to_directory` so the runfiles entry is
+one directory junction to a real directory of real files (see `//rtloader/test:dir_with_python_home`). Prefer the
+runfiles library over constructing paths under `*.runfiles`.
+
 **No sandbox.** Windows uses `--strategy=standalone`. Builds are less hermetic by default — undeclared dependencies that
 happen to be present locally will succeed locally and fail in CI or RBE.
+
+**Hermetic MSVC / MSBuild.** MinGW is the default Windows `cc_toolchain`. Hermetic `cl.exe`,
+Windows SDK, and MSBuild come from `@msvc_toolchains` (staged by
+`bazel/patches/toolchains_msvc/`). Drive MSVC-only sources (C++/WinRT, etc.) with
+`run_binary` + hermetic MSBuild — see `tools/windows/DatadogInterop/BUILD.bazel` and
+`deps/cpython.BUILD.bazel` (`python_win`) — so the rest of the Windows tree stays on MinGW.
+Only do this for a library the Go side loads over a C ABI: MSVC and MinGW objects must not
+be linked into the same binary.
 
 **Path separators.** Bazel stores paths with `/` internally. When constructing command lines or environment variables
 for actions, replace `/` with `\` for Windows tools that don't accept forward slashes:
@@ -850,10 +992,37 @@ paths, breaking Bazel label syntax.
 **File deletion.** Open files cannot be deleted on Windows ("Access Denied"). Close handles eagerly. A running process
 also holds its working directory open, preventing deletion.
 
-**Path length.** The hard limit is 32,767 characters (Developer Mode removes the legacy 260-character limit). Keep
-workspace names, target names, and directory structures short to stay well within this.
+**Path length.** File APIs go up to 32,767 characters (Developer Mode removes the legacy 260-character limit), but a
+process's *current directory* is still capped at `MAX_PATH` (260) unless the binary ships a `longPathAware` manifest —
+and Bazel's Windows test wrapper (`tools/test/windows/tw.cc`) does not. It `chdir`s into
+`<target>_/<target>.exe.runfiles` before launching the test, so an over-long target name fails at test time with
+`Could not chdir` / `Failed to load runfiles` (error 206, `ERROR_FILENAME_EXCED_RANGE`) rather than at build time.
+The target name is spent twice in that path, so keep target names, tag-set suffixes, and package depth short.
+`dd_agent_go_test` enforces the budget at analysis time via `_test_tag_set_check_name()` in
+`//bazel/rules/go:dd_agent_go_test.bzl`.
+
+**CI lane split.** Windows is the only platform whose Bazel tests run in two jobs, partitioned by the complementary
+`--config=no-dd-agent-go-tests` / `--config=dd-agent-go-tests-only` filters in `bazel/configs/go_tests.bazelrc`. The
+runner has 16 CPUs, and building the repo alongside ~1k race-instrumented Go tests starves them enough that tests
+asserting on wall-clock time fail. Prefer waiting on a signal over a fixed duration in any test that runs there.
+
+**Go test link memory.** Windows race/cgo Go test binaries can exhaust the container or host commit limit during
+external linking (`VirtualAlloc ... errno=1455`).
+Linking tests depending on the Pulumi k8s SDK peaks at 25x to 35x their binary's on-disk footprint, beyond what `GoLink`
+books: tagging those that fail `go_link:enormous` makes `dd_agent_go_test` add the `resources:memory:6144` tag, honored
+locally since Bazel 9.2.0. Prefer that tag over a `resources:memory` entry in `exec_properties`: the latter is also sent
+as a remote execution platform property, and RBE workers that don't advertise it can't be scheduled.
 
 ## Testing
+
+BPF and NPM tag variants are excluded by the default `--test_tag_filters`, even
+when named explicitly. To run a focused variant, override the filter, for example:
+
+```sh
+bazel test --test_tag_filters= //pkg/util/kernel/headers:headers_test_bpf
+```
+
+Check the reported executed test count; building a filtered target does not run it.
 
 ### Testing rules (Starlark unit tests)
 
@@ -980,7 +1149,7 @@ When a `verify_generated_files` test fails, run the corresponding
 
 ```bash
 # Update a single cgo godefs output
-bazel run //pkg/ebpf:types_godefs
+bazel run //pkg/ebpf/lockcontention:types_godefs
 ```
 
 Runtime compilation integrity hash files (`pkg/ebpf/bytecode/runtime/*.go`) are
@@ -994,5 +1163,5 @@ Key Bazel macros:
 
 ## See also
 
-- [Rust in the Datadog Agent](../docs/public/guidelines/languages/RUST.md)
+- [Rust in the Datadog Agent](../doc/guidelines/languages/RUST.md)
 - [eBPF Core Checks](../pkg/collector/corechecks/ebpf/AGENTS.md)

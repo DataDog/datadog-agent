@@ -37,6 +37,9 @@ import (
 )
 
 const (
+	// Namespace of integrations-internal wheels on the first-party Python index.
+	internalNamespacePrefix = "dd-internal-"
+
 	reqAgentReleaseFile = "requirements-agent-release.txt"
 	reqLinePattern      = "%s==(\\d+\\.\\d+\\.\\d+)"
 	downloaderModule    = "datadog_checks.downloader"
@@ -60,7 +63,6 @@ var (
 
 	rootDir             string
 	reqAgentReleasePath string
-	constraintsPath     string
 )
 
 // cliParams are the command-line arguments for the sub-subcommands.
@@ -195,11 +197,6 @@ func loadPythonInfo() error {
 		rootDir = parentDir
 	}
 
-	constraintsPath = filepath.Join(rootDir, "final_constraints-py3.txt")
-	if _, err := os.Lstat(constraintsPath); err != nil {
-		return err
-	}
-
 	return nil
 }
 
@@ -212,7 +209,8 @@ func getIntegrationName(packageName string) string {
 	case "datadog-go-metro":
 		return "go-metro"
 	default:
-		return strings.TrimSpace(strings.ReplaceAll(strings.TrimPrefix(packageName, "datadog-"), "-", "_"))
+		name := strings.TrimPrefix(packageName, internalNamespacePrefix)
+		return strings.TrimSpace(strings.ReplaceAll(strings.TrimPrefix(name, "datadog-"), "-", "_"))
 	}
 }
 
@@ -377,7 +375,6 @@ func install(cliParams *cliParams, _ log.Component) error {
 
 	pipArgs := []string{
 		"install",
-		"--constraint", constraintsPath,
 		// We don't use pip to download wheels, so we don't need a cache
 		"--no-cache-dir",
 		// Specify to not use any index since we won't/shouldn't download anything with pip anyway
@@ -612,30 +609,34 @@ func parseWheelPackageName(wheelPath string) (string, error) {
 
 	for _, file := range reader.File {
 		if strings.HasSuffix(file.Name, "METADATA") {
-			fileReader, err := file.Open()
+			name, found, err := readWheelPackageName(file)
 			if err != nil {
 				return "", err
 			}
-			defer fileReader.Close()
-
-			scanner := bufio.NewScanner(fileReader)
-			for scanner.Scan() {
-				line := scanner.Text()
-
-				matches := wheelPackageNameRe.FindStringSubmatch(line)
-				if matches == nil {
-					continue
-				}
-
-				return matches[1], nil
-			}
-			if err := scanner.Err(); err != nil {
-				return "", err
+			if found {
+				return name, nil
 			}
 		}
 	}
 
 	return "", fmt.Errorf("package name not found in wheel: %s", wheelPath)
+}
+
+func readWheelPackageName(f *zip.File) (string, bool, error) {
+	fileReader, err := f.Open()
+	if err != nil {
+		return "", false, err
+	}
+	defer fileReader.Close()
+	scanner := bufio.NewScanner(fileReader)
+	for scanner.Scan() {
+		matches := wheelPackageNameRe.FindStringSubmatch(scanner.Text())
+		if matches == nil {
+			continue
+		}
+		return matches[1], true, nil
+	}
+	return "", false, scanner.Err()
 }
 
 func validateBaseDependency(wheelPath string, baseVersion *semver.Version) (bool, error) {
@@ -896,7 +897,8 @@ func list(cliParams *cliParams, _ log.Component) error {
 
 	// The agent integration freeze command should only show datadog packages and nothing else
 	for i := range pythonLibs {
-		if strings.HasPrefix(pythonLibs[i], "datadog-") {
+		if strings.HasPrefix(pythonLibs[i], "datadog-") ||
+			strings.HasPrefix(pythonLibs[i], internalNamespacePrefix+"datadog-") {
 			fmt.Println(pythonLibs[i])
 		}
 	}

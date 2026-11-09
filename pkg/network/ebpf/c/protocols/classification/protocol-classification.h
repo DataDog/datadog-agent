@@ -142,30 +142,65 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         return;
     }
 
+    // Normalize the tuple once for all the map lookups and updates below. The helpers that take an unnormalized tuple
+    // would each inline their own copy of normalize_tuple, and this program's size is limited (see classification_progs).
+    conn_tuple_t normalized_tup = skb_tup;
+    normalize_tuple(&normalized_tup);
+
+    // Snapshot the stack by value so all reads below share this one lookup. Older verifiers (e.g. 4.14) lose track
+    // of a nullable map-value pointer that is held live across helper calls; a copy in our own frame has no such issue.
+    // Writes still go through __get_or_create_protocol_stack.
+    protocol_stack_t *stack_entry = __get_protocol_stack_if_exists(&normalized_tup);
+    const bool stack_exists = stack_entry != NULL;
+    protocol_stack_t stack = {0};
+    if (stack_exists) {
+        stack = *stack_entry;
+    }
+
+    if (is_fully_classified(&stack)) {
+        return;
+    }
+
+    const bool encryption_layer_known = is_protocol_layer_known(&stack, LAYER_ENCRYPTION);
+    protocol_t app_layer_proto = get_protocol_from_stack(&stack, LAYER_APPLICATION);
+    const bool app_layer_may_be_tls = app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES;
+    tls_record_header_t tls_hdr = {0};
+    bool is_tls_record = false;
+
+    // Parse the TLS record header once, up front, for both checks below (a second inlined copy costs program size).
+    if (encryption_layer_known || app_layer_may_be_tls) {
+        is_tls_record = is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr);
+    }
+
+    if (encryption_layer_known) {
+        // The socket filter can't see past the encryption layer (USM's uprobes classify the inner protocol on
+        // decrypted data in a separate program), so the only thing left to do here is extract ClientHello/ServerHello
+        // tags. Let those records through and skip everything else. Letting them through also lets a new connection
+        // that reuses a leaked connection_protocol entry's tuple get its handshake parsed, as long as the stale entry
+        // has no application layer set; otherwise the TLS block below is skipped and the stale tags remain.
+        if (!is_tls_record || tls_hdr.content_type != TLS_HANDSHAKE) {
+            return;
+        }
+    }
+
     classification_context_t *classification_ctx = classification_context_init(skb, &skb_tup, &skb_info);
     if (!classification_ctx) {
         return;
     }
 
-    protocol_stack_t *protocol_stack = get_protocol_stack_if_exists(&classification_ctx->tuple);
-
-    if (is_fully_classified(protocol_stack)) {
-        return;
-    }
-
-    bool encryption_layer_known = is_protocol_layer_known(protocol_stack, LAYER_ENCRYPTION);
-
     // Load information that will be later on used to route tail-calls
-    init_routing_cache(classification_ctx, protocol_stack);
+    if (stack_exists) {
+        init_routing_cache(classification_ctx, &stack);
+    } else {
+        init_routing_cache(classification_ctx, NULL);
+    }
 
     const char *buffer = &(classification_ctx->buffer.data[0]);
 
-    protocol_t app_layer_proto = get_protocol_from_stack(protocol_stack, LAYER_APPLICATION);
+    protocol_stack_t *protocol_stack = NULL;
 
-    tls_record_header_t tls_hdr = {0};
-
-    if ((app_layer_proto == PROTOCOL_UNKNOWN || app_layer_proto == PROTOCOL_POSTGRES) && is_tls(skb, skb_info.data_off, skb_info.data_end, &tls_hdr)) {
-        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
+    if (app_layer_may_be_tls && is_tls_record) {
+        protocol_stack = __get_or_create_protocol_stack(&normalized_tup);
         if (!protocol_stack) {
             return;
         }
@@ -178,7 +213,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
         }
 
         // Parse TLS handshake payload
-        tls_info_t *tags = get_or_create_tls_enhanced_tags(&classification_ctx->tuple);
+        tls_info_t *tags = __get_or_create_tls_enhanced_tags(&normalized_tup);
         if (tags) {
             // The packet is a TLS handshake, so trigger tail calls to extract metadata from the payload
             __u32 offset = classification_ctx->skb_info.data_off + sizeof(tls_record_header_t);
@@ -209,7 +244,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint(struct
     }
 
     if (app_layer_proto != PROTOCOL_UNKNOWN) {
-        protocol_stack = get_or_create_protocol_stack(&classification_ctx->tuple);
+        protocol_stack = __get_or_create_protocol_stack(&normalized_tup);
         if (!protocol_stack) {
             return;
         }

@@ -81,6 +81,7 @@ func TestConvertWorkloadmetaPodToK8sPod(t *testing.T) {
 			FsGroup:    3000,
 		},
 		CreationTimestamp: now,
+		DeletionTimestamp: &now,
 		HostNetwork:       true,
 		NodeName:          "node1",
 		Volumes: []workloadmeta.KubernetesPodVolume{
@@ -201,6 +202,7 @@ func TestConvertWorkloadmetaPodToK8sPod(t *testing.T) {
 			UID:               types.UID("12345"),
 			Namespace:         "default",
 			CreationTimestamp: metav1.NewTime(now),
+			DeletionTimestamp: &metav1.Time{Time: now},
 			Annotations: map[string]string{
 				"annotation-key": "annotation-value",
 			},

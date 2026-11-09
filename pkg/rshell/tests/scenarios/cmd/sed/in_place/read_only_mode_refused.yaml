@@ -1,0 +1,19 @@
+description: sed -i is refused outside remediation mode, and the file is left untouched.
+setup:
+  files:
+    - path: greeting.txt
+      content: |+
+        hello
+input:
+  allowed_paths: ["$DIR:rw"]
+  script: |+
+    sed -i 's/hello/HI/' greeting.txt; echo "exit=$?"
+    cat greeting.txt
+expect:
+  stdout: |+
+    exit=1
+    hello
+  stderr: |+
+    sed: -i: in-place editing requires remediation mode
+  exit_code: 0
+skip_assert_against_bash: true

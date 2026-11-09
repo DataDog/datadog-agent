@@ -50,27 +50,6 @@ func injectorFilePath(name string) string {
 	return injectPackageDir + "/stable/inject/" + name
 }
 
-// supportedLanguages is the list of languages supported for injection.
-var supportedLanguages = []string{
-	"java",
-	"js",
-	"python",
-	"dotnet",
-	"ruby",
-	"php",
-	"c",
-}
-
-// IsLanguageSupported checks if a language is supported for injection.
-func IsLanguageSupported(lang string) bool {
-	for _, l := range supportedLanguages {
-		if l == lang {
-			return true
-		}
-	}
-	return false
-}
-
 // newEmptyDirVolume creates an EmptyDir volume with the given name.
 func newEmptyDirVolume(name string) corev1.Volume {
 	return corev1.Volume{

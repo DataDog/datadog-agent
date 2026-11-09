@@ -166,7 +166,7 @@ func testLoadCustomCheck(t *testing.T) {
 
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
@@ -205,7 +205,7 @@ func testLoadWheelCheck(t *testing.T) {
 
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	filterStore := workloadfilterfxmock.SetupMockFilter(t)
@@ -243,7 +243,7 @@ func testLoadHACheck(t *testing.T) {
 
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
@@ -332,7 +332,7 @@ func testLoadError(t *testing.T) {
 
 	mockRtloader(t)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)
@@ -373,7 +373,7 @@ func testLoadCustomCheckEmitsCheckReadyMetric(t *testing.T) {
 	// Ensure py3 validation is enabled (default)
 	pkgconfigsetup.Datadog().SetInTest("disable_py3_validation", false)
 
-	senderManager := mocksender.CreateDefaultDemultiplexer()
+	senderManager := mocksender.CreateDefaultDemultiplexer(t)
 	logReceiver := option.None[integrations.Component]()
 	tagger := nooptagger.NewComponent()
 	loader, err := NewPythonCheckLoader(senderManager, logReceiver, tagger, nil)

@@ -12,9 +12,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/benbjohnson/clock"
+
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	haagent "github.com/DataDog/datadog-agent/comp/haagent/def"
-	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -58,15 +59,15 @@ type Worker struct {
 	shouldAddCheckStatsFunc func(id checkid.ID) bool
 	utilizationTickInterval time.Duration
 	haAgent                 haagent.Component
-	healthPlatform          healthplatform.Component
 	watchdogWarningTimeout  time.Duration
+	isShadowWorker          bool
+	clock                   clock.Clock
 }
 
 // NewWorker returns an instance of a `Worker` after parameter sanity checks are passed
 func NewWorker(
 	senderManager sender.SenderManager,
 	haAgent haagent.Component,
-	healthPlatform healthplatform.Component,
 	runnerID int,
 	ID int,
 	pendingChecksChan chan check.Check,
@@ -75,6 +76,58 @@ func NewWorker(
 	watchdogWarningTimeout time.Duration,
 ) (*Worker, error) {
 
+	return newWorkerWithOptions(
+		runnerID,
+		ID,
+		pendingChecksChan,
+		checksTracker,
+		shouldAddCheckStatsFunc,
+		senderManager.GetDefaultSender,
+		haAgent,
+		pollingInterval,
+		watchdogWarningTimeout,
+		false,
+	)
+}
+
+// NewShadowWorker returns a Worker that reads from the shadow check lane.
+func NewShadowWorker(
+	senderManager sender.SenderManager,
+	haAgent haagent.Component,
+	runnerID int,
+	ID int,
+	pendingChecksChan chan check.Check,
+	checksTracker *tracker.RunningChecksTracker,
+	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	watchdogWarningTimeout time.Duration,
+) (*Worker, error) {
+
+	return newWorkerWithOptions(
+		runnerID,
+		ID,
+		pendingChecksChan,
+		checksTracker,
+		shouldAddCheckStatsFunc,
+		senderManager.GetDefaultSender,
+		haAgent,
+		pollingInterval,
+		watchdogWarningTimeout,
+		true,
+	)
+}
+
+func newWorkerWithOptions(
+	runnerID int,
+	ID int,
+	pendingChecksChan chan check.Check,
+	checksTracker *tracker.RunningChecksTracker,
+	shouldAddCheckStatsFunc func(id checkid.ID) bool,
+	getDefaultSenderFunc func() (sender.Sender, error),
+	haAgent haagent.Component,
+	utilizationTickInterval time.Duration,
+	watchdogWarningTimeout time.Duration,
+	isShadowWorker bool,
+) (*Worker, error) {
 	if checksTracker == nil {
 		return nil, errors.New("worker cannot initialize using a nil checksTracker")
 	}
@@ -87,41 +140,14 @@ func NewWorker(
 		return nil, errors.New("worker cannot initialize using a nil shouldAddCheckStatsFunc")
 	}
 
-	return newWorkerWithOptions(
-		runnerID,
-		ID,
-		pendingChecksChan,
-		checksTracker,
-		shouldAddCheckStatsFunc,
-		senderManager.GetDefaultSender,
-		haAgent,
-		healthPlatform,
-		pollingInterval,
-		watchdogWarningTimeout,
-	)
-}
-
-// newWorkerWithOptions returns an instance of a `Worker` with an override for the
-// `aggregator.GetDefaultSender()`. The purpose of this pass-through is to help
-// test the aggregator logic.
-func newWorkerWithOptions(
-	runnerID int,
-	ID int,
-	pendingChecksChan chan check.Check,
-	checksTracker *tracker.RunningChecksTracker,
-	shouldAddCheckStatsFunc func(id checkid.ID) bool,
-	getDefaultSenderFunc func() (sender.Sender, error),
-	haAgent haagent.Component,
-	healthPlatform healthplatform.Component,
-	utilizationTickInterval time.Duration,
-	watchdogWarningTimeout time.Duration,
-) (*Worker, error) {
-
 	if getDefaultSenderFunc == nil {
 		return nil, errors.New("worker cannot initialize using a nil getDefaultSenderFunc")
 	}
 
 	workerName := fmt.Sprintf("worker_%d", ID)
+	if isShadowWorker {
+		workerName += " (shadow)"
+	}
 
 	return &Worker{
 		ID:                      ID,
@@ -132,9 +158,10 @@ func newWorkerWithOptions(
 		shouldAddCheckStatsFunc: shouldAddCheckStatsFunc,
 		getDefaultSenderFunc:    getDefaultSenderFunc,
 		haAgent:                 haAgent,
-		healthPlatform:          healthPlatform,
 		utilizationTickInterval: utilizationTickInterval,
 		watchdogWarningTimeout:  watchdogWarningTimeout,
+		isShadowWorker:          isShadowWorker,
+		clock:                   clock.New(),
 	}, nil
 }
 
@@ -142,19 +169,33 @@ func newWorkerWithOptions(
 // The provided ctx is used for cancellable operations such as hostname resolution;
 // it should be cancelled when the agent shuts down.
 func (w *Worker) Run(ctx context.Context) {
-	log.Debugf("Runner %d, worker %d: Ready to process checks...", w.runnerID, w.ID)
+	log.Debugf("Runner %d, worker %d, shadow: %t: Ready to process checks...", w.runnerID, w.ID, w.isShadowWorker)
 
 	alpha := 0.25 // converges to 99.98% of constant input in 30 iterations.
-	utilizationTracker := utilizationtracker.NewUtilizationTracker(w.utilizationTickInterval, alpha)
+	utilizationTracker := utilizationtracker.NewUtilizationTrackerWithClock(w.utilizationTickInterval, w.clock, alpha)
+
+	utilizationUpdaterDone := startUtilizationUpdater(w, utilizationTracker)
+	// Deferred in this order so that, on the way out, the tracker stops (closing
+	// its Output channel) before we wait for the updater goroutine to drain it
+	// and delete this worker's telemetry/expvar entries.
+	defer func() { <-utilizationUpdaterDone }()
 	defer utilizationTracker.Stop()
 
-	startUtilizationUpdater(w.Name, utilizationTracker)
-	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval)
+	cancel := startTrackerTicker(utilizationTracker, w.utilizationTickInterval, w.clock)
 	defer cancel()
 
-	for check := range w.pendingChecksChan {
+	// The worker exits after an interval-zero check, whether the check ran or
+	// was skipped: the collector adds an extra worker for each such check, so
+	// exiting returns the pool to its size. exitAfterCheck is set before the
+	// skips below, so their `continue` also ends the loop.
+	for exitAfterCheck := false; !exitAfterCheck; {
+		check, ok := <-w.pendingChecksChan
+		if !ok {
+			break
+		}
 		checkLogger := CheckLogger{Check: check}
 		longRunning := check.Interval() == 0
+		exitAfterCheck = longRunning
 
 		if w.haAgent.Enabled() && check.IsHASupported() && !w.haAgent.IsActive() {
 			checkLogger.Debug("Check is an HA integration and current agent is not leader, skipping execution...")
@@ -189,7 +230,7 @@ func (w *Worker) Run(ctx context.Context) {
 		expvars.AddRunningCheckCount(1)
 		expvars.SetRunningStats(check.ID(), checkStartTime)
 
-		utilizationTracker.Started()
+		utilizationTracker.Started(longRunning)
 
 		// Run the check, recovering from any panic so that a single
 		// misbehaving check cannot crash the entire agent process.
@@ -210,15 +251,7 @@ func (w *Worker) Run(ctx context.Context) {
 
 		checkWarnings := check.GetWarnings()
 
-		// Use the default sender for the service checks
-		sender, err := w.getDefaultSenderFunc()
-		if err != nil {
-			log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
-		}
-		serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
 		serviceCheckStatus := servicecheck.ServiceCheckOK
-
-		hname, _ := hostname.Get(ctx)
 
 		if len(checkWarnings) != 0 {
 			expvars.AddWarningsCount(len(checkWarnings))
@@ -231,14 +264,23 @@ func (w *Worker) Run(ctx context.Context) {
 			serviceCheckStatus = servicecheck.ServiceCheckCritical
 		}
 
-		if sender != nil && !longRunning {
-			if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
-				sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+		if !longRunning && !w.isShadowWorker {
+			// Use the default sender for the service checks
+			sender, err := w.getDefaultSenderFunc()
+			if err != nil {
+				log.Errorf("Error getting default sender: %v. Not sending status check for %s", err, check)
 			}
-			// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
-			// it here for now to make sure it's not breaking any historical behavior
-			// with the shared default sender.
-			sender.Commit()
+			if sender != nil {
+				serviceCheckTags := []string{"check:" + check.String(), "dd_enable_check_intake:true"}
+				hname, _ := hostname.Get(ctx)
+				if pkgconfigsetup.Datadog().GetBool("integration_check_status_enabled") {
+					sender.ServiceCheck(serviceCheckStatusKey, serviceCheckStatus, hname, serviceCheckTags, "")
+				}
+				// FIXME(remy): this `Commit()` should be part of the `if` above, we keep
+				// it here for now to make sure it's not breaking any historical behavior
+				// with the shared default sender.
+				sender.Commit()
+			}
 		}
 
 		// Remove the check from the running list
@@ -253,7 +295,7 @@ func (w *Worker) Run(ctx context.Context) {
 			// otherwise only do so if the check is in the scheduler
 			if w.shouldAddCheckStatsFunc(check.ID()) {
 				sStats, _ := check.GetSenderStats()
-				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent, w.healthPlatform)
+				expvars.AddCheckStats(check, time.Since(checkStartTime), checkErr, checkWarnings, sStats, w.haAgent)
 			}
 		}
 
@@ -268,27 +310,42 @@ func (w *Worker) Run(ctx context.Context) {
 	log.Debugf("Runner %d, worker %d: Finished processing checks.", w.runnerID, w.ID)
 }
 
-func startUtilizationUpdater(name string, ut *utilizationtracker.UtilizationTracker) {
+// startUtilizationUpdater starts a goroutine that publishes utilization
+// readings until ut.Output closes, then deletes this worker's telemetry and
+// expvar entries. The returned channel is closed once that cleanup has run,
+// so callers can wait for it instead of racing with it.
+func startUtilizationUpdater(w *Worker, ut *utilizationtracker.UtilizationTracker) <-chan struct{} {
+	name := w.Name
+
 	expvars.SetWorkerStats(name, &expvars.WorkerStats{
 		Utilization: 0.0,
+		Excluded:    w.isShadowWorker, // isShadowWorker is known for the lifetime of the worker
 	})
 
 	workerUtilization.Set(0, name)
 
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for value := range ut.Output {
 			expvars.SetWorkerStats(name, &expvars.WorkerStats{
-				Utilization: value,
+				Utilization: value.Utilization,
+				Excluded:    w.isShadowWorker || value.Excluded,
 			})
 
-			workerUtilization.Set(value, name)
+			workerUtilization.Set(value.Utilization, name)
 		}
 		expvars.DeleteWorkerStats(name)
+		// Workers exit after interval-zero checks while the Agent runs, and
+		// worker names are never reused, so remove the series with the worker.
+		workerUtilization.Delete(name)
 	}()
+
+	return done
 }
 
-func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration) func() {
-	ticker := time.NewTicker(interval)
+func startTrackerTicker(ut *utilizationtracker.UtilizationTracker, interval time.Duration, clk clock.Clock) func() {
+	ticker := clk.Ticker(interval)
 	cancel := make(chan struct{}, 1)
 	done := make(chan struct{})
 	go func() {

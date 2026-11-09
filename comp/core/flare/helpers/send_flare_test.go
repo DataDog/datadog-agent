@@ -8,10 +8,14 @@ package helpers
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -26,6 +30,162 @@ import (
 func TestMkURL(t *testing.T) {
 	assert.Equal(t, "https://example.com/support/flare/999", mkURL("https://example.com", "999"))
 	assert.Equal(t, "https://example.com/support/flare", mkURL("https://example.com", ""))
+}
+
+func TestBuildFlareBaseURL(t *testing.T) {
+	cfg := config.NewMock(t)
+	cfg.SetInTest("convert_dd_site_fqdn.enabled", true)
+	v, err := version.Agent()
+	require.NoError(t, err)
+	prefix := fmt.Sprintf("https://%d-%d-%d-flare.agent.", v.Major, v.Minor, v.Patch)
+
+	tests := []struct {
+		rawURL   string
+		site     string
+		expected string
+	}{
+		{"https://app.datadoghq.com", "", prefix + "datadoghq.com"},
+		{"https://app.mrf.datadoghq.com", "", prefix + "mrf.datadoghq.com"},
+		{"https://org.mrf.datadoghq.com", "datadoghq.com", prefix + "datadoghq.com."},
+		{"https://org.mrf.us3.datadoghq.com", "us3.datadoghq.com", prefix + "us3.datadoghq.com."},
+		{"https://org.mrf.ap1.datadoghq.com", "ap1.datadoghq.com", prefix + "ap1.datadoghq.com."},
+		{"https://custom.datadoghq.com", "", prefix + "datadoghq.com."},
+		{"https://custom.agent.datadoghq.com", "", prefix + "datadoghq.com."},
+		{"https://app.custom.datadoghq.com", "", prefix + "datadoghq.com."},
+		{"https://app.datadoghq.internal", "", "https://app.datadoghq.internal"},
+		{"https://app.myproxy.com", "", "https://app.myproxy.com"},
+		{"https://datadog.corp.example.com", "", "https://datadog.corp.example.com"},
+		{"https://my-proxy.notdatadoghq.com", "", "https://my-proxy.notdatadoghq.com"},
+		{"https://evil.datadoghq.com.attacker.net", "", "https://evil.datadoghq.com.attacker.net"},
+		{"https://org.mrf.us5.datadoghq.com", "us5.datadoghq.com", prefix + "us5.datadoghq.com."},
+		{"https://org.mrf.datadoghq.eu", "datadoghq.eu", prefix + "datadoghq.eu."},
+		{"https://org.mrf.ddog-gov.com", "ddog-gov.com", prefix + "ddog-gov.com."},
+		{"https://org.mrf.datad0g.com", "datad0g.com", prefix + "datad0g.com."},
+		{"https://ORG.MRF.US3.DATADOGHQ.COM", "us3.datadoghq.com", prefix + "us3.datadoghq.com."},
+		{"https://org.mrf.datadoghq.com.", "datadoghq.com", prefix + "datadoghq.com."},
+		{"https://app.datadoghq.com.", "", prefix + "datadoghq.com."},
+		{"http://org.mrf.us3.datadoghq.com:8080/intake?foo=bar", "us3.datadoghq.com", prefix + "us3.datadoghq.com."},
+		{"http://app.myproxy.com:8080/intake?foo=bar", "", "http://app.myproxy.com:8080/intake?foo=bar"},
+		{"", "", ""},
+		{"not-a-url", "", "not-a-url"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.rawURL, func(t *testing.T) {
+			cfg.SetInTest("site", tt.site)
+			actual, err := buildFlareBaseURL(cfg, tt.rawURL)
+			require.NoError(t, err)
+			assert.Equal(t, tt.expected, actual)
+		})
+	}
+
+	t.Run("invalid URL", func(t *testing.T) {
+		actual, err := buildFlareBaseURL(cfg, "http://\x7f")
+		require.Error(t, err)
+		assert.Empty(t, actual)
+	})
+
+	t.Run("FQDN conversion disabled", func(t *testing.T) {
+		cfg.SetInTest("convert_dd_site_fqdn.enabled", false)
+		cfg.SetInTest("site", "us3.datadoghq.com")
+		actual, err := buildFlareBaseURL(cfg, "https://org.mrf.us3.datadoghq.com")
+		require.NoError(t, err)
+		assert.Equal(t, prefix+"us3.datadoghq.com", actual)
+	})
+}
+
+func TestGetFlareEndpointDDRAliasSiteSelection(t *testing.T) {
+	t.Setenv("DD_SITE", "")
+	v, err := version.Agent()
+	require.NoError(t, err)
+	prefix := fmt.Sprintf("https://%d-%d-%d-flare.agent.", v.Major, v.Minor, v.Patch)
+	tests := []struct {
+		name     string
+		site     string
+		expected string
+	}{
+		{"US3 org behind a global alias", "us3.datadoghq.com", prefix + "us3.datadoghq.com./support/flare"},
+		{"US5 org behind a global alias", "us5.datadoghq.com", prefix + "us5.datadoghq.com./support/flare"},
+		{"US1 explicitly configured", "datadoghq.com", prefix + "datadoghq.com./support/flare"},
+		{"normalized configured site", " US3.DATADOGHQ.COM. ", prefix + "us3.datadoghq.com./support/flare"},
+		{"missing configured site", "", ""},
+		{"unrecognized configured site", "example.com", ""},
+		{"site must not be a service hostname", "app.datadoghq.com", ""},
+		{"site must not contain a URL scheme", "https://us3.datadoghq.com", ""},
+		{"site must not contain a port", "us3.datadoghq.com:443", ""},
+		{"site must not contain a path", "us3.datadoghq.com/path", ""},
+		{"site must not spoof a Datadog suffix", "us3.datadoghq.com.attacker.net", ""},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := config.NewMock(t)
+			cfg.SetInTest("dd_url", "https://org.mrf.datadoghq.com")
+			if tt.site != "" {
+				cfg.SetInTest("site", tt.site)
+			}
+			assert.Equal(t, tt.expected, GetFlareEndpoint(cfg))
+		})
+	}
+	t.Run("site from environment", func(t *testing.T) {
+		t.Setenv("DD_SITE", "us5.datadoghq.com")
+		cfg := config.NewMock(t)
+		cfg.SetInTest("dd_url", "https://org.mrf.datadoghq.com")
+		assert.Equal(t, prefix+"us5.datadoghq.com./support/flare", GetFlareEndpoint(cfg))
+	})
+	t.Run("regional alias suffix does not override configured site", func(t *testing.T) {
+		cfg := config.NewMock(t)
+		cfg.SetInTest("dd_url", "https://org.mrf.us3.datadoghq.com")
+		cfg.SetInTest("site", "us5.datadoghq.com")
+		assert.Equal(t, prefix+"us5.datadoghq.com./support/flare", GetFlareEndpoint(cfg))
+	})
+}
+
+func TestSendToRejectsDDRAliasWithoutValidSite(t *testing.T) {
+	t.Setenv("DD_SITE", "")
+	for _, site := range []string{"", "example.com", "app.datadoghq.com", "https://us3.datadoghq.com"} {
+		t.Run(site, func(t *testing.T) {
+			var requestReceived atomic.Bool
+			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				requestReceived.Store(true)
+				w.WriteHeader(http.StatusBadGateway)
+			}))
+			defer proxy.Close()
+			cfg := config.NewMock(t)
+			cfg.SetInTest("proxy.https", proxy.URL)
+			if site != "" {
+				cfg.SetInTest("site", site)
+			}
+			_, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", "https://org.mrf.datadoghq.com", FlareSource{})
+			require.ErrorContains(t, err, "site (DD_SITE)")
+			assert.False(t, requestReceived.Load(), "configuration errors must stop the request before credentials or archives are sent")
+		})
+	}
+}
+
+func TestSendToDDRAliasUsesConfiguredSite(t *testing.T) {
+	v, err := version.Agent()
+	require.NoError(t, err)
+	for _, site := range []string{"us3.datadoghq.com", "us5.datadoghq.com"} {
+		t.Run(site, func(t *testing.T) {
+			targets := make(chan string, 1)
+			proxy := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				targets <- r.Host
+				w.WriteHeader(http.StatusBadGateway)
+			}))
+			defer proxy.Close()
+			cfg := config.NewMock(t)
+			cfg.SetInTest("site", site)
+			cfg.SetInTest("proxy.https", proxy.URL)
+			_, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", "https://org.mrf.datadoghq.com", FlareSource{})
+			require.Error(t, err, "the local proxy deliberately rejects the connection")
+			select {
+			case target := <-targets:
+				assert.Equal(t, fmt.Sprintf("%d-%d-%d-flare.agent.%s.:443", v.Major, v.Minor, v.Patch, site), target)
+			default:
+				t.Fatal("the request did not reach the local proxy")
+			}
+		})
+	}
 }
 
 func TestFlareHasRightForm(t *testing.T) {
@@ -286,39 +446,25 @@ func TestSendToRetryLogic(t *testing.T) {
 			expectSuccess:    true,
 		},
 		{
-			name: "success on second attempt after 500 error",
-			serverBehavior: func(attempt int) (int, string, time.Duration) {
-				if attempt == 1 {
-					return 500, "Internal Server Error", 0
-				}
-				return 200, `{"case_id": 1234, "message": "Your logs were successfully uploaded"}`, 0
-			},
-			expectedAttempts: 2,
-			expectSuccess:    true,
-		},
-		{
-			name: "success on third attempt after 502 and 503 errors",
-			serverBehavior: func(attempt int) (int, string, time.Duration) {
-				switch attempt {
-				case 1:
-					return 502, "Bad Gateway", 0
-				case 2:
-					return 503, "Service Unavailable", 0
-				default:
-					return 200, `{"case_id": 1234, "message": "Your logs were successfully uploaded"}`, 0
-				}
-			},
-			expectedAttempts: 3,
-			expectSuccess:    true,
-		},
-		{
-			name: "exhausted retries with 5xx errors",
+			// A 5xx means the server received the request and may already have created a
+			// ticket; the flare POST is not idempotent, so it must not be retried.
+			name: "no retry on 500 error (non-idempotent create)",
 			serverBehavior: func(_ int) (int, string, time.Duration) {
 				return 500, "Internal Server Error", 0
 			},
-			expectedAttempts: 3,
+			expectedAttempts: 1,
 			expectSuccess:    false,
-			expectedError:    "failed to send flare after 3 attempts",
+			expectedError:    "HTTP 500",
+		},
+		{
+			// A 5xx body embedding a dial error must not be treated as a transport failure.
+			name: "no retry on 5xx whose body mentions a dial error",
+			serverBehavior: func(_ int) (int, string, time.Duration) {
+				return 503, "upstream connect error or disconnect/reset before headers: connection refused", 0
+			},
+			expectedAttempts: 1,
+			expectSuccess:    false,
+			expectedError:    "HTTP 503",
 		},
 		{
 			name: "non-retryable 400 error",
@@ -415,70 +561,75 @@ func TestSendToRetryLogic(t *testing.T) {
 }
 func TestIsRetryableFlareError(t *testing.T) {
 	testCases := []struct {
-		name      string
-		err       error
-		errorCode int
-		expected  bool
+		name     string
+		err      error
+		expected bool
 	}{
 		{
-			name:      "nil error",
-			err:       nil,
-			errorCode: 200,
-			expected:  false,
+			name:     "nil error",
+			err:      nil,
+			expected: false,
 		},
 		{
-			name:      "timeout error",
-			err:       errors.New("context deadline exceeded (Client.Timeout exceeded while awaiting headers)"),
-			errorCode: 408,
-			expected:  true,
+			// url.Error wrapping, as http.Client returns it.
+			name:     "dial connection refused",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("connect: connection refused")}},
+			expected: true,
 		},
 		{
-			name:      "connection refused error",
-			err:       errors.New("dial tcp 127.0.0.1:8080: connection refused"),
-			errorCode: 503,
-			expected:  true,
+			name:     "dial network unreachable",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("network unreachable")},
+			expected: true,
 		},
 		{
-			name:      "connection reset error",
-			err:       errors.New("read tcp 127.0.0.1:8080: connection reset by peer"),
-			errorCode: 500,
-			expected:  true,
+			// Connect-phase timeout: connection never established.
+			name:     "dial timeout",
+			err:      &net.OpError{Op: "dial", Net: "tcp", Err: errors.New("i/o timeout")},
+			expected: true,
 		},
 		{
-			name:      "network unreachable error",
-			err:       errors.New("dial tcp 192.168.1.1:8080: network unreachable"),
-			errorCode: 504,
-			expected:  true,
+			name:     "dns i/o timeout",
+			err:      &net.DNSError{Err: "i/o timeout", Name: "example.com", IsTimeout: true},
+			expected: true,
 		},
 		{
-			name:      "temporary failure error",
-			err:       errors.New("temporary failure in name resolution"),
-			errorCode: 500,
-			expected:  true,
+			name:     "dns server misbehaving",
+			err:      &net.DNSError{Err: "server misbehaving", Name: "example.com", IsTemporary: true},
+			expected: true,
 		},
 		{
-			name:      "non-retryable error",
-			err:       errors.New("invalid request format"),
-			errorCode: 400,
-			expected:  false,
+			name:     "dns no such host",
+			err:      &net.DNSError{Err: "no such host", Name: "example.com", IsNotFound: true},
+			expected: true,
 		},
 		{
-			name:      "authentication error",
-			err:       errors.New("authentication failed"),
-			errorCode: 401,
-			expected:  false,
+			// TLS handshake failed after dial succeeded; no request bytes were written.
+			name:     "tls handshake timeout",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("net/http: TLS handshake timeout")},
+			expected: true,
 		},
 		{
-			name:      "validation error",
-			err:       errors.New("validation failed"),
-			errorCode: 422,
-			expected:  false,
+			// Request was sent, so it may have been processed.
+			name:     "read connection reset not retryable",
+			err:      &net.OpError{Op: "read", Net: "tcp", Err: errors.New("connection reset by peer")},
+			expected: false,
+		},
+		{
+			// Can fire after the request was sent.
+			name:     "client timeout not retryable",
+			err:      &url.Error{Op: "Post", URL: "https://example.com", Err: errors.New("context deadline exceeded (Client.Timeout exceeded while awaiting headers)")},
+			expected: false,
+		},
+		{
+			name:     "generic error not retryable",
+			err:      errors.New("invalid request format"),
+			expected: false,
 		},
 	}
 
 	for _, tc := range testCases {
 		t.Run(tc.name, func(t *testing.T) {
-			result := isRetryableFlareError(tc.err, tc.errorCode)
+			result := isRetryableFlareError(tc.err)
 			assert.Equal(t, tc.expected, result, "isRetryableFlareError result mismatch")
 		})
 	}
@@ -487,43 +638,7 @@ func TestIsRetryableFlareError(t *testing.T) {
 func TestSendToWithNetworkErrors(t *testing.T) {
 	cfg := config.NewMock(t)
 
-	t.Run("retry on 500 errors then succeed", func(t *testing.T) {
-		attemptCount := 0
-
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.Method == "HEAD" && r.URL.Path == "/support/flare/12345" {
-				w.Header().Set("Location", "/post-target")
-				w.WriteHeader(307)
-				return
-			}
-			if r.Method == "HEAD" && r.URL.Path == "/post-target" {
-				w.WriteHeader(200)
-				return
-			}
-			if r.Method == "POST" && r.URL.Path == "/post-target" {
-				attemptCount++
-
-				if attemptCount <= 2 {
-					w.WriteHeader(500)
-					w.Write([]byte("Internal Server Error"))
-					return
-				}
-
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(200)
-				w.Write([]byte(`{"case_id": 12345, "message": "Your logs were successfully uploaded"}`))
-			}
-		}))
-		defer server.Close()
-
-		result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
-
-		assert.NoError(t, err, "Expected success after retries")
-		assert.Contains(t, result, "Your logs were successfully uploaded", "Expected success message")
-		assert.Equal(t, 3, attemptCount, "Expected 3 attempts before success")
-	})
-
-	t.Run("retry exhausted after max attempts", func(t *testing.T) {
+	t.Run("no retry on 500 error (non-idempotent create)", func(t *testing.T) {
 		attemptCount := 0
 
 		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -546,9 +661,9 @@ func TestSendToWithNetworkErrors(t *testing.T) {
 
 		result, err := SendTo(cfg, "./testdata/blank.zip", "12345", "test@example.com", "test-api-key", server.URL, FlareSource{})
 
-		assert.Error(t, err, "Expected error after exhausting retries")
-		assert.Contains(t, err.Error(), "failed to send flare after", "Expected retry exhaustion error")
-		assert.Equal(t, 3, attemptCount, "Expected 3 attempts (maxTries)")
+		assert.Error(t, err, "Expected error")
+		assert.Contains(t, err.Error(), "HTTP 500", "Expected the 500 to surface directly, not a retry-exhaustion error")
+		assert.Equal(t, 1, attemptCount, "A 5xx must not be retried: the ticket may already have been created")
 		assert.Empty(t, result, "Expected empty result on error")
 	})
 

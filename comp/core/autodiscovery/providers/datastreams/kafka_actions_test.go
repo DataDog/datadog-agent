@@ -12,7 +12,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	yaml "go.yaml.in/yaml/v2"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -129,30 +129,26 @@ func TestActionsController(t *testing.T) {
 	assert.Equal(t, kafkaActionsIntegrationName, scheduledCfg.Name)
 	require.Len(t, scheduledCfg.Instances, 1)
 
-	// Verify the instance has auth merged in
-	var instance map[string]any
-	err = yaml.Unmarshal(scheduledCfg.Instances[0], &instance)
-	require.NoError(t, err)
-
-	// Check that auth fields are present
-	assert.Equal(t, "localhost:9092", instance["kafka_connect_str"])
-	assert.Equal(t, "PLAIN", instance["sasl_mechanism"])
-	assert.Equal(t, "user", instance["sasl_plain_username"])
-	assert.Equal(t, "pass", instance["sasl_plain_password"])
-	assert.Equal(t, "SASL_SSL", instance["security_protocol"])
-
-	// Check that schema registry fields are copied
-	assert.Equal(t, "http://localhost:8081", instance["schema_registry_url"])
-	assert.Equal(t, "sr-user", instance["schema_registry_username"])
-	assert.Equal(t, "sr-pass", instance["schema_registry_password"])
-
-	assert.Equal(t, true, instance["run_once"])
-
-	// Check that remote_config_id was injected
-	assert.Equal(t, "test_remote_config_id", instance["remote_config_id"])
-
-	// Check that actions are present
-	assert.NotNil(t, instance["read_messages"])
+	// Compared as text so any change in serialization fails here, including
+	// style the Python check would tolerate. consumer_groups and topics are
+	// absent because they are not on the auth allowlist.
+	expected := `kafka_connect_str: localhost:9092
+read_messages:
+    n_messages: 10
+    offset: 100
+    partition: 0
+    topic: test-topic
+remote_config_id: test_remote_config_id
+run_once: true
+sasl_mechanism: PLAIN
+sasl_plain_password: pass
+sasl_plain_username: user
+schema_registry_password: sr-pass
+schema_registry_url: http://localhost:8081
+schema_registry_username: sr-user
+security_protocol: SASL_SSL
+`
+	assert.Equal(t, expected, string(scheduledCfg.Instances[0]))
 }
 
 func TestActionsControllerNoBootstrapServers(t *testing.T) {
@@ -278,4 +274,78 @@ func TestActionsControllerNoMatchingKafkaConsumer(t *testing.T) {
 	// Should fail with error
 	assert.Equal(t, state.ApplyStateError, updateStatus["config_1"].State)
 	assert.Contains(t, updateStatus["config_1"].Error, "kafka_consumer integration")
+}
+
+func TestActionsControllerKeepsNumericTypes(t *testing.T) {
+	kafkaConsumerCfg := integration.Config{
+		Name:       kafkaConsumerIntegrationName,
+		Instances:  []integration.Data{integration.Data(kafkaConsumerConfig)},
+		InitConfig: integration.Data{},
+	}
+
+	c := &actionsController{
+		ac:            getMockedAutodiscoveryActions(t, []integration.Config{kafkaConsumerCfg}),
+		rcclient:      &mockedRcClient{},
+		configChanges: make(chan integration.ConfigChanges, 10),
+	}
+
+	// start_offset is above 2^53 so a float64 round-trip would lose precision.
+	actionsJSON := []byte(`{
+		"read_messages": {
+			"topic": "test-topic",
+			"partition": -1,
+			"start_offset": 9007199254740993,
+			"n_messages_retrieved": 10,
+			"max_scanned_messages": 1000,
+			"timeout_ms": 5000,
+			"ratio": 0.5
+		},
+		"update_consumer_group_offsets": {
+			"consumer_group": "test-group",
+			"offsets": [{"topic": "test-topic", "partition": 3, "offset": 12345}]
+		}
+	}`)
+
+	serializedConfig, err := json.Marshal(kafkaActionsConfig{
+		Actions:          actionsJSON,
+		BootstrapServers: "localhost:9092",
+	})
+	require.NoError(t, err)
+
+	rcUpdate := map[string]state.RawConfig{
+		"config_1": {Config: serializedConfig, Metadata: state.Metadata{ID: "numeric_types_test_id"}},
+	}
+	updateStatus := make(map[string]state.ApplyStatus)
+	c.update(rcUpdate, func(path string, status state.ApplyStatus) {
+		updateStatus[path] = status
+	})
+	require.Equal(t, state.ApplyStateAcknowledged, updateStatus["config_1"].State)
+
+	cfg := <-c.Stream(context.Background())
+	require.Len(t, cfg.Schedule, 1)
+	require.Len(t, cfg.Schedule[0].Instances, 1)
+
+	var instance map[string]any
+	require.NoError(t, yaml.Unmarshal(cfg.Schedule[0].Instances[0], &instance))
+
+	readMessages, ok := instance["read_messages"].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "test-topic", readMessages["topic"])
+	assert.Equal(t, -1, readMessages["partition"])
+	assert.Equal(t, 9007199254740993, readMessages["start_offset"])
+	assert.Equal(t, 10, readMessages["n_messages_retrieved"])
+	assert.Equal(t, 1000, readMessages["max_scanned_messages"])
+	assert.Equal(t, 5000, readMessages["timeout_ms"])
+	assert.Equal(t, 0.5, readMessages["ratio"])
+
+	updateOffsets, ok := instance["update_consumer_group_offsets"].(map[string]any)
+	require.True(t, ok)
+	offsets, ok := updateOffsets["offsets"].([]any)
+	require.True(t, ok)
+	require.Len(t, offsets, 1)
+	offset, ok := offsets[0].(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "test-topic", offset["topic"])
+	assert.Equal(t, 3, offset["partition"])
+	assert.Equal(t, 12345, offset["offset"])
 }

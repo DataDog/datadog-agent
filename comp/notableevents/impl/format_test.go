@@ -456,3 +456,134 @@ func TestFormatMsiExitCode(t *testing.T) {
 		})
 	}
 }
+
+func TestFormatCriticalThermalShutdownPayload(t *testing.T) {
+	tests := []struct {
+		name            string
+		eventXML        string
+		defaultMessage  string
+		expectedMessage string
+	}{
+		{
+			name: "extracts fields from named EventData",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Microsoft-Windows-Kernel-Power"/>
+					<EventID>86</EventID>
+				</System>
+				<EventData>
+					<Data Name="ThermalZoneDeviceInstanceLength">22</Data>
+					<Data Name="ThermalZoneDeviceInstance">ACPI\ThermalZone\THRM</Data>
+					<Data Name="ShutdownTime">2026-08-03T13:23:45.000000Z</Data>
+					<Data Name="_CRT">373</Data>
+				</EventData>
+			</Event>`,
+			defaultMessage:  "The system was shut down due to a critical thermal event.",
+			expectedMessage: "The system was shut down due to a critical thermal event.\nShutdown Time = 2026-08-03T13:23:45.000000Z\nACPI Thermal Zone = ACPI\\ThermalZone\\THRM\n_CRT = 99.9°C",
+		},
+		{
+			name: "non-numeric _CRT falls back to raw Kelvin value",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Microsoft-Windows-Kernel-Power"/>
+					<EventID>86</EventID>
+				</System>
+				<EventData>
+					<Data Name="ThermalZoneDeviceInstance">ACPI\ThermalZone\THRM</Data>
+					<Data Name="ShutdownTime">2026-08-03T13:23:45.000000Z</Data>
+					<Data Name="_CRT">N/A</Data>
+				</EventData>
+			</Event>`,
+			defaultMessage:  "The system was shut down due to a critical thermal event.",
+			expectedMessage: "The system was shut down due to a critical thermal event.\nShutdown Time = 2026-08-03T13:23:45.000000Z\nACPI Thermal Zone = ACPI\\ThermalZone\\THRM\n_CRT = N/AK",
+		},
+		{
+			name: "empty EventData keeps default message",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Microsoft-Windows-Kernel-Power"/>
+					<EventID>86</EventID>
+				</System>
+				<EventData></EventData>
+			</Event>`,
+			defaultMessage:  "The system was shut down due to a critical thermal event.",
+			expectedMessage: "The system was shut down due to a critical thermal event.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eventMap, err := parseEventXML([]byte(tt.eventXML))
+			require.NoError(t, err)
+
+			payload := &eventPayload{Message: tt.defaultMessage}
+			formatCriticalThermalShutdownPayload(payload, eventMap.Map)
+			assert.Equal(t, tt.expectedMessage, payload.Message)
+		})
+	}
+}
+
+func TestFormatCriticalThermalHibernatePayload(t *testing.T) {
+	tests := []struct {
+		name            string
+		eventXML        string
+		defaultMessage  string
+		expectedMessage string
+	}{
+		{
+			name: "extracts fields from named EventData",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Microsoft-Windows-Kernel-Power"/>
+					<EventID>88</EventID>
+				</System>
+				<EventData>
+					<Data Name="ThermalZoneDeviceInstanceLength">22</Data>
+					<Data Name="ThermalZoneDeviceInstance">ACPI\ThermalZone\THRM</Data>
+					<Data Name="HibernateTime">2026-08-03T13:23:45.000000Z</Data>
+					<Data Name="_HOT">353</Data>
+				</EventData>
+			</Event>`,
+			defaultMessage:  "The system was hibernated due to a critical thermal event.",
+			expectedMessage: "The system was hibernated due to a critical thermal event.\nHibernate Time = 2026-08-03T13:23:45.000000Z\nACPI Thermal Zone = ACPI\\ThermalZone\\THRM\n_HOT = 79.9°C",
+		},
+		{
+			name: "empty EventData keeps default message",
+			eventXML: `<Event xmlns="http://schemas.microsoft.com/win/2004/08/events/event">
+				<System>
+					<Provider Name="Microsoft-Windows-Kernel-Power"/>
+					<EventID>88</EventID>
+				</System>
+				<EventData></EventData>
+			</Event>`,
+			defaultMessage:  "The system was hibernated due to a critical thermal event.",
+			expectedMessage: "The system was hibernated due to a critical thermal event.",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			eventMap, err := parseEventXML([]byte(tt.eventXML))
+			require.NoError(t, err)
+
+			payload := &eventPayload{Message: tt.defaultMessage}
+			formatCriticalThermalHibernatePayload(payload, eventMap.Map)
+			assert.Equal(t, tt.expectedMessage, payload.Message)
+		})
+	}
+}
+
+func TestFormatKelvinAsCelsius(t *testing.T) {
+	tests := []struct {
+		name     string
+		kelvin   string
+		expected string
+	}{
+		{name: "typical critical threshold", kelvin: "373", expected: "99.9°C"},
+		{name: "typical hot threshold", kelvin: "353", expected: "79.9°C"},
+		{name: "non-numeric falls back to raw value with K suffix", kelvin: "N/A", expected: "N/AK"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, formatKelvinAsCelsius(tt.kelvin))
+		})
+	}
+}

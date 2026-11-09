@@ -1,0 +1,4 @@
+health_platform:
+  enabled: true
+  forwarder:
+    interval: 5s

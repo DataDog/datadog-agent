@@ -17,10 +17,13 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
+	"time"
 
 	patch "github.com/evanphx/json-patch/v5"
-	"go.yaml.in/yaml/v2"
+	"github.com/itchyny/gojq"
+	"go.yaml.in/yaml/v2" // not v3 due to lenient duplicate mapping-key handling
 )
 
 // FileOperationType is the type of operation to perform on the config.
@@ -31,6 +34,8 @@ const (
 	FileOperationPatch FileOperationType = "patch"
 	// FileOperationMergePatch merges the config at the given path with the given JSON merge patch (RFC 7396).
 	FileOperationMergePatch FileOperationType = "merge-patch"
+	// FileOperationJQ transforms the config at the given path by running an arbitrary jq transform over it.
+	FileOperationJQ FileOperationType = "jq"
 	// FileOperationDelete deletes the config at the given path.
 	FileOperationDelete FileOperationType = "delete"
 	// FileOperationDeleteAll deletes the config at the given path and all its subdirectories.
@@ -44,6 +49,15 @@ const (
 var (
 	// secRegex matches SEC[...] placeholders in config patches
 	secRegex = regexp.MustCompile(`SEC\[.*?\]`)
+	// resRegex matches RES[...] placeholders in config patches
+	resRegex = regexp.MustCompile(`RES\[([^\]"]*)\]`)
+	// resQuotedRegex matches RES[...] placeholders that make up an entire JSON value
+	resQuotedRegex = regexp.MustCompile(`"RES\[([^\]"]*)\]"`)
+)
+
+const (
+	// defaultRestoreFile is the config file RES[...] placeholders read from when no file is given.
+	defaultRestoreFile = "/datadog.yaml"
 )
 
 // Directories is the directories of the config.
@@ -70,7 +84,11 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 		// Build the full key: SEC[key]
 		fullKey := fmt.Sprintf("SEC[%s]", key)
 
-		// Replace in all file operations
+		// Replace in all file operations. Patch and jq Arguments are both raw JSON blobs,
+		// so secrets are substituted with a flat textual replacement that is agnostic to
+		// nesting depth. For jq, secrets live in the arguments rather than the transform
+		// text, so the transform stays a static program and secret values are never spliced
+		// into the jq source.
 		for i := range operations.FileOperations {
 			if bytes.Contains(operations.FileOperations[i].Patch, []byte(fullKey)) {
 				operations.FileOperations[i].Patch = bytes.ReplaceAll(
@@ -79,12 +97,21 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 					[]byte(decryptedValue),
 				)
 			}
+			if bytes.Contains(operations.FileOperations[i].Arguments, []byte(fullKey)) {
+				operations.FileOperations[i].Arguments = bytes.ReplaceAll(
+					operations.FileOperations[i].Arguments,
+					[]byte(fullKey),
+					[]byte(decryptedValue),
+				)
+			}
 		}
 	}
 
-	// Verify all secrets have been replaced
+	// Verify all secrets have been replaced. The transform text is also checked so that a
+	// stray SEC[...] embedded directly in a transform (which is unsupported) fails loudly
+	// rather than reaching gojq unsubstituted.
 	for _, operation := range operations.FileOperations {
-		if secRegex.Match(operation.Patch) {
+		if secRegex.Match(operation.Patch) || secRegex.MatchString(operation.Transform) || secRegex.Match(operation.Arguments) {
 			return errors.New("secrets are not fully replaced, SEC[...] found in the config")
 		}
 	}
@@ -99,6 +126,11 @@ func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 		return err
 	}
 	defer root.Close()
+	// Restores must be resolved before any operation runs so they read the original files.
+	err = replaceRestores(o, root)
+	if err != nil {
+		return fmt.Errorf("could not replace restores: %w", err)
+	}
 	for _, operation := range o.FileOperations {
 		err := operation.apply(ctx, root)
 		if err != nil {
@@ -108,12 +140,123 @@ func (o *Operations) Apply(ctx context.Context, rootPath string) error {
 	return nil
 }
 
+// replaceRestores replaces RES[...] placeholders with values read from the config files
+// under root as they are before any operation is applied.
+//
+// A placeholder is either RES[a.b.c], which reads the dotted key from /datadog.yaml, or
+// RES[/conf.d/x.d/conf.yaml:a.b.c], which reads it from the given config file. A
+// placeholder must make up an entire JSON string ("RES[...]") and is replaced by the
+// original value as JSON, keeping its type; a missing file or key yields null, which removes
+// the key in a merge patch.
+func replaceRestores(operations *Operations, root *os.Root) error {
+	files := make(map[string]map[string]any)
+	lookup := func(ref string) (any, error) {
+		file, key := defaultRestoreFile, ref
+		if strings.HasPrefix(ref, "/") {
+			var ok bool
+			file, key, ok = strings.Cut(ref, ":")
+			if !ok {
+				return nil, fmt.Errorf("invalid restore %q: expected RES[/path/to/file.yaml:key]", ref)
+			}
+		}
+		if key == "" {
+			return nil, fmt.Errorf("invalid restore %q: empty key", ref)
+		}
+		if strings.HasPrefix(file, "/managed") || getConfigFileSpec(file) == nil {
+			return nil, fmt.Errorf("invalid restore %q: reading config file %s is not allowed", ref, file)
+		}
+		content, ok := files[file]
+		if !ok {
+			var err error
+			content, err = readConfigFile(root, file)
+			if err != nil {
+				return nil, err
+			}
+			files[file] = content
+		}
+		var value any = content
+		for _, part := range strings.Split(key, ".") {
+			m, ok := value.(map[string]any)
+			if !ok {
+				return nil, nil
+			}
+			value, ok = m[part]
+			if !ok {
+				return nil, nil
+			}
+		}
+		return value, nil
+	}
+	replace := func(raw []byte) ([]byte, error) {
+		if !resRegex.Match(raw) {
+			return raw, nil
+		}
+		if resRegex.Match(resQuotedRegex.ReplaceAll(raw, nil)) {
+			return nil, errors.New("restores must replace an entire value, RES[...] found inside a value")
+		}
+		var replaceErr error
+		raw = resQuotedRegex.ReplaceAllFunc(raw, func(match []byte) []byte {
+			value, err := lookup(string(resQuotedRegex.FindSubmatch(match)[1]))
+			if err != nil {
+				replaceErr = err
+				return match
+			}
+			encoded, err := json.Marshal(value)
+			if err != nil {
+				replaceErr = err
+				return match
+			}
+			return encoded
+		})
+		if replaceErr != nil {
+			return nil, replaceErr
+		}
+		return raw, nil
+	}
+	for i := range operations.FileOperations {
+		operation := &operations.FileOperations[i]
+		if resRegex.MatchString(operation.Transform) {
+			return errors.New("restores are not supported in jq transforms, use arguments instead")
+		}
+		var err error
+		operation.Patch, err = replace(operation.Patch)
+		if err != nil {
+			return err
+		}
+		operation.Arguments, err = replace(operation.Arguments)
+		if err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// readConfigFile reads and parses the config file at the given path under root.
+// A missing file is treated as empty.
+func readConfigFile(root *os.Root, file string) (map[string]any, error) {
+	contentBytes, err := root.ReadFile(strings.TrimPrefix(file, "/"))
+	if os.IsNotExist(err) {
+		return map[string]any{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("could not read config file %q: %w", file, err)
+	}
+	content := make(map[string]any)
+	err = yaml.Unmarshal(contentBytes, &content)
+	if err != nil {
+		return nil, fmt.Errorf("could not parse config file %q as YAML (fix the syntax error reported below and retry): %w", file, err)
+	}
+	return convertYAML2UnmarshalToJSONMarshallable(content).(map[string]any), nil
+}
+
 // FileOperation is the operation to perform on a config.
 type FileOperation struct {
 	FileOperationType FileOperationType `json:"file_op"`
 	FilePath          string            `json:"file_path"`
 	DestinationPath   string            `json:"destination_path,omitempty"`
 	Patch             json.RawMessage   `json:"patch,omitempty"`
+	Transform         string            `json:"transform,omitempty"`
+	Arguments         json.RawMessage   `json:"arguments,omitempty"`
 }
 
 func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
@@ -142,33 +285,33 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 		previous := make(map[string]any)
 		err = yaml.Unmarshal(previousYAMLBytes, &previous)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not parse config file %q as YAML (fix the syntax error reported below and retry): %w", a.FilePath, err)
 		}
 		previousJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(previous))
 		if err != nil {
-			return err
+			return fmt.Errorf("could not serialize config file %q: %w", a.FilePath, err)
 		}
 		var newJSONBytes []byte
 		switch a.FileOperationType {
 		case FileOperationPatch:
 			patch, err := patch.DecodePatch(a.Patch)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not decode patch for config file %q: %w", a.FilePath, err)
 			}
 			newJSONBytes, err = patch.Apply(previousJSONBytes)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not apply patch to config file %q: %w", a.FilePath, err)
 			}
 		case FileOperationMergePatch:
 			newJSONBytes, err = patch.MergePatch(previousJSONBytes, a.Patch)
 			if err != nil {
-				return err
+				return fmt.Errorf("could not apply merge patch to config file %q: %w", a.FilePath, err)
 			}
 		}
 		var current map[string]any
 		err = yaml.Unmarshal(newJSONBytes, &current)
 		if err != nil {
-			return err
+			return fmt.Errorf("could not parse patched config for file %q: %w", a.FilePath, err)
 		}
 		currentYAMLBytes, err := yaml.Marshal(current)
 		if err != nil {
@@ -183,6 +326,96 @@ func (a *FileOperation) apply(ctx context.Context, root *os.Root) error {
 			return err
 		}
 		_, err = file.Write(currentYAMLBytes)
+		if err != nil {
+			return err
+		}
+		// Set proper ownership and permissions for the file
+		if err := setFileOwnershipAndPermissions(ctx, root, path, spec); err != nil {
+			return err
+		}
+		return nil
+	case FileOperationJQ:
+		err := ensureDir(root, path)
+		if err != nil {
+			return err
+		}
+		file, err := root.OpenFile(path, os.O_RDWR|os.O_CREATE, 0640)
+		if err != nil {
+			return err
+		}
+		defer file.Close()
+		previousYAMLBytes, err := io.ReadAll(file)
+		if err != nil {
+			return err
+		}
+		previous := make(map[string]any)
+		err = yaml.Unmarshal(previousYAMLBytes, &previous)
+		if err != nil {
+			return err
+		}
+		parsed, err := gojq.Parse(a.Transform)
+		if err != nil {
+			return fmt.Errorf("failed to parse jq transform: %w", err)
+		}
+		// Arguments are exposed to the transform as named jq variables ($name), keeping
+		// the transform a static program with its values supplied separately. gojq matches
+		// variable names to values by position, so iterate the sorted keys for both.
+		arguments := make(map[string]any)
+		if len(a.Arguments) > 0 {
+			if err := json.Unmarshal(a.Arguments, &arguments); err != nil {
+				return fmt.Errorf("failed to parse jq arguments: %w", err)
+			}
+		}
+		argNames := make([]string, 0, len(arguments))
+		for name := range arguments {
+			argNames = append(argNames, name)
+		}
+		sort.Strings(argNames)
+		variables := make([]string, len(argNames))
+		argValues := make([]any, len(argNames))
+		for i, name := range argNames {
+			variables[i] = "$" + name
+			argValues[i] = arguments[name]
+		}
+		code, err := gojq.Compile(parsed, gojq.WithVariables(variables))
+		if err != nil {
+			return fmt.Errorf("failed to compile jq transform: %w", err)
+		}
+		// Run the transform over the normalized config. It may yield any number of
+		// outputs; each one is written as its own YAML document so arbitrary
+		// transformations (including those producing multiple documents) are supported.
+		var buf bytes.Buffer
+		encoder := yaml.NewEncoder(&buf)
+		iter := code.RunWithContext(ctx, convertYAML2UnmarshalToJSONMarshallable(previous), argValues...)
+		outputs := 0
+		for {
+			v, ok := iter.Next()
+			if !ok {
+				break
+			}
+			if err, ok := v.(error); ok {
+				return fmt.Errorf("failed to run jq transform: %w", err)
+			}
+			if err := encoder.Encode(v); err != nil {
+				return err
+			}
+			outputs++
+		}
+		if err := encoder.Close(); err != nil {
+			return err
+		}
+		if outputs == 0 {
+			return fmt.Errorf("jq transform %q produced no output", a.Transform)
+		}
+		err = file.Truncate(0)
+		if err != nil {
+			return err
+		}
+		_, err = file.Seek(0, io.SeekStart)
+		if err != nil {
+			return err
+		}
+		_, err = file.Write(buf.Bytes())
 		if err != nil {
 			return err
 		}
@@ -290,6 +523,7 @@ var (
 		{pattern: "/application_monitoring.yaml", owner: "root", group: "root", mode: 0644},
 		{pattern: "/conf.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 		{pattern: "/conf.d/*.d/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
+		{pattern: "/conf.d/snmp.d/credentials/*.yaml", owner: "dd-agent", group: "dd-agent", mode: 0640},
 	}
 
 	legacyPathPrefix = filepath.Join("managed", "datadog-agent", "stable")
@@ -419,11 +653,11 @@ func buildOperationsFromLegacyConfigFile(fullFilePath, fullRootPath, managedDirS
 	var stableDatadogJSON map[string]any
 	err = yaml.Unmarshal(stableDatadogYAML, &stableDatadogJSON)
 	if err != nil {
-		return FileOperation{}, fmt.Errorf("failed to unmarshal stable datadog.yaml: %w", err)
+		return FileOperation{}, fmt.Errorf("could not parse config file %q as YAML (fix the syntax error reported below and retry): %w", fullFilePath, err)
 	}
 	stableDatadogJSONBytes, err := json.Marshal(convertYAML2UnmarshalToJSONMarshallable(stableDatadogJSON))
 	if err != nil {
-		return FileOperation{}, fmt.Errorf("failed to marshal stable datadog.yaml: %w", err)
+		return FileOperation{}, fmt.Errorf("could not serialize config file %q: %w", fullFilePath, err)
 	}
 
 	managedFilePath, err := filepath.Rel(fullRootPath, fullFilePath)
@@ -478,6 +712,10 @@ func convertYAML2UnmarshalToJSONMarshallable(i any) any {
 			m[i] = convertYAML2UnmarshalToJSONMarshallable(v)
 		}
 		return m
+	case time.Time:
+		// yaml.v2 unmarshals timestamps to time.Time, which gojq cannot handle.
+		// Use RFC3339Nano to preserve sub-second precision, matching json.Marshal.
+		return x.Format(time.RFC3339Nano)
 	}
 	return i
 }

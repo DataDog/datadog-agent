@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package ebpf
 
@@ -217,6 +217,9 @@ func (r *rcBTFLoader) processEntry(entry *btfEntry) (*returnBTF, error) {
 	relPath := relativeBTFTarballPath(r.platform, r.platformVersion, r.kernelVersion)
 	extractDir := filepath.Join(filepath.Dir(relPath), r.kernelVersion)
 	absExtractDir := filepath.Join(r.b.btfOutputDir, extractDir)
+	if err := SecureCacheDir(absExtractDir); err != nil {
+		return nil, fmt.Errorf("%w: %w", errBTFExtract, err)
+	}
 	if err := archive.TarXZExtractAllReader(btfTarballBuffer, absExtractDir); err != nil {
 		return nil, fmt.Errorf("%w: %s", errBTFExtract, err)
 	}

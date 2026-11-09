@@ -4,13 +4,14 @@
 # Copyright 2016-present Datadog, Inc.
 
 require './lib/ostools.rb'
+require './lib/fips.rb'
 require 'pathname'
 
 name 'installer'
 
 source path: '..',
        options: {
-         exclude: ["**/.cache/**/*", "**/testdata/**/*"],
+         exclude: ["**/.cache/**/*", "**/testdata/**/*", "**/.git/fsmonitor--daemon.ipc"],
        }
 relative_path 'src/github.com/DataDog/datadog-agent'
 
@@ -39,34 +40,21 @@ build do
     env["GOMODCACHE"] = gomodcache.to_path
   end
 
-  bazel_flags = "--//:install_dir=#{install_dir}"
+  fips_args = fips_mode? ? "--fips-backend=msgo" : ""
 
   if linux_target?
-    command "invoke installer.build --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "invoke installer.build #{fips_args} --no-cgo --run-path=/opt/datadog-packages/run --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     mkdir "#{install_dir}/bin"
     copy 'bin/installer', "#{install_dir}/bin/"
 
-    # Build both packages and dump them where gitlab will upload them.
-    command_on_repo_root "bazelisk build #{bazel_flags} //packages/installer/linux:whole_distro_tar_deb", env: env, :live_stream => Omnibus.logger.live_stream(:info)
-    # There are no convenience symlinks, so we need to do some path manipulations to get the absolute path.
-    command_on_repo_root "bazelisk cquery #{bazel_flags} --output=files //packages/installer/linux:whole_distro_tar_deb | sed -e 's@bazel-out/@@' >/tmp/installer_linux_tar_deb_file.txt"
-    command_on_repo_root "tar tvf $(bazelisk info output_path)/$(cat /tmp/installer_linux_tar_deb_file.txt)", :live_stream => Omnibus.logger.live_stream(:info)
-
-    # Copy both the .deb and .rpm out to artifact outputs
-    # In the package job, we'll compare these to the omnibus built packages and report the diffs
-    # When the diffs go away, we delete the package job and just use this one.
-    if ENV["OMNIBUS_PACKAGE_DIR"]
-      omnibus_package_dir = ENV["OMNIBUS_PACKAGE_DIR"]
-    elsif ENV["CI_PROJECT_DIR"]
-      ci_project_dir = ENV["CI_PROJECT_DIR"]
-      omnibus_package_dir = "#{ci_project_dir}/omnibus/pkg"
-    end
-    if omnibus_package_dir
-      command_on_repo_root "bazelisk run #{bazel_flags} -- //packages/installer/linux:copy_out --destdir=#{omnibus_package_dir}",
-        :live_stream => Omnibus.logger.live_stream(:info)
+    if fips_mode?
+      # Verify FIPS build tags took effect (build succeeding is not sufficient). See lib/fips.rb.
+      block do
+        fips_check_binary_for_expected_symbol(File.join(install_dir, "bin", "installer", "installer"))
+      end
     end
   elsif windows_target?
-    command "dda inv -- -e installer.build --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
+    command "dda inv -- -e installer.build #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
     copy 'bin/installer/installer.exe', "#{install_dir}/datadog-installer.exe"
     copy 'bin/installer/installer.exe.pdb', "#{install_dir}/datadog-installer.exe.pdb"
   end

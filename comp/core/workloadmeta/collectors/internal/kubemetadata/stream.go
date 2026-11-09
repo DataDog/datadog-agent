@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -22,6 +23,7 @@ import (
 	grpcmeta "google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
+	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgapiutil "github.com/DataDog/datadog-agent/pkg/api/util"
@@ -29,6 +31,7 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	grpcutil "github.com/DataDog/datadog-agent/pkg/util/grpc"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -198,6 +201,22 @@ func (p *streamingProvider) handleWmetaPodEvents(bundle workloadmeta.EventBundle
 func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods map[string]string) {
 	var events []workloadmeta.CollectorEvent
 
+	if len(update.updatedKueueQueues) > 0 {
+		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
+	}
+
+	if len(update.updatedKueueResourceFlavors) > 0 {
+		events = append(events, p.buildKueueResourceFlavorEvents(update.updatedKueueResourceFlavors)...)
+	}
+
+	if len(update.updatedKueueWorkloads) > 0 {
+		events = append(events, p.buildKueueWorkloadEvents(update.updatedKueueWorkloads)...)
+	}
+
+	if len(update.updatedKAIPodGroups) > 0 {
+		events = append(events, p.buildKAIPodGroupEvents(update.updatedKAIPodGroups)...)
+	}
+
 	if update.updateIsFullState {
 		for _, uid := range seenPods {
 			if podEvent, ok := p.buildPodEventFromUID(uid); ok {
@@ -217,13 +236,63 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 
 		// Re-enrich pods in updated namespaces so they pick up the new
 		// namespace labels/annotations.
+		reenrichedPods := make(map[string]struct{})
 		for ns := range update.updatedNamespaces {
 			for namespacedName, uid := range seenPods {
 				if strings.HasPrefix(namespacedName, ns+"/") {
 					if podEvent, ok := p.buildPodEventFromUID(uid); ok {
 						events = append(events, podEvent)
+						reenrichedPods[uid] = struct{}{}
 					}
 				}
+			}
+		}
+
+		// Kueue Workload and ResourceFlavor updates can change tags for any
+		// seen pod that joins to those entities. Only re-enrich pods that
+		// actually join to an updated Workload (directly, or transitively
+		// through a ResourceFlavor referenced by their Workload). Pods that
+		// don't join to any Kueue Workload (the common case when Kueue is not
+		// in use) are skipped, so this loop is a no-op then.
+		if len(update.updatedKueueWorkloads) > 0 || len(update.updatedKueueResourceFlavors) > 0 {
+			for _, uid := range seenPods {
+				// this pod is already being re-enriched for a previous reason, so skip
+				if _, seen := reenrichedPods[uid]; seen {
+					continue
+				}
+				pod, err := p.wmeta.GetKubernetesPod(uid)
+				if err != nil {
+					continue
+				}
+				if !p.podAffectedByKueueUpdate(pod, update) {
+					continue
+				}
+				events = append(events, p.buildPodEvent(pod))
+				reenrichedPods[uid] = struct{}{}
+			}
+		}
+
+		// Autoscaler updates change the autoscaler kinds of the pods of the
+		// workloads they target (before and after the update)
+		if len(update.updatedAutoscalerTargets) > 0 {
+			for _, uid := range seenPods {
+				// this pod is already being re-enriched for a previous reason, so skip
+				if _, seen := reenrichedPods[uid]; seen {
+					continue
+				}
+				pod, err := p.wmeta.GetKubernetesPod(uid)
+				if err != nil {
+					continue
+				}
+				target, ok := pod.AutoscalerTarget()
+				if !ok {
+					continue
+				}
+				if _, updated := update.updatedAutoscalerTargets[target]; !updated {
+					continue
+				}
+				events = append(events, p.buildPodEvent(pod))
+				reenrichedPods[uid] = struct{}{}
 			}
 		}
 	}
@@ -243,6 +312,11 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 
 	nsLabels, nsAnnotations := p.getNamespaceMetadata(pod.Namespace)
 
+	var autoscalerKinds []workloadmeta.AutoscalerKind
+	if target, ok := pod.AutoscalerTarget(); ok {
+		autoscalerKinds = p.dcaStream.getAutoscalerKinds(target)
+	}
+
 	return workloadmeta.CollectorEvent{
 		Source: workloadmeta.SourceClusterOrchestrator,
 		Type:   workloadmeta.EventTypeSet,
@@ -257,6 +331,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 			KubeServices:         services,
 			NamespaceLabels:      nsLabels,
 			NamespaceAnnotations: nsAnnotations,
+			AutoscalerKinds:      autoscalerKinds,
 		},
 	}
 }
@@ -270,6 +345,55 @@ func (p *streamingProvider) buildPodEventFromUID(uid string) (workloadmeta.Colle
 	return p.buildPodEvent(pod), true
 }
 
+// podAffectedByKueueUpdate reports whether the given pod joins to a Kueue
+// Workload that was updated in this stream update, either directly or
+// transitively through a ResourceFlavor referenced by that Workload's pod set
+// assignments. Pods that don't join to any Kueue Workload are never affected.
+func (p *streamingProvider) podAffectedByKueueUpdate(pod *workloadmeta.KubernetesPod, update streamUpdate) bool {
+	workloadID := podKueueWorkloadID(pod)
+	if workloadID == "" {
+		return false
+	}
+
+	if _, ok := update.updatedKueueWorkloads[workloadID]; ok {
+		return true
+	}
+
+	if len(update.updatedKueueResourceFlavors) == 0 {
+		return false
+	}
+
+	workload, found := p.dcaStream.getKueueWorkload(workloadID)
+	if !found {
+		return false
+	}
+
+	for _, assignment := range workload.PodSetAssignments {
+		for _, flavorName := range assignment.Flavors {
+			if _, ok := update.updatedKueueResourceFlavors[flavorName]; ok {
+				return true
+			}
+		}
+	}
+
+	return false
+}
+
+// podKueueWorkloadID returns the workloadmeta entity ID of the Kueue Workload a
+// pod joins to, or "" if the pod is not managed by Kueue. This mirrors the join
+// logic used by the tagger to attach Kueue Workload tags to pods.
+func podKueueWorkloadID(pod *workloadmeta.KubernetesPod) string {
+	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
+	if workloadName == "" {
+		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
+	}
+	if workloadName == "" {
+		return ""
+	}
+
+	return workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
+}
+
 func (p *streamingProvider) getNamespaceMetadata(ns string) (labels, annotations map[string]string) {
 	nsLabels, nsAnnotations, found := p.dcaStream.getNamespaceMetadata(ns)
 	if !found {
@@ -280,10 +404,123 @@ func (p *streamingProvider) getNamespaceMetadata(ns string) (labels, annotations
 	return selectNamespaceMetadata(metadata, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
 }
 
+func (p *streamingProvider) buildKueueQueueEvents(updatedQueueIDs map[string]struct{}) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(updatedQueueIDs))
+	for queueID := range updatedQueueIDs {
+		queue, found := p.dcaStream.getKueueQueue(queueID)
+		if found {
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceClusterOrchestrator,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: queue,
+			})
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueQueue{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueQueue,
+					ID:   queueID,
+				},
+			},
+		})
+	}
+	return events
+}
+
+func (p *streamingProvider) buildKueueResourceFlavorEvents(updatedFlavorIDs map[string]struct{}) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(updatedFlavorIDs))
+	for flavorID := range updatedFlavorIDs {
+		flavor, found := p.dcaStream.getKueueResourceFlavor(flavorID)
+		if found {
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceClusterOrchestrator,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: flavor,
+			})
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueResourceFlavor{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+					ID:   flavorID,
+				},
+			},
+		})
+	}
+	return events
+}
+
+func (p *streamingProvider) buildKueueWorkloadEvents(updatedWorkloadIDs map[string]struct{}) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(updatedWorkloadIDs))
+	for workloadID := range updatedWorkloadIDs {
+		workload, found := p.dcaStream.getKueueWorkload(workloadID)
+		if found {
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceClusterOrchestrator,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: workload,
+			})
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKueueWorkload{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKueueWorkload,
+					ID:   workloadID,
+				},
+			},
+		})
+	}
+	return events
+}
+
+func (p *streamingProvider) buildKAIPodGroupEvents(updatedPodGroupIDs map[string]struct{}) []workloadmeta.CollectorEvent {
+	events := make([]workloadmeta.CollectorEvent, 0, len(updatedPodGroupIDs))
+	for podGroupID := range updatedPodGroupIDs {
+		podGroup, found := p.dcaStream.getKAIPodGroup(podGroupID)
+		if found {
+			events = append(events, workloadmeta.CollectorEvent{
+				Source: workloadmeta.SourceClusterOrchestrator,
+				Type:   workloadmeta.EventTypeSet,
+				Entity: podGroup,
+			})
+			continue
+		}
+
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeUnset,
+			Entity: &workloadmeta.KubernetesKAIPodGroup{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesKAIPodGroup,
+					ID:   podGroupID,
+				},
+			},
+		})
+	}
+	return events
+}
+
 type streamUpdate struct {
-	updateIsFullState bool
-	updatedPods       map[string]struct{} // keys are "namespace/name"
-	updatedNamespaces map[string]struct{}
+	updateIsFullState           bool
+	updatedPods                 map[string]struct{} // keys are "namespace/name"
+	updatedNamespaces           map[string]struct{}
+	updatedKueueQueues          map[string]struct{} // keys are workloadmeta entity IDs
+	updatedKueueResourceFlavors map[string]struct{} // keys are workloadmeta entity IDs
+	updatedKueueWorkloads       map[string]struct{} // keys are workloadmeta entity IDs
+	updatedKAIPodGroups         map[string]struct{} // keys are workloadmeta entity IDs
+	updatedAutoscalerTargets    map[workloadmeta.AutoscalerTarget]struct{}
 }
 
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
@@ -292,12 +529,18 @@ type dcaStreamClient struct {
 	nodeName string
 	cfg      configmodel.Reader
 
-	mu            sync.RWMutex
-	podServices   map[string][]string          // "namespace/podName" -> services
-	namespaces    map[string]namespaceMetadata // namespace name -> labels/annotations
-	initialized   bool
-	unimplemented bool
-	pendingUpdate streamUpdate
+	mu                   sync.RWMutex
+	podServices          map[string][]string          // "namespace/podName" -> services
+	namespaces           map[string]namespaceMetadata // namespace name -> labels/annotations
+	kueueQueues          map[string]*workloadmeta.KubernetesKueueQueue
+	kueueResourceFlavors map[string]*workloadmeta.KubernetesKueueResourceFlavor
+	kueueWorkloads       map[string]*workloadmeta.KubernetesKueueWorkload
+	kaiPodGroups         map[string]*workloadmeta.KubernetesKAIPodGroup
+	autoscalers          map[string]streamedAutoscaler // autoscaler ID (same format as the DCA's workloadmeta entity IDs) -> autoscaler
+	autoscalersByTarget  map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind
+	initialized          bool
+	unimplemented        bool
+	pendingUpdate        streamUpdate
 
 	updateCh chan struct{} // signals that pendingUpdate has new data
 
@@ -309,12 +552,18 @@ type dcaStreamClient struct {
 
 func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClient {
 	return &dcaStreamClient{
-		nodeName:    nodeName,
-		cfg:         cfg,
-		podServices: make(map[string][]string),
-		namespaces:  make(map[string]namespaceMetadata),
-		readyCh:     make(chan struct{}),
-		updateCh:    make(chan struct{}, 1),
+		nodeName:             nodeName,
+		cfg:                  cfg,
+		podServices:          make(map[string][]string),
+		namespaces:           make(map[string]namespaceMetadata),
+		kueueQueues:          make(map[string]*workloadmeta.KubernetesKueueQueue),
+		kueueResourceFlavors: make(map[string]*workloadmeta.KubernetesKueueResourceFlavor),
+		kueueWorkloads:       make(map[string]*workloadmeta.KubernetesKueueWorkload),
+		kaiPodGroups:         make(map[string]*workloadmeta.KubernetesKAIPodGroup),
+		autoscalers:          make(map[string]streamedAutoscaler),
+		autoscalersByTarget:  make(map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind),
+		readyCh:              make(chan struct{}),
+		updateCh:             make(chan struct{}, 1),
 	}
 }
 
@@ -376,6 +625,73 @@ func (sc *dcaStreamClient) getNamespaceMetadata(namespace string) (labels, annot
 		return nil, nil, false
 	}
 	return ns.labels, ns.annotations, true
+}
+
+func (sc *dcaStreamClient) getKueueQueue(queueID string) (*workloadmeta.KubernetesKueueQueue, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	queue, found := sc.kueueQueues[queueID]
+	if !found {
+		return nil, false
+	}
+	// Keep ownership of the cached entity with the stream client. The returned
+	// queue is passed to workloadmeta after sc.mu is released, and it contains
+	// mutable maps such as Labels and Annotations.
+	return queue.DeepCopy().(*workloadmeta.KubernetesKueueQueue), true
+}
+
+func (sc *dcaStreamClient) getKueueResourceFlavor(flavorID string) (*workloadmeta.KubernetesKueueResourceFlavor, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	flavor, found := sc.kueueResourceFlavors[flavorID]
+	if !found {
+		return nil, false
+	}
+	// Keep ownership of the cached entity with the stream client. The returned
+	// flavor is passed to workloadmeta after sc.mu is released, and it contains
+	// mutable maps such as NodeAffinityLabels.
+	return flavor.DeepCopy().(*workloadmeta.KubernetesKueueResourceFlavor), true
+}
+
+func (sc *dcaStreamClient) getKueueWorkload(workloadID string) (*workloadmeta.KubernetesKueueWorkload, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	workload, found := sc.kueueWorkloads[workloadID]
+	if !found {
+		return nil, false
+	}
+	// Keep ownership of the cached entity with the stream client. The returned
+	// workload is passed to workloadmeta after sc.mu is released, and it contains
+	// mutable maps such as Labels, Annotations, and PodSetAssignment flavors.
+	return workload.DeepCopy().(*workloadmeta.KubernetesKueueWorkload), true
+}
+
+func (sc *dcaStreamClient) getKAIPodGroup(podGroupID string) (*workloadmeta.KubernetesKAIPodGroup, bool) {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	podGroup, found := sc.kaiPodGroups[podGroupID]
+	if !found {
+		return nil, false
+	}
+	return podGroup.DeepCopy().(*workloadmeta.KubernetesKAIPodGroup), true
+}
+
+func (sc *dcaStreamClient) getAutoscalerKinds(target workloadmeta.AutoscalerTarget) []workloadmeta.AutoscalerKind {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	var kinds []workloadmeta.AutoscalerKind
+	for _, kind := range sc.autoscalersByTarget[target] {
+		if !slices.Contains(kinds, kind) {
+			kinds = append(kinds, kind)
+		}
+	}
+	slices.Sort(kinds)
+	return kinds
 }
 
 func (sc *dcaStreamClient) isUnimplemented() bool {
@@ -507,14 +823,86 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.namespaces = newNamespaces
 
+		newKueueQueues := make(map[string]*workloadmeta.KubernetesKueueQueue, len(resp.KueueQueues))
+		updatedKueueQueues := make(map[string]struct{}, len(resp.KueueQueues)+len(sc.kueueQueues))
+		for queueID := range sc.kueueQueues {
+			updatedKueueQueues[queueID] = struct{}{}
+		}
+		for _, queueMetadata := range resp.KueueQueues {
+			queue := newKueueQueue(queueMetadata)
+			if queue == nil {
+				continue
+			}
+			newKueueQueues[queue.EntityID.ID] = queue
+			updatedKueueQueues[queue.EntityID.ID] = struct{}{}
+		}
+		sc.kueueQueues = newKueueQueues
+
+		newKueueResourceFlavors := make(map[string]*workloadmeta.KubernetesKueueResourceFlavor, len(resp.KueueResourceFlavors))
+		updatedKueueResourceFlavors := make(map[string]struct{}, len(resp.KueueResourceFlavors)+len(sc.kueueResourceFlavors))
+		for flavorID := range sc.kueueResourceFlavors {
+			updatedKueueResourceFlavors[flavorID] = struct{}{}
+		}
+		for _, flavorMetadata := range resp.KueueResourceFlavors {
+			flavor := newKueueResourceFlavor(flavorMetadata)
+			if flavor == nil {
+				continue
+			}
+			newKueueResourceFlavors[flavor.EntityID.ID] = flavor
+			updatedKueueResourceFlavors[flavor.EntityID.ID] = struct{}{}
+		}
+		sc.kueueResourceFlavors = newKueueResourceFlavors
+
+		newKueueWorkloads := make(map[string]*workloadmeta.KubernetesKueueWorkload, len(resp.KueueWorkloads))
+		updatedKueueWorkloads := make(map[string]struct{}, len(resp.KueueWorkloads)+len(sc.kueueWorkloads))
+		for workloadID := range sc.kueueWorkloads {
+			updatedKueueWorkloads[workloadID] = struct{}{}
+		}
+		for _, workloadMetadata := range resp.KueueWorkloads {
+			workload := newKueueWorkload(workloadMetadata)
+			if workload == nil {
+				continue
+			}
+			newKueueWorkloads[workload.EntityID.ID] = workload
+			updatedKueueWorkloads[workload.EntityID.ID] = struct{}{}
+		}
+		sc.kueueWorkloads = newKueueWorkloads
+
+		newKAIPodGroups := make(map[string]*workloadmeta.KubernetesKAIPodGroup, len(resp.KaiPodGroups))
+		updatedKAIPodGroups := make(map[string]struct{}, len(resp.KaiPodGroups)+len(sc.kaiPodGroups))
+		for podGroupID := range sc.kaiPodGroups {
+			updatedKAIPodGroups[podGroupID] = struct{}{}
+		}
+		for _, podGroupMetadata := range resp.KaiPodGroups {
+			podGroup := newKAIPodGroup(podGroupMetadata)
+			if podGroup == nil {
+				continue
+			}
+			newKAIPodGroups[podGroup.EntityID.ID] = podGroup
+			updatedKAIPodGroups[podGroup.EntityID.ID] = struct{}{}
+		}
+		sc.kaiPodGroups = newKAIPodGroups
+
+		sc.autoscalers = make(map[string]streamedAutoscaler, len(resp.KubernetesAutoscalers))
+		sc.autoscalersByTarget = make(map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind)
+		for _, autoscalerMetadata := range resp.KubernetesAutoscalers {
+			if autoscaler, ok := newStreamedAutoscaler(autoscalerMetadata); ok {
+				sc.setAutoscaler(kubernetesAutoscalerID(autoscalerMetadata), autoscaler)
+			}
+		}
+
 		sc.initialized = true
 		sc.pendingUpdate.updateIsFullState = true
+		sc.pendingUpdate.updatedKueueQueues = updatedKueueQueues
+		sc.pendingUpdate.updatedKueueResourceFlavors = updatedKueueResourceFlavors
+		sc.pendingUpdate.updatedKueueWorkloads = updatedKueueWorkloads
+		sc.pendingUpdate.updatedKAIPodGroups = updatedKAIPodGroups
 		sc.notifyUpdate()
 		sc.signalReady()
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.KaiPodGroups) > 0 || len(resp.KubernetesAutoscalers) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -555,9 +943,326 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedNamespaces[ns.Namespace] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 {
+	for _, queueMetadata := range resp.KueueQueues {
+		queueID := kueueQueueID(queueMetadata)
+		switch queueMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			queue := newKueueQueue(queueMetadata)
+			if queue == nil {
+				continue
+			}
+			sc.kueueQueues[queue.EntityID.ID] = queue
+			queueID = queue.EntityID.ID
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.kueueQueues, queueID)
+		default:
+			log.Errorf("Unknown event type %d for Kueue queue metadata %s", queueMetadata.Type, queueID)
+			continue
+		}
+		if sc.pendingUpdate.updatedKueueQueues == nil {
+			sc.pendingUpdate.updatedKueueQueues = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedKueueQueues[queueID] = struct{}{}
+	}
+
+	for _, flavorMetadata := range resp.KueueResourceFlavors {
+		flavorID := kueueResourceFlavorID(flavorMetadata)
+		switch flavorMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			flavor := newKueueResourceFlavor(flavorMetadata)
+			if flavor == nil {
+				continue
+			}
+			sc.kueueResourceFlavors[flavor.EntityID.ID] = flavor
+			flavorID = flavor.EntityID.ID
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.kueueResourceFlavors, flavorID)
+		default:
+			log.Errorf("Unknown event type %d for Kueue ResourceFlavor metadata %s", flavorMetadata.Type, flavorID)
+			continue
+		}
+		if sc.pendingUpdate.updatedKueueResourceFlavors == nil {
+			sc.pendingUpdate.updatedKueueResourceFlavors = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedKueueResourceFlavors[flavorID] = struct{}{}
+	}
+
+	for _, workloadMetadata := range resp.KueueWorkloads {
+		workloadID := kueueWorkloadID(workloadMetadata)
+		switch workloadMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			workload := newKueueWorkload(workloadMetadata)
+			if workload == nil {
+				continue
+			}
+			sc.kueueWorkloads[workload.EntityID.ID] = workload
+			workloadID = workload.EntityID.ID
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.kueueWorkloads, workloadID)
+		default:
+			log.Errorf("Unknown event type %d for Kueue Workload metadata %s", workloadMetadata.Type, workloadID)
+			continue
+		}
+		if sc.pendingUpdate.updatedKueueWorkloads == nil {
+			sc.pendingUpdate.updatedKueueWorkloads = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedKueueWorkloads[workloadID] = struct{}{}
+	}
+
+	for _, podGroupMetadata := range resp.KaiPodGroups {
+		podGroupID := kaiPodGroupID(podGroupMetadata)
+		switch podGroupMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			podGroup := newKAIPodGroup(podGroupMetadata)
+			if podGroup == nil {
+				continue
+			}
+			sc.kaiPodGroups[podGroupID] = podGroup
+		case pb.KubeMetadataEventType_UNSET:
+			delete(sc.kaiPodGroups, podGroupID)
+		default:
+			log.Errorf("Unknown event type %d for KAI PodGroup metadata %s", podGroupMetadata.Type, podGroupID)
+			continue
+		}
+		if sc.pendingUpdate.updatedKAIPodGroups == nil {
+			sc.pendingUpdate.updatedKAIPodGroups = make(map[string]struct{})
+		}
+		sc.pendingUpdate.updatedKAIPodGroups[podGroupID] = struct{}{}
+	}
+
+	for _, autoscalerMetadata := range resp.KubernetesAutoscalers {
+		autoscalerID := kubernetesAutoscalerID(autoscalerMetadata)
+		// The previous target needs to be tracked too, because its pods lose
+		// the autoscaler on an unset or a retarget
+		previous, hadPrevious := sc.autoscalers[autoscalerID]
+		switch autoscalerMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			autoscaler, ok := newStreamedAutoscaler(autoscalerMetadata)
+			if !ok {
+				continue
+			}
+			sc.setAutoscaler(autoscalerID, autoscaler)
+			sc.addUpdatedAutoscalerTarget(autoscaler.target)
+		case pb.KubeMetadataEventType_UNSET:
+			sc.deleteAutoscaler(autoscalerID)
+		default:
+			log.Errorf("Unknown event type %d for autoscaler %s", autoscalerMetadata.Type, autoscalerID)
+			continue
+		}
+		if hadPrevious {
+			sc.addUpdatedAutoscalerTarget(previous.target)
+		}
+	}
+
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.KaiPodGroups) > 0 || len(resp.KubernetesAutoscalers) > 0 {
 		sc.notifyUpdate()
 	}
+}
+
+func newKueueQueue(queueMetadata *pb.KueueQueue) *workloadmeta.KubernetesKueueQueue {
+	if queueMetadata == nil || queueMetadata.Name == "" {
+		return nil
+	}
+
+	queueType := workloadmetaKueueQueueType(queueMetadata.QueueType)
+	return &workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   kueueQueueID(queueMetadata),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        queueMetadata.Name,
+			Namespace:   queueMetadata.Namespace,
+			Labels:      queueMetadata.Labels,
+			Annotations: queueMetadata.Annotations,
+			UID:         queueMetadata.Uid,
+		},
+		QueueType:        queueType,
+		ClusterQueueName: queueMetadata.ClusterQueue,
+	}
+}
+
+func newKueueResourceFlavor(flavorMetadata *pb.KueueResourceFlavor) *workloadmeta.KubernetesKueueResourceFlavor {
+	if flavorMetadata == nil || flavorMetadata.Name == "" {
+		return nil
+	}
+
+	return &workloadmeta.KubernetesKueueResourceFlavor{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueResourceFlavor,
+			ID:   kueueResourceFlavorID(flavorMetadata),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        flavorMetadata.Name,
+			Labels:      flavorMetadata.Labels,
+			Annotations: flavorMetadata.Annotations,
+			UID:         flavorMetadata.Uid,
+		},
+		NodeAffinityLabels: flavorMetadata.NodeAffinityLabels,
+	}
+}
+
+func newKueueWorkload(workloadMetadata *pb.KueueWorkload) *workloadmeta.KubernetesKueueWorkload {
+	if workloadMetadata == nil || workloadMetadata.Name == "" || workloadMetadata.Namespace == "" {
+		return nil
+	}
+
+	return &workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   kueueWorkloadID(workloadMetadata),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        workloadMetadata.Name,
+			Namespace:   workloadMetadata.Namespace,
+			Labels:      workloadMetadata.Labels,
+			Annotations: workloadMetadata.Annotations,
+			UID:         workloadMetadata.Uid,
+		},
+		QueueName:              workloadMetadata.Queue,
+		ClusterQueueName:       workloadMetadata.ClusterQueue,
+		PodSetAssignments:      workloadmetaKueuePodSetAssignments(workloadMetadata.PodSetAssignments),
+		PodTemplateLabels:      workloadMetadata.PodTemplateLabels,
+		PodTemplateAnnotations: workloadMetadata.PodTemplateAnnotations,
+	}
+}
+
+func workloadmetaKueuePodSetAssignments(assignments []*pb.KueuePodSetAssignment) []workloadmeta.KueuePodSetAssignment {
+	workloadmetaAssignments := make([]workloadmeta.KueuePodSetAssignment, 0, len(assignments))
+	for _, assignment := range assignments {
+		workloadmetaAssignments = append(workloadmetaAssignments, workloadmeta.KueuePodSetAssignment{
+			Name:    assignment.Name,
+			Flavors: assignment.Flavors,
+		})
+	}
+	return workloadmetaAssignments
+}
+
+func workloadmetaKueueQueueType(queueType pb.KueueQueueType) workloadmeta.KueueQueueType {
+	switch queueType {
+	case pb.KueueQueueType_CLUSTER_QUEUE:
+		return workloadmeta.KueueClusterQueue
+	default:
+		return workloadmeta.KueueLocalQueue
+	}
+}
+
+func kueueQueueID(queueMetadata *pb.KueueQueue) string {
+	if queueMetadata == nil {
+		return ""
+	}
+
+	queueType := workloadmetaKueueQueueType(queueMetadata.QueueType)
+	id, err := kubernetesresourceparsers.GenerateKueueQueueEntityID(queueType, queueMetadata.Namespace, queueMetadata.Name)
+	if err != nil {
+		log.Errorf("Could not generate Kueue queue entity ID for %s/%s: %v", queueMetadata.Namespace, queueMetadata.Name, err)
+		return ""
+	}
+	return id
+}
+
+func kueueResourceFlavorID(flavorMetadata *pb.KueueResourceFlavor) string {
+	if flavorMetadata == nil {
+		return ""
+	}
+
+	return workloadmeta.GenerateKueueResourceFlavorEntityID(flavorMetadata.Name)
+}
+
+func kueueWorkloadID(workloadMetadata *pb.KueueWorkload) string {
+	if workloadMetadata == nil {
+		return ""
+	}
+
+	return workloadmeta.GenerateKueueWorkloadEntityID(workloadMetadata.Namespace, workloadMetadata.Name)
+}
+
+func newKAIPodGroup(podGroupMetadata *pb.KAIPodGroup) *workloadmeta.KubernetesKAIPodGroup {
+	if podGroupMetadata == nil || podGroupMetadata.Name == "" || podGroupMetadata.Namespace == "" {
+		return nil
+	}
+
+	return &workloadmeta.KubernetesKAIPodGroup{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKAIPodGroup,
+			ID:   kaiPodGroupID(podGroupMetadata),
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:        podGroupMetadata.Name,
+			Namespace:   podGroupMetadata.Namespace,
+			Labels:      podGroupMetadata.Labels,
+			Annotations: podGroupMetadata.Annotations,
+			UID:         podGroupMetadata.Uid,
+		},
+		QueueName: podGroupMetadata.Queue,
+	}
+}
+
+func kaiPodGroupID(podGroupMetadata *pb.KAIPodGroup) string {
+	return workloadmeta.GenerateKAIPodGroupEntityID(podGroupMetadata.Namespace, podGroupMetadata.Name)
+}
+
+// streamedAutoscaler is an autoscaler received from the DCA.
+type streamedAutoscaler struct {
+	kind   workloadmeta.AutoscalerKind
+	target workloadmeta.AutoscalerTarget
+}
+
+func newStreamedAutoscaler(autoscalerMetadata *pb.KubernetesAutoscaler) (streamedAutoscaler, bool) {
+	if autoscalerMetadata == nil || autoscalerMetadata.Name == "" || autoscalerMetadata.Namespace == "" || autoscalerMetadata.AutoscalerKind == "" {
+		return streamedAutoscaler{}, false
+	}
+
+	return streamedAutoscaler{
+		kind: workloadmeta.AutoscalerKind(autoscalerMetadata.AutoscalerKind),
+		target: workloadmeta.AutoscalerTarget{
+			Kind:      workloadmeta.AutoscalerTargetKind(autoscalerMetadata.TargetKind),
+			Namespace: autoscalerMetadata.Namespace, // Autoscalers can only target workloads in their namespace
+			Name:      autoscalerMetadata.TargetName,
+		},
+	}, true
+}
+
+// setAutoscaler adds or replaces an autoscaler in the cache. Must be called
+// with sc.mu held.
+func (sc *dcaStreamClient) setAutoscaler(autoscalerID string, autoscaler streamedAutoscaler) {
+	sc.deleteAutoscaler(autoscalerID)
+	sc.autoscalers[autoscalerID] = autoscaler
+	if sc.autoscalersByTarget[autoscaler.target] == nil {
+		sc.autoscalersByTarget[autoscaler.target] = make(map[string]workloadmeta.AutoscalerKind)
+	}
+	sc.autoscalersByTarget[autoscaler.target][autoscalerID] = autoscaler.kind
+}
+
+// deleteAutoscaler removes an autoscaler from the cache. Must be called with
+// sc.mu held.
+func (sc *dcaStreamClient) deleteAutoscaler(autoscalerID string) {
+	autoscaler, found := sc.autoscalers[autoscalerID]
+	if !found {
+		return
+	}
+	delete(sc.autoscalers, autoscalerID)
+	delete(sc.autoscalersByTarget[autoscaler.target], autoscalerID)
+	if len(sc.autoscalersByTarget[autoscaler.target]) == 0 {
+		delete(sc.autoscalersByTarget, autoscaler.target)
+	}
+}
+
+// addUpdatedAutoscalerTarget records that the autoscalers of a workload
+// changed. Must be called with sc.mu held.
+func (sc *dcaStreamClient) addUpdatedAutoscalerTarget(target workloadmeta.AutoscalerTarget) {
+	if sc.pendingUpdate.updatedAutoscalerTargets == nil {
+		sc.pendingUpdate.updatedAutoscalerTargets = make(map[workloadmeta.AutoscalerTarget]struct{})
+	}
+	sc.pendingUpdate.updatedAutoscalerTargets[target] = struct{}{}
+}
+
+func kubernetesAutoscalerID(autoscalerMetadata *pb.KubernetesAutoscaler) string {
+	if autoscalerMetadata == nil {
+		return ""
+	}
+
+	return workloadmeta.GenerateKubernetesAutoscalerEntityID(workloadmeta.AutoscalerKind(autoscalerMetadata.AutoscalerKind), autoscalerMetadata.Namespace, autoscalerMetadata.Name).ID
 }
 
 // notifyUpdate sends signal on updateCh. Must be called with sc.mu held.

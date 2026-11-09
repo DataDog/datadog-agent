@@ -28,15 +28,23 @@ import (
 // ErrCannotMatchDevice is returned when a device cannot be matched to a container
 var ErrCannotMatchDevice = errors.New("cannot find matching device")
 var numberedResourceRegex = regexp.MustCompile(`^nvidia([0-9]+)$`)
+var draDeviceNameRegex = regexp.MustCompile(`^gpu-([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
-	dockerInspectTimeout       = 100 * time.Millisecond
+	// nvidiaDriverCapabilitiesEnvVar is the environment variable through which a
+	// container declares which NVIDIA driver capabilities (e.g. compute,
+	// utility, graphics, video, ngx, compat32) are injected into it. The value
+	// is a comma-separated list, or "all".
+	// ref: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities
+	nvidiaDriverCapabilitiesEnvVar = "NVIDIA_DRIVER_CAPABILITIES"
+	dockerInspectTimeout           = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
 func HasGPUs(container *workloadmeta.Container) bool {
-	// ECS: Check GPUDeviceIDs (populated by Docker collector for ECS only)
+	// GPUDeviceIDs is populated by the Docker collector on ECS and by the NVML
+	// collector for Kubernetes DRA allocations and KAI Scheduler fractional GPUs.
 	if len(container.GPUDeviceIDs) > 0 {
 		return true
 	}
@@ -62,20 +70,40 @@ func HasGPUs(container *workloadmeta.Container) bool {
 // MatchContainerDevices matches the devices assigned to a container to the list of available devices
 // It returns a list of devices that are assigned to the container, and an error if any of the devices cannot be matched
 func MatchContainerDevices(container *workloadmeta.Container, devices []ddnvml.Device) ([]ddnvml.Device, error) {
-	// ECS: Use GPUDeviceIDs (UUID format) extracted from container config at discovery time
-	// This is checked first because ECS uses Docker runtime but needs UUID-based matching
-	if len(container.GPUDeviceIDs) > 0 {
-		return matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
-	}
-
 	switch container.Runtime {
 	case workloadmeta.ContainerRuntimeDocker:
+		// A Kubernetes node can run the Docker runtime (cri-dockerd), and there
+		// GPUDeviceIDs means something different: the NVML collector fills it
+		// for the container's DRA devices only. Treating that as the whole
+		// allocation would drop any device-plugin GPU the same container holds,
+		// so anything carrying Kubernetes allocated resources goes through the
+		// union path regardless of runtime.
+		if hasKubernetesGPUResources(container) {
+			return matchKubernetesDevices(container, devices)
+		}
+		// ECS: GPUDeviceIDs (UUID format) is populated by the Docker collector
+		// at discovery time. ECS uses the Docker runtime but needs UUID-based
+		// matching, so it takes precedence over the env-var inspection.
+		if len(container.GPUDeviceIDs) > 0 {
+			return matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
+		}
 		return matchDockerDevices(container, devices)
 	default:
 		// We have no specific support for other runtimes, so fall back to the Kubernetes device
 		// assignment if it's there
 		return matchKubernetesDevices(container, devices)
 	}
+}
+
+// hasKubernetesGPUResources reports whether the container carries NVIDIA GPUs
+// in its Kubernetes allocated resources, which an ECS task never does.
+func hasKubernetesGPUResources(container *workloadmeta.Container) bool {
+	for _, resource := range container.ResolvedAllocatedResources {
+		if gpuutil.IsNvidiaKubernetesResource(resource.Name) {
+			return true
+		}
+	}
+	return false
 }
 
 func getDockerVisibleDevicesEnv(container *workloadmeta.Container) (string, error) {
@@ -178,24 +206,80 @@ func matchKubernetesDevices(container *workloadmeta.Container, devices []ddnvml.
 	var filteredDevices []ddnvml.Device
 	var multiErr error
 
+	// The NVML collector publishes a Container<->GPU mapping for DRA devices,
+	// resolving them -- MIG instances included -- to their real NVML UUID via
+	// the node-local CDI/mig-minors chain. The regex guess below cannot do
+	// that on a MIG-partitioned node, so take the mapping first. It is a
+	// union rather than a short-circuit: a container can hold both DRA and
+	// device-plugin resources, and only the DRA ones appear in the mapping.
+	mapped := len(container.GPUDeviceIDs)
+	if mapped > 0 {
+		matched, err := matchByGPUDeviceIDs(container.GPUDeviceIDs, devices)
+		multiErr = errors.Join(multiErr, err)
+		filteredDevices = append(filteredDevices, matched...)
+	}
+
+	// The mapping resolves one UUID per DRA device, so it accounts for every
+	// DRA resource only when it has at least as many entries as there are DRA
+	// resources. Suppressing on "the mapping is non-empty" instead would hide
+	// the error for a pod whose second claim failed to resolve, leaving it
+	// attributed to half its GPUs with no telemetry saying so.
+	draResources := 0
+	for _, resource := range container.ResolvedAllocatedResources {
+		if resource.Name == string(gpuutil.GpuNvidiaDRA) {
+			draResources++
+		}
+	}
+	draFullyMapped := draResources > 0 && mapped >= draResources
+
 	for _, resource := range container.ResolvedAllocatedResources {
 		// Only consider NVIDIA GPUs
 		if !gpuutil.IsNvidiaKubernetesResource(resource.Name) {
 			continue
 		}
 
-		matchingDevice, err := findDeviceForResourceName(devices, resource.ID)
+		// A DRA resource must not go through the index-based guess when the
+		// CDI mapping resolved any device: the two paths use different
+		// identifiers (CDI resolves to the real device; the index guess
+		// parses a number from the pool name and matches it against NVML's
+		// enumeration), and a partial resolution must not append a guessed
+		// device alongside the correctly resolved one -- the guess would
+		// tag another workload's metrics with this container. Unresolved
+		// allocations are reported rather than guessed. The fallback runs
+		// only when the CDI mapping resolved nothing (e.g. the CDI spec
+		// is unreadable), where guessing is better than losing attribution.
+		if resource.Name == string(gpuutil.GpuNvidiaDRA) && mapped > 0 {
+			if !draFullyMapped {
+				multiErr = errors.Join(multiErr, fmt.Errorf("DRA allocation %q not fully resolved by CDI mapping (%d of %d devices)", resource.ID, mapped, draResources))
+			}
+			continue
+		}
+
+		var matchingDevice ddnvml.Device
+		var err error
+		if resource.Name == string(gpuutil.GpuNvidiaDRA) {
+			matchingDevice, err = findDeviceForDRAResourceName(devices, resource.ID)
+		} else {
+			matchingDevice, err = findDeviceForResourceName(devices, resource.ID)
+		}
 		if err != nil {
 			multiErr = errors.Join(multiErr, err)
 			continue
 		}
 
-		filteredDevices = append(filteredDevices, matchingDevice)
+		if !slices.Contains(filteredDevices, matchingDevice) {
+			filteredDevices = append(filteredDevices, matchingDevice)
+		}
 	}
 
 	// K8s can return the devices in a random order. However, NVIDIA will see them exposed
 	// based on their actual device index in the system. Ensure that order is respected.
-	slices.SortFunc(filteredDevices, func(a, b ddnvml.Device) int {
+	//
+	// Stable, because Index is not a total order across device kinds: for a MIG
+	// child it is the index within its parent, so two children of different
+	// parents can tie and an unstable sort would order them arbitrarily between
+	// runs.
+	slices.SortStableFunc(filteredDevices, func(a, b ddnvml.Device) int {
 		aInfo := a.GetDeviceInfo()
 		bInfo := b.GetDeviceInfo()
 
@@ -224,6 +308,25 @@ func findDeviceForResourceName(devices []ddnvml.Device, resourceID string) (ddnv
 	}
 
 	// Match -> GKE device plugin
+	return findDeviceByIndex(devices, match[1])
+}
+
+func findDeviceForDRAResourceName(devices []ddnvml.Device, deviceName string) (ddnvml.Device, error) {
+	match := draDeviceNameRegex.FindStringSubmatch(deviceName)
+	if len(match) == 0 {
+		return nil, fmt.Errorf("%w with DRA device name %s", ErrCannotMatchDevice, deviceName)
+	}
+
+	// DRA device names are mapped to physical NVML indexes. This mapping does
+	// not identify individual MIG devices.
+	for _, device := range devices {
+		physicalDevice, isPhysicalDevice := device.(*ddnvml.PhysicalDevice)
+		_, isMigDevice := device.(*ddnvml.MIGDevice)
+		if isMigDevice || (isPhysicalDevice && len(physicalDevice.MIGChildren) > 0) {
+			return nil, errors.New("MIG devices are not supported for DRA index matching")
+		}
+	}
+
 	return findDeviceByIndex(devices, match[1])
 }
 
@@ -262,6 +365,47 @@ func findDeviceByIndex(devices []ddnvml.Device, index string) (ddnvml.Device, er
 	return nil, fmt.Errorf("%w with index %s", ErrCannotMatchDevice, index)
 }
 
+// IsUtilityOnlyContainer reports whether a container declares, through the
+// NVIDIA_DRIVER_CAPABILITIES environment variable, that "utility" is the
+// only capability injected into it. Utility-only containers (e.g. GPU
+// monitoring sidecars such as DCGM exporters) hold the GPU devices only to
+// observe them and cannot use them to run workloads, so they must not be
+// attributed as users of the device in GPU metrics.
+// Containers declaring any other capability are kept: besides compute,
+// capabilities such as graphics or video are also used by real workloads
+// (e.g. rendering, transcoding).
+// When the variable is unset, the NVIDIA toolkit injects a default capability
+// set (utility, compute), so the container is not considered utility-only.
+//
+// Known limitation: for containers provisioned through CDI (Kubernetes NVIDIA
+// DRA claims, docker CDI device requests), the CDI spec controls what is
+// injected and the environment variable does not restrict it. Such a
+// container can declare utility only and still run CUDA; it is excluded
+// anyway, which is the accepted trade-off (documented on AXT-73).
+// ref: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities
+func IsUtilityOnlyContainer(container *workloadmeta.Container) bool {
+	capabilities, found := container.EnvVars[nvidiaDriverCapabilitiesEnvVar]
+	if !found || capabilities == "" {
+		return false
+	}
+
+	hasCapability := false
+	for _, capability := range strings.Split(capabilities, ",") {
+		switch strings.ToLower(strings.TrimSpace(capability)) {
+		case "":
+			continue
+		case "utility":
+			hasCapability = true
+		default:
+			// Another capability is requested: the container can use the GPU
+			// for more than monitoring it.
+			return false
+		}
+	}
+
+	return hasCapability
+}
+
 // IsDatadogAgentContainer checks if a container belong to the Datadog Agent (might be the agent, but also system-probe or other components)
 func IsDatadogAgentContainer(wmeta workloadmeta.Component, container *workloadmeta.Container) bool {
 	currentPID := os.Getpid()
@@ -280,4 +424,44 @@ func IsDatadogAgentContainer(wmeta workloadmeta.Component, container *workloadme
 	// Compare the struct as a value, not as a pointer, because the pointers might be different if they're created
 	// in different places
 	return runningContainer.Owner != nil && container.Owner != nil && *runningContainer.Owner == *container.Owner
+}
+
+const (
+	// kaiReservationGPUAnnotation holds the UUID of the GPU a KAI Scheduler
+	// reservation pod reserves. The reservation pod writes it itself shortly
+	// after it starts.
+	kaiReservationGPUAnnotation = "run.ai/reserve_for_gpu_index"
+	// kaiGPUGroupLabel is the GPU group label KAI puts on reservation pods and
+	// on the fractional pods sharing their GPU.
+	kaiGPUGroupLabel = "runai-gpu-group"
+	// kaiReservationPodPrefix prefixes every reservation pod name, as checked
+	// by KAI's own IsGPUReservationPod.
+	kaiReservationPodPrefix = "gpu-reservation"
+)
+
+// IsKAIReservationContainer reports whether the container belongs to a KAI
+// Scheduler reservation pod. KAI creates one per shared GPU, requesting the
+// whole GPU only to hold it for the fractional pods: it runs no GPU work, so
+// it must not be reported as the GPU's user. The namespace and app label are
+// configurable in KAI, so neither is used.
+func IsKAIReservationContainer(wmeta workloadmeta.Component, container *workloadmeta.Container) bool {
+	pod, err := wmeta.GetKubernetesPodForContainer(container.ID)
+	if err != nil {
+		return false
+	}
+	return IsKAIReservationPod(pod)
+}
+
+// IsKAIReservationPod reports whether the pod is a KAI Scheduler reservation
+// pod: one carrying the reserved-GPU annotation or, before it has written it,
+// the GPU group label and KAI's reservation pod name prefix.
+func IsKAIReservationPod(pod *workloadmeta.KubernetesPod) bool {
+	if pod.Annotations[kaiReservationGPUAnnotation] != "" {
+		return true
+	}
+	// Until the reservation pod writes its annotation, recognize it the way KAI
+	// does, by its name. The group label keeps an unrelated pod that happens to
+	// share the prefix out.
+	_, hasGPUGroup := pod.Labels[kaiGPUGroupLabel]
+	return hasGPUGroup && strings.HasPrefix(pod.Name, kaiReservationPodPrefix)
 }

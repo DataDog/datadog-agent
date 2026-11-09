@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Enables PAR action execution on-demand to significantly reduce
+    idle memory usage. This is opt-in behind
+    ``private_action_runner.split_enabled`` and is currently
+    available on Linux host deployments.

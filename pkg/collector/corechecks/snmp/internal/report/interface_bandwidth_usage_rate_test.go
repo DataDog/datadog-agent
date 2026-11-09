@@ -134,7 +134,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			TimeNow = common.MockTimeNow
@@ -309,7 +309,7 @@ func Test_interfaceBandwidthState_calculateBandwidthUsageRate_errors(t *testing.
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			sender := mocksender.NewMockSender("testID") // required to initiate aggregator
+			sender := mocksender.NewMockSender(t, "testID") // required to initiate aggregator
 			sender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
 
 			TimeNow = common.MockTimeNow

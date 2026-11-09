@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/mdlayher/vsock"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -161,7 +161,7 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 	_, err := backoff.Retry(c.ctx, func() (any, error) {
 		select {
 		case <-c.ctx.Done():
-			return nil, &backoff.PermanentError{Err: errWorkloadmetaStreamNotStarted}
+			return nil, backoff.Permanent(errWorkloadmetaStreamNotStarted)
 		default:
 		}
 
@@ -180,6 +180,9 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 
 		c.stream, err = c.client.StreamEntities(c.streamCtx)
 		if err != nil {
+			// Cancel the context created for this failed attempt so it is not
+			// leaked when the next retry overwrites c.streamCancel.
+			c.streamCancel()
 			log.Infof("unable to establish stream, will possibly retry: %s", err)
 			return nil, err
 		}
@@ -194,6 +197,12 @@ func (c *GenericCollector) startWorkloadmetaStream(maxElapsed time.Duration) err
 func (c *GenericCollector) Run() {
 	recvWithoutTimeout := c.Config.GetBool("workloadmeta.remote.recv_without_timeout")
 
+	// A server may end each stream at once, as on an unknown service or an
+	// invalid token, so a new stream waits a delay that grows until a response.
+	expBackoff := backoff.NewExponentialBackOff()
+	expBackoff.MaxInterval = 5 * time.Minute
+	var opened time.Time
+
 	for {
 		select {
 		case <-c.ctx.Done():
@@ -206,6 +215,7 @@ func (c *GenericCollector) Run() {
 				log.Warnf("error received trying to start stream: %s", err)
 				continue
 			}
+			opened = time.Now()
 		}
 
 		var (
@@ -237,8 +247,19 @@ func (c *GenericCollector) Run() {
 				log.Warnf("error received from remote workloadmeta: %s", err)
 			}
 
+			// A stream that outlived the longest delay restarts the delays, as a
+			// response does.
+			if time.Since(opened) > expBackoff.MaxInterval {
+				expBackoff.Reset()
+			}
+			select {
+			case <-c.ctx.Done():
+				return
+			case <-time.After(expBackoff.NextBackOff()):
+			}
 			continue
 		}
+		expBackoff.Reset()
 
 		collectorEvents, err := c.StreamHandler.HandleResponse(c.store, response)
 		if err != nil {

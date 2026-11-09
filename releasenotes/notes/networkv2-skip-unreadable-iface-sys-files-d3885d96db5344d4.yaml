@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fixed a bug in the Go network check that submitted
+    ``system.net.iface.up`` with a value of 0 for interfaces that are
+    administratively down, because their link state under
+    ``/sys/class/net/<iface>`` cannot be read. The Go check now skips the
+    metric in this case, matching the behavior of the Python network check.
+    ``system.net.iface.mtu`` and ``system.net.iface.tx_queue_len`` are also
+    skipped, instead of reported as 0, if their file cannot be read. This
+    fixes false alerts on ``system.net.iface.up`` for those interfaces.

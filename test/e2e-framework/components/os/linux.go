@@ -24,7 +24,7 @@ func newLinuxOS(e config.Env, desc Descriptor, runner command.Runner) OS {
 		// AL2 is YUM, AL2023 is DNF (but with yum compatibility)
 		os.packageManager = newYumManager(runner)
 
-	case Fedora, RedHat, RockyLinux:
+	case Fedora, RedHat, RockyLinux, AlmaLinux:
 		os.packageManager = newDnfManager(runner)
 
 	case Debian, Ubuntu:
@@ -39,11 +39,7 @@ func newLinuxOS(e config.Env, desc Descriptor, runner command.Runner) OS {
 		panic(fmt.Sprintf("unsupported linux flavor from desc: %+v", desc))
 	}
 
-	if desc.Flavor == AmazonLinux2018.Flavor && desc.Version == AmazonLinux2018.Version {
-		os.serviceManager = newSysvinitServiceManager(e, runner)
-	} else {
-		os.serviceManager = newSystemdServiceManager(e, runner)
-	}
+	os.serviceManager = newSystemdServiceManager(e, runner)
 
 	return os
 }

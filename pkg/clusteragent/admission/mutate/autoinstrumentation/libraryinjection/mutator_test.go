@@ -41,7 +41,7 @@ func parseInjectedLibraries(t *testing.T, pod *corev1.Pod) []libraryAnnotationEn
 func javaLib() libraryinjection.LibraryConfig {
 	return libraryinjection.LibraryConfig{
 		Language: "java",
-		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.30.0", "1.30.0"),
+		Package:  libraryinjection.NewLibraryImageFromFullRef("gcr.io/datadoghq/dd-lib-java-init:1.40.0", "1.40.0"),
 	}
 }
 
@@ -70,7 +70,10 @@ func TestGetName(t *testing.T) {
 		{
 			name: "AutoProvider resolves to CSI when driver is available",
 			provider: libraryinjection.NewAutoProvider(libraryinjection.LibraryInjectionConfig{
-				CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+				Injector:          injectorConfig(),
+				CSIAutoRegistries: defaultCSIAutoRegistries,
+				CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+				KubeServerVersion: csiKubeVersion,
 			}),
 			expected: "csi (auto)",
 		},
@@ -126,6 +129,9 @@ func TestInjectAPMLibraries_Annotations_InitContainer(t *testing.T) {
 	require.True(t, ok)
 	assert.Equal(t, "init_container", mode)
 
+	_, ok = annotation.Get(pod, annotation.AutoInjectionModeReason)
+	assert.False(t, ok, "the reason is only set in auto mode")
+
 	status, ok := annotation.Get(pod, annotation.InjectionStatus)
 	require.True(t, ok)
 	assert.Equal(t, annotation.InjectionStatusInjected, status)
@@ -133,7 +139,7 @@ func TestInjectAPMLibraries_Annotations_InitContainer(t *testing.T) {
 	entries := parseInjectedLibraries(t, pod)
 	require.Len(t, entries, 2)
 	assert.Equal(t, libraryAnnotationEntry{Name: "injector", Image: "gcr.io/datadoghq/apm-inject:0.52.0", Status: "injected"}, entries[0])
-	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.30.0", Status: "injected"}, entries[1])
+	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.40.0", Status: "injected"}, entries[1])
 }
 
 // TestInjectAPMLibraries_Annotations_CSI verifies the annotations written
@@ -155,7 +161,7 @@ func TestInjectAPMLibraries_Annotations_CSI(t *testing.T) {
 	entries := parseInjectedLibraries(t, pod)
 	require.Len(t, entries, 2)
 	assert.Equal(t, libraryAnnotationEntry{Name: "injector", Image: "gcr.io/datadoghq/apm-inject:0.52.0", Status: "injected"}, entries[0])
-	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.30.0", Status: "injected"}, entries[1])
+	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.40.0", Status: "injected"}, entries[1])
 }
 
 // TestInjectAPMLibraries_Annotations_Auto_CSI verifies that auto mode resolving
@@ -164,16 +170,22 @@ func TestInjectAPMLibraries_Annotations_Auto_CSI(t *testing.T) {
 	pod := newPod()
 
 	err := libraryinjection.InjectAPMLibraries(pod, libraryinjection.LibraryInjectionConfig{
-		InjectionMode:    string(libraryinjection.InjectionModeAuto),
-		CSIDriverWatcher: fakeCSIDriverWatcher{registered: true, apmEnabled: true},
-		Injector:         injectorConfig(),
-		Libraries:        []libraryinjection.LibraryConfig{javaLib()},
+		InjectionMode:     string(libraryinjection.InjectionModeAuto),
+		CSIAutoRegistries: defaultCSIAutoRegistries,
+		CSIDriverWatcher:  fakeCSIDriverWatcher{registered: true, apmEnabled: true},
+		KubeServerVersion: csiKubeVersion,
+		Injector:          injectorConfig(),
+		Libraries:         []libraryinjection.LibraryConfig{javaLib()},
 	})
 	require.NoError(t, err)
 
 	mode, ok := annotation.Get(pod, annotation.EffectiveInjectionMode)
 	require.True(t, ok)
 	assert.Equal(t, "csi (auto)", mode)
+
+	reason, ok := annotation.Get(pod, annotation.AutoInjectionModeReason)
+	require.True(t, ok)
+	assert.Equal(t, "all CSI requirements are met", reason)
 }
 
 // TestInjectAPMLibraries_Annotations_Auto_InitContainer verifies that auto mode
@@ -192,6 +204,10 @@ func TestInjectAPMLibraries_Annotations_Auto_InitContainer(t *testing.T) {
 	mode, ok := annotation.Get(pod, annotation.EffectiveInjectionMode)
 	require.True(t, ok)
 	assert.Equal(t, "init_container (auto)", mode)
+
+	reason, ok := annotation.Get(pod, annotation.AutoInjectionModeReason)
+	require.True(t, ok)
+	assert.Equal(t, "the CSI driver is not installed or APM is not enabled", reason)
 }
 
 // TestInjectAPMLibraries_Annotations_Skipped verifies that when injection is
@@ -271,7 +287,7 @@ func TestInjectAPMLibraries_InjectedLibraries_UnsupportedLanguage(t *testing.T) 
 	entries := parseInjectedLibraries(t, pod)
 	require.Len(t, entries, 3)
 	assert.Equal(t, libraryAnnotationEntry{Name: "injector", Image: "gcr.io/datadoghq/apm-inject:0.52.0", Status: "injected"}, entries[0])
-	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.30.0", Status: "injected"}, entries[1])
+	assert.Equal(t, libraryAnnotationEntry{Name: "java", Image: "gcr.io/datadoghq/dd-lib-java-init:1.40.0", Status: "injected"}, entries[1])
 	assert.Equal(t, libraryAnnotationEntry{Name: "cobol", Image: "gcr.io/datadoghq/dd-lib-cobol-init:1.0.0", Status: "skipped"}, entries[2])
 }
 

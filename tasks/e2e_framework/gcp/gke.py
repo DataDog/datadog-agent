@@ -14,14 +14,24 @@ scenario_name = "gcp/gke"
 
 @task(
     help={
-        "install_agent": doc.install_agent,
-        "pipeline_id": doc.pipeline_id,
-        "agent_version": doc.container_agent_version,
+        "debug": doc.debug,
         "stack_name": doc.stack_name,
+        "pipeline_id": doc.pipeline_id,
+        "install_agent": doc.install_agent,
+        "install_workload": doc.install_workload,
+        "agent_version": doc.agent_version,
+        "config_path": doc.config_path,
+        "account": doc.account,
+        "interactive": doc.interactive,
+        "full_image_path": doc.full_image_path,
+        "cluster_agent_full_image_path": doc.cluster_agent_full_image_path,
+        "use_fakeintake": doc.fakeintake,
+        "use_autopilot": doc.autopilot,
         "agent_flavor": doc.agent_flavor,
         "helm_config": doc.helm_config,
         "local_chart_path": doc.local_chart_path,
         "kube_version": doc.kubernetes_version,
+        "node_count": doc.node_count,
     }
 )
 def create_gke(
@@ -43,6 +53,7 @@ def create_gke(
     helm_config: str | None = None,
     local_chart_path: str | None = None,
     kube_version: str | None = None,
+    node_count: int | None = None,
 ) -> None:
     """
     Create a new GKE environment.
@@ -54,11 +65,12 @@ def create_gke(
     try:
         cfg = config.get_local_config(config_path)
     except ValidationError as e:
-        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}") from e
+        raise Exit(f"Error in config {config.get_full_profile_path(config_path)}:{e}") from e
 
     extra_flags = {
         "ddinfra:env": f"gcp/{account if account else cfg.get_gcp().account}",
         "ddinfra:gcp/gke/enableAutopilot": use_autopilot,
+        "ddinfra:gcp/gke/nodeCount": node_count,
         "ddagent:localChartPath": local_chart_path,
         "ddinfra:kubernetesVersion": kube_version,
     }
@@ -109,7 +121,4 @@ def _show_connection_message(ctx: Context, full_stack_name: str, copy_to_clipboa
 
     print(f"\nYou can run the following command to connect to the GKE cluster\n\n{command}\n")
     if copy_to_clipboard:
-        import pyperclip
-
-        input("Press a key to copy command to clipboard...")
-        pyperclip.copy(command)
+        tool.copy_to_clipboard_if_supported(command, prompt="Press a key to copy command to clipboard...")

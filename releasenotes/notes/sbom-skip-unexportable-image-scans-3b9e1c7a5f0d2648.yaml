@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The container image SBOM collector no longer attempts to export an image to
+    a tarball when the image's layers are not present in the containerd content
+    store, as happens with remote snapshotters such as nydus. The export could
+    never succeed for these images, and the scan was retried indefinitely,
+    keeping the scan worker busy and increasing Agent memory usage. Such scans
+    are now skipped instead of retried.

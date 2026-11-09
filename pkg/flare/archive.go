@@ -22,13 +22,14 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/api/security"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	rcflare "github.com/DataDog/datadog-agent/pkg/config/remote/flare"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
@@ -52,7 +53,7 @@ type RemoteFlareProvider struct {
 
 // getProcessAPIAddress is an Alias to GetProcessAPIAddressPort using Datadog config
 func getProcessAPIAddressPort() (string, error) {
-	return pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	return pkgconfighelper.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 }
 
 // ExtraFlareProviders returns flare providers that are not given via fx.
@@ -87,6 +88,9 @@ func ExtraFlareProviders(workloadmeta option.Option[workloadmeta.Component], ipc
 		flaretypes.NewFiller(provideAuthTokenPerm),
 		flaretypes.NewFiller(provideContainers(workloadmeta)),
 		flaretypes.NewFiller(provideRuntimeDebugInfo),
+		flaretypes.NewFiller(getUlimitData),
+		flaretypes.NewFiller(getSvmonData),
+		flaretypes.NewFiller(provideCertificateSources),
 	}
 
 	for filename, fromFunc := range map[string]func() ([]byte, error){
@@ -318,7 +322,7 @@ func getSystemProbeDyninstSymDB() ([]byte, error) {
 
 // getProcessAgentFullConfig fetches process-agent runtime config as YAML and returns it to be added to  process_agent_runtime_config_dump.yaml
 func (r *RemoteFlareProvider) getProcessAgentFullConfig() ([]byte, error) {
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfighelper.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, errors.New("wrong configuration to connect to process-agent")
 	}
@@ -365,7 +369,7 @@ func (r *RemoteFlareProvider) getChecksFromProcessAgent(fb flaretypes.FlareBuild
 }
 
 func (r *RemoteFlareProvider) getProcessAgentTaggerList() ([]byte, error) {
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfighelper.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return nil, errors.New("wrong configuration to connect to process-agent")
 	}
@@ -422,8 +426,8 @@ func getECSMeta() ([]byte, error) {
 	return json.MarshalIndent(ecsMeta, "", "\t")
 }
 
-func (r *RemoteFlareProvider) GetGoRoutineDump() ([]byte, error) {
-	pprofURL := "http://127.0.0.1:" + pkgconfigsetup.Datadog().GetString("expvar_port") + "/debug/pprof/goroutine?debug=2"
+func (r *RemoteFlareProvider) GetGoRoutineDump(port int) ([]byte, error) {
+	pprofURL := fmt.Sprintf("http://127.0.0.1:%d/debug/pprof/goroutine?debug=2", port)
 	return r.getHTTPCallContent(pprofURL)
 }
 
@@ -439,7 +443,7 @@ func (r *RemoteFlareProvider) getHTTPCallContent(url string) ([]byte, error) {
 		return nil, err
 	}
 
-	resp, err := r.IPC.GetClient().Do(req.WithContext(ctx))
+	resp, err := r.IPC.GetClient().Do(req.WithContext(ctx), ipchttp.WithoutAuthToken)
 	if err != nil {
 		return nil, err
 	}

@@ -6,8 +6,6 @@
 package utils
 
 import (
-	"regexp"
-
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
@@ -39,16 +37,21 @@ func IsCheckTelemetryEnabled(checkName string, cfg pkgconfigmodel.Reader) bool {
 
 // IsTelemetryEnabled returns whether or not telemetry is enabled
 func IsTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
-	return cfg.IsSet("telemetry.enabled") && cfg.GetBool("telemetry.enabled") ||
-		(IsAgentTelemetryEnabled(cfg))
+	return cfg.GetBool("telemetry.enabled") || IsAgentTelemetryEnabled(cfg)
 }
 
 // IsAgentTelemetryEnabled returns true if Agent Telemetry is enabled
 func IsAgentTelemetryEnabled(cfg pkgconfigmodel.Reader) bool {
-	reSite := regexp.MustCompile(`(.+\.)?ddog-gov\.com`)
 	// Disable Agent Telemetry for GovCloud
-	if cfg.GetBool("fips.enabled") || reSite.MatchString(cfg.GetString("site")) {
+	if cfg.GetBool("fips.enabled") || reFedSite.MatchString(cfg.GetString("site")) {
 		return false
 	}
 	return cfg.GetBool("agent_telemetry.enabled")
+}
+
+// IsErrorTrackingEnabled returns true when both the parent agent-telemetry gate
+// and the errortracking feature flag are enabled. The gov/FIPS exclusion from
+// IsAgentTelemetryEnabled applies automatically.
+func IsErrorTrackingEnabled(cfg pkgconfigmodel.Reader) bool {
+	return IsAgentTelemetryEnabled(cfg) && cfg.GetBool("agent_telemetry.errortracking.enabled")
 }

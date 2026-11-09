@@ -126,6 +126,11 @@ type Client struct {
 
 	state *state.Repository
 
+	proofMu          sync.RWMutex
+	proofRoots       [][]byte
+	proofTargets     []byte
+	proofTargetFiles map[string][]byte
+
 	listeners map[string][]Listener
 
 	// Elements that can be changed during the execution of listeners
@@ -321,17 +326,18 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 	installerState.Store(&pbgo.ClientUpdater{})
 
 	return &Client{
-		Options:        options,
-		ID:             generateID(),
-		startupSync:    sync.Once{},
-		ctx:            ctx,
-		closeFn:        cloneFn,
-		cwsWorkloads:   cwsWorkloads,
-		installerState: installerState,
-		state:          repository,
-		backoffPolicy:  backoffPolicy,
-		listeners:      make(map[string][]Listener),
-		configFetcher:  cf,
+		Options:          options,
+		ID:               generateID(),
+		startupSync:      sync.Once{},
+		ctx:              ctx,
+		closeFn:          cloneFn,
+		cwsWorkloads:     cwsWorkloads,
+		installerState:   installerState,
+		state:            repository,
+		proofTargetFiles: make(map[string][]byte),
+		backoffPolicy:    backoffPolicy,
+		listeners:        make(map[string][]Listener),
+		configFetcher:    cf,
 	}, nil
 }
 
@@ -563,7 +569,12 @@ func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string,
 		ClientConfigs: pbUpdate.ClientConfigs,
 	}
 
-	return c.state.Update(update)
+	changedProducts, err := c.state.Update(update)
+	if err != nil {
+		return nil, err
+	}
+	c.storeConfigTUFProof(pbUpdate)
+	return changedProducts, nil
 }
 
 // newUpdateRequests builds a new request for the agent based on the current state of the

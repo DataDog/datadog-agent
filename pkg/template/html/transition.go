@@ -331,16 +331,26 @@ func tJS(c context, s []byte) (context, int) {
 	case '#':
 		if i+1 < len(s) && s[i+1] == '!' {
 			c.state, i = stateJSLineCmt, i+1
+			break
 		}
+		// A private identifier such as #yield is never a keyword, and
+		// precedes a div op.
+		for i+1 < len(s) && isJSIdentPart(rune(s[i+1])) {
+			i++
+		}
+		c.jsCtx = jsCtxDivOp
 	case '{':
 		// We only care about tracking brace depth if we are inside of a
 		// template literal.
 		if len(c.jsBraceDepth) == 0 {
+			c.jsCtx = nextJSCtx(s[i:i+1], c.jsCtx)
 			return c, i + 1
 		}
 		c.jsBraceDepth[len(c.jsBraceDepth)-1]++
+		c.jsCtx = nextJSCtx(s[i:i+1], c.jsCtx)
 	case '}':
 		if len(c.jsBraceDepth) == 0 {
+			c.jsCtx = nextJSCtx(s[i:i+1], c.jsCtx)
 			return c, i + 1
 		}
 		// There are no cases where a brace can be escaped in the JS context
@@ -349,6 +359,7 @@ func tJS(c context, s []byte) (context, int) {
 		// fully fledged parsers will just fail anyway.
 		c.jsBraceDepth[len(c.jsBraceDepth)-1]--
 		if c.jsBraceDepth[len(c.jsBraceDepth)-1] >= 0 {
+			c.jsCtx = nextJSCtx(s[i:i+1], c.jsCtx)
 			return c, i + 1
 		}
 		c.jsBraceDepth = c.jsBraceDepth[:len(c.jsBraceDepth)-1]
@@ -378,7 +389,7 @@ func tJSTmpl(c context, s []byte) (context, int) {
 		case '$':
 			if len(s) >= i+2 && s[i+1] == '{' {
 				c.jsBraceDepth = append(c.jsBraceDepth, 0)
-				c.state = stateJS
+				c.state, c.jsCtx = stateJS, jsCtxRegexp
 				return c, i + 2
 			}
 		case '`':

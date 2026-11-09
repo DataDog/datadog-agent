@@ -1,12 +1,13 @@
-import sys
-from datetime import date
+import os
 
 from invoke import Failure, task
 from invoke.exceptions import Exit
 
-from tasks.libs.ciproviders.github_api import create_release_pr
+from tasks.libs.ciproviders.github_api import GithubAPI, create_release_pr
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_current_branch, try_git_command
+from tasks.libs.common.constants import GITHUB_REPO_NAME
+from tasks.libs.common.git import create_tree, get_current_branch, try_git_command
+from tasks.libs.common.utils import running_in_ci
 from tasks.libs.common.worktree import agent_context
 from tasks.libs.releasing.notes import _add_dca_prelude, _add_prelude, update_changelog_generic
 from tasks.libs.releasing.version import deduce_version
@@ -29,26 +30,6 @@ def add_dca_prelude(ctx, release_branch):
 
     with agent_context(ctx, release_branch):
         _add_dca_prelude(ctx, version)
-
-
-@task
-def add_installscript_prelude(ctx, release_branch):
-    version = deduce_version(ctx, release_branch, next_version=False)
-
-    with agent_context(ctx, release_branch):
-        res = ctx.run(f"reno --rel-notes-dir releasenotes-installscript new prelude-release-{version}")
-        new_releasenote = res.stdout.split(' ')[-1].strip()  # get the new releasenote file path
-
-        with open(new_releasenote, "w") as f:
-            f.write(
-                f"""prelude:
-        |
-        Released on: {date.today()}"""
-            )
-
-        ctx.run(f"git add {new_releasenote}")
-        print("\nCommit this with:")
-        print(f"git commit -m \"Add prelude for {version} release\"")
 
 
 @task
@@ -97,6 +78,9 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
 
         update_branch = f"changelog-update-{new_version}"
         base_branch = get_current_branch(ctx)
+        # In CI, open the PR in the repository the workflow runs in (the release tests use a copy
+        # of this repository).
+        repository = os.environ.get("GITHUB_REPOSITORY", GITHUB_REPO_NAME) if running_in_ci() else GITHUB_REPO_NAME
 
         print(color_message(f"Branching out to {update_branch}", "bold"))
         ctx.run(f"git checkout -b {update_branch}")
@@ -109,30 +93,39 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
         )
         ctx.run("git add CHANGELOG.rst CHANGELOG-DCA.rst")
 
-        commit_message = f"'Changelog updates for {new_version} release'"
+        if running_in_ci():
+            # The release workflow runs this task in CI, where the local clone has no push
+            # credentials: create the branch and a signed commit with the GitHub API instead.
+            print("Creating signed commits using Github API")
+            tree = create_tree(ctx, base_branch)
+            github = GithubAPI(repository=repository)
+            github.create_branch(update_branch, tree["base_tree"], reset=True)
+            github.commit_and_push_signed(update_branch, f"Changelog updates for {new_version} release", tree)
+        else:
+            commit_message = f"'Changelog updates for {new_version} release'"
 
-        ok = try_git_command(ctx, f"git commit -m {commit_message}")
-        if not ok:
-            raise Exit(
-                color_message(
-                    f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
-                    "red",
-                ),
-                code=1,
-            )
+            ok = try_git_command(ctx, f"git commit -m {commit_message}")
+            if not ok:
+                raise Exit(
+                    color_message(
+                        f"Could not create commit. Please commit manually with:\ngit commit -m {commit_message}\n, push the {update_branch} branch and then open a PR.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
-        # Step 3 - Push and create PR
+            print(color_message("Pushing new branch to the upstream repository", "bold"))
+            res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
+            if res.exited is None or res.exited > 0:
+                raise Exit(
+                    color_message(
+                        f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
+                        "red",
+                    ),
+                    code=1,
+                )
 
-        print(color_message("Pushing new branch to the upstream repository", "bold"))
-        res = ctx.run(f"git push --set-upstream {upstream} {update_branch}", warn=True)
-        if res.exited is None or res.exited > 0:
-            raise Exit(
-                color_message(
-                    f"Could not push branch {update_branch} to the upstream '{upstream}'. Please push it manually and then open a PR.",
-                    "red",
-                ),
-                code=1,
-            )
+        # Step 3 - Create PR
 
         create_release_pr(
             f"Changelog update for {new_version} release",
@@ -141,74 +134,5 @@ def update_changelog(ctx, release_branch, target="all", upstream="origin"):
             new_version,
             changelog_pr=True,
             milestone=str(new_version),
+            repository=repository,
         )
-
-
-@task
-def update_installscript_changelog(ctx, release_branch):
-    """
-    Quick task to generate the new CHANGELOG-INSTALLSCRIPT using reno when releasing a minor
-    version (linux/macOS only).
-    """
-
-    new_version = deduce_version(ctx, release_branch, next_version=False)
-
-    with agent_context(ctx, release_branch):
-        new_version_int = list(map(int, new_version.split(".")))
-
-        if len(new_version_int) != 3:
-            print(f"Error: invalid version: {new_version_int}")
-            raise Exit(code=1)
-
-        # let's avoid losing uncommitted change with 'git reset --hard'
-        try:
-            ctx.run("git diff --exit-code HEAD", hide="both")
-        except Failure:
-            print(
-                "Error: You have uncommitted changes, please commit or stash before using update-installscript-changelog"
-            )
-            return
-
-        # make sure we are up to date
-        ctx.run("git fetch")
-
-        # let's check that the tag for the new version is present (needed by reno)
-        try:
-            ctx.run(f"git tag --list | grep installscript-{new_version}")
-        except Failure:
-            print(f"Missing 'installscript-{new_version}' git tag: mandatory to use 'reno'")
-            raise
-
-        # generate the new changelog
-        ctx.run(
-            f"reno --rel-notes-dir releasenotes-installscript report             --ignore-cache             --version installscript-{new_version}             --no-show-source > /tmp/new_changelog-installscript.rst"
-        )
-
-        # reseting git
-        ctx.run("git reset --hard HEAD")
-
-        # mac's `sed` has a different syntax for the "-i" paramter
-        sed_i_arg = "-i"
-        if sys.platform == 'darwin':
-            sed_i_arg = "-i ''"
-        # remove the old header from the existing changelog
-        ctx.run(f"sed {sed_i_arg} -e '1,4d' CHANGELOG-INSTALLSCRIPT.rst")
-
-        if sys.platform != 'darwin':
-            # sed on darwin doesn't support `-z`. On mac, you will need to manually update the following.
-            ctx.run(
-                "sed -z {0} -e 's/installscript-{1}\\n===={2}/{1}\\n{2}/' /tmp/new_changelog-installscript.rst".format(  # noqa: FS002
-                    sed_i_arg, new_version, '=' * len(new_version)
-                )
-            )
-
-        # merging to CHANGELOG-INSTALLSCRIPT.rst
-        ctx.run(
-            "cat CHANGELOG-INSTALLSCRIPT.rst >> /tmp/new_changelog-installscript.rst && mv /tmp/new_changelog-installscript.rst CHANGELOG-INSTALLSCRIPT.rst"
-        )
-
-        # commit new CHANGELOG-INSTALLSCRIPT
-        ctx.run("git add CHANGELOG-INSTALLSCRIPT.rst")
-
-        print("\nCommit this with:")
-        print(f"git commit -m \"[INSTALLSCRIPT] Update CHANGELOG-INSTALLSCRIPT for {new_version}\"")

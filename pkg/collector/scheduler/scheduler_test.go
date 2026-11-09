@@ -41,15 +41,18 @@ func resetMinAllowedInterval() {
 }
 
 func getScheduler() *Scheduler {
-	return NewScheduler(make(chan<- check.Check))
+	return NewScheduler(make(chan<- check.Check), make(chan<- check.Check))
 }
 
 func TestNewScheduler(t *testing.T) {
 	c := make(chan<- check.Check)
-	s := NewScheduler(c)
+	shadowC := make(chan<- check.Check)
+	s := NewScheduler(c, shadowC)
 
 	assert.Equal(t, c, s.checksPipe)
+	assert.Equal(t, shadowC, s.shadowChecksPipe)
 	assert.Equal(t, len(s.jobQueues), 0)
+	assert.Equal(t, len(s.shadowJobQueues), 0)
 	assert.False(t, s.running.Load())
 }
 
@@ -57,7 +60,7 @@ func TestEnter(t *testing.T) {
 	c := &TestCheck{}
 	ch := make(chan check.Check)
 	stop := make(chan bool)
-	s := NewScheduler(ch)
+	s := NewScheduler(ch, make(chan check.Check))
 
 	// consume the enqueued checks
 	go consume(ch, stop)
@@ -110,7 +113,7 @@ func TestCancel(t *testing.T) {
 		stop <- true
 	}()
 
-	s := NewScheduler(c)
+	s := NewScheduler(c, make(chan check.Check))
 	defer s.Stop()
 
 	s.Enter(chk)
@@ -150,7 +153,7 @@ func TestStop(t *testing.T) {
 func TestStopCancelsProducers(_ *testing.T) {
 	ch := make(chan check.Check)
 	stop := make(chan bool)
-	s := NewScheduler(ch)
+	s := NewScheduler(ch, make(chan check.Check))
 
 	// consume the enqueued checks
 	go consume(ch, stop)

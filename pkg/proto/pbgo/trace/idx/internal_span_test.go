@@ -589,6 +589,32 @@ func TestCompactStrings(t *testing.T) {
 	}
 }
 
+// TestCompactStrings_ContainerDebug verifies that ContainerDebug string refs survive
+// compaction: the referenced strings are retained and the refs are remapped correctly.
+func TestCompactStrings_ContainerDebug(t *testing.T) {
+	pbPayload := &TracerPayload{
+		// index 1 ("unused") is never referenced and should be dropped by compaction.
+		Strings:        []string{"", "unused", "container-1", "resolution timeout", "timeout"},
+		ContainerIDRef: 2,
+		ContainerDebug: &ContainerDebug{
+			ErrorRef:                3,
+			LatencyMs:               150,
+			WasBuffered:             true,
+			BufferMs:                200,
+			BufferEvictionReasonRef: 4,
+		},
+	}
+
+	pbPayload.CompactStrings()
+
+	// The unused string should have been dropped.
+	assert.NotContains(t, pbPayload.Strings, "unused")
+	// Refs must still resolve to their original values after remapping.
+	assert.Equal(t, "container-1", pbPayload.Strings[pbPayload.ContainerIDRef])
+	assert.Equal(t, "resolution timeout", pbPayload.Strings[pbPayload.ContainerDebug.ErrorRef])
+	assert.Equal(t, "timeout", pbPayload.Strings[pbPayload.ContainerDebug.BufferEvictionReasonRef])
+}
+
 // TestRemapAttributes_KeyOverlap demonstrates a bug where remapAttributes can lose
 // attributes when the new key of one attribute equals the old key of another attribute.
 func TestRemapAttributes_KeyOverlap(t *testing.T) {
@@ -890,4 +916,87 @@ func TestSetStringAttribute_NilAttributesMap(t *testing.T) {
 		assert.True(t, found, "Attribute should be found after SetStringAttribute")
 		assert.Equal(t, "chunk.value", val)
 	})
+}
+
+// TestLegacyTraceIDShortIsZeroPadded verifies that a TraceID shorter than 16
+// bytes does not panic in LegacyTraceID. Missing high-order bytes are treated
+// as zero (the short big-endian value is right-aligned into a 16-byte buffer),
+// and the low 8 bytes are returned.
+func TestLegacyTraceIDShortIsZeroPadded(t *testing.T) {
+	cases := []struct {
+		name string
+		tid  []byte
+		want uint64
+	}{
+		{"empty", []byte{}, 0},
+		{"4 bytes", []byte{1, 2, 3, 4}, 0x01020304},
+		{"8 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8}, 0x0102030405060708},
+		{"15 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, 0x08090a0b0c0d0e0f},
+		// Full 16-byte trace ID: low 8 bytes only.
+		{"16 bytes", []byte{99, 99, 99, 99, 99, 99, 99, 99, 1, 2, 3, 4, 5, 6, 7, 8}, 0x0102030405060708},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &InternalTraceChunk{TraceID: tc.tid}
+			assert.NotPanics(t, func() {
+				assert.Equal(t, tc.want, c.LegacyTraceID())
+			})
+		})
+	}
+}
+
+func TestInternalSpanString(t *testing.T) {
+	strs := NewStringTable()
+	span := &InternalSpan{
+		Strings: strs,
+		span: &Span{
+			ServiceRef:  strs.Add("pylons"),
+			NameRef:     strs.Add("server.request"),
+			ResourceRef: strs.Add("/path"),
+			TypeRef:     strs.Add("web"),
+			SpanID:      1234,
+			Attributes:  make(map[uint32]*AnyValue),
+		},
+	}
+	span.SetStringAttribute("http.url", "secret-token")
+
+	// The "span=" prefix keeps this a genuine fmt round-trip (a bare "%s" would be
+	// rewritten to a direct String() call by staticcheck's S1025).
+	formatted := fmt.Sprintf("span=%s", span)
+	assert.Equal(t, "span="+span.String(), formatted)
+	// %s must resolve the string table rather than dumping the struct.
+	assert.NotContains(t, formatted, "%!s")
+	assert.Equal(t, "span=Span {Service: pylons, Name: server.request, Resource: /path, Type: web, SpanID: 1234}", formatted)
+
+	// Attributes are intentionally left out of String: they are unbounded and may
+	// carry request data. DebugString remains the verbose form that includes them.
+	assert.NotContains(t, formatted, "secret-token")
+	assert.Contains(t, span.DebugString(), "secret-token")
+}
+
+// TestTraceIDHighShortIsZeroPadded verifies that TraceIDHigh does not panic on a TraceID
+// shorter than 16 bytes, and that any high-order bytes actually supplied (for TraceIDs
+// between 9 and 15 bytes) are reflected in the result rather than being treated as zero.
+func TestTraceIDHighShortIsZeroPadded(t *testing.T) {
+	cases := []struct {
+		name string
+		tid  []byte
+		want uint64
+	}{
+		{"empty", []byte{}, 0},
+		{"4 bytes", []byte{1, 2, 3, 4}, 0},
+		{"8 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8}, 0},
+		// 15 bytes: 7 bytes spill into the high 8 bytes once right-aligned (buf[0]=0, buf[1:8]=1..7).
+		{"15 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15}, 0x0001020304050607},
+		// Full 16-byte trace ID: high 8 bytes only.
+		{"16 bytes", []byte{1, 2, 3, 4, 5, 6, 7, 8, 99, 99, 99, 99, 99, 99, 99, 99}, 0x0102030405060708},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			c := &InternalTraceChunk{TraceID: tc.tid}
+			assert.NotPanics(t, func() {
+				assert.Equal(t, tc.want, c.TraceIDHigh())
+			})
+		})
+	}
 }

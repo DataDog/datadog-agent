@@ -1,0 +1,18 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The metric filter list (``metric_filterlist``) now matches on the normalized
+    metric name instead of the raw submitted name. Metric names are normalized by
+    the Datadog intake on ingest, so a metric submitted as ``my metric-name`` is
+    stored and displayed as ``my_metric_name``. Previously a filter list entry
+    using the normalized name that users see in Datadog would fail to match such
+    a metric, and the metric was submitted anyway. Filter list entries themselves
+    are matched as written, so they should be the metric name as it appears in
+    Datadog.

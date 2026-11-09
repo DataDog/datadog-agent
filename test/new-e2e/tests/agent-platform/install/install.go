@@ -58,8 +58,13 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 	} else {
 		apikey = "aaaaaaaaaa"
 
-		// If the API key is not provided, disable the telemetry to avoid 403 errors
-		commandLine += " DD_INSTRUMENTATION_TELEMETRY_ENABLED=false "
+		if params.MajorVersion == "5" {
+			// Agent 5's install script blocks on a real "waiting for metrics" check that fails with a dummy key, so skip its start.
+			commandLine += " DD_INSTALL_ONLY=true "
+		} else {
+			// If the API key is not provided, disable the telemetry to avoid 403 errors
+			commandLine += " DD_INSTRUMENTATION_TELEMETRY_ENABLED=false "
+		}
 	}
 
 	t.Run("Installing the agent", func(tt *testing.T) {
@@ -67,7 +72,7 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 		var source string
 		if params.MajorVersion != "5" {
 			source = "S3"
-			downloadCmd = fmt.Sprintf(`curl -L  https://install.datadoghq.com/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
+			downloadCmd = fmt.Sprintf(`curl -L  https://s3.amazonaws.com/dd-agent/scripts/install_script_agent%v.sh > installscript.sh`, params.MajorVersion)
 		} else {
 			source = "dd-agent repository"
 			downloadCmd = "curl -L https://raw.githubusercontent.com/DataDog/dd-agent/master/packaging/datadog-agent/source/install_agent.sh > installscript.sh"
@@ -83,6 +88,12 @@ func Unix(t *testing.T, client ExecutorWithRetry, options ...installparams.Optio
 	})
 }
 
+// MacOSPipelineRepoURL returns the URL a CI pipeline publishes its macOS install script and .dmg
+// under (see the deploy_dmg_testing jobs). The .dmg is published as datadog-agent-7-latest.dmg.
+func MacOSPipelineRepoURL(pipelineID, arch string) string {
+	return fmt.Sprintf("https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", pipelineID, arch)
+}
+
 // MacOS install the agent from install script, by default will install the agent 7 build corresponding to the CI if running in the CI, else the latest Agent 7 version
 func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Option) {
 	params := installparams.NewParams(options...)
@@ -90,7 +101,7 @@ func MacOS(t *testing.T, client ExecutorWithRetry, options ...installparams.Opti
 
 	scriptURL := "https://install.datadoghq.com/scripts/install_mac_os.sh"
 	if params.PipelineID != "" {
-		repoURL := fmt.Sprintf("https://dd-agent-macostesting.s3.amazonaws.com/ci/datadog-agent/pipeline-%s-%s", params.PipelineID, params.Arch)
+		repoURL := MacOSPipelineRepoURL(params.PipelineID, params.Arch)
 		exports = append(exports, "DD_REPO_URL="+repoURL)
 		scriptURL = repoURL + "/install_mac_os.sh"
 	}
@@ -112,5 +123,4 @@ exit 1
 		_, err := client.ExecuteWithRetry(cmd)
 		require.NoError(tt, err, "failed to install the agent: ", err)
 	})
-
 }

@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "agentprovider",
@@ -11,6 +12,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/config",
+        "//comp/host-profiler/cgroup",
         "//comp/host-profiler/collector/impl/extensions/hpflareextension",
         "//comp/host-profiler/collector/impl/params",
         "//comp/host-profiler/version",
@@ -21,7 +23,7 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "agentprovider_test",
     srcs = [
         "config_builder_test.go",
@@ -30,7 +32,6 @@ go_test(
     ],
     data = glob(["testdata/**"]),
     embed = [":agentprovider"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "@com_github_stretchr_testify//assert",
@@ -41,6 +42,7 @@ go_test(
             "//comp/host-profiler/version",
             "//comp/otelcol/ddprofilingextension/impl",
             "//comp/otelcol/otlp/components/processor/infraattributesprocessor",
+            "//pkg/util/confmaputils",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor//:attributesprocessor",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor//:cumulativetodeltaprocessor",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor//:filterprocessor",
@@ -49,7 +51,7 @@ go_test(
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor//:resourceprocessor",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver//:prometheusreceiver",
             "@com_github_stretchr_testify//require",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@io_opentelemetry_go_collector_confmap//:confmap",
             "@io_opentelemetry_go_collector_exporter_debugexporter//:debugexporter",
             "@io_opentelemetry_go_collector_exporter_otlphttpexporter//:otlphttpexporter",
@@ -66,6 +68,7 @@ go_test(
             "//comp/host-profiler/version",
             "//comp/otelcol/ddprofilingextension/impl",
             "//comp/otelcol/otlp/components/processor/infraattributesprocessor",
+            "//pkg/util/confmaputils",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_attributesprocessor//:attributesprocessor",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_cumulativetodeltaprocessor//:cumulativetodeltaprocessor",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_filterprocessor//:filterprocessor",
@@ -74,7 +77,7 @@ go_test(
             "@com_github_open_telemetry_opentelemetry_collector_contrib_processor_resourceprocessor//:resourceprocessor",
             "@com_github_open_telemetry_opentelemetry_collector_contrib_receiver_prometheusreceiver//:prometheusreceiver",
             "@com_github_stretchr_testify//require",
-            "@in_gopkg_yaml_v3//:yaml_v3",
+            "@in_yaml_go_yaml_v3//:yaml",
             "@io_opentelemetry_go_collector_confmap//:confmap",
             "@io_opentelemetry_go_collector_exporter_debugexporter//:debugexporter",
             "@io_opentelemetry_go_collector_exporter_otlphttpexporter//:otlphttpexporter",

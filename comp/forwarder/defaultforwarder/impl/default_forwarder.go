@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/api/security"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 	"github.com/DataDog/datadog-agent/pkg/version"
@@ -101,7 +102,6 @@ func HasFeature(features, flag Features) bool { return defaultforwarderdef.HasFe
 
 // Options contain the configuration options for the DefaultForwarder
 type Options struct {
-	NumberOfWorkers                int
 	RetryQueuePayloadsTotalMaxSize int
 	DisableAPIKeyChecking          bool
 	EnabledFeatures                Features
@@ -110,6 +110,7 @@ type Options struct {
 	ConnectionResetInterval        time.Duration
 	Secrets                        secrets.Component
 	transport                      http.RoundTripper // for testing
+	concurrency                    concurrencyPolicy
 }
 
 // Compile-time check to ensure that DefaultForwarder implements the Forwarder interface
@@ -192,9 +193,9 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 		log.Warnf(
 			"'forwarder_apikey_validation_interval' set to invalid value (%d), defaulting to %d minute(s)",
 			validationInterval,
-			pkgconfigsetup.DefaultAPIKeyValidationInterval,
+			constants.DefaultAPIKeyValidationInterval,
 		)
-		validationInterval = pkgconfigsetup.DefaultAPIKeyValidationInterval
+		validationInterval = constants.DefaultAPIKeyValidationInterval
 	}
 
 	const forwarderRetryQueueMaxSizeKey = "forwarder_retry_queue_max_size"
@@ -202,14 +203,16 @@ func NewOptionsWithResolvers(config config.Component, log log.Component, domainR
 
 	retryQueuePayloadsTotalMaxSize := config.GetInt(forwarderRetryQueuePayloadsMaxSizeKey)
 
+	concurrency := concurrencyPolicyFromConfig(config, log)
+
 	option := &Options{
-		NumberOfWorkers:                config.GetInt("forwarder_num_workers"),
 		DisableAPIKeyChecking:          false,
 		RetryQueuePayloadsTotalMaxSize: retryQueuePayloadsTotalMaxSize,
 		APIKeyValidationInterval:       time.Duration(validationInterval) * time.Minute,
 		DomainResolvers:                domainResolvers,
 		ConnectionResetInterval:        time.Duration(config.GetInt("forwarder_connection_reset_interval")) * time.Second,
 		Secrets:                        &secretnooptypes.SecretNoop{}, // will get overwritten with actual secrets if needed
+		concurrency:                    concurrency,
 	}
 
 	if config.IsConfigured(forwarderRetryQueueMaxSizeKey) {
@@ -280,10 +283,14 @@ type DefaultForwarder struct {
 // TODO: (components) Remove this method and other exported methods in comp/forwarder.
 func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
 	agentName := getAgentName(options)
+	concurrency := options.concurrency
+	if concurrency == nil {
+		concurrency = concurrencyPolicyFromConfig(config, log)
+	}
 	f := &DefaultForwarder{
 		config:           config,
 		log:              log,
-		NumberOfWorkers:  options.NumberOfWorkers,
+		NumberOfWorkers:  concurrency.numWorkers(),
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]pkgresolver.DomainResolver{},
 		internalState:    atomic.NewUint32(Stopped),
@@ -330,8 +337,6 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 	}
 
 	flushToDiskMemRatio := config.GetFloat64("forwarder_flush_to_disk_mem_ratio")
-	domainForwarderSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: true}
-	transactionContainerSort := transaction.SortByCreatedTimeAndPriority{HighPriorityFirst: false}
 
 	for domain, resolver := range options.DomainResolvers {
 		domain, _ := utils.AddAgentVersionToDomain(domain, "app")
@@ -356,13 +361,12 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				flushToDiskMemRatio,
 				domainFolderPath,
 				diskUsageLimit,
-				transactionContainerSort,
 				resolver,
 				pointCountTelemetry)
 			f.domainResolvers[domain] = resolver
-			numberOfWorkers := options.NumberOfWorkers
+			domainConcurrency := concurrency.newDomain(domain)
 			if resolver.IsLocal() {
-				numberOfWorkers = 1 // Local domain resolver should only have one worker
+				domainConcurrency = newLocalConcurrencyDomainFromConfig(config, log)
 			}
 			fwd := newDomainForwarder(
 				config,
@@ -372,9 +376,8 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				resolver.IsMRF(),
 				resolver.IsLocal(),
 				transactionContainer,
-				numberOfWorkers,
+				domainConcurrency,
 				options.ConnectionResetInterval,
-				domainForwarderSort,
 				pointCountTelemetry,
 				options.transport)
 			f.domainForwarders[domain] = fwd
@@ -478,6 +481,7 @@ func (f *DefaultForwarder) Stop() {
 		select {
 		case <-donePurging:
 		case <-time.After(purgeTimeout):
+			// On timeout, transactions still queued for purge are dropped.
 			f.log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
 		}
 	} else {

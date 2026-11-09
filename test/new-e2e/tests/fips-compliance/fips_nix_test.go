@@ -59,6 +59,8 @@ instances: [{}]
 `,
 					false,
 				),
+				agentparams.WithSecurityAgentConfig(securityAgentConfig),
+				agentparams.WithSystemProbeConfig(systemProbeConfig),
 			),
 		),
 	)),
@@ -117,17 +119,6 @@ func (v *LinuxFIPSComplianceSuite) TestReportsFIPSStatusMetrics() {
 
 // this test check that the FIPS Agent processes are loaded with the FIPS OpenSSL libraries
 func (v *LinuxFIPSComplianceSuite) TestFIPSEnabledLoadedOPENSSLLibs() {
-	v.UpdateEnv(awshost.ProvisionerNoFakeIntake(
-		awshost.WithRunOptions(
-			ec2.WithEC2InstanceOptions(ec2.WithOS(os.UbuntuDefault)),
-			ec2.WithAgentOptions(
-				agentparams.WithFlavor("datadog-fips-agent"),
-				agentparams.WithSecurityAgentConfig(securityAgentConfig),
-				agentparams.WithSystemProbeConfig(systemProbeConfig),
-			),
-		),
-	))
-
 	paths := []string{
 		"/opt/datadog-agent/bin/agent/agent",
 		"/opt/datadog-agent/embedded/bin/trace-agent",

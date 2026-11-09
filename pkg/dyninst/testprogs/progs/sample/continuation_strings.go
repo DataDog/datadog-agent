@@ -6,8 +6,11 @@
 package main
 
 import (
+	"context"
 	"strconv"
 	"strings"
+
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 )
 
 // This file contains test functions that exercise continuation with string
@@ -33,7 +36,10 @@ func makeTestString(n int) string {
 func testManyStrings(ss []string) {}
 
 //nolint:all
-func executeContinuationStringFuncs() {
+func executeContinuationStringFuncs(ctx context.Context) {
+	span, _ := tracer.StartSpanFromContext(ctx, "sample.continuation_strings")
+	defer span.Finish()
+
 	// Build ~250 strings of 512 bytes each ≈ 128KiB total, plus one 40KiB
 	// string that exceeds the 32KiB scratch buffer on its own.
 	ss := make([]string, 0, 252)

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package dyninsttest provides utilities for dyninst integration testing.
 package dyninsttest
@@ -33,7 +33,7 @@ import (
 )
 
 // MinimumKernelVersion is the minimum kernel version required by the ebpf program.
-var MinimumKernelVersion = kernel.VersionCode(5, 17, 0)
+var MinimumKernelVersion = kernel.VersionCode(5, 18, 0)
 
 // SkipIfKernelNotSupported skips the test if the kernel version is not supported.
 func SkipIfKernelNotSupported(t *testing.T) {

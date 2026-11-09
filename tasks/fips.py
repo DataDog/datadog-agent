@@ -19,7 +19,6 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
     """
 
     skipped_test_fips = {
-        "new-e2e-otel": "TestOTelAgent.*",  # No FIPS + OTel image exists yet so these tests will never succeed
         "new-e2e-amp": ".*/TestJMXFIPSMode|TestJMXFetchNixMtls",  # These tests are explicitly testing the agent when FIPS is disabled
     }
 
@@ -57,8 +56,6 @@ def generate_fips_e2e_pipeline(ctx, generate_config=False):
                     # Warning: if you want to add a dependency here you will hit a gitlab limit (no more than 5 needs https://forum.gitlab.com/t/needs-pipeline-job-limit-on-premise/88731)
                     "go_e2e_deps",
                     "go_tools_deps",
-                    "tests_windows_sysprobe_x64",
-                    "tests_windows_secagent_x64",
                     "go_e2e_test_binaries",
                 ],
                 package_deps=[

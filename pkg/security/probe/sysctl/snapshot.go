@@ -26,8 +26,17 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
+const sysctlSnapshotFallbackSysFSRoot = "/host/root/sys"
+
 var (
 	redactedContent = "******"
+
+	// ErrRequiredSysctlSnapshotFileNotFound indicates that a sysfs file needed to
+	// build a sysctl snapshot is unavailable. Callers should disable snapshots
+	// rather than repeatedly retrying an unsupported host configuration.
+	ErrRequiredSysctlSnapshotFileNotFound = errors.New("required sysctl snapshot file not found")
+
+	errKernelConfigNotFound = errors.New("kernel config not found")
 )
 
 // readFileContent reads a file and processes its content based on the given rules.
@@ -149,13 +158,32 @@ func (s *Snapshot) snapshotProcSys(ignoredBaseNames []string) error {
 	})
 }
 
+func readSnapshotSystemControl(primaryPath, fallbackPath string, ignoredBaseNames []string) ([]byte, error) {
+	value, err := readFileContent(primaryPath, ignoredBaseNames)
+	if err == nil {
+		return value, nil
+	}
+
+	fallbackValue, fallbackErr := readFileContent(fallbackPath, ignoredBaseNames)
+	if fallbackErr == nil {
+		return fallbackValue, nil
+	}
+
+	if errors.Is(err, fs.ErrNotExist) && errors.Is(fallbackErr, fs.ErrNotExist) {
+		return nil, fmt.Errorf("%w: %s and fallback %s: %w", ErrRequiredSysctlSnapshotFileNotFound, primaryPath, fallbackPath, fallbackErr)
+	}
+	return nil, fmt.Errorf("couldn't read %s or fallback %s: %w", primaryPath, fallbackPath, fallbackErr)
+}
+
 // snapshotSys reads security relevant files from the /sys filesystem
 func (s *Snapshot) snapshotSys(ignoredBaseNames []string) error {
 	for _, systemControl := range []string{
 		"/kernel/security/lockdown",
 		"/kernel/security/lsm",
 	} {
-		value, err := readFileContent(kernel.HostSys(systemControl), ignoredBaseNames)
+		primaryPath := kernel.HostSys(systemControl)
+		fallbackPath := filepath.Join(sysctlSnapshotFallbackSysFSRoot, strings.TrimPrefix(systemControl, "/"))
+		value, err := readSnapshotSystemControl(primaryPath, fallbackPath, ignoredBaseNames)
 		if err != nil {
 			return err
 		}
@@ -269,15 +297,21 @@ func (s *Snapshot) getKernelConfigPath() (string, error) {
 	if err != nil {
 		return "", err
 	}
-	configPath := fmt.Sprintf(kernel.HostBoot("/config-%s"), strings.TrimSpace(string(kernelVersion)))
-	if _, err := os.Stat(configPath); err == nil {
-		return configPath, nil
+	return findKernelConfigPath(kernel.BootRoot(), kernel.ProcFSRoot(), strings.TrimSpace(kernelVersion))
+}
+
+func findKernelConfigPath(bootRoot string, procRoot string, kernelVersion string) (string, error) {
+	for _, configPath := range []string{
+		filepath.Join(bootRoot, "config-"+kernelVersion),
+		filepath.Join(procRoot, "config.gz"),
+		filepath.Join(procRoot, "1/root/boot", "config-"+kernelVersion),
+		filepath.Join(procRoot, "1/root/usr/lib/modules", kernelVersion, "config"),
+	} {
+		if _, err := os.Stat(configPath); err == nil {
+			return configPath, nil
+		}
 	}
-	procConfigGZ := kernel.HostProc("/config.gz")
-	if _, err := os.Stat(procConfigGZ); err == nil {
-		return procConfigGZ, nil
-	}
-	return "", errors.New("kernel config not found")
+	return "", errKernelConfigNotFound
 }
 
 func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFlags map[string]uint8) error {
@@ -305,6 +339,9 @@ func (s *Snapshot) parseKernelConfig(r io.Reader, kernelCompilationFlags map[str
 // snapshotKernelCompilationConfiguration tries to resolve and parse the kernel compilation configuration
 func (s *Snapshot) snapshotKernelCompilationConfiguration(kernelCompilationFlags map[string]uint8) error {
 	configPath, err := s.getKernelConfigPath()
+	if errors.Is(err, errKernelConfigNotFound) {
+		return nil
+	}
 	if err != nil {
 		return fmt.Errorf("error finding kernel config: %w", err)
 	}

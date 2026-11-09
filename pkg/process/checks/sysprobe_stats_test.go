@@ -78,4 +78,39 @@ func TestMergeProcWithSysprobeStats(t *testing.T) {
 
 		assertMatchesSysProbeStats(t, proc2, proc2Stats)
 	})
+
+	t.Run("zombie stats remain empty", func(t *testing.T) {
+		proc := makeProcess(1, "zombie")
+		proc.Stats.Status = "Z"
+		proc.Stats.OpenFdCount = 0
+		proc.Stats.IOStat = &procutil.IOCountersStat{}
+
+		mergeProcWithSysprobeStats(map[int32]*procutil.Process{1: proc}, &process.ProcStatsWithPermByPID{
+			StatsByPID: map[int32]*process.ProcStatsWithPerm{1: makeProcStatsWithPerm(1)},
+		})
+
+		assert.Zero(t, proc.Stats.OpenFdCount)
+		assert.True(t, proc.Stats.IOStat.IsZeroValue())
+	})
+}
+
+func TestPIDsForSystemProbeStats(t *testing.T) {
+	running := makeProcess(1, "running")
+	zombie := makeProcess(2, "zombie")
+	zombie.Stats.Status = "Z"
+
+	assert.ElementsMatch(t, []int32{1}, pidsForSystemProbeStats(map[int32]*procutil.Process{
+		1: running,
+		2: zombie,
+	}))
+}
+
+func TestPIDsForRealtimeSystemProbeStats(t *testing.T) {
+	pids := []int32{1, 2, 3}
+	stats := map[int32]*procutil.Stats{
+		1: {Status: "R"},
+		2: {Status: "Z"},
+	}
+
+	assert.Equal(t, []int32{1}, pidsForRealtimeSystemProbeStats(pids, stats))
 }

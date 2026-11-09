@@ -7,11 +7,12 @@ Notes about Agent6:
 """
 
 import os
+import re
 import sys
 import tempfile
 import time
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from time import sleep
 
 from gitlab import GitlabError
@@ -68,7 +69,6 @@ from tasks.libs.releasing.version import (
     RC_VERSION_RE,
     RELEASE_JSON_DEPENDENCIES,
     VERSION_RE,
-    _create_version_from_match,
     deduce_version,
     get_version_major,
     next_final_version,
@@ -81,25 +81,75 @@ from tasks.release_metrics.metrics import get_prs_metrics, get_release_lead_time
 QUALIFICATION_TAG = "qualification"
 
 
-@task
-def list_major_change(_, milestone):
-    """List all PR labeled "major_changed" for this release."""
+# Semantic versions as accepted by golang.org/x/mod/semver, and the pseudo-versions Go ignores as tags
+GO_SEMVER_RE = re.compile(
+    r"^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)"
+    r"(?:-((?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*)(?:\.(?:0|[1-9]\d*|\d*[A-Za-z-][0-9A-Za-z-]*))*))?"
+    r"(\+[0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*)?$"
+)
+GO_PSEUDO_VERSION_RE = re.compile(r"^v\d+\.(?:0\.0-|\d+\.\d+-(?:[^+]*\.)?0\.)\d{14}-[A-Za-z0-9]+(?:\+.*)?$")
 
-    gh = GithubAPI()
-    pull_requests = gh.get_pulls(milestone=milestone, labels=['major_change'])
-    if pull_requests is None:
-        return
-    if len(pull_requests) == 0:
-        print(f"no major change for {milestone}")
-        return
 
-    for pr in pull_requests:
-        print(f"#{pr.number}: {pr.title} ({pr.html_url})")
+def _go_semver_key(version):
+    """Sort key ordering versions like golang.org/x/mod/semver.Compare."""
+    major, minor, patch, prerelease, _ = GO_SEMVER_RE.match(version).groups()
+    if prerelease is None:
+        return int(major), int(minor), int(patch), 1, ()
+    identifiers = tuple((0, int(i), "") if i.isdigit() else (1, 0, i) for i in prerelease.split("."))
+    return int(major), int(minor), int(patch), 0, identifiers
+
+
+def _get_commit_refs(ctx, commit):
+    """Get the tags and pseudo-version suffix Go uses to name the modules of the repository at a commit."""
+    # The tags merged into the commit are only all visible with its full history
+    shallow = ctx.run("git rev-parse --is-shallow-repository", hide=True).stdout.strip() == "true"
+    ctx.run(f"git fetch --tags --force{' --unshallow' if shallow else ''} origin", hide=True)
+    timestamp = int(ctx.run(f"git log -1 --format=%ct {commit}", hide=True).stdout.strip())
+    return {
+        "merged_tags": ctx.run(f"git tag --merged {commit}", hide=True).stdout.split(),
+        "commit_tags": ctx.run(f"git tag --points-at {commit}", hide=True).stdout.split(),
+        "suffix": f"{datetime.fromtimestamp(timestamp, timezone.utc):%Y%m%d%H%M%S}-{commit[:12]}",
+    }
+
+
+def _get_module_pseudo_version(module, refs):
+    """Compute the version `go list -m <module>@<commit>` resolves, from the refs of `_get_commit_refs`.
+
+    Asking Go makes it fetch every branch and tag of the repository: the module proxies time out on it
+    and the direct git fetch can hang for hours.
+    """
+    prefix = "" if module.path == "." else f"{module.path}/"
+    path_major = re.search(r"/v(\d+)$", module.import_path)
+    majors = {path_major.group(1)} if path_major else {"0", "1"}
+
+    def versions(tags, canonical_only):
+        for tag in tags:
+            version = tag.removeprefix(prefix)
+            match = tag.startswith(prefix) and GO_SEMVER_RE.match(version)
+            if not match or GO_PSEUDO_VERSION_RE.match(version) or match.group(1) not in majors:
+                continue
+            if canonical_only and match.group(5):
+                continue
+            yield version.split("+")[0]
+
+    # A tag on the commit itself names it, otherwise the pseudo-version is based on the highest tag before it
+    tagged = max(versions(refs["commit_tags"], canonical_only=True), key=_go_semver_key, default=None)
+    if tagged:
+        return tagged
+    base = max(versions(refs["merged_tags"], canonical_only=False), key=_go_semver_key, default=None)
+    if base is None:
+        return f"v{min(majors)}.0.0-{refs['suffix']}"
+    if "-" in base:
+        return f"{base}.0.{refs['suffix']}"
+    major_minor, patch = base.rsplit(".", 1)
+    return f"{major_minor}.{int(patch) + 1}-0.{refs['suffix']}"
 
 
 @task
 def update_modules(ctx, release_branch=None, version=None, trust=False):
     """Update internal dependencies between the different Agent modules.
+
+    Agent 6 release candidates use pseudo-versions because their nested modules are not tagged.
 
     Args:
         verify: Checks for correctness on the Agent Version (on by default).
@@ -112,8 +162,12 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
 
+    agent6_rc = RC_VERSION_RE.match(agent_version) and get_version_major(agent_version) == 6
+
     with agent_context(ctx, release_branch, skip_checkout=release_branch is None):
         modules = get_default_modules()
+        refs = _get_commit_refs(ctx, ctx.run("git rev-parse HEAD", hide=True).stdout.strip()) if agent6_rc else None
+        pseudo_versions = {}
         for module in modules.values():
             for dependency in module.dependencies(ctx):
                 dependency_mod = modules[dependency]
@@ -124,7 +178,13 @@ def update_modules(ctx, release_branch=None, version=None, trust=False):
                 ):
                     # Skip this dependency update in new-e2e for Agent 6, as it's incompatible.
                     continue
-                ctx.run(f"go mod edit -require={dependency_mod.dependency_path(agent_version)} {module.go_mod_path()}")
+                if agent6_rc:
+                    if dependency not in pseudo_versions:
+                        pseudo_versions[dependency] = _get_module_pseudo_version(dependency_mod, refs)
+                    dependency_path = f"{dependency_mod.import_path}@{pseudo_versions[dependency]}"
+                else:
+                    dependency_path = dependency_mod.dependency_path(agent_version)
+                ctx.run(f"go mod edit -require={dependency_path} {module.go_mod_path()}")
 
 
 def __get_force_option(force: bool) -> str:
@@ -176,6 +236,8 @@ def tag_modules(
 ):
     """Create tags for Go nested modules for a given Datadog Agent version.
 
+    Agent 6 release candidates are skipped; their modules should use pseudo-versions.
+
     Args:
         commit: Will tag `commit` with the tags (default HEAD).
         verify: Checks for correctness on the Agent version (on by default).
@@ -193,6 +255,12 @@ def tag_modules(
     assert release_branch or version
 
     agent_version = version or deduce_version(ctx, release_branch, trust=trust)
+
+    # Agent 6 consumers can use the global RC tag to find the commit for a pseudo-version.
+    # Final release module tags remain unaffected.
+    if RC_VERSION_RE.match(agent_version) and get_version_major(agent_version) == 6:
+        print(f"Skipping module tags for Agent 6 release candidate {agent_version}")
+        return
 
     def _tag_modules():
         tags = []
@@ -429,7 +497,8 @@ def create_rc(ctx, release_branch, patch_version=False, upstream="origin"):
         is run, then the task will prepare the release entries for 7.32.0-rc.1, and therefore
         will only use 7.32.X tags on the dependency repositories that follow the Agent version scheme.
 
-        Updates internal module dependencies with the new RC.
+        Updates internal module dependencies with the new RC. Agent 6 RCs use
+        pseudo-versions because RC module tags are not created.
 
         Commits the above changes, and then creates a PR on the upstream repository with the change.
 
@@ -755,30 +824,6 @@ def check_omnibus_branches(ctx, release_branch=None, worktree=True):
             return _main()
     else:
         return _main()
-
-
-@task
-def get_active_release_branch(ctx, release_branch):
-    """Determine what is the current active release branch for the Agent within the release worktree.
-
-    If release started and code freeze is in place - main branch is considered active.
-    If release started and code freeze is over - release branch is considered active.
-    """
-
-    with agent_context(ctx, branch=release_branch):
-        gh = GithubAPI()
-        next_version = get_next_version(gh, latest_release=gh.latest_release(6) if is_agent6(ctx) else None)
-        release_branch = gh.get_branch(next_version.branch())
-        if release_branch:
-            print(f"{release_branch.name}")
-        else:
-            print(get_default_branch())
-
-
-def get_next_version(gh, latest_release=None):
-    latest_release = latest_release or gh.latest_release()
-    current_version = _create_version_from_match(VERSION_RE.search(latest_release))
-    return current_version.next_version(bump_minor=True)
 
 
 @task

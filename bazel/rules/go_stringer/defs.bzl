@@ -4,7 +4,7 @@ load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 def _impl(name, build_tags, linecomment, output, src, trimprefix, types, visibility):
     args = []
     if build_tags:
-        args.append("-tags={}".format(" ".join(build_tags)))
+        args.append("-tags={}".format(",".join(build_tags)))
     args.append("-type={}".format(",".join(types)))
     if linecomment:
         args.append("-linecomment")
@@ -21,7 +21,7 @@ def _impl(name, build_tags, linecomment, output, src, trimprefix, types, visibil
         tool = "@go_stringer",
     )
     native.exports_files([output], visibility)
-    write_source_file(name = name, in_file = ":{}".format(gen), out_file = output, check_that_out_file_exists = False)
+    write_source_file(name = name, in_file = ":{}".format(gen), out_file = output, check_that_out_file_exists = False, visibility = visibility)
 
 go_stringer = macro(
     implementation = _impl,

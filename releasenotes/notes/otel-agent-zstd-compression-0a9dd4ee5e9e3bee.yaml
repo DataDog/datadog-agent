@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The Datadog Distribution of OpenTelemetry (DDOT) Collector now compresses all
+    telemetry signals with ``zstd``, providing a consistent compression algorithm
+    across metrics, logs, and traces. Metrics and logs default to ``zstd`` level 3
+    and the level is configurable through the ``serializer_zstd_compressor_level``
+    and ``logs_config.zstd_compression_level`` settings. Previously, metrics were
+    compressed with ``zlib`` and traces with ``gzip``.

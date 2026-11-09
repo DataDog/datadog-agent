@@ -23,7 +23,7 @@ func (h *TaskTerminationHandler) String() string {
 }
 
 // CanHandle reports whether this handler processes the given event.
-func (h *TaskTerminationHandler) CanHandle(ev workloadmeta.Event) bool {
+func (h *TaskTerminationHandler) CanHandle(ev workloadmeta.Event, _ workloadmeta.Source) bool {
 	return ev.Type == workloadmeta.EventTypeUnset &&
 		ev.Entity.GetID().Kind == workloadmeta.KindECSTask
 }

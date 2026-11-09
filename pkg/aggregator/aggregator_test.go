@@ -384,7 +384,7 @@ func TestSeriesTooManyTags(t *testing.T) {
 			s.On("SendServiceChecks", mock.Anything).Return(nil)
 			s.On("SendIterableSeries", mock.Anything).Return(nil)
 
-			demux.ForceFlushToSerializer(start, true)
+			demux.ForceFlushToSerializer(start, true, false)
 			s.AssertNotCalled(t, "SendEvents")
 			s.AssertNotCalled(t, "SendSketch")
 
@@ -453,7 +453,7 @@ func TestDistributionsTooManyTags(t *testing.T) {
 			s.On("SendIterableSeries", mock.Anything).Return(nil).Times(1)
 			s.On("SendSketch", mock.Anything).Return(nil).Times(1)
 
-			demux.ForceFlushToSerializer(start, true)
+			demux.ForceFlushToSerializer(start, true, false)
 			s.AssertNotCalled(t, "SendEvents")
 
 			expMap := map[string]uint64{}
@@ -540,7 +540,7 @@ func TestRecurrentSeries(t *testing.T) {
 	})
 
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
-	demux.ForceFlushToSerializer(start, true)
+	demux.ForceFlushToSerializer(start, true, false)
 	require.EqualValues(t, expectedSeries, s.series)
 	s.series = nil
 
@@ -550,7 +550,7 @@ func TestRecurrentSeries(t *testing.T) {
 	// Assert that recurrentSeries are sent on each flushed
 	// same goes for the service check
 	s.On("SendServiceChecks", agentUpMatcher).Return(nil).Times(1)
-	demux.ForceFlushToSerializer(start, true)
+	demux.ForceFlushToSerializer(start, true, false)
 	require.EqualValues(t, expectedSeries, s.series)
 	s.series = nil
 
@@ -759,7 +759,7 @@ func flushSomeSamples(demux *AgentDemultiplexer) map[string]*metrics.Serie {
 	// sure all samples have been processed by the sampler
 	time.Sleep(1 * time.Second)
 
-	demux.ForceFlushToSerializer(time.Unix(int64(timeSamplerBucketSize)*3, 0), true)
+	demux.ForceFlushToSerializer(time.Unix(int64(timeSamplerBucketSize)*3, 0), true, false)
 	return expectedSeries
 }
 

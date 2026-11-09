@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver
 
 //nolint:revive // TODO(CAPP) Fix revive linter
 package inventory
@@ -23,6 +23,7 @@ import (
 var defaultGenericResource = []k8sCollectors.GenericResource{
 	{
 		Name:     "endpointslices",
+		Kind:     "EndpointSlice",
 		Group:    "discovery.k8s.io",
 		Version:  "v1",
 		NodeType: orchestrator.K8sEndpointSlice,
@@ -53,9 +54,11 @@ func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, t
 			k8sCollectors.NewClusterCollectorVersions(),
 			k8sCollectors.NewClusterRoleBindingCollectorVersions(tagger),
 			k8sCollectors.NewClusterRoleCollectorVersions(tagger),
+			k8sCollectors.NewConfigMapCollectorVersions(tagger),
 			k8sCollectors.NewCronJobCollectorVersions(tagger),
 			k8sCollectors.NewDaemonSetCollectorVersions(tagger),
 			k8sCollectors.NewDeploymentCollectorVersions(tagger),
+			k8sCollectors.NewHelmReleaseConfigMapCollectorVersions(tagger),
 			k8sCollectors.NewHorizontalPodAutoscalerCollectorVersions(tagger),
 			k8sCollectors.NewIngressCollectorVersions(tagger),
 			k8sCollectors.NewJobCollectorVersions(tagger),
@@ -69,6 +72,7 @@ func NewCollectorInventory(cfg config.Component, store workloadmeta.Component, t
 			k8sCollectors.NewReplicaSetCollectorVersions(tagger),
 			k8sCollectors.NewRoleBindingCollectorVersions(tagger),
 			k8sCollectors.NewRoleCollectorVersions(tagger),
+			k8sCollectors.NewSecretCollectorVersions(tagger),
 			k8sCollectors.NewServiceAccountCollectorVersions(tagger),
 			k8sCollectors.NewServiceCollectorVersions(tagger),
 			k8sCollectors.NewStatefulSetCollectorVersions(tagger),
@@ -104,6 +108,17 @@ func (ci *CollectorInventory) CollectorForVersion(collectorName, collectorGroupV
 		}
 	}
 	return nil, fmt.Errorf("no collector found for name %s and version %s", collectorName, collectorGroupVersion)
+}
+
+// Groups returns the API groups of the collectors in the inventory.
+func (ci *CollectorInventory) Groups() map[string]struct{} {
+	groups := make(map[string]struct{})
+	for _, cv := range ci.collectors {
+		for _, c := range cv.Collectors {
+			groups[c.Metadata().Group] = struct{}{}
+		}
+	}
+	return groups
 }
 
 // StableCollectors get a list of all stable collectors in the inventory.

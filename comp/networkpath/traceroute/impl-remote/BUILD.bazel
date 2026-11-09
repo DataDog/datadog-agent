@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl-remote",
@@ -13,16 +14,15 @@ go_library(
         "//pkg/networkpath/payload",
         "//pkg/networkpath/traceroute/config",
         "//pkg/system-probe/api/client",
-        "//pkg/system-probe/config",
+        "//pkg/system-probe/config/types",
         "//pkg/util/funcs",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl-remote_test",
     srcs = ["traceroute_test.go"],
     embed = [":impl-remote"],
-    gotags = ["test"],
     deps = [
         "//comp/core/hostname/hostnameinterface/mock",
         "//comp/core/log/mock",

@@ -9,9 +9,12 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -38,6 +41,8 @@ const (
 	installerUnit   = "datadog-agent-installer.service"
 	procmgrUnit     = "datadog-agent-procmgr.service"
 	procmgrUnitXP   = "datadog-agent-procmgr-exp.service"
+
+	ddotProcess = "datadog-agent-ddot.yaml"
 )
 
 type packageAgentSuite struct {
@@ -50,11 +55,28 @@ func testAgent(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMetho
 	}
 }
 
+// waitForCoreUnitsActive waits for the units assertUnits expects Running, including procmgrUnit
+// when procmgr is the active service manager (assertUnits checks it conditionally too).
+func (s *packageBaseSuite) waitForCoreUnitsActive() {
+	units := []string{agentUnit, traceUnit, probeUnit}
+	if s.host.ProcmgrEnabled() {
+		units = append(units, procmgrUnit)
+	}
+	s.host.WaitForUnitActive(s.T(), units...)
+}
+
 func (s *packageAgentSuite) TestInstall() {
+	s.testInstall()
+}
+
+// testInstall holds the TestInstall assertions, shared with packageAgentFapolicydSuite so that
+// suite embeds packageBaseSuite instead of packageAgentSuite and doesn't promote every other
+// packageAgentSuite Test* method (experiment lifecycle, NSS-user, FIPS, ...) into its own run.
+func (s *packageBaseSuite) testInstall() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, probeUnit)
+	s.waitForCoreUnitsActive()
 	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
 
 	state := s.host.State()
@@ -71,10 +93,12 @@ func (s *packageAgentSuite) TestInstall() {
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
 
+	state.AssertFileExists(path.Join(agentDir, "processes.d/datadog-agent-ddot.yaml"), 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
+	s.assertClangBPFHardened(state, agentDir)
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
@@ -82,14 +106,28 @@ func (s *packageAgentSuite) TestInstall() {
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
 }
 
-func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
-	state.AssertUnitsLoaded(agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit)
+func (s *packageBaseSuite) assertUnits(state host.State, oldUnits bool) {
+	loadedUnits := []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit}
+	if s.host.ProcmgrEnabled() {
+		loadedUnits = append(loadedUnits, procmgrUnit)
+	}
+	state.AssertUnitsLoaded(loadedUnits...)
 	state.AssertUnitsEnabled(agentUnit)
+	if s.host.ProcmgrEnabled() {
+		state.AssertProcessesLoaded(ddotProcess)
+	}
 
 	// we cannot assert here on process-agent/agent-data-plane/system-probe being either running or dead due to timing issues,
 	// so it has to be checked prior (i.e., using WaitForUnitExited)
-	state.AssertUnitsRunning(agentUnit, traceUnit)
+	runningUnits := []string{agentUnit, traceUnit}
+	if s.host.ProcmgrEnabled() {
+		runningUnits = append(runningUnits, procmgrUnit)
+	}
+	state.AssertUnitsRunning(runningUnits...)
 	state.AssertUnitsDead(securityUnit)
+	if s.host.ProcmgrEnabled() {
+		state.AssertProcessesDead(ddotProcess)
+	}
 
 	systemdPath := "/etc/systemd/system"
 	if oldUnits || s.installMethod == InstallMethodAnsible {
@@ -105,11 +143,11 @@ func (s *packageAgentSuite) assertUnits(state host.State, oldUnits bool) {
 		case "yum", "zypper":
 			systemdPath = "/usr/lib/systemd/system"
 		default:
-			s.T().Fatalf("unsupported package manager: %s", pkgManager)
+			s.Require().FailNow("unsupported package manager", "%s", pkgManager)
 		}
 	}
 
-	for _, unit := range []string{agentUnit, traceUnit, processUnit, probeUnit, securityUnit, dataPlaneUnit} {
+	for _, unit := range loadedUnits {
 		s.host.AssertUnitProperty(unit, "FragmentPath", filepath.Join(systemdPath, unit))
 	}
 }
@@ -329,18 +367,6 @@ func (s *packageAgentSuite) TestInstallWithGroupPreviouslyCreated() {
 	assert.True(s.T(), s.host.GroupExists("dd-agent"), "dd-agent group should exist")
 }
 
-func (s *packageAgentSuite) TestInstallWithFapolicyd() {
-	if s.os != e2eos.RedHat9 {
-		s.T().Skip("fapolicyd is only supported on RedHat 9")
-	}
-	defer func() {
-		s.host.Run("sudo yum remove -y fapolicyd")
-	}()
-	s.host.Run("sudo yum install -y fapolicyd")
-
-	s.TestInstall()
-}
-
 func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 	s.RunInstallScript()
 	defer s.Purge()
@@ -350,10 +376,56 @@ func (s *packageAgentSuite) TestNoWorldWritableFiles() {
 		if !strings.HasPrefix(path, "/opt/datadog") || file.IsSymlink {
 			continue
 		}
-		if file.Perms&002 != 0 {
-			s.T().Fatalf("file %v is world writable", path)
+
+		// Skip this file if it's already _not_ world writable.
+		if file.Perms&002 == 0 {
+			continue
+		}
+
+		// Skip files that are world writable but not _accessible_ to the world transitively.
+		//
+		// Some files -- like those in ADP's "pre-flight" mode -- are made world writable outside of our
+		// control _but_ they're located in non-world-writable/readable directories, preserving the
+		// intended permissioning scheme that we're enforcing here.
+		if dir, unreachable := unreachableAncestor(state.FS, path); unreachable {
+			s.T().Logf("file %v is world writable but unreachable: %v denies traversal to other users", path, dir)
+			continue
+		}
+
+		s.Require().FailNow("file is world writable", "path: %v", path)
+	}
+}
+
+// assertClangBPFHardened checks that the clang-bpf binary system-probe runs as root for eBPF
+// runtime compilation is root-owned, and that the dynamic loader does not search any
+// RPATH/RUNPATH directory for it: $ORIGIN/../lib would resolve to the dd-agent-owned
+// embedded/lib and let dd-agent plant a library that runs as root.
+func (s *packageBaseSuite) assertClangBPFHardened(state host.State, agentDir string) {
+	clangBPF := path.Join(agentDir, "embedded/bin/clang-bpf")
+	state.AssertFileExists(clangBPF, 0744, "root", "root")
+
+	// LD_DEBUG=libs makes the loader print every library search path, labelled with where
+	// it comes from, e.g. "search path=/opt/datadog-agent/embedded/bin/../lib (RPATH from file ...)".
+	out := s.host.Run(fmt.Sprintf("sudo env LD_DEBUG=libs %s --version 2>&1", clangBPF))
+	s.Require().NotRegexp(`\((RPATH|RUNPATH) from file`, out, "clang-bpf has a library search path")
+}
+
+// unreachableAncestor returns the closest ancestor directory of path that other users cannot
+// traverse, if there is one. Without the execute bit on every directory above it, a file cannot
+// be opened by another user whatever its own mode says. Ancestors missing from the state -- the
+// directories host.State() prunes -- are treated as traversable, so an unknown path is reported
+// rather than skipped.
+func unreachableAncestor(files map[string]host.FileInfo, path string) (string, bool) {
+	for dir := filepath.Dir(path); dir != "/" && dir != "."; dir = filepath.Dir(dir) {
+		info, ok := files[dir]
+		if !ok {
+			continue
+		}
+		if info.Perms&001 == 0 {
+			return dir, true
 		}
 	}
+	return "", false
 }
 
 func (s *packageAgentSuite) TestInstallWithNSSUser() {
@@ -374,21 +446,10 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 	// We use libnss-extrausers which reads from /var/lib/extrausers
 	// This works through nsswitch.conf without needing environment variables
 
-	// Install libnss-extrausers
-	if s.host.GetPkgManager() == "apt" {
-		s.host.Run("sudo apt-get update && sudo apt-get install -y libnss-extrausers")
-	} else if s.host.GetPkgManager() == "yum" {
-		_, err := s.Env().RemoteHost.Execute("sudo yum install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
-	} else if s.host.GetPkgManager() == "zypper" {
-		_, err := s.Env().RemoteHost.Execute("sudo zypper install -y libnss-extrausers")
-		if err != nil {
-			s.T().Skip("libnss-extrausers not available on this system")
-			return
-		}
+	// libnss-extrausers is only available on apt systems
+	if s.host.GetPkgManager() != "apt" {
+		s.T().Skip("libnss-extrausers not available on this system")
+		return
 	}
 
 	// Create the extrausers directory structure
@@ -409,7 +470,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 		}
 	}
 	if gid == 0 {
-		s.T().Fatal("Could not find available GID in range 900-999")
+		s.Require().FailNow("could not find available GID in range 900-999")
 	}
 
 	for id := 900; id < 1000; id++ {
@@ -422,7 +483,7 @@ func (s *packageAgentSuite) TestInstallWithNSSUser() {
 		}
 	}
 	if uid == 0 {
-		s.T().Fatal("Could not find available UID in range 900-999")
+		s.Require().FailNow("could not find available UID in range 900-999")
 	}
 
 	s.T().Logf("Using UID=%d GID=%d for dd-agent user/group", uid, gid)
@@ -502,7 +563,7 @@ func (s *packageAgentSuite) TestInstallFips() {
 	s.RunInstallScript("DD_REMOTE_UPDATES=true", "DD_AGENT_FLAVOR=datadog-fips-agent")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-fips-agent")
-	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, probeUnit)
+	s.waitForCoreUnitsActive()
 	s.host.WaitForUnitExited(s.T(), 0, processUnit, dataPlaneUnit)
 
 	// Remote Config is disabled by default for FIPS/FED agents, so the RC client fails to init and the unit exits with code 255.
@@ -523,13 +584,128 @@ func (s *packageAgentSuite) TestInstallFips() {
 
 	state.AssertDirExists(agentDir, 0755, "dd-agent", "dd-agent")
 
+	state.AssertFileExists(path.Join(agentDir, "processes.d/datadog-agent-ddot.yaml"), 0644, "dd-agent", "dd-agent")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/system-probe"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/bin/security-agent"), 0755, "root", "root")
 	state.AssertDirExists(path.Join(agentDir, "embedded/share/system-probe/ebpf"), 0755, "root", "root")
 	state.AssertFileExists(path.Join(agentDir, "embedded/share/system-probe/ebpf/dns.o"), 0644, "root", "root")
+	s.assertClangBPFHardened(state, agentDir)
 
 	state.AssertSymlinkExists("/opt/datadog-packages/datadog-agent/stable", agentRunSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-agent", agentSymlink, "root", "root")
 	state.AssertSymlinkExists("/usr/bin/datadog-installer", installerSymlink, "root", "root")
 	state.AssertFileExistsAnyUser("/etc/datadog-agent/install.json", 0644)
+}
+
+func (s *packageAgentSuite) TestFleetUpgradeAndReboot() {
+	remote := s.Env().RemoteHost
+	defer s.Purge()
+	defer func() {
+		if !s.T().Failed() {
+			return
+		}
+		for _, command := range []string{
+			"sudo systemctl status datadog-agent datadog-agent-trace datadog-agent-installer --no-pager",
+			"sudo journalctl -b -u datadog-agent -u datadog-agent-trace -u datadog-agent-installer --no-pager -n 200",
+			"readlink -f /opt/datadog-packages/datadog-agent/stable",
+			"sudo ls -ldZ /opt/datadog-packages/datadog-agent/stable/run; sudo ls -lZ /opt/datadog-packages/datadog-agent/stable/run/",
+			"sudo datadog-installer status",
+			"sudo journalctl -b -u datadog-agent-installer-exp --no-pager -n 200",
+			"cat /tmp/start_experiment.log /tmp/promote_experiment.log",
+			"sudo ausearch -m AVC,USER_AVC -ts boot",
+		} {
+			output, err := remote.Execute(command)
+			s.T().Logf("%s: %v\n%s", command, err, output)
+		}
+	}()
+	s.RunInstallScript("DD_REMOTE_UPDATES=true")
+	s.host.AssertPackageInstalledByPackageManager("datadog-agent")
+	baselinePath := strings.TrimSpace(remote.MustExecute("readlink -f /opt/datadog-packages/datadog-agent/stable"))
+	remote.MustExecute("sudo systemctl restart datadog-agent")
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
+	upgrade := &upgradeScenarioSuite{packageBaseSuite: &s.packageBaseSuite}
+	upgrade.setCatalog(upgrade.testCatalog())
+	_, err := upgrade.startExperiment(datadogAgent, s.pipelineAgentVersion)
+	require.NoError(s.T(), err)
+	s.host.WaitForUnitActive(s.T(), agentUnitXP, traceUnitXP, "datadog-agent-installer-exp.service")
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		_, err := remote.Execute("sudo datadog-installer daemon rc-status")
+		require.NoError(c, err)
+	}, time.Minute, time.Second)
+	_, err = upgrade.promoteExperiment(datadogAgent)
+	require.NoError(s.T(), err)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		state := upgrade.getInstallerStatus().Packages.States["datadog-agent"]
+		assert.Equal(c, s.pipelineAgentVersion, state.Stable)
+		assert.Empty(c, state.Experiment)
+	}, 2*time.Minute, time.Second)
+	upgradedPath := strings.TrimSpace(remote.MustExecute("readlink -f /opt/datadog-packages/datadog-agent/stable"))
+	require.NotEqual(s.T(), baselinePath, upgradedPath)
+	require.Equal(s.T(), "/opt/datadog-packages/datadog-agent/"+s.pipelineAgentVersion, upgradedPath)
+	s.assertRuntimeLabels()
+	before := strings.TrimSpace(remote.MustExecute("cat /proc/sys/kernel/random/boot_id"))
+	if _, err := remote.Execute("sudo systemctl --no-block reboot"); err != nil {
+		s.T().Logf("reboot request: %v", err)
+	}
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		require.NoError(c, remote.Reconnect())
+		after, err := remote.Execute("cat /proc/sys/kernel/random/boot_id")
+		require.NoError(c, err)
+		require.NotEmpty(c, strings.TrimSpace(after))
+		assert.NotEqual(c, before, strings.TrimSpace(after))
+	}, 20*time.Minute, 15*time.Second)
+	s.host.WaitForUnitActive(s.T(), agentUnit, traceUnit, installerUnit)
+	state := upgrade.getInstallerStatus().Packages.States["datadog-agent"]
+	require.Equal(s.T(), s.pipelineAgentVersion, state.Stable)
+	require.Empty(s.T(), state.Experiment)
+	s.Require().EventuallyWithT(func(c *assert.CollectT) {
+		output, err := remote.Execute("sudo datadog-agent status")
+		require.NoError(c, err, "%s", output)
+	}, time.Minute, time.Second)
+	s.assertRuntimeLabels()
+}
+
+func (s *packageAgentSuite) assertRuntimeLabels() {
+	s.T().Helper()
+	if s.os != e2eos.RedHat9SELinuxNPM {
+		return
+	}
+	require.Equal(s.T(), "Enforcing", strings.TrimSpace(s.Env().RemoteHost.MustExecute("getenforce")))
+	remote := s.Env().RemoteHost
+	const run = "/opt/datadog-packages/datadog-agent/stable/run"
+	for _, dir := range []string{run, "/opt/datadog-packages/run"} {
+		require.Equal(s.T(), "dd-agent:dd-agent 755", strings.TrimSpace(remote.MustExecute("stat -Lc '%U:%G %a' "+dir)))
+	}
+	s.assertRuntimeType(run)
+	// Socket activation starts trace-agent only after application traffic arrives.
+	s.EventuallyWithT(func(c *assert.CollectT) {
+		_, err := remote.Execute("curl --fail --silent --show-error --max-time 10 http://127.0.0.1:8126/info")
+		require.NoError(c, err)
+	}, time.Minute, time.Second)
+	for _, process := range []struct{ unit, file string }{{agentUnit, "agent.pid"}, {traceUnit, "trace-agent.pid"}} {
+		s.EventuallyWithT(func(c *assert.CollectT) {
+			pid, err := remote.Execute("cat " + run + "/" + process.file)
+			require.NoError(c, err)
+			number, err := strconv.Atoi(strings.TrimSpace(pid))
+			require.NoError(c, err)
+			require.Positive(c, number)
+			mainPID, err := remote.Execute("systemctl show -p MainPID --value " + process.unit)
+			require.NoError(c, err)
+			assert.Equal(c, strings.TrimSpace(mainPID), strings.TrimSpace(pid))
+		}, time.Minute, time.Second)
+		s.assertRuntimeType(run + "/" + process.file)
+	}
+	files := remote.MustExecute("find -H " + run + " -maxdepth 1 -type f -name '*.pid'")
+	for _, file := range strings.Fields(files) {
+		s.assertRuntimeType(file)
+	}
+}
+
+func (s *packageAgentSuite) assertRuntimeType(path string) {
+	s.T().Helper()
+	context := strings.TrimSpace(s.Env().RemoteHost.MustExecute(fmt.Sprintf("stat -Lc '%%C' %q", path)))
+	fields := strings.Split(context, ":")
+	require.GreaterOrEqual(s.T(), len(fields), 3, "missing SELinux context for %s: %s", path, context)
+	require.Equal(s.T(), "var_run_t", fields[2], path)
 }

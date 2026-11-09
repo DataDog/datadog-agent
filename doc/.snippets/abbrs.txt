@@ -1,0 +1,2 @@
+*[DSD]: DogStatsD
+*[KSM]: kube-state-metrics

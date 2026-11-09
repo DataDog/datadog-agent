@@ -14,7 +14,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cenkalti/backoff/v5"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -47,6 +47,9 @@ func GetMetadataAPIVersion() string {
 
 // IsRunningOn returns true if the agent is running on Azure
 func IsRunningOn(ctx context.Context) bool {
+	if isChassisAssetTagAzure() {
+		return true
+	}
 	if _, err := GetHostAliases(ctx); err == nil {
 		return true
 	}

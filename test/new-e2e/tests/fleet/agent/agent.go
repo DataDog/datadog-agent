@@ -15,7 +15,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
@@ -132,6 +132,14 @@ func (a *Agent) IntegrationShow(name string) (string, error) {
 	return a.runCommand("integration", "show", name)
 }
 
+// A remote agent waits indefinitely for the core agent's config stream rather than failing, so a
+// scenario that keeps the core agent down holds the whole unit set unready until systemd has torn
+// the conflicting -exp units down. That teardown outlasts a ten-second wait on the slower distros.
+const (
+	agentReadyInterval = 1 * time.Second
+	agentReadyTries    = 120
+)
+
 // runCommand runs a command on the remote host.
 func (a *Agent) runCommand(command string, args ...string) (string, error) {
 	var baseCommand string
@@ -144,10 +152,10 @@ func (a *Agent) runCommand(command string, args ...string) (string, error) {
 		return "", fmt.Errorf("unsupported OS family: %v", a.host.RemoteHost.OSFamily)
 	}
 
-	err := retry.Do(func() error {
+	_, err := backoff.Retry(a.t().Context(), func() (struct{}, error) {
 		_, err := a.host.RemoteHost.Execute(baseCommand + " config --all")
-		return err
-	}, retry.Attempts(10), retry.Delay(1*time.Second), retry.DelayType(retry.FixedDelay))
+		return struct{}{}, err
+	}, backoff.WithMaxTries(agentReadyTries), backoff.WithBackOff(backoff.NewConstantBackOff(agentReadyInterval)))
 	if err != nil {
 		return "", fmt.Errorf("error waiting for agent to be ready: %w", err)
 	}
@@ -379,8 +387,7 @@ type Status struct {
 				Name       string `json:"Name"`
 			} `json:"Sketches"`
 		} `json:"FlushCount"`
-		HostnameUpdate int `json:"HostnameUpdate"`
-		MetricTags     struct {
+		MetricTags struct {
 			Series struct {
 				Above100 int `json:"Above100"`
 				Above90  int `json:"Above90"`

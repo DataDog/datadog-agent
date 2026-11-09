@@ -6,7 +6,7 @@ Inputs (per rule invocation):
     references per-section sub-files via $ref, so those sub-files must
     also be supplied via `srcs`.
   - srcs: additional schema sub-files that the top_schema references.
-  - build_type: agent-py3, iot-agent, dogstatsd, dca, dcacf, or
+  - build_type: datadog-agent, iot-agent, dogstatsd, dca, dcacf, or
     system-probe.
   - os_target: linux, windows, or darwin.
   - out: the rendered example yaml.
@@ -37,7 +37,7 @@ schema_template_config = rule(
     implementation = _schema_template_config_impl,
     attrs = {
         "build_type": attr.string(
-            doc = "One of agent-py3, iot-agent, dogstatsd, dca, dcacf, system-probe.",
+            doc = "One of datadog-agent, iot-agent, dogstatsd, dca, dcacf, system-probe.",
             mandatory = True,
         ),
         "os_target": attr.string(

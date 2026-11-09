@@ -37,6 +37,9 @@ const (
 	PolicyDrop
 )
 
+// MaxDropActionFilters is the maximum number of network drop action filters tracked in kernel.
+const MaxDropActionFilters = 256
+
 // ToTCAct converts a policy to a TCAct
 func (p Policy) ToTCAct() TCAct {
 	switch p {
@@ -57,16 +60,6 @@ func (p Policy) String() string {
 	}
 }
 
-// Parse parses a string and sets the policy
-func (p *Policy) Parse(str string) {
-	switch str {
-	case "drop":
-		*p = PolicyDrop
-	default:
-		*p = PolicyAllow
-	}
-}
-
 // Filter defines a raw packet filter
 type Filter struct {
 	RuleID        eval.RuleID
@@ -78,5 +71,5 @@ type Filter struct {
 
 // Key returns a key representing the filter
 func (f *Filter) Key() string {
-	return f.RuleID + ":" + strconv.FormatUint(uint64(f.Pid), 10) + ":" + strconv.FormatUint(f.CGroupPathKey.Inode, 10)
+	return f.RuleID + ":" + strconv.FormatUint(uint64(f.Pid), 10) + ":" + strconv.FormatUint(f.CGroupPathKey.Inode, 10) + ":" + f.BPFFilter
 }

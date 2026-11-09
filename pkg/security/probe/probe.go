@@ -17,7 +17,7 @@ import (
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"go.uber.org/atomic"
 
-	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
@@ -52,6 +52,7 @@ type PlatformProbe interface {
 	ShouldEvaluateDiscarders(_ *model.Event) bool
 	OnNewDiscarder(_ *rules.RuleSet, _ *model.Event, _ eval.Field, _ eval.EventType)
 	HandleActions(_ *eval.Context, _ *rules.Rule)
+	EnrichRuleEvent(_ *model.Event)
 	NewEvent() *model.Event
 	GetFieldHandlers() model.FieldHandlers
 	DumpProcessCache(_ bool) (string, error)
@@ -286,6 +287,19 @@ func (p *Probe) HandleActions(rule *rules.Rule, event eval.Event) {
 	p.PlatformProbe.HandleActions(ctx, rule)
 }
 
+// EnrichRuleEvent gives the platform probe an opportunity to enrich an event
+// just before it is serialized and sent as a security signal. It is only
+// called for non-silent rule matches, so any work done here pays a cost
+// proportional to alert volume rather than total event volume.
+//
+// Today this is used to backfill the untruncated argv/envp of the matched
+// process from procfs (Linux/eBPF), so that investigators see the full
+// command line in the alert payload even though the on-stream values are
+// length-capped for performance reasons.
+func (p *Probe) EnrichRuleEvent(event *model.Event) {
+	p.PlatformProbe.EnrichRuleEvent(event)
+}
+
 // AddEventConsumer sets a probe event consumer
 func (p *Probe) AddEventConsumer(consumer EventConsumerHandler) error {
 	chanSize := consumer.ChanSize()
@@ -453,6 +467,11 @@ func (p *Probe) IsNetworkRawPacketEnabled() bool {
 // IsNetworkFlowMonitorEnabled returns whether the network flow monitor is enabled
 func (p *Probe) IsNetworkFlowMonitorEnabled() bool {
 	return p.IsNetworkEnabled() && p.Config.Probe.NetworkFlowMonitorEnabled
+}
+
+// IsCapabilitiesMonitoringEnabled returns whether capabilities monitoring is enabled
+func (p *Probe) IsCapabilitiesMonitoringEnabled() bool {
+	return p.Config.Probe.CapabilitiesMonitoringEnabled
 }
 
 // IsActivityDumpEnabled returns whether activity dump is enabled

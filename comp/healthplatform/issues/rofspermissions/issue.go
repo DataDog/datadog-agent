@@ -56,7 +56,8 @@ func (t *RofsPermissionIssue) BuildIssue(context map[string]string) (*healthplat
 
 	return &healthplatform.Issue{
 		IssueName:   IssueName,
-		Title:       "Agent Cannot Write to Read-Only Filesystem",
+		IssueType:   IssueType,
+		Title:       "Agent cannot write to: " + directoriesStr,
 		Description: fmt.Sprintf("Agent is missing write access to %v %v. Without write access, the Agent may experience issues starting or operating correctly.", len(directories), descriptionDirectory),
 		Category:    "permissions",
 		Location:    "core",

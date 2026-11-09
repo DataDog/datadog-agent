@@ -1,0 +1,11 @@
+--- a/CMQC.py
++++ b/CMQC.py
+@@ -988,7 +988,7 @@
+ MQFB_APPL_LAST = 999999999
+
+ # Encoding
+-MQENC_NATIVE = 0x00000222
++MQENC_NATIVE = 0x00000111
+
+ # Encoding Masks
+ MQENC_INTEGER_MASK = 0x0000000F

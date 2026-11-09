@@ -1,0 +1,42 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "datadogagent",
+    srcs = [
+        "agentapi.go",
+        "config.go",
+        "diagnose.go",
+        "dogstatsd_dump_contexts.go",
+        "entrypoint.go",
+        "flare.go",
+        "status.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/remoteaction/datadogagent",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/core/diagnose/def",
+        "//comp/core/ipc/def",
+        "//comp/core/ipc/httphelpers",
+        "//pkg/config/helper",
+        "//pkg/config/setup",
+        "//pkg/privateactionrunner/libs/privateconnection",
+        "//pkg/privateactionrunner/types",
+        "//pkg/util/flavor",
+        "@in_yaml_go_yaml_v3//:yaml",
+    ],
+)
+
+dd_agent_go_test(
+    name = "datadogagent_test",
+    srcs = [
+        "dogstatsd_dump_contexts_test.go",
+        "ipc_test.go",
+    ],
+    embed = [":datadogagent"],
+    deps = [
+        "//comp/core/ipc/def",
+        "//pkg/privateactionrunner/types",
+        "@com_github_stretchr_testify//require",
+    ],
+)

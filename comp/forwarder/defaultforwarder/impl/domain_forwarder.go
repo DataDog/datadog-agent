@@ -33,28 +33,27 @@ var (
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
-	config                    config.Component
-	log                       log.Component
-	secrets                   secrets.Component
-	isRetrying                *atomic.Bool
-	domain                    string
-	isMRF                     bool
-	isLocal                   bool
-	numberOfWorkers           int
-	highPrio                  chan transaction.Transaction // use to receive new transactions
-	lowPrio                   chan transaction.Transaction // use to retry transactions
-	requeuedTransaction       chan transaction.Transaction
-	stopRetry                 chan bool
-	stopConnectionReset       chan bool
-	Client                    *SharedConnection
-	workers                   []*Worker
-	retryQueue                *retry.TransactionRetryQueue
-	connectionResetInterval   time.Duration
-	internalState             uint32
-	m                         sync.Mutex // To control Start/Stop races
-	transactionPrioritySorter retry.TransactionPrioritySorter
-	blockedList               *blockedEndpoints
-	pointCountTelemetry       *retry.PointCountTelemetry
+	config                  config.Component
+	log                     log.Component
+	secrets                 secrets.Component
+	isRetrying              *atomic.Bool
+	domain                  string
+	isMRF                   bool
+	isLocal                 bool
+	concurrency             concurrencyDomain
+	highPrio                chan transaction.Transaction // use to receive new transactions
+	lowPrio                 chan transaction.Transaction // use to retry transactions
+	requeuedTransaction     chan transaction.Transaction
+	stopRetry               chan bool
+	stopConnectionReset     chan bool
+	Client                  *SharedConnection
+	workers                 []*Worker
+	retryQueue              *retry.TransactionRetryQueue
+	connectionResetInterval time.Duration
+	internalState           uint32
+	m                       sync.Mutex // To control Start/Stop races
+	blockedList             *blockedEndpoints
+	pointCountTelemetry     *retry.PointCountTelemetry
 }
 
 func newDomainForwarder(
@@ -65,27 +64,25 @@ func newDomainForwarder(
 	mrf bool,
 	isLocal bool,
 	retryQueue *retry.TransactionRetryQueue,
-	numberOfWorkers int,
+	concurrency concurrencyDomain,
 	connectionResetInterval time.Duration,
-	transactionPrioritySorter retry.TransactionPrioritySorter,
 	pointCountTelemetry *retry.PointCountTelemetry,
 	transport http.RoundTripper) *domainForwarder {
 	return &domainForwarder{
-		config:                    config,
-		log:                       log,
-		secrets:                   secrets,
-		isRetrying:                atomic.NewBool(false),
-		isMRF:                     mrf,
-		isLocal:                   isLocal,
-		domain:                    domain,
-		numberOfWorkers:           numberOfWorkers,
-		retryQueue:                retryQueue,
-		connectionResetInterval:   connectionResetInterval,
-		internalState:             Stopped,
-		blockedList:               newBlockedEndpoints(config, log),
-		transactionPrioritySorter: transactionPrioritySorter,
-		pointCountTelemetry:       pointCountTelemetry,
-		Client:                    NewSharedConnection(log, isLocal, numberOfWorkers, config, transport),
+		config:                  config,
+		log:                     log,
+		secrets:                 secrets,
+		isRetrying:              atomic.NewBool(false),
+		isMRF:                   mrf,
+		isLocal:                 isLocal,
+		domain:                  domain,
+		concurrency:             concurrency,
+		retryQueue:              retryQueue,
+		connectionResetInterval: connectionResetInterval,
+		internalState:           Stopped,
+		blockedList:             newBlockedEndpoints(config, log),
+		pointCountTelemetry:     pointCountTelemetry,
+		Client:                  NewSharedConnection(log, isLocal, concurrency, config, transport),
 	}
 }
 
@@ -109,7 +106,7 @@ func (f *domainForwarder) retryTransactions(_ time.Time) {
 		f.log.Errorf("Error when getting transactions from the retry queue: %v", err)
 	}
 
-	f.transactionPrioritySorter.Sort(transactions)
+	transaction.SortByCreatedTimeAndPriority(transactions)
 
 	blockedList := f.blockedList.startRetry()
 
@@ -149,13 +146,6 @@ func (f *domainForwarder) addToTransactionRetryQueue(t transaction.Transaction) 
 	dropCount, err := f.retryQueue.Add(t)
 	if err != nil {
 		f.log.Errorf("Error when adding a transaction to the retry queue: %v", err)
-	}
-
-	if dropCount > 0 {
-		transactionEndpointName := t.GetEndpointName()
-		transaction.TransactionsDroppedByEndpoint.Add(transactionEndpointName, int64(dropCount))
-		transaction.TransactionsDropped.Add(int64(dropCount))
-		transaction.TlmTxDropped.Inc(f.domain, transactionEndpointName)
 	}
 	return dropCount
 }
@@ -226,8 +216,9 @@ func (f *domainForwarder) Start() error {
 	// reset internal state to purge transactions from past starts
 	f.init()
 
-	for i := 0; i < f.numberOfWorkers; i++ {
-		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client)
+	f.concurrency.start()
+	for i := 0; i < f.concurrency.numWorkers(); i++ {
+		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, f.concurrency)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -247,7 +238,7 @@ func (f *domainForwarder) resetConnections() {
 	f.Client.ResetClient()
 }
 
-func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
+func newBearerAuthHTTPClient(maxConns int) *http.Client {
 	return &http.Client{
 		Transport: &http.Transport{
 			Proxy: http.ProxyFromEnvironment,
@@ -258,7 +249,7 @@ func newBearerAuthHTTPClient(numberOfWorkers int) *http.Client {
 			ForceAttemptHTTP2:     false,
 			TLSClientConfig:       &tls.Config{InsecureSkipVerify: true},
 			TLSHandshakeTimeout:   5 * time.Second,
-			MaxConnsPerHost:       numberOfWorkers,
+			MaxConnsPerHost:       maxConns,
 			MaxIdleConnsPerHost:   1,
 			IdleConnTimeout:       60 * time.Second,
 			ExpectContinueTimeout: 1 * time.Second,
@@ -296,7 +287,8 @@ func NewHTTPTransport(config config.Component, numberOfWorkers int, log log.Comp
 	return transport
 }
 
-// Stop stops a domainForwarder, all transactions not yet flushed will be lost.
+// Stop stops a domainForwarder and persists retryable queued transactions when
+// disk storage is enabled.
 func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	// Lock so we can't start a Forwarder while is stopping
 	f.m.Lock()
@@ -314,12 +306,16 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	for _, w := range f.workers {
 		w.Stop(purgeHighPrio)
 	}
+	f.concurrency.stop()
 	f.workers = []*Worker{}
 	close(f.highPrio)
 	close(f.lowPrio)
 	close(f.requeuedTransaction)
 
 	for t := range f.requeuedTransaction {
+		f.requeueTransaction(t)
+	}
+	for t := range f.lowPrio {
 		f.requeueTransaction(t)
 	}
 	if err := f.retryQueue.FlushToDisk(); err != nil {

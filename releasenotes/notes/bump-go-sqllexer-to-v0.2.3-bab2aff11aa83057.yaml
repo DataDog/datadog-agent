@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    [DBM] Bump ``go-sqllexer`` to v0.2.3 to fix a SQL normalization bug:
+    - Preserve bracket-quoted T-SQL identifiers containing spaces (e.g.
+      ``[Column With Spaces]``) so they are no longer corrupted during
+      normalization.

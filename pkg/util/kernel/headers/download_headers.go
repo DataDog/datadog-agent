@@ -3,18 +3,20 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 package headers
 
 import (
+	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/avast/retry-go/v4"
+	"github.com/cenkalti/backoff/v7"
 
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/apt"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel/headers/download/cos"
@@ -79,14 +81,15 @@ func (h *headerDownloader) downloadHeaders(headerDownloadDir string) error {
 	}
 	defer backend.Close()
 
-	return retry.Do(func() error {
-		if err := backend.GetKernelHeaders(outputDir); err != nil {
-			return fmt.Errorf("failed to download kernel headers: %s", err)
+	_, err = backoff.Retry(context.Background(), func() (struct{}, error) {
+		if err := downloadAttempt(backend, outputDir); err != nil {
+			return struct{}{}, fmt.Errorf("failed to download kernel headers: %w", err)
 		}
-		return nil
-	}, retry.Attempts(2), retry.Delay(5*time.Second), retry.OnRetry(func(_ uint, err error) {
-		log.Infof("%s. Waiting 5 seconds and retrying kernel header download.", err)
+		return struct{}{}, nil
+	}, backoff.WithMaxTries(2), backoff.WithBackOff(backoff.NewConstantBackOff(5*time.Second)), backoff.WithNotify(func(err error, delay time.Duration) {
+		log.Infof("%s. Waiting %s and retrying kernel header download.", err, delay)
 	}))
+	return err
 }
 
 func (h *headerDownloader) verifyReposDir(target types.Target) (string, error) {
@@ -154,4 +157,38 @@ func createOutputDir(path string) (string, error) {
 
 	err = os.MkdirAll(absolutePath, 0755)
 	return absolutePath, err
+}
+
+// downloadAttempt starts with an empty download tree and removes rejected partial
+// output before another attempt or a later process can reuse it as cached headers.
+// The caller has already validated the download directory and its ancestors.
+func downloadAttempt(backend types.Backend, directory string) error {
+	root, err := os.OpenRoot(directory)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	clear := func() error {
+		dir, err := root.Open(".")
+		if err != nil {
+			return err
+		}
+		entries, readErr := dir.ReadDir(-1)
+		closeErr := dir.Close()
+		if err := errors.Join(readErr, closeErr); err != nil {
+			return err
+		}
+		var failures []error
+		for _, entry := range entries {
+			failures = append(failures, root.RemoveAll(entry.Name()))
+		}
+		return errors.Join(failures...)
+	}
+	if err := clear(); err != nil {
+		return fmt.Errorf("clean header download directory: %w", err)
+	}
+	if err := backend.GetKernelHeaders(directory); err != nil {
+		return errors.Join(err, clear())
+	}
+	return nil
 }

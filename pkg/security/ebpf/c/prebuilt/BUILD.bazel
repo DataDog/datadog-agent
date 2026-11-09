@@ -16,7 +16,10 @@ _SECURITY_FLAGS = [
 ebpf_prog(
     name = "runtime-security",
     src = "probe.c",
-    extra_flags = _SECURITY_FLAGS,
+    extra_flags = _SECURITY_FLAGS + [
+        "-DUSE_SYSCALL_TASK_STORAGE=0",
+        "-DUSE_RING_BUFFER=0",
+    ],
     visibility = ["//visibility:public"],
     deps = _COMMON_DEPS,
 )

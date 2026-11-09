@@ -9,25 +9,58 @@ package serializerexporter
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"slices"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
 
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configretry"
+	"go.opentelemetry.io/collector/consumer/consumererror"
 	"go.opentelemetry.io/collector/exporter"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	"go.opentelemetry.io/collector/pdata/pmetric"
+	"go.uber.org/multierr"
 	"go.uber.org/zap"
 
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
+)
+
+// Legacy DefaultForwarder defaults reproduced at the OTel exporterhelper layer
+// so that turning on the UseSyncForwarder feature gate preserves the in-flight
+// concurrency, queue depth, retry budget, and per-request timeout that the
+// async forwarder enforced before. Tweak in lockstep with the corresponding
+// forwarder_* settings in serializer.go::setupForwarder if those ever change.
+const (
+	// legacyForwarderQueueSize matches the sum of the legacy forwarder's
+	// high_prio + low_prio + requeue buffers (100 each).
+	legacyForwarderQueueSize = 300
+	// legacyForwarderNumConsumers matches forwarder_num_workers = 1.
+	legacyForwarderNumConsumers = 1
+	// LegacyForwarderTimeout matches forwarder_timeout = 20 seconds. Exported
+	// so callers outside this package (e.g. the DDOT otel-agent command) can
+	// reuse the same fallback instead of duplicating the literal.
+	LegacyForwarderTimeout = 20 * time.Second
+	// legacyForwarderBackoffInitial / Max / MaxElapsed mirror the
+	// forwarder_backoff_* and forwarder_retry_queue_capacity_time_interval_sec
+	// settings: base 2s, factor 2, cap 64s, total 15 min budget.
+	legacyForwarderBackoffInitial    = 2 * time.Second
+	legacyForwarderBackoffMultiplier = 2
+	legacyForwarderBackoffMax        = 64 * time.Second
+	legacyForwarderRetryMaxElapsed   = 15 * time.Minute
 )
 
 func newDefaultConfig() component.Config {
@@ -39,10 +72,9 @@ func newDefaultConfig() component.Config {
 	mcfg.Metrics = pkgmcfg.Metrics
 
 	return &ExporterConfig{
-		// Disable timeout; we don't really do HTTP requests on the ConsumeMetrics call.
-		TimeoutConfig: exporterhelper.TimeoutConfig{Timeout: 0},
-		// TODO (AP-1294): Fine-tune queue settings and look into retry settings.
 		QueueBatchConfig: configoptional.Some(exporterhelper.NewDefaultQueueConfig()),
+		RetryConfig:      configretry.NewDefaultBackOffConfig(),
+		HTTPConfig:       confighttp.NewDefaultClientConfig(),
 
 		Metrics:      mcfg,
 		API:          pkgmcfg.API,
@@ -53,7 +85,60 @@ func newDefaultConfig() component.Config {
 func newDefaultConfigForAgent() component.Config {
 	cfg := newDefaultConfig().(*ExporterConfig)
 	cfg.HostMetadata.Enabled = false
+
+	// Mirror the legacy DefaultForwarder defaults so switching to the sync
+	// forwarder path preserves in-flight concurrency, queue depth, backoff
+	// budget, and per-request timeout. These are DDOT/agent-specific; the
+	// OSS exporter uses OTel's own defaults.
+	queue := exporterhelper.NewDefaultQueueConfig()
+	queue.QueueSize = legacyForwarderQueueSize
+	queue.NumConsumers = legacyForwarderNumConsumers
+	cfg.QueueBatchConfig = configoptional.Some(queue)
+
+	cfg.RetryConfig.InitialInterval = legacyForwarderBackoffInitial
+	cfg.RetryConfig.Multiplier = legacyForwarderBackoffMultiplier
+	cfg.RetryConfig.MaxInterval = legacyForwarderBackoffMax
+	cfg.RetryConfig.MaxElapsedTime = legacyForwarderRetryMaxElapsed
+
+	// TimeoutConfig controls the exporterhelper per-call deadline;
+	// HTTPConfig.Timeout controls the underlying http.Client, which bounds the
+	// TCP round-trip when the sync forwarder is in use (sendHTTPTransactions
+	// does not propagate the caller context to t.Process).
+	cfg.TimeoutConfig = exporterhelper.TimeoutConfig{Timeout: LegacyForwarderTimeout}
+	cfg.HTTPConfig.Timeout = LegacyForwarderTimeout
+
 	return cfg
+}
+
+// DefaultAgentRetryConfig returns a retry configuration that mirrors the
+// legacy DefaultForwarder budget (2-64s exponential backoff over 15 min).
+// DDOT uses this as the base when the user has not customized retry_on_failure,
+// preserving the pre-sync-forwarder behavior.
+func DefaultAgentRetryConfig() configretry.BackOffConfig {
+	cfg := configretry.NewDefaultBackOffConfig()
+	cfg.InitialInterval = legacyForwarderBackoffInitial
+	cfg.Multiplier = float64(legacyForwarderBackoffMultiplier)
+	cfg.MaxInterval = legacyForwarderBackoffMax
+	cfg.MaxElapsedTime = legacyForwarderRetryMaxElapsed
+	return cfg
+}
+
+// allSendsPermanent reports whether every constituent error in err wraps
+// ErrPermanentHTTPError. consumer.Send returns a multierr-combined error
+// (series + sketches + APM stats sends); we mark the whole flush permanent
+// only when every sub-send failed with a non-retryable status code so that
+// a transient failure in one pipeline does not suppress retries for another.
+func allSendsPermanent(err error) bool {
+	errs := multierr.Errors(err)
+	if len(errs) == 0 {
+		return errors.Is(err, defaultforwarderimpl.ErrPermanentHTTPError)
+	}
+	for _, e := range errs {
+		if !errors.Is(e, defaultforwarderimpl.ErrPermanentHTTPError) {
+			return false
+		}
+	}
+	return true
 }
 
 var _ source.Provider = (*SourceProviderFunc)(nil)
@@ -68,8 +153,15 @@ func (f SourceProviderFunc) Source(ctx context.Context) (source.Source, error) {
 		return source.Source{}, err
 	}
 
-	return source.Source{Kind: source.HostnameKind, Identifier: hostnameIdentifier}, nil
+	return source.Source{
+		Kind:             source.HostnameKind,
+		Identifier:       hostnameIdentifier, //nolint:staticcheck // SA1019: intentional during Step 1 of the Source.Identifier migration (datadog-agent#51116); this call site migrates to SourceIdentifier.Primary in Step 2
+		SourceIdentifier: source.SourceIdentifier{Primary: hostnameIdentifier},
+	}, nil
 }
+
+// HostTagsFunc returns host tags to add to every translated metric; it may return nil.
+type HostTagsFunc func() []string
 
 // Exporter translate OTLP metrics into the Datadog format and sends
 // them to the agent serializer.
@@ -78,6 +170,7 @@ type Exporter struct {
 	s                 serializer.MetricSerializer
 	hostGetter        SourceProviderFunc
 	extraTags         []string
+	hostTags          HostTagsFunc
 	apmReceiverAddr   string
 	createConsumer    createConsumerFunc
 	params            exporter.Settings
@@ -87,6 +180,15 @@ type Exporter struct {
 	coatUsageMetric   telemetry.Gauge
 	coatGWUsageMetric telemetry.Gauge
 	ipath             ingestionPath
+	standalone        bool
+
+	// workloadIdentityOnce/cachedWorkloadIdentity cache the result of
+	// detectWorkloadIdentity: it performs a network call for ECS Fargate (the
+	// ECS Task Metadata Endpoint v4), and the workload's identity cannot change
+	// over the lifetime of the process, so it must be detected at most once
+	// rather than blocking every ConsumeMetrics call.
+	workloadIdentityOnce   sync.Once
+	cachedWorkloadIdentity workloadIdentity
 }
 
 // TODO: expose the same function in OSS exporter and remove this
@@ -98,6 +200,39 @@ func translatorFromConfig(
 	statsIn chan []byte,
 	extraOptions ...metrics.TranslatorOption,
 ) (metrics.Provider, error) {
+	options, err := translatorOptionsFromConfig(cfg, hostGetter, statsIn, extraOptions...)
+	if err != nil {
+		return nil, err
+	}
+	return metrics.NewDefaultTranslator(set, attributesTranslator, options...)
+}
+
+// minimalTranslatorFromConfig builds the translator that sends OTel histograms as is.
+// It only translates delta sums and histograms, and does no metric remapping.
+func minimalTranslatorFromConfig(
+	set component.TelemetrySettings,
+	attributesTranslator *attributes.Translator,
+	cfg datadogconfig.MetricsConfig,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+	extraOptions ...metrics.TranslatorOption,
+) (metrics.Provider, error) {
+	options, err := translatorOptionsFromConfig(cfg, hostGetter, statsIn, extraOptions...)
+	if err != nil {
+		return nil, err
+	}
+	// cumulativetodelta does not convert summaries, so the translator does it.
+	options = append(options, metrics.WithSummaryCumulativeToDelta())
+	logger := set.Logger.With(zap.String("component", "metrics translator"))
+	return metrics.NewMinimalTranslator(logger, attributesTranslator, options...)
+}
+
+func translatorOptionsFromConfig(
+	cfg datadogconfig.MetricsConfig,
+	hostGetter SourceProviderFunc,
+	statsIn chan []byte,
+	extraOptions ...metrics.TranslatorOption,
+) ([]metrics.TranslatorOption, error) {
 	histogramMode := metrics.HistogramMode(cfg.HistConfig.Mode)
 	switch histogramMode {
 	case metrics.HistogramModeCounters, metrics.HistogramModeNoBuckets, metrics.HistogramModeDistributions:
@@ -111,6 +246,9 @@ func translatorFromConfig(
 		metrics.WithDeltaTTL(cfg.DeltaTTL),
 	}
 	options = append(options, extraOptions...)
+	if gaugeIntervalGate.IsEnabled() {
+		options = append(options, metrics.WithGaugeInterval())
+	}
 
 	if statsIn != nil {
 		options = append(options, metrics.WithStatsOut(statsIn))
@@ -140,7 +278,7 @@ func translatorFromConfig(
 	options = append(options, metrics.WithInitialCumulMonoValueMode(
 		metrics.InitialCumulMonoValueMode(cfg.SumConfig.InitialCumulativeMonotonicMode)))
 
-	return metrics.NewDefaultTranslator(set, attributesTranslator, options...)
+	return options, nil
 }
 
 // NewExporter creates a new exporter that translates OTLP metrics into the Datadog format and sends
@@ -156,6 +294,7 @@ func NewExporter(
 	coatUsageMetric telemetry.Gauge,
 	coatGWUsageMetric telemetry.Gauge,
 	ipath ingestionPath,
+	standalone bool,
 ) (*Exporter, error) {
 	var extraTags []string
 	if cfg.Metrics.Tags != "" {
@@ -179,7 +318,21 @@ func NewExporter(
 		coatUsageMetric:   coatUsageMetric,
 		coatGWUsageMetric: coatGWUsageMetric,
 		ipath:             ipath,
+		standalone:        standalone,
 	}, nil
+}
+
+// metricTags returns the tags added to every translated metric.
+// Host tags go into a new slice: exports may run concurrently.
+func (e *Exporter) metricTags() []string {
+	if e.hostTags == nil {
+		return e.extraTags
+	}
+	hostTags := e.hostTags()
+	if len(hostTags) == 0 {
+		return e.extraTags
+	}
+	return slices.Concat(e.extraTags, hostTags)
 }
 
 // ConsumeMetrics translates OTLP metrics into the Datadog format and sends
@@ -199,7 +352,7 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 			e.params.Logger.Warn("failed to consume metrics for host metadata", zap.Error(err))
 		}
 	}
-	consumer := e.createConsumer(e.extraTags, e.apmReceiverAddr, e.params.BuildInfo)
+	consumer := e.createConsumer(e.metricTags(), e.apmReceiverAddr, e.params.BuildInfo)
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err
@@ -209,11 +362,34 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 		return err
 	}
 
-	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric)
+	var wi workloadIdentity
+	if e.ipath == ddot && e.standalone {
+		// Workload identity is static for the life of the process (a Fargate
+		// task's ARN and an Azure Container Apps replica's identity never
+		// change), so detect it at most once rather than on every flush: the
+		// Fargate path performs a blocking call to the ECS Task Metadata
+		// Endpoint v4.
+		e.workloadIdentityOnce.Do(func() {
+			e.cachedWorkloadIdentity = detectWorkloadIdentity(ctx, e.params.Logger)
+		})
+		wi = e.cachedWorkloadIdentity
+	}
+
+	consumer.addTelemetryMetric(hostname, e.params, e.coatUsageMetric, wi)
 	consumer.addRuntimeTelemetryMetric(hostname, rmt.Languages)
+	consumer.addRunningMetric(hostname, wi)
 	consumer.addGatewayUsage(hostname, e.params, e.gatewayUsage, e.coatGWUsageMetric)
 	if err := consumer.Send(e.s); err != nil {
-		return fmt.Errorf("failed to flush metrics: %w", err)
+		errFlush := fmt.Errorf("failed to flush metrics: %w", err)
+		if allSendsPermanent(err) {
+			// All constituent send errors are permanent (400/413/403). Signal
+			// exporterhelper to drop rather than queue and retry.
+			// When consumer.Send combines permanent and transient errors (e.g.
+			// series→400 but sketches→503), we fall through so exporterhelper
+			// retries the transient failures.
+			return consumererror.NewPermanent(errFlush)
+		}
+		return errFlush
 	}
 	return nil
 }

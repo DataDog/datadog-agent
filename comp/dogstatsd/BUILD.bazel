@@ -1,1 +1,24 @@
-# gazelle:ignore
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "dogstatsd",
+    srcs = [
+        "bundle.go",
+        "bundle_mock.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/dogstatsd",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/dogstatsd/pidmap/fx",
+        "//comp/dogstatsd/replay/fx",
+        "//comp/dogstatsd/server/def",
+        "//comp/dogstatsd/server/fx",
+        "//comp/dogstatsd/server/mock",
+        "//comp/dogstatsd/serverDebug/fx",
+        "//comp/dogstatsd/serverDebug/mock",
+        "//comp/dogstatsd/statsd/impl",
+        "//comp/dogstatsd/status/fx",
+        "//comp/offlinereporter/fx",
+        "//pkg/util/fxutil",
+    ],
+)

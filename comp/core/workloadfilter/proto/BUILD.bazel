@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "proto",
@@ -11,11 +12,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "proto_test",
     srcs = ["proto_test.go"],
     embed = [":proto"],
-    gotags = ["test"],
     deps = [
         "//comp/core/workloadfilter/def",
         "//comp/core/workloadfilter/mock",

@@ -12,6 +12,7 @@ import (
 	"sort"
 	"time"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/utils"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -204,7 +205,7 @@ func (l *KubeletListener) createContainerService(
 		svc.adIdentifiers = append(svc.adIdentifiers, customADID)
 	}
 
-	svc.adIdentifiers = append(svc.adIdentifiers, entity, containerImg.RawName)
+	svc.adIdentifiers = append(svc.adIdentifiers, adtypes.KubeContainerNameIdentifier(containerName), entity, containerImg.RawName)
 
 	if len(containerImg.ShortName) > 0 && containerImg.ShortName != containerImg.RawName {
 		svc.adIdentifiers = append(svc.adIdentifiers, containerImg.ShortName)

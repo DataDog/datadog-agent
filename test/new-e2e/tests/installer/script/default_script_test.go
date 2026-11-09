@@ -46,7 +46,7 @@ func (s *installScriptDefaultSuite) TestInstall() {
 	s.RunInstallScript(
 		s.url,
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:6,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_SBOM_CONTAINER_IMAGE_ENABLED=true",
@@ -96,7 +96,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 	// Full supported option set
 	params := []string{
 		"DD_SITE=datadoghq.com",
-		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:5,dotnet:3",
+		"DD_APM_INSTRUMENTATION_LIBRARIES=java:1,python:4,js:6,dotnet:3",
 		"DD_APM_INSTRUMENTATION_ENABLED=host",
 		"DD_RUNTIME_SECURITY_CONFIG_ENABLED=true",
 		"DD_ENV=env",
@@ -148,7 +148,7 @@ func (s *installScriptDefaultSuite) TestInstallParity() {
 			if key != "api_key" {
 				require.Equal(s.T(), value, installerScriptConfig[key], "config key %s in file %s differs", key, file)
 			} else if installerScriptConfig[key] != value {
-				s.T().Fatalf("config key api_key differs in file %s (not logging values)", file)
+				s.Require().FailNow("config key api_key differs (not logging values)", "file: %s", file)
 			}
 		}
 		require.Equal(s.T(), len(installerScriptConfig), len(agent7Config), "config lengths in file %s differs, %s VS %s", file, installerScriptConfig, agent7Config)

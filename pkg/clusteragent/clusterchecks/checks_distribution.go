@@ -44,14 +44,15 @@ func (ns RunnerStatus) utilization() float64 {
 // configsDistribution represents the placement of cluster check configs
 // across the runners of a cluster. Each entry is keyed by config digest.
 type configsDistribution struct {
-	Configs           map[string]*ConfigStatus
-	Runners           map[string]*RunnerStatus
-	stickinessEnabled bool
-	stickinessFactor  float64
-	stickinessLimit   float64
+	Configs              map[string]*ConfigStatus
+	Runners              map[string]*RunnerStatus
+	stickinessEnabled    bool
+	stickinessFactor     float64
+	stickinessUpperLimit float64
+	stickinessLowerLimit float64
 }
 
-func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled bool, stickinessFactor float64, stickinessLimit float64) configsDistribution {
+func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled bool, stickinessFactor float64, stickinessUpperLimit float64, stickinessLowerLimit float64) configsDistribution {
 	runners := map[string]*RunnerStatus{}
 	for runnerName, runnerWorkers := range workersPerRunner {
 		runners[runnerName] = &RunnerStatus{
@@ -62,34 +63,31 @@ func newConfigsDistribution(workersPerRunner map[string]int, stickinessEnabled b
 	}
 
 	return configsDistribution{
-		Configs:           map[string]*ConfigStatus{},
-		Runners:           runners,
-		stickinessEnabled: stickinessEnabled,
-		stickinessFactor:  stickinessFactor,
-		stickinessLimit:   stickinessLimit,
+		Configs:              map[string]*ConfigStatus{},
+		Runners:              runners,
+		stickinessEnabled:    stickinessEnabled,
+		stickinessFactor:     stickinessFactor,
+		stickinessUpperLimit: stickinessUpperLimit,
+		stickinessLowerLimit: stickinessLowerLimit,
 	}
 }
 
 // leastBusyRunner returns the runner with the lowest utilization. If there are
 // several options, it gives preference to preferredRunner. If preferredRunner
 // is not among the runners with the lowest utilization, it gives precedence to
-// the runner with the lowest number of configs deployed. excludeRunner can be
-// set to avoid assigning a config to a specific runner.
-func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, excludeRunner string, workersNeeded float64) string {
+// the runner with the lowest number of configs deployed.
+func (distribution *configsDistribution) leastBusyRunner(preferredRunner string, workersNeeded float64) string {
 	leastBusyRunner := ""
 	minUtilization := 0.0
 	numChecksLeastBusyRunner := 0
 
 	for runnerName, runnerStatus := range distribution.Runners {
-		if runnerName == excludeRunner {
-			continue
-		}
-
 		runnerUtilization := runnerStatus.utilization()
 		runnerNumChecks := runnerStatus.NumChecks
 
 		if distribution.stickinessEnabled && runnerName == preferredRunner {
-			runnerUtilization -= min(workersNeeded*distribution.stickinessFactor, distribution.stickinessLimit)
+			bias := max(min(workersNeeded*distribution.stickinessFactor, distribution.stickinessUpperLimit), distribution.stickinessLowerLimit)
+			runnerUtilization -= bias
 		}
 
 		selectRunner := (leastBusyRunner == "") ||
@@ -107,8 +105,11 @@ func (distribution *configsDistribution) leastBusyRunner(preferredRunner string,
 	return leastBusyRunner
 }
 
-func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, excludeRunner string, pinned bool) {
-	leastBusy := distribution.leastBusyRunner(preferredRunner, excludeRunner, workersNeeded)
+// addToLeastBusy places a config on the least busy runner of the distribution.
+// Eligibility is implied by the distribution's runner set: cohort
+// distributions only contain the cohort's eligible runners.
+func (distribution *configsDistribution) addToLeastBusy(digest, checkName string, workersNeeded float64, preferredRunner string, pinned bool) {
+	leastBusy := distribution.leastBusyRunner(preferredRunner, workersNeeded)
 	if leastBusy == "" {
 		return
 	}
@@ -151,16 +152,6 @@ func (distribution *configsDistribution) addConfig(digest, checkName string, wor
 
 	// Cumulate Pinned: Pin the entire config if any of its instances are pinned
 	configInfo.Pinned = configInfo.Pinned || pinned
-}
-
-func (distribution *configsDistribution) runnerWorkers() map[string]int {
-	res := map[string]int{}
-
-	for runnerName, runnerStatus := range distribution.Runners {
-		res[runnerName] = runnerStatus.Workers
-	}
-
-	return res
 }
 
 func (distribution *configsDistribution) runnerForConfig(digest string) string {

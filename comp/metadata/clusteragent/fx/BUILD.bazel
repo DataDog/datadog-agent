@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/clusteragent/fx",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/metadata/clusteragent/def",
+        "//comp/metadata/clusteragent/impl",
+        "//pkg/util/fxutil",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -16,9 +16,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/containerd/containerd"
 	"github.com/containerd/containerd/api/events"
-	containerdevents "github.com/containerd/containerd/events"
+	containerd "github.com/containerd/containerd/v2/client"
+	containerdevents "github.com/containerd/containerd/v2/core/events"
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
@@ -197,7 +197,7 @@ func (s *subscriber) run(ctx context.Context) error {
 		var err error
 		pauseContainers, err = s.pauseContainersIDs()
 		if err != nil {
-			return fmt.Errorf("can't get pause containers: %v", err)
+			return fmt.Errorf("can't get pause containers: %w", err)
 		}
 	}
 

@@ -18,7 +18,10 @@ import (
 	autoexit "github.com/DataDog/datadog-agent/comp/agent/autoexit/def"
 	autoexitfx "github.com/DataDog/datadog-agent/comp/agent/autoexit/fx"
 	"github.com/DataDog/datadog-agent/comp/core"
+	agenttelemetryfx "github.com/DataDog/datadog-agent/comp/core/agenttelemetry/fx"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	configstreamconsumer "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/def"
+	configstreamconsumerfx "github.com/DataDog/datadog-agent/comp/core/configstreamconsumer/fx"
 	configsync "github.com/DataDog/datadog-agent/comp/core/configsync/def"
 	configsyncfx "github.com/DataDog/datadog-agent/comp/core/configsync/fx"
 	fxinstrumentation "github.com/DataDog/datadog-agent/comp/core/fxinstrumentation/fx"
@@ -103,6 +106,7 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		Checks       []types.CheckComponent `group:"check"`
 		Syscfg       sysprobeconfig.Component
 		Config       config.Component
+		RCClient     rcclient.Component
 		WorkloadMeta workloadmeta.Component
 	}
 	app := fx.New(
@@ -187,31 +191,6 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 
 		// Set the pid file path
 		fx.Supply(pidimpl.NewParams(globalParams.PidFilePath)),
-
-		// Set `HOST_PROC` and `HOST_SYS` environment variables
-		fx.Invoke(SetHostMountEnv),
-
-		// Initialize components not manged by fx
-		fx.Invoke(initMisc),
-
-		// Invoke the components that we want to start
-		fx.Invoke(func(
-			_ profiler.Component,
-			_ expvars.Component,
-			_ apiserver.Component,
-			cfg config.Component,
-			// TODO: This is needed by the container-provider which is not currently a component.
-			// We should ensure the tagger is a dependency when converting to a component.
-			_ tagger.Component,
-			_ pid.Component,
-			processAgent agent.Component,
-			_ autoexit.Component,
-		) error {
-			if !processAgent.Enabled() && !collector.Enabled(cfg) {
-				return errAgentDisabled
-			}
-			return nil
-		}),
 		fx.Provide(func(c config.Component) settings.Params {
 			return settings.Params{
 				Settings: map[string]settings.RuntimeSetting{
@@ -228,6 +207,28 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 		settingsfx.Module(),
 		ipcfx.ModuleReadWrite(),
 		remoteagentfx.Module(),
+		fx.Supply(configstreamconsumer.NewParams("process-agent", globalParams.ConfFilePath)),
+		configstreamconsumerfx.Module(),
+		agenttelemetryfx.Module(),
+		// Set `HOST_PROC` and `HOST_SYS` environment variables
+		fx.Invoke(SetHostMountEnv),
+
+		// Initialize components not manged by fx
+		fx.Invoke(initMisc),
+
+		// Invoke the components that we want to start
+		fx.Invoke(func(
+			_ profiler.Component,
+			_ expvars.Component,
+			_ apiserver.Component,
+			// TODO: This is needed by the container-provider which is not currently a component.
+			// We should ensure the tagger is a dependency when converting to a component.
+			_ tagger.Component,
+			_ autoexit.Component,
+		) {
+		}),
+
+		requireEnabled(),
 	)
 
 	err := app.Start(ctx)
@@ -265,6 +266,21 @@ func runApp(ctx context.Context, globalParams *GlobalParams) error {
 	}
 
 	return nil
+}
+
+// requireEnabled stops the app with errAgentDisabled when neither the process-agent nor the
+// process collector is enabled. The PID file is only written once that check passes, so a
+// process-agent that exits as disabled never leaves a PID file behind.
+func requireEnabled() fx.Option {
+	return fx.Options(
+		fx.Invoke(func(processAgent agent.Component, cfg config.Component) error {
+			if !processAgent.Enabled() && !collector.Enabled(cfg) {
+				return errAgentDisabled
+			}
+			return nil
+		}),
+		fx.Invoke(func(_ pid.Component) {}),
+	)
 }
 
 type miscDeps struct {

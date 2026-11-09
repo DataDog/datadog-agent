@@ -24,7 +24,7 @@ for _ in {1..5}
 do
   go test \
     -mod=readonly \
-    -tags linux_bpf \
+    -tags bpf \
     ./pkg/network/ebpf/... \
     -bench BenchmarkTCPLatency \
     -count=1 \
@@ -32,7 +32,7 @@ do
     >> "${RESFILE}"
   go test \
     -mod=readonly \
-    -tags linux_bpf \
+    -tags bpf \
     ./pkg/network/ebpf/... \
     -bench BenchmarkUDPLatency \
     -count=1 \

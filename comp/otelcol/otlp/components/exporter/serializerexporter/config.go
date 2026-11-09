@@ -11,11 +11,12 @@ import (
 	"strings"
 	"time"
 
-	datadogconfig "github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/config"
+	datadogconfig "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/datadogconfig"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/config/configoptional"
+	"go.opentelemetry.io/collector/config/configretry"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
@@ -31,7 +32,20 @@ type ExporterConfig struct {
 
 	QueueBatchConfig configoptional.Optional[exporterhelper.QueueBatchConfig] `mapstructure:"sending_queue"`
 
-	configtls.ClientConfig `mapstructure:"tls"`
+	// RetryConfig drives the OTel exporterhelper retry/backoff layer on top of
+	// ConsumeMetrics. Effective only when the
+	// datadog.serializerexporter.UseSyncForwarder feature gate is enabled —
+	// under the legacy async forwarder ConsumeMetrics returns before the
+	// network call so there is nothing for exporterhelper to retry. Defaults
+	// to the legacy forwarder_backoff_* values for parity.
+	RetryConfig configretry.BackOffConfig `mapstructure:"retry_on_failure"`
+
+	// ClientConfig is a named field rather than an embedded one: confmap decodes
+	// the fields around a squashed confmap.Unmarshaler (HTTPConfig) through
+	// reflect.StructOf, which does not support embedded types with methods
+	// that are not the first field. It keeps the name of the embedded field,
+	// which the contrib datadogexporter sets.
+	ClientConfig configtls.ClientConfig `mapstructure:"tls"`
 
 	Metrics MetricsConfig `mapstructure:"metrics"`
 	// API defines the Datadog API configuration.

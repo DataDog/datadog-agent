@@ -6,6 +6,7 @@
 package config
 
 import (
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // discoveryKey is the config key guarding discovery service map mode.
@@ -22,6 +24,58 @@ var discoveryKey = discoveryNS("service_map", "enabled")
 // it as user-configured (vs. a default).
 func setBool(cfg model.Config, key string, value bool) {
 	cfg.Set(key, value, model.SourceUnknown)
+}
+
+func setInt(cfg model.Config, key string, value int) {
+	cfg.Set(key, value, model.SourceUnknown)
+}
+
+func TestAdjustDiscoveryServiceCollectionBatchSize(t *testing.T) {
+	key := discoveryNS("service_collection_batch_size")
+	tests := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{"positive value preserved", 123, 123},
+		{"zero disables batching", 0, 0},
+		{"negative value falls back to default", -1, defaultDiscoveryServiceCollectionBatchSize},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			setInt(cfg, key, tc.input)
+
+			adjustDiscovery(cfg)
+
+			assert.Equal(t, tc.want, cfg.GetInt(key))
+		})
+	}
+}
+
+func TestAdjustDiscoveryServiceCollectionMaxConsecutiveTimeouts(t *testing.T) {
+	key := discoveryNS("service_collection_max_consecutive_timeouts")
+	tests := []struct {
+		name  string
+		input int
+		want  int
+	}{
+		{"positive value preserved", 7, 7},
+		{"zero disables timeout guard", 0, 0},
+		{"negative value falls back to default", -1, defaultDiscoveryServiceCollectionMaxConsecutiveTimeouts},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := mock.NewSystemProbe(t)
+			setInt(cfg, key, tc.input)
+
+			adjustDiscovery(cfg)
+
+			assert.Equal(t, tc.want, cfg.GetInt(key))
+		})
+	}
 }
 
 func TestAdjustDiscovery_Coexistence(t *testing.T) {
@@ -132,6 +186,27 @@ func TestAdjustDiscovery_ForceEnablesRequiredProtocols(t *testing.T) {
 	}
 }
 
+// TestAdjustDiscovery_ForceEnablesHTTP2 pins the requirement that discovery
+// mode force-enables HTTP/2 (like HTTP) rather than leaving it off. It guards
+// against http2 being accidentally moved back into the force-disabled set.
+func TestAdjustDiscovery_ForceEnablesHTTP2(t *testing.T) {
+	http2Key := smNS("http2", "enabled")
+
+	assert.Contains(t, discoveryForceEnabledProtocols, http2Key,
+		"http2 should be force-enabled in discovery mode")
+	assert.NotContains(t, discoveryForceDisabledProtocols, http2Key,
+		"http2 should not be force-disabled in discovery mode")
+
+	cfg := mock.NewSystemProbe(t)
+	setBool(cfg, discoveryKey, true)
+	setBool(cfg, http2Key, false) // user explicitly disabled it
+
+	adjustDiscovery(cfg)
+
+	assert.True(t, cfg.GetBool(http2Key),
+		"discovery mode should override an explicit http2 disable")
+}
+
 func TestAdjustDiscovery_ForceEnablesProcessServiceInference(t *testing.T) {
 	psiKey := spNS("process_service_inference", "enabled")
 	tests := []struct {
@@ -208,7 +283,7 @@ func TestAdjustDiscovery_EnablesNetworkTracerModule(t *testing.T) {
 	_ = mock.NewSystemProbe(t)
 	t.Setenv("DD_DISCOVERY_SERVICE_MAP_ENABLED", "true")
 
-	cfg, err := New("", "")
+	cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 	require.NoError(t, err)
-	assert.True(t, cfg.ModuleIsEnabled(NetworkTracerModule))
+	assert.True(t, cfg.ModuleIsEnabled(types.NetworkTracerModule))
 }

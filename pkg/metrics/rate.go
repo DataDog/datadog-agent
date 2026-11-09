@@ -25,7 +25,6 @@ func (r *Rate) addSample(sample *MetricSample, timestamp float64) {
 
 }
 
-//nolint:revive // TODO(AML) Fix revive linter
 func (r *Rate) flush(_ float64) ([]*Serie, error) {
 	if r.previousTimestamp == 0 || r.timestamp == 0 {
 		return []*Serie{}, NoSerieError{}
@@ -53,4 +52,8 @@ func (r *Rate) flush(_ float64) ([]*Serie, error) {
 
 func (r *Rate) isStateful() bool {
 	return true
+}
+
+func (r *Rate) metricType() MetricType {
+	return RateType
 }

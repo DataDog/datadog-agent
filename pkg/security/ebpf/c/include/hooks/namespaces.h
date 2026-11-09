@@ -1,6 +1,7 @@
 #ifndef _HOOKS_NAMESPACES_H_
 #define _HOOKS_NAMESPACES_H_
 
+#include "constants/offsets/filesystem.h"
 #include "constants/offsets/netns.h"
 #include "maps.h"
 
@@ -11,18 +12,23 @@ int hook_switch_task_namespaces(ctx_t *ctx) {
         return 0;
     }
 
-    void *mnt_ns;
-    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), &new_ns->mnt_ns);
+    u64 nsproxy_mnt_ns_offset;
+    LOAD_CONSTANT("nsproxy_mnt_ns_offset", nsproxy_mnt_ns_offset);
+
+    void *mnt_ns = NULL;
+    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), (void *)new_ns + nsproxy_mnt_ns_offset);
     if (mnt_ns != NULL) {
-        u32 inum = 0;
-        bpf_probe_read(&inum, sizeof(inum), (void *)mnt_ns + get_mount_offset_of_nscommon_inum());
+        u32 inum = get_mnt_namespace_inum(mnt_ns);
 
         u32 pid = bpf_get_current_pid_tgid() >> 32;
         bpf_map_update_elem(&mntns_cache, &pid, &inum, BPF_ANY);
     }
 
+    u64 nsproxy_net_ns_offset;
+    LOAD_CONSTANT("nsproxy_net_ns_offset", nsproxy_net_ns_offset);
+
     struct net *net;
-    bpf_probe_read(&net, sizeof(net), &new_ns->net_ns);
+    bpf_probe_read(&net, sizeof(net), (void *)new_ns + nsproxy_net_ns_offset);
     if (net == NULL) {
         return 0;
     }

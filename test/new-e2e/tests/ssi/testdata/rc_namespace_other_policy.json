@@ -1,0 +1,28 @@
+{
+  "policies": [
+    {
+      "description": "namespace other: matches admission namespace fact",
+      "id": {"hi": 10, "lo": 2},
+      "version": 1,
+      "rules": {
+        "node_type": "EvaluatorNode",
+        "node": {
+          "description": "namespace name other",
+          "eval_type": "StrEvaluator",
+          "eval": {
+            "id": "NAMESPACE_NAME",
+            "cmp": "CMP_EXACT",
+            "value": "other"
+          }
+        }
+      },
+      "actions": [
+        {"action": "INJECT_ALLOW"},
+        {
+          "action": "ENABLE_SDK",
+          "values": ["python=default"]
+        }
+      ]
+    }
+  ]
+}

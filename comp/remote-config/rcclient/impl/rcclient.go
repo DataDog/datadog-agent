@@ -11,6 +11,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"sync"
 	"time"
 
@@ -22,6 +23,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
 	"github.com/DataDog/datadog-agent/comp/remote-config/rcclient/types"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/client"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/data"
@@ -33,11 +35,12 @@ import (
 )
 
 const (
-	agentTaskTimeout        = 5 * time.Minute
-	failoverMetricsSetting  = "multi_region_failover.failover_metrics"
-	failoverLogsSetting     = "multi_region_failover.failover_logs"
-	failoverAPMSetting      = "multi_region_failover.failover_apm"
-	metricsAllowlistSetting = "multi_region_failover.metric_allowlist"
+	agentTaskTimeout            = 5 * time.Minute
+	failoverMetricsSetting      = "multi_region_failover.failover_metrics"
+	failoverLogsSetting         = "multi_region_failover.failover_logs"
+	failoverAPMSetting          = "multi_region_failover.failover_apm"
+	metricsAllowlistSetting     = "multi_region_failover.metric_allowlist"
+	logsServiceAllowlistSetting = "multi_region_failover.logs_service_allowlist"
 )
 
 type rcClient struct {
@@ -53,7 +56,12 @@ type rcClient struct {
 	config            configcomp.Component
 	sysprobeConfig    option.Option[sysprobeconfig.Component]
 	isSystemProbe     bool
+	agentName         string
+	agentVersion      string
+	IPC               ipc.Component
 }
+
+var _ rcclient.TUFProofProvider = (*rcClient)(nil)
 
 // Dependencies defines the dependencies for the rcclient component.
 type Dependencies struct {
@@ -71,76 +79,41 @@ type Dependencies struct {
 	IPC               ipc.Component
 }
 
-// NewRemoteConfigClient must not populate any Fx groups or return any types that would be consumed as dependencies by
+// NewComponent must not populate any Fx groups or return any types that would be consumed as dependencies by
 // other components. To avoid dependency cycles between our components we need to have "pure leaf" components (i.e.
 // components that are instantiated last).  Remote configuration client is a good candidate for this since it must be
 // able to interact with any other components (i.e. be at the end of the dependency graph).
-func NewRemoteConfigClient(deps Dependencies) (rcclient.Component, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(pkgconfigsetup.Datadog())
-	if err != nil {
-		return nil, err
-	}
-
+func NewComponent(deps Dependencies) (rcclient.Component, error) {
 	if deps.Params.AgentName == "" || deps.Params.AgentVersion == "" {
 		return nil, errors.New("Remote config client is missing agent name or version parameter")
-	}
-
-	// Append client options
-	optsWithDefault := []func(*client.Options){
-		client.WithPollInterval(5 * time.Second),
-		client.WithAgent(deps.Params.AgentName, deps.Params.AgentVersion),
-	}
-
-	// We have to create the client in the constructor and set its name later
-	c, err := client.NewUnverifiedGRPCClient(
-		ipcAddress,
-		pkgconfigsetup.GetIPCPort(),
-		deps.IPC.GetAuthToken(),
-		deps.IPC.GetTLSClientConfig(),
-		optsWithDefault...,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	var clientMRF *client.Client
-	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
-		clientMRF, err = client.NewUnverifiedMRFGRPCClient(
-			ipcAddress,
-			pkgconfigsetup.GetIPCPort(),
-			deps.IPC.GetAuthToken(),
-			deps.IPC.GetTLSClientConfig(),
-			optsWithDefault...,
-		)
-		if err != nil {
-			return nil, err
-		}
 	}
 
 	rc := &rcClient{
 		listeners:         types.FilterListeners(deps.Listeners),
 		taskListeners:     types.FilterTaskListeners(deps.TaskListeners),
 		m:                 &sync.Mutex{},
-		client:            c,
-		clientMRF:         clientMRF,
 		settingsComponent: deps.SettingsComponent,
 		config:            deps.Config,
 		sysprobeConfig:    deps.SysprobeConfig,
 		isSystemProbe:     deps.Params.IsSystemProbe,
+		agentName:         deps.Params.AgentName,
+		agentVersion:      deps.Params.AgentVersion,
+		IPC:               deps.IPC,
 	}
 
 	if configUtils.IsRemoteConfigEnabled(deps.Config) {
 		deps.Lc.Append(compdef.Hook{
 			OnStart: func(context.Context) error {
-				rc.start()
-				return nil
+				return rc.start()
 			},
 		})
 	}
 
 	deps.Lc.Append(compdef.Hook{
 		OnStop: func(context.Context) error {
-			rc.client.Close()
+			if rc.client != nil {
+				rc.client.Close()
+			}
 			return nil
 		},
 	})
@@ -148,8 +121,51 @@ func NewRemoteConfigClient(deps Dependencies) (rcclient.Component, error) {
 	return rc, nil
 }
 
+func (rc *rcClient) createGRPCClient() error {
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
+	if err != nil {
+		return err
+	}
+
+	// Append client options
+	optsWithDefault := []func(*client.Options){
+		client.WithPollInterval(5 * time.Second),
+		client.WithAgent(rc.agentName, rc.agentVersion),
+	}
+
+	rc.client, err = client.NewUnverifiedGRPCClient(
+		ipcAddress,
+		pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
+		rc.IPC.GetAuthToken(),
+		rc.IPC.GetTLSClientConfig(),
+		optsWithDefault...,
+	)
+	if err != nil {
+		return err
+	}
+
+	if pkgconfigsetup.Datadog().GetBool("multi_region_failover.enabled") {
+		rc.clientMRF, err = client.NewUnverifiedMRFGRPCClient(
+			ipcAddress,
+			pkgconfighelper.GetIPCPort(pkgconfigsetup.Datadog()),
+			rc.IPC.GetAuthToken(),
+			rc.IPC.GetTLSClientConfig(),
+			optsWithDefault...,
+		)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 // start subscribes to AGENT_CONFIG configurations and starts the remote config client
-func (rc *rcClient) start() {
+func (rc *rcClient) start() error {
+	if err := rc.createGRPCClient(); err != nil {
+		return err
+
+	}
 	rc.client.Subscribe(state.ProductAgentConfig, rc.agentConfigUpdateCallback)
 
 	// Register every product for every listener
@@ -165,6 +181,8 @@ func (rc *rcClient) start() {
 		rc.clientMRF.Subscribe(state.ProductAgentFailover, rc.mrfUpdateCallback)
 		rc.clientMRF.Start()
 	}
+
+	return nil
 }
 
 // mrfUpdateCallback is the callback function for the AGENT_FAILOVER configs.
@@ -175,15 +193,29 @@ func (rc *rcClient) start() {
 // If a setting is not set via any config, it will fallback if the source was RC.
 func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
 	var enableLogs, enableMetrics, enableAPM *bool
-	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth, metricsAllowlistCfgPth string
-	var isAllowlistConfigured bool
+	var enableLogsCfgPth, enableMetricsCfgPth, enableAPMCfgPth string
+	// Configs setting an allowlist. Empty when none does, in which case the setting falls back.
+	var metricsAllowlistCfgPths, logsServiceAllowlistCfgPths []string
 	allowedMetrics := make(map[string]struct{})
+	allowedLogsServices := make(map[string]struct{})
+
+	// A config may contribute to several settings. Once one of its settings failed to apply, a later
+	// setting that applied must not turn its status back to acknowledged: an error sticks.
+	errored := make(map[string]struct{})
+	reportApplyStatus := func(cfgPath string, status state.ApplyStatus) {
+		if status.State == state.ApplyStateError {
+			errored[cfgPath] = struct{}{}
+		} else if _, failed := errored[cfgPath]; failed {
+			return
+		}
+		applyStateCallback(cfgPath, status)
+	}
 
 	for cfgPath, update := range updates {
 		mrfUpdate, err := parseMultiRegionFailoverConfig(update.Config)
 		if err != nil {
 			pkglog.Errorf("Multi-Region Failover update unmarshal failed: %s", err)
-			applyStateCallback(cfgPath, state.ApplyStatus{
+			reportApplyStatus(cfgPath, state.ApplyStatus{
 				State: state.ApplyStateError,
 				Error: err.Error(),
 			})
@@ -193,7 +225,8 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 		if mrfUpdate == nil || (mrfUpdate.FailoverMetrics == nil &&
 			mrfUpdate.FailoverLogs == nil &&
 			mrfUpdate.FailoverAPM == nil &&
-			mrfUpdate.MetricsAllowlist == nil) {
+			mrfUpdate.MetricsAllowlist == nil &&
+			mrfUpdate.LogsServiceAllowlist == nil) {
 			continue
 		}
 
@@ -212,123 +245,153 @@ func (rc *rcClient) mrfUpdateCallback(updates map[string]state.RawConfig, applyS
 			enableAPMCfgPth = cfgPath
 		}
 
-		// Empty allowlist means no metrics are allowed
+		// The allowlists of all configs are merged. As with the configuration file, an empty allowlist
+		// does not filter: every metric, or every log, is forwarded while the matching failover is enabled.
 		if mrfUpdate.MetricsAllowlist != nil {
-			isAllowlistConfigured = true
-			metricsAllowlistCfgPth = cfgPath
+			metricsAllowlistCfgPths = append(metricsAllowlistCfgPths, cfgPath)
 			for _, metric := range mrfUpdate.MetricsAllowlist {
 				allowedMetrics[metric] = struct{}{}
 			}
 		}
-	}
 
-	if enableMetrics != nil {
-		err := rc.applyMRFRuntimeSetting(failoverMetricsSetting, *enableMetrics, enableMetricsCfgPth, applyStateCallback)
-		if err != nil {
-			pkglog.Errorf("Multi-Region Failover failed to apply new metrics settings : %s", err)
-			applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-			return
-		}
-		change := "disabled"
-		if *enableMetrics {
-			change = "enabled"
-		}
-		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for metrics", change)
-		applyStateCallback(enableMetricsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-	} else {
-		mrfFailoverMetricsSource := pkgconfigsetup.Datadog().GetSource(failoverMetricsSetting)
-		pkgconfigsetup.Datadog().UnsetForSource(failoverMetricsSetting, model.SourceRC)
-		if mrfFailoverMetricsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `%s: %t`", failoverMetricsSetting, pkgconfigsetup.Datadog().GetBool(failoverMetricsSetting))
+		if mrfUpdate.LogsServiceAllowlist != nil {
+			logsServiceAllowlistCfgPths = append(logsServiceAllowlistCfgPths, cfgPath)
+			for _, service := range mrfUpdate.LogsServiceAllowlist {
+				allowedLogsServices[service] = struct{}{}
+			}
 		}
 	}
 
-	if enableLogs != nil {
-		err := rc.applyMRFRuntimeSetting(failoverLogsSetting, *enableLogs, enableLogsCfgPth, applyStateCallback)
-		if err != nil {
-			pkglog.Errorf("Multi-Region Failover failed to apply new logs settings : %s", err)
-			applyStateCallback(enableLogsCfgPth, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-			return
-		}
-		change := "disabled"
-		if *enableLogs {
-			change = "enabled"
-		}
-		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for logs", change)
-		applyStateCallback(enableLogsCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-	} else {
-		mrfFailoverLogsSource := pkgconfigsetup.Datadog().GetSource(failoverLogsSetting)
-		pkgconfigsetup.Datadog().UnsetForSource(failoverLogsSetting, model.SourceRC)
-		if mrfFailoverLogsSource == model.SourceRC {
-			pkglog.Infof("Falling back to `%s: %t`", failoverLogsSetting, pkgconfigsetup.Datadog().GetBool(failoverLogsSetting))
-		}
+	// A failed write stops its pair (see applyMRFFailover) but not the other pairs: the settings are
+	// independent, and the error is reported on the configs that contributed to the failed setting.
+	rc.applyMRFFailover(mrfFailoverUpdate{
+		what:              "metrics",
+		flagSetting:       failoverMetricsSetting,
+		enable:            enableMetrics,
+		enableCfgPath:     enableMetricsCfgPth,
+		allowlistSetting:  metricsAllowlistSetting,
+		allowed:           allowedMetrics,
+		allowlistCfgPaths: metricsAllowlistCfgPths,
+	}, reportApplyStatus)
+
+	rc.applyMRFFailover(mrfFailoverUpdate{
+		what:              "logs",
+		flagSetting:       failoverLogsSetting,
+		enable:            enableLogs,
+		enableCfgPath:     enableLogsCfgPth,
+		allowlistSetting:  logsServiceAllowlistSetting,
+		allowed:           allowedLogsServices,
+		allowlistCfgPaths: logsServiceAllowlistCfgPths,
+	}, reportApplyStatus)
+
+	rc.applyMRFFailoverFlag(failoverAPMSetting, "apm", enableAPM, enableAPMCfgPth, reportApplyStatus)
+}
+
+// mrfFailoverUpdate is the update to apply to a failover flag and to the allowlist that goes with it.
+type mrfFailoverUpdate struct {
+	what              string // "metrics" or "logs", for the log lines
+	flagSetting       string
+	enable            *bool // nil when no config sets the flag, which then falls back
+	enableCfgPath     string
+	allowlistSetting  string
+	allowed           map[string]struct{}
+	allowlistCfgPaths []string // configs setting the allowlist; empty when none does, which then falls back
+}
+
+// applyMRFFailover applies a failover flag and its allowlist.
+//
+// The two settings are written one after the other, and each write publishes a configuration of its
+// own, which the logs processors are notified of. The writes are ordered from the current state so that
+// no published configuration forwards data that neither the previous nor the new configuration forwards:
+//   - while failover is active, the flag is applied first: it can only stay on or turn off, and
+//     once off the allowlist change forwards nothing;
+//   - while failover is inactive, the allowlist is applied first: the flag can only stay off or
+//     turn on, and it turns on with the new allowlist already in place.
+//
+// This holds whether a setting comes from the configs or falls back because no config sets it. It is a
+// guarantee on the published configurations, not on a consumer that reads the two settings separately.
+//
+// The pair stops at its first failed write and returns false: on enable the allowlist comes first, so a
+// failed allowlist write never turns the flag on; on disable the flag comes first, so a failed flag write
+// never widens the allowlist while the flag is still on.
+func (rc *rcClient) applyMRFFailover(update mrfFailoverUpdate, applyStateCallback func(string, state.ApplyStatus)) bool {
+	applyFlag := func() bool {
+		return rc.applyMRFFailoverFlag(update.flagSetting, update.what, update.enable, update.enableCfgPath, applyStateCallback)
+	}
+	applyAllowlist := func() bool {
+		return rc.applyMRFAllowlist(update.allowlistSetting, update.allowed, update.allowlistCfgPaths, applyStateCallback)
 	}
 
-	if enableAPM != nil {
-		err := rc.applyMRFRuntimeSetting(failoverAPMSetting, *enableAPM, enableAPMCfgPth, applyStateCallback)
-		if err != nil {
-			pkglog.Errorf("Multi-Region Failover failed to apply new apm settings : %s", err)
-			applyStateCallback(enableAPMCfgPth, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-			return
-		}
-		change := "disabled"
-		if *enableAPM {
-			change = "enabled"
-		}
-		pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for apm", change)
-		applyStateCallback(enableAPMCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-	} else {
-		mrfFailoverAPMSource := pkgconfigsetup.Datadog().GetSource(failoverAPMSetting)
-		pkgconfigsetup.Datadog().UnsetForSource(failoverAPMSetting, model.SourceRC)
-		if mrfFailoverAPMSource == model.SourceRC {
-			pkglog.Infof("Falling back to `%s: %t`", failoverAPMSetting, pkgconfigsetup.Datadog().GetBool(failoverAPMSetting))
-		}
+	if pkgconfigsetup.Datadog().GetBool(update.flagSetting) {
+		return applyFlag() && applyAllowlist()
+	}
+	return applyAllowlist() && applyFlag()
+}
+
+// applyMRFFailoverFlag applies a failover flag, or unsets its remote config value when no config sets it.
+// It returns false when the setting could not be applied.
+func (rc *rcClient) applyMRFFailoverFlag(setting, what string, enable *bool, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) bool {
+	if enable == nil {
+		rc.unsetMRFRuntimeSetting(setting)
+		return true
 	}
 
-	if isAllowlistConfigured {
-		var allowlist []string
-		for metric := range allowedMetrics {
-			allowlist = append(allowlist, metric)
-		}
+	if err := rc.applyMRFRuntimeSetting(setting, *enable, applyStateCallback, cfgPath); err != nil {
+		pkglog.Errorf("Multi-Region Failover failed to apply new %s settings : %s", what, err)
+		return false
+	}
+	change := "disabled"
+	if *enable {
+		change = "enabled"
+	}
+	pkglog.Infof("Received remote update for Multi-Region Failover configuration: %s failover for %s", change, what)
+	return true
+}
 
-		err := rc.applyMRFRuntimeSetting(metricsAllowlistSetting, allowlist, metricsAllowlistCfgPth, applyStateCallback)
-		if err != nil {
-			pkglog.Errorf("Multi-Region Failover failed to apply new metrics allowlist : %s", err)
-			applyStateCallback(metricsAllowlistCfgPth, state.ApplyStatus{
-				State: state.ApplyStateError,
-				Error: err.Error(),
-			})
-			return
-		}
-		pkglog.Infof("Received remote update for Multi-Region Failover configuration: metrics allowlist updated")
-		applyStateCallback(metricsAllowlistCfgPth, state.ApplyStatus{State: state.ApplyStateAcknowledged})
-	} else {
-		mrfMetricsAllowlistSource := pkgconfigsetup.Datadog().GetSource(metricsAllowlistSetting)
-		pkgconfigsetup.Datadog().UnsetForSource(metricsAllowlistSetting, model.SourceRC)
-		if mrfMetricsAllowlistSource == model.SourceRC {
-			pkglog.Infof("Falling back to `%s: %v`", metricsAllowlistSetting, pkgconfigsetup.Datadog().GetStringSlice(metricsAllowlistSetting))
-		}
+// applyMRFAllowlist applies an allowlist merged from the configs that set it, or unsets its remote
+// config value when no config sets it. It returns false when the setting could not be applied.
+func (rc *rcClient) applyMRFAllowlist(setting string, allowed map[string]struct{}, cfgPaths []string, applyStateCallback func(string, state.ApplyStatus)) bool {
+	if len(cfgPaths) == 0 {
+		rc.unsetMRFRuntimeSetting(setting)
+		return true
+	}
+
+	// Sorted, so that the same set of entries is the same value whatever the order of the configs.
+	allowlist := make([]string, 0, len(allowed))
+	for entry := range allowed {
+		allowlist = append(allowlist, entry)
+	}
+	slices.Sort(allowlist)
+
+	if err := rc.applyMRFRuntimeSetting(setting, allowlist, applyStateCallback, cfgPaths...); err != nil {
+		pkglog.Errorf("Multi-Region Failover failed to apply new `%s` : %s", setting, err)
+		return false
+	}
+	pkglog.Infof("Received remote update for Multi-Region Failover configuration: `%s` updated (%d entries)", setting, len(allowlist))
+	return true
+}
+
+// unsetMRFRuntimeSetting removes the remote config value of a setting, which then falls back to its other sources.
+func (rc *rcClient) unsetMRFRuntimeSetting(setting string) {
+	source := pkgconfigsetup.Datadog().GetSource(setting)
+	pkgconfigsetup.Datadog().UnsetForSource(setting, model.SourceRC)
+	if source == model.SourceRC {
+		pkglog.Infof("Falling back to `%s: %v`", setting, pkgconfigsetup.Datadog().Get(setting))
 	}
 }
 
-func (rc *rcClient) applyMRFRuntimeSetting(setting string, value any, cfgPath string, applyStateCallback func(string, state.ApplyStatus)) error {
+// applyMRFRuntimeSetting sets a runtime setting through remote config and reports the outcome for
+// every config the value comes from.
+func (rc *rcClient) applyMRFRuntimeSetting(setting string, value any, applyStateCallback func(string, state.ApplyStatus), cfgPaths ...string) error {
 	pkglog.Debugf("Setting `%s: %v` through remote config", setting, value)
 	err := rc.settingsComponent.SetRuntimeSetting(setting, value, model.SourceRC)
+	status := state.ApplyStatus{State: state.ApplyStateAcknowledged}
 	if err != nil {
 		pkglog.Errorf("Failed to set %s runtime setting to %v: %s", setting, value, err)
-		applyStateCallback(cfgPath, state.ApplyStatus{
-			State: state.ApplyStateError,
-			Error: err.Error(),
-		})
+		status = state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()}
+	}
+	for _, cfgPath := range cfgPaths {
+		applyStateCallback(cfgPath, status)
 	}
 	return err
 }
@@ -345,7 +408,19 @@ func (rc *rcClient) SubscribeAgentTask() {
 
 // Subscribe is the generic way to start listening to a specific product update
 func (rc *rcClient) Subscribe(product data.Product, fn func(update map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus))) {
+	if rc.client == nil {
+		pkglog.Errorf("No remote-config client")
+		return
+	}
 	rc.client.Subscribe(string(product), fn)
+}
+
+// GetConfigTUFProof returns the current Director proof for a Remote Config target.
+func (rc *rcClient) GetConfigTUFProof(targetPath string) (state.ConfigTUFProof, bool) {
+	if rc.client == nil {
+		return state.ConfigTUFProof{}, false
+	}
+	return rc.client.GetConfigTUFProof(targetPath)
 }
 
 func (rc *rcClient) agentConfigUpdateCallback(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {

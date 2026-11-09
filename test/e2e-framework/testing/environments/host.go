@@ -107,7 +107,7 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	// add Agent diagnose
 	if e.Agent != nil {
 		diagnoses = append(diagnoses, "==== Agent ====")
-		dstPath, err := generateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
+		dstPath, err := GenerateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
 		if err != nil {
 			return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
 		}
@@ -118,8 +118,8 @@ func (e *Host) Diagnose(outputDir string) (string, error) {
 	return strings.Join(diagnoses, "\n"), nil
 }
 
-func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
-	if agent == nil || host == nil {
+func GenerateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *components.RemoteHost, outputDir string) (string, error) {
+	if agent == nil || agent.Client == nil || host == nil || host.Host == nil {
 		return "", errors.New("Agent or RemoteHost component is not initialized, cannot generate flare")
 	}
 	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached
@@ -127,7 +127,9 @@ func generateAndDownloadAgentFlare(agent *components.RemoteHostAgent, host *comp
 	// to redirect stdin to null, on linux adding `</dev/null`
 	// on windows prepending command with `@() |`, pre-piping with an empty array
 	// discard error, flare command might return error if there is no intake, but it the archive is still generated
-	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send"}))
+	// --keep-archive prevents the agent from deleting the local archive after a successful upload,
+	// since we need it to still be on disk afterwards to download it below.
+	flareCommandOutput, err := agent.Client.FlareWithError(agentclient.WithArgs([]string{"--email", "e2e-tests@datadog-agent", "--send", "--keep-archive"}))
 
 	lines := []string{flareCommandOutput}
 	if err != nil {

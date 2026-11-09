@@ -8,6 +8,7 @@
 package safenvml
 
 import (
+	"maps"
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
@@ -32,15 +33,27 @@ func init() {
 
 // WithMockNVML calls the WithPartialMockNVML with all symbols available
 func WithMockNVML(tb testing.TB, lib nvml.Interface) {
-	WithPartialMockNVML(tb, lib, allSymbols)
+	capabilities := maps.Clone(allSymbols)
+	// The generated NVML mock cannot construct GpuFabricInfoHandler or
+	// GpuInstanceProfileInfoByIdHandler, which are required to invoke the
+	// versioned APIs, and the default mock leaves the GPU-instance handle
+	// methods unset. Remove those symbols from the default capability set so
+	// the wrappers degrade gracefully instead of calling unset mock funcs.
+	delete(capabilities, toNativeName("GetGpuFabricInfoV"))
+	delete(capabilities, toNativeName("GetGpuInstanceById"))
+	delete(capabilities, toNativeName("GetGpuInstanceProfileInfoByIdV"))
+	delete(capabilities, "nvmlGpuInstanceGetInfo")
+	WithPartialMockNVML(tb, lib, capabilities)
 }
 
 func resetSingleton() {
+	nvmlReleased.Store(false)
 	singleton.mu.Lock()
 	defer singleton.mu.Unlock()
 
 	singleton.lib = nil
 	singleton.capabilities = nil
+	singleton.deviceWarningsSeen = nil
 }
 
 // WithPartialMockNVML sets the singleton SafeNVML library for testing purposes.

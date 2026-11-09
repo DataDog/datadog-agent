@@ -14,14 +14,15 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
 func TestIsIPPublic(t *testing.T) {
 	bfh := BaseFieldHandlers{}
-	for _, cidr := range setup.DefaultPrivateIPCIDRs {
+	cfg := configmock.NewSystemProbe(t)
+	for _, cidr := range cfg.GetStringSlice("event_monitoring_config.network.private_ip_ranges") {
 		if err := bfh.privateCIDRs.AppendCIDR(cidr); err != nil {
 			t.Fatalf("failed to append CIDR %s: %v", cidr, err)
 		}

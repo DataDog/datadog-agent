@@ -30,9 +30,10 @@ func convertWorkloadmetaPodToK8sPod(pod *workloadmeta.KubernetesPod, wmeta workl
 			Kind: "Pod",
 		},
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      pod.EntityMeta.Name,
-			UID:       types.UID(pod.EntityID.ID),
-			Namespace: pod.EntityMeta.Namespace,
+			Name:              pod.EntityMeta.Name,
+			UID:               types.UID(pod.EntityID.ID),
+			Namespace:         pod.EntityMeta.Namespace,
+			DeletionTimestamp: convertWorkloadmetaTime(pod.DeletionTimestamp),
 			CreationTimestamp: metav1.Time{
 				Time: pod.CreationTimestamp,
 			},
@@ -59,7 +60,7 @@ func convertWorkloadmetaPodToK8sPod(pod *workloadmeta.KubernetesPod, wmeta workl
 			InitContainerStatuses: convertWorkloadmetaContainerStatuses(pod.InitContainerStatuses),
 			Conditions:            convertWorkloadmetaConditions(pod.Conditions),
 			QOSClass:              corev1.PodQOSClass(pod.QOSClass),
-			StartTime:             convertWorkloadmetaStartTime(pod.StartTime),
+			StartTime:             convertWorkloadmetaTime(pod.StartTime),
 			Reason:                pod.Reason,
 		},
 	}
@@ -318,11 +319,11 @@ func convertWorkloadmetaConditions(conditions []workloadmeta.KubernetesPodCondit
 	return result
 }
 
-func convertWorkloadmetaStartTime(startTime *time.Time) *metav1.Time {
-	if startTime == nil {
+func convertWorkloadmetaTime(t *time.Time) *metav1.Time {
+	if t == nil {
 		return nil
 	}
-	return &metav1.Time{Time: *startTime}
+	return &metav1.Time{Time: *t}
 }
 
 func convertWorkloadmetaContainerPorts(ports []workloadmeta.ContainerPort) []corev1.ContainerPort {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package loader
 
@@ -36,4 +36,13 @@ func TestRuntimeStatsHasSameLayoutAsStats(t *testing.T) {
 	}
 	require.Equal(t, runtimeStats, *(*RuntimeStats)(unsafe.Pointer(&cStats)))
 	require.Equal(t, cStats, *(*stats)(unsafe.Pointer(&runtimeStats)))
+}
+
+// Test fakes build Programs without a Collection. The actuator's heartbeat
+// polls them like any other loaded program, so RuntimeStats and
+// DropNotifyLostAt must not panic on them.
+func TestProgramWithoutCollection(t *testing.T) {
+	p := &Program{}
+	require.Nil(t, p.RuntimeStats())
+	require.Zero(t, p.DropNotifyLostAt())
 }

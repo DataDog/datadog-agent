@@ -9,23 +9,42 @@ package ksm
 
 import (
 	"reflect"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/fx"
 	apiv1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime"
 	fakediscovery "k8s.io/client-go/discovery/fake"
+	dynamicfake "k8s.io/client-go/dynamic/fake"
 	fakeclientset "k8s.io/client-go/kubernetes/fake"
 	"k8s.io/kube-state-metrics/v2/pkg/allowdenylist"
+	"k8s.io/kube-state-metrics/v2/pkg/customresource"
 	"k8s.io/kube-state-metrics/v2/pkg/customresourcestate"
 	"k8s.io/kube-state-metrics/v2/pkg/options"
+	ksmutil "k8s.io/kube-state-metrics/v2/pkg/util"
 
+	compcore "github.com/DataDog/datadog-agent/comp/core"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
+	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
+	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	core "github.com/DataDog/datadog-agent/pkg/collector/corechecks"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/ksm/customresources"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	kubestatemetrics "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/builder"
 	ksmstore "github.com/DataDog/datadog-agent/pkg/kubestatemetrics/store"
+	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
@@ -359,6 +378,34 @@ func TestProcessMetrics(t *testing.T) {
 			metricsToGet:       []ksmstore.DDMetricsFam{},
 			metricTransformers: defaultMetricTransformers(nil),
 			expected:           []metricsExpected{},
+		},
+		{
+			name:   "kube_node_spec_taint",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper()},
+			metricsToProcess: map[string][]ksmstore.DDMetricsFam{
+				"kube_node_spec_taint": {
+					{
+						Type: "*v1.Node",
+						Name: "kube_node_spec_taint",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"node": "nodename", "key": "dedicated", "value": "experiment", "effect": "NoSchedule"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			metricsToGet:       []ksmstore.DDMetricsFam{},
+			metricTransformers: defaultMetricTransformers(nil),
+			expected: []metricsExpected{
+				{
+					name:     "kubernetes_state.node.taint",
+					val:      1,
+					tags:     []string{"node:nodename", "key:dedicated", "value:experiment", "effect:NoSchedule"},
+					hostname: "nodename",
+				},
+			},
 		},
 		{
 			name:   "kube_zone and kube_region tags from default label joins",
@@ -740,7 +787,7 @@ func TestProcessMetrics(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsCheck.ID())
 		mocked.SetupAcceptAll()
 
 		if _, ok := test.metricsToProcess["kube_customresource_metric_info"]; ok {
@@ -881,6 +928,29 @@ func TestProcessTelemetry(t *testing.T) {
 			},
 		},
 		{
+			name:   "customresource metric is not treated as a metadata metric",
+			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
+			metrics: map[string][]ksmstore.DDMetricsFam{
+				"kube_customresource_foo_info": {
+					{
+						Type: "*v1.DatadogAgent",
+						Name: "kube_customresource_foo_info",
+						ListMetrics: []ksmstore.DDMetric{
+							{
+								Labels: map[string]string{"foo": "bar"},
+								Val:    1,
+							},
+						},
+					},
+				},
+			},
+			expected: telemetryCache{
+				totalCount:             0,
+				unknownMetricsCount:    1,
+				metricsCountByResource: map[string]int{},
+			},
+		},
+		{
 			name:   "pod, deployment and unknown metrics",
 			config: &KSMConfig{LabelsMapper: defaultLabelsMapper(), Telemetry: true},
 			metrics: map[string][]ksmstore.DDMetricsFam{
@@ -1000,7 +1070,7 @@ func TestSendTelemetry(t *testing.T) {
 	for _, test := range tests {
 		fakeTagger := taggerfxmock.SetupFakeTagger(t)
 		kubeStateMetricsSCheck := newKSMCheck(core.NewCheckBase(CheckName), test.config, fakeTagger, nil)
-		mocked := mocksender.NewMockSender(kubeStateMetricsSCheck.ID())
+		mocked := mocksender.NewMockSender(t, kubeStateMetricsSCheck.ID())
 		mocked.SetupAcceptAll()
 
 		kubeStateMetricsSCheck.telemetry = test.cache
@@ -1318,9 +1388,98 @@ func TestKSMCheck_hostnameAndTags(t *testing.T) {
 				labelJoiner.insertFamily(metricFam)
 			}
 
-			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags(tt.args.labels, labelJoiner, tt.args.lMapperOverride)
+			hostname, tags := kubeStateMetricsSCheck.hostnameAndTags("", tt.args.labels, labelJoiner, tt.args.lMapperOverride)
 			assert.ElementsMatch(t, tt.wantTags, tags)
 			assert.Equal(t, tt.wantHostname, hostname)
+		})
+	}
+}
+
+func TestKSMCheck_hostnameAndTagsArgoRollout(t *testing.T) {
+	tests := []struct {
+		name             string
+		ownerKind        string
+		ownerName        string
+		argoRolloutLabel string
+		expectedTags     []string
+	}{
+		{
+			name:             "Argo Rollout pod",
+			ownerKind:        kubernetes.ReplicaSetKind,
+			ownerName:        "my-rollout-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-rollout-7f59c78c9b",
+				"kube_deployment:my-rollout",
+				"kube_argo_rollout:my-rollout",
+			},
+		},
+		{
+			name:      "Deployment pod",
+			ownerKind: kubernetes.ReplicaSetKind,
+			ownerName: "my-deployment-7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_replica_set:my-deployment-7f59c78c9b",
+				"kube_deployment:my-deployment",
+			},
+		},
+		{
+			name:             "non-ReplicaSet Argo-labeled pod",
+			ownerKind:        kubernetes.DaemonSetKind,
+			ownerName:        "my-daemonset",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags: []string{
+				"kube_namespace:default",
+				"pod_name:my-rollout-7f59c78c9b-abcde",
+				"kube_daemon_set:my-daemonset",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			const (
+				namespace = "default"
+				podName   = "my-rollout-7f59c78c9b-abcde"
+			)
+
+			config := &KSMConfig{
+				LabelsMapper: defaultLabelsMapper(),
+				LabelJoins:   defaultLabelJoins(),
+			}
+			fakeTagger := taggerfxmock.SetupFakeTagger(t)
+			check := newKSMCheck(core.NewCheckBase(CheckName), config, fakeTagger, nil)
+			check.processLabelJoins()
+
+			labelJoiner := newLabelJoiner(config.labelJoins)
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_labels",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:         namespace,
+					"pod":                podName,
+					argoRolloutLabelName: tt.argoRolloutLabel,
+				}}},
+			})
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_info",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:     namespace,
+					"pod":            podName,
+					createdByKindKey: tt.ownerKind,
+					createdByNameKey: tt.ownerName,
+				}}},
+			})
+
+			_, actualTags := check.hostnameAndTags("kube_pod_status_ready", map[string]string{
+				namespaceKey: namespace,
+				"pod":        podName,
+			}, labelJoiner, nil)
+
+			assert.ElementsMatch(t, tt.expectedTags, actualTags)
 		})
 	}
 }
@@ -1503,6 +1662,27 @@ func TestKSMCheck_processAnnotationsAsTags(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Regression test: a wildcard on the "namespace" kind must not
+			// duplicate the "namespace" entry in labelsToMatch, or insertMetric panics
+			// (`makeslice: cap out of range`) on any un-annotated namespace.
+			name: "With wildcard template on namespace kind",
+			config: &KSMConfig{
+				labelJoins:   map[string]*joinsConfig{},
+				LabelsMapper: map[string]string{},
+				AnnotationsAsTags: map[string]map[string]string{
+					"namespace": {"*": "%%annotation%%"},
+				},
+			},
+			expectedJoins: map[string]*joinsConfig{
+				"kube_namespace_annotations": {
+					labelsToMatch:    []string{"namespace"},
+					labelsToGet:      map[string]string{},
+					getAllLabels:     true,
+					wildcardTemplate: "%%annotation%%",
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -1553,6 +1733,63 @@ func TestKSMCheck_mergeLabelsMapper(t *testing.T) {
 			assert.True(t, reflect.DeepEqual(tt.expected, k.instance.LabelsMapper))
 		})
 	}
+}
+
+func TestKSMCheck_ensureArgoRolloutLabelJoin(t *testing.T) {
+	tests := []struct {
+		name     string
+		config   *KSMConfig
+		expected []string
+	}{
+		{
+			name:     "no kube_pod_labels join configured",
+			config:   &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{}},
+			expected: nil,
+		},
+		{
+			name: "user-defined kube_pod_labels join missing the argo label",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {LabelsToGet: []string{"label_team"}},
+			}},
+			expected: []string{"label_team", argoRolloutLabelName},
+		},
+		{
+			name: "user-defined kube_pod_labels join already has the argo label",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {LabelsToGet: []string{argoRolloutLabelName}},
+			}},
+			expected: []string{argoRolloutLabelName},
+		},
+		{
+			name: "user-defined kube_pod_labels join uses get_all_labels",
+			config: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+				"kube_pod_labels": {GetAllLabels: true},
+			}},
+			expected: nil,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := &KSMCheck{instance: tt.config}
+			k.ensureArgoRolloutLabelJoin()
+
+			podLabelJoin, found := k.instance.LabelJoins["kube_pod_labels"]
+			if !found {
+				assert.Nil(t, tt.expected)
+				return
+			}
+			assert.Equal(t, tt.expected, podLabelJoin.LabelsToGet)
+		})
+	}
+}
+
+func TestKSMCheck_ensureArgoRolloutLabelJoinReplicaSets(t *testing.T) {
+	k := &KSMCheck{instance: &KSMConfig{LabelJoins: map[string]*JoinsConfigWithoutLabelsMapping{
+		"kube_replicaset_labels": {LabelsToGet: []string{"label_team"}},
+	}}}
+	k.ensureArgoRolloutLabelJoin()
+
+	assert.Equal(t, []string{"label_team", argoRolloutLabelName}, k.instance.LabelJoins["kube_replicaset_labels"].LabelsToGet)
 }
 
 func TestKSMCheck_mergeLabelsOrAnnotationAsTags(t *testing.T) {
@@ -1681,12 +1918,14 @@ var metadataMetrics = []string{
 	"kube_verticalpodautoscaler_labels",
 }
 
-func TestMetadataMetricsRegex(t *testing.T) {
-	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	check := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+func TestShouldDropForMetadata(t *testing.T) {
 	for _, m := range metadataMetrics {
-		assert.True(t, check.metadataMetricsRegex.MatchString(m))
+		assert.True(t, shouldDropForMetadata(m), "expected %s to be dropped", m)
 	}
+
+	assert.False(t, shouldDropForMetadata("kube_pod_status_phase"))
+	assert.False(t, shouldDropForMetadata("kube_customresource_info"))
+	assert.False(t, shouldDropForMetadata("kube_customresource_labels"))
 }
 
 func TestResourceNameFromMetric(t *testing.T) {
@@ -1743,6 +1982,15 @@ func TestUsesCustomResourceMetrics(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, tt.config.usesCustomResourceMetrics())
 		})
+	}
+}
+
+func TestDefaultCollectors(t *testing.T) {
+	collectors := defaultCollectors()
+	assert.Contains(t, collectors, "endpoints")
+	assert.Contains(t, collectors, "horizontalpodautoscalers")
+	for _, c := range excludedDefaultCollectors {
+		assert.NotContains(t, collectors, c)
 	}
 }
 
@@ -1835,6 +2083,55 @@ func TestCreationMetricsFiltering(t *testing.T) {
 	}
 }
 
+func TestCronJobStartTimeMetricsNotDenied(t *testing.T) {
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(defaultCollectors()))
+	assert.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	assert.NoError(t, err)
+
+	// The kubernetes_state.cronjob.complete service check needs these families
+	for _, metric := range []string{"kube_job_complete_start_time", "kube_job_failed_start_time"} {
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		assert.NoError(t, err)
+		assert.False(t, isExcluded, metric)
+	}
+}
+
+func TestResourceClaimCreatedMetricNotDenied(t *testing.T) {
+	// Regression test: buildDeniedMetricsSet runs on the raw collector names
+	// (before splitDRACollectors), so resourceclaims used to hit the
+	// generic kube_<resource>_created deny rule and drop the family that the
+	// resourceclaim.pending.age transformer consumes.
+	collectors := append(defaultCollectors(), draResourceClaims, draResourceSlices, draDeviceTaintRules)
+	allowDenyList, err := allowdenylist.New(options.MetricSet{}, buildDeniedMetricsSet(collectors))
+	require.NoError(t, err)
+
+	err = allowDenyList.Parse()
+	require.NoError(t, err)
+
+	// The transformer input must survive when the DRA collector is enabled.
+	isExcluded, err := allowDenyList.IsExcluded("kube_resourceclaim_created")
+	require.NoError(t, err)
+	assert.False(t, isExcluded)
+	isIncluded, err := allowDenyList.IsIncluded("kube_resourceclaim_created")
+	require.NoError(t, err)
+	assert.True(t, isIncluded)
+
+	// Slices and taint rules keep their generic deny entries: they publish
+	// no *_created family at all, so the entries are inert but harmless.
+	for _, metric := range []string{"kube_resourceslice_created", "kube_devicetaintrule_created"} {
+		isExcluded, err := allowDenyList.IsExcluded(metric)
+		require.NoError(t, err)
+		assert.True(t, isExcluded, metric)
+	}
+
+	// The exemption must not leak into non-DRA resources.
+	isExcluded, err = allowDenyList.IsExcluded("kube_deployment_created")
+	require.NoError(t, err)
+	assert.True(t, isExcluded)
+}
+
 func TestKSMCheckInitTags(t *testing.T) {
 	type fields struct {
 		instance    *KSMConfig
@@ -1920,16 +2217,18 @@ func TestKSMCheckInitTags(t *testing.T) {
 
 func TestOwnerTags(t *testing.T) {
 	tests := []struct {
-		tc   string
-		kind string
-		name string
-		want []string
+		tc             string
+		kind           string
+		name           string
+		want           []string
+		wantDeployment string
 	}{
 		{
-			tc:   "rs + deploy",
-			kind: "ReplicaSet",
-			name: "foo-6768ddc4d",
-			want: []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+			tc:             "rs + deploy",
+			kind:           "ReplicaSet",
+			name:           "foo-6768ddc4d",
+			want:           []string{"kube_replica_set:foo-6768ddc4d", "kube_deployment:foo"},
+			wantDeployment: "foo",
 		},
 		{
 			tc:   "rs only",
@@ -1970,7 +2269,9 @@ func TestOwnerTags(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.tc, func(t *testing.T) {
-			assert.EqualValues(t, tt.want, ownerTags(tt.kind, tt.name))
+			actualTags, actualDeployment := ownerTags(tt.kind, tt.name)
+			assert.EqualValues(t, tt.want, actualTags)
+			assert.Equal(t, tt.wantDeployment, actualDeployment)
 		})
 	}
 }
@@ -1979,14 +2280,1021 @@ func BenchmarkOwnerTags(b *testing.B) {
 	b.Run("ReplicaSet", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = ownerTags("ReplicaSet", "foo-6768ddc4d")
+			_, _ = ownerTags("ReplicaSet", "foo-6768ddc4d")
 		}
 	})
 
 	b.Run("Job", func(b *testing.B) {
 		b.ReportAllocs()
 		for b.Loop() {
-			_ = ownerTags("Job", "foo-1627309500")
+			_, _ = ownerTags("Job", "foo-1627309500")
 		}
 	})
+}
+
+func TestProcessMetrics_SuppressModeMatrix(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	sourceMetric := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_container_resource_with_owner_tag_requests": {{
+			Name: "kube_pod_container_resource_with_owner_tag_requests",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Val:    0.1,
+			}},
+		}},
+		// A non-.total aggregator source (pod.count) must not double-count in aggregatesOnly mode.
+		"kube_pod_info": {{
+			Name: "kube_pod_info",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	hasTotalGauge := func(s *mocksender.MockSender) bool {
+		for _, call := range s.Mock.Calls {
+			if call.Method == "Gauge" {
+				if name, ok := call.Arguments.Get(0).(string); ok && strings.Contains(name, ".total") {
+					return true
+				}
+			}
+		}
+		return false
+	}
+
+	tests := []struct {
+		name         string
+		mode         podCollectionMode
+		flagEnabled  bool
+		wantSuppress bool // node should NOT emit .total when true
+		wantHasTotal bool // node SHOULD emit .total when true
+	}{
+		{
+			name: "node_kubelet + flag=true → suppress (DCA is authoritative)",
+			mode: nodeKubeletPodCollection, flagEnabled: true,
+			wantSuppress: true, wantHasTotal: false,
+		},
+		{
+			name: "node_kubelet + flag=false → emit (safe rollout, DCA not ready)",
+			mode: nodeKubeletPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "cluster_unassigned + flag=true → suppress",
+			mode: clusterUnassignedPodCollection, flagEnabled: true,
+			wantSuppress: true, wantHasTotal: false,
+		},
+		{
+			name: "cluster_unassigned + flag=false → emit",
+			mode: clusterUnassignedPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "default + flag=true → emit (single full-pod check is authoritative, design goal #5)",
+			mode: defaultPodCollection, flagEnabled: true,
+			wantSuppress: false, wantHasTotal: true,
+		},
+		{
+			name: "default + flag=false → emit (backwards-compat: feature off, no change)",
+			mode: defaultPodCollection, flagEnabled: false,
+			wantSuppress: false, wantHasTotal: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: tt.mode, ClusterAggregatesEnabled: tt.flagEnabled}, fakeTagger, nil)
+
+			s := mocksender.NewMockSender(t, k.ID())
+			s.SetupAcceptAll()
+
+			k.processMetrics(s, sourceMetric, newLabelJoiner(nil), time.Now())
+			for _, agg := range k.metricAggregators {
+				agg.flush(s, k, newLabelJoiner(nil))
+			}
+
+			if tt.wantSuppress {
+				for _, call := range s.Mock.Calls {
+					if call.Method == "Gauge" {
+						name, _ := call.Arguments.Get(0).(string)
+						assert.NotContains(t, name, ".total", "mode=%s flag=%v must suppress .total", tt.mode, tt.flagEnabled)
+					}
+				}
+			}
+			if tt.wantHasTotal {
+				assert.True(t, hasTotalGauge(s), "mode=%s flag=%v must emit .total", tt.mode, tt.flagEnabled)
+			}
+		})
+	}
+}
+
+func TestProcessMetrics_ClusterAggregatesOnly_EmitsOnlyTotalFamily(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: clusterAggregatesOnlyPodCollection, ClusterAggregatesEnabled: true}, fakeTagger, nil)
+
+	metrics := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_container_resource_with_owner_tag_requests": {{
+			Name: "kube_pod_container_resource_with_owner_tag_requests",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "kube-system", "container": "kindnet", "owner_name": "kindnet", "owner_kind": "DaemonSet", "resource": "cpu"},
+				Val:    0.1,
+			}},
+		}},
+		// pod.count source: must NOT be accumulated (double-count prevention)
+		"kube_pod_info": {{
+			Name: "kube_pod_info",
+			ListMetrics: []ksmstore.DDMetric{{
+				Labels: map[string]string{"namespace": "default", "pod": "p1", "uid": "u1", "node": "node-a", "created_by_kind": "Deployment", "created_by_name": "d1"},
+				Val:    1,
+			}},
+		}},
+	}
+
+	s := mocksender.NewMockSender(t, k.ID())
+	s.SetupAcceptAll()
+
+	k.processMetrics(s, metrics, newLabelJoiner(nil), time.Now())
+	for _, agg := range k.metricAggregators {
+		agg.flush(s, k, newLabelJoiner(nil))
+	}
+
+	for _, call := range s.Mock.Calls {
+		if call.Method == "Gauge" {
+			name, _ := call.Arguments.Get(0).(string)
+			// Only .total metrics should be emitted
+			assert.True(t, strings.HasSuffix(name, ".total") || strings.HasPrefix(name, "kubernetes_state.telemetry"),
+				"cluster_aggregates_only must not emit non-.total metric %q", name)
+			// pod.count must not appear (it's a non-.total aggregator)
+			assert.NotContains(t, name, "pod.count")
+		}
+	}
+}
+
+// TestDiscoverCustomResources_ClusterAggregatesOnly guards the wiring that makes
+// cluster_aggregates_only build ONLY the extended pod store: discoverCustomResources
+// must return exactly the extended pods GVR key (not the plain "pods" collector, and
+// not nil). If this regresses, the aggregate pod store is never built and the .total
+// family silently disappears.
+func TestDiscoverCustomResources_ClusterAggregatesOnly(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: clusterAggregatesOnlyPodCollection}, fakeTagger, nil)
+	c := &apiserver.APIClient{InformerCl: fakeclientset.NewSimpleClientset()}
+
+	cr := k.discoverCustomResources(c, []string{"pods"}, nil)
+
+	assert.Equal(t, []string{extendedCollectors["pods"]}, cr.collectors,
+		"cluster_aggregates_only must enable ONLY the extended pods store, not the standard 'pods' collector")
+	assert.NotContains(t, cr.collectors, "pods",
+		"the standard pods collector must not be enabled in cluster_aggregates_only mode")
+	assert.Len(t, cr.factories, 1, "cluster_aggregates_only should register exactly the extended pod factory")
+}
+
+// TestDiscoverCustomResources_EnablesDRAResources guards the DRA wiring: when
+// the cluster serves resource.k8s.io and collection is enabled, the
+// resourceclaim/resourceslice factories are registered AND their stores are
+// enabled, even when the config carries an explicit collectors list. If this
+// regresses, WithEnabledResources(cr.collectors) never enables them, the
+// informers never start, and kubernetes_state.resourceclaim.*/.resourceslice.*
+// silently vanish.
+func TestDiscoverCustomResources_EnablesDRAResources(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "nodes", "resourceclaims", "resourceslices"}, draAPIResourceList("v1"))
+
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceclaims")
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceslices")
+	// The short names must be replaced, not kept alongside: they name no
+	// registered store, and WithEnabledResources fails the whole instance on
+	// an unknown name.
+	assert.NotContains(t, cr.collectors, "resourceclaims")
+	assert.NotContains(t, cr.collectors, "resourceslices")
+
+	// The enabled-resource GVR strings must be exactly what the factories
+	// register under (util.GVRFromType), otherwise WithEnabledResources fails
+	// with "resource <name> does not exist" and the informers never start.
+	for _, name := range []string{"resourceclaims", "resourceslices"} {
+		f := draFactoryByName(cr, name)
+		require.NotNil(t, f, "factory %s must be registered", name)
+		gvr, err := ksmutil.GVRFromType(f.Name(), f.ExpectedType())
+		require.NoError(t, err)
+		require.NotNil(t, gvr)
+		assert.Contains(t, cr.collectors, gvr.String(),
+			"collectors must contain the GVR string for %s", name)
+	}
+}
+
+// draAPIResourceList builds the discovery result for a cluster serving the DRA
+// group at one version.
+func draAPIResourceList(version string) []*apiv1.APIResourceList {
+	return []*apiv1.APIResourceList{{
+		GroupVersion: "resource.k8s.io/" + version,
+		APIResources: []apiv1.APIResource{
+			{Name: "resourceclaims", Kind: "ResourceClaim", Namespaced: true},
+			{Name: "resourceslices", Kind: "ResourceSlice", Namespaced: false},
+		},
+	}}
+}
+
+// hpaV2APIResourceList builds the discovery result for a cluster serving
+// autoscaling/v2 HorizontalPodAutoscalers.
+func hpaV2APIResourceList() []*apiv1.APIResourceList {
+	return []*apiv1.APIResourceList{{
+		GroupVersion: "autoscaling/v2",
+		APIResources: []apiv1.APIResource{{Name: "horizontalpodautoscalers", Kind: "HorizontalPodAutoscaler", Namespaced: true}},
+	}}
+}
+
+func newDRATestClient(t *testing.T) *apiserver.APIClient {
+	t.Helper()
+	return &apiserver.APIClient{
+		InformerCl:        fakeclientset.NewSimpleClientset(),
+		DynamicInformerCl: dynamicfake.NewSimpleDynamicClient(runtime.NewScheme()),
+	}
+}
+
+func draFactoryByName(cr customResources, name string) customresource.RegistryFactory {
+	for _, f := range cr.factories {
+		if f.Name() == name {
+			return f
+		}
+	}
+	return nil
+}
+
+func assertNoDRA(t *testing.T, cr customResources) {
+	t.Helper()
+	for _, name := range []string{"resourceclaims", "resourceslices", "devicetaintrules"} {
+		assert.Nil(t, draFactoryByName(cr, name), "no %s factory expected", name)
+		assert.NotContains(t, cr.collectors, name, "the %s short name must not reach the builder", name)
+	}
+	for _, c := range cr.collectors {
+		assert.NotContains(t, c, "resource.k8s.io")
+	}
+}
+
+// TestDiscoverCustomResources_DRANotRequested pins the opt-in: a cluster that
+// serves the group does not get DRA informers unless they are listed.
+func TestDiscoverCustomResources_DRANotRequested(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, draAPIResourceList("v1"))
+
+	assertNoDRA(t, cr)
+}
+
+// TestDiscoverCustomResources_OnlyRequestedDRAResources pins that the three
+// resources are independent: listing one registers that one only.
+func TestDiscoverCustomResources_OnlyRequestedDRAResources(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "resourceslices"}, draAPIResourceList("v1"))
+
+	assert.NotNil(t, draFactoryByName(cr, "resourceslices"))
+	assert.Nil(t, draFactoryByName(cr, "resourceclaims"))
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceslices")
+	assert.NotContains(t, cr.collectors, "resource.k8s.io/v1, Resource=resourceclaims")
+}
+
+// TestDiscoverCustomResources_DRAGroupAbsent covers names that reach this
+// point for a cluster that serves no version this code understands. Nothing is
+// registered -- informers could only fail -- and the short names are still
+// stripped, since leaving them would fail the whole check instance.
+func TestDiscoverCustomResources_DRAGroupAbsent(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "resourceclaims", "resourceslices", "devicetaintrules"}, nil)
+
+	assertNoDRA(t, cr)
+}
+
+// TestDiscoverCustomResources_DRABetaVersion pins version negotiation: the
+// group reached v1 only in Kubernetes 1.34, and pinning v1 makes the informer
+// 404 on every earlier cluster.
+func TestDiscoverCustomResources_DRABetaVersion(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "resourceclaims", "resourceslices"}, draAPIResourceList("v1beta1"))
+
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1beta1, Resource=resourceclaims")
+	assert.Contains(t, cr.collectors, "resource.k8s.io/v1beta1, Resource=resourceslices")
+}
+
+// TestDiscoverCustomResources_DeviceTaintRuleOwnVersion pins, end to end, that
+// devicetaintrules registers and is enabled at its own negotiated version. On
+// Kubernetes 1.36 claims are at v1 while devicetaintrules is only at v1beta2.
+func TestDiscoverCustomResources_DeviceTaintRuleOwnVersion(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+	resources := append(draAPIResourceList("v1"), &apiv1.APIResourceList{
+		GroupVersion: "resource.k8s.io/v1beta2",
+		APIResources: []apiv1.APIResource{{Name: "devicetaintrules", Kind: "DeviceTaintRule"}},
+	})
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "devicetaintrules"}, resources)
+
+	f := draFactoryByName(cr, "devicetaintrules")
+	require.NotNil(t, f)
+	gvr, err := ksmutil.GVRFromType(f.Name(), f.ExpectedType())
+	require.NoError(t, err)
+	assert.Equal(t, "resource.k8s.io/v1beta2, Resource=devicetaintrules", gvr.String())
+	assert.Contains(t, cr.collectors, gvr.String())
+}
+
+// TestDiscoverCustomResources_DRAInKubeletMode pins that node_kubelet mode
+// never collects DRA resources. It runs on every node agent, so collecting
+// cluster-scoped objects there would report the whole cluster's claims and
+// slices once per node; the cluster-side companion instance owns them.
+func TestDiscoverCustomResources_DRAInKubeletMode(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{PodCollectionMode: nodeKubeletPodCollection}, fakeTagger, nil)
+
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods", "resourceclaims", "resourceslices"}, draAPIResourceList("v1"))
+
+	assert.NotNil(t, draFactoryByName(cr, "pods_extended"), "kubelet mode must register the kubelet pod factory")
+	assertNoDRA(t, cr)
+}
+
+// TestExtendedPodsCollectorKeyMatchesFactory guards the invariant the whole
+// cluster_aggregates_only fix hinges on: extendedCollectors["pods"] must be byte-for-byte
+// equal to the GVR key the extended pod factory registers under
+// (util.GVRFromType(factory.Name(), factory.ExpectedType())). If either side drifts,
+// enabledResources won't match availableStores, no pod store is built, and .total vanishes.
+func TestExtendedPodsCollectorKeyMatchesFactory(t *testing.T) {
+	f := customresources.NewExtendedPodFactoryForKubelet() // same Name()/ExpectedType() as NewExtendedPodFactory
+	gvr, err := ksmutil.GVRFromType(f.Name(), f.ExpectedType())
+	require.NoError(t, err)
+	require.NotNil(t, gvr)
+	assert.Equal(t, extendedCollectors["pods"], gvr.String(),
+		"extendedCollectors[\"pods\"] must equal the extended pod factory's registered GVR key; "+
+			"if these drift, cluster_aggregates_only builds no pod store and .total disappears")
+}
+
+func TestDRACollectorsUseTheNegotiatedTaintRuleVersion(t *testing.T) {
+	// DeviceTaintRule graduates later than claims/slices, so its version is
+	// negotiated separately. The collector key has to match the key the
+	// factory registered its store under, or the vendored KSM builder rejects
+	// it with "resource ... does not exist" and the whole check instance
+	// fails to initialize -- taking every KSM metric with it, not just DRA.
+	tests := []struct {
+		name         string
+		apiVersion   string
+		taintVersion string
+		expected     []string
+	}{
+		{
+			name:         "same version",
+			apiVersion:   "v1",
+			taintVersion: "v1",
+			expected: []string{
+				"resource.k8s.io/v1, Resource=resourceclaims",
+				"resource.k8s.io/v1, Resource=resourceslices",
+				"resource.k8s.io/v1, Resource=devicetaintrules",
+			},
+		},
+		{
+			// Kubernetes 1.36: claims/slices are v1, DeviceTaintRule is not
+			// stable until 1.37 and is still served at v1beta2.
+			name:         "mixed version",
+			apiVersion:   "v1",
+			taintVersion: "v1beta2",
+			expected: []string{
+				"resource.k8s.io/v1, Resource=resourceclaims",
+				"resource.k8s.io/v1, Resource=resourceslices",
+				"resource.k8s.io/v1beta2, Resource=devicetaintrules",
+			},
+		},
+		{
+			name:         "taint rules not served",
+			apiVersion:   "v1beta1",
+			taintVersion: "",
+			expected: []string{
+				"resource.k8s.io/v1beta1, Resource=resourceclaims",
+				"resource.k8s.io/v1beta1, Resource=resourceslices",
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			all := map[string]bool{"resourceclaims": true, "resourceslices": true, "devicetaintrules": true}
+			assert.Equal(t, tt.expected, draCollectors(all, tt.apiVersion, tt.taintVersion))
+		})
+	}
+}
+
+func TestApiResourceAvailable(t *testing.T) {
+	resources := []*apiv1.APIResourceList{
+		{
+			GroupVersion: "autoscaling/v2",
+			APIResources: []apiv1.APIResource{
+				{Kind: "HorizontalPodAutoscaler"},
+			},
+		},
+		{
+			GroupVersion: "apps/v1",
+			APIResources: []apiv1.APIResource{
+				{Kind: "Deployment"},
+			},
+		},
+	}
+
+	assert.True(t, apiResourceAvailable(resources, "autoscaling/v2", "HorizontalPodAutoscaler"))
+	assert.False(t, apiResourceAvailable(resources, "autoscaling/v2beta2", "HorizontalPodAutoscaler"),
+		"a different group/version for the same kind must not match")
+	assert.False(t, apiResourceAvailable(resources, "autoscaling/v2", "Deployment"),
+		"a different kind under the same group/version must not match")
+	assert.False(t, apiResourceAvailable(nil, "autoscaling/v2", "HorizontalPodAutoscaler"))
+}
+
+// TestDiscoverCustomResources_ExtendedHPACollector pins that the extended HPA
+// factory and its collector key are registered together when autoscaling/v2 is
+// served: BuildStores only builds stores for keys listed in collectors.
+func TestDiscoverCustomResources_ExtendedHPACollector(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+	cr := k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, hpaV2APIResourceList())
+
+	assert.Contains(t, cr.collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended")
+	var found bool
+	for _, f := range cr.factories {
+		found = found || f.Name() == "horizontalpodautoscalers_extended"
+	}
+	assert.True(t, found)
+
+	cr = k.discoverCustomResources(newDRATestClient(t), []string{"pods"}, nil)
+	assert.NotContains(t, cr.collectors, "autoscaling/v2, Resource=horizontalpodautoscalers_extended")
+}
+
+// TestDiscoverCustomResources_UsesInformerClients pins that no store is given
+// the low-timeout client: its timeout would close every watch of the store's
+// reflector after kubernetes_apiserver_client_timeout, and keep failing the
+// initial list of large resources.
+func TestDiscoverCustomResources_UsesInformerClients(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+	c := newDRATestClient(t)
+	c.Cl = fakeclientset.NewSimpleClientset()
+
+	for name, resources := range map[string][]*apiv1.APIResourceList{
+		"legacy replacement factories": nil,
+		"extended HPA and DRA":         append(hpaV2APIResourceList(), draAPIResourceList("v1")...),
+	} {
+		t.Run(name, func(t *testing.T) {
+			cr := k.discoverCustomResources(c, []string{"pods", "resourceclaims", "resourceslices"}, resources)
+
+			require.NotEmpty(t, cr.clients)
+			for key, client := range cr.clients {
+				assert.False(t, client == any(c.Cl), "store %s must use an informer client", key)
+			}
+		})
+	}
+}
+
+// TestDiscoverCustomResources_ResourceReplacements guards the stores replacing
+// the KSM built-in ones on clusters that only serve a deprecated version of an
+// API. They are registered under a group/version qualified key, which is what
+// must be enabled: enabling the plain resource name instead builds the KSM
+// built-in store, for an API version that isn't served, and never the
+// replacement one.
+func TestDiscoverCustomResources_ResourceReplacements(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	k := newKSMCheck(core.NewCheckBase(CheckName), &KSMConfig{}, fakeTagger, nil)
+
+	resourceList := func(groupVersion, name, kind string) *apiv1.APIResourceList {
+		return &apiv1.APIResourceList{
+			GroupVersion: groupVersion,
+			APIResources: []apiv1.APIResource{{Name: name, Kind: kind, Namespaced: true}},
+		}
+	}
+	cronJobs := func(groupVersion string) *apiv1.APIResourceList {
+		return resourceList(groupVersion, "cronjobs", "CronJob")
+	}
+	pdbs := func(groupVersion string) *apiv1.APIResourceList {
+		return resourceList(groupVersion, "poddisruptionbudgets", "PodDisruptionBudget")
+	}
+	hpas := func(groupVersion string) *apiv1.APIResourceList {
+		return resourceList(groupVersion, "horizontalpodautoscalers", "HorizontalPodAutoscaler")
+	}
+
+	collectors := []string{"pods", "cronjobs", "poddisruptionbudgets", "horizontalpodautoscalers"}
+	legacyKeys := []string{
+		"batch/v1beta1, Resource=cronjobs",
+		"policy/v1beta1, Resource=poddisruptionbudgets",
+		"autoscaling/v2beta2, Resource=horizontalpodautoscalers",
+	}
+
+	tests := []struct {
+		name       string
+		resources  []*apiv1.APIResourceList
+		expected   []string
+		unexpected []string
+	}{
+		{
+			name:       "current API versions served",
+			resources:  []*apiv1.APIResourceList{cronJobs("batch/v1"), pdbs("policy/v1"), hpas("autoscaling/v1"), hpas("autoscaling/v2")},
+			expected:   []string{"cronjobs", "poddisruptionbudgets", "horizontalpodautoscalers"},
+			unexpected: legacyKeys,
+		},
+		{
+			name:       "only deprecated API versions served",
+			resources:  []*apiv1.APIResourceList{cronJobs("batch/v1beta1"), pdbs("policy/v1beta1"), hpas("autoscaling/v1"), hpas("autoscaling/v2beta1"), hpas("autoscaling/v2beta2")},
+			expected:   legacyKeys,
+			unexpected: []string{"cronjobs", "poddisruptionbudgets", "horizontalpodautoscalers"},
+		},
+		{
+			name:       "HPAs served neither as autoscaling/v2 nor as autoscaling/v2beta2",
+			resources:  []*apiv1.APIResourceList{cronJobs("batch/v1"), pdbs("policy/v1"), hpas("autoscaling/v1"), hpas("autoscaling/v2beta1")},
+			expected:   []string{"cronjobs", "poddisruptionbudgets", "horizontalpodautoscalers"},
+			unexpected: []string{"autoscaling/v2beta2, Resource=horizontalpodautoscalers"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cr := k.discoverCustomResources(newDRATestClient(t), collectors, tt.resources)
+
+			for _, c := range tt.expected {
+				assert.Contains(t, cr.collectors, c)
+			}
+			for _, c := range tt.unexpected {
+				assert.NotContains(t, cr.collectors, c)
+			}
+
+			// Every enabled collector must name a registered store, and the
+			// custom resource ones must have a client.
+			builder := kubestatemetrics.New()
+			builder.WithCustomResourceStoreFactories(cr.factories...)
+			assert.NoError(t, builder.WithEnabledResources(cr.collectors))
+			for _, c := range cr.collectors {
+				if strings.Contains(c, ", Resource=") {
+					assert.Contains(t, cr.clients, c)
+				}
+			}
+		})
+	}
+}
+
+// unstructuredFactory is the minimal custom resource factory
+// GetCustomResourceClientsAndCollectors needs.
+type unstructuredFactory struct{ customresource.RegistryFactory }
+
+func (unstructuredFactory) Name() string { return "widgets" }
+
+func (unstructuredFactory) ExpectedType() interface{} {
+	u := &unstructured.Unstructured{}
+	u.SetAPIVersion("example.com/v1")
+	u.SetKind("Widget")
+	return u
+}
+
+// TestGetCustomResourceClientsAndCollectors_UsesInformerClient pins that the
+// custom_resource stores are given the dynamic informer client, not the
+// low-timeout one (left nil here, so using it would panic).
+func TestGetCustomResourceClientsAndCollectors_UsesInformerClient(t *testing.T) {
+	c := &apiserver.APIClient{DynamicInformerCl: dynamicfake.NewSimpleDynamicClient(runtime.NewScheme())}
+
+	clients, collectors := customresources.GetCustomResourceClientsAndCollectors([]customresource.RegistryFactory{unstructuredFactory{}}, c)
+
+	assert.Equal(t, []string{"example.com/v1, Resource=widgets"}, collectors)
+	assert.NotNil(t, clients["example.com/v1, Resource=widgets"])
+}
+
+func TestKSMCheck_hostnameAndTagsAutoscalers(t *testing.T) {
+	const podName = "my-pod"
+
+	tests := []struct {
+		name                string
+		autoscaledWorkloads map[types.EntityID][]string
+		metricName          string
+		labels              map[string]string
+		podOwnerKind        string
+		podOwnerName        string
+		argoRolloutLabel    string
+		expectedTags        []string
+	}{
+		// kube_pod_* series with a ReplicaSet owner
+		{
+			name: "pod of an Argo Rollout with the Argo Rollout label",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:       "kube_pod_status_ready",
+			labels:           map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind:     kubernetes.ReplicaSetKind,
+			podOwnerName:     "web-7f59c78c9b",
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags:     []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "pod of a Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_status_ready",
+			labels:       map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind: kubernetes.ReplicaSetKind,
+			podOwnerName: "web-7f59c78c9b",
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "pod of a Deployment with an autoscaled Argo Rollout of the same name",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_status_ready",
+			labels:       map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind: kubernetes.ReplicaSetKind,
+			podOwnerName: "web-7f59c78c9b",
+			expectedTags: []string{},
+		},
+		{
+			name: "aggregated pod series: no pod label, so the Deployment and the Argo Rollout are looked up",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_info",
+			labels:       map[string]string{"namespace": "default", "created_by_kind": "ReplicaSet", "created_by_name": "web-7f59c78c9b"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		// kube_pod_* series with a Deployment owner (with_owner_tag metrics)
+		{
+			name: "container of a Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_container_resource_with_owner_tag_requests",
+			labels:       map[string]string{"namespace": "default", "container": "app", "owner_kind": "Deployment", "owner_name": "web"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "container of an Argo Rollout, with a Deployment owner",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_container_resource_with_owner_tag_requests",
+			labels:       map[string]string{"namespace": "default", "container": "app", "owner_kind": "Deployment", "owner_name": "web"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		// kube_pod_* series with other owners
+		{
+			name: "pod of a StatefulSet",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("statefulset", "default", "my-sts"): {"kube_autoscaler_kind:verticalpodautoscaler"},
+			},
+			metricName:   "kube_pod_status_ready",
+			labels:       map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind: kubernetes.StatefulSetKind,
+			podOwnerName: "my-sts",
+			expectedTags: []string{"kube_autoscaler_kind:verticalpodautoscaler"},
+		},
+		{
+			name: "pod of a DaemonSet: unsupported, nothing is looked up",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "my-app"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_pod_status_ready",
+			labels:       map[string]string{"namespace": "default", "pod": podName},
+			podOwnerKind: kubernetes.DaemonSetKind,
+			podOwnerName: "my-app",
+			expectedTags: []string{},
+		},
+		// kube_replicaset_owner
+		{
+			name: "ReplicaSet owner of a Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_replicaset_owner",
+			labels:       map[string]string{"namespace": "default", "owner_kind": "Deployment", "owner_name": "web"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "ReplicaSet owner of an Argo Rollout",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_replicaset_owner",
+			labels:       map[string]string{"namespace": "default", "owner_kind": "Rollout", "owner_name": "web"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		// Other kube_replicaset_* series, from the replicaset label
+		{
+			name: "ReplicaSet of an Argo Rollout",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:       "kube_replicaset_status_ready_replicas",
+			labels:           map[string]string{"namespace": "default", "replicaset": "web-7f59c78c9b"},
+			argoRolloutLabel: "7f59c78c9b",
+			expectedTags:     []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "ReplicaSet of a Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_replicaset_status_ready_replicas",
+			labels:       map[string]string{"namespace": "default", "replicaset": "web-7f59c78c9b"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "ReplicaSet of a Deployment with an autoscaled Argo Rollout of the same name",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("argo_rollout", "default", "web"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_replicaset_status_ready_replicas",
+			labels:       map[string]string{"namespace": "default", "replicaset": "web-7f59c78c9b"},
+			expectedTags: []string{},
+		},
+		// kube_deployment_* series
+		{
+			name: "Deployment",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "my-app"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_deployment_spec_replicas",
+			labels:       map[string]string{"namespace": "default", "deployment": "my-app"},
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name: "Deployment in another namespace with its own autoscaler",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "my-app"):  {"kube_autoscaler_kind:horizontalpodautoscaler"},
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "other-ns", "my-app"): {"kube_autoscaler_kind:datadogpodautoscaler"},
+			},
+			metricName:   "kube_deployment_spec_replicas",
+			labels:       map[string]string{"namespace": "other-ns", "deployment": "my-app"},
+			expectedTags: []string{"kube_autoscaler_kind:datadogpodautoscaler"},
+		},
+		{
+			name: "Deployment without autoscaler: no entity, no tags",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("deployment", "default", "my-app"): {"kube_autoscaler_kind:horizontalpodautoscaler"},
+			},
+			metricName:   "kube_deployment_spec_replicas",
+			labels:       map[string]string{"namespace": "default", "deployment": "other-app"},
+			expectedTags: []string{},
+		},
+		// kube_statefulset_* series
+		{
+			name: "StatefulSet",
+			autoscaledWorkloads: map[types.EntityID][]string{
+				types.NewKubernetesAutoscaledWorkloadEntityID("statefulset", "default", "my-sts"): {"kube_autoscaler_kind:verticalpodautoscaler"},
+			},
+			metricName:   "kube_statefulset_replicas",
+			labels:       map[string]string{"namespace": "default", "statefulset": "my-sts"},
+			expectedTags: []string{"kube_autoscaler_kind:verticalpodautoscaler"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			config := &KSMConfig{
+				LabelsMapper: defaultLabelsMapper(),
+				LabelJoins:   defaultLabelJoins(),
+			}
+			check := newKSMCheck(core.NewCheckBase(CheckName), config, newAutoscalerTagger(t, tt.autoscaledWorkloads), nil)
+			check.processLabelJoins()
+
+			labelJoiner := newLabelJoiner(config.labelJoins)
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_labels",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:         "default",
+					"pod":                podName,
+					argoRolloutLabelName: tt.argoRolloutLabel,
+				}}},
+			})
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_pod_info",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:     "default",
+					"pod":            podName,
+					createdByKindKey: tt.podOwnerKind,
+					createdByNameKey: tt.podOwnerName,
+				}}},
+			})
+			labelJoiner.insertFamily(ksmstore.DDMetricsFam{
+				Name: "kube_replicaset_labels",
+				ListMetrics: []ksmstore.DDMetric{{Labels: map[string]string{
+					namespaceKey:         "default",
+					replicaSetKey:        "web-7f59c78c9b",
+					argoRolloutLabelName: tt.argoRolloutLabel,
+				}}},
+			})
+
+			_, tagList := check.hostnameAndTags(tt.metricName, tt.labels, labelJoiner, labelsMapperOverride(tt.metricName))
+			assert.ElementsMatch(t, tt.expectedTags, filterAutoscalerTags(tagList))
+		})
+	}
+}
+
+// In node_kubelet mode on a node agent, the tags come from the autoscaler kinds
+// of the pod in workloadmeta
+func TestKSMCheck_hostnameAndTagsNodeKubeletAutoscalers(t *testing.T) {
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		compcore.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	for _, pod := range testNodeKubeletPods() {
+		wmeta.Set(pod)
+	}
+
+	config := &KSMConfig{
+		LabelsMapper:      defaultLabelsMapper(),
+		LabelJoins:        defaultLabelJoins(),
+		PodCollectionMode: nodeKubeletPodCollection,
+	}
+	check := newKSMCheck(core.NewCheckBase(CheckName), config, taggerfxmock.SetupFakeTagger(t), wmeta)
+	check.isRunningOnNodeAgent = true
+	check.podAutoscalerTags, check.podOwnerAutoscalerTags = autoscalerTagsFromPods(wmeta.ListKubernetesPods())
+	check.processLabelJoins()
+	labelJoiner := newLabelJoiner(config.labelJoins)
+
+	tests := []struct {
+		name         string
+		pod          string
+		uid          string
+		expectedTags []string
+	}{
+		{
+			name:         "pod with an autoscaler",
+			pod:          "web-7f59c78c9b-abcde",
+			uid:          "web-uid",
+			expectedTags: []string{"kube_autoscaler_kind:horizontalpodautoscaler"},
+		},
+		{
+			name:         "pod without autoscalers",
+			pod:          "plain-5c8d7b9f4-fghij",
+			uid:          "plain-uid",
+			expectedTags: []string{},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			_, tagList := check.hostnameAndTags("kube_pod_status_ready", map[string]string{
+				namespaceKey: "default",
+				podKey:       test.pod,
+				uidKey:       test.uid,
+			}, labelJoiner, labelsMapperOverride("kube_pod_status_ready"))
+
+			assert.ElementsMatch(t, test.expectedTags, filterAutoscalerTags(tagList))
+		})
+	}
+}
+
+// In node_kubelet mode on a node agent, aggregated series have no uid. They get
+// the tags of their owner, from the autoscaler kinds of the pods in workloadmeta.
+func TestProcessMetrics_NodeKubeletAggregatedAutoscalerTags(t *testing.T) {
+	wmeta := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		compcore.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	for _, pod := range testNodeKubeletPods() {
+		wmeta.Set(pod)
+	}
+
+	metrics := map[string][]ksmstore.DDMetricsFam{
+		"kube_pod_info": {
+			{
+				Name: "kube_pod_info",
+				ListMetrics: []ksmstore.DDMetric{
+					{
+						Labels: map[string]string{
+							"namespace":       "default",
+							"pod":             "web-7f59c78c9b-abcde",
+							"uid":             "web-uid",
+							"node":            "node-a",
+							"created_by_kind": "ReplicaSet",
+							"created_by_name": "web-7f59c78c9b",
+						},
+						Val: 1,
+					},
+					{
+						Labels: map[string]string{
+							"namespace":       "default",
+							"pod":             "plain-5c8d7b9f4-fghij",
+							"uid":             "plain-uid",
+							"node":            "node-a",
+							"created_by_kind": "ReplicaSet",
+							"created_by_name": "plain-5c8d7b9f4",
+						},
+						Val: 1,
+					},
+				},
+			},
+		},
+		"kube_pod_container_resource_with_owner_tag_requests": {
+			{
+				Name: "kube_pod_container_resource_with_owner_tag_requests",
+				ListMetrics: []ksmstore.DDMetric{
+					{
+						Labels: map[string]string{
+							"namespace":  "default",
+							"pod":        "web-7f59c78c9b-abcde",
+							"uid":        "web-uid",
+							"container":  "app",
+							"owner_kind": "Deployment",
+							"owner_name": "web",
+							"resource":   "cpu",
+						},
+						Val: 0.1,
+					},
+					{
+						Labels: map[string]string{
+							"namespace":  "default",
+							"pod":        "plain-5c8d7b9f4-fghij",
+							"uid":        "plain-uid",
+							"container":  "app",
+							"owner_kind": "Deployment",
+							"owner_name": "plain",
+							"resource":   "cpu",
+						},
+						Val: 0.1,
+					},
+				},
+			},
+		},
+	}
+
+	check := newKSMCheck(
+		core.NewCheckBase(CheckName),
+		&KSMConfig{PodCollectionMode: nodeKubeletPodCollection},
+		taggerfxmock.SetupFakeTagger(t),
+		wmeta,
+	)
+	check.isRunningOnNodeAgent = true
+
+	s := mocksender.NewMockSender(t, check.ID())
+	s.SetupAcceptAll()
+	check.processMetrics(s, metrics, newLabelJoiner(nil), time.Now())
+
+	// Autoscaler tags of each emitted series, by metric name and Deployment
+	autoscalerTags := map[string][]string{}
+	for _, call := range s.Mock.Calls {
+		if call.Method != "Gauge" {
+			continue
+		}
+		name := call.Arguments.Get(0).(string)
+		tagList := call.Arguments.Get(3).([]string)
+		for _, deployment := range []string{"web", "plain"} {
+			if slices.Contains(tagList, "kube_deployment:"+deployment) {
+				autoscalerTags[name+" "+deployment] = filterAutoscalerTags(tagList)
+			}
+		}
+	}
+
+	assert.Equal(t, map[string][]string{
+		"kubernetes_state.pod.count web":                       {"kube_autoscaler_kind:horizontalpodautoscaler"},
+		"kubernetes_state.pod.count plain":                     {},
+		"kubernetes_state.container.cpu_requested.total web":   {"kube_autoscaler_kind:horizontalpodautoscaler"},
+		"kubernetes_state.container.cpu_requested.total plain": {},
+	}, autoscalerTags)
+}
+
+// newAutoscalerTagger returns a fake tagger with the given autoscaled
+// workload entities and their tags.
+func newAutoscalerTagger(t *testing.T, autoscaledWorkloads map[types.EntityID][]string) taggermock.Mock {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	for id, autoscalerTags := range autoscaledWorkloads {
+		fakeTagger.SetTags(id, "workloadmeta-kubernetes_autoscaler", autoscalerTags, nil, nil, nil)
+	}
+	return fakeTagger
+}
+
+func filterAutoscalerTags(tagList []string) []string {
+	res := []string{}
+	for _, tag := range tagList {
+		if strings.HasPrefix(tag, "kube_autoscaler_kind:") {
+			res = append(res, tag)
+		}
+	}
+	return res
+}
+
+// testNodeKubeletPods returns a pod of a Deployment with an HPA, and a pod of a
+// Deployment without autoscalers
+func testNodeKubeletPods() []*workloadmeta.KubernetesPod {
+	return []*workloadmeta.KubernetesPod{
+		{
+			EntityID:        workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "web-uid"},
+			EntityMeta:      workloadmeta.EntityMeta{Name: "web-7f59c78c9b-abcde", Namespace: "default"},
+			Owners:          []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "web-7f59c78c9b"}},
+			AutoscalerKinds: []workloadmeta.AutoscalerKind{workloadmeta.AutoscalerKindHPA},
+		},
+		{
+			EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "plain-uid"},
+			EntityMeta: workloadmeta.EntityMeta{Name: "plain-5c8d7b9f4-fghij", Namespace: "default"},
+			Owners:     []workloadmeta.KubernetesPodOwner{{Kind: kubernetes.ReplicaSetKind, Name: "plain-5c8d7b9f4"}},
+		},
+	}
 }

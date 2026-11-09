@@ -224,9 +224,8 @@ def display_pr_comment(
     if with_blocking_error:
         body_error_footer += (
             "\n</details>\n\n"
-            "Static quality gates prevent the PR to merge!\n"
-            "You can check the static quality gates [confluence page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4805854687/Static+Quality+Gates) for guidance. "
-            "We also have a [toolbox page](https://datadoghq.atlassian.net/wiki/spaces/agent/pages/4887448722/Static+Quality+Gates+Toolbox) available to list tools useful to debug the size increase.\n"
+            "Static quality gate failures prevent this PR from merging!\n"
+            "You can check the static quality gates [runbooks page](https://datadoghq.atlassian.net/wiki/spaces/ABLD/pages/6034456675/Static+Quality+Gates+runbooks) for guidance and tools. "
             "Please either fix the size violation or [request an exception](https://datadoghq.atlassian.net/wiki/spaces/ABLD/pages/6034456675/Static+Quality+Gates+runbooks#Exception-process).\n"
         )
         final_error_body = body_error + body_error_footer

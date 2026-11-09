@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix Cluster Agent graceful shutdown to release the Kubernetes
+    leader-election lock before exiting, allowing another replica to take over
+    without waiting for the lease to expire.

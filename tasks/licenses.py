@@ -72,7 +72,7 @@ def get_licenses_list(ctx, licenses_filename='LICENSE-3rdparty.csv'):
     deps_vendored(ctx)
 
     try:
-        licenses = wwhrd_licenses(ctx)
+        licenses = wwhrd_licenses()
         licenses = find_copyright(ctx, licenses)
         licenses = licenses_csv(licenses)
         _verify_unknown_licenses(licenses, licenses_filename)
@@ -147,12 +147,14 @@ def licenses_csv(licenses):
     ]
 
 
-def wwhrd_licenses(ctx):
+def wwhrd_licenses():
     # local imports
     from urllib.parse import urlparse
 
     import requests
     from requests.exceptions import RequestException
+
+    from tasks.libs.build.bazel import bazel
 
     # Read the list of packages to exclude from the list from wwhrd's
     exceptions_wildcard = []
@@ -183,26 +185,24 @@ def wwhrd_licenses(ctx):
         return False
 
     # Parse the output of wwhrd to generate the list
-    result = ctx.run('wwhrd list --no-color', hide='err')
     licenses = []
-    if result.stderr:
-        for line in result.stderr.split("\n"):
-            index = line.find('msg="Found License"')
-            if index == -1:
-                continue
-            license = ""
-            package = ""
-            for val in line[index + len('msg="Found License"') :].split(" "):
-                if val.startswith('license='):
-                    license = val[len('license=') :]
-                elif val.startswith('package='):
-                    package = val[len('package=') :]
-                    if is_excluded(package):
-                        print(f"Skipping {package} ({license}) excluded in .wwhrd.yml")
-                    else:
-                        if package in overrides:
-                            license = overrides[package]
-                        licenses.append({"component": "core", "package": package, "license": license})
+    for line in bazel("run", "//internal/tools:wwhrd", "--", "list", "--no-color", capture_stderr=True).splitlines():
+        index = line.find('msg="Found License"')
+        if index == -1:
+            continue
+        license = ""
+        package = ""
+        for val in line[index + len('msg="Found License"') :].split(" "):
+            if val.startswith('license='):
+                license = val[len('license=') :]
+            elif val.startswith('package='):
+                package = val[len('package=') :]
+                if is_excluded(package):
+                    print(f"Skipping {package} ({license}) excluded in .wwhrd.yml")
+                else:
+                    if package in overrides:
+                        license = overrides[package]
+                    licenses.append({"component": "core", "package": package, "license": license})
 
     for pkg, lic in additional.items():
         url = urlparse(lic)
@@ -217,9 +217,11 @@ def wwhrd_licenses(ctx):
                     lfp.flush()
 
                     temp_path = os.path.dirname(lfp.name)
-                    result = ctx.run(f"license-detector -f json {temp_path}", hide="out")
-                    if result.stdout:
-                        results = json.loads(result.stdout)
+                    stdout = bazel(
+                        "run", "//internal/tools:license-detector", "--", "-f", "json", temp_path, capture_output=True
+                    ).strip()
+                    if stdout:
+                        results = json.loads(stdout)
                         for project in results:
                             if 'error' in project:
                                 continue

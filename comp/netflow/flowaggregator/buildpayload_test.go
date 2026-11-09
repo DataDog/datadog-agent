@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
@@ -116,6 +117,9 @@ func Test_buildPayload(t *testing.T) {
 				Packets:        2,
 				EtherType:      "IPv4",
 				IPProtocol:     "TCP",
+				TOS:            3,
+				DSCP:           0,
+				DSCPName:       "CS0",
 				Device: payload.Device{
 					Namespace: "my-namespace",
 				},
@@ -187,6 +191,9 @@ func Test_buildPayload(t *testing.T) {
 				Packets:        2,
 				EtherType:      "IPv4",
 				IPProtocol:     "TCP",
+				TOS:            3,
+				DSCP:           0,
+				DSCPName:       "CS0",
 				Device: payload.Device{
 					Namespace: "my-namespace",
 				},
@@ -254,6 +261,9 @@ func Test_buildPayload(t *testing.T) {
 				Packets:        2,
 				EtherType:      "IPv4",
 				IPProtocol:     "TCP",
+				TOS:            3,
+				DSCP:           0,
+				DSCPName:       "CS0",
 				Device: payload.Device{
 					Namespace: "my-namespace",
 				},
@@ -281,11 +291,111 @@ func Test_buildPayload(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "QoS marked flow (EF)",
+			flow: common.Flow{
+				Namespace:       "my-namespace",
+				FlowType:        common.TypeNetFlow9,
+				SamplingRate:    10,
+				Direction:       1,
+				ExporterAddr:    []byte{127, 0, 0, 1},
+				StartTimestamp:  1234568,
+				EndTimestamp:    1234569,
+				Bytes:           10,
+				Packets:         2,
+				SrcAddr:         []byte{10, 10, 10, 10},
+				DstAddr:         []byte{10, 10, 10, 20},
+				SrcMac:          uint64(10),
+				DstMac:          uint64(20),
+				SrcMask:         uint32(10),
+				DstMask:         uint32(20),
+				EtherType:       uint32(0x0800),
+				IPProtocol:      uint32(6),
+				SrcPort:         2000,
+				DstPort:         80,
+				InputInterface:  10,
+				OutputInterface: 20,
+				Tos:             0b1011_1000, // same as 184 / 0xb8 -> DSCP 46 (EF)
+				NextHop:         []byte{10, 10, 10, 30},
+				TCPFlags:        uint32(19), // 19 = SYN,ACK,FIN
+			},
+			expectedPayload: payload.FlowPayload{
+				FlushTimestamp: curTime.UnixMilli(),
+				FlowType:       "netflow9",
+				SamplingRate:   10,
+				Direction:      "egress",
+				Start:          1234568,
+				End:            1234569,
+				Bytes:          10,
+				Packets:        2,
+				EtherType:      "IPv4",
+				IPProtocol:     "TCP",
+				TOS:            184,
+				DSCP:           46,
+				DSCPName:       "EF",
+				Device: payload.Device{
+					Namespace: "my-namespace",
+				},
+				Exporter: payload.Exporter{
+					IP: "127.0.0.1",
+				},
+				Source: payload.Endpoint{
+					IP:   "10.10.10.10",
+					Port: "2000",
+					Mac:  "00:00:00:00:00:0a",
+					Mask: "10.0.0.0/10",
+				},
+				Destination: payload.Endpoint{IP: "10.10.10.20",
+					Port: "80",
+					Mac:  "00:00:00:00:00:14",
+					Mask: "10.10.0.0/20",
+				},
+				Ingress:  payload.ObservationPoint{Interface: payload.Interface{Index: 10}},
+				Egress:   payload.ObservationPoint{Interface: payload.Interface{Index: 20}},
+				Host:     "my-hostname",
+				TCPFlags: []string{"FIN", "SYN", "ACK"},
+				NextHop: payload.NextHop{
+					IP: "10.10.10.30",
+				},
+			},
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flowPayload := buildPayload(&tt.flow, "my-hostname", curTime)
+			flowPayload := buildPayload(&tt.flow, dpi.Application{}, "my-hostname", curTime)
 			assert.Equal(t, tt.expectedPayload, flowPayload)
 		})
 	}
+}
+
+func Test_buildPayload_dpi(t *testing.T) {
+	flow := common.Flow{FlowType: common.TypeIPFIX, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationID: 100}
+
+	flowPayload := buildPayload(&flow, dpi.Application{
+		ID:          100,
+		Name:        "HTTP",
+		Description: "Hypertext Transfer Protocol",
+		Metadata:    dpi.Metadata{Category: "browsing", ApplicationFamily: "encrypted"},
+	}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{
+		ApplicationID:          100,
+		ApplicationName:        "HTTP",
+		ApplicationDescription: "Hypertext Transfer Protocol",
+		Category:               "browsing",
+		ApplicationFamily:      "encrypted",
+	}, flowPayload.DPI)
+
+	flowPayload = buildPayload(&flow, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationID: 100}, flowPayload.DPI, "the application id is reported even when the application is unknown")
+
+	paloAltoFlow := common.Flow{FlowType: common.TypeNetFlow9, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationName: "ssl"}
+	flowPayload = buildPayload(&paloAltoFlow, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationName: "ssl"}, flowPayload.DPI, "the application name reported on the flow is used without an application id")
+
+	flowWithBoth := common.Flow{FlowType: common.TypeNetFlow9, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationID: 100, ApplicationName: "ssl"}
+	flowPayload = buildPayload(&flowWithBoth, dpi.Application{ID: 100, Name: "HTTP", Metadata: dpi.Metadata{Category: "browsing"}}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationID: 100, ApplicationName: "HTTP", Category: "browsing"}, flowPayload.DPI, "a resolved application is never mixed with the application name reported on the flow")
+
+	flowPayload = buildPayload(&flowWithBoth, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationName: "ssl"}, flowPayload.DPI, "an unresolved application id is not reported alongside the application name reported on the flow")
 }

@@ -7,11 +7,16 @@ package guiimpl
 
 import (
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 )
 
 const expectedBody = `<!DOCTYPE html>
@@ -65,6 +70,11 @@ const expectedBody = `<!DOCTYPE html>
         <i class="fa fa-flag fa-fw"> </i>&nbsp;
         Flare
       </li>
+      <li id="restart_button" class="nav_item no-active">
+        <i class="fa fa-power-off fa-fw"> </i>&nbsp;
+        Restart Agent
+      </li>
+      
     </ul>
   </div>
   <div class="top_bar">
@@ -128,14 +138,93 @@ const expectedBody = `<!DOCTYPE html>
 </body>
 `
 
+// startUnixServer starts an HTTP server on a temp Unix socket and returns its path.
+// Uses os.CreateTemp under /tmp to stay within the 108-char Unix socket path limit on macOS.
+func startUnixServer(t *testing.T, handler http.Handler) string {
+	t.Helper()
+	f, err := os.CreateTemp("/tmp", "gui-test-*.sock")
+	require.NoError(t, err)
+	socketPath := f.Name()
+	f.Close()
+	os.Remove(socketPath)
+	t.Cleanup(func() { os.Remove(socketPath) })
+
+	l, err := net.Listen("unix", socketPath)
+	require.NoError(t, err)
+	srv := &http.Server{Handler: handler}
+	go srv.Serve(l) //nolint:errcheck
+	t.Cleanup(func() { srv.Close() })
+	return socketPath
+}
+
+func TestRestartEnabled_SysprobeEnabled(t *testing.T) {
+	sysprobeConfig := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.enabled": true,
+	})
+
+	assert.True(t, restartEnabled(sysprobeConfig))
+}
+
+func TestRestartEnabled_SysprobeDisabled(t *testing.T) {
+	sysprobeConfig := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.enabled": false,
+	})
+
+	assert.False(t, restartEnabled(sysprobeConfig))
+}
+
+func TestRestart_Success(t *testing.T) {
+	socketPath := startUnixServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodPost, r.Method)
+		assert.Equal(t, "/agent-restart", r.URL.Path)
+		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	err := restart(func() string { return "test-token" }, socketPath)
+	assert.NoError(t, err)
+}
+
+func TestRestart_SysprobeUnreachable(t *testing.T) {
+	err := restart(func() string { return "token" }, "/tmp/gui-test-nonexistent.sock")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "could not reach system-probe")
+}
+
+func TestRestart_SysprobeReturnsError(t *testing.T) {
+	socketPath := startUnixServer(t, http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		http.Error(w, "launchctl failed", http.StatusInternalServerError)
+	}))
+
+	err := restart(func() string { return "token" }, socketPath)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "system-probe agent restart failed with status 500")
+}
+
+func TestRestart_SendsAuthorizationHeader(t *testing.T) {
+	var receivedAuth string
+	socketPath := startUnixServer(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedAuth = r.Header.Get("Authorization")
+		w.WriteHeader(http.StatusOK)
+	}))
+
+	require.NoError(t, restart(func() string { return "secret-ipc-token" }, socketPath))
+	assert.Equal(t, "Bearer "+"secret-ipc-token", receivedAuth)
+}
+
 func TestRenderIndexPage(t *testing.T) {
+	sysprobeConfig := sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.enabled": true,
+	})
+	g := &gui{sysprobeConfig: sysprobeConfig}
+
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(renderIndexPage)
+	handler := http.HandlerFunc(g.renderIndexPage)
 
 	handler.ServeHTTP(rr, req)
 

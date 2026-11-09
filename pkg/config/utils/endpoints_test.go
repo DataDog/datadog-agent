@@ -16,10 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// TestSecretBackendWithMultipleEndpoints tests an edge case of `viper.AllSettings()` when a config
-// key includes the key delimiter. Affects the config package when both secrets and multiple
+// TestSecretBackendWithMultipleEndpoints tests an edge case of the config's AllSettings() when a
+// config key includes the key delimiter. Affects the config package when both secrets and multiple
 // endpoints are configured.
-// Refer to https://github.com/DataDog/viper/pull/2 for more details.
 func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	conf := mock.NewFromFile(t, "./tests/datadog_secrets.yaml")
 
@@ -33,6 +32,30 @@ func TestSecretBackendWithMultipleEndpoints(t *testing.T) {
 	keysPerDomain, err := GetMultipleEndpoints(conf)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedKeysPerDomain, keysPerDomain)
+}
+
+func TestEndpointDescriptorSetFromKeysPerDomainPreservesPendingDelegatedAuth(t *testing.T) {
+	descriptors := EndpointDescriptorSetFromKeysPerDomain(map[string][]APIKeys{
+		"https://pending.example": {{
+			ConfigSettingPath:       "process_config.additional_endpoints",
+			HasPendingDelegatedAuth: true,
+		}},
+	})
+
+	assert.True(t, descriptors["https://pending.example"].HasPendingDelegatedAuth)
+}
+
+func TestNewEndpointDescriptorWithConfigName(t *testing.T) {
+	apiKeys := []APIKeys{{
+		ConfigSettingPath:       "process_config.additional_endpoints",
+		HasPendingDelegatedAuth: true,
+	}}
+	descriptor := NewEndpointDescriptorWithConfigName("https://process.example/some/path", "https://process.example", apiKeys)
+
+	assert.Equal(t, "https://process.example/some/path", descriptor.ConfigName)
+	assert.Equal(t, "https://process.example", descriptor.BaseURL)
+	assert.Equal(t, apiKeys, descriptor.APIKeySet)
+	assert.True(t, descriptor.HasPendingDelegatedAuth)
 }
 
 func TestGetMultipleEndpointsDefault(t *testing.T) {
@@ -184,6 +207,46 @@ additional_endpoints:
 	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
 }
 
+func TestGetMultipleEndpointsPendingDelegatedAuthDirective(t *testing.T) {
+	datadogYaml := `
+dd_url: "https://app.datadoghq.com"
+api_key: fakeapikey
+
+additional_endpoints:
+  "https://second-org.datadoghq.com":
+  - 'DELA[some-org-uuid, aws]'
+  "https://third-org.datadoghq.com":
+  - "some-static-key"
+  - 'DELA[some-other-org-uuid, aws, region=us-east-1]'
+`
+
+	testConfig := mock.NewFromYAML(t, datadogYaml)
+
+	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
+
+	// A domain whose only entry is a pending DELA[...] directive still gets a resolver (with zero
+	// real keys) marked HasPendingDelegatedAuth so the forwarder doesn't drop it before delegated
+	// auth has a chance to deliver a real key.
+	secondOrg := newEndpointDescriptor("https://second-org.datadoghq.com", []APIKeys{
+		{ConfigSettingPath: "additional_endpoints", Keys: []string{}, HasPendingDelegatedAuth: true},
+	})
+
+	// A coexisting static key is preserved; the DELA[...] directive is filtered out of the
+	// real-key list until delegated auth resolves it, but the domain is still marked pending.
+	thirdOrg := newEndpointDescriptor("https://third-org.datadoghq.com", []APIKeys{
+		{ConfigSettingPath: "additional_endpoints", Keys: []string{"some-static-key"}, HasPendingDelegatedAuth: true},
+	})
+
+	expectedMultipleEndpoints := EndpointDescriptorSet{
+		"https://app.datadoghq.com":        newEndpointDescriptor("https://app.datadoghq.com", newAPIKeyset("api_key", "fakeapikey")),
+		"https://second-org.datadoghq.com": secondOrg,
+		"https://third-org.datadoghq.com":  thirdOrg,
+	}
+
+	assert.NoError(t, err)
+	assert.EqualValues(t, expectedMultipleEndpoints, multipleEndpoints)
+}
+
 func TestGetMultipleEndpointsApiKeyDeduping(t *testing.T) {
 	datadogYaml := `
 dd_url: "https://app.datadoghq.com"
@@ -323,7 +386,7 @@ func TestDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -343,7 +406,7 @@ func TestDDDDURLEnvVar(t *testing.T) {
 	t.Setenv("DD_DD_URL", "https://app.datadoghq.eu")
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -367,7 +430,7 @@ func TestDDURLAndDDDDURLEnvVar(t *testing.T) {
 
 	t.Setenv("DD_EXTERNAL_CONFIG_EXTERNAL_AGENT_DD_URL", "https://custom.external-agent.datadoghq.com")
 	testConfig := mock.New(t)
-	testConfig.BindEnv("external_config.external_agent_dd_url") //nolint:forbidigo // TODO: replace by 'SetDefaultAndBindEnv'
+	testConfig.BindEnvAndSetDefault("external_config.external_agent_dd_url", "")
 	testConfig.BuildSchema()
 
 	multipleEndpoints, err := GetMultipleEndpoints(testConfig)
@@ -481,6 +544,96 @@ func TestExtractSiteFromURL(t *testing.T) {
 	}
 }
 
+func TestAPIEndpointFromURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected string
+	}{
+		// Datadog sites
+		{"https://app.datadoghq.com", "https://api.datadoghq.com"},
+		{"https://app.datadoghq.eu.", "https://api.datadoghq.eu"},
+		{"https://app.us5.datadoghq.com", "https://api.us5.datadoghq.com"},
+		{"https://app.ddog-gov.com", "https://api.ddog-gov.com"},
+		{"https://app.datad0g.com", "https://api.datad0g.com"},
+		{"https://custom.agent.us2.datadoghq.com", "https://api.us2.datadoghq.com"},
+		{"https://APP.DATADOGHQ.EU:443/", "https://api.datadoghq.eu"},
+
+		// Multi-Region Failover URLs that include the failover site
+		{"https://app.mrf.datadoghq.eu", "https://api.datadoghq.eu"},
+		{"https://mrf.us5.datadoghq.com", "https://api.us5.datadoghq.com"},
+
+		// Customer-specific Multi-Region Failover aliases
+		{"https://acme.mrf.datadoghq.com", "https://acme.mrf.datadoghq.com"},
+		{"https://acme.mrf.datadoghq.com:443", "https://acme.mrf.datadoghq.com:443"},
+		{"https://Acme.MRF.datadoghq.com.", "https://Acme.MRF.datadoghq.com."},
+
+		// Non-Datadog URLs
+		{"https://myproxy.example.com:3834", "https://myproxy.example.com:3834"},
+		{"https://notdatadoghq.com", "https://notdatadoghq.com"},
+		{"https://app.datadoghq.internal", "https://app.datadoghq.internal"},
+		{"", ""},
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expected, APIEndpointFromURL(tc.url), "APIEndpointFromURL(%q)", tc.url)
+	}
+}
+
+func TestIsMRFAliasURL(t *testing.T) {
+	tests := []struct {
+		url      string
+		expected bool
+	}{
+		{"https://org.mrf.datadoghq.com", true},
+		{"https://org.mrf.us3.datadoghq.com:443", true},
+		{"https://ORG.MRF.DATADOGHQ.COM.", true},
+		{"https://org.mrf.ddog-gov.com", true},
+		{"https://org.mrf.datad0g.com", true},
+		{"https://app.mrf.datadoghq.com", false},
+		{"https://APP.MRF.DATADOGHQ.COM.", false},
+		{"https://app.datadoghq.com", false},
+		{"https://org.mrf.notdatadoghq.com", false},
+		{"https://org.mrf.datadoghq.com.attacker.net", false},
+		{"https://proxy.example.com", false},
+		{"http://\x7f", false},
+		{"", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.url, func(t *testing.T) {
+			assert.Equal(t, tt.expected, IsMRFAliasURL(tt.url))
+		})
+	}
+}
+
+func TestAddAgentVersionToSite(t *testing.T) {
+	tests := []struct {
+		site          string
+		app           string
+		convertToFQDN bool
+		expectedSite  string
+	}{
+		{"datadoghq.com", "flare", true, "datadoghq.com."},
+		{"us3.datadoghq.com", "flare", true, "us3.datadoghq.com."},
+		{"us5.datadoghq.com", "flare", true, "us5.datadoghq.com."},
+		{"ap1.datadoghq.com", "flare", true, "ap1.datadoghq.com."},
+		{"datadoghq.eu", "flare", true, "datadoghq.eu."},
+		{"ddog-gov.com", "flare", true, "ddog-gov.com."},
+		{"datad0g.com", "flare", true, "datad0g.com."},
+		{"datadoghq.com.", "flare", true, "datadoghq.com."},
+		{"datadoghq.com", "app", true, "datadoghq.com."},
+		{"datadoghq.com", "flare", false, "datadoghq.com"},
+		{"us3.datadoghq.com", "flare", false, "us3.datadoghq.com"},
+	}
+
+	for _, tt := range tests {
+		t.Run(fmt.Sprintf("%s/%s/fqdn=%t", tt.site, tt.app, tt.convertToFQDN), func(t *testing.T) {
+			cfg := mock.New(t)
+			cfg.SetInTest("convert_dd_site_fqdn.enabled", tt.convertToFQDN)
+			assert.Equal(t, "https://"+getDomainPrefix(tt.app)+"."+tt.expectedSite, AddAgentVersionToSite(tt.site, tt.app))
+		})
+	}
+}
+
 func TestAddAgentVersionToDomain(t *testing.T) {
 	appVersionPrefix := getDomainPrefix("app")
 	flareVersionPrefix := getDomainPrefix("flare")
@@ -578,24 +731,65 @@ func TestAddAgentVersionToDomain(t *testing.T) {
 	}
 }
 
-// TestIsDatadogURL only covers the logic IsDatadogURL adds on top of ddURLRegexp (host
-// extraction, lowercasing, trailing-dot trimming, empty-host and parse-error handling). The
-// regexp's site/domain matching is already covered by TestAddAgentVersionToDomain.
 func TestIsDatadogURL(t *testing.T) {
 	tests := []struct {
 		url      string
 		expected bool
 	}{
-		{"https://app.datadoghq.com", true},     // baseline match
-		{"https://APP.DATADOGHQ.COM", true},     // host is lowercased
-		{"https://app.datadoghq.com.", true},    // trailing dot is trimmed
-		{"https://app.datadoghq.com:443", true}, // Hostname() strips the port
-		{"", false},                             // empty host
-		{"/just/a/path", false},                 // no host
-		{"http://\x7f", false},                  // url.Parse error
+		{"https://app.datadoghq.com", true},               // baseline match
+		{"https://APP.DATADOGHQ.COM", true},               // host is lowercased
+		{"https://app.datadoghq.com.", true},              // trailing dot is trimmed
+		{"https://app.datadoghq.com:443", true},           // Hostname() strips the port
+		{"https://agent.datadoghq.com", true},             // metrics-agent edge
+		{"https://7-55-1-app.agent.datadoghq.com", true},  // versioned agent host
+		{"https://metrics.agent.us5.datadoghq.com", true}, // documented intake / PrivateLink name
+		{"https://us.agent.datadoghq.com/", true},         // arbitrary *.agent.<site> label
+		{"https://api.datadoghq.eu", true},                // API edge
+		{"https://user.datadoghq.com", true},              // org custom subdomain
+		{"https://app.mrf.ap1.datadoghq.com", true},       // MRF
+		{"https://agent.ddog-gov.com", true},              // gov
+		{"https://app.datad0g.com", true},                 // staging
+		{"https://notdatadoghq.com", false},               // not at a label boundary
+		{"https://datadoghq.com.evil.example", false},     // Datadog domain not at the end
+		{"https://my-proxy.example.test", false},          // third-party
+		{"https://api.mycompany.internal", false},         // third-party
+		{"", false},             // empty host
+		{"/just/a/path", false}, // no host
+		{"http://\x7f", false},  // url.Parse error
 	}
 
 	for _, tc := range tests {
 		assert.Equal(t, tc.expected, IsDatadogURL(tc.url), "IsDatadogURL(%q)", tc.url)
+	}
+}
+
+func TestIsDatadogIntakeHost(t *testing.T) {
+	const prefix = "agent-http-intake.logs."
+	tests := []struct {
+		host     string
+		expected bool
+	}{
+		{"agent-http-intake.logs.datadoghq.com", true},        // US1
+		{"agent-http-intake.logs.us3.datadoghq.com", true},    // datacenter subdomain
+		{"agent-http-intake.logs.datadoghq.eu", true},         // EU
+		{"agent-http-intake.logs.ddog-gov.com", true},         // gov
+		{"agent-http-intake.logs.us2.ddog-gov.com", true},     // gov datacenter
+		{"agent-http-intake.logs.datad0g.com", true},          // staging
+		{"agent-http-intake.logs.datadoghq.com.", true},       // FQDN trailing dot
+		{"AGENT-HTTP-INTAKE.LOGS.DATADOGHQ.COM", true},        // case-insensitive
+		{"agent-http-intake.logs.datadoghq.com..", false},     // only one trailing dot
+		{"agent-http-intake-pl.logs.datadoghq.com", false},    // PrivateLink
+		{"x.agent-http-intake.logs.datadoghq.com", false},     // extra leading label
+		{"agent-http-intake.logs.x.us3.datadoghq.com", false}, // extra label before the site
+		{"agent-http-intake.logs.notdatadoghq.com", false},    // not a Datadog domain
+		{"agent-http-intake.logs.datadoghq.com.evil", false},  // Datadog domain not at the end
+		{"agent-intake.logs.datadoghq.com", false},            // TCP intake
+		{"agent-http-intake.logs.", false},                    // no site
+		{"datadoghq.com", false},                              // bare site
+		{"", false},
+	}
+
+	for _, tc := range tests {
+		assert.Equal(t, tc.expected, IsDatadogIntakeHost(prefix, tc.host), "IsDatadogIntakeHost(%q, %q)", prefix, tc.host)
 	}
 }

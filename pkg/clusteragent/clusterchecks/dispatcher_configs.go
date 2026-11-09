@@ -8,6 +8,10 @@
 package clusterchecks
 
 import (
+	"fmt"
+	"maps"
+	"slices"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
@@ -23,47 +27,44 @@ func (d *dispatcher) getAllConfigs() ([]integration.Config, error) {
 	return makeConfigArray(d.store.digestToConfig), nil
 }
 
+// nodeConfigsSnapshot holds a node's configs and precomputed instance IDs,
+// copied out of the store so scrubbing can happen without holding d.store's lock.
+type nodeConfigsSnapshot struct {
+	name        string
+	rawConfigs  []integration.Config
+	instanceIDs [][]string
+	stats       types.CLCRunnersStats
+	nodeType    types.NodeType
+	group       string
+	workers     int
+	heartbeat   int64
+}
+
 func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
+	advanced := d.advancedDispatching.Load()
+	var utilization map[string]float64
+	if advanced {
+		utilization = d.runnerUtilization()
+	}
+
+	// Copy data out while holding the lock, then scrub after releasing it.
+	// Scrubbing is an O(instances) operation and would otherwise starve
+	// writers like expireNodes and updateLeaderIP.
 	d.store.RLock()
-	defer d.store.RUnlock()
-
 	danglingConf := makeConfigArrayFromDangling(d.store.danglingConfigs)
-	if scrub {
-		scrubbedConf := make([]integration.Config, 0, len(danglingConf))
-		for _, config := range danglingConf {
-			scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.NewWrapper(1)))
+	warmup := !d.store.active
+	dispatching := d.dispatchingState(advanced)
+	var unassignedReasons map[string]string
+	for _, config := range danglingConf {
+		if unassignedReasons == nil {
+			unassignedReasons = make(map[string]string)
 		}
-		danglingConf = scrubbedConf
+		unassignedReasons[config.Name] = d.unassignedReason(config.Name)
 	}
 
-	response := types.StateResponse{
-		Warmup:   !d.store.active,
-		Dangling: danglingConf,
-	}
-
+	nodeSnapshots := make([]nodeConfigsSnapshot, 0, len(d.store.nodes))
 	for _, node := range d.store.nodes {
 		rawConfigs := makeConfigArray(node.digestToConfig)
-
-		// Build config responses with instance IDs computed from unscrubbed configs.
-		// IDs must be computed before scrubbing because ScrubYaml re-serializes
-		// YAML bytes which changes the digest used in check ID computation.
-		configsWithIDs := make([]types.ConfigWithInstanceIDs, 0, len(rawConfigs))
-		for _, config := range rawConfigs {
-			digest := config.FastDigest()
-			instanceIDs := make([]string, 0, len(config.Instances))
-			for _, inst := range config.Instances {
-				instanceIDs = append(instanceIDs, string(checkid.BuildID(config.Name, digest, inst, config.InitConfig)))
-			}
-
-			if scrub {
-				config = integration.ScrubCheckConfig(config, log.NewWrapper(1))
-			}
-
-			configsWithIDs = append(configsWithIDs, types.ConfigWithInstanceIDs{
-				InstanceIDs: instanceIDs,
-				Config:      config,
-			})
-		}
 
 		// Copy runner stats for this node. Stats are populated by the periodic
 		// rebalance cycle when advanced dispatching is enabled. Without advanced
@@ -77,23 +78,147 @@ func (d *dispatcher) getState(scrub bool) (types.StateResponse, error) {
 				stats[k] = v
 			}
 		}
+		nodeType, workers, heartbeat := node.nodetype, node.workers, node.heartbeat
 		node.RUnlock()
 
-		n := types.StateNodeResponse{
-			Name:    node.name,
-			Configs: configsWithIDs,
-			Stats:   stats,
+		nodeSnapshots = append(nodeSnapshots, nodeConfigsSnapshot{
+			name:       node.name,
+			rawConfigs: rawConfigs,
+			stats:      stats,
+			nodeType:   nodeType,
+			group:      node.group,
+			workers:    workers,
+			heartbeat:  heartbeat,
+		})
+	}
+	d.store.RUnlock()
+
+	// IDs must be computed before scrubbing, since scrubbing changes the
+	// digest. BuildID unmarshals YAML, so do this after releasing d.store.
+	for i, snap := range nodeSnapshots {
+		instanceIDs := make([][]string, len(snap.rawConfigs))
+		for j, config := range snap.rawConfigs {
+			digest := config.FastDigest()
+			ids := make([]string, 0, len(config.Instances))
+			for _, inst := range config.Instances {
+				ids = append(ids, string(checkid.BuildID(config.Name, digest, inst, config.InitConfig)))
+			}
+			instanceIDs[j] = ids
 		}
-		response.Nodes = append(response.Nodes, n)
+		nodeSnapshots[i].instanceIDs = instanceIDs
+	}
+
+	if scrub {
+		scrubbedConf := make([]integration.Config, 0, len(danglingConf))
+		for _, config := range danglingConf {
+			scrubbedConf = append(scrubbedConf, integration.ScrubCheckConfig(config, log.NewWrapper(1)))
+		}
+		danglingConf = scrubbedConf
+	}
+
+	response := types.StateResponse{
+		Warmup:            warmup,
+		Dangling:          danglingConf,
+		Dispatching:       dispatching,
+		UnassignedReasons: unassignedReasons,
+	}
+
+	for _, snap := range nodeSnapshots {
+		configsWithIDs := make([]types.ConfigWithInstanceIDs, 0, len(snap.rawConfigs))
+		for i, config := range snap.rawConfigs {
+			if scrub {
+				config = integration.ScrubCheckConfig(config, log.NewWrapper(1))
+			}
+
+			configsWithIDs = append(configsWithIDs, types.ConfigWithInstanceIDs{
+				InstanceIDs: snap.instanceIDs[i],
+				Config:      config,
+			})
+		}
+
+		nodeResponse := types.StateNodeResponse{
+			Name:          snap.name,
+			Configs:       configsWithIDs,
+			Stats:         snap.stats,
+			NodeType:      snap.nodeType,
+			Group:         snap.group,
+			Workers:       snap.workers,
+			LastHeartbeat: snap.heartbeat,
+		}
+		if u, found := utilization[snap.name]; found {
+			nodeResponse.Utilization = &u
+		}
+		response.Nodes = append(response.Nodes, nodeResponse)
 	}
 
 	return response, nil
 }
 
+// runnerUtilization returns the share of workers used by cluster checks on
+// each runner that reports its workers.
+func (d *dispatcher) runnerUtilization() map[string]float64 {
+	utilization := make(map[string]float64)
+	for name, runner := range d.currentDistribution().Runners {
+		if runner.Workers > 0 {
+			utilization[name] = runner.utilization()
+		}
+	}
+	return utilization
+}
+
+// dispatchingState describes the dispatching mode and settings. The store
+// must be read-locked.
+func (d *dispatcher) dispatchingState(advanced bool) *types.DispatchingState {
+	state := &types.DispatchingState{
+		AdvancedDispatching:           advanced,
+		NodeExpirationSeconds:         d.nodeExpirationSeconds,
+		ExcludedChecks:                slices.Sorted(maps.Keys(d.excludedChecks)),
+		ExcludedChecksFromDispatching: slices.Sorted(maps.Keys(d.excludedChecksFromDispatching)),
+	}
+	if advanced {
+		state.RebalancePeriod = d.rebalancingPeriod.String()
+	} else {
+		if reason := d.advancedDispatchingOffReason.Load(); reason != nil {
+			state.AdvancedDispatchingReason = *reason
+		}
+	}
+	for _, group := range slices.Sorted(maps.Keys(d.runnerGroups)) {
+		groupState := types.RunnerGroupState{Name: group, Checks: []string{}}
+		for check, owner := range d.checkGroup {
+			if owner == group {
+				groupState.Checks = append(groupState.Checks, check)
+			}
+		}
+		slices.Sort(groupState.Checks)
+		state.RunnerGroups = append(state.RunnerGroups, groupState)
+	}
+	return state
+}
+
+// unassignedReason explains why a check's dangling configs aren't dispatched.
+// The store must be read-locked.
+func (d *dispatcher) unassignedReason(checkName string) string {
+	if len(d.store.nodes) == 0 {
+		return "no agent is reporting"
+	}
+	group := d.checkGroup[checkName]
+	if len(d.groupNodes(group)) > 0 {
+		return "waiting for the next dispatch attempt"
+	}
+	if group == "" {
+		return "no general worker is reporting: every worker is in a runner group"
+	}
+	return fmt.Sprintf("runner group %q has no live runner", group)
+}
+
 func (d *dispatcher) addConfig(config integration.Config, targetNodeName string) bool {
 	d.store.Lock()
 	defer d.store.Unlock()
+	return d.addConfigLocked(config, targetNodeName)
+}
 
+// addConfigLocked must be called with the store locked.
+func (d *dispatcher) addConfigLocked(config integration.Config, targetNodeName string) bool {
 	// Register config
 	digest := config.Digest()
 	fastDigest := config.FastDigest()
@@ -161,7 +286,6 @@ func (d *dispatcher) removeConfig(digest string) {
 	}
 
 	if !found { // Dangling config. Not assigned to any node.
-		danglingConfigs.Dec(le.JoinLeaderValue)
 		return
 	}
 

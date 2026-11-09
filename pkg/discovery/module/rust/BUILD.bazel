@@ -119,6 +119,15 @@ filegroup(
     visibility = ["//visibility:public"],
 )
 
+cc_library(
+    name = "dd_discovery_cc",
+    hdrs = [":dd_discovery_headers"],
+    includes = ["include"],
+    target_compatible_with = ["@platforms//os:linux"],
+    visibility = ["//visibility:public"],
+    deps = [":libdd_discovery"],
+)
+
 # ============================================================================
 # Binary Targets
 # ============================================================================

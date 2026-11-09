@@ -464,6 +464,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: duration
           Offset: 9
           Kind: argument
@@ -477,6 +478,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 124
       Name: Probe[main.busyloop]Return
@@ -496,6 +498,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 122
       Name: Probe[main.noop]
@@ -529,6 +532,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 95
       Name: '[10]runtime.heldLockInfo'
@@ -1785,7 +1789,10 @@ Types:
       GoKind: 26
 MaxTypeID: 125
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x1a13a0", TypesOffset: 296}
+GoModuledataInfo:
+    FirstModuledataAddr: "0x1a13a0"
+    TypesOffset: 296
+    ETypesOffset: 304
 GoMapHashInfo: {UseAeshashAddr: "0x1d1369", AeskeyschedAddr: "0x1d1a00"}
 CommonTypes:
     G: 24 StructureType runtime.g

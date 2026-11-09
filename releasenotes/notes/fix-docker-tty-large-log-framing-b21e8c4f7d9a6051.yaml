@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix Docker log parsing for TTY-mode containers when a single log line exceeds the
+    16KB Docker buffer size. Previously, the Agent retained the per-chunk timestamp
+    prefix that Docker inserts at every 16KB boundary, causing those timestamps to
+    appear inside the collected log content. The parser now strips the intermediate
+    timestamps so the log line is reassembled correctly.

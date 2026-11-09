@@ -1,0 +1,15 @@
+
+  Configuration endpoint
+  ----------------------
+  Endpoint: {{ .Endpoint }}
+{{- if not .Started }}
+  Client: not started
+{{- else }}
+{{- if .Reported }}
+  Organization enabled: {{ if .OrgEnabled }}True{{ else }}False{{ end }}
+  API Key: {{ if .APIKeyAuthorized }}Authorized{{ else }}Not authorized, add the Remote Configuration Read permission to enable it for this agent.{{ end }}
+{{- else }}
+  Organization status: no answer from the endpoint yet, check {{ .URLSetting }} and that {{ .APIKeySetting }} has the Remote Configuration Read permission
+{{- end }}
+  Last error: {{ if .LastError }}{{ .LastError }}{{ else }}None{{ end }}
+{{- end }}

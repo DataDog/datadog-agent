@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "remote",
@@ -15,13 +16,14 @@ go_library(
     deps = [
         "//pkg/networkconfigmanagement/config",
         "//pkg/networkconfigmanagement/profile",
+        "//pkg/networkconfigmanagement/types",
         "//pkg/util/log",
         "@org_golang_x_crypto//ssh",
         "@org_golang_x_crypto//ssh/knownhosts",
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "remote_test",
     srcs = [
         "cmd_test.go",
@@ -29,7 +31,6 @@ go_test(
         "ssh_test.go",
     ],
     embed = [":remote"],
-    gotags = ["test"],
     deps = [
         "//pkg/networkconfigmanagement/config",
         "//pkg/networkconfigmanagement/profile",

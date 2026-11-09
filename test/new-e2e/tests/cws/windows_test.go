@@ -64,7 +64,7 @@ func TestAgentWindowsSuite(t *testing.T) {
 						agentparams.WithSecurityAgentConfig(securityAgentConfig),
 						agentparams.WithSystemProbeConfig(systemProbeConfig),
 					),
-					ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge")),
+					ec2.WithEC2InstanceOptions(ec2.WithOS(testos.WindowsServerDefault), ec2.WithInstanceType("t3.xlarge"), ec2.WithInternetAccess()),
 				),
 			),
 		),
@@ -209,8 +209,8 @@ func (a *agentSuiteWindows) Test03CreateFileSignal() {
 		require.NoError(c, err)
 		require.NotNil(c, signal)
 		assert.Contains(c, signal.Tags, "rule_id:"+strings.ToLower(agentRuleName), "unable to find rule_id tag")
-		require.Contains(c, signal.AdditionalProperties, "attributes", "unable to find 'attributes' field in signal")
-		attributes := signal.AdditionalProperties["attributes"].(map[string]interface{})
+		attributes := signal.GetAttributes()
+		require.NotEmpty(c, attributes, "unable to find 'attributes' field in signal")
 		require.Contains(c, attributes, "agent", "unable to find 'agent' field in signal's attributes")
 		agentContext := attributes["agent"].(map[string]interface{})
 		require.Contains(c, agentContext, "rule_id", "unable to find 'rule_id' in signal's agent context")

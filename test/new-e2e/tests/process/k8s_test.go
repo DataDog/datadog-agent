@@ -78,6 +78,8 @@ func TestK8sTestSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			provkindvm.Provisioner(
 				provkindvm.WithRunOptions(
+					// TODO: Mirror Kubernetes component and workload images internally.
+					scenkindvm.WithInternetAccess(),
 					scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 						return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 					}),
@@ -99,7 +101,7 @@ func (s *K8sSuite) TestProcessCheck() {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		status := k8sAgentStatus(c, s.Env().KubernetesCluster)
 		// On Linux, process checks run in the core agent's process component
-		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
 
 	var payloads []*aggregator.ProcessPayload
@@ -110,10 +112,10 @@ func (s *K8sSuite) TestProcessCheck() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 5*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	assertContainersCollected(t, payloads, []string{"stress-ng"})
+		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
+		assertContainersCollected(c, payloads, []string{"stress-ng"})
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func (s *K8sSuite) TestManualProcessCheck() {
@@ -142,6 +144,8 @@ func (s *K8sSuite) TestProcessDiscoveryCheck() {
 
 	s.UpdateEnv(provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),
@@ -185,6 +189,8 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 
 	s.UpdateEnv(provkindvm.Provisioner(
 		provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithWorkloadApp(func(e config.Env, kubeProvider *kubernetes.Provider) (*kubeComp.Workload, error) {
 				return cpustress.K8sAppDefinition(e, kubeProvider, "workload-stress")
 			}),
@@ -200,7 +206,7 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 	}()
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		status = k8sAgentStatus(c, s.Env().KubernetesCluster)
-		assert.ElementsMatch(c, []string{"process", "rtprocess"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
+		assert.ElementsMatch(c, []string{"process", "rtprocess", "service_discovery"}, status.ProcessComponentStatus.Expvars.Map.EnabledChecks)
 		assert.ElementsMatch(c, []string{"connections"}, status.ProcessAgentStatus.Expvars.Map.EnabledChecks)
 	}, 5*time.Minute, 10*time.Second)
 
@@ -215,27 +221,37 @@ func (s *K8sSuite) TestProcessCheckWithNPM() {
 
 		// Wait for two payloads, as processes must be detected in two check runs to be returned
 		assert.GreaterOrEqual(c, len(payloads), 2, "fewer than 2 payloads returned")
-	}, 5*time.Minute, 10*time.Second)
 
-	assertProcessCollected(t, payloads, false, "stress-ng-cpu [run]")
-	assertProcessCollected(t, payloads, false, "process-agent")
-	assertContainersCollected(t, payloads, []string{"stress-ng", "process-agent"})
+		assertProcessCollected(c, payloads, false, "stress-ng-cpu [run]")
+		assertProcessCollected(c, payloads, false, "process-agent")
+		assertContainersCollected(c, payloads, []string{"stress-ng", "process-agent"})
+	}, 5*time.Minute, 10*time.Second)
 }
 
 func execProcessAgentCheck(t *testing.T, cluster *components.KubernetesCluster, check string) string {
-	agent := getAgentPod(t, cluster.Client())
 	// set the wait interval as workloadmeta takes some time to initialize for container data
 	// https://datadoghq.atlassian.net/browse/PROCS-4157
 	cmd := fmt.Sprintf("DD_LOG_LEVEL=OFF agent processchecks %s -w 10s --json", check)
 
-	// The log level needs to be overridden as the pod has an ENV var set.
-	// This is so we get just json back from the check
-	stdout, stderr, err := cluster.KubernetesClient.
-		PodExec(agent.Namespace, agent.Name, "agent", []string{"bash", "-c", cmd})
-	assert.NoError(t, err)
-	assert.Empty(t, stderr)
+	// The exec occasionally returns an empty stdout without any error, so retry until the check
+	// returns valid JSON
+	// https://datadoghq.atlassian.net/browse/CXP-2804
+	var checkOutput string
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		agent := getAgentPod(c, cluster.Client())
 
-	return stdout
+		// The log level needs to be overridden as the pod has an ENV var set.
+		// This is so we get just json back from the check
+		stdout, stderr, err := cluster.KubernetesClient.
+			PodExec(agent.Namespace, agent.Name, "agent", []string{"bash", "-c", cmd})
+		require.NoError(c, err, "failed to exec %q\nstdout: %q\nstderr: %q", cmd, stdout, stderr)
+		require.Empty(c, stderr, "unexpected stderr from %q\nstdout: %q", cmd, stdout)
+		require.True(c, json.Valid([]byte(stdout)), "invalid JSON output from %q\nstdout: %q\nstderr: %q", cmd, stdout, stderr)
+
+		checkOutput = stdout
+	}, 2*time.Minute, 10*time.Second)
+
+	return checkOutput
 }
 
 func k8sAgentStatus(t assert.TestingT, cluster *components.KubernetesCluster) AgentStatus {

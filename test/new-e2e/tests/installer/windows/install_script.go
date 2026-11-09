@@ -76,23 +76,16 @@ func (b *baseInstaller) getInstallerURL(params Params) (string, error) {
 func (b *baseInstaller) getBaseEnvVars() map[string]string {
 	envVars := installer.InstallScriptEnv(e2eos.AMD64Arch)
 	envVars["DD_API_KEY"] = installer.GetAPIKey()
+	// Skip the version-handoff in `setup` by default so each test exercises the
+	// locally-uploaded installer.exe rather than re-execing into the OCI-
+	// published one (which would otherwise fire because InstallScriptEnv pins
+	// DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_AGENT to pipeline-<id>). Tests
+	// that specifically want to exercise the handoff override this to "" via
+	// extraEnvVars (see TestSetupHandoff).
+	envVars["DD_INSTALLER_FROM_VERSION_HANDOFF"] = "true"
 	maps.Copy(envVars, b.params.extraEnvVars)
 	envVars["DD_REMOTE_UPDATES"] = "true"
 	return envVars
-}
-
-// DatadogInstallScript represents an interface to the Datadog Install script on the remote host.
-// It handles the installation process using a PowerShell script approach.
-type DatadogInstallScript struct {
-	baseInstaller
-}
-
-// NewDatadogInstallScript instantiates a new instance of the Datadog Install Script running on
-// a remote Windows host. It initializes the base installer with the provided options.
-func NewDatadogInstallScript(host *components.RemoteHost, opts ...Option) *DatadogInstallScript {
-	return &DatadogInstallScript{
-		baseInstaller: newBaseInstaller(host, opts...),
-	}
 }
 
 // copyFileURLsToHost handles a file:// URL by copying it to the remote host and returning the remote path.
@@ -140,75 +133,6 @@ func (b *baseInstaller) prepareEnvVars(params Params) map[string]string {
 	envVars := b.getBaseEnvVars()
 	maps.Copy(envVars, params.extraEnvVars)
 	return envVars
-}
-
-// prepareScript prepares the installation script for execution.
-// If no script URL is provided, it generates a default URL based on the pipeline ID.
-// Handles local file URLs by copying the script to the remote host.
-func (d *DatadogInstallScript) prepareScript(params Params) (string, error) {
-	if params.installerScript == "" {
-		pipelineID := params.pipelineID
-		if pipelineID == "" {
-			pipelineID, _ = runner.GetProfile().ParamStore().GetWithDefault(parameters.PipelineID, "")
-		}
-		params.installerScript = fmt.Sprintf("https://s3.amazonaws.com/installtesting.datad0g.com/pipeline-%s/scripts/Install-Datadog.ps1", pipelineID)
-	}
-
-	// Handle local script URL
-	scriptPath, err := copyFileURLsToHost(d.host, params.installerScript)
-	if err != nil {
-		return "", err
-	}
-
-	return scriptPath, nil
-}
-
-// Run runs the Datadog Installer install script on the remote host.
-func (d *DatadogInstallScript) Run(opts ...Option) (string, error) {
-	// Start with a copy of the base params
-	params := d.params
-	params.extraEnvVars = make(map[string]string)
-	maps.Copy(params.extraEnvVars, d.params.extraEnvVars)
-
-	// Apply method-specific options
-	err := optional.ApplyOptions(&params, opts)
-	if err != nil {
-		return "", err
-	}
-
-	installerPath, err := d.prepareInstaller(params)
-	if err != nil {
-		return "", err
-	}
-
-	scriptPath, err := d.prepareScript(params)
-	if err != nil {
-		return "", err
-	}
-
-	// Prepare environment variables
-	envVars := d.baseInstaller.prepareEnvVars(params)
-	if installerPath != "" {
-		// skip code signature verification if it's disabled in the profile (for local testing)
-		verify, _ := runner.GetProfile().ParamStore().GetBoolWithDefault(parameters.VerifyCodeSignature, true)
-		if !verify {
-			envVars["DD_SKIP_CODE_SIGNING_CHECK"] = "true"
-		}
-		envVars["DD_INSTALLER_URL"] = installerPath
-	}
-
-	// Build the PowerShell command
-	var cmd string
-	if strings.HasPrefix(params.installerScript, "file://") {
-		cmd = fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
-			& "%s"`, scriptPath)
-	} else {
-		cmd = fmt.Sprintf(`Set-ExecutionPolicy Bypass -Scope Process -Force;
-			[System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-			iex ((New-Object System.Net.WebClient).DownloadString('%s'))`, scriptPath)
-	}
-
-	return d.host.Execute(cmd, client.WithEnvVariables(envVars))
 }
 
 // InstallScriptRunner represents an interface for installing Datadog on Windows.
@@ -272,6 +196,7 @@ func (d *DatadogInstallExe) Run(opts ...Option) (string, error) {
 					break
 				} catch {
 					if ($i -eq 2) { throw }
+					Start-Sleep -Seconds 5
 				}
 			};
 			& $tempFile`, installerPath)

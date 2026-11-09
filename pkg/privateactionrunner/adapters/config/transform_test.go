@@ -6,17 +6,24 @@
 package config
 
 import (
+	"bufio"
+	"bytes"
+	"errors"
+	"net/http"
 	"os"
 	"path/filepath"
 	"testing"
 
+	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
+	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/util/sets"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func TestGetBundleInheritedAllowedActions(t *testing.T) {
@@ -71,12 +78,15 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 				"com.datadoghq.kubernetes.core": sets.New[string]("action3"),
 				"com.datadoghq.kubernetes.apps": sets.New[string]("action4"),
 				"com.datadoghq.remoteaction":    sets.New[string]("action5"),
+				"com.datadoghq.mongodb":         sets.New[string]("action6"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{
-				"com.datadoghq.script":          sets.New[string]("testConnection", "enrichScript"),
-				"com.datadoghq.gitlab.users":    sets.New[string]("testConnection"),
-				"com.datadoghq.kubernetes.core": sets.New[string]("testConnection"),
-				"com.datadoghq.remoteaction":    sets.New[string]("testConnection"),
+				"com.datadoghq.script":                sets.New[string]("testConnection", "enrichScript"),
+				"com.datadoghq.gitlab.users":          sets.New[string]("testConnection"),
+				"com.datadoghq.kubernetes.core":       sets.New[string]("testConnection"),
+				"com.datadoghq.mongodb":               sets.New[string]("testConnection"),
+				"com.datadoghq.remoteaction":          sets.New[string]("testConnection"),
+				"com.datadoghq.remoteaction.internal": sets.New[string]("prepareEncryption"),
 			},
 		},
 		{
@@ -97,58 +107,41 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 	}
 }
 
-func TestGetDatadogHost(t *testing.T) {
+func TestIsActionAllowed(t *testing.T) {
 	tests := []struct {
-		name     string
-		endpoint string
-		expected string
+		name      string
+		allowlist []string
+		bundleID  string
+		action    string
+		allowed   bool
 	}{
-		{
-			name:     "removes https prefix and trailing dot",
-			endpoint: "https://api.datadoghq.com.",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "removes https prefix only",
-			endpoint: "https://api.datadoghq.com",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "removes trailing dot only",
-			endpoint: "api.datadoghq.com.",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "handles clean URL without modifications",
-			endpoint: "api.datadoghq.com",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "handles empty string",
-			endpoint: "",
-			expected: "",
-		},
-		{
-			name:     "handles EU site with https and trailing dot",
-			endpoint: "https://api.datadoghq.eu.",
-			expected: "api.datadoghq.eu",
-		},
-		{
-			name:     "handles gov site",
-			endpoint: "https://api.ddog-gov.com.",
-			expected: "api.ddog-gov.com",
-		},
-		{
-			name:     "handles custom domain",
-			endpoint: "https://custom.endpoint.example.com.",
-			expected: "custom.endpoint.example.com",
-		},
+		{"exact action", []string{"com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "getPod", true},
+		{"different action", []string{"com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "deletePod", false},
+		{"bundle wildcard", []string{"com.datadoghq.kubernetes.core.*"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"kubernetes wildcard", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"gitlab wildcard", []string{"com.datadoghq.gitlab.*"}, "com.datadoghq.gitlab.projects", "listProjects", true},
+		{"root bundle wildcard", []string{"com.datadoghq.http.*"}, "com.datadoghq.http", "request", true},
+		{"nested bundle wildcard", []string{"com.datadoghq.authoredscripts.*"}, "com.datadoghq.authoredscripts.helm.repo", "add", true},
+		{"parent wildcard with exact bundle entry", []string{"com.datadoghq.kubernetes.*", "com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"other integration", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.gitlab.projects", "listProjects", false},
+		{"similar integration prefix", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.kubernetesother.core", "getPod", false},
+		{"sibling bundle", []string{"com.datadoghq.kubernetes.core.*"}, "com.datadoghq.kubernetes.apps", "listDeployment", false},
+		{"exact action does not cover children", []string{"com.datadoghq.kubernetes.getPod"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"global wildcard", []string{"*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"namespace wildcard", []string{"com.datadoghq.*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"namespace wildcard on namespace", []string{"com.datadoghq.*"}, "com.datadoghq", "getPod", false},
+		{"empty integration", []string{"com.datadoghq..*"}, "com.datadoghq..core", "getPod", false},
+		{"other namespace", []string{"com.other.kubernetes.*"}, "com.other.kubernetes.core", "getPod", false},
+		{"embedded wildcard", []string{"com.datadoghq.kube*.*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"empty allowlist", nil, "com.datadoghq.kubernetes.core", "getPod", false},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getDatadogHost(tt.endpoint)
-			assert.Equal(t, tt.expected, result)
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+			mockConfig.SetInTest(par.ActionsAllowlist, tt.allowlist)
+			config := &Config{ActionsAllowlist: makeActionsAllowlist(mockConfig)}
+			assert.Equal(t, tt.allowed, config.IsActionAllowed(tt.bundleID, tt.action))
 		})
 	}
 }
@@ -158,43 +151,37 @@ func TestFromDDConfig(t *testing.T) {
 		name           string
 		site           string
 		ddURL          string
-		expectedDDHost string
 		expectedDDSite string
 	}{
 		{
 			name:           "US site (datadoghq.com)",
 			site:           "datadoghq.com",
 			ddURL:          "",
-			expectedDDHost: "api.datadoghq.com",
 			expectedDDSite: "datadoghq.com",
 		},
 		{
 			name:           "EU site (datadoghq.eu)",
 			site:           "datadoghq.eu",
 			ddURL:          "",
-			expectedDDHost: "api.datadoghq.eu",
 			expectedDDSite: "datadoghq.eu",
 		},
 		{
 			name:           "Gov site (ddog-gov.com)",
 			site:           "ddog-gov.com",
 			ddURL:          "",
-			expectedDDHost: "api.ddog-gov.com",
 			expectedDDSite: "ddog-gov.com",
 		},
 		{
-			name:           "dd_url overrides site",
+			name:           "dd_url does not override site",
 			site:           "datadoghq.com",
 			ddURL:          "https://api.datadoghq.eu.",
-			expectedDDHost: "api.datadoghq.eu",
-			expectedDDSite: "datadoghq.eu",
+			expectedDDSite: "datadoghq.com",
 		},
 		{
-			name:           "custom domain via dd_url",
+			name:           "metrics proxy does not override default site",
 			site:           "",
 			ddURL:          "https://custom.endpoint.example.com.",
-			expectedDDHost: "custom.endpoint.example.com",
-			expectedDDSite: "",
+			expectedDDSite: "datadoghq.com",
 		},
 	}
 
@@ -211,21 +198,131 @@ func TestFromDDConfig(t *testing.T) {
 			}
 
 			// Set minimal required PAR config to avoid errors
-			mockConfig.SetInTest(setup.PARPrivateKey, "")
-			mockConfig.SetInTest(setup.PARUrn, "")
+			mockConfig.SetInTest(par.PrivateKey, "")
+			mockConfig.SetInTest(par.URN, "")
 
 			// Call FromDDConfig
-			cfg, err := FromDDConfig(mockConfig)
+			cfg, err := FromDDConfig(mockConfig, nil)
 			require.NoError(t, err)
 
-			// Verify both DDHost and DatadogSite are set correctly
-			assert.Equal(t, tt.expectedDDHost, cfg.DDHost, "DDHost mismatch")
-			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite, "DatadogSite mismatch")
-
-			// Verify DDApiHost is derived from site, not from dd_url
-			assert.Equal(t, "api."+tt.expectedDDSite, cfg.DDApiHost, "DDApiHost should be api.<site>")
+			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite)
+			assert.Equal(t, "https://api."+tt.expectedDDSite, cfg.APIBaseURL)
 		})
 	}
+}
+
+func TestFromDDConfigWarnsForRCWithoutPARURL(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest(par.Enabled, true)
+	cfg.SetInTest("site", "datad0g.com")
+	for _, rcURL := range []string{"https://config.datad0g.com.", "https://config.datadoghq.com."} {
+		cfg.SetInTest("remote_configuration.rc_dd_url", rcURL)
+		warnings := captureTransformWarnings(t, func() {
+			runner, err := FromDDConfig(cfg, nil)
+			require.NoError(t, err)
+			require.Equal(t, "https://api.datad0g.com", runner.APIBaseURL)
+		})
+		require.Contains(t, warnings, "[WARN]")
+		require.Contains(t, warnings, "the RC override does not change PAR routing")
+		require.Contains(t, warnings, "Set private_action_runner.par_dd_url explicitly")
+		require.NotContains(t, warnings, "nonstandard")
+	}
+
+	cfg.SetInTest(par.RunnerURL, "https://par-proxy.example.com/prefix")
+	warnings := captureTransformWarnings(t, func() {
+		runner, err := FromDDConfig(cfg, nil)
+		require.NoError(t, err)
+		require.Equal(t, "https://par-proxy.example.com/prefix", runner.APIBaseURL)
+	})
+	require.NotContains(t, warnings, "remote_configuration.rc_dd_url")
+}
+
+func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {
+	t.Run("unset selects compatibility mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Nil(t, cfg.KubernetesAllowedCustomResources)
+	})
+
+	t.Run("configured list selects exact-match mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.KubernetesAllowedCustomResources, []string{"cert-manager.io/v1/certificates"})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.Equal(t, []string{"cert-manager.io/v1/certificates"}, cfg.KubernetesAllowedCustomResources)
+	})
+
+	t.Run("configured empty list selects deny-all mode", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.KubernetesAllowedCustomResources, []string{})
+		cfg, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+		assert.NotNil(t, cfg.KubernetesAllowedCustomResources)
+		assert.Empty(t, cfg.KubernetesAllowedCustomResources)
+	})
+}
+
+func TestFromDDConfigMetricsClient(t *testing.T) {
+	providedClient := &statsd.NoOpClient{}
+	tests := []struct {
+		name     string
+		client   statsd.ClientInterface
+		wantSame statsd.ClientInterface
+		wantNoOp bool
+	}{
+		{
+			name:     "uses provided metrics client",
+			client:   providedClient,
+			wantSame: providedClient,
+		},
+		{
+			name:     "defaults nil metrics client to no-op",
+			wantNoOp: true,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest(par.PrivateKey, "")
+			mockConfig.SetInTest(par.URN, "")
+
+			cfg, err := FromDDConfig(mockConfig, tt.client)
+
+			require.NoError(t, err)
+			if tt.wantSame != nil {
+				assert.Same(t, tt.wantSame, cfg.MetricsClient)
+			}
+			if tt.wantNoOp {
+				assert.IsType(t, &statsd.NoOpClient{}, cfg.MetricsClient)
+			}
+		})
+	}
+}
+
+func TestFromDDConfigAgentHTTPClientUsesAgentProxy(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest("proxy.https", "http://proxy.example.test:3128")
+	mockConfig.SetInTest("proxy.no_proxy", []string{})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	require.NotNil(t, cfg.AgentHTTPClient)
+
+	transport, ok := cfg.AgentHTTPClient.Transport.(*http.Transport)
+	require.True(t, ok)
+	t.Cleanup(transport.CloseIdleConnections)
+	require.NotNil(t, transport.Proxy)
+
+	request, err := http.NewRequest(http.MethodGet, "https://registry.example.test/v2/", nil)
+	require.NoError(t, err)
+	proxyURL, err := transport.Proxy(request)
+	require.NoError(t, err)
+	require.Equal(t, "http://proxy.example.test:3128", proxyURL.String())
 }
 
 func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
@@ -234,17 +331,21 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
 		assert.True(t, allowlist["com.datadoghq.kubernetes.apps"].Has("listDeployment"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPod"))
+		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("getPodLogs"))
 		assert.True(t, allowlist["com.datadoghq.kubernetes.batch"].Has("getJob"))
 		// common actions should also be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
 		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// agent read-only diagnostics are node-agent only and must NOT be present
+		_, hasAgentBundle := allowlist["com.datadoghq.remoteaction.datadogagent"]
+		assert.False(t, hasAgentBundle)
 		// inherited actions should also be present for the kubernetes prefix
 		assert.True(t, allowlist["com.datadoghq.kubernetes.core"].Has("testConnection"))
 	})
@@ -253,14 +354,18 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
 		// common actions should be present
 		assert.True(t, allowlist["com.datadoghq.remoteaction.networks"].Has("runNetworkPath"))
 		assert.True(t, allowlist["com.datadoghq.remoteaction.rshell"].Has("runCommand"))
+		// agent read-only diagnostics should be present
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getStatus"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getConfig"))
+		assert.True(t, allowlist["com.datadoghq.remoteaction.datadogagent"].Has("getDiagnose"))
 		// cluster-agent-specific actions should NOT be present
 		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
 		assert.False(t, hasK8sApps)
@@ -271,8 +376,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{})
-		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -284,8 +389,8 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 		defer flavor.SetFlavor(flavor.DefaultAgent)
 
 		mockConfig := configmock.New(t)
-		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
-		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, true)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, true)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
@@ -295,14 +400,65 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 	t.Run("explicit allowlist works without default actions", func(t *testing.T) {
 		mockConfig := configmock.New(t)
-		mockConfig.SetInTest(setup.PARActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
-		mockConfig.SetInTest(setup.PARDefaultActionsEnabled, false)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{"com.datadoghq.http.sendRequest"})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
 
 		allowlist := makeActionsAllowlist(mockConfig)
 
 		assert.True(t, allowlist["com.datadoghq.http"].Has("sendRequest"))
 		_, hasK8sApps := allowlist["com.datadoghq.kubernetes.apps"]
 		assert.False(t, hasK8sApps)
+	})
+
+	t.Run("kubeactions bundle is auto-allowed when kubeactions.enabled is true", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		for _, action := range []string{"deletePod", "restartDeployment", "patchDeployment", "rollbackDeployment", "getResource"} {
+			assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has(action), "expected %s to be allowed", action)
+		}
+	})
+
+	t.Run("kubeactions bundle is not allowed when kubeactions.enabled is false", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
+		assert.False(t, has)
+	})
+
+	t.Run("kubeactions bundle is not allowed when its private action runner path is disabled", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
+		assert.False(t, has)
+	})
+
+	t.Run("explicit allowlist entries still apply when the kubeactions private action runner path is disabled", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{"com.datadoghq.kubernetes.kubeactions.getResource"})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("getResource"))
+		assert.False(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("deletePod"))
 	})
 }
 
@@ -311,34 +467,34 @@ func TestFromDDConfigPARRestrictedShellAllowedPathsUnset(t *testing.T) {
 	// every backend-allowed path through containment matching. The
 	// transform returns it verbatim.
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedPaths, []string{"/var/log", "/tmp"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/var/log", "/tmp"}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmpty(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{})
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedPaths, []string{})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	// Explicit empty: operator opts in to blocking everything.
+	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedPaths)
 	assert.Empty(t, cfg.RShellAllowedPaths)
 }
@@ -348,44 +504,161 @@ func TestFromDDConfigPARRestrictedShellAllowedCommandsUnset(t *testing.T) {
 	// sentinel that admits every backend command in the rshell namespace.
 	// The transform returns it verbatim.
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellPrivilegedDefaultsAndOverrides(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellPrivilegedEnabled)
+	assert.Equal(t, par.RShellPrivilegedSocketDefault, cfg.RShellPrivilegedSocket)
+
+	mockConfig.SetInTest(par.RestrictedShellPrivilegedEnabled, true)
+	mockConfig.SetInTest(par.RestrictedShellPrivilegedSocket, "/run/custom-rshell.sock")
+	cfg, err = FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellPrivilegedEnabled)
+	assert.Equal(t, "/run/custom-rshell.sock", cfg.RShellPrivilegedSocket)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedCommandsSet(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "ls"})
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedCommands, []string{"cat", "ls"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "ls"}, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Nil(t, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsEmpty(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellPrivilegedElevatableCommands, []string{})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg.RShellPrivilegedElevatableCommands)
+	assert.Empty(t, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsSet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellPrivilegedElevatableCommands, []string{"rshell:journalctl", "rshell:systemctl"})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"rshell:journalctl", "rshell:systemctl"}, cfg.RShellPrivilegedElevatableCommands)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedElevatableCommandsWarnsForUnnamespaced(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellPrivilegedElevatableCommands, []string{"truncate", "rshell:journalctl"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, par.RestrictedShellPrivilegedElevatableCommands)
+	assert.Contains(t, logs, `"truncate"`)
+	assert.Contains(t, logs, `"rshell:"`)
+	assert.Contains(t, logs, `"rshell:truncate"`)
+	assert.NotContains(t, logs, `"rshell:journalctl"`)
+}
+
+func TestFromDDConfigPARRestrictedShellPrivilegedNarrowingConfiguredFlags(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellAllowedCommandsConfigured)
+	assert.False(t, cfg.RShellAllowedPathsConfigured)
+
+	mockConfig.SetInTest(par.RestrictedShellAllowedCommands, []string{"rshell:*"})
+	mockConfig.SetInTest(par.RestrictedShellAllowedPaths, []string{"/"})
+	cfg, err = FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellAllowedCommandsConfigured)
+	assert.True(t, cfg.RShellAllowedPathsConfigured)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmpty(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{})
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedCommands, []string{})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	// Explicit empty list: operator opts in to blocking every command.
-	// Distinct from the unset case above.
+	// Explicit empty list remains distinct from the unset case above.
 	assert.NotNil(t, cfg.RShellAllowedCommands)
 	assert.Empty(t, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedSystemServicesSet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedSystemServices, map[string][]string{
+		"mysql.service": {"read", "restart"},
+		"nginx.service": {"read"},
+	})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.Equal(t, map[string][]string{
+		"mysql.service": {"read", "restart"},
+		"nginx.service": {"read"},
+	}, cfg.RShellAllowedSystemServices)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedSystemServicesEmptyYAML(t *testing.T) {
+	yaml := `
+private_action_runner:
+  restricted_shell:
+    allowed_system_services: {}
+`
+	mockConfig := configmock.NewFromYAML(t, yaml)
+	assert.True(t, mockConfig.IsConfigured(par.RestrictedShellAllowedSystemServices))
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.NotNil(t, cfg.RShellAllowedSystemServices)
+	assert.Empty(t, cfg.RShellAllowedSystemServices)
+}
+
 // TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML pins the
-// kill-switch contract for `allowed_paths: []`: GetStringSlice returns a
+// transform contract for `allowed_paths: []`: GetStringSlice returns a
 // nil slice for the explicit YAML empty list, and the transform forwards
-// that as-is. The handler's downstream dedup pass turns nil into a non-nil
-// empty slice, which produces an empty intersection — the kill-switch.
+// that as-is.
 // The slice value here is "no entries" regardless of nil/non-nil shape.
 func TestFromDDConfigPARRestrictedShellAllowedPathsEmptyYAML(t *testing.T) {
 	yaml := `
@@ -395,9 +668,9 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
+	assert.Empty(t, cfg.RShellAllowedPaths, "YAML [] must surface as an empty slice")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedCommandsEmptyYAML(t *testing.T) {
@@ -408,74 +681,276 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
-	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice; kill-switch is enforced by the handler intersection on this input")
+	assert.Empty(t, cfg.RShellAllowedCommands, "YAML [] must surface as an empty slice")
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughFileEntries(t *testing.T) {
-	// File entries are warned about at load time but not dropped — the
-	// intersection layer and rshell's own sandbox filter them. The
-	// transform's job is to surface the misconfiguration; it does not
-	// rewrite the operator's written list.
+	// Config entries are parsed and returned as written; path normalization and
+	// containment matching happen in the rshell bundle.
 	tmpDir := t.TempDir()
 	fp := filepath.Join(tmpDir, "file.txt")
 	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
 
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{tmpDir, fp})
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedPaths, []string{tmpDir, fp})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{tmpDir, fp}, cfg.RShellAllowedPaths)
 }
 
 func TestFromDDConfigPARRestrictedShellAllowedPathsPassesThroughBackslash(t *testing.T) {
-	// Backslash-containing entries are preserved in the returned slice so
-	// the handler still sees what the operator wrote; the transform also
-	// logs a warning so a Windows-native path configured by mistake does
-	// not silently produce an empty intersection without feedback.
+	// Backslash-containing entries are preserved in the returned slice.
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{`C:\Data`, "/var/log"}, cfg.RShellAllowedPaths)
 }
 
-func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
-	// Unnamespaced entries are preserved in the returned slice so the
-	// intersection layer can surface them (as silent no-matches). The
-	// transform also emits a log warning about them, which is not asserted
-	// here — the point of this test is that unnamespaced entries do not
-	// cause config load to fail.
+func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForBackslash(t *testing.T) {
 	mockConfig := configmock.New(t)
-	mockConfig.SetInTest(setup.PARPrivateKey, "")
-	mockConfig.SetInTest(setup.PARUrn, "")
-	mockConfig.SetInTest(setup.PARRestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedPaths, []string{`C:\Data`, "/var/log"})
 
-	cfg, err := FromDDConfig(mockConfig)
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, par.RestrictedShellAllowedPaths)
+	assert.Contains(t, logs, `C:\\Data`)
+	assert.Contains(t, logs, "contains a backslash")
+	assert.Contains(t, logs, "only forward-slash paths are supported")
+	assert.NotContains(t, logs, "/var/log")
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedPathsWarnsForNonDirectory(t *testing.T) {
+	tmpDir := filepath.ToSlash(t.TempDir())
+	fp := filepath.ToSlash(filepath.Join(tmpDir, "file.txt"))
+	require.NoError(t, os.WriteFile(fp, []byte("x"), 0o600))
+
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedPaths, []string{tmpDir, fp})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, par.RestrictedShellAllowedPaths)
+	assert.Contains(t, logs, fp)
+	assert.Contains(t, logs, "is not a directory")
+	assert.Contains(t, logs, "Use the containing directory instead")
+	assert.NotContains(t, logs, `entry "`+tmpDir+`" is not a directory`)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsPassesThroughUnnamespaced(t *testing.T) {
+	// Unnamespaced entries are preserved in the returned slice.
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"cat", "rshell:ls"}, cfg.RShellAllowedCommands)
 }
 
+func TestFromDDConfigPARRestrictedShellAllowedCommandsWarnsForUnnamespaced(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellAllowedCommands, []string{"cat", "rshell:ls"})
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Contains(t, logs, par.RestrictedShellAllowedCommands)
+	assert.Contains(t, logs, `"cat"`)
+	assert.Contains(t, logs, `"rshell:"`)
+	assert.Contains(t, logs, `"rshell:cat"`)
+	assert.NotContains(t, logs, `"rshell:ls"`)
+}
+
+func TestFromDDConfigPARRestrictedShellAllowedCommandsDefaultDoesNotWarn(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+
+	logs := captureTransformWarnings(t, func() {
+		_, err := FromDDConfig(mockConfig, nil)
+		require.NoError(t, err)
+	})
+
+	assert.Empty(t, logs)
+}
+
 func TestFromDDConfigPARRestrictedShellAllowedAbsentYAML(t *testing.T) {
-	// No restricted_shell block at all: both axes fall back to their
-	// registered sentinels — ["/"] for paths, ["rshell:*"] for commands —
-	// which the operator-side intersection treats as "allow whatever the
-	// backend allowed".
 	yaml := `
 private_action_runner:
   enabled: true
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	cfg, err := FromDDConfig(mockConfig)
+	cfg, err := FromDDConfig(mockConfig, nil)
 	require.NoError(t, err)
 	assert.Equal(t, []string{"/"}, cfg.RShellAllowedPaths)
 	assert.Equal(t, []string{"rshell:*"}, cfg.RShellAllowedCommands)
+	assert.Nil(t, cfg.RShellAllowedSystemServices)
+	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+}
+
+func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetryUnset(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.False(t, cfg.RShellDisableDetailedTelemetry)
+}
+
+func TestFromDDConfigPARRestrictedShellDisableDetailedTelemetrySet(t *testing.T) {
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest(par.PrivateKey, "")
+	mockConfig.SetInTest(par.URN, "")
+	mockConfig.SetInTest(par.RestrictedShellDisableDetailedTelemetry, true)
+
+	cfg, err := FromDDConfig(mockConfig, nil)
+	require.NoError(t, err)
+	assert.True(t, cfg.RShellDisableDetailedTelemetry)
+}
+
+func TestNewMetricsClient(t *testing.T) {
+	createErr := errors.New("permission denied")
+	tests := []struct {
+		name           string
+		port           int
+		bindHost       string
+		createErr      error
+		wantErr        string
+		wantNoOp       bool
+		wantHost       string
+		wantPort       int
+		wantSameClient bool
+	}{
+		{
+			name:           "uses configured bind host and dogstatsd port",
+			port:           8126,
+			bindHost:       "127.0.0.1",
+			wantHost:       "127.0.0.1",
+			wantPort:       8126,
+			wantSameClient: true,
+		},
+		{
+			name:      "returns no-op and error when DogStatsD client creation fails",
+			port:      8126,
+			bindHost:  "127.0.0.1",
+			createErr: createErr,
+			wantErr:   "failed to create DogStatsD client",
+			wantNoOp:  true,
+			wantHost:  "127.0.0.1",
+			wantPort:  8126,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv("STATSD_URL", "")
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("dogstatsd_port", tt.port)
+			if tt.bindHost != "" {
+				mockConfig.SetInTest("bind_host", tt.bindHost)
+			}
+
+			wantClient := &statsd.NoOpClient{}
+			statsdComp := &recordingStatsdComponent{client: wantClient, err: tt.createErr}
+			got, err := NewMetricsClient(mockConfig, statsdComp)
+
+			if tt.wantErr != "" {
+				require.Error(t, err)
+				assert.ErrorContains(t, err, tt.wantErr)
+				assert.ErrorIs(t, err, tt.createErr)
+			} else {
+				require.NoError(t, err)
+			}
+			if tt.wantSameClient {
+				assert.Same(t, wantClient, got)
+			}
+			if tt.wantNoOp {
+				assert.IsType(t, &statsd.NoOpClient{}, got)
+			}
+			assert.Equal(t, "host_port", statsdComp.call)
+			assert.Equal(t, tt.wantHost, statsdComp.host)
+			assert.Equal(t, tt.wantPort, statsdComp.port)
+			assert.Empty(t, statsdComp.addr)
+		})
+	}
+}
+
+type recordingStatsdComponent struct {
+	client statsd.ClientInterface
+	err    error
+	call   string
+	addr   string
+	host   string
+	port   int
+}
+
+var _ statsdcomp.Component = (*recordingStatsdComponent)(nil)
+
+func (r *recordingStatsdComponent) Get() (statsd.ClientInterface, error) {
+	r.call = "get"
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) Create(_ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "create"
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) CreateForAddr(addr string, _ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "addr"
+	r.addr = addr
+	return r.client, r.err
+}
+
+func (r *recordingStatsdComponent) CreateForHostPort(host string, port int, _ ...statsd.Option) (statsd.ClientInterface, error) {
+	r.call = "host_port"
+	r.host = host
+	r.port = port
+	return r.client, r.err
+}
+
+func captureTransformWarnings(t *testing.T, fn func()) string {
+	t.Helper()
+
+	var logBuffer bytes.Buffer
+	logWriter := bufio.NewWriter(&logBuffer)
+	logger, err := log.LoggerFromWriterWithMinLevelAndLvlMsgFormat(logWriter, log.WarnLvl)
+	require.NoError(t, err)
+
+	previousLogger := log.Default()
+	t.Cleanup(func() {
+		log.SetupLogger(previousLogger, "debug")
+	})
+	log.SetupLogger(logger, "warn")
+
+	fn()
+
+	require.NoError(t, logWriter.Flush())
+	return logBuffer.String()
 }

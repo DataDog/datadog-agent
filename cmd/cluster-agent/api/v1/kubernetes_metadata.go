@@ -21,7 +21,6 @@ import (
 	apicommon "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	corev1 "k8s.io/client-go/kubernetes/typed/core/v1"
 )
 
@@ -45,13 +44,14 @@ func installKubernetesMetadataEndpoints(r *http.ServeMux, wmeta workloadmeta.Com
 	r.HandleFunc("GET /metadata/namespace/{ns}", api.WithTelemetryWrapper("getNamespaceMetadata", func(w http.ResponseWriter, r *http.Request) { getNamespaceMetadata(w, r, wmeta) }))
 	r.HandleFunc("GET /cluster/id", api.WithTelemetryWrapper("getClusterID", getClusterID))
 	r.HandleFunc("GET /uid/node/{nodeName}", api.WithTelemetryWrapper("getNodeUID", func(w http.ResponseWriter, r *http.Request) { getNodeUID(w, r, wmeta) }))
+	r.HandleFunc("GET /info/node/{nodeName}/status", api.WithTelemetryWrapper("getNodeStatus", func(w http.ResponseWriter, r *http.Request) { getNodeStatus(w, r, wmeta) }))
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func installCloudFoundryMetadataEndpoints(r *http.ServeMux) {}
 
 // getNodeMetadata is only used when the node agent hits the DCA for the list of labels or annotations
-func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesMetadata) map[string]string, what string, filterList []string) {
+func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component, f func(*workloadmeta.KubernetesNode) map[string]string, what string, filterList []string) {
 	/*
 		Input
 			localhost:5001/api/v1/tags/node/localhost
@@ -80,8 +80,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
-	entityID := util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName)
-	nodeMetadata, err := wmeta.GetKubernetesMetadata(entityID)
+	nodeEntity, err := wmeta.GetKubernetesNode(nodeName)
 	if err != nil {
 		log.Errorf("Could not retrieve the node %s of %s: %v", what, nodeName, err.Error()) //nolint:errcheck
 		spanErr = err
@@ -90,7 +89,7 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 		return
 	}
 
-	nodeData := f(nodeMetadata)
+	nodeData := f(nodeEntity)
 
 	// Filter data to avoid returning too big useless data
 	if filterList != nil {
@@ -121,12 +120,12 @@ func getNodeMetadata(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.
 }
 
 func getNodeLabels(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Labels }, "labels", nil)
+	getNodeMetadata(w, r, wmeta, func(n *workloadmeta.KubernetesNode) map[string]string { return n.Labels }, "labels", nil)
 }
 
 func getNodeUID(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
-	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string {
-		return map[string]string{"uid": string(km.UID)}
+	getNodeMetadata(w, r, wmeta, func(n *workloadmeta.KubernetesNode) map[string]string {
+		return map[string]string{"uid": n.UID}
 	}, "uid", nil)
 }
 
@@ -149,48 +148,73 @@ func getNodeAnnotations(w http.ResponseWriter, r *http.Request, wmeta workloadme
 		finalFilter = clientFilter
 	}
 
-	getNodeMetadata(w, r, wmeta, func(km *workloadmeta.KubernetesMetadata) map[string]string { return km.Annotations }, "annotations", finalFilter)
+	getNodeMetadata(w, r, wmeta, func(n *workloadmeta.KubernetesNode) map[string]string { return n.Annotations }, "annotations", finalFilter)
 }
 
-func getNodeInfo(w http.ResponseWriter, r *http.Request, _ workloadmeta.Component) {
+// nodeStatusCondition is a node condition as served by getNodeStatus.
+type nodeStatusCondition struct {
+	Type   string `json:"type"`
+	Status string `json:"status"`
+}
+
+// nodeStatus is the node state served by getNodeStatus. Conditions are never null, so
+// a node agent can tell an empty list from a missing field.
+type nodeStatus struct {
+	Conditions    []nodeStatusCondition `json:"conditions"`
+	Unschedulable bool                  `json:"unschedulable"`
+}
+
+// getNodeStatus serves the conditions and the cordon state (spec.unschedulable) of a
+// node to node agents. It is separate from getNodeInfo, which node agents cannot read.
+func getNodeStatus(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
+	nodeName := r.PathValue("nodeName")
+	node, err := wmeta.GetKubernetesNode(nodeName)
+	if err != nil {
+		log.Debugf("getNodeStatus: unable to get node %s from cache: %v", nodeName, err)
+		api.SetSpanError(w, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	res := nodeStatus{
+		Conditions:    make([]nodeStatusCondition, 0, len(node.Conditions)),
+		Unschedulable: node.Unschedulable,
+	}
+	for _, c := range node.Conditions {
+		res.Conditions = append(res.Conditions, nodeStatusCondition{Type: c.Type, Status: c.Status})
+	}
+	data, err := json.Marshal(res)
+	if err != nil {
+		api.SetSpanError(w, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusOK)
+	w.Write(data)
+}
+
+func getNodeInfo(w http.ResponseWriter, r *http.Request, wmeta workloadmeta.Component) {
 	nodeName := r.PathValue("nodeName")
 
 	var spanErr error
-	span, ctx := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.node_info",
+	span, _ := tracer.StartSpanFromContext(r.Context(), "cluster_agent.metadata.node_info",
 		tracer.ResourceName("nodeInfo"),
 		tracer.Tag("node_name", nodeName),
 	)
 	defer func() { span.Finish(tracer.WithError(spanErr)) }()
 
-	cl, err := as.GetAPIClient()
+	nodeEntity, err := wmeta.GetKubernetesNode(nodeName)
 	if err != nil {
-		log.Errorf("getNodeInfo: unable to get apiserver: %v", err)
-		spanErr = err
-		api.SetSpanError(w, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
-		return
-	}
-	nodeCl := cl.Cl.CoreV1().Nodes()
-
-	node, err := nodeCl.Get(ctx, nodeName, metav1.GetOptions{})
-	if err != nil {
-		log.Errorf("getNodeInfo: unable to get self node: %v", err)
+		log.Errorf("getNodeInfo: unable to get node from cache: %v", err)
 		spanErr = err
 		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
-	if node == nil {
-		w.WriteHeader(http.StatusNotFound)
-		fmt.Fprintf(w, "Could not find node %s", nodeName)
-		return
-	}
-
-	// Marshal whole struct, unmarshal only takes what is needed on caller side.
-	data, err := json.Marshal(&node.Status.NodeInfo)
+	data, err := json.Marshal(&nodeEntity.Status)
 	if err != nil {
-		log.Errorf("getNodeInfo: failed to marshal node %s info %+v: %s", nodeName, &node.Status.NodeInfo, err.Error()) //nolint:errcheck
+		log.Errorf("getNodeInfo: failed to marshal node %s status %+v: %s", nodeName, nodeEntity.Status, err.Error()) //nolint:errcheck
 		spanErr = err
 		api.SetSpanError(w, err)
 		http.Error(w, err.Error(), http.StatusInternalServerError)

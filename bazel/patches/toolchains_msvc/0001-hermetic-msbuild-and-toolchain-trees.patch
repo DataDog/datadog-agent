@@ -1,0 +1,547 @@
+diff --git a/extensions.bzl b/extensions.bzl
+index af11d90..97789d3 100644
+--- a/extensions.bzl
++++ b/extensions.bzl
+@@ -50,13 +50,17 @@ load(
+     "merge_flags",
+ )
+ load("//private:llvm_repo.bzl", "llvm_repo")
++load("//private:msbuild_repo.bzl", "msbuild_repo")
+ load("//private:msvc_repo.bzl", "msvc_repo")
+ load("//private:msvc_toolchains_repo.bzl", "msvc_toolchains_repo")
+ load(
+     "//private:vs_channel_manifest.bzl",
+     "VALID_MSVC_HOSTS",
+     "VALID_MSVC_TARGETS",
++    "detect_vc_msbuild_toolset",
+     "download_and_map",
++    "find_msvc_release_channel",
++    "get_msbuild_package_ids",
+     "get_msvc_package_ids",
+     "get_msvc_redist_package_ids",
+     "get_winsdk_msi_list",
+@@ -546,6 +550,45 @@ def _extension_impl(module_ctx):
+             "winsdk_version": winsdk_version,
+         })
+ 
++    # 5. Construct the MSBuild repo definition. MSBuild is versioned per Visual
++    # Studio line, not per MSVC toolset, so a single repo is derived from the
++    # channel that released the default MSVC version. Engine and VC project system
++    # both come from it, which keeps VisualStudioVersion, the VCTargetsPath tree and
++    # the PlatformToolset consistent with the pinned compiler.
++    msbuild_packages_map = packages_maps[find_msvc_release_channel(packages_maps, default_msvc_for_repo)]
++    msbuild_toolset_dir, msbuild_platform_toolset = detect_vc_msbuild_toolset(msbuild_packages_map, all_targets)
++    msbuild_deps = get_msbuild_package_ids(
++        msbuild_packages_map,
++        msbuild_toolset_dir,
++        msbuild_platform_toolset,
++        all_targets,
++    )
++
++    packages_list = []
++    for dep_id in sorted(msbuild_deps):
++        pkg = msbuild_packages_map[dep_id]
++        for payload in pkg.get("payloads", []):
++            if "url" not in payload:
++                continue
++            sha256 = payload.get("sha256")
++            filename = payload.get("fileName")
++            if not sha256 or not filename:
++                fail("MSBuild payload in '{}' is missing sha256 or fileName".format(dep_id))
++
++            # Several VC payloads are all named payload.vsix; stage them apart.
++            packages_list.append({
++                "filename": "{}-{}".format(dep_id, filename),
++                "sha256": sha256,
++            })
++
++    _register_repo_definition(repos, {
++        "kind": "msbuild",
++        "name": "msbuild",
++        "toolset_dir": msbuild_toolset_dir,
++        "packages": _sort_packages(packages_list),
++    })
++
+     msiutil_repo(name = "msiutil")
+-    msiutil_label = "@msiutil//:{}".format("msiutil.exe" if normalize_repository_os(module_ctx.os.name) == "windows" else "msiutil")
++    # Windows-only toolchain: lockfile must stay stable when bazel mod tidy runs on macOS/Linux.
++    msiutil_label = "@msiutil//:msiutil.exe"
+ 
+@@ -565,6 +608,16 @@ def _extension_impl(module_ctx):
+             )
+             continue
+ 
++        if kind == "msbuild":
++            msbuild_repo(
++                name = repo["name"],
++                toolset_dir = repo["toolset_dir"],
++                packages = json.encode(packages),
++                package_urls = json.encode(package_urls),
++                error = accept_eula_error,
++            )
++            continue
++
+         if kind == "msvc":
+             msvc_repo(
+                 name = repo["name"],
+diff --git a/overlays/msbuild/BUILD.bazel b/overlays/msbuild/BUILD.bazel
+new file mode 100644
+index 0000000..b479884
+--- /dev/null
++++ b/overlays/msbuild/BUILD.bazel
+@@ -0,0 +1 @@
++exports_files(["BUILD.root.tpl"])
+diff --git a/overlays/msbuild/BUILD.root.tpl b/overlays/msbuild/BUILD.root.tpl
+new file mode 100644
+index 0000000..b30e38d
+--- /dev/null
++++ b/overlays/msbuild/BUILD.root.tpl
+@@ -0,0 +1,33 @@
++package(default_visibility = ["//visibility:public"])
++
++exports_files(
++    glob(["**/*"]),
++    visibility = ["//visibility:public"],
++)
++
++# The amd64 engine, not Bin/MSBuild.exe: the 32-bit engine runs out of address
++# space on large project graphs.
++alias(
++    name = "msbuild",
++    actual = "MSBuild/Current/Bin/amd64/MSBuild.exe",
++)
++
++# Everything MSBuild needs at runtime: engine assemblies, task hosts, file
++# trackers, and the VC props/targets.
++filegroup(
++    name = "toolchain_tree",
++    srcs = glob(
++        ["**/*"],
++        exclude = [
++            "BUILD.bazel",
++            "package.txt",
++        ],
++    ),
++)
++
++# Pass the parent directory of this file as /p:VCTargetsPath to keep MSBuild from
++# auto-detecting a Visual Studio installation.
++filegroup(
++    name = "vctargets_marker",
++    srcs = ["MSBuild/Microsoft/VC/{toolset_dir}/Microsoft.Cpp.Default.props"],
++)
+diff --git a/overlays/msvc/BUILD.root.tpl b/overlays/msvc/BUILD.root.tpl
+index a785ef7..037c3d1 100644
+--- a/overlays/msvc/BUILD.root.tpl
++++ b/overlays/msvc/BUILD.root.tpl
+@@ -386,3 +386,17 @@ exports_files(
+     visibility = ["//visibility:public"],
+ )
+ 
++# Compilers, headers, libs and redistributables, for build systems that drive
++# cl/link themselves (MSBuild) instead of going through a cc_toolchain.
++filegroup(
++    name = "toolchain_tree",
++    srcs = glob(
++        ["**/*"],
++        exclude = [
++            "BUILD.bazel",
++            "package.txt",
++            "vctools_version.txt",
++        ],
++    ),
++)
++
+diff --git a/overlays/winsdk/BUILD.root.tpl b/overlays/winsdk/BUILD.root.tpl
+index 006272e..05d31e4 100644
+--- a/overlays/winsdk/BUILD.root.tpl
++++ b/overlays/winsdk/BUILD.root.tpl
+@@ -115,3 +115,16 @@ exports_files(
+     visibility = ["//visibility:public"],
+ )
+ 
++# Headers, libs and tools, for build systems that drive the SDK themselves
++# (MSBuild) instead of going through a cc_toolchain.
++filegroup(
++    name = "toolchain_tree",
++    srcs = glob(
++        ["**/*"],
++        exclude = [
++            "BUILD.bazel",
++            "package.txt",
++        ],
++    ),
++)
++
+diff --git a/private/BUILD.bazel b/private/BUILD.bazel
+index 9542db3..3cfe1ee 100644
+--- a/private/BUILD.bazel
++++ b/private/BUILD.bazel
+@@ -14,6 +14,7 @@ bzl_library(
+         "libs.bzl",
+         "llvm_repo.bzl",
+         "msiutil_repo.bzl",
++        "msbuild_repo.bzl",
+         "msvc_repo.bzl",
+         "msvc_toolchains_repo.bzl",
+         "utils.bzl",
+diff --git a/private/msbuild_repo.bzl b/private/msbuild_repo.bzl
+new file mode 100644
+index 0000000..1646fdd
+--- /dev/null
++++ b/private/msbuild_repo.bzl
+@@ -0,0 +1,98 @@
++"""Repository rule for downloading MSBuild and the VC project-system integration.
++
++MSBuild is shipped as VSIX payloads (plain zips) that all unpack into a
++``Contents/`` prefix mirroring the Visual Studio install layout. Overlaying every
++payload onto a single tree reproduces the ``MSBuild/`` directory of a VS install:
++
++    MSBuild/Current/Bin/amd64/MSBuild.exe   <- engine
++    MSBuild/Microsoft/VC/v170/**            <- C++ props/targets (VCTargetsPath)
++"""
++
++def _package_url(package_urls, pkg):
++    sha256 = pkg.get("sha256")
++    url = package_urls.get(sha256)
++    if not url:
++        fail("Missing URL for MSBuild package '{}' ({})".format(pkg.get("filename"), sha256))
++    return url
++
++def _msbuild_repo_impl(ctx):
++    """Implementation of the msbuild_repo rule."""
++    if ctx.attr.error:
++        fail(ctx.attr.error)
++
++    packages = json.decode(ctx.attr.packages)
++    package_urls = json.decode(ctx.attr.package_urls)
++    extracted_package_filenames = []
++
++    # Create the destination with the exact casing the BUILD file refers to:
++    # payloads disagree ("MSBuild" vs "Msbuild") and Bazel labels are
++    # case-sensitive even where the filesystem is not.
++    ctx.file("MSBuild/.keep", "")
++
++    for index, pkg in enumerate(packages):
++        filename = pkg.get("filename")
++        ctx.report_progress("Downloading and Extracting {}".format(filename))
++
++        staging = "tmp/{}".format(index)
++        ctx.download_and_extract(
++            url = _package_url(package_urls, pkg),
++            sha256 = pkg.get("sha256"),
++            output = staging,
++            type = "zip",
++        )
++
++        contents = ctx.path("{}/Contents".format(staging))
++        if not contents.exists:
++            fail("MSBuild payload '{}' has no Contents/ directory".format(filename))
++
++        result = ctx.execute([
++            "cmd",
++            "/c",
++            "xcopy",
++            "/e",
++            "/i",
++            "/y",
++            "/q",
++            "{}\\*".format(str(contents).replace("/", "\\")),
++            ".",
++        ])
++        if result.return_code != 0:
++            fail("Overlaying '{}' failed (exit {}): {}".format(filename, result.return_code, result.stderr))
++
++        extracted_package_filenames.append(filename)
++
++    ctx.delete("tmp")
++    ctx.delete("MSBuild/.keep")
++
++    ctx.file(
++        "package.txt",
++        "\n".join(extracted_package_filenames) + ("\n" if extracted_package_filenames else ""),
++    )
++
++    ctx.template(
++        "BUILD.bazel",
++        ctx.attr.src_build,
++        substitutions = {
++            "{toolset_dir}": ctx.attr.toolset_dir,
++        },
++    )
++
++    return ctx.repo_metadata(reproducible = True)
++
++msbuild_repo = repository_rule(
++    implementation = _msbuild_repo_impl,
++    attrs = {
++        "packages": attr.string(mandatory = True, doc = "JSON string list of package dicts"),
++        "package_urls": attr.string(mandatory = True, doc = "JSON string map from sha256 to URL"),
++        "error": attr.string(mandatory = True),
++        "toolset_dir": attr.string(
++            default = "v170",
++            doc = "VC toolset directory under MSBuild/Microsoft/VC (e.g. v170 for VS 2022).",
++        ),
++        "src_build": attr.label(
++            default = Label("//overlays/msbuild:BUILD.root.tpl"),
++            allow_single_file = True,
++            doc = "Label to BUILD.root.tpl",
++        ),
++    },
++)
+diff --git a/private/msvc_repo.bzl b/private/msvc_repo.bzl
+index 79eea6e..2ee81b3 100644
+--- a/private/msvc_repo.bzl
++++ b/private/msvc_repo.bzl
+@@ -39,6 +39,13 @@ def _msvc_repo_impl(ctx):
+     tools_dir = ctx.path("tmp/Contents/VC/Tools/MSVC").readdir()[0]
+     redist_dir = ctx.path("tmp/Contents/VC/Redist/MSVC").readdir()[0]
+ 
++    # Flattening Tools/MSVC/<full version> to Tools/ drops the full toolset
++    # version, which MSBuild wants as VCToolsVersion. Record it before the move.
++    ctx.file(
++        "vctools_version.txt",
++        str(tools_dir).replace("\\", "/").rsplit("/", 1)[1] + "\n",
++    )
++
+     ctx.execute(["cmd", "/c", "move", str(tools_dir).replace("/", "\\"), "Tools"])
+     ctx.execute(["cmd", "/c", "move", str(redist_dir).replace("/", "\\"), "Redist"])
+     ctx.delete("tmp")
+diff --git a/private/msvc_toolchains_repo.bzl b/private/msvc_toolchains_repo.bzl
+index de153d3..f77afdb 100644
+--- a/private/msvc_toolchains_repo.bzl
++++ b/private/msvc_toolchains_repo.bzl
+@@ -327,6 +327,69 @@ package(default_visibility = ["//visibility:public"])
+     msvc_content = _rt_msvc(msvc_content)
+     ctx.file("msvc/lib/BUILD.bazel", msvc_content)
+ 
++def _emit_tree_facades(ctx, msvc_versions, winsdk_versions):
++    """Generates //msvc/tree, //winsdk/tree and //msbuild facades.
++
++    These expose whole toolchain trees plus an anchor file per tree, for build
++    systems that locate their own tools (MSBuild) instead of resolving a
++    `cc_toolchain`. Marker files exist so a genrule can recover a tree's root
++    directory from a `$(location)` expansion.
++    """
++    msvc_content = """package(default_visibility = ["//visibility:public"])
++
++filegroup(
++    name = "toolchain_tree",
++    srcs = {tree},
++)
++
++# Contains the full toolset version (VCToolsVersion), and doubles as the anchor
++# for VCToolsInstallDir.
++alias(
++    name = "version_marker",
++    actual = {marker},
++)
++""".format(
++        tree = _select_list("msvc", msvc_versions, lambda v: "@msvc_{}//:toolchain_tree".format(v)),
++        marker = _select_label("msvc", msvc_versions, lambda v: "@msvc_{}//:vctools_version.txt".format(v)),
++    )
++    ctx.file("msvc/tree/BUILD.bazel", msvc_content)
++
++    winsdk_content = """package(default_visibility = ["//visibility:public"])
++
++filegroup(
++    name = "toolchain_tree",
++    srcs = {tree},
++)
++
++alias(
++    name = "root_marker",
++    actual = {marker},
++)
++""".format(
++        tree = _select_list("winsdk", winsdk_versions, lambda v: "@winsdk_{}//:toolchain_tree".format(v)),
++        marker = _select_label("winsdk", winsdk_versions, lambda v: "@winsdk_{}//:package.txt".format(v)),
++    )
++    ctx.file("winsdk/tree/BUILD.bazel", winsdk_content)
++
++    ctx.file("msbuild/BUILD.bazel", """package(default_visibility = ["//visibility:public"])
++
++alias(
++    name = "msbuild",
++    actual = "@msbuild//:msbuild",
++)
++
++filegroup(
++    name = "toolchain_tree",
++    srcs = ["@msbuild//:toolchain_tree"],
++)
++
++# Anchor for VCTargetsPath.
++alias(
++    name = "vctargets_marker",
++    actual = "@msbuild//:vctargets_marker",
++)
++""")
++
+ def _msvc_toolchains_repo_impl(ctx):
+     # Install common.bzl (string_enum_flag) at repo root
+     ctx.template("common.bzl", ctx.attr.src_common, {})
+@@ -613,6 +676,7 @@ string_enum_flag(
+     _emit_msvc_facades(ctx, msvc_versions, hosts, targets)
+     _emit_winsdk_facades(ctx, winsdk_versions, hosts)
+     _emit_lib_packages(ctx, msvc_versions, winsdk_versions, targets)
++    _emit_tree_facades(ctx, msvc_versions, winsdk_versions)
+ 
+     return ctx.repo_metadata(reproducible = True)
+ 
+diff --git a/private/vs_channel_manifest.bzl b/private/vs_channel_manifest.bzl
+index 49ab406..ca2d048 100644
+--- a/private/vs_channel_manifest.bzl
++++ b/private/vs_channel_manifest.bzl
+@@ -57,10 +57,19 @@ def download_and_map(ctx, channel_url):
+             fail("Every package must have an id")
+ 
+         lang = pkg.get("language")
+-        if lang and lang.lower() != "en-us":
+-            continue
++        if lang:
++            lang = lang.lower()
++            if lang not in ["en-us", "neutral"]:
++                continue
+ 
+         pkg_id = pkg["id"].lower()
++
++        # Some packages, Microsoft.Build among them, are only published as
++        # language-neutral. Keep them, but never let one shadow an en-us variant
++        # of the same id.
++        if lang == "neutral" and pkg_id in packages_map:
++            continue
++
+         packages_map[pkg_id] = pkg
+         if pkg_id not in packages_map:
+             fail("Package not found: {pkg_id}".format(pkg_id = pkg_id))
+@@ -94,6 +103,99 @@ def get_winsdk_package_id(version):
+     else:
+         return "Win11SDK_10.0.{version}".format(version = version).lower()
+ 
++# The MSBuild engine and the C++ project system are not part of the
++# Microsoft.VC.<version>.* package set, so they are requested by name.
++_MSBUILD_ENGINE_PACKAGE_IDS = [
++    "Microsoft.Build",
++    # Tracker.exe / FileTracker*.dll, required by the VC targets for up-to-date checks.
++    "Microsoft.Build.Dependencies",
++]
++
++def _highest_v_suffix(candidates):
++    """Returns the "v<N>" string with the greatest N, or None when empty."""
++    best = None
++    best_value = -1
++    for candidate in candidates:
++        digits = candidate[1:]
++        if not digits.isdigit():
++            continue
++        value = int(digits)
++        if value > best_value:
++            best = candidate
++            best_value = value
++    return best
++
++def detect_vc_msbuild_toolset(packages_map, targets):
++    """Detects the newest VC project-system toolset available in a manifest.
++
++    Derived from the manifest rather than hardcoded so that a new Visual Studio
++    line (and its PlatformToolset) does not need a code change here.
++
++    Args:
++        packages_map: The map of package IDs to package data.
++        targets: List of target architectures; the first one is probed.
++
++    Returns:
++        A tuple (toolset_dir, platform_toolset), e.g. ("v170", "v143").
++    """
++    prefix = "Microsoft.VisualStudio.VC.MSBuild.".lower()
++    suffix = ".base"
++
++    toolset_dirs = []
++    for pkg_id in packages_map:
++        if pkg_id.startswith(prefix) and pkg_id.endswith(suffix):
++            remainder = pkg_id[len(prefix):-len(suffix)]
++            if remainder.startswith("v") and "." not in remainder:
++                toolset_dirs.append(remainder)
++
++    toolset_dir = _highest_v_suffix(toolset_dirs)
++    if not toolset_dir:
++        fail("Visual Studio manifest has no Microsoft.VisualStudio.VC.MSBuild.<toolset>.Base package")
++
++    target_prefix = "{}{}.{}.".format(prefix, toolset_dir, targets[0].lower())
++    platform_toolsets = []
++    for pkg_id in packages_map:
++        if pkg_id.startswith(target_prefix):
++            platform_toolsets.append(pkg_id[len(target_prefix):])
++
++    platform_toolset = _highest_v_suffix(platform_toolsets)
++    if not platform_toolset:
++        fail("Visual Studio manifest has no PlatformToolset package for {} / {}".format(toolset_dir, targets[0]))
++
++    return toolset_dir, platform_toolset
++
++def get_msbuild_package_ids(packages_map, toolset_dir, platform_toolset, targets):
++    """Returns package IDs providing MSBuild and the VC project-system integration.
++
++    Args:
++        packages_map: The map of package IDs to package data.
++        toolset_dir: VC toolset directory, e.g. "v170" for VS 2022.
++        platform_toolset: PlatformToolset name, e.g. "v143".
++        targets: List of target architectures to include.
++
++    Returns:
++        A list of lowercased package IDs present in ``packages_map``.
++    """
++    wanted = list(_MSBUILD_ENGINE_PACKAGE_IDS)
++    wanted.append("Microsoft.VisualStudio.VC.MSBuild.{}.Base".format(toolset_dir))
++    for target in targets:
++        wanted.append("Microsoft.VisualStudio.VC.MSBuild.{}.{}".format(toolset_dir, target))
++        wanted.append("Microsoft.VisualStudio.VC.MSBuild.{}.{}.{}".format(toolset_dir, target, platform_toolset))
++
++    ids = []
++    missing = []
++    for pkg_id in wanted:
++        key = pkg_id.lower()
++        if key in packages_map:
++            ids.append(key)
++        else:
++            missing.append(pkg_id)
++
++    if missing:
++        fail("Visual Studio manifest has no MSBuild packages: {}".format(", ".join(missing)))
++
++    return ids
++
+ # Valid values for hosts: x86, x64, arm64
+ VALID_MSVC_HOSTS = ["x86", "x64", "arm64"]
+ 
+@@ -273,6 +375,29 @@ def list_msvc_version(packages_maps):
+                         versions[version] = package_map_key
+     return {v: versions[v] for v in sorted(versions.keys())}
+ 
++def find_msvc_release_channel(packages_maps, version):
++    """Returns the key of the oldest channel manifest shipping the given MSVC version.
++
++    ``list_msvc_version`` prefers the newest channel when versions overlap, which is
++    the wrong choice for MSBuild: its VC project system has to come from the Visual
++    Studio line that released the toolset, otherwise a pinned compiler is driven by a
++    newer PlatformToolset than it was built for.
++
++    Args:
++        packages_maps: Dict mapping package_map id (e.g., "18", "17") to package_map.
++        version: MSVC toolset version, e.g. "14.44".
++
++    Returns:
++        The packages_maps key of the oldest channel containing that version.
++    """
++    prefix = "Microsoft.VC.{}.".format(version).lower()
++    for package_map_key in sorted(packages_maps.keys()):
++        for pkg_id in packages_maps[package_map_key]:
++            if pkg_id.startswith(prefix):
++                return package_map_key
++
++    fail("No Visual Studio channel manifest ships MSVC {}".format(version))
++
+ def get_msvc_redist_package_ids(
+         packages_map,
+         version,

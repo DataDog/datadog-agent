@@ -61,11 +61,11 @@ func TestNVLinkPLRCollectorWithPRMCache(t *testing.T) {
 
 	port1Count := 0
 	port2Count := 0
-	for _, metric := range metrics {
+	for _, metric := range requireMetrics(t, metrics) {
 		switch {
-		case hasTag(metric.Tags, "nvlink_port:1"):
+		case hasTag(metric.Tags(), "nvlink_port:1"):
 			port1Count++
-		case hasTag(metric.Tags, "nvlink_port:2"):
+		case hasTag(metric.Tags(), "nvlink_port:2"):
 			port2Count++
 		default:
 			t.Fatalf("missing nvlink_port tag on metric %+v", metric)
@@ -93,19 +93,16 @@ func TestNVLinkPLRCollectorCachePartialError(t *testing.T) {
 	metrics, err := collector.Collect()
 	require.Error(t, err)
 	require.Len(t, metrics, len(prm.PLRCounterFields))
-	for _, metric := range metrics {
-		require.Contains(t, metric.Tags, "nvlink_port:1")
+	for _, metric := range requireMetrics(t, metrics) {
+		require.Contains(t, metric.Tags(), "nvlink_port:1")
 	}
 }
 
 func TestNVLinkCollectorNilCacheReturnsUnsupported(t *testing.T) {
 	mockDevice := setupMockDevice(t, testutil.WithNVLinkLinkCount(2))
 
-	_, err := newNVLinkPLRCollector(mockDevice, nil)
-	require.ErrorIs(t, err, errUnsupportedDevice)
-
-	_, err = newNVLinkPLRCollector(mockDevice, &CollectorDependencies{})
-	require.ErrorIs(t, err, errUnsupportedDevice)
+	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{})
+	require.ErrorContains(t, err, "PRM cache is required")
 }
 
 func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
@@ -136,7 +133,10 @@ func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 			}
 			opts = append(opts, tt.customize...)
 			mockDevice := setupMockDevice(t, opts...)
-			_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
+			cache := &PRMCache{}
+			_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{
+				PRMCache: cache,
+			})
 			require.ErrorIs(t, err, errUnsupportedDevice)
 		})
 	}
@@ -145,7 +145,10 @@ func TestNVLinkPLRCollectorUnsupportedDevice(t *testing.T) {
 func TestNVLinkPLRCollectorPreBlackwellUnsupported(t *testing.T) {
 	mockDevice := setupMockDevice(t, testutil.WithArchitecture("hopper"), testutil.WithNVLinkLinkCount(2))
 
-	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{PRMCache: &PRMCache{}})
+	cache := &PRMCache{}
+	_, err := newNVLinkPLRCollector(mockDevice, &CollectorDependencies{
+		PRMCache: cache,
+	})
 	require.ErrorIs(t, err, errUnsupportedDevice)
 	require.ErrorContains(t, err, "Blackwell or newer")
 }

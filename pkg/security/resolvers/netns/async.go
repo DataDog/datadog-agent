@@ -13,8 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
-	manager "github.com/DataDog/ebpf-manager"
-	"github.com/vishvananda/netlink"
+	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
 
 // QueuedNetworkDeviceError is used to indicate that the new network Device was queued until its namespace handle is
@@ -52,38 +51,54 @@ func (tcr *Resolver) PushNewTCClassifierRequest(request TcClassifierRequest) {
 	case tcr.tcRequests <- request:
 		// do nothing
 	default:
-		seclog.Errorf("failed to slot new tc classifier request: %+v", request)
+		tcr.countError(errorClassQueueFull)
+		seclog.Debugf("failed to slot new tc classifier request: %+v", request)
+	}
+}
+
+// networkNamespaceHandleRequest represents an async request for a handle on the network namespace of a process.
+type networkNamespaceHandleRequest struct {
+	nsID uint32
+	pid  uint32
+}
+
+// PushNetworkNamespaceHandleRequest queues a network namespace handle request for async processing.
+func (tcr *Resolver) PushNetworkNamespaceHandleRequest(nsID uint32, pid uint32) {
+	if !tcr.config.NetworkEnabled || nsID == 0 {
+		return
+	}
+
+	select {
+	case tcr.netnsHandleRequests <- networkNamespaceHandleRequest{nsID: nsID, pid: pid}:
+	default:
+		// a request is pushed for every event, so a dropped one is pushed again by the next event of its namespace
 	}
 }
 
 func (tcr *Resolver) startSetupNewTCClassifierLoop() {
 	for {
+		// select picks a random ready case, so a cancelled context alone wouldn't stop the queue from being drained
+		if tcr.ctx.Err() != nil {
+			return
+		}
+
 		select {
 		case <-tcr.ctx.Done():
 			return
-		case request, ok := <-tcr.tcRequests:
-			if !ok {
-				return
-			}
-
+		case request := <-tcr.tcRequests:
 			if err := tcr.setupNewTCClassifier(request.Device); err != nil {
 				var qnde QueuedNetworkDeviceError
-				var linkNotFound netlink.LinkNotFoundError
-
 				if errors.As(err, &qnde) {
 					seclog.Debugf("%v", err)
-				} else if errors.As(err, &linkNotFound) {
-					seclog.Debugf("link not found while setting up new tc classifier: %v", err)
-				} else if errors.Is(err, manager.ErrIdentificationPairInUse) {
-					if request.RequestType != TcDeviceUpdateRequestType {
-						seclog.Errorf("tc classifier already exists: %v", err)
-					} else {
-						seclog.Debugf("tc classifier already exists: %v", err)
-					}
-				} else {
-					seclog.Errorf("error setting up new tc classifier on %+v: %v", request.Device, err)
+					continue
 				}
+
+				tcr.reportTCClassifierError(err, request.Device)
 			}
+		case request := <-tcr.netnsHandleRequests:
+			_, _ = tcr.SaveNetworkNamespaceHandleLazy(request.nsID, func() *utils.NSPath {
+				return utils.NewNSPathFromPid(request.pid, utils.NetNsType)
+			})
 		}
 	}
 }

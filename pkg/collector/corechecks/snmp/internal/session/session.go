@@ -16,6 +16,7 @@ import (
 
 	"github.com/gosnmp/gosnmp"
 
+	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/snmp/gosnmplib"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
@@ -123,10 +124,10 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 		s.gosnmpInst.Community = config.CommunityString
 	} else if config.User != "" {
 		if config.AuthKey != "" && config.AuthProtocol == "" {
-			config.AuthProtocol = "md5"
+			config.AuthProtocol = defaultAuthProtocol()
 		}
 		if config.PrivKey != "" && config.PrivProtocol == "" {
-			config.PrivProtocol = "des"
+			config.PrivProtocol = defaultPrivProtocol()
 		}
 
 		authProtocol, err := gosnmplib.GetAuthProtocol(config.AuthProtocol)
@@ -170,16 +171,29 @@ func NewGosnmpSession(config *checkconfig.CheckConfig) (Session, error) {
 	s.gosnmpInst.Retries = config.Retries
 	s.gosnmpInst.UseUnconnectedUDPSocket = config.UseUnconnectedUDPSocket
 
-	lvl, err := log.GetLogLevel()
-	if err != nil {
-		log.Warnf("failed to get logger: %s", err)
-	} else {
-		if lvl == log.TraceLvl {
-			TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
-			s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
-		}
+	if log.ShouldLog(log.TraceLvl) {
+		TraceLevelLogWriter := gosnmplib.TraceLevelLogWriter{}
+		s.gosnmpInst.Logger = gosnmp.NewLogger(stdlog.New(&TraceLevelLogWriter, "", stdlog.Lshortfile))
 	}
 	return s, nil
+}
+
+// defaultAuthProtocol returns the SNMPv3 authentication protocol to use when authKey
+// is set without an explicit authProtocol. Default to SHA256 in FIPS mode, MD5 otherwise.
+func defaultAuthProtocol() string {
+	if fips.BuiltForFIPS() {
+		return "sha256"
+	}
+	return "md5"
+}
+
+// defaultPrivProtocol returns the SNMPv3 privacy protocol to use when privKey is set
+// without an explicit privProtocol. Default to AES in FIPS mode, DES otherwise.
+func defaultPrivProtocol() string {
+	if fips.BuiltForFIPS() {
+		return "aes"
+	}
+	return "des"
 }
 
 // FetchSysObjectID fetches the sys object id from the device

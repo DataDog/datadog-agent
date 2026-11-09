@@ -10,6 +10,7 @@ import (
 	"encoding/json"
 	"flag"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 	"time"
@@ -28,7 +29,25 @@ type CWSEvent struct {
 	serializers.EventSerializer `json:",inline"`
 }
 
-func generateBackendJSON(output string) error {
+const serializersImportPath = "github.com/DataDog/datadog-agent/pkg/security/serializers"
+
+func generateBackendJSON(output, serializersDir string) error {
+	// AddGoComments keys its comment map on path.Join(importPath, dir-of-file),
+	// so serializersDir has to be the working directory for the key to come out as
+	// serializersImportPath. Resolve the output path before moving.
+	absOutput, err := filepath.Abs(output)
+	if err != nil {
+		return err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	if err := os.Chdir(serializersDir); err != nil {
+		return err
+	}
+	defer func() { _ = os.Chdir(cwd) }()
+
 	reflector := jsonschema.Reflector{
 		ExpandedStruct: true,
 		DoNotReference: false,
@@ -36,7 +55,7 @@ func generateBackendJSON(output string) error {
 		Namer:          jsonTypeNamer,
 	}
 
-	if err := reflector.AddGoComments("github.com/DataDog/datadog-agent/pkg/security/serializers", "./"); err != nil {
+	if err := reflector.AddGoComments(serializersImportPath, "."); err != nil {
 		return err
 	}
 	reflector.CommentMap = cleanupEasyjson(reflector.CommentMap)
@@ -49,7 +68,7 @@ func generateBackendJSON(output string) error {
 		return err
 	}
 
-	return os.WriteFile(output, schemaJSON, 0664)
+	return os.WriteFile(absOutput, schemaJSON, 0664)
 }
 
 func jsonTypeMapper(ty reflect.Type) *jsonschema.Schema {
@@ -84,13 +103,15 @@ func jsonTypeNamer(ty reflect.Type) string {
 
 func main() {
 	var (
-		output string
+		output         string
+		serializersDir string
 	)
 
 	flag.StringVar(&output, "output", "", "Backend JSON schema generated file")
+	flag.StringVar(&serializersDir, "serializers-dir", ".", "Directory containing serializer .go source files")
 	flag.Parse()
 
-	if err := generateBackendJSON(output); err != nil {
+	if err := generateBackendJSON(output, serializersDir); err != nil {
 		panic(err)
 	}
 }

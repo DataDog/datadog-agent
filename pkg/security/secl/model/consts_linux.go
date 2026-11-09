@@ -16,7 +16,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"golang.org/x/sys/unix"
@@ -859,6 +859,25 @@ var (
 		"SYSCTL_WRITE": SysCtlWriteAction,
 	}
 
+	// CloneFlagsConstants are the clone flags accepted by the unshare syscall
+	// generate_constants:Clone flags,Clone flags are the supported namespace flags for the unshare syscall.
+	CloneFlagsConstants = map[string]uint64{
+		"CLONE_NEWNS":     unix.CLONE_NEWNS,
+		"CLONE_NEWCGROUP": unix.CLONE_NEWCGROUP,
+		"CLONE_NEWUTS":    unix.CLONE_NEWUTS,
+		"CLONE_NEWIPC":    unix.CLONE_NEWIPC,
+		"CLONE_NEWUSER":   unix.CLONE_NEWUSER,
+		"CLONE_NEWPID":    unix.CLONE_NEWPID,
+		"CLONE_NEWNET":    unix.CLONE_NEWNET,
+		"CLONE_NEWTIME":   unix.CLONE_NEWTIME,
+		"CLONE_FILES":     unix.CLONE_FILES,
+		"CLONE_FS":        unix.CLONE_FS,
+		"CLONE_SYSVSEM":   unix.CLONE_SYSVSEM,
+		"CLONE_THREAD":    unix.CLONE_THREAD,
+		"CLONE_SIGHAND":   unix.CLONE_SIGHAND,
+		"CLONE_VM":        unix.CLONE_VM,
+	}
+
 	// RlimitConstants are the supported resource limit types for setrlimit
 	// generate_constants:Resource limit types,Resource limit types are the supported resource types for setrlimit syscall.
 	RlimitConstants = map[string]int{
@@ -1249,7 +1268,7 @@ var (
 
 func initVMConstants() {
 	for k, v := range vmConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 	}
 
 	for k, v := range vmConstants {
@@ -1259,49 +1278,49 @@ func initVMConstants() {
 
 func initBPFCmdConstants() {
 	for k, v := range BPFCmdConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		bpfCmdStrings[uint32(v)] = k
 	}
 }
 
 func initBPFHelperFuncConstants() {
 	for k, v := range BPFHelperFuncConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		bpfHelperFuncStrings[uint32(v)] = k
 	}
 }
 
 func initBPFMapTypeConstants() {
 	for k, v := range BPFMapTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		bpfMapTypeStrings[uint32(v)] = k
 	}
 }
 
 func initBPFProgramTypeConstants() {
 	for k, v := range BPFProgramTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		bpfProgramTypeStrings[uint32(v)] = k
 	}
 }
 
 func initBPFAttachTypeConstants() {
 	for k, v := range BPFAttachTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		bpfAttachTypeStrings[uint32(v)] = k
 	}
 }
 
 func initPipeBufFlagConstants() {
 	for k, v := range PipeBufFlagConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		pipeBufFlagStrings[int(v)] = k
 	}
 }
 
 func initOpenConstants() {
 	for k, v := range openFlagsConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 	}
 
 	for k, v := range openFlagsConstants {
@@ -1311,21 +1330,21 @@ func initOpenConstants() {
 
 func initFileModeConstants() {
 	for k, v := range fileModeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		fileModeStrings[v] = k
 	}
 }
 
 func initInodeModeConstants() {
 	for k, v := range inodeModeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		inodeModeStrings[v] = k
 	}
 }
 
 func initUnlinkConstanst() {
 	for k, v := range unlinkFlagsConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		unlinkFlagsStrings[v] = k
 	}
 }
@@ -1333,7 +1352,7 @@ func initUnlinkConstanst() {
 func initKernelCapabilityConstants() {
 	for k, v := range KernelCapabilityConstants {
 		if bits.UintSize == 64 || v < math.MaxInt32 {
-			seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+			seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		}
 		kernelCapabilitiesStrings[v] = k
 	}
@@ -1343,7 +1362,7 @@ func initPtraceConstants() {
 	maps.Copy(ptraceConstants, ptraceArchConstants)
 
 	for k, v := range ptraceConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 	}
 
 	for k, v := range ptraceConstants {
@@ -1353,7 +1372,7 @@ func initPtraceConstants() {
 
 func initProtConstansts() {
 	for k, v := range protConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 	}
 
 	for k, v := range protConstants {
@@ -1365,7 +1384,7 @@ func initMMapFlagsConstants() {
 	maps.Copy(mmapFlagConstants, mmapFlagArchConstants)
 
 	for k, v := range mmapFlagConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 	}
 
 	for k, v := range mmapFlagConstants {
@@ -1375,7 +1394,7 @@ func initMMapFlagsConstants() {
 
 func initSignalConstants() {
 	for k, v := range SignalConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 	}
 
 	for k, v := range SignalConstants {
@@ -1385,52 +1404,52 @@ func initSignalConstants() {
 
 func initSysCtlActionConstants() {
 	for k, v := range SysCtlActionConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: int(v)}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
 		sysctlActionStrings[uint32(v)] = k
 	}
 }
 func initSetSockOptLevelConstants() {
 	for k, v := range SetSockoptLevelConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		setsockoptLevelStrings[v] = k
 	}
 }
 func initSetSockOptOptNameConstantsSolSocket() {
 	for k, v := range SetSockOptOptNameConstantsSolSocket {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		setsockoptOptNameStringsSolSocket[v] = k
 	}
 }
 func initSetSockOptOptNameConstantsIP() {
 	for k, v := range SetSockOptOptNameConstantsIP {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		setsockoptOptNameStringsIP[v] = k
 	}
 }
 
 func initSetSockOptOptNameConstantsTCP() {
 	for k, v := range SetSockOptOptNameConstantsTCP {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		setsockoptOptNameStringsTCP[v] = k
 	}
 }
 
 func initSetSockOptOptNameConstantsIPv6() {
 	for k, v := range SetSockOptOptNameConstantsIPv6 {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		setsockoptOptNameStringsIPv6[v] = k
 	}
 }
 func initSocketDomainConstants() {
 	for k, v := range SocketDomainConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		socketDomainStrings[v] = k
 	}
 }
 
 func initSocketTypeConstants() {
 	for k, v := range SocketTypeConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		socketTypeStrings[v] = k
 	}
 }
@@ -1443,29 +1462,42 @@ func initSocketFamilyConstants() {
 
 func initSocketProtocolConstants() {
 	for k, v := range SocketProtocolConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		socketProtocolStrings[v] = k
 	}
 }
 
 func initBPFMapNamesConstants() {
-	seclConstants["CWS_MAP_NAMES"] = &eval.StringArrayEvaluator{Values: bpfMapNames}
+	names := &ast.Array{}
+	for _, name := range bpfMapNames {
+		names.Members = append(names.Members, &ast.Literal{Value: ast.MakeString(name)})
+	}
+	seclConstants["CWS_MAP_NAMES"] = names
 }
 
 func initAUIDConstants() {
-	seclConstants["AUDIT_AUID_UNSET"] = &eval.IntEvaluator{Value: sharedconsts.AuditUIDUnset}
+	seclConstants["AUDIT_AUID_UNSET"] = &ast.Literal{Value: ast.MakeInt(sharedconsts.AuditUIDUnset)}
 }
 
 func initRlimitConstants() {
 	for k, v := range RlimitConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		rlimitStrings[v] = k
+	}
+}
+
+func initCloneFlagsConstants() {
+	for k, v := range CloneFlagsConstants {
+		if bits.UintSize == 64 || v < math.MaxInt32 {
+			seclConstants[k] = &ast.Literal{Value: ast.MakeInt(int(v))}
+		}
+		cloneFlagsStrings[v] = k
 	}
 }
 
 func initPrCtlOptionConstants() {
 	for k, v := range PrCtlOptionConstants {
-		seclConstants[k] = &eval.IntEvaluator{Value: v}
+		seclConstants[k] = &ast.Literal{Value: ast.MakeInt(v)}
 		prctlOptionStrings[v] = k
 	}
 }
@@ -1598,6 +1630,18 @@ func (kc KernelCapability) StringArray() []string {
 	computed := bitmaskU64ToStringArray(uint64(kc), kernelCapabilitiesStrings)
 	capsStringArrayCache.Add(kc, computed)
 	return computed
+}
+
+// CloneFlags represents a clone flags bitmask value, as passed to unshare
+type CloneFlags uint64
+
+func (cf CloneFlags) String() string {
+	return bitmaskU64ToString(uint64(cf), cloneFlagsStrings)
+}
+
+// StringArray returns the clone flags as an array of strings
+func (cf CloneFlags) StringArray() []string {
+	return bitmaskU64ToStringArray(uint64(cf), cloneFlagsStrings)
 }
 
 // BPFCmd represents a BPF command
@@ -2352,6 +2396,7 @@ var (
 	pipeBufFlagStrings                = map[int]string{}
 	sysctlActionStrings               = map[uint32]string{}
 	rlimitStrings                     = map[int]string{}
+	cloneFlagsStrings                 = map[uint64]string{}
 	setsockoptOptNameStringsIP        = map[int]string{}
 	setsockoptOptNameStringsSolSocket = map[int]string{}
 	setsockoptOptNameStringsTCP       = map[int]string{}

@@ -1,0 +1,23 @@
+# vuln-hunt 2026-05-19-codex / allowed_paths.
+# skip: allowed_paths sandbox restriction is rshell-specific.
+skip_assert_against_bash: true
+description: Runtime assignment to ALLOWED_PATHS does not widen the sandbox.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: |+
+        allowed
+    - path: secret/data.txt
+      content: |+
+        SECRET
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    ALLOWED_PATHS=secret
+    cat secret/data.txt
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr_contains: ["permission denied"]
+  exit_code: 0

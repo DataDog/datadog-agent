@@ -20,6 +20,7 @@ type InstallArgs struct {
 	ValuesYAML     pulumi.AssetOrArchiveArrayInput
 	Values         pulumi.MapInput
 	Version        pulumi.StringPtrInput
+	Devel          pulumi.BoolPtrInput
 	TimeoutSeconds int // Optional timeout in seconds (default: 300)
 }
 
@@ -37,6 +38,7 @@ func NewInstallation(e config.Env, args InstallArgs, opts ...pulumi.ResourceOpti
 		ValueYamlFiles:   args.ValuesYAML,
 		Values:           args.Values,
 		Version:          args.Version,
+		Devel:            args.Devel,
 	}
 	// Set timeout if specified, otherwise use default
 	if args.TimeoutSeconds > 0 {

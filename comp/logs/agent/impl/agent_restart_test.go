@@ -157,6 +157,21 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 	agent.setupAgent()
 	suite.T().Cleanup(func() {
 		_ = agent.stop(context.TODO())
+
+		// Guarantee the auditor's background flush goroutine is stopped before
+		// the test's TempDir is removed. Tests that call partialStop() without a
+		// subsequent restart leave the transient components (launchers, pipeline
+		// provider, destinationsCtx) already stopped; the cleanup stop() above
+		// then stops them a second time. A non-idempotent component Stop() (e.g.
+		// the integration launcher's unbuffered stop channel) blocks the
+		// SerialStopper before it reaches the auditor, so stop() force-closes and
+		// returns with the auditor still running. The auditor's 1s flush ticker
+		// then keeps recreating registry.json under run_path (== t.TempDir()),
+		// racing with the testing package's TempDir RemoveAll and producing flaky
+		// "directory not empty" cleanup failures. Stopping the auditor explicitly
+		// is idempotent (Stop guards its channels) and removes the only writer
+		// that races with TempDir removal.
+		agent.auditor.Stop()
 	})
 
 	return agent, sources, services
@@ -164,6 +179,9 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 
 func (suite *RestartTestSuite) TestAgentStartRestart() {
 	env.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
+	suite.configOverrides["logs_config.tag_filters"] = map[string]interface{}{
+		"exclude": []string{"team:*"},
+	}
 
 	// start on tcp
 	l := mock.NewMockLogsIntake(suite.T())
@@ -189,6 +207,7 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	originalSources := agent.sources
 	originalAuditor := agent.auditor
 	originalSchedulers := agent.schedulers
+	originalTagFilters := agent.tagFilters
 
 	agent.startPipeline()
 	sources.AddSource(suite.source)
@@ -210,6 +229,8 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
+	originalSourceFilter, resolved := suite.source.TagFilter()
+	suite.True(resolved)
 
 	// Set up HTTP test server for restart
 	cfg := configmock.New(suite.T())
@@ -245,6 +266,10 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	suite.Same(originalSources, agent.sources)
 	suite.Same(originalAuditor, agent.auditor)
 	suite.Same(originalSchedulers, agent.schedulers)
+	suite.Same(originalTagFilters, agent.tagFilters, "transport restarts must reuse the compiled global tag filter")
+	restartedSourceFilter, resolved := suite.source.TagFilter()
+	suite.True(resolved)
+	suite.Same(originalSourceFilter, restartedSourceFilter, "transport restarts must preserve source filter caches")
 
 	// Verify transient components were recreated
 	suite.NotNil(agent.destinationsCtx)
@@ -315,6 +340,10 @@ func (suite *RestartTestSuite) TestRestart_FlushesAuditor() {
 }
 
 func (suite *RestartTestSuite) TestPartialStop_StopsTransientComponentsOnly() {
+	// This test doesn't call startPipeline, so the components can't stop
+	// gracefully; use a zero grace period to avoid waiting.
+	suite.configOverrides["logs_config.stop_grace_period"] = 0
+
 	l := mock.NewMockLogsIntake(suite.T())
 	defer l.Close()
 	endpoint := tcp.AddrToEndPoint(l.Addr())
@@ -470,7 +499,7 @@ func (suite *RestartTestSuite) TestRebuildTransientComponents_PreservesPersisten
 	suite.NoError(err)
 
 	// Execute rebuild - use the agent's existing wmeta and integrationsLogs
-	agent.rebuildTransientComponents(processingRules, agent.wmeta, agent.integrationsLogs, *fingerprintConfig)
+	agent.rebuildTransientComponents(processingRules, nil, agent.wmeta, agent.integrationsLogs, *fingerprintConfig)
 
 	// Persistent components preserved
 	suite.Same(originalSources, agent.sources)

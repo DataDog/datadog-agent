@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package usm
 
@@ -90,7 +90,7 @@ func (s *HTTPCommonTestSuite) TestHTTPStats() {
 }
 
 func (s *HTTPCommonTestSuite) TestHTTPMonitorIntegrationWithResponseBody() {
-	flake.MarkOnJobName(s.T(), "ubuntu_25.10")
+	flake.MarkOnJobName(s.T(), "ubuntu_25.10", "ubuntu_26.04")
 	runHTTPMonitorIntegrationWithResponseBodyTest(s.T(), newLinuxCommonTestParams(s.T()))
 }
 

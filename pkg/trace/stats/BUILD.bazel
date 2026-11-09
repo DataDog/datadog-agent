@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "stats",
@@ -20,6 +21,7 @@ go_library(
         "//pkg/trace/log",
         "//pkg/trace/semantics",
         "//pkg/trace/traceutil",
+        "//pkg/trace/traceutil/normalize",
         "//pkg/trace/version",
         "//pkg/trace/watchdog",
         "@com_github_datadog_datadog_go_v5//statsd",
@@ -33,17 +35,17 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "stats_test",
     srcs = [
         "aggregation_test.go",
         "client_stats_aggregator_test.go",
         "concentrator_test.go",
+        "span_concentrator_test.go",
         "statsraw_test.go",
         "weight_test.go",
     ],
     embed = [":stats"],
-    gotags = ["test"],
     deps = [
         "//pkg/proto/pbgo/trace",
         "//pkg/proto/pbgo/trace/idx",
@@ -53,6 +55,7 @@ go_test(
         "//pkg/trace/traceutil",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_datadog_sketches_go//ddsketch",
+        "@com_github_datadog_sketches_go//ddsketch/mapping",
         "@com_github_datadog_sketches_go//ddsketch/pb/sketchpb",
         "@com_github_google_gofuzz//:gofuzz",
         "@com_github_stretchr_testify//assert",

@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Release the containerd view snapshot and lease taken for a container image
+    SBOM scan even when the scan is cancelled or times out. The release ran on
+    the scan's own context, so a scan that hit its deadline left the snapshot
+    behind, and on a lazy snapshotter that snapshot holds the layer it
+    materialised.

@@ -32,12 +32,54 @@ const (
 	KubeAppPartOfLabelKey = "app.kubernetes.io/part-of"
 	// KubeAppManagedByLabelKey is the label key of the tool being used to manage the operation of an application
 	KubeAppManagedByLabelKey = "app.kubernetes.io/managed-by"
+	// DynamoGraphDeploymentNameLabelKey is the Dynamo operator's label for the owning graph deployment
+	DynamoGraphDeploymentNameLabelKey = "nvidia.com/dynamo-graph-deployment-name"
+	// DynamoComponentTypeLabelKey is the Dynamo operator's label for the component role
+	DynamoComponentTypeLabelKey = "nvidia.com/dynamo-component-type"
+	// DynamoSubComponentTypeLabelKey is the Dynamo operator's label for the specific worker role
+	DynamoSubComponentTypeLabelKey = "nvidia.com/dynamo-sub-component-type"
+	// KubeAIGroupName is the API group used by KubeAI resources.
+	KubeAIGroupName = "kubeai.org"
+	// KubeAIModelKind is the kind of the KubeAI resource that owns model pods.
+	KubeAIModelKind = "Model"
+	// RayClusterLabelKey is the KubeRay label for the owning RayCluster.
+	RayClusterLabelKey = "ray.io/cluster"
+	// RayServeLabelKey marks RayService pods; its value controls serving traffic.
+	RayServeLabelKey = "ray.io/serve"
+	// RayNodeTypeLabelKey is the KubeRay label for the head or worker node type.
+	RayNodeTypeLabelKey = "ray.io/node-type"
+	// RayNodeGroupLabelKey is the KubeRay label for the worker group.
+	RayNodeGroupLabelKey = "ray.io/group"
 	// KueueQueueNameLabelKey is the queue selection label key used by Kueue-managed workloads
 	KueueQueueNameLabelKey = "kueue.x-k8s.io/queue-name"
 	// KueueLocalQueueNameLabelKey is the pod label key set by Kueue with the admitted local queue name
 	KueueLocalQueueNameLabelKey = "kueue.x-k8s.io/local-queue-name"
 	// KueueClusterQueueNameLabelKey is the pod label key set by Kueue with the admitted cluster queue name
 	KueueClusterQueueNameLabelKey = "kueue.x-k8s.io/cluster-queue-name"
+	// KueueGroupName is the API group used by Kueue resources
+	KueueGroupName = "kueue.x-k8s.io"
+	// KueueLocalQueueResourceName is the plural resource name for Kueue LocalQueue objects
+	KueueLocalQueueResourceName = "localqueues"
+	// KueueClusterQueueResourceName is the plural resource name for Kueue ClusterQueue objects
+	KueueClusterQueueResourceName = "clusterqueues"
+	// KueueResourceFlavorResourceName is the plural resource name for Kueue ResourceFlavor objects
+	KueueResourceFlavorResourceName = "resourceflavors"
+	// KueueWorkloadResourceName is the plural resource name for Kueue Workload objects
+	KueueWorkloadResourceName = "workloads"
+	// KueueWorkloadAnnotationKey is the pod annotation key set by Kueue with the admitted Workload name
+	KueueWorkloadAnnotationKey = "kueue.x-k8s.io/workload"
+	// KueuePodGroupNameLabelKey is the pod label key used by Kueue to group plain Pods into one Workload
+	KueuePodGroupNameLabelKey = "kueue.x-k8s.io/pod-group-name"
+	// KueuePodSetLabelKey is the pod label key set by Kueue with the Workload pod set name
+	KueuePodSetLabelKey = "kueue.x-k8s.io/podset"
+	// KAIGroupName is the API group used by KAI Scheduler resources
+	KAIGroupName = "scheduling.run.ai"
+	// KAIPodGroupResourceName is the plural resource name for KAI PodGroup objects
+	KAIPodGroupResourceName = "podgroups"
+	// KAIPodGroupAnnotationKey is the pod annotation key set by KAI Scheduler with the PodGroup name
+	KAIPodGroupAnnotationKey = "pod-group-name"
+	// KAIQueueLabelKey is the label key used to assign a workload to a KAI Scheduler queue
+	KAIQueueLabelKey = "kai.scheduler/queue"
 	// ArgoRolloutLabelKey is the label key that is present when the resource is managed by Argo Rollouts
 	ArgoRolloutLabelKey = "rollouts-pod-template-hash"
 
@@ -84,6 +126,10 @@ const (
 	CronJobKind = "CronJob"
 	// ServiceKind represents the ServiceKind object kind
 	ServiceKind = "Service"
+	// ConfigMapKind represents the ConfigMap object kind
+	ConfigMapKind = "ConfigMap"
+	// SecretKind represents the Secret object kind
+	SecretKind = "Secret"
 	// NamespaceKind represents the NamespaceKind object kind
 	NamespaceKind = "Namespace"
 	// ClusterRoleKind represents the ClusterRole object kind
@@ -92,6 +138,14 @@ const (
 	ClusterRoleBindingKind = "ClusterRoleBinding"
 	// CustomResourceDefinitionKind represents the CustomResourceDefinition object kind
 	CustomResourceDefinitionKind = "CustomResourceDefinition"
+	// KueueLocalQueueKind represents the Kueue LocalQueue object kind
+	KueueLocalQueueKind = "LocalQueue"
+	// KueueClusterQueueKind represents the Kueue ClusterQueue object kind
+	KueueClusterQueueKind = "ClusterQueue"
+	// KueueResourceFlavorKind represents the Kueue ResourceFlavor object kind
+	KueueResourceFlavorKind = "ResourceFlavor"
+	// KueueWorkloadKind represents the Kueue Workload object kind
+	KueueWorkloadKind = "Workload"
 	// HorizontalPodAutoscalerKind represents the HorizontalPodAutoscaler object kind
 	HorizontalPodAutoscalerKind = "HorizontalPodAutoscaler"
 	// IngressKind represents the Ingress object kind
@@ -122,6 +176,8 @@ const (
 	RolloutAPIVersion = "argoproj.io/v1alpha1"
 	// RolloutKind represents the Argo Rollout object kind
 	RolloutKind = "Rollout"
+	// StrimziPodSetKind represents the Strimzi PodSet object kind
+	StrimziPodSetKind = "StrimziPodSet"
 
 	// CriContainerNamespaceLabel is the label set on containers by runtimes with Pod Namespace
 	CriContainerNamespaceLabel = "io.kubernetes.pod.namespace"

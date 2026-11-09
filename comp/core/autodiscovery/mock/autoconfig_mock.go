@@ -19,7 +19,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
-	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	hpnoopimpl "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -61,7 +61,7 @@ func NewMockComponent(deps MockRequires) MockProvides {
 	ac := autodiscoveryimpl.NewAutoConfigFromDeps(
 		deps.Params.Scheduler, deps.Secrets, deps.WMeta, deps.TaggerComp,
 		deps.LogsComp, deps.Telemetry, deps.FilterComp,
-		option.None[healthplatformdef.Component](),
+		hpnoopimpl.NewNoopComponent(),
 	)
 	return MockProvides{Comp: ac}
 }

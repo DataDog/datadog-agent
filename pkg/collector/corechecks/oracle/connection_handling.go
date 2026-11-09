@@ -55,22 +55,18 @@ func (c *Check) Connect() (*sqlx.DB, error) {
 			sqlx.BindDriver("oracle", sqlx.NAMED)
 		}
 	}
-	if oracleDriver == common.Godror && c.config.InstanceConfig.OracleClientLibDir != "" {
-		connStr = fmt.Sprintf(`%s libDir="%s"`, connStr, c.config.InstanceConfig.OracleClientLibDir)
-	}
-
 	c.driver = oracleDriver
 
 	log.Infof("%s driver: %s", c.logPrompt, oracleDriver)
 
 	db, err := sqlx.Open(oracleDriver, connStr)
 	if err != nil {
-		_, err := handleRefusedConnection(c, db, err)
+		closeDatabase(c, db)
 		return nil, fmt.Errorf("failed to connect to oracle instance: %w", err)
 	}
 	err = db.Ping()
 	if err != nil {
-		_, err := handleRefusedConnection(c, db, err)
+		closeDatabase(c, db)
 		return nil, fmt.Errorf("failed to ping oracle instance: %w", err)
 	}
 

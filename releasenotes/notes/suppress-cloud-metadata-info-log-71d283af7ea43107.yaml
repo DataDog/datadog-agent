@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Reduce log noise in on-premises environments by changing the ``could not get network metadata``
+    message from INFO to DEBUG level. In environments where cloud provider metadata is disabled by
+    configuration, this message was emitted at every metadata collection cycle (every 5-30 minutes),
+    causing unnecessary log volume. The message is still available at DEBUG level for diagnostic purposes.

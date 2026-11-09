@@ -13,7 +13,6 @@ import (
 	cmdcoverage "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/coverage"
 	cmddebug "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/debug"
 	cmdebpf "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/ebpf"
-	cmdmodrestart "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/modrestart"
 	cmdrun "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/run"
 	cmdruntime "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/runtime"
 	cmdusm "github.com/DataDog/datadog-agent/cmd/system-probe/subcommands/usm"
@@ -26,7 +25,6 @@ func SysprobeSubcommands() []command.SubcommandFactory {
 	return []command.SubcommandFactory{
 		cmdrun.Commands,
 		cmdversion.Commands,
-		cmdmodrestart.Commands,
 		cmddebug.Commands,
 		cmdconfig.Commands,
 		cmdruntime.Commands,

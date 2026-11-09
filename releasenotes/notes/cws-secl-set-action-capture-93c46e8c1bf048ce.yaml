@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    CWS ``set`` actions accept a new ``capture`` field, a regular expression with a
+    single capture group that is applied to the value of ``field`` to extract part of
+    it. This makes it possible to lift an identifier embedded in an event field, such
+    as a command id inside a file path or an IAM role inside an IMDS url, and store it
+    as a scoped variable rather than storing the whole field value. ``capture`` can
+    only be used together with ``field``, and only on fields holding a single string.
+    A value that does not match the expression leaves the variable untouched.

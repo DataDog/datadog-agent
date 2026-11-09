@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    The Agent's embedded Python on AIX has been upgraded from 3.13.15 to
+    3.13.17, with a patch that removes an upstream importlib change that
+    could make Python checks fail to load at startup with ``_DeadlockError``.

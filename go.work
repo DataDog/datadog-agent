@@ -1,19 +1,23 @@
-go 1.26.4
+go 1.26.10
 
 // Disable new post-quantum key exchange mechanism X25519MLKEM768
 // See https://github.com/DataDog/datadog-agent/issues/34323 for historical context.
 // This should be revisited for go 1.25.x
+// Keep in sync with _GODEBUG_DEFAULT in bazel/rules/go/go_binary.bzl.
 godebug tlsmlkem=0
 
 use (
 	.
+	cmd/agent/macos
 	comp/anomalydetection/observer/def
 	comp/anomalydetection/recorder/def
+	comp/anomalydetection/severityevents/def
 	comp/api/api/def
 	comp/core/agenttelemetry/def
 	comp/core/agenttelemetry/fx
 	comp/core/agenttelemetry/impl
 	comp/core/config
+	comp/core/configstreamconsumer/def
 	comp/core/configsync
 	comp/core/delegatedauth
 	comp/core/delegatedauth/api/cloudauth/aws
@@ -31,6 +35,8 @@ use (
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
+	comp/core/schema/def
+	comp/core/schema/noop-impl
 	comp/core/secrets/def
 	comp/core/secrets/fx
 	comp/core/secrets/impl
@@ -67,6 +73,8 @@ use (
 	comp/otelcol/ddprofilingextension/impl
 	comp/otelcol/logsagentpipeline
 	comp/otelcol/logsagentpipeline/logsagentpipelineimpl
+	comp/otelcol/otlp/components/connector/datadogconnector
+	comp/otelcol/otlp/components/datadogconfig
 	comp/otelcol/otlp/components/exporter/datadogexporter
 	comp/otelcol/otlp/components/exporter/logsagentexporter
 	comp/otelcol/otlp/components/exporter/serializerexporter
@@ -81,8 +89,8 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
-	internal/qbranch/anomalydetection-scorer
-	internal/qbranch/anomalydetection-testbench
+	internal/anomalydetection/scorer
+	internal/anomalydetection/testbench
 	internal/tools
 	internal/tools/gotest-custom
 	internal/tools/independent-lint
@@ -93,7 +101,6 @@ use (
 	pkg/api
 	pkg/collector/check/defaults
 	pkg/config/basic
-	pkg/config/buildschema
 	pkg/config/create
 	pkg/config/env
 	pkg/config/helper
@@ -101,19 +108,17 @@ use (
 	pkg/config/model
 	pkg/config/nodetreemodel
 	pkg/config/remote
-	pkg/config/render_config
 	pkg/config/schema
 	pkg/config/setup
+	pkg/config/setup/constants
+	pkg/config/setup/generatedsettings_local
 	pkg/config/structure
-	pkg/config/teeconfig
 	pkg/config/utils
-	pkg/config/viperconfig
 	pkg/discovery/tracermetadata/model
 	pkg/errors
 	pkg/fips
 	pkg/fleet/installer
 	pkg/gohai
-	pkg/logs/diagnostic
 	pkg/logs/message
 	pkg/logs/sources
 	pkg/logs/status/statusinterface
@@ -137,6 +142,8 @@ use (
 	pkg/process/util/api
 	pkg/proto
 	pkg/remoteconfig/state
+	pkg/remoteflags
+	pkg/rshell
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer
@@ -190,6 +197,7 @@ use (
 	pkg/util/uuid
 	pkg/util/winutil
 	pkg/version
+	pkg/zstd
 	test/e2e-framework
 	test/fakeintake
 	test/new-e2e

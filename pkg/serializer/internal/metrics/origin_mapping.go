@@ -30,7 +30,10 @@ func metricSourceToOriginProduct(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureAppServiceRuntime,
 		metrics.MetricSourceGoogleCloudRunCustom,
 		metrics.MetricSourceGoogleCloudRunEnhanced,
-		metrics.MetricSourceGoogleCloudRunRuntime:
+		metrics.MetricSourceGoogleCloudRunRuntime,
+		metrics.MetricSourceAWSMicroVMCustom,
+		metrics.MetricSourceAWSMicroVMEnhanced,
+		metrics.MetricSourceAWSMicroVMRuntime:
 		return serieMetadataOriginOriginProductServerlessType
 	}
 	return serieMetadataOriginOriginProductAgentType
@@ -92,9 +95,12 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceNetwork,
 		metrics.MetricSourceSnmp,
 		metrics.MetricSourceCiscoSdwan,
+		metrics.MetricSourceCiscoCatalystCenter,
 		metrics.MetricSourceVersa,
 		metrics.MetricSourceWlan,
 		metrics.MetricSourceWindowsCertificateStore,
+		metrics.MetricSourceThermal,
+		metrics.MetricSourcePowerShell,
 		// Plugins and non-checks
 		metrics.MetricSourceCloudFoundry,
 		metrics.MetricSourceJenkins,
@@ -371,7 +377,14 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourcePinot,
 		metrics.MetricSourceDellPowerFlex,
 		metrics.MetricSourceHPEArubaEdgeConnect,
-		metrics.MetricSourceNiFi:
+		metrics.MetricSourceNiFi,
+		metrics.MetricSourceKueue,
+		metrics.MetricSourceExternalSecrets,
+		metrics.MetricSourceAmazonVpcCni,
+		metrics.MetricSourceRavendb,
+		metrics.MetricSourceSglang,
+		metrics.MetricSourcePanFirewall,
+		metrics.MetricSourceKaiScheduler:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
 		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
@@ -387,6 +400,10 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureContainerAppRuntime:
 		return 37
+	case metrics.MetricSourceAWSMicroVMCustom,
+		metrics.MetricSourceAWSMicroVMEnhanced,
+		metrics.MetricSourceAWSMicroVMRuntime:
+		return 90
 	default:
 		return 0
 	}
@@ -1055,6 +1072,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 398
 	case metrics.MetricSourceZenohRouter:
 		return 399
+	case metrics.MetricSourcePanFirewall:
+		return 410
 	case metrics.MetricSourceVllm:
 		return 412
 	case metrics.MetricSourceAwsNeuron:
@@ -1093,15 +1112,18 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 465
 	case metrics.MetricSourceAzureContainerAppCustom,
 		metrics.MetricSourceAzureAppServiceCustom,
-		metrics.MetricSourceGoogleCloudRunCustom:
+		metrics.MetricSourceGoogleCloudRunCustom,
+		metrics.MetricSourceAWSMicroVMCustom:
 		return 472
 	case metrics.MetricSourceAzureContainerAppEnhanced,
 		metrics.MetricSourceAzureAppServiceEnhanced,
-		metrics.MetricSourceGoogleCloudRunEnhanced:
+		metrics.MetricSourceGoogleCloudRunEnhanced,
+		metrics.MetricSourceAWSMicroVMEnhanced:
 		return 473
 	case metrics.MetricSourceAzureContainerAppRuntime,
 		metrics.MetricSourceAzureAppServiceRuntime,
-		metrics.MetricSourceGoogleCloudRunRuntime:
+		metrics.MetricSourceGoogleCloudRunRuntime,
+		metrics.MetricSourceAWSMicroVMRuntime:
 		return 474
 	case metrics.MetricSourceWlan:
 		return 475
@@ -1153,6 +1175,26 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 517
 	case metrics.MetricSourceVersa:
 		return 519
+	case metrics.MetricSourceOpenTelemetryCollectorPodmanReceiver:
+		return 521
+	case metrics.MetricSourceExternalSecrets:
+		return 525
+	case metrics.MetricSourceKueue:
+		return 526
+	case metrics.MetricSourceThermal:
+		return 527
+	case metrics.MetricSourceCiscoCatalystCenter:
+		return 528
+	case metrics.MetricSourcePowerShell:
+		return 530
+	case metrics.MetricSourceAmazonVpcCni:
+		return 532
+	case metrics.MetricSourceRavendb:
+		return 533
+	case metrics.MetricSourceSglang:
+		return 534
+	case metrics.MetricSourceKaiScheduler:
+		return 536
 	default:
 		return 0
 	}

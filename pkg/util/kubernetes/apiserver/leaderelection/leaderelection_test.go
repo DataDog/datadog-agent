@@ -87,6 +87,22 @@ func TestSuite(t *testing.T) {
 	suite.Run(t, s)
 }
 
+func TestWaitForLeaderElectionWithoutStart(t *testing.T) {
+	le := &LeaderEngine{}
+
+	done := make(chan struct{})
+	go func() {
+		le.WaitForLeaderElection()
+		close(done)
+	}()
+
+	select {
+	case <-done:
+	case <-time.After(time.Second):
+		require.Fail(t, "waiting for leader election that was never started timed out")
+	}
+}
+
 // TestNewLeaseAcquiring only tests the proper creation of the lock,
 // the acquisition of the leadership and that the ConfigMap/Lease contains is properly updated.
 // The leadership transition is tested as part of an end to end test.
@@ -179,26 +195,43 @@ func TestNewLeaseAcquiring(t *testing.T) {
 func TestSubscribe(t *testing.T) {
 	const leaseName = "datadog-leader-election"
 	for nb, tc := range []struct {
-		name         string
-		lockType     string
-		getTokenFunc func(client *fake.Clientset) error
+		name           string
+		lockType       string
+		getTokenFunc   func(client *fake.Clientset) error
+		assertReleased func(t *testing.T, client *fake.Clientset)
 	}{
 		{
-			"subscribe_config_map",
-			cmLock.ConfigMapsResourceLock,
-			func(client *fake.Clientset) error {
+			name:     "subscribe_config_map",
+			lockType: cmLock.ConfigMapsResourceLock,
+			getTokenFunc: func(client *fake.Clientset) error {
 				_, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 				t.Logf("2 %v", err)
 				return err
 			},
+			assertReleased: func(t *testing.T, client *fake.Clientset) {
+				cm, err := client.CoreV1().ConfigMaps("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
+				require.NoError(t, err)
+				var record rl.LeaderElectionRecord
+				require.NoError(t, json.Unmarshal([]byte(cm.Annotations[rl.LeaderElectionRecordAnnotationKey]), &record))
+				require.Empty(t, record.HolderIdentity)
+				require.Equal(t, 1, record.LeaseDurationSeconds)
+			},
 		},
 		{
-			"subscribe_lease",
-			rl.LeasesResourceLock,
-			func(client *fake.Clientset) error {
+			name:     "subscribe_lease",
+			lockType: rl.LeasesResourceLock,
+			getTokenFunc: func(client *fake.Clientset) error {
 				_, err := client.CoordinationV1().Leases("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
 				t.Logf("2 %v", err)
 				return err
+			},
+			assertReleased: func(t *testing.T, client *fake.Clientset) {
+				lease, err := client.CoordinationV1().Leases("default").Get(context.TODO(), leaseName, metav1.GetOptions{})
+				require.NoError(t, err)
+				require.NotNil(t, lease.Spec.HolderIdentity)
+				require.Empty(t, *lease.Spec.HolderIdentity)
+				require.NotNil(t, lease.Spec.LeaseDurationSeconds)
+				require.Equal(t, int32(1), *lease.Spec.LeaseDurationSeconds)
 			},
 		},
 	} {
@@ -264,6 +297,8 @@ func TestSubscribe(t *testing.T) {
 
 			// simulate leadership lease loss by cancelling leader election context
 			cancel()
+			le.WaitForLeaderElection()
+			tc.assertReleased(t, client)
 
 			counter1, counter2 = 0, 0
 			for {

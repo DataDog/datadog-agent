@@ -260,11 +260,13 @@ func TestEventHandleTracerTags(t *testing.T) {
 							"DD_ENV=env-from-envp",
 							"DD_VERSION=version-from-envp",
 						},
-						TracerMetadata: tracermetadata.TracerMetadata{
-							ServiceName:    "my-service",
-							ServiceEnv:     "my-env",
-							ServiceVersion: "my-version",
-							ProcessTags:    "entrypoint.name:my-entrypoint",
+						Tracer: model.Tracer{
+							Metadata: tracermetadata.TracerMetadata{
+								ServiceName:    "my-service",
+								ServiceEnv:     "my-env",
+								ServiceVersion: "my-version",
+								ProcessTags:    "entrypoint.name:my-entrypoint",
+							},
 						},
 					},
 				},
@@ -304,11 +306,13 @@ func TestEventHandleTracerTags(t *testing.T) {
 							"DD_ENV=my-env",
 							"DD_VERSION=my-version",
 						},
-						TracerMetadata: tracermetadata.TracerMetadata{
-							ServiceName:    "my-service",
-							ServiceEnv:     "my-env",
-							ServiceVersion: "my-version",
-							ProcessTags:    "entrypoint.name:my-entrypoint",
+						Tracer: model.Tracer{
+							Metadata: tracermetadata.TracerMetadata{
+								ServiceName:    "my-service",
+								ServiceEnv:     "my-env",
+								ServiceVersion: "my-version",
+								ProcessTags:    "entrypoint.name:my-entrypoint",
+							},
 						},
 					},
 				},

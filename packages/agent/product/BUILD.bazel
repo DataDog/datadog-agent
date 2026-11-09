@@ -12,7 +12,13 @@ load(
     "pkg_files",
     "pkg_mkdirs",
 )
-load("//packages/agent:defs.bzl", "ETC_DIR_SELECTOR")
+load("//bazel/rules/dd_packaging:agent_binary.bzl", "agent_binary_for_package")
+load("//packages/rules:agent_path.bzl", "ETC_DIR_SELECTOR", "etc_dir")
+
+_USE_RELATIVE_RPATHS = select({
+    "@platforms//os:macos": True,
+    "//conditions:default": False,
+})
 
 package(default_visibility = ["//packages:__subpackages__"])
 
@@ -22,7 +28,6 @@ package(default_visibility = ["//packages:__subpackages__"])
 pkg_filegroup(
     name = "all_files",
     srcs = [
-        # TODO: dependency "python3"
         # TODO: dependencies:all_files belongs here, but that adding it will essentially
         # mean all builds build dependencies. That would break the repackage workflow, so
         # we'll do that in April.
@@ -31,47 +36,54 @@ pkg_filegroup(
         ":example_config",
         "//cmd/agent/dist:all_files",
         "//cmd/agent/dist:all_python_files",
-        "//rtloader:all_files",
-        ":dda_built_agent_binary",
+        ":agent_binary",
 
         # TODO: sysprobe - windows
-        # TODO: systray - windows
-        # TODO: installer
-        "//cmd/loader:trace_loader",
-        ":dda_built_trace_agent_binary",
-        ":dda_built_process_agent_binary",
-        ":dda_built_privateactionrunner_binary",
+        ":trace_agent_binary",
+        ":process_agent_binary",
+        ":privateactionrunner_binary",
+        ":secret_generic_connector_binary",
+        ":security_agent_binary",
 
         # TODO: system-probe
-        # TODO: system-probe - selinux policy
         # TODO: system-probe - eBPF
 
         # TODO: //pkg/discovery/module/rust
-        # TODO: security-agent
-        # TODO: cws-instrumentation
-        # TODO: secret-generic-connector
         # TODO: cacerts
         # TODO: dependency 'datadog-agent-integrations-py3'
     ] + select({
         "//packages/agent:linux_default": [
+            ":cws_instrumentation_binary",
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
+            "//pkg/privateactionrunner/par-control:all_files",
+            "//pkg/privateactionrunner/rshell:all_files_linux",
             "//pkg/procmgr/rust:all_files_linux",
         ],
         "//packages/agent:linux_fips": [
+            ":cws_instrumentation_binary",
+            ":installer_binary",
             "//pkg/discovery/module/rust:all_files",
             "//pkg/procmgr/rust:all_files_linux",
         ],
-        "//packages/agent:linux_heroku": [],
-        "//conditions:default": [
-        ],
+        "//conditions:default": [],
     }) + select({
+        "@platforms//os:linux": [
+            "//cmd/loader:trace_loader_all_files",
+        ],
         "@platforms//os:macos": [
+            "//cmd/loader:trace_loader_all_files",
             "//packages/macos/app:all_files",
+            "//pkg/procmgr/rust:all_files_macos",
             # TODO: systray
         ],
         "@platforms//os:windows": [
+            ":installer_binary",
+            ":systray_binary",
             "//packages/windows:all_files",
+            "//pkg/privateactionrunner/par-control:all_files",
             "//pkg/procmgr/rust:all_files_windows",
+            "//rtloader:all_files",
         ],
         "//conditions:default": [],
     }),
@@ -100,16 +112,19 @@ pkg_install(
     destdir_flag = "//:install_dir",
 )
 
-# Dirs that should exist with particular permissions.
+# Dirs that should exist with particular permissions. These are relative to
+# the install dir which is normally /opt/datadog-agent
+# Note that the the system directory (etc) is included as well. During
+# the migration from omnibus, we maintain the practice of installing system
+# configuration to /opt/datadog/etc/... and then moving the files to /etc
+# later in the packaging process. We can eliminate that hack when we move
+# to pkg_{deb,rpm} as the actual packager.
 pkg_mkdirs(
     name = "dirs",
     attributes = pkg_attributes(mode = "755"),
     dirs = [
         "bin",
-    ] + select({
-        "@platforms//os:macos": ["etc"],
-        "//conditions:default": ["etc/datadog-agent"],
-    }) + select({
+    ] + select({k: [v] for k, v in ETC_DIR_SELECTOR.items()}) + select({
         "@platforms//os:windows": [],
         "//conditions:default": [
             "run",
@@ -121,49 +136,142 @@ pkg_mkdirs(
 pkg_files(
     name = "example_config",
     srcs = [
-        "//pkg/config:agent_config",
-    ],
-    prefix = select(ETC_DIR_SELECTOR),
-    renames = {
-        "//pkg/config:agent_config": "datadog.yaml.example",
-    },
+        "//pkg/config:security_agent_example_config_src",
+    ] + select({
+        "@platforms//os:linux": ["//pkg/config:application_monitoring_example_config_src"],
+        "//conditions:default": [],
+    }),
+    prefix = etc_dir(),
 )
 
-pkg_files(
-    name = "dda_built_agent_binary",
-    srcs = [
-        "@agent_binary//:agent",
-    ],
-    attributes = pkg_attributes(mode = "755"),
+# Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
+# which stages relative to install_dir). Add more conf_dir-relative files here as they
+# migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
+pkg_filegroup(
+    name = "conf_dir_files",
+    srcs = select({
+        "@platforms//os:linux": [
+            "//pkg/collector/sharedlibrary/rustchecks:enabled_checks",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# Temporary during migration. Only called from omnibus scripts.
+pkg_install(
+    name = "install_conf_dir_files",
+    srcs = [":conf_dir_files"],
+)
+
+agent_binary_for_package(
+    name = "agent_binary",
+    patch_rpath = True,
     prefix = "bin/agent",
+    target = "//cmd/agent",
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
 )
 
-pkg_files(
-    name = "dda_built_process_agent_binary",
-    srcs = [
-        "@process_agent_binary//:process_agent",
-    ],
-    attributes = pkg_attributes(mode = "755"),
+agent_binary_for_package(
+    name = "process_agent_binary",
+    patch_rpath = True,
     prefix = select({
         "@platforms//os:windows": "bin/agent",
         "//conditions:default": "embedded/bin",
     }),
+    target = "//cmd/process-agent",
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
+agent_binary_for_package(
+    name = "privateactionrunner_binary",
+    prefix = "embedded/bin",
+    target = "//cmd/privateactionrunner",
+)
+
+agent_binary_for_package(
+    name = "trace_agent_binary",
+    prefix = "embedded/bin",
+    target = "//cmd/trace-agent",
+)
+
+agent_binary_for_package(
+    name = "secret_generic_connector_binary",
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    target = "//cmd/secret-generic-connector",
+)
+
+agent_binary_for_package(
+    name = "security_agent_binary",
+    patch_rpath = True,
+    prefix = select({
+        "@platforms//os:windows": "bin/agent",
+        "//conditions:default": "embedded/bin",
+    }),
+    target = "//cmd/security-agent",
+    use_relative_rpaths = _USE_RELATIVE_RPATHS,
+)
+
+agent_binary_for_package(
+    name = "cws_instrumentation_binary",
+    prefix = "embedded/bin",
+    target = "//cmd/cws-instrumentation",
+)
+
+agent_binary_for_package(
+    name = "systray_binary",
+    prefix = "bin/agent",
+    target = "//cmd/systray",
+)
+
+agent_binary_for_package(
+    name = "installer_binary",
+    prefix = select({
+        "@platforms//os:windows": "",
+        "//conditions:default": "embedded/bin",
+    }),
+    target = "//cmd/installer",
 )
 
 pkg_files(
-    name = "dda_built_privateactionrunner_binary",
-    srcs = [
-        "@privateactionrunner_binary//:privateactionrunner",
-    ],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
+    name = "system_probe_selinux_policy_files",
+    srcs = select({
+        "@platforms//os:linux": ["//cmd/agent/selinux:system_probe_policy"],
+        "//conditions:default": [],
+    }),
+    prefix = "selinux",
 )
 
 pkg_files(
-    name = "dda_built_trace_agent_binary",
+    name = "system_probe_config",
     srcs = [
-        "@trace_agent_binary//:trace_agent",
+        "//pkg/config:system_probe_config",
     ],
-    attributes = pkg_attributes(mode = "755"),
-    prefix = "embedded/bin",
+    renames = {
+        "//pkg/config:system_probe_config": "system-probe.yaml.example",
+    },
+)
+
+# Files that get staged directly under conf_dir (as opposed to :all_install_dir_files,
+# which stages relative to install_dir). Add more conf_dir-relative files here as they
+# migrate off Omnibus (e.g. bin/agent/dist/system-probe.yaml).
+pkg_filegroup(
+    name = "system_probe_files",
+    srcs = [
+        ":system_probe_config",
+    ] + select({
+        "//packages/agent:distribution_suse": [],
+        "//conditions:default": [
+            ":system_probe_selinux_policy_files",
+        ],
+    }),
+)
+
+# Temporary during omnibus migration.
+pkg_install(
+    name = "install_system_probe",
+    srcs = [":system_probe_files"],
+    visibility = ["//visibility:public"],
 )

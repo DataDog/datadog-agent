@@ -68,7 +68,7 @@ func (p *PatternTable) insert(context *messageContext) int {
 	p.index++
 	foundIdx := -1
 	for i, r := range p.table {
-		if IsMatch(r.tokens, context.tokens, p.matchThreshold) {
+		if IsMatch(r.tokens, context.tokens.Borrow(), p.matchThreshold) {
 			r.count++
 			r.label = context.label
 			r.labelAssignedBy = context.labelAssignedBy
@@ -91,8 +91,10 @@ func (p *PatternTable) insert(context *messageContext) int {
 		p.evictLRU()
 	}
 
+	// This row outlives the call and is read by the status command, so it must
+	// own its tokens (context.tokens is borrowed).
 	p.table = append(p.table, &row{
-		tokens:          context.tokens,
+		tokens:          context.tokens.Clone(),
 		label:           context.label,
 		labelAssignedBy: context.labelAssignedBy,
 		count:           1,
@@ -146,7 +148,7 @@ func (p *PatternTable) DumpTable() []DiagnosticRow {
 // due to pattern detection.
 func (p *PatternTable) ProcessAndContinue(context *messageContext) bool {
 
-	if context.tokens == nil {
+	if context.tokens.Empty() {
 		log.Error("Tokens are required to process patterns")
 		return true
 	}

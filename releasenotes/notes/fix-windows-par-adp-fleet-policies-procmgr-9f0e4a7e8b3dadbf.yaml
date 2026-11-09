@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    On Windows, stop baking ``DD_FLEET_POLICIES_DIR`` into **Private Action Runner** and **Agent Data Plane** ``processes.d`` definitions at install time. Those processes now resolve fleet policy location from the Windows registry via ``FleetConfigOverride``, so fleet policy updates are not blocked by a stale install-time path.

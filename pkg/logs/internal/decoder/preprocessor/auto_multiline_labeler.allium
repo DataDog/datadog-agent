@@ -1,0 +1,138 @@
+-- allium: 3
+-- auto_multiline_labeler.allium
+
+-- Scope: An auto-multiline labeller implementation that supplies
+--   the Labeler contract via a configurable heuristic chain. Used
+--   by log sources that enable automatic multi-line detection.
+-- Includes: The AutoMultilineLabeler entity, chain evaluation
+--   semantics (labelling chain with early termination, analytics
+--   chain always run), default label assignment, fulfilment of
+--   the Labeler contract at the AutoMultilineLabeling surface.
+-- Excludes:
+--   - Specific Heuristic implementations. Each heuristic in the
+--     chain is its own entity declared in its own spec module
+--     (json_detector.allium, timestamp_detector.allium, etc.) and
+--     declares fulfils Heuristic on its own surface.
+--   - The specific composition of chains for production deployments.
+--     The chains' contents are runtime configuration; this spec
+--     describes only the evaluation semantics that apply to any
+--     configured pair of chains.
+--   - Other Labeler implementations. A trivial passthrough labeller
+--     used by log sources that do not enable auto-multiline detection
+--     is documented separately.
+
+use "./labeler.allium" as labeler
+
+------------------------------------------------------------
+-- Entities
+------------------------------------------------------------
+
+entity AutoMultilineLabeler {
+    -- A configured auto-multiline labeller instance. Each log
+    -- source that enables auto-multiline detection has its own
+    -- AutoMultilineLabeler.
+    --
+    -- The labeller's two heuristic chains (one that may influence
+    -- the label, one for analytics side effects) are runtime
+    -- configuration supplied at construction; Allium does not
+    -- provide a typed way to express "ordered list of
+    -- contract-fulfilling entities" generically, so the chains are
+    -- not modelled as formal entity fields. See the
+    -- AutoMultilineLabeling surface's @guidance for chain
+    -- evaluation semantics.
+    source_id: String
+}
+
+------------------------------------------------------------
+-- Surfaces
+------------------------------------------------------------
+
+surface AutoMultilineLabeling {
+    -- The boundary between the preprocessor pipeline and an
+    -- AutoMultilineLabeler instance. The labeller is invoked once
+    -- per log line via the Labeler contract's label operation; this
+    -- surface supplies that operation by running the configured
+    -- heuristic chains and returning the resulting Label.
+
+    context labeller: AutoMultilineLabeler
+
+    contracts:
+        fulfils Labeler
+
+    @guarantee Determinism
+        -- The Labeler contract's Determinism invariant holds for
+        -- AutoMultilineLabeler: label() is a pure function of its
+        -- arguments because (a) HeuristicContext initialisation is
+        -- purely a function of the inputs, (b) each Heuristic in
+        -- the chains is deterministic per its own contract, and
+        -- (c) iteration order is fixed by the chain construction.
+
+    @guarantee Totality
+        -- The Labeler contract's Totality invariant holds for
+        -- AutoMultilineLabeler: label() always returns a Label
+        -- enum value because (a) context.label is initialised to
+        -- aggregate (a valid enum value), (b) every Heuristic must
+        -- leave context.label as an enum value per
+        -- labeler/Heuristic.LabelDomain, and (c) iteration over
+        -- the chains terminates in bounded time (the chains are
+        -- finite ordered lists).
+
+    @guidance
+        -- Caller precondition (Labeler contract's
+        -- IndicesAlignment invariant): the caller must pass
+        -- tokens and token_indices aligned by index (each
+        -- token_indices[i] is the start byte offset of
+        -- tokens[i] in content). AutoMultilineLabeler does NOT
+        -- validate alignment on input; behaviour is undefined
+        -- if the caller violates it. This appears here as a
+        -- precondition rather than a positive @guarantee
+        -- because there is no defined observable behaviour on
+        -- violation. The Preprocessor's tokenize step is the
+        -- caller in practice; see preprocessor.allium step 2a
+        -- (which produces aligned (tokens, indices) by
+        -- construction).
+        --
+        -- Chain evaluation procedure when label() is invoked on an
+        -- AutoMultilineLabeler instance with arguments (content,
+        -- tokens, token_indices):
+        --
+        -- 1. Construct a HeuristicContext value with:
+        --      raw_message       = content
+        --      tokens            = tokens
+        --      token_indices     = token_indices
+        --      label             = aggregate  (the default label)
+        --      label_assigned_by = "default"  (sentinel value
+        --                          identifying the default
+        --                          assignment, before any heuristic
+        --                          has claimed the label)
+        --
+        -- 2. Iterate the labelling_chain in order. For each
+        --    Heuristic h:
+        --      - Invoke h.process_and_continue(context).
+        --      - If the return value is false, iteration of the
+        --        labelling chain ends immediately. Subsequent
+        --        labelling heuristics are NOT invoked.
+        --      - If the return value is true, iteration proceeds to
+        --        the next Heuristic in the labelling chain.
+        --    When the labelling chain is exhausted (every heuristic
+        --    returned true), iteration ends naturally.
+        --
+        -- 3. Iterate the analytics_chain in order. For each
+        --    Heuristic h:
+        --      - Invoke h.process_and_continue(context).
+        --      - The return value is ignored; iteration always
+        --        proceeds to the next heuristic.
+        --    The full analytics chain is always invoked regardless
+        --    of how the labelling chain terminated.
+        --
+        -- 4. Return context.label as the result of label().
+        --
+        -- The labelling-vs-analytics distinction is one of caller
+        -- intent rather than enforced behaviour: any Heuristic
+        -- placed in the analytics_chain is contractually permitted
+        -- to modify context.label, and analytics heuristics that do
+        -- so must satisfy labeler/Heuristic's
+        -- LabelAssignedByConsistency invariant. By convention,
+        -- analytics heuristics inspect the context for telemetry
+        -- without mutating it.
+}

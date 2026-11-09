@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package loader supports setting up the eBPF program.
 package loader
@@ -30,6 +30,11 @@ type serializedProgram struct {
 	typeInfos []typeInfo
 
 	throttlerParams []throttlerParams
+	// sessionThrottlerIdx is the index, into throttlerParams, of the throttler
+	// that holds the whole session's snapshot budget. Coordinated sampling
+	// draws from it instead of the per-probe throttlers. Published to BPF as
+	// the session_throttler_idx constant.
+	sessionThrottlerIdx uint32
 
 	probeParams     []probeParams
 	bpfAttachPoints []BPFAttachPoint
@@ -185,6 +190,7 @@ func serializeProgram(
 	serialized.commonTypes = program.CommonTypes
 	serialized.isARM64 = program.IsARM64
 
+	serialized.sessionThrottlerIdx = program.SessionThrottlerIdx
 	serialized.throttlerParams = make([]throttlerParams, len(program.Throttlers))
 	for i, t := range program.Throttlers {
 		serialized.throttlerParams[i] = throttlerParams{
@@ -208,7 +214,11 @@ func serializeProgram(
 				Kind:                  int8(f.EventKind),
 				Probe_id:              f.ProbeID,
 				Top_pc_offset:         int8(f.TopPCOffset),
-				X__padding:            [2]int8{},
+				Ctx_loc_kind:          f.CtxLocKind,
+				Ctx_reg_tab:           f.CtxRegTab,
+				Ctx_reg_data:          f.CtxRegData,
+				Ctx_stack_offset:      f.CtxStackOffset,
+				X__padding:            [3]int8{},
 			})
 			serialized.bpfAttachPoints = append(serialized.bpfAttachPoints, BPFAttachPoint{
 				PC:     f.InjectionPC,
@@ -232,6 +242,13 @@ func fillSpecialTypeInfo(info *typeInfo, t ir.Type) {
 
 	switch t := t.(type) {
 	case *ir.GoContextImplementationType:
+		// An impl that is not a chain link carries no chain-walk layout; it is
+		// captured as an ordinary struct, so leave the context fields at their
+		// -1 defaults and don't floor byte_len (there is no INIT rewrite to
+		// reserve for).
+		if !t.HasChainData() {
+			break
+		}
 		info.Go_context_is_context = 1
 		info.Go_context_context_offset = t.ContextOffset
 		info.Go_context_key_offset = t.KeyOffset
@@ -240,9 +257,9 @@ func fillSpecialTypeInfo(info *typeInfo, t ir.Type) {
 		// preamble reserves at least 40 bytes of payload. The
 		// SM_OP_GO_CONTEXT_CHAIN_INIT opcode rewrites the just-serialized
 		// data item to type=TraceContextType and zeros 40 bytes of payload;
-		// without this floor, tiny context impls (emptyCtx, backgroundCtx,
-		// todoCtx) would have a payload reservation smaller than 40 bytes
-		// and the zero would overrun into the next data item's header.
+		// without this floor, a chain-walked impl smaller than 40 bytes would
+		// have a payload reservation too small for the zero, overrunning into
+		// the next data item's header.
 		if info.Byte_len < ir.TraceContextByteSize {
 			info.Byte_len = ir.TraceContextByteSize
 		}
@@ -254,11 +271,12 @@ func fillSpecialTypeInfo(info *typeInfo, t ir.Type) {
 		info.Ddtrace_span_context_offset = t.SpanContextOffset
 		info.Ddtrace_span_context_trace_id_offset = t.SpanContextTraceIDOffset
 	case *ir.PointerType:
-		// Pointer-to-context-impl types also use the chain-walk enqueue
-		// routine (compiler emits [INIT, HOP, RETURN] for
-		// *context.cancelCtx, etc.) — floor byte_len to 40 bytes for the
-		// same reason as struct impls.
-		if _, ok := t.Pointee.(*ir.GoContextImplementationType); ok {
+		// A pointer to a chain-walked context impl also uses the chain-walk
+		// enqueue routine (compiler emits [INIT, HOP, RETURN] for
+		// *context.cancelCtx, etc.) — floor byte_len to 40 bytes for the same
+		// reason as struct impls. A pointer to a non-chain-link impl is a plain
+		// pointer and needs no floor.
+		if impl, ok := t.Pointee.(*ir.GoContextImplementationType); ok && impl.HasChainData() {
 			if info.Byte_len < ir.TraceContextByteSize {
 				info.Byte_len = ir.TraceContextByteSize
 			}

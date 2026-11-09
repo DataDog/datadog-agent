@@ -109,6 +109,17 @@ var (
 	TlmLogLineSizes = telemetryimpl.GetCompatComponent().NewHistogram("logs", "log_line_sizes",
 		nil, "Distribution of post-framer log line sizes before line parsers/handlers are applied", []float64{32, 128, 512, 2048, 8192, 32768, 131072, 524288, 2097152})
 
+	// TlmSyslogMalformedBytes is the total number of malformed bytes seen by the syslog
+	// framer (bytes that do not form a valid RFC 6587 frame).
+	TlmSyslogMalformedBytes = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_malformed_bytes",
+		nil, "Total number of malformed bytes seen by the syslog framer")
+
+	// TlmSyslogOversizedFrames counts syslog frames split because they exceeded the
+	// content length limit. Syslog lines are conventionally far below the limit, so a
+	// non-zero value signals a severe upstream framing error.
+	TlmSyslogOversizedFrames = telemetryimpl.GetCompatComponent().NewCounter("logs", "syslog_oversized_frames",
+		nil, "Count of syslog frames split because they exceeded the content length limit")
+
 	// TlmRotationsNix tracks file rotations detected on *nix platforms by rotation type (new_file vs truncated)
 	TlmRotationsNix = telemetryimpl.GetCompatComponent().NewCounter("logs", "rotations_nix",
 		[]string{"rotation_type"}, "Count of file rotations detected on *nix platforms, tagged by rotation_type (new_file or truncated)")
@@ -148,26 +159,6 @@ var (
 	// Tags: status (success/failure/timeout), transport (tcp/http)
 	TlmRestartAttempt = telemetryimpl.GetCompatComponent().NewCounter("logs", "restart_attempt",
 		[]string{"status", "transport"}, "Count of logs agent restart attempts with status and target transport")
-
-	// COAT telemetry for auto multiline default-on impact analysis.
-	// These counters only increment for sources that rely on the default value of
-	// auto_multi_line_detection (i.e. sources where changing the default would alter behavior).
-
-	// TlmAutoMultilineTotalLines counts all lines processed by the detecting aggregator
-	// for sources on the default path. Used as the denominator for both X% and Y% metrics.
-	TlmAutoMultilineTotalLines = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_default_total_lines",
-		nil, "Total lines processed by the detecting aggregator for default-path sources")
-
-	// TlmAutoMultilineWouldCombine counts lines that would be merged into a preceding
-	// startGroup message if auto multiline were enabled by default.
-	TlmAutoMultilineWouldCombine = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_default_would_combine",
-		nil, "Lines that would be combined if auto multiline were the default")
-
-	// TlmAutoMultilineWouldTruncate counts raw input lines belonging to multiline
-	// groups that would exceed maxContentSize due to combining. Single lines that are
-	// individually oversized are excluded (they'd be truncated regardless).
-	TlmAutoMultilineWouldTruncate = telemetryimpl.GetCompatComponent().NewCounter("logs", "auto_multi_line_default_would_truncate",
-		nil, "Lines belonging to groups that would be truncated if auto multiline were the default")
 
 	// TlmListenerIPDenied counts connections or datagrams rejected by IP allow/deny filters.
 	// Tags: listener_type (tcp, udp)

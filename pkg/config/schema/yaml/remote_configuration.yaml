@@ -1,5 +1,5 @@
 $schema: https://json-schema.org/draft/2020-12/schema
-$id: https://raw.githubusercontent.com/DataDog/schema/main/agent/remote_configuration.yaml.schema.json
+$id: https://raw.githubusercontent.com/DataDog/datadog-agent/main/pkg/config/schema/yaml/remote_configuration.yaml
 node_type: section
 type: object
 visibility: public
@@ -19,9 +19,6 @@ properties:
       Set to true to enable Remote Configuration. Enabled by default.
       Note: On GovCloud (ddog-gov.com), Remote Configuration is disabled by default
       and must be explicitly enabled.
-    tags:
-    - template_section:Common
-    comment: Remote config
   agent_config:
     node_type: section
     type: object
@@ -37,30 +34,6 @@ properties:
           set apm_sampling.enabled but NOT agent_config.enabled, preserving the
           historical behavior where apm_sampling.enabled implicitly gated
           AGENT_CONFIG too.
-  agent_integrations:
-    node_type: section
-    type: object
-    properties:
-      allow_list:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
-      allow_log_config_scheduling:
-        node_type: setting
-        type: boolean
-        default: false
-      block_list:
-        node_type: setting
-        type: array
-        default: []
-        items:
-          type: string
-      enabled:
-        node_type: setting
-        type: boolean
-        default: false
   api_key:
     node_type: setting
     type: string
@@ -73,7 +46,6 @@ properties:
         node_type: setting
         type: boolean
         default: true
-        comment: Remote config products
   apm_semantics:
     node_type: section
     type: object
@@ -95,7 +67,7 @@ properties:
         default: 5
       ttl_seconds:
         node_type: setting
-        type: number
+        type: string
         default: 30s
         format: duration
         tags:
@@ -138,8 +110,8 @@ properties:
     default: ''
   max_backoff_interval:
     node_type: setting
-    type: number
-    default: 5m0s
+    type: string
+    default: 2m0s
     format: duration
     tags:
     - golang_type:duration
@@ -147,7 +119,6 @@ properties:
     node_type: setting
     type: boolean
     default: false
-    comment: Delegated authentication for remote_configuration
   no_tls_validation:
     node_type: setting
     type: boolean
@@ -159,7 +130,7 @@ properties:
     comment: Websocket echo test
   org_status_refresh_interval:
     node_type: setting
-    type: number
+    type: string
     default: 1m0s
     format: duration
     tags:
@@ -170,8 +141,6 @@ properties:
     default: ''
   refresh_interval:
     node_type: setting
-    type: number
+    type: string
     default: 0s
-    format: duration
-    tags:
-    - golang_type:duration
+comment: Delegated authentication for remote_configuration

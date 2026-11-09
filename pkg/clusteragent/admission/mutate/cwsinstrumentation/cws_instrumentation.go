@@ -16,6 +16,7 @@ import (
 	"fmt"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -30,12 +31,10 @@ import (
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/kubectl/pkg/cmd/util/podcmd"
-	"k8s.io/utils/strings/slices"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent/admission"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
-	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/admission/metrics"
@@ -416,11 +415,9 @@ func (ci *CWSInstrumentation) resolveNodeArchMeasured(nodeName string, apiClient
 func (ci *CWSInstrumentation) resolveNodeArch(nodeName string, apiClient kubernetes.Interface) (string, error) {
 	var arch string
 	// try with the wmeta
-	entityID := util.GenerateKubeMetadataEntityID("", "nodes", "", nodeName)
-
-	out, err := ci.wmeta.GetKubernetesMetadata(entityID)
+	out, err := ci.wmeta.GetKubernetesNode(nodeName)
 	if err == nil && out != nil {
-		arch = out.Labels["kubernetes.io/arch"]
+		arch = out.Status.Architecture
 	}
 
 	if out == nil {
@@ -521,7 +518,14 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationMeasured(exec *core
 	injected, err := ci.injectCWSCommandInstrumentation(exec, name, ns, userInfo, apiClient)
 	totalTime := time.Since(start).Seconds()
 	if totalTime > ci.timeout.Seconds() {
-		log.Warnf("Pod exec request to %s/%s (container %s) by %s timed out after %f seconds", ns, name, exec.Container, userInfo.Username, totalTime)
+		var container, username string
+		if exec != nil {
+			container = exec.Container
+		}
+		if userInfo != nil {
+			username = userInfo.Username
+		}
+		log.Warnf("Pod exec request to %s/%s (container %s) by %s timed out after %f seconds", ns, name, container, username, totalTime)
 	}
 	metrics.CWSResponseDuration.Observe(totalTime, ci.mode.String(), webhookForCommandsName, "total", strconv.FormatBool(err == nil), strconv.FormatBool(injected))
 	return injected, err
@@ -557,7 +561,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// is the namespace / container targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", exec.Container, "", workloadfilter.CreatePod("", "", ns, nil, nil))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", exec.Container, "", workloadfilter.CreatePod("", "", ns, nil, nil, nil))) {
 		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}
@@ -577,7 +581,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentation(exec *corev1.PodEx
 	}
 
 	// is the pod targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", "", pod.Annotations, nil))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", "", pod.Annotations, pod.Labels, nil))) {
 		metrics.CWSExecMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedByAnnotationReason)
 		return false, nil
 	}
@@ -721,7 +725,7 @@ func (ci *CWSInstrumentation) injectCWSCommandInstrumentationRemoteCopy(pod *cor
 }
 
 func (ci *CWSInstrumentation) injectForPod(request *admission.Request) *admiv1.AdmissionResponse {
-	return common.MutationResponse(mutatecommon.Mutate(request.Object, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
+	return common.MutationResponse(mutatecommon.Mutate(request.Context, request.Object, request.Namespace, ci.webhookForPods.Name(), ci.injectCWSPodInstrumentation, request.DynamicClient))
 }
 
 func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns string, _ dynamic.Interface) (bool, error) {
@@ -732,7 +736,7 @@ func (ci *CWSInstrumentation) injectCWSPodInstrumentation(pod *corev1.Pod, ns st
 	}
 
 	// is the pod targeted by the instrumentation ?
-	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", ns, pod.Annotations, nil))) {
+	if ci.filter.IsExcluded(workloadfilter.CreateContainer("", "", "", workloadfilter.CreatePod("", "", ns, pod.Annotations, pod.Labels, nil))) {
 		metrics.CWSPodMutationAttempts.Inc(ci.mode.String(), "false", cwsExcludedResourceReason)
 		return false, nil
 	}

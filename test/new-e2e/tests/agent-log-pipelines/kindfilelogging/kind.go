@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agent/helm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	kubeComp "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
@@ -46,7 +47,7 @@ type ProvisionerParams struct {
 func newProvisionerParams() *ProvisionerParams {
 	return &ProvisionerParams{
 		name:              defaultVMName,
-		vmOptions:         []ec2.VMOption{},
+		vmOptions:         []ec2.VMOption{ec2.WithOS(os.UbuntuKindDefault)},
 		agentOptions:      []kubernetesagentparams.Option{},
 		fakeintakeOptions: []fakeintake.Option{},
 		extraConfigParams: runner.ConfigMap{},
@@ -143,9 +144,9 @@ func KindRunFunc(ctx *pulumi.Context, env *environments.Kubernetes, params *Prov
 		return fmt.Errorf("ec2.NewVM: %w", err)
 	}
 
-	installEcrCredsHelperCmd, err := docker.InstallECRCredentialsHelper(awsEnv.Namer, host)
+	installEcrCredsHelperCmd, err := docker.SetupECRDockerAuth(awsEnv.Namer, host)
 	if err != nil {
-		return fmt.Errorf("docker.InstallECRCredentialsHelper: %w", err)
+		return fmt.Errorf("docker.SetupECRDockerAuth: %w", err)
 	}
 
 	kindCluster, err := kubeComp.NewKindCluster(&awsEnv, host, params.name, awsEnv.KubernetesVersion(), utils.PulumiDependsOn(installEcrCredsHelperCmd))

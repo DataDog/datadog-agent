@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:generate go run github.com/tinylib/msgp
+//go:generate go run github.com/tinylib/msgp -io=false
 //msgp:tag json
 
 // Package model parses the tracer-generated metadata
@@ -28,6 +28,21 @@ type TracerMetadata struct {
 	ProcessTags    string `json:"process_tags,omitempty"`
 	ContainerID    string `json:"container_id,omitempty"`
 	LogsCollected  bool   `json:"logs_collected,omitempty"`
+}
+
+// IsZero returns true if the TracerMetadata is empty (zero value).
+func (t TracerMetadata) IsZero() bool {
+	return t.SchemaVersion == 0 &&
+		t.RuntimeID == "" &&
+		t.TracerLanguage == "" &&
+		t.TracerVersion == "" &&
+		t.Hostname == "" &&
+		t.ServiceName == "" &&
+		t.ServiceEnv == "" &&
+		t.ServiceVersion == "" &&
+		t.ProcessTags == "" &&
+		t.ContainerID == "" &&
+		!t.LogsCollected
 }
 
 // ShouldSkipServiceTagKV checks if a tracer service tag key-value pair should be

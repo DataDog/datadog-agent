@@ -9,6 +9,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
+	"strings"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
@@ -45,10 +47,13 @@ func ExtractCheckNamesFromPodAnnotations(annotations map[string]string, adIdenti
 // ExtractTemplatesFromAnnotations looks for autodiscovery configurations in
 // a map of annotations and returns them if found. In order of priority, it
 // prefers annotations v2, v1, and legacy.
-func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]string, adIdentifier string) ([]integration.Config, []error) {
+//
+// hybridIgnoreADTags tells whether the caller overlays the non-legacy standalone
+// ignore_autodiscovery_tags value onto the parsed configuration.
+func ExtractTemplatesFromAnnotations(entityName string, annotations map[string]string, adIdentifier string, hybridIgnoreADTags bool) ([]integration.Config, []error) {
 	prefix := fmt.Sprintf(podAnnotationFormat, adIdentifier)
 	legacyPrefix := fmt.Sprintf(legacyPodAnnotationFormat, adIdentifier)
-	res, err := extractTemplatesFromMapWithV2(entityName, annotations, prefix, legacyPrefix)
+	res, err := extractTemplatesFromMapWithV2(entityName, annotations, prefix, legacyPrefix, hybridIgnoreADTags)
 	return res, err
 }
 
@@ -129,5 +134,8 @@ func parseChecksJSON(adIdentifier string, checksJSON string) ([]integration.Conf
 		checks = append(checks, c)
 	}
 
+	slices.SortFunc(checks, func(a integration.Config, b integration.Config) int {
+		return strings.Compare(a.Name, b.Name)
+	})
 	return checks, nil
 }

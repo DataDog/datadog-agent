@@ -1,0 +1,9 @@
+description: Printf %g specifier outputs the shortest representation of a float.
+input:
+  script: |+
+    printf "%g\n" 3.14
+expect:
+  stdout: |+
+    3.14
+  stderr: ""
+  exit_code: 0

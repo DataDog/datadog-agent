@@ -1,0 +1,13 @@
+description: tail -n K (bare suffix, no leading digit) is accepted as 1K = 1024 lines (GNU tail behavior).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n K file.txt
+expect:
+  stdout: "hello\nworld\n"
+  stderr: ""
+  exit_code: 0

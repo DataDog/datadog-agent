@@ -31,7 +31,8 @@ message MetricData {
   repeated int32 dictOriginInfo = 9;    // (product, category, service) tuples
 
   // One entry per time series
-  repeated uint64 types = 10;           // type = metricType | valueType | metricFlags
+  // type = metricType | valueType | metricFlags | tagCardinality, one nibble each
+  repeated uint64 types = 10;
   repeated sint64 nameRefs = 11;        // index into dictNameStr, entire array is delta encoded
   repeated sint64 tagsetRefs = 12;      // index into dictTagsets, entire array is delta encoded
   repeated sint64 resourcesRefs = 13;   // index into dictResourceLen, entire array is delta encoded
@@ -68,7 +69,19 @@ enum valueType {
   Float64 = 0x30;  // value is stored in valsFloat64
 }
 
+// Cardinality of the origin tags the agent attaches to the metric. Occupies the
+// nibble above metricFlags, which shares its own nibble with the intake payload.
+// https://docs.datadoghq.com/getting_started/tagging/assigning_tags/?tab=containerizedenvironments#tags-cardinality
+enum tagCardinality {
+  Unset = 0x0000;  // agent falls back to its configured dogstatsd cardinality
+  None  = 0x1000;
+  Low   = 0x2000;
+  Orch  = 0x3000;
+  High  = 0x4000;
+}
+
 enum metricFlags {
   flagNone    = 0;
   flagNoIndex = 0x100; // metric should not be indexed (equivalent to origin metric type == agent_hidden in v2)
+  // 0x200 is flagHasUnit in the intake payload, keep it free here
 }

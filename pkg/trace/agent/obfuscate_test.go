@@ -15,6 +15,7 @@ import (
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 	"github.com/DataDog/datadog-agent/pkg/trace/telemetry"
 
@@ -400,9 +401,14 @@ func TestSQLResourceQuery(t *testing.T) {
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
+		_, hadSQLQuery := tc.span.Meta["sql.query"]
 		agnt.ObfuscateSpan(tc.span)
 		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Resource)
-		assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
+		if hadSQLQuery {
+			assert.Equal("SELECT * FROM users WHERE id = ?", tc.span.Meta["sql.query"])
+		} else {
+			assert.NotContains(tc.span.Meta, "sql.query")
+		}
 	}
 }
 
@@ -451,9 +457,188 @@ ORDER BY [b].[Name]`,
 	agnt, stop := agentWithDefaults()
 	defer stop()
 	for _, tc := range testCases {
+		_, hadSQLQuery := tc.span.Meta["sql.query"]
 		agnt.ObfuscateSpan(tc.span)
 		assert.Equal("Non-parsable SQL query", tc.span.Resource)
-		assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
+		if hadSQLQuery {
+			assert.Equal("Non-parsable SQL query", tc.span.Meta["sql.query"])
+		} else {
+			assert.NotContains(tc.span.Meta, "sql.query")
+		}
+	}
+}
+
+// TestObfuscateSQLSpanDBAttributes checks, for both the v0 (pb.Span) and v1
+// (idx.InternalSpan) formats, that the sql.query, db.statement and
+// db.query.text attributes of SQL spans are obfuscated when present and that
+// sql.query is never added.
+func TestObfuscateSQLSpanDBAttributes(t *testing.T) {
+	const (
+		rawQuery        = "SELECT * FROM users WHERE id = 42"
+		obfuscatedQuery = "SELECT * FROM users WHERE id = ?"
+		otherRawQuery   = "SELECT name FROM orders WHERE total > 100"
+		otherObfuscated = "SELECT name FROM orders WHERE total > ?"
+		unparsableQuery = "SELECT * FROM users WHERE id = '' AND '"
+	)
+	for _, tt := range []struct {
+		name         string
+		spanType     string
+		resource     string
+		meta         map[string]string
+		wantResource string
+		wantMeta     map[string]string // expected values; "" means the attribute must be absent
+	}{
+		{
+			name:         "sql.query not added",
+			spanType:     "sql",
+			resource:     rawQuery,
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"sql.query": ""},
+		},
+		{
+			name:         "empty sql.query dropped",
+			spanType:     "sql",
+			resource:     rawQuery,
+			meta:         map[string]string{"sql.query": ""},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"sql.query": ""},
+		},
+		{
+			name:         "sql.query equal to resource",
+			spanType:     "sql",
+			resource:     rawQuery,
+			meta:         map[string]string{"sql.query": rawQuery},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"sql.query": obfuscatedQuery},
+		},
+		{
+			name:         "sql.query different from resource",
+			spanType:     "cassandra",
+			resource:     rawQuery,
+			meta:         map[string]string{"sql.query": otherRawQuery},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"sql.query": otherObfuscated},
+		},
+		{
+			name:         "unparsable sql.query",
+			spanType:     "sql",
+			resource:     rawQuery,
+			meta:         map[string]string{"sql.query": unparsableQuery},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"sql.query": textNonParsable},
+		},
+		{
+			name:         "db.statement equal to resource",
+			spanType:     "sql",
+			resource:     rawQuery,
+			meta:         map[string]string{"db.statement": rawQuery},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"db.statement": obfuscatedQuery, "sql.query": ""},
+		},
+		{
+			name:         "db.statement different from resource",
+			spanType:     "cassandra",
+			resource:     rawQuery,
+			meta:         map[string]string{"db.statement": otherRawQuery},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"db.statement": otherObfuscated},
+		},
+		{
+			name:         "db.query.text equal to resource",
+			spanType:     "sql",
+			resource:     rawQuery,
+			meta:         map[string]string{"db.query.text": rawQuery},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"db.query.text": obfuscatedQuery},
+		},
+		{
+			name:         "db.query.text different from resource",
+			spanType:     "sql",
+			resource:     rawQuery,
+			meta:         map[string]string{"db.query.text": otherRawQuery},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"db.query.text": otherObfuscated},
+		},
+		{
+			name:         "unparsable db.statement",
+			spanType:     "sql",
+			resource:     rawQuery,
+			meta:         map[string]string{"db.statement": unparsableQuery, "db.query.text": unparsableQuery},
+			wantResource: obfuscatedQuery,
+			wantMeta:     map[string]string{"db.statement": textNonParsable, "db.query.text": textNonParsable},
+		},
+		{
+			name:         "unparsable resource",
+			spanType:     "sql",
+			resource:     unparsableQuery,
+			meta:         map[string]string{"db.statement": unparsableQuery, "db.query.text": otherRawQuery, "sql.query": unparsableQuery},
+			wantResource: textNonParsable,
+			wantMeta:     map[string]string{"db.statement": textNonParsable, "db.query.text": otherObfuscated, "sql.query": textNonParsable},
+		},
+		{
+			name:         "unparsable resource without sql.query",
+			spanType:     "sql",
+			resource:     unparsableQuery,
+			wantResource: textNonParsable,
+			wantMeta:     map[string]string{"sql.query": ""},
+		},
+		{
+			name:         "empty resource",
+			spanType:     "sql",
+			resource:     "",
+			meta:         map[string]string{"db.statement": rawQuery, "db.query.text": unparsableQuery, "sql.query": otherRawQuery},
+			wantResource: "",
+			wantMeta:     map[string]string{"db.statement": obfuscatedQuery, "db.query.text": textNonParsable, "sql.query": otherObfuscated},
+		},
+		{
+			name:         "empty resource without sql.query",
+			spanType:     "sql",
+			resource:     "",
+			meta:         map[string]string{"db.statement": rawQuery},
+			wantResource: "",
+			wantMeta:     map[string]string{"db.statement": obfuscatedQuery, "sql.query": ""},
+		},
+		{
+			name:         "non-sql span untouched",
+			spanType:     "db",
+			resource:     rawQuery,
+			meta:         map[string]string{"db.statement": rawQuery, "sql.query": rawQuery},
+			wantResource: rawQuery,
+			wantMeta:     map[string]string{"db.statement": rawQuery, "sql.query": rawQuery},
+		},
+	} {
+		agnt, stop := agentWithDefaults()
+		assertSpan := func(t *testing.T, span obfuscateSpan) {
+			assert.Equal(t, tt.wantResource, span.Resource())
+			for k, want := range tt.wantMeta {
+				got, ok := span.GetAttributeAsString(k)
+				if want == "" {
+					assert.False(t, ok, "attribute %q should be absent, got %q", k, got)
+					continue
+				}
+				assert.Equal(t, want, got, "attribute %q", k)
+			}
+		}
+		t.Run(tt.name+"/v0", func(t *testing.T) {
+			meta := make(map[string]string, len(tt.meta))
+			for k, v := range tt.meta {
+				meta[k] = v
+			}
+			span := &pb.Span{Type: tt.spanType, Resource: tt.resource, Meta: meta}
+			agnt.ObfuscateSpan(span)
+			assertSpan(t, &obfuscateSpanV0{span: span})
+		})
+		t.Run(tt.name+"/v1", func(t *testing.T) {
+			span := idx.NewInternalSpan(idx.NewStringTable(), &idx.Span{})
+			span.SetType(tt.spanType)
+			span.SetResource(tt.resource)
+			for k, v := range tt.meta {
+				span.SetStringAttribute(k, v)
+			}
+			agnt.obfuscateSpanInternal(span)
+			assertSpan(t, span)
+		})
+		stop()
 	}
 }
 
@@ -650,4 +835,60 @@ func assertSpanEqual(t *testing.T, expected *pb.Span, actual *pb.Span) {
 	assert.Equal(t, expected.MetaStruct, actual.MetaStruct)
 	assert.Equal(t, expected.SpanLinks, actual.SpanLinks)
 	assert.Equal(t, expected.SpanEvents, actual.SpanEvents)
+}
+
+// TestObfuscateSpanEventNilArrayValueDoesNotPanic verifies that obfuscating a
+// span whose event attribute declares Type=ARRAY_VALUE but has a nil ArrayValue
+// does not panic; the credit-card obfuscator skips the nil array.
+func TestObfuscateSpanEventNilArrayValueDoesNotPanic(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Obfuscation = &config.ObfuscationConfig{
+		CreditCards: obfuscate.CreditCardsConfig{Enabled: true},
+	}
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+
+	span := &pb.Span{
+		Resource: "rrr",
+		Type:     "aaa",
+		Meta:     map[string]string{},
+		SpanEvents: []*pb.SpanEvent{
+			{
+				Name: "evt",
+				Attributes: map[string]*pb.AttributeAnyValue{
+					// "cc" is not on the CC key denylist and does not start with
+					// "_", so ShouldObfuscateCCKey returns true and the obfuscator
+					// descends into the array branch.
+					"cc": {
+						Type:       pb.AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: nil, // type says array, value is absent
+					},
+					// The msgpack decoder can store a nil element inside a
+					// non-nil array (a nil wire element), which the obfuscator
+					// must also tolerate.
+					"cc2": {
+						Type: pb.AttributeAnyValue_ARRAY_VALUE,
+						ArrayValue: &pb.AttributeArray{
+							Values: []*pb.AttributeArrayValue{nil},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	assert.NotPanics(t, func() {
+		agnt.ObfuscateSpan(span)
+	})
+
+	// The attributes are left untouched.
+	got := span.SpanEvents[0].Attributes["cc"]
+	assert.Equal(t, pb.AttributeAnyValue_ARRAY_VALUE, got.Type)
+	assert.Nil(t, got.ArrayValue)
+
+	got2 := span.SpanEvents[0].Attributes["cc2"]
+	assert.Equal(t, pb.AttributeAnyValue_ARRAY_VALUE, got2.Type)
+	assert.Equal(t, []*pb.AttributeArrayValue{nil}, got2.ArrayValue.Values)
 }

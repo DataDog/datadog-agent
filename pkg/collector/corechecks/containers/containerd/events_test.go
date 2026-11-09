@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/containerd/containerd"
 	containerdevents "github.com/containerd/containerd/api/events"
-	"github.com/containerd/containerd/containers"
-	"github.com/containerd/containerd/events"
+	containerd "github.com/containerd/containerd/v2/client"
+	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/core/events"
 	"github.com/containerd/typeurl/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -323,7 +323,7 @@ container_exclude_logs: image:dd-log-exclude
 		containerFilter: fakeFilterStore.GetContainerSharedMetricFilters(),
 		tagger:          fakeTagger,
 	}
-	mocked := mocksender.NewMockSender(containerdCheck.ID())
+	mocked := mocksender.NewMockSender(t, containerdCheck.ID())
 
 	tests := []struct {
 		name          string

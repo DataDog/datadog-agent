@@ -59,6 +59,24 @@ func TestParseDiscoveryResult(t *testing.T) {
 			payload:     `not-json`,
 			wantErr:     true,
 		},
+		{
+			name:        "null instance returns error",
+			integration: "redis",
+			payload:     `[{"instances": [null]}]`,
+			wantErr:     true,
+		},
+		{
+			name:        "non-object instance returns error",
+			integration: "redis",
+			payload:     `[{"instances": [42]}]`,
+			wantErr:     true,
+		},
+		{
+			name:        "array instance returns error",
+			integration: "redis",
+			payload:     `[{"instances": [[1,2]]}]`,
+			wantErr:     true,
+		},
 	}
 
 	for _, tc := range tests {

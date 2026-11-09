@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    System-probe configuration issues now explain which setting has the wrong
+    type, how to fix it, and its default when known. Invalid types in sensitive
+    settings are no longer hidden by masking before validation.

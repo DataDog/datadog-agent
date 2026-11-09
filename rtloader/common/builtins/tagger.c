@@ -94,9 +94,8 @@ PyObject *tag(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    if (cardinality != DATADOG_AGENT_RTLOADER_TAGGER_LOW &&
-            cardinality != DATADOG_AGENT_RTLOADER_TAGGER_ORCHESTRATOR &&
-            cardinality != DATADOG_AGENT_RTLOADER_TAGGER_HIGH) {
+    if (cardinality != DATADOG_AGENT_RTLOADER_TAGGER_LOW && cardinality != DATADOG_AGENT_RTLOADER_TAGGER_ORCHESTRATOR
+        && cardinality != DATADOG_AGENT_RTLOADER_TAGGER_HIGH) {
         PyGILState_STATE gstate = PyGILState_Ensure();
 
         // The refcount for the error type: PyExc_TypeError need not be incremented
@@ -177,6 +176,9 @@ static struct PyModuleDef module_def = { PyModuleDef_HEAD_INIT, TAGGER_MODULE_NA
 PyMODINIT_FUNC PyInit_tagger(void)
 {
     PyObject *module = PyModule_Create(&module_def);
+    if (module == NULL) {
+        return NULL;
+    }
     add_constants(module);
     return module;
 }

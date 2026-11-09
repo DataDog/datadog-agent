@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2022-present Datadog, Inc.
 
-//go:build linux && linux_bpf
+//go:build linux && bpf
 
 // Package constantfetch holds constantfetch related files
 package constantfetch
@@ -14,7 +14,7 @@ import (
 
 	"github.com/cilium/ebpf/btf"
 
-	pkgebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -45,7 +45,7 @@ func GetAvailableConstantFetchers(config *config.Config, kv *kernel.Version) []C
 }
 
 func getBTFFuncProto(funcName string) (*btf.FuncProto, error) {
-	spec, err := pkgebpf.GetKernelSpec()
+	spec, err := ddbtf.GetKernelSpec()
 	if err != nil {
 		return nil, err
 	}
@@ -77,6 +77,32 @@ func GetHasUsernamespaceFirstArgWithBtf() (bool, error) {
 	return proto.Params[0].Name != "dentry", nil
 }
 
+// GetExitItimersTakesTaskStructWithBtf uses BTF to check whether exit_itimers takes a
+// struct task_struct* as its first argument (kernel >= 5.19 and its stable backports) rather
+// than the legacy struct signal_struct*.
+func GetExitItimersTakesTaskStructWithBtf() (bool, error) {
+	proto, err := getBTFFuncProto("exit_itimers")
+	if err != nil {
+		return false, err
+	}
+
+	if len(proto.Params) == 0 {
+		return false, errors.New("exit_itimers has no parameters")
+	}
+
+	ptr, ok := btf.UnderlyingType(proto.Params[0].Type).(*btf.Pointer)
+	if !ok {
+		return false, errors.New("exit_itimers first parameter is not a pointer")
+	}
+
+	strct, ok := btf.UnderlyingType(ptr.Target).(*btf.Struct)
+	if !ok {
+		return false, errors.New("exit_itimers first parameter is not a pointer to a struct")
+	}
+
+	return strct.Name == "task_struct", nil
+}
+
 // GetHasVFSRenameStructArgs uses BTF to check if the vfs_rename function has a struct renamedata as its only argument
 func GetHasVFSRenameStructArgs() (bool, error) {
 	proto, err := getBTFFuncProto("vfs_rename")
@@ -103,68 +129,4 @@ func GetBTFFunctionArgCount(funcName string) (int, error) {
 	}
 
 	return len(proto.Params), nil
-}
-
-// AreFentryTailCallsBroken checks if fentry tail calls are broken
-func AreFentryTailCallsBroken() (bool, error) {
-	spec, err := pkgebpf.GetKernelSpec()
-	if err != nil {
-		return false, err
-	}
-
-	/*
-		we are checking for the presence of the bpf_map.owner.attach_func_proto field
-		if it exists, fentry tail calls are broken
-		https://github.com/torvalds/linux/commit/28ead3eaabc16ecc907cfb71876da028080f6356
-	*/
-
-	// on recent kernels (after https://github.com/torvalds/linux/commit/fd1c98f0ef5cbcec842209776505d9e70d8fcd53)
-	// the `attach_func_proto` is in `struct bpf_map_owner`
-	res, err := checkAttachFuncProtoBpfMapOwnerStruct(spec)
-	if err != nil && errors.Is(err, btf.ErrNotFound) {
-		// on older kernels, the `attach_func_proto` is directly in `struct bpf_map`
-		// through an embedded struct
-		return checkAttachFuncProtoBpfMapEmbedStruct(spec)
-	}
-	return res, err
-}
-
-func checkAttachFuncProtoBpfMapOwnerStruct(spec *btf.Spec) (bool, error) {
-	var bpfMapOwner *btf.Struct
-	if err := spec.TypeByName("bpf_map_owner", &bpfMapOwner); err != nil {
-		return false, err
-	}
-
-	for _, member := range bpfMapOwner.Members {
-		if member.Name == "attach_func_proto" {
-			return true, nil
-		}
-	}
-	return false, nil
-}
-
-func checkAttachFuncProtoBpfMapEmbedStruct(spec *btf.Spec) (bool, error) {
-	var bpfMap *btf.Struct
-	if err := spec.TypeByName("bpf_map", &bpfMap); err != nil {
-		return false, err
-	}
-
-	for _, member := range bpfMap.Members {
-		if member.Name != "owner" {
-			continue
-		}
-
-		ty, ok := member.Type.(*btf.Struct)
-		if !ok {
-			return false, errors.New("bpf_map.owner is not a struct")
-		}
-
-		for _, ownerMember := range ty.Members {
-			if ownerMember.Name == "attach_func_proto" {
-				return true, nil
-			}
-		}
-	}
-
-	return false, nil
 }

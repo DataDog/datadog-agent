@@ -13,6 +13,7 @@ import (
 	"sync"
 	"sync/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/store"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -92,7 +93,7 @@ type Controller struct {
 	initTracker initTracker
 
 	// Fields available to child controllers
-	ID        SenderID
+	ID        store.SenderID
 	Client    dynamic.Interface
 	Lister    cache.GenericLister
 	Workqueue workqueue.TypedRateLimitingInterface[string]
@@ -101,13 +102,13 @@ type Controller struct {
 
 // NewController returns a new workload autoscaling controller
 func NewController(
-	controllerID SenderID,
+	controllerID store.SenderID,
 	processor Processor,
 	client dynamic.Interface,
 	informer dynamicinformer.DynamicSharedInformerFactory,
 	gvr schema.GroupVersionResource,
 	isLeader func() bool,
-	observable Observable,
+	observable store.Observable,
 	workqueue workqueue.TypedRateLimitingInterface[string],
 ) (*Controller, error) {
 	mainInformer := informer.ForResource(gvr)
@@ -137,7 +138,7 @@ func NewController(
 	c.synced = handler.HasSynced
 
 	// We use an observer on the store to propagate events as soon as possible
-	observable.RegisterObserver(Observer{
+	observable.RegisterObserver(store.Observer{
 		SetFunc: c.enqueueID,
 	})
 
@@ -206,7 +207,7 @@ func (c *Controller) enqueue(obj any) {
 	c.Workqueue.AddRateLimited(key)
 }
 
-func (c *Controller) enqueueID(id string, sender SenderID) {
+func (c *Controller) enqueueID(id string, sender store.SenderID) {
 	// Do not enqueue our own updates (avoid infinite loops)
 	if sender != c.ID {
 		log.Tracef("Enqueueing from observer update id: %s from sender: %s", id, sender)

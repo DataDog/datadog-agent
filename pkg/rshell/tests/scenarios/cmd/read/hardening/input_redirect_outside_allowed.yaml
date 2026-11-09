@@ -1,0 +1,20 @@
+# vuln-hunt 2026-05-19-codex / read.
+skip_assert_against_bash: true
+description: read input redirection must use AllowedPaths and not assign bytes from outside the sandbox.
+setup:
+  files:
+    - path: safe.txt
+      content: |+
+        safe
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    read X </etc/passwd
+    echo "rc=$?"
+    echo "X=[$X]"
+expect:
+  stdout: |+
+    rc=1
+    X=[]
+  stderr_contains: ["passwd"]
+  exit_code: 0

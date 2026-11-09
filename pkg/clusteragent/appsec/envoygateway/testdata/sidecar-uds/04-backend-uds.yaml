@@ -1,0 +1,9 @@
+apiVersion: gateway.envoyproxy.io/v1alpha1
+kind: Backend
+metadata:
+  name: datadog-appsec-extproc
+  namespace: eg-appsec-demo
+spec:
+  endpoints:
+    - unix:
+        path: /var/run/datadog/extproc.sock

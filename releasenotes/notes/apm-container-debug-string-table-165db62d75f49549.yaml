@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    APM : Container tags resolution debug information is now stored using the
+    tracer payload's deduplicated string table instead of inline strings,
+    reducing the size of payloads that include this debug information.

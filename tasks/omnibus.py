@@ -1,12 +1,14 @@
 import hashlib
 import os
 import re
+import shutil
 import subprocess
 import sys
 import tempfile
 import warnings
 from collections import defaultdict
 from collections.abc import Iterator
+from pathlib import PurePosixPath, PureWindowsPath
 from typing import NamedTuple
 
 import requests
@@ -15,7 +17,6 @@ from invoke.exceptions import Exit, UnexpectedExit
 
 from tasks.flavor import AgentFlavor
 from tasks.go import deps
-from tasks.libs.common.check_tools_version import expected_go_repo_v
 from tasks.libs.common.omnibus import (
     ENV_PASSHTROUGH,
     OS_SPECIFIC_ENV_PASSTHROUGH,
@@ -64,6 +65,15 @@ def omnibus_run_task(
             ctx.run(cmd.format(**args), env=env, replace_env=True, err_stream=sys.stdout)
 
 
+def _clear_agent_install_directory(agent_path):
+    with os.scandir(agent_path) as entries:
+        for entry in entries:
+            if entry.is_dir(follow_symlinks=False):
+                shutil.rmtree(entry.path)
+            else:
+                os.unlink(entry.path)
+
+
 def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
     with ctx.cd("omnibus"):
         # make sure bundle install starts from a clean state
@@ -76,6 +86,11 @@ def bundle_install_omnibus(ctx, gem_path=None, env=None, max_try=2):
         cmd = "bundle install"
         if gem_path:
             cmd += f" --path {gem_path}"
+
+        # The native extensions of ffi-yajl fail to compile as C23, the default of GCC 15 and later, because they
+        # pass typed callbacks to Ruby 2.6 APIs declared with empty parameter lists.
+        # gnu11 rather than gnu17 because some build images still ship GCC 4.8, which doesn't know gnu17.
+        env = {**(env or {}), "BUNDLE_BUILD__FFI___YAJL": "--with-cflags=-std=gnu11"}
 
         with gitlab_section("Bundle install omnibus", collapsed=True):
             for trial in range(max_try):
@@ -105,13 +120,12 @@ def get_omnibus_env(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     flavor=AgentFlavor.base,
     pip_config_file="pip.conf",
     custom_config_dir=None,
-    fips_mode=False,
+    *,
+    install_dir,
 ):
     env = get_effective_dependencies_env()
 
@@ -158,25 +172,10 @@ def get_omnibus_env(
     if system_probe_bin:
         env['SYSTEM_PROBE_BIN'] = system_probe_bin
     env['AGENT_FLAVOR'] = flavor.name
+    env['INSTALL_DIR'] = install_dir
 
     if custom_config_dir:
         env["OUTPUT_CONFIG_DIR"] = custom_config_dir
-
-    if fips_mode:
-        env['FIPS_MODE'] = 'true'
-        if sys.platform == 'win32' and not os.environ.get('MSGO_ROOT'):
-            # Point omnibus at the msgo root
-            # TODO: idk how to do this in omnibus datadog-agent.rb
-            #       because `File.read` is executed when the script is loaded,
-            #       not when the `command`s are run and the source tree is not
-            #       available at that time.
-            #       Comments from the Linux FIPS PR discussed wanting to centralize
-            #       the msgo root logic, so this can be updated then.
-            go_version = expected_go_repo_v()
-            env['MSGO_ROOT'] = f'C:\\msgo\\{go_version}\\go'
-            gobinpath = f"{env['MSGO_ROOT']}\\bin\\go.exe"
-            if not os.path.exists(gobinpath):
-                raise Exit(f"msgo go.exe not found at {gobinpath}")
 
     # We need to override the workers variable in omnibus build when running on Kubernetes runners,
     # otherwise, ohai detect the number of CPU on the host and run the make jobs with all the CPU.
@@ -223,8 +222,6 @@ def build(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,  # No-op; kept for backward compatibility
-    with_dd_procmgrd=False,  # No-op; kept for backward compatibility
     go_mod_cache=None,
     python_mirror=None,
     pip_config_file="pip.conf",
@@ -238,7 +235,6 @@ def build(
     """
 
     flavor = AgentFlavor[flavor]
-    fips_mode = flavor.is_fips()
     durations = {}
     if not skip_deps:
         with timed(quiet=True) as durations['Deps']:
@@ -248,28 +244,26 @@ def build(
     base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
     cache_dir = _resolve_omnibus_path_override(cache_dir, "OMNIBUS_CACHE_DIR")
 
+    if not target_project:
+        target_project = "agent"
+
+    if flavor != AgentFlavor.base and target_project not in ["agent", "ddot", "installer"]:
+        print("flavors only make sense when building the agent, ddot or installer")
+        raise Exit(code=1)
+    if flavor.is_iot():
+        target_project = "iot-agent"
+
     env = get_omnibus_env(
         ctx,
         skip_sign=skip_sign,
         hardened_runtime=hardened_runtime,
         system_probe_bin=system_probe_bin,
-        with_sd_agent=with_sd_agent,
-        with_dd_procmgrd=with_dd_procmgrd,
         go_mod_cache=go_mod_cache,
         flavor=flavor,
         pip_config_file=pip_config_file,
         custom_config_dir=config_directory,
-        fips_mode=fips_mode,
+        install_dir=install_directory or install_dir_for_project(target_project),
     )
-
-    if not target_project:
-        target_project = "agent"
-
-    if flavor != AgentFlavor.base and target_project not in ["agent", "ddot"]:
-        print("flavors only make sense when building the agent or ddot")
-        raise Exit(code=1)
-    if flavor.is_iot():
-        target_project = "iot-agent"
 
     # Get the python_mirror from the PIP_INDEX_URL environment variable if it is not passed in the args
     python_mirror = python_mirror or os.environ.get("PIP_INDEX_URL")
@@ -306,8 +300,8 @@ def build(
             install_directory = install_dir_for_project(target_project)
         # Is the path starts with a /, it's considered the new root for the joined path
         # which effectively drops whatever was in omnibus_cache_dir
-        install_directory = install_directory.lstrip('/')
-        omnibus_cache_dir = os.path.join(omnibus_cache_dir, install_directory)
+        native_path = (PureWindowsPath if sys.platform == "win32" else PurePosixPath)(install_directory)
+        omnibus_cache_dir = os.path.join(omnibus_cache_dir, native_path.relative_to(native_path.anchor).as_posix())
         # We don't want to update the cache when not running on a CI
         # Individual developers are still able to leverage the cache by providing
         # the OMNIBUS_GIT_CACHE_DIR env variable, but they won't pull from the CI
@@ -400,8 +394,6 @@ def manifest(
     skip_sign=False,
     hardened_runtime=False,
     system_probe_bin=None,
-    with_sd_agent=False,
-    with_dd_procmgrd=False,
     go_mod_cache=None,
 ):
     flavor = AgentFlavor[flavor]
@@ -409,22 +401,21 @@ def manifest(
     base_dir = _resolve_omnibus_path_override(base_dir, "OMNIBUS_BASE_DIR")
     cache_dir = _resolve_omnibus_path_override(cache_dir, "OMNIBUS_CACHE_DIR")
 
-    env = get_omnibus_env(
-        ctx,
-        skip_sign=skip_sign,
-        hardened_runtime=hardened_runtime,
-        system_probe_bin=system_probe_bin,
-        with_sd_agent=with_sd_agent,
-        with_dd_procmgrd=with_dd_procmgrd,
-        go_mod_cache=go_mod_cache,
-        flavor=flavor,
-    )
-
     target_project = "agent"
     if flavor.is_iot():
         target_project = "iot-agent"
     elif agent_binaries:
         target_project = "agent-binaries"
+
+    env = get_omnibus_env(
+        ctx,
+        skip_sign=skip_sign,
+        hardened_runtime=hardened_runtime,
+        system_probe_bin=system_probe_bin,
+        go_mod_cache=go_mod_cache,
+        flavor=flavor,
+        install_dir=install_dir_for_project(target_project, for_platform=platform),
+    )
 
     bundle_install_omnibus(ctx, gem_path, env)
 
@@ -462,9 +453,7 @@ def build_repackaged_agent(ctx, log_level="info"):
         ):
             raise Exit("Operation cancelled")
 
-        import shutil
-
-        shutil.rmtree("/opt/datadog-agent")
+        _clear_agent_install_directory(agent_path)
 
     architecture = ctx.run("dpkg --print-architecture", hide=True).stdout.strip()
 
@@ -481,23 +470,27 @@ def build_repackaged_agent(ctx, log_level="info"):
             key=_pipeline_id_of_package,
         )
 
-    env = get_omnibus_env(ctx, skip_sign=True, flavor=AgentFlavor.base)
+    env = get_omnibus_env(ctx, skip_sign=True, flavor=AgentFlavor.base, install_dir=install_dir_for_project("agent"))
 
     env['OMNIBUS_REPACKAGE_SOURCE_URL'] = f"https://apt.datad0g.com/{latest_package.filename}"
     env['OMNIBUS_REPACKAGE_SOURCE_SHA256'] = latest_package.sha256
+    base_dir = _resolve_omnibus_path_override(None, "OMNIBUS_BASE_DIR")
+    if base_dir:
+        env['OMNIBUS_BASE_DIR'] = base_dir
+
     # Set up compiler flags (assumes an environment based on our glibc-targeting toolchains)
     if architecture == "amd64":
         env.update(
             {
-                "DD_CC": "x86_64-unknown-linux-gnu-gcc",
-                "DD_CXX": "x86_64-unknown-linux-gnu-g++",
+                "DD_CC": "x86_64-linux-gnu-gcc",
+                "DD_CXX": "x86_64-linux-gnu-g++",
             }
         )
     elif architecture == "arm64":
         env.update(
             {
-                "DD_CC": "aarch64-unknown-linux-gnu-gcc",
-                "DD_CXX": "aarch64-unknown-linux-gnu-g++",
+                "DD_CC": "aarch64-linux-gnu-gcc",
+                "DD_CXX": "aarch64-linux-gnu-g++",
             }
         )
 
@@ -509,7 +502,7 @@ def build_repackaged_agent(ctx, log_level="info"):
         ctx,
         "build",
         "agent",
-        base_dir=None,
+        base_dir=base_dir,
         env=env,
         log_level=log_level,
         cache_dir=_resolve_omnibus_path_override(None, "OMNIBUS_CACHE_DIR"),
@@ -612,11 +605,11 @@ def docker_build(
 
     # Map architecture to cross-compiler triplet
     if arch == 'arm64':
-        cc = 'aarch64-unknown-linux-gnu-gcc'
-        cxx = 'aarch64-unknown-linux-gnu-g++'
+        cc = 'aarch64-linux-gnu-gcc'
+        cxx = 'aarch64-linux-gnu-g++'
     elif arch == 'amd64':
-        cc = 'x86_64-unknown-linux-gnu-gcc'
-        cxx = 'x86_64-unknown-linux-gnu-g++'
+        cc = 'x86_64-linux-gnu-gcc'
+        cxx = 'x86_64-linux-gnu-g++'
     else:
         raise Exit(f"Invalid architecture: {arch}. Use 'arm64' or 'amd64'")
 
@@ -851,13 +844,19 @@ def _patch_binary_rpath(ctx, new_rpath, install_path, binary_rpath, platform, fi
 
 
 @task
-def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux"):
-    # Collect mime types for all files inside the Agent installation
-    files = ctx.run(rf"find {install_path} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
+def rpath_edit(ctx, install_path, target_rpath_dd_folder, platform="linux", search_root=None, preserve_rpath=None):
+    # Collect mime types for all files inside the Agent installation, or inside
+    # search_root when callers want to scope the files to patch while keeping
+    # install_path as the absolute path prefix to replace.
+    # Leave the named binary's library path unchanged.
+    search_root = search_root or install_path
+    files = ctx.run(rf"find {search_root} -type f -exec file --mime-type \{{\}} \+", hide=True).stdout
     for line in files.splitlines():
         if not line:
             continue
         file, file_type = line.split(":")
+        if file == preserve_rpath:
+            continue
         file_type = file_type.strip()
 
         modified = False

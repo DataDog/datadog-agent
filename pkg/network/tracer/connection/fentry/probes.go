@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package fentry
 
@@ -11,7 +11,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/DataDog/datadog-agent/pkg/ebpf"
+	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -34,8 +35,9 @@ const (
 	udpSendPageReturn = "udp_sendpage_exit"
 
 	// tcpRecvMsgReturn traces the return value for the tcp_recvmsg() system call
-	tcpRecvMsgReturn        = "tcp_recvmsg_exit"
-	tcpRecvMsgPre5190Return = "tcp_recvmsg_exit_pre_5_19_0"
+	tcpRecvMsgReturn          = "tcp_recvmsg_exit"
+	tcpRecvMsgNoAddrLenReturn = "tcp_recvmsg_exit_no_addr_len"
+	tcpRecvMsgPre5190Return   = "tcp_recvmsg_exit_pre_5_19_0"
 	// tcpClose traces the tcp_close() system call
 	tcpClose = "tcp_close"
 	// tcpCloseReturn traces the return of tcp_close(); it cleans protocol
@@ -73,8 +75,6 @@ const (
 
 	udpv6DestroySock = "udpv6_destroy_sock"
 
-	// tcpRetransmit traces the tcp_retransmit_skb() kernel function
-	tcpRetransmit = "tcp_retransmit_skb"
 	// tcpRetransmitRet traces the return of the tcp_retransmit_skb() system call
 	tcpRetransmitRet = "tcp_retransmit_skb_exit"
 
@@ -86,10 +86,9 @@ const (
 	// tcpSendProbe0 traces tcp_send_probe0() to count zero-window probe events.
 	tcpSendProbe0 = "kprobe__tcp_send_probe0"
 
-	// inetCskAcceptReturn traces the return value for the inet_csk_accept syscall (kernels < 6.10)
-	inetCskAcceptReturn = "inet_csk_accept_exit"
-	// inetCskAcceptReturn610 is the 6.10+ variant where inet_csk_accept takes proto_accept_arg
-	inetCskAcceptReturn610 = "inet_csk_accept_exit_610"
+	// inetCskAcceptReturn traces the return value for inet_csk_accept
+	inetCskAcceptReturn        = "inet_csk_accept_exit"
+	inetCskAcceptReturnPre6100 = "inet_csk_accept_exit_pre_6_10_0"
 
 	// inetBind traces the bind() syscall for IPv4
 	inetBind = "inet_bind_enter"
@@ -113,46 +112,46 @@ const (
 )
 
 var programs = map[string]struct{}{
-	inetBind:                  {},
-	inet6Bind:                 {},
-	inet6BindRet:              {},
-	inetBindRet:               {},
-	inetCskAcceptReturn:       {},
-	inetCskAcceptReturn610:    {},
-	inetCskListenStop:         {},
-	tcpRecvMsgReturn:          {},
-	tcpClose:                  {},
-	tcpCloseReturn:            {},
-	tcpConnect:                {},
-	tcpFinishConnect:          {},
-	tcpRetransmit:             {},
-	tcpRetransmitRet:          {},
-	tcpEnterLoss:              {},
-	tcpEnterRecovery:          {},
-	tcpSendProbe0:             {},
-	tcpSendMsgReturn:          {},
-	tcpSendPageReturn:         {},
-	tcpDone:                   {},
-	tcpReadSockReturn:         {},
-	udpDestroySock:            {},
-	udpRecvMsg:                {},
-	udpRecvMsgPre5190:         {},
-	udpRecvMsgReturn:          {},
-	udpSendMsgReturn:          {},
-	udpSendPageReturn:         {},
-	udpSendSkb:                {},
-	udpv6RecvMsg:              {},
-	udpv6RecvMsgPre5190:       {},
-	udpv6RecvMsgReturn:        {},
-	udpv6SendMsgReturn:        {},
-	udpv6SendSkb:              {},
-	udpv6DestroySock:          {},
-	skbFreeDatagramLocked:     {},
-	__skbFreeDatagramLocked:   {},
-	skbConsumeUDP:             {},
-	tcpRecvMsgPre5190Return:   {},
-	udpRecvMsgPre5190Return:   {},
-	udpv6RecvMsgPre5190Return: {},
+	inetBind:                   {},
+	inet6Bind:                  {},
+	inet6BindRet:               {},
+	inetBindRet:                {},
+	inetCskAcceptReturn:        {},
+	inetCskAcceptReturnPre6100: {},
+	inetCskListenStop:          {},
+	tcpRecvMsgReturn:           {},
+	tcpClose:                   {},
+	tcpCloseReturn:             {},
+	tcpConnect:                 {},
+	tcpFinishConnect:           {},
+	tcpRetransmitRet:           {},
+	tcpEnterLoss:               {},
+	tcpEnterRecovery:           {},
+	tcpSendProbe0:              {},
+	tcpSendMsgReturn:           {},
+	tcpSendPageReturn:          {},
+	tcpDone:                    {},
+	tcpReadSockReturn:          {},
+	udpDestroySock:             {},
+	udpRecvMsg:                 {},
+	udpRecvMsgPre5190:          {},
+	udpRecvMsgReturn:           {},
+	udpSendMsgReturn:           {},
+	udpSendPageReturn:          {},
+	udpSendSkb:                 {},
+	udpv6RecvMsg:               {},
+	udpv6RecvMsgPre5190:        {},
+	udpv6RecvMsgReturn:         {},
+	udpv6SendMsgReturn:         {},
+	udpv6SendSkb:               {},
+	udpv6DestroySock:           {},
+	skbFreeDatagramLocked:      {},
+	__skbFreeDatagramLocked:    {},
+	skbConsumeUDP:              {},
+	tcpRecvMsgPre5190Return:    {},
+	tcpRecvMsgNoAddrLenReturn:  {},
+	udpRecvMsgPre5190Return:    {},
+	udpv6RecvMsgPre5190Return:  {},
 	// Protocol classification
 	protocolClassifierEntry:     {},
 	protocolClassifierTLSClient: {},
@@ -171,11 +170,11 @@ func enableProgram(enabled map[string]struct{}, name string) {
 	}
 }
 
-// classificationSupported returns true if protocol classification is supported.
+// ClassificationSupported returns true if protocol classification is supported.
 // Note: fentry requires kernel 5.8+ which is well above the 4.11 minimum for
 // bpf_skb_load_bytes in socket filters, so no kernel version check is needed
 // for that. However, RHEL 9+ has a known issue with protocol classification.
-func classificationSupported(c *config.Config) bool {
+func ClassificationSupported(c *config.Config) bool {
 	if !c.ProtocolClassificationEnabled {
 		return false
 	}
@@ -217,15 +216,30 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 	hasSendPage := util.HasTCPSendPage(kv)
 
 	if c.CollectTCPv4Conns || c.CollectTCPv6Conns {
+		// Count from the running kernel's BTF, which the fexit program is
+		// attached to and verified against. The CO-RE KernelTypes is usually
+		// the same spec, but it is a configured btf_path when one is set,
+		// which might not match the running kernel.
+		spec, err := ddbtf.GetKernelSpec()
+		if err != nil {
+			return nil, fmt.Errorf("error loading kernel BTF: %w", err)
+		}
+		n, err := ddbtf.GetKernelFuncArgCount(spec, "tcp_recvmsg")
+		if err != nil {
+			return nil, fmt.Errorf("could not determine tcp_recvmsg signature: %w", err)
+		}
+		tcpRecvMsgProbe, err := selectTCPRecvMsgReturn(n)
+		if err != nil {
+			return nil, err
+		}
 		enableProgram(enabled, tcpSendMsgReturn)
-		enableProgram(enabled, selectVersionBasedProbe(kv, tcpRecvMsgReturn, tcpRecvMsgPre5190Return, kv5190))
+		enableProgram(enabled, tcpRecvMsgProbe)
 		enableProgram(enabled, tcpClose)
 		enableProgram(enabled, tcpCloseReturn)
 		enableProgram(enabled, tcpConnect)
 		enableProgram(enabled, tcpFinishConnect)
-		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn610, inetCskAcceptReturn, kernel.VersionCode(6, 10, 0)))
+		enableProgram(enabled, selectVersionBasedProbe(kv, inetCskAcceptReturn, inetCskAcceptReturnPre6100, kernel.VersionCode(6, 10, 0)))
 		enableProgram(enabled, inetCskListenStop)
-		enableProgram(enabled, tcpRetransmit)
 		enableProgram(enabled, tcpRetransmitRet)
 		enableProgram(enabled, tcpEnterLoss)
 		enableProgram(enabled, tcpEnterRecovery)
@@ -285,7 +299,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 }
 
 func enableAdvancedUDP(enabled map[string]struct{}) error {
-	missing, err := ebpf.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
+	missing, err := ksyms.VerifyKernelFuncs("skb_consume_udp", "__skb_free_datagram_locked", "skb_free_datagram_locked")
 	if err != nil {
 		return fmt.Errorf("error verifying kernel function presence: %s", err)
 	}
@@ -299,6 +313,30 @@ func enableAdvancedUDP(enabled map[string]struct{}) error {
 		return errors.New("missing desired UDP receive kernel functions")
 	}
 	return nil
+}
+
+// selectTCPRecvMsgReturn picks the fexit/tcp_recvmsg variant matching the
+// kernel's tcp_recvmsg signature, given its parameter count from the kernel BTF.
+// Since fexit programs read the return value from the slot after the last
+// argument, the declared argument count must match exactly.
+//
+// The signature is detected from the kernel BTF rather than the kernel version,
+// because the removal of addr_len was backported within a version series:
+// upstream v7.0 and Ubuntu 7.0.0-28 still have it, while Ubuntu 7.0.0-38 does
+// not. A count with no matching variant returns ErrorUnsupported instead of
+// guessing: a variant declaring fewer arguments than the kernel would load and
+// silently read an argument as the return value.
+func selectTCPRecvMsgReturn(paramCount int) (string, error) {
+	switch paramCount {
+	case 6: // tcp_recvmsg(sk, msg, len, nonblock, flags, addr_len), pre-5.19
+		return tcpRecvMsgPre5190Return, nil
+	case 5: // tcp_recvmsg(sk, msg, len, flags, addr_len)
+		return tcpRecvMsgReturn, nil
+	case 4: // tcp_recvmsg(sk, msg, len, flags)
+		return tcpRecvMsgNoAddrLenReturn, nil
+	default:
+		return "", fmt.Errorf("%w: no fexit variant for tcp_recvmsg with %d parameters", ErrorUnsupported, paramCount)
+	}
 }
 
 func selectVersionBasedProbe(kv kernel.Version, dfault string, versioned string, reqVer kernel.Version) string {

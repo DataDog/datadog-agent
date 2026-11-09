@@ -25,10 +25,12 @@ secret_backend_config:
     aws_region: us-east-1`
 
 	v.UpdateEnv(awshost.Provisioner(
-		awshost.WithRunOptions(scenec2.WithAgentOptions(
-			agentparams.WithSkipAPIKeyInConfig(),
-			agentparams.WithAgentConfig(config),
-		)),
+		awshost.WithRunOptions(
+			scenec2.WithAgentOptions(
+				agentparams.WithSkipAPIKeyInConfig(),
+				agentparams.WithAgentConfig(config),
+			),
+			scenec2.WithEC2InstanceOptions(scenec2.WithInternetAccess())),
 	))
 
 	assert.EventuallyWithT(v.T(), func(t *assert.CollectT) {

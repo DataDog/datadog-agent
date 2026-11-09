@@ -20,7 +20,7 @@ import (
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/api"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 
@@ -34,6 +34,7 @@ type cliParams struct {
 	args       []string
 	json       bool
 	prettyJSON bool
+	logLevel   string
 }
 
 // GlobalParams contains the values of agent-global Cobra flags.
@@ -71,7 +72,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
 						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
 					),
-					LogParams: log.ForOneShot(globalParams.LoggerName, "off", !cliParams.json && !cliParams.prettyJSON)}),
+					LogParams: log.ForOneShot(globalParams.LoggerName, cliParams.logLevel, false)}),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -80,6 +81,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 	cmd.Flags().BoolVarP(&cliParams.json, "json", "j", false, "print out raw json")
 	cmd.Flags().BoolVarP(&cliParams.prettyJSON, "pretty-json", "p", false, "pretty print json (takes priority over --json)")
+	cmd.Flags().StringVar(&cliParams.logLevel, "log_level", "off", "Override the log level for this command for debugging purposes")
 
 	return cmd
 }
@@ -102,7 +104,7 @@ func taggerList(_ log.Component, config config.Component, client ipc.HTTPClient,
 }
 
 func getTaggerURL(config config.Component) (string, error) {
-	ipcAddress, err := pkgconfigsetup.GetIPCAddress(config)
+	ipcAddress, err := pkgconfighelper.GetIPCAddress(config)
 	if err != nil {
 		return "", err
 	}

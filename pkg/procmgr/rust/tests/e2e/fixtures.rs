@@ -1,0 +1,241 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2026-present Datadog, Inc.
+
+use crate::helpers::{DescribeExpect, ProcessExpect, ReloadExpect, StatusProcessesCount, TestEnv};
+
+#[test]
+fn sleeper_fixture_auto_starts() {
+    let env = TestEnv::new().with_process("sleeper");
+    let procmgr = env.start();
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
+        total: Some(1),
+        running: Some(1),
+        created: Some(0),
+        ..Default::default()
+    });
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+}
+
+#[test]
+fn sleeper_fixture_no_auto_start() {
+    let env = TestEnv::new().with_process("sleeper_idle");
+    let procmgr = env.start();
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
+        total: Some(1),
+        created: Some(0),
+        skipped: Some(1),
+        running: Some(0),
+        ..Default::default()
+    });
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("sleeper_idle", ProcessExpect::Skipped);
+    list.assert_skip_reasons("sleeper_idle", &["auto_start_false"]);
+}
+
+#[test]
+fn invalid_yaml_visible_as_invalid_config() {
+    let env = TestEnv::new()
+        .with_process("sleeper")
+        .with_process("invalid_syntax");
+    let procmgr = env.start();
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
+        total: Some(2),
+        running: Some(1),
+        created: Some(0),
+        invalid_config: Some(1),
+        ..Default::default()
+    });
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    procmgr
+        .cli_config()
+        .assert_success()
+        .assert_field("Loaded Processes", "1");
+    let list = procmgr.require_list();
+    list.assert_len(2);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+    list.assert_process_state("invalid_syntax", ProcessExpect::InvalidConfig);
+    let invalid = list.require_process("invalid_syntax");
+    assert!(
+        !invalid.config_error.is_empty(),
+        "list should include the parse error: {invalid:?}"
+    );
+    procmgr.assert_describe_matches(
+        "invalid_syntax",
+        DescribeExpect {
+            name: Some("invalid_syntax".to_string()),
+            state: Some("InvalidConfig".to_string()),
+            pid: Some(0),
+            has_config_error: Some(true),
+            ..Default::default()
+        },
+    );
+    procmgr.assert_config_skip_logged("invalid_syntax");
+}
+
+#[test]
+fn invalid_yaml_start_is_rejected() {
+    let env = TestEnv::new()
+        .with_process("sleeper")
+        .with_process("invalid_syntax");
+    let procmgr = env.start();
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let err = procmgr
+        .start_process("invalid_syntax")
+        .expect_err("start of an InvalidConfig row must fail");
+    assert!(
+        err.to_lowercase().contains("failed_precondition")
+            || err.contains("FailedPrecondition")
+            || err.to_lowercase().contains("invalid config"),
+        "expected failed_precondition, got {err}"
+    );
+    let list = procmgr.require_list();
+    list.assert_process_state("invalid_syntax", ProcessExpect::InvalidConfig);
+    list.assert_process_state("sleeper", ProcessExpect::Running);
+}
+
+#[test]
+fn reload_running_to_invalid_stops_child() {
+    let env = TestEnv::new().with_process("sleeper");
+    let procmgr = env.start();
+    let running = procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running");
+    let old_pid = running.pid;
+    crate::helpers::write_config(procmgr.config_dir(), "sleeper", "not: valid: yaml: [\n");
+    procmgr.assert_reload_matches(ReloadExpect {
+        modified: Some(vec!["sleeper".to_string()]),
+        added: Some(vec![]),
+        removed: Some(vec![]),
+        ..Default::default()
+    });
+    let list = procmgr.require_list();
+    list.assert_process_state("sleeper", ProcessExpect::InvalidConfig);
+    procmgr.assert_pid_gone(old_pid);
+}
+
+#[test]
+fn reload_invalid_to_valid_starts_when_auto_start() {
+    let env = TestEnv::new().with_config("sleeper", "not: valid: yaml: [\n");
+    let procmgr = env.start();
+    procmgr
+        .require_list()
+        .assert_process_state("sleeper", ProcessExpect::InvalidConfig);
+    procmgr.overwrite_with_fixture("sleeper", "sleeper");
+    procmgr.assert_reload_matches(ReloadExpect {
+        modified: Some(vec!["sleeper".to_string()]),
+        added: Some(vec![]),
+        removed: Some(vec![]),
+        ..Default::default()
+    });
+    procmgr
+        .wait_for_process_running("sleeper")
+        .expect("expected sleeper running after the yaml became valid");
+}
+
+#[test]
+fn missing_binary_fixture_fails_to_spawn() {
+    let env = TestEnv::new().with_process("missing_binary");
+    let procmgr = env.start();
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
+        total: Some(1),
+        failed: Some(1),
+        running: Some(0),
+        created: Some(0),
+        ..Default::default()
+    });
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("missing_binary", ProcessExpect::Failed);
+}
+
+#[test]
+fn exit_ok_fixture_exits_cleanly() {
+    let env = TestEnv::new().with_process("exit_ok");
+    let procmgr = env.start();
+    procmgr.assert_process_state_within("exit_ok", ProcessExpect::Exited);
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
+        total: Some(1),
+        exited: Some(1),
+        running: Some(0),
+        failed: Some(0),
+        ..Default::default()
+    });
+}
+
+#[test]
+fn exit_fail_fixture_exits_with_failure() {
+    let env = TestEnv::new().with_process("exit_fail");
+    let procmgr = env.start();
+    procmgr.assert_process_state_within("exit_fail", ProcessExpect::Failed);
+    let status = procmgr.require_status();
+    status.assert_processes_count(StatusProcessesCount {
+        total: Some(1),
+        failed: Some(1),
+        running: Some(0),
+        exited: Some(0),
+        ..Default::default()
+    });
+}
+
+#[test]
+fn condition_blocked_fixture_is_skipped() {
+    let env = TestEnv::new().with_process("condition_blocked");
+    let procmgr = env.start();
+    let status = procmgr.require_status();
+    status.assert_ready();
+    status.assert_processes_count(StatusProcessesCount {
+        total: Some(1),
+        created: Some(0),
+        skipped: Some(1),
+        running: Some(0),
+        ..Default::default()
+    });
+    let list = procmgr.require_list();
+    list.assert_len(1);
+    list.assert_process_state("condition_blocked", ProcessExpect::Skipped);
+    list.assert_skip_reasons("condition_blocked", &["path_missing"]);
+    procmgr.assert_condition_path_not_met_logged(
+        "condition_blocked",
+        "/nonexistent/path/procmgr-condition-test",
+    );
+}
+
+#[test]
+fn test_cli_condition_path_exists_not_met() {
+    let env = TestEnv::new()
+        .with_config(
+            "missing-bin",
+            "command: /nonexistent/binary\ncondition_path_exists: /nonexistent/binary\n",
+        )
+        .start();
+
+    env.daemon()
+        .wait_for_log_default("[missing-bin] condition_path_exists not met");
+
+    let json = env.cli_list_json().stdout_json();
+    assert_eq!(json[0]["name"], "missing-bin");
+    assert_eq!(json[0]["state"], "Skipped");
+    assert_eq!(json[0]["skip_reasons"], serde_json::json!(["path_missing"]));
+    assert_eq!(json[0]["pid"], 0);
+}

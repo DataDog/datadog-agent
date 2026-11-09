@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 // Package irgen generates an IR program from an object file and a list of
 // probes.
@@ -28,6 +28,7 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"go/token"
 	"io"
 	"iter"
 	"maps"
@@ -36,6 +37,7 @@ import (
 	"regexp"
 	"runtime/debug"
 	"slices"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -50,6 +52,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/ir"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/redaction"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/safeelf"
 )
@@ -482,7 +485,7 @@ func generateIR(
 	// roots. Must happen before type expansion. Returns one analyzedProbe per
 	// instance.
 	budgets := computeDepthBudgets(processed.pendingSubprograms)
-	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog)
+	analyzedProbes, explorationRoots := analyzeAllProbes(probes, budgets, typeCatalog, cfg.redaction)
 	needsGoContextSupport := analyzedProbesContainGoContext(analyzedProbes)
 	// Also enable context support if context.Context appears anywhere in
 	// the binary's go runtime types (via the special-additional-types
@@ -644,6 +647,11 @@ func generateIR(
 		}
 	}
 	annotateSpecialGoTypes(typeCatalog, needsGoContextSupport, contextImplIRTypeIDs)
+	// annotateSpecialGoTypes swaps wrapped impls in for their plain
+	// StructureType entries in typesByID. Rebind references so pointees,
+	// fields, and variables point at the wrappers rather than the orphaned
+	// pre-wrap instances.
+	rebindTypeReferences(typeCatalog, materializedSubprograms)
 
 	// Populate event root expressions for every probe.
 	probes, eventIssues := populateProbeEventsExpressions(
@@ -686,16 +694,18 @@ func generateIR(
 	slices.SortFunc(issues, ir.CompareProbeIDs)
 
 	return &ir.Program{
-		ID:               programID,
-		Subprograms:      subprograms,
-		Probes:           probes,
-		Types:            typeCatalog.typesByID,
-		MaxTypeID:        typeCatalog.idAlloc.alloc,
-		Issues:           issues,
-		GoModuledataInfo: processed.goModuledataInfo,
-		GoMapHashInfo:    processed.goMapHashInfo,
-		CommonTypes:      commonTypes,
-		IsARM64:          arch == "arm64",
+		ID:                  programID,
+		Subprograms:         subprograms,
+		Probes:              probes,
+		Types:               typeCatalog.typesByID,
+		MaxTypeID:           typeCatalog.idAlloc.alloc,
+		Issues:              issues,
+		GoModuledataInfo:    processed.goModuledataInfo,
+		GoMapHashInfo:       processed.goMapHashInfo,
+		CommonTypes:         commonTypes,
+		IsARM64:             arch == "arm64",
+		Redaction:           cfg.redaction,
+		CoordinatedSampling: cfg.coordinatedSampling,
 	}, nil
 }
 
@@ -723,6 +733,11 @@ type analyzedExpression struct {
 
 	// For capture expressions, the user-specified name.
 	captureExprName string
+
+	// redacted is true when the parsed expression references a redacted
+	// identifier. Computed during analysis (where the AST is available) and
+	// carried onto ir.RootExpression so the decoder drops the value.
+	redacted bool
 }
 
 // analyzedCondition represents a parsed and resolved condition tree. The
@@ -879,7 +894,7 @@ func analyzeCondition(
 	if len(leaves) == 0 {
 		return nil, ir.Issue{
 			Kind:    ir.IssueKindUnsupportedFeature,
-			Message: fmt.Sprintf("unsupported condition expression type: %T", condExpr),
+			Message: conditionUnsupportedMessage(condExpr),
 		}
 	}
 	// Validate every leaf is a supported shape first so error messages
@@ -889,7 +904,7 @@ func analyzeCondition(
 		if !ok {
 			return nil, ir.Issue{
 				Kind:    ir.IssueKindUnsupportedFeature,
-				Message: fmt.Sprintf("unsupported condition expression type: %T", leaf),
+				Message: conditionUnsupportedMessage(leaf),
 			}
 		}
 		// A condition leaf's LHS must be a variable-derived path
@@ -1088,6 +1103,8 @@ func checkConditionLHS(expr exprlang.Expr) error {
 		)
 	case *exprlang.LiteralExpr:
 		return errors.New("condition leaf LHS may not be a literal")
+	case *exprlang.UnsupportedExpr:
+		return errors.New(conditionUnsupportedMessage(e))
 	default:
 		return fmt.Errorf("unsupported condition leaf LHS type: %T", expr)
 	}
@@ -1148,6 +1165,14 @@ func conditionLeafSubExpr(leaf exprlang.Expr) (exprlang.Expr, bool) {
 	default:
 		return nil, false
 	}
+}
+
+func conditionUnsupportedMessage(e exprlang.Expr) string {
+	if unsupported, ok := e.(*exprlang.UnsupportedExpr); ok {
+		return "unsupported condition operation: " + unsupported.Operation
+	}
+	// we don't expect to reach this return
+	return fmt.Sprintf("unsupported condition expression type: %T", e)
 }
 
 // rewriteReturnRefs rewrites every @return reference in expr to reference
@@ -1276,6 +1301,7 @@ func analyzeAllProbes(
 	probes []*ir.Probe,
 	budgets map[ir.SubprogramID]uint32,
 	tc *typeCatalog,
+	red *redaction.Config,
 ) ([]analyzedProbe, []explorationRoot) {
 	var analyzed []analyzedProbe
 
@@ -1742,6 +1768,16 @@ func analyzeAllProbes(
 					addRoot,
 					budget,
 				)
+				// Reject probes that reference data on the redaction list, to not leak info.
+				if ap.condition != nil {
+					if name, ok := expressionReferencesRedacted(ap.condition.expr, red); ok {
+						ap.condition = nil
+						ap.conditionIssue = ir.Issue{
+							Kind:    ir.IssueKindInvalidProbeDefinition,
+							Message: fmt.Sprintf("condition references redacted identifier %q", name),
+						}
+					}
+				}
 			}
 
 			// Mark unmatched segments as invalid.
@@ -1767,6 +1803,14 @@ func analyzeAllProbes(
 			slices.SortStableFunc(ap.expressions, func(a, b analyzedExpression) int {
 				return cmp.Compare(exprKindToInt(a.exprKind), exprKindToInt(b.exprKind))
 			})
+			// Flag capture/template expressions that read a redacted value so
+			// the decoder drops them. The resolved IR keeps only offsets and a
+			// display name, so this must be decided from the parsed AST here.
+			for i := range ap.expressions {
+				if _, ok := expressionReferencesRedacted(ap.expressions[i].expr, red); ok {
+					ap.expressions[i].redacted = true
+				}
+			}
 			analyzed = append(analyzed, ap)
 		}
 	}
@@ -2224,9 +2268,24 @@ func expandTypesWithBudgets(
 		return err
 	}
 
-	// Process any newly added expression leaf types.
-	if err := proc.drainQueue(); err != nil {
-		return err
+	// Complete types created during exploration before discarding placeholders.
+	for {
+		if err := proc.drainQueue(); err != nil {
+			return err
+		}
+		added := false
+		for id, t := range tc.typesByID {
+			if _, ok := t.(*pointeePlaceholderType); ok {
+				continue
+			}
+			if _, ok := processedBest[id]; !ok {
+				proc.push(t, 0)
+				added = true
+			}
+		}
+		if !added {
+			break
+		}
 	}
 
 	// Rewrite placeholders to unresolved pointee types.
@@ -2586,7 +2645,7 @@ func materializePending(
 					}
 					if locField := inlVar.AttrField(dwarf.AttrLocation); locField != nil {
 						locs := computeLocations(
-							p.unit, inlVar.Offset, ranges, baseVar.Type, locField,
+							inl.unit, inlVar.Offset, ranges, baseVar.Type, locField,
 							loclistReader, pointerSize,
 						)
 						baseVar.Locations = append(baseVar.Locations, locs...)
@@ -2594,7 +2653,7 @@ func materializePending(
 				} else {
 					// Fully defined var in the inlined instance.
 					v, err := processVariable(
-						p.unit, inlVar,
+						inl.unit, inlVar,
 						true /* parseLocations */, ranges,
 						loclistReader, pointerSize, tc,
 					)
@@ -2639,6 +2698,8 @@ type line struct {
 	pc          uint64
 	line        uint32
 	isStatement bool
+	endSequence bool
+	file        *dwarf.LineFile
 }
 
 type lineData struct {
@@ -2779,7 +2840,18 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 	if err := completeGoTypes(tc, 1, tc.idAlloc.alloc); err != nil {
 		return err
 	}
+	rebindTypeReferences(tc, subprograms)
+	return nil
+}
 
+// rebindTypeReferences points every type reference and subprogram variable at
+// the canonical type instance for its ID in tc.typesByID. It must run after any
+// pass that replaces a typesByID entry with a new object for the same ID (type
+// finalization, and annotateSpecialGoTypes' wrapper substitution); otherwise a
+// PointerType.Pointee or field can dangle at a stale instance, so the compiler
+// keys a type's ProcessType handler off one object while the loader looks it up
+// off another and finds no enqueue_pc.
+func rebindTypeReferences(tc *typeCatalog, subprograms []*ir.Subprogram) {
 	visitTypeReferences(tc, func(t *ir.Type) {
 		if *t == nil {
 			return
@@ -2792,7 +2864,6 @@ func finalizeTypes(tc *typeCatalog, subprograms []*ir.Subprogram) error {
 			v.Type = tc.typesByID[v.Type.GetID()]
 		}
 	}
-	return nil
 }
 
 type processedDwarf struct {
@@ -3024,8 +3095,8 @@ func (v *unitChildVisitor) push(
 		}
 
 		probesCfgs := v.root.interests.subprograms[name]
-		if len(probesCfgs) == 0 {
-			probesCfgs = v.root.interests.matchGenericPatterns(name)
+		if generic := v.root.interests.matchGenericPatterns(name); len(generic) > 0 {
+			probesCfgs = append(slices.Clone(probesCfgs), generic...)
 		}
 		inline, ok, err := maybeGetAttr[int64](entry, dwarf.AttrInline)
 		if err != nil {
@@ -3125,6 +3196,10 @@ func (v *unitChildVisitor) push(
 			if err != nil {
 				return nil, fmt.Errorf("failed to find struct size and member offset: %w", err)
 			}
+			_, etypesOffset, err := findStructSizeAndMemberOffset(v.root.dwarf, typeOffset, "etypes")
+			if err != nil {
+				return nil, fmt.Errorf("failed to find moduledata.etypes offset: %w", err)
+			}
 			location, err := getAttr[[]byte](entry, dwarf.AttrLocation)
 			if err != nil {
 				return nil, fmt.Errorf("failed to get location for runtime.firstmoduledata: %w", err)
@@ -3143,9 +3218,10 @@ func (v *unitChildVisitor) push(
 			v.root.goRuntimeInformation = ir.GoModuledataInfo{
 				FirstModuledataAddr: addr.Addr,
 				TypesOffset:         memberOffset,
+				ETypesOffset:        etypesOffset,
 			}
 
-		case "runtime.useAeshash", "runtime.aeskeysched":
+		case "runtime.useAeshash", "runtime.aeskeysched", "internal/runtime/maps.UseAeshash", "internal/runtime/maps.aeskeysched":
 			// Extract addresses of hash-related globals needed for swiss
 			// table map lookups. See go_swiss_maps.md for details.
 			addr, err := extractGlobalVarAddr(entry, name, v.root.pointerSize)
@@ -3154,9 +3230,9 @@ func (v *unitChildVisitor) push(
 				return nil, nil
 			}
 			switch name {
-			case "runtime.useAeshash":
+			case "runtime.useAeshash", "internal/runtime/maps.UseAeshash":
 				v.root.goMapHashInfo.UseAeshashAddr = addr
-			case "runtime.aeskeysched":
+			case "runtime.aeskeysched", "internal/runtime/maps.aeskeysched":
 				v.root.goMapHashInfo.AeskeyschedAddr = addr
 			}
 		}
@@ -3404,8 +3480,8 @@ type abstractSubprogram struct {
 	unit       *dwarf.Entry
 	probesCfgs []ir.ProbeDefinition
 	name       string
-	// Aggregated ranges from out-of-line and inlined instances.
-	outOfLinePCRanges []ir.PCRange
+	// Concrete out-of-line bodies can share an abstract DIE (Go 1.27).
+	outOfLine []*inlinedSubprogram
 	// Variables defined under the abstract DIE keyed by DIE offset.
 	variables map[dwarf.Offset]*dwarf.Entry
 	// Inlined instances discovered for this abstract subprogram.
@@ -3560,21 +3636,13 @@ func convertAbstractSubprogramsToPending(
 		if !abs.issue.IsNone() {
 			continue
 		}
-		if len(abs.outOfLinePCRanges) != 0 {
-			abs.issue = ir.Issue{
-				Kind:    ir.IssueKindMalformedExecutable,
-				Message: "multiple out-of-line instances of abstract subprogram",
-			}
-			continue
-		}
 		outOfLine := &inlinedSubprogram{
 			unit:              ctx.unitEntry,
 			abstractOrigin:    ctx.abstractOrigin,
 			outOfLinePCRanges: ctx.entryRanges,
 			variables:         ctx.variables,
 		}
-		abs.outOfLinePCRanges = append(abs.outOfLinePCRanges, ctx.entryRanges...)
-		abs.inlined = append(abs.inlined, outOfLine)
+		abs.outOfLine = append(abs.outOfLine, outOfLine)
 	}
 
 	// Append the abstract sub-programs in deterministic order.
@@ -3593,18 +3661,39 @@ func convertAbstractSubprogramsToPending(
 				varVars = append(varVars, abs.variables[k])
 			}
 		}
-		ret = append(ret, &pendingSubprogram{
-			unit:              abs.unit,
-			subprogramEntry:   nil,
-			name:              abs.name,
-			outOfLinePCRanges: abs.outOfLinePCRanges,
-			inlined:           abs.inlined,
-			variables:         varVars,
-			probesCfgs:        abs.probesCfgs,
-			issue:             abs.issue,
-			id:                idAllocator.next(),
-			abstract:          true,
-		})
+		appendPending := func(unit *dwarf.Entry, ranges []ir.PCRange, instances []*inlinedSubprogram) {
+			ret = append(ret, &pendingSubprogram{
+				unit:              unit,
+				name:              abs.name,
+				outOfLinePCRanges: ranges,
+				inlined:           instances,
+				variables:         varVars,
+				probesCfgs:        abs.probesCfgs,
+				issue:             abs.issue,
+				id:                idAllocator.next(),
+				abstract:          true,
+			})
+		}
+		if len(abs.outOfLine) == 0 {
+			appendPending(abs.unit, nil, abs.inlined)
+			continue
+		}
+		var bodyRanges []ir.PCRange
+		for _, body := range abs.outOfLine {
+			bodyRanges = append(bodyRanges, body.outOfLinePCRanges...)
+		}
+		slices.SortFunc(bodyRanges, cmpRange)
+		if err := validateNonOverlappingPCRanges(bodyRanges, 0, "abstract subprogram bodies"); err != nil {
+			abs.issue = ir.Issue{Kind: ir.IssueKindInvalidDWARF, Message: err.Error()}
+		}
+		for i, body := range abs.outOfLine {
+			instances := []*inlinedSubprogram{body}
+			if i == 0 {
+				// Inline call sites belong to the abstract function, not each body.
+				instances = append(slices.Clone(abs.inlined), body)
+			}
+			appendPending(body.unit, body.outOfLinePCRanges, instances)
+		}
 	}
 
 	return ret, nil
@@ -4381,7 +4470,7 @@ func exploreTypesForExpressions(
 				if !ok {
 					ap.conditionIssue = ir.Issue{
 						Kind:    ir.IssueKindUnsupportedFeature,
-						Message: fmt.Sprintf("unsupported condition expression type: %T", leaf),
+						Message: conditionUnsupportedMessage(leaf),
 					}
 					ap.condition = nil
 					break
@@ -8103,6 +8192,7 @@ func populateEventExpressions(
 			Kind:       expr.exprKind,
 			Expression: resolvedExpr,
 			DictIndex:  v.DictIndex,
+			Redacted:   expr.redacted,
 		})
 	}
 	exprStatusArraySize := uint32((ir.ExprStatusBits*len(expressions) + 7) / 8)
@@ -8434,6 +8524,9 @@ func pickInjectionPoint(
 		if !issue.IsNone() || err != nil {
 			return buf, nil, issue, err
 		}
+		if !inlined {
+			injectionPC = followLineJump(arch, addr, injectionPC, body, lines.lines)
+		}
 		frameless := lines.prologueEnd == 0
 		// Disassemble the function to validate injection PC.
 		_, issue = disassembleFunction(
@@ -8475,21 +8568,29 @@ func pickLineInjectionPC(
 			return 0, ir.Issue{}, fmt.Errorf("missing line data for range: [0x%x, 0x%x)",
 				r[0], r[1])
 		}
-		for _, l := range lines.lines {
-			if l.pc < r[0] {
-				continue
-			}
+		for i, l := range lines.lines {
 			if l.pc >= r[1] {
 				break
 			}
-			if l.line == uint32(line) {
-				if l.isStatement {
-					// Statements are preferred as injection points.
-					return l.pc, ir.Issue{}, nil
+			if l.endSequence || l.line != uint32(line) {
+				continue
+			}
+			pc := l.pc
+			if pc < r[0] {
+				// A row's line state lasts until the next row, which may be
+				// an end-of-sequence marker. Use the inline range start only
+				// when that state still covers it, never the predecessor PC.
+				if i+1 < len(lines.lines) && lines.lines[i+1].pc <= r[0] {
+					continue
 				}
-				if nonStmtPc == 0 {
-					nonStmtPc = l.pc
-				}
+				pc = r[0]
+			}
+			if l.isStatement && pc == l.pc {
+				// Prefer genuine statement boundaries over inherited state.
+				return pc, ir.Issue{}, nil
+			}
+			if nonStmtPc == 0 {
+				nonStmtPc = pc
 			}
 		}
 	}
@@ -8500,6 +8601,145 @@ func pickLineInjectionPC(
 		}, nil
 	}
 	return nonStmtPc, ir.Issue{}, nil
+}
+
+// followLineJump moves a line probe from branch-local setup to shared code on
+// the same source line. For example, the compiler can emit this layout for a
+// call whose argument is selected by an earlier conditional:
+//
+//	branchA: MOV a, arg  // line 93: first statement entry in the line table
+//	         JMP shared
+//	branchB: MOV b, arg
+//	shared:  CALL use    // line 93
+//
+// Probing branchA misses calls reached through branchB. Probing shared instead
+// covers both paths. Only moves, loads/stores on ARM64, and NOPs may precede the
+// forward jump; calls, conditional branches, or another source line stop the
+// search. The target must belong to the same file and line, and must not enter
+// a loop that would make the probe fire more often.
+func followLineJump(arch object.Architecture, addr, injectionPC uint64, body []byte, lines []line) uint64 {
+	if injectionPC < addr || injectionPC-addr >= uint64(len(body)) {
+		return injectionPC
+	}
+	lineAt := func(pc uint64) line {
+		i := sort.Search(len(lines), func(i int) bool { return lines[i].pc > pc }) - 1
+		if i < 0 {
+			return line{}
+		}
+		return lines[i]
+	}
+	source := lineAt(injectionPC)
+	if source.file == nil || source.endSequence {
+		return injectionPC
+	}
+	for pc := injectionPC; pc-addr < uint64(len(body)); {
+		var size int
+		var target uint64
+		var move bool
+		switch arch {
+		case "amd64":
+			inst, err := x86asm.Decode(body[pc-addr:], 64)
+			if err != nil {
+				return injectionPC
+			}
+			size = inst.Len
+			move = inst.Op == x86asm.MOV || inst.Op == x86asm.NOP
+			if inst.Op == x86asm.JMP {
+				if rel, ok := inst.Args[0].(x86asm.Rel); ok {
+					target = uint64(int64(pc) + int64(size) + int64(rel))
+				}
+			}
+		case "arm64":
+			inst, err := arm64asm.Decode(body[pc-addr:])
+			if err != nil {
+				return injectionPC
+			}
+			size = Arm64InstructionByteLength
+			move = inst.Op == arm64asm.MOV || inst.Op == arm64asm.LDR || inst.Op == arm64asm.STR || inst.Op == arm64asm.NOP
+			if inst.Op == arm64asm.B {
+				if rel, ok := inst.Args[0].(arm64asm.PCRel); ok {
+					target = uint64(int64(pc) + int64(rel))
+				}
+			}
+		default:
+			return injectionPC
+		}
+		if target > pc && target-addr < uint64(len(body)) {
+			dest := lineAt(target)
+			if !dest.endSequence && dest.file == source.file && dest.line == source.line &&
+				!lineJumpEntersLoop(arch, addr, injectionPC, target, body) {
+				return target
+			}
+		}
+		current := lineAt(pc)
+		if !move || current.endSequence || current.file != source.file || current.line != source.line {
+			return injectionPC
+		}
+		pc += uint64(size)
+	}
+	return injectionPC
+}
+
+// lineJumpEntersLoop conservatively checks whether moving a probe from
+// injectionPC to target could make it fire on additional loop iterations.
+// For example:
+//
+//	injectionPC: MOV zero, index
+//	             JMP target
+//	loop:        ADD one, index
+//	target:      CMP index, limit
+//	             JLT loop
+//
+// The original probe fires once before the loop, but a probe at target would
+// fire on every iteration. Scan the rest of the function for branches into
+// (injectionPC, target], including branches directly to target. Branches back
+// to or before injectionPC are safe: they also pass through the original probe.
+// This is not a reachability analysis; even an unreachable branch into that
+// interval, or an instruction we cannot decode, makes us keep the old probe.
+func lineJumpEntersLoop(arch object.Architecture, addr, injectionPC, target uint64, body []byte) bool {
+	for pc := target; pc-addr < uint64(len(body)); {
+		var size int
+		var dest uint64
+		switch arch {
+		case "amd64":
+			inst, err := x86asm.Decode(body[pc-addr:], 64)
+			if err != nil {
+				return true
+			}
+			size = inst.Len
+			if inst.Op != x86asm.CALL {
+				if rel, ok := inst.Args[0].(x86asm.Rel); ok {
+					dest = uint64(int64(pc) + int64(size) + int64(rel))
+				}
+			}
+		case "arm64":
+			if len(body[pc-addr:]) >= Arm64InstructionByteLength &&
+				binary.LittleEndian.Uint32(body[pc-addr:]) == 0 {
+				pc += Arm64InstructionByteLength
+				continue
+			}
+			inst, err := arm64asm.Decode(body[pc-addr:])
+			if err != nil {
+				return true
+			}
+			size = Arm64InstructionByteLength
+			switch inst.Op {
+			case arm64asm.B, arm64asm.CBZ, arm64asm.CBNZ, arm64asm.TBZ, arm64asm.TBNZ:
+				for _, arg := range inst.Args {
+					if rel, ok := arg.(arm64asm.PCRel); ok {
+						dest = uint64(int64(pc) + int64(rel))
+					}
+				}
+			}
+		default:
+			return true
+		}
+		if dest > injectionPC && dest <= target {
+			return true
+		}
+		pc += uint64(size)
+	}
+	return false
 }
 
 type injectionPoint struct {
@@ -8841,6 +9081,8 @@ func collectLineDataForRange(
 			pc:          lineEntry.Address,
 			line:        uint32(lineEntry.Line),
 			isStatement: lineEntry.IsStmt,
+			endSequence: lineEntry.EndSequence,
+			file:        lineEntry.File,
 		})
 		if err := lineReader.Next(&lineEntry); err != nil {
 			return lineData{err: err}
@@ -8864,7 +9106,7 @@ func processVariable(
 	if err != nil {
 		return nil, err
 	}
-	if strings.HasPrefix(name, ".") {
+	if strings.HasPrefix(name, ".") || (entry.Tag == dwarf.TagVariable && !token.IsIdentifier(name)) {
 		return nil, nil
 	}
 	typeOffset, err := getAttr[dwarf.Offset](entry, dwarf.AttrType)

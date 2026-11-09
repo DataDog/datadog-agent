@@ -63,17 +63,20 @@ func TestContainerRegex(t *testing.T) {
 	ad := &ADConfig{}
 	ad.setContainersRegex()
 	assert.Nil(t, ad.ContainersRe)
+	assert.False(t, ad.HasContainerNamesFilter())
 	assert.True(t, ad.MatchContainer("a-random-string"))
 
 	ad = &ADConfig{KubeContainerNames: []string{"foo"}}
 	ad.setContainersRegex()
 	assert.NotNil(t, ad.ContainersRe)
+	assert.True(t, ad.HasContainerNamesFilter())
 	assert.True(t, ad.MatchContainer("foo"))
 	assert.False(t, ad.MatchContainer("bar"))
 
 	ad = &ADConfig{KubeContainerNames: []string{"foo", "b*"}}
 	ad.setContainersRegex()
 	assert.NotNil(t, ad.ContainersRe)
+	assert.True(t, ad.HasContainerNamesFilter())
 	assert.True(t, ad.MatchContainer("foo"))
 	assert.True(t, ad.MatchContainer("bar"))
 }

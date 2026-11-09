@@ -1,0 +1,9 @@
+description: An unset variable expands to an empty string by default.
+input:
+  script: |+
+    echo "before${UNSET_VAR}after"
+expect:
+  stdout: |+
+    beforeafter
+  stderr: ""
+  exit_code: 0

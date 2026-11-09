@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fixed a crash in the trace-agent when processing a v0.7 payload whose trace
+    chunk omits the ``tags`` field and whose spans carry a ``_dd.p.dm`` tag.
+    Promoting the decision maker to the chunk level no longer writes to an
+    uninitialized map.

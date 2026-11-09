@@ -72,6 +72,14 @@ func (m *MockSecretResolver) IsValueFromSecret(_ string) bool {
 	return false
 }
 
+func (m *MockSecretResolver) GetPathsAndHandles() ([]string, []string) {
+	return nil, nil
+}
+
+func (m *MockSecretResolver) GetHashValues(_ []string) map[string]string {
+	return nil
+}
+
 func (m *MockSecretResolver) haveAllScenariosBeenCalled() bool {
 	for _, scenario := range m.scenarios {
 		if scenario.called == 0 {
@@ -91,7 +99,7 @@ func (m *MockSecretResolver) haveAllScenariosNotCalled() bool {
 	return true
 }
 
-// nolint: deadcode, unused
+//nolint:unused
 func (m *MockSecretResolver) triggerCallback(handle, origin string, path []string, oldValue, newValue any) {
 	for _, subscriber := range m.subscribers {
 		subscriber(handle, origin, path, oldValue, newValue)

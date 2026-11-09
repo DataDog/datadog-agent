@@ -42,14 +42,10 @@ if ENV.has_key?("OMNIBUS_GIT_CACHE_DIR") && !BUILD_OCIRU
   Omnibus::Config.git_cache_dir ENV["OMNIBUS_GIT_CACHE_DIR"]
 end
 
+INSTALL_DIR = ENV["INSTALL_DIR"] || raise('INSTALL_DIR must be set in tasks/omnibus.py')
+
 if windows_target?
-  # Note: this is the path used by Omnibus to build the agent, the final install
-  # dir will be determined by the Windows installer. This path must not contain
-  # spaces because Omnibus doesn't quote the Git commands it launches.
-  INSTALL_DIR = 'C:/opt/datadog-agent/'
   PYTHON_3_EMBEDDED_DIR = format('%s/embedded3', INSTALL_DIR)
-else
-  INSTALL_DIR = ENV["INSTALL_DIR"] || '/opt/datadog-agent'
 end
 
 install_dir INSTALL_DIR
@@ -126,10 +122,10 @@ build_iteration 1
 description 'Datadog Monitoring Agent
  The Datadog Monitoring Agent is a lightweight process that monitors system
  processes and services, and sends information back to your Datadog account.
- .
+
  This package installs and runs the advanced Agent daemon, which queues and
  forwards metrics from your applications as well as system services.
- .
+
  See http://www.datadoghq.com/ for more information
 '
 
@@ -341,7 +337,12 @@ if windows_target?
   # Rust binaries (not in GO_BINARIES — no Go symbol inspection needed)
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgrd.exe"
   windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\dd-procmgr.exe"
-  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\ai-prompt-logger-native-host.exe"
+  windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\agent-data-plane.exe"
+
+  if not fips_mode?
+    # TODO(ACTP-XXX): PAR is not enabled in Gov yet
+    windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
+  end
 
   if windows_signing_enabled?
     # Sign additional binaries from here.
@@ -368,8 +369,8 @@ if windows_target?
       "#{install_dir}\\bin\\agent\\dd-compile-policy.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgrd.exe",
       "#{install_dir}\\bin\\agent\\dd-procmgr.exe",
-      "#{install_dir}\\bin\\agent\\ai-prompt-logger-native-host.exe",
-    ]
+      "#{install_dir}\\bin\\agent\\agent-data-plane.exe",
+    ] + (fips_mode? ? [] : ["#{install_dir}\\bin\\agent\\par-control.exe"])
 
     BINARIES_TO_SIGN.each do |bin|
       sign_file bin

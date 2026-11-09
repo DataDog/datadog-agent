@@ -16,11 +16,12 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	hostname "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
 	pkgstrings "github.com/DataDog/datadog-agent/pkg/util/strings"
 )
 
@@ -78,7 +79,6 @@ var splitTagKeyOrder = []string{"source", "service", "env", "host"}
 // on the heavyweight datadog-api-client-go module.
 type eventSender struct {
 	forwarder eventplatform.Forwarder
-	logger    log.Component
 	storage   observerdef.StorageReader
 	hostname  hostname.Component
 }
@@ -86,13 +86,12 @@ type eventSender struct {
 // newEventSender creates an eventSender backed by the given forwarder.
 // storage is used to compute windowed log rates for display in event messages;
 // it may be nil and will be set later via EventReporter.SetStorage.
-func newEventSender(forwarder eventplatform.Forwarder, logger log.Component, storage observerdef.StorageReader, hn hostname.Component) (*eventSender, error) {
+func newEventSender(forwarder eventplatform.Forwarder, storage observerdef.StorageReader, hn hostname.Component) (*eventSender, error) {
 	if forwarder == nil {
 		return nil, errors.New("event-platform forwarder is not available")
 	}
 	return &eventSender{
 		forwarder: forwarder,
-		logger:    logger,
 		storage:   storage,
 		hostname:  hn,
 	}, nil
@@ -104,7 +103,7 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 	if a.SourceRef == nil || storage == nil {
 		return 0, false
 	}
-	total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateCount)
+	total := storage.SumRange(a.SourceRef.Ref, a.Timestamp-logPatternRateWindowSec, a.Timestamp, observerdef.AggregateSum)
 	return total / logPatternRateWindowSec, true
 }
 
@@ -113,7 +112,7 @@ func logPatternRate(a observerdef.Anomaly, storage observerdef.StorageReader) (r
 func logPatternPrevRate(a observerdef.Anomaly, storage observerdef.StorageReader) (rate float64, ok bool) {
 	if a.SourceRef != nil && storage != nil {
 		start := a.Timestamp - logPatternPrevRateWindowSec - logPatternRateWindowSec
-		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateCount)
+		total := storage.SumRange(a.SourceRef.Ref, start, a.Timestamp-logPatternRateWindowSec, observerdef.AggregateSum)
 		if total == 0 {
 			return 0, false
 		}
@@ -145,6 +144,139 @@ func logRatePart(a observerdef.Anomaly, storage observerdef.StorageReader) strin
 	return fmt.Sprintf("\n\trate: %.1flog/s", curr)
 }
 
+// formatScorerContributorMessage resolves a scorer episode's compact handles
+// only when rendering the report. Entries whose backing series was evicted are
+// omitted without affecting the shares captured at episode start. The returned
+// message is always safe for the Event Management payload limit.
+func formatScorerContributorMessage(contributors []observerdef.ScorerContributor, storage observerdef.StorageReader) string {
+	if storage == nil || len(contributors) == 0 {
+		return ""
+	}
+
+	fullLines := make([]string, 0, len(contributors))
+	compactLines := make([]string, 0, len(contributors))
+	for _, contributor := range contributors {
+		meta := storage.GetSeriesMeta(contributor.Handle.Ref)
+		if meta == nil {
+			continue
+		}
+		contextValue, hasContext := storage.GetContext(contributor.Handle.Ref)
+		var context *observerdef.MetricContext
+		if hasContext {
+			context = &contextValue
+		}
+		fullDisplay := scorerContributorDisplayName(meta, context, contributor.Handle.Aggregate)
+		compactDisplay := fullDisplay
+		if meta.Tags.Len() > 0 {
+			compactMeta := *meta
+			compactMeta.Tags = tagset.CompositeTags{}
+			compactDisplay = scorerContributorDisplayName(&compactMeta, context, contributor.Handle.Aggregate)
+			if logDerivedContributorName(meta.Namespace, context) != "" {
+				compactDisplay += " — {...}"
+			} else {
+				compactDisplay += "{...}"
+			}
+		}
+		position := len(fullLines) + 1
+		fullLines = append(fullLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, fullDisplay))
+		compactLines = append(compactLines, fmt.Sprintf("%d. %.0f%% — %s", position, contributor.Share*100, compactDisplay))
+	}
+	if len(fullLines) == 0 {
+		return ""
+	}
+	if scorerContributorMessageLen(fullLines) <= changeEventMessageMaxLen {
+		return "Top contributions:\n" + strings.Join(fullLines, "\n")
+	}
+
+	lines := append([]string(nil), fullLines...)
+	for i := 3; i < len(lines); i++ {
+		lines[i] = compactLines[i]
+	}
+	return truncateScorerContributorLines(lines)
+}
+
+// scorerContributorDisplayName uses the same human-readable identifier as the
+// regular reporter for log-derived metrics: a log-frequency example, or a log
+// pattern when no example is available. Other metrics retain their series name.
+func scorerContributorDisplayName(meta *observerdef.SeriesMeta, context *observerdef.MetricContext, aggregate observerdef.Aggregate) string {
+	if name := logDerivedContributorName(meta.Namespace, context); name != "" {
+		if meta.Tags.Len() == 0 && meta.Host == "" {
+			return name
+		}
+		var b strings.Builder
+		b.WriteString(name)
+		b.WriteString(" — {")
+		if meta.Host != "" && !meta.Tags.Find(func(tag string) bool { return tag == "host:"+meta.Host }) {
+			b.WriteString("host:")
+			b.WriteString(meta.Host)
+			if meta.Tags.Len() > 0 {
+				b.WriteByte(',')
+			}
+		}
+		b.WriteString(meta.Tags.Join(","))
+		b.WriteByte('}')
+		return b.String()
+	}
+	return observerdef.SeriesDescriptor{
+		Namespace: meta.Namespace,
+		Name:      meta.Name,
+		Host:      meta.Host,
+		Tags:      meta.Tags,
+		Aggregate: aggregate,
+	}.DisplayName()
+}
+
+// logDerivedContributorName returns the human-readable name for a log-derived
+// metric. An empty result lets callers fall back to the metric descriptor when
+// its context is no longer available.
+func logDerivedContributorName(namespace string, context *observerdef.MetricContext) string {
+	if context == nil {
+		return ""
+	}
+	switch namespace {
+	case logMetricsExtractorNamespace:
+		if example := strings.TrimSpace(context.Example); example != "" {
+			return "log: " + example
+		}
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	case logPatternExtractorNamespace:
+		if pattern := strings.TrimSpace(context.Pattern); pattern != "" {
+			return "log: " + pattern
+		}
+	}
+	return ""
+}
+
+func scorerContributorMessageLen(lines []string) int {
+	return len("Top contributions:") + len(lines) + len(strings.Join(lines, ""))
+}
+
+func truncateScorerContributorLines(lines []string) string {
+	message := "Top contributions:"
+	for i, line := range lines {
+		remaining := len(lines) - i - 1
+		suffix := ""
+		if remaining > 0 {
+			suffix = fmt.Sprintf("\n… and %d other anomalies", remaining)
+		}
+		if len(message)+1+len(line)+len(suffix) <= changeEventMessageMaxLen {
+			message += "\n" + line
+			continue
+		}
+
+		available := changeEventMessageMaxLen - len(message) - len(suffix) - 1
+		if available >= 4 {
+			message += "\n" + truncateBytesValidUTF8(line, available)
+			remaining--
+			suffix = fmt.Sprintf("\n… and %d other anomalies", remaining)
+		}
+		return message + suffix
+	}
+	return message
+}
+
 func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	msg := BuildChangeMessage(c, s.storage)
 	ts := time.Unix(c.FirstSeen, 0).UTC().Format(time.RFC3339)
@@ -155,7 +287,7 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 		host = s.hostname.GetSafe(context.TODO())
 	}
 
-	s.logger.Infof("[observer] sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
+	logging.Infof("reporter sending change event: pattern=%s title=%q aggKey=%s timestamp=%s\n%s\n", c.Pattern, c.Title, aggKey, ts, msg)
 
 	payload := buildChangeEventPayload(c, msg, ts, aggKey, host)
 	body, err := json.Marshal(payload)
@@ -164,7 +296,97 @@ func (s *eventSender) send(c observerdef.ActiveCorrelation) error {
 	}
 
 	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
-	return s.forwarder.SendEventPlatformEventBlocking(epMsg, eventplatform.EventTypeEventManagement)
+	return s.forwarder.SendEventPlatformEvent(epMsg, eventplatform.EventTypeEventManagement)
+}
+
+// sendEpisodeEvent sends a v2 change event for a scorer EpisodeStarted or EpisodeEnded
+// lifecycle event. Unlike send(), this path is driven by the correlator's own PendingEvents
+// and requires no reporter-side deduplication.
+func (s *eventSender) sendEpisodeEvent(evt observerdef.CorrelatorEvent) error {
+	var title, direction string
+	switch evt.Kind {
+	case observerdef.CorrelatorEventEpisodeStarted:
+		title = fmt.Sprintf("Anomaly scorer: episode started (%s → %s)",
+			evt.FromLevel.String(), evt.ToLevel.String())
+		direction = "started"
+	case observerdef.CorrelatorEventEpisodeEnded:
+		title = fmt.Sprintf("Anomaly scorer: episode ended (%s → %s)",
+			evt.FromLevel.String(), evt.ToLevel.String())
+		direction = "ended"
+	default:
+		return fmt.Errorf("unsupported CorrelatorEventKind %d", evt.Kind)
+	}
+
+	ts := time.Unix(evt.Timestamp, 0).UTC().Format(time.RFC3339)
+	aggKey := "observer:scorer:" + evt.CorrelatorName + ":" + evt.Correlation.Pattern
+	msg := formatScorerEpisodeMessage(evt, s.storage, direction)
+
+	var host string
+	if s.hostname != nil {
+		host = s.hostname.GetSafe(context.TODO())
+	}
+
+	logging.Infof("reporter sending scorer episode event: pattern=%s direction=%s aggKey=%s timestamp=%s",
+		evt.Correlation.Pattern, direction, aggKey, ts)
+
+	tags := []string{
+		"source:edge-intelligence",
+		"pattern:" + evt.Correlation.Pattern,
+		"scorer:" + evt.CorrelatorName,
+		"episode_direction:" + direction,
+	}
+	payload := map[string]any{
+		"data": map[string]any{
+			"type": "event",
+			"attributes": map[string]any{
+				"title":           title,
+				"message":         msg,
+				"category":        "change",
+				"integration_id":  changeEventIntegrationID,
+				"tags":            tags,
+				"timestamp":       ts,
+				"aggregation_key": aggKey,
+				"attributes": map[string]any{
+					"changed_resource": map[string]any{
+						"name": truncateChars(evt.Correlation.Pattern, changedResourceNameMaxLen),
+						"type": changedResourceType,
+					},
+					"author": map[string]any{
+						"name": "datadog-agent-observer",
+						"type": "automation",
+					},
+					"change_metadata": map[string]any{
+						"episode_pattern":   evt.Correlation.Pattern,
+						"episode_direction": direction,
+						"from_level":        evt.FromLevel.String(),
+						"to_level":          evt.ToLevel.String(),
+						"first_seen":        time.Unix(evt.Correlation.FirstSeen, 0).UTC().Format(time.RFC3339),
+						"last_updated":      time.Unix(evt.Correlation.LastUpdated, 0).UTC().Format(time.RFC3339),
+					},
+				},
+			},
+		},
+	}
+	if host != "" {
+		payload["data"].(map[string]any)["attributes"].(map[string]any)["host"] = host
+	}
+
+	body, err := json.Marshal(payload)
+	if err != nil {
+		return fmt.Errorf("marshal scorer episode event payload: %w", err)
+	}
+
+	epMsg := message.NewMessage(body, nil, "", time.Now().UnixNano())
+	return s.forwarder.SendEventPlatformEvent(epMsg, eventplatform.EventTypeEventManagement)
+}
+
+func formatScorerEpisodeMessage(evt observerdef.CorrelatorEvent, storage observerdef.StorageReader, direction string) string {
+	message := formatScorerContributorMessage(evt.Contributors, storage)
+	if message == "" {
+		message = fmt.Sprintf("Anomaly scorer %q episode %s at t=%d\nPattern: %s",
+			evt.CorrelatorName, direction, evt.Timestamp, evt.Correlation.Pattern)
+	}
+	return truncateBytesValidUTF8(message, changeEventMessageMaxLen)
 }
 
 // buildChangeEventPayload returns the v2 Events API JSON envelope for a
@@ -214,13 +436,16 @@ func BuildEventTags(c observerdef.ActiveCorrelation) []string {
 			hasMetric = true
 		}
 		// Propagate dimensional tags from the source series.
-		for _, t := range a.Source.Tags {
+		a.Source.Tags.ForEach(func(t string) {
 			for _, prefix := range []string{"service:", "env:", "host:"} {
 				if strings.HasPrefix(t, prefix) {
 					dimensionSet[t] = struct{}{}
 					break
 				}
 			}
+		})
+		if a.Source.Host != "" {
+			dimensionSet["host:"+a.Source.Host] = struct{}{}
 		}
 		// For log-derived anomalies, dimensional info lives in Context.SplitTags
 		// (set by the log tagged pattern clusterer).
@@ -276,18 +501,18 @@ func buildChangeAttributes(c observerdef.ActiveCorrelation) map[string]any {
 func extractImpactedServices(c observerdef.ActiveCorrelation) []map[string]any {
 	seen := make(map[string]bool)
 	for _, m := range c.Members {
-		for _, tag := range m.Tags {
+		m.Tags.ForEach(func(tag string) {
 			if strings.HasPrefix(tag, "service:") {
 				seen[strings.TrimPrefix(tag, "service:")] = true
 			}
-		}
+		})
 	}
 	for _, a := range c.Anomalies {
-		for _, tag := range a.Source.Tags {
+		a.Source.Tags.ForEach(func(tag string) {
 			if strings.HasPrefix(tag, "service:") {
 				seen[strings.TrimPrefix(tag, "service:")] = true
 			}
-		}
+		})
 	}
 	names := make([]string, 0, len(seen))
 	for svc := range seen {
@@ -348,14 +573,15 @@ func buildNewValue(c observerdef.ActiveCorrelation) map[string]any {
 func buildChangeMetadata(c observerdef.ActiveCorrelation) map[string]any {
 	var metricAnomalies, logAnomalies []any
 	for _, a := range c.Anomalies {
+		title, description := observerdef.FormatAnomaly(a)
 		entry := map[string]any{
 			"source":    a.Source.DisplayName(),
 			"detector":  a.DetectorName,
-			"title":     a.Title,
+			"title":     title,
 			"timestamp": a.Timestamp,
 		}
-		if a.Description != "" {
-			entry["description"] = a.Description
+		if description != "" {
+			entry["description"] = description
 		}
 		if a.Score != nil {
 			entry["score"] = *a.Score
@@ -432,10 +658,13 @@ func BuildChangeMessage(c observerdef.ActiveCorrelation, storage observerdef.Sto
 		} else if a.DebugInfo != nil {
 			display := anomalyDisplayKey(a)
 			anomalyLines = append(anomalyLines, fmt.Sprintf("- %s: %.2f (baseline mean: %.2f, %.1f sigma)", display, a.DebugInfo.CurrentValue, a.DebugInfo.BaselineMean, a.DebugInfo.DeviationSigma))
-		} else if a.Description != "" {
-			anomalyLines = append(anomalyLines, "- "+a.Description)
 		} else {
-			anomalyLines = append(anomalyLines, "- "+anomalyDisplayKey(a))
+			_, description := observerdef.FormatAnomaly(a)
+			if description != "" {
+				anomalyLines = append(anomalyLines, "- "+description)
+			} else {
+				anomalyLines = append(anomalyLines, "- "+anomalyDisplayKey(a))
+			}
 		}
 	}
 

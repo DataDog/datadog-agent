@@ -1,0 +1,14 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "config",
+    srcs = ["command.go"],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/config",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//cmd/agent/command",
+        "//cmd/agent/common",
+        "//pkg/cli/subcommands/config",
+        "@com_github_spf13_cobra//:cobra",
+    ],
+)

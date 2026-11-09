@@ -24,6 +24,7 @@ import (
 	compStatus "github.com/DataDog/datadog-agent/comp/core/status"
 	"github.com/DataDog/datadog-agent/comp/process"
 	"github.com/DataDog/datadog-agent/pkg/collector/python"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/util/status"
 	template "github.com/DataDog/datadog-agent/pkg/template/text"
@@ -136,7 +137,7 @@ func getAndWriteStatus(log log.Component, c ipc.HTTPClient, statusURL string, w 
 }
 
 func getStatusURL() (string, error) {
-	addressPort, err := pkgconfigsetup.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
+	addressPort, err := pkgconfighelper.GetProcessAPIAddressPort(pkgconfigsetup.Datadog())
 	if err != nil {
 		return "", fmt.Errorf("config error: %s", err.Error())
 	}

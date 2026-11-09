@@ -126,13 +126,15 @@ const expectedBody = `<!DOCTYPE html>
 `
 
 func TestRenderIndexPage(t *testing.T) {
+	g := &gui{}
+
 	req, err := http.NewRequest("GET", "/", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	rr := httptest.NewRecorder()
-	handler := http.HandlerFunc(renderIndexPage)
+	handler := http.HandlerFunc(g.renderIndexPage)
 
 	handler.ServeHTTP(rr, req)
 

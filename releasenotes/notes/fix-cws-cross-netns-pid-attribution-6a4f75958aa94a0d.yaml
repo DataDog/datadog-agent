@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    CWS: Network events are now attributed to the correct process when the same
+    address and port are reused across different network namespaces.

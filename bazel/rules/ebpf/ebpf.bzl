@@ -10,6 +10,10 @@ load("//bazel/rules/ebpf:cc_helpers.bzl", "collect_headers", "collect_include_di
 
 _TOOLCHAIN_TYPE = "@@//bazel/toolchains/llvm_bpf:llvm_bpf_toolchain_type"
 
+# Bazel 9.3 leaves --incompatible_auto_exec_groups off, so the toolchain type
+# is not itself an exec group. cfg = "exec" would follow the default platform.
+_LLVM_BPF_EXEC_GROUP = "llvm_bpf"
+
 _ARCH_DEFINES = {
     "x86_64": ["-D__TARGET_ARCH_x86", "-D__x86_64__"],
     "aarch64": ["-D__TARGET_ARCH_arm64", "-D__aarch64__"],
@@ -39,6 +43,7 @@ _COMMON_FLAGS = [
 _PREBUILT_FLAGS = [
     "-DCONFIG_64BIT",
     "-DCOMPILE_PREBUILT",
+    "-fdebug-compilation-dir=.",
 ]
 
 _CORE_FLAGS = [
@@ -96,6 +101,8 @@ def _ebpf_prog_impl(ctx):
 
     # --- Step 1: .c -> .bc (clang) ---
     bc_file = ctx.actions.declare_file(ctx.label.name + ".bc")
+    dep_file = ctx.actions.declare_file(ctx.label.name + ".d")
+    unused_inputs_file = ctx.actions.declare_file(ctx.label.name + ".unused_inputs")
 
     clang_args = ctx.actions.args()
     if ctx.attr.core:
@@ -130,30 +137,45 @@ def _ebpf_prog_impl(ctx):
     if not ctx.attr.core and kernel_header_dirs:
         kernel_header_inputs = kernel_header_files
 
-        # Resolve the external repo root from a file path.
-        # Files are at external/<repo>/kernel_N/include/..., we need
-        # the prefix up to (not including) "kernel_".
+        # Resolve the external repository root from the installed package layout.
         if kernel_header_files:
             sample = kernel_header_files[0].path
-            idx = sample.find("/kernel_")
+            idx = sample.find("/usr/src/")
             repo_root = sample[:idx] if idx >= 0 else sample.rsplit("/", 1)[0]
             for d in kernel_header_dirs:
                 clang_args.add("-isystem", repo_root + "/" + d)
 
+    clang_args.add("-MD")
+    clang_args.add("-MF", dep_file)
     clang_args.add("-c", src)
     clang_args.add("-o", bc_file)
 
+    action_inputs = depset(
+        [src] + kernel_header_inputs,
+        transitive = [header_files],
+    )
+
+    wrapper_args = ctx.actions.args()
+    wrapper_args.add("--compiler", tc.clang_bpf)
+    wrapper_args.add("--depfile", dep_file)
+    wrapper_args.add("--unused-inputs-list", unused_inputs_file)
+    wrapper_args.add_all(action_inputs, before_each = "--declared-input")
+    wrapper_args.add("--")
+    wrapper_args.use_param_file("@%s", use_always = True)
+    wrapper_args.set_param_file_format("multiline")
+
     ctx.actions.run(
-        inputs = depset(
-            [src] + kernel_header_inputs,
-            transitive = [header_files],
-        ),
-        outputs = [bc_file],
-        executable = tc.clang_bpf,
-        arguments = [clang_args],
+        inputs = action_inputs,
+        outputs = [bc_file, dep_file, unused_inputs_file],
+        executable = ctx.executable._clang_with_unused_inputs,
+        tools = [tc.clang_bpf],
+        arguments = [wrapper_args, clang_args],
         mnemonic = "EbpfClang",
         resource_set = resource_set_for(cpu_cores = 1, mem_mb = 1024),
         progress_message = "Compiling eBPF %{label} (.c -> .bc)",
+        exec_group = _LLVM_BPF_EXEC_GROUP,
+        toolchain = _TOOLCHAIN_TYPE,
+        unused_inputs_list = unused_inputs_file,
     )
 
     # --- Step 2: .bc -> .o (llc) ---
@@ -173,12 +195,13 @@ def _ebpf_prog_impl(ctx):
         mnemonic = "EbpfLlc",
         resource_set = resource_set_for(cpu_cores = 1, mem_mb = 1024),
         progress_message = "Linking eBPF %{label} (.bc -> .o)",
+        toolchain = _TOOLCHAIN_TYPE,
     )
 
     return [DefaultInfo(files = depset([obj_file]))]
 
 def _stripped_ebpf_impl(ctx):
-    """Strip debug info and LBB symbols from an eBPF object file."""
+    """Strip debug info, LBB symbols and .BTF.ext relocations from an eBPF object file."""
     tc = ctx.toolchains[_TOOLCHAIN_TYPE].llvm_bpf
     if not tc.valid:
         fail("LLVM BPF toolchain is not available")
@@ -190,9 +213,10 @@ def _stripped_ebpf_impl(ctx):
         inputs = [src],
         outputs = [out],
         executable = tc.llvm_strip,
-        arguments = ["-g", "-w", "-N", "LBB*", "-o", out.path, src.path],
+        arguments = ["-g", "-w", "-N", "LBB*", "--remove-section=.rel.BTF.ext", "-o", out.path, src.path],
         mnemonic = "EbpfStrip",
         progress_message = "Stripping eBPF %{label}",
+        toolchain = _TOOLCHAIN_TYPE,
     )
 
     return [DefaultInfo(files = depset([out]))]
@@ -236,6 +260,12 @@ _ebpf_prog = rule(
             doc = "Explicit target architecture override (x86_64 or aarch64). " +
                   "Takes precedence over the --//bazel/rules/ebpf:target_arch flag.",
         ),
+        "_clang_with_unused_inputs": attr.label(
+            default = "//bazel/rules/ebpf:clang_with_unused_inputs",
+            executable = True,
+            cfg = config.exec(exec_group = _LLVM_BPF_EXEC_GROUP),
+            doc = "Clang wrapper that reports unused declared inputs.",
+        ),
         "_target_arch_flag": attr.label(
             default = "//bazel/rules/ebpf:target_arch",
             doc = "The string_flag providing the cross-compilation target arch.",
@@ -251,6 +281,11 @@ _ebpf_prog = rule(
         "_linux_headers_aarch64": attr.label(
             default = "@linux_headers_aarch64//:all",
             allow_files = True,
+        ),
+    },
+    exec_groups = {
+        _LLVM_BPF_EXEC_GROUP: exec_group(
+            toolchains = [_TOOLCHAIN_TYPE],
         ),
     },
     toolchains = [_TOOLCHAIN_TYPE],

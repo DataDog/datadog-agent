@@ -6,25 +6,169 @@
 package setup
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
-	"slices"
+	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.yaml.in/yaml/v2"
+	"go.yaml.in/yaml/v3"
 
+	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/nodetreemodel"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+// noopSchemaValidator is a pkgconfigmodel.SchemaValidator that never reports any violation
+type noopSchemaValidator struct{}
+
+func (noopSchemaValidator) ValidateConfig(pkgconfigmodel.Reader) ([]*pkgconfigmodel.Violation, error) {
+	return nil, nil
+}
+
+// hostnameViolationValidator is a pkgconfigmodel.SchemaValidator reporting the hostname as invalid
+type hostnameViolationValidator struct{}
+
+func (hostnameViolationValidator) ValidateConfig(pkgconfigmodel.Reader) ([]*pkgconfigmodel.Violation, error) {
+	return []*pkgconfigmodel.Violation{{Message: "invalid hostname", Path: "/hostname", SettingKey: "hostname"}}, nil
+}
+
+func TestLoadCustomSchemaEnforcement(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		yaml     string
+		hostname string
+	}{
+		{"disabled by default", "hostname: invalid\n", "invalid"},
+		{"enabled in the file", "hostname: invalid\nschema:\n  enforce: true\n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := newTestConf(t)
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			require.NoError(t, os.WriteFile(configPath, []byte(tc.yaml), 0o600))
+			config.SetConfigFile(configPath)
+
+			// schema.enforce is read once the file is loaded, so it can come from the file itself
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config))
+			assert.Equal(t, tc.hostname, config.GetString("hostname"))
+		})
+	}
+}
+
+func TestLoadCustomSchemaEnforcementFromAnotherConfig(t *testing.T) {
+	// like system-probe.yaml, whose enforcement is configured in datadog.yaml
+	for _, enforce := range []bool{true, false} {
+		t.Run(strconv.FormatBool(enforce), func(t *testing.T) {
+			ddConf := newTestConf(t)
+			ddConf.SetInTest("schema.enforce", enforce)
+
+			config := newTestConf(t)
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			require.NoError(t, os.WriteFile(configPath, []byte("hostname: invalid\n"), 0o600))
+			config.SetConfigFile(configPath)
+
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf))
+			if enforce {
+				assert.Equal(t, "", config.GetString("hostname"))
+			} else {
+				assert.Equal(t, "invalid", config.GetString("hostname"))
+			}
+		})
+	}
+}
+
+func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
+	config := newTestConf(t)
+	config.SetInTest("delegated_auth.org_uuid", "primary-org")
+	config.SetInTest("logs_config.delegated_auth.org_uuid", "logs-org")
+
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(_ context.Context, params delegatedauth.InstanceParams) error {
+		paramsByKey[params.APIKeyConfigKey] = params
+		return nil
+	}}
+
+	require.NoError(t, configureDelegatedAuth(context.Background(), config, comp))
+	require.Contains(t, paramsByKey, "api_key")
+	require.Contains(t, paramsByKey, "logs_config.api_key")
+	assert.True(t, paramsByKey["api_key"].AllowAsyncStartup)
+	assert.False(t, paramsByKey["logs_config.api_key"].AllowAsyncStartup)
+}
+
+func TestConfigureDelegatedAuthSharesStartupBudgetAndAllowsEndpointRecovery(t *testing.T) {
+	startupCtx := &expiringDeadlineContext{done: make(chan struct{})}
+	paramsByKey := map[string]delegatedauth.InstanceParams{}
+	var sharedCtx context.Context
+	comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, params delegatedauth.InstanceParams) error {
+		if sharedCtx == nil {
+			sharedCtx = ctx
+			startupCtx.expire()
+		} else {
+			assert.Same(t, sharedCtx, ctx)
+		}
+		paramsByKey[params.APIKeyConfigKey] = params
+		return ctx.Err()
+	}}
+	config := confFromYAML(t, `
+delegated_auth:
+  org_uuid: flat-org
+  startup_timeout_secs: 5
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA[map-org, aws]
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA[list-org, aws]
+`)
+	startedAt := time.Now()
+	require.ErrorIs(t, configureDelegatedAuth(startupCtx, config, comp), context.DeadlineExceeded)
+	require.NotNil(t, sharedCtx)
+	assert.NotSame(t, startupCtx, sharedCtx)
+	deadline, ok := sharedCtx.Deadline()
+	require.True(t, ok)
+	assert.WithinDuration(t, startedAt.Add(5*time.Second), deadline, time.Second)
+
+	for _, key := range []string{
+		"api_key",
+		"additional_endpoints[https://metrics.datadoghq.com][0][map-org]",
+		"logs_config.additional_endpoints[0][list-org]",
+	} {
+		require.Contains(t, paramsByKey, key)
+		assert.True(t, paramsByKey[key].AllowAsyncStartup)
+	}
+}
+
+type expiringDeadlineContext struct {
+	done chan struct{}
+	once sync.Once
+}
+
+func (c *expiringDeadlineContext) Deadline() (time.Time, bool) { return time.Time{}, false }
+func (c *expiringDeadlineContext) Done() <-chan struct{}       { return c.done }
+func (c *expiringDeadlineContext) Value(any) any               { return nil }
+func (c *expiringDeadlineContext) Err() error {
+	select {
+	case <-c.done:
+		return context.DeadlineExceeded
+	default:
+		return nil
+	}
+}
+func (c *expiringDeadlineContext) expire() { c.once.Do(func() { close(c.done) }) }
 
 func confFromYAML(t *testing.T, yamlConfig string) pkgconfigmodel.BuildableConfig {
 	conf := newTestConf(t)
@@ -60,7 +204,7 @@ func TestDefaults(t *testing.T) {
 	// site and dd_url now have defaults; IsConfigured stays false until the user sets them
 	assert.False(t, config.IsConfigured("site"))
 	assert.False(t, config.IsConfigured("dd_url"))
-	assert.Equal(t, DefaultSite, config.GetString("site"))
+	assert.Equal(t, constants.DefaultSite, config.GetString("site"))
 	assert.Equal(t, "https://app.datadoghq.com", config.GetString("dd_url"))
 	assert.Equal(t, []string{"aws", "gcp", "azure", "alibaba", "oracle", "ibm"}, config.GetStringSlice("cloud_provider_metadata"))
 
@@ -77,6 +221,22 @@ func TestDefaults(t *testing.T) {
 	assert.True(t, config.GetBool("process_manager.enabled"))
 }
 
+func TestRelativePathResolvedByDefault(t *testing.T) {
+	config := newTestConf(t)
+
+	// Defaults expressed with the ${...}/ relative-path notation must be resolved
+	// to concrete paths once the schema is built. If resolution were not enabled by
+	// default, these settings would still contain the literal ${...} token.
+	logFile := config.GetString("log_file")
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultLogPath(), "agent.log"), logFile)
+	assert.NotContains(t, logFile, "${", "relative path was not resolved")
+
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultLogPath(), "jmxfetch.log"), config.GetString("jmx_log_file"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultConfPath(), "conf.d"), config.GetString("confd_path"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultConfPath(), "checks.d"), config.GetString("additional_checksd"))
+	assert.Equal(t, filepath.Join(defaultpaths.GetDefaultRunPath(), "sbom-agent"), config.GetString("sbom.cache_directory"))
+}
+
 func TestProcessManagerEnabledEnvOverride(t *testing.T) {
 	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
 	cfg := newTestConf(t)
@@ -88,126 +248,73 @@ func TestProcessManagerEnabledYAML(t *testing.T) {
 	assert.False(t, cfg.GetBool("process_manager.enabled"))
 }
 
-func TestUnexpectedUnicode(t *testing.T) {
-	keyYaml := "api_\u202akey: fakeapikey\n"
-	valueYaml := "api_key: fa\u202akeapikey\n"
+func TestMetricLookbackDefaults(t *testing.T) {
+	config := newTestConf(t)
 
-	testConfig := confFromYAML(t, keyYaml)
-
-	warnings := findUnexpectedUnicode(testConfig)
-	require.Len(t, warnings, 1)
-
-	assert.Contains(t, warnings[0], "Configuration key string")
-	assert.Contains(t, warnings[0], "U+202A")
-
-	testConfig = confFromYAML(t, valueYaml)
-
-	warnings = findUnexpectedUnicode(testConfig)
-
-	require.Len(t, warnings, 1)
-	assert.Contains(t, warnings[0], "For key 'api_key'")
-	assert.Contains(t, warnings[0], "U+202A")
+	assert.False(t, config.GetBool("metric_lookback.enabled"))
+	assert.Empty(t, config.GetStringSlice("metric_lookback.enabled_checks"))
+	assert.Equal(t, time.Second, config.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "disabled", config.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 30*time.Second, config.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.0, config.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Empty(t, config.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 0*time.Second, config.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 30*time.Second, config.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
-func TestUnexpectedNestedUnicode(t *testing.T) {
-	yaml := "runtime_security_config:\n  activity_dump:\n    remote_storage:\n      endpoints:\n        logs_dd_url: \"http://\u202adatadawg.com\""
-	testConfig := confFromYAML(t, yaml)
+func TestMetricLookbackEnvOverride(t *testing.T) {
+	t.Setenv("DD_METRIC_LOOKBACK_ENABLED", "true")
+	t.Setenv("DD_METRIC_LOOKBACK_ENABLED_CHECKS", `["cpu","disk"]`)
+	t.Setenv("DD_METRIC_LOOKBACK_COLLECTION_INTERVAL", "3s")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_MODE", "dry_run")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_EVALUATION_INTERVAL", "10s")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_RANGE_EPSILON", "0.05")
+	t.Setenv("DD_METRIC_LOOKBACK_MONITOR_PARTITION_TAGS", `["az","instance_type"]`)
+	t.Setenv("DD_METRIC_LOOKBACK_EGRESS_PRE_TRIGGER_WINDOW", "5s")
+	t.Setenv("DD_METRIC_LOOKBACK_EGRESS_POST_RECOVERY_WINDOW", "20s")
 
-	warnings := findUnexpectedUnicode(testConfig)
-	require.Len(t, warnings, 1)
+	config := newTestConf(t)
 
-	assert.Contains(t, warnings[0], "U+202A")
-	assert.Contains(t, warnings[0], "For key 'runtime_security_config.activity_dump.remote_storage.endpoints.logs_dd_url'")
+	assert.True(t, config.GetBool("metric_lookback.enabled"))
+	assert.Equal(t, []string{"cpu", "disk"}, config.GetStringSlice("metric_lookback.enabled_checks"))
+	assert.Equal(t, 3*time.Second, config.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "dry_run", config.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 10*time.Second, config.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.05, config.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Equal(t, []string{"az", "instance_type"}, config.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 5*time.Second, config.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 20*time.Second, config.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
-func TestUnexpectedWhitespace(t *testing.T) {
-	tests := []struct {
-		yaml                string
-		expectedWarningText string
-		expectedPosition    string
-	}{
-		{
-			yaml:                "root_element:\n  nestedKey: \"hiddenI\u200bnvalidWhitespaceEmbedded\n\"",
-			expectedWarningText: "U+200B",
-			expectedPosition:    fmt.Sprintf("position %d", 7),
-		},
-		{
-			yaml:                "root_element:\n  nestedKey: \u202fhiddenInvalidWhitespaceToLeft\n",
-			expectedWarningText: "U+202F",
-			expectedPosition:    fmt.Sprintf("position %d", 0),
-		},
-		{
-			yaml:                "root_element:\n  nestedKey: [validValue, \u202fhiddenInvalidWhitespaceToLeft]\n",
-			expectedWarningText: "U+202F",
-			expectedPosition:    fmt.Sprintf("position %d", 0),
-		},
-	}
-	for _, tc := range tests {
-		testConfig := confFromYAML(t, tc.yaml)
-		warnings := findUnexpectedUnicode(testConfig)
-		require.Len(t, warnings, 1)
+func TestMetricLookbackYAML(t *testing.T) {
+	cfg := confFromYAML(t, `
+metric_lookback:
+  enabled: true
+  collection_interval: 5s
+  enabled_checks:
+    - cpu
+    - disk
+  monitor:
+    mode: dry_run
+    evaluation_interval: 15s
+    range_epsilon: 0.05
+    partition_tags:
+      - az
+      - instance_type
+  egress:
+    pre_trigger_window: 7s
+    post_recovery_window: 21s
+`)
 
-		assert.Contains(t, warnings[0], tc.expectedPosition)
-		assert.Contains(t, warnings[0], tc.expectedPosition)
-	}
-}
-
-func TestUnknownKeysWarning(t *testing.T) {
-	yaml := `
-a: 21
-aa: 21
-b:
-  c:
-    d: "test"
-`
-	conf := confFromYAML(t, yaml)
-
-	res := findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"a", "aa", "b.c.d"}, res)
-
-	conf.SetDefault("a", 0)
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "b.c.d"}, res)
-
-	conf.SetInTest("a", 12)
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "b.c.d"}, res)
-
-	// testing that nested value are correctly detected
-	conf.SetDefault("b.c", map[string]string{})
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa"}, res)
-
-	conf.SetInTest("unknown_key.unknown_subkey", "true")
-	res = findUnknownKeys(conf)
-	slices.Sort(res)
-	assert.Equal(t, []string{"aa", "unknown_key.unknown_subkey"}, res)
-}
-
-func TestUnknownVarsWarning(t *testing.T) {
-	test := func(v string, unknown bool, additional []string) func(*testing.T) {
-		return func(t *testing.T) {
-			env := []string{v + "=foo"}
-			var exp []string
-			if unknown {
-				exp = append(exp, v)
-			}
-			assert.Equal(t, exp, findUnknownEnvVars(newTestConf(t), env, additional))
-		}
-	}
-	t.Run("DD_API_KEY", test("DD_API_KEY", false, nil))
-	t.Run("DD_SITE", test("DD_SITE", false, nil))
-	t.Run("DD_UNKNOWN", test("DD_UNKNOWN", true, nil))
-	t.Run("UNKNOWN", test("UNKNOWN", false, nil)) // no DD_ prefix
-	t.Run("DD_PROXY_NO_PROXY", test("DD_PROXY_NO_PROXY", false, nil))
-	t.Run("DD_PROXY_HTTP", test("DD_PROXY_HTTP", false, nil))
-	t.Run("DD_PROXY_HTTPS", test("DD_PROXY_HTTPS", false, nil))
-	t.Run("DD_INSIDE_CI", test("DD_INSIDE_CI", false, nil))
-	t.Run("DD_SYSTEM_PROBE_EXTRA", test("DD_SYSTEM_PROBE_EXTRA", false, []string{"DD_SYSTEM_PROBE_EXTRA"}))
+	assert.True(t, cfg.GetBool("metric_lookback.enabled"))
+	assert.Equal(t, []string{"cpu", "disk"}, cfg.GetStringSlice("metric_lookback.enabled_checks"))
+	assert.Equal(t, 5*time.Second, cfg.GetDuration("metric_lookback.collection_interval"))
+	assert.Equal(t, "dry_run", cfg.GetString("metric_lookback.monitor.mode"))
+	assert.Equal(t, 15*time.Second, cfg.GetDuration("metric_lookback.monitor.evaluation_interval"))
+	assert.Equal(t, 0.05, cfg.GetFloat64("metric_lookback.monitor.range_epsilon"))
+	assert.Equal(t, []string{"az", "instance_type"}, cfg.GetStringSlice("metric_lookback.monitor.partition_tags"))
+	assert.Equal(t, 7*time.Second, cfg.GetDuration("metric_lookback.egress.pre_trigger_window"))
+	assert.Equal(t, 21*time.Second, cfg.GetDuration("metric_lookback.egress.post_recovery_window"))
 }
 
 func TestDefaultTraceManagedServicesEnvVarValue(t *testing.T) {
@@ -482,7 +589,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -599,7 +706,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), nil)
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -663,6 +770,10 @@ func TestNetworkPathDefaults(t *testing.T) {
 	config := confFromYAML(t, datadogYaml)
 
 	assert.Equal(t, false, config.GetBool("network_path.connections_monitoring.enabled"))
+	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.basic_tests_enabled"))
+	assert.Equal(t, true, config.GetBool("network_path.connections_monitoring.eudm_basic_tests_enabled"))
+	assert.Equal(t, 80, config.GetInt("network_path.connections_monitoring.eudm_basic_candidate_limit"))
+	assert.Equal(t, false, config.GetBool("network_path.remote_config.enabled"))
 	assert.Equal(t, 4, config.GetInt("network_path.collector.workers"))
 	assert.Equal(t, 1000, config.GetInt("network_path.collector.timeout"))
 	assert.Equal(t, 30, config.GetInt("network_path.collector.max_ttl"))
@@ -678,6 +789,15 @@ func TestNetworkPathDefaults(t *testing.T) {
 	assert.Equal(t, false, config.GetBool("network_path.netflow_monitoring.enabled"))
 }
 
+func TestHealthPlatformDefaults(t *testing.T) {
+	config := confFromYAML(t, "")
+
+	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
+	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
+	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
+	assert.Equal(t, true, config.GetBool("dogstatsd_client_drop_detection.enabled"))
+}
+
 func TestInfrastructureModeNoneDisablesECSTaskCollection(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: none
@@ -687,6 +807,16 @@ infrastructure_mode: none
 
 	assert.False(t, config.GetBool("ecs_task_collection_enabled"))
 	assert.False(t, config.GetBool("integration.enabled"))
+}
+
+func TestInfrastructureModeUnknownValueAppliesNoOverride(t *testing.T) {
+	// A typo must apply no overrides rather than silently picking up those of
+	// the mode the operator meant to set.
+	config := confFromYAML(t, "infrastructure_mode: nonee")
+	applyInfrastructureModeOverrides(config)
+
+	assert.True(t, config.GetBool("integration.enabled"))
+	assert.False(t, config.GetBool("software_inventory.enabled"))
 }
 
 func TestInfrastructureModeLegacyAliases(t *testing.T) {
@@ -707,88 +837,69 @@ allowed_additional_checks:
 	assert.Contains(t, additional, "redis")
 }
 
-func TestNetworkPathFiltersEndUserDeviceMode(t *testing.T) {
-	datadogYaml := `
-infrastructure_mode: end_user_device
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-	filters := config.Get("network_path.collector.filters")
-	require.NotNil(t, filters, "filters should be set in end_user_device mode")
+func TestNetworkPathFiltersEndUserDeviceModeUnchanged(t *testing.T) {
+	t.Run("default filters remain empty", func(t *testing.T) {
+		config := confFromYAML(t, "infrastructure_mode: end_user_device")
+		filtersBefore := config.Get("network_path.collector.filters")
 
-	filtersList, ok := filters.([]map[string]string)
-	require.True(t, ok, "filters should be a list of maps")
-	require.Greater(t, len(filtersList), 0, "filters should not be empty")
+		applyInfrastructureModeOverrides(config)
 
-	// Check that the first filter is the deny-all rule
-	assert.Equal(t, "*", filtersList[0]["match_domain"])
-	assert.Equal(t, "exclude", filtersList[0]["type"])
+		assert.Empty(t, config.Get("network_path.collector.filters"))
+		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
+	})
 
-	// Check that some expected SaaS domains are present
-	var foundGoogle, foundSlack, foundGitHub bool
-	for _, filter := range filtersList {
-		if filter["match_domain"] == "*.google.com" && filter["type"] == "include" {
-			foundGoogle = true
-		}
-		if filter["match_domain"] == "*.slack.com" && filter["type"] == "include" {
-			foundSlack = true
-		}
-		if filter["match_domain"] == "*.github.com" && filter["type"] == "include" {
-			foundGitHub = true
-		}
-	}
-	assert.True(t, foundGoogle, "*.google.com should be in the default filters")
-	assert.True(t, foundSlack, "*.slack.com should be in the default filters")
-	assert.True(t, foundGitHub, "*.github.com should be in the default filters")
-
-}
-
-func TestNetworkPathFiltersEndUserDeviceModeAppendsUser(t *testing.T) {
-	datadogYaml := `
+	t.Run("user filters remain unchanged", func(t *testing.T) {
+		config := confFromYAML(t, `
 infrastructure_mode: end_user_device
 network_path:
   collector:
     filters:
       - match_ip: 0.0.0.0/0
         type: include
-`
-	config := confFromYAML(t, datadogYaml)
-	applyInfrastructureModeOverrides(config)
-	filters := config.Get("network_path.collector.filters")
-	require.NotNil(t, filters)
+`)
+		filtersBefore := config.Get("network_path.collector.filters")
 
-	filtersList, ok := filters.([]map[string]string)
-	require.True(t, ok, "filters should be []map[string]string, got %T", filters)
+		applyInfrastructureModeOverrides(config)
 
-	last := filtersList[len(filtersList)-1]
-	assert.Equal(t, "0.0.0.0/0", last["match_ip"], "user filter should be appended last")
-	assert.Equal(t, "include", last["type"])
+		assert.Equal(t, filtersBefore, config.Get("network_path.collector.filters"))
+	})
 }
 
-func TestNetworkPathFiltersEndUserDeviceModeMalformedUserFiltersSkipsOverride(t *testing.T) {
-	// Malformed filters: list of scalars instead of list of maps, so structure.UnmarshalKey fails.
+func TestInfrastructureModeEndUserDeviceEnablesLogonDuration(t *testing.T) {
 	datadogYaml := `
 infrastructure_mode: end_user_device
-network_path:
-  collector:
-    filters:
-      - "not_a_map"
-      - "still_not_a_map"
 `
 	config := confFromYAML(t, datadogYaml)
 	applyInfrastructureModeOverrides(config)
 
-	// The filter override must be skipped: the user's (malformed) value is left in place
-	// rather than being silently replaced with the EUDM defaults.
-	filters := config.Get("network_path.collector.filters")
-	_, ok := filters.([]map[string]string)
-	assert.False(t, ok, "EUDM defaults should NOT be applied when user filters fail to unmarshal, got %T", filters)
+	assert.True(t, config.GetBool("logon_duration.enabled"),
+		"end_user_device mode should auto-enable logon_duration")
+}
 
-	// The other EUDM overrides should still be applied — a filter parse failure must not
-	// prevent the rest of the mode from taking effect.
-	assert.True(t, config.GetBool("process_config.process_collection.enabled"))
-	assert.True(t, config.GetBool("software_inventory.enabled"))
-	assert.True(t, config.GetBool("notable_events.enabled"))
+func TestInfrastructureModeNonEUDLeavesLogonDurationDefault(t *testing.T) {
+	datadogYaml := `
+infrastructure_mode: none
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"non-EUD modes should leave logon_duration at its default (false)")
+}
+
+func TestInfrastructureModeEndUserDeviceLogonDurationUserOverride(t *testing.T) {
+	// An explicit user setting must win over the EUD default, since SourceInfraMode
+	// sits below file config in priority.
+	datadogYaml := `
+infrastructure_mode: end_user_device
+logon_duration:
+  enabled: false
+`
+	config := confFromYAML(t, datadogYaml)
+	applyInfrastructureModeOverrides(config)
+
+	assert.False(t, config.GetBool("logon_duration.enabled"),
+		"explicit user logon_duration.enabled=false should override the EUD default")
 }
 
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
@@ -856,6 +967,40 @@ data_plane:
 	})
 }
 
+func TestComputeDataPlaneStopTimeout(t *testing.T) {
+	t.Run("unset stop timeout derives from component timeouts", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 4, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("data_plane.stop_timeout"))
+	})
+
+	t.Run("explicit stop timeout is preserved", func(t *testing.T) {
+		cfg := confFromYAML(t, `
+data_plane:
+  stop_timeout: 11
+`)
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 11, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceFile, cfg.GetSource("data_plane.stop_timeout"))
+	})
+
+	t.Run("recomputes default after component timeout changes", func(t *testing.T) {
+		cfg := confFromYAML(t, "")
+		cfg.Set("aggregator_stop_timeout", 3, pkgconfigmodel.SourceFleetPolicies)
+		cfg.Set("forwarder_stop_timeout", 7, pkgconfigmodel.SourceFleetPolicies)
+
+		ComputeDataPlaneStopTimeout(cfg)
+
+		assert.Equal(t, 10, cfg.GetInt("data_plane.stop_timeout"))
+		assert.Equal(t, pkgconfigmodel.SourceDefault, cfg.GetSource("data_plane.stop_timeout"))
+	})
+}
+
 func TestDataPlaneDefaults(t *testing.T) {
 	cfg := confFromYAML(t, "")
 
@@ -863,6 +1008,7 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.True(t, cfg.GetBool("data_plane.remote_agent_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5100", cfg.GetString("data_plane.api_listen_address"))
 	assert.Equal(t, "tcp://0.0.0.0:5101", cfg.GetString("data_plane.secure_api_listen_address"))
+	assert.Equal(t, 3, cfg.GetInt("data_plane.serializer_zstd_compressor_level"))
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
 	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
@@ -955,6 +1101,7 @@ proxy:
 	expectedURL := "somehost:1234"
 	expectedHTTPURL := "https://" + expectedURL
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	LoadProxyFromEnv(testConfig)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -962,9 +1109,7 @@ proxy:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, false, testConfig)
 	assert.Equal(t, false, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.Equal(t, false, testConfig.GetBool("compliance_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("compliance_config.endpoints.logs_no_ssl"))
 	assert.NotNil(t, testConfig.GetProxies())
 
@@ -979,6 +1124,7 @@ fips:
 	expectedURL = "localhost:50"
 	expectedHTTPURL = "http://" + expectedURL
 	testConfig = confFromYAML(t, datadogYamlFips)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
@@ -986,9 +1132,8 @@ fips:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
 	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
+	assert.Equal(t, true, testConfig.GetBool("database_monitoring.metrics.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
-	assert.Equal(t, true, testConfig.GetBool("compliance_config.endpoints.use_http"))
 	assert.Equal(t, true, testConfig.GetBool("compliance_config.endpoints.logs_no_ssl"))
 	assert.Nil(t, testConfig.GetProxies())
 
@@ -1003,6 +1148,7 @@ fips:
 
 	expectedHTTPURL = "https://" + expectedURL
 	testConfig = confFromYAML(t, datadogYamlFips)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	testConfig.Set("skip_ssl_validation", false, pkgconfigmodel.SourceAgentRuntime) // should be overridden by fips.tls_verify
 	LoadProxyFromEnv(testConfig)
 	err = setupFipsEndpoints(testConfig)
@@ -1011,7 +1157,6 @@ fips:
 	assertFipsProxyExpectedConfig(t, expectedHTTPURL, expectedURL, true, testConfig)
 	assert.Equal(t, true, testConfig.GetBool("logs_config.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("logs_config.logs_no_ssl"))
-	assert.Equal(t, true, testConfig.GetBool("runtime_security_config.endpoints.use_http"))
 	assert.Equal(t, false, testConfig.GetBool("runtime_security_config.endpoints.logs_no_ssl"))
 	assert.Equal(t, true, testConfig.GetBool("skip_ssl_validation"))
 	assert.Nil(t, testConfig.GetProxies())
@@ -1072,6 +1217,7 @@ fips:
 `
 
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err := setupFipsEndpoints(testConfig)
 	require.Error(t, err)
 }
@@ -1082,6 +1228,7 @@ apm_config:
   peer_service_aggregation: true
 `
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
@@ -1091,6 +1238,7 @@ apm_config:
   peer_service_aggregation: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_service_aggregation"))
@@ -1102,6 +1250,7 @@ apm_config:
   peer_tags_aggregation: true
 `
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
@@ -1111,6 +1260,7 @@ apm_config:
   peer_tags_aggregation: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.peer_tags_aggregation"))
@@ -1141,6 +1291,7 @@ func TestEnablePeerTagsAggregationEnv(t *testing.T) {
 func TestEnableStatsComputationBySpanKindYAML(t *testing.T) {
 	datadogYaml := ""
 	testConfig := confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err := setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1150,6 +1301,7 @@ apm_config:
   compute_stats_by_span_kind: false
 `
 	testConfig = confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.False(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1159,6 +1311,7 @@ apm_config:
   compute_stats_by_span_kind: true
 `
 	testConfig = confFromYAML(t, datadogYaml)
+	testConfig.SetTestOnlyDynamicSchema(false)
 	err = setupFipsEndpoints(testConfig)
 	require.NoError(t, err)
 	require.True(t, testConfig.GetBool("apm_config.compute_stats_by_span_kind"))
@@ -1255,7 +1408,6 @@ func TestLogDefaults(t *testing.T) {
 func TestClusterCheckDefaults(t *testing.T) {
 	conf := newTestConf(t)
 	require.True(t, conf.GetBool("cluster_checks.advanced_dispatching_enabled"))
-	require.True(t, conf.GetBool("cluster_checks.rebalance_with_utilization"))
 }
 
 var testExampleConf = []byte(`
@@ -1284,7 +1436,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1297,18 +1449,18 @@ func TestConfigAssignAtPath(t *testing.T) {
 	assert.NoError(t, err)
 
 	expectedYaml := `additional_endpoints:
-  https://url1.com:
-  - first
-  - changed
-  https://url2.eu:
-  - third
-process_config:
-  additional_endpoints:
     https://url1.com:
-    - fourth
-    - fifth
+        - first
+        - changed
     https://url2.eu:
-    - modified
+        - third
+process_config:
+    additional_endpoints:
+        https://url1.com:
+            - fourth
+            - fifth
+        https://url2.eu:
+            - modified
 secret_backend_command: different
 use_proxy_for_cloud_metadata: true
 `
@@ -1332,7 +1484,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1374,14 +1526,14 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
 	assert.NoError(t, err)
 
 	expectedYaml := `secret_backend_arguments:
-- password1
+    - password1
 secret_backend_command: some command
 use_proxy_for_cloud_metadata: true
 `
@@ -1427,7 +1579,7 @@ use_proxy_for_cloud_metadata: true
 		"diff_url": "second_value",
 	})
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = resolveSecrets(config, resolver, "unit_test")
@@ -1474,7 +1626,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config, nil)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
@@ -1486,15 +1638,9 @@ additional_endpoints:
 	)
 }
 
-func TestServerlessConfigNumComponents(t *testing.T) {
-	// Enforce the number of config "components" reachable by the serverless agent
-	// to avoid accidentally adding entire components if it's not needed
-	require.Len(t, commonConfigComponents, 24)
-}
-
 func TestServerlessConfigInit(t *testing.T) {
 	conf := newEmptyMockConf(t)
-	initCommonConfigComponents(conf)
+	generatedsettings.InitCommonBase(conf)
 
 	// ensure some core configs are declared
 	assert.True(t, conf.IsKnown("api_key"))
@@ -1503,7 +1649,14 @@ func TestServerlessConfigInit(t *testing.T) {
 
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
-	assert.False(t, conf.IsKnown("inventories_enabled"))
+
+	// serverless-init collects metadata only when the serverless-only
+	// serverless.metadata_enabled key is true.
+	assert.True(t, conf.IsKnown("inventories_enabled"))
+	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
+	assert.True(t, conf.IsKnown("serverless.metadata_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_wrapped_command_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_runtime"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.
@@ -1511,6 +1664,32 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.Equal(t, int64(10*1024*1024), conf.GetInt64("evp_proxy_config.max_payload_size"))
 	assert.True(t, conf.GetBool("ol_proxy_config.enabled"))
 	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
+}
+
+func TestServerlessMetadataWrappedCommandEnabled(t *testing.T) {
+	const envVar = "DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED"
+	const key = "serverless.metadata_wrapped_command_enabled"
+	for _, tt := range []struct {
+		name string
+		env  string
+		want bool
+	}{
+		{name: "unset"},
+		{name: "disabled", env: "false"},
+		{name: "enabled", env: "true", want: true},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Setenv(envVar, tt.env)
+			if tt.env == "" {
+				require.NoError(t, os.Unsetenv(envVar))
+			}
+			conf := newEmptyMockConf(t)
+			generatedsettings.InitCommonBase(conf)
+
+			assert.True(t, conf.IsKnown(key))
+			assert.Equal(t, tt.want, conf.GetBool(key))
+		})
+	}
 }
 
 func TestDisableCoreAgent(t *testing.T) {
@@ -1596,7 +1775,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), []string{})
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -1614,7 +1793,8 @@ yet_another_key: "********"`
 }
 
 func TestLoadProxyFromEnv(t *testing.T) {
-	cfg := nodetreemodel.NewNodeTreeConfig("test", "TEST", strings.NewReplacer(".", "_"))
+	cfg := nodetreemodel.NewNodeTreeConfig("test", pkgconfigmodel.CoreSchema)
+	cfg.SetEnvPrefix("TEST")
 	cfg.SetDefault("proxy.http", "")
 	cfg.SetDefault("proxy.https", "")
 	cfg.SetDefault("proxy.no_proxy", []string{})
@@ -1628,12 +1808,14 @@ func TestLoadProxyFromEnv(t *testing.T) {
 
 func TestSanitizeDataPlaneConfig(t *testing.T) {
 	tests := []struct {
-		name         string
-		goos         string
-		forceEnable  string // value of DD_DATA_PLANE_FORCE_ENABLE
-		initialValue bool
-		wantValue    bool
-		wantSource   pkgconfigmodel.Source
+		name                  string
+		goos                  string
+		forceEnable           string // value of DD_DATA_PLANE_FORCE_ENABLE
+		processManagerEnabled *bool
+		initialValue          bool
+		wantValue             bool
+		wantSource            pkgconfigmodel.Source
+		priorRuntimeLock      bool // simulate LoadDatadog lock before fleet merge
 	}{
 		{
 			name:         "linux preserves true",
@@ -1643,11 +1825,11 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
-			name:         "windows resets true to false",
+			name:         "windows preserves true",
 			goos:         "windows",
 			initialValue: true,
-			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
 			name:         "darwin preserves true",
@@ -1657,13 +1839,52 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			wantSource:   pkgconfigmodel.SourceFile,
 		},
 		{
-			// Even when already false, non-Linux writes SourceAgentRuntime so that
-			// lower-priority sources (e.g. fleet policies) cannot re-enable ADP later.
-			name:         "windows locks false via SourceAgentRuntime",
+			name:         "aix preserves true",
+			goos:         "aix",
+			initialValue: true,
+			wantValue:    true,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:                  "windows procmgr disabled resets true to false",
+			goos:                  "windows",
+			processManagerEnabled: boolPtr(false),
+			initialValue:          true,
+			wantValue:             false,
+			wantSource:            pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:                  "windows procmgr disabled locks false via SourceAgentRuntime",
+			goos:                  "windows",
+			processManagerEnabled: boolPtr(false),
+			initialValue:          false,
+			wantValue:             false,
+			wantSource:            pkgconfigmodel.SourceAgentRuntime,
+		},
+		{
+			name:                  "windows procmgr disabled bypass: force-enable=true preserves true",
+			goos:                  "windows",
+			processManagerEnabled: boolPtr(false),
+			forceEnable:           "true",
+			initialValue:          true,
+			wantValue:             true,
+			wantSource:            pkgconfigmodel.SourceFile,
+		},
+		{
+			name:         "windows preserves false",
 			goos:         "windows",
 			initialValue: false,
 			wantValue:    false,
-			wantSource:   pkgconfigmodel.SourceAgentRuntime,
+			wantSource:   pkgconfigmodel.SourceFile,
+		},
+		{
+			name:                  "windows clears runtime lock when procmgr enabled after fleet merge",
+			goos:                  "windows",
+			processManagerEnabled: boolPtr(true),
+			initialValue:          true,
+			wantValue:             true,
+			wantSource:            pkgconfigmodel.SourceFleetPolicies,
+			priorRuntimeLock:      true,
 		},
 		{
 			name:         "darwin preserves false",
@@ -1712,7 +1933,21 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := newTestConf(t)
+			if tt.priorRuntimeLock {
+				cfg.Set("process_manager.enabled", false, pkgconfigmodel.SourceFile)
+				cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFleetPolicies)
+				sanitizeDataPlaneConfig(cfg, tt.goos, func(string) string { return "" })
+			}
 			cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFile)
+			if tt.priorRuntimeLock {
+				cfg.Set("data_plane.enabled", tt.initialValue, pkgconfigmodel.SourceFleetPolicies)
+			}
+			if tt.processManagerEnabled != nil {
+				cfg.Set("process_manager.enabled", *tt.processManagerEnabled, pkgconfigmodel.SourceFile)
+				if tt.priorRuntimeLock {
+					cfg.Set("process_manager.enabled", *tt.processManagerEnabled, pkgconfigmodel.SourceFleetPolicies)
+				}
+			}
 
 			envLookup := func(key string) string {
 				if key == "DD_DATA_PLANE_FORCE_ENABLE" {
@@ -1726,4 +1961,71 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
 		})
 	}
+}
+
+func TestApplyKubernetesContainerDefaults(t *testing.T) {
+	keys := []string{"apm_config.apm_non_local_traffic", "jmx_use_container_support"}
+
+	t.Run("non-kubernetes leaves defaults false", func(t *testing.T) {
+		t.Setenv("KUBERNETES", "")
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.False(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("kubernetes enables defaults", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
+		t.Setenv("KUBERNETES", "yes")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.True(t, config.GetBool(k), k)
+			// Kept at SourceDefault so consumers relying on IsConfigured (e.g. the trace-agent
+			// containerized fallback) keep their existing behavior.
+			assert.False(t, config.IsConfigured(k), k)
+		}
+	})
+
+	t.Run("eks fargate enables defaults without kubernetes service env", func(t *testing.T) {
+		// The EKS Fargate sidecar sets DD_EKS_FARGATE but not KUBERNETES; the defaults must
+		// still apply (jmx_use_container_support has no consumption-side fallback).
+		t.Setenv("KUBERNETES", "")
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "true")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.True(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("config file overrides kubernetes default", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("KUBERNETES", "yes")
+		config := confFromYAML(t, "apm_config:\n  apm_non_local_traffic: false\njmx_use_container_support: false\n")
+		applyKubernetesContainerDefaults(config)
+		for _, k := range keys {
+			assert.False(t, config.GetBool(k), k)
+		}
+	})
+
+	t.Run("env var overrides kubernetes default", func(t *testing.T) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("KUBERNETES", "yes")
+		t.Setenv("DD_APM_NON_LOCAL_TRAFFIC", "false")
+		t.Setenv("DD_JMX_USE_CONTAINER_SUPPORT", "false")
+		config := newTestConf(t)
+		applyKubernetesContainerDefaults(config)
+		assert.False(t, config.GetBool("apm_config.apm_non_local_traffic"))
+		assert.False(t, config.GetBool("jmx_use_container_support"))
+	})
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }

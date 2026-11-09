@@ -30,6 +30,12 @@ const (
 	EventReasonExtensionPolicyDeleteFailed = "EnvoyExtensionPolicyDeleteFailed"
 )
 
+// Event reasons for Backend extension API configuration
+const (
+	EventReasonBackendExtensionDisabled = "EnvoyGatewayBackendExtensionDisabled"
+	EventReasonSidecarInjectionSkipped  = "AppSecSidecarInjectionSkipped"
+)
+
 // eventRecorder provides methods to record Kubernetes events for appsec resources
 type eventRecorder struct {
 	recorder record.EventRecorder

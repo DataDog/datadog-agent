@@ -48,7 +48,7 @@ func TestGetPreferredDSDEndpointNix(t *testing.T) {
 	t.Run("DSD disabled falls back to UDP", func(t *testing.T) {
 		sockPath := createSocket(t)
 		cfg.SetInTest("dogstatsd_socket", sockPath)
-		cfg.SetInTest("dogstatsd_port", "8125")
+		cfg.SetInTest("dogstatsd_port", 8125)
 		cfg.SetInTest("use_dogstatsd", false)
 
 		j := NewJMXFetch(nil, nil)

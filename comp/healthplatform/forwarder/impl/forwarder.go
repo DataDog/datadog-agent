@@ -29,6 +29,7 @@ import (
 const (
 	intakeEndpointPrefix = "https://agenthealth-intake."
 	intakeEndpointPath   = "/api/v2/agenthealth"
+	intakeURLOverrideKey = "health_platform.forwarder.dd_url"
 	httpTimeout          = 30 * time.Second
 )
 
@@ -47,9 +48,9 @@ type Requires struct {
 	Config config.Component
 }
 
-// New creates a forwarder. It never registers lifecycle hooks; there is nothing
+// NewComponent creates a forwarder. It never registers lifecycle hooks; there is nothing
 // to clean up for a stateless HTTP client.
-func New(reqs Requires) forwarderdef.Component {
+func NewComponent(reqs Requires) forwarderdef.Component {
 	return &forwarder{
 		cfg:        reqs.Config,
 		intakeURL:  buildIntakeURL(reqs.Config),
@@ -58,16 +59,17 @@ func New(reqs Requires) forwarderdef.Component {
 	}
 }
 
-// Send marshals report and POSTs it to the Datadog intake.
-func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthReport) error {
+// Send marshals report and POSTs it to the Datadog intake. It returns the
+// number of payload bytes sent on success, or 0 alongside a non-nil error.
+func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthReport) (int, error) {
 	apiKey := f.cfg.GetString("api_key")
 	if apiKey == "" {
-		return errors.New("API key not configured")
+		return 0, errors.New("API key not configured")
 	}
 
 	payload, err := json.Marshal(report)
 	if err != nil {
-		return fmt.Errorf("marshal report: %w", err)
+		return 0, fmt.Errorf("marshal report: %w", err)
 	}
 
 	reqCtx, cancel := context.WithTimeout(ctx, httpTimeout)
@@ -75,7 +77,7 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 
 	req, err := http.NewRequestWithContext(reqCtx, http.MethodPost, f.intakeURL, bytes.NewReader(payload))
 	if err != nil {
-		return fmt.Errorf("create request: %w", err)
+		return 0, fmt.Errorf("create request: %w", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
@@ -85,20 +87,22 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
-		return fmt.Errorf("send request: %w", err)
+		return 0, fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("unexpected status code: %d", resp.StatusCode)
+		return 0, fmt.Errorf("unexpected status code: %d", resp.StatusCode)
 	}
 
-	return nil
+	return len(payload), nil
 }
 
+// buildIntakeURL returns the URL health reports are POSTed to: the health platform intake of `site`,
+// unless overridden by `health_platform.forwarder.dd_url`. Like the other dedicated intakes (APM,
+// logs, remote config), it does not follow the main `dd_url`, which only overrides the metrics intake.
 func buildIntakeURL(cfg pkgconfigmodel.Reader) string {
-	baseURL := configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url")
-	return baseURL + intakeEndpointPath
+	return configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, intakeURLOverrideKey) + intakeEndpointPath
 }
 
 func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {

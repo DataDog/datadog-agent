@@ -3,15 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2023-present Datadog, Inc.
 
-//go:build orchestrator
+//go:build kubeapiserver
 
 // Package orchestratorimpl implements the orchestrator forwarder component.
 package orchestratorimpl
 
 import (
 	"context"
-
-	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -27,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	orchestratorconfig "github.com/DataDog/datadog-agent/pkg/orchestrator/config"
 	apicfg "github.com/DataDog/datadog-agent/pkg/process/util/api/config"
-	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
 
@@ -43,17 +40,9 @@ type Requires struct {
 	Params  orchestrator.Params
 }
 
-// Module defines the fx options for this component.
-func Module(params orchestrator.Params) fxutil.Module {
-	return fxutil.Component(
-		fxutil.ProvideComponentConstructor(newOrchestratorForwarder),
-		fx.Supply(params),
-	)
-}
-
-// newOrchestratorForwarder returns an orchestratorForwarder
+// NewComponent returns an orchestratorForwarder
 // if the feature is activated on the cluster-agent/cluster-check runner, nil otherwise
-func newOrchestratorForwarder(deps Requires) orchestrator.Component {
+func NewComponent(deps Requires) orchestrator.Component {
 	if deps.Params.UseNoopOrchestratorForwarder() {
 		return createComponent(defaultforwardernoop.NewComponent())
 	}
@@ -72,8 +61,7 @@ func newOrchestratorForwarder(deps Requires) orchestrator.Component {
 		if err := orchestratorCfg.Load(); err != nil {
 			deps.Log.Errorf("Error loading the orchestrator config: %s", err)
 		}
-		keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-		resolver, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+		resolver, err := resolver.NewSingleDomainResolvers2(apicfg.EndpointDescriptors(orchestratorCfg.OrchestratorEndpoints))
 		if err != nil {
 			deps.Log.Errorf("Error creating domain resolver: %s", err)
 		}

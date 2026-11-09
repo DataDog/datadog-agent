@@ -3,11 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build linux_bpf
+//go:build linux && bpf
 
 package module
 
 import (
+	"time"
+
 	"github.com/DataDog/datadog-agent/pkg/dyninst/process"
 )
 
@@ -20,4 +22,7 @@ type procRuntimeID struct {
 	gitInfo       *process.GitInfo
 	containerInfo *process.ContainerInfo
 	processTags   []string
+	// discoveredAt is when the process was discovered, or the zero time if that
+	// is not known.
+	discoveredAt time.Time
 }

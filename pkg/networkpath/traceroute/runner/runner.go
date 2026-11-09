@@ -8,6 +8,7 @@ package runner
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"math/rand"
 	"net"
@@ -22,7 +23,7 @@ import (
 
 	telemetryComponent "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/payload"
 	"github.com/DataDog/datadog-agent/pkg/networkpath/traceroute/config"
@@ -117,12 +118,12 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 
 	maxTTL := cfg.MaxTTL
 	if maxTTL == 0 {
-		maxTTL = setup.DefaultNetworkPathMaxTTL
+		maxTTL = constants.DefaultNetworkPathMaxTTL
 	}
 
 	var timeout time.Duration
 	if cfg.Timeout == 0 {
-		timeout = setup.DefaultNetworkPathTimeout * time.Duration(maxTTL) * time.Millisecond
+		timeout = constants.DefaultNetworkPathTimeout * time.Duration(maxTTL) * time.Millisecond
 	} else {
 		timeout = cfg.Timeout
 	}
@@ -138,7 +139,7 @@ func (r *Runner) Run(ctx context.Context, cfg config.Config) (payload.NetworkPat
 		TCPMethod:             traceroute.TCPMethod(cfg.TCPMethod),
 		WantV6:                false,
 		ReverseDns:            cfg.ReverseDNS,
-		CollectSourcePublicIP: true,
+		CollectSourcePublicIP: !cfg.DisableSourcePublicIPCollection,
 		UseWindowsDriver:      !cfg.DisableWindowsDriver,
 		TracerouteQueries:     cfg.TracerouteQueries,
 		E2eQueries:            cfg.E2eQueries,
@@ -271,6 +272,11 @@ func retryGetNetworkID() (string, error) {
 		networkID, err = cloudprovidersnetwork.GetNetworkID(context.Background())
 		if err == nil {
 			return networkID, nil
+		}
+		if errors.Is(err, cloudprovidersnetwork.ErrCloudProviderUnsupported) {
+			// the host's cloud provider is known and doesn't support network ID
+			// resolution: retrying won't produce a different result
+			return "", err
 		}
 		log.Debugf(
 			"failed to fetch network ID (attempt %d/%d): %s",

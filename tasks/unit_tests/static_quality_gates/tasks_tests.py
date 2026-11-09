@@ -33,9 +33,11 @@ def gitlab_ref_slug(git_ref):
 
 _PR_BRANCH_NAME = "feature/branch"
 _PR_BUCKET_BRANCH = 'dev'
+_MAIN_BRANCH = 'main'
 _CI_PIPELINE_ID = '999999999'
 _CI_COMMIT_SHA = '1234567890abcdef'
 _ANCESTOR_SHA = 'ancestor-sha'
+_TEAM_MEMBER = 'aiuto'
 
 
 _PR_ENV_VARS = {
@@ -44,6 +46,11 @@ _PR_ENV_VARS = {
     'CI_COMMIT_REF_SLUG': gitlab_ref_slug(_PR_BRANCH_NAME),
     'CI_PIPELINE_ID': _CI_PIPELINE_ID,
     'CI_COMMIT_SHA': _CI_COMMIT_SHA,
+}
+
+_MAIN_ENV_VARS = _PR_ENV_VARS | {
+    'CI_COMMIT_BRANCH': _MAIN_BRANCH,
+    'CI_COMMIT_REF_SLUG': _MAIN_BRANCH,
 }
 
 
@@ -136,6 +143,7 @@ def _gate_scenarios_fixture(*scenarios: GateScenario, ancestor_sha: str):
             yield config_path
 
 
+@patch("tasks.quality_gates.get_default_branch", new=MagicMock(return_value=_MAIN_BRANCH))
 class TestQualityGatesIntegration(unittest.TestCase):
     def _assert_gate_metrics(self, sent, gate_name, *, on_disk, on_wire, max_disk, max_wire, rel_disk, rel_wire):
         metric_prefix = "datadog.agent.static_quality_gate."
@@ -171,7 +179,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.send_metrics") as mock_send_metrics,
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
@@ -250,7 +257,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
             patch(
@@ -293,7 +299,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_relative_size"),
             patch(
@@ -336,7 +341,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.send_metrics"),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
@@ -360,7 +364,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             number=12345,
             title="fix(somewhere): did something",
             user=SimpleNamespace(login="some-author"),
-            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login="cmourot"))],
+            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login=_TEAM_MEMBER))],
         )
         gate_scenarios = [
             GateScenario(
@@ -385,13 +389,16 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.quality_gates.get_pr_for_branch", return_value=approved_pr),
             patch("tasks.static_quality_gates.gates.send_metrics"),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
             ) as mock_generate_reports,
+            patch(
+                "tasks.static_quality_gates.decisions.get_team_members",
+                return_value={_TEAM_MEMBER},
+            ),
         ):
             ctx = MockContext(
                 run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
@@ -402,7 +409,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
             body = mock_pr_commenter.call_args.kwargs["body"]
             self.assertIn("per-PR threshold", body)
-            self.assertIn("Exception granted by @cmourot", body)
+            self.assertIn(f"Exception granted by @{_TEAM_MEMBER}", body)
 
     @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_gate_fails_per_pr_wire_threshold(self):
@@ -430,7 +437,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.send_metrics"),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
@@ -454,7 +460,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             number=12345,
             title="fix(somewhere): did something",
             user=SimpleNamespace(login="some-author"),
-            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login="cmourot"))],
+            get_reviews=lambda: [SimpleNamespace(state="APPROVED", user=SimpleNamespace(login=_TEAM_MEMBER))],
         )
         gate_scenarios = [
             GateScenario(
@@ -479,13 +485,16 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.quality_gates.get_pr_for_branch", return_value=approved_pr),
             patch("tasks.static_quality_gates.gates.send_metrics"),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
             patch(
                 "tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"
             ) as mock_generate_reports,
+            patch(
+                "tasks.static_quality_gates.decisions.get_team_members",
+                return_value={_TEAM_MEMBER},
+            ),
         ):
             ctx = MockContext(
                 run={"datadog-ci tag --level job --tags static_quality_gates:\"failure\"": Result("Done")}
@@ -496,7 +505,7 @@ class TestQualityGatesIntegration(unittest.TestCase):
             self.assertIs(mock_pr_commenter.call_args.kwargs["pr"], approved_pr)
             body = mock_pr_commenter.call_args.kwargs["body"]
             self.assertIn("per-PR wire threshold", body)
-            self.assertIn("Exception granted by @cmourot", body)
+            self.assertIn(f"Exception granted by @{_TEAM_MEMBER}", body)
 
     @patch.dict('os.environ', _PR_ENV_VARS, clear=True)
     def test_gate_fails_absolute_limit_non_blocking_unchanged_from_ancestor(self):
@@ -524,7 +533,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.static_quality_gates.github.GithubAPI", new=FakeGithubAPI),
             patch("tasks.static_quality_gates.gates.send_metrics"),
             patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
@@ -615,7 +623,6 @@ class TestQualityGatesIntegration(unittest.TestCase):
         with (
             _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
             patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
-            patch("tasks.quality_gates.get_commit_sha", return_value=_CI_COMMIT_SHA),
             patch("tasks.quality_gates.get_pr_for_branch", return_value=None),
             patch("tasks.quality_gates.get_pr_number_from_commit", return_value=None),
             patch("tasks.static_quality_gates.gates.send_metrics"),
@@ -626,6 +633,47 @@ class TestQualityGatesIntegration(unittest.TestCase):
             )
             # Should NOT raise Exit — per-PR threshold is skipped on merge queue branches
             parse_and_trigger_gates(ctx, config_path)
+
+    @patch.dict('os.environ', _MAIN_ENV_VARS, clear=True)
+    def test_per_pr_threshold_skipped_on_main(self):
+        """Per-PR threshold check is not applied on main, where deltas belong to the merged PR."""
+        gate_scenarios = [
+            GateScenario(
+                name=_DEB_GATE,
+                ancestor_disk=100 * _MiB,
+                ancestor_wire=50 * _MiB,
+                current_disk=100 * _MiB,
+                current_wire=50 * _MiB + 5.1 * _MiB,  # > 5 MiB wire threshold
+                max_disk=105 * _MiB,
+                max_wire=60 * _MiB,
+            ),
+            GateScenario(
+                name=_DOCKER_GATE,
+                ancestor_disk=600 * _MiB,
+                ancestor_wire=240 * _MiB,
+                current_disk=600 * _MiB + 700 * _KiB,  # > 600 KiB disk threshold
+                current_wire=240 * _MiB,
+                max_disk=700 * _MiB,
+                max_wire=250 * _MiB,
+            ),
+        ]
+        with (
+            _gate_scenarios_fixture(*gate_scenarios, ancestor_sha=_ANCESTOR_SHA) as config_path,
+            patch("tasks.quality_gates.get_ancestor", return_value=_ANCESTOR_SHA),
+            patch("tasks.quality_gates.get_pr_for_branch") as mock_get_pr_for_branch,
+            patch("tasks.quality_gates.get_pr_number_from_commit", return_value=None),
+            patch("tasks.static_quality_gates.gates.send_metrics"),
+            patch("tasks.static_quality_gates.pr_comment.pr_commenter") as mock_pr_commenter,
+            patch("tasks.static_quality_gates.gates.GateMetricHandler.generate_metric_reports"),
+        ):
+            ctx = MockContext(
+                run={"datadog-ci tag --level job --tags static_quality_gates:\"success\"": Result("Done")}
+            )
+            # Should NOT raise Exit — per-PR thresholds are skipped on main
+            parse_and_trigger_gates(ctx, config_path)
+            # Open PRs whose head branch is main are none of main's business
+            mock_get_pr_for_branch.assert_not_called()
+            mock_pr_commenter.assert_not_called()
 
 
 if __name__ == '__main__':

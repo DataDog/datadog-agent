@@ -372,6 +372,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: s2
           Offset: 18
           Kind: argument
@@ -385,6 +386,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
         - Name: i
           Offset: 34
           Kind: argument
@@ -398,6 +400,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: EventRootType
       ID: 109
       Name: Probe[main.callMe]Return
@@ -431,6 +434,7 @@ Types:
             LeafBodies: []
             IsSplit: false
           DictIndex: -1
+          Redacted: false
     - __kind: ArrayType
       ID: 88
       Name: '[10]runtime.heldLockInfo'
@@ -1586,7 +1590,10 @@ Types:
       GoKind: 26
 MaxTypeID: 110
 Issues: []
-GoModuledataInfo: {FirstModuledataAddr: "0x576240", TypesOffset: 296}
+GoModuledataInfo:
+    FirstModuledataAddr: "0x576240"
+    TypesOffset: 296
+    ETypesOffset: 304
 GoMapHashInfo: {UseAeshashAddr: "0x59fa6a", AeskeyschedAddr: "0x5a0140"}
 CommonTypes:
     G: 24 StructureType runtime.g

@@ -15,11 +15,13 @@ import (
 	mutatecommon "github.com/DataDog/datadog-agent/pkg/clusteragent/admission/mutate/common"
 )
 
-// LabrlSelectorsConfig provides configuration values for NewLabelSelectors.
+// LabelSelectorsConfig provides configuration values for NewLabelSelectors.
 type LabelSelectorsConfig struct {
 	Enabled            bool
+	OnDemand           bool
 	MutateUnlabelled   bool
-	AddAksSelectors    bool
+	GPUTracing         bool
+	APMBasic           bool
 	DisabledNamespaces []string
 }
 
@@ -27,8 +29,10 @@ type LabelSelectorsConfig struct {
 func NewLabelSelectorsConfig(datadogConfig config.Component) *LabelSelectorsConfig {
 	return &LabelSelectorsConfig{
 		Enabled:            datadogConfig.GetBool("apm_config.instrumentation.enabled"),
+		OnDemand:           datadogConfig.GetBool("apm_config.instrumentation.on_demand"),
 		MutateUnlabelled:   datadogConfig.GetBool("admission_controller.mutate_unlabelled"),
-		AddAksSelectors:    datadogConfig.GetBool("admission_controller.add_aks_selectors"),
+		GPUTracing:         datadogConfig.GetBool("gpu.tracing.enabled"),
+		APMBasic:           datadogConfig.GetBool("apm_config.instrumentation.apm_basic.enabled"),
 		DisabledNamespaces: datadogConfig.GetStringSlice("apm_config.instrumentation.disabled_namespaces"),
 	}
 }
@@ -71,19 +75,13 @@ func (ls *LabelSelectors) Get(useNamespaceSelector bool) (*metav1.LabelSelector,
 		Values:   disabledNamespaces,
 	})
 
-	// AKS automatically adds some selector requirements if we don't so we need to add them to avoid conflicts when
-	// updating the webhook. Ref: https://docs.microsoft.com/en-us/azure/aks/faq#can-i-use-admission-controller-webhooks-on-aks
-	if ls.config.AddAksSelectors {
-		namespaceSelector.MatchExpressions = append(namespaceSelector.MatchExpressions, common.AzureAKSLabelSelectorRequirement()...)
-	}
-
 	return namespaceSelector, objectSelector
 }
 
 func (ls *LabelSelectors) setupObjectSelector(selector *metav1.LabelSelector) {
-	if ls.config.Enabled || ls.config.MutateUnlabelled {
-		// If instrumentation or mutate unlabelled is enabled, then we want to receive webhooks for everything but
-		// workloads that have explicitly opted out.
+	if ls.config.Enabled || ls.config.OnDemand || ls.config.MutateUnlabelled || ls.config.GPUTracing || ls.config.APMBasic {
+		// If instrumentation, on-demand instrumentation, mutate unlabelled, GPU tracing, or APM Basic is enabled, then
+		// we want to receive webhooks for everything but workloads that have explicitly opted out.
 		selector.MatchExpressions = []metav1.LabelSelectorRequirement{
 			{
 				Key:      common.EnabledLabelKey,

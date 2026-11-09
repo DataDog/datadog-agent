@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Windows: Fix a crash in the Agent when a statsd client configured to use a
+    named pipe is closed without ever having successfully written to that pipe.
+    The named pipe connection is established on first write, so closing such a
+    client dereferenced a nil connection and terminated the process. Fixed by
+    updating ``datadog-go`` to v5.9.1.

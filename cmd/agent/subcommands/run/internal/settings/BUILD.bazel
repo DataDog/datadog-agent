@@ -1,0 +1,47 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:dd_agent_go_test on
+
+go_library(
+    name = "settings",
+    srcs = [
+        "runtime_setting_dogstatsd_capture_duration.go",
+        "runtime_setting_dogstatsd_stats.go",
+        "runtime_settings_multi_region_failover.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/cmd/agent/subcommands/run/internal/settings",
+    visibility = ["//cmd/agent/subcommands/run:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "//comp/dogstatsd/serverDebug/def",
+        "//pkg/config/model",
+        "//pkg/config/settings",
+    ],
+)
+
+dd_agent_go_test(
+    name = "settings_test",
+    srcs = ["runtime_settings_test.go"],
+    embed = [":settings"],
+    deps = [
+        "//comp/aggregator/demultiplexer/def",
+        "//comp/aggregator/demultiplexer/impl",
+        "//comp/core",
+        "//comp/core/config",
+        "//comp/core/hostname/hostnameimpl",
+        "//comp/core/tagger/def",
+        "//comp/core/tagger/fx-mock",
+        "//comp/core/workloadmeta/def",
+        "//comp/core/workloadmeta/fx-mock",
+        "//comp/dogstatsd",
+        "//comp/dogstatsd/server/def",
+        "//comp/dogstatsd/serverDebug/def",
+        "//comp/filterlist/fx-mock",
+        "//comp/forwarder/defaultforwarder/mock",
+        "//pkg/config/model",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@org_uber_go_fx//:fx",
+    ],
+)

@@ -8,6 +8,9 @@ test_fuzz:
   stage: source_test
   needs: []
   allow_failure: true
+  variables:
+    KUBERNETES_MEMORY_REQUEST: 64Gi
+    KUBERNETES_MEMORY_LIMIT: 64Gi
   script:
     - dda self dep sync -f legacy-tasks
     - dda inv -- -e system-probe.object-files

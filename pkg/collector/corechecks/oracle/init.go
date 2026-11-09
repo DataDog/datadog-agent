@@ -16,8 +16,9 @@ import (
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/benbjohnson/clock"
 )
+
+var dbIdentifierVarRe = regexp.MustCompile(`\$([a-z_]+)`)
 
 type vInstance struct {
 	HostName     sql.NullString `db:"HOST_NAME"`
@@ -178,7 +179,6 @@ func (c *Check) init() error {
 
 	c.fqtEmitted = getFqtEmittedCache()
 	c.planEmitted = getPlanEmittedCache(c)
-	c.clock = clock.New()
 	c.initialized = true
 
 	return nil
@@ -206,8 +206,7 @@ func (c *Check) createDatabaseIdentifier() string {
 
 	identifier := c.config.DatabaseIdentifier.Template
 
-	re := regexp.MustCompile(`\$([a-z_]+)`)
-	matches := re.FindAllString(identifier, -1)
+	matches := dbIdentifierVarRe.FindAllString(identifier, -1)
 	for _, match := range matches {
 		key := strings.TrimPrefix(match, "$")
 		if value, ok := tags[key]; ok && value != "" {

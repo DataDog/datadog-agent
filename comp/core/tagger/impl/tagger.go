@@ -99,10 +99,11 @@ type Requires struct {
 type Provides struct {
 	compdef.Out
 
-	Comp          taggerdef.Component
-	Processor     option.Option[taggerdef.Processor]
-	Endpoint      api.AgentEndpointProvider
-	FlareProvider flaretypes.Provider
+	Comp                taggerdef.Component
+	Processor           option.Option[taggerdef.Processor]
+	GlobalTagsRefresher option.Option[func(context.Context)]
+	Endpoint            api.AgentEndpointProvider
+	FlareProvider       flaretypes.Provider
 }
 
 // NewComponent returns a new tagger client
@@ -139,9 +140,10 @@ func NewComponent(req Requires) (Provides, error) {
 	}})
 
 	return Provides{
-		Comp:          taggerInstance,
-		Processor:     option.New[taggerdef.Processor](taggerInstance.tagStore),
-		FlareProvider: flaretypes.NewProvider(taggerInstance.fillFlare),
+		Comp:                taggerInstance,
+		Processor:           option.New[taggerdef.Processor](taggerInstance.tagStore),
+		GlobalTagsRefresher: option.New(taggerInstance.RefreshGlobalTags),
+		FlareProvider:       flaretypes.NewProvider(taggerInstance.fillFlare),
 		Endpoint: api.NewAgentEndpointProvider(func(writer http.ResponseWriter, _ *http.Request) {
 			response := taggerInstance.List()
 			jsonTags, err := json.Marshal(response)
@@ -204,6 +206,24 @@ func newLocalTagger(cfg config.Component, wmeta workloadmeta.Component, log log.
 		tlmUDPOriginDetectionError: tlmUDPOriginDetectionError,
 		datadogConfig:              dc,
 	}, nil
+}
+
+// GetInfraTags returns the infrastructure mode tags for this Agent, or nil when
+// the mode does not carry a mark.
+//
+// The entity is published by the collector at construction and holds no tags for
+// an unmarked mode, so an empty result is normalized to nil to keep the contract
+// the same whether or not the entity has been seen.
+func (t *localTagger) GetInfraTags() []string {
+	tags, err := t.Tag(types.GetInfraTagsEntityID(), types.LowCardinality)
+	if err != nil {
+		t.log.Warnf("error getting infra tags: %s", err)
+		return nil
+	}
+	if len(tags) == 0 {
+		return nil
+	}
+	return tags
 }
 
 // getTags returns a read only list of tags for a given entity.
@@ -384,6 +404,13 @@ func (t *localTagger) AgentTags(cardinality types.TagCardinality) ([]string, err
 
 	entityID := types.NewEntityID(types.ContainerID, ctrID)
 	return t.Tag(entityID, cardinality)
+}
+
+// RefreshGlobalTags forces the tagger to recompute global tags
+func (t *localTagger) RefreshGlobalTags(ctx context.Context) {
+	if t.collector != nil {
+		t.collector.RefreshGlobalTags(ctx)
+	}
 }
 
 // GlobalTags queries global tags that should apply to all data coming from the

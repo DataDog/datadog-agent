@@ -1,0 +1,130 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package bench
+
+import (
+	"sort"
+	"strconv"
+	"strings"
+
+	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
+	"github.com/DataDog/datadog-agent/pkg/tagset"
+)
+
+// aggSuffix returns the short string representation of an aggregate.
+func aggSuffix(agg observerdef.Aggregate) string {
+	return observerdef.AggregateString(agg)
+}
+
+// parseSeriesKey parses a canonical series key into its components.
+// Returns ok=false if the key doesn't have the expected format.
+func parseSeriesKey(key string) (namespace, name, host string, tags []string, ok bool) {
+	// Format: "namespace|name:agg|host|tags"
+	parts := strings.SplitN(key, "|", 4)
+	if len(parts) != 4 {
+		return "", "", "", nil, false
+	}
+	namespace = parts[0]
+	name = parts[1]
+	host = parts[2]
+	if parts[3] != "" {
+		tags = strings.Split(parts[3], ",")
+	}
+	return namespace, name, host, tags, true
+}
+
+// stateViewStorage adapts a StateView to provide compact series ID lookups and
+// series-by-numeric-ID retrieval. This replaces the private timeSeriesStorage
+// methods used in the original testbench API.
+type stateViewStorage struct {
+	sv observerimpl.StateView
+}
+
+// listNamespaces returns all distinct namespaces present in the state view.
+func (s *stateViewStorage) listNamespaces() []string {
+	series := s.sv.ListSeries(observerdef.SeriesFilter{})
+	seen := make(map[string]struct{})
+	var result []string
+	for _, m := range series {
+		if _, ok := seen[m.Namespace]; !ok {
+			seen[m.Namespace] = struct{}{}
+			result = append(result, m.Namespace)
+		}
+	}
+	sort.Strings(result)
+	return result
+}
+
+// listSeriesForNamespace returns series metadata for a given namespace.
+func (s *stateViewStorage) listSeriesForNamespace(ns string) []observerdef.SeriesMeta {
+	return s.sv.ListSeries(observerdef.SeriesFilter{Namespace: ns})
+}
+
+// getSeriesByNumericID finds a series by its numeric ref and returns data with the given agg.
+func (s *stateViewStorage) getSeriesByNumericID(ref observerdef.SeriesRef, agg observerdef.Aggregate) *observerdef.Series {
+	maxTs := s.sv.MaxTimestamp()
+	return s.sv.GetSeriesRange(ref, 0, maxTs, agg)
+}
+
+// getSeriesMeta returns the SeriesMeta for a given ref, or nil if not found.
+func (s *stateViewStorage) getSeriesMeta(ref observerdef.SeriesRef) *observerdef.SeriesMeta {
+	all := s.sv.ListSeries(observerdef.SeriesFilter{})
+	for i := range all {
+		if all[i].Ref == ref {
+			return &all[i]
+		}
+	}
+	return nil
+}
+
+// compactSeriesID maps a canonical series key to a compact numeric ID ("42:avg").
+// Returns the original key if not found (to match the original behavior).
+func (s *stateViewStorage) compactSeriesID(fullKey string) string {
+	namespace, nameWithAgg, host, tags, ok := parseSeriesKey(fullKey)
+	if !ok {
+		return fullKey
+	}
+
+	// Separate name from agg suffix.
+	name := nameWithAgg
+	aggStr := "avg"
+	if idx := strings.LastIndex(nameWithAgg, ":"); idx > 0 {
+		name = nameWithAgg[:idx]
+		aggStr = nameWithAgg[idx+1:]
+	}
+
+	filter := observerdef.SeriesFilter{Namespace: namespace}
+	series := s.sv.ListSeries(filter)
+
+	for _, m := range series {
+		if m.Name != name || m.Host != host {
+			continue
+		}
+		if compositeTagsMatch(m.Tags, tags) {
+			return strconv.Itoa(int(m.Ref)) + ":" + aggStr
+		}
+	}
+
+	return fullKey
+}
+
+func compositeTagsMatch(tags tagset.CompositeTags, want []string) bool {
+	wanted := make(map[string]struct{}, len(want))
+	for _, tag := range want {
+		wanted[tag] = struct{}{}
+	}
+	seen := make(map[string]struct{}, tags.Len())
+	matched := true
+	tags.ForEach(func(tag string) {
+		if _, found := wanted[tag]; !found {
+			matched = false
+			return
+		}
+		seen[tag] = struct{}{}
+	})
+	return matched && len(seen) == len(wanted)
+}

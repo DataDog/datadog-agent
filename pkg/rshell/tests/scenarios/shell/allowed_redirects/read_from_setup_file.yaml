@@ -1,0 +1,13 @@
+description: Input redirection reads content from a setup file using absolute path variable.
+setup:
+  files:
+    - path: data.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat < data.txt
+expect:
+  stdout: "hello world\n"
+  stderr: ""
+  exit_code: 0

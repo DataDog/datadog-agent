@@ -15,13 +15,22 @@ import (
 	"k8s.io/client-go/kubernetes"
 
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/executors"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Setup initializes the kubeactions subsystem with all executors registered
-func Setup(ctx context.Context, clientset kubernetes.Interface, dynamicClient dynamic.Interface, clusterName, clusterID string, isLeader func() bool, rcClient RcClient, epForwarderComp eventplatform.Component) (*ConfigRetriever, error) {
+func Setup(ctx context.Context, clientset kubernetes.Interface, dynamicClient dynamic.Interface, clusterName, clusterID string, isLeader func() bool, rcClient RcClient, epForwarderComp eventplatform.Component, senderManager sender.SenderManager) (*ConfigRetriever, error) {
 	log.Infof("[KubeActions] Setting up Kubernetes actions subsystem")
+
+	// Emit local telemetry signaling the subsystem is enabled and running
+	if s, err := senderManager.GetSender("kubernetes_actions"); err != nil {
+		log.Warnf("[KubeActions] Unable to start local telemetry: %v", err)
+	} else {
+		s.DisableDefaultHostname(true)
+		startLocalTelemetry(ctx, s, []string{"orch_cluster_id:" + clusterID})
+	}
 
 	// Create the executor registry
 	registry := NewExecutorRegistry(clientset)
@@ -65,5 +74,7 @@ func registerExecutors(registry *ExecutorRegistry, clientset kubernetes.Interfac
 	registry.Register("restart_deployment", &executorAdapter{exec: executors.NewRestartDeploymentExecutor(clientset)})
 	registry.Register("patch_deployment", &executorAdapter{exec: executors.NewPatchDeploymentExecutor(clientset)})
 	registry.Register("rollback_deployment", &executorAdapter{exec: executors.NewRollbackDeploymentExecutor(clientset)})
+	registry.Register("patch_daemonset", &executorAdapter{exec: executors.NewPatchDaemonSetExecutor(clientset)})
+	registry.Register("patch_statefulset", &executorAdapter{exec: executors.NewPatchStatefulSetExecutor(clientset)})
 	registry.Register("get_resource", &executorAdapter{exec: executors.NewGetResourceExecutor(dynamicClient)})
 }

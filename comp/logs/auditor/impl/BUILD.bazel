@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "impl",
@@ -8,6 +9,8 @@ go_library(
         "api_v2.go",
         "auditor.go",
         "registry_writer.go",
+        "registry_writer_other.go",
+        "registry_writer_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/auditor/impl",
     visibility = ["//visibility:public"],
@@ -19,10 +22,15 @@ go_library(
         "//pkg/logs/message",
         "//pkg/logs/types",
         "//pkg/status/health",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
-go_test(
+dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "api_v0_test.go",
@@ -32,7 +40,6 @@ go_test(
         "registry_writer_test.go",
     ],
     embed = [":impl"],
-    gotags = ["test"],
     deps = [
         "//comp/core/config",
         "//comp/core/log/mock",

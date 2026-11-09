@@ -96,6 +96,7 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		PrCtlEventType.String(),
 		TracerMemfdCreateEventType.String(),
 		TracerMemfdSealEventType.String(),
+		OTelProcessCtxEventType.String(),
 		SetSidEventType.String(),
 		ArgsEnvsEventType.String():
 		return ProcessCategory
@@ -112,7 +113,9 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 		SysCtlEventType.String(),
 		CgroupWriteEventType.String(),
 		CgroupTracingEventType.String(),
+		UnshareEventType.String(),
 		UnshareMountNsEventType.String(),
+		SetNSEventType.String(),
 		OnDemandEventType.String():
 		return KernelCategory
 
@@ -175,7 +178,8 @@ func GetEventTypeCategory(eventType eval.EventType) EventCategory {
 
 	// Internal
 	case
-		NopEventType.String():
+		NopEventType.String(),
+		SampleRefreshEventType.String():
 		return InternalCategory
 	}
 

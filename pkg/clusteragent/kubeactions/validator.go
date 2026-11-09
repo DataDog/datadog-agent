@@ -12,6 +12,8 @@ import (
 	"strings"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
+
+	"github.com/DataDog/datadog-agent/pkg/clusteragent/kubeactions/executors"
 )
 
 // ValidationError represents an error during action validation
@@ -140,11 +142,46 @@ func (v *ActionValidator) ValidateAction(action *kubeactions.KubeAction) error {
 				Message: "resource.kind must be 'Deployment' for rollback_deployment action",
 			}
 		}
+	case ActionTypePatchDaemonSet:
+		if action.Resource.Kind != "DaemonSet" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.kind must be 'DaemonSet' for patch_daemonset action",
+			}
+		}
+		patchParams := action.GetPatchDaemonset()
+		if patchParams == nil || patchParams.GetPatch() == nil {
+			return &ValidationError{
+				Action:  action,
+				Message: "patch is required for patch_daemonset action",
+			}
+		}
+	case ActionTypePatchStatefulSet:
+		if action.Resource.Kind != "StatefulSet" {
+			return &ValidationError{
+				Action:  action,
+				Message: "resource.kind must be 'StatefulSet' for patch_statefulset action",
+			}
+		}
+		patchParams := action.GetPatchStatefulset()
+		if patchParams == nil || patchParams.GetPatch() == nil {
+			return &ValidationError{
+				Action:  action,
+				Message: "patch is required for patch_statefulset action",
+			}
+		}
 	case ActionTypeGetResource:
 		if action.Resource.ApiVersion == "" {
 			return &ValidationError{
 				Action:  action,
 				Message: "resource.api_version must be set for get_resource action",
+			}
+		}
+
+		if _, err := executors.ParseGetResourceGVR(action.Resource.ApiVersion, action.Resource.Kind); err != nil {
+			return &ValidationError{
+				Action:  action,
+				Message: err.Error(),
 			}
 		}
 
@@ -174,9 +211,11 @@ var protectedNamespaces = map[string]struct{}{
 	"kube-node-lease": {},
 }
 
-// isProtectedNamespace returns true if the namespace is a protected system namespace
+// isProtectedNamespace returns true if the namespace is a protected system namespace.
+// The comparison is case-insensitive so a value like "Kube-System" cannot get past
+// the check if an executor normalizes it before use.
 func isProtectedNamespace(namespace string) bool {
-	_, ok := protectedNamespaces[namespace]
+	_, ok := protectedNamespaces[strings.ToLower(namespace)]
 	return ok
 }
 

@@ -1,0 +1,8 @@
+---
+security:
+  - |
+    In FIPS mode, the default SNMPv3 authentication and privacy protocols
+    used when ``authKey``/``privKey`` are set without an explicit
+    ``authProtocol``/``privProtocol`` are now ``SHA-256``/``AES`` instead
+    of ``MD5``/``DES``, since ``MD5`` and ``DES`` are not FIPS 140-3
+    compatible. Outside FIPS mode, the defaults remain unchanged.

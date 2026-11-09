@@ -9,6 +9,7 @@
 package activitytree
 
 import (
+	"time"
 	"unsafe"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -27,12 +28,25 @@ type BindNode struct {
 	Protocol       uint16
 }
 
+// ConnectNode is used to store a connect node
+type ConnectNode struct {
+	NodeBase
+
+	MatchedRules []*model.MatchedRule
+
+	GenerationType NodeGenerationType
+	Port           uint16
+	IP             string
+	Protocol       uint16
+}
+
 // SocketNode is used to store a Socket node and associated events
 type SocketNode struct {
 	NodeBase
 	Family         string
 	GenerationType NodeGenerationType
 	Bind           []*BindNode
+	Connect        []*ConnectNode
 }
 
 // size approximates this node's heap footprint, including all owned BindNodes.
@@ -47,6 +61,10 @@ func (sn *SocketNode) size() int64 {
 	s += sliceBackingBytes(cap(sn.Bind), unsafe.Sizeof((*BindNode)(nil)))
 	for _, bind := range sn.Bind {
 		s += bindSize(bind)
+	}
+	s += sliceBackingBytes(cap(sn.Connect), unsafe.Sizeof((*ConnectNode)(nil)))
+	for _, conn := range sn.Connect {
+		s += connectSize(conn)
 	}
 	return s
 }
@@ -67,6 +85,23 @@ func bindSize(bn *BindNode) int64 {
 // Matches returns true if BindNodes matches
 func (bn *BindNode) Matches(toMatch *BindNode) bool {
 	return bn.Port == toMatch.Port && bn.IP == toMatch.IP && bn.Protocol == toMatch.Protocol
+}
+
+// connectSize approximates the heap footprint of a single ConnectNode.
+func connectSize(cn *ConnectNode) int64 {
+	if cn == nil {
+		return 0
+	}
+	s := int64(unsafe.Sizeof(*cn))
+	s += seenBytes(cn.NodeBase)
+	s += int64(len(cn.IP))
+	s += sliceBackingBytes(cap(cn.MatchedRules), unsafe.Sizeof((*model.MatchedRule)(nil)))
+	return s
+}
+
+// Matches returns true if ConnectNodes matches
+func (cn *ConnectNode) Matches(toMatch *ConnectNode) bool {
+	return cn.Port == toMatch.Port && cn.IP == toMatch.IP && cn.Protocol == toMatch.Protocol
 }
 
 // Matches returns true if SocketNodes matches
@@ -92,7 +127,55 @@ func (sn *SocketNode) evictImageTag(imageTagID uint64) (bool, int64) {
 	}
 	clear(sn.Bind[len(newBind):])
 	sn.Bind = newBind
-	return len(newBind) == 0, removed
+
+	newConnect := sn.Connect[:0]
+	for _, conn := range sn.Connect {
+		if conn.EvictImageTag(imageTagID) {
+			removed += connectSize(conn)
+			continue
+		}
+		newConnect = append(newConnect, conn)
+	}
+	clear(sn.Connect[len(newConnect):])
+	sn.Connect = newConnect
+
+	return len(newBind) == 0 && len(newConnect) == 0, removed
+}
+
+// evictBeforeTimestamp evicts bind/connect children by their own NodeBase timestamps (a
+// SocketNode's base is only stamped by TagAllNodes, not on insert, so it can't drive child
+// eviction). Returns (socketIsEmpty, bytesRemoved): the caller subtracts bytesRemoved and, when
+// empty, sn.size(). A childless socket carries no info, so it's reported empty regardless of base.
+func (sn *SocketNode) evictBeforeTimestamp(before time.Time) (bool, int64) {
+	var removed int64
+
+	// Filter in place, clearing the tail so evicted pointers aren't pinned (mirrors evictImageTag).
+	newBind := sn.Bind[:0]
+	for _, bind := range sn.Bind {
+		if bind.NodeBase.EvictBeforeTimestamp(before) > 0 && bind.SeenIsEmpty() {
+			removed += bindSize(bind)
+			continue
+		}
+		newBind = append(newBind, bind)
+	}
+	clear(sn.Bind[len(newBind):])
+	sn.Bind = newBind
+
+	newConnect := sn.Connect[:0]
+	for _, conn := range sn.Connect {
+		if conn.NodeBase.EvictBeforeTimestamp(before) > 0 && conn.SeenIsEmpty() {
+			removed += connectSize(conn)
+			continue
+		}
+		newConnect = append(newConnect, conn)
+	}
+	clear(sn.Connect[len(newConnect):])
+	sn.Connect = newConnect
+
+	// Age out the socket's own image-tag timestamps so stale tags don't accumulate.
+	sn.NodeBase.EvictBeforeTimestamp(before)
+
+	return len(sn.Bind) == 0 && len(sn.Connect) == 0, removed
 }
 
 // InsertBindEvent inserts a bind event inside a socket node. When a new BindNode is
@@ -100,7 +183,7 @@ func (sn *SocketNode) evictImageTag(imageTagID uint64) (bool, int64) {
 // for bind-heavy workloads where the previous accounting only charged the socket once
 // at creation time and ignored subsequent binds. stats must be non-nil — same contract as
 // every other Insert*Event method.
-func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) bool {
+func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) (bool, *NodeBase) {
 	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
 	for _, n := range sn.Bind {
 		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
@@ -108,15 +191,14 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
 			}
 			if imageTagID == 0 || n.HasImageTag(imageTagID) {
-				return false
+				return false, &n.NodeBase
 			}
 			n.AppendImageTagID(imageTagID, event.ResolveEventTime())
-			return false
+			return false, &n.NodeBase
 		}
 	}
 
 	if !dryRun {
-		// insert bind event now
 		node := &BindNode{
 			MatchedRules:   rules,
 			GenerationType: generationType,
@@ -129,8 +211,9 @@ func (sn *SocketNode) InsertBindEvent(evt *model.BindEvent, event *model.Event, 
 		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
 		sn.Bind = append(sn.Bind, node)
 		stats.SizeBytes += bindSize(node)
+		return true, &node.NodeBase
 	}
-	return true
+	return true, nil
 }
 
 // NewSocketNode returns a new SocketNode instance
@@ -141,4 +224,40 @@ func NewSocketNode(family string, generationType NodeGenerationType) *SocketNode
 	}
 	node.NodeBase = NewNodeBase()
 	return node
+}
+
+// InsertConnectEvent inserts a connect event inside a socket node. When a new ConnectNode is
+// created the caller-provided stats is charged its size, keeping Stats.SizeBytes honest.
+func (sn *SocketNode) InsertConnectEvent(evt *model.ConnectEvent, event *model.Event, imageTagID uint64, generationType NodeGenerationType, rules []*model.MatchedRule, stats *Stats, dryRun bool) (bool, *NodeBase) {
+	evtIP := utils.GetIPStringFromIPNet(evt.Addr.IPNet)
+	for _, n := range sn.Connect {
+		if evt.Addr.Port == n.Port && evtIP == n.IP && evt.Protocol == n.Protocol {
+			if !dryRun {
+				n.MatchedRules = model.AppendMatchedRule(n.MatchedRules, rules)
+			}
+			if imageTagID == 0 || n.HasImageTag(imageTagID) {
+				return false, &n.NodeBase
+			}
+			n.AppendImageTagID(imageTagID, event.ResolveEventTime())
+			return false, &n.NodeBase
+		}
+	}
+
+	if !dryRun {
+		node := &ConnectNode{
+			MatchedRules:   rules,
+			GenerationType: generationType,
+			Port:           evt.Addr.Port,
+			IP:             evtIP,
+			Protocol:       evt.Protocol,
+		}
+		node.NodeBase = NewNodeBase()
+
+		node.AppendImageTagID(imageTagID, event.ResolveEventTime())
+		sn.Connect = append(sn.Connect, node)
+		stats.ConnectNodes++
+		stats.SizeBytes += connectSize(node)
+		return true, &node.NodeBase
+	}
+	return true, nil
 }

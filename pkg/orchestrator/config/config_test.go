@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build orchestrator && test
+//go:build kubeapiserver && test
 
 package config
 
@@ -102,6 +102,19 @@ func (suite *YamlConfigTestSuite) TestExtractOrchestratorOrchestratorEndpoints()
 	for _, actual := range actualEndpoints {
 		suite.Equal(expected[actual.APIKey], actual.Endpoint.Hostname())
 	}
+}
+
+func (suite *YamlConfigTestSuite) TestExtractOrchestratorAdditionalEndpointsKeepConfigKey() {
+	var actualEndpoints []apicfg.Endpoint
+	mainURL, _ := url.Parse("https://orchestrator.datadoghq.com")
+
+	// A key relative to orchestrator_dd_url has no scheme; it must survive as written.
+	suite.config.SetInTest("orchestrator_explorer.orchestrator_additional_endpoints", `{"//orchestrator.second-org.datadoghq.com": ["key1"]}`)
+	suite.NoError(extractOrchestratorAdditionalEndpoints(mainURL, &actualEndpoints))
+
+	suite.Require().Len(actualEndpoints, 1)
+	suite.Equal("https://orchestrator.second-org.datadoghq.com", actualEndpoints[0].Endpoint.String())
+	suite.Equal("//orchestrator.second-org.datadoghq.com", actualEndpoints[0].ConfigKey)
 }
 
 func (suite *YamlConfigTestSuite) TestExtractOrchestratorEndpointsPrecedence() {
@@ -261,7 +274,7 @@ func (suite *YamlConfigTestSuite) TestNoEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
-	suite.config.SetInTest("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+	suite.config.SetInTest("orchestrator_explorer.custom_sensitive_words", []string{"token", "consul"})
 
 	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()
@@ -284,7 +297,7 @@ func (suite *YamlConfigTestSuite) TestOnlyEnvConfigArgsScrubbing() {
 }
 
 func (suite *YamlConfigTestSuite) TestOnlyEnvContainsConfigArgsScrubbing() {
-	suite.config.SetInTest("orchestrator_explorer.custom_sensitive_words", `["token","consul"]`)
+	suite.config.SetInTest("orchestrator_explorer.custom_sensitive_words", []string{"token", "consul"})
 
 	orchestratorCfg := NewDefaultOrchestratorConfig(nil)
 	err := orchestratorCfg.Load()

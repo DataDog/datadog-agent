@@ -8,6 +8,7 @@ package installtest
 import (
 	"io/fs"
 	"path/filepath"
+	"strconv"
 	"testing"
 	"time"
 
@@ -73,6 +74,33 @@ func (s *testInstallWithAutologgerSuite) TestInstallWithAutologger() {
 			)
 			windows.AssertContainsEqualable(s.T(), out.Access, agentUserRule,
 				"%s should have access rule for %s", autologgerPath, ddAgentUserIdentity)
+		}
+	})
+
+	s.Run("autologger providers are filtered (EnableLevel=4 + MatchAnyKeyword)", func() {
+		// Provider GUID -> MatchAnyKeyword mask. Must mirror ProviderKeywords in
+		// tools/windows/DatadogAgentInstaller/CustomActions/AutoLoggerCustomAction.cs.
+		// Pins the exact filter so an accidental change to the installer is caught here.
+		expected := map[string]uint64{
+			"{22FB2CD6-0E7B-422B-A0C7-2FAD1FD0E716}": 0x10,               // Kernel-Process
+			"{A68CA8B7-004F-D7B6-A698-07E2DE0F1F5D}": 0x80,               // Kernel-General
+			"{DBE9B383-7CF3-4331-91CC-A3CB16A3B538}": 0x200000030000,     // Winlogon
+			"{89B1E9F0-5AFF-44A6-9B44-0A07A7CE5845}": 0x6001000000000000, // User Profiles Service
+			"{AEA1B4FA-97D1-45F2-A64C-4D69FFFD92C9}": 0x4000000000000000, // GroupPolicy
+			"{30336ED4-E327-447C-9DE0-51B652C86108}": 0x4010000,          // Shell-Core
+		}
+		for guid, kw := range expected {
+			providerPath := autologgerPath + `\` + guid
+
+			lvl, err := windows.GetRegistryValue(vm, providerPath, "EnableLevel")
+			require.NoError(s.T(), err)
+			assert.Equal(s.T(), "4", lvl,
+				"provider %s should be enabled at Informational level (4), not Verbose", guid)
+
+			mask, err := windows.GetRegistryValue(vm, providerPath, "MatchAnyKeyword")
+			require.NoError(s.T(), err)
+			assert.Equal(s.T(), strconv.FormatUint(kw, 10), mask,
+				"provider %s MatchAnyKeyword should match the analyzer's consumed keywords", guid)
 		}
 	})
 

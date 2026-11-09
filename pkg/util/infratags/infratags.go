@@ -1,0 +1,74 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+// Package infratags applies infrastructure mode metadata via the check sender without mutating
+// integration.Config (which would break autodiscovery digest alignment).
+//
+// Production paths:
+//   - CheckScheduler.getChecks calls sender.SetInfraTagger after a successful loader.Load.
+//   - DogStatsD server enriches JMX metrics (dd.internal.jmx_check_name) when the JMX check
+//     is eligible; custom checks (custom_*) and plain DogStatsD metrics are not tagged.
+//
+// The tag value comes from configutils.MarkedInfraMode (same allowlist as payload marks).
+// Metrics eligibility stays here: tagger.Component has no check name and must not gate series.
+package infratags
+
+import (
+	"fmt"
+	"slices"
+	"strings"
+
+	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
+	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+)
+
+// InfraModeCloudCostTag is the historical constant for the CCM metrics mark.
+// Prefer building the tag from configutils.InfraModeTagKey and MarkedInfraMode.
+const InfraModeCloudCostTag = "infra_mode:cloud_cost_only"
+
+// MetricTagger holds the pre-resolved infra mode tagging state for Agent integration metrics.
+// A nil *MetricTagger disables tagging.
+//
+// This is not tagger.Component: eligibility is check-name based and stays on the metrics path.
+type MetricTagger struct {
+	infraModeTags []string
+}
+
+// NewMetricTagger resolves the infra mode tagging configuration from cfg.
+// Returns nil if the active infrastructure_mode does not trigger tagging.
+// Marked modes tag all non-custom checks; there is no per-mode check allowlist.
+func NewMetricTagger(cfg pkgconfigmodel.Reader) *MetricTagger {
+	mode := configutils.MarkedInfraMode(cfg)
+	if mode == "" {
+		return nil
+	}
+	return &MetricTagger{
+		infraModeTags: []string{fmt.Sprintf("%s:%s", configutils.InfraModeTagKey, mode)},
+	}
+}
+
+// IsCheckEligible reports whether the given check should receive infra mode tags.
+func (t *MetricTagger) IsCheckEligible(checkName string) bool {
+	if t == nil {
+		return false
+	}
+	if checkName == "" || strings.HasPrefix(checkName, "custom_") {
+		return false
+	}
+	return true
+}
+
+// AppendTags appends the pre-resolved infra_mode tags, skipping values already present.
+func (t *MetricTagger) AppendTags(tags []string) []string {
+	if t == nil || len(t.infraModeTags) == 0 {
+		return tags
+	}
+	for _, infraTag := range t.infraModeTags {
+		if !slices.Contains(tags, infraTag) {
+			tags = append(tags, infraTag)
+		}
+	}
+	return tags
+}

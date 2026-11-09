@@ -40,13 +40,18 @@ func newInfraAttributesProfileProcessor(
 
 func (iapp *infraAttributesProfileProcessor) processProfiles(_ context.Context, pd pprofile.Profiles) (pprofile.Profiles, error) {
 	rps := pd.ResourceProfiles()
+	batch := iapp.infraTags.newTagBatch()
 	for i := 0; i < rps.Len(); i++ {
 		resourceAttributes := rps.At(i).Resource().Attributes()
 
 		// Always add `host.arch` tag to profiles' resource attributes
 		resourceAttributes.PutStr("host.arch", runtime.GOARCH)
 
-		iapp.infraTags.ProcessTags(iapp.logger, iapp.cardinality, resourceAttributes, iapp.cfg.AllowHostnameOverride)
+		// trace_container_tag_promotion only makes sense for traces: it exists to
+		// feed trace-agent's `_dd.tags.container` promotion
+		// (ConsumeContainerTagsFromResource), which profiles never go
+		// through. Always pass "off" here regardless of the configured mode.
+		batch.ProcessTags(iapp.logger, iapp.cardinality, resourceAttributes, iapp.cfg.AllowHostnameOverride, ContainerTagPromotionOff, false, nil)
 	}
 	return pd, nil
 }

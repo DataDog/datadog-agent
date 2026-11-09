@@ -16,6 +16,7 @@ import (
 	"golang.org/x/crypto/ssh/knownhosts"
 
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
+	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -112,7 +113,18 @@ func buildAuthMethods(auth ncmconfig.AuthCredentials) ([]ssh.AuthMethod, error) 
 	}
 
 	if auth.Password != "" {
-		methods = append(methods, ssh.Password(auth.Password))
+		methods = append(methods, ssh.Password(auth.Password), ssh.KeyboardInteractive(func(_, _ string, _ []string, echos []bool) ([]string, error) {
+			var answers []string
+			for _, echo := range echos {
+				// simple heuristic: if a prompt has echo=false, then it's probably a password.
+				if echo {
+					answers = append(answers, "")
+				} else {
+					answers = append(answers, auth.Password)
+				}
+			}
+			return answers, nil
+		}))
 	}
 
 	if len(methods) == 0 {
@@ -172,30 +184,60 @@ func (c *SSHConnector) Connect() (Connection, error) {
 	}, nil
 }
 
-func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) error {
+func (c *SSHConnection) PushConfig(ctx context.Context, rawConfig string) (*types.PushResult, types.RollbackError) {
+
+	if c.prof == nil {
+		return nil, types.WrapErrorf(types.ErrNoProfile, "no device type provided for %q", c.device.IPAddress)
+	}
+	pc := c.prof.Commands.PushConfig
+	if !pc.CanPush() {
+		return nil, types.WrapErrorf(types.ErrPushUnsupported, "no push commands for profile %q", c.prof.Name)
+	}
+	results := &types.PushResult{}
+	// Copy the raw configuration to the device
+	result, err := ExecuteSCP(ctx, c.client, pc.Copy, rawConfig)
+	if result != nil {
+		results.CopyConfig = append(results.CopyConfig, result)
+	}
+	if err != nil {
+		return results, types.WrapErrorf(types.ErrCopyFailed, "unable to copy config to device %q: %w", c.device.IPAddress, err)
+	}
+	// Set the running configuration from the file
+	result, err = ExecuteCommand(ctx, c.client, pc.SetRunning)
+	if result != nil {
+		results.SetRunning = append(results.SetRunning, result)
+	}
+	if err != nil {
+		return results, types.WrapErrorf(types.ErrSetRunningFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
+	}
+	if pc.SetStartup != nil {
+		// Set the startup configuration from the running config
+		result, err = ExecuteCommand(ctx, c.client, pc.SetStartup)
+		if result != nil {
+			results.SetStartup = append(results.SetStartup, result)
+		}
+		if err != nil {
+			return results, types.WrapErrorf(types.ErrSetStartupFailed, "error while pushing config to device %q: %w", c.device.IPAddress, err)
+		}
+	}
+	return results, nil
+}
+
+// Verify validates that the profile works as we expect it to
+func (c *SSHConnection) Verify(ctx context.Context) error {
 	if c.prof == nil {
 		return fmt.Errorf("no device type provided for %q", c.device.IPAddress)
 	}
-	if len(c.prof.Commands.PushConfig) == 0 {
-		return fmt.Errorf("no push commands for profile %q", c.prof.Name)
+	cmd := c.prof.Commands.Verify
+	if cmd == nil {
+		return fmt.Errorf("no verify command for profile %q", c.prof.Name)
 	}
-	for _, untypedCmd := range c.prof.Commands.PushConfig {
-		switch cmd := untypedCmd.(type) {
-		case *profile.SCPCommand:
-			if _, err := ExecuteSCP(ctx, c.client, cmd, rawConfig); err != nil {
-				return fmt.Errorf("unable to copy config to device %q: %w", c.device.IPAddress, err)
-			}
-		case *profile.PlainCommand:
-			if _, err := ExecuteCommand(ctx, c.client, cmd); err != nil {
-				return fmt.Errorf("error while pushing config to device %q: %w", c.device.IPAddress, err)
-			}
-		}
-	}
-	return nil
+	_, err := c.execute(ctx, cmd)
+	return err
 }
 
 // RetrieveRunningConfig retrieves the running configuration for the device connected via SSH
-func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) ([]byte, error) {
+func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) (*types.CommandResult, error) {
 	if c.prof == nil {
 		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
 	}
@@ -207,7 +249,7 @@ func (c *SSHConnection) RetrieveRunningConfig(ctx context.Context) ([]byte, erro
 }
 
 // RetrieveStartupConfig retrieves the startup configuration for the device connected via SSH
-func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) ([]byte, error) {
+func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) (*types.CommandResult, error) {
 	if c.prof == nil {
 		return nil, fmt.Errorf("no device type provided for %q", c.device.IPAddress)
 	}
@@ -218,12 +260,8 @@ func (c *SSHConnection) RetrieveStartupConfig(ctx context.Context) ([]byte, erro
 	return c.execute(ctx, cmd)
 }
 
-func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) ([]byte, error) {
-	result, err := ExecuteCommand(ctx, c.client, cmd)
-	if err != nil {
-		return nil, err
-	}
-	return []byte(result), nil
+func (c *SSHConnection) execute(ctx context.Context, cmd *profile.PlainCommand) (*types.CommandResult, error) {
+	return ExecuteCommand(ctx, c.client, cmd)
 }
 
 // Close closes the SSH client connection

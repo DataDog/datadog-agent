@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "fx",
@@ -8,6 +9,28 @@ go_library(
     deps = [
         "//comp/core/agenttelemetry/def",
         "//comp/core/agenttelemetry/impl",
+        "//comp/core/config",
+        "//pkg/config/utils",
         "//pkg/util/fxutil",
+        "//pkg/util/log/errortracking",
+        "//pkg/util/log/setup",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "fx_test",
+    srcs = ["fx_test.go"],
+    embed = [":fx"],
+    deps = [
+        "//comp/core/config",
+        "//comp/core/log/def",
+        "//comp/core/log/mock",
+        "//comp/core/telemetry/mock",
+        "//pkg/remoteflags",
+        "//pkg/util/fxutil",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+        "@org_uber_go_fx//:fx",
     ],
 )

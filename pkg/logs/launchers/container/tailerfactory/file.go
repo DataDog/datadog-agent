@@ -100,7 +100,7 @@ func (tf *factory) attachChildSource(source, childSource *sources.LogSource) (Ta
 			childSource.Config.Path))
 
 	// link status for this source and the parent, and hide the parent
-	childSource.Status = source.Status
+	childSource.SetStatus(source.Status())
 	childSource.ParentSource = source
 	source.HideFromStatus()
 
@@ -142,10 +142,12 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		Source:                        sourceName,
 		Encoding:                      source.Config.Encoding,
 		Tags:                          source.Config.Tags,
+		TagFilters:                    source.Config.TagFilters,
 		ProcessingRules:               source.Config.ProcessingRules,
 		FingerprintConfig:             source.Config.FingerprintConfig,
 		Format:                        source.Config.Format,
-		SIEMParsing:                   source.Config.SIEMParsing,
+		AttributeParsing:              source.Config.AttributeParsing,
+		DebugAttrParsing:              source.Config.DebugAttrParsing,
 		MaxMessageSizeBytes:           source.Config.MaxMessageSizeBytes,
 		AutoMultiLine:                 source.Config.AutoMultiLine,
 		AutoMultiLineSampleSize:       source.Config.AutoMultiLineSampleSize,
@@ -262,10 +264,12 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 			Source:                        sourceName,
 			Encoding:                      source.Config.Encoding,
 			Tags:                          source.Config.Tags,
+			TagFilters:                    source.Config.TagFilters,
 			ProcessingRules:               source.Config.ProcessingRules,
 			FingerprintConfig:             source.Config.FingerprintConfig,
 			Format:                        source.Config.Format,
-			SIEMParsing:                   source.Config.SIEMParsing,
+			AttributeParsing:              source.Config.AttributeParsing,
+			DebugAttrParsing:              source.Config.DebugAttrParsing,
 			MaxMessageSizeBytes:           source.Config.MaxMessageSizeBytes,
 			AutoMultiLine:                 source.Config.AutoMultiLine,
 			AutoMultiLineSampleSize:       source.Config.AutoMultiLineSampleSize,
