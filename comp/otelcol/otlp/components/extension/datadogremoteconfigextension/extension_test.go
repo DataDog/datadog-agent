@@ -52,7 +52,7 @@ func startProxy(t *testing.T, upstream *httptest.Server, update func(*Config)) *
 	return e
 }
 
-func proxyRequest(t *testing.T, e *remoteConfigExtension, method, path string, body []byte) (*http.Response, []byte) {
+func proxyRequest(t *testing.T, e *remoteConfigExtension, method, path string, body []byte) (int, http.Header, []byte) {
 	t.Helper()
 	req, err := http.NewRequestWithContext(t.Context(), method, "http://"+e.listener.Addr().String()+path, bytes.NewReader(body))
 	require.NoError(t, err)
@@ -67,7 +67,7 @@ func proxyRequest(t *testing.T, e *remoteConfigExtension, method, path string, b
 	defer res.Body.Close()
 	responseBody, err := io.ReadAll(res.Body)
 	require.NoError(t, err)
-	return res, responseBody
+	return res.StatusCode, res.Header, responseBody
 }
 
 func TestForwardAgentlessProtocol(t *testing.T) {
@@ -105,10 +105,10 @@ func TestForwardAgentlessProtocol(t *testing.T) {
 		{http.MethodPost, "/api/v0.1/configurations", requestBody},
 		{http.MethodPost, "/api/v0.1/configurations", requestBody},
 	} {
-		res, body := proxyRequest(t, e, request.method, request.path, request.body)
-		require.Equal(t, http.StatusAccepted, res.StatusCode)
+		status, headers, body := proxyRequest(t, e, request.method, request.path, request.body)
+		require.Equal(t, http.StatusAccepted, status)
 		require.Equal(t, responseBody, body)
-		require.Equal(t, []string{"first", "second"}, res.Header.Values("X-Test-Metadata"))
+		require.Equal(t, []string{"first", "second"}, headers.Values("X-Test-Metadata"))
 	}
 	require.EqualValues(t, 3, calls.Load())
 }
@@ -130,10 +130,10 @@ func TestRejectUnsupportedRequests(t *testing.T) {
 		{http.MethodGet, "/api/v0.1/org/", "", http.StatusNotFound},
 	} {
 		t.Run(tt.method+tt.path+tt.body, func(t *testing.T) {
-			res, _ := proxyRequest(t, e, tt.method, tt.path, []byte(tt.body))
-			require.Equal(t, tt.status, res.StatusCode)
+			status, headers, _ := proxyRequest(t, e, tt.method, tt.path, []byte(tt.body))
+			require.Equal(t, tt.status, status)
 			if tt.status == http.StatusMethodNotAllowed {
-				require.NotEmpty(t, res.Header.Get("Allow"))
+				require.NotEmpty(t, headers.Get("Allow"))
 			}
 		})
 	}
@@ -151,9 +151,9 @@ func TestPreserveUpstreamFailuresAndRedirects(t *testing.T) {
 			}))
 			defer upstream.Close()
 			e := startProxy(t, upstream, nil)
-			res, body := proxyRequest(t, e, http.MethodGet, "/api/v0.1/org", nil)
-			require.Equal(t, status, res.StatusCode)
-			require.Equal(t, "60", res.Header.Get("Retry-After"))
+			actualStatus, headers, body := proxyRequest(t, e, http.MethodGet, "/api/v0.1/org", nil)
+			require.Equal(t, status, actualStatus)
+			require.Equal(t, "60", headers.Get("Retry-After"))
 			require.Equal(t, "upstream response", string(body))
 		})
 	}
@@ -321,8 +321,8 @@ func TestShutdownClosesUpstreamConnection(t *testing.T) {
 	defer upstream.Close()
 	e := startProxy(t, upstream, nil)
 	e.client.Transport.(*http.Transport).IdleConnTimeout = 0
-	res, _ := proxyRequest(t, e, http.MethodGet, "/api/v0.1/org", nil)
-	require.Equal(t, http.StatusNoContent, res.StatusCode)
+	status, _, _ := proxyRequest(t, e, http.MethodGet, "/api/v0.1/org", nil)
+	require.Equal(t, http.StatusNoContent, status)
 	require.NoError(t, e.Shutdown(t.Context()))
 	<-closed
 }
