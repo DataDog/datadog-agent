@@ -66,6 +66,7 @@ func newTestEnvoyFilter(namespace string) *unstructured.Unstructured {
 	filter.SetKind("EnvoyFilter")
 	filter.SetNamespace(namespace)
 	filter.SetName(envoyFilterName)
+	filter.SetLabels(map[string]string{"app.kubernetes.io/managed-by": appsecconfig.ManagedByLabelValue})
 	return filter
 }
 
@@ -673,4 +674,43 @@ func TestDeleted_FilterDeletionError(t *testing.T) {
 	// Verify - should return error
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "could not delete Envoy Filter")
+}
+
+// TestDeleted_OnlyDeletesEnvoyFilterCreatedByInjector verifies that both Istio patterns leave an
+// EnvoyFilter they did not create in place, and still delete one created before the managed-by
+// label existed (component label only).
+func TestDeleted_OnlyDeletesEnvoyFilterCreatedByInjector(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		labels  map[string]string
+		deleted bool
+	}{
+		{name: "not created by the injector", labels: map[string]string{"app": "someone-else"}, deleted: false},
+		{name: "created before the managed-by label", labels: map[string]string{"app.kubernetes.io/component": "datadog-appsec-injector"}, deleted: true},
+	} {
+		for _, kind := range []string{"gatewayclass", "gateway"} {
+			t.Run(tc.name+"/"+kind, func(t *testing.T) {
+				ctx := context.Background()
+				filter := newTestEnvoyFilter("istio-system")
+				filter.SetLabels(tc.labels)
+				client := newFakeDynamicClient(runtime.NewScheme(), filter)
+				config := appsecconfig.Config{Injection: appsecconfig.Injection{IstioNamespace: "istio-system"}}
+
+				var err error
+				if kind == "gatewayclass" {
+					err = newTestIstioPattern(client, logmock.New(t), config).Deleted(ctx, newTestGatewayClass("istio", istioGatewayControllerName))
+				} else {
+					err = newTestNativeGatewayPattern(client, logmock.New(t), config).Deleted(ctx, newTestIstioGateway("gw", "default", map[string]any{"istio": "ingressgateway"}))
+				}
+				require.NoError(t, err)
+
+				_, err = client.Resource(filterGVR).Namespace("istio-system").Get(ctx, envoyFilterName, metav1.GetOptions{})
+				if tc.deleted {
+					assert.True(t, k8serrors.IsNotFound(err), "EnvoyFilter created by the injector must be deleted")
+				} else {
+					require.NoError(t, err, "EnvoyFilter not created by the injector must be left in place")
+				}
+			})
+		}
+	}
 }

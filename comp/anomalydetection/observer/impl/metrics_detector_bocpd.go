@@ -90,9 +90,6 @@ type BOCPDConfig struct {
 	// RecoveryPoints is how many consecutive non-triggering points are needed
 	// to exit alert state. Default: 10
 	RecoveryPoints int `json:"recovery_points"`
-
-	// Aggregations to run detection on. Default: [Average, Count]
-	Aggregations []observer.Aggregate `json:"-"`
 }
 
 // DefaultBOCPDConfig returns a BOCPDConfig with default values.
@@ -107,10 +104,6 @@ func DefaultBOCPDConfig() BOCPDConfig {
 		PriorVarianceScale: 10.0,
 		MinVariance:        1.0,
 		RecoveryPoints:     10,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		},
 	}
 }
 
@@ -167,10 +160,6 @@ func NewBOCPDDetector(config BOCPDConfig) *BOCPDDetector {
 	if config.RecoveryPoints <= 0 {
 		config.RecoveryPoints = defaults.RecoveryPoints
 	}
-	if len(config.Aggregations) == 0 {
-		config.Aggregations = defaults.Aggregations
-	}
-	config.Aggregations = append([]observer.Aggregate(nil), config.Aggregations...)
 	return &BOCPDDetector{
 		config: config,
 		series: make(map[bocpdStateKey]*bocpdSeriesState),
@@ -195,10 +184,11 @@ func (b *BOCPDDetector) DetectorPointWindow() observer.DetectorPointWindow {
 // Correctness takes priority over positional cursoring: storage may insert
 // points into existing history, so this detector gates incremental work on
 // visible point counts rather than raw slice positions.
-func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
+func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if b.cachedRefs == nil || gen != b.cachedGen {
-		b.cachedRefs = workloadSeriesRefs(storage, b.cachedRefs)
+		b.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), b.cachedRefs)
 		b.cachedGen = gen
 	}
 
@@ -206,7 +196,7 @@ func (b *BOCPDDetector) Detect(storage observer.StorageReader, dataTime int64) o
 
 	for _, ref := range b.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
-		for _, agg := range b.config.Aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
@@ -272,7 +262,7 @@ func (b *BOCPDDetector) RemoveSeries(refs []observer.SeriesRef) {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range b.config.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(b.series, bocpdStateKey{ref: ref, agg: agg})
 		}
 	}
