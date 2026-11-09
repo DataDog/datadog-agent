@@ -481,6 +481,9 @@ func isBasicType(kind string) bool {
 		return true
 	case "containerutils.CGroupID", "containerutils.ContainerID":
 		return true
+	case "error":
+		// errors are immutable, so the copy can share them with the original
+		return true
 	}
 	return false
 }
@@ -490,7 +493,7 @@ func isBuiltinType(typeName string) bool {
 	switch typeName {
 	case "string", "bool", "int", "int8", "int16", "int32", "int64",
 		"uint", "uint8", "uint16", "uint32", "uint64", "uintptr",
-		"byte", "rune", "float32", "float64", "complex64", "complex128":
+		"byte", "rune", "float32", "float64", "complex64", "complex128", "error":
 		return true
 	}
 	return false
@@ -498,10 +501,6 @@ func isBuiltinType(typeName string) bool {
 
 // isInterfaceType checks if a type name represents an interface type
 func isInterfaceType(astFiles *AstFiles, typeName string) bool {
-	if typeName == "error" {
-		return true
-	}
-
 	spec := astFiles.LookupSymbol(typeName)
 	if spec == nil {
 		return false
