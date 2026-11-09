@@ -1,0 +1,9 @@
+description: Backtick command substitution works.
+input:
+  script: |+
+    echo `echo hello`
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

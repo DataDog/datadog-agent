@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "winpoll",
+    srcs = [
+        "winpoll_other.go",
+        "winpoll_windows.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/winpoll",
+    visibility = ["//pkg/rshell/builtins:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

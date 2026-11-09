@@ -1,0 +1,11 @@
+# vuln-hunt 2026-05-19-codex / read.
+skip_assert_against_bash: true
+description: read rejects timeout values whose duration would overflow.
+input:
+  script: |+
+    printf 'x\n' | { read -t 999999999999999999999999 X; echo "t=$?"; }
+expect:
+  stdout: |+
+    t=1
+  stderr_contains: ["invalid timeout specification"]
+  exit_code: 0

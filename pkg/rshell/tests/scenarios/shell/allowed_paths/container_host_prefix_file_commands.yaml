@@ -1,0 +1,48 @@
+description: File-reading commands work through container symlinks with host-absolute targets
+# skip: container host-prefix symlink resolution is an rshell-specific feature
+skip_assert_against_bash: true
+containerized: true
+setup:
+  files:
+    - path: host/var/log/pods/app/0.log
+      content: |
+        line1
+        line2
+        line3
+        line4
+        line5
+    - path: host/var/log/containers/app.log
+      symlink: /var/log/pods/app/0.log
+input:
+  allowed_paths: ["host/var/log"]
+  script: |+
+    echo "=== cat ==="
+    cat host/var/log/containers/app.log
+    echo "=== head ==="
+    head -n 2 host/var/log/containers/app.log
+    echo "=== tail ==="
+    tail -n 2 host/var/log/containers/app.log
+    echo "=== wc ==="
+    wc -l host/var/log/containers/app.log
+    echo "=== grep ==="
+    grep line3 host/var/log/containers/app.log
+expect:
+  stdout: |+
+    === cat ===
+    line1
+    line2
+    line3
+    line4
+    line5
+    === head ===
+    line1
+    line2
+    === tail ===
+    line4
+    line5
+    === wc ===
+    5 host/var/log/containers/app.log
+    === grep ===
+    line3
+  stderr: |+
+  exit_code: 0

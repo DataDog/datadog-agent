@@ -1,0 +1,18 @@
+description: "< file on a compound command (while read loop) is gated on cat exactly like a simple command's input redirect."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: secret.txt
+      content: "top secret\n"
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands: ["rshell:echo", "rshell:read"]
+  script: |+
+    while read -r line; do echo "$line"; done < secret.txt
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=1
+  stderr: |+
+    < secret.txt: file read not permitted (cat not in allowed commands)
+  exit_code: 0

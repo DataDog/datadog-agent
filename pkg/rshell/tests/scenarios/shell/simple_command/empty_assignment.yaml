@@ -1,0 +1,10 @@
+description: Variable assigned empty string is set but empty.
+input:
+  script: |+
+    VAR=
+    printf "(%s)\n" "$VAR"
+expect:
+  stdout: |+
+    ()
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: tail -c N outputs the last N bytes.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -c 6 file.txt
+expect:
+  stdout: "world\n"
+  stderr: ""
+  exit_code: 0

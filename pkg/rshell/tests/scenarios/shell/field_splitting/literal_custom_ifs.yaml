@@ -1,0 +1,14 @@
+description: Field splitting does not apply to literals with custom IFS.
+input:
+  script: |+
+    IFS=' 0'
+    echo -102-
+    echo "-304 5-"
+    echo '-607 8-'
+expect:
+  stdout: |+
+    -102-
+    -304 5-
+    -607 8-
+  stderr: ""
+  exit_code: 0

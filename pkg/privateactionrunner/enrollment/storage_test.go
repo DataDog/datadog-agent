@@ -14,7 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 func TestPersistIdentityToFile_RoundTripsAPIKeyHash(t *testing.T) {
@@ -64,4 +66,28 @@ func TestPersistIdentityToFile_NoAPIKeyHash(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 	assert.Empty(t, identity.APIKeyHash)
+}
+
+func TestNewIdentityStorage(t *testing.T) {
+	tests := []struct {
+		name      string
+		flavor    string
+		useK8s    bool
+		wantStore IdentityStorage
+	}{
+		{"node agent uses file", flavor.DefaultAgent, false, &fileIdentityStorage{}},
+		{"node agent ignores k8s secret setting", flavor.DefaultAgent, true, &fileIdentityStorage{}},
+		{"cluster agent without k8s secret uses file", flavor.ClusterAgent, false, &fileIdentityStorage{}},
+		{"cluster agent with k8s secret uses secret", flavor.ClusterAgent, true, &k8sIdentityStorage{}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			flavor.SetTestFlavor(t, tt.flavor)
+			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+				par.IdentityUseK8sSecret: tt.useK8s,
+			})
+
+			assert.IsType(t, tt.wantStore, NewIdentityStorage(cfg, nil))
+		})
+	}
 }

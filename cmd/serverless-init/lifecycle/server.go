@@ -57,6 +57,7 @@ import (
 	"maps"
 	"net"
 	"net/http"
+	"slices"
 	"strconv"
 	"sync"
 	"time"
@@ -120,11 +121,17 @@ type Flusher interface {
 	Flush()
 }
 
-// ForceFlusher is optionally satisfied by metricFlusher (ServerlessMetricAgent
-// does; the trace flusher doesn't). flushAndStop calls it, flushForSuspend
-// never does: /suspend can resume, and forcing the open bucket there would
-// let a later flush send a second, partial point for that bucket — overwriting
-// the pre-suspend data in the backend instead of merging with it.
+// ForceFlusher sends everything a flusher has buffered, including time buckets
+// that are still open. flushForSuspend calls it for the trace flusher: the
+// platform can terminate a suspended VM without calling /terminate (see
+// handleSuspend), so /suspend may be the last chance to send. Trace stats sent
+// early aren't overwritten after a resume. On /terminate, flushAndStop gives a
+// trace flusher that is also a TraceStopper Stop instead.
+//
+// The metric flusher gets it from flushAndStop only. After a resume, a later flush
+// would send a second, partial point for a bucket /suspend already sent, and
+// that point overwrites the earlier data in the backend instead of merging with
+// it.
 type ForceFlusher interface {
 	FlushAll()
 }
@@ -539,11 +546,18 @@ func mirrorResponse(w http.ResponseWriter, resp *http.Response) {
 
 // flushForSuspend runs metric/trace/logs flushes in parallel and waits for
 // them, bounded by flushCtx. Every agent keeps running: the VM can resume.
+// Trace stats are force-flushed (see ForceFlusher); metrics are not.
 func (s *Server) flushForSuspend(flushCtx context.Context) {
 	s.drainPendingSamples(flushCtx)
 	var wg sync.WaitGroup
 	wg.Go(s.metricFlusher.Flush)
-	wg.Go(s.traceFlusher.Flush)
+	wg.Go(func() {
+		if ff, ok := s.traceFlusher.(ForceFlusher); ok {
+			ff.FlushAll()
+		} else {
+			s.traceFlusher.Flush()
+		}
+	})
 	wg.Go(func() {
 		if s.logsFlusher != nil {
 			s.logsFlusher.Flush(flushCtx)
@@ -568,6 +582,8 @@ func (s *Server) flushAndStop(flushCtx context.Context) {
 	wg.Go(func() {
 		if ts, ok := s.traceFlusher.(TraceStopper); ok {
 			ts.Stop()
+		} else if ff, ok := s.traceFlusher.(ForceFlusher); ok {
+			ff.FlushAll()
 		} else {
 			s.traceFlusher.Flush()
 		}
@@ -635,7 +651,7 @@ func (s *Server) waitForFlushes(flushCtx context.Context, wg *sync.WaitGroup) {
 // max(forwardTimeout, flushTimeout)+ε. Known limitation: telemetry produced
 // by the user app during PassThrough may arrive in the pipeline after
 // Flush() returns and be missed. Residual items survive a suspend→resume
-// cycle (Firecracker preserves process memory), so the race is recoverable.
+// cycle (Firecracker preserves process memory), but not a suspended VM's termination.
 //
 // flushSequential: flush runs after PassThrough returns; wall-clock is
 // forwardTimeout+flushTimeout. Eliminates the race at the cost of higher
@@ -745,27 +761,7 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	}
 	if body.MicroVMID != "" {
 		log.Infof("MicroVM lifecycle: run (microvm_id=%s)", body.MicroVMID)
-		s.metadataMu.Lock()
-		s.instanceID.Store(body.MicroVMID)
-		s.heartbeat.SetMicroVMID(body.MicroVMID)
-		if s.logsTagSetter != nil {
-			s.logsTagSetter.SetLogsTags(append(append([]string{}, s.baseLogTags...), lambdaMicroVMIDPrefix+body.MicroVMID))
-		}
-		if s.traceTagSetter != nil {
-			tags := maps.Clone(s.baseTraceTags)
-			if tags == nil {
-				tags = make(map[string]string, 1)
-			}
-			tags[lambdaMicroVMIDKey] = body.MicroVMID
-			s.traceTagSetter.SetTraceTags(tags)
-		}
-		if s.metricTagSetter != nil {
-			s.metricTagSetter.SetMetricTags(append(append([]string{}, s.baseUsageMetricTags...), "instance:"+body.MicroVMID))
-		}
-		if s.metadataReporter != nil {
-			s.metadataReporter.ReportMetadata(body.MicroVMID)
-		}
-		s.metadataMu.Unlock()
+		s.applyMicroVMID(body.MicroVMID)
 	} else {
 		log.Info("MicroVM lifecycle: run")
 	}
@@ -780,6 +776,41 @@ func (s *Server) handleRun(w http.ResponseWriter, r *http.Request) {
 	s.dispatchHook(runMetricName, pathRun, noFlush, nil, s.enabledHooks.Run, w, r)
 }
 
+// applyMicroVMID stores the instance ID, tags all telemetry with it, and
+// reports metadata for it.
+func (s *Server) applyMicroVMID(microVMID string) {
+	s.metadataMu.Lock()
+	defer s.metadataMu.Unlock()
+	s.instanceID.Store(microVMID)
+	s.heartbeat.SetMicroVMID(microVMID)
+	if s.logsTagSetter != nil {
+		s.logsTagSetter.SetLogsTags(append(slices.Clone(s.baseLogTags), lambdaMicroVMIDPrefix+microVMID))
+	}
+	if s.traceTagSetter != nil {
+		tags := maps.Clone(s.baseTraceTags)
+		if tags == nil {
+			tags = make(map[string]string, 1)
+		}
+		tags[lambdaMicroVMIDKey] = microVMID
+		s.traceTagSetter.SetTraceTags(tags)
+	}
+	if s.metricTagSetter != nil {
+		s.metricTagSetter.SetMetricTags(append(slices.Clone(s.baseUsageMetricTags), "instance:"+microVMID))
+	}
+	if s.metadataReporter != nil {
+		s.metadataReporter.ReportMetadata(microVMID)
+	}
+}
+
+// reportStoredMetadata reports metadata for the stored instance ID, if any.
+func (s *Server) reportStoredMetadata() {
+	s.metadataMu.Lock()
+	defer s.metadataMu.Unlock()
+	if id := s.instanceID.Load(); id != "" && s.metadataReporter != nil {
+		s.metadataReporter.ReportMetadata(id)
+	}
+}
+
 // handleResume emits the resume metric, restarts the heartbeat (stopped at
 // /suspend), reports metadata for the stored instance ID, and (when a
 // forwarder is configured and enabled) mirrors the user app's response.
@@ -787,11 +818,7 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 	log.Info("MicroVM lifecycle: resume")
 	s.heartbeat.Start()
 	// Resume reports the stored ID; only /run changes it.
-	s.metadataMu.Lock()
-	if id := s.instanceID.Load(); id != "" && s.metadataReporter != nil {
-		s.metadataReporter.ReportMetadata(id)
-	}
-	s.metadataMu.Unlock()
+	s.reportStoredMetadata()
 	s.dispatchHook(resumeMetricName, pathResume, noFlush, nil, s.enabledHooks.Resume, w, r)
 }
 
@@ -807,21 +834,20 @@ func (s *Server) handleResume(w http.ResponseWriter, r *http.Request) {
 // buffers the response body, waits for the user app to finish writing it, then
 // flushes) because the VM is torn down with no recovery path.
 //
-// TODO(platform-contract): verify whether the AWS MicroVM platform guarantees
-// that /terminate is always called before a suspended VM is permanently
-// discarded (e.g., snapshot eviction, spot termination, platform crash).
-// If /terminate is NOT guaranteed after /suspend, residual pipeline-buffer
-// items that survived the parallel flush on /suspend will be lost with no
-// recovery path — identical to the /terminate data-loss risk we already
-// address with flushSequential.
+// But /terminate isn't guaranteed after /suspend: the platform terminates a
+// suspended VM without calling it (seen when suspendedDurationSeconds
+// expires). So /suspend may be the last hook. That's why it force-flushes
+// trace stats like /terminate does, while keeping the trace agent running for
+// a resume. Metrics stay on Flush (see ForceFlusher). Residual items the
+// parallel flush misses are lost if the VM is terminated while suspended.
 //
-// If the guarantee cannot be confirmed, change flushParallel → flushSequential
+// To close that race, change flushParallel → flushSequential
 // here. The implementation already supports it (handleWithForwarder and
 // dispatchHook both handle flushSequential), and /suspend keeps calling
 // flushForSuspend: the mode only changes when the flush runs. The impact of
 // that change:
 //   - /suspend wall-clock increases from max(forwardTimeout, flushTimeout) to
-//     forwardTimeout + flushTimeout (default: 1s + 5s = 6s vs 5s today).
+//     forwardTimeout + flushTimeout (default: 1s + 1.5s = 2.5s vs 1.5s today).
 //   - The response body from the user app is fully buffered before flushing
 //     (same as /terminate), so logs emitted by the user app while writing its
 //     suspend response are included in the flush rather than risking the race.

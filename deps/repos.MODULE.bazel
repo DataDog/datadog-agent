@@ -290,20 +290,6 @@ http_archive(
 )
 
 http_archive(
-    name = "libxml2",
-    files = {
-        "config-linux-x86_64.h": "//deps:libxml2/config-linux-x86_64.h",
-        "config-linux-arm64.h": "//deps:libxml2/config-linux-arm64.h",
-        "BUILD.bazel": "//deps:libxml2/overlay.BUILD.bazel",
-    },
-    sha256 = "98087fd181d9070724f3fbc65c7377db03038eb92bd882374daff44940138821",
-    strip_prefix = "libxml2-2.15.4",
-    urls = [
-        "https://download.gnome.org/sources/libxml2/2.15/libxml2-2.15.4.tar.xz",
-    ],
-)
-
-http_archive(
     name = "libxslt",
     files = {
         "config-linux-x86_64.h": "//deps:libxslt/config-linux-x86_64.h",
@@ -387,13 +373,24 @@ http_archive(
 http_archive(
     name = "krb5",
     files = {
-        "BUILD.bazel": "//deps:krb5/krb5.BUILD.bazel",
+        "BUILD.bazel": "//deps/krb5:krb5.BUILD.bazel",
+        "autoconf-linux-arm64.h": "//deps/krb5:autoconf-linux-arm64.h",
+        "autoconf-linux-x86_64.h": "//deps/krb5:autoconf-linux-x86_64.h",
+        "src/clients/kinit/BUILD.bazel": "//deps/krb5:src_clients_kinit.BUILD.bazel",
+        "src/lib/BUILD.bazel": "//deps/krb5:src_lib.BUILD.bazel",
+        "src/lib/crypto/BUILD.bazel": "//deps/krb5:src_lib_crypto.BUILD.bazel",
+        "src/lib/gssapi/BUILD.bazel": "//deps/krb5:src_lib_gssapi.BUILD.bazel",
+        "src/lib/krb5/BUILD.bazel": "//deps/krb5:src_lib_krb5.BUILD.bazel",
+        "src/plugins/BUILD.bazel": "//deps/krb5:src_plugins.BUILD.bazel",
+        "src/util/BUILD.bazel": "//deps/krb5:src_util.BUILD.bazel",
     },
     patch_strip = 1,
     patches = [
-        "//deps:krb5/0001-Fix-two-NegoEx-parsing-vulnerabilities.patch",
-        "//deps:krb5/0002-Avoid-null-dereference-in-krb5_rd_cred.patch",
-        "//deps:krb5/0003-Avoid-another-null-dereference-in-krb5_rd_cred.patch",
+        "//deps/krb5:0001-Fix-two-NegoEx-parsing-vulnerabilities.patch",
+        "//deps/krb5:0002-Avoid-null-dereference-in-krb5_rd_cred.patch",
+        "//deps/krb5:0003-Avoid-another-null-dereference-in-krb5_rd_cred.patch",
+        "//deps/krb5:0004-compile_et-allow-overriding-the-name-in-file-header.patch",
+        "//deps/krb5:0005-Resolve-LIBDIR-token-from-the-loaded-library-on-Unix.patch",
     ],
     sha256 = "3243ffbc8ea4d4ac22ddc7dd2a1dc54c57874c40648b60ff97009763554eaf13",
     strip_prefix = "krb5-1.22.2",
@@ -404,11 +401,13 @@ http_archive(
 
 http_archive(
     name = "jemalloc",
-    build_file = "//deps:jemalloc.BUILD.bazel",
-    sha256 = "ef6f74fd45e95ee4ef7f9e19ebe5b075ca6b7fbe0140612b2a161abafb7ee179",
+    files = {
+        "BUILD.bazel": "//deps/jemalloc:overlay.BUILD.bazel",
+    },
+    sha256 = "2db82d1e7119df3e71b7640219b6dfe84789bc0537983c3b7ac4f7189aecfeaa",
     strip_prefix = "jemalloc-5.3.0",
     urls = [
-        "https://github.com/jemalloc/jemalloc/archive/refs/tags/5.3.0.tar.gz",
+        "https://github.com/jemalloc/jemalloc/releases/download/5.3.0/jemalloc-5.3.0.tar.bz2",
     ],
 )
 
@@ -418,6 +417,7 @@ http_archive(
     patch_strip = 1,
     patches = [
         "//deps/openssl:0001-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
+        "//deps/openssl:0002-Strip-the-build-root-from-the-embedded-compiler-flags.patch",
     ],
     sha256 = "603f5602e2eef00d77fbd429d34dcd5822bb301757a1bc9cdb24c670f1eb859a",
     strip_prefix = "openssl-3.5.9",
@@ -456,4 +456,20 @@ http_archive(
     urls = [
         "https://github.com/systemd/systemd/archive/refs/tags/v253.tar.gz",
     ],
+)
+
+# Static glibc (and libgcc_eh) for -static Linux links: hermetic-llvm ships shared-object glibc stubs only.
+# Same tarballs as the crosstool-NG GCC toolchains: glibc 2.17 on x86_64, 2.23 on aarch64.
+http_archive(
+    name = "glibc_static_x86_64",
+    build_file = "//deps:glibc_static.BUILD.bazel",
+    sha256 = "3e842665eecc8ebe8ebf8e6f391809a2124c362e97f3d7dfb2df78225c719342",
+    urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/98b584a9d5921dfe1262878d9d7fc322288f919c6e24763401f7cf29194de9c7/x86_64/x86_64-linux-gnu-gcc.tar.xz"],
+)
+
+http_archive(
+    name = "glibc_static_aarch64",
+    build_file = "//deps:glibc_static.BUILD.bazel",
+    sha256 = "26b924f31f21c2d84a3f78954d295ff6eaeaa758dca39cb3c25178c2cfd00692",
+    urls = ["https://dd-agent-build-artifacts.s3.amazonaws.com/toolchains/main/3857f6dd078bb69ceb53e37536fa0e90eb7f3c2eefa1454f5f43376f02d8c9cc/aarch64/aarch64-linux-gnu-gcc.tar.xz"],
 )

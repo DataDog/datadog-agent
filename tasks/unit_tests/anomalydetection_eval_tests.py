@@ -10,7 +10,6 @@ from invoke.exceptions import Exit
 from tasks.anomalydetection import (
     _bayesian_evaluation_inputs,
     _load_completed_bayesian_report,
-    _validate_ddeval_scenario_filter,
     eval_bayesian,
     eval_combinations,
     eval_component,
@@ -137,7 +136,6 @@ class TestPipelineResume(unittest.TestCase):
             scenarios="scenario-a",
             lock="",
             eval_backend="local",
-            ddeval_options=None,
         )
 
     def _write_report(self, output_dir, **overrides):
@@ -201,7 +199,7 @@ class TestPipelineResume(unittest.TestCase):
 class TestLocalF1Pipeline(unittest.TestCase):
     def test_missing_scenarios_abort_before_build_or_output_changes(self):
         tasks = [
-            (eval_scenarios, {}),
+            (eval_scenarios, {"local": True}),
             (eval_tp, {"only": "bocpd"}),
             (eval_combinations, {}),
             (eval_bayesian, {}),
@@ -221,7 +219,15 @@ class TestLocalF1Pipeline(unittest.TestCase):
             prepare_output.assert_not_called()
 
     def test_ddeval_keeps_its_remote_dataset_default(self):
-        self.assertTrue(_validate_ddeval_scenario_filter("ddeval", ""))
+        for task in (eval_bayesian, eval_pipeline):
+            with (
+                self.subTest(task=task.name),
+                patch.dict("sys.modules", {"optuna": Mock()}),
+                patch("tasks.anomalydetection._remote_ablation") as remote,
+            ):
+                task.body(Mock(), eval_backend="ddeval")
+            remote.assert_called_once()
+            self.assertEqual(remote.call_args.kwargs["dataset"], "Golden 25")
         inputs = _bayesian_evaluation_inputs(
             scenarios_dir="/unused",
             sigma=30.0,
@@ -229,7 +235,6 @@ class TestLocalF1Pipeline(unittest.TestCase):
             scenarios="",
             lock="",
             eval_backend="ddeval",
-            ddeval_options=None,
         )
         self.assertEqual(inputs["scenarios"], [])
 
@@ -249,8 +254,8 @@ class TestLocalF1Pipeline(unittest.TestCase):
             os.makedirs(parquet)
             with open(os.path.join(parquet, "fixture.parquet"), "w") as f:
                 f.write("unused by mocked replay")
-            with open(os.path.join(root, "observer-eval-example.json"), "w") as f:
-                json.dump({}, f)
+            with open(os.path.join(root, "example", "episode.json"), "w") as f:
+                json.dump({"disruption": {"start": "2026-01-01T00:05:00Z"}}, f)
             score = {
                 "scoring_version": F1_SCORING_VERSION,
                 "f1": 0.5,
@@ -264,11 +269,20 @@ class TestLocalF1Pipeline(unittest.TestCase):
                 "num_filtered_recovery": 0,
             }
             ctx = Mock()
-            ctx.run.side_effect = [None, SimpleNamespace(failed=False, stdout=json.dumps(score))]
+
+            def run(command, **_kwargs):
+                if "--headless" in command:
+                    with open(os.path.join(root, "observer-eval-example.json"), "w") as output:
+                        json.dump({}, output)
+                    return SimpleNamespace(failed=False)
+                return SimpleNamespace(failed=False, stdout=json.dumps(score))
+
+            ctx.run.side_effect = run
             with patch("builtins.print"):
                 report = eval_scenarios.body(
                     ctx,
                     scenario="example",
+                    local=True,
                     scenarios_dir=root,
                     only="bocpd",
                     build=False,

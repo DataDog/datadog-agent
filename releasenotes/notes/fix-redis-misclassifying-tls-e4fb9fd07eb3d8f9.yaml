@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix an issue where Cloud Network Monitoring (CNM) incorrectly reported some
+    encrypted TLS connections as unencrypted (``tls_encrypted:false``). When the
+    Agent did not observe a connection's TLS handshake, the connection could be
+    misidentified as Redis traffic, which stopped the Agent from detecting TLS on
+    it afterwards. Redis detection in the network protocol classifier has been
+    improved to reduce false classifications by better validating the structure
+    of the first Redis protocol (RESP) frame.

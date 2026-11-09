@@ -55,6 +55,7 @@ func (_ *Model) GetEventTypes() []eval.EventType {
 		eval.EventType("rmdir"),
 		eval.EventType("selinux"),
 		eval.EventType("setgid"),
+		eval.EventType("setns"),
 		eval.EventType("setrlimit"),
 		eval.EventType("setsockopt"),
 		eval.EventType("setuid"),
@@ -2579,6 +2580,62 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "exec.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Exec.Process.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Exec.Process.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Exec.Process.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exec.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exec.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Exec.Process.FileCapabilities.Permitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "exec.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -4198,6 +4255,62 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 				ctx.AppendResolvedField(field)
 				ev := ctx.Event.(*Event)
 				return ev.Exit.Process.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Exit.Process.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Exit.Process.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Exit.Process.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "exit.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Exit.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Exit.Process.FileCapabilities.Permitted)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -9346,6 +9459,138 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.IteratorWeight,
 			Offset: offset,
 		}, nil
+	case "process.ancestors.file.capabilities.available":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileCapabilities.Available
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileCapabilities.Available
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.capabilities.effective":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileCapabilities.Effective
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileCapabilities.Effective
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.capabilities.inheritable":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileCapabilities.Inheritable)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileCapabilities.Inheritable)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "process.ancestors.file.capabilities.permitted":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.BaseEvent.ProcessContext.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileCapabilities.Permitted)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "BaseEvent.ProcessContext.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileCapabilities.Permitted)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
 	case "process.ancestors.file.change_time":
 		return &eval.IntArrayEvaluator{
 			EvalFnc: func(ctx *eval.Context) []int {
@@ -12354,6 +12599,62 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "process.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Process.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Process.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Process.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Process.FileCapabilities.Permitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "process.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -13672,6 +13973,74 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.BaseEvent.ProcessContext.Parent.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return false
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.BaseEvent.ProcessContext.Parent.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "process.parent.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.BaseEvent.ProcessContext.HasParent() {
+					return 0
+				}
+				if !ev.BaseEvent.ProcessContext.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.BaseEvent.ProcessContext.Parent.FileCapabilities.Permitted)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -16090,6 +16459,138 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return current.ProcessContext.Process.Credentials.EUser
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.capabilities.available":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileCapabilities.Available
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileCapabilities.Available
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.capabilities.effective":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileCapabilities.Effective
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileCapabilities.Effective
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.capabilities.inheritable":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileCapabilities.Inheritable)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileCapabilities.Inheritable)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.ancestors.file.capabilities.permitted":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.PTrace.Tracee.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileCapabilities.Permitted)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "PTrace.Tracee.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileCapabilities.Permitted)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -19104,6 +19605,62 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "ptrace.tracee.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return false
+				}
+				return ev.PTrace.Tracee.Process.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return false
+				}
+				return ev.PTrace.Tracee.Process.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Process.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Process.FileCapabilities.Permitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "ptrace.tracee.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -20422,6 +20979,74 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.PTrace.Tracee.Parent.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return false
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.PTrace.Tracee.Parent.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return false
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.PTrace.Tracee.Parent.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "ptrace.tracee.parent.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.PTrace.Tracee.HasParent() {
+					return 0
+				}
+				if !ev.PTrace.Tracee.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.PTrace.Tracee.Parent.FileCapabilities.Permitted)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -23366,6 +23991,226 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.HandlerWeight,
 			Offset: offset,
 		}, nil
+	case "setns.cgroupns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NamespaceIDs.CgroupNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.ipcns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NamespaceIDs.IPCNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NamespaceIDs.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.mntns_host":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetNS.MntNSHost
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.mntns_outside_base":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetNS.MntNSOutsideBase
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NamespaceIDs.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.nstype":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return ev.SetNS.NSType
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.pidns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NamespaceIDs.PIDNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.previous.cgroupns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.Previous.CgroupNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.previous.ipcns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.Previous.IPCNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.previous.mntns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.Previous.MntNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.previous.netns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.Previous.NetNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.previous.pidns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.Previous.PIDNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.previous.timens":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.Previous.TimeNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.previous.userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.Previous.UserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.previous.utsns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.Previous.UTSNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.retval":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.SyscallEvent.Retval)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.timens":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NamespaceIDs.TimeNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.userns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NamespaceIDs.UserNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setns.utsns":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				return int(ev.SetNS.NamespaceIDs.UTSNS)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.resource":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -24268,6 +25113,138 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return current.ProcessContext.Process.Credentials.EUser
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.capabilities.available":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileCapabilities.Available
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileCapabilities.Available
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.capabilities.effective":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileCapabilities.Effective
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileCapabilities.Effective
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.capabilities.inheritable":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileCapabilities.Inheritable)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileCapabilities.Inheritable)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.ancestors.file.capabilities.permitted":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Setrlimit.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileCapabilities.Permitted)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Setrlimit.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileCapabilities.Permitted)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -27282,6 +28259,62 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "setrlimit.target.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Setrlimit.Target.Process.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Setrlimit.Target.Process.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Process.FileCapabilities.Permitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "setrlimit.target.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -28600,6 +29633,74 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.Setrlimit.Target.Parent.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return false
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.Setrlimit.Target.Parent.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "setrlimit.target.parent.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Setrlimit.Target.HasParent() {
+					return 0
+				}
+				if !ev.Setrlimit.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Setrlimit.Target.Parent.FileCapabilities.Permitted)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -31540,6 +32641,138 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return current.ProcessContext.Process.Credentials.EUser
 				})
 				ctx.StringCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.capabilities.available":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileCapabilities.Available
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileCapabilities.Available
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.capabilities.effective":
+		return &eval.BoolArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []bool{false}
+					}
+					result := element.ProcessContext.Process.FileCapabilities.Effective
+					return []bool{result}
+				}
+				if result, ok := ctx.BoolCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) bool {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return false
+					}
+					return current.ProcessContext.Process.FileCapabilities.Effective
+				})
+				ctx.BoolCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.capabilities.inheritable":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileCapabilities.Inheritable)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileCapabilities.Inheritable)
+				})
+				ctx.IntCache[field] = results
+				return results
+			},
+			Field:  field,
+			Weight: eval.IteratorWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.ancestors.file.capabilities.permitted":
+		return &eval.IntArrayEvaluator{
+			EvalFnc: func(ctx *eval.Context) []int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				iterator := &ProcessAncestorsIterator{Root: ev.Signal.Target.Ancestor}
+				if regID != "" {
+					element := iterator.At(ctx, regID, ctx.Registers[regID])
+					if element == nil {
+						return nil
+					}
+					if !element.ProcessContext.Process.IsNotKworker() {
+						return []int{0}
+					}
+					result := int(element.ProcessContext.Process.FileCapabilities.Permitted)
+					return []int{result}
+				}
+				if result, ok := ctx.IntCache[field]; ok {
+					return result
+				}
+				results := newIterator(iterator, "Signal.Target.Ancestor", ctx, nil, func(ev *Event, current *ProcessCacheEntry) int {
+					if !current.ProcessContext.Process.IsNotKworker() {
+						return 0
+					}
+					return int(current.ProcessContext.Process.FileCapabilities.Permitted)
+				})
+				ctx.IntCache[field] = results
 				return results
 			},
 			Field:  field,
@@ -34554,6 +35787,62 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 			Weight: eval.FunctionWeight,
 			Offset: offset,
 		}, nil
+	case "signal.target.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Signal.Target.Process.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return false
+				}
+				return ev.Signal.Target.Process.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Signal.Target.Process.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.Process.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Signal.Target.Process.FileCapabilities.Permitted)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
 	case "signal.target.file.change_time":
 		return &eval.IntEvaluator{
 			EvalFnc: func(ctx *eval.Context) int {
@@ -35872,6 +37161,74 @@ func (_ *Model) GetEvaluator(field eval.Field, regID eval.RegisterID, offset int
 					return ""
 				}
 				return ev.Signal.Target.Parent.Credentials.EUser
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.capabilities.available":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return false
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.Signal.Target.Parent.FileCapabilities.Available
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.capabilities.effective":
+		return &eval.BoolEvaluator{
+			EvalFnc: func(ctx *eval.Context) bool {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return false
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return false
+				}
+				return ev.Signal.Target.Parent.FileCapabilities.Effective
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.capabilities.inheritable":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.FileCapabilities.Inheritable)
+			},
+			Field:  field,
+			Weight: eval.FunctionWeight,
+			Offset: offset,
+		}, nil
+	case "signal.target.parent.file.capabilities.permitted":
+		return &eval.IntEvaluator{
+			EvalFnc: func(ctx *eval.Context) int {
+				ctx.AppendResolvedField(field)
+				ev := ctx.Event.(*Event)
+				if !ev.Signal.Target.HasParent() {
+					return 0
+				}
+				if !ev.Signal.Target.Parent.IsNotKworker() {
+					return 0
+				}
+				return int(ev.Signal.Target.Parent.FileCapabilities.Permitted)
 			},
 			Field:  field,
 			Weight: eval.FunctionWeight,
@@ -38835,6 +40192,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"exec.envs_truncated",
 		"exec.euid",
 		"exec.euser",
+		"exec.file.capabilities.available",
+		"exec.file.capabilities.effective",
+		"exec.file.capabilities.inheritable",
+		"exec.file.capabilities.permitted",
 		"exec.file.change_time",
 		"exec.file.extension",
 		"exec.file.filesystem",
@@ -38965,6 +40326,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"exit.envs_truncated",
 		"exit.euid",
 		"exit.euser",
+		"exit.file.capabilities.available",
+		"exit.file.capabilities.effective",
+		"exit.file.capabilities.inheritable",
+		"exit.file.capabilities.permitted",
 		"exit.file.change_time",
 		"exit.file.extension",
 		"exit.file.filesystem",
@@ -39350,6 +40715,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.ancestors.envs_truncated",
 		"process.ancestors.euid",
 		"process.ancestors.euser",
+		"process.ancestors.file.capabilities.available",
+		"process.ancestors.file.capabilities.effective",
+		"process.ancestors.file.capabilities.inheritable",
+		"process.ancestors.file.capabilities.permitted",
 		"process.ancestors.file.change_time",
 		"process.ancestors.file.extension",
 		"process.ancestors.file.filesystem",
@@ -39470,6 +40839,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.envs_truncated",
 		"process.euid",
 		"process.euser",
+		"process.file.capabilities.available",
+		"process.file.capabilities.effective",
+		"process.file.capabilities.inheritable",
+		"process.file.capabilities.permitted",
 		"process.file.change_time",
 		"process.file.extension",
 		"process.file.filesystem",
@@ -39567,6 +40940,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"process.parent.envs_truncated",
 		"process.parent.euid",
 		"process.parent.euser",
+		"process.parent.file.capabilities.available",
+		"process.parent.file.capabilities.effective",
+		"process.parent.file.capabilities.inheritable",
+		"process.parent.file.capabilities.permitted",
 		"process.parent.file.change_time",
 		"process.parent.file.extension",
 		"process.parent.file.filesystem",
@@ -39704,6 +41081,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.ancestors.envs_truncated",
 		"ptrace.tracee.ancestors.euid",
 		"ptrace.tracee.ancestors.euser",
+		"ptrace.tracee.ancestors.file.capabilities.available",
+		"ptrace.tracee.ancestors.file.capabilities.effective",
+		"ptrace.tracee.ancestors.file.capabilities.inheritable",
+		"ptrace.tracee.ancestors.file.capabilities.permitted",
 		"ptrace.tracee.ancestors.file.change_time",
 		"ptrace.tracee.ancestors.file.extension",
 		"ptrace.tracee.ancestors.file.filesystem",
@@ -39824,6 +41205,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.envs_truncated",
 		"ptrace.tracee.euid",
 		"ptrace.tracee.euser",
+		"ptrace.tracee.file.capabilities.available",
+		"ptrace.tracee.file.capabilities.effective",
+		"ptrace.tracee.file.capabilities.inheritable",
+		"ptrace.tracee.file.capabilities.permitted",
 		"ptrace.tracee.file.change_time",
 		"ptrace.tracee.file.extension",
 		"ptrace.tracee.file.filesystem",
@@ -39921,6 +41306,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"ptrace.tracee.parent.envs_truncated",
 		"ptrace.tracee.parent.euid",
 		"ptrace.tracee.parent.euser",
+		"ptrace.tracee.parent.file.capabilities.available",
+		"ptrace.tracee.parent.file.capabilities.effective",
+		"ptrace.tracee.parent.file.capabilities.inheritable",
+		"ptrace.tracee.parent.file.capabilities.permitted",
 		"ptrace.tracee.parent.file.change_time",
 		"ptrace.tracee.parent.file.extension",
 		"ptrace.tracee.parent.file.filesystem",
@@ -40150,6 +41539,26 @@ func (ev *Event) GetFields() []eval.Field {
 		"setgid.fsgroup",
 		"setgid.gid",
 		"setgid.group",
+		"setns.cgroupns",
+		"setns.ipcns",
+		"setns.mntns",
+		"setns.mntns_host",
+		"setns.mntns_outside_base",
+		"setns.netns",
+		"setns.nstype",
+		"setns.pidns",
+		"setns.previous.cgroupns",
+		"setns.previous.ipcns",
+		"setns.previous.mntns",
+		"setns.previous.netns",
+		"setns.previous.pidns",
+		"setns.previous.timens",
+		"setns.previous.userns",
+		"setns.previous.utsns",
+		"setns.retval",
+		"setns.timens",
+		"setns.userns",
+		"setns.utsns",
 		"setrlimit.resource",
 		"setrlimit.retval",
 		"setrlimit.rlim_cur",
@@ -40186,6 +41595,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.ancestors.envs_truncated",
 		"setrlimit.target.ancestors.euid",
 		"setrlimit.target.ancestors.euser",
+		"setrlimit.target.ancestors.file.capabilities.available",
+		"setrlimit.target.ancestors.file.capabilities.effective",
+		"setrlimit.target.ancestors.file.capabilities.inheritable",
+		"setrlimit.target.ancestors.file.capabilities.permitted",
 		"setrlimit.target.ancestors.file.change_time",
 		"setrlimit.target.ancestors.file.extension",
 		"setrlimit.target.ancestors.file.filesystem",
@@ -40306,6 +41719,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.envs_truncated",
 		"setrlimit.target.euid",
 		"setrlimit.target.euser",
+		"setrlimit.target.file.capabilities.available",
+		"setrlimit.target.file.capabilities.effective",
+		"setrlimit.target.file.capabilities.inheritable",
+		"setrlimit.target.file.capabilities.permitted",
 		"setrlimit.target.file.change_time",
 		"setrlimit.target.file.extension",
 		"setrlimit.target.file.filesystem",
@@ -40403,6 +41820,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"setrlimit.target.parent.envs_truncated",
 		"setrlimit.target.parent.euid",
 		"setrlimit.target.parent.euser",
+		"setrlimit.target.parent.file.capabilities.available",
+		"setrlimit.target.parent.file.capabilities.effective",
+		"setrlimit.target.parent.file.capabilities.inheritable",
+		"setrlimit.target.parent.file.capabilities.permitted",
 		"setrlimit.target.parent.file.change_time",
 		"setrlimit.target.parent.file.extension",
 		"setrlimit.target.parent.file.filesystem",
@@ -40587,6 +42008,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.ancestors.envs_truncated",
 		"signal.target.ancestors.euid",
 		"signal.target.ancestors.euser",
+		"signal.target.ancestors.file.capabilities.available",
+		"signal.target.ancestors.file.capabilities.effective",
+		"signal.target.ancestors.file.capabilities.inheritable",
+		"signal.target.ancestors.file.capabilities.permitted",
 		"signal.target.ancestors.file.change_time",
 		"signal.target.ancestors.file.extension",
 		"signal.target.ancestors.file.filesystem",
@@ -40707,6 +42132,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.envs_truncated",
 		"signal.target.euid",
 		"signal.target.euser",
+		"signal.target.file.capabilities.available",
+		"signal.target.file.capabilities.effective",
+		"signal.target.file.capabilities.inheritable",
+		"signal.target.file.capabilities.permitted",
 		"signal.target.file.change_time",
 		"signal.target.file.extension",
 		"signal.target.file.filesystem",
@@ -40804,6 +42233,10 @@ func (ev *Event) GetFields() []eval.Field {
 		"signal.target.parent.envs_truncated",
 		"signal.target.parent.euid",
 		"signal.target.parent.euser",
+		"signal.target.parent.file.capabilities.available",
+		"signal.target.parent.file.capabilities.effective",
+		"signal.target.parent.file.capabilities.inheritable",
+		"signal.target.parent.file.capabilities.permitted",
 		"signal.target.parent.file.change_time",
 		"signal.target.parent.file.extension",
 		"signal.target.parent.file.filesystem",
@@ -41466,6 +42899,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.euser":
 		return "exec", reflect.String, "string", false, nil
+	case "exec.file.capabilities.available":
+		return "exec", reflect.Bool, "bool", false, nil
+	case "exec.file.capabilities.effective":
+		return "exec", reflect.Bool, "bool", false, nil
+	case "exec.file.capabilities.inheritable":
+		return "exec", reflect.Int, "int", false, nil
+	case "exec.file.capabilities.permitted":
+		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.change_time":
 		return "exec", reflect.Int, "int", false, nil
 	case "exec.file.extension":
@@ -41726,6 +43167,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.euser":
 		return "exit", reflect.String, "string", false, nil
+	case "exit.file.capabilities.available":
+		return "exit", reflect.Bool, "bool", false, nil
+	case "exit.file.capabilities.effective":
+		return "exit", reflect.Bool, "bool", false, nil
+	case "exit.file.capabilities.inheritable":
+		return "exit", reflect.Int, "int", false, nil
+	case "exit.file.capabilities.permitted":
+		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.change_time":
 		return "exit", reflect.Int, "int", false, nil
 	case "exit.file.extension":
@@ -42496,6 +43945,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.euser":
 		return "", reflect.String, "string", false, nil
+	case "process.ancestors.file.capabilities.available":
+		return "", reflect.Bool, "bool", false, nil
+	case "process.ancestors.file.capabilities.effective":
+		return "", reflect.Bool, "bool", false, nil
+	case "process.ancestors.file.capabilities.inheritable":
+		return "", reflect.Int, "int", false, nil
+	case "process.ancestors.file.capabilities.permitted":
+		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.change_time":
 		return "", reflect.Int, "int", false, nil
 	case "process.ancestors.file.extension":
@@ -42736,6 +44193,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.euser":
 		return "", reflect.String, "string", false, nil
+	case "process.file.capabilities.available":
+		return "", reflect.Bool, "bool", false, nil
+	case "process.file.capabilities.effective":
+		return "", reflect.Bool, "bool", false, nil
+	case "process.file.capabilities.inheritable":
+		return "", reflect.Int, "int", false, nil
+	case "process.file.capabilities.permitted":
+		return "", reflect.Int, "int", false, nil
 	case "process.file.change_time":
 		return "", reflect.Int, "int", false, nil
 	case "process.file.extension":
@@ -42930,6 +44395,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.euser":
 		return "", reflect.String, "string", false, nil
+	case "process.parent.file.capabilities.available":
+		return "", reflect.Bool, "bool", false, nil
+	case "process.parent.file.capabilities.effective":
+		return "", reflect.Bool, "bool", false, nil
+	case "process.parent.file.capabilities.inheritable":
+		return "", reflect.Int, "int", false, nil
+	case "process.parent.file.capabilities.permitted":
+		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.change_time":
 		return "", reflect.Int, "int", false, nil
 	case "process.parent.file.extension":
@@ -43204,6 +44677,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.euser":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.ancestors.file.capabilities.available":
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.ancestors.file.capabilities.effective":
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.ancestors.file.capabilities.inheritable":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.ancestors.file.capabilities.permitted":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.change_time":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.ancestors.file.extension":
@@ -43444,6 +44925,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.euser":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.file.capabilities.available":
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.file.capabilities.effective":
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.file.capabilities.inheritable":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.file.capabilities.permitted":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.change_time":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.file.extension":
@@ -43638,6 +45127,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.euser":
 		return "ptrace", reflect.String, "string", false, nil
+	case "ptrace.tracee.parent.file.capabilities.available":
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.parent.file.capabilities.effective":
+		return "ptrace", reflect.Bool, "bool", false, nil
+	case "ptrace.tracee.parent.file.capabilities.inheritable":
+		return "ptrace", reflect.Int, "int", false, nil
+	case "ptrace.tracee.parent.file.capabilities.permitted":
+		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.change_time":
 		return "ptrace", reflect.Int, "int", false, nil
 	case "ptrace.tracee.parent.file.extension":
@@ -44096,6 +45593,46 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setgid", reflect.Int, "int", false, nil
 	case "setgid.group":
 		return "setgid", reflect.String, "string", false, nil
+	case "setns.cgroupns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.ipcns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.mntns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.mntns_host":
+		return "setns", reflect.Bool, "bool", false, nil
+	case "setns.mntns_outside_base":
+		return "setns", reflect.Bool, "bool", false, nil
+	case "setns.netns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.nstype":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.pidns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.previous.cgroupns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.previous.ipcns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.previous.mntns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.previous.netns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.previous.pidns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.previous.timens":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.previous.userns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.previous.utsns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.retval":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.timens":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.userns":
+		return "setns", reflect.Int, "int", false, nil
+	case "setns.utsns":
+		return "setns", reflect.Int, "int", false, nil
 	case "setrlimit.resource":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.retval":
@@ -44168,6 +45705,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.euser":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.ancestors.file.capabilities.available":
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.ancestors.file.capabilities.effective":
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.ancestors.file.capabilities.inheritable":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.ancestors.file.capabilities.permitted":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.change_time":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.ancestors.file.extension":
@@ -44408,6 +45953,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.euser":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.file.capabilities.available":
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.file.capabilities.effective":
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.file.capabilities.inheritable":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.file.capabilities.permitted":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.change_time":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.file.extension":
@@ -44602,6 +46155,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.euser":
 		return "setrlimit", reflect.String, "string", false, nil
+	case "setrlimit.target.parent.file.capabilities.available":
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.parent.file.capabilities.effective":
+		return "setrlimit", reflect.Bool, "bool", false, nil
+	case "setrlimit.target.parent.file.capabilities.inheritable":
+		return "setrlimit", reflect.Int, "int", false, nil
+	case "setrlimit.target.parent.file.capabilities.permitted":
+		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.change_time":
 		return "setrlimit", reflect.Int, "int", false, nil
 	case "setrlimit.target.parent.file.extension":
@@ -44970,6 +46531,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.euser":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.ancestors.file.capabilities.available":
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.ancestors.file.capabilities.effective":
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.ancestors.file.capabilities.inheritable":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.ancestors.file.capabilities.permitted":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.change_time":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.ancestors.file.extension":
@@ -45210,6 +46779,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.euser":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.file.capabilities.available":
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.file.capabilities.effective":
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.file.capabilities.inheritable":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.file.capabilities.permitted":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.change_time":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.file.extension":
@@ -45404,6 +46981,14 @@ func (ev *Event) GetFieldMetadata(field eval.Field) (eval.EventType, reflect.Kin
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.euser":
 		return "signal", reflect.String, "string", false, nil
+	case "signal.target.parent.file.capabilities.available":
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.parent.file.capabilities.effective":
+		return "signal", reflect.Bool, "bool", false, nil
+	case "signal.target.parent.file.capabilities.inheritable":
+		return "signal", reflect.Int, "int", false, nil
+	case "signal.target.parent.file.capabilities.permitted":
+		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.change_time":
 		return "signal", reflect.Int, "int", false, nil
 	case "signal.target.parent.file.extension":
@@ -46331,6 +47916,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("exec.euid", &ev.Exec.Process.Credentials.EUID, value)
 	case "exec.euser":
 		return ev.setStringFieldValue("exec.euser", &ev.Exec.Process.Credentials.EUser, value)
+	case "exec.file.capabilities.available":
+		return ev.setBoolFieldValue("exec.file.capabilities.available", &ev.Exec.Process.FileCapabilities.Available, value)
+	case "exec.file.capabilities.effective":
+		return ev.setBoolFieldValue("exec.file.capabilities.effective", &ev.Exec.Process.FileCapabilities.Effective, value)
+	case "exec.file.capabilities.inheritable":
+		return ev.setUint64FieldValue("exec.file.capabilities.inheritable", &ev.Exec.Process.FileCapabilities.Inheritable, value)
+	case "exec.file.capabilities.permitted":
+		return ev.setUint64FieldValue("exec.file.capabilities.permitted", &ev.Exec.Process.FileCapabilities.Permitted, value)
 	case "exec.file.change_time":
 		return ev.setUint64FieldValue("exec.file.change_time", &ev.Exec.Process.FileEvent.FileFields.CTime, value)
 	case "exec.file.extension":
@@ -46712,6 +48305,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("exit.euid", &ev.Exit.Process.Credentials.EUID, value)
 	case "exit.euser":
 		return ev.setStringFieldValue("exit.euser", &ev.Exit.Process.Credentials.EUser, value)
+	case "exit.file.capabilities.available":
+		return ev.setBoolFieldValue("exit.file.capabilities.available", &ev.Exit.Process.FileCapabilities.Available, value)
+	case "exit.file.capabilities.effective":
+		return ev.setBoolFieldValue("exit.file.capabilities.effective", &ev.Exit.Process.FileCapabilities.Effective, value)
+	case "exit.file.capabilities.inheritable":
+		return ev.setUint64FieldValue("exit.file.capabilities.inheritable", &ev.Exit.Process.FileCapabilities.Inheritable, value)
+	case "exit.file.capabilities.permitted":
+		return ev.setUint64FieldValue("exit.file.capabilities.permitted", &ev.Exit.Process.FileCapabilities.Permitted, value)
 	case "exit.file.change_time":
 		return ev.setUint64FieldValue("exit.file.change_time", &ev.Exit.Process.FileEvent.FileFields.CTime, value)
 	case "exit.file.extension":
@@ -47663,6 +49264,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.ancestors.euid", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUID, value)
 	case "process.ancestors.euser":
 		return ev.setStringFieldValue("process.ancestors.euser", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.Credentials.EUser, value)
+	case "process.ancestors.file.capabilities.available":
+		return ev.setBoolFieldValue("process.ancestors.file.capabilities.available", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileCapabilities.Available, value)
+	case "process.ancestors.file.capabilities.effective":
+		return ev.setBoolFieldValue("process.ancestors.file.capabilities.effective", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileCapabilities.Effective, value)
+	case "process.ancestors.file.capabilities.inheritable":
+		return ev.setUint64FieldValue("process.ancestors.file.capabilities.inheritable", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileCapabilities.Inheritable, value)
+	case "process.ancestors.file.capabilities.permitted":
+		return ev.setUint64FieldValue("process.ancestors.file.capabilities.permitted", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileCapabilities.Permitted, value)
 	case "process.ancestors.file.change_time":
 		return ev.setUint64FieldValue("process.ancestors.file.change_time", &ev.BaseEvent.ProcessContext.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime, value)
 	case "process.ancestors.file.extension":
@@ -48024,6 +49633,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.euid", &ev.BaseEvent.ProcessContext.Process.Credentials.EUID, value)
 	case "process.euser":
 		return ev.setStringFieldValue("process.euser", &ev.BaseEvent.ProcessContext.Process.Credentials.EUser, value)
+	case "process.file.capabilities.available":
+		return ev.setBoolFieldValue("process.file.capabilities.available", &ev.BaseEvent.ProcessContext.Process.FileCapabilities.Available, value)
+	case "process.file.capabilities.effective":
+		return ev.setBoolFieldValue("process.file.capabilities.effective", &ev.BaseEvent.ProcessContext.Process.FileCapabilities.Effective, value)
+	case "process.file.capabilities.inheritable":
+		return ev.setUint64FieldValue("process.file.capabilities.inheritable", &ev.BaseEvent.ProcessContext.Process.FileCapabilities.Inheritable, value)
+	case "process.file.capabilities.permitted":
+		return ev.setUint64FieldValue("process.file.capabilities.permitted", &ev.BaseEvent.ProcessContext.Process.FileCapabilities.Permitted, value)
 	case "process.file.change_time":
 		return ev.setUint64FieldValue("process.file.change_time", &ev.BaseEvent.ProcessContext.Process.FileEvent.FileFields.CTime, value)
 	case "process.file.extension":
@@ -48328,6 +49945,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("process.parent.euid", &ev.BaseEvent.ProcessContext.Parent.Credentials.EUID, value)
 	case "process.parent.euser":
 		return ev.setStringFieldValue("process.parent.euser", &ev.BaseEvent.ProcessContext.Parent.Credentials.EUser, value)
+	case "process.parent.file.capabilities.available":
+		return ev.setBoolFieldValue("process.parent.file.capabilities.available", &ev.BaseEvent.ProcessContext.Parent.FileCapabilities.Available, value)
+	case "process.parent.file.capabilities.effective":
+		return ev.setBoolFieldValue("process.parent.file.capabilities.effective", &ev.BaseEvent.ProcessContext.Parent.FileCapabilities.Effective, value)
+	case "process.parent.file.capabilities.inheritable":
+		return ev.setUint64FieldValue("process.parent.file.capabilities.inheritable", &ev.BaseEvent.ProcessContext.Parent.FileCapabilities.Inheritable, value)
+	case "process.parent.file.capabilities.permitted":
+		return ev.setUint64FieldValue("process.parent.file.capabilities.permitted", &ev.BaseEvent.ProcessContext.Parent.FileCapabilities.Permitted, value)
 	case "process.parent.file.change_time":
 		return ev.setUint64FieldValue("process.parent.file.change_time", &ev.BaseEvent.ProcessContext.Parent.FileEvent.FileFields.CTime, value)
 	case "process.parent.file.extension":
@@ -48722,6 +50347,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.ancestors.euid", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUID, value)
 	case "ptrace.tracee.ancestors.euser":
 		return ev.setStringFieldValue("ptrace.tracee.ancestors.euser", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.Credentials.EUser, value)
+	case "ptrace.tracee.ancestors.file.capabilities.available":
+		return ev.setBoolFieldValue("ptrace.tracee.ancestors.file.capabilities.available", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileCapabilities.Available, value)
+	case "ptrace.tracee.ancestors.file.capabilities.effective":
+		return ev.setBoolFieldValue("ptrace.tracee.ancestors.file.capabilities.effective", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileCapabilities.Effective, value)
+	case "ptrace.tracee.ancestors.file.capabilities.inheritable":
+		return ev.setUint64FieldValue("ptrace.tracee.ancestors.file.capabilities.inheritable", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileCapabilities.Inheritable, value)
+	case "ptrace.tracee.ancestors.file.capabilities.permitted":
+		return ev.setUint64FieldValue("ptrace.tracee.ancestors.file.capabilities.permitted", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileCapabilities.Permitted, value)
 	case "ptrace.tracee.ancestors.file.change_time":
 		return ev.setUint64FieldValue("ptrace.tracee.ancestors.file.change_time", &ev.PTrace.Tracee.Ancestor.ProcessContext.Process.FileEvent.FileFields.CTime, value)
 	case "ptrace.tracee.ancestors.file.extension":
@@ -49083,6 +50716,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.euid", &ev.PTrace.Tracee.Process.Credentials.EUID, value)
 	case "ptrace.tracee.euser":
 		return ev.setStringFieldValue("ptrace.tracee.euser", &ev.PTrace.Tracee.Process.Credentials.EUser, value)
+	case "ptrace.tracee.file.capabilities.available":
+		return ev.setBoolFieldValue("ptrace.tracee.file.capabilities.available", &ev.PTrace.Tracee.Process.FileCapabilities.Available, value)
+	case "ptrace.tracee.file.capabilities.effective":
+		return ev.setBoolFieldValue("ptrace.tracee.file.capabilities.effective", &ev.PTrace.Tracee.Process.FileCapabilities.Effective, value)
+	case "ptrace.tracee.file.capabilities.inheritable":
+		return ev.setUint64FieldValue("ptrace.tracee.file.capabilities.inheritable", &ev.PTrace.Tracee.Process.FileCapabilities.Inheritable, value)
+	case "ptrace.tracee.file.capabilities.permitted":
+		return ev.setUint64FieldValue("ptrace.tracee.file.capabilities.permitted", &ev.PTrace.Tracee.Process.FileCapabilities.Permitted, value)
 	case "ptrace.tracee.file.change_time":
 		return ev.setUint64FieldValue("ptrace.tracee.file.change_time", &ev.PTrace.Tracee.Process.FileEvent.FileFields.CTime, value)
 	case "ptrace.tracee.file.extension":
@@ -49387,6 +51028,14 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("ptrace.tracee.parent.euid", &ev.PTrace.Tracee.Parent.Credentials.EUID, value)
 	case "ptrace.tracee.parent.euser":
 		return ev.setStringFieldValue("ptrace.tracee.parent.euser", &ev.PTrace.Tracee.Parent.Credentials.EUser, value)
+	case "ptrace.tracee.parent.file.capabilities.available":
+		return ev.setBoolFieldValue("ptrace.tracee.parent.file.capabilities.available", &ev.PTrace.Tracee.Parent.FileCapabilities.Available, value)
+	case "ptrace.tracee.parent.file.capabilities.effective":
+		return ev.setBoolFieldValue("ptrace.tracee.parent.file.capabilities.effective", &ev.PTrace.Tracee.Parent.FileCapabilities.Effective, value)
+	case "ptrace.tracee.parent.file.capabilities.inheritable":
+		return ev.setUint64FieldValue("ptrace.tracee.parent.file.capabilities.inheritable", &ev.PTrace.Tracee.Parent.FileCapabilities.Inheritable, value)
+	case "ptrace.tracee.parent.file.capabilities.permitted":
+		return ev.setUint64FieldValue("ptrace.tracee.parent.file.capabilities.permitted", &ev.PTrace.Tracee.Parent.FileCapabilities.Permitted, value)
 	case "ptrace.tracee.parent.file.change_time":
 		return ev.setUint64FieldValue("ptrace.tracee.parent.file.change_time", &ev.PTrace.Tracee.Parent.FileEvent.FileFields.CTime, value)
 	case "ptrace.tracee.parent.file.extension":
@@ -49955,6 +51604,46 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 		return ev.setUint32FieldValue("setgid.gid", &ev.SetGID.GID, value)
 	case "setgid.group":
 		return ev.setStringFieldValue("setgid.group", &ev.SetGID.Group, value)
+	case "setns.cgroupns":
+		return ev.setUint32FieldValue("setns.cgroupns", &ev.SetNS.NamespaceIDs.CgroupNS, value)
+	case "setns.ipcns":
+		return ev.setUint32FieldValue("setns.ipcns", &ev.SetNS.NamespaceIDs.IPCNS, value)
+	case "setns.mntns":
+		return ev.setUint32FieldValue("setns.mntns", &ev.SetNS.NamespaceIDs.MntNS, value)
+	case "setns.mntns_host":
+		return ev.setBoolFieldValue("setns.mntns_host", &ev.SetNS.MntNSHost, value)
+	case "setns.mntns_outside_base":
+		return ev.setBoolFieldValue("setns.mntns_outside_base", &ev.SetNS.MntNSOutsideBase, value)
+	case "setns.netns":
+		return ev.setUint32FieldValue("setns.netns", &ev.SetNS.NamespaceIDs.NetNS, value)
+	case "setns.nstype":
+		return ev.setIntFieldValue("setns.nstype", &ev.SetNS.NSType, value)
+	case "setns.pidns":
+		return ev.setUint32FieldValue("setns.pidns", &ev.SetNS.NamespaceIDs.PIDNS, value)
+	case "setns.previous.cgroupns":
+		return ev.setUint32FieldValue("setns.previous.cgroupns", &ev.SetNS.Previous.CgroupNS, value)
+	case "setns.previous.ipcns":
+		return ev.setUint32FieldValue("setns.previous.ipcns", &ev.SetNS.Previous.IPCNS, value)
+	case "setns.previous.mntns":
+		return ev.setUint32FieldValue("setns.previous.mntns", &ev.SetNS.Previous.MntNS, value)
+	case "setns.previous.netns":
+		return ev.setUint32FieldValue("setns.previous.netns", &ev.SetNS.Previous.NetNS, value)
+	case "setns.previous.pidns":
+		return ev.setUint32FieldValue("setns.previous.pidns", &ev.SetNS.Previous.PIDNS, value)
+	case "setns.previous.timens":
+		return ev.setUint32FieldValue("setns.previous.timens", &ev.SetNS.Previous.TimeNS, value)
+	case "setns.previous.userns":
+		return ev.setUint32FieldValue("setns.previous.userns", &ev.SetNS.Previous.UserNS, value)
+	case "setns.previous.utsns":
+		return ev.setUint32FieldValue("setns.previous.utsns", &ev.SetNS.Previous.UTSNS, value)
+	case "setns.retval":
+		return ev.setInt64FieldValue("setns.retval", &ev.SetNS.SyscallEvent.Retval, value)
+	case "setns.timens":
+		return ev.setUint32FieldValue("setns.timens", &ev.SetNS.NamespaceIDs.TimeNS, value)
+	case "setns.userns":
+		return ev.setUint32FieldValue("setns.userns", &ev.SetNS.NamespaceIDs.UserNS, value)
+	case "setns.utsns":
+		return ev.setUint32FieldValue("setns.utsns", &ev.SetNS.NamespaceIDs.UTSNS, value)
 	case "setrlimit.resource":
 		return ev.setIntFieldValue("setrlimit.resource", &ev.Setrlimit.Resource, value)
 	case "setrlimit.retval":
@@ -50229,6 +51918,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.ancestors.euser", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.Credentials.EUser, value)
+	case "setrlimit.target.ancestors.file.capabilities.available":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.ancestors.file.capabilities.available", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileCapabilities.Available, value)
+	case "setrlimit.target.ancestors.file.capabilities.effective":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.ancestors.file.capabilities.effective", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileCapabilities.Effective, value)
+	case "setrlimit.target.ancestors.file.capabilities.inheritable":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.ancestors.file.capabilities.inheritable", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileCapabilities.Inheritable, value)
+	case "setrlimit.target.ancestors.file.capabilities.permitted":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Ancestor == nil {
+			ev.Setrlimit.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.ancestors.file.capabilities.permitted", &ev.Setrlimit.Target.Ancestor.ProcessContext.Process.FileCapabilities.Permitted, value)
 	case "setrlimit.target.ancestors.file.change_time":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51205,6 +52926,26 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.euser", &ev.Setrlimit.Target.Process.Credentials.EUser, value)
+	case "setrlimit.target.file.capabilities.available":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.file.capabilities.available", &ev.Setrlimit.Target.Process.FileCapabilities.Available, value)
+	case "setrlimit.target.file.capabilities.effective":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.file.capabilities.effective", &ev.Setrlimit.Target.Process.FileCapabilities.Effective, value)
+	case "setrlimit.target.file.capabilities.inheritable":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.file.capabilities.inheritable", &ev.Setrlimit.Target.Process.FileCapabilities.Inheritable, value)
+	case "setrlimit.target.file.capabilities.permitted":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.file.capabilities.permitted", &ev.Setrlimit.Target.Process.FileCapabilities.Permitted, value)
 	case "setrlimit.target.file.change_time":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -51896,6 +53637,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Setrlimit.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("setrlimit.target.parent.euser", &ev.Setrlimit.Target.Parent.Credentials.EUser, value)
+	case "setrlimit.target.parent.file.capabilities.available":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.parent.file.capabilities.available", &ev.Setrlimit.Target.Parent.FileCapabilities.Available, value)
+	case "setrlimit.target.parent.file.capabilities.effective":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("setrlimit.target.parent.file.capabilities.effective", &ev.Setrlimit.Target.Parent.FileCapabilities.Effective, value)
+	case "setrlimit.target.parent.file.capabilities.inheritable":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.parent.file.capabilities.inheritable", &ev.Setrlimit.Target.Parent.FileCapabilities.Inheritable, value)
+	case "setrlimit.target.parent.file.capabilities.permitted":
+		if ev.Setrlimit.Target == nil {
+			ev.Setrlimit.Target = &ProcessContext{}
+		}
+		if ev.Setrlimit.Target.Parent == nil {
+			ev.Setrlimit.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("setrlimit.target.parent.file.capabilities.permitted", &ev.Setrlimit.Target.Parent.FileCapabilities.Permitted, value)
 	case "setrlimit.target.parent.file.change_time":
 		if ev.Setrlimit.Target == nil {
 			ev.Setrlimit.Target = &ProcessContext{}
@@ -53147,6 +54920,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
 		}
 		return ev.setStringFieldValue("signal.target.ancestors.euser", &ev.Signal.Target.Ancestor.ProcessContext.Process.Credentials.EUser, value)
+	case "signal.target.ancestors.file.capabilities.available":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("signal.target.ancestors.file.capabilities.available", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileCapabilities.Available, value)
+	case "signal.target.ancestors.file.capabilities.effective":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setBoolFieldValue("signal.target.ancestors.file.capabilities.effective", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileCapabilities.Effective, value)
+	case "signal.target.ancestors.file.capabilities.inheritable":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("signal.target.ancestors.file.capabilities.inheritable", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileCapabilities.Inheritable, value)
+	case "signal.target.ancestors.file.capabilities.permitted":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Ancestor == nil {
+			ev.Signal.Target.Ancestor = &ProcessCacheEntry{}
+		}
+		return ev.setUint64FieldValue("signal.target.ancestors.file.capabilities.permitted", &ev.Signal.Target.Ancestor.ProcessContext.Process.FileCapabilities.Permitted, value)
 	case "signal.target.ancestors.file.change_time":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -54123,6 +55928,26 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target = &ProcessContext{}
 		}
 		return ev.setStringFieldValue("signal.target.euser", &ev.Signal.Target.Process.Credentials.EUser, value)
+	case "signal.target.file.capabilities.available":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("signal.target.file.capabilities.available", &ev.Signal.Target.Process.FileCapabilities.Available, value)
+	case "signal.target.file.capabilities.effective":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setBoolFieldValue("signal.target.file.capabilities.effective", &ev.Signal.Target.Process.FileCapabilities.Effective, value)
+	case "signal.target.file.capabilities.inheritable":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("signal.target.file.capabilities.inheritable", &ev.Signal.Target.Process.FileCapabilities.Inheritable, value)
+	case "signal.target.file.capabilities.permitted":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		return ev.setUint64FieldValue("signal.target.file.capabilities.permitted", &ev.Signal.Target.Process.FileCapabilities.Permitted, value)
 	case "signal.target.file.change_time":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
@@ -54814,6 +56639,38 @@ func (ev *Event) SetFieldValue(field eval.Field, value interface{}) error {
 			ev.Signal.Target.Parent = &Process{}
 		}
 		return ev.setStringFieldValue("signal.target.parent.euser", &ev.Signal.Target.Parent.Credentials.EUser, value)
+	case "signal.target.parent.file.capabilities.available":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("signal.target.parent.file.capabilities.available", &ev.Signal.Target.Parent.FileCapabilities.Available, value)
+	case "signal.target.parent.file.capabilities.effective":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setBoolFieldValue("signal.target.parent.file.capabilities.effective", &ev.Signal.Target.Parent.FileCapabilities.Effective, value)
+	case "signal.target.parent.file.capabilities.inheritable":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("signal.target.parent.file.capabilities.inheritable", &ev.Signal.Target.Parent.FileCapabilities.Inheritable, value)
+	case "signal.target.parent.file.capabilities.permitted":
+		if ev.Signal.Target == nil {
+			ev.Signal.Target = &ProcessContext{}
+		}
+		if ev.Signal.Target.Parent == nil {
+			ev.Signal.Target.Parent = &Process{}
+		}
+		return ev.setUint64FieldValue("signal.target.parent.file.capabilities.permitted", &ev.Signal.Target.Parent.FileCapabilities.Permitted, value)
 	case "signal.target.parent.file.change_time":
 		if ev.Signal.Target == nil {
 			ev.Signal.Target = &ProcessContext{}
