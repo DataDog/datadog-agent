@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    Add a development-only ``datadog_remoteconfig`` extension to DDOT for
+    proxying agentless Remote Config requests without a companion Datadog Agent.
+    SDKs must support a separate Remote Config endpoint to use the proxy.
