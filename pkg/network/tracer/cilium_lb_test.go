@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/cilium/ebpf"
+	"github.com/cilium/ebpf/rlimit"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -99,6 +100,7 @@ func TestRefreshBackendsKeepsRemovedBackendWhileLookedUp(t *testing.T) {
 }
 
 func TestSharedConntrackNATMapNotSharedWithCilium(t *testing.T) {
+	require.NoError(t, rlimit.RemoveMemlock())
 	ctMap, err := maps.NewGenericMap[netebpf.ConntrackTuple, netebpf.ConntrackTuple](&ebpf.MapSpec{Type: ebpf.Hash, MaxEntries: 1})
 	require.NoError(t, err)
 	t.Cleanup(func() { ctMap.Map().Close() })
