@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/ebpf/maps"
+	"github.com/DataDog/datadog-agent/pkg/network/config"
 	netebpf "github.com/DataDog/datadog-agent/pkg/network/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/network/netlink"
 )
@@ -106,9 +107,23 @@ func TestSharedConntrackNATMapNotSharedWithCilium(t *testing.T) {
 	t.Cleanup(func() { ctMap.Map().Close() })
 	ebpfCtk := &ebpfConntracker{ctMap: ctMap}
 
-	assert.Equal(t, ctMap.Map(), sharedConntrackNATMap(ebpfCtk))
-	assert.Equal(t, ctMap.Map(), sharedConntrackNATMap(chainConntrackers(ebpfCtk, netlink.NewNoOpConntracker())))
-	assert.Nil(t, sharedConntrackNATMap(chainConntrackers(ebpfCtk, &ciliumLoadBalancerConntracker{})))
-	assert.Nil(t, sharedConntrackNATMap(&ciliumLoadBalancerConntracker{}))
-	assert.Nil(t, sharedConntrackNATMap(netlink.NewNoOpConntracker()))
+	cfg := &config.Config{ShareConntrackNATMap: true}
+	none := func() string { return "" }
+	assert.Equal(t, ctMap.Map(), sharedConntrackNATMap(cfg, ebpfCtk, none))
+	assert.Equal(t, ctMap.Map(), sharedConntrackNATMap(cfg, chainConntrackers(ebpfCtk, netlink.NewNoOpConntracker()), none))
+	assert.Nil(t, sharedConntrackNATMap(cfg, chainConntrackers(ebpfCtk, &ciliumLoadBalancerConntracker{}), none))
+	assert.Nil(t, sharedConntrackNATMap(cfg, &ciliumLoadBalancerConntracker{}, none))
+	assert.Nil(t, sharedConntrackNATMap(cfg, netlink.NewNoOpConntracker(), none))
+
+	t.Run("BPF NAT dataplane found", func(t *testing.T) {
+		found := func() string { return "tc/globals/cilium_ct6_global" }
+		assert.Nil(t, sharedConntrackNATMap(cfg, ebpfCtk, found))
+		assert.Nil(t, sharedConntrackNATMap(cfg, chainConntrackers(ebpfCtk, netlink.NewNoOpConntracker()), found))
+	})
+
+	t.Run("disabled by config", func(t *testing.T) {
+		detected := false
+		assert.Nil(t, sharedConntrackNATMap(&config.Config{}, ebpfCtk, func() string { detected = true; return "" }))
+		assert.False(t, detected, "detection ran though sharing is disabled")
+	})
 }

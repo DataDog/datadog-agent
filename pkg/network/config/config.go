@@ -170,6 +170,10 @@ type Config struct {
 	// EnableCiliumLBConntracker enables the cilium load balancer conntracker
 	EnableCiliumLBConntracker bool
 
+	// ShareConntrackNATMap lets the connection tracer read NAT'd packet tuples from the eBPF conntracker's map,
+	// instead of recording them with the net_dev_queue probe (default true)
+	ShareConntrackNATMap bool
+
 	// ClosedChannelSize specifies the size for closed channel for the tracer
 	ClosedChannelSize int
 
@@ -340,6 +344,7 @@ func New() *Config {
 		ConntrackInitTimeout:         cfg.GetDuration(sysconfig.FullKeyPath(netNS, "conntrack_init_timeout")),
 		EnableEbpfConntracker:        cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_ebpf_conntracker")),
 		EnableCiliumLBConntracker:    cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_cilium_lb_conntracker")),
+		ShareConntrackNATMap:         cfg.GetBool(sysconfig.FullKeyPath(netNS, "share_conntrack_nat_map")),
 
 		EnableGatewayLookup: cfg.GetBool(sysconfig.FullKeyPath(netNS, "enable_gateway_lookup")),
 

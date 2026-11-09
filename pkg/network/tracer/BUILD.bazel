@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "tracer",
     srcs = [
+        "bpf_nat_dataplane.go",
         "cached_conntrack.go",
         "chain_conntracker.go",
         "cilium_lb.go",
@@ -203,6 +204,7 @@ go_library(
 dd_agent_go_test(
     name = "tracer_test",
     srcs = [
+        "bpf_nat_dataplane_test.go",
         "cached_conntrack_test.go",
         "cilium_lb_test.go",
         "compile_test.go",
