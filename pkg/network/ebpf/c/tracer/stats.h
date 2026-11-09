@@ -517,7 +517,7 @@ static __always_inline int handle_tcp_recv(u64 pid_tgid, struct sock *skp, int r
 
 // tcp_sk_btf returns NULL when the kernel lacks bpf_skc_to_tcp_sock (5.9+) or sk isn't a full TCP socket.
 static __always_inline struct tcp_sock *tcp_sk_btf(struct sock *sk) {
-    if (!bpf_core_enum_value_exists(enum bpf_func_id, BPF_FUNC_skc_to_tcp_sock)) {
+    if (!bpf_helper_exists(BPF_FUNC_skc_to_tcp_sock)) {
         return NULL;
     }
     return bpf_skc_to_tcp_sock(sk);

@@ -1,5 +1,5 @@
-// Every sock pointer the programs in this file pass to the shared helpers is a BTF pointer (an fentry/fexit
-// argument or return value), which enables the *_btf helpers in tracer/stats.h.
+// Enables the *_btf helpers in tracer/stats.h. Only the fentry/fexit handlers call them, with BTF sock pointers
+// (arguments or return values). The kprobe and raw tracepoint programs in this file do not call them.
 #define SOCK_PTR_IS_BTF
 #include "ktypes.h"
 #include "bpf_telemetry.h"
