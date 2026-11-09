@@ -1,0 +1,13 @@
+description: Command substitution in for loop word list.
+input:
+  script: |+
+    for x in $(echo "a b c"); do
+      echo "$x"
+    done
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

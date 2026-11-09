@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
-	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
@@ -20,9 +19,8 @@ import (
 )
 
 var (
-	delaOrgUUIDRe       = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
+	delaOrgOrRegionRe   = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 	delaNameRe          = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
-	delaRegionRe        = regexp.MustCompile(`^[A-Za-z0-9-]+$`)
 	delaFallbackValueRe = regexp.MustCompile(`^[A-Za-z0-9_=-]+$`)
 )
 
@@ -53,7 +51,7 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 
 	orgUUID := strings.TrimSpace(parts[0])
 	provider := strings.TrimSpace(parts[1])
-	if !delaOrgUUIDRe.MatchString(orgUUID) || !delaNameRe.MatchString(provider) {
+	if !delaOrgOrRegionRe.MatchString(orgUUID) || !delaNameRe.MatchString(provider) {
 		return delaDirective{}, false
 	}
 
@@ -67,7 +65,7 @@ func parseDelaDirective(value string) (delaDirective, bool) {
 		}
 		switch key {
 		case "region":
-			if !delaRegionRe.MatchString(val) {
+			if !delaOrgOrRegionRe.MatchString(val) {
 				return delaDirective{}, false
 			}
 		case "fallback":
@@ -325,11 +323,7 @@ func ConfigureDelegatedAuthEndpoints(ctx context.Context, config pkgconfigmodel.
 
 	providerConfig := defaultProviderConfigForConfig(config)
 
-	startupCtx := ctx
-	cancelStartup := func() {}
-	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
-		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-	}
+	startupCtx, cancelStartup := delegatedAuthStartupContext(ctx, config)
 	defer cancelStartup()
 
 	configureAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
@@ -349,18 +343,12 @@ var directSendDelegatedAuthDirectiveKeys = []struct {
 	{"compliance_config.run_in_system_probe", pkgconfigmodel.DelaComplianceEndpointsKey},
 }
 
-type directSendDirective struct {
-	// path is the config path of the entry holding the directive.
-	path string
-	// flag is the setting that moves the entry's payloads into the system-probe process.
-	flag string
-}
-
-// directSendDelegatedAuthDirectives lists the additional-endpoint entries holding a DELA
-// directive in settings that ship from the system-probe. The results feed a startup warning:
-// those entries cannot resolve in the process that ships them.
-func directSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) []directSendDirective {
-	var found []directSendDirective
+// WarnDirectSendDelegatedAuthDirectives warns when DELA directives sit in settings that ship
+// from the system-probe: that process cannot resolve them, so those payloads will not dual-ship
+// (and are held until restart). Called from the config load paths so that every placement of
+// the directive (datadog.yaml, security-agent.yaml, fleet policies, system-probe.yaml) is
+// flagged somewhere at startup.
+func WarnDirectSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) {
 	for _, setting := range directSendDelegatedAuthDirectiveKeys {
 		if !config.GetBool(setting.flag) {
 			continue
@@ -372,23 +360,8 @@ func directSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) []directSen
 				continue
 			}
 			if _, directive, ok := common.CaseInsensitiveStringFieldWithKey(entry, "api_key"); ok && strings.HasPrefix(strings.TrimSpace(directive), pkgconfigmodel.DelaDirectivePrefix) {
-				found = append(found, directSendDirective{
-					path: fmt.Sprintf("%s[%d]", setting.key, index),
-					flag: setting.flag,
-				})
+				log.Warnf("%s[%d] uses delegated auth, but %s ships its payloads from the system-probe process, which cannot resolve delegated-auth directives; those payloads will not dual-ship", setting.key, index, setting.flag)
 			}
 		}
-	}
-	return found
-}
-
-// WarnDirectSendDelegatedAuthDirectives warns when DELA directives sit in settings that ship
-// from the system-probe: that process cannot resolve them, so those payloads will not dual-ship
-// (and are held until restart). Called from the config load paths so that every placement of
-// the directive (datadog.yaml, security-agent.yaml, fleet policies, system-probe.yaml) is
-// flagged somewhere at startup.
-func WarnDirectSendDelegatedAuthDirectives(config pkgconfigmodel.Reader) {
-	for _, found := range directSendDelegatedAuthDirectives(config) {
-		log.Warnf("%s uses delegated auth, but %s ships its payloads from the system-probe process, which cannot resolve delegated-auth directives; those payloads will not dual-ship", found.path, found.flag)
 	}
 }

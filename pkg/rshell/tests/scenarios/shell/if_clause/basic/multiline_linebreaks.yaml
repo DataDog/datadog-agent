@@ -1,0 +1,13 @@
+description: Linebreaks are allowed in various positions within if statement.
+input:
+  script: |+
+    if
+    true
+    then
+    echo ok
+    fi
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

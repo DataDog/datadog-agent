@@ -1,0 +1,11 @@
+# Even informational invocation of systemctl is behind the command-wide gate.
+skip_assert_against_bash: true
+description: systemctl help requires remediation mode
+input:
+  script: |+
+    systemctl --help
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: remediation mode required
+  exit_code: 1

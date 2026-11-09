@@ -44,6 +44,10 @@ entries:
   function: errorTrackingClusterAgentSuite.TestDisabledByDefault
   status: debt
   reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/autoscaling/spot/suite_test.go
+  function: TestSpotSchedulingKindCI
+  status: debt
+  reason: The Agent Helm release pulls public Operator and CSI driver subchart images and the test workloads use registry.k8s.io/pause; mirror them internally before removing this exception.
 - file: test/new-e2e/tests/containers/filtering_test.go
   function: TestK8SCELFilteringSuite
   status: debt
@@ -72,6 +76,10 @@ entries:
   function: testCiliumLBConntracker
   status: debt
   reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/npm/istio_ambient_test.go
+  function: TestEKSIstioAmbientSuite
+  status: debt
+  reason: Restricted EKS workers fail to join, and Istio images pull from gcr.io/istio-release because EKS node roles can't import a first pull into the Docker Hub cache; retain access pending restricted-bootstrap support.
 - file: test/new-e2e/tests/orchestrator/k8s_api_key_test.go
   function: k8sSuite.TestZzzClusterAgentAPIKeyRefresh
   status: debt

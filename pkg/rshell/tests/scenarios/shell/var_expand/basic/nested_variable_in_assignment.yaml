@@ -1,0 +1,11 @@
+description: Variable expansion within another variable assignment.
+input:
+  script: |+
+    A=hello
+    B="${A} world"
+    echo "$B"
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

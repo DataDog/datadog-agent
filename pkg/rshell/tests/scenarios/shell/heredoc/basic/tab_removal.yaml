@@ -1,0 +1,9 @@
+description: Leading tabs are stripped with <<- operator.
+input:
+  script: "cat <<-END\n\tfoo\n\t\t\tbar\n\tEND\n"
+expect:
+  stdout: |+
+    foo
+    bar
+  stderr: ""
+  exit_code: 0

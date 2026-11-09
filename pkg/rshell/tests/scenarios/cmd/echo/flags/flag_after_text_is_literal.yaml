@@ -1,0 +1,9 @@
+description: Once a non-flag argument is seen, remaining args including flag-like ones are literal.
+input:
+  script: |+
+    echo hello -n
+expect:
+  stdout: |+
+    hello -n
+  stderr: ""
+  exit_code: 0

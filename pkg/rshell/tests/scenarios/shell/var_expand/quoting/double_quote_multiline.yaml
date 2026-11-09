@@ -1,0 +1,13 @@
+description: Double-quoted string can span multiple lines preserving newlines.
+input:
+  script: |+
+    echo "line1
+    line2
+    line3"
+expect:
+  stdout: |+
+    line1
+    line2
+    line3
+  stderr: ""
+  exit_code: 0

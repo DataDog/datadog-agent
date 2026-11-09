@@ -708,11 +708,11 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		}
 	}
 	if in.Events().Len() > 0 {
-		transform.SetMetaOTLP(span, "events", transform.MarshalEvents(in.Events()))
+		span.SpanEvents = transform.OTelSpanEventsToDD(in.Events())
 	}
 	transform.TagSpanIfContainsExceptionEvent(in, span)
 	if in.Links().Len() > 0 {
-		transform.SetMetaOTLP(span, "_dd.span_links", transform.MarshalLinks(in.Links()))
+		span.SpanLinks = transform.OTelSpanLinksToDD(in.Links())
 	}
 
 	var gotMethodFromNewConv bool

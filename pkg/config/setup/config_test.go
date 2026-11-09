@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +30,64 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+// noopSchemaValidator is a pkgconfigmodel.SchemaValidator that never reports any violation
+type noopSchemaValidator struct{}
+
+func (noopSchemaValidator) ValidateConfig(pkgconfigmodel.Reader) ([]*pkgconfigmodel.Violation, error) {
+	return nil, nil
+}
+
+// hostnameViolationValidator is a pkgconfigmodel.SchemaValidator reporting the hostname as invalid
+type hostnameViolationValidator struct{}
+
+func (hostnameViolationValidator) ValidateConfig(pkgconfigmodel.Reader) ([]*pkgconfigmodel.Violation, error) {
+	return []*pkgconfigmodel.Violation{{Message: "invalid hostname", Path: "/hostname", SettingKey: "hostname"}}, nil
+}
+
+func TestLoadCustomSchemaEnforcement(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		yaml     string
+		hostname string
+	}{
+		{"disabled by default", "hostname: invalid\n", "invalid"},
+		{"enabled in the file", "hostname: invalid\nschema:\n  enforce: true\n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := newTestConf(t)
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			require.NoError(t, os.WriteFile(configPath, []byte(tc.yaml), 0o600))
+			config.SetConfigFile(configPath)
+
+			// schema.enforce is read once the file is loaded, so it can come from the file itself
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config))
+			assert.Equal(t, tc.hostname, config.GetString("hostname"))
+		})
+	}
+}
+
+func TestLoadCustomSchemaEnforcementFromAnotherConfig(t *testing.T) {
+	// like system-probe.yaml, whose enforcement is configured in datadog.yaml
+	for _, enforce := range []bool{true, false} {
+		t.Run(strconv.FormatBool(enforce), func(t *testing.T) {
+			ddConf := newTestConf(t)
+			ddConf.SetInTest("schema.enforce", enforce)
+
+			config := newTestConf(t)
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			require.NoError(t, os.WriteFile(configPath, []byte("hostname: invalid\n"), 0o600))
+			config.SetConfigFile(configPath)
+
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf))
+			if enforce {
+				assert.Equal(t, "", config.GetString("hostname"))
+			} else {
+				assert.Equal(t, "invalid", config.GetString("hostname"))
+			}
+		})
+	}
+}
 
 func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
 	config := newTestConf(t)
@@ -90,6 +149,59 @@ logs_config:
 	} {
 		require.Contains(t, paramsByKey, key)
 		assert.True(t, paramsByKey[key].AllowAsyncStartup)
+	}
+}
+
+func TestDelegatedAuthScansStartupTimeout(t *testing.T) {
+	for _, scan := range []struct {
+		name string
+		run  func(context.Context, pkgconfigmodel.Config, delegatedauth.Component) error
+	}{
+		{"initial", configureDelegatedAuth},
+		{"rescan", func(ctx context.Context, config pkgconfigmodel.Config, comp delegatedauth.Component) error {
+			ConfigureDelegatedAuthEndpoints(ctx, config, comp)
+			return nil
+		}},
+	} {
+		for _, timeout := range []int{-1, 0, 5} {
+			t.Run(fmt.Sprintf("%s/timeout_%d", scan.name, timeout), func(t *testing.T) {
+				config := confFromYAML(t, `
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA[map-org, aws]
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA[list-org, aws]
+`)
+				config.SetInTest("delegated_auth.startup_timeout_secs", timeout)
+				parent, cancelParent := context.WithCancel(context.Background())
+				defer cancelParent()
+				var contexts []context.Context
+				comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, _ delegatedauth.InstanceParams) error {
+					require.NoError(t, ctx.Err())
+					contexts = append(contexts, ctx)
+					return nil
+				}}
+
+				startedAt := time.Now()
+				require.NoError(t, scan.run(parent, config, comp))
+				require.Len(t, contexts, 2)
+				assert.Same(t, contexts[0], contexts[1])
+				require.NoError(t, parent.Err())
+				if timeout > 0 {
+					deadline, ok := contexts[0].Deadline()
+					require.True(t, ok)
+					assert.WithinDuration(t, startedAt.Add(time.Duration(timeout)*time.Second), deadline, time.Second)
+					assert.ErrorIs(t, contexts[0].Err(), context.Canceled)
+				} else {
+					assert.Same(t, parent, contexts[0])
+					cancelParent()
+					assert.ErrorIs(t, contexts[0].Err(), context.Canceled)
+				}
+			})
+		}
 	}
 }
 
@@ -530,7 +642,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -647,7 +759,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -1377,7 +1489,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1425,7 +1537,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1467,7 +1579,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1520,7 +1632,7 @@ use_proxy_for_cloud_metadata: true
 		"diff_url": "second_value",
 	})
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = resolveSecrets(config, resolver, "unit_test")
@@ -1567,7 +1679,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
@@ -1597,6 +1709,7 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
 	assert.True(t, conf.IsKnown("serverless.metadata_enabled"))
 	assert.True(t, conf.IsKnown("serverless.metadata_wrapped_command_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_runtime"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.
@@ -1715,7 +1828,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t))
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'

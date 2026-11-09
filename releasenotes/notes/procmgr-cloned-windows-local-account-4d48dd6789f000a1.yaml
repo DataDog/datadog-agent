@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Recover Windows process-manager Agent account lookups after a host rename or
+    image clone when the installed domain is stale but the Agent service is
+    configured to use the same local account. This restores startup of Agent
+    Data Plane and other processes using the Agent account, including their
+    DogStatsD listener.
