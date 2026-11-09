@@ -41,9 +41,9 @@ func buildRealisticEngine(numMetrics, numSeconds int, windowSec int64) *engine {
 	// Apply window to all seriesDetectorAdapters.
 	if windowSec > 0 {
 		for i, d := range detectors {
-			if adapter, ok := d.(*seriesDetectorAdapter); ok {
+			if adapter, ok := d.detector.(*seriesDetectorAdapter); ok {
 				adapter.windowSec = windowSec
-				detectors[i] = adapter
+				detectors[i].detector = adapter
 			}
 		}
 	}

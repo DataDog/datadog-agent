@@ -34,7 +34,7 @@ bazel:query-missing-manual-tags:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - |-
-      locations="$(bazel query 'kind("go_test", rdeps(//test/new-e2e/..., //test/e2e-framework/testing/e2e)) except attr(tags, manual, //test/new-e2e/...)' --output=location)"
+      locations="$(bazel query 'kind("go_test", rdeps(//test/new-e2e/..., //test/e2e-framework/testing/e2e, 1)) except attr(tags, manual, //test/new-e2e/...)' --output=location)"
       if [ -n "$locations" ]; then
         echo >&2 'Found missing "manual" tags in e2e test targets:'
         echo >&2 "$locations"

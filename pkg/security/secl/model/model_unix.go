@@ -401,11 +401,23 @@ func SetInterpreterFields(bprm *LinuxBinprm, subField string, _ interface{}) (bo
 	return true, nil
 }
 
+// FileCapabilities contains capabilities attached to the executable, independently
+// of the process credentials and observed capability usage. Kernel exec events
+// collect the file sets before bounding-set filtering. Procfs snapshot/fallback
+// reads the current executable's xattr, which may have changed since exec.
+type FileCapabilities struct {
+	Permitted   uint64 `field:"permitted"`   // SECLDoc[permitted] Definition:`Permitted capabilities attached to the executable file, before any process bounding-set filtering` Constants:`Kernel Capability constants`
+	Inheritable uint64 `field:"inheritable"` // SECLDoc[inheritable] Definition:`Inheritable capabilities attached to the executable file` Constants:`Kernel Capability constants`
+	Effective   bool   `field:"effective"`   // SECLDoc[effective] Definition:`File effective capability bit, which requests that capabilities granted during exec also become effective`
+	Available   bool   `field:"available"`   // SECLDoc[available] Definition:`Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection`
+}
+
 // Process represents a process
 type Process struct {
 	PIDContext
 
-	FileEvent FileEvent `field:"file,check:IsNotKworker"`
+	FileEvent        FileEvent        `field:"file,check:IsNotKworker"`
+	FileCapabilities FileCapabilities `field:"file.capabilities,check:IsNotKworker"`
 
 	CGroup           CGroupContext    `field:"cgroup"`    // SECLDoc[cgroup] Definition:`CGroup`
 	ContainerContext ContainerContext `field:"container"` // SECLDoc[container] Definition:`Container`
