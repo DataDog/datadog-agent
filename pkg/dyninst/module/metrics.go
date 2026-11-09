@@ -425,8 +425,7 @@ func metricProbeTags(def ir.ProbeDefinition, runtimeID procRuntimeID) []string {
 // BPF program sign-extends signed integers to 64 bits and records floats as
 // their raw bits.
 //
-// All the instances of a probe record their values in the same metric state,
-// so the type of the first instance's value is used for all of them.
+// IR generation ensures that every instance uses the same value encoding.
 func gaugeValueDecoder(probe *ir.Probe) func(bits uint64) float64 {
 	var goKind reflect.Kind
 	if len(probe.Instances) > 0 && len(probe.Instances[0].Events) > 0 {
