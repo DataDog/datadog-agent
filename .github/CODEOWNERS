@@ -195,6 +195,7 @@
 /.gitlab/test/e2e/e2e_templates.yml                                       @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_devx.yml                                            @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_containers.yml                                      @DataDog/container-integrations @DataDog/agent-devx
+/.gitlab/test/e2e/e2e_containers_benchmarkeks.yml                         @DataDog/container-integrations @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_fleet.yml                                           @DataDog/fleet @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_npm.yml                                             @DataDog/cloud-network-monitoring @DataDog/agent-devx
 /.gitlab/test/e2e/e2e_ssi.yml                                             @DataDog/injection-platform @DataDog/agent-devx
@@ -447,6 +448,7 @@
 /doc/how-to/run-jmxfetch.md                                  @DataDog/agent-runtimes
 /docs/public/hostname/                                       @DataDog/agent-runtimes
 /doc/architecture/dogstatsd/                                 @DataDog/agent-metric-pipelines
+/doc/how-to/test/e2e/benchmarkeks/                           @DataDog/container-integrations
 /docs/public/guidelines/deprecated-components-documentation/ @DataDog/agent-runtimes
 
 # These files are owned by all teams, but assigning them to @DataDog/agent-community-eng causes a lot of spam
@@ -539,6 +541,7 @@
 /comp/metadata/hostgpu @DataDog/accelerator-telemetry
 /comp/metadata/hostsysteminfo @DataDog/windows-products
 /comp/metadata/packagesigning @DataDog/agent-delivery
+/comp/metadata/serverlessaas @DataDog/serverless-azure-and-gcp @DataDog/fleet-automation
 /comp/metadata/serverlessinit @DataDog/serverless-azure-and-gcp @DataDog/fleet-automation
 /comp/process/connectionscheck @DataDog/cloud-network-monitoring @DataDog/ebpf-platform
 /comp/trace/etwtracer @DataDog/windows-products
@@ -670,6 +673,9 @@
 /pkg/trace/api/loader/listeners.go                                    @DataDog/agent-apm
 /pkg/trace/api/container_tags_hash_test.go                            @DataDog/data-streams-monitoring
 /pkg/trace/api/container_tags_hash_dbm_test.go                        @DataDog/database-monitoring
+# The EVP proxy carries the AI Guard proxy route, whose behavior ASM owns.
+/pkg/trace/api/evp_proxy.go                                           @DataDog/agent-apm @DataDog/asm-go
+/pkg/trace/api/evp_proxy_test.go                                      @DataDog/agent-apm @DataDog/asm-go
 /pkg/trace/traceutil/                                                 @DataDog/agent-apm
 /pkg/trace/stats/                                                     @DataDog/agent-apm
 /pkg/trace/otel/                                                      @DataDog/opentelemetry
@@ -687,7 +693,7 @@
 /comp/core/autodiscovery/providers/datastreams                        @DataDog/data-streams-monitoring
 /comp/core/autodiscovery/providers/datasecurity                       @DataDog/sensitive-data-scanner
 /comp/core/autodiscovery/providers/networkpath                        @DataDog/network-path @DataDog/container-platform
-/comp/core/autodiscovery/providers/ndm                                @DataDog/network-device-monitoring-core @DataDog/container-platform
+/comp/core/autodiscovery/providers/ndm                                @DataDog/network-device-monitoring-core
 /comp/ndm                                                             @DataDog/network-device-monitoring-core
 /comp/core/gui/impl/systray/                                          @DataDog/windows-products @DataDog/fleet-remediation
 /comp/healthplatform/issues/ad-misconfiguration                       @DataDog/container-platform @DataDog/fleet-remediation
@@ -993,6 +999,8 @@
 
 /rtloader/ @DataDog/agent-runtimes
 
+/runbooks/ @DataDog/agent-build
+
 /tasks/                                                         @DataDog/agent-devx
 /tasks/macos.py                                                 @DataDog/windows-products
 /tasks/msi.py                                                   @DataDog/windows-products
@@ -1006,7 +1014,9 @@
 /tasks/build_tags.bzl                                           @DataDog/agent-build
 /tasks/anomalydetection.py                                      @DataDog/agent-anomaly-detection
 /.gitlab/test/functional_test/anomalydetection.yml               @DataDog/agent-anomaly-detection
+/tasks/logs_tokenizer.py                                        @DataDog/agent-log-pipelines
 /tasks/unit_tests/anomalydetection*.py                          @DataDog/agent-anomaly-detection
+/tasks/unit_tests/logs_tokenizer*.py                            @DataDog/agent-log-pipelines
 /tasks/loader.py                                                @DataDog/agent-runtimes
 /tasks/go_deps.py                                               @DataDog/agent-runtimes
 /tasks/gotest.py                                                @DataDog/agent-devx @DataDog/agent-build
@@ -1025,6 +1035,8 @@
 /tasks/devcontainer.py                                          @DataDog/agent-devx @DataDog/container-platform
 /tasks/skaffold.py                                              @DataDog/agent-devx @DataDog/container-platform
 /tasks/new_e2e_tests.py                                         @DataDog/agent-devx
+/tasks/libs/testing/benchmarkeks.py                             @DataDog/container-integrations @DataDog/agent-devx
+/tasks/unit_tests/benchmarkeks_tests.py                         @DataDog/container-integrations @DataDog/agent-devx
 /tasks/process_agent.py                                         @DataDog/container-experiences
 /tasks/privateactionrunner.py                                   @DataDog/action-platform
 /tasks/rshell.py                                                @DataDog/fleet-remediation
@@ -1045,6 +1057,7 @@
 /tasks/security_agent.py                                        @DataDog/agent-security
 /tasks/sbomgen.py                                               @DataDog/agent-security
 /tasks/libs/anomalydetection/                                   @DataDog/agent-anomaly-detection
+/tasks/libs/logs_tokenizer/                                     @DataDog/agent-log-pipelines
 /tasks/libs/build/                                              @DataDog/agent-build
 /tasks/libs/cws/                                                @DataDog/agent-security
 /tasks/libs/gpu/                                                @DataDog/accelerator-telemetry

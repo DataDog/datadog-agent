@@ -63,6 +63,25 @@ func TestDefaultInterval(t *testing.T) {
 	assert.Equal(t, defaultMaxInterval, i.MaxInterval)
 }
 
+func TestProviderSpecificFirstRunDelay(t *testing.T) {
+	conf := config.NewMockWithOverrides(t, map[string]any{"inventories_first_run_delay": 3600})
+	l := logmock.New(t)
+	s := serializermock.NewMetricSerializer(t)
+	getPayload := func() marshaler.JSONMarshaler { return &testPayload{} }
+	regular := CreateInventoryPayload(conf, l, s, getPayload, "regular.json")
+	immediate := CreateInventoryPayload(conf, l, s, getPayload, "immediate.json")
+	immediate.SetFirstRunDelay(0)
+
+	assert.Equal(t, time.Hour, regular.firstRunDelay)
+	assert.Zero(t, immediate.firstRunDelay)
+	assert.Equal(t, time.Duration(3600), conf.GetDuration("inventories_first_run_delay"))
+	s.On("SendMetadata", &testPayload{}).Return(nil).Once()
+	regular.Collect(t.Context())
+	s.AssertNotCalled(t, "SendMetadata", mock.Anything)
+	immediate.Collect(t.Context())
+	s.AssertNumberOfCalls(t, "SendMetadata", 1)
+}
+
 func TestInterval(t *testing.T) {
 	i := getTestInventoryPayload(t, map[string]any{
 		"inventories_min_interval": 123,

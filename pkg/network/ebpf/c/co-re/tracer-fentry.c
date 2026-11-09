@@ -187,6 +187,19 @@ int BPF_PROG(tcp_recvmsg_exit, struct sock *sk, struct msghdr *msg, size_t len, 
     return handle_tcp_recv(pid_tgid, sk, copied);
 }
 
+// The addr_len argument was removed upstream after 7.0 and backported to some
+// 7.0 distro kernels (e.g. Ubuntu 7.0.0-38), so this variant is selected by the
+// BTF parameter count rather than the kernel version.
+SEC("fexit/tcp_recvmsg")
+int BPF_PROG(tcp_recvmsg_exit_no_addr_len, struct sock *sk, struct msghdr *msg, size_t len, int flags, int copied) {
+    if (copied < 0) { // error
+        return 0;
+    }
+
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    return handle_tcp_recv(pid_tgid, sk, copied);
+}
+
 SEC("fexit/tcp_recvmsg")
 int BPF_PROG(tcp_recvmsg_exit_pre_5_19_0, struct sock *sk, struct msghdr *msg, size_t len, int nonblock, int flags, int *addr_len, int copied) {
     if (copied < 0) { // error
@@ -663,7 +676,7 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
 
     conn_tuple_t skb_tup;
     bpf_memset(&skb_tup, 0, sizeof(conn_tuple_t));
-    if (sk_buff_to_tuple(skb, &skb_tup) <= 0) {
+    if (sk_buff_to_tcp_tuple(skb, &skb_tup) <= 0) {
         return 0;
     }
 
@@ -672,12 +685,10 @@ static __always_inline int fentry_handle_net_dev_queue(struct sk_buff* skb) {
     }
 
     conn_tuple_t sock_tup;
-    bpf_memset(&sock_tup, 0, sizeof(conn_tuple_t));
-    if (!read_conn_tuple(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
+    // netns and pid stay zero: the map is keyed without them.
+    if (!read_conn_tuple_no_netns(&sock_tup, sk, 0, CONN_TYPE_TCP)) {
         return 0;
     }
-    sock_tup.netns = 0;
-    sock_tup.pid = 0;
 
     if (!is_equal(&skb_tup, &sock_tup)) {
         normalize_tuple(&skb_tup);
