@@ -27,7 +27,7 @@ namespace CustomActions.Tests.Service
             GivenService(Constants.AgentServiceName, Account);
             GivenService(Constants.TraceAgentServiceName, Account);
             GivenService(Constants.ProcmgrServiceName, "LocalSystem");
-            NativeMethods.Setup(n => n.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(Password);
+            NativeMethods.Setup(n => n.FetchSecret(Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(Password);
             NativeMethods.Setup(n => n.FetchSecret(AgentCredentials.AccountSidKey)).Returns(AccountSid.Value);
         }
 
@@ -64,13 +64,15 @@ namespace CustomActions.Tests.Service
             Assert.Equal("datadogagent,datadog-trace-agent", Session.Object["ServiceRemovalNames"]);
             // Normal installation may have rotated the same account's password.
             const string currentPassword = "new;password";
-            NativeMethods.Setup(n => n.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(currentPassword);
+            NativeMethods.Setup(n => n.FetchSecret(Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(currentPassword);
             Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
             NativeMethods.Verify(n => n.SetUserPassword(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
             NativeMethods.Verify(n => n.StoreSecret(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
             ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, Account, currentPassword), Times.Once);
             ServiceController.Verify(c => c.SetCredentials(Constants.TraceAgentServiceName, Account, currentPassword), Times.Once);
-            Session.Verify(s => s.Log(It.Is<string>(message => message.Contains(currentPassword))), Times.Never);
+            Session.Verify(s => s.Log(
+                It.Is<string>(message => message.Contains(currentPassword)),
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Never);
             Session.VerifySet(s => s[It.IsAny<string>()] = It.Is<string>(value => value == Password || value == currentPassword), Times.Never);
         }
 
@@ -82,7 +84,7 @@ namespace CustomActions.Tests.Service
         public void MissingPasswordPreservesLocalAndDomainServices(bool domain, string password)
         {
             NativeMethods.Setup(n => n.IsDomainAccount(AccountSid)).Returns(domain);
-            NativeMethods.Setup(n => n.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(password);
+            NativeMethods.Setup(n => n.FetchSecret(Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(password);
             Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
             Assert.Equal("", Session.Object["CanDeleteServices"]);
         }
@@ -106,14 +108,16 @@ namespace CustomActions.Tests.Service
             NativeMethods.Setup(n => n.FetchSecret(AgentCredentials.AccountSidKey)).Returns(sid);
             Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
             ServiceController.Verify(c => c.SetCredentials(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
-            Session.Verify(s => s.Log(It.Is<string>(message => message.Contains("repair may be required"))), Times.Once);
+            Session.Verify(s => s.Log(
+                It.Is<string>(message => message.Contains("repair may be required")),
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Once);
         }
 
         [Fact]
         public void RollbackToleratesMissingPassword()
         {
             Create().PrepareServiceRemoval();
-            NativeMethods.Setup(n => n.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns((string)null);
+            NativeMethods.Setup(n => n.FetchSecret(Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns((string)null);
             Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
             ServiceController.Verify(c => c.SetCredentials(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
         }
@@ -124,7 +128,7 @@ namespace CustomActions.Tests.Service
             var order = new MockSequence();
             var native = new Mock<INativeMethods>(MockBehavior.Strict);
             native.InSequence(order).Setup(n => n.StoreSecret(AgentCredentials.AccountSidKey, "unassociated"));
-            native.InSequence(order).Setup(n => n.StoreSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), Password));
+            native.InSequence(order).Setup(n => n.StoreSecret(Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), Password));
             native.InSequence(order).Setup(n => n.StoreSecret(AgentCredentials.AccountSidKey, AccountSid.Value));
             AgentCredentials.StorePassword(native.Object, AccountSid, Password);
             native.VerifyAll();
@@ -133,7 +137,7 @@ namespace CustomActions.Tests.Service
         [Fact]
         public void FailedPasswordWriteDoesNotAssociateCredentialsWithNewAccount()
         {
-            NativeMethods.Setup(n => n.StoreSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), Password)).Throws<Exception>();
+            NativeMethods.Setup(n => n.StoreSecret(Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), Password)).Throws<Exception>();
             Assert.Throws<Exception>(() => AgentCredentials.StorePassword(NativeMethods.Object, AccountSid, Password));
             NativeMethods.Verify(n => n.StoreSecret(AgentCredentials.AccountSidKey, "unassociated"), Times.Once);
             NativeMethods.Verify(n => n.StoreSecret(AgentCredentials.AccountSidKey, AccountSid.Value), Times.Never);
