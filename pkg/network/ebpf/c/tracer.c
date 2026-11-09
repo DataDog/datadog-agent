@@ -228,6 +228,7 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
         return 0;
     }
 
+    clean_skb_tuple_protocol_classification(&t);
     if (cleanup_conn(ctx, &t, sk) == 0) {
         increment_telemetry_count(tcp_done_connection_flush);
     }
