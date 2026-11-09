@@ -273,7 +273,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 
 			// fentry requires 5.8+ which always supports raw tracepoints (4.17+)
 			// Directly insert — not in programs map since manager.go adds them
-			if netDevQueueTPBTFSupported() {
+			if !util.NetDevQueueTPBTFRejected.Load() && netDevQueueTPBTFSupported() {
 				enabled[netDevQueueTPBTF] = struct{}{}
 			} else {
 				enabled[netDevQueueRawTracepoint] = struct{}{}

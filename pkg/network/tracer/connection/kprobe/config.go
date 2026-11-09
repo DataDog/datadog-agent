@@ -66,7 +66,7 @@ func enabledProbes(c *config.Config, runtimeTracer, coreTracer bool) (map[manage
 
 	// Upgrade to tp_btf, raw tracepoint, or tracepoint based on kernel version and capabilities.
 	// Only the CO-RE object has the tp_btf program.
-	if coreTracer && netDevQueueTPBTFSupported() {
+	if coreTracer && !util.NetDevQueueTPBTFRejected.Load() && netDevQueueTPBTFSupported() {
 		netDevQueue = probes.NetDevQueueTPBTF
 	} else if features.HaveProgramType(libebpf.RawTracepoint) == nil {
 		// Kernel >= 4.17 typically - use raw tracepoint (most efficient)
