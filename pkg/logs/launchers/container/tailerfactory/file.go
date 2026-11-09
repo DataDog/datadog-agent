@@ -74,7 +74,12 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 		case "podman":
 			return tf.makeDockerFileSource(source)
 		case config.ContainerdType:
-			return tf.makeDockerFileSource(source)
+			// Only ECS Managed Instances daemons read containerd containers'
+			// logs from files; the json-file log driver writes the Docker format.
+			if env.IsECSManagedInstancesDaemonMode(pkgconfigsetup.Datadog()) {
+				return tf.makeDockerFileSource(source)
+			}
+			fallthrough
 		default:
 			return nil, fmt.Errorf("file tailing is not supported for source type %s", source.Config.Type)
 		}
@@ -125,9 +130,10 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		return nil, err
 	}
 
-	// A wildcard path cannot be opened and may not match a file yet. The file
+	// The json-file log driver creates its file after the Agent first sees the
+	// container, and the path is a wildcard that cannot be opened. The file
 	// launcher rescans until the file appears, so skip the access check.
-	if !config.ContainsWildcard(path) {
+	if !usesECSJSONFileLogs() {
 		// check access to the file; if it is not readable, then returning an error will
 		// try to fall back to reading from a socket.
 		f, err := opener.OpenLogFile(path)
@@ -171,6 +177,14 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 	fileSource.SetSourceType(sources.DockerSourceType)
 
 	return fileSource, nil
+}
+
+// usesECSJSONFileLogs reports whether findDockerLogPath resolves to the ECS
+// Managed Instances json-file log driver directory.
+func usesECSJSONFileLogs() bool {
+	cfg := pkgconfigsetup.Datadog()
+	return cfg.GetString("logs_config.docker_path_override") == "" &&
+		env.IsECSManagedInstancesDaemonMode(cfg)
 }
 
 // findDockerLogPath returns a path for the given container.

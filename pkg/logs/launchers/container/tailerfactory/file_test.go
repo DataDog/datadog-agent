@@ -620,13 +620,13 @@ func TestFindDockerLogPath_ecsManagedInstances_sidecarModeNotScoped(t *testing.T
 	require.NotContains(t, p, ecsJSONFileLogsBasePath)
 }
 
-func TestMakeFileSource_containerd_success(t *testing.T) {
+func TestMakeFileSource_containerd_notSupportedOutsideManagedInstances(t *testing.T) {
 	fileTestSetup(t)
+	configmock.New(t)
 
-	// Config.Type == "containerd" (as resolved by autodiscovery for MI daemon-mode
-	// containers) must route through the same file-tailing path as "docker"/"podman".
-	// AWS_EXECUTION_ENV is deliberately left unset here so findDockerLogPath uses the
-	// docker data root; the Managed Instances path is covered by the tests above.
+	// A docker-format file exists where a docker source would find it, but a
+	// containerd source must still be rejected: only ECS Managed Instances
+	// daemons read containerd containers' logs from files.
 	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))
@@ -643,10 +643,56 @@ func TestMakeFileSource_containerd_success(t *testing.T) {
 		Service:    "svc",
 	})
 	child, err := tf.makeFileSource(source)
-	require.NoError(t, err)
-	require.Equal(t, "file", child.Config.Type)
-	require.Equal(t, p, child.Config.Path)
-	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
+	require.Nil(t, child)
+	require.EqualError(t, err, "file tailing is not supported for source type containerd")
+}
+
+func TestMakeFileSource_containerd_notSupportedInManagedInstancesSidecarMode(t *testing.T) {
+	fileTestSetup(t)
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("ecs_deployment_mode", "sidecar")
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "containerd",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.Nil(t, child)
+	require.EqualError(t, err, "file tailing is not supported for source type containerd")
+}
+
+func TestMakeFileSource_docker_accessCheckStillAppliesToWildcardOverride(t *testing.T) {
+	fileTestSetup(t)
+
+	// Skipping the access check is specific to the ECS Managed Instances path:
+	// any other path, even one that contains wildcard characters, is still
+	// checked so an unreadable file falls back to the socket tailer.
+	mockConfig := configmock.New(t)
+	mockConfig.SetInTest("logs_config.docker_path_override", filepath.Join(t.TempDir(), "wild*card"))
+
+	tf := &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "docker",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.Nil(t, child)
+	require.Error(t, err)
 }
 
 func TestMakeK8sSource(t *testing.T) {
