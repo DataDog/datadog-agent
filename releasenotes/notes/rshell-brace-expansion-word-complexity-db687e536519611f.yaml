@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    The Private Action Runner's restricted shell (rshell) now rejects a word
+    before brace expansion when its ``{`` nesting depth beyond the first level
+    times its size exceeds 1,048,576, when the brace expressions on one
+    alternative's path times that alternative's parts exceeds 1,048,576, or
+    when that product, plus the expanded size of its largest alternative, all
+    times the number of words brace expansion would build exceeds 33,554,432. Such a word, for example thousands of chained
+    ``{a..a}`` ranges, unclosed ``{`` characters, or many brace alternatives
+    that expand to no arguments, could run past the task timeout and use large
+    amounts of memory. The script stops with
+    ``brace expansion exceeds maximum word complexity``.

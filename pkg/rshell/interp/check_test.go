@@ -299,6 +299,31 @@ func TestCheckExpansionBudgets(t *testing.T) {
 	assert.True(t, checkHasIssue(result, CheckLimitExceeded))
 }
 
+// Check defers brace words to execution instead of expanding them, so a
+// compact word that Run rejects for brace work cannot stall Check either.
+func TestCheckBraceExpansionWorkBounded(t *testing.T) {
+	runner := checkRunner(t, allowAllCommandsOpt())
+	chain := strings.Repeat("{a..a}", 2000)
+	for name, script := range map[string]string{
+		"argument":           "echo " + chain,
+		"nested":             "echo " + strings.Repeat("{a,", 1000) + strings.Repeat("}", 1000),
+		"unclosed":           "echo " + strings.Repeat("{a", 2000),
+		"redirect":           "cat < " + chain,
+		"int64 edge repeats": "echo " + strings.Repeat("{9223372036854759424..9223372036854775807}", 1000),
+	} {
+		t.Run(name, func(t *testing.T) {
+			start := time.Now()
+			result := checkScript(t, runner, script)
+			assert.False(t, result.Allowed)
+			assert.True(t, checkHasIssue(result, CheckRequiresExecution))
+			assert.Less(t, time.Since(start), 5*time.Second)
+		})
+	}
+	result := checkScript(t, runner, "echo x~"+strings.Repeat("{", maxBraceTildeDepth)+strings.Repeat("$e", 20000))
+	assert.Equal(t, CheckDenied, result.Status)
+	assert.True(t, checkHasIssue(result, CheckUnsupportedSyntax))
+}
+
 func TestCheckUsesCurrentRunnerState(t *testing.T) {
 	root := t.TempDir()
 	require.NoError(t, os.Mkdir(filepath.Join(root, "subdir"), 0700))

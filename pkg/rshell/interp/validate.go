@@ -227,6 +227,9 @@ func validateWordTilde(ctx context.Context, w *syntax.Word, literal bool) error 
 	if maxDepth > maxBraceTildeDepth {
 		return fmt.Errorf("tilde expansion is not supported (brace nesting exceeds %d)", maxBraceTildeDepth)
 	}
+	if braceSplitWorkExceeds(w.Parts) {
+		return braceWorkLimitError()
+	}
 	split := *w // SplitBraces replaces the Parts slice, so work on a copy
 	if !syntax.SplitBraces(&split) {
 		return nil
