@@ -1,0 +1,12 @@
+---
+fixes:
+  - |
+    Fix Cloud Network Monitoring failing to start on GKE nodes running
+    Container-Optimized OS (Standard and Autopilot) with
+    ``could not start ebpf manager: probes activation validation failed:
+    {UID:net EBPFFuncName:socket__classifier_entry}: cannot allocate memory``.
+    The protocol classification socket filter no longer exceeds the
+    ``net.core.optmem_max`` limit of 20 KiB on these nodes. If the socket
+    filter still can't be attached for lack of memory, the error now
+    suggests raising ``net.core.optmem_max`` or disabling protocol
+    classification.
