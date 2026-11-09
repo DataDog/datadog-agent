@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    CWS: network namespaces created with ``ip netns add`` or by a container runtime are now monitored as soon as they are mounted, instead of only once a process inside them emits an event.
