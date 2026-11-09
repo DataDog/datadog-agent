@@ -64,25 +64,56 @@ func newMountFromMountInfo(mnt *mountinfo.Info) *model.Mount {
 	}
 }
 
-// GetPidProcfs lists the mounts of a specific pid and calls cb() for each entry found
-func GetPidProcfs(procfs string, pid uint32, cb func(*model.Mount)) error {
-	p := filepath.Join(procfs, strconv.Itoa(int(pid)), "ns", "mnt")
-	linkTarget, err := os.Readlink(p)
+func readProcDirMounts(procDir string) ([]*model.Mount, error) {
+	linkTarget, err := os.Readlink(filepath.Join(procDir, "ns", "mnt"))
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	ino, err := getInodeNumFromLink(linkTarget)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	mnts, err := kernel.ParseMountInfoFile(int32(pid))
+	f, err := os.Open(filepath.Join(procDir, "mountinfo"))
+	if err != nil {
+		return nil, err
+	}
+	defer f.Close()
+
+	mnts, err := mountinfo.GetMountsFromReader(f, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return newMountsFromMountInfo(mnts, ino), nil
+}
+
+// GetPidProcfs lists the mounts of a specific pid and calls cb() for each entry found
+func GetPidProcfs(procfs string, pid uint32, cb func(*model.Mount)) error {
+	pidStr := strconv.Itoa(int(pid))
+	pidDir := filepath.Join(procfs, pidStr)
+	mounts, err := readProcDirMounts(pidDir)
+	if err != nil {
+		entries, readDirErr := os.ReadDir(filepath.Join(pidDir, "task"))
+		if readDirErr == nil {
+			for _, entry := range entries {
+				tidStr := entry.Name()
+				if tidStr == pidStr {
+					continue
+				}
+				if taskMounts, taskErr := readProcDirMounts(filepath.Join(pidDir, "task", tidStr)); taskErr == nil {
+					mounts, err = taskMounts, nil
+					break
+				}
+			}
+		}
+	}
 	if err != nil {
 		return err
 	}
 
-	for _, mnt := range newMountsFromMountInfo(mnts, ino) {
+	for _, mnt := range mounts {
 		cb(mnt)
 	}
 

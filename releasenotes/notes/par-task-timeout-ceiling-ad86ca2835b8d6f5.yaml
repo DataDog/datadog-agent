@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Private Action Runner: a ``timeout`` set in an action's inputs no longer
+    extends execution past ``private_action_runner.task_timeout_seconds``.
+    A shorter input timeout is still honored. When ``task_timeout_seconds``
+    is ``0`` or negative, the input timeout applies unchanged.

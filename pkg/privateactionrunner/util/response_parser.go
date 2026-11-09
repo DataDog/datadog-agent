@@ -111,8 +111,9 @@ func encodeToString(data []byte, encoding string) (string, error) {
 		return string(data), nil
 	case "utf16le", "ucs2", "ucs-2":
 		// ucs2 is a subset of utf-16
-		var uint16Slice []uint16
-		for i := 0; i < len(data); i += 2 {
+		// Drop a trailing odd byte, as Node's Buffer.toString("utf16le") does.
+		uint16Slice := make([]uint16, 0, len(data)/2)
+		for i := 0; i+1 < len(data); i += 2 {
 			uint16Slice = append(uint16Slice, binary.LittleEndian.Uint16(data[i:i+2]))
 		}
 		// Decode UTF-16LE to string
