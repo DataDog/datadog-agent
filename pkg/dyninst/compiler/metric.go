@@ -83,6 +83,9 @@ func makeMetricUpdateOp(
 // metricValueKind says how the BPF program should interpret a metric value
 // of the given type.
 func metricValueKind(t ir.Type) (MetricValueKind, error) {
+	if _, duration := t.(*ir.DurationType); duration {
+		return MetricValueSigned, nil
+	}
 	goKind, _ := t.GetGoKind()
 	switch goKind {
 	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:

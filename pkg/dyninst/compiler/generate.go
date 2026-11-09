@@ -160,14 +160,18 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 				throttleMode := computeThrottleMode(event, conditionEventKind, splitCondition)
 				var metricUpdate *MetricUpdateOp
 				if isMetric {
-					// Metric probes aren't rate limited, so don't spend time
-					// consulting the throttler.
 					throttleMode = ThrottleNone
-					op, err := makeMetricUpdateOp(probe, uint32(probeIdx), event.Type)
-					if err != nil {
-						return Program{}, err
+					// Paired entry events only save call context; returns record the metric.
+					pairedEntry := event.Kind == ir.EventKindEntry && slices.ContainsFunc(event.InjectionPoints, func(ip ir.InjectionPoint) bool {
+						return ip.HasAssociatedReturn
+					})
+					if !pairedEntry {
+						op, err := makeMetricUpdateOp(probe, uint32(probeIdx), event.Type)
+						if err != nil {
+							return Program{}, err
+						}
+						metricUpdate = &op
 					}
-					metricUpdate = &op
 				}
 				for _, injectionPoint := range event.InjectionPoints {
 					// Only gated events need a trace_id.
@@ -185,6 +189,7 @@ func GenerateProgram(program *ir.Program) (Program, error) {
 						event.Condition,
 						throttleMode,
 						traceIDSrc,
+						isMetric,
 						metricUpdate,
 					)
 					if err != nil {
@@ -381,7 +386,7 @@ func traceIDSourceFromLocation(loc *ir.Location) (traceIDSource, bool) {
 // Generates a function called when a probe (represented by the root type)
 // is triggered with a particular event (injectionPC). The function
 // dispatches expression handlers. For metric probes, metricUpdate is the op
-// that records the probe's value; it is nil for other probes.
+// that records the value; paired entry events only save call context.
 func (g *generator) addEventHandler(
 	injectionPoint ir.InjectionPoint,
 	throttlerIdx int,
@@ -392,6 +397,7 @@ func (g *generator) addEventHandler(
 	condition *ir.Expression,
 	throttleMode ThrottleMode,
 	traceIDSrc traceIDSource,
+	isMetric bool,
 	metricUpdate *MetricUpdateOp,
 ) error {
 	id := ProcessEvent{
@@ -416,7 +422,7 @@ func (g *generator) addEventHandler(
 		ProbeID:             probeID,
 		EventKind:           eventKind,
 		EventRootType:       rootType,
-		IsMetric:            metricUpdate != nil,
+		IsMetric:            isMetric,
 	}
 	ops := make([]Op, 0, 5+len(rootType.Expressions))
 
@@ -430,7 +436,7 @@ func (g *generator) addEventHandler(
 		ops = append(ops, CallOp{
 			FunctionID: condFunctionID,
 		})
-		if metricUpdate != nil {
+		if isMetric {
 			ops = append(ops, MetricCondErrorCheckOp{ProbeID: probeID})
 		}
 	}

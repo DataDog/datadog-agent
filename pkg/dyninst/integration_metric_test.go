@@ -201,6 +201,21 @@ func testMetricProbes(t *testing.T, cfg testprogs.Config) {
 			metricValue("x", `{"ref": "x"}`)),
 		metricProbeDefinition(t, "bools", "COUNT", onFunction("main.condBool"),
 			metricValue("x", `{"ref": "x"}`)),
+		metricProbeDefinition(t, "return_calls", "COUNT", onFunction("main.condReturnAndLocal"), `, "evaluateAt":"EXIT"`),
+		metricProbeDefinition(t, "return_sum", "COUNT", onFunction("main.condReturnAndLocal"),
+			`, "evaluateAt":"EXIT"`+metricValue("@return", `{"ref":"@return"}`)),
+		metricProbeDefinition(t, "return_gauge", "GAUGE", onFunction("main.condReturnAndLocal"),
+			`, "evaluateAt":"EXIT"`+metricValue("@return", `{"ref":"@return"}`)),
+		metricProbeDefinition(t, "return_when", "COUNT", onFunction("main.condReturnAndLocal"),
+			`, "evaluateAt":"EXIT", "when":{"dsl":"@return > 2","json":{"gt":[{"ref":"@return"},2]}}`),
+		metricProbeDefinition(t, "return_duration_when", "COUNT", onFunction("main.condReturnAndLocal"),
+			`, "evaluateAt":"EXIT", "when":{"dsl":"@duration >= 0","json":{"ge":[{"ref":"@duration"},0]}}`),
+		metricProbeDefinition(t, "return_multiple", "COUNT", onFunction("main.condMultiReturn"),
+			`, "evaluateAt":"EXIT"`+metricValue("@return.r0", `{"getmember":[{"ref":"@return"},"r0"]}`)),
+		metricProbeDefinition(t, "nil_return", "COUNT", onFunction("main.condReturnPtr"),
+			`, "evaluateAt":"EXIT"`+metricValue("@return.I32", `{"getmember":[{"ref":"@return"},"I32"]}`)),
+		metricProbeDefinition(t, "duration", "GAUGE", onFunction("main.condReturnAndLocal"),
+			`, "evaluateAt":"EXIT"`+metricValue("@duration", `{"ref":"@duration"}`)),
 		metricProbeDefinition(t, "gauge", "GAUGE", onFunction("main.condPtrStructArg"),
 			metricValue("x.F64", `{"getmember": [{"ref": "x"}, "F64"]}`)),
 		// The second call passes a nil pointer.
@@ -208,15 +223,22 @@ func testMetricProbes(t *testing.T, cfg testprogs.Config) {
 			metricValue("x.I32", `{"getmember": [{"ref": "x"}, "I32"]}`)),
 	}
 	wantCounts := map[string]int64{
-		metricPrefix + "calls":        2,
-		metricPrefix + "sum":          42 + 7,
-		metricPrefix + "sum_when":     42,
-		metricPrefix + "unsigned_sum": 42 + 7,
-		metricPrefix + "bools":        1,
-		metricPrefix + "nil_field":    300,
+		metricPrefix + "calls":                2,
+		metricPrefix + "sum":                  42 + 7,
+		metricPrefix + "sum_when":             42,
+		metricPrefix + "unsigned_sum":         42 + 7,
+		metricPrefix + "bools":                1,
+		metricPrefix + "nil_field":            300,
+		metricPrefix + "return_calls":         2,
+		metricPrefix + "return_sum":           10,
+		metricPrefix + "return_when":          1,
+		metricPrefix + "return_duration_when": 2,
+		metricPrefix + "return_multiple":      7,
+		metricPrefix + "nil_return":           1,
 	}
 	wantGauges := map[string]float64{
-		metricPrefix + "gauge": 0.2,
+		metricPrefix + "gauge":        0.2,
+		metricPrefix + "return_gauge": 2,
 	}
 	// go1.23's location lists for main.condLine are bad (the probe files skip
 	// line probes on it too).
@@ -271,11 +293,14 @@ func testMetricProbes(t *testing.T, cfg testprogs.Config) {
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
 		counts, gauges := statsd.snapshot()
 		assert.Equal(c, wantCounts, counts)
+		assert.Contains(c, gauges, metricPrefix+"duration")
+		assert.Greater(c, gauges[metricPrefix+"duration"], float64(0))
+		delete(gauges, metricPrefix+"duration")
 		assert.InDeltaMapValues(c, wantGauges, gauges, 1e-9)
 	}, 30*time.Second, 100*time.Millisecond, "metrics should be reported")
 
 	statsd.mu.Lock()
-	assert.Equal(t, []string{"debugger.probeid:calls", "service:simple", "env:test"},
+	assert.Equal(t, []string{"debugger.probeid:calls", "service:simple", "env:test", "dd.internal.entity_id:none"},
 		statsd.tags[metricPrefix+"calls"])
 	statsd.mu.Unlock()
 
@@ -287,11 +312,13 @@ func testMetricProbes(t *testing.T, cfg testprogs.Config) {
 		}
 	}, 30*time.Second, 100*time.Millisecond, "probes should be emitting")
 
-	// The nil pointer dereference was reported as an evaluation error.
+	// Nil dereferences at entry and return are reported as evaluation errors.
 	require.EventuallyWithT(t, func(c *assert.CollectT) {
-		var found bool
+		wantErrors := map[string]string{"nil_field": "x.I32", "nil_return": "@return.I32"}
+		found := make(map[string]bool)
 		for _, l := range testServer.getLogs() {
-			if l.id != "nil_field" {
+			expr, ok := wantErrors[l.id]
+			if !ok {
 				continue
 			}
 			var event struct {
@@ -309,16 +336,71 @@ func testMetricProbes(t *testing.T, cfg testprogs.Config) {
 			}
 			errs := event.Debugger.Snapshot.EvaluationErrors
 			if assert.Len(c, errs, 1) {
-				assert.Equal(c, "x.I32", errs[0].Expr)
+				assert.Equal(c, expr, errs[0].Expr)
 				assert.Equal(c, "nil pointer dereference", errs[0].Message)
 			}
-			found = true
+			found[l.id] = true
 		}
-		assert.True(c, found, "no evaluation error for probe nil_field")
+		for id := range wantErrors {
+			assert.True(c, found[id], "no evaluation error for probe %s", id)
+		}
 	}, 30*time.Second, 100*time.Millisecond)
 	// Metric probes don't produce snapshots otherwise.
 	for _, l := range testServer.getLogs() {
-		assert.Equal(t, "nil_field", l.id, "unexpected log: %s", l.body)
+		assert.Contains(t, []string{"nil_field", "nil_return"}, l.id, "unexpected log: %s", l.body)
+	}
+}
+
+func TestMetricReturnPanicRecovery(t *testing.T) {
+	dyninsttest.SkipIfKernelNotSupported(t)
+	for _, cfg := range testprogs.MustGetCommonConfigs(t) {
+		if cfg.GOARCH != runtime.GOARCH {
+			continue
+		}
+		t.Run(cfg.String(), func(t *testing.T) {
+			probes := []ir.ProbeDefinition{
+				metricProbeDefinition(t, "completed", "COUNT", onFunction("main.a"), `, "evaluateAt":"EXIT"`),
+				metricProbeDefinition(t, "unwound", "COUNT", onFunction("main.b"), `, "evaluateAt":"EXIT"`),
+				metricProbeDefinition(t, "inner_unwound", "COUNT", onFunction("main.c"), `, "evaluateAt":"EXIT"`),
+				metricProbeDefinition(t, "duration", "GAUGE", onFunction("main.a"),
+					`, "evaluateAt":"EXIT"`+metricValue("@duration", `{"ref":"@duration"}`)),
+			}
+			tempDir, cleanup := dyninsttest.PrepTmpDir(t, "dyninst-metric-return-panic")
+			defer cleanup()
+			testServer, statsd, sendUpdate := startMetricProbesModule(t, tempDir)
+			bin := testprogs.MustGetBinary(t, "panic_recover", cfg)
+			proc, stdin := dyninsttest.StartProcess(context.Background(), t, tempDir, bin)
+			defer func() {
+				_ = proc.Process.Kill()
+				_ = proc.Wait()
+			}()
+			exe, err := process.ResolveExecutable(kernel.ProcFSRoot(), int32(proc.Process.Pid))
+			require.NoError(t, err)
+			sendUpdate(process.ProcessesUpdate{Updates: []process.Config{{
+				Info: process.Info{
+					ProcessID:  process.ID{PID: int32(proc.Process.Pid)},
+					Executable: exe,
+				},
+				RuntimeID: "metric-panic-test",
+				Probes:    probes,
+			}}})
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				statuses := metricProbeStatuses(t, testServer)
+				for _, probe := range probes {
+					assert.Equal(c, uploader.StatusInstalled, statuses[probe.GetID()])
+				}
+			}, 3*time.Minute, 100*time.Millisecond)
+			_, err = stdin.Write([]byte("\n"))
+			require.NoError(t, err)
+			require.NoError(t, proc.Wait())
+			sendUpdate(process.ProcessesUpdate{Removals: []process.ID{{PID: int32(proc.Process.Pid)}}})
+			require.EventuallyWithT(t, func(c *assert.CollectT) {
+				counts, gauges := statsd.snapshot()
+				assert.Equal(c, map[string]int64{metricPrefix + "completed": 1}, counts)
+				assert.Greater(c, gauges[metricPrefix+"duration"], float64(0))
+			}, 30*time.Second, 100*time.Millisecond)
+			require.Empty(t, testServer.getLogs(), "metric probes must not produce panic snapshots")
+		})
 	}
 }
 

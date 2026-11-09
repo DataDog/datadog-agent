@@ -1733,7 +1733,7 @@ func analyzeAllProbes(
 			// silently never moves is worse than an error status.
 			if mp, ok := probe.ProbeDefinition.(ir.MetricProbeDefinition); ok {
 				valueExpr, issue := analyzeMetricValue(
-					mp, inst, varByName, red, haveEntry, entryIPs,
+					mp, inst, varByName, red, haveEntry, entryIPs, returnVars, returnDisplayNames,
 				)
 				if !issue.IsNone() {
 					ap.metricIssue = issue
@@ -1749,6 +1749,17 @@ func analyzeAllProbes(
 				rootVar *ir.Variable,
 			) (ir.EventKind, bool) {
 				events := inst.Events
+				if metricEvaluatesAtReturn(probe.ProbeDefinition) {
+					for _, event := range events {
+						if event.Kind == ir.EventKindReturn && rootVar.Role != ir.VariableRoleDuration {
+							if !variableIsAvailable(event.InjectionPoints, rootVar) ||
+								(isFloatType(rootVar) && floatIsRegisterOnly(event.InjectionPoints, rootVar)) {
+								return 0, false
+							}
+						}
+					}
+					return ir.EventKindReturn, true
+				}
 				switch {
 				case rootVar.Role == ir.VariableRoleDuration:
 					// durationVar is only registered in varByName when
@@ -8303,11 +8314,20 @@ func populateEventExpressions(
 	if inst.Subprogram.DictRegister != nil {
 		dictReg := *inst.Subprogram.DictRegister
 		seenIdx := make(map[int]struct{})
+		var indices []int
 		for _, e := range expressions {
-			if _, seen := seenIdx[e.DictIndex]; e.DictIndex >= 0 && !seen {
-				seenIdx[e.DictIndex] = struct{}{}
+			indices = append(indices, e.DictIndex)
+		}
+		if event.Kind == ir.EventKindEntry && metricEvaluatesAtReturn(ap.probe.ProbeDefinition) {
+			for _, expr := range ap.expressions {
+				indices = append(indices, expr.rootVariable.DictIndex)
+			}
+		}
+		for _, index := range indices {
+			if _, seen := seenIdx[index]; index >= 0 && !seen {
+				seenIdx[index] = struct{}{}
 				dictEntries = append(dictEntries, ir.DictEntry{
-					DictIndex:    e.DictIndex,
+					DictIndex:    index,
 					DictRegister: dictReg,
 					Offset:       uint32(byteSize),
 				})
@@ -8382,9 +8402,8 @@ func newProbeInstance(
 		}, nil
 	}
 
-	// Metric probes are evaluated at function entry, so they don't need return
-	// events (and the entry/return pairing that comes with them).
-	if kind == ir.ProbeKindMetric {
+	metricReturn := metricEvaluatesAtReturn(probeCfg)
+	if kind == ir.ProbeKindMetric && !metricReturn {
 		skipReturnEvents = true
 	}
 
@@ -8475,6 +8494,16 @@ func newProbeInstance(
 	}
 	if returnEvent != nil {
 		events = append(events, returnEvent)
+	}
+	if metricReturn {
+		if returnEvent == nil || slices.ContainsFunc(injectionPoints, func(ip ir.InjectionPoint) bool {
+			return !ip.HasAssociatedReturn
+		}) {
+			return nil, ir.Issue{
+				Kind:    ir.IssueKindUnsupportedFeature,
+				Message: "return-time metric probes require a non-inlined function with supported return locations",
+			}, nil
+		}
 	}
 
 	inst := &ir.ProbeInstance{

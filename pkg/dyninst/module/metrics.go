@@ -429,10 +429,20 @@ func metricProbeTags(def ir.ProbeDefinition, runtimeID procRuntimeID) []string {
 // IR generation ensures that every instance uses the same value encoding.
 func gaugeValueDecoder(probe *ir.Probe) func(bits uint64) float64 {
 	var goKind reflect.Kind
-	if len(probe.Instances) > 0 && len(probe.Instances[0].Events) > 0 {
-		if rootType := probe.Instances[0].Events[0].Type; rootType != nil &&
-			len(rootType.Expressions) > 0 {
-			goKind, _ = rootType.Expressions[0].Expression.Type.GetGoKind()
+	if len(probe.Instances) > 0 {
+		for _, event := range probe.Instances[0].Events {
+			if event.Type == nil {
+				continue
+			}
+			for _, expr := range event.Type.Expressions {
+				if expr.Kind != ir.RootExpressionKindMetricValue {
+					continue
+				}
+				if _, duration := expr.Expression.Type.(*ir.DurationType); duration {
+					return func(bits uint64) float64 { return float64(int64(bits)) / float64(time.Millisecond) }
+				}
+				goKind, _ = expr.Expression.Type.GetGoKind()
+			}
 		}
 	}
 	switch goKind {

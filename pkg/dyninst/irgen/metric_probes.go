@@ -29,6 +29,11 @@ func checkMetricProbeDefinition(probe ir.ProbeDefinition) ir.Issue {
 	if !ok {
 		return invalid("metric probe definition does not describe a metric")
 	}
+	switch timing := strings.ToUpper(mp.GetEvaluateAt()); timing {
+	case "", "DEFAULT", "ENTRY", "EXIT":
+	default:
+		return invalid(fmt.Sprintf("unsupported metric evaluation timing %q", timing))
+	}
 	_, valueJSON := mp.GetValue()
 	switch kind := mp.GetMetricKind(); kind {
 	case ir.MetricKindCount:
@@ -50,9 +55,8 @@ func checkMetricProbeDefinition(probe ir.ProbeDefinition) ir.Issue {
 }
 
 // analyzeMetricValue parses a metric probe's value expression and binds it to
-// the event at which the probe fires: the entry event of function probes or
-// the line event of line probes. It returns nil and no issue when the probe has
-// no value expression.
+// the event at which the probe fires. It returns nil and no issue when the
+// probe has no value expression.
 func analyzeMetricValue(
 	mp ir.MetricProbeDefinition,
 	inst *ir.ProbeInstance,
@@ -60,6 +64,8 @@ func analyzeMetricValue(
 	red *redaction.Config,
 	haveEntry bool,
 	entryIPs []ir.InjectionPoint,
+	returnVars []*ir.Variable,
+	returnDisplayNames map[*ir.Variable]string,
 ) (*analyzedExpression, ir.Issue) {
 	dsl, valueJSON := mp.GetValue()
 	if len(valueJSON) == 0 {
@@ -87,19 +93,42 @@ func analyzeMetricValue(
 	if !ok {
 		return invalid("metric value %q must reference a variable", dsl)
 	}
-	if rootName == "@return" || rootName == "@duration" {
-		return invalid(
-			"metric value %q uses %s, which metric probes don't support because "+
-				"they are evaluated at function entry",
-			dsl, rootName,
-		)
+	if name, ok := expressionReferencesRedacted(parsed, red); ok {
+		return invalid("metric value references redacted identifier %q", name)
+	}
+	exit := metricEvaluatesAtReturn(mp)
+	if (rootName == "@return" || rootName == "@duration") && !exit {
+		return invalid("metric value %q uses %s, which is only available at function return", dsl, rootName)
 	}
 	rootVar := varByName[rootName]
+	if rootName == "@return" && exit {
+		var reason string
+		rootVar, parsed, reason = rewriteReturnRefs(parsed, returnVars, returnDisplayNames)
+		if reason != "" {
+			return invalid("metric value %q: %s", dsl, reason)
+		}
+		if name, ok := expressionReferencesRedacted(parsed, red); ok {
+			return invalid("metric value references redacted identifier %q", name)
+		}
+	}
 	if rootVar == nil {
 		return invalid("metric value %q references unknown variable %q", dsl, rootName)
 	}
 	var eventKind ir.EventKind
 	switch {
+	case exit:
+		for _, event := range inst.Events {
+			if event.Kind != ir.EventKindReturn {
+				continue
+			}
+			if rootVar.Role != ir.VariableRoleDuration && !variableIsAvailable(event.InjectionPoints, rootVar) {
+				return invalid("metric value %q references %q, which is not available at function return", dsl, rootName)
+			}
+			if isFloatType(rootVar) && floatIsRegisterOnly(event.InjectionPoints, rootVar) {
+				return invalid("metric value %q references %q, which is in a floating-point register and can't be read at function return", dsl, rootName)
+			}
+		}
+		eventKind = ir.EventKindReturn
 	case haveEntry && rootVar.Role == ir.VariableRoleParameter:
 		if isFloatType(rootVar) && floatIsRegisterOnly(entryIPs, rootVar) {
 			return invalid(
@@ -131,11 +160,6 @@ func analyzeMetricValue(
 			dsl, rootName,
 		)
 	}
-	// A metric would report the value itself, so values derived from redacted
-	// data are rejected outright.
-	if name, ok := expressionReferencesRedacted(parsed, red); ok {
-		return invalid("metric value references redacted identifier %q", name)
-	}
 	return &analyzedExpression{
 		expr:         parsed,
 		dsl:          dsl,
@@ -144,6 +168,15 @@ func analyzeMetricValue(
 		exprKind:     ir.RootExpressionKindMetricValue,
 		segmentIdx:   -1,
 	}, ir.Issue{}
+}
+
+func metricEvaluatesAtReturn(probe ir.ProbeDefinition) bool {
+	mp, ok := probe.(ir.MetricProbeDefinition)
+	if !ok || !strings.EqualFold(mp.GetEvaluateAt(), "EXIT") {
+		return false
+	}
+	_, function := probe.GetWhere().(ir.FunctionWhere)
+	return function
 }
 
 func checkMetricGaugeTypes(probe *ir.Probe) ir.Issue {
@@ -216,6 +249,12 @@ func checkExpressionTypeRedaction(t ir.Type, tc *typeCatalog, red *redaction.Con
 // checkMetricValueType checks that a metric probe's value expression has a
 // type that the metric kind can report.
 func checkMetricValueType(kind ir.MetricKind, t ir.Type) error {
+	if _, duration := t.(*ir.DurationType); duration {
+		if kind == ir.MetricKindGauge {
+			return nil
+		}
+		return fmt.Errorf("@duration is measured in fractional milliseconds; use a gauge metric")
+	}
 	goKind, ok := t.GetGoKind()
 	if !ok {
 		return fmt.Errorf("value has type %s, which is not numeric", t.GetName())

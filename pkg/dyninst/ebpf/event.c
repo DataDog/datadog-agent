@@ -203,10 +203,9 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
       .prog_id = prog_id,
       .probe_id = params->probe_id,
   };
-  // Metric probes don't produce events, so they skip everything below that only
-  // serves to describe an event: the goroutine, the stack, pairing with returns
-  // (they have no return events) and pointer chasing.
-  if (!params->is_metric) {
+  // Return-time metrics need call pairing, but never capture stacks or emit events.
+  if (!params->is_metric || params->has_associated_return ||
+      params->kind == EVENT_KIND_RETURN) {
     read_goroutine_info(params, regs, header);
   }
 
@@ -288,13 +287,11 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
     process_steps = stack_machine_process_frame(&global_ctx, &frame_data,
                                                 params->stack_machine_pc);
   }
-  if (params->is_metric) {
-    // The stack machine recorded the hit in metrics_buf; there is no event to
-    // send.
-    return;
-  }
   header->condition_eval_error = global_ctx.stack_machine->condition_eval_error ? (global_ctx.stack_machine->condition_nil_deref ? 2 : 1) : 0;
   if (global_ctx.stack_machine->condition_failed) {
+    if (params->is_metric) {
+      return;
+    }
     LOG(4, "probe_run: condition failed, skipping event");
     if (params->kind == EVENT_KIND_RETURN) {
       // Send minimal event so userspace can discard the orphaned entry.
@@ -384,6 +381,9 @@ probe_run(uint64_t start_ns, const probe_params_t* params, struct pt_regs* regs)
         }
       }
     }
+  }
+  if (params->is_metric) {
+    return;
   }
   chase_steps = stack_machine_chase_pointers(&global_ctx);
   stack_machine_t* sm = global_ctx.stack_machine;

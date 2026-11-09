@@ -146,6 +146,73 @@ func TestGenericGaugeIncompatibleTypes(t *testing.T) {
 	}
 }
 
+func TestMetricProbesAtReturn(t *testing.T) {
+	for _, cfg := range testprogs.MustGetCommonConfigs(t) {
+		t.Run(cfg.String(), func(t *testing.T) {
+			obj, err := object.OpenElfFileWithDwarf(testprogs.MustGetBinary(t, "simple", cfg))
+			require.NoError(t, err)
+			defer func() { require.NoError(t, obj.Close()) }()
+			for _, tc := range []struct{ name, function, kind, extra string }{
+				{"calls", "main.condReturnAndLocal", "COUNT", ""},
+				{"return", "main.condReturnAndLocal", "GAUGE", value("@return", `{"ref":"@return"}`)},
+				{"duration", "main.condReturnAndLocal", "GAUGE", value("@duration", `{"ref":"@duration"}`)},
+				{"multiple", "main.condMultiReturn", "COUNT", value("@return.r0", `{"getmember":[{"ref":"@return"},"r0"]}`)},
+				{"condition", "main.condReturnAndLocal", "COUNT", `"when":{"dsl":"@return > 0","json":{"gt":[{"ref":"@return"},0]}}`},
+				{"duration_condition", "main.condReturnAndLocal", "COUNT", `"when":{"dsl":"@duration >= 0","json":{"ge":[{"ref":"@duration"},0]}}`},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					extra := `"evaluateAt":"EXIT"`
+					if tc.extra != "" {
+						extra += "," + tc.extra
+					}
+					probe := mustParseProbe(t, metricProbeJSON(tc.name, tc.kind, onFunc(tc.function), extra))
+					prog, err := irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true))
+					require.NoError(t, err)
+					require.Empty(t, prog.Issues)
+					for _, inst := range prog.Probes[0].Instances {
+						require.Len(t, inst.Events, 2)
+						require.Equal(t, ir.EventKindEntry, inst.Events[0].Kind)
+						require.Empty(t, inst.Events[0].Type.Expressions)
+						require.Nil(t, inst.Events[0].Condition)
+						for _, ip := range inst.Events[0].InjectionPoints {
+							require.True(t, ip.HasAssociatedReturn)
+						}
+						require.Equal(t, ir.EventKindReturn, inst.Events[1].Kind)
+					}
+				})
+			}
+		})
+	}
+}
+
+func TestMetricReturnValidation(t *testing.T) {
+	cfg := testprogs.MustGetCommonConfigs(t)[0]
+	obj, err := object.OpenElfFileWithDwarf(testprogs.MustGetBinary(t, "simple", cfg))
+	require.NoError(t, err)
+	defer func() { require.NoError(t, obj.Close()) }()
+	for _, tc := range []struct {
+		name, function, kind, extra, message string
+		options                              []irgen.Option
+	}{
+		{"disabled_returns", "main.condReturnAndLocal", "COUNT", `"evaluateAt":"EXIT"`, "supported return locations", []irgen.Option{irgen.WithSkipReturnEvents(true)}},
+		{"invalid_timing", "main.condReturnAndLocal", "COUNT", `"evaluateAt":"DURING"`, "evaluation timing", nil},
+		{"duration_count", "main.condReturnAndLocal", "COUNT", `"evaluateAt":"EXIT",` + value("@duration", `{"ref":"@duration"}`), "use a gauge metric", nil},
+		{"redacted_return_condition", "main.condReturnAndLocal", "COUNT", `"evaluateAt":"EXIT","when":{"dsl":"@return > 0","json":{"gt":[{"ref":"@return"},0]}}`, "redacted type", []irgen.Option{irgen.WithRedaction(redaction.NewConfig(nil, []string{"int"}, nil))}},
+		{"redacted_return", "main.condReturnAndLocal", "GAUGE", `"evaluateAt":"EXIT",` + value("@return", `{"ref":"@return"}`), "redacted type", []irgen.Option{irgen.WithRedaction(redaction.NewConfig(nil, []string{"int"}, nil))}},
+		{"redacted_return_field", "main.condReturnPtr", "GAUGE", `"evaluateAt":"EXIT",` + value("@return.F64", `{"getmember":[{"ref":"@return"},"F64"]}`), "redacted type", []irgen.Option{irgen.WithRedaction(redaction.NewConfig(nil, []string{"main.condFields"}, nil))}},
+		{"entry_return", "main.condReturnAndLocal", "GAUGE", `"evaluateAt":"ENTRY",` + value("@return", `{"ref":"@return"}`), "only available at function return", nil},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			probe := mustParseProbe(t, metricProbeJSON(tc.name, tc.kind, onFunc(tc.function), tc.extra))
+			_, err := irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, append(tc.options, irgen.WithMetricProbes(true))...)
+			var noProbes *ir.NoSuccessfulProbesError
+			require.ErrorAs(t, err, &noProbes)
+			require.Len(t, noProbes.Issues, 1)
+			require.Contains(t, noProbes.Issues[0].Message, tc.message)
+		})
+	}
+}
+
 func TestMetricProbesDisabled(t *testing.T) {
 	cfg := testprogs.MustGetCommonConfigs(t)[0]
 	bin := testprogs.MustGetBinary(t, "simple", cfg)
@@ -224,7 +291,7 @@ func testMetricProbes(t *testing.T, obj object.FileWithDwarf, cfg testprogs.Conf
 		validProbes["line"] = valid{
 			js: metricProbeJSON("line", "COUNT",
 				`{"methodName": "main.condLine", "sourceFile": "main.go", "lines": ["754"]}`,
-				value("n", `{"ref": "n"}`)),
+				`"evaluateAt":"EXIT",`+value("n", `{"ref": "n"}`)),
 			wantKind:  reflect.Int,
 			wantEvent: ir.EventKindLine,
 		}

@@ -355,6 +355,18 @@ func TestGaugeValueDecoder(t *testing.T) {
 	}
 }
 
+func TestReturnGaugeValueDecoder(t *testing.T) {
+	probe := metricProbe("p", "GAUGE", "m", nil, reflect.Int64)
+	value := probe.Instances[0].Events[0].Type.Expressions[0]
+	probe.Instances[0].Events = []*ir.Event{
+		{Kind: ir.EventKindEntry, Type: &ir.EventRootType{}},
+		{Kind: ir.EventKindReturn, Type: &ir.EventRootType{Expressions: []*ir.RootExpression{value}}},
+	}
+	require.Equal(t, float64(-1), gaugeValueDecoder(probe)(math.MaxUint64))
+	value.Expression.Type = &ir.DurationType{}
+	require.Equal(t, 1.25, gaugeValueDecoder(probe)(1250000))
+}
+
 func TestSanitizeMetricNameAndTags(t *testing.T) {
 	require.Equal(t, "orders_count.v2_", sanitizeMetricName("orders count.v2|"))
 	require.Equal(t, "a_b_c:d", sanitizeMetricTag("a|b,c:d"))
