@@ -30,7 +30,6 @@ http_archive(
         "//deps/cpython:0001-customize-windows-build-script.patch",
         "//deps/cpython:0003-propagate-pgo-test-exit-code.patch",
         "//deps/cpython:0004-Skip-bytecode-compilation-during-install.patch",
-        "//deps/cpython:0006-gh-160040-Distrust-compromised-eMudhra-intermediate-CA-keys.patch",
         "//deps/cpython:0007-Stop-waiting-on-an-initializing-parent-package.patch",
     ],
     sha256 = "99dbc847fb6a3fb26358370fb4c591215864116ebb584f2b89ab0b74c51dfa2a",
@@ -38,9 +37,9 @@ http_archive(
     url = "https://python.org/ftp/python/{0}/Python-{0}.tgz".format(PYTHON_VERSION),
 )
 
-# CPython's own fixture for the 0006 patch: a chain through a leaked eMudhra
-# intermediate key, kept in an encrypted zip upstream. Fetched rather than
-# vendored so no key material lands in this repository.
+# CPython's own fixture for the gh-160040 fix (upstream since 3.13.18): a chain
+# through a leaked eMudhra intermediate key, kept in an encrypted zip upstream.
+# Fetched rather than vendored so no key material lands in this repository.
 http_file(
     name = "cpython_distrusted_spki_zip",
     downloaded_file_path = "distrusted.zip",
