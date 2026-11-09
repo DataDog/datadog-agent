@@ -437,19 +437,8 @@ func testTCXFilters(t *testing.T, tcxSupported bool, rawPacketSupported bool) {
 
 // dumpLoopbackPrograms returns the classifiers of lo in each of the provided namespaces, from a network namespace dump
 func dumpLoopbackPrograms(p *sprobe.EBPFProbe, namespaces map[string]*utils.NSPath) (map[string][]tc.ProgramDump, error) {
-	resp := p.Resolvers.NamespaceResolver.DumpNetworkNamespaces(&api.DumpNetworkNamespaceParams{SnapshotInterfaces: true})
-	defer os.Remove(resp.GetDumpFilename())
-	defer os.Remove(resp.GetGraphFilename())
-	if resp.GetError() != "" {
-		return nil, errors.New(resp.GetError())
-	}
-
-	data, err := os.ReadFile(resp.GetDumpFilename())
+	dump, err := dumpNetworkNamespaces(p, true)
 	if err != nil {
-		return nil, err
-	}
-	var dump []secnetns.NetworkNamespaceDump
-	if err := json.Unmarshal(data, &dump); err != nil {
 		return nil, err
 	}
 
@@ -474,6 +463,26 @@ func dumpLoopbackPrograms(p *sprobe.EBPFProbe, namespaces map[string]*utils.NSPa
 		programs[name] = dump[i].Devices[j].Programs
 	}
 	return programs, nil
+}
+
+// dumpNetworkNamespaces returns the network namespaces held by the resolver, with their devices if snapshotInterfaces
+func dumpNetworkNamespaces(p *sprobe.EBPFProbe, snapshotInterfaces bool) ([]secnetns.NetworkNamespaceDump, error) {
+	resp := p.Resolvers.NamespaceResolver.DumpNetworkNamespaces(&api.DumpNetworkNamespaceParams{SnapshotInterfaces: snapshotInterfaces})
+	defer os.Remove(resp.GetDumpFilename())
+	defer os.Remove(resp.GetGraphFilename())
+	if resp.GetError() != "" {
+		return nil, errors.New(resp.GetError())
+	}
+
+	data, err := os.ReadFile(resp.GetDumpFilename())
+	if err != nil {
+		return nil, err
+	}
+	var dump []secnetns.NetworkNamespaceDump
+	if err := json.Unmarshal(data, &dump); err != nil {
+		return nil, err
+	}
+	return dump, nil
 }
 
 // tcxHookPrograms returns the programs of a TCX hook of an interface, in the order in which they run

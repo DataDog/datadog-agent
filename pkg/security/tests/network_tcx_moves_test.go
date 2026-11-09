@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -31,6 +32,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
+	secnetns "github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -107,7 +109,7 @@ func (m *tcxMoves) run(tb testing.TB, cleanup string, args ...string) {
 	}
 }
 
-// newNetNS creates a named network namespace, and hands it to the resolver as a container runtime would expose it
+// newNetNS creates a named network namespace, and registers it with the resolver before any device moves into it
 func (m *tcxMoves) newNetNS(tb testing.TB, name string) (uint32, *utils.NSPath) {
 	tb.Helper()
 	m.run(tb, "", "netns", "add", name)
@@ -122,9 +124,19 @@ func (m *tcxMoves) newNetNS(tb testing.TB, name string) (uint32, *utils.NSPath) 
 		tb.Fatal(err)
 	}
 	nsID := uint32(stat.Ino)
-	nsPath := utils.NewNSPathFromPath(path, utils.NetNsType)
-	_, _ = m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, nsPath)
-	return nsID, nsPath
+
+	file, err := os.Open(path)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	defer file.Close()
+	// the resolver reads the ID with readlink, which fails with EINVAL on the bind mount but not on a magic link
+	fdPath := utils.NewNSPathFromPath(fmt.Sprintf("/proc/self/fd/%d", file.Fd()), utils.NetNsType)
+	if netns, _ := m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, fdPath); netns == nil {
+		_, err = fdPath.GetNSID()
+		tb.Fatalf("the resolver didn't take namespace %d: %v", nsID, err)
+	}
+	return nsID, utils.NewNSPathFromPath(path, utils.NetNsType)
 }
 
 func (m *tcxMoves) flush() {
@@ -181,8 +193,41 @@ func (m *tcxMoves) waitAttached(tb testing.TB, nsID uint32, ifIndex uint32, time
 		return nil
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(timeout))
 	if err != nil {
-		tb.Fatal(err)
+		tb.Fatalf("%v\n%s", err, m.describe(nsID, ifIndex))
 	}
+}
+
+// describe reports what the resolvers hold for a device, for failure messages
+func (m *tcxMoves) describe(nsID uint32, ifIndex uint32) string {
+	dump, err := dumpNetworkNamespaces(m.probe, false)
+	if err != nil {
+		return fmt.Sprintf("couldn't dump the network namespaces: %v", err)
+	}
+
+	var lines []string
+	switch i := slices.IndexFunc(dump, func(ns secnetns.NetworkNamespaceDump) bool { return ns.NsID == nsID }); {
+	case i < 0:
+		lines = append(lines, fmt.Sprintf("namespace %d isn't tracked", nsID))
+	case dump[i].HandleFD < 0:
+		lines = append(lines, fmt.Sprintf("namespace %d has no handle, queued devices %+v", nsID, dump[i].DevicesInQueue))
+	default:
+		lines = append(lines, fmt.Sprintf("namespace %d has handle %s, queued devices %+v", nsID, dump[i].HandlePath, dump[i].DevicesInQueue))
+	}
+
+	namespaces := []uint32{m.hostNetNS, nsID}
+	for _, ns := range dump {
+		namespaces = append(namespaces, ns.NsID)
+	}
+	slices.Sort(namespaces)
+	for _, ns := range slices.Compact(namespaces) {
+		for _, program := range m.probe.Resolvers.TCResolver.DumpNetworkNamespacePrograms(ns, nil, nil)[ifIndex] {
+			lines = append(lines, fmt.Sprintf("ifindex %d of namespace %d holds %s (%s, %s, program %d)", ifIndex, ns, program.FuncName, program.Direction, program.AttachMode, program.ProgramID))
+		}
+	}
+
+	_ = m.probe.Resolvers.NamespaceResolver.SendStats()
+	lines = append(lines, fmt.Sprintf("namespace resolver errors: %v", m.test.statsdClient.GetByPrefix(metrics.MetricNamespaceResolverError+":error_type:")))
+	return strings.Join(lines, "\n")
 }
 
 // hookPrograms returns the IDs of the TCX programs of both hooks of a device
@@ -326,7 +371,17 @@ func (m *tcxMoves) testFailingDevice(t *testing.T) {
 
 	failures := m.errors("tcx_attach")
 	m.flush()
-	m.waitAttached(t, m.hostNetNS, m.ifIndex(t, nil, "wptcxfl1"), m.settleDelay+5*time.Second)
+	// wptcxfl1 is attached first in the same settled batch, so its attach doesn't show that wptcxfl0 was tried
+	err := retry(t, func() error {
+		if m.errors("tcx_attach") == failures {
+			return errors.New("no failed attach of wptcxfl0 was counted")
+		}
+		return nil
+	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(m.settleDelay+5*time.Second))
+	if err != nil {
+		t.Fatalf("%v\n%s", err, m.describe(m.hostNetNS, failing))
+	}
+	m.waitAttached(t, m.hostNetNS, m.ifIndex(t, nil, "wptcxfl1"), 5*time.Second)
 	assert.Equal(t, int64(1), m.errors("tcx_attach")-failures, "failed attaches of wptcxfl0")
 
 	for range 3 {
@@ -345,7 +400,8 @@ func (m *tcxMoves) testNetNSDestruction(t *testing.T) {
 
 	m.run(t, "", "link", "add", "wptcxde0", "type", "veth", "peer", "name", "wptcxde1")
 	m.run(t, "", "link", "set", "wptcxde1", "netns", "wptcx_gone")
-	m.waitAttached(t, nsID, m.ifIndex(t, nsPath, "wptcxde1"), 5*time.Second)
+	ifIndex := m.ifIndex(t, nsPath, "wptcxde1")
+	m.waitAttached(t, nsID, ifIndex, 5*time.Second)
 
 	staleLinks := m.staleLinks()
 	// a CNI plugin deletes the pair before the namespace
@@ -359,7 +415,9 @@ func (m *tcxMoves) testNetNSDestruction(t *testing.T) {
 		}
 		return nil
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(time.Second)), backoff.WithMaxTries(10))
-	assert.NoError(t, err)
+	if err != nil {
+		t.Errorf("%v\n%s", err, m.describe(nsID, ifIndex))
+	}
 	assert.Equal(t, staleLinks, m.staleLinks(), "stale links")
 
 	_, err = os.Stat(nsPath.GetPath())
