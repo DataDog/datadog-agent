@@ -103,6 +103,13 @@ instances:
     ## Some metrics must be pulled with a minimum of a 1 day lookback.
     ## Note: applications, top users and DIA metrics always use a 1 day lookback and
     ## ignore this setting.
+    ##
+    ## With analytics_query_type set to timeseries, this window must span at least two of
+    ## the tenant's buckets, because the newest bucket of each entity is held back for one
+    ## collection. A window of exactly one bucket therefore publishes nothing at all, and
+    ## a window that only sometimes contains two publishes intermittently. On a tenant
+    ## rendering 15 minute buckets, 30 is the minimum and 45 or more leaves room for the
+    ## window landing mid-bucket.
     #
     # lookback_time_window_minutes: 30
 
@@ -123,7 +130,9 @@ instances:
     ##
     ## The newest bucket of each entity is held back for one collection, since Versa
     ## buckets are wall-clock aligned and the current one is still filling. Expect these
-    ## metrics to lag real time by one bucket.
+    ## metrics to lag real time by one bucket, and set lookback_time_window_minutes to at
+    ## least two buckets, or the held-back bucket is the only one there is and nothing is
+    ## published.
     ##
     ## timeseries sends one request per endpoint rather than paging, so max_count must
     ## exceed the number of sites, paths or circuits in the tenant. A warning is logged if

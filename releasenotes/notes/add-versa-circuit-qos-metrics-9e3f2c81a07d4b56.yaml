@@ -12,6 +12,10 @@ features:
     class of service metrics per access circuit as ``versa.circuit_qos.*``, tagged by
     ``site`` and ``access_circuit``. Where the existing ``collect_qos_metrics`` reports
     class of service between a pair of sites, these report it for each access circuit of a
-    site, which is the branch side view of egress queueing. Versa logs only the main
+    site, which is the branch side view of egress queueing. Alongside the per forwarding
+    class byte, drop and bandwidth counters, they include the aggregates
+    ``versa.circuit_qos.volume_tx``, ``total_drop``, ``percent_drop`` and
+    ``bandwidth``, so drops can be read as a share of circuit throughput without
+    summing the classes by hand. Versa logs only the main
     traffic class unless ``log-fc-stats`` is enabled under the network's class of service
     configuration.

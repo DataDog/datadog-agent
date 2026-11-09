@@ -1980,6 +1980,10 @@ func TestSendCircuitQoSMetrics(t *testing.T) {
 			BestEffortTx:        1000,
 			BestEffortTxDrop:    10,
 			BestEffortBandwidth: 8000,
+			VolumeTx:            1850,
+			TotalDrop:           10,
+			PercentDrop:         0.54,
+			Bandwidth:           14800,
 		},
 	}, map[string]string{"branch-1": "192.168.1.1"})
 
@@ -1992,5 +1996,9 @@ func TestSendCircuitQoSMetrics(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.best_effort_tx", 1000, "", tags)
 	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.best_effort_tx_drop", 10, "", tags)
 	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.best_effort_bandwidth", 8000, "", tags)
-	mockSender.AssertNumberOfCalls(t, "Gauge", 12)
+	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.volume_tx", 1850, "", tags)
+	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.total_drop", 10, "", tags)
+	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.percent_drop", 0.54, "", tags)
+	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.bandwidth", 14800, "", tags)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 16)
 }

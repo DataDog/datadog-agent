@@ -36,7 +36,7 @@ func TestTimeseriesLayoutsMatchTableData(t *testing.T) {
 	}{
 		{name: "sla", fixture: fixtures.GetSLAMetrics, layout: slaTimeseriesLayout, metricCount: 6, parserWidth: 12},
 		{name: "path qos", fixture: fixtures.GetPathQoSMetrics, layout: pathQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
-		{name: "circuit qos", fixture: fixtures.GetCircuitQoSMetrics, layout: circuitQoSTimeseriesLayout, metricCount: 12, parserWidth: 15},
+		{name: "circuit qos", fixture: fixtures.GetCircuitQoSMetrics, layout: circuitQoSTimeseriesLayout, metricCount: 16, parserWidth: 19},
 	}
 
 	for _, tt := range tests {

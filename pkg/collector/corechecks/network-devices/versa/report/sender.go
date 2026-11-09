@@ -404,6 +404,12 @@ func (s *Sender) SendCircuitQoSMetrics(tenant string, qosMetrics []client.Circui
 		s.sendBucketGauge("circuit_qos.expedited_forward_bw", qosMetric.ExpeditedForwardBW, tags, ts)
 		s.sendBucketGauge("circuit_qos.assured_forward_bw", qosMetric.AssuredForwardBW, tags, ts)
 		s.sendBucketGauge("circuit_qos.network_control_bw", qosMetric.NetworkControlBW, tags, ts)
+
+		// Send aggregate metrics
+		s.sendBucketGauge("circuit_qos.volume_tx", qosMetric.VolumeTx, tags, ts)
+		s.sendBucketGauge("circuit_qos.total_drop", qosMetric.TotalDrop, tags, ts)
+		s.sendBucketGauge("circuit_qos.percent_drop", qosMetric.PercentDrop, tags, ts)
+		s.sendBucketGauge("circuit_qos.bandwidth", qosMetric.Bandwidth, tags, ts)
 	}
 
 	s.UpdateTimestamps(newTimestamps)
