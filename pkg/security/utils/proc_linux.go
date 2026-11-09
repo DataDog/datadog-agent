@@ -21,6 +21,7 @@ import (
 	"sync"
 
 	"github.com/shirou/gopsutil/v4/process"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model/sharedconsts"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -42,7 +43,7 @@ func Getpid() uint32 {
 	return GetpidFrom(kernel.ProcFSRoot())
 }
 
-var namespacePattern = regexp.MustCompile(`[a-z]+:\[(\d+)\]`)
+var namespacePattern = regexp.MustCompile(`^([a-z]+):\[(\d+)\]$`)
 
 // ErrNoNSPid is returned when no NSpid field is found in the status file, useful to distinguish between
 // errors reading the file and the case where the field is not present, common for non-containerized processes.
@@ -110,31 +111,119 @@ func (path *NSPath) GetPath() string {
 
 // GetNSID returns the namespace ID of the given process
 func (path *NSPath) GetNSID() (uint32, error) {
-	return getNSIDFromPath(path.GetPath())
+	fd, nsID, err := path.open()
+	if err != nil {
+		return 0, err
+	}
+	_ = unix.Close(fd)
+	return nsID, nil
 }
 
-func getNSIDFromPath(path string) (uint32, error) {
-	f, err := os.Open(path)
+// Open returns a handle on the namespace along with its ID, which is read from the handle itself
+func (path *NSPath) Open() (*os.File, uint32, error) {
+	fd, nsID, err := path.open()
+	if err != nil {
+		return nil, 0, err
+	}
+	defer unix.Close(fd)
+
+	handle, err := unix.Open(fdPath(fd), unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return nil, 0, &os.PathError{Op: "open", Path: path.GetPath(), Err: err}
+	}
+	return os.NewFile(uintptr(handle), path.GetPath()), nsID, nil
+}
+
+// open opens the namespace with O_PATH, so that a device or a FIFO the path points to instead isn't opened
+func (path *NSPath) open() (int, uint32, error) {
+	nsPath := path.GetPath()
+	fd, err := unix.Open(nsPath, unix.O_PATH|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return -1, 0, &os.PathError{Op: "open", Path: nsPath, Err: err}
+	}
+
+	nsID, err := readNSID(fd, path.nsType)
+	if err != nil {
+		_ = unix.Close(fd)
+		return -1, 0, fmt.Errorf("couldn't read the namespace ID of %s: %w", nsPath, err)
+	}
+	return fd, nsID, nil
+}
+
+func fdPath(fd int) string {
+	return "/proc/self/fd/" + strconv.Itoa(fd)
+}
+
+// nsGetNSType is the NS_GET_NSTYPE ioctl, added in Linux 4.11
+const nsGetNSType = 0xb703
+
+var nsTypeCloneFlags = map[NsType]int{
+	CGroupNsType:          unix.CLONE_NEWCGROUP,
+	IpcNsType:             unix.CLONE_NEWIPC,
+	MntNsType:             unix.CLONE_NEWNS,
+	NetNsType:             unix.CLONE_NEWNET,
+	PidNsType:             unix.CLONE_NEWPID,
+	PidForChildrenNsType:  unix.CLONE_NEWPID,
+	TimeNsType:            unix.CLONE_NEWTIME,
+	TimeForChildrenNsType: unix.CLONE_NEWTIME,
+	UserNsType:            unix.CLONE_NEWUSER,
+	UtsNsType:             unix.CLONE_NEWUTS,
+}
+
+func readNSID(fd int, nsType NsType) (uint32, error) {
+	l, err := os.Readlink(fdPath(fd))
 	if err != nil {
 		return 0, err
 	}
-	defer f.Close()
 
-	l, err := os.Readlink(f.Name())
-	if err != nil {
-		return 0, err
+	// a magic link is named after its namespace, but a bind mount of a namespace after its mount point
+	matches := namespacePattern.FindStringSubmatch(l)
+	if matches == nil {
+		return readBindMountNSID(fd, nsType)
 	}
 
-	matches := namespacePattern.FindSubmatch([]byte(l))
-	if len(matches) <= 1 {
-		return 0, fmt.Errorf("couldn't parse namespace ID for path %s: %s", path, l)
+	// the kernel names the namespace of a *_for_children file after the namespace type
+	if matches[1] != strings.TrimSuffix(string(nsType), "_for_children") {
+		return 0, fmt.Errorf("not a %s namespace: %s", nsType, l)
 	}
 
-	ns, err := strconv.ParseUint(string(matches[1]), 10, 32)
+	ns, err := strconv.ParseUint(matches[2], 10, 32)
 	if err != nil {
 		return 0, err
 	}
 	return uint32(ns), nil
+}
+
+func readBindMountNSID(fd int, nsType NsType) (uint32, error) {
+	var statfs unix.Statfs_t
+	if err := unix.Fstatfs(fd, &statfs); err != nil {
+		return 0, err
+	}
+	if statfs.Type != unix.NSFS_MAGIC {
+		return 0, fmt.Errorf("not a %s namespace", nsType)
+	}
+
+	// the ioctl isn't allowed on an O_PATH descriptor, and opening a namespace has no side effect
+	nsFD, err := unix.Open(fdPath(fd), unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		return 0, err
+	}
+	defer unix.Close(nsFD)
+
+	// before 4.11 the type can't be checked, callers still compare the ID with the one they expect
+	flag, err := unix.IoctlRetInt(nsFD, nsGetNSType)
+	if err != nil && !errors.Is(err, unix.ENOTTY) {
+		return 0, fmt.Errorf("couldn't read the namespace type: %w", err)
+	}
+	if expected, ok := nsTypeCloneFlags[nsType]; err == nil && (!ok || flag != expected) {
+		return 0, fmt.Errorf("not a %s namespace", nsType)
+	}
+
+	var stat unix.Stat_t
+	if err := unix.Fstat(fd, &stat); err != nil {
+		return 0, err
+	}
+	return uint32(stat.Ino), nil
 }
 
 // CgroupTaskPath returns the path to the cgroup file of a pid in /proc

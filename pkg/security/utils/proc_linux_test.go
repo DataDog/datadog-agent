@@ -14,6 +14,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/sys/unix"
 )
 
 func TestScanKernelModulePathsIn(t *testing.T) {
@@ -127,4 +128,93 @@ func TestScanKernelModulePathsIn(t *testing.T) {
 		assert.Equal(t, nfNatPath, paths["nf_nat"])
 		assert.Len(t, paths, 2)
 	})
+}
+
+// nsInode returns the inode of the namespace file, which is the namespace ID
+func nsInode(t *testing.T, path string) uint32 {
+	t.Helper()
+	var stat unix.Stat_t
+	require.NoError(t, unix.Stat(path, &stat))
+	return uint32(stat.Ino)
+}
+
+// assertNSPath checks the ID returned for path, and that the handle points to that namespace
+func assertNSPath(t *testing.T, path *NSPath, expected uint32) {
+	t.Helper()
+
+	nsID, err := path.GetNSID()
+	require.NoError(t, err)
+	assert.Equal(t, expected, nsID)
+
+	handle, handleNSID, err := path.Open()
+	require.NoError(t, err)
+	defer handle.Close()
+	assert.Equal(t, expected, handleNSID)
+	assert.Equal(t, path.GetPath(), handle.Name())
+
+	var stat unix.Stat_t
+	require.NoError(t, unix.Fstat(int(handle.Fd()), &stat))
+	assert.EqualValues(t, expected, stat.Ino)
+}
+
+func TestNSPathGetNSID(t *testing.T) {
+	t.Run("magic link", func(t *testing.T) {
+		assertNSPath(t, NewNSPathFromPath("/proc/self/ns/net", NetNsType), nsInode(t, "/proc/self/ns/net"))
+	})
+
+	t.Run("pid", func(t *testing.T) {
+		assertNSPath(t, NewNSPathFromPid(Getpid(), MntNsType), nsInode(t, "/proc/self/ns/mnt"))
+	})
+
+	t.Run("for children", func(t *testing.T) {
+		if _, err := os.Stat("/proc/self/ns/pid_for_children"); err != nil {
+			t.Skipf("requires pid_for_children, added in Linux 4.12: %v", err)
+		}
+		assertNSPath(t, NewNSPathFromPath("/proc/self/ns/pid_for_children", PidForChildrenNsType), nsInode(t, "/proc/self/ns/pid_for_children"))
+	})
+
+	t.Run("symlink to a magic link", func(t *testing.T) {
+		link := filepath.Join(t.TempDir(), "net")
+		require.NoError(t, os.Symlink("/proc/self/ns/net", link))
+		assertNSPath(t, NewNSPathFromPath(link, NetNsType), nsInode(t, "/proc/self/ns/net"))
+	})
+
+	t.Run("namespace of another type", func(t *testing.T) {
+		_, err := NewNSPathFromPath("/proc/self/ns/uts", NetNsType).GetNSID()
+		assert.Error(t, err)
+	})
+
+	t.Run("fifo", func(t *testing.T) {
+		fifo := filepath.Join(t.TempDir(), "fifo")
+		require.NoError(t, unix.Mkfifo(fifo, 0o600))
+		_, _, err := NewNSPathFromPath(fifo, NetNsType).Open()
+		assert.Error(t, err)
+	})
+}
+
+func TestNSPathGetNSIDBindMount(t *testing.T) {
+	if os.Getuid() != 0 {
+		t.Skip("requires root to bind mount a namespace")
+	}
+
+	target := filepath.Join(t.TempDir(), "net")
+	require.NoError(t, os.WriteFile(target, nil, 0o600))
+	if err := unix.Mount("/proc/self/ns/net", target, "", unix.MS_BIND, ""); err != nil {
+		t.Skipf("requires CAP_SYS_ADMIN to bind mount a namespace: %v", err)
+	}
+	t.Cleanup(func() {
+		_ = unix.Unmount(target, unix.MNT_DETACH)
+	})
+
+	assertNSPath(t, NewNSPathFromPath(target, NetNsType), nsInode(t, "/proc/self/ns/net"))
+
+	// a bind mount is read through its file system, which must also check the namespace type
+	utsTarget := filepath.Join(t.TempDir(), "uts")
+	require.NoError(t, os.WriteFile(utsTarget, nil, 0o600))
+	require.NoError(t, unix.Mount("/proc/self/ns/uts", utsTarget, "", unix.MS_BIND, ""))
+	t.Cleanup(func() {
+		_ = unix.Unmount(utsTarget, unix.MNT_DETACH)
+	})
+	_, err := NewNSPathFromPath(utsTarget, NetNsType).GetNSID()
+	assert.Error(t, err)
 }
