@@ -1,0 +1,13 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "handlermock",
+    srcs = ["mock.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/instrumentation/common/handlermock",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/clusteragent/instrumentation",
+        "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
+        "@io_k8s_api//autoscaling/v2:autoscaling",
+    ],
+)

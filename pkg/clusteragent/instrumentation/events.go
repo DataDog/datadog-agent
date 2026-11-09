@@ -15,22 +15,6 @@ import (
 	"k8s.io/client-go/tools/cache"
 )
 
-func classifySectionEvent(handler Handler, oldObj, newObj *datadoghq.DatadogInstrumentation) (EventType, bool) {
-	oldHasSection := oldObj != nil && handler.HasSection(oldObj)
-	newHasSection := newObj != nil && handler.HasSection(newObj)
-
-	switch {
-	case !oldHasSection && newHasSection:
-		return EventCreate, true
-	case oldHasSection && newHasSection:
-		return EventUpdate, true
-	case oldHasSection && !newHasSection:
-		return EventDelete, true
-	default:
-		return "", false
-	}
-}
-
 // DatadogInstrumentationFromObject converts a runtime object (typed, unstructured, or tombstone)
 // into a DatadogInstrumentation. Returns a deep copy.
 func DatadogInstrumentationFromObject(obj interface{}) (*datadoghq.DatadogInstrumentation, error) {
