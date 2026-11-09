@@ -23,7 +23,11 @@ a new document. The outputs are:
   configuration; it only drops the keywords we added on top of the spec
   (``node_type``, ``platform_default``, ``visibility``, ``env_vars``, ``tags``,
   ...). It is published for external consumers (e.g. SchemaStore for IDE
-  autocompletion).
+  autocompletion). It also rewrites ``format: duration``, which the Agent
+  uses for Go durations (``15s``, ``2h30m21s``) but which JSON Schema defines
+  as an ISO 8601 duration (``PT15S``), into an equivalent ``pattern`` (see
+  ``GO_DURATION_PATTERN``) so format-asserting validators do not reject valid
+  Agent values.
 
 Future outputs are added by registering another function in ``OUTPUTS``; the
 choice of what each output keeps or drops lives here, not in the build files.
@@ -142,6 +146,22 @@ _STANDARD_JSON_SCHEMA_KEYWORDS = frozenset(
 )
 
 
+# Matches exactly the strings Go's ``time.ParseDuration`` accepts, which is how
+# the Agent reads every ``format: duration`` setting: an optional sign, then
+# either a bare ``0`` or one or more ``<number><unit>`` pairs, where the number
+# may be fractional (``1.5h``, ``.5s``, ``5.s``) and the unit is one of ``ns``,
+# ``us``, ``µs`` (U+00B5), ``μs`` (U+03BC), ``ms``, ``s``, ``m``, ``h``. Examples:
+# ``15s``, ``1m0s``, ``2h30m21s``, ``500ms``, ``-5m``. Units Go rejects, such as
+# ``min`` or ``d``, are rejected here too.
+#
+# Written in the portable ECMA-262 subset recommended by JSON Schema (no
+# non-capturing groups, no lookarounds) so every validator, IDE included,
+# interprets it the same way. Every repetition must start with a digit or a dot
+# and end with a unit letter, so there is a single way to split a value and
+# matching stays linear: no catastrophic backtracking on invalid input.
+GO_DURATION_PATTERN = r"^[-+]?(0|(([0-9]+(\.[0-9]*)?|\.[0-9]+)(ns|us|µs|μs|ms|s|m|h))+)$"
+
+
 def _filter_keys(node, should_drop):
     """Return a copy of ``node`` with every key for which ``should_drop(key)``
     is true removed.
@@ -168,6 +188,50 @@ def _filter_keys(node, should_drop):
     if isinstance(node, list):
         return [_filter_keys(item, should_drop) for item in node]
     return node
+
+
+def _map_schemas(node, transform):
+    """Return a copy of ``node`` where ``transform`` was applied to every schema
+    object, bottom-up.
+
+    Walks the same way as ``_filter_keys``: values under ``default``/``enum``/...
+    are instance data and are copied verbatim, and maps under
+    ``properties``/``$defs``/... are walked as names pointing to schemas, so
+    ``transform`` only ever sees real schema objects.
+    """
+    if isinstance(node, dict):
+        result = {}
+        for key, value in node.items():
+            if key in _INSTANCE_DATA_KEYS:
+                result[key] = value
+            elif key in _NAME_KEYED_KEYS and isinstance(value, dict):
+                result[key] = {name: _map_schemas(sub, transform) for name, sub in value.items()}
+            else:
+                result[key] = _map_schemas(value, transform)
+        return transform(result)
+    if isinstance(node, list):
+        return [_map_schemas(item, transform) for item in node]
+    return node
+
+
+def _duration_format_to_pattern(schema):
+    """Replace ``format: duration`` with ``GO_DURATION_PATTERN``.
+
+    The Agent parses these settings as Go durations (``15s``), while JSON Schema
+    defines ``format: duration`` as ISO 8601 (``PT15S``): validators that assert
+    formats would reject every valid Agent value. A ``pattern`` has the same
+    meaning in every validator, whether or not it asserts formats.
+    """
+    if schema.get("format") != "duration":
+        return schema
+    result = {k: v for k, v in schema.items() if k != "format"}
+    if "pattern" in result:
+        # Keep the setting's own pattern and require both: a schema can only
+        # hold one ``pattern`` keyword.
+        result["allOf"] = [*result.get("allOf", []), {"pattern": GO_DURATION_PATTERN}]
+    else:
+        result["pattern"] = GO_DURATION_PATTERN
+    return result
 
 
 def _strip_keys(node, drop_keys):
@@ -204,8 +268,12 @@ def json_schema(document):
     Note: keeping only an allowlist (rather than dropping a blocklist) means any
     extension keyword added to the schema in the future is excluded
     automatically, with no change needed here.
+
+    ``format: duration`` is standard but means ISO 8601 (``PT15S``) in JSON
+    Schema, not the Go durations (``15s``) the Agent reads, so it is rewritten
+    into the equivalent ``pattern`` (see ``_duration_format_to_pattern``).
     """
-    return _keep_keys(document, _STANDARD_JSON_SCHEMA_KEYWORDS)
+    return _map_schemas(_keep_keys(document, _STANDARD_JSON_SCHEMA_KEYWORDS), _duration_format_to_pattern)
 
 
 # Registry of named schema outputs. Each entry maps a name to ``(transform,

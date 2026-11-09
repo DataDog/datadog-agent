@@ -246,6 +246,42 @@ cel_workload_exclude:
 
 ---
 
+### `format`
+
+Gives a `string` setting a semantic meaning beyond its type. The Agent schema uses one format: `duration`.
+
+#### `format: duration`
+
+Marks a `string` setting holding a time duration, read by the Agent as a Go `time.Duration`.
+
+- **When to use:** on every `string` setting the Agent reads as a duration, so its default is generated as a `time.Duration` and external tools can validate its values.
+- **Valid values:** any value Go's [`time.ParseDuration`](https://pkg.go.dev/time#ParseDuration) accepts: an optional sign, then one or more `<number><unit>` pairs, or a bare `0`. The number can be fractional and the units are `ns`, `us` (or `µs`), `ms`, `s`, `m` and `h`.
+- **Code generation:** the `default` is rendered as a Go `time.Duration` expression (`15s` becomes `15*time.Second`).
+
+| Value | Duration |
+| --- | --- |
+| `15s` | 15 seconds |
+| `1m0s` | 1 minute |
+| `2h30m21s` | 2 hours, 30 minutes and 21 seconds |
+| `1.5h` | 1 hour and 30 minutes |
+| `500ms` | 500 milliseconds |
+
+Units Go doesn't know are invalid: `30min` must be written `30m`, and `1d` must be written `24h`. A number without a unit, such as `30`, is invalid too (only `0` is accepted as-is).
+
+```yaml
+eval_interval:
+  node_type: setting
+  type: string
+  default: 15s
+  format: duration
+```
+
+/// note
+JSON Schema also defines `format: duration`, but as an [ISO 8601 duration](https://en.wikipedia.org/wiki/ISO_8601#Durations) (`PT15S`), which isn't what the Agent reads. The source schema keeps `format: duration` since the Agent's own validator treats `format` as an annotation only. The pure JSON Schema published for external tools (`dda inv schema.produce-jsonschema`) replaces it with a `pattern` matching exactly what `time.ParseDuration` accepts. Without that, validators that check formats (IDEs, `ajv-formats`, ...) would reject valid Agent values like `15s`. See `GO_DURATION_PATTERN` in `tasks/schema/produce_byproduct.py`.
+///
+
+---
+
 ### Validation keywords
 
 Each JSON Schema type comes with built-in validation keywords. The most useful ones in the Agent schema are listed below. Validation rules can be arbitrarily nested — see [Examples](../../architecture/agent-schema/examples.md#example-3-complex-nested-type-cel_workload_exclude) for a real-world demonstration.
