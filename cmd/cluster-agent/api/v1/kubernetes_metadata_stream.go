@@ -138,6 +138,9 @@ type nodeMetadataState struct {
 	// kueueWorkloads is nil when the node receives every Kueue Workload
 	// through the shared history.
 	kueueWorkloads map[string]kueueWorkloadEntry
+	// version is an optimization: when it hasn't changed, there's no need to
+	// rebuild or diff the state.
+	version uint64
 }
 
 type autoscalerEntry struct {
@@ -178,6 +181,10 @@ type KubeMetadataStreamServer struct {
 	// when the KAI PodGroups or Kueue Workloads of their node's pods change,
 	// and when the nodes running the Kueue check change.
 	namespaceSubscribers map[string][]chan struct{}
+	// nodeStateVersions counts, per node with subscribers, the changes to the
+	// metadata scoped to the node. A stream rebuilds that metadata only when its
+	// node's count has changed.
+	nodeStateVersions map[string]uint64
 
 	// KAI PodGroups are kept out of the shared history: each stream sends only
 	// the PodGroups of its node's pods, diffed against what it last sent, like
@@ -211,6 +218,7 @@ func NewKubeMetadataStreamServer(store *controllers.MetaBundleStore, wmeta workl
 		wmeta:                 wmeta,
 		metadata:              newMetadataSnapshot(),
 		namespaceSubscribers:  make(map[string][]chan struct{}),
+		nodeStateVersions:     make(map[string]uint64),
 		kaiEnabled:            pkgconfigsetup.Datadog().GetBool("cluster_agent.kai_scheduler.enabled"),
 		kaiPodGroups:          make(map[string]kaiPodGroupEntry),
 		pods:                  make(map[string]podRef),
@@ -358,7 +366,7 @@ func (srv *KubeMetadataStreamServer) StreamKubeMetadata(req *pb.KubeMetadataStre
 				updatesSince = srv.scopedMetadataUpdatesSince
 			}
 			updates, version, ok := updatesSince(lastSentMetadataVersion)
-			currentNodeState := srv.buildNodeMetadataState(nodeName)
+			currentNodeState := srv.nodeMetadataStateSince(nodeName, lastSentNodeState)
 			if !ok || currentNodeState.scopesKueueWorkloads() != lastSentNodeState.scopesKueueWorkloads() {
 				// A full state replaces all client caches, including pod-service
 				// mappings and the metadata scoped to the node. Refresh their
@@ -442,6 +450,9 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 			snapshotShared()
 			if srv.metadata.processKueueWorkloadEvent(event.Type, entity) {
 				changed = true
+				for nodeName := range srv.kueueWorkloadIndex.keyNodes[entity.EntityID.ID] {
+					scopedNodes[nodeName] = struct{}{}
+				}
 			}
 		case *workloadmeta.KubernetesKAIPodGroup:
 			if srv.processKAIPodGroupEvent(event.Type, entity) {
@@ -463,6 +474,7 @@ func (srv *KubeMetadataStreamServer) processWmetaEvents(events []workloadmeta.Ev
 		}
 	}
 
+	srv.markNodeStatesChanged(scopedNodes)
 	if changed {
 		diff := computeMetadataDiff(*previous, srv.metadata)
 		if !diff.isEmpty() {
@@ -791,6 +803,16 @@ func (srv *KubeMetadataStreamServer) notifyNodeSubscribers(nodeNames map[string]
 	}
 }
 
+// markNodeStatesChanged must be called with metadataMutex held.
+func (srv *KubeMetadataStreamServer) markNodeStatesChanged(nodeNames map[string]struct{}) {
+	for nodeName := range nodeNames {
+		// A node without subscribers has no stream to update.
+		if _, subscribed := srv.namespaceSubscribers[nodeName]; subscribed {
+			srv.nodeStateVersions[nodeName]++
+		}
+	}
+}
+
 func (srv *KubeMetadataStreamServer) subscribeToNamespaceEvents(nodeName string) <-chan struct{} {
 	srv.metadataMutex.Lock()
 	defer srv.metadataMutex.Unlock()
@@ -820,6 +842,7 @@ func (srv *KubeMetadataStreamServer) unsubscribeFromNamespaceEvents(nodeName str
 	remaining := len(srv.namespaceSubscribers[nodeName])
 	if remaining == 0 {
 		delete(srv.namespaceSubscribers, nodeName)
+		delete(srv.nodeStateVersions, nodeName)
 	}
 
 	log.Debugf("Unsubscribed from namespace metadata updates for node %s (subscribers=%d)", nodeName, remaining)
@@ -864,8 +887,26 @@ func (srv *KubeMetadataStreamServer) buildNodeMetadataState(nodeName string) nod
 	srv.metadataMutex.RLock()
 	defer srv.metadataMutex.RUnlock()
 
+	return srv.buildNodeMetadataStateLocked(nodeName)
+}
+
+// nodeMetadataStateSince returns the metadata scoped to a node, or previous if
+// it has not changed since previous was built.
+func (srv *KubeMetadataStreamServer) nodeMetadataStateSince(nodeName string, previous nodeMetadataState) nodeMetadataState {
+	srv.metadataMutex.RLock()
+	defer srv.metadataMutex.RUnlock()
+
+	if srv.nodeStateVersions[nodeName] == previous.version {
+		return previous
+	}
+	return srv.buildNodeMetadataStateLocked(nodeName)
+}
+
+// buildNodeMetadataStateLocked must be called with metadataMutex held.
+func (srv *KubeMetadataStreamServer) buildNodeMetadataStateLocked(nodeName string) nodeMetadataState {
 	state := nodeMetadataState{
 		kaiPodGroups: entriesForKeys(srv.kaiPodGroups, srv.kaiPodGroupIndex.nodeKeys[nodeName]),
+		version:      srv.nodeStateVersions[nodeName],
 	}
 	if _, runsKueueCheck := srv.kueueCheckNodes[nodeName]; srv.kueueCheckNodes != nil && !runsKueueCheck {
 		state.kueueWorkloads = entriesForKeys(srv.metadata.kueueWorkloads, srv.kueueWorkloadIndex.nodeKeys[nodeName])
@@ -900,6 +941,9 @@ func (s nodeMetadataState) scopesKueueWorkloads() bool {
 // diffResponse returns the changes since the previous state, or nil if there
 // are none.
 func (s nodeMetadataState) diffResponse(previous nodeMetadataState) *pb.KubeMetadataStreamResponse {
+	if s.version == previous.version {
+		return nil
+	}
 	resp := &pb.KubeMetadataStreamResponse{
 		KaiPodGroups: computeKAIPodGroupsDiff(previous.kaiPodGroups, s.kaiPodGroups),
 	}
@@ -970,6 +1014,9 @@ func (srv *KubeMetadataStreamServer) refreshKueueCheckNodes() {
 		return
 	}
 	srv.kueueCheckNodes = nodes
+	for nodeName := range srv.namespaceSubscribers {
+		srv.nodeStateVersions[nodeName]++
+	}
 	srv.notifyNamespaceSubscribers()
 }
 
