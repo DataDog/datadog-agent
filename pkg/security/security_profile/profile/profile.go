@@ -61,6 +61,8 @@ type activityTreeOpts struct {
 	differentiateArgs bool
 	dnsMatchMaxDepth  int
 	pathPatterns      activity_tree.PathPatternConfig
+
+	unattributedActivity bool
 }
 
 // Profile represents a security profile
@@ -145,6 +147,7 @@ func (p *Profile) Disable() {
 func (p *Profile) resetActivityTreeLocked() {
 	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
 	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
+	p.ActivityTree.KeepUnattributedActivity = p.treeOpts.unattributedActivity
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
 	}
@@ -182,6 +185,13 @@ func WithEventTypes(eventTypes []model.EventType) Opts {
 func WithObservedRollups() Opts {
 	return func(p *Profile) {
 		p.observedRollups = true
+	}
+}
+
+// WithUnattributedActivity keeps the activity of the processes that can't be placed in the activity tree
+func WithUnattributedActivity() Opts {
+	return func(p *Profile) {
+		p.treeOpts.unattributedActivity = true
 	}
 }
 
@@ -234,6 +244,7 @@ func New(opts ...Opts) *Profile {
 
 	p.ActivityTree = activity_tree.NewActivityTree(p, p.treeOpts.pathsReducer, "security_profile")
 	p.ActivityTree.DNSMatchMaxDepth = p.treeOpts.dnsMatchMaxDepth
+	p.ActivityTree.KeepUnattributedActivity = p.treeOpts.unattributedActivity
 	if p.treeOpts.differentiateArgs {
 		p.ActivityTree.DifferentiateArgs()
 	}
@@ -798,6 +809,7 @@ func (p *Profile) LoadFromNewProfile(newProfile *Profile) {
 	if p.treeOpts.pathPatterns.Enabled {
 		p.ActivityTree.Stats.SetPathPatternConfig(p.treeOpts.pathPatterns)
 	}
+	p.ActivityTree.KeepUnattributedActivity = p.treeOpts.unattributedActivity
 	p.Header = newProfile.Header
 	p.tags = newProfile.tags
 	p.versionContexts = newProfile.versionContexts

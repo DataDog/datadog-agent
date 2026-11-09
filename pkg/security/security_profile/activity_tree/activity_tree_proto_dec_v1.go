@@ -29,6 +29,27 @@ func ProtoDecodeActivityTree(dest *ActivityTree, nodes []*adproto.ProcessActivit
 	}
 }
 
+// ProtoDecodeUnattributedActivity decodes the unattributed activity of an ActivityTree
+func ProtoDecodeUnattributedActivity(dest *ActivityTree, ua *adproto.UnattributedActivity) {
+	if ua == nil {
+		return
+	}
+	getIDFromTag := func(imageTag string) uint64 {
+		return dest.GetOrInsertImageTag(imageTag)
+	}
+	dest.UnattributedActivity = protoDecodeProcessActivityNode(nil, &adproto.ProcessActivityNode{
+		GenerationType:  adproto.GenerationType_RUNTIME,
+		NodeBase:        ua.NodeBase,
+		Files:           ua.Files,
+		DnsNames:        ua.DnsNames,
+		Sockets:         ua.Sockets,
+		ImdsEvents:      ua.ImdsEvents,
+		SyscallNodes:    ua.SyscallNodes,
+		NetworkDevices:  ua.NetworkDevices,
+		CapabilityNodes: ua.CapabilityNodes,
+	}, getIDFromTag)
+}
+
 // ProtoDecodeMounts decodes the workload's deduplicated mount table from its protobuf representation
 func ProtoDecodeMounts(dest *ActivityTree, nodes []*adproto.MountNode) {
 	getIDFromTag := func(imageTag string) uint64 {

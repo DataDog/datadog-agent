@@ -692,7 +692,12 @@ var testEventTypesV2 = []model.EventType{model.ExecEventType, model.FileOpenEven
 
 // findTestEventNode returns the profile node holding the activity of the variant, or nil
 func findTestEventNode(p *profile.Profile, eventType model.EventType, variant string) *activity_tree.NodeBase {
-	for _, pn := range p.ActivityTree.ProcessNodes {
+	return findTestEventNodeIn(p.ActivityTree.ProcessNodes, eventType, variant)
+}
+
+// findTestEventNodeIn returns the node of one of the provided process nodes holding the activity of the variant, or nil
+func findTestEventNodeIn(nodes []*activity_tree.ProcessNode, eventType model.EventType, variant string) *activity_tree.NodeBase {
+	for _, pn := range nodes {
 		switch eventType {
 		case model.ExecEventType:
 			if pn.Process.FileEvent.PathnameStr == "/usr/bin/"+variant {
@@ -1265,16 +1270,38 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
 	})
 
-	t.Run("broken lineage inside of the container is dropped", func(t *testing.T) {
+	t.Run("broken lineage inside of the container is unattributed", func(t *testing.T) {
+		for _, eventType := range []model.EventType{model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType} {
+			t.Run(eventType.String(), func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				event := newTestEventV2(eventType, "v1", "known")
+				breakLineage(event, true)
+
+				m.onEventTagsResolved(event)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				assert.Empty(t, *anomalies, "what is new to the unattributed activity may not be new to the workload")
+				assert.Empty(t, p.ActivityTree.ProcessNodes)
+				require.NotNil(t, p.ActivityTree.UnattributedActivity)
+				assert.NotNil(t, findTestEventNodeIn([]*activity_tree.ProcessNode{p.ActivityTree.UnattributedActivity}, eventType, "known"))
+				assert.EqualValues(t, 1, countOf(m, eventType, activity_tree.EventErrorBrokenLineage, eventWithErrorUnattributed))
+				assert.Zero(t, countOf(m, eventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
+				assert.Zero(t, countOf(m, eventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+				assertZeroCounters(t, m.insertionErrors)
+			})
+		}
+	})
+
+	t.Run("broken lineage inside of the container is dropped for an exec", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
-		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
 		breakLineage(event, true)
 
 		_, inserted := m.insertEventIntoProfile(event)
 
 		assert.False(t, inserted)
-		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
-		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
 		assertZeroCounters(t, m.insertionErrors)
 	})
 

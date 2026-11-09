@@ -872,3 +872,68 @@ func TestActivityTree_BrokenLineageCookies(t *testing.T) {
 	_, _, err = tree.CreateProcessNode(brokenChild, "tag", Runtime, false, nil)
 	assert.ErrorIs(t, err, ErrBrokenLineage)
 }
+
+func TestActivityTree_UnattributedActivity(t *testing.T) {
+	// the lineage of this entry breaks at its parent, inside of the container
+	parent := model.NewPlaceholderProcessCacheEntry(10, 10, false)
+	parent.ContainerContext.ContainerID = "123"
+	entry := model.NewPlaceholderProcessCacheEntry(11, 11, false)
+	entry.ContainerContext.ContainerID = "123"
+	entry.FileEvent.PathnameStr = "/bin/bar"
+	entry.FileEvent.Inode = 11
+	entry.FileEvent.MountID = 1
+	entry.Ancestor = parent
+	entry.Parent = &parent.Process
+
+	newEvent := func(eventType model.EventType, timestamp time.Time) *model.Event {
+		evt := &model.Event{
+			BaseEvent: model.BaseEvent{
+				Type:              uint32(eventType),
+				Timestamp:         timestamp,
+				FieldHandlers:     &model.FakeFieldHandlers{},
+				ProcessContext:    &entry.ProcessContext,
+				ProcessCacheEntry: entry,
+			},
+		}
+		evt.Syscalls.Syscalls = []model.Syscall{1, 2}
+		return evt
+	}
+
+	t.Run("disabled", func(t *testing.T) {
+		tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+
+		_, _, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+		assert.ErrorIs(t, err, ErrBrokenLineage)
+		assert.Nil(t, tree.UnattributedActivity)
+	})
+
+	tree := NewActivityTree(activityTreeInsertTestValidator{}, nil, "test")
+	tree.KeepUnattributedActivity = true
+
+	_, _, _, err := tree.Insert(newEvent(model.ExecEventType, time.Now()), true, "v1", Runtime, nil)
+	assert.ErrorIs(t, err, ErrBrokenLineage, "an exec can't be kept without its process")
+	assert.Nil(t, tree.UnattributedActivity)
+
+	inserted, node, _, err := tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.True(t, inserted)
+	require.NotNil(t, tree.UnattributedActivity)
+	assert.Same(t, tree.UnattributedActivity, node)
+	assert.Empty(t, tree.ProcessNodes)
+	assert.False(t, tree.IsEmpty())
+	assert.Equal(t, []uint32{1, 2}, tree.SyscallsByImageTagID()[tree.GetImageTagID("v1")])
+
+	inserted, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now()), true, "v1", Runtime, nil)
+	require.NoError(t, err)
+	assert.False(t, inserted, "the syscalls are already known")
+
+	tree.EvictImageTag("v1")
+	assert.Nil(t, tree.UnattributedActivity)
+	assert.True(t, tree.IsEmpty())
+
+	_, _, _, err = tree.Insert(newEvent(model.SyscallsEventType, time.Now().Add(-time.Hour)), true, "v2", Runtime, nil)
+	require.NoError(t, err)
+	require.NotNil(t, tree.UnattributedActivity)
+	tree.EvictUnusedNodes(time.Now().Add(-time.Minute), nil, "")
+	assert.Nil(t, tree.UnattributedActivity)
+}
