@@ -1110,8 +1110,8 @@ dependencies = [
 
 [[package]]
 name = "rc-crypto"
-version = "0.1.7"
-source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
+version = "0.1.8"
+source = "git+https://github.com/DataDog/libdd-rc?rev=fc0359b68e854bebc6ed1198918047369068c811#fc0359b68e854bebc6ed1198918047369068c811"
 dependencies = [
  "aws-lc-rs",
  "bytes",
@@ -1129,8 +1129,8 @@ dependencies = [
 
 [[package]]
 name = "rc-x509-client"
-version = "0.2.2"
-source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
+version = "0.3.0"
+source = "git+https://github.com/DataDog/libdd-rc?rev=fc0359b68e854bebc6ed1198918047369068c811#fc0359b68e854bebc6ed1198918047369068c811"
 dependencies = [
  "futures",
  "pin-project",
@@ -1147,8 +1147,8 @@ dependencies = [
 
 [[package]]
 name = "rc-x509-proto"
-version = "0.4.0"
-source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
+version = "0.5.0"
+source = "git+https://github.com/DataDog/libdd-rc?rev=fc0359b68e854bebc6ed1198918047369068c811#fc0359b68e854bebc6ed1198918047369068c811"
 dependencies = [
  "bytes",
  "glob",
@@ -1164,16 +1164,16 @@ dependencies = [
 
 [[package]]
 name = "rc-x509-roots"
-version = "1.0.0"
-source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
+version = "1.1.0"
+source = "git+https://github.com/DataDog/libdd-rc?rev=fc0359b68e854bebc6ed1198918047369068c811#fc0359b68e854bebc6ed1198918047369068c811"
 dependencies = [
  "rc-crypto",
 ]
 
 [[package]]
 name = "rc-x509-trust"
-version = "0.2.1"
-source = "git+https://github.com/DataDog/libdd-rc?rev=b4c4b988bf0ab3b91799e9659d024981c975e0fa#b4c4b988bf0ab3b91799e9659d024981c975e0fa"
+version = "0.3.0"
+source = "git+https://github.com/DataDog/libdd-rc?rev=fc0359b68e854bebc6ed1198918047369068c811#fc0359b68e854bebc6ed1198918047369068c811"
 dependencies = [
  "bytes",
  "mini-moka",
@@ -1457,7 +1457,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.3",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",

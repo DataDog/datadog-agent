@@ -59,7 +59,7 @@ crate.annotation(
     crate = "rc-x509-client",
     gen_build_script = "off",
     repositories = ["libdd_rc_crates"],
-    rustc_env = {"BUILD_GIT_COMMIT_HASH": "b4c4b988bf0ab3b91799e9659d024981c975e0fa"},
+    rustc_env = {"BUILD_GIT_COMMIT_HASH": "fc0359b68e854bebc6ed1198918047369068c811"},
 )
 
 # AWS-LC is built into librc_x509_ffi.a; the Agent's package metadata rule
@@ -78,10 +78,12 @@ inject_repo(crate, "protobuf")
 
 use_repo(crate, "libdd_rc_crates")
 
+# libdd-rc release v0.2.0-2026-11-09.fc0359b. Its Go module is tagged
+# ffi-hosts/go/v0.1.0 on the same commit; keep go.mod in sync.
 http_archive(
     name = "libdd_rc_source",
     build_file = "//deps/libdd_rc:libdd_rc.BUILD.bazel",
-    sha256 = "bdf457fa6cfb3b173d1f499d1fc337576df9fa1646c063913c3cd22c0f8689d0",
-    strip_prefix = "libdd-rc-b4c4b988bf0ab3b91799e9659d024981c975e0fa",
-    urls = ["https://github.com/DataDog/libdd-rc/archive/b4c4b988bf0ab3b91799e9659d024981c975e0fa.tar.gz"],
+    sha256 = "bf9c30c8ad78a6d5df70998ae07aa0d7564acfd9bce88aa5a4963682f18bd525",
+    strip_prefix = "libdd-rc-fc0359b68e854bebc6ed1198918047369068c811",
+    urls = ["https://github.com/DataDog/libdd-rc/archive/fc0359b68e854bebc6ed1198918047369068c811.tar.gz"],
 )
