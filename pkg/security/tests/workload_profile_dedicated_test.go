@@ -451,6 +451,94 @@ func TestWorkloadProfileDedicatedAnomalyDetectionVariables(t *testing.T) {
 	assert.True(t, found, "the new exec should trigger an anomaly")
 }
 
+var _ = declareInlineConfig(TestWorkloadProfileDedicatedMatchedRules)
+
+func TestWorkloadProfileDedicatedMatchedRules(t *testing.T) {
+	skipIfNoWorkloadProfileEnv(t)
+
+	var ruleDefs []*rules.RuleDefinition
+	for _, et := range workloadProfileEventTypes() {
+		ruleDefs = append(ruleDefs, &rules.RuleDefinition{
+			ID:         "test_wp_matched_rule_" + et.name,
+			Expression: et.ruleExpression("known"),
+		})
+	}
+
+	tagger := NewFakeManualTagger()
+	opts := workloadProfileTestOpts(t.TempDir(), tagger)
+	opts.eventSamplingOpenRateUnlimited = true
+	test, err := newTestModule(t, nil, ruleDefs, withStaticOpts(opts))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	syscallTester, err := loadSyscallTester(t, test, "syscall_tester")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	for _, et := range workloadProfileEventTypes() {
+		t.Run(et.name, func(t *testing.T) {
+			et.skipIfUnsupported(t)
+
+			ruleID := "test_wp_matched_rule_" + et.name
+			dockerInstance, selector := startWorkloadProfileContainer(t, test, tagger, syscallTester, newWorkloadProfileImage(), "v1")
+
+			anomalies, ruleEvents := collectAnomaliesAndRuleEvents(t, test, func() error {
+				et.trigger(t, dockerInstance, "known")
+				return nil
+			}, dockerInstance)
+			assert.Contains(t, ruleEvents, ruleID, "the %s rule should fire on the first matching activity", et.name)
+
+			var matchedKnownAnomaly bool
+			for _, anomaly := range anomalies {
+				if anomaly.eventType == et.eventType && et.matchAnomaly(anomaly, "known") {
+					matchedKnownAnomaly = true
+					assert.Contains(t, anomalyMatchedRuleIDs(t, anomaly), ruleID, "the %s anomaly should record the matched rule", et.name)
+				}
+			}
+			assert.True(t, matchedKnownAnomaly, "the first %s activity should trigger an anomaly", et.name)
+
+			if _, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+				return et.hasNode(p, "known") && et.hasMatchedRule(p, "known", ruleID)
+			}); err != nil {
+				t.Fatal(err)
+			}
+
+			anomalies, ruleEvents = collectAnomaliesAndRuleEvents(t, test, func() error {
+				et.trigger(t, dockerInstance, "known")
+				return nil
+			}, dockerInstance)
+			assert.False(t, et.hasAnomalyFor(anomalies, "known"), "a learned %s activity shouldn't trigger an anomaly", et.name)
+			assert.Contains(t, ruleEvents, ruleID, "the %s rule should still fire when the activity is already in the profile", et.name)
+
+			anomalies, ruleEvents = collectAnomaliesAndRuleEvents(t, test, func() error {
+				et.trigger(t, dockerInstance, "new")
+				return nil
+			}, dockerInstance)
+			assert.NotContains(t, ruleEvents, ruleID, "an unmatched %s activity shouldn't fire the rule", et.name)
+
+			var matchedNewAnomaly bool
+			for _, anomaly := range anomalies {
+				if anomaly.eventType == et.eventType && et.matchAnomaly(anomaly, "new") {
+					matchedNewAnomaly = true
+					assert.NotContains(t, anomalyMatchedRuleIDs(t, anomaly), ruleID, "an unmatched %s anomaly shouldn't carry the rule", et.name)
+				}
+			}
+			assert.True(t, matchedNewAnomaly, "a new %s activity should trigger an anomaly", et.name)
+
+			p, err := waitForWorkloadProfile(t, test, selector, func(p *profile.Profile) bool {
+				return et.hasNode(p, "new")
+			})
+			if err != nil {
+				t.Fatal(err)
+			}
+			assert.False(t, et.hasMatchedRule(p, "new", ruleID), "an unmatched %s node shouldn't carry the rule in the profile", et.name)
+		})
+	}
+}
+
 // Image tags
 
 var _ = declareInlineConfig(TestWorkloadProfileDedicatedImageTags)

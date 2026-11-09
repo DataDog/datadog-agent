@@ -8,6 +8,8 @@ go_library(
         "literal.go",
         "ops.go",
         "print.go",
+        "value.go",
+        "visit.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast",
     visibility = ["//visibility:public"],

@@ -36,7 +36,7 @@ type baselineTestDetector struct {
 
 func (d *baselineTestDetector) Name() string { return d.name }
 func (d *baselineTestDetector) Ready() bool  { return d.ready }
-func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64) observerdef.DetectionResult {
+func (d *baselineTestDetector) Detect(_ observerdef.StorageReader, dataSec int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	if dataSec >= d.readyAtSec {
 		d.ready = true
 	}
@@ -57,7 +57,7 @@ func (d *baselineTestDetector) RemoveSeries(refs []observerdef.SeriesRef) {
 
 func (d *alwaysFiringDetector) Name() string { return "always_firing" }
 func (*alwaysFiringDetector) Ready() bool    { return true }
-func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *alwaysFiringDetector) Detect(_ observerdef.StorageReader, dataTime int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{
 		Anomalies: []observerdef.Anomaly{{
 			Source:       observerdef.SeriesDescriptor{Namespace: d.namespace, Name: d.name, Aggregate: AggregateAverage},
@@ -92,9 +92,9 @@ func makeBaselineEngine(cfg BaselineConfig, correlator observerdef.Correlator) (
 	if correlator != nil {
 		corrs = []observerdef.Correlator{correlator}
 	}
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:     storage,
-		detectors:   []observerdef.Detector{detector},
+		detectors:   []detectorRegistration{{detector: detector}},
 		correlators: corrs,
 		baseline:    cfg,
 	})
@@ -242,7 +242,7 @@ func TestBaseline_WaitingDetectorDoesNotMuteUntilReady(t *testing.T) {
 		ref:          ref,
 		source:       observerdef.SeriesDescriptor{Namespace: "ns", Name: "cpu", Aggregate: AggregateAverage},
 	}
-	e := newEngine(engineConfig{storage: storage, detectors: []observerdef.Detector{detector}, baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true}})
+	e := mustNewEngine(engineConfig{storage: storage, detectors: []detectorRegistration{{detector: detector}}, baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true}})
 
 	e.Advance(100) // detector emits before Ready; it is suppressed but cannot mute
 	assert.Empty(t, e.baseline.mutedHashes)
@@ -266,10 +266,13 @@ func TestBaseline_FastCompletionRemovesSeriesFromSlowerDetector(t *testing.T) {
 		source:     source,
 		ref:        ref,
 	}
-	e := newEngine(engineConfig{
-		storage:   storage,
-		detectors: []observerdef.Detector{fast, slow},
-		baseline:  BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
+	e := mustNewEngine(engineConfig{
+		storage: storage,
+		detectors: []detectorRegistration{
+			{detector: fast},
+			{detector: slow},
+		},
+		baseline: BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
 	})
 
 	e.Advance(100) // both detectors are analysing and nominate cpu for muting
@@ -294,9 +297,12 @@ func TestBaseline_FastDetectorForwardsWhileSlowerDetectorStillAnalyses(t *testin
 	}
 	slow := &baselineTestDetector{name: "slow", readyAtSec: 400, emitAfterSec: 1<<62 - 1}
 	correlator := &recordingCorrelator{}
-	e := newEngine(engineConfig{
-		storage:     storage,
-		detectors:   []observerdef.Detector{fast, slow},
+	e := mustNewEngine(engineConfig{
+		storage: storage,
+		detectors: []detectorRegistration{
+			{detector: fast},
+			{detector: slow},
+		},
 		correlators: []observerdef.Correlator{correlator},
 		baseline:    BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},
 	})
@@ -403,7 +409,7 @@ type storageAwareDetector struct{}
 
 func (d *storageAwareDetector) Name() string { return "storage_aware" }
 func (*storageAwareDetector) Ready() bool    { return true }
-func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *storageAwareDetector) Detect(sr observerdef.StorageReader, dataTime int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	metas := sr.ListSeries(observerdef.SeriesFilter{})
 	anomalies := make([]observerdef.Anomaly, 0, len(metas))
 	for _, meta := range metas {
@@ -431,9 +437,9 @@ func TestBaseline_VirtualMetricDroppedAfterFreeze(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	extractor := &fixedTagExtractor{namespace: "virt", metricName: "rate"}
 
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    storage,
-		detectors:  []observerdef.Detector{&storageAwareDetector{}},
+		detectors:  []detectorRegistration{{detector: &storageAwareDetector{}}},
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 		baseline:   BaselineConfig{Enabled: true, DurationSec: 600, MuteNoisyMetrics: true},
 	})

@@ -1129,3 +1129,16 @@ func TestGetRuleEventType(t *testing.T) {
 		}
 	})
 }
+
+func TestMacroConflictsWithConstant(t *testing.T) {
+	rs := newRuleSet()
+
+	for _, def := range []*MacroDefinition{
+		{ID: "O_RDONLY", Expression: `open.flags == 1`},
+		{ID: "O_RDONLY", Values: []string{"a"}},
+	} {
+		if _, err := rs.AddMacro(&PolicyMacro{Def: def}); err == nil || !strings.Contains(err.Error(), "conflicts with constant") {
+			t.Errorf("expected a conflict with a constant, got %v", err)
+		}
+	}
+}

@@ -26,7 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
-func newOptsWithParams(constants map[string]interface{}, legacyFields map[Field]Field) *Opts {
+func newOptsWithParams(constants map[string]ast.Node, legacyFields map[Field]Field) *Opts {
 	opts := &Opts{
 		Constants:    constants,
 		LegacyFields: legacyFields,
@@ -133,9 +133,16 @@ func TestCIDRArrayScalarComparisonError(t *testing.T) {
 }
 
 func TestIdentArrayError(t *testing.T) {
-	_, err := parseRule(`process.uid in [process.gid]`, &testModel{}, newOptsWithParams(testConstants, nil))
-	if err == nil || !strings.Contains(err.Error(), "`process.gid` is not a constant") {
-		t.Fatalf("should report a non constant identifier error, got `%v`", err)
+	for expr, expected := range map[string]string{
+		`process.uid in [process.gid]`: "`process.gid` is not a constant",
+		// the family of an array is the one of its first member
+		`open.flags in [O_CREAT, true]`: "array of int expected",
+		`open.flags in [true, O_CREAT]`: "array of bool expected",
+	} {
+		_, err := parseRule(expr, &testModel{}, newOptsWithParams(testConstants, nil))
+		if err == nil || !strings.Contains(err.Error(), expected) {
+			t.Fatalf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
 	}
 }
 
@@ -654,7 +661,7 @@ func TestConstants(t *testing.T) {
 func TestMacroList(t *testing.T) {
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"list",
@@ -680,10 +687,32 @@ func TestMacroList(t *testing.T) {
 	}
 }
 
+func TestMacroEmptyValues(t *testing.T) {
+	model := &testModel{}
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
+
+	macro, err := NewStringValuesMacro("list", nil, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	opts.MacroStore.Add(macro)
+
+	expr := `open.filename in list`
+	rule, err := parseRule(expr, model, opts)
+	if err != nil {
+		t.Fatalf("error while evaluating `%s`: %s", expr, err)
+	}
+
+	ctx := NewContext(&testEvent{open: testOpen{filename: "/etc/shadow"}})
+	if rule.Eval(ctx) {
+		t.Fatalf("should return false")
+	}
+}
+
 func TestMacroExpression(t *testing.T) {
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -722,7 +751,7 @@ func TestMacroExpression(t *testing.T) {
 func TestMacroPartial(t *testing.T) {
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro, err := NewMacro(
 		"is_passwd",
@@ -783,7 +812,7 @@ func TestNestedMacros(t *testing.T) {
 
 	model := &testModel{}
 	pc := parser.NewParsingContext(false)
-	opts := newOptsWithParams(make(map[string]interface{}), nil)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
 
 	macro1, err := NewMacro(
 		"sensitive_files",
@@ -818,6 +847,43 @@ func TestNestedMacros(t *testing.T) {
 	if !rule.Eval(ctx) {
 		t.Fatalf("should return true")
 	}
+}
+
+func TestNestedMacrosPartial(t *testing.T) {
+	model := &testModel{}
+	pc := parser.NewParsingContext(false)
+	opts := newOptsWithParams(make(map[string]ast.Node), nil)
+
+	for _, def := range []struct{ id, expr string }{
+		{"is_passwd", `open.filename == "/etc/passwd" || open.filename == "/etc/shadow"`},
+		{"httpd_passwd", `is_passwd && process.name == "httpd"`},
+	} {
+		macro, err := NewMacro(def.id, def.expr, model, pc, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		opts.MacroStore.Add(macro)
+	}
+
+	rule, err := parseRule(`httpd_passwd`, model, opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	event := &testEvent{
+		process: testProcess{name: "nginx"},
+		open:    testOpen{filename: "/etc/passwd"},
+	}
+	ctx := NewContext(event)
+
+	result, err := rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.True(t, result, "open.filename shouldn't be a discarder")
+
+	event.open.filename = "/etc/group"
+	result, err = rule.PartialEval(ctx, "open.filename")
+	assert.NoError(t, err)
+	assert.False(t, result, "open.filename should be a discarder")
 }
 
 func TestFieldValidator(t *testing.T) {
@@ -1920,7 +1986,7 @@ func TestMatchingSubExprOperandSwap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, "", nil))
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, ""))
 			if err != nil {
 				t.Fatalf("failed to build the `Or` evaluator: %s", err)
 			}

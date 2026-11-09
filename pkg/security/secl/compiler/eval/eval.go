@@ -153,18 +153,8 @@ func WrapEvaluatorWithArrayIndex(evaluator interface{}, index int, field Field) 
 	}
 }
 
-// identToEvaluator resolves an identifier: a constant, a macro or a field.
-func identToEvaluator(name string, pos ast.Position, opts *Opts, state *State) (interface{}, ast.Position, error) {
-	if accessor, ok := opts.Constants[name]; ok {
-		return accessor, pos, nil
-	}
-
-	if state.macros != nil {
-		if macro, ok := state.macros.GetMacroEvaluator(name); ok {
-			return macro.Value, pos, nil
-		}
-	}
-
+// fieldToEvaluator resolves a field reference.
+func fieldToEvaluator(name string, pos ast.Position, opts *Opts, state *State) (interface{}, ast.Position, error) {
 	field, itField, regID, arrayIndex, isArrayAccess, err := extractField(name)
 	if err != nil {
 		return nil, pos, err

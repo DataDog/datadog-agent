@@ -18,6 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 )
@@ -37,7 +38,7 @@ func TestDisablingDNSInspection(t *testing.T) {
 		t.Setenv("DD_DISABLE_DNS_INSPECTION", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.False(t, cfg.DNSInspection)
@@ -57,7 +58,7 @@ func TestDisablingProtocolClassification(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_ENABLE_PROTOCOL_CLASSIFICATION", "false")
 		cfg := New()
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.False(t, cfg.ProtocolClassificationEnabled)
@@ -69,7 +70,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 		mockSystemProbe := mock.NewSystemProbe(t)
 		cfg := New()
 		// default config
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.True(t, cfg.EnableGatewayLookup)
@@ -84,7 +85,7 @@ func TestDisableGatewayLookup(t *testing.T) {
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_ENABLE_GATEWAY_LOOKUP", "false")
 		cfg := New()
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.False(t, cfg.EnableGatewayLookup)
@@ -105,7 +106,7 @@ func TestIgnoreConntrackInitFailure(t *testing.T) {
 		t.Setenv("DD_SYSTEM_PROBE_NETWORK_IGNORE_CONNTRACK_INIT_FAILURE", "true")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.Nil(t, err)
@@ -127,13 +128,13 @@ func TestEnablingDNSStatsCollection(t *testing.T) {
 		t.Setenv("DD_COLLECT_DNS_STATS", "false")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.False(t, cfg.CollectDNSStats)
 
 		t.Setenv("DD_COLLECT_DNS_STATS", "true")
-		_, err = sysconfig.New("", "")
+		_, err = sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		cfg = New()
 		assert.True(t, cfg.CollectDNSStats)
@@ -156,14 +157,14 @@ func TestDisablingDNSDomainCollection(t *testing.T) {
 		t.Setenv("DD_COLLECT_DNS_DOMAINS", "false")
 		cfg := New()
 
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.False(t, cfg.CollectDNSDomains)
 
 		mock.NewSystemProbe(t)
 		t.Setenv("DD_COLLECT_DNS_DOMAINS", "true")
-		_, err = sysconfig.New("", "")
+		_, err = sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		cfg = New()
 
@@ -185,13 +186,13 @@ func TestSettingMaxDNSStats(t *testing.T) {
 		mock.NewSystemProbe(t)
 		cfg := New()
 		os.Unsetenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS")
-		_, err := sysconfig.New("", "")
+		_, err := sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 
 		assert.Equal(t, 20000, cfg.MaxDNSStats) // default value
 
 		t.Setenv("DD_SYSTEM_PROBE_CONFIG_MAX_DNS_STATS", "10000")
-		_, err = sysconfig.New("", "")
+		_, err = sysconfig.New("", "", &schemanoopimpl.SchemaNoop{})
 		require.NoError(t, err)
 		cfg = New()
 
@@ -271,7 +272,7 @@ func TestNetworkConfigEnabled(t *testing.T) {
 
 			mock.NewSystemProbe(t)
 			cfg := New()
-			_, err = sysconfig.New(f.Name(), "")
+			_, err = sysconfig.New(f.Name(), "", &schemanoopimpl.SchemaNoop{})
 			require.NoError(t, err)
 
 			assert.Equal(t, tc.npmEnabled, cfg.NPMEnabled, "npm state")

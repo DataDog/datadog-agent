@@ -30,6 +30,7 @@ from tasks.libs.common.constants import GITHUB_REPO_NAME
 from tasks.libs.common.git import (
     get_ancestor_base_branch,
     get_common_ancestor,
+    get_default_branch,
     get_file_modifications,
     get_staged_files,
 )
@@ -328,6 +329,9 @@ def releasenote_reused_uids(ctx, files=None, only_changed=False):
         files: Comma-separated list of files to check (pre-commit). Files that already
                exist at HEAD are skipped, as they are not being added.
         only_changed: Check the notes added compared to the base branch (CI).
+
+    The base branch is COMPARE_TO_BRANCH when set (CI), otherwise the default branch (main).
+    No GitHub API lookup is made, so the check runs offline and non-interactively.
     """
     from tasks.libs.linter.releasenotes import find_reused_uids, parse_deleted_release_notes
 
@@ -335,7 +339,9 @@ def releasenote_reused_uids(ctx, files=None, only_changed=False):
         raise Exit("Pass either --files or --only-changed", code=1)
 
     notes_pathspec = "'releasenotes*/notes/*.yaml'"
-    base_branch = get_ancestor_base_branch()
+    # CI sets COMPARE_TO_BRANCH (release-branch pipelines point it at e.g. 7.85.x); locally the base is main.
+    # Don't use get_ancestor_base_branch(): it falls back to the GitHub API, which prompts for a token in pre-commit.
+    base_branch = os.environ.get("COMPARE_TO_BRANCH") or get_default_branch()
     merge_base = get_common_ancestor(ctx, "HEAD", f"origin/{base_branch}")
     if files:
         candidates = [f.strip() for f in files.split(',') if f.strip()]
