@@ -668,7 +668,7 @@ func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, 
 	if tenant == "" {
 		return nil, errors.New("tenant cannot be empty")
 	}
-	return getPaginatedAnalytics(
+	metrics, err := getPaginatedAnalytics(
 		client,
 		client.endpointConfig(EndpointCircuitQoSMetrics),
 		tenant,
@@ -698,6 +698,30 @@ func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, 
 		circuitQoSTimeseriesLayout,
 		parseCircuitQoSMetrics,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if client.analyticsQueryType == QueryTypeTimeseries {
+		computeCircuitQoSPercentDrop(metrics)
+	}
+	return metrics, nil
+}
+
+// computeCircuitQoSPercentDrop replaces percentdrop in timeseries rows. Versa reports it
+// as zero in every timeseries bucket, even where totaldrop is non-zero, while tableData
+// reports it as totaldrop/volume-tx, a fraction. Each bucket gets that same ratio here;
+// a bucket with no transmitted volume has no defined ratio, so its percent drop is unset.
+func computeCircuitQoSPercentDrop(metrics []CircuitQoSMetrics) {
+	for i := range metrics {
+		m := &metrics[i]
+		if m.VolumeTx == 0 {
+			m.PercentDrop = 0
+			m.PercentDropUnset = true
+			continue
+		}
+		m.PercentDrop = m.TotalDrop / m.VolumeTx
+		m.PercentDropUnset = false
+	}
 }
 
 // GetLinkStatusMetrics retrieves link status metrics from the Versa Analytics API
