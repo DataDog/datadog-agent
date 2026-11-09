@@ -44,10 +44,11 @@ var platformDockerLogsBasePath string
 
 func fileTestSetup(t *testing.T) {
 	tmp := t.TempDir()
-	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin string
+	var oldPodLogsBasePath, oldDockerLogsBasePathNix, oldDockerLogsBasePathWin, oldECSJSONFileLogsBasePath string
 	oldPodLogsBasePath, podLogsBasePath = podLogsBasePath, filepath.Join(tmp, "pods")
 	oldDockerLogsBasePathNix, dockerLogsBasePathNix = dockerLogsBasePathNix, filepath.Join(tmp, "docker-nix")
 	oldDockerLogsBasePathWin, dockerLogsBasePathWin = dockerLogsBasePathWin, filepath.Join(tmp, "docker-win")
+	oldECSJSONFileLogsBasePath, ecsJSONFileLogsBasePath = ecsJSONFileLogsBasePath, filepath.Join(tmp, "ecs-json-file")
 
 	switch runtime.GOOS {
 	case "windows":
@@ -60,7 +61,24 @@ func fileTestSetup(t *testing.T) {
 		podLogsBasePath = oldPodLogsBasePath
 		dockerLogsBasePathNix = oldDockerLogsBasePathNix
 		dockerLogsBasePathWin = oldDockerLogsBasePathWin
+		ecsJSONFileLogsBasePath = oldECSJSONFileLogsBasePath
 	})
+}
+
+// ecsManagedInstancesDaemonModeSetup makes the agent look like an ECS Managed
+// Instances daemon. IsECSManagedInstancesDaemonMode reads both the cached
+// feature and the raw AWS_EXECUTION_ENV variable, so both must be set.
+func ecsManagedInstancesDaemonModeSetup(t *testing.T) *factory {
+	t.Helper()
+	env.SetFeatures(t, env.ECSManagedInstances)
+	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+	configmock.New(t)
+
+	return &factory{
+		pipelineProvider: pipeline.NewMockProvider(),
+		cop:              containersorpods.NewDecidedChooser(containersorpods.LogContainers),
+		dockerUtilGetter: &dockerUtilGetterImpl{},
+	}
 }
 
 func testAdaptiveSamplingOptions(enabled bool) *config.SourceAdaptiveSamplingOptions {
@@ -511,7 +529,52 @@ func TestFindDockerLogPath_ecsManagedInstances(t *testing.T) {
 
 	p, err := tf.findDockerLogPath("abc")
 	require.NoError(t, err)
-	require.Equal(t, filepath.Join("/var/log/ecs/json-file", "abc", "abc-json.log"), p)
+	require.Equal(t, filepath.Join(ecsJSONFileLogsBasePath, "abc", "*-json.log"), p)
+}
+
+func TestMakeFileSource_ecsManagedInstances_fileNotCreatedYet(t *testing.T) {
+	fileTestSetup(t)
+	tf := ecsManagedInstancesDaemonModeSetup(t)
+
+	// The log driver creates the file after the agent first sees the container,
+	// so the source must be created even though nothing exists on disk yet.
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "containerd",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+	require.Equal(t, "file", child.Config.Type)
+	require.Equal(t, "abc", child.Config.Identifier)
+	require.Equal(t, filepath.Join(ecsJSONFileLogsBasePath, "abc", "*-json.log"), child.Config.Path)
+	require.True(t, config.ContainsWildcard(child.Config.Path))
+	require.Equal(t, sources.DockerSourceType, child.GetSourceType())
+}
+
+func TestMakeFileSource_ecsManagedInstances_matchesActiveFileOnly(t *testing.T) {
+	fileTestSetup(t)
+	tf := ecsManagedInstancesDaemonModeSetup(t)
+
+	dir := filepath.Join(ecsJSONFileLogsBasePath, "abc")
+	require.NoError(t, os.MkdirAll(dir, 0o777))
+	for _, name := range []string{"abc-json.log", "abc-json.log.1", "abc-json.log.2.gz"} {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, name), []byte("{}"), 0o666))
+	}
+
+	source := sources.NewLogSource("test", &config.LogsConfig{
+		Type:       "containerd",
+		Identifier: "abc",
+		Source:     "src",
+		Service:    "svc",
+	})
+	child, err := tf.makeFileSource(source)
+	require.NoError(t, err)
+
+	matches, err := filepath.Glob(child.Config.Path)
+	require.NoError(t, err)
+	require.Equal(t, []string{filepath.Join(dir, "abc-json.log")}, matches)
 }
 
 func TestFindDockerLogPath_ecsManagedInstances_dockerPathOverrideTakesPrecedence(t *testing.T) {
@@ -538,7 +601,7 @@ func TestFindDockerLogPath_ecsManagedInstances_dockerPathOverrideTakesPrecedence
 func TestFindDockerLogPath_ecsManagedInstances_sidecarModeNotScoped(t *testing.T) {
 	fileTestSetup(t)
 	// Sidecar mode has no host-wide log visibility and should not resolve to the
-	// daemon-only /var/log/ecs/json-file path - it must fall through to the normal
+	// daemon-only json-file path - it must fall through to the normal
 	// docker-data-root-relative path instead.
 	env.SetFeatures(t, env.ECSManagedInstances)
 	t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
@@ -554,7 +617,7 @@ func TestFindDockerLogPath_ecsManagedInstances_sidecarModeNotScoped(t *testing.T
 	p, err := tf.findDockerLogPath("abc")
 	require.NoError(t, err)
 	require.Equal(t, filepath.Join(platformDockerLogsBasePath, "containers", "abc", "abc-json.log"), p)
-	require.NotContains(t, p, "/var/log/ecs/json-file")
+	require.NotContains(t, p, ecsJSONFileLogsBasePath)
 }
 
 func TestMakeFileSource_containerd_success(t *testing.T) {
@@ -562,9 +625,8 @@ func TestMakeFileSource_containerd_success(t *testing.T) {
 
 	// Config.Type == "containerd" (as resolved by autodiscovery for MI daemon-mode
 	// containers) must route through the same file-tailing path as "docker"/"podman".
-	// AWS_EXECUTION_ENV is deliberately left unset here so findDockerLogPath falls
-	// through to the swappable dockerLogsBasePathNix/Win test fixture instead of the
-	// real, unswappable /var/log/ecs/json-file path (covered separately above).
+	// AWS_EXECUTION_ENV is deliberately left unset here so findDockerLogPath uses the
+	// docker data root; the Managed Instances path is covered by the tests above.
 	p := filepath.Join(platformDockerLogsBasePath, filepath.FromSlash("containers/abc/abc-json.log"))
 	require.NoError(t, os.MkdirAll(filepath.Dir(p), 0o777))
 	require.NoError(t, os.WriteFile(p, []byte("{}"), 0o666))

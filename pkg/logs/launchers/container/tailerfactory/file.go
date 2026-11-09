@@ -34,9 +34,10 @@ import (
 )
 
 var (
-	podLogsBasePath       = "/var/log/pods"
-	dockerLogsBasePathNix = "/var/lib/docker"
-	dockerLogsBasePathWin = "c:\\programdata\\docker"
+	podLogsBasePath         = "/var/log/pods"
+	dockerLogsBasePathNix   = "/var/lib/docker"
+	dockerLogsBasePathWin   = "c:\\programdata\\docker"
+	ecsJSONFileLogsBasePath = "/var/log/ecs/json-file"
 )
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
@@ -124,14 +125,18 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		return nil, err
 	}
 
-	// check access to the file; if it is not readable, then returning an error will
-	// try to fall back to reading from a socket.
-	f, err := opener.OpenLogFile(path)
-	if err != nil {
-		// (this error already has the form 'open <path>: ..' so needs no further embellishment)
-		return nil, err
+	// A wildcard path cannot be opened and may not match a file yet. The file
+	// launcher rescans until the file appears, so skip the access check.
+	if !config.ContainsWildcard(path) {
+		// check access to the file; if it is not readable, then returning an error will
+		// try to fall back to reading from a socket.
+		f, err := opener.OpenLogFile(path)
+		if err != nil {
+			// (this error already has the form 'open <path>: ..' so needs no further embellishment)
+			return nil, err
+		}
+		f.Close()
 	}
-	f.Close()
 
 	sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogContainers)
 
@@ -180,11 +185,13 @@ func (tf *factory) findDockerLogPath(containerID string) (string, error) {
 	// On ECS Managed Instances daemon mode the json-file log driver writes to a
 	// fixed, platform-managed path rather than a docker/containerd data root.
 	// Use the same daemon-mode check as the Chooser (containersorpods package) so
-	// the two agree on what counts as "MI" - sidecar mode has no host-wide log
-	// visibility and never reaches this path in practice, but scope it explicitly
-	// rather than relying on that as an accident of the Chooser's own gating.
+	// the two agree on what counts as "MI".
+	//
+	// The driver creates the file after the container is first seen, so match it
+	// with a wildcard that the file launcher keeps resolving. "*-json.log" does
+	// not match rotated files (.log.1, .log.2.gz).
 	if env.IsECSManagedInstancesDaemonMode(pkgconfigsetup.Datadog()) {
-		return filepath.Join("/var/log/ecs/json-file", containerID, containerID+"-json.log"), nil
+		return filepath.Join(ecsJSONFileLogsBasePath, containerID, "*-json.log"), nil
 	}
 
 	switch runtime.GOOS {
