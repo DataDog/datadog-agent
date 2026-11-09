@@ -15,6 +15,12 @@ import (
 const (
 	// PidCacheEntrySize is the size of the pid_cache_t
 	PidCacheEntrySize = 96
+	// FileCapabilitiesSize is the size of file_capabilities_t.
+	FileCapabilitiesSize = 24
+	// ProcessEntrySize is the size of process_entry_t.
+	ProcessEntrySize = FileFieldsSize + 8 + 64 + 16 + FileCapabilitiesSize
+	// ProcCacheEntrySize is the size of proc_cache_t.
+	ProcCacheEntrySize = PathKeySize + ProcessEntrySize
 )
 
 // BinaryMarshaler interface implemented by every event type
@@ -75,6 +81,25 @@ func (e *FileFields) MarshalBinary(data []byte) (int, error) {
 	return FileFieldsSize, nil
 }
 
+// MarshalBinary marshals the file_capabilities_t representation.
+func (e *FileCapabilities) MarshalBinary(data []byte) (int, error) {
+	if len(data) < FileCapabilitiesSize {
+		return 0, ErrNotEnoughSpace
+	}
+
+	binary.NativeEndian.PutUint64(data[0:8], e.Permitted)
+	binary.NativeEndian.PutUint64(data[8:16], e.Inheritable)
+	binary.NativeEndian.PutUint32(data[16:20], 0)
+	binary.NativeEndian.PutUint32(data[20:24], 0)
+	if e.Effective {
+		binary.NativeEndian.PutUint32(data[16:20], 1)
+	}
+	if e.Available {
+		binary.NativeEndian.PutUint32(data[20:24], 1)
+	}
+	return FileCapabilitiesSize, nil
+}
+
 // MarshalProcCache marshals a binary representation of itself
 func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error) {
 	// Marshal proc_cache_t
@@ -109,7 +134,12 @@ func (e *Process) MarshalProcCache(data []byte, bootTime time.Time) (int, error)
 
 	copy(data[written:written+16], e.Comm)
 	written += 16
-	return written, nil
+
+	added, err = e.FileCapabilities.MarshalBinary(data[written:])
+	if err != nil {
+		return 0, err
+	}
+	return written + added, nil
 }
 
 func marshalTime(data []byte, t time.Duration) {

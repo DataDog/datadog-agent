@@ -8179,6 +8179,14 @@ properties:
         node_type: section
         type: object
         properties:
+          dd_url:
+            node_type: setting
+            type: string
+            default: ""
+            description: |
+              URL health reports are sent to, overriding the health platform intake of the
+              configured `site` (https://agenthealth-intake.<site>). Use it to route health
+              reports through a proxy.
           interval:
             node_type: setting
             type: string

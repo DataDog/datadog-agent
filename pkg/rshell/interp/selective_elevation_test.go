@@ -192,8 +192,10 @@ func TestSelectiveElevationNestedChildRequiresGrant(t *testing.T) {
 			require.NoError(t, os.WriteFile(victim, []byte("protected\n"), 0o644))
 			require.NoError(t, os.WriteFile(filepath.Join(dir, "args"), []byte("victim\n"), 0o644))
 
+			// cat authorizes the `< args` input redirect used by the
+			// xargs-with-stdin case; it is not elevatable.
 			stderr, calls, _ := runNestedElevation(t, dir, tc.script,
-				[]string{"find", "xargs", "truncate"}, tc.elevatable)
+				[]string{"find", "xargs", "truncate", "cat"}, tc.elevatable)
 
 			require.Equal(t, tc.elevatable[:1], calls)
 			require.Contains(t, stderr, "rshell: sudo: truncate: elevation not allowed")
