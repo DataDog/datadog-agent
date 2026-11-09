@@ -32,6 +32,8 @@ type RawSender interface {
 
 // checkSender implements Sender
 type checkSender struct {
+	// Internal telemetry must not wait on the input loop it is instrumenting.
+	directAggregator        *BufferedAggregator
 	id                      checkid.ID
 	metricSource            metrics.MetricSource
 	defaultHostname         string
@@ -162,11 +164,19 @@ func (s *checkSender) SetNoIndex(noIndex bool) {
 	s.noIndex = noIndex
 }
 
+func (s *checkSender) submitItem(item senderItem) {
+	if s.directAggregator != nil {
+		item.handle(s.directAggregator)
+		return
+	}
+	s.itemsOut <- item
+}
+
 // Commit commits the metric samples & histogram buckets that were added during a check run
 // Should be called at the end of every check run
 func (s *checkSender) Commit() {
 	// we use a metric sample to commit both for metrics & sketches
-	s.itemsOut <- &senderMetricSample{s.id, &metrics.MetricSample{}, true}
+	s.submitItem(&senderMetricSample{s.id, &metrics.MetricSample{}, true})
 	s.cyclemetricStats()
 }
 
@@ -186,7 +196,7 @@ func (s *checkSender) cyclemetricStats() {
 // SendRawMetricSample sends the raw sample
 // Useful for testing - submitting precomputed samples.
 func (s *checkSender) SendRawMetricSample(sample *metrics.MetricSample) {
-	s.itemsOut <- &senderMetricSample{s.id, sample, false}
+	s.submitItem(&senderMetricSample{s.id, sample, false})
 }
 
 func (s *checkSender) sendMetricSample(
@@ -228,7 +238,7 @@ func (s *checkSender) sendMetricSample(
 		metricSample.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderMetricSample{s.id, metricSample, false}
+	s.submitItem(&senderMetricSample{s.id, metricSample, false})
 
 	s.statsLock.Lock()
 	s.metricStats.MetricSamples++
@@ -340,7 +350,7 @@ func (s *checkSender) sendHistogramBucket(metric string, value int64, lowerBound
 		histogramBucket.Host = s.defaultHostname
 	}
 
-	s.itemsOut <- &senderHistogramBucket{s.id, histogramBucket}
+	s.submitItem(&senderHistogramBucket{s.id, histogramBucket})
 
 	s.statsLock.Lock()
 	s.metricStats.HistogramBuckets++

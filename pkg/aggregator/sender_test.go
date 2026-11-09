@@ -10,6 +10,7 @@ package aggregator
 import (
 	"fmt"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -810,4 +811,213 @@ func TestSenderGaugeWithTimestampValidation(t *testing.T) {
 	err = s.sender.GaugeWithTimestamp("my.gauge_with_timestamp", 42, "my-hostname", nil, -10000)
 	assert.Error(t, err)
 	assert.Len(t, s.itemChan, 0)
+}
+
+// Model a streaming serializer that feeds metrics back before accepting a point.
+// The default sender must progress even when the ordinary input loop is paused.
+type telemetryFeedbackSink struct{ submit func() }
+
+func (s telemetryFeedbackSink) Append(_ *metrics.Serie) { s.submit() }
+func TestInternalTelemetryProgressDuringStream(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	sender, err := demux.GetDefaultSender()
+	require.NoError(t, err)
+	sender.Gauge("feedback.initial", 1, "", nil)
+	sender.Commit()
+	done := make(chan struct{})
+	go func() {
+		var sketches metrics.SketchSeriesList
+		agg.getSeriesAndSketches(time.Now(), telemetryFeedbackSink{submit: func() {
+			for i := 0; i <= cap(agg.checkItems); i++ {
+				sender.Gauge("feedback.during", float64(i), "", nil)
+			}
+			sender.Commit()
+		}}, &sketches)
+		close(done)
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("internal telemetry deadlocked against the stream")
+	}
+	// Feedback may share the initial commit's wire second. It must remain
+	// available for the next flush, without waiting inside the serializer.
+	agg.mu.Lock()
+	for _, sampler := range agg.checkSamplers {
+		sampler.commitAt(float64(time.Now().Unix()+15), true, false, nil)
+	}
+	agg.mu.Unlock()
+	series, _ := agg.GetSeriesAndSketches(time.Now())
+	found := false
+	for _, s := range series {
+		if s.Name == "feedback.during" {
+			found = true
+			require.Equal(t, float64(cap(agg.checkItems)), s.Points[0].Value)
+		}
+	}
+	require.True(t, found, "feedback metrics must be retained")
+}
+
+// Both a final flush and already accepted samples are ready before the input
+// loop starts. Final delivery must not depend on select choosing 100 samples
+// before choosing the flush. No producers remain active during this scenario.
+func TestComparisonFinalFlushIncludesAcceptedCheckInput(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	agg.handleRegisterSampler("accepted")
+	sender := newCheckSender("accepted", "", agg.checkItems, agg.serviceCheckIn, agg.eventIn, agg.orchestratorMetadataIn, agg.orchestratorManifestIn, agg.eventPlatformIn)
+	n := cap(agg.checkItems) - 1
+	require.Greater(t, n, 0)
+	for i := 0; i < n; i++ {
+		sender.Count("accepted.count", 1, "", nil)
+	}
+	sender.Commit()
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+	produced := make(chan struct{}, 1)
+	finished := make(chan struct{})
+	close(finished)
+	trigger := flushTrigger{trigger: trigger{time: time.Now(), blockChan: produced, waitForSerializer: true}, seriesSink: &series, sketchesSink: &sketches}
+	trigger.serializationDone = finished
+	agg.flushChan = make(chan flushTrigger, 1)
+	agg.flushChan <- trigger
+	go agg.run()
+	defer agg.Stop()
+	select {
+	case <-produced:
+	case <-time.After(5 * time.Second):
+		t.Fatal("final flush stalled")
+	}
+	total := 0.
+	for _, s := range series {
+		if s.Name == "accepted.count" {
+			for _, p := range s.Points {
+				total += p.Value
+			}
+		}
+	}
+	require.Equal(t, float64(n), total, "accepted samples must reach the final payload before shutdown")
+}
+
+func TestComparisonFinalFlushIncludesCurrentSecondSketch(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	agg.handleRegisterSampler("accepted-sketch")
+	synctest.Test(t, func(t *testing.T) {
+		now := time.Now()
+		agg.handleSenderBucket(senderHistogramBucket{id: "accepted-sketch", bucket: &metrics.HistogramBucket{Name: "accepted.distribution", Value: 7, LowerBound: 1, UpperBound: 1, Timestamp: float64(now.Unix())}})
+		agg.handleSenderSample(senderMetricSample{id: "accepted-sketch", commit: true})
+		var series metrics.Series
+		var sketches metrics.SketchSeriesList
+		done := make(chan struct{})
+		close(done)
+		trigger := flushTrigger{trigger: trigger{time: now, waitForSerializer: true}, seriesSink: &series, sketchesSink: &sketches}
+
+		trigger.serializationDone = done
+		agg.Flush(trigger)
+		require.Empty(t, sketches, "ordinary flush must leave the current bucket open")
+		trigger.finalFlush = true
+		agg.Flush(trigger)
+		count := int64(0)
+		for _, s := range sketches {
+			if s.Name == "accepted.distribution" {
+				for _, p := range s.Points {
+					count += p.Sketch.Basic.Cnt
+				}
+			}
+		}
+		require.Equal(t, int64(7), count, "a stopped Agent cannot depend on another check run to flush its last sketch")
+	})
+}
+
+func TestPeriodicDeferredGaugePreservesNextRun(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	agg.handleRegisterSampler("deferred-gauge")
+	synctest.Test(t, func(t *testing.T) {
+		cs := agg.checkSamplers["deferred-gauge"]
+		cs.commitNow(true, nil)
+		submit := func(value float64) {
+			agg.handleSenderSample(senderMetricSample{id: "deferred-gauge", metricSample: &metrics.MetricSample{Name: "deferred.gauge", Mtype: metrics.GaugeType, Value: value}})
+			agg.handleSenderSample(senderMetricSample{id: "deferred-gauge", commit: true})
+		}
+		submit(7)
+		require.True(t, cs.deferredFinal)
+		// Virtual time: simulate the next scheduled check, without a real sleep.
+		time.Sleep(time.Second)
+		submit(11)
+		cs.commitAt(float64(time.Now().UnixNano())/1e9, true, true, nil)
+		series, _ := cs.flush()
+		require.Len(t, series, 2)
+		require.Equal(t, float64(7), series[0].Points[0].Value)
+		require.Equal(t, float64(11), series[1].Points[0].Value)
+		require.Less(t, series[0].Points[0].Ts, series[1].Points[0].Ts)
+	})
+}
+
+func TestPeriodicShutdownDrainsFutureSketch(t *testing.T) {
+	deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+	demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+	agg := demux.Aggregator()
+	agg.handleRegisterSampler("future-sketch")
+	future := time.Now().Unix() + 3600
+	agg.handleSenderBucket(senderHistogramBucket{id: "future-sketch", bucket: &metrics.HistogramBucket{Name: "future.distribution", Value: 7, LowerBound: 1, UpperBound: 1, Timestamp: float64(future)}})
+	var series metrics.Series
+	var sketches metrics.SketchSeriesList
+	agg.Flush(flushTrigger{trigger: trigger{time: time.Now(), waitForSerializer: true}, finalFlush: true, seriesSink: &series, sketchesSink: &sketches})
+	require.Len(t, sketches, 1)
+	require.Len(t, sketches[0].Points, 1)
+	require.Equal(t, future, sketches[0].Points[0].Ts)
+	require.Equal(t, int64(7), sketches[0].Points[0].Sketch.Basic.Cnt)
+}
+
+func TestPeriodicDeregistrationDrainsDeferredInput(t *testing.T) {
+	for _, streaming := range []bool{false, true} {
+		t.Run(map[bool]string{false: "direct", true: "streaming"}[streaming], func(t *testing.T) {
+			deps := fxutil.Test[SenderTestDeps](t, core.MockBundle(), hostnameimpl.MockModule(), filterlistfx.MockModule())
+			demux := testDemux(deps.Log, deps.Hostname, deps.FilterList)
+			agg := demux.Aggregator()
+			agg.handleRegisterSampler("retiring")
+			synctest.Test(t, func(t *testing.T) {
+				now := time.Now()
+				for _, value := range []float64{7, 11} {
+					agg.handleSenderSample(senderMetricSample{id: "retiring", metricSample: &metrics.MetricSample{Name: "retiring.count", Mtype: metrics.CountType, Value: value}})
+					agg.handleSenderSample(senderMetricSample{id: "retiring", commit: true})
+				}
+				require.True(t, agg.checkSamplers["retiring"].deferredFinal)
+				agg.handleSenderBucket(senderHistogramBucket{id: "retiring", bucket: &metrics.HistogramBucket{Name: "retiring.distribution", Value: 7, LowerBound: 1, UpperBound: 1, Timestamp: float64(now.Unix() + 3600)}})
+				agg.checkSamplers["retiring"].deregistered = true
+				var series metrics.Series
+				var sketches metrics.SketchSeriesList
+				if streaming {
+					done := make(chan struct{})
+					close(done)
+					agg.Flush(flushTrigger{trigger: trigger{time: now}, seriesSink: &series, sketchesSink: &sketches, serializationDone: done})
+				} else {
+					series, sketches = agg.GetSeriesAndSketches(now)
+				}
+				var count float64
+				seen := map[int64]bool{}
+				for _, s := range series {
+					if s.Name == "retiring.count" {
+						for _, point := range s.Points {
+							require.False(t, seen[int64(point.Ts)])
+							seen[int64(point.Ts)] = true
+							count += point.Value
+						}
+					}
+				}
+				require.Equal(t, float64(18), count)
+				require.Len(t, sketches, 1)
+				require.Equal(t, int64(7), sketches[0].Points[0].Sketch.Basic.Cnt)
+				require.Equal(t, now.Unix()+3600, sketches[0].Points[0].Ts)
+				require.NotContains(t, agg.checkSamplers, checkid.ID("retiring"))
+			})
+		})
+	}
 }

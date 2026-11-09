@@ -847,3 +847,47 @@ func TestStatsCopy(t *testing.T) {
 	assert.Equal(t, stats.LastFlush, statsCopy.LastFlush)
 	assert.Equal(t, stats.Name, statsCopy.Name)
 }
+
+// The literal periodic proposal commits unfinished checks and leaves their
+// shared input blocked until the serializer completes. No timestamp wait is used.
+func TestPeriodicPrototypeCommitAndBlock(t *testing.T) {
+	agg := getAggregator(t)
+	id := checkid.ID("periodic-prototype")
+	agg.handleRegisterSampler(id)
+	agg.handleSenderSample(senderMetricSample{id: id, metricSample: &metrics.MetricSample{
+		Name: "prototype.count", Value: 7, Mtype: metrics.CountType,
+	}})
+	series := metrics.Series{}
+	sketches := metrics.SketchSeriesList{}
+	done := make(chan struct{})
+	defer close(done)
+	produced := make(chan struct{})
+	agg.flushChan <- flushTrigger{
+		trigger:           trigger{time: time.Unix(100, 123000000), blockChan: produced},
+		serializationDone: done, seriesSink: &series, sketchesSink: &sketches,
+	}
+	select {
+	case <-produced:
+	case <-time.After(5 * time.Second):
+		t.Fatal("periodic producer did not finish")
+	}
+	found := false
+	for _, serie := range series {
+		if serie.Name == "prototype.count" {
+			found = true
+			require.Equal(t, float64(7), serie.Points[0].Value)
+		}
+	}
+	require.True(t, found, "unfinished check must be committed")
+	processed := make(periodicPrototypeBarrier)
+	agg.checkItems <- processed
+	select {
+	case <-processed:
+		t.Fatal("check input resumed before serialization completed")
+	case <-time.After(20 * time.Millisecond):
+	}
+}
+
+type periodicPrototypeBarrier chan struct{}
+
+func (b periodicPrototypeBarrier) handle(_ *BufferedAggregator) { close(b) }
