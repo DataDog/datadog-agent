@@ -131,9 +131,8 @@ func assertProcessPIDCollected(t require.TestingT, payloads []*aggregator.Proces
 	require.Failf(t, "process PID not collected", "PID %d not found in process payloads: %+v", pid, payloads)
 }
 
-// assertZombieAggregationPayloads checks the mode-specific zombie aggregation
-// and individual process emission contract across standard process payloads
-// received after a fakeintake flush.
+// assertZombieAggregationPayloads checks mode-specific parent aggregation and
+// non-GPU zombie omission in standard payloads received after a fakeintake flush.
 func assertZombieAggregationPayloads(
 	t require.TestingT,
 	payloads []*aggregator.ProcessPayload,
@@ -142,17 +141,13 @@ func assertZombieAggregationPayloads(
 ) {
 	require.NotEmpty(t, payloads, "no process payloads returned")
 	parentFound := false
-	zombieFound := false
 	positiveAggregateFound := false
 	for _, payload := range payloads {
 		for _, process := range payload.Processes {
 			require.NotNil(t, process, "process payload contains a nil process")
 			assert.Equalf(t, aggregationEnabled, process.HasZombieAggregation,
 				"process %d has an unexpected zombie aggregation capability flag", process.Pid)
-			if process.Pid == zombiePID {
-				zombieFound = true
-				assert.Equal(t, agentmodel.ProcessState_Z, process.State, "zombie PID %d has an unexpected state", zombiePID)
-			}
+			require.NotEqual(t, zombiePID, process.Pid, "non-GPU zombie PID %d was submitted individually", zombiePID)
 			if process.Pid != parentPID {
 				continue
 			}
@@ -168,8 +163,6 @@ func assertZombieAggregationPayloads(
 		}
 	}
 	require.Truef(t, parentFound, "parent PID %d not found in process payloads: %+v", parentPID, payloads)
-	require.Equalf(t, aggregationEnabled, zombieFound,
-		"zombie PID %d individual emission did not match aggregation mode in payloads: %+v", zombiePID, payloads)
 	if aggregationEnabled {
 		require.Truef(t, positiveAggregateFound,
 			"parent PID %d never reported both a zombie child and a positive creation rate: %+v", parentPID, payloads)
@@ -456,22 +449,16 @@ func assertManualRTProcessCheck(t require.TestingT, check string) {
 	assert.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
 }
 
-// assertManualRTProcessCollection asserts whether an exact zombie PID is present
-// in a non-empty realtime process check response.
-func assertManualRTProcessCollection(t require.TestingT, check string, pid int32, wantCollected bool) {
+// assertManualRTProcessNotCollected checks PID omission in a non-empty realtime response.
+func assertManualRTProcessNotCollected(t require.TestingT, check string, pid int32) {
 	var rt agentmodel.CollectorRealTime
 	err := json.NewDecoder(strings.NewReader(check)).Decode(&rt)
 	require.NoError(t, err, "failed to decode realtime process check output: %s", check)
 	require.NotEmptyf(t, rt.Stats, "no process stats in realtime output %s", check)
-	found := false
 	for _, stats := range rt.Stats {
 		require.NotNil(t, stats, "realtime output contains a nil process stat")
-		if stats.Pid == pid {
-			found = true
-			assert.Equal(t, agentmodel.ProcessState_Z, stats.ProcessState, "zombie PID %d has an unexpected realtime state", pid)
-		}
+		require.NotEqual(t, pid, stats.Pid, "non-GPU zombie PID %d was submitted in realtime output", pid)
 	}
-	require.Equalf(t, wantCollected, found, "zombie PID %d collection mismatch in realtime output: %s", pid, check)
 }
 
 // assertManualContainerCheck asserts that the given container is collected from a manual container check
