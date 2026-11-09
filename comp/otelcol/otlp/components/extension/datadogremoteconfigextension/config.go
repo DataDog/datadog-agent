@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configtls"
 )
 
@@ -21,14 +20,20 @@ import (
 type Config struct {
 	Endpoint           string                  `mapstructure:"endpoint"`
 	TLS                *configtls.ServerConfig `mapstructure:"tls,omitempty"`
-	Egress             confighttp.ClientConfig `mapstructure:"egress"`
+	Egress             EgressConfig            `mapstructure:"egress"`
 	MaxRequestBodySize int64                   `mapstructure:"max_request_body_size"`
 }
 
+// EgressConfig configures the upstream transport without changing RC payloads or credentials.
+type EgressConfig struct {
+	Endpoint string                 `mapstructure:"endpoint"`
+	Timeout  time.Duration          `mapstructure:"timeout"`
+	TLS      configtls.ClientConfig `mapstructure:"tls,omitempty"`
+	ProxyURL string                 `mapstructure:"proxy_url,omitempty"`
+}
+
 func createDefaultConfig() component.Config {
-	egress := confighttp.NewDefaultClientConfig()
-	egress.Endpoint = "https://config.datadoghq.com"
-	egress.Timeout = 10 * time.Second
+	egress := EgressConfig{Endpoint: "https://config.datadoghq.com", Timeout: 10 * time.Second}
 	return &Config{
 		Endpoint:           "127.0.0.1:8234",
 		Egress:             egress,
@@ -49,8 +54,12 @@ func (c *Config) Validate() error {
 	if c.Egress.Timeout <= 0 {
 		return errors.New("egress.timeout must be positive")
 	}
-	if c.Egress.Compression.IsCompressed() {
-		return errors.New("egress.compression must be disabled to preserve Remote Config payloads")
+	if c.Egress.ProxyURL != "" {
+		proxy, err := url.Parse(c.Egress.ProxyURL)
+		if err != nil || (proxy.Scheme != "http" && proxy.Scheme != "https") || proxy.Hostname() == "" ||
+			(proxy.Path != "" && proxy.Path != "/") || proxy.RawQuery != "" || proxy.ForceQuery || proxy.Fragment != "" {
+			return errors.New("egress.proxy_url must be an HTTP or HTTPS proxy origin")
+		}
 	}
 	if c.MaxRequestBodySize <= 0 {
 		return errors.New("max_request_body_size must be positive")

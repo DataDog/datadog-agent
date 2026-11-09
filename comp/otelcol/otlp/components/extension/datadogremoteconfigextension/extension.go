@@ -35,10 +35,18 @@ type remoteConfigExtension struct {
 }
 
 func (e *remoteConfigExtension) Start(ctx context.Context, host component.Host) error {
-	client, err := e.config.Egress.ToClient(ctx, host.GetExtensions(), e.settings.TelemetrySettings)
+	upstreamTLS, err := e.config.Egress.TLS.LoadTLSConfig(ctx)
 	if err != nil {
 		return err
 	}
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.TLSClientConfig = upstreamTLS
+	transport.DisableCompression = true
+	if e.config.Egress.ProxyURL != "" {
+		proxyURL, _ := url.Parse(e.config.Egress.ProxyURL)
+		transport.Proxy = http.ProxyURL(proxyURL)
+	}
+	client := &http.Client{Transport: transport}
 	var tlsConfig *tls.Config
 	if e.config.TLS != nil {
 		tlsConfig, err = e.config.TLS.LoadTLSConfig(ctx)
@@ -100,10 +108,6 @@ func (e *remoteConfigExtension) handler(transport http.RoundTripper, requests me
 		Rewrite: func(r *httputil.ProxyRequest) {
 			r.SetURL(upstream)
 			r.Out.URL.RawPath = ""
-			// Prevent the HTTP transport from negotiating and decompressing a response itself.
-			if r.Out.Header.Get("Accept-Encoding") == "" {
-				r.Out.Header.Set("Accept-Encoding", "identity")
-			}
 		},
 		Transport: transport,
 		ErrorLog:  log.New(io.Discard, "", 0),

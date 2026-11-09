@@ -13,6 +13,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -304,4 +305,24 @@ func TestCompressedPayloadIsOpaque(t *testing.T) {
 	require.Equal(t, http.StatusOK, res.StatusCode)
 	require.Equal(t, "gzip", res.Header.Get("Content-Encoding"))
 	require.Equal(t, compressed.Bytes(), body)
+}
+
+func TestShutdownClosesUpstreamConnection(t *testing.T) {
+	closed := make(chan struct{})
+	upstream := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	upstream.Config.ConnState = func(_ net.Conn, state http.ConnState) {
+		if state == http.StateClosed {
+			close(closed)
+		}
+	}
+	upstream.StartTLS()
+	defer upstream.Close()
+	e := startProxy(t, upstream, nil)
+	e.client.Transport.(*http.Transport).IdleConnTimeout = 0
+	res, _ := proxyRequest(t, e, http.MethodGet, "/api/v0.1/org", nil)
+	require.Equal(t, http.StatusNoContent, res.StatusCode)
+	require.NoError(t, e.Shutdown(t.Context()))
+	<-closed
 }

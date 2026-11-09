@@ -39,10 +39,12 @@ registered with DDOT but is not enabled in its default configuration.
 | `tls` | unset | Collector TLS server settings; configure for an HTTPS SDK endpoint. |
 | `egress.endpoint` | `https://config.datadoghq.com` | Fixed HTTPS upstream origin. Select the same Datadog site/org as telemetry export. |
 | `egress.timeout` | `10s` | Upstream request deadline, including reading the response. Must be positive. |
+| `egress.proxy_url` | unset | Explicit HTTP/HTTPS network proxy; otherwise standard proxy environment settings apply. |
 | `max_request_body_size` | `4194304` | Maximum request bytes buffered before forwarding. Must be positive. |
 
-`egress` supports the Collector's standard HTTP client configuration, including CA
-certificates and network proxy settings. Normal TLS verification is enabled by default.
+`egress.tls` supports the Collector's TLS client configuration, including CA
+certificates. Normal TLS verification is enabled by default. The extension owns
+its HTTP transport and closes upstream idle connections during shutdown.
 Without `tls`, the local listener uses HTTP; the existing agentless client requires
 HTTPS, so the POC SDK transport override must use a TLS listener.
 
