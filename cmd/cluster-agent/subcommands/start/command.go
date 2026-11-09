@@ -82,6 +82,7 @@ import (
 
 	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	instrumentationbundle "github.com/DataDog/datadog-agent/comp/instrumentation"
+	instrumentationchecks "github.com/DataDog/datadog-agent/comp/instrumentation/checks/def"
 	instrumentationstore "github.com/DataDog/datadog-agent/comp/instrumentation/common"
 	instrumentationcontroller "github.com/DataDog/datadog-agent/comp/instrumentation/controller/def"
 	integrations "github.com/DataDog/datadog-agent/comp/logs/integrations/def"
@@ -325,6 +326,7 @@ func start(log log.Component,
 	checkStore *instrumentationstore.CheckStore,
 	apmTargetStore *instrumentationstore.APMTargetStore,
 	instrumentationController instrumentationcontroller.Component,
+	instrumentationChecks instrumentationchecks.Component,
 	instrHandlers []instrumentation.Handler,
 	refreshTaggerGlobalTags option.Option[func(context.Context)],
 	helmactions helmactions.Component,
@@ -443,7 +445,9 @@ func start(log log.Component,
 	eventRecorder := eventBroadcaster.NewRecorder(scheme.Scheme, v1.EventSource{Component: "datadog-cluster-agent"})
 
 	if config.GetBool("instrumentation_crd_controller.enabled") {
-		setupInstrumentationCRDHandler(ac, checkStore, serviceTemplateStore)
+		useEndpointSlices := apiserver.UseEndpointSlices()
+		instrumentationChecks.SetServiceTargetEnabled(useEndpointSlices)
+		setupInstrumentationCRDHandler(ac, checkStore, serviceTemplateStore, useEndpointSlices)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
@@ -871,12 +875,12 @@ func loopbackOnly(h http.Handler) http.HandlerFunc {
 	}
 }
 
-func setupInstrumentationCRDHandler(ac autodiscovery.Component, checkStore *instrumentationstore.CheckStore, serviceTemplateStore *instrumentationstore.ServiceCheckTemplateStore) {
+func setupInstrumentationCRDHandler(ac autodiscovery.Component, checkStore *instrumentationstore.CheckStore, serviceTemplateStore *instrumentationstore.ServiceCheckTemplateStore, useEndpointSlices bool) {
 	api.ModifyAPIRouter(func(r *http.ServeMux) {
 		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
 	})
 
-	if apiserver.UseEndpointSlices() {
+	if useEndpointSlices {
 		epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
 		if err != nil {
 			pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)

@@ -13,7 +13,11 @@ import "github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 // team: container-platform
 
 // Component validates and reconciles the checks section of a DatadogInstrumentation.
-// Its methods may be called concurrently by the controller and admission webhook.
+// Its handler methods may be called concurrently by the controller and admission webhook.
 type Component interface {
 	instrumentation.Handler
+
+	// SetServiceTargetEnabled must be called during startup, before the controller
+	// and admission webhook start using the handler.
+	SetServiceTargetEnabled(enabled bool)
 }

@@ -31,7 +31,7 @@ func newHandler() (*checksHandler, *common.CheckStore, *common.ServiceCheckTempl
 	h := &checksHandler{
 		checkStore:           cs,
 		templateStore:        ts,
-		serviceTargetEnabled: func() bool { return true },
+		serviceTargetEnabled: true,
 	}
 	return h, cs, ts
 }
@@ -134,6 +134,12 @@ func TestSupportsTarget(t *testing.T) {
 			assert.Equal(t, tt.expected, h.SupportsTarget(ref))
 		})
 	}
+
+	t.Run("Service without EndpointSlices", func(t *testing.T) {
+		h.SetServiceTargetEnabled(false)
+		assert.False(t, h.SupportsTarget(autoscalingv2.CrossVersionObjectReference{Kind: "Service"}))
+		assert.True(t, h.SupportsTarget(autoscalingv2.CrossVersionObjectReference{Kind: "Deployment"}))
+	})
 }
 
 func TestValidate(t *testing.T) {

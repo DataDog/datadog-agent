@@ -13,7 +13,6 @@ go_library(
         "//comp/instrumentation/common",
         "//pkg/clusteragent/instrumentation",
         "//pkg/util/kubernetes",
-        "//pkg/util/kubernetes/apiserver",
         "@com_github_datadog_datadog_operator_api//datadoghq/v1alpha1",
         "@io_k8s_api//autoscaling/v2:autoscaling",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",

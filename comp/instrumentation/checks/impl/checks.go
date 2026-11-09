@@ -25,7 +25,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/instrumentation/common"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
 const (
@@ -38,7 +37,7 @@ const (
 type checksHandler struct {
 	checkStore           common.ConfigWriter
 	templateStore        common.ServiceTemplateWriter
-	serviceTargetEnabled func() bool
+	serviceTargetEnabled bool
 }
 
 // Requires defines the dependencies of the checks handler.
@@ -57,9 +56,12 @@ func NewComponent(reqs Requires) Provides {
 	return Provides{Comp: &checksHandler{
 		checkStore:    reqs.CheckStore,
 		templateStore: reqs.ServiceCheckTemplateStore,
-		// Fx constructs this handler before the Kubernetes API client is initialized.
-		serviceTargetEnabled: apiserver.UseEndpointSlices,
 	}}
+}
+
+// SetServiceTargetEnabled configures Service target support before the handler is used.
+func (h *checksHandler) SetServiceTargetEnabled(enabled bool) {
+	h.serviceTargetEnabled = enabled
 }
 
 // Name returns the unique handler name.
@@ -80,7 +82,7 @@ func (h *checksHandler) SupportsTarget(ref autoscalingv2.CrossVersionObjectRefer
 	case kubernetes.ServiceKind:
 		// Service target support is backed by endpoint slices CR provider. If Endpointslice collection
 		// is disabled then service targets can't be supported.
-		return h.serviceTargetEnabled()
+		return h.serviceTargetEnabled
 	default:
 		return false
 	}

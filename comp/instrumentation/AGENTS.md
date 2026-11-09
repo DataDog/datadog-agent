@@ -90,8 +90,9 @@ Autodiscovery to avoid dependency cycles.
 The controller component's `Start(ctx, Params)` binds Kubernetes clients and
 leadership only after the CRD is available. The caller starts the informer factory
 after registration and cancels the context on shutdown. Component construction
-must not contact the API server: resolve capabilities such as EndpointSlice support
-when the handler is used, after API initialization.
+must not contact the API server. DCA startup resolves EndpointSlice support once,
+after API initialization, and supplies the result to both the checks handler and
+the EndpointSlice CR provider setup before starting reconciliation or admission.
 
 ## How reconciliation works
 
