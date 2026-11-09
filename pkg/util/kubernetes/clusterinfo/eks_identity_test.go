@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"sync"
 	"testing"
 	"testing/synctest"
 	"time"
@@ -21,9 +22,28 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 )
 
+func resetStartupIdentity(t *testing.T) {
+	t.Helper()
+	reset := func() {
+		startupIdentity.Lock()
+		defer startupIdentity.Unlock()
+		startupIdentity.tags, startupIdentity.budgetSpent = nil, false
+	}
+	reset()
+	t.Cleanup(reset)
+}
+
+var ordersIdentity = &identity.ClusterIdentity{
+	ClusterName: "orders",
+	ClusterARN:  "arn:aws:eks:us-west-2:123456789012:cluster/orders",
+	AccountID:   "123456789012",
+	Region:      "us-west-2",
+}
+
 func TestGetClusterAgentEKSIdentityTags(t *testing.T) {
 	original := getEKSClusterIdentity
 	t.Cleanup(func() { getEKSClusterIdentity = original })
+	resetStartupIdentity(t)
 	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
 		return &identity.ClusterIdentity{
 			ClusterName: "orders",
@@ -45,6 +65,7 @@ func TestGetClusterAgentEKSIdentityTags(t *testing.T) {
 func TestGetClusterAgentEKSIdentityTagsRejectsIncompleteIdentity(t *testing.T) {
 	original := getEKSClusterIdentity
 	t.Cleanup(func() { getEKSClusterIdentity = original })
+	resetStartupIdentity(t)
 	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
 		// No valid cluster ARN: the account and Region are derived from the ARN, so an
 		// identity that cannot be anchored to a well-formed ARN yields no tags and must be
@@ -60,6 +81,7 @@ func TestGetClusterAgentEKSIdentityTagsRejectsIncompleteIdentity(t *testing.T) {
 func TestGetClusterAgentEKSIdentityTagsReturnsClientError(t *testing.T) {
 	original := getEKSClusterIdentity
 	t.Cleanup(func() { getEKSClusterIdentity = original })
+	resetStartupIdentity(t)
 	expected := errors.New("Cluster Agent unavailable")
 	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
 		return nil, expected
@@ -74,6 +96,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryStopsOnClusterAgentAnswer(t *tes
 	synctest.Test(t, func(t *testing.T) {
 		original := getEKSClusterIdentity
 		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
 		expected := &clusteragent.StatusError{
 			StatusCode: http.StatusNotFound,
 			Err:        pkgerrors.NewRemoteServiceError("https://dca:5005/api/v1/cluster/eks-identity", "404 Not Found"),
@@ -97,6 +120,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryStopsOnIncompleteIdentity(t *tes
 	synctest.Test(t, func(t *testing.T) {
 		original := getEKSClusterIdentity
 		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
 		calls := 0
 		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
 			calls++
@@ -121,6 +145,7 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesTransportFailures(t *test
 			synctest.Test(t, func(t *testing.T) {
 				original := getEKSClusterIdentity
 				t.Cleanup(func() { getEKSClusterIdentity = original })
+				resetStartupIdentity(t)
 				calls := 0
 				getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
 					calls++
@@ -144,4 +169,99 @@ func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesTransportFailures(t *test
 			})
 		})
 	}
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetrySpendsBudgetOnce(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		unreachable := pkgerrors.NewRemoteServiceError("https://dca:5005/api/v1/cluster/eks-identity", "dial tcp 10.0.0.1:5005: connect: connection refused")
+		calls := 0
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			calls++
+			return nil, unreachable
+		}
+
+		start := time.Now()
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		assert.ErrorIs(t, err, unreachable)
+		assert.Equal(t, startupRetryBudget, time.Since(start))
+		assert.Greater(t, calls, 1)
+
+		for range 2 {
+			callsBefore := calls
+			start = time.Now()
+			_, err = GetClusterAgentEKSIdentityTagsWithRetry()
+			assert.ErrorIs(t, err, unreachable)
+			assert.Zero(t, time.Since(start))
+			assert.Equal(t, callsBefore+1, calls)
+		}
+	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryRecoversAfterBudget(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		resetStartupIdentity(t)
+		reachable := false
+		calls := 0
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			calls++
+			if !reachable {
+				return nil, errors.New("temporary failure in clusterAgentClient")
+			}
+			return ordersIdentity, nil
+		}
+
+		_, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		require.Error(t, err)
+
+		reachable = true
+		callsBefore := calls
+		tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		require.NoError(t, err)
+		assert.Contains(t, tags, "eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders")
+		assert.Equal(t, callsBefore+1, calls)
+
+		_, err = GetClusterAgentEKSIdentityTagsWithRetry()
+		require.NoError(t, err)
+		assert.Equal(t, callsBefore+1, calls)
+	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryReusesSuccess(t *testing.T) {
+	original := getEKSClusterIdentity
+	t.Cleanup(func() { getEKSClusterIdentity = original })
+	resetStartupIdentity(t)
+	release := make(chan struct{})
+	var calls int
+	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+		calls++
+		<-release
+		return ordersIdentity, nil
+	}
+
+	results := make([][]string, 3)
+	var wg sync.WaitGroup
+	for i := range results {
+		wg.Go(func() {
+			tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+			assert.NoError(t, err)
+			results[i] = tags
+		})
+	}
+	close(release)
+	wg.Wait()
+
+	assert.Equal(t, 1, calls)
+	for _, tags := range results {
+		assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
+	}
+
+	results[0][0] = "mutated"
+	tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+	require.NoError(t, err)
+	assert.ElementsMatch(t, ordersIdentity.Tags(), tags)
 }

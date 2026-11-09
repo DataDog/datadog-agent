@@ -8,6 +8,8 @@ package clusterinfo
 import (
 	"context"
 	"errors"
+	"slices"
+	"sync"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -16,6 +18,15 @@ import (
 )
 
 var errIncompleteIdentity = errors.New("cluster agent returned incomplete EKS identity")
+
+const startupRetryBudget = 10 * time.Second
+
+// startupIdentity is shared by every GetClusterAgentEKSIdentityTagsWithRetry caller in the process.
+var startupIdentity struct {
+	sync.Mutex
+	tags        []string
+	budgetSpent bool
+}
 
 var getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity, error) {
 	client, err := clusteragent.GetClusterAgentClient()
@@ -48,17 +59,41 @@ func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
 // the window, and retrying it would block every caller for the full budget on each startup. The
 // host-metadata provider path, which re-runs on its own refresh interval and is self-healing,
 // keeps using the non-retrying call above with a single attempt.
+//
+// Several startup components (the tagger, DogStatsD, OTLP) compute static tags, so the retry
+// budget is spent at most once per process: concurrent callers wait for the in-flight lookup, a
+// success is reused, and once the budget is spent later callers make a single attempt. An
+// unreachable Cluster Agent therefore delays startup by one budget rather than one per caller.
 func GetClusterAgentEKSIdentityTagsWithRetry() ([]string, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	startupIdentity.Lock()
+	defer startupIdentity.Unlock()
+
+	if startupIdentity.tags != nil {
+		return slices.Clone(startupIdentity.tags), nil
+	}
+
+	ctx, cancel := context.WithTimeout(context.Background(), startupRetryBudget)
 	defer cancel()
 
-	backoffPolicy := backoff.NewConstantBackOff(1 * time.Second)
-	return backoff.Retry(ctx, func() ([]string, error) {
-		tags, err := GetClusterAgentEKSIdentityTags(ctx)
-		var statusErr *clusteragent.StatusError
-		if errors.As(err, &statusErr) || errors.Is(err, errIncompleteIdentity) {
-			return nil, backoff.Permanent(err)
-		}
-		return tags, err
-	}, backoff.WithBackOff(backoffPolicy))
+	var tags []string
+	var err error
+	if startupIdentity.budgetSpent {
+		tags, err = GetClusterAgentEKSIdentityTags(ctx)
+	} else {
+		startupIdentity.budgetSpent = true
+		backoffPolicy := backoff.NewConstantBackOff(1 * time.Second)
+		tags, err = backoff.Retry(ctx, func() ([]string, error) {
+			tags, err := GetClusterAgentEKSIdentityTags(ctx)
+			var statusErr *clusteragent.StatusError
+			if errors.As(err, &statusErr) || errors.Is(err, errIncompleteIdentity) {
+				return nil, backoff.Permanent(err)
+			}
+			return tags, err
+		}, backoff.WithBackOff(backoffPolicy))
+	}
+	if err != nil {
+		return nil, err
+	}
+	startupIdentity.tags = tags
+	return slices.Clone(tags), nil
 }
