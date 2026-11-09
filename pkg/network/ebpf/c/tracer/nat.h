@@ -19,6 +19,19 @@ static __always_inline __u64 nat_lookup_mode() {
     return val;
 }
 
+// conntrack_entry_maps_back copies the conntrack entry at other into copy, and checks that the entry for the other
+// direction maps back to sock_tup. The map's elements are preallocated, so a concurrent update can reuse one while it's
+// being read; the check rejects a copy torn by that, or taken after it.
+static __always_inline bool conntrack_entry_maps_back(conntrack_tuple_t *other, conntrack_tuple_t *copy, conn_tuple_t *sock_tup) {
+    *copy = *other;
+    conntrack_tuple_t *back = bpf_map_lookup_elem(&conntrack, copy);
+    return back &&
+        back->saddr_h == sock_tup->saddr_h && back->saddr_l == sock_tup->saddr_l &&
+        back->daddr_h == sock_tup->daddr_h && back->daddr_l == sock_tup->daddr_l &&
+        back->sport == sock_tup->sport && back->dport == sock_tup->dport &&
+        back->netns == sock_tup->netns;
+}
+
 // get_skb_tuple finds the tuple the protocol classifier saw for a socket whose packets were NAT'd. sock_tup is the
 // socket's tuple, netns included; norm_sock_tup is the same tuple normalized, without netns and pid. On success
 // skb_tup holds the packets' tuple, normalized, without netns and pid.
@@ -42,14 +55,14 @@ static __always_inline bool get_skb_tuple(conn_tuple_t *sock_tup, conn_tuple_t *
     // keyed by the socket's netns: like net_dev_queue, this only sees NAT in the socket's own namespace. The value is
     // the other direction of the connection, so the packets on the socket's side are its inverse.
     conntrack_tuple_t *other = bpf_map_lookup_elem(&conntrack, &key);
-    if (other) {
+    if (other && conntrack_entry_maps_back(other, &key, sock_tup)) {
         bpf_memset(skb_tup, 0, sizeof(conn_tuple_t));
-        skb_tup->saddr_h = other->daddr_h;
-        skb_tup->saddr_l = other->daddr_l;
-        skb_tup->daddr_h = other->saddr_h;
-        skb_tup->daddr_l = other->saddr_l;
-        skb_tup->sport = other->dport;
-        skb_tup->dport = other->sport;
+        skb_tup->saddr_h = key.daddr_h;
+        skb_tup->saddr_l = key.daddr_l;
+        skb_tup->daddr_h = key.saddr_h;
+        skb_tup->daddr_l = key.saddr_l;
+        skb_tup->sport = key.dport;
+        skb_tup->dport = key.sport;
         skb_tup->metadata = sock_tup->metadata;
         normalize_tuple(skb_tup);
         return true;
