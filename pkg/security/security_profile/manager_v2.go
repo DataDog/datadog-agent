@@ -726,8 +726,8 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	if event.Error != nil && !activity_tree.IsInsertableEventError(event.Error) {
-		m.incrementEventWithError(event.GetEventType(), event.Error, eventWithErrorDropped)
+	if activity_tree.EventInsertionError(event) != nil {
+		m.incrementEventWithError(event, eventWithErrorDropped)
 		return
 	}
 
@@ -1188,7 +1188,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	secprof.Unlock()
 	if err != nil {
 		if event.Error != nil {
-			m.incrementEventWithError(event.GetEventType(), event.Error, eventWithErrorDropped)
+			m.incrementEventWithError(event, eventWithErrorDropped)
 		} else if !activity_tree.IsExpectedFilterError(err) {
 			m.incrementInsertionError(event.GetEventType(), err)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
@@ -1200,7 +1200,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 		if unattributed {
 			outcome = eventWithErrorUnattributed
 		}
-		m.incrementEventWithError(event.GetEventType(), event.Error, outcome)
+		m.incrementEventWithError(event, outcome)
 	}
 
 	// the unattributed activity isn't compared with the activity of the processes, what is new there may not be new
@@ -1677,8 +1677,14 @@ func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error
 	}
 }
 
-func (m *ManagerV2) incrementEventWithError(eventType model.EventType, err error, outcome string) {
-	key := eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: eventType, errorType: activity_tree.EventErrorType(err)}, outcome: outcome}
+// incrementEventWithError records an event carrying an error, labeled with the error that kept it out of the tree if
+// there is one
+func (m *ManagerV2) incrementEventWithError(event *model.Event, outcome string) {
+	err := activity_tree.EventInsertionError(event)
+	if err == nil {
+		err = event.Error
+	}
+	key := eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: event.GetEventType(), errorType: activity_tree.EventErrorType(err)}, outcome: outcome}
 	if entry, ok := m.eventsWithError[key]; ok {
 		entry.Inc()
 	}

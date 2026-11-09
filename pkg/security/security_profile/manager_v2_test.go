@@ -1190,6 +1190,7 @@ func assertZeroCounters[K comparable](t *testing.T, counters map[K]*atomic.Uint6
 
 func TestManagerV2_eventsWithError(t *testing.T) {
 	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	critical := &path.ErrPathResolution{Err: errors.New("dentry not found")}
 	countOf := func(m *ManagerV2, eventType model.EventType, errorType string, outcome string) uint64 {
 		return m.eventsWithError[eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: eventType, errorType: errorType}, outcome: outcome}].Load()
 	}
@@ -1247,13 +1248,59 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 	t.Run("dropped during insertion", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
-		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
+		event.SetPathResolutionError(&event.Open.File, critical)
 
 		_, inserted := m.insertEventIntoProfile(event)
 
 		assert.False(t, inserted)
 		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorPathResolution, eventWithErrorDropped))
 		assertZeroCounters(t, m.insertionErrors)
+	})
+
+	t.Run("path errors that leave the activity intact are kept", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		kernelMount := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		kernelMount.SetPathResolutionError(&kernelMount.Open.File, &path.ErrPathResolutionNotCritical{Err: errors.New("kernel mount")})
+		otherFile := newTestEventV2(model.FileOpenEventType, "v1", "new")
+		otherFile.SetPathResolutionError(&otherFile.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+
+		_, inserted := m.insertEventIntoProfile(kernelMount)
+		assert.True(t, inserted)
+		p, inserted := m.insertEventIntoProfile(otherFile)
+		assert.True(t, inserted)
+
+		require.NotNil(t, p)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "known"))
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "new"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorPathResolutionNotCritical, eventWithErrorKept))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorPathResolution, eventWithErrorKept))
+	})
+
+	t.Run("a path error hides the decoding failure of a dns packet", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.DNSEventType, "v1", "known")
+		event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.DNSEventType, activity_tree.EventErrorPathResolution, eventWithErrorDropped))
+	})
+
+	t.Run("an exec whose binary path couldn't be resolved is dropped despite its broken lineage", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, critical)
+		breakLineage(event, false)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.Nil(t, p)
+		require.Contains(t, m.profiles, testSelector)
+		assert.Empty(t, m.profiles[testSelector].ActivityTree.ProcessNodes)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.EventErrorPathResolution, eventWithErrorDropped))
+		assert.Zero(t, countOf(m, model.ExecEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
 	})
 
 	t.Run("broken lineage outside of the container is kept", func(t *testing.T) {

@@ -514,11 +514,41 @@ func EventErrorType(err error) string {
 	}
 }
 
-// IsInsertableEventError reports whether an event carrying err (model.Event.Error) can still be inserted. The tree
-// decides on its own whether the process of such an event can be placed.
-func IsInsertableEventError(err error) bool {
-	var brokenLineageErr *model.ErrProcessBrokenLineage
-	return errors.As(err, &brokenLineageErr)
+// EventInsertionError returns the error that keeps an event carrying an error (model.Event.Error) out of the tree, nil
+// if the event can still be inserted. The tree decides on its own whether the process of such an event can be placed.
+func EventInsertionError(event *model.Event) error {
+	if event.Error == nil {
+		return nil
+	}
+	// the event only keeps the last error raised, which can hide the one of the file stored by the tree
+	var pathResolutionErr *path.ErrPathResolution
+	if file := insertedFile(event); file != nil && errors.As(file.PathResolutionError, &pathResolutionErr) {
+		return file.PathResolutionError
+	}
+	switch EventErrorType(event.Error) {
+	case EventErrorBrokenLineage:
+		return nil
+	case EventErrorPathResolution, EventErrorPathResolutionNotCritical:
+		// either another file failed, or the path is on a kernel-internal mount, where the dentry path is all there
+		// is. A DNS packet that couldn't be decoded is hidden by such an error.
+		if event.GetEventType() != model.DNSEventType {
+			return nil
+		}
+	}
+	return event.Error
+}
+
+// insertedFile returns the file of the event that the tree stores, if any
+func insertedFile(event *model.Event) *model.FileEvent {
+	switch event.GetEventType() {
+	case model.FileOpenEventType:
+		return &event.Open.File
+	case model.ExecEventType:
+		if event.ProcessCacheEntry != nil {
+			return &event.ProcessCacheEntry.FileEvent
+		}
+	}
+	return nil
 }
 
 // isEventValid evaluates if the provided event is valid
@@ -603,6 +633,11 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 		return false, nil, nil, err
 	}
 
+	// the binary of an exec, which makes its process node, is resolved before the event gets here
+	if err := at.eventInsertionError(event); err != nil {
+		return false, nil, nil, err
+	}
+
 	node, newProcessNode, err := at.createProcessNode(event.ProcessCacheEntry, imageTagID, generationType, !insertMissingProcesses /*dryRun*/, resolvers)
 	unattributed := errors.Is(err, ErrBrokenLineage) && at.canBeUnattributed(event, dryRun, insertMissingProcesses)
 	if err != nil && !unattributed {
@@ -616,9 +651,8 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 	event.ResolveFieldsForAD()
 
-	if event.Error != nil && !IsInsertableEventError(event.Error) {
-		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
-		return false, nil, nil, event.Error
+	if err := at.eventInsertionError(event); err != nil {
+		return false, nil, nil, err
 	}
 
 	if unattributed {
@@ -658,6 +692,14 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 	}
 
 	return false, node, nil, nil
+}
+
+func (at *ActivityTree) eventInsertionError(event *model.Event) error {
+	err := EventInsertionError(event)
+	if err != nil {
+		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
+	}
+	return err
 }
 
 // canBeUnattributed reports whether the activity of an event whose process can't be placed in the tree can be kept in

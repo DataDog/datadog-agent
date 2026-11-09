@@ -800,25 +800,72 @@ func TestProcessInfoMatches(t *testing.T) {
 func TestEventErrorType(t *testing.T) {
 	cause := errors.New("cause")
 	tests := []struct {
-		name       string
-		err        error
-		want       string
-		insertable bool
+		name string
+		err  error
+		want string
 	}{
-		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, EventErrorBrokenLineage, true},
-		{"no process context", model.ErrNoProcessContext, EventErrorNoProcessContext, false},
-		{"path resolution", &path.ErrPathResolution{Err: cause}, EventErrorPathResolution, false},
-		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), EventErrorPathResolution, false},
-		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, EventErrorPathResolutionNotCritical, false},
-		{"dns decoding", model.ErrFailedDNSPacketDecoding, EventErrorDNSDecoding, false},
-		{"other", cause, EventErrorOther, false},
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, EventErrorBrokenLineage},
+		{"no process context", model.ErrNoProcessContext, EventErrorNoProcessContext},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, EventErrorPathResolution},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), EventErrorPathResolution},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, EventErrorPathResolutionNotCritical},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, EventErrorDNSDecoding},
+		{"other", cause, EventErrorOther},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := EventErrorType(tt.err)
 			assert.Equal(t, tt.want, got)
 			assert.Contains(t, EventErrorTypes, got)
-			assert.Equal(t, tt.insertable, IsInsertableEventError(tt.err))
+		})
+	}
+}
+
+func TestEventInsertionError(t *testing.T) {
+	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
+	critical := &path.ErrPathResolution{Err: errors.New("dentry not found")}
+	notCritical := &path.ErrPathResolutionNotCritical{Err: errors.New("kernel mount")}
+
+	tests := []struct {
+		name      string
+		eventType model.EventType
+		setError  func(event *model.Event)
+		want      error
+	}{
+		{"no error", model.FileOpenEventType, func(*model.Event) {}, nil},
+		{"broken lineage", model.FileOpenEventType, func(event *model.Event) { event.Error = brokenLineage }, nil},
+		{"path of the opened file", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, critical)
+		}, critical},
+		{"path of the opened file hidden by a later error", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, critical)
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
+		}, critical},
+		{"path of the binary of an exec hidden by a broken lineage", model.ExecEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.FileEvent, critical)
+			event.Error = brokenLineage
+		}, critical},
+		{"path of another file", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, critical)
+		}, nil},
+		{"path of the opened file on a kernel-internal mount", model.FileOpenEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.Open.File, notCritical)
+		}, nil},
+		{"path error of a dns event", model.DNSEventType, func(event *model.Event) {
+			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
+		}, notCritical},
+		{"no process context", model.FileOpenEventType, func(event *model.Event) { event.Error = model.ErrNoProcessContext }, model.ErrNoProcessContext},
+		{"dns decoding", model.DNSEventType, func(event *model.Event) { event.Error = model.ErrFailedDNSPacketDecoding }, model.ErrFailedDNSPacketDecoding},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			event := model.NewFakeEvent()
+			event.Type = uint32(tt.eventType)
+			event.ProcessCacheEntry = model.NewPlaceholderProcessCacheEntry(42, 42, false)
+			event.ProcessContext = &event.ProcessCacheEntry.ProcessContext
+			tt.setError(event)
+
+			assert.Equal(t, tt.want, EventInsertionError(event))
 		})
 	}
 }
