@@ -61,10 +61,6 @@ const (
 	rebalanceStabilizationPeriod = 10 * time.Second
 )
 
-// helmChartVersion is the minimum Datadog Helm chart version that exposes the
-// datadog.autoscaling.cluster.spot.enabled feature toggle.
-const helmChartVersion = "3.208.0"
-
 // makeHelmValues returns the Helm values for the spot scheduling suite.
 // pullPolicy should be "Never" when the image is pre-loaded into kind (local dev)
 // or "IfNotPresent" when the image is pulled from a registry (CI).
@@ -159,7 +155,6 @@ func TestSpotSchedulingKind(t *testing.T) {
 		localkubernetes.WithKindLoadImage(image),
 		localkubernetes.WithAgentOptions(
 			kubernetesagentparams.WithClusterAgentFullImagePath(image),
-			kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 			kubernetesagentparams.WithHelmValues(makeHelmValues("Never")),
 		),
 	)))
@@ -176,11 +171,11 @@ func TestSpotSchedulingKindCI(t *testing.T) {
 	}
 	e2e.Run(t, &spotSchedulingSuite{waitForLogs: true}, e2e.WithProvisioner(awskindvm.Provisioner(
 		awskindvm.WithRunOptions(
+			kindvmscen.WithInternetAccess(),
 			kindvmscen.WithName(kindClusterName),
 			kindvmscen.WithKindWorkerNodes(workerNodes...),
 			kindvmscen.WithoutFakeIntake(),
 			kindvmscen.WithAgentOptions(
-				kubernetesagentparams.WithHelmChartVersion(helmChartVersion),
 				kubernetesagentparams.WithHelmValues(makeHelmValues("IfNotPresent")),
 				kubernetesagentparams.WithTimeout(600),
 			),
