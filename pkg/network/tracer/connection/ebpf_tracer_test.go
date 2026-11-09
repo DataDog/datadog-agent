@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"maps"
+	"slices"
 	"testing"
 	"unsafe"
 
@@ -61,6 +62,36 @@ func TestConntrackNATMapLoadFailureFallsBack(t *testing.T) {
 	skb, err := tr.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
 	assert.Equal(t, cfg.MaxTrackedConnections, skb.MaxEntries())
+	mgr := tr.(*ebpfTracer).m.Manager
+	if probeRunning(mgr, probes.ProtocolClassifierEntrySocketFilter) {
+		assert.True(t, probeRunning(mgr, probes.NetDevQueueRawTracepoint, probes.NetDevQueueTracepoint, probes.DevQueueXmitNitKprobe), "net_dev_queue isn't attached")
+	}
+
+	// and the programs look up NAT'd tuples in its map, not the conntracker's
+	specs, err := mgr.GetProgramSpecs()
+	require.NoError(t, err)
+	var modes []int64
+	for _, spec := range specs {
+		for _, ins := range spec.Instructions {
+			if ins.Reference() == "nat_lookup_mode" {
+				modes = append(modes, ins.Constant)
+			}
+		}
+	}
+	require.NotEmpty(t, modes, "no program reads nat_lookup_mode")
+	for _, mode := range modes {
+		assert.Equal(t, int64(natLookupSKBCache), mode, "nat_lookup_mode")
+	}
+}
+
+// probeRunning reports whether any probe with one of the given function names is running.
+func probeRunning(m *manager.Manager, names ...probes.ProbeFuncName) bool {
+	for _, p := range m.GetProbes() {
+		if slices.Contains(names, probes.ProbeFuncName(p.EBPFFuncName)) && p.IsRunning() {
+			return true
+		}
+	}
+	return false
 }
 
 // TestFentryLoadFailureFallsBackToKprobe loads the real fentry tracer, forces it to fail after
