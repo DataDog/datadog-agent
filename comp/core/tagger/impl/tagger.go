@@ -435,8 +435,10 @@ func (t *localTagger) EnrichTags(tb tagset.TagsAccumulator, originInfo taggertyp
 
 	containerIDFromSocketCutIndex := len(types.ContainerID) + types.GetSeparatorLength()
 
-	// Generate container ID from Inode
-	if originInfo.LocalData.ContainerID == "" {
+	// Generate container ID from Inode.
+	// Inode 0 means "unknown" (check samples, service checks, etc.): no cgroup has it,
+	// so looking it up would only force a cgroupfs walk.
+	if originInfo.LocalData.ContainerID == "" && originInfo.LocalData.Inode != 0 {
 		var inodeResolutionError error
 		originInfo.LocalData.ContainerID, inodeResolutionError = t.generateContainerIDFromInode(originInfo.LocalData, metrics.GetProvider(option.New(t.workloadStore)).GetMetaCollector())
 		if inodeResolutionError != nil && pkglog.ShouldLog(pkglog.TraceLvl) {

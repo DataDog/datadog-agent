@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Reduced the CPU usage and memory allocations of the Agent on Linux.
+    The Agent no longer rescans the cgroup filesystem, up to once per second,
+    when tagging metrics, service checks and events that carry no container
+    information, such as those sent by checks.
