@@ -4,6 +4,7 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 # containers to force ENOSYS on syscalls (faccessat2, clone3) that older
 # Docker seccomp profiles block outright instead of reporting as
 # unimplemented.
+# TODO: ABLD-606 - make this build identically to pure gcc
 cc_binary(
     name = "nosys.so",
     srcs = ["nosys.c"],
