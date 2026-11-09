@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
 from pathlib import Path
-from subprocess import check_output, list2cmdline
+from subprocess import list2cmdline
 from types import SimpleNamespace
 
 import requests
@@ -505,13 +505,6 @@ def get_version_ldflags(ctx, install_path=None):
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersionURLSafe={version_url_safe} "
     return ldflags
-
-
-def get_go_version():
-    """
-    Get the version of Go used
-    """
-    return check_output(['go', 'version']).decode('utf-8').strip()
 
 
 @contextmanager

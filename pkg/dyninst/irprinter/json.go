@@ -10,6 +10,7 @@ package irprinter
 import (
 	"bytes"
 	"cmp"
+	"errors"
 	"fmt"
 	"reflect"
 	"slices"
@@ -88,7 +89,7 @@ func PrintJSON(p *ir.Program) ([]byte, error) {
 		}),
 		json.MarshalToFunc(func(enc *jsontext.Encoder, v uint64) error {
 			if v < 10_000 {
-				return json.SkipFunc
+				return errors.ErrUnsupported
 			}
 			return enc.WriteToken(jsontext.String(fmt.Sprintf("0x%x", v)))
 		}),
@@ -374,7 +375,7 @@ func marshalTypeAsID(enc *jsontext.Encoder, t ir.Type) error {
 
 type withKind[T any] struct {
 	Kind string `json:"__kind"`
-	Op   *T     `json:",inline"`
+	Op   *T     `json:",embed"`
 }
 
 func newWithKind[T any](op *T) withKind[T] {

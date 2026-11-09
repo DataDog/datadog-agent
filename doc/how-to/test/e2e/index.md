@@ -8,6 +8,7 @@ End-to-End (E2E) tests validate complete user workflows in production-like envir
 - [Writing tests](writing.md) — provisioners, environments, and assertions
 - [Test dependencies](dependencies.md) — how to get a tool, image, or artifact onto a test host without reaching the public internet
 - [Custom AMIs](custom-amis.md) — how machine images are selected, and how to add, bump or pin one
+- [Performance benchmark](benchmarkeks/index.md) — `benchmarkeks`, which compares the resource usage of two Agent versions on EKS
 
 ## Prerequisites
 
