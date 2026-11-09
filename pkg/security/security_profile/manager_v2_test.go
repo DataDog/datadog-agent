@@ -1559,7 +1559,7 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 		assert.Less(t, len(p.ActivityTree.Mounts), mountCount, "seeding should stop once the profile reaches the max size")
 		assert.GreaterOrEqual(t, p.ComputeHeapSize(), int64(maxSize))
 
-		got, inserted := m.insertEventIntoProfile(ev)
+		got, inserted, _ := m.insertEventIntoProfile(ev)
 		assert.Nil(t, got)
 		assert.False(t, inserted)
 		assert.False(t, p.IsEnabled())
@@ -1578,7 +1578,7 @@ func TestManagerV2_seedMountsForWorkload_maxSize(t *testing.T) {
 			assert.True(t, mn.InBaseNamespace, "no foreign namespace mount should be seeded past the max size: %s", mn.MountPoint)
 		}
 
-		got, inserted := m.insertEventIntoProfile(ev)
+		got, inserted, _ := m.insertEventIntoProfile(ev)
 		assert.Nil(t, got)
 		assert.False(t, inserted)
 		assert.False(t, p.IsEnabled())
