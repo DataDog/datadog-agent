@@ -410,6 +410,47 @@ func TestEncodersUseContainerTimestampConfigGate(t *testing.T) {
 	})
 }
 
+func TestEncodersUseIngestionTimestamp(t *testing.T) {
+	source := sources.NewLogSource("", &config.LogsConfig{})
+	ingested := time.Date(2001, 2, 3, 4, 5, 6, 789000000, time.UTC)
+
+	newIngestedMessage := func() *message.Message {
+		msg := message.NewMessageWithSource([]byte("a"), message.StatusInfo, source, ingested.UnixNano())
+		msg.State = message.StateRendered
+		msg.ParsingExtra.Timestamp = "2000-01-01T00:00:00.000000000Z"
+		return msg
+	}
+
+	t.Run("json", func(t *testing.T) {
+		msg := newIngestedMessage()
+		assert.NoError(t, NewJSONEncoder(false).Encode(msg, "unknown"))
+
+		var payload struct {
+			Timestamp int64 `json:"timestamp"`
+		}
+		assert.NoError(t, json.Unmarshal(msg.GetContent(), &payload))
+		assert.Equal(t, ingested.UnixMilli(), payload.Timestamp)
+	})
+
+	t.Run("proto", func(t *testing.T) {
+		msg := newIngestedMessage()
+		assert.NoError(t, NewProtoEncoder(false).Encode(msg, "unknown"))
+
+		log := &pb.Log{}
+		assert.NoError(t, log.Unmarshal(msg.GetContent()))
+		assert.Equal(t, ingested.UnixNano(), log.Timestamp)
+	})
+
+	t.Run("raw", func(t *testing.T) {
+		msg := newIngestedMessage()
+		assert.NoError(t, NewRawEncoder(false).Encode(msg, "unknown"))
+
+		parts := strings.Fields(string(msg.GetContent()))
+		assert.GreaterOrEqual(t, len(parts), 2)
+		assert.Equal(t, ingested.Format(config.DateFormat), parts[1])
+	})
+}
+
 func TestEncoderToValidUTF8(t *testing.T) {
 	// valid utf-8
 	assert.Equal(t, "", toValidUtf8(nil))

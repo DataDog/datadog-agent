@@ -1,0 +1,13 @@
+description: -- end-of-flags allows a FILE operand that itself starts with a dash.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "hi\n" | tee -- -oddname.txt
+    cat -- -oddname.txt
+expect:
+  stdout: |+
+    hi
+    hi
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: --help prints usage to stdout and exits 0.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    tee --help
+expect:
+  stdout: |+
+    Usage: tee [OPTION]... [FILE]...
+    Copy standard input to standard output, making a copy in each FILE.
+
+      -a, --append   append to the given files, do not overwrite
+      -h, --help     print usage and exit
+  stderr: |+
+  exit_code: 0
+skip_assert_against_bash: true

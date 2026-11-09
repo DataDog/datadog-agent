@@ -1,0 +1,10 @@
+description: The false builtin produces no stdout output.
+input:
+  script: |+
+    false
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

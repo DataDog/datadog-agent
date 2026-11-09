@@ -266,7 +266,8 @@ func TestRemotePolicies_BlockedPodIsAnnotated(t *testing.T) {
 		}
 
 		require.Equal(t, map[string]string{
-			annotation.AppliedPolicy:   `{"name":"block-db","id":"a1b2","version":3,"blocked":true}`,
+			annotation.AppliedConfig:   `{"name":"block-db","id":"a1b2","version":3,"blocked":true}`,
+			annotation.InjectionSource: "remote-config",
 			annotation.InjectionStatus: annotation.InjectionStatusBlocked,
 		}, pod.Annotations)
 		require.Empty(t, pod.Spec.InitContainers)
@@ -295,7 +296,7 @@ func TestRemotePolicies_BlockedPodIsAnnotated(t *testing.T) {
 		mutated, err := m.MutatePod(pod, "ns", nil)
 		require.NoError(t, err)
 		require.True(t, mutated)
-		require.NotContains(t, pod.Annotations, annotation.AppliedPolicy)
+		require.NotContains(t, pod.Annotations, annotation.AppliedConfig)
 		require.NotEqual(t, annotation.InjectionStatusBlocked, pod.Annotations[annotation.InjectionStatus])
 	})
 
@@ -310,7 +311,7 @@ func TestRemotePolicies_BlockedPodIsAnnotated(t *testing.T) {
 		mutated, err := m.MutatePod(pod, "ns", nil)
 		require.NoError(t, err)
 		require.False(t, mutated)
-		require.NotContains(t, pod.Annotations, annotation.AppliedPolicy)
+		require.NotContains(t, pod.Annotations, annotation.AppliedConfig)
 		require.NotContains(t, pod.Annotations, annotation.InjectionStatus)
 	})
 
@@ -323,7 +324,7 @@ func TestRemotePolicies_BlockedPodIsAnnotated(t *testing.T) {
 		mutated, err := m.MutatePod(pod, "ns", nil)
 		require.NoError(t, err)
 		require.True(t, mutated)
-		require.Equal(t, `{"name":"allow-db"}`, pod.Annotations[annotation.AppliedPolicy])
+		require.Equal(t, `{"name":"allow-db"}`, pod.Annotations[annotation.AppliedConfig])
 		require.NotEqual(t, annotation.InjectionStatusBlocked, pod.Annotations[annotation.InjectionStatus])
 	})
 }

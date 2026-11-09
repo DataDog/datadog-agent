@@ -6,16 +6,51 @@
 package ebpf
 
 import (
+	"sync"
 	"time"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
 	spNS = "system_probe_config"
+)
+
+const (
+	// AgentTmpDir is the Agent's dedicated temporary directory. System-probe's
+	// kernel-header and BTF caches live underneath it. Before cache access,
+	// SecureCacheDir verifies that the destination and its ancestors are real,
+	// root-owned directories and that the destination has no non-root write access,
+	// repairing unsafe real directories within the dedicated subtree when possible.
+	// Cache users must validate the actual destination before its contents are read,
+	// written or deleted; checking this ancestor alone does not inspect existing
+	// descendants.
+	//
+	// It is deliberately a constant. The path must stay inside the Agent's own
+	// subtree for that validation and repair policy to be applicable, so it is not
+	// derived from configuration. Keep the "datadog-agent" component in sync with
+	// dedicatedDirName in pkg/ebpf/cache.go.
+	AgentTmpDir = "/var/tmp/datadog-agent"
+
+	// KernelHeaderDownloadDir is where system-probe downloads kernel headers for
+	// runtime compilation.
+	//
+	// This is NOT configurable. system-probe runs as root and both reuses and
+	// recursively deletes the contents of this directory, so an unprivileged user
+	// who can create or redirect any component of the path gains a root-write
+	// primitive. This path, and every component of it, is verified to be a real,
+	// root-owned directory that no other user can write to before it is read from,
+	// deleted in or written to; pinning it inside the agent's own subtree is what
+	// keeps that verification able to repair a stale non-root-owned component
+	// instead of having to refuse outright.
+	KernelHeaderDownloadDir = AgentTmpDir + "/system-probe/kernel-headers"
+
+	// BTFCacheDir is the pinned cache root for embedded and downloaded BTF files.
+	BTFCacheDir = AgentTmpDir + "/system-probe/btf"
 )
 
 // Config stores all common flags used by system-probe
@@ -53,17 +88,19 @@ type Config struct {
 	// KernelHeadersDir is the directories of the kernel headers to use for runtime compilation
 	KernelHeadersDirs []string
 
-	// KernelHeadersDownloadDir is the directory where the system-probe will attempt to download kernel headers, if necessary
+	// KernelHeadersDownloadDir is the directory where system-probe downloads kernel
+	// headers, if necessary. It is always KernelHeaderDownloadDir; the deprecated
+	// system_probe_config.kernel_header_download_dir setting is ignored.
 	KernelHeadersDownloadDir string
 
 	// RuntimeCompilerOutputDir is the directory where the runtime compiler will store compiled programs.
 	// This directory and every parent up to the filesystem root must be a root-owned directory that is
 	// not writable by other users (a sticky, world-writable parent such as the default /var/tmp is
 	// allowed). If that is not the case system-probe refuses to use the directory and skips runtime
-	// compilation instead of loading objects from an untrusted location; see secureRuntimeDir.
+	// compilation instead of loading objects from an untrusted location; see SecureCacheDir.
 	RuntimeCompilerOutputDir string
 
-	// BTFOutputDir is the directory where extracted BTF files are stored
+	// BTFOutputDir is always BTFCacheDir; the deprecated btf_output_dir setting is ignored.
 	BTFOutputDir string
 
 	// AptConfigDir is the path to the apt config directory
@@ -98,10 +135,32 @@ type Config struct {
 	RemoteConfigBTFDownloadHost string
 }
 
+// headerDownloadDirDeprecationOnce keeps the kernel_header_download_dir
+// deprecation warning to a single line per process.
+var headerDownloadDirDeprecationOnce sync.Once
+var btfOutputDirDeprecationOnce sync.Once
+
 // NewConfig creates a config with ebpf-related settings
 func NewConfig() *Config {
 	cfg := pkgconfigsetup.SystemProbe()
 	sysconfig.Adjust(cfg)
+
+	// kernel_header_download_dir is no longer honored; see KernelHeaderDownloadDir.
+	// Warn instead of failing so that an existing configuration still starts, and
+	// only when the user actually set it to something other than the pinned path.
+	// NewConfig is called once per module, so warn only once.
+	if key := sysconfig.FullKeyPath(spNS, "kernel_header_download_dir"); cfg.IsConfigured(key) &&
+		cfg.GetString(key) != KernelHeaderDownloadDir {
+		headerDownloadDirDeprecationOnce.Do(func() {
+			log.Warnf("%s is deprecated and ignored: kernel headers are always downloaded to %s", key, KernelHeaderDownloadDir)
+		})
+	}
+
+	if key := sysconfig.FullKeyPath(spNS, "btf_output_dir"); cfg.IsConfigured(key) && cfg.GetString(key) != BTFCacheDir {
+		btfOutputDirDeprecationOnce.Do(func() {
+			log.Warnf("%s is deprecated and ignored: BTF files are always cached in %s", key, BTFCacheDir)
+		})
+	}
 
 	c := &Config{
 		BPFDebug:                 cfg.GetBool(sysconfig.FullKeyPath(spNS, "bpf_debug")),
@@ -113,7 +172,7 @@ func NewConfig() *Config {
 
 		EnableCORE:                  cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_co_re")),
 		BTFPath:                     cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_path")),
-		BTFOutputDir:                cfg.GetString(sysconfig.FullKeyPath(spNS, "btf_output_dir")),
+		BTFOutputDir:                BTFCacheDir,
 		RemoteConfigBTFEnabled:      cfg.GetBool(sysconfig.FullKeyPath(spNS, "remote_config_btf_enabled")),
 		RemoteConfigBTFTimeout:      30 * time.Second,
 		RemoteConfigBTFDownloadHost: "https://install.datadoghq.com",
@@ -122,7 +181,7 @@ func NewConfig() *Config {
 		RuntimeCompilerOutputDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "runtime_compiler_output_dir")),
 		EnableKernelHeaderDownload:   cfg.GetBool(sysconfig.FullKeyPath(spNS, "enable_kernel_header_download")),
 		KernelHeadersDirs:            cfg.GetStringSlice(sysconfig.FullKeyPath(spNS, "kernel_header_dirs")),
-		KernelHeadersDownloadDir:     cfg.GetString(sysconfig.FullKeyPath(spNS, "kernel_header_download_dir")),
+		KernelHeadersDownloadDir:     KernelHeaderDownloadDir,
 		AptConfigDir:                 cfg.GetString(sysconfig.FullKeyPath(spNS, "apt_config_dir")),
 		YumReposDir:                  cfg.GetString(sysconfig.FullKeyPath(spNS, "yum_repos_dir")),
 		ZypperReposDir:               cfg.GetString(sysconfig.FullKeyPath(spNS, "zypper_repos_dir")),

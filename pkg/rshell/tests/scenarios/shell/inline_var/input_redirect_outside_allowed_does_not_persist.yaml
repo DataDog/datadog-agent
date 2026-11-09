@@ -1,0 +1,22 @@
+# skip: AllowedPaths sandbox restriction is an rshell-specific feature.
+skip_assert_against_bash: true
+description: |
+  vuln-hunt R2 (2026-05-18-initial-audit): when an input-redirect on a command
+  with an inline assignment is denied by AllowedPaths, the inline variable
+  must NOT persist in the parent shell.
+setup:
+  files:
+    - path: allowed/keep.txt
+      content: "ok"
+    - path: secret/data.txt
+      content: "secret"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    A=orig
+    A=leaked cat < secret/data.txt
+    echo "after=[$A]"
+expect:
+  stdout_contains: ["after=[orig]"]
+  stderr_contains: ["permission denied"]
+  exit_code: 0

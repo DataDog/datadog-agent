@@ -1,0 +1,8 @@
+description: Negation of a for loop where the body evaluates to false produces exit code 0.
+input:
+  script: |+
+    ! for i in a b; do false; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

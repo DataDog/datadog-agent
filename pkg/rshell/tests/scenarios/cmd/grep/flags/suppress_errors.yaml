@@ -1,0 +1,15 @@
+# skip: error suppression behavior differs from bash
+skip_assert_against_bash: true
+description: grep -s suppresses error messages for missing files within allowed paths.
+setup:
+  files:
+    - path: exists.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -s 'hello' missing.txt exists.txt
+expect:
+  stdout: "exists.txt:hello\n"
+  stderr: ""
+  exit_code: 2

@@ -1,0 +1,9 @@
+description: For loop with 'do' as a word in the item list.
+input:
+  script: |+
+    for i in do; do echo $i; done
+expect:
+  stdout: |+
+    do
+  stderr: ""
+  exit_code: 0

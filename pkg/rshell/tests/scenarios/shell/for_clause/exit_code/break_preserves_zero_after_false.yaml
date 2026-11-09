@@ -1,0 +1,10 @@
+description: Exit status of break is 0 even after false.
+input:
+  script: |+
+    for i in 1; do false; break; done
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

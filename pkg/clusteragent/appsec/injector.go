@@ -312,13 +312,19 @@ func (si *securityInjector) createEventHandler(queue workqueue.TypedRateLimiting
 			unstructured, ok := obj.(*unstructured.Unstructured)
 			if !ok {
 				si.logger.Warnf("event handler for unexpected type: %T", obj)
+				return
 			}
 			queue.Add(workItem{obj: unstructured, typ: workItemAdded})
 		},
 		DeleteFunc: func(obj any) {
+			// Deletes missed while the watch was down are delivered as a tombstone after a relist
+			if tombstone, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+				obj = tombstone.Obj
+			}
 			unstructured, ok := obj.(*unstructured.Unstructured)
 			if !ok {
 				si.logger.Warnf("event handler for unexpected type: %T", obj)
+				return
 			}
 			queue.Add(workItem{obj: unstructured, typ: workItemDeleted})
 		},

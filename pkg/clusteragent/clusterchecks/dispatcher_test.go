@@ -8,7 +8,9 @@
 package clusterchecks
 
 import (
+	"fmt"
 	"sort"
+	"sync"
 	"testing"
 	"time"
 
@@ -19,6 +21,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/agentprofiling"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
@@ -276,22 +279,22 @@ func TestGetNodeWithLessChecks(t *testing.T) {
 	dispatcher := newDispatcher(fakeTagger)
 
 	// No node registered -> empty string
-	assert.Equal(t, "", dispatcher.getNodeWithLessChecks())
+	assert.Equal(t, "", dispatcher.getNodeWithLessChecks("test_check"))
 
 	// 1 config on node1, 2 on node2
 	dispatcher.addConfig(generateIntegration("A"), "node1")
 	dispatcher.addConfig(generateIntegration("B"), "node2")
 	dispatcher.addConfig(generateIntegration("C"), "node2")
-	assert.Equal(t, "node1", dispatcher.getNodeWithLessChecks())
+	assert.Equal(t, "node1", dispatcher.getNodeWithLessChecks("test_check"))
 
 	// 3 configs on node1, 2 on node2
 	dispatcher.addConfig(generateIntegration("D"), "node1")
 	dispatcher.addConfig(generateIntegration("E"), "node1")
-	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks())
+	assert.Equal(t, "node2", dispatcher.getNodeWithLessChecks("test_check"))
 
 	// Add an empty node3
 	dispatcher.processNodeStatus("node3", "10.0.0.3", types.NodeStatus{})
-	assert.Equal(t, "node3", dispatcher.getNodeWithLessChecks())
+	assert.Equal(t, "node3", dispatcher.getNodeWithLessChecks("test_check"))
 
 	requireNotLocked(t, dispatcher.store)
 }
@@ -366,10 +369,9 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 
 	// Ensure we have 1 dangling to schedule, as new available node is registered
 	assert.True(t, dispatcher.shouldDispatchDangling())
-	configs := dispatcher.retrieveDangling()
 	// Assert the check is scheduled
-	scheduledIDs := dispatcher.reschedule(configs)
-	dispatcher.deleteDangling(scheduledIDs)
+	dispatcher.dispatchDangling()
+	assert.Empty(t, dispatcher.store.danglingConfigs)
 	danglingConfig, err := dispatcher.getAllConfigs()
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(danglingConfig))
@@ -379,6 +381,63 @@ func TestRescheduleDanglingFromExpiredNodes(t *testing.T) {
 	configsB, _, err := dispatcher.getClusterCheckConfigs("nodeB")
 	assert.NoError(t, err)
 	assert.Equal(t, 1, len(configsB))
+}
+
+func TestAddDoesNotRecreateExpiredNode(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	for i := 0; i < 200; i++ {
+		dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+		dispatcher.store.Lock()
+		dispatcher.store.nodes["nodeA"].heartbeat = 0
+		dispatcher.store.Unlock()
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			dispatcher.add(generateIntegration(fmt.Sprintf("check-%d", i)))
+		}()
+		go func() {
+			defer wg.Done()
+			dispatcher.expireNodes()
+		}()
+		wg.Wait()
+
+		require.NotContains(t, dispatcher.store.nodes, "nodeA", "expired node was recreated (iteration %d)", i)
+	}
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+func TestRemoveConfigDuringDanglingDispatch(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	dispatcher.processNodeStatus("nodeA", "10.0.0.1", types.NodeStatus{})
+
+	for i := 0; i < 200; i++ {
+		config := generateIntegration(fmt.Sprintf("check-%d", i))
+		dispatcher.addConfig(config, "")
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			dispatcher.dispatchDangling()
+		}()
+		go func() {
+			defer wg.Done()
+			dispatcher.removeConfig(config.Digest())
+		}()
+		wg.Wait()
+
+		require.Empty(t, dispatcher.store.digestToConfig, "removed config was dispatched (iteration %d)", i)
+		require.Empty(t, dispatcher.store.nodes["nodeA"].digestToConfig, "removed config was dispatched (iteration %d)", i)
+		require.Empty(t, dispatcher.store.danglingConfigs)
+	}
+
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestDispatchFourConfigsTwoNodes(t *testing.T) {
@@ -487,6 +546,25 @@ func TestUnscheduleDanglingConfig(t *testing.T) {
 	// Also check that internal structures not used by getAllConfigs() are cleaned up
 	assert.Empty(t, testDispatcher.store.danglingConfigs)
 	assert.Empty(t, testDispatcher.store.idToDigest)
+}
+
+func TestRemoveConfigDanglingGauge(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	gauge := danglingConfigs.WithValues(le.JoinLeaderValue)
+	initial := gauge.Get()
+
+	config := generateIntegration("dangling-gauge-check")
+	dispatcher.Schedule([]integration.Config{config})
+	require.Equal(t, initial+1, gauge.Get())
+
+	dispatcher.Unschedule([]integration.Config{config})
+	assert.Equal(t, initial, gauge.Get())
+
+	dispatcher.removeConfig("unknown-digest")
+	assert.Equal(t, initial, gauge.Get())
+
+	requireNotLocked(t, dispatcher.store)
 }
 
 func TestReset(t *testing.T) {
@@ -726,8 +804,7 @@ func (d *dummyClientStruct) GetRunnerWorkers(IP string) (types.Workers, error) {
 
 func TestUpdateRunnersStats(t *testing.T) {
 	fakeTagger := taggerfxmock.SetupFakeTagger(t)
-	mockConfig := configmock.New(t)
-	mockConfig.SetInTest("cluster_checks.rebalance_with_utilization", true)
+	configmock.New(t)
 
 	dispatcher := newDispatcher(fakeTagger)
 	status := types.NodeStatus{LastChange: 10}
@@ -793,6 +870,86 @@ func TestUpdateRunnersStats(t *testing.T) {
 	assert.True(t, found)
 	assert.EqualValues(t, "10.0.0.1", node2.clientIP)
 	assert.EqualValues(t, stats1, node2.clcRunnerStats)
+
+	requireNotLocked(t, dispatcher.store)
+}
+
+// blockingClcRunnerClient answers GetRunnerStats only once release is closed,
+// like a runner that stopped answering and is waiting for the client timeout.
+type blockingClcRunnerClient struct {
+	called  chan struct{}
+	release chan struct{}
+}
+
+func (c *blockingClcRunnerClient) GetVersion(string) (version.Version, error) {
+	return version.Version{}, nil
+}
+
+func (c *blockingClcRunnerClient) GetRunnerWorkers(string) (types.Workers, error) {
+	return types.Workers{Count: 4}, nil
+}
+
+func (c *blockingClcRunnerClient) GetRunnerStats(string) (types.CLCRunnersStats, error) {
+	c.called <- struct{}{}
+	<-c.release
+	return types.CLCRunnersStats{"check:1": {MetricSamples: 5}}, nil
+}
+
+func TestUpdateRunnersStatsDoesNotBlockStore(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+	client := &blockingClcRunnerClient{called: make(chan struct{}, 3), release: make(chan struct{})}
+	dispatcher.clcRunnersClient = client
+
+	dispatcher.processNodeStatus("stats-node-a", "10.0.0.1", types.NodeStatus{})
+	dispatcher.processNodeStatus("stats-node-b", "10.0.0.2", types.NodeStatus{})
+	dispatcher.processNodeStatus("stats-node-c", "10.0.0.3", types.NodeStatus{})
+
+	collected := make(chan struct{})
+	go func() {
+		dispatcher.updateRunnersStats()
+		close(collected)
+	}()
+	<-client.called
+
+	// While a runner query is in flight, heartbeats (including one from a new
+	// IP), config polls and node expiry go through.
+	unblocked := make(chan struct{})
+	go func() {
+		dispatcher.processNodeStatus("stats-node-a", "10.0.0.1", types.NodeStatus{})
+		dispatcher.processNodeStatus("stats-node-c", "10.0.0.9", types.NodeStatus{})
+		_, _, _ = dispatcher.getClusterCheckConfigs("stats-node-a")
+		dispatcher.store.Lock()
+		dispatcher.store.nodes["stats-node-b"].heartbeat = 0
+		dispatcher.store.Unlock()
+		dispatcher.expireNodes()
+		close(unblocked)
+	}()
+	select {
+	case <-unblocked:
+	case <-time.After(5 * time.Second):
+		close(client.release)
+		t.Fatal("store stayed locked while querying a runner")
+	}
+
+	close(client.release)
+	<-collected
+
+	nodeA, found := dispatcher.store.getNodeStore("stats-node-a")
+	require.True(t, found)
+	assert.Equal(t, 4, nodeA.workers)
+	assert.Contains(t, nodeA.clcRunnerStats, "check:1")
+
+	// The runner that expired mid-query is neither recreated nor reported.
+	assert.NotContains(t, dispatcher.store.nodes, "stats-node-b")
+	assert.Zero(t, busyness.WithValues("stats-node-b", le.JoinLeaderValue).Get())
+
+	// The runner that moved to a new IP doesn't get the results of its old one.
+	nodeC, found := dispatcher.store.getNodeStore("stats-node-c")
+	require.True(t, found)
+	assert.Equal(t, "10.0.0.9", nodeC.clientIP)
+	assert.Zero(t, nodeC.workers)
+	assert.Empty(t, nodeC.clcRunnerStats)
 
 	requireNotLocked(t, dispatcher.store)
 }
@@ -912,4 +1069,25 @@ func TestResetClearsShardedConfigs(t *testing.T) {
 
 	assert.False(t, d.shards.isTracked(digest),
 		"shards must be cleared on reset to avoid silently dropping sharded checks after leader re-election")
+}
+
+func TestClusterAgentOnlyChecksAreNotDispatched(t *testing.T) {
+	fakeTagger := taggerfxmock.SetupFakeTagger(t)
+	dispatcher := newDispatcher(fakeTagger)
+
+	profiling := generateIntegration(agentprofiling.CheckName)
+	other := generateIntegration("cluster-check")
+
+	dispatcher.Schedule([]integration.Config{profiling, other})
+	stored, err := dispatcher.getAllConfigs()
+	require.NoError(t, err)
+	assert.Equal(t, []string{"cluster-check"}, extractCheckNames(stored))
+	assert.Equal(t, 1, len(dispatcher.store.danglingConfigs))
+
+	dispatcher.Unschedule([]integration.Config{profiling, other})
+	stored, err = dispatcher.getAllConfigs()
+	require.NoError(t, err)
+	assert.Len(t, stored, 0)
+
+	requireNotLocked(t, dispatcher.store)
 }

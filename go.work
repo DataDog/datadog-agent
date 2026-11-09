@@ -35,6 +35,8 @@ use (
 	comp/core/log/impl
 	comp/core/log/impl-trace
 	comp/core/log/mock
+	comp/core/schema/def
+	comp/core/schema/noop-impl
 	comp/core/secrets/def
 	comp/core/secrets/fx
 	comp/core/secrets/impl
@@ -87,8 +89,8 @@ use (
 	comp/trace/compression/def
 	comp/trace/compression/impl-gzip
 	comp/trace/compression/impl-zstd
-	internal/qbranch/anomalydetection-scorer
-	internal/qbranch/anomalydetection-testbench
+	internal/anomalydetection/scorer
+	internal/anomalydetection/testbench
 	internal/tools
 	internal/tools/gotest-custom
 	internal/tools/independent-lint
@@ -109,6 +111,7 @@ use (
 	pkg/config/schema
 	pkg/config/setup
 	pkg/config/setup/constants
+	pkg/config/setup/generatedsettings_local
 	pkg/config/structure
 	pkg/config/utils
 	pkg/discovery/tracermetadata/model
@@ -140,6 +143,7 @@ use (
 	pkg/proto
 	pkg/remoteconfig/state
 	pkg/remoteflags
+	pkg/rshell
 	pkg/security/secl
 	pkg/security/seclwin
 	pkg/serializer

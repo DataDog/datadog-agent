@@ -59,6 +59,20 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	primaryTagKeys []string,
 	obfuscator *obfuscate.Obfuscator,
 ) []stats.Input {
+	return OTLPTracesToConcentratorInputsWithObfuscationAndFilter(traces, conf, containerTagKeys, peerTagKeys, primaryTagKeys, obfuscator, nil)
+}
+
+// OTLPTracesToConcentratorInputsWithObfuscationAndFilter is OTLPTracesToConcentratorInputsWithObfuscation that also
+// excludes from stats the spans for which spanFilter, if set, returns false.
+func OTLPTracesToConcentratorInputsWithObfuscationAndFilter(
+	traces ptrace.Traces,
+	conf *config.AgentConfig,
+	containerTagKeys []string,
+	peerTagKeys []string,
+	primaryTagKeys []string,
+	obfuscator *obfuscate.Obfuscator,
+	spanFilter func(pcommon.Resource, ptrace.Span) bool,
+) []stats.Input {
 	resourceSpans := traces.ResourceSpans()
 	clientComputedResources := resourcesWithClientComputedStats(resourceSpans)
 	if resourceSpans.Len() > 0 && len(clientComputedResources) == resourceSpans.Len() {
@@ -74,6 +88,9 @@ func OTLPTracesToConcentratorInputsWithObfuscation(
 	for spanID, otelspan := range spanByID {
 		otelres := resByID[spanID]
 		if _, ok := clientComputedResources[otelres]; ok {
+			continue
+		}
+		if spanFilter != nil && !spanFilter(otelres, otelspan) {
 			continue
 		}
 		var resourceName string

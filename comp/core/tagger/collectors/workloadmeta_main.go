@@ -46,6 +46,7 @@ const (
 	gpuSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindGPU)
 	crdSource                 = workloadmetaCollectorName + "-" + string(workloadmeta.KindCRD)
 	kubeCapabilitiesSource    = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubeCapabilities)
+	autoscaledWorkloadSource  = workloadmetaCollectorName + "-" + string(workloadmeta.KindKubernetesAutoscaler)
 
 	clusterTagNamePrefix = tags.KubeClusterName
 )
@@ -76,11 +77,17 @@ type WorkloadMetaCollector struct {
 
 	collectEC2ResourceTags            bool
 	collectPersistentVolumeClaimsTags bool
+	promoteProcessTags                bool
 
 	// entityCompleteness tracks raw per-entity completeness from workloadmeta
 	// events. This is the completeness of the entity itself, without
 	// considering cross-entity dependencies (for example, a container's pod).
 	entityCompleteness map[workloadmeta.EntityID]bool
+
+	// Index of autoscalers: their target by ID, and their kind by target
+	// and ID, for efficient lookups. Only filled in the Cluster Agent.
+	autoscalers         map[string]workloadmeta.AutoscalerTarget
+	autoscalersByTarget map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind
 
 	// refreshCh routes tag refresh requests through the stream goroutine, avoiding races with staticTags reads in processEvents.
 	refreshCh chan refreshRequest
@@ -252,7 +259,10 @@ func NewWorkloadMetaCollector(ctx context.Context, cfg config.Component, store w
 		staticTags:                        make(map[string][]string),
 		collectEC2ResourceTags:            cfg.GetBool("ecs_collect_resource_tags_ec2"),
 		collectPersistentVolumeClaimsTags: cfg.GetBool("kubernetes_persistent_volume_claims_as_tags"),
+		promoteProcessTags:                cfg.GetBool("gpu.tracing.enabled"),
 		entityCompleteness:                make(map[workloadmeta.EntityID]bool),
+		autoscalers:                       make(map[string]workloadmeta.AutoscalerTarget),
+		autoscalersByTarget:               make(map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind),
 		refreshCh:                         make(chan refreshRequest),
 	}
 

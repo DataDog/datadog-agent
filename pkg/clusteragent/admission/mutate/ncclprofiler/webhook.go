@@ -232,6 +232,7 @@ func (w *Webhook) Timeout() int32 { return 0 }
 func (w *Webhook) WebhookFunc() admission.WebhookFunc {
 	return func(request *admission.Request) *admiv1.AdmissionResponse {
 		return common.MutationResponse(mutatecommon.Mutate(
+			request.Context,
 			request.Object,
 			request.Namespace,
 			w.Name(),

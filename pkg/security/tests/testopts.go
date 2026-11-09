@@ -31,7 +31,6 @@ type testOpts struct {
 	workloadProfileDifferentiateArgs        bool
 	profilingStartupDelay                   time.Duration
 	profileReportingWaitPersistence         bool
-	eventSamplingSyscallsEnabled            bool
 	eventSamplingOpenRateUnlimited          bool
 	disableDiscarders                       bool
 	disableERPCDentryResolution             bool

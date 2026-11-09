@@ -1,0 +1,12 @@
+# skip: readonly is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: |
+  readonly nested inside a command substitution is still blocked — the AST
+  validator walks into $() bodies.
+input:
+  script: |+
+    echo $(readonly X=5; echo X=$X)
+expect:
+  stdout: ""
+  stderr: "readonly is not supported\n"
+  exit_code: 2

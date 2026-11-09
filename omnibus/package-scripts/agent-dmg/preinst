@@ -185,11 +185,83 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     echo "# Existing installation detected"
     datadog-agent version || true
 
+    # The installer daemon, from builds that ran one, goes first and is waited for: while it runs
+    # it can start the detached processes killed below.
+    stop_installer_daemons() {
+        launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
+        launchctl bootout system/com.datadoghq.installer-exp 2>/dev/null || true
+        attempts=0
+        while [ $attempts -lt 30 ] && { launchctl print system/com.datadoghq.installer >/dev/null 2>&1 || launchctl print system/com.datadoghq.installer-exp >/dev/null 2>&1; }; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
+    }
+    stop_installer_daemons
+
+    # The detached processes a configuration experiment runs outside of any launchd job: the
+    # watcher and the installer daemon hand-back. Either could otherwise swap jobs back in while
+    # this upgrade replaces the binaries they run. Killed outright: whatever they leave half done is
+    # undone by the bootouts below and by the postinstall script.
+    pkill -9 -f "$INSTALL_DIR/embedded/bin/installer package-command datadog-agent (watchConfigExperiment|handBackInstaller)" 2>/dev/null || true
+
+    # A detached process killed above may have loaded an installer daemon back while we waited for
+    # the first bootout; nothing can load one now, so unload them again. As with the other jobs,
+    # one that still won't leave is reported and doesn't fail the upgrade.
+    stop_installer_daemons
+    if launchctl print system/com.datadoghq.installer >/dev/null 2>&1 || launchctl print system/com.datadoghq.installer-exp >/dev/null 2>&1; then
+        echo "WARNING: The installer daemon is still loaded after bootout."
+    fi
+
+    # Hand the teardown to the installed version, as the rpm preinst does: only it knows the jobs
+    # it installed, including any this version no longer does. Its payload is still in place, since
+    # this script runs before the new one is laid down. Bounded, because Installer.app shows no
+    # progress while it waits; each job's bootout is itself bounded at 30 seconds.
+    # See preRemoveDatadogAgent in pkg/fleet/installer/packages/datadog_agent_darwin.go
+    OLD_INSTALLER_BIN="$INSTALL_DIR/embedded/bin/installer"
+    if [ -x "$OLD_INSTALLER_BIN" ] && "$OLD_INSTALLER_BIN" is-prerm-supported >/dev/null 2>&1; then
+        echo "# Running the installed version's pre-remove"
+        "$OLD_INSTALLER_BIN" prerm --upgrade datadog-agent dmg 2>&1 &
+        prerm_pid=$!
+        attempts=0
+        while [ $attempts -lt 180 ] && kill -0 $prerm_pid 2>/dev/null; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
+        if kill -0 $prerm_pid 2>/dev/null; then
+            echo "WARNING: The installed version's pre-remove did not finish within 180s; stopping it."
+            kill -9 $prerm_pid 2>/dev/null || true
+            # Reaped quietly: the shell would otherwise log its own "Killed: 9" for it, and the
+            # warning above already says what happened.
+            wait $prerm_pid 2>/dev/null || true
+        else
+            wait $prerm_pid
+            prerm_status=$?
+            if [ $prerm_status -ne 0 ]; then
+                echo "WARNING: The installed version's pre-remove failed (exit status $prerm_status)."
+            fi
+        fi
+    fi
+
+    # The jobs this version knows the Agent has run. They are booted out whether or not the
+    # installed version's pre-remove ran: versions before the installer have none, and one that
+    # failed may have left jobs behind. A job already gone is a no-op.
     echo '# Stopping running services'
     launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
     launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
     launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
     launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
+
+    # The experiment variants of the jobs only exist while a configuration experiment is running;
+    # booting them out here is what keeps an upgrade from leaving an Agent behind that reads
+    # etc-exp.
+    launchctl bootout system/com.datadoghq.agent-exp 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.sysprobe-exp 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.data-plane-exp 2>/dev/null || true
+    rm -vf /Library/LaunchDaemons/com.datadoghq.installer.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.installer-exp.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist
 
     # Stop GUI for all logged-in users
     for logged_user in $(who | awk '{print $1}' | sort -u); do
@@ -216,6 +288,9 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     find "$SAVED_CONF_DIR/conf.d" '(' -name '*.yaml.example' -o -name '*.yaml.default' ')' -delete
     cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
 fi
+
+echo '# Deleting old datadog-installer link'
+rm -vf /usr/local/bin/datadog-installer
 
 echo '# Deleting old datadog-agent link'
 rm -vf /usr/local/bin/datadog-agent

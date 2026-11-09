@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    The GPU check reports GPUs on cordoned, not Ready or otherwise unschedulable
+    Kubernetes nodes as ``gpu.device.unavailable`` with
+    ``unavailable_reason:unschedulable``. Requires the Cluster Agent. Disable it
+    with ``gpu.unschedulable_nodes.enabled: false``.
+  - |
+    The GPU check reports ``gpu.device.unavailable`` with
+    ``unavailable_reason:unhealthy`` when the Kubernetes device plugin marks a
+    GPU unhealthy or NVML asks for a recovery action. A GPU is unavailable for
+    at most one reason at a time: lost, then unhealthy, then unschedulable.

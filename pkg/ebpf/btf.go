@@ -302,6 +302,9 @@ func (b *orderedBTFLoader) checkForUnminimizedBTF(extractDir string) (*returnBTF
 }
 
 func (b *orderedBTFLoader) checkforBTF(extractDir string) (*returnBTF, error) {
+	if err := SecureCacheDir(filepath.Join(b.btfOutputDir, extractDir)); err != nil {
+		return nil, fmt.Errorf("BTF cache directory: %w", err)
+	}
 	ret, err := b.checkForMinimizedBTF(extractDir)
 	if err != nil || ret != nil {
 		return ret, err

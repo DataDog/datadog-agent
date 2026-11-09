@@ -55,6 +55,44 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			http.StatusOK,
 		},
 		{
+			// node agents read the conditions and cordon state of their node with the cluster agent token
+			"/api/v1/info/node/node-1/status",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/api/v1/info/node/node-1/status",
+			"imposter",
+			http.StatusForbidden,
+		},
+		{
+			// /api/v1/info/node/<name> itself stays internal
+			"/api/v1/info/node/node-1",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/info/node/node-1/other",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			// a query string must not make the internal /api/v1/info/node/<name> external
+			"/api/v1/info/node/node-1?x=/status",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/info/node/node-1/status?x=1",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/info/node//status",
+			"abc123",
+			http.StatusForbidden,
+		},
+		{
 			"/version",
 			"bandit!",
 			http.StatusForbidden,
