@@ -125,6 +125,7 @@ func NewTargetMutator(config *Config, wmeta workloadmeta.Component, imageResolve
 		sources: []injectionSourceEntry{
 			{name: injectionSourceAnnotation, source: annotationSource},
 			{name: injectionSourceDatadogInstrumentation, determinesSSIMode: true, source: ddiSource},
+			{name: injectionSourceOTelOperator, source: otelOperatorSource{}},
 			{name: injectionSourceRemoteConfig, determinesSSIMode: true, source: remoteSource},
 			{name: injectionSourceGPU, determinesSSIMode: true, source: gpuSource},
 			{name: injectionSourceAPMBasic, determinesSSIMode: true, source: apmBasicSource},
@@ -200,6 +201,12 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	annotation.Set(pod, annotation.InjectionSource, string(resolved.selectedBy))
 
 	injection := resolved.plan
+	if injection.skipReason != "" {
+		log.Infof("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), injection.skipReason)
+		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusSkipped)
+		annotation.Set(pod, annotation.InjectionError, injection.skipReason)
+		return false, nil
+	}
 	if injection.blocked {
 		annotation.Set(pod, annotation.AppliedConfig, injection.appliedMetadataJSON)
 		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
@@ -279,7 +286,8 @@ func (m *TargetMutator) getTarget(pod *corev1.Pod) *injectionResolution {
 // resolveTarget resolves both the injection plan and whether the pod is in SSI
 // mode. The first decisive source selects the plan. The first decisive SSI
 // source independently selects the mode so annotations can override libraries
-// without hiding an underlying SSI match.
+// without hiding an underlying SSI match. A veto turns the injection the next
+// decisive source would select into a skip.
 func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	if _, disabled := m.disabledNamespaces[pod.Namespace]; disabled {
 		return nil
@@ -294,12 +302,25 @@ func (m *TargetMutator) resolveTarget(pod *corev1.Pod) *injectionResolution {
 	var selectedBy injectionSourceName
 	selectionDecided := false
 	isSSI := false
+	var veto *sourceResult
+	var vetoBy injectionSourceName
 
 	for _, entry := range m.sources {
 		result := entry.source.resolve(pod)
 		// An abstaining source has no matching plan, so move on to the next.
 		if result.action == sourcePass {
 			continue
+		}
+
+		if result.action == sourceVeto {
+			if !selectionDecided {
+				veto, vetoBy = &result, entry.name
+			}
+			continue
+		}
+		if veto != nil && !selectionDecided && result.action == sourceInject {
+			selected, selectedBy, selectionDecided = *veto, vetoBy, true
+			break
 		}
 
 		// The first decisive source selects the plan; a deny blocks fallback.

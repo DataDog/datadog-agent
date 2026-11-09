@@ -34,6 +34,7 @@ type injectionSourceName string
 const (
 	injectionSourceAnnotation             injectionSourceName = "annotation"
 	injectionSourceDatadogInstrumentation injectionSourceName = "datadog-instrumentation"
+	injectionSourceOTelOperator           injectionSourceName = "opentelemetry-operator"
 	injectionSourceRemoteConfig           injectionSourceName = "remote-config"
 	injectionSourceGPU                    injectionSourceName = "gpu"
 	injectionSourceAPMBasic               injectionSourceName = "apm-basic"
@@ -58,12 +59,14 @@ func hasAllowedTracerConfigPrefix(name string) bool {
 
 // sourceAction distinguishes a source that has no opinion from an explicit
 // injection or denial. A denial is decisive and blocks lower-priority sources.
+// A veto only skips the injection a lower-priority source would select.
 type sourceAction uint8
 
 const (
 	sourcePass sourceAction = iota
 	sourceInject
 	sourceDeny
+	sourceVeto
 )
 
 type sourceResult struct {
@@ -89,9 +92,11 @@ type injectionPlan struct {
 	tracerEnvVars             []corev1.EnvVar
 	appliedMetadataJSON       string
 	languageDetectionEligible bool
-	// blocked is true when a remote-config policy denied injection. The plan is
-	// retained so the mutator can record the blocking policy on the pod.
+	// blocked is true when a remote-config policy denied injection or a veto
+	// skipped it. The plan is retained so the mutator can record why on the pod.
 	blocked bool
+	// skipReason explains why a veto skipped injection.
+	skipReason string
 }
 
 // policySource keeps matcher policies aligned with injection plans by index.
@@ -274,6 +279,30 @@ func (s *ddiSource) planFromDDI(workload ssi.DDICRTarget, ddiConfig ssi.DDIAPMCo
 		appliedMetadataJSON:       string(data),
 		languageDetectionEligible: languageDetectionEligible,
 	}
+}
+
+// otelOperatorSource vetoes injection into pods that request instrumentation
+// from the OpenTelemetry Operator, so that they are not instrumented twice.
+type otelOperatorSource struct{}
+
+func (otelOperatorSource) resolve(pod *corev1.Pod) sourceResult {
+	var requests []string
+	for key, value := range pod.Annotations {
+		// Like the operator, ignore the values "" and "false", and the container
+		// selectors such as instrumentation.opentelemetry.io/inject-nginx-container-names.
+		if strings.HasPrefix(key, "instrumentation.opentelemetry.io/inject-") && !strings.HasSuffix(key, "-container-names") &&
+			value != "" && !strings.EqualFold(value, "false") {
+			requests = append(requests, key+"="+value)
+		}
+	}
+	if len(requests) == 0 {
+		return sourceResult{action: sourcePass}
+	}
+	slices.Sort(requests)
+	return sourceResult{action: sourceVeto, plan: &injectionPlan{
+		blocked:    true,
+		skipReason: "pod requests instrumentation from the OpenTelemetry Operator (" + strings.Join(requests, ", ") + ")",
+	}}
 }
 
 func newStaticPolicySource(config *Config, targets []Target, defaultLibraries []libInfo, wmeta workloadmeta.Component) (*policySource, error) {
