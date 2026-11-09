@@ -19,7 +19,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/cloudprovider"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/eksidentity"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -36,8 +35,15 @@ var (
 	getClusterAgentEKSIdentityTags = func(context.Context) ([]string, error) {
 		return clusterinfo.GetClusterAgentEKSIdentityTagsWithRetry()
 	}
-	getClusterAgentEKSIdentity = eksidentity.Tags
+	getClusterAgentEKSIdentity = func(context.Context) []string { return nil }
 )
+
+// SetClusterAgentEKSIdentityResolver registers how the Cluster Agent resolves its own EKS identity
+// tags. The resolver links the AWS EKS client, so only the Cluster Agent registers it, before it
+// starts; node-side binaries that use this package must not link it.
+func SetClusterAgentEKSIdentityResolver(resolve func(context.Context) []string) {
+	getClusterAgentEKSIdentity = resolve
+}
 
 // getFargateStaticTags return the list of static tags when running on fargate instance
 func getFargateStaticTags(ctx context.Context, datadogConfig config.Reader) []string {

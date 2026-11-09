@@ -16,7 +16,6 @@ go_library(
         "//pkg/util/kubernetes/cloudprovider",
         "//pkg/util/kubernetes/clusterinfo",
         "//pkg/util/kubernetes/clustername",
-        "//pkg/util/kubernetes/eksidentity",
         "//pkg/util/log",
     ],
 )

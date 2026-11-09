@@ -240,10 +240,10 @@ func TestClusterAgentGlobalTagsEKSIdentity(t *testing.T) {
 	original := getClusterAgentEKSIdentity
 	t.Cleanup(func() { getClusterAgentEKSIdentity = original })
 	calls := 0
-	getClusterAgentEKSIdentity = func(context.Context) []string {
+	SetClusterAgentEKSIdentityResolver(func(context.Context) []string {
 		calls++
 		return eksIdentityTags
-	}
+	})
 
 	// Without EKS detection the resolver must not be consulted at all.
 	globalTags := GetClusterAgentStaticTags(t.Context(), mockConfig)
