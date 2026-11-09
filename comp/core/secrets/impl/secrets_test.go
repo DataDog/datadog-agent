@@ -928,25 +928,25 @@ other_component:
 
 	var changedPaths []string
 	resolver.SubscribeToChanges(func(handle, origin string, path []string, oldValue, newValue any) {
-		assert.Equal(t, "password", handle)
 		assert.Equal(t, "datadog.yaml", origin)
-		assert.Equal(t, "startup", oldValue)
-		assert.Equal(t, "rotated", newValue)
+		assert.Equal(t, map[string]string{"password": "startup", "policy": "original-policy"}[handle], oldValue)
+		assert.Equal(t, map[string]string{"password": "rotated", "policy": "updated-policy"}[handle], newValue)
 		changedPaths = append(changedPaths, strings.Join(path, "."))
 	})
 	resolver.fetchHookFunc = func(handles []string) (map[string]string, error) {
-		assert.Equal(t, []string{"password"}, handles)
-		return map[string]string{"password": "rotated"}, nil
+		assert.ElementsMatch(t, []string{"password", "policy"}, handles)
+		return map[string]string{"password": "rotated", "policy": "updated-policy"}, nil
 	}
 
 	_, err = resolver.RefreshNow()
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []string{
 		"private_action_runner.credentials.values.database_password.value",
+		"private_action_runner.credentials.values.database_password.allowed_actions.0",
 		"private_action_runner.credentials.values.other_password.value",
 	}, changedPaths)
 	assert.Equal(t, "rotated", resolver.cache["password"])
-	assert.Equal(t, "original-policy", resolver.cache["policy"])
+	assert.Equal(t, "updated-policy", resolver.cache["policy"])
 }
 
 // Check that the allowListOrigin works well

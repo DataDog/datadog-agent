@@ -682,8 +682,9 @@ var (
 		"system-probe.yaml",
 		"security-agent.yaml",
 	}
-	// allowListPaths restricts what config settings may be updated. Any secrets linked to a settings containing any of the
-	// following strings will be refreshed.
+	// allowListPaths restricts what config settings may be updated, including all
+	// secrets nested within each setting. Single-segment entries match anywhere
+	// in the path; dotted setting names match from the root.
 	//
 	// For example, allowing "additional_endpoints" will trigger notifications for:
 	//   - "additional_endpoints"
@@ -701,7 +702,7 @@ var (
 		"debugger_additional_endpoints",
 		"debugger_diagnostics_additional_endpoints",
 		"symdb_additional_endpoints",
-		"credentials.values", // Used by "private_action_runner.credentials.values.*.value"
+		"private_action_runner.credentials.values",
 	}
 )
 
@@ -713,8 +714,13 @@ func secretMatchesAllowlist(secretCtx secretContext) bool {
 		return true
 	}
 
-	for _, allowedKey := range allowListPaths {
-		if slices.Contains(secretCtx.path, allowedKey) {
+	for _, allowedPath := range allowListPaths {
+		pattern := strings.Split(allowedPath, ".")
+		if len(pattern) == 1 {
+			if slices.Contains(secretCtx.path, allowedPath) {
+				return true
+			}
+		} else if len(secretCtx.path) >= len(pattern) && slices.Equal(secretCtx.path[:len(pattern)], pattern) {
 			return true
 		}
 	}
