@@ -51,7 +51,9 @@ Every series always carries the system tag `emitter`. Every *other* tag is dropp
 listed:
 
 - Omitted/empty → aggregates by `emitter` alone (all other labels collapsed and summed).
-- Listed → only `emitter` + listed labels survive; series missing a listed label are removed.
+- Listed → a series is kept if it carries **at least one** of the listed labels (any-match,
+  not all); a series carrying **none** of them is dropped. Among kept series, only `emitter`
+  and the listed labels are emitted.
 
 Only preserve tags that are safe to send. Never preserve tags carrying customer data,
 hostnames, container names, or user input. When unsure, leave it off.
