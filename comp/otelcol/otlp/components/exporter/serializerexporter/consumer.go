@@ -26,6 +26,7 @@ import (
 
 	taggertags "github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes/source"
 	otlpmetrics "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/metrics"
@@ -84,7 +85,10 @@ var metricOriginsMappings = map[otlpmetrics.OriginProductDetail]metrics.MetricSo
 	otlpmetrics.OriginProductDetailCouchDBReceiver:           metrics.MetricSourceOpenTelemetryCollectorCouchdbReceiver,
 }
 
-var _ otlpmetrics.Consumer = (*serializerConsumer)(nil)
+var (
+	_ otlpmetrics.Consumer               = (*serializerConsumer)(nil)
+	_ otlpmetrics.MetricMetadataConsumer = (*serializerConsumer)(nil)
+)
 
 // SerializerConsumer is a consumer that consumes OTLP metrics.
 type SerializerConsumer interface {
@@ -94,6 +98,7 @@ type SerializerConsumer interface {
 	addTelemetryMetric(hostname string, params exporter.Settings, coatUsageMetric telemetry.Gauge, wi workloadIdentity)
 	addGatewayUsage(hostname string, params exporter.Settings, gatewayUsage otel.GatewayUsage, coatGwUsageMetric telemetry.Gauge)
 	addRunningMetric(hostname string, wi workloadIdentity)
+	metricMetadata() []metadata.Metadata
 }
 
 type serializerConsumer struct {
@@ -115,6 +120,7 @@ type serializerConsumer struct {
 	// addRunningMetric so that an APM-stats-only flush never emits the running
 	// billing metric.
 	sawMetric bool
+	metadata  []metadata.Metadata
 }
 
 // ingestionPath specifies which ingestion path is using the serializer exporter
@@ -376,6 +382,15 @@ func (c *serializerConsumer) ConsumeTimeSeries(_ context.Context, dimensions *ot
 			Unit:     dimensions.Unit(),
 		},
 	)
+}
+
+// ConsumeMetricMetadata implements [otlpmetrics.MetricMetadataConsumer].
+func (c *serializerConsumer) ConsumeMetricMetadata(name, description, unit string) {
+	c.metadata = append(c.metadata, metadata.Metadata{Name: name, Description: description, Unit: unit})
+}
+
+func (c *serializerConsumer) metricMetadata() []metadata.Metadata {
+	return c.metadata
 }
 
 // addTelemetryMetric to know if an Agent is using OTLP metrics.

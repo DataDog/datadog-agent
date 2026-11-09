@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	defaultforwarderimpl "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/impl"
+	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter/internal/metadata"
 	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/inframetadata"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/otel"
@@ -181,6 +182,7 @@ type Exporter struct {
 	coatGWUsageMetric telemetry.Gauge
 	ipath             ingestionPath
 	standalone        bool
+	metadataSubmitter *metadata.Submitter
 
 	// workloadIdentityOnce/cachedWorkloadIdentity cache the result of
 	// detectWorkloadIdentity: it performs a network call for ECS Fargate (the
@@ -356,6 +358,9 @@ func (e *Exporter) ConsumeMetrics(ctx context.Context, ld pmetric.Metrics) error
 	rmt, err := e.tr.MapMetrics(ctx, ld, consumer, e.gatewayUsage.GetHostFromAttributesHandler())
 	if err != nil {
 		return err
+	}
+	if e.metadataSubmitter != nil {
+		e.metadataSubmitter.Submit(consumer.metricMetadata()...)
 	}
 	hostname, err := e.hostGetter(ctx)
 	if err != nil {
