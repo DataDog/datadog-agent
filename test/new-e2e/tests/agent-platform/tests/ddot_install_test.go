@@ -102,8 +102,13 @@ func (is *ddotInstallSuite) SetupSuite() {
 	defer is.CleanupOnSetupFailure()
 
 	is.host = host.New(is.T, is.Env().RemoteHost, is.osDesc, is.osDesc.Architecture)
-	// No apt mirror hardening here: the Debian/Ubuntu install only refreshes the Datadog
-	// source (see ddotDebianTest), so it never contacts the distribution mirrors.
+	// Harden apt against Ubuntu/Debian package-mirror outages before the ddot install runs
+	// "apt-get install apt-transport-https ...". This bounds apt's timeout/retries and adds the
+	// global archive.ubuntu.com / ports.ubuntu.com fallbacks so a 503/slow regional EC2 mirror
+	// fails fast instead of hanging until the 2h CI timeout. Without it the
+	// new-e2e-agent-platform-ddot-ubuntu-a7-arm64 job flakes on mirror outages (incident 59571).
+	// No-op on non-apt flavors. Same helper already used by the installer suites.
+	is.host.ConfigureAptMirrors()
 	// CentOS 7 is EOL and its stock vault path 403s; repoint yum at the working vault
 	// archive/mirrors before the ddot RPM install refreshes CentOS base metadata. No-op on
 	// non-CentOS-7 flavors (e.g. the RedHat descriptor this job also runs).
@@ -196,16 +201,8 @@ func (is *ddotInstallSuite) ddotDebianTest(VMclient *common.TestClient) {
 	}
 
 	is.T().Run("install ddot", func(t *testing.T) {
-		// Refresh only the Datadog source. datadog-agent-ddot, datadog-agent and
-		// datadog-signing-keys all come from the pipeline repo and need nothing from the
-		// distribution, so refreshing the Ubuntu/Debian mirrors only adds a way to hang
-		// (an unbounded "apt-get update" against them timed out the whole test package).
-		// List-Cleanup=0 keeps the image's existing index files for the other sources.
-		ExecuteWithoutError(t, VMclient, "sudo timeout 300 apt-get update"+
-			" -o Dir::Etc::sourcelist=sources.list.d/datadog.list"+
-			" -o Dir::Etc::sourceparts=-"+
-			" -o APT::Get::List-Cleanup=0")
-		ExecuteWithoutError(t, VMclient, "sudo timeout 600 apt-get install datadog-agent-ddot -y -q")
+		ExecuteWithoutError(t, VMclient, "sudo apt-get update -o Dir::Etc::sourcelist=sources.list.d/datadog.list -o Dir::Etc::sourceparts=- -o APT::Get::List-Cleanup=0")
+		ExecuteWithoutError(t, VMclient, "sudo apt-get install datadog-agent-ddot -y -q")
 	})
 
 	is.T().Run("check datadog-agent is also installed and has the same version as ddot", func(t *testing.T) {
