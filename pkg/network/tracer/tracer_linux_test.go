@@ -2866,6 +2866,96 @@ func setupDropTrafficRule(tb testing.TB) (ns string) {
 	return
 }
 
+// classifierEntryMaxSize bounds the size of the protocol classification entry program after verification and JIT
+// constant blinding. It's the only classification program attached to a socket, and attaching charges that size
+// against net.core.optmem_max: 20 KiB on kernels before 6.8 and on GKE COS, which also sets
+// net.core.bpf_jit_harden=2. 7.85.0 failed to attach there. The budget is 1 KiB below 20 KiB because the same program
+// can come out larger on other kernels (about 100 bytes larger on GKE COS than on Ubuntu 24.04), and the kernel also
+// charges a small header. To stay under it, avoid inlining the same helper more than once, or move code into the
+// tail-called programs (see classification_progs).
+const classifierEntryMaxSize = 19 * 1024
+
+func (s *TracerSuite) TestProtocolClassifierEntrySize() {
+	t := s.T()
+	cfg := testConfig()
+
+	if !kprobe.ClassificationSupported(cfg) {
+		t.Skip("protocol classification not supported")
+	}
+
+	// Constant blinding is done by the JIT, so without it the program would be measured unblinded.
+	jitEnable, err := os.ReadFile("/proc/sys/net/core/bpf_jit_enable")
+	if err != nil || strings.TrimSpace(string(jitEnable)) == "0" {
+		t.Skip("BPF JIT is disabled, so constants can't be blinded")
+	}
+
+	// Blind constants like GKE COS does, since that's what makes the program biggest.
+	const jitHarden = "/proc/sys/net/core/bpf_jit_harden"
+	orig, err := os.ReadFile(jitHarden)
+	require.NoError(t, err)
+	if err := os.WriteFile(jitHarden, []byte("2"), 0644); err != nil {
+		t.Skipf("can't enable constant blinding: %s", err)
+	}
+	t.Cleanup(func() { _ = os.WriteFile(jitHarden, orig, 0644) })
+
+	// Make sure the tracer can attach the program however big it is, so the test measures it against the budget
+	// rather than failing to attach: before 6.8, net.core.optmem_max defaults to 20 KiB.
+	const optmemMax = "/proc/sys/net/core/optmem_max"
+	origOptmem, err := os.ReadFile(optmemMax)
+	require.NoError(t, err)
+	if limit, err := strconv.Atoi(strings.TrimSpace(string(origOptmem))); err != nil || limit < 1<<18 {
+		if err := os.WriteFile(optmemMax, []byte(strconv.Itoa(1<<18)), 0644); err != nil {
+			t.Skipf("can't raise net.core.optmem_max: %s", err)
+		}
+		t.Cleanup(func() { _ = os.WriteFile(optmemMax, origOptmem, 0644) })
+	}
+
+	setupTracer(t, cfg)
+
+	// Find this tracer's entry program through the program IDs it registered with pkg/ebpf, which records each
+	// program's full name from the eBPF manager. The kernel truncates program names (and before 4.15 doesn't keep
+	// them), and other processes may load programs with the same name.
+	entryName := string(probes.ProtocolClassifierEntrySocketFilter)
+	size := 0
+	var id ebpf.ProgramID
+	for {
+		id, err = ebpf.ProgramGetNextID(id)
+		if errors.Is(err, os.ErrNotExist) {
+			break
+		}
+		require.NoError(t, err)
+
+		if name, err := ddebpf.GetProgNameFromProgID(uint32(id)); err != nil || name != entryName {
+			continue
+		}
+		if module, err := ddebpf.GetModuleFromProgID(uint32(id)); err != nil || module != "npm_tracer" {
+			continue
+		}
+		prog, err := ebpf.NewProgramFromID(id)
+		if err != nil {
+			continue // registered by a tracer from an earlier test, unloaded since
+		}
+		info, err := prog.Info()
+		prog.Close()
+		require.NoError(t, err)
+		// Program IDs only increase, so the last match is the one this test's tracer loaded.
+		size, err = info.TranslatedSize()
+		require.NoError(t, err)
+	}
+
+	require.NotZero(t, size, "%s not loaded", entryName)
+	if ebpftest.GetBuildMode() == ebpftest.CORE && kv < kernel.VersionCode(5, 0, 0) {
+		// The CO-RE program comes out larger on older kernels (19,920 bytes on Ubuntu 18.04's 4.18 and 20,408 on Amazon
+		// Linux 2's 4.14), too close to the limit for a budget meant to leave room for newer kernels like GKE COS's.
+		// Constant blinding is off by default on those kernels, and enabling it there isn't a configuration this test
+		// covers.
+		t.Skipf("%s is %d bytes after constant blinding in CO-RE mode; the budget doesn't apply before kernel 5.0", entryName, size)
+	}
+	assert.LessOrEqual(t, size, classifierEntryMaxSize,
+		"%s is %d bytes after constant blinding; keep it under %d so it can be attached on hosts with net.core.optmem_max=20480 (e.g. GKE COS nodes, which also blind constants)",
+		entryName, size, classifierEntryMaxSize)
+}
+
 func (s *TracerSuite) TestTLSClassification() {
 	t := s.T()
 	cfg := testConfig()
