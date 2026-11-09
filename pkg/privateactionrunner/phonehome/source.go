@@ -27,13 +27,13 @@ type Source interface {
 }
 
 type rcSource struct {
-	cfg                parconfig.RuntimeConfig
+	cfg                parconfig.Config
 	service            rcservice.Component
 	key, rcURL, parURL string
 }
 
 // NewSource uses only the existing RC accessor. Positive RC is sufficient in this slice.
-func NewSource(cfg parconfig.RuntimeConfig, service rcservice.Component) Source {
+func NewSource(cfg parconfig.Config, service rcservice.Component) Source {
 	return &rcSource{cfg: cfg, service: service, key: cfg.APIKey(), rcURL: cfg.RemoteConfigURL(), parURL: enrollmentEndpoint(cfg)}
 }
 
@@ -72,7 +72,7 @@ func (r *rcSource) Read(_ time.Time) Observation {
 	return Observation{Ready: true, Reason: phonehomedef.ReasonRCReady}
 }
 
-func enrollmentEndpoint(cfg parconfig.RuntimeConfig) string {
+func enrollmentEndpoint(cfg parconfig.Config) string {
 	// Read rejects endpoint errors before discovery can dispatch.
 	endpoint, err := cfg.APIBaseURL()
 	if err != nil {

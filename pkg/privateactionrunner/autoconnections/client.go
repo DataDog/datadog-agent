@@ -40,7 +40,7 @@ type ConnectionsClient struct {
 	retryOpts  parutil.RetryHTTPOptions
 }
 
-func NewConnectionsAPIClient(cfg parconfig.RuntimeConfig, ddSite, apiKey, appKey string) (*ConnectionsClient, error) {
+func NewConnectionsAPIClient(cfg parconfig.Config, ddSite, apiKey, appKey string) (*ConnectionsClient, error) {
 	baseUrl, err := cfg.APIBaseURLForSite(ddSite)
 	if err != nil {
 		return nil, err

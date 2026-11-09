@@ -44,7 +44,7 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	config    parconfig.RuntimeConfig
+	config    parconfig.Config
 	phoneHome phonehome.Component
 }
 

@@ -80,7 +80,7 @@ type publicClient struct {
 	extraHeaders map[string]string
 }
 
-func NewPublicClient(cfg parconfig.RuntimeConfig, ddBaseURL string, extraHeaders map[string]string) PublicClient {
+func NewPublicClient(cfg parconfig.Config, ddBaseURL string, extraHeaders map[string]string) PublicClient {
 	return &publicClient{
 		ddBaseURL: strings.TrimSuffix(ddBaseURL, "/"),
 		httpClient: &http.Client{

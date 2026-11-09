@@ -6,13 +6,15 @@
 package config
 
 import (
+	"net/http"
+	"net/url"
 	"time"
 
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
-// Config exposes the settings PAR consumers may access. It deliberately excludes
-// generic key lookup, mutation, and access to the underlying Agent component.
+// Config exposes the named settings and identity updates PAR consumers may use.
+// It does not expose generic key lookup or the underlying Agent component.
 // Methods read current values; implementations must not cache configuration.
 type Config interface {
 	AgentAPIURL() (string, error)
@@ -36,4 +38,41 @@ type Config interface {
 	IsActionAllowed(bundle, action string) bool
 	APIBaseURL() (string, error)
 	OPMSExtraHeaders() map[string]string
+
+	Enabled() bool
+	SplitEnabled() bool
+	FIPSEnabled() bool
+	ProcessManagerEnabled() bool
+	SelfEnroll() bool
+	APIKeyOnlyEnrollment() bool
+	SkipConnectionCreation() bool
+	IdentityUseK8sSecret() bool
+	IdentitySecretName() string
+	URN() string
+	APIKey() string
+	AppKey() string
+	ExecutorSocketPath() string
+	IdleTimeoutSeconds() int
+	LogLevel() string
+	SkipSSLValidation() bool
+	MinTLSVersion() string
+	RemoteConfigAPIKey() string
+	RemoteConfigKey() string
+	DefaultActionsEnabled() bool
+	ActionPatterns() []string
+	CredentialValues() any
+	APIBaseURLForSite(string) (string, error)
+	Site() string
+	IdentityFilePath() string
+	Identity() (*Identity, error)
+	SetIdentity(privateKey, urn string) error
+	SetEnrolledIdentity(identity *Identity) error
+	Validate() error
+	AllowedActions() ActionsAllowlist
+	HTTPTransport() *http.Transport
+	ProxyURL(*http.Request) (*url.URL, error)
+	RemoteConfigEnabled() bool
+	RemoteConfigURL() string
+	MetricsAddress() (string, int)
+	TelemetryAddress() string
 }

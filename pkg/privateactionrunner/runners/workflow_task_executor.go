@@ -49,7 +49,7 @@ type WorkflowTaskExecutor struct {
 }
 
 func NewWorkflowTaskExecutor(
-	coreConfig parconfig.RuntimeConfig,
+	coreConfig parconfig.Config,
 	metricsClient statsd.ClientInterface,
 	rcClient rcclient.Client,
 	taskVerifier taskverifier.TaskVerifier,

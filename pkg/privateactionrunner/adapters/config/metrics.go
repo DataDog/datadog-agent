@@ -15,7 +15,7 @@ import (
 
 // NewMetricsClient builds a DogStatsD client from the Agent's configured
 // host/port endpoint.
-func NewMetricsClient(config RuntimeConfig, statsdComp statsdcomp.Component) (statsd.ClientInterface, error) {
+func NewMetricsClient(config Config, statsdComp statsdcomp.Component) (statsd.ClientInterface, error) {
 	host, port := config.MetricsAddress()
 	client, err := statsdComp.CreateForHostPort(host, port)
 	if err != nil {

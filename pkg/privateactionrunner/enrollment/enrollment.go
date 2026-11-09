@@ -90,7 +90,7 @@ func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentit
 // SelfEnroll performs self-registration using API key + application key.
 func SelfEnroll(
 	ctx context.Context,
-	cfg parconfig.RuntimeConfig,
+	cfg parconfig.Config,
 	ddSite,
 	runnerNamePrefix,
 	apiKey,
@@ -152,7 +152,7 @@ func SelfEnroll(
 }
 
 // Enroll performs self-enrollment using config and an agent identifier.
-func Enroll(ctx context.Context, cfg parconfig.RuntimeConfig, agentIdentifier *AgentIdentifier) (*Result, error) {
+func Enroll(ctx context.Context, cfg parconfig.Config, agentIdentifier *AgentIdentifier) (*Result, error) {
 	ddSite := cfg.Site()
 	apiKey := cfg.APIKey()
 	extraHeaders := cfg.OPMSExtraHeaders()
@@ -176,7 +176,7 @@ func Enroll(ctx context.Context, cfg parconfig.RuntimeConfig, agentIdentifier *A
 // SelfEnrollApiKeyOnly performs self-registration using only an API key (no application key).
 func SelfEnrollApiKeyOnly(
 	ctx context.Context,
-	cfg parconfig.RuntimeConfig,
+	cfg parconfig.Config,
 	ddSite,
 	runnerNamePrefix,
 	apiKey string,

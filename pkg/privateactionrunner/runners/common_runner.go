@@ -26,7 +26,7 @@ type CommonRunner struct {
 }
 
 func NewCommonRunner(
-	coreCfg parconfig.RuntimeConfig,
+	coreCfg parconfig.Config,
 	identity *parconfig.Identity,
 	metricsClient statsd.ClientInterface,
 ) *CommonRunner {

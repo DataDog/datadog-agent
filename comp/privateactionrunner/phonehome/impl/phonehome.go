@@ -27,7 +27,7 @@ type Requires struct {
 }
 
 type Provides struct{ Comp phonehome.Component }
-type component struct{ cfg parconfig.RuntimeConfig }
+type component struct{ cfg parconfig.Config }
 
 func (c *component) Status() *phonehome.State {
 	if !engine.Enabled(c.cfg) {

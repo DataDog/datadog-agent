@@ -71,14 +71,14 @@ func newStateEmitter(report, logState func(State)) func(State) {
 	}
 }
 
-func Enabled(cfg parconfig.RuntimeConfig) bool {
+func Enabled(cfg parconfig.Config) bool {
 	return runtime.GOOS != "windows" && cfg.Enabled()
 }
 
 // Run watches supervisor registrations and authorizes each new lifecycle's initial startup.
 // It never retries an ambiguous Start or stops a child.
 // Status updates on every observation; report receives state/reason transitions.
-func Run(ctx context.Context, cfg parconfig.RuntimeConfig, source Source, report func(State)) {
+func Run(ctx context.Context, cfg parconfig.Config, source Source, report func(State)) {
 	if !Enabled(cfg) {
 		return
 	}
@@ -118,7 +118,7 @@ func supervisorSocketPath() string {
 }
 
 type controller struct {
-	cfg           parconfig.RuntimeConfig
+	cfg           parconfig.Config
 	source        Source
 	pm            pb.ProcessManagerClient
 	emit          func(State)

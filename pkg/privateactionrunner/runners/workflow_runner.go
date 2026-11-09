@@ -47,7 +47,7 @@ type WorkflowRunner struct {
 }
 
 func NewWorkflowRunner(
-	coreConfig parconfig.RuntimeConfig,
+	coreConfig parconfig.Config,
 	metricsClient statsd.ClientInterface,
 	rcClient rcclient.Client,
 	keysManager taskverifier.KeysManager,

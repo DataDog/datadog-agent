@@ -51,7 +51,7 @@ func allowsAction(task *types.Task, patterns []string) bool {
 }
 
 type privateCredentialResolver struct {
-	config parconfig.RuntimeConfig
+	config parconfig.Config
 }
 
 type PrivateConnectionConfig struct {
@@ -69,7 +69,7 @@ type Credential struct {
 // NewPrivateCredentialResolver validates configured credentials and retains the
 // live config so subsequent tasks pick up secret refreshes. A nil config supports
 // connections that do not reference runner credentials.
-func NewPrivateCredentialResolver(config parconfig.RuntimeConfig) (PrivateCredentialResolver, error) {
+func NewPrivateCredentialResolver(config parconfig.Config) (PrivateCredentialResolver, error) {
 	if config != nil {
 		if _, err := readCredentialValues(config); err != nil {
 			return nil, err
@@ -78,7 +78,7 @@ func NewPrivateCredentialResolver(config parconfig.RuntimeConfig) (PrivateCreden
 	return &privateCredentialResolver{config: config}, nil
 }
 
-func readCredentialValues(config parconfig.RuntimeConfig) (map[string]par.CredentialConfig, error) {
+func readCredentialValues(config parconfig.Config) (map[string]par.CredentialConfig, error) {
 	values := make(map[string]par.CredentialConfig)
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Result:      &values,

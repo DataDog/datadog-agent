@@ -158,7 +158,7 @@ type client struct {
 	lastTaskReceivedAt atomic.Pointer[time.Time]
 }
 
-func NewClient(coreCfg parconfig.RuntimeConfig, identity *parconfig.Identity) Client {
+func NewClient(coreCfg parconfig.Config, identity *parconfig.Identity) Client {
 	return &client{
 		httpClient: &http.Client{
 			Timeout:   30 * time.Second,

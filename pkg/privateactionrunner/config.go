@@ -13,6 +13,27 @@ const (
 	RunnerURL       = "private_action_runner.par_dd_url"
 	RemoteConfigURL = "remote_configuration.rc_dd_url"
 
+	// Agent and system-probe settings used by the private action runner.
+	APIKey                   = "api_key"
+	AppKey                   = "app_key"
+	Site                     = "site"
+	AgentURL                 = "dd_url"
+	LogLevel                 = "log_level"
+	AuthTokenFilePath        = "auth_token_file_path"
+	CommandPort              = "cmd_port"
+	DogstatsdPort            = "dogstatsd_port"
+	MetricsPort              = "metrics_port"
+	FIPSEnabled              = "fips.enabled"
+	ProcessManagerEnabled    = "process_manager.enabled"
+	SkipSSLValidation        = "skip_ssl_validation"
+	MinTLSVersion            = "min_tls_version"
+	RemoteConfigAPIKey       = "remote_configuration.api_key"
+	RemoteConfigKey          = "remote_configuration.key"
+	KubeActionsEnabled       = "kubeactions.enabled"
+	KubeActionsRunnerEnabled = "kubeactions.private_action_runner.enabled"
+	PacketCaptureSocket      = "packet_capture.socket"
+	SystemProbeSocket        = "system_probe_config.sysprobe_socket"
+
 	// Identity / enrollment configuration
 	SelfEnroll             = "private_action_runner.self_enroll"
 	APIKeyOnlyEnrollment   = "private_action_runner.api_key_only_enrollment"

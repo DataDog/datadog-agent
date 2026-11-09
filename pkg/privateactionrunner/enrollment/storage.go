@@ -44,7 +44,7 @@ func NewIdentityStorage(source model.Reader, leader LeaderSource) IdentityStorag
 }
 
 type fileIdentityStorage struct {
-	cfg parconfig.RuntimeConfig
+	cfg parconfig.Config
 }
 
 func (s *fileIdentityStorage) Load(_ context.Context) (*PersistedIdentity, error) {
@@ -56,7 +56,7 @@ func (s *fileIdentityStorage) Persist(_ context.Context, result *Result) error {
 }
 
 // RotateIdentity persists a new identity for explicit rotation.
-func RotateIdentity(ctx context.Context, cfg parconfig.RuntimeConfig, result *Result) error {
+func RotateIdentity(ctx context.Context, cfg parconfig.Config, result *Result) error {
 	if cfg.IdentityUseK8sSecret() && flavor.GetFlavor() == flavor.ClusterAgent {
 		return persistIdentityToK8sSecretNoLeader(ctx, cfg, result)
 	}
@@ -64,7 +64,7 @@ func RotateIdentity(ctx context.Context, cfg parconfig.RuntimeConfig, result *Re
 }
 
 // getIdentityFromFile returns the identity of the private action runner from the identity file. Returns nil if the identity file does not exist
-func getIdentityFromFile(cfg parconfig.RuntimeConfig) (*PersistedIdentity, error) {
+func getIdentityFromFile(cfg parconfig.Config) (*PersistedIdentity, error) {
 	filePath := cfg.IdentityFilePath()
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, nil
@@ -91,7 +91,7 @@ func getIdentityFromFile(cfg parconfig.RuntimeConfig) (*PersistedIdentity, error
 }
 
 // persistIdentityToFile saves the enrollment result to the identity file
-func persistIdentityToFile(cfg parconfig.RuntimeConfig, result *Result) error {
+func persistIdentityToFile(cfg parconfig.Config, result *Result) error {
 	filePath := cfg.IdentityFilePath()
 
 	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)

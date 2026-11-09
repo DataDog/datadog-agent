@@ -21,7 +21,7 @@ import (
 
 // Site returns the logical Datadog site independently of intake URL overrides.
 func site(cfg model.Reader) string {
-	site := strings.TrimRight(strings.ToLower(strings.TrimSpace(cfg.GetString("site"))), ".")
+	site := strings.TrimRight(strings.ToLower(strings.TrimSpace(cfg.GetString(par.Site))), ".")
 	if site == "" {
 		return configconstants.DefaultSite
 	}
@@ -47,7 +47,7 @@ func apiBaseURL(cfg model.Reader, site string) (string, error) {
 		return endpoint, nil
 	}
 	if os.Getenv(constants.InternalUseDDURLForOPMSEnvVar) == "true" {
-		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", "dd_url"), "/"), nil
+		return strings.TrimSuffix(configutils.GetMainEndpoint(cfg, "https://api.", par.AgentURL), "/"), nil
 	}
 	return "https://api." + site, nil
 }

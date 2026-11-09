@@ -26,7 +26,7 @@ const (
 )
 
 // Requested reports whether split deployment was explicitly selected.
-func Requested(cfg parconfig.RuntimeConfig) bool {
+func Requested(cfg parconfig.Config) bool {
 	return requested(cfg.SplitEnabled(), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"))
 }
 
@@ -39,11 +39,11 @@ func requested(configEnabled, containerized bool, envValue string) bool {
 
 // Resolve applies the same deployment policy to monolithic startup and the core startup gate.
 // Callers must not start either architecture when resolution fails.
-func Resolve(cfg parconfig.RuntimeConfig) (Mode, error) {
+func Resolve(cfg parconfig.Config) (Mode, error) {
 	return resolve(cfg, runtime.GOOS, configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"), fips.Enabled)
 }
 
-func resolve(cfg parconfig.RuntimeConfig, goos string, containerized bool, envValue string, fipsEnabled func() (bool, error)) (Mode, error) {
+func resolve(cfg parconfig.Config, goos string, containerized bool, envValue string, fipsEnabled func() (bool, error)) (Mode, error) {
 	if !requested(cfg.SplitEnabled(), containerized, envValue) {
 		return Monolithic, nil
 	}

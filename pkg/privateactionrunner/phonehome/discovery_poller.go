@@ -22,7 +22,7 @@ import (
 
 // Discovery owns PAR scope polling in core; RC supplies only org/key status.
 type Discovery struct {
-	cfg           parconfig.RuntimeConfig
+	cfg           parconfig.Config
 	clock         clock.Clock
 	rc            Source
 	demand        atomic.Bool
@@ -40,7 +40,7 @@ type Discovery struct {
 
 // NewDiscovery creates a worker for enabled PAR without starting background work.
 // Unsupported configuration or absent RC leaves discovery unavailable.
-func NewDiscovery(cfg parconfig.RuntimeConfig, rc Source) *Discovery {
+func NewDiscovery(cfg parconfig.Config, rc Source) *Discovery {
 	if !Enabled(cfg) || rc == nil {
 		return nil
 	}

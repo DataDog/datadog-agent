@@ -16,7 +16,7 @@ import (
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 )
 
-func ControlPlaneConfig(config parconfig.RuntimeConfig, runner *parconfig.Identity) (*pb.GetControlPlaneConfigResponse, error) {
+func ControlPlaneConfig(config parconfig.Config, runner *parconfig.Identity) (*pb.GetControlPlaneConfigResponse, error) {
 	response := &pb.GetControlPlaneConfigResponse{
 		LogLevel: config.LogLevel(),
 	}

@@ -62,7 +62,7 @@ func MakeActionsAllowlist(config model.Reader) ActionsAllowlist {
 	// delivery path is on, auto-allow its bundle so the kubernetes-actions
 	// backend (dispatching via wf-actions-server) works without operators having
 	// to set actions_allowlist manually.
-	if config.GetBool("kubeactions.enabled") && config.GetBool("kubeactions.private_action_runner.enabled") {
+	if config.GetBool(par.KubeActionsEnabled) && config.GetBool(par.KubeActionsRunnerEnabled) {
 		actionFqns = append(actionFqns, KubeActionsActionFQNs...)
 	}
 

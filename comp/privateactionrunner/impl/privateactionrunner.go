@@ -83,7 +83,7 @@ type Provides struct {
 }
 
 type PrivateActionRunner struct {
-	coreConfig     parconfig.RuntimeConfig
+	coreConfig     parconfig.Config
 	hostnameGetter hostnameinterface.Component
 	rcClient       pkgrcclient.Client
 	logger         log.Component

@@ -28,7 +28,7 @@ func NewConnectionsCreator(client ConnectionsClient, provider TagsProvider) Conn
 // CreateConnectionsIfEnabled runs the best-effort connection auto-creation flow.
 func CreateConnectionsIfEnabled(
 	ctx context.Context,
-	cfg parconfig.RuntimeConfig,
+	cfg parconfig.Config,
 	apiKey, appKey, runnerID string,
 	enrollmentResult *enrollment.Result,
 	tagsProvider TagsProvider,

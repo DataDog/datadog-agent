@@ -14,9 +14,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
-// RshellCommandNamespacePrefix identifies restricted-shell commands.
-const RshellCommandNamespacePrefix = "rshell:"
-
 // Validate checks routing and warns about ineffective operator policy entries.
 func Validate(config model.Reader) error {
 	ddSite := site(config)
@@ -37,13 +34,13 @@ func Validate(config model.Reader) error {
 
 func warnUnnamespacedCommands(key string, commands []string) {
 	for _, c := range commands {
-		if !strings.HasPrefix(c, RshellCommandNamespacePrefix) {
+		if !strings.HasPrefix(c, par.RShellCommandNamespacePrefix) {
 			log.Warnf(
 				"%s entry %q is missing the %q prefix and will never match a backend command; use %q instead",
 				key,
 				c,
-				RshellCommandNamespacePrefix,
-				RshellCommandNamespacePrefix+c,
+				par.RShellCommandNamespacePrefix,
+				par.RShellCommandNamespacePrefix+c,
 			)
 		}
 	}

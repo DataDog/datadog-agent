@@ -6,13 +6,10 @@ go_library(
     srcs = [
         "actions_allowlist.go",
         "agent_config.go",
-        "agent_runtime.go",
-        "agent_services.go",
         "config.go",
         "endpoints.go",
         "identity.go",
         "metrics.go",
-        "runtime.go",
         "validation.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config",
