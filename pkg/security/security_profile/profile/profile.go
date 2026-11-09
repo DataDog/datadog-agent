@@ -519,8 +519,8 @@ func (p *Profile) GetTags() []string {
 	return tags
 }
 
-// GetDumpTags returns the tags sent with a dump of the profile: the profile tags, then the
-// tags of each version context, each distinct tag once.
+// GetDumpTags returns the tags sent with a dump of the profile: the tags of each version
+// context, each distinct tag once.
 func (p *Profile) GetDumpTags() []string {
 	p.Lock()
 	defer p.Unlock()
@@ -529,7 +529,7 @@ func (p *Profile) GetDumpTags() []string {
 }
 
 func (p *Profile) getDumpTags() []string {
-	tags := slices.Clone(p.tags)
+	var tags []string
 	for _, ctx := range p.getTimeOrderedVersionContexts() {
 		tags = appendMissingTags(tags, ctx.Tags)
 	}
