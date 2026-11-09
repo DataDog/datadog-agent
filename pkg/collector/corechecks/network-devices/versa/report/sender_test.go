@@ -15,6 +15,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 )
 
 // mockTimeNow mocks time.Now
@@ -2001,4 +2002,103 @@ func TestSendCircuitQoSMetrics(t *testing.T) {
 	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.percent_drop", 0.54, "", tags)
 	mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos.bandwidth", 14800, "", tags)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 16)
+}
+
+// TestCircuitQoSMetricsEndToEnd runs the circuit QoS fixture through the real client,
+// parser and sender, so a column added to the query but not to the parser (or the other
+// way round) shows up as a missing or misplaced metric.
+func TestCircuitQoSMetricsEndToEnd(t *testing.T) {
+	server := client.SetupMockAPIServer()
+	defer server.Close()
+	c, err := client.NewTestClient(server)
+	require.NoError(t, err)
+
+	metrics, err := c.GetCircuitQoSMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s := NewSender(mockSender, "default")
+	s.SendCircuitQoSMetrics("datadog", metrics, map[string]string{"test-branch-2b": "192.168.1.1"})
+
+	tags := []string{
+		"site:test-branch-2B",
+		"access_circuit:INET-1",
+		"device_ip:192.168.1.1",
+		"device_namespace:default",
+	}
+	expected := map[string]float64{
+		"best_effort_tx": 1000, "best_effort_tx_drop": 10,
+		"expedited_forward_tx": 500, "expedited_forward_drop": 0,
+		"assured_forward_tx": 300, "assured_forward_drop": 0,
+		"network_control_tx": 50, "network_control_drop": 0,
+		"best_effort_bandwidth": 8000, "expedited_forward_bw": 4000,
+		"assured_forward_bw": 2400, "network_control_bw": 400,
+		"volume_tx": 1850, "total_drop": 10, "percent_drop": 0.54, "bandwidth": 14800,
+	}
+	for name, value := range expected {
+		mockSender.AssertMetric(t, "Gauge", versaMetricPrefix+"circuit_qos."+name, value, "", tags)
+	}
+	mockSender.AssertNumberOfCalls(t, "Gauge", len(expected))
+}
+
+func slaBuckets(drillKey string, firstMillis int64, count int) []client.SLAMetrics {
+	out := make([]client.SLAMetrics, count)
+	for i := range out {
+		out[i] = client.SLAMetrics{
+			DrillKey:  drillKey,
+			LocalSite: "site-001", RemoteSite: "hub-001",
+			LocalAccessCircuit: "circuit-a", RemoteAccessCircuit: "circuit-a",
+			ForwardingClass: "fc_ef",
+			Delay:           float64(i),
+			Timestamp:       firstMillis + int64(i)*900000,
+		}
+	}
+	return out
+}
+
+// TestSendSLAMetricsDedupeAcrossOverlappingWindows models successive runs whose lookback
+// windows overlap: each run re-reports most buckets, and only the new ones go out.
+func TestSendSLAMetricsDedupeAcrossOverlappingWindows(t *testing.T) {
+	TimeNow = mockTimeNow
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s := NewSender(mockSender, "default")
+	const key = "site-001,hub-001,circuit-a,circuit-a,fc_ef"
+	const start = int64(1704067200000)
+
+	s.SendSLAMetrics("tenant-1", slaBuckets(key, start, 15), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 15*6)
+
+	// Window slid by two buckets: thirteen already sent, two new.
+	s.SendSLAMetrics("tenant-1", slaBuckets(key, start+2*900000, 15), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 17*6)
+
+	// Same window again: nothing new.
+	s.SendSLAMetrics("tenant-1", slaBuckets(key, start+2*900000, 15), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 17*6)
+
+	// An older bucket arriving late is still refused.
+	s.SendSLAMetrics("tenant-1", slaBuckets(key, start, 1), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 17*6)
+}
+
+// TestSendSLAMetricsDedupeIsTenantKeyed checks that the same drill key under two tenants
+// is tracked separately, so the second tenant is not mistaken for a resend.
+func TestSendSLAMetricsDedupeIsTenantKeyed(t *testing.T) {
+	TimeNow = mockTimeNow
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s := NewSender(mockSender, "default")
+	const key = "site-001,hub-001,circuit-a,circuit-a,fc_ef"
+	const start = int64(1704067200000)
+
+	s.SendSLAMetrics("tenant-1", slaBuckets(key, start, 4), nil)
+	s.SendSLAMetrics("tenant-2", slaBuckets(key, start, 4), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2*4*6)
+
+	s.SendSLAMetrics("tenant-1", slaBuckets(key, start, 4), nil)
+	s.SendSLAMetrics("tenant-2", slaBuckets(key, start, 4), nil)
+	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2*4*6)
 }
