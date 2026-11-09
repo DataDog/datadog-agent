@@ -6,7 +6,10 @@
 // Package rcx509client defines the Agent's Remote Config x509 client component.
 package rcx509client
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 // team: remote-config
 
@@ -31,6 +34,9 @@ const (
 // Component owns the lifecycle of the Agent's Remote Config x509 client.
 type Component interface {
 	State() State
+	// OpenSecret consumes a prepared encryption context and decrypts one sealed
+	// box. Product delivery handlers own decoding and applying the plaintext.
+	OpenSecret(product, contextID string, ciphertext []byte) ([]byte, error)
 }
 
 // Client is the lifecycle surface required from the public rcx509 client.
@@ -42,12 +48,14 @@ type Client interface {
 // ClientConfig contains the Agent-owned settings used to construct an x509
 // client. APIKey must never be logged.
 type ClientConfig struct {
-	URL              string
-	AppName          string
-	Version          string
-	APIKey           string
-	HTTPClient       *http.Client
-	DebugPingEnabled bool
+	URL                   string
+	AppName               string
+	Version               string
+	APIKey                string
+	HTTPClient            *http.Client
+	DebugPingEnabled      bool
+	PrepareSecretDelivery func(context.Context, uint64, []byte) ([]byte, error)
+	DeliverPOCSecret      func(context.Context, uint64, []byte) ([]byte, error)
 }
 
 // ClientFactory constructs an x509 client.
