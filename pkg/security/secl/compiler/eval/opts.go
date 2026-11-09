@@ -75,14 +75,14 @@ func (s *VariableStore) Get(name string) SECLVariable {
 // Opts are the options to be passed to the evaluator
 type Opts struct {
 	LegacyFields  map[Field]Field
-	Constants     map[string]interface{}
+	Constants     map[string]ast.Node
 	VariableStore *VariableStore
 	MacroStore    *MacroStore
 	Telemetry     *Telemetry
 }
 
 // WithConstants set constants
-func (o *Opts) WithConstants(constants map[string]interface{}) *Opts {
+func (o *Opts) WithConstants(constants map[string]ast.Node) *Opts {
 	o.Constants = constants
 	return o
 }
@@ -144,15 +144,17 @@ func (o *Opts) WithTelemetry(telemetry *Telemetry) *Opts {
 // passes returns the compilation passes run over the trees of the rules and of
 // the macros.
 func (o *Opts) passes() []pass.Pass {
-	return []pass.Pass{o.expandMacros()}
+	return []pass.Pass{o.resolveIdents()}
 }
 
-// expandMacros returns the macro expansion pass.
-func (o *Opts) expandMacros() pass.Pass {
-	return pass.ExpandMacros(func(name string) (*ast.Macro, bool) {
+// resolveIdents returns the pass replacing the references to the macros and to
+// the constants by their trees.
+func (o *Opts) resolveIdents() pass.Pass {
+	return pass.ResolveIdents(func(name string) (ast.Node, bool) {
 		if macro := o.MacroStore.Get(name); macro != nil {
-			return macro.ast, true
+			return macro.ast.Root, true
 		}
-		return nil, false
+		value, ok := o.Constants[name]
+		return value, ok
 	})
 }

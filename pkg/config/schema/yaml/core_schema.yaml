@@ -8159,6 +8159,14 @@ properties:
         node_type: section
         type: object
         properties:
+          dd_url:
+            node_type: setting
+            type: string
+            default: ""
+            description: |
+              URL health reports are sent to, overriding the health platform intake of the
+              configured `site` (https://agenthealth-intake.<site>). Use it to route health
+              reports through a proxy.
           interval:
             node_type: setting
             type: string
@@ -9304,7 +9312,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: true
+                default: false
           sleep_interval:
             node_type: setting
             type: string
@@ -9732,6 +9740,13 @@ properties:
         default: false
         env_vars:
         - DD_SERVERLESS_INIT_METADATA_ENABLED
+      aas_extension_metadata_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Enables Azure App Service extension metadata when metadata collection is enabled.
+        env_vars:
+        - DD_SERVERLESS_AAS_EXTENSION_METADATA_ENABLED
       metadata_wrapped_command_enabled:
         node_type: setting
         type: boolean

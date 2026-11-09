@@ -44,6 +44,10 @@ entries:
   function: errorTrackingClusterAgentSuite.TestDisabledByDefault
   status: debt
   reason: Pulls public Kubernetes component or workload images, including the Operator/CSI subcharts; mirror the images internally before removing this exception.
+- file: test/new-e2e/tests/autoscaling/spot/suite_test.go
+  function: TestSpotSchedulingKindCI
+  status: debt
+  reason: The Agent Helm release pulls public Operator and CSI driver subchart images and the test workloads use registry.k8s.io/pause; mirror them internally before removing this exception.
 - file: test/new-e2e/tests/containers/filtering_test.go
   function: TestK8SCELFilteringSuite
   status: debt
