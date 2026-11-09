@@ -8,8 +8,14 @@
 package types
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
+
+// ErrRebalanceInProgress is returned when a rebalance is requested while
+// another one is running.
+var ErrRebalanceInProgress = errors.New("a cluster checks rebalance is already in progress, try again later")
 
 const (
 	// ExtraHeartbeatLastChangeValue is used to instruct the Cluster Agent that we're still alive

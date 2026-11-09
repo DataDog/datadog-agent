@@ -397,8 +397,7 @@ func (tb *Bench) LoadScenario(name string) error {
 
 	if err := tb.resetAllState(); err != nil {
 		tb.mu.Unlock()
-		tb.broadcastStatus()
-		return fmt.Errorf("reset engine state: %w", err)
+		return err
 	}
 
 	tb.mu.Unlock()
@@ -453,7 +452,7 @@ func (tb *Bench) LoadScenario(name string) error {
 		tb.finishStreamLocked()
 	} else {
 		if err := tb.rerunDetectorsLocked(); err != nil {
-			return loadFailed(fmt.Errorf("rerun detectors: %w", err))
+			return loadFailed(err)
 		}
 	}
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
@@ -1379,7 +1378,7 @@ func (tb *Bench) ToggleComponent(name string) error {
 	if tb.ready {
 		if err := tb.rerunDetectorsLocked(); err != nil {
 			tb.mu.Unlock()
-			return fmt.Errorf("rerun detectors: %w", err)
+			return err
 		}
 	}
 
@@ -1402,7 +1401,7 @@ func (tb *Bench) loadDemoScenario() error {
 
 	if err := tb.resetAllState(); err != nil {
 		tb.mu.Unlock()
-		return fmt.Errorf("reset engine state: %w", err)
+		return err
 	}
 
 	fmt.Println("Generating demo scenario data...")
@@ -1485,7 +1484,7 @@ func (tb *Bench) loadDemoScenario() error {
 
 	if err := tb.rerunDetectorsLocked(); err != nil {
 		tb.mu.Unlock()
-		return fmt.Errorf("rerun detectors: %w", err)
+		return err
 	}
 	sv := tb.debug.StateView()
 	rs := tb.replayStats

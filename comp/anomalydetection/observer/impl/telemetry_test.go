@@ -299,7 +299,7 @@ func TestMetricPipelineInnerDetectorTimings(t *testing.T) {
 	linear, _ := newPipelineStub(observer.LINEAR, "linear_detector")
 	p, err := newMetricPipeline([]pipelineRegistration{stable, linear}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
 	require.NoError(t, err)
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:   newDetectorTestStorage(),
 		detectors: []detectorRegistration{{detector: p}},
 	})
@@ -353,7 +353,7 @@ func TestMetricWorkflowMutedEmissionTelemetry(t *testing.T) {
 			if pipeline {
 				detector = newScanMWPipeline(t, testScanMWPipelineConfig())
 			}
-			e := newEngine(engineConfig{
+			e := mustNewEngine(engineConfig{
 				storage:                    s,
 				detectors:                  []detectorRegistration{{detector: detector}},
 				baseline:                   BaselineConfig{Enabled: true, DurationSec: 100, MuteNoisyMetrics: true},

@@ -8,6 +8,8 @@ package bench
 import (
 	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"testing"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -102,6 +104,20 @@ func TestRetainedReplayInterleavesRawObservations(t *testing.T) {
 	recorder.events = nil
 	bench.feedRawObservations()
 	require.Equal(t, want, recorder.events)
+}
+
+func TestLoadTestbenchParamsInheritsReplayDefaults(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "params.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"components":{"bocpd":{"enabled":true}}}`), 0o600))
+	settings, err := LoadTestbenchParams(path)
+	require.NoError(t, err)
+	// Mirror the CLI's final defaulting pass. An enabled-only JSON entry must
+	// match toggling BOCPD directly, including the replay warmup configuration.
+	settings = observerimpl.ApplyTestbenchDefaults(settings)
+	expected := observerimpl.ApplyTestbenchDefaults(observerimpl.ComponentSettings{
+		Enabled: map[string]bool{"bocpd": true},
+	})
+	require.Equal(t, expected, settings)
 }
 
 type workflowResetRecorder struct {

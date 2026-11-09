@@ -68,7 +68,7 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
 Construct detectors with statistical config values; normalize once and reset only
-runtime state. Catalog-only aggregation settings resolve to invocation filters.
+runtime state.
 
 `Detector.Detect` takes a per-call `DetectionFilter`: independent kind/type
 restrictions and authoritative aggregation selection. Empty aggregations select
@@ -78,8 +78,8 @@ including resets; equal-valued
 replacement pointers are allowed. Aggregations may vary per call. Empty means
 unrestricted workload detection; telemetry is always excluded. Filtering neither
 advances excluded state nor removes it; callers own reset/transition cleanup.
-Catalog registrations bind resolved filters to individual detector instances
-across resets and replay.
+Catalog registrations bind one filter per detector instance; no configuration
+populates it yet.
 
 `anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
 patterns across all tag groups (default 3,000). This includes patterns below
@@ -192,9 +192,10 @@ half-window medians so isolated spikes do not dominate it.
 
 ### Metric pipeline
 
-Legacy detectors remain the default (`anomaly_detection.use_legacy_detectors: true`).
-Set it to `false` to run only `MetricPipeline`, with its own detector instances
-and defaults; legacy detector settings do not configure the pipeline.
+Legacy detectors remain the default.
+Set `anomaly_detection.use_metric_pipeline: true` to run only `MetricPipeline`,
+with its own detector instances and defaults; legacy detector settings do not
+configure the pipeline.
 Baseline and scorer settings apply in both workflows.
 
 `MetricPipeline` runs registered committed-kind detectors before matching.

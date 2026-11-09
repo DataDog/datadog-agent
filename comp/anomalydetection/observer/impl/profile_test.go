@@ -48,7 +48,7 @@ func buildRealisticEngine(tb testing.TB, numMetrics, numSeconds int, windowSec i
 		}
 	}
 
-	return newEngine(engineConfig{
+	return mustNewEngine(engineConfig{
 		storage:     storage,
 		detectors:   detectors,
 		correlators: correlators,

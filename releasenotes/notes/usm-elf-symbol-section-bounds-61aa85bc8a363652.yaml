@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    System-probe no longer scans ELF symbol tables whose section header claims
+    more bytes than the file contains or more than 16,777,216 entries.
+    Previously, inspecting such a file when attaching uprobes could keep a
+    system-probe thread busy for an unbounded time and delay attachment to
+    other libraries. Symbol lookups also no longer stop early when a requested
+    name appears in more than one symbol table entry.

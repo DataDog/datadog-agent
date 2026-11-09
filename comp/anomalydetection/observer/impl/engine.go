@@ -6,6 +6,7 @@
 package observerimpl
 
 import (
+	"fmt"
 	"math"
 	"sort"
 	"sync"
@@ -51,15 +52,16 @@ type anomalyDeduper struct {
 	nextExpiry int64
 }
 
-func newAnomalyDeduper(maxEntries int) anomalyDeduper {
-	if maxEntries == 0 {
-		return anomalyDeduper{replay: make(map[anomalyDedupKey]struct{})}
+func newAnomalyDeduper(maxEntries int) (anomalyDeduper, error) {
+	if maxEntries <= 0 {
+		return anomalyDeduper{replay: make(map[anomalyDedupKey]struct{})}, nil
 	}
 	cache, err := simplelru.NewLRU[anomalyDedupKey, anomalyDedupEntry](maxEntries, nil)
 	if err != nil {
-		panic(err) // maxEntries is always a positive constant in live mode
+		// Unreachable: NewLRU only rejects non-positive sizes, handled above.
+		return anomalyDeduper{}, fmt.Errorf("anomaly deduper: %w", err)
 	}
-	return anomalyDeduper{live: cache}
+	return anomalyDeduper{live: cache}, nil
 }
 
 func anomalyDedupCapacity(trackHistory bool) int {
@@ -298,12 +300,19 @@ type engineConfig struct {
 }
 
 // newEngine creates an engine with the given configuration.
-func newEngine(cfg engineConfig) *engine {
+func newEngine(cfg engineConfig) (*engine, error) {
 	sched := cfg.scheduler
 	if sched == nil {
 		sched = &currentBehaviorPolicy{}
 	}
-	validateUniqueExtractorNames(cfg.extractors)
+	if err := validateUniqueExtractorNames(cfg.extractors); err != nil {
+		return nil, err
+	}
+
+	deduper, err := newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory))
+	if err != nil {
+		return nil, err
+	}
 	for i := range cfg.detectors {
 		cfg.detectors[i].timing = &detectorTiming{}
 	}
@@ -324,7 +333,7 @@ func newEngine(cfg engineConfig) *engine {
 		scheduler:       sched,
 		metricFilter:    cfg.metricFilter,
 
-		anomalyDeduper:             newAnomalyDeduper(anomalyDedupCapacity(cfg.trackAnomalyHistory)),
+		anomalyDeduper:             deduper,
 		trackAnomalyHistory:        cfg.trackAnomalyHistory,
 		trackDetectorOutputHistory: cfg.trackDetectorOutputHistory,
 		trackCorrelationHistory:    cfg.trackCorrelationHistory,
@@ -345,7 +354,7 @@ func newEngine(cfg engineConfig) *engine {
 		}
 	}
 
-	return e
+	return e, nil
 }
 
 // enableDetectDigestRecording sets a callback invoked after each Detect() call
@@ -1230,12 +1239,15 @@ func (e *engine) SetCorrelators(correlators []observerdef.Correlator) {
 // SetExtractors replaces the engine's log-metrics extractors. Used when
 // testbench components are toggled so that replayed log ingestion uses
 // only the currently-enabled extractors.
-func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) {
+func (e *engine) SetExtractors(extractors []observerdef.LogMetricsExtractor) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	validateUniqueExtractorNames(extractors)
+	if err := validateUniqueExtractorNames(extractors); err != nil {
+		return err
+	}
 	e.extractors = extractors
+	return nil
 }
 
 // Reset clears analysis state so detectors will re-analyze from scratch.
@@ -1280,28 +1292,38 @@ func (e *engine) Reset() {
 }
 
 // resetRawAnomalies clears the raw anomaly tracking state.
-func (e *engine) resetRawAnomalies() {
+func (e *engine) resetRawAnomalies() error {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
-	e.anomalyDeduper = newAnomalyDeduper(anomalyDedupCapacity(e.trackAnomalyHistory))
+	deduper, err := newAnomalyDeduper(anomalyDedupCapacity(e.trackAnomalyHistory))
+	if err != nil {
+		return err
+	}
+	e.anomalyDeduper = deduper
 	e.rawAnomalies = nil
 	e.detectorOutputAnomalies = nil
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
+	return nil
 }
 
-func (e *engine) configureAnomalyTracking(trackHistory, trackDetectorOutputHistory bool) {
+func (e *engine) configureAnomalyTracking(trackHistory, trackDetectorOutputHistory bool) error {
 	e.rawAnomalyMu.Lock()
 	defer e.rawAnomalyMu.Unlock()
 
-	e.anomalyDeduper = newAnomalyDeduper(anomalyDedupCapacity(trackHistory))
+	deduper, err := newAnomalyDeduper(anomalyDedupCapacity(trackHistory))
+	if err != nil {
+		return err
+	}
+	e.anomalyDeduper = deduper
 	e.trackAnomalyHistory = trackHistory
 	e.trackDetectorOutputHistory = trackDetectorOutputHistory
 	e.rawAnomalies = nil
 	e.detectorOutputAnomalies = nil
 	e.totalAnomalyCount = 0
 	e.uniqueAnomalySources = nil
+	return nil
 }
 
 // resetCorrelations clears accumulated correlation history.
@@ -1313,10 +1335,13 @@ func (e *engine) resetCorrelations() {
 
 // resetFull resets all engine state: analysis progress, raw anomalies, and correlations.
 // Storage is NOT cleared — the caller manages storage lifecycle.
-func (e *engine) resetFull() {
+func (e *engine) resetFull() error {
 	e.Reset()
-	e.resetRawAnomalies()
+	if err := e.resetRawAnomalies(); err != nil {
+		return err
+	}
 	e.resetCorrelations()
+	return nil
 }
 
 // resetAnalysisState resets detector and correlator state, anomaly tracking,
@@ -1324,7 +1349,7 @@ func (e *engine) resetFull() {
 // batch replay so that enrichAnomaly can still attach context (stored on
 // seriesStats) during replay. Detectors and correlators ARE reset so they
 // start from a clean slate and produce correct results.
-func (e *engine) resetAnalysisState() {
+func (e *engine) resetAnalysisState() error {
 	e.mu.Lock()
 	e.lastAnalyzedDataTime = 0
 	e.latestDataTime = 0
@@ -1355,8 +1380,11 @@ func (e *engine) resetAnalysisState() {
 	}
 	e.resetPipelineKinds()
 
-	e.resetRawAnomalies()
+	if err := e.resetRawAnomalies(); err != nil {
+		return err
+	}
 	e.resetCorrelations()
+	return nil
 }
 
 // ResetForReplay reconfigures with new components, clears all state, and replaces storage.
@@ -1364,7 +1392,11 @@ func (e *engine) resetAnalysisState() {
 // (e.g. the testbench passes PointRetentionSecs=0 for unbounded replay storage).
 // If scorer is non-nil it is appended to correlators so it participates in
 // the normal correlator loop.
-func (e *engine) ResetForReplay(detectors []detectorRegistration, correlators []observerdef.Correlator, scorer *anomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig, baselineCfg BaselineConfig) {
+func (e *engine) ResetForReplay(detectors []detectorRegistration, correlators []observerdef.Correlator, scorer *anomalyScorer, extractors []observerdef.LogMetricsExtractor, storageCfg StorageConfig, baselineCfg BaselineConfig) error {
+	// Validate before mutating any state so a rejection leaves the engine as-is.
+	if err := validateUniqueExtractorNames(extractors); err != nil {
+		return err
+	}
 	e.SetDetectors(detectors)
 	allCorrelators := correlators
 	if scorer != nil {
@@ -1374,8 +1406,12 @@ func (e *engine) ResetForReplay(detectors []detectorRegistration, correlators []
 	e.mu.Lock()
 	e.scorer = scorer
 	e.mu.Unlock()
-	e.SetExtractors(extractors)
-	e.resetFull()
+	if err := e.SetExtractors(extractors); err != nil {
+		return err
+	}
+	if err := e.resetFull(); err != nil {
+		return err
+	}
 	e.replayTimestampsDone.Store(0)
 	e.replayTimestampsTotal.Store(0)
 	e.replayAdvances.Store(0)
@@ -1385,12 +1421,15 @@ func (e *engine) ResetForReplay(detectors []detectorRegistration, correlators []
 	e.maxCorrelations = storageCfg.MaxCorrelations
 	e.trackCorrelationHistory = storageCfg.TrackCorrelationHistory
 	e.mu.Unlock()
-	e.configureAnomalyTracking(storageCfg.TrackAnomalyHistory, storageCfg.TrackDetectorOutputHistory)
+	if err := e.configureAnomalyTracking(storageCfg.TrackAnomalyHistory, storageCfg.TrackDetectorOutputHistory); err != nil {
+		return err
+	}
 	if baselineCfg.Enabled {
 		e.baseline = newBaselineController(baselineCfg, detectorNames(detectors))
 	} else {
 		e.baseline = nil
 	}
+	return nil
 }
 
 // ExtractorCount returns the number of extractors currently registered.

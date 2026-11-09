@@ -97,7 +97,7 @@ func newPipelineEngine(
 	)
 	require.NoError(t, err)
 	pipeline.matcher = newScriptedPipelineMatcher(3, 3, 1, predictions...)
-	engine := newEngine(engineConfig{
+	engine := mustNewEngine(engineConfig{
 		storage:                    s,
 		detectors:                  []detectorRegistration{{detector: pipeline}},
 		trackDetectorOutputHistory: true,
@@ -446,7 +446,7 @@ func TestEngineMetricPipelineDetectionAndKinds(t *testing.T) {
 		testScanMWPipelineConfig(), 30, 30, 3,
 		observer.STABLE, observer.UNKNOWN, observer.UNKNOWN, observer.UNKNOWN, observer.STABLE,
 	)
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:                    s,
 		detectors:                  []detectorRegistration{{detector: p}},
 		trackDetectorOutputHistory: true,
@@ -529,7 +529,7 @@ func TestEngineMetricWorkflowReplayParity(t *testing.T) {
 				newWorkflow := func() *engine {
 					detectors, _, _, _, _, err := defaultCatalog().Instantiate(settings)
 					require.NoError(t, err)
-					return newEngine(engineConfig{
+					return mustNewEngine(engineConfig{
 						storage:                    newDetectorTestStorage(),
 						detectors:                  detectors,
 						scorer:                     newAnomalyScorerBase(DefaultAnomalyScorerConfig()),
@@ -604,7 +604,7 @@ func TestEngineMetricPipelineEvictionAndReplacement(t *testing.T) {
 	s.cfg.InactiveSeriesCheckIntervalSeconds = 1
 	ref := addPipelineValues(s, 1, 1, 40, 100)
 	p := newScanMWPipeline(t, DefaultScanMWConfig())
-	e := newEngine(engineConfig{storage: s, detectors: []detectorRegistration{{detector: p}}})
+	e := mustNewEngine(engineConfig{storage: s, detectors: []detectorRegistration{{detector: p}}})
 	e.Advance(40)
 	e.Advance(41)
 	require.Contains(t, p.series, ref)

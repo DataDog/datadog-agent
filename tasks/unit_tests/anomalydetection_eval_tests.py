@@ -209,7 +209,7 @@ class TestPipelineResume(unittest.TestCase):
 class TestLocalF1Pipeline(unittest.TestCase):
     def test_missing_scenarios_abort_before_build_or_output_changes(self):
         tasks = [
-            (eval_scenarios, {}),
+            (eval_scenarios, {"local": True}),
             (eval_tp, {"only": "bocpd"}),
             (eval_combinations, {}),
             (eval_bayesian, {}),
@@ -279,11 +279,15 @@ class TestLocalF1Pipeline(unittest.TestCase):
                 "num_filtered_recovery": 0,
             }
             ctx = Mock()
-            ctx.run.side_effect = [None, SimpleNamespace(failed=False, stdout=json.dumps(score))]
+            ctx.run.side_effect = [
+                SimpleNamespace(failed=False),
+                SimpleNamespace(failed=False, stdout=json.dumps(score)),
+            ]
             with patch("builtins.print"):
                 report = eval_scenarios.body(
                     ctx,
                     scenario="example",
+                    local=True,
                     scenarios_dir=root,
                     only="bocpd",
                     build=False,
@@ -298,17 +302,21 @@ class TestLocalF1Pipeline(unittest.TestCase):
 class TestMetricWorkflow(unittest.TestCase):
     def test_launch_forwards_workflow_independently_of_config(self):
         for pipeline in (False, True):
-            for scenario in ("", "example"):
-                for config in ("", "/tmp/params.json"):
-                    with self.subTest(pipeline=pipeline, scenario=scenario, config=config), patch("builtins.print"):
-                        ctx = Mock()
-                        launch_testbench.body(
-                            ctx, use_metric_pipeline=pipeline, headless_scenario=scenario, config=config
-                        )
-                        command = ctx.run.call_args.args[0]
-                        self.assertEqual("--use-metric-pipeline" in command, pipeline)
-                        self.assertNotIn("--only", command)
-                        self.assertEqual("--config" in command, bool(config))
+            for config in ("", "/tmp/params.json"):
+                with self.subTest(pipeline=pipeline, config=config), patch("builtins.print"):
+                    ctx = Mock()
+                    ctx.run.return_value = SimpleNamespace(failed=False)
+                    launch_testbench.body(
+                        ctx,
+                        use_metric_pipeline=pipeline,
+                        headless_scenario="example",
+                        config=config,
+                        local=True,
+                    )
+                    command = ctx.run.call_args.args[0]
+                    self.assertEqual("--use-metric-pipeline" in command, pipeline)
+                    self.assertNotIn("--only", command)
+                    self.assertEqual("--config" in command, bool(config))
 
     def test_pipeline_combinations_do_not_search_legacy_detectors(self):
         full = _full_stack_combo(use_metric_pipeline=True)
@@ -438,7 +446,7 @@ class TestMetricWorkflow(unittest.TestCase):
                 json.dump({}, f)
             ctx = Mock()
             ctx.run.side_effect = [
-                None,
+                SimpleNamespace(failed=False),
                 SimpleNamespace(
                     failed=False,
                     stdout=json.dumps(
@@ -459,6 +467,7 @@ class TestMetricWorkflow(unittest.TestCase):
                 scenario="example",
                 scenarios_dir=root,
                 build=False,
+                local=True,
                 scenario_output_dir=root,
                 main_report_path=os.path.join(root, "report.json"),
                 use_metric_pipeline=True,
