@@ -138,7 +138,7 @@ api_key: short-secret
 secret_backend: ENC[leave-me-alone]
 `)
 
-	cleaned, err := ScrubYamlPreserveStructure(input)
+	cleaned, _, err := ScrubYamlPreserveStructure(input)
 	require.NoError(t, err)
 
 	result := string(cleaned)
@@ -168,10 +168,7 @@ func TestScrubYamlPreserveStructureRejectsInvalidYAML(t *testing.T) {
 		"alias":              "value: &value secret\nauth_token: *value\n",
 	} {
 		t.Run(name, func(t *testing.T) {
-			cleaned, err := ScrubYamlPreserveStructure([]byte(input))
-			assert.Error(t, err)
-			assert.Nil(t, cleaned)
-			cleaned, secrets, err := ScrubYamlWithSecrets([]byte(input))
+			cleaned, secrets, err := ScrubYamlPreserveStructure([]byte(input))
 			assert.Error(t, err)
 			assert.Nil(t, cleaned)
 			assert.Nil(t, secrets)
@@ -180,7 +177,7 @@ func TestScrubYamlPreserveStructureRejectsInvalidYAML(t *testing.T) {
 }
 
 func TestScrubYamlPreserveStructureCommentOnly(t *testing.T) {
-	cleaned, err := ScrubYamlPreserveStructure([]byte("# comment\n\n"))
+	cleaned, _, err := ScrubYamlPreserveStructure([]byte("# comment\n\n"))
 	require.NoError(t, err)
 	assert.Empty(t, cleaned)
 }

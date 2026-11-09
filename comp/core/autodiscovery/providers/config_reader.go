@@ -567,7 +567,7 @@ func getIntegrationConfigFromFile(name, fpath string, withFormat bool) (integrat
 			return conf, ConfigFormatWrapper{}, err
 		}
 		var scrubbed []byte
-		scrubbed, secretLocations, err = scrubber.ScrubYamlWithSecrets(serializedConfigFormat)
+		scrubbed, secretLocations, err = scrubber.ScrubYamlPreserveStructure(serializedConfigFormat)
 		scrubbedConfigFormat = string(scrubbed)
 		if err != nil {
 			return conf, ConfigFormatWrapper{}, err

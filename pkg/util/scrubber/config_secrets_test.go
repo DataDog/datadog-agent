@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestScrubYamlWithSecrets(t *testing.T) {
+func TestScrubYamlPreserveStructureSecrets(t *testing.T) {
 	for _, tc := range []struct {
 		name, input string
 		expected    []ConfigSecret
@@ -88,7 +88,7 @@ private_action_runner:
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			scrubber := NewWithDefaults()
-			cleaned, secrets, err := scrubber.ScrubYamlWithSecrets([]byte(tc.input))
+			cleaned, secrets, err := scrubber.ScrubYamlPreserveStructure([]byte(tc.input))
 			require.NoError(t, err)
 			assert.ElementsMatch(t, tc.expected, secrets)
 			encoded, err := json.Marshal([]any{secrets, scrubber.GetStrippedKeys()})
@@ -97,17 +97,11 @@ private_action_runner:
 				assert.NotContains(t, string(cleaned), value)
 				assert.NotContains(t, string(encoded), value)
 			}
-			// Declaration collection must preserve scrubbed YAML and legacy paths.
-			plainScrubber := NewWithDefaults()
-			plain, err := plainScrubber.ScrubYamlPreserveStructure([]byte(tc.input))
-			require.NoError(t, err)
-			assert.Equal(t, plain, cleaned)
-			assert.Equal(t, plainScrubber.GetStrippedKeys(), scrubber.GetStrippedKeys())
 		})
 	}
 }
 
-func TestScrubYamlWithSecretsCallIsolation(t *testing.T) {
+func TestScrubYamlPreserveStructureCallIsolation(t *testing.T) {
 	scrubber := NewWithDefaults()
 	_, err := scrubber.ScrubYaml([]byte("previous:\n  password: raw-previous\n"))
 	require.NoError(t, err)
@@ -115,7 +109,7 @@ func TestScrubYamlWithSecretsCallIsolation(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 			input := []byte(name + ":\n  password: raw-password\n  api_key: ENC[shared]\n")
-			_, declarations, err := scrubber.ScrubYamlWithSecrets(input)
+			_, declarations, err := scrubber.ScrubYamlPreserveStructure(input)
 			require.NoError(t, err)
 			expected := []ConfigSecret{
 				{Path: name + ".password", Kind: "raw"},
@@ -123,7 +117,7 @@ func TestScrubYamlWithSecretsCallIsolation(t *testing.T) {
 			}
 			assert.ElementsMatch(t, expected, declarations)
 			for _, empty := range []string{"", "# comment only", "hostname: safe-host"} {
-				_, next, err := scrubber.ScrubYamlWithSecrets([]byte(empty))
+				_, next, err := scrubber.ScrubYamlPreserveStructure([]byte(empty))
 				require.NoError(t, err)
 				assert.Empty(t, next)
 			}
@@ -133,10 +127,10 @@ func TestScrubYamlWithSecretsCallIsolation(t *testing.T) {
 	}
 }
 
-func TestScrubYamlWithSecretsRespectsReplacerFilter(t *testing.T) {
+func TestScrubYamlPreserveStructureRespectsReplacerFilter(t *testing.T) {
 	scrubber := NewWithDefaults()
 	scrubber.SetShouldApply(func(Replacer) bool { return false })
-	cleaned, secrets, err := scrubber.ScrubYamlWithSecrets([]byte(`password: raw-password
+	cleaned, secrets, err := scrubber.ScrubYamlPreserveStructure([]byte(`password: raw-password
 community_strings: [raw-community, 'ENC[shared]']
 `))
 	require.NoError(t, err)

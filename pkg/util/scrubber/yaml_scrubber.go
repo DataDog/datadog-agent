@@ -247,55 +247,56 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 // Invalid YAML is rejected instead of falling back to the text scrubber. The
 // fallback cannot apply YAML-only replacers and is therefore not safe for data
 // that is sent automatically as metadata.
-func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
-	return c.scrubYamlPreserveStructure(input, nil)
-}
-
-func (c *Scrubber) scrubYamlPreserveStructure(input []byte, secrets *[]ConfigSecret) ([]byte, error) {
+//
+// Returned secret declarations belong only to this call. Raw declarations identify
+// replaced fields, including whole containers; ENC declarations retain every
+// original path and handle. Errors return neither YAML nor declarations.
+func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, []ConfigSecret, error) {
+	secrets := []ConfigSecret{}
 	if len(input) == 0 {
-		return []byte{}, nil
+		return []byte{}, secrets, nil
 	}
 
 	decoder := yaml.NewDecoder(bytes.NewReader(input))
 	var document yaml.Node
 	if err := decoder.Decode(&document); err != nil {
 		if err == io.EOF {
-			return []byte{}, nil
+			return []byte{}, secrets, nil
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	var trailing yaml.Node
 	if err := decoder.Decode(&trailing); err != io.EOF {
 		if err == nil {
-			return nil, errors.New("multiple YAML documents are not supported")
+			return nil, nil, errors.New("multiple YAML documents are not supported")
 		}
-		return nil, err
+		return nil, nil, err
 	}
 	if len(document.Content) == 0 {
-		return []byte{}, nil
+		return []byte{}, secrets, nil
 	}
-	if err := c.inspectYamlNode(&document, "", secrets); err != nil {
-		return nil, err
+	if err := c.inspectYamlNode(&document, "", &secrets); err != nil {
+		return nil, nil, err
 	}
 	var validation interface{}
 	if err := document.Decode(&validation); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 
-	if err := c.scrubYamlNode(&document, "", secrets); err != nil {
-		return nil, err
+	if err := c.scrubYamlNode(&document, "", &secrets); err != nil {
+		return nil, nil, err
 	}
 
 	var buffer bytes.Buffer
 	encoder := yaml.NewEncoder(&buffer)
 	encoder.SetIndent(2)
 	if err := encoder.Encode(&document); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	if err := encoder.Close(); err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return buffer.Bytes(), nil
+	return buffer.Bytes(), secrets, nil
 }
 
 // scrubYamlNode scrubs node and optionally records replaced fields for this call.

@@ -525,7 +525,7 @@ func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, []scrubber.Co
 	// Preserve yaml structure, except fields like `additional_endpoints` may
 	// lose order. This is acceptable behavior, since this setting isn't really used
 	// too often, and already has some strange edge-cases we handle specially.
-	scrubbedConfig, secrets, err := scrubber.ScrubYamlWithSecrets(rawContent)
+	scrubbedConfig, secrets, err := scrubber.ScrubYamlPreserveStructure(rawContent)
 	if err != nil {
 		ia.log.Warnf("could not safely scrub configuration file metadata for %q", path)
 		return nil, nil, false
