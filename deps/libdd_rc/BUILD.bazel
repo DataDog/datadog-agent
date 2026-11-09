@@ -1,0 +1,10 @@
+exports_files(
+    [
+        "Cargo.lock",
+        "Cargo.toml",
+        "rc-x509-proto-protobuf-include.patch",
+        "lib.rs",
+        "libdd_rc.BUILD.bazel",
+    ],
+    visibility = ["//visibility:public"],
+)
