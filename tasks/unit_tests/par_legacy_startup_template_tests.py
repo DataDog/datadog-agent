@@ -33,11 +33,26 @@ LISTENING = f'0000000000000000: 00000002 00000000 00010000 0001 01 12345 {SOCKET
 # Same path, but a connected socket: not a listener.
 CONNECTED = f'0000000000000000: 00000002 00000000 00000000 0001 03 12345 {SOCKET}\n'
 # Each case disables procmgr, so without a listening socket the action job forces the monolithic runner.
+# Only the admin opt-out keeps both PAR definitions, so only it lets a listening socket defer to the config.
 PROCMGR_DISABLED = (
     ('not installed', {'procmgr_installed': False}),
     ('installer opt-out', {'procmgr_installed': True, 'installer_defaults': INSTALLER_OPT_OUT}),
     ('admin opt-out', {'procmgr_installed': True, 'admin_defaults': 'DATADOG_ENABLED=no\n'}),
 )
+LISTENING_DEFERS_TO_CONFIG = {'admin opt-out'}
+ADMIN_ENABLE = 'DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n'
+# With the installer opt-out no PAR definition is written, so these files are the whole catalog.
+MISSING_PAR_DEFINITIONS = (
+    ('empty catalog', ()),
+    ('par-control only', ('datadog-agent-par-control.yaml',)),
+    ('action-executor only', ('datadog-agent-action-executor.yaml',)),
+    ('custom definition only', ('custom.yaml',)),
+)
+PAR_DEFINITION_SETS = (
+    ('yaml', PAR_DEFINITIONS),
+    ('yml', ('datadog-agent-par-control.yml', 'datadog-agent-action-executor.yml')),
+)
+SOCKETS = (('absent', None), ('listening', LISTENING))
 
 
 @unittest.skipUnless(os.name == 'posix', 'init template tests require POSIX')
@@ -309,14 +324,18 @@ log_warning_msg() { echo "WARNING: $*"; }
                 self.assertIn('monolithic mode', result.stdout)
                 self.assertEqual(sleeps, ['1', '1'])
 
-    def test_sysv_defers_to_config_when_a_disabled_procmgr_still_listens(self):
+    def test_sysv_listening_procmgr_defers_to_config_only_with_par_definitions(self):
         for name, procmgr in PROCMGR_DISABLED:
             with self.subTest(name):
                 result, calls, sleeps, _ = self.run_sysv(unix_row=LISTENING, **procmgr)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-                self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
-                self.assertNotIn('split=false', calls)
-                self.assertIn('split mode from config', result.stdout)
+                if name in LISTENING_DEFERS_TO_CONFIG:
+                    self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
+                    self.assertNotIn('split=false', calls)
+                    self.assertIn('split mode from config', result.stdout)
+                else:
+                    self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+                    self.assertIn('monolithic mode', result.stdout)
                 self.assertEqual(sleeps, ['1', '1'])
 
     def test_sysv_ignores_a_socket_that_is_not_listening(self):
@@ -325,16 +344,37 @@ log_warning_msg() { echo "WARNING: $*"; }
         self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
         self.assertIn('monolithic mode', result.stdout)
 
-    def test_sysv_admin_procmgr_defaults_override_the_installer_opt_out(self):
-        result, calls, sleeps, _ = self.run_sysv(
-            procmgr_installed=True,
-            installer_defaults=INSTALLER_OPT_OUT,
-            admin_defaults='DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n',
-        )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-        self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
-        self.assertNotIn('leaked', calls)
-        self.assertEqual(sleeps, ['1', '1'])
+    def test_sysv_admin_enable_without_par_definitions_stays_monolithic(self):
+        for catalog, processes in MISSING_PAR_DEFINITIONS:
+            for socket, row in SOCKETS:
+                with self.subTest(catalog=catalog, socket=socket):
+                    result, calls, sleeps, _ = self.run_sysv(
+                        unix_row=row,
+                        procmgr_installed=True,
+                        installer_defaults=INSTALLER_OPT_OUT,
+                        admin_defaults=ADMIN_ENABLE,
+                        extra_processes=processes,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertRegex(calls, r'--start .*--make-pidfile .*split=false')
+                    self.assertIn('monolithic mode', result.stdout)
+                    self.assertNotIn('leaked', calls)
+                    self.assertEqual(sleeps, ['1', '1'])
+
+    def test_sysv_admin_enable_with_par_definitions_defers_to_config(self):
+        for suffix, processes in PAR_DEFINITION_SETS:
+            with self.subTest(suffix):
+                result, calls, sleeps, _ = self.run_sysv(
+                    procmgr_installed=True,
+                    installer_defaults=INSTALLER_OPT_OUT,
+                    admin_defaults=ADMIN_ENABLE,
+                    extra_processes=processes,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertRegex(calls, r'--start .*--make-pidfile .*split=true')
+                self.assertIn('split mode from config', result.stdout)
+                self.assertNotIn('leaked', calls)
+                self.assertEqual(sleeps, ['1', '1'])
 
     def test_start_accepts_clean_exit_and_removes_pidfile(self):
         for setpriv in (True, False):
@@ -601,8 +641,12 @@ exit 98
                 with self.subTest(template=template.name, procmgr=name, socket='listening'):
                     result, output, _ = self.run_upstart(template, LISTENING, **procmgr)
                     self.assertEqual(result.returncode, 0, result.stderr)
-                    self.assertIn('split mode from config', output)
-                    self.assertNotIn('split=false', output)
+                    if name in LISTENING_DEFERS_TO_CONFIG:
+                        self.assertIn('split mode from config', output)
+                        self.assertNotIn('split=false', output)
+                    else:
+                        self.assertIn('monolithic mode', output)
+                        self.assertIn('split=false', output)
 
     def test_upstart_unrelated_definition_does_not_select_split_mode(self):
         for template in UPSTART_TEMPLATES:
@@ -617,18 +661,40 @@ exit 98
                 self.assertIn('monolithic mode', output)
                 self.assertIn('split=false', output)
 
-    def test_upstart_admin_procmgr_defaults_override_the_installer_opt_out(self):
+    def test_upstart_admin_enable_without_par_definitions_stays_monolithic(self):
         for template in UPSTART_TEMPLATES:
-            with self.subTest(template=template.name):
-                result, output, su_env = self.run_upstart(
-                    template,
-                    installer_defaults=INSTALLER_OPT_OUT,
-                    admin_defaults='DATADOG_ENABLED=yes\nDD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=leaked\n',
-                )
-                self.assertEqual(result.returncode, 0, result.stderr)
-                self.assertIn('split mode from config', output)
-                self.assertNotIn('leaked', output)
-                # su clears the environment before the runner, so the runner output cannot show this leak.
-                if template.name.startswith('upstart_redhat'):
-                    self.assertIn('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=true', su_env)
-                    self.assertNotIn('leaked', su_env)
+            for catalog, processes in MISSING_PAR_DEFINITIONS:
+                for socket, row in SOCKETS:
+                    with self.subTest(template=template.name, catalog=catalog, socket=socket):
+                        result, output, su_env = self.run_upstart(
+                            template,
+                            row,
+                            installer_defaults=INSTALLER_OPT_OUT,
+                            admin_defaults=ADMIN_ENABLE,
+                            extra_processes=processes,
+                        )
+                        self.assertEqual(result.returncode, 0, result.stderr)
+                        self.assertIn('monolithic mode', output)
+                        # On Red Hat this comes from the runner, so the flag made it through su -c.
+                        self.assertIn('split=false', output)
+                        self.assertNotIn('leaked', output)
+                        self.assertNotIn('leaked', su_env)
+
+    def test_upstart_admin_enable_with_par_definitions_defers_to_config(self):
+        for template in UPSTART_TEMPLATES:
+            for suffix, processes in PAR_DEFINITION_SETS:
+                with self.subTest(template=template.name, definitions=suffix):
+                    result, output, su_env = self.run_upstart(
+                        template,
+                        installer_defaults=INSTALLER_OPT_OUT,
+                        admin_defaults=ADMIN_ENABLE,
+                        extra_processes=processes,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stderr)
+                    self.assertIn('split mode from config', output)
+                    self.assertNotIn('split=false', output)
+                    self.assertNotIn('leaked', output)
+                    # su clears the environment before the runner, so the runner output cannot show this leak.
+                    if template.name.startswith('upstart_redhat'):
+                        self.assertIn('DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=true', su_env)
+                        self.assertNotIn('leaked', su_env)

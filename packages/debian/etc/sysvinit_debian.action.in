@@ -52,22 +52,20 @@ runner_status()
 	agent_start_stop_daemon --status --quiet --pidfile "$PIDFILE" --user "$AGENT_USER" --exec "$AGENTPATH"
 }
 
-# Split mode needs both Private Action Runner definitions. Any other YAML only starts dd-procmgrd.
-# The subshell keeps the admin file out of this environment.
+# Split mode needs both Private Action Runner definitions, whatever the admin file says.
+# Any other YAML only starts dd-procmgrd.
 procmgr_par_definitions()
 {
 	[ -f "$INSTALL_DIR/processes.d/datadog-agent-par-control.yaml" ] || [ -f "$INSTALL_DIR/processes.d/datadog-agent-par-control.yml" ] || return 1
 	[ -f "$INSTALL_DIR/processes.d/datadog-agent-action-executor.yaml" ] || [ -f "$INSTALL_DIR/processes.d/datadog-agent-action-executor.yml" ] || return 1
 }
 
+# The subshell keeps the admin file out of this environment.
 procmgr_enabled()
 {
 	[ -x "$INSTALL_DIR/embedded/bin/dd-procmgrd" ] || return 1
 	(
 		DATADOG_ENABLED=
-		if ! procmgr_par_definitions; then
-			DATADOG_ENABLED=no
-		fi
 		if [ -r /etc/default/datadog-agent-procmgr ]; then
 			. /etc/default/datadog-agent-procmgr
 		fi
@@ -75,7 +73,7 @@ procmgr_enabled()
 	)
 }
 
-# One read, no wait: a dd-procmgrd still running after an opt-out can start par-control.
+# One read, no wait: a dd-procmgrd still running after DATADOG_ENABLED=no can start par-control.
 procmgr_listening()
 {
 	# 00010000: listening. 0001: stream socket. 01: listener state.
@@ -126,12 +124,12 @@ do_start()
 #
 start_and_wait()
 {
-	if procmgr_enabled || procmgr_listening; then
+	if procmgr_par_definitions && { procmgr_enabled || procmgr_listening; }; then
 		# The core Agent starts par-control through dd-procmgrd. In split mode this runner stands down.
 		log_daemon_msg "Starting $DESC (split mode from config)" "$NAME"
 	else
 		log_daemon_msg "Starting $DESC (monolithic mode)" "$NAME"
-		# Without dd-procmgrd, split mode cannot run par-control, so use the monolithic runner.
+		# Without dd-procmgrd and both definitions, split mode cannot run par-control, so use the monolithic runner.
 		export DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED=false
 	fi
 	do_start

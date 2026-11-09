@@ -10,26 +10,24 @@ normal exit 0
 console output
 
 script
-  # The subshell keeps the admin file out of this environment.
-  # Split mode needs both Private Action Runner definitions. Any other YAML only starts dd-procmgrd.
+  # Split mode needs both Private Action Runner definitions, whatever the admin file says.
+  # Any other YAML only starts dd-procmgrd.
   procmgr_par_definitions() {
     [ -f "{install_dir}/processes.d/datadog-agent-par-control.yaml" ] || [ -f "{install_dir}/processes.d/datadog-agent-par-control.yml" ] || return 1
     [ -f "{install_dir}/processes.d/datadog-agent-action-executor.yaml" ] || [ -f "{install_dir}/processes.d/datadog-agent-action-executor.yml" ] || return 1
   }
+  # The subshell keeps the admin file out of this environment.
   procmgr_enabled() {
     [ -x {install_dir}/embedded/bin/dd-procmgrd ] || return 1
     (
       DATADOG_ENABLED=
-      if ! procmgr_par_definitions; then
-        DATADOG_ENABLED=no
-      fi
       if [ -r /etc/default/datadog-agent-procmgr ]; then
         . /etc/default/datadog-agent-procmgr
       fi
       [ "$DATADOG_ENABLED" != "no" ]
     )
   }
-  # One read, no wait: a dd-procmgrd still running after an opt-out can start par-control.
+  # One read, no wait: a dd-procmgrd still running after DATADOG_ENABLED=no can start par-control.
   procmgr_listening() {
     # 00010000: listening. 0001: stream socket. 01: listener state.
     awk '
@@ -42,7 +40,7 @@ script
       END { exit !ready }
     ' /proc/net/unix
   }
-  if procmgr_enabled || procmgr_listening; then
+  if procmgr_par_definitions && { procmgr_enabled || procmgr_listening; }; then
     # The core Agent starts par-control through dd-procmgrd. In split mode this runner stands down.
     echo "Starting Datadog Private Action Runner (split mode from config)"
     runner_env='DD_LOG_TO_CONSOLE=false'
