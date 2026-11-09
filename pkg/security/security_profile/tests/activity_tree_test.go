@@ -147,12 +147,26 @@ func TestActivityTree_CreateProcessNode(t *testing.T) {
 
 	tests := []testIteration{
 
-		// check process with broken lineage (parent with pid != 1 && containerID != "")
+		// check process with a lineage broken outside of the container (granpa with pid != 1 && containerID == "")
 		{
-			testName:              "broken_lineage",
+			testName:              "broken_lineage_outside_container",
 			resetActivityTree:     true,
 			parentProcessPath:     "/bin/foo",
 			processPath:           "/bin/bar",
+			completeLineage:       false,
+			resultNodeShouldBeNil: false,
+			resultNewProcessNode:  true,
+			resultErr:             nil,
+			resultTree:            map[string][]string{"/bin/foo": {"/bin/bar"}},
+		},
+
+		// check process with a lineage broken inside of the container (granpa with pid != 1 && containerID != "")
+		{
+			testName:              "broken_lineage_inside_container",
+			resetActivityTree:     true,
+			parentProcessPath:     "/bin/foo",
+			processPath:           "/bin/bar",
+			granpaInsideContainer: true,
 			completeLineage:       false,
 			resultNodeShouldBeNil: true,
 			resultNewProcessNode:  false,

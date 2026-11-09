@@ -800,23 +800,25 @@ func TestProcessInfoMatches(t *testing.T) {
 func TestEventErrorType(t *testing.T) {
 	cause := errors.New("cause")
 	tests := []struct {
-		name string
-		err  error
-		want string
+		name       string
+		err        error
+		want       string
+		insertable bool
 	}{
-		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, EventErrorBrokenLineage},
-		{"no process context", model.ErrNoProcessContext, EventErrorNoProcessContext},
-		{"path resolution", &path.ErrPathResolution{Err: cause}, EventErrorPathResolution},
-		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), EventErrorPathResolution},
-		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, EventErrorPathResolutionNotCritical},
-		{"dns decoding", model.ErrFailedDNSPacketDecoding, EventErrorDNSDecoding},
-		{"other", cause, EventErrorOther},
+		{"broken lineage", &model.ErrProcessBrokenLineage{Err: cause}, EventErrorBrokenLineage, true},
+		{"no process context", model.ErrNoProcessContext, EventErrorNoProcessContext, false},
+		{"path resolution", &path.ErrPathResolution{Err: cause}, EventErrorPathResolution, false},
+		{"wrapped path resolution", fmt.Errorf("wrapped: %w", &path.ErrPathResolution{Err: cause}), EventErrorPathResolution, false},
+		{"path resolution not critical", &path.ErrPathResolutionNotCritical{Err: cause}, EventErrorPathResolutionNotCritical, false},
+		{"dns decoding", model.ErrFailedDNSPacketDecoding, EventErrorDNSDecoding, false},
+		{"other", cause, EventErrorOther, false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got := EventErrorType(tt.err)
 			assert.Equal(t, tt.want, got)
 			assert.Contains(t, EventErrorTypes, got)
+			assert.Equal(t, tt.insertable, IsInsertableEventError(tt.err))
 		})
 	}
 }

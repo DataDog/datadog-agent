@@ -619,7 +619,7 @@ func newInsertionTestManagerV2(t *testing.T) (*ManagerV2, *[]*model.Event) {
 		localStorage:           localStorage,
 		eventFiltering:         make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:        make(map[errorTypeKey]*atomic.Uint64),
-		eventsWithError:        make(map[errorTypeKey]*atomic.Uint64),
+		eventsWithError:        make(map[eventWithErrorKey]*atomic.Uint64),
 		pendingProfileRemovals: make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:        cookieMap,
 		sampleRefreshReceived:  atomic.NewUint64(0),
@@ -1176,28 +1176,51 @@ func TestManagerV2_ProcessEvent_capsPendingEventsTotal(t *testing.T) {
 	assert.Zero(t, m.tagResolutionCappedCgroup.Load())
 }
 
+func assertZeroCounters[K comparable](t *testing.T, counters map[K]*atomic.Uint64) {
+	t.Helper()
+	for key, count := range counters {
+		assert.Zero(t, count.Load(), "%+v", key)
+	}
+}
+
 func TestManagerV2_eventsWithError(t *testing.T) {
 	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
-	countOf := func(m *ManagerV2, eventType model.EventType, errorType string) uint64 {
-		return m.eventsWithError[errorTypeKey{eventType: eventType, errorType: errorType}].Load()
+	countOf := func(m *ManagerV2, eventType model.EventType, errorType string, outcome string) uint64 {
+		return m.eventsWithError[eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: eventType, errorType: errorType}, outcome: outcome}].Load()
 	}
-	assertNoCount := func(t *testing.T, counters map[errorTypeKey]*atomic.Uint64) {
-		for key, count := range counters {
-			assert.Zero(t, count.Load(), "%s/%s", key.eventType, key.errorType)
+	// breakLineage makes the lineage of the event stop at its parent, which is the container shim unless
+	// insideContainer is set
+	breakLineage := func(event *model.Event, insideContainer bool) {
+		event.ProcessCacheEntry.Ancestor.Pid = 41
+		if insideContainer {
+			event.ProcessCacheEntry.Ancestor.ContainerContext.ContainerID = testContainerID
 		}
+		event.Error = brokenLineage
 	}
 
-	t.Run("counted and dropped", func(t *testing.T) {
+	t.Run("dropped before insertion", func(t *testing.T) {
 		m := newTagResolutionTestManagerV2(t, 10, 10)
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		event.Error = model.ErrNoProcessContext
+
+		m.ProcessEvent(event)
+
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorNoProcessContext, eventWithErrorDropped))
+		assert.Empty(t, m.profiles)
+		assert.Empty(t, m.resolvedCgroups)
+		assert.Empty(t, m.profilePendingEvents)
+	})
+
+	t.Run("broken lineage goes through", func(t *testing.T) {
+		m := newTagResolutionTestManagerV2(t, 10, 10)
+		event := newUntaggedTestEventV2(0)
 		event.Error = brokenLineage
 
 		m.ProcessEvent(event)
 
-		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage))
-		assert.Empty(t, m.profiles)
-		assert.Empty(t, m.resolvedCgroups)
-		assert.Empty(t, m.profilePendingEvents)
+		require.Contains(t, m.profilePendingEvents, untaggedTestCGroupID(0))
+		assert.Equal(t, 1, m.profilePendingEvents[untaggedTestCGroupID(0)].events.Len())
+		assertZeroCounters(t, m.eventsWithError)
 	})
 
 	t.Run("not counted outside of profiles", func(t *testing.T) {
@@ -1205,18 +1228,18 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 
 		hostEvent := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		hostEvent.ProcessContext.Process.ContainerContext.ContainerID = ""
-		hostEvent.Error = brokenLineage
+		hostEvent.Error = model.ErrNoProcessContext
 		m.ProcessEvent(hostEvent)
 
 		untracedEvent := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		untracedEvent.Type = uint32(model.FileChmodEventType)
-		untracedEvent.Error = brokenLineage
+		untracedEvent.Error = model.ErrNoProcessContext
 		m.ProcessEvent(untracedEvent)
 
-		assertNoCount(t, m.eventsWithError)
+		assertZeroCounters(t, m.eventsWithError)
 	})
 
-	t.Run("raised during insertion", func(t *testing.T) {
+	t.Run("dropped during insertion", func(t *testing.T) {
 		m, _ := newInsertionTestManagerV2(t)
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
 		event.Error = &path.ErrPathResolution{Err: errors.New("dentry not found")}
@@ -1224,8 +1247,35 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		_, inserted := m.insertEventIntoProfile(event)
 
 		assert.False(t, inserted)
-		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorPathResolution))
-		assertNoCount(t, m.insertionErrors)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorPathResolution, eventWithErrorDropped))
+		assertZeroCounters(t, m.insertionErrors)
+	})
+
+	t.Run("broken lineage outside of the container is kept", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, false)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "known"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+	})
+
+	t.Run("broken lineage inside of the container is dropped", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		breakLineage(event, true)
+
+		_, inserted := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
+		assertZeroCounters(t, m.insertionErrors)
 	})
 }
 

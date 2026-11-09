@@ -503,6 +503,13 @@ func EventErrorType(err error) string {
 	}
 }
 
+// IsInsertableEventError reports whether an event carrying err (model.Event.Error) can still be inserted. The tree
+// decides on its own whether the process of such an event can be placed.
+func IsInsertableEventError(err error) bool {
+	var brokenLineageErr *model.ErrProcessBrokenLineage
+	return errors.As(err, &brokenLineageErr)
+}
+
 // isEventValid evaluates if the provided event is valid
 func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, error) {
 	// check event type
@@ -597,7 +604,7 @@ func (at *ActivityTree) insertEvent(event *model.Event, dryRun bool, insertMissi
 
 	event.ResolveFieldsForAD()
 
-	if event.Error != nil {
+	if event.Error != nil && !IsInsertableEventError(event.Error) {
 		at.Stats.counts[event.GetEventType()].droppedCount[brokenEventReason].Inc()
 		return false, nil, nil, event.Error
 	}
@@ -777,6 +784,17 @@ func (at *ActivityTree) buildBranchAndLookupCookies(entry *model.ProcessCacheEnt
 	return branch, nil, ErrNotValidRootNode
 }
 
+// lineageLeavesSelector reports whether the lineage of entry reaches an ancestor outside of the tree selector. When
+// it does, a break further up the lineage doesn't affect the branch inserted in the tree.
+func (at *ActivityTree) lineageLeavesSelector(entry *model.ProcessCacheEntry) bool {
+	for ancestor := entry; ancestor != nil; ancestor = ancestor.Ancestor {
+		if !at.validator.MatchesSelector(ancestor) {
+			return true
+		}
+	}
+	return false
+}
+
 func (at *ActivityTree) CreateProcessNode(entry *model.ProcessCacheEntry, imageTag string, generationType NodeGenerationType, dryRun bool, resolvers *resolvers.EBPFResolvers) (*ProcessNode, bool, error) {
 	var imageTagID uint64
 	if dryRun {
@@ -794,12 +812,8 @@ func (at *ActivityTree) createProcessNode(entry *model.ProcessCacheEntry, imageT
 		return nil, false, nil
 	}
 
-	if _, err := entry.HasValidLineage(); err != nil {
-		// check if the node belongs to the container
-		var mn *model.ErrProcessMissingParentNode
-		if !errors.As(err, &mn) {
-			return nil, false, ErrBrokenLineage
-		}
+	if _, err := entry.HasValidLineage(); err != nil && !at.lineageLeavesSelector(entry) {
+		return nil, false, ErrBrokenLineage
 	}
 
 	// Check if entry or one of its parents cookies are in CookieToProcessNode while building the branch we're trying to
