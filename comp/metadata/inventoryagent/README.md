@@ -54,7 +54,7 @@ The payload is a JSON dict with the following fields
   - `config_eks_fargate` - **bool**: the configuration value `eks_fargate`
   - `diagnostics` - **dict of string to JSON type**: the result of series of connectivity checks performed on the agent including description, error and metadata
   - `enc_info` - **dict of string to array of string**: the paths of secret settings, their handles, and scrubbed leafs (scrubbed)
-    - `paths` - **array of strings**: the paths of settings that contain secrets
+    - `paths` - **array of strings**: the paths of settings that contain secrets. Settings of integration configs are prefixed by the integration name and the section of its config, separated by a `;` (ex: `postgres;instances.0:password`)
     - `handles` - **array of strings**: the handles that correspond to these paths
     - `scrubbed` - **array of strings**: the keys of non-default settings whose values were scrubbed, either because the key is known to be sensitive (ex: `snmp_traps.users.0.authKey`) or because the value looks like a credential (ex: a raw API key). Keys already covered by `paths` are omitted
   - `install_method_tool` - **string**: the name of the tool used to install the agent (ie, Chef, Ansible, ...).

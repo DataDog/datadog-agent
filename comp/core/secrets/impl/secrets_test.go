@@ -1725,33 +1725,53 @@ snmp_traps:
 		"my_key",
 	}, handles)
 
-	// integrations use their config digest as origin.
-	postgresDigest, apacheDigest := "1a2b3c4d5e6f7a8b", "f1e2d3c4b5a69788"
-	_, err = resolver.Resolve([]byte("instances:\n- password: ENC[db_pass]\n"), postgresDigest, "", "", false)
+	// integrations use an origin derived from their config digest (here one per section of the config)
+	postgresOrigin10, postgresOrigin2 := "1a2b3c4d5e6f7a8b;instances.10", "1a2b3c4d5e6f7a8b;instances.2"
+	otherPostgresOrigin, apacheOrigin := "0f0e0d0c0b0a0908;instances.2", "f1e2d3c4b5a69788;init_config"
+	_, err = resolver.Resolve([]byte("password: ENC[db_pass_10]\n"), postgresOrigin10, "", "", false)
 	require.NoError(t, err)
-	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), apacheDigest, "", "", false)
+	_, err = resolver.Resolve([]byte("password: ENC[db_pass_2]\n"), postgresOrigin2, "", "", false)
+	require.NoError(t, err)
+	_, err = resolver.Resolve([]byte("password: ENC[other_db_pass]\n"), otherPostgresOrigin, "", "", false)
+	require.NoError(t, err)
+	_, err = resolver.Resolve([]byte("token: ENC[other_token]\n"), apacheOrigin, "", "", false)
 	require.NoError(t, err)
 
-	// without names for origins, will get config digest as path prefix
+	// without names for origins, will get the origin as path prefix. Numbers in origins are compared numerically.
 	paths, handles = resolver.GetPathsAndHandles()
-	require.Len(t, paths, 15)
+	require.Len(t, paths, 17)
 	assert.Equal(t, "api_key", paths[0])
-	assert.Equal(t, []string{"1a2b3c4d5e6f7a8b:instances.0.password", "f1e2d3c4b5a69788:token"}, paths[13:])
-	assert.Equal(t, []string{"db_pass", "other_token"}, handles[13:])
+	assert.Equal(t, []string{
+		"0f0e0d0c0b0a0908;instances.2:password",
+		"1a2b3c4d5e6f7a8b;instances.2:password",
+		"1a2b3c4d5e6f7a8b;instances.10:password",
+		"f1e2d3c4b5a69788;init_config:token",
+	}, paths[13:])
+	assert.Equal(t, []string{"other_db_pass", "db_pass_2", "db_pass_10", "other_token"}, handles[13:])
 
-	// origins registered with a check name are prefixed with, and sorted by, that name
-	resolver.SetOriginName(postgresDigest, "postgres")
-	resolver.SetOriginName(apacheDigest, "apache")
+	// origins registered with a name are prefixed with, and sorted by, that name. Origins sharing a name are ordered
+	// by handle when their path is the same.
+	resolver.SetOriginName(postgresOrigin10, "postgres;instances.10")
+	resolver.SetOriginName(postgresOrigin2, "postgres;instances.2")
+	resolver.SetOriginName(otherPostgresOrigin, "postgres;instances.2")
+	resolver.SetOriginName(apacheOrigin, "apache;init_config")
 	paths, handles = resolver.GetPathsAndHandles()
-	require.Len(t, paths, 15)
+	require.Len(t, paths, 17)
 	assert.Equal(t, "api_key", paths[0])
-	assert.Equal(t, []string{"apache:token", "postgres:instances.0.password"}, paths[13:])
-	assert.Equal(t, []string{"other_token", "db_pass"}, handles[13:])
+	assert.Equal(t, []string{
+		"apache;init_config:token",
+		"postgres;instances.2:password",
+		"postgres;instances.2:password",
+		"postgres;instances.10:password",
+	}, paths[13:])
+	assert.Equal(t, []string{"other_token", "db_pass_2", "other_db_pass", "db_pass_10"}, handles[13:])
 
 	// removing the origin removes its paths, handles and name
 	resolver.RemoveOrigin("datadog.yaml")
-	resolver.RemoveOrigin(postgresDigest)
-	resolver.RemoveOrigin(apacheDigest)
+	resolver.RemoveOrigin(postgresOrigin10)
+	resolver.RemoveOrigin(postgresOrigin2)
+	resolver.RemoveOrigin(otherPostgresOrigin)
+	resolver.RemoveOrigin(apacheOrigin)
 	paths, handles = resolver.GetPathsAndHandles()
 	assert.Empty(t, paths)
 	assert.Empty(t, handles)

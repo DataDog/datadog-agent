@@ -212,6 +212,10 @@ func (suite *ConfigManagerSuite) TestNewNonTemplateWithSecretsScheduled() {
 	assertConfigsMatch(suite.T(), suite.changes.Unschedule, matchName(nonTemplateConfigWithSecrets.Name))
 	assertConfigsMatch(suite.T(), suite.changes.Unschedule, matchDigest(newConfigDigest))
 	require.True(suite.T(), strings.Contains(string(suite.changes.Unschedule[0].Instances[0]), "barDecoded"))
+
+	// the secret origins of every section of the config are removed
+	assert.ElementsMatch(suite.T(), mockResolver.origins, mockResolver.removed)
+	assert.Len(suite.T(), mockResolver.removed, 4)
 }
 
 func (suite *ConfigManagerSuite) TestNewClusterCheckWithSecretsScheduled() {

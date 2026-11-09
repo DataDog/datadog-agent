@@ -153,7 +153,7 @@ func (cm *reconcilingConfigManager) applyDiscoveredConfigsLocked(svcID, tplDiges
 			log.Errorf("error adding configuration-discovery tag to config %s for service %s: %v", resolved.Name, svcID, err)
 		}
 	}
-	decrypted, err := decryptConfig(resolved, cm.secretResolver, tplDigest)
+	decrypted, err := decryptConfig(resolved, cm.secretResolver, tplDigest, cm.secretOrigins)
 	if err != nil {
 		log.Errorf("error decrypting discovered config %s for service %s: %v", resolved.Name, svcID, err)
 		errorStats.setResolveWarning(tpl.Name, err.Error())
