@@ -720,7 +720,12 @@ impl DaemonHandle {
         socket_path: &Path,
         extra_env: &[(&str, &str)],
     ) -> Self {
+        #[cfg(not(target_os = "aix"))]
         let bin = env!("CARGO_BIN_EXE_dd-procmgrd");
+        // AIX's ksh rustc wrapper drops this at compile time; cargo sets it at run time.
+        #[cfg(target_os = "aix")]
+        let bin =
+            std::env::var("CARGO_BIN_EXE_dd-procmgrd").expect("CARGO_BIN_EXE_dd-procmgrd not set");
 
         let mut cmd = Command::new(bin);
         cmd.env("DD_PM_CONFIG_DIR", config_dir)
@@ -1168,7 +1173,12 @@ impl CliRunner {
 
     /// Run a dd-procmgr command and capture output.
     fn run(&self, args: &[&str]) -> CliOutput {
+        #[cfg(not(target_os = "aix"))]
         let bin = env!("CARGO_BIN_EXE_dd-procmgr");
+        // AIX's ksh rustc wrapper drops this at compile time; cargo sets it at run time.
+        #[cfg(target_os = "aix")]
+        let bin =
+            std::env::var("CARGO_BIN_EXE_dd-procmgr").expect("CARGO_BIN_EXE_dd-procmgr not set");
         let output = Command::new(bin)
             .arg("--socket")
             .arg(&self.socket_path)
