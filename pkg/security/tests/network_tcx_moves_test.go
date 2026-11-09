@@ -35,6 +35,7 @@ import (
 	secnetns "github.com/DataDog/datadog-agent/pkg/security/resolvers/netns"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
+	kernelnetns "github.com/DataDog/datadog-agent/pkg/util/kernel/netns"
 )
 
 const tcxMovesDomain = "tcx-moves.test"
@@ -125,15 +126,24 @@ func (m *tcxMoves) newNetNS(tb testing.TB, name string) (uint32, *utils.NSPath) 
 	}
 	nsID := uint32(stat.Ino)
 
-	file, err := os.Open(path)
+	target, err := netns.GetFromPath(path)
 	if err != nil {
 		tb.Fatal(err)
 	}
-	defer file.Close()
-	// the resolver reads the ID with readlink, which fails with EINVAL on the bind mount but not on a magic link
-	fdPath := utils.NewNSPathFromPath(fmt.Sprintf("/proc/self/fd/%d", file.Fd()), utils.NetNsType)
-	if netns, _ := m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, fdPath); netns == nil {
-		_, err = fdPath.GetNSID()
+	defer target.Close()
+	// the resolver reads the ID with readlink, which only works on a namespace opened through procfs, not on its bind mount
+	var handle netns.NsHandle
+	if err := kernelnetns.WithNS(target, func() (err error) {
+		handle, err = netns.Get()
+		return err
+	}); err != nil {
+		tb.Fatal(err)
+	}
+	defer handle.Close()
+
+	handlePath := utils.NewNSPathFromPath(fmt.Sprintf("/proc/self/fd/%d", int(handle)), utils.NetNsType)
+	if entry, _ := m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, handlePath); entry == nil {
+		_, err = handlePath.GetNSID()
 		tb.Fatalf("the resolver didn't take namespace %d: %v", nsID, err)
 	}
 	return nsID, utils.NewNSPathFromPath(path, utils.NetNsType)
