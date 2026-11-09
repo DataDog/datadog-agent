@@ -29,6 +29,13 @@ func NewReplacer(rules []*config.ReplaceRule) *Replacer {
 
 const hiddenTagPrefix = "_"
 
+// envTag is the span tag holding the env. The trace agent can derive the env
+// used for sampling and stats from it (see traceutil.GetEnv), so "*" rules must
+// not rewrite it. Rules named "env" are dropped when the configuration is
+// loaded. Span event attributes named "env" are not the span env, so "*" rules
+// still apply to them.
+const envTag = "env"
+
 // Replace replaces all tags matching the Replacer's rules.
 func (f Replacer) Replace(trace pb.Trace) {
 	for _, rule := range f.rules {
@@ -37,12 +44,14 @@ func (f Replacer) Replace(trace pb.Trace) {
 			switch key {
 			case "*":
 				for k := range s.Meta {
-					if !strings.HasPrefix(k, hiddenTagPrefix) {
+					if k != envTag && !strings.HasPrefix(k, hiddenTagPrefix) {
 						s.Meta[k] = re.ReplaceAllString(s.Meta[k], str)
 					}
 				}
 				for k := range s.Metrics {
-					if !strings.HasPrefix(k, hiddenTagPrefix) {
+					// Skip env too, as replaceNumericTag can move a non-numeric
+					// result into Meta["env"].
+					if k != envTag && !strings.HasPrefix(k, hiddenTagPrefix) {
 						f.replaceNumericTag(re, s, k, str)
 					}
 				}
@@ -90,7 +99,10 @@ func (f Replacer) ReplaceV1(trace *idx.InternalTraceChunk) {
 			case "*":
 				for k, v := range s.Attributes() {
 					kString := trace.Strings.Get(k)
-					if strings.HasPrefix(kString, hiddenTagPrefix) {
+					// Spans decoded from msgpack v0.4/v0.5 payloads keep env both
+					// in the dedicated env field and in Attributes(), and setting
+					// the "env" attribute writes the env field.
+					if kString == envTag || strings.HasPrefix(kString, hiddenTagPrefix) {
 						continue
 					}
 					vString := v.AsString(trace.Strings)

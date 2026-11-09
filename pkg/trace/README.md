@@ -38,7 +38,7 @@ The `Agent` struct is the central orchestrator. It pulls payloads from the recei
 4. **Obfuscation** — redacts sensitive data from span metadata based on span type: SQL query obfuscation, JSON payload scrubbing, URL redaction, and Memcached/Redis command obfuscation.
 5. **Truncation** — caps oversized tag values, resource names, and SQL statements.
 6. **Top-level span computation** — marks which spans are entry points within their service, used by stats and sampling.
-7. **Tag replacement** — applies user-configured regex replacement rules to tag values (e.g., PII scrubbing via `conf.ReplaceTags`).
+7. **Tag replacement** — applies user-configured regex replacement rules to tag values (e.g., PII scrubbing via `conf.ReplaceTags`). The span `env` is never replaced, as it can be the env used for sampling and stats.
 
 After this pipeline, the agent fans the trace out to the sampler subsystem and the concentrator in parallel.
 

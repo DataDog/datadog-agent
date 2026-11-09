@@ -96,13 +96,48 @@ func TestParseRepaceRules(t *testing.T) {
 		{Name: "http.url", Pattern: "guid", Repl: "[REDACTED]"},
 		{Name: "custom.tag", Pattern: "(/foo/bar/).*", Repl: "${1}extra"},
 	}
-	err := compileReplaceRules(rules)
+	compiled, err := compileReplaceRules(rules)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range rules {
+	assert.Equal(rules, compiled)
+	for _, r := range compiled {
 		assert.Equal(r.Pattern, r.Re.String())
 	}
+}
+
+// TestCompileReplaceRulesDropsEnv tests that rules named "env" are dropped, as replace
+// rules must not change the env used for sampling and stats.
+func TestCompileReplaceRulesDropsEnv(t *testing.T) {
+	t.Run("env rules are dropped", func(t *testing.T) {
+		rules := []*traceconfig.ReplaceRule{
+			{Name: "http.url", Pattern: "guid", Repl: "[REDACTED]"},
+			{Name: "env", Pattern: ".*", Repl: "myenv"},
+			{Name: "*", Pattern: "secret", Repl: "?"},
+			{Name: "env", Pattern: "prod", Repl: "production"},
+		}
+		compiled, err := compileReplaceRules(rules)
+		require.NoError(t, err)
+		require.Len(t, compiled, 2)
+		assert.Equal(t, "http.url", compiled[0].Name)
+		assert.Equal(t, "*", compiled[1].Name)
+		for _, r := range compiled {
+			assert.Equal(t, r.Pattern, r.Re.String())
+		}
+	})
+
+	t.Run("only env rules", func(t *testing.T) {
+		compiled, err := compileReplaceRules([]*traceconfig.ReplaceRule{{Name: "env", Pattern: ".*", Repl: "myenv"}})
+		require.NoError(t, err)
+		assert.Empty(t, compiled)
+	})
+
+	t.Run("invalid env rules still fail", func(t *testing.T) {
+		_, err := compileReplaceRules([]*traceconfig.ReplaceRule{{Name: "env", Pattern: "(", Repl: "myenv"}})
+		assert.Error(t, err)
+		_, err = compileReplaceRules([]*traceconfig.ReplaceRule{{Name: "env", Repl: "myenv"}})
+		assert.Error(t, err)
+	})
 }
 
 // TestSplitTag tests various split-tagging scenarios
@@ -1302,9 +1337,29 @@ func TestLoadEnv(t *testing.T) {
 			Pattern: "pattern2",
 			Repl:    "replace2",
 		}
-		compileReplaceRules([]*traceconfig.ReplaceRule{rule1, rule2})
+		_, err := compileReplaceRules([]*traceconfig.ReplaceRule{rule1, rule2})
+		require.NoError(t, err)
 		assert.Contains(t, cfg.ReplaceTags, rule1)
 		assert.Contains(t, cfg.ReplaceTags, rule2)
+	})
+
+	t.Run(env+" drops env rules", func(t *testing.T) {
+		t.Setenv(env, `[{"name":"env","pattern":".*","repl":"myenv"},{"name":"name2","pattern":"pattern2","repl":"replace2"}]`)
+
+		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		for _, r := range cfg.ReplaceTags {
+			assert.NotEqual(t, "env", r.Name)
+		}
+		assert.Contains(t, cfg.ReplaceTags, &traceconfig.ReplaceRule{
+			Name:    "name2",
+			Pattern: "pattern2",
+			Re:      regexp.MustCompile("pattern2"),
+			Repl:    "replace2",
+		})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REQUIRE"
