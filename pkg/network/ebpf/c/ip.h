@@ -126,7 +126,7 @@ typedef struct {
     __u8 tcp_flags;
 } skb_info_t;
 
-// Parses the headers with one load per field. Prebuilt always uses this; other builds use it only when
+// Parses the headers with one load per field. Prebuilt always uses this; runtime-compiled builds use it only when
 // bpf_skb_load_bytes is unavailable.
 // On older kernels, clang can generate Wunused-function warnings on static inline functions defined in
 // header files, even if they are later used in source files. __maybe_unused prevents that issue
@@ -366,7 +366,13 @@ __maybe_unused static __always_inline __u64 read_conn_tuple_skb(struct __sk_buff
         return ret;
     }
 #endif
+#ifdef COMPILE_CORE
+    // Socket filters get bpf_skb_load_bytes in 4.11, below every kernel these programs load on, so the per-field
+    // parse would be dead code. Kernels before 5.1 keep dead code, and it would count against optmem_max.
+    return 0;
+#else
     return read_conn_tuple_skb_fields(skb, info, tup);
+#endif
 }
 
 __maybe_unused static __always_inline bool is_equal(conn_tuple_t *t, conn_tuple_t *t2) {
