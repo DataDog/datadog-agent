@@ -166,3 +166,29 @@ func TestStablePipeline_ReadyDespiteRejections(t *testing.T) {
 	assert.Empty(t, p.Detect(nil, 1, observer.DetectionFilter{}).Anomalies)
 	assert.True(t, p.Ready(), "readiness must not depend on gating outcomes")
 }
+
+func TestStablePipeline_MutedChangeAdvancesDetectorState(t *testing.T) {
+	cfg := testScanMWPipelineConfig()
+	buildStorage := func() *timeSeriesStorage {
+		s := newTimeSeriesStorage()
+		for i := int64(1); i <= 20; i++ {
+			s.Add("ns", "metric", 100, i, nil)
+		}
+		for i := int64(21); i <= 40; i++ {
+			s.Add("ns", "metric", 103, i, nil)
+		}
+		return s
+	}
+	gated, err := newStablePipeline(NewScanMWDetector(cfg), DefaultStablePipelineConfig())
+	require.NoError(t, err)
+	ungated, err := newStablePipeline(NewScanMWDetector(cfg), StablePipelineConfig{})
+	require.NoError(t, err)
+
+	gatedResult := gated.Detect(buildStorage(), 40, observer.DetectionFilter{})
+	ungatedResult := ungated.Detect(buildStorage(), 40, observer.DetectionFilter{})
+
+	require.Empty(t, gatedResult.Anomalies, "3%% change must be muted")
+	require.NotEmpty(t, ungatedResult.Anomalies)
+	require.Equal(t, ungated.detector, gated.detector,
+		"muting must not alter ScanMW state progression")
+}

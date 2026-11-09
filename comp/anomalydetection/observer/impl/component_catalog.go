@@ -94,6 +94,10 @@ type ComponentSettings struct {
 	// previous configured detector workflow.
 	UseMetricPipeline bool
 
+	// StablePipeline optionally overrides the stable pipeline configuration.
+	// Nil selects defaults.
+	StablePipeline *StablePipelineConfig
+
 	// configs is populated internally by readConfig functions on catalog
 	// entries (e.g. from agent config). It is not exported because the
 	// values must match the typed config expected by each component's
@@ -400,7 +404,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	components = make(map[string]*componentInstance, len(c.entries))
 
 	if settings.UseMetricPipeline {
-		pipeline, pipelineErr := newScanMWMetricPipeline(DefaultScanMWConfig())
+		pipeline, pipelineErr := newDefaultMetricPipeline(settings.StablePipeline)
 		if pipelineErr != nil {
 			return nil, nil, nil, nil, nil, pipelineErr
 		}

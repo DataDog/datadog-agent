@@ -391,7 +391,7 @@ func TestMetricPipelineGatedTelemetry(t *testing.T) {
 	}
 	p, err := newMetricPipeline([]pipelineRegistration{registration}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
 	require.NoError(t, err)
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:                    newDetectorTestStorage(),
 		detectors:                  []detectorRegistration{{detector: p}},
 		trackDetectorOutputHistory: true,

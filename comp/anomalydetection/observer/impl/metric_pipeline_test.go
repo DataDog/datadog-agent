@@ -145,7 +145,7 @@ func newScanMWPipelineWithMatcher(
 }
 
 func newScanMWPipeline(tb testing.TB, cfg ScanMWConfig) *MetricPipeline {
-	p, err := newScanMWMetricPipeline(cfg)
+	p, err := newScanMWMetricPipeline(cfg, nil)
 	require.NoError(tb, err)
 	return p
 }
@@ -251,14 +251,14 @@ func TestScanMWMetricPipelineRouting(t *testing.T) {
 	require.Len(t, result.Anomalies, 1)
 	require.Equal(t, stable, result.Anomalies[0].SourceRef.Ref)
 	require.Equal(t, observer.AggregateAverage, result.Anomalies[0].SourceRef.Aggregate)
-	require.Len(t, p.registrations[0].detector.(*ScanMWDetector).series, 2)
-	require.Contains(t, p.registrations[0].detector.(*ScanMWDetector).series,
+	require.Len(t, stablePipelineInnerScanMW(p).series, 2)
+	require.Contains(t, stablePipelineInnerScanMW(p).series,
 		scanmwStateKey{ref: stable, agg: observer.AggregateAverage})
-	require.Contains(t, p.registrations[0].detector.(*ScanMWDetector).series,
+	require.Contains(t, stablePipelineInnerScanMW(p).series,
 		scanmwStateKey{ref: constant, agg: observer.AggregateAverage})
-	require.NotContains(t, p.registrations[0].detector.(*ScanMWDetector).series,
+	require.NotContains(t, stablePipelineInnerScanMW(p).series,
 		scanmwStateKey{ref: linear, agg: observer.AggregateAverage})
-	require.NotContains(t, p.registrations[0].detector.(*ScanMWDetector).series,
+	require.NotContains(t, stablePipelineInnerScanMW(p).series,
 		scanmwStateKey{ref: count, agg: observer.AggregateAverage})
 }
 
@@ -608,12 +608,12 @@ func TestEngineMetricPipelineEvictionAndReplacement(t *testing.T) {
 	e.Advance(40)
 	e.Advance(41)
 	require.Contains(t, p.series, ref)
-	require.NotEmpty(t, p.registrations[0].detector.(*ScanMWDetector).series)
+	require.NotEmpty(t, stablePipelineInnerScanMW(p).series)
 	e.Advance(60)
 	require.Zero(t, s.TotalSeriesCount())
 	require.Empty(t, p.series)
 	require.Empty(t, p.matcher.(*metricKindMatcher).series)
-	require.Empty(t, p.registrations[0].detector.(*ScanMWDetector).series)
+	require.Empty(t, stablePipelineInnerScanMW(p).series)
 	require.Empty(t, e.DetectorOutputAnomalies(), "production must not retain detector history")
 
 	ref = addPipelineValues(s, 1, 61, 100, 100)
@@ -628,7 +628,7 @@ func TestEngineMetricPipelineEvictionAndReplacement(t *testing.T) {
 	e.Advance(100)
 	e.Advance(101)
 	require.Contains(t, replacement.series, ref)
-	require.NotEmpty(t, replacement.registrations[0].detector.(*ScanMWDetector).series)
+	require.NotEmpty(t, stablePipelineInnerScanMW(replacement).series)
 }
 
 func BenchmarkMetricPipeline(b *testing.B) {
@@ -660,4 +660,8 @@ func BenchmarkMetricPipeline(b *testing.B) {
 			})
 		}
 	}
+}
+
+func stablePipelineInnerScanMW(p *MetricPipeline) *ScanMWDetector {
+	return p.registrations[0].detector.(*StablePipeline).detector.(*ScanMWDetector)
 }
