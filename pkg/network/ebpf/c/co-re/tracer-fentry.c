@@ -241,6 +241,19 @@ int BPF_PROG(tcp_close, struct sock *sk, long timeout) {
     return 0;
 }
 
+// tcp_disconnect zeroes the destination port and source address, so the
+// tuple read at tcp_close no longer matches the entry. Delete it here instead.
+SEC("fentry/tcp_disconnect")
+int BPF_PROG(tcp_disconnect, struct sock *sk, int flags) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    return 0;
+}
+
 SEC("fexit/tcp_close")
 int BPF_PROG(tcp_close_exit, struct sock *sk, long timeout) {
     if (!is_protocol_classification_supported()) {
