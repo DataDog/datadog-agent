@@ -46,7 +46,7 @@ run_actions=$tmp_runner
 
 # Action names match the former gitLab job names.
 # validate_modules had two script lines, so it becomes two actions.
-"${run_actions}" "${passthrough[@]+"${passthrough[@]}"}" --ddci --junit_xml=junit.xml \
+"${run_actions}" "${passthrough[@]+"${passthrough[@]}"}" \
   lint_codeowners='dda inv -- -e github.lint-codeowner' \
   lint_components='dda inv -- -e lint-components lint-fxutil-oneshot-test' \
   lint_copyrights='dda inv -- -e linter.copyrights' \

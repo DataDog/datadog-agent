@@ -21,7 +21,10 @@ lint_most:
   needs: []
   script:
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
-    - tools/ci/technical_linters.sh
+    - tools/ci/technical_linters.sh --ddci --junit_xml=junit-${CI_JOB_ID}.xml
+    - tar czf junit-${CI_JOB_NAME}.tgz junit-${CI_JOB_ID}.xml
+  after_script:
+    - !reference [.upload_junit_source]
 
 check_modules_replace:
   extends: .lint
