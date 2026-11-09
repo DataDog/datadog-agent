@@ -20,6 +20,7 @@ import (
 	"go.yaml.in/yaml/v3"
 	"golang.org/x/sys/unix"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/installinfo"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/embedded"
 	extensionsPkg "github.com/DataDog/datadog-agent/pkg/fleet/installer/packages/extensions"
@@ -165,16 +166,13 @@ var (
 		ProcmgrUnitsExp:       []string{"datadog-agent-exp.service", "datadog-agent-installer-exp.service", "datadog-agent-trace-exp.service", "datadog-agent-process-exp.service", "datadog-agent-sysprobe-exp.service", "datadog-agent-security-exp.service", "datadog-agent-data-plane-exp.service", "datadog-agent-action-exp.service", "datadog-agent-rshell-privileged-exp.service", privilegedRshellSocketExp, "datadog-agent-procmgr-exp.service"},
 		ProcmgrProcesses:      []string{"datadog-agent-ddot.yaml", "datadog-agent-action-executor.yaml", "datadog-agent-par-control.yaml"},
 
+		// The procmgr job is a static package file on Upstart and SysV, so these lists keep it with procmgr on or off:
+		// an opted-out host still has to stop it and remove its links.
 		UpstartMainService: "datadog-agent",
 		UpstartServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
 
 		SysvinitMainService: "datadog-agent",
 		SysvinitServices:    []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
-
-		// The procmgr job is a static package file on Upstart and SysV, so the base lists above
-		// keep it too: an opted-out host still has to stop it and remove its links.
-		ProcmgrUpstartServices:  []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
-		ProcmgrSysvinitServices: []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"},
 	}
 
 	// oldInstallerUnitsPaths are the deb/rpm/oci installer package unit paths
@@ -700,9 +698,6 @@ type datadogAgentService struct {
 
 	SysvinitMainService string
 	SysvinitServices    []string
-
-	ProcmgrUpstartServices  []string
-	ProcmgrSysvinitServices []string
 }
 
 var getLandlockABIVersion = func() (int, error) {
@@ -827,10 +822,7 @@ func (s *datadogAgentService) checkPlatformSupport(ctx HookContext) error {
 	return nil
 }
 
-const (
-	procmgrServiceName       = "datadog-agent-procmgr"
-	processManagerEnabledEnv = "DD_PROCESS_MANAGER_ENABLED"
-)
+const procmgrServiceName = "datadog-agent-procmgr"
 
 var (
 	currentServiceManager = service.GetServiceManagerType
@@ -857,7 +849,7 @@ func stopProcmgrOnOptOut(ctx HookContext) {
 	default:
 		return
 	}
-	if strings.ToLower(strings.TrimSpace(os.Getenv(processManagerEnabledEnv))) != "false" {
+	if env.FromEnv().ProcessManagerEnabled {
 		return
 	}
 	if err := stopProcmgrService(ctx, manager); err != nil {
@@ -904,7 +896,7 @@ func (s *datadogAgentService) EnableStable(ctx HookContext) error {
 		case service.UpstartType:
 			return nil // Nothing to do, this is defined directly in the upstart job file
 		case service.SysvinitType:
-			return sysvinit.InstallAll(ctx, s.ProcmgrSysvinitServices...)
+			return sysvinit.InstallAll(ctx, s.SysvinitServices...)
 		default:
 			return errors.New("unsupported service manager")
 		}
@@ -932,7 +924,7 @@ func (s *datadogAgentService) DisableStable(ctx HookContext) error {
 		case service.UpstartType:
 			return nil // Nothing to do, this is defined directly in the upstart job file
 		case service.SysvinitType:
-			return sysvinit.RemoveAll(ctx, s.ProcmgrSysvinitServices...)
+			return sysvinit.RemoveAll(ctx, s.SysvinitServices...)
 		default:
 			return errors.New("unsupported service manager")
 		}
@@ -1002,9 +994,9 @@ func (s *datadogAgentService) StopStable(ctx HookContext) error {
 		case service.SystemdType:
 			return systemd.StopUnits(ctx, reverseStringSlice(s.ProcmgrUnitsStable)...)
 		case service.UpstartType:
-			return upstart.StopAll(ctx, reverseStringSlice(s.ProcmgrUpstartServices)...)
+			return upstart.StopAll(ctx, reverseStringSlice(s.UpstartServices)...)
 		case service.SysvinitType:
-			return sysvinit.StopAll(ctx, reverseStringSlice(s.ProcmgrSysvinitServices)...)
+			return sysvinit.StopAll(ctx, reverseStringSlice(s.SysvinitServices)...)
 		default:
 			return errors.New("unsupported service manager")
 		}

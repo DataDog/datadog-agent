@@ -184,7 +184,7 @@ func TestStopProcmgrOnOptOut(t *testing.T) {
 	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir()}
 
 	currentInitSystem = func() service.Type { return service.SystemdType }
-	t.Setenv(processManagerEnabledEnv, "false")
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
 	stopProcmgrOnOptOut(ctx)
 	assert.Empty(t, stopped)
 
@@ -192,17 +192,17 @@ func TestStopProcmgrOnOptOut(t *testing.T) {
 	stopProcmgrOnOptOut(ctx)
 	assert.Equal(t, []service.Type{service.UpstartType}, stopped)
 
-	require.NoError(t, os.Unsetenv(processManagerEnabledEnv))
+	require.NoError(t, os.Unsetenv("DD_PROCESS_MANAGER_ENABLED"))
 	stopped = nil
 	stopProcmgrOnOptOut(ctx)
 	assert.Empty(t, stopped)
 
-	t.Setenv(processManagerEnabledEnv, "true")
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "true")
 	stopProcmgrOnOptOut(ctx)
 	assert.Empty(t, stopped)
 
 	currentInitSystem = func() service.Type { return service.SysvinitType }
-	t.Setenv(processManagerEnabledEnv, "FALSE")
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "FALSE")
 	stopProcmgrOnOptOut(ctx)
 	assert.Equal(t, []service.Type{service.SysvinitType}, stopped)
 }
@@ -221,7 +221,7 @@ func TestOnlyOwnerOfProcmgrStopsItOnOptOut(t *testing.T) {
 		stopped = append(stopped, manager)
 		return nil
 	}
-	t.Setenv(processManagerEnabledEnv, "false")
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "false")
 	ctx := HookContext{Context: context.Background(), PackagePath: t.TempDir(), PackageType: PackageTypeDEB}
 
 	require.NoError(t, agentDDOTService.EnableStable(ctx))
@@ -245,7 +245,7 @@ func stubServiceManager(t *testing.T, manager service.Type, initSystem service.T
 
 // TestProcmgrOnSysVAndUpstartKeepsPlainResults covers the procmgr branches that do not shell out.
 func TestProcmgrOnSysVAndUpstartKeepsPlainResults(t *testing.T) {
-	t.Setenv(processManagerEnabledEnv, "")
+	t.Setenv("DD_PROCESS_MANAGER_ENABLED", "")
 	for _, initSystem := range []service.Type{service.UpstartType, service.SysvinitType} {
 		t.Run(string(initSystem), func(t *testing.T) {
 			stubServiceManager(t, service.ProcmgrType, initSystem)
@@ -299,13 +299,11 @@ func TestWriteProcessesOnlyUnderProcmgr(t *testing.T) {
 	assert.FileExists(t, custom)
 }
 
-// TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists, plain and procmgr,
-// include procmgr ahead of the action service. StopStable reverses the lists.
+// TestSysVAndUpstartServicesStartProcmgr checks the SysV and Upstart lists include procmgr
+// ahead of the action service. StopStable reverses the lists.
 func TestSysVAndUpstartServicesStartProcmgr(t *testing.T) {
 	upstart := []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-sysprobe", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"}
 	sysvinit := []string{"datadog-agent", "datadog-agent-trace", "datadog-agent-process", "datadog-agent-security", "datadog-agent-data-plane", "datadog-agent-procmgr", "datadog-agent-action"}
 	assert.Equal(t, upstart, agentService.UpstartServices)
-	assert.Equal(t, upstart, agentService.ProcmgrUpstartServices)
 	assert.Equal(t, sysvinit, agentService.SysvinitServices)
-	assert.Equal(t, sysvinit, agentService.ProcmgrSysvinitServices)
 }
