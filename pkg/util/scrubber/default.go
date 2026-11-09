@@ -681,7 +681,8 @@ func AddStrippedKeys(strippedKeys []string) {
 	if len(strippedKeys) > 0 {
 		quotedKeys := make([]string, len(strippedKeys))
 		for i, key := range strippedKeys {
-			quotedKeys[i] = regexp.QuoteMeta(key)
+			// regexp rejects patterns that are not valid UTF-8.
+			quotedKeys[i] = regexp.QuoteMeta(strings.ToValidUTF8(key, "\uFFFD"))
 		}
 		replacer := matchYAMLKey(
 			fmt.Sprintf("(%s)", strings.Join(quotedKeys, "|")),

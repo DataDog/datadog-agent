@@ -555,7 +555,7 @@ func TestAddStrippedKeysMatchesKeysLiterally(t *testing.T) {
 
 	t.Run("unbalanced brackets", func(t *testing.T) {
 		require.NotPanics(t, func() {
-			AddStrippedKeys([]string{"dsn(", "tok[0"})
+			AddStrippedKeys([]string{"dsn(", "tok[0", "bad\xffkey"})
 		})
 
 		assertClean(t, `dsn(: s3cret`, `dsn(: "********"`)
