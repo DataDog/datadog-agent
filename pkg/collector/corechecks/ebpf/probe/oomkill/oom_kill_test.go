@@ -624,7 +624,7 @@ func loadOOMCollectionSpec(t *testing.T) *bpflib.CollectionSpec {
 	cfg := testConfig()
 	var spec *bpflib.CollectionSpec
 	if cfg.EnableCORE {
-		err := ebpf.LoadCOREAsset("oom-kill.o", func(buf bytecode.AssetReader, _ manager.Options) error {
+		err := ebpf.LoadCOREAsset(bytecode.Asset{Name: "oom-kill"}, func(buf bytecode.AssetReader, _ manager.Options) error {
 			var err error
 			spec, err = bpflib.LoadCollectionSpecFromReader(buf)
 			return err

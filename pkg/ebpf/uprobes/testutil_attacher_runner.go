@@ -311,7 +311,7 @@ func (r *SameProcessAttacherRunner) RunAttacher(t *testing.T, configName Attache
 	require.NoError(t, err)
 	require.NotNil(t, attacher)
 
-	err = ddebpf.LoadCOREAsset("uprobe_attacher-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset(bytecode.Asset{Name: "uprobe_attacher-test"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		require.NoError(t, mgr.InitWithOptions(buf, opts))
 		require.NoError(t, mgr.Start())
 		t.Cleanup(func() { _ = mgr.Stop(manager.CleanAll) })

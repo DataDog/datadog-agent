@@ -16,7 +16,7 @@ import (
 )
 
 // GetReader returns a new AssetReader for the specified bundled asset
-func GetReader(dir, name string) (AssetReader, error) {
+func GetReader(dir, a Asset) (AssetReader, error) {
 	dir = "build"
 	var arch string
 	switch runtime.GOARCH {
@@ -28,7 +28,7 @@ func GetReader(dir, name string) (AssetReader, error) {
 		return nil, errors.New("unsupported architecture")
 	}
 
-	assetPath := path.Join(dir, arch, name)
+	assetPath := path.Join(dir, arch, a.Filename())
 
 	content, err := bindata.ReadFile(assetPath)
 	if err != nil {

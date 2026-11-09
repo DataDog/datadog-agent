@@ -23,8 +23,8 @@ import (
 // safe: these objects are always shipped or compiled as regular root-owned
 // files (intermediate directory symlinks, e.g. a versioned install path, are
 // still followed, since O_NOFOLLOW only affects the final component).
-func GetReader(dir, name string) (AssetReader, error) {
-	assetPath := path.Join(dir, path.Base(name))
+func GetReader(dir string, a Asset) (AssetReader, error) {
+	assetPath := path.Join(dir, path.Base(a.Filename()))
 	// Open and permission-check the same descriptor (O_NOFOLLOW) so there is no
 	// path re-resolution between the check and the returned reader.
 	asset, err := VerifyAssetPermissionsAndOpen(assetPath)

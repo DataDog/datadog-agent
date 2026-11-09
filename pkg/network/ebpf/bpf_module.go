@@ -21,17 +21,8 @@ import (
 var prebuiltModulesInUse = map[string]struct{}{}
 var telemetryMu sync.Mutex
 
-// ModuleFileName constructs the module file name based on the module name
-func ModuleFileName(moduleName string, debug bool) string {
-	if debug {
-		return moduleName + "-debug.o"
-	}
-
-	return moduleName + ".o"
-}
-
 func readModule(bpfDir, moduleName string, debug bool) (bytecode.AssetReader, error) {
-	ebpfReader, err := bytecode.GetReader(bpfDir, ModuleFileName(moduleName, debug))
+	ebpfReader, err := bytecode.GetReader(bpfDir, bytecode.Asset{Name: moduleName, Debug: debug})
 	if err != nil {
 		return nil, fmt.Errorf("couldn't find asset: %s", err)
 	}

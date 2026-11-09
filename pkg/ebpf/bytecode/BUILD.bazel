@@ -137,6 +137,8 @@ runtime_compilation_bundle(
 go_library(
     name = "bytecode",
     srcs = [
+        "asset.go",
+        "asset_nodebug.go",
         "asset_reader.go",
         "asset_reader_nobindata.go",
         "permissions.go",
@@ -150,6 +152,7 @@ dd_agent_go_test(
     name = "bytecode_test",
     srcs = ["permissions_test.go"],
     embed = [":bytecode"],
+    gotags_sets = [["bpf"]],
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//assert",

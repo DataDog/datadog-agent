@@ -66,7 +66,7 @@ func TestPatchPrintkNewline(t *testing.T) {
 	}
 	mgr.InstructionPatchers = append(mgr.InstructionPatchers, patchPrintkNewline)
 
-	err = LoadCOREAsset("logdebug-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = LoadCOREAsset(bytecode.Asset{Name: "logdebug-test"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		opts.MapEditors = make(map[string]*ebpf.Map)
 

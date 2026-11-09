@@ -29,7 +29,7 @@ type ksymIterProgram struct {
 func GetKernelSymbolsAddressesWithKallsymsIterator(kernelAddresses ...string) (map[string]uint64, error) {
 	var prog ksymIterProgram
 
-	if err := LoadCOREAsset("ksyms_iter.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+	if err := LoadCOREAsset(bytecode.Asset{Name: "ksyms_iter"}, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		collectionSpec, err := ebpf.LoadCollectionSpecFromReader(bc)
 		if err != nil {
 			return fmt.Errorf("failed to load collection spec: %w", err)

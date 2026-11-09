@@ -10,8 +10,6 @@ package ebpf
 import (
 	"errors"
 	"fmt"
-	"path"
-	"strings"
 
 	manager "github.com/DataDog/ebpf-manager"
 	bpflib "github.com/cilium/ebpf"
@@ -30,11 +28,10 @@ type coreAssetLoader struct {
 	}
 }
 
-func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
+func (c *coreAssetLoader) loadCOREAsset(asset bytecode.Asset, startFn func(bytecode.AssetReader, manager.Options) error) error {
 	var result COREResult
-	base := strings.TrimSuffix(filename, path.Ext(filename))
 	defer func() {
-		c.reportTelemetry(base, result)
+		c.reportTelemetry(asset.FilenameWithoutExt(), result)
 	}()
 
 	ret, result, err := c.btfLoader.Get()
@@ -45,10 +42,10 @@ func (c *coreAssetLoader) loadCOREAsset(filename string, startFn func(bytecode.A
 		return errors.New("no BTF data")
 	}
 
-	buf, err := bytecode.GetReader(c.coreDir, filename)
+	buf, err := bytecode.GetReader(c.coreDir, asset)
 	if err != nil {
 		result = AssetReadError
-		return fmt.Errorf("error reading %s: %s", filename, err)
+		return fmt.Errorf("error reading %s: %s", asset.Filename(), err)
 	}
 	defer buf.Close()
 

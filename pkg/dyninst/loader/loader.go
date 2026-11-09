@@ -479,10 +479,7 @@ func (l *Loader) init(opts ...Option) error {
 
 func getBpfObject(cfg *config) (bytecode.AssetReader, error) {
 	baseDir := filepath.Join(cfg.ebpfConfig.BPFDir, "co-re")
-	if cfg.dyninstDebugEnabled {
-		return bytecode.GetReader(baseDir, "dyninst_event-debug.o")
-	}
-	return bytecode.GetReader(baseDir, "dyninst_event.o")
+	return bytecode.GetReader(baseDir, bytecode.Asset{Name: "dyninst_event", Debug: cfg.dyninstDebugEnabled})
 }
 
 func (l *Loader) loadData(

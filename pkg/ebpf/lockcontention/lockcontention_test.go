@@ -235,7 +235,7 @@ func tracepointExists(group, name string) bool {
 func loadPreemptTest(t *testing.T, progName, tracepoint string) *ebpf.Map {
 	var depths *ebpf.Map
 
-	err := ddebpf.LoadCOREAsset("preempt_test.o", func(bc bytecode.AssetReader, opts manager.Options) error {
+	err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "preempt_test"}, func(bc bytecode.AssetReader, opts manager.Options) error {
 		constants, err := PreemptCountConstants(opts.VerifierOptions.Cache)
 		if err != nil {
 			SkipIfLockContentionCollectorNotSupported(t, err)

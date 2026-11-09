@@ -90,11 +90,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	}
 
 	var probe *Probe
-	filename := "ebpf.o"
-	if cfg.BPFDebug {
-		filename = "ebpf-debug.o"
-	}
-	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset(bytecode.Asset{Name: "ebpf", Debug: cfg.BPFDebug}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
 		probe, err = startEBPFCheck(buf, opts)
 		return err

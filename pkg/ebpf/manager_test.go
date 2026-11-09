@@ -93,7 +93,7 @@ func TestManagerInitWithOptions(t *testing.T) {
 	mgr := NewManager(&manager.Manager{}, "test", modifier)
 	require.NotNil(t, mgr)
 
-	err := LoadCOREAsset("logdebug-test.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err := LoadCOREAsset(bytecode.Asset{Name: "logdebug-test"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		err := mgr.InitWithOptions(buf, &opts)
 		require.NoError(t, err)
 

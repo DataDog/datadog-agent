@@ -135,7 +135,7 @@ func TestSleepableProgramWithModifier(t *testing.T) {
 		},
 	}
 	mname := names.NewModuleName("ebpf")
-	err := ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "sleepable"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		setTelemetryMapEditors(&opts)
 		opts.ExcludedFunctions = excluded
@@ -182,7 +182,7 @@ func TestSleepableProgramWithoutModifier(t *testing.T) {
 	}
 
 	t.Cleanup(func() { _ = mgr.Stop(manager.CleanAll) })
-	ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	ddebpf.LoadCOREAsset(bytecode.Asset{Name: "sleepable"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		setTelemetryMapEditors(&opts)
 		opts.ExcludedFunctions = excluded
@@ -237,7 +237,7 @@ func TestSleepableModifierReplacesProbeReadUser(t *testing.T) {
 	}
 	mname := names.NewModuleName("ebpf")
 
-	err = ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset(bytecode.Asset{Name: "sleepable"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		setTelemetryMapEditors(&opts)
 		opts.ExcludedFunctions = excluded
@@ -312,7 +312,7 @@ func TestSleepableModifierRejectsTracepoint(t *testing.T) {
 	}
 	mname := names.NewModuleName("ebpf")
 
-	err := ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "sleepable"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		setTelemetryMapEditors(&opts)
 		opts.ExcludedFunctions = excluded
@@ -364,7 +364,7 @@ func TestSleepableModifierTelemetryRemapping(t *testing.T) {
 	}
 	telemetryModifier := telemetry.ErrorsTelemetryModifier{}
 
-	err := ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "sleepable"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		setTelemetryMapEditors(&opts)
 		opts.ExcludedFunctions = excluded
@@ -482,7 +482,7 @@ func TestSleepableModifierRemovesPerfEventOutput(t *testing.T) {
 	}
 	mname := names.NewModuleName("ebpf")
 
-	err = ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset(bytecode.Asset{Name: "sleepable"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		setTelemetryMapEditors(&opts)
 		opts.ExcludedFunctions = excluded
@@ -560,7 +560,7 @@ func TestSleepableModifierFailsWithoutPerfPatch(t *testing.T) {
 	}
 	mname := names.NewModuleName("ebpf")
 
-	err := ddebpf.LoadCOREAsset("sleepable.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "sleepable"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		setTelemetryMapEditors(&opts)
 		opts.ExcludedFunctions = excluded

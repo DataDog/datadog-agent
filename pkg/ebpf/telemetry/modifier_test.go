@@ -52,7 +52,7 @@ func TestModifierAppliesMultipleTimes(t *testing.T) {
 
 		modifier := ErrorsTelemetryModifier{}
 		mname := names.NewModuleName("ebpf")
-		err := ddebpf.LoadCOREAsset("error_telemetry.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+		err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "error_telemetry"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 			opts.RemoveRlimit = true
 			opts.ActivatedProbes = []manager.ProbesSelector{
 				&manager.ProbeSelector{

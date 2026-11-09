@@ -330,7 +330,7 @@ func (l *LockContentionCollector) Initialize(trackAllResources bool) error {
 
 	var ranges uint32
 	var cpus uint32
-	if err := ddebpf.LoadCOREAsset("lock_contention.o", func(bc bytecode.AssetReader, managerOptions manager.Options) error {
+	if err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "lock_contention"}, func(bc bytecode.AssetReader, managerOptions manager.Options) error {
 		enablePreemptCount, err := PreemptCountConstants(managerOptions.VerifierOptions.Cache)
 		if err != nil {
 			return fmt.Errorf("failed to get constants to enable preempt_count support: %w", err)

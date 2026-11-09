@@ -40,7 +40,7 @@ func TestBTFMapDumping(t *testing.T) {
 	bpfDir := filepath.Join(cfg.BPFDir, "co-re")
 
 	// Load the eBPF object file
-	bc, err := bytecode.GetReader(bpfDir, "btf_test.o")
+	bc, err := bytecode.GetReader(bpfDir, bytecode.Asset{Name: "btf_test"})
 	require.NoError(t, err, "failed to load btf_test.o")
 	defer bc.Close()
 

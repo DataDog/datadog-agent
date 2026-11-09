@@ -483,8 +483,7 @@ func (e *EbpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 }
 
 func (e *EbpfProgram) initCORE() error {
-	assetName := getAssetName("shared-libraries", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(assetName, e.init)
+	return ddebpf.LoadCOREAsset(bytecode.Asset{Name: "shared-libraries", Debug: e.cfg.BPFDebug}, e.init)
 }
 
 func (e *EbpfProgram) initRuntimeCompiler() error {
@@ -662,14 +661,6 @@ func (e *EbpfProgram) initializeProbes() ([]manager.ProbeIdentificationPair, err
 	e.disabledProbes = append(e.disabledProbes, disabledTracingProbes...)
 
 	return sleepableIDs, nil
-}
-
-func getAssetName(module string, debug bool) string {
-	if debug {
-		return module + "-debug.o"
-	}
-
-	return module + ".o"
 }
 
 // ToBytes converts the libpath to a byte array containing the path

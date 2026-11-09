@@ -266,8 +266,7 @@ func (e *ebpfProgram) Close() error {
 }
 
 func (e *ebpfProgram) initCORE() error {
-	assetName := getAssetName("usm", e.cfg.BPFDebug)
-	return ddebpf.LoadCOREAsset(assetName, e.init)
+	return ddebpf.LoadCOREAsset(bytecode.Asset{Name: "usm", Debug: e.cfg.BPFDebug}, e.init)
 }
 
 func (e *ebpfProgram) initRuntimeCompiler() error {
@@ -532,14 +531,6 @@ func (e *ebpfProgram) init(buf bytecode.AssetReader, options manager.Options) er
 	}
 
 	return err
-}
-
-func getAssetName(module string, debug bool) string {
-	if debug {
-		return module + "-debug.o"
-	}
-
-	return module + ".o"
 }
 
 func (e *ebpfProgram) dumpMapsHandler(w io.Writer, _ *manager.Manager, mapName string, currentMap *ebpf.Map) {

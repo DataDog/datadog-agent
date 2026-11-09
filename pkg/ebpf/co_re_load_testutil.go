@@ -20,12 +20,12 @@ import (
 // asset and BTF options pre-filled. You should attempt to load the CO-RE program in the startFn func for telemetry to
 // be correctly recorded.
 // This test version will not use remote config and has a no-op telemetry component.
-func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
+func LoadCOREAsset(asset bytecode.Asset, startFn func(bytecode.AssetReader, manager.Options) error) error {
 	loader, err := coreLoader(NewConfig(), nil, noopsimpl.NewComponent())
 	if err != nil {
 		return err
 	}
-	return loader.loadCOREAsset(filename, startFn)
+	return loader.loadCOREAsset(asset, startFn)
 }
 
 // GetBTFLoaderInfo Returns where the ebpf BTF files were sourced from

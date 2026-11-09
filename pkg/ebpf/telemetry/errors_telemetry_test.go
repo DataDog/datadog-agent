@@ -84,7 +84,7 @@ func startManager(t *testing.T, m *manager.Manager, options manager.Options, nam
 func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	collector := NewEBPFErrorsCollector()
 
-	err := ddebpf.LoadCOREAsset("error_telemetry.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "error_telemetry"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		opts.ActivatedProbes = []manager.ProbesSelector{
 			&manager.ProbeSelector{
@@ -103,7 +103,7 @@ func triggerTestAndGetTelemetry(t *testing.T) []prometheus.Metric {
 	require.True(t, found, "'shared_map' not found in manager")
 	require.NoError(t, err)
 
-	err = ddebpf.LoadCOREAsset("error_telemetry.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset(bytecode.Asset{Name: "error_telemetry"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		opts.RemoveRlimit = true
 		opts.ActivatedProbes = []manager.ProbesSelector{
 			&manager.ProbeSelector{

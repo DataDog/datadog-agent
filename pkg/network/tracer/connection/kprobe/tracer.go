@@ -260,7 +260,7 @@ func loadCORETracer(config *config.Config, mgrOpts manager.Options, connCloseEve
 	var m *ddebpf.Manager
 	var closeFn func()
 	var err error
-	err = ddebpf.LoadCOREAsset(netebpf.ModuleFileName("tracer", config.BPFDebug), func(ar bytecode.AssetReader, o manager.Options) error {
+	err = ddebpf.LoadCOREAsset(bytecode.Asset{Name: "tracer", Debug: config.BPFDebug}, func(ar bytecode.AssetReader, o manager.Options) error {
 		o.RemoveRlimit = mgrOpts.RemoveRlimit
 		o.MapSpecEditors = mgrOpts.MapSpecEditors
 		o.ConstantEditors = mgrOpts.ConstantEditors

@@ -11,6 +11,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"math"
+	"os"
+	"regexp"
+	"slices"
+	"sync/atomic"
+	"time"
+
+	manager "github.com/DataDog/ebpf-manager"
+
 	"github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
@@ -27,14 +37,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	manager "github.com/DataDog/ebpf-manager"
-	"io"
-	"math"
-	"os"
-	"regexp"
-	"slices"
-	"sync/atomic"
-	"time"
 )
 
 // logLimitProbe is used to limit the number of times we log messages about streams and cuda events, as that can be very verbose
@@ -302,19 +304,10 @@ func (p *Probe) initRCGPU(ebpfCfg *ddebpf.Config) error {
 }
 
 func (p *Probe) initCOREGPU(ebpfCfg *ddebpf.Config) error {
-	asset := getAssetName("gpu", ebpfCfg.BPFDebug)
-	err := ddebpf.LoadCOREAsset(asset, func(ar bytecode.AssetReader, o manager.Options) error {
+	err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: "gpu", Debug: ebpfCfg.BPFDebug}, func(ar bytecode.AssetReader, o manager.Options) error {
 		return p.setupManager(ar, o)
 	})
 	return err
-}
-
-func getAssetName(module string, debug bool) string {
-	if debug {
-		return module + "-debug.o"
-	}
-
-	return module + ".o"
 }
 
 func (p *Probe) setupManager(buf io.ReaderAt, opts manager.Options) error {

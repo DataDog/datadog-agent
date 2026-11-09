@@ -19,12 +19,12 @@ import (
 // LoadCOREAsset attempts to find kernel BTF, reads the CO-RE object file, and then calls the callback function with the
 // asset and BTF options pre-filled. You should attempt to load the CO-RE program in the startFn func for telemetry to
 // be correctly recorded.
-func LoadCOREAsset(filename string, startFn func(bytecode.AssetReader, manager.Options) error) error {
+func LoadCOREAsset(asset bytecode.Asset, startFn func(bytecode.AssetReader, manager.Options) error) error {
 	loader := getCORELoader()
 	if loader == nil {
 		return errors.New("CO-RE loader not setup")
 	}
-	return loader.loadCOREAsset(filename, startFn)
+	return loader.loadCOREAsset(asset, startFn)
 }
 
 // GetBTFLoaderInfo Returns where the ebpf BTF files were sourced from

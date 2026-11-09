@@ -180,7 +180,7 @@ func loadTCPQueueLengthCOREProbe() (*Tracer, error) {
 	}
 
 	var probe *Tracer
-	err = ebpf.LoadCOREAsset("tcp-queue-length.o", func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ebpf.LoadCOREAsset(bytecode.Asset{Name: "tcp-queue-length"}, func(buf bytecode.AssetReader, opts manager.Options) error {
 		probe, err = startTCPQueueLengthProbe(buf, opts)
 		return err
 	})

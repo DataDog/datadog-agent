@@ -85,7 +85,8 @@ func BuildVerifierStats(opts *StatsOptions) (*StatsResult, map[string]struct{}, 
 			continue
 		}
 
-		if err := ddebpf.LoadCOREAsset(file, generateLoadFunction(file, opts, results, failedToLoad)); err != nil {
+		baseName := strings.TrimSuffix(filepath.Base(file), filepath.Ext(file))
+		if err := ddebpf.LoadCOREAsset(bytecode.Asset{Name: baseName}, generateLoadFunction(file, opts, results, failedToLoad)); err != nil {
 			return nil, nil, fmt.Errorf("failed to load core asset %s: %w", file, err)
 		}
 	}

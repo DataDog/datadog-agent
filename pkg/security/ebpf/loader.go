@@ -70,7 +70,7 @@ func (l *ProbeLoader) Load() (bytecode.AssetReader, bool, error) {
 			asset += "-syscall-wrapper"
 		}
 
-		l.bytecodeReader, err = bytecode.GetReader(l.config.BPFDir, asset+".o")
+		l.bytecodeReader, err = bytecode.GetReader(l.config.BPFDir, bytecode.Asset{Name: asset})
 		if err != nil {
 			return nil, false, err
 		}
@@ -102,7 +102,7 @@ func (l *OffsetGuesserLoader) Close() error {
 
 // Load eBPF programs
 func (l *OffsetGuesserLoader) Load() (bytecode.AssetReader, error) {
-	return bytecode.GetReader(l.config.BPFDir, "runtime-security-offset-guesser.o")
+	return bytecode.GetReader(l.config.BPFDir, bytecode.Asset{Name: "runtime-security-offset-guesser"})
 }
 
 // IsSyscallWrapperRequired checks whether the wrapper is required
