@@ -814,6 +814,16 @@ func (fh *failingMountFSFieldHandlers) ResolveFileFilesystem(ev *model.Event, f 
 	return fh.FakeFieldHandlers.ResolveFileFilesystem(ev, f)
 }
 
+// mountFSFieldHandlers resolves filesystems with the mount resolver
+type mountFSFieldHandlers struct {
+	*model.FakeFieldHandlers
+	ebpf *EBPFFieldHandlers
+}
+
+func (fh *mountFSFieldHandlers) ResolveFileFilesystem(ev *model.Event, f *model.FileEvent) string {
+	return fh.ebpf.ResolveFileFilesystem(ev, f)
+}
+
 type serializingWildcardHandler struct{}
 
 func (serializingWildcardHandler) HandleEvent(ev *model.Event) {
@@ -905,9 +915,8 @@ func TestSetProcessContextContainerPlaceholder(t *testing.T) {
 	}
 }
 
-func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
-	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
-
+// newV2DispatchTestProbe returns a probe dispatching events to v2 profiles, containerID running the my-app image
+func newV2DispatchTestProbe(t *testing.T, containerID containerutils.ContainerID, sendAnomalyDetection func(*model.Event)) (*EBPFProbe, *securityprofile.ManagerV2) {
 	cfg := &config.Config{
 		RuntimeSecurity: &config.RuntimeSecurityConfig{
 			RuntimeEnabled:                                  true,
@@ -942,7 +951,6 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		HashResolver:   &hash.Resolver{},
 	}
 
-	var anomalies []*model.Event
 	pm, err := securityprofile.NewManagerV2(
 		cfg,
 		&statsd.NoOpClient{},
@@ -950,9 +958,7 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		ebpfResolvers,
 		&kernel.Version{},
 		nil,
-		func(event *model.Event) {
-			anomalies = append(anomalies, event)
-		},
+		sendAnomalyDetection,
 		nil,
 		"test-host",
 		time.Now(),
@@ -970,6 +976,16 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 		profileManager: pm,
 	}
 	p.monitors = &EBPFMonitors{ebpfProbe: p}
+	return p, pm
+}
+
+func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	var anomalies []*model.Event
+	p, pm := newV2DispatchTestProbe(t, containerID, func(event *model.Event) {
+		anomalies = append(anomalies, event)
+	})
 
 	fh := &failingMountFSFieldHandlers{
 		FakeFieldHandlers: &model.FakeFieldHandlers{},
@@ -1078,6 +1094,48 @@ func TestDispatchEventV2SerializerAncestorError(t *testing.T) {
 	require.ErrorIs(t, parentErrEv.Error, assert.AnError)
 	assert.NotContains(t, appNode.Files["tmp"].Children, "parent-bad")
 	assert.Len(t, anomalies, 1)
+}
+
+func TestDispatchEventV2NoProcessContext(t *testing.T) {
+	const containerID = containerutils.ContainerID("0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")
+
+	p, pm := newV2DispatchTestProbe(t, containerID, func(*model.Event) {})
+
+	mr, err := mount.NewResolver(&statsd.NoOpClient{}, nil, mount.ResolverOpts{})
+	require.NoError(t, err)
+	require.NoError(t, mr.Insert(model.Mount{MountID: 1, MountPointStr: "/", Path: "/", RootStr: "/", FSType: "ext4"}))
+	fh := &mountFSFieldHandlers{
+		FakeFieldHandlers: &model.FakeFieldHandlers{},
+		ebpf:              &EBPFFieldHandlers{resolvers: &resolvers.EBPFResolvers{MountResolver: mr}},
+	}
+
+	placeholder := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+	placeholder.ContainerContext.ContainerID = containerID
+
+	ev := model.NewFakeEvent()
+	ev.Type = uint32(model.FileOpenEventType)
+	ev.Timestamp = time.Now()
+	ev.TimestampRaw = uint64(ev.Timestamp.UnixNano())
+	ev.FieldHandlers = fh
+	ev.ProcessCacheEntry = placeholder
+	ev.ProcessContext = &placeholder.ProcessContext
+	ev.Error = model.ErrNoProcessContext
+	ev.Open.File.PathnameStr = "/tmp/ok"
+	ev.Open.File.BasenameStr = "ok"
+	ev.Open.File.Inode = 100
+	ev.Open.File.MountID = 1
+
+	p.DispatchEvent(ev, false)
+
+	assert.Equal(t, model.ErrNoProcessContext, ev.Error)
+	assert.Equal(t, model.UnknownFS, placeholder.FileEvent.Filesystem)
+
+	selector, err := cgroupModel.NewWorkloadSelector("my-app", "*")
+	require.NoError(t, err)
+	secprof := pm.GetProfile(selector)
+	require.NotNil(t, secprof)
+	require.NotNil(t, secprof.ActivityTree.UnattributedActivity)
+	assert.Contains(t, secprof.ActivityTree.UnattributedActivity.Files, "tmp")
 }
 
 func TestFilesystemResolutionError(t *testing.T) {

@@ -1584,11 +1584,11 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 	t.Run("dropped before insertion", func(t *testing.T) {
 		m := newTagResolutionTestManagerV2(t, 10, 10)
 		event := newTestEventV2(model.FileOpenEventType, "v1", "known")
-		event.Error = model.ErrNoProcessContext
+		event.Error = errors.New("unknown")
 
 		m.ProcessEvent(event)
 
-		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorDropped))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorOther, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
 		assert.Empty(t, m.profiles)
 		assert.Empty(t, m.resolvedCgroups)
@@ -1745,6 +1745,47 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		require.NotNil(t, p)
 		require.NotNil(t, p.ActivityTree.UnattributedActivity)
 		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.InsertionErrorBrokenLineage, insertionErrorUnattributed))
+		assert.EqualValues(t, 1, total(m))
+	})
+
+	t.Run("no process context in the container is unattributed", func(t *testing.T) {
+		for _, eventType := range []model.EventType{model.FileOpenEventType, model.DNSEventType, model.BindEventType, model.ConnectEventType} {
+			t.Run(eventType.String(), func(t *testing.T) {
+				m, anomalies := newInsertionTestManagerV2(t)
+				event := newTestEventV2(eventType, "v1", "known")
+				placeholder := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+				placeholder.ContainerContext = event.ProcessCacheEntry.ContainerContext
+				event.ProcessCacheEntry = placeholder
+				event.ProcessContext = &placeholder.ProcessContext
+				event.Error = model.ErrNoProcessContext
+
+				m.onEventTagsResolved(event)
+
+				p := m.profiles[testSelector]
+				require.NotNil(t, p)
+				assert.Empty(t, *anomalies)
+				assert.Empty(t, p.ActivityTree.ProcessNodes)
+				require.NotNil(t, p.ActivityTree.UnattributedActivity)
+				assert.NotNil(t, findTestEventNodeIn([]*activity_tree.ProcessNode{p.ActivityTree.UnattributedActivity}, eventType, "known"))
+				assert.EqualValues(t, 1, countOf(m, eventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorUnattributed))
+				assert.EqualValues(t, 1, total(m))
+			})
+		}
+	})
+
+	t.Run("no process context in the container is dropped for an exec", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		event := newTestEventV2(model.ExecEventType, "v1", "known")
+		placeholder := model.NewPlaceholderProcessCacheEntry(42, 42, false)
+		placeholder.ContainerContext = event.ProcessCacheEntry.ContainerContext
+		event.ProcessCacheEntry = placeholder
+		event.ProcessContext = &placeholder.ProcessContext
+		event.Error = model.ErrNoProcessContext
+
+		_, inserted, _ := m.insertEventIntoProfile(event)
+
+		assert.False(t, inserted)
+		assert.EqualValues(t, 1, countOf(m, model.ExecEventType, activity_tree.InsertionErrorNoProcessContext, insertionErrorDropped))
 		assert.EqualValues(t, 1, total(m))
 	})
 

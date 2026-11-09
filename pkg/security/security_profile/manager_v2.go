@@ -1664,6 +1664,9 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	secprof.Unlock()
 	if err != nil {
 		switch {
+		case errors.Is(err, activity_tree.ErrBrokenLineage) && errors.Is(event.Error, model.ErrNoProcessContext):
+			// the tree only finds the lineage of the placeholder process broken
+			m.incrementEventWithError(event, insertionErrorDropped)
 		case !activity_tree.IsExpectedFilterError(err):
 			m.incrementInsertionError(event.GetEventType(), err, insertionErrorDropped)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
