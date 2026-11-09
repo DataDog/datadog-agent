@@ -445,7 +445,6 @@ func start(log log.Component,
 	if config.GetBool("instrumentation_crd_controller.enabled") {
 		setupInstrumentationCRDHandler(ac, checkStore, serviceTemplateStore)
 	} else {
-		instrHandlers = nil
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
 
