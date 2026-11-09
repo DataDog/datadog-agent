@@ -123,10 +123,10 @@ func TestMetricsReporter(t *testing.T) {
 	require.Empty(t, emitting)
 
 	countTags := []string{
-		"team:checkout", "debugger.probeid:calls", "service:checkout", "env:prod", "version:1.2.3",
+		"team:checkout", "debugger.probeid:calls", "service:checkout", "env:prod", "version:1.2.3", "dd.internal.entity_id:none",
 	}
 	gaugeTags := []string{
-		"debugger.probeid:latency", "service:checkout", "env:prod", "version:1.2.3",
+		"debugger.probeid:latency", "service:checkout", "env:prod", "version:1.2.3", "dd.internal.entity_id:none",
 	}
 	setState(0, loader.MetricState{Sum: 3, Updates: 3})
 	setState(2, loader.MetricState{Value: math.Float64bits(1.5), Updates: 1})
@@ -236,18 +236,19 @@ func TestMetricsReporterPodTag(t *testing.T) {
 
 	state = loader.MetricState{Sum: 1, Updates: 1}
 	r.reportAll()
-	require.Equal(t, []string{"debugger.probeid:calls"}, client.take()[0].tags)
+	require.Equal(t, []string{"debugger.probeid:calls", "dd.internal.entity_id:none"}, client.take()[0].tags)
 
 	podUID, known = "pod-uid", true
 	state = loader.MetricState{Sum: 2, Updates: 2}
 	r.reportAll()
-	require.Equal(t, []string{"debugger.probeid:calls", "dd.internal.entity_id:pod-uid"}, client.take()[0].tags)
+	wantTags := []string{"debugger.probeid:calls", "dd.internal.entity_id:none", "dd.internal.entity_id:pod-uid"}
+	require.Equal(t, wantTags, client.take()[0].tags)
 
 	// The pod is only looked up once it's found.
 	podUID = "other-pod-uid"
 	state = loader.MetricState{Sum: 3, Updates: 3}
 	r.reportAll()
-	require.Equal(t, []string{"debugger.probeid:calls", "dd.internal.entity_id:pod-uid"}, client.take()[0].tags)
+	require.Equal(t, wantTags, client.take()[0].tags)
 }
 
 type fakeLogsUploader struct {
