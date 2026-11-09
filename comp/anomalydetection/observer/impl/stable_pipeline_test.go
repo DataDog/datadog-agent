@@ -192,3 +192,20 @@ func TestStablePipeline_MutedChangeAdvancesDetectorState(t *testing.T) {
 	require.Equal(t, ungated.detector, gated.detector,
 		"muting must not alter ScanMW state progression")
 }
+
+func TestStablePipeline_WarnsOnceForMissingEvidence(t *testing.T) {
+	detector := &stableStubDetector{name: "scanmw", ready: true, anomalies: []observer.Anomaly{
+		{Timestamp: 1},
+		{Timestamp: 2},
+	}}
+	p, err := newStablePipeline(detector, DefaultStablePipelineConfig())
+	require.NoError(t, err)
+
+	result := p.Detect(nil, 2, observer.DetectionFilter{})
+	assert.Empty(t, result.Anomalies)
+	assert.True(t, p.warnedMissingEvidence, "missing evidence must warn once")
+
+	p.Detect(nil, 2, observer.DetectionFilter{})
+	assert.True(t, p.warnedMissingEvidence)
+	assert.Equal(t, uint64(4), p.drainGatedRejections())
+}

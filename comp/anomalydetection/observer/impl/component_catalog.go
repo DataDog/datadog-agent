@@ -117,6 +117,10 @@ func ApplyTestbenchDefaults(settings ComponentSettings) ComponentSettings {
 	if settings.configs == nil {
 		settings.configs = make(map[string]any)
 	}
+	if settings.StablePipeline == nil {
+		cfg := DefaultStablePipelineConfig()
+		settings.StablePipeline = &cfg
+	}
 
 	bocpd := DefaultBOCPDConfig()
 	bocpd.WarmupPoints = 40

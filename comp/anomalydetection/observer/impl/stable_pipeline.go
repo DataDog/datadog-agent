@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"math"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -42,8 +43,9 @@ type stableDetector interface {
 // level change is below the relative threshold. Muting never affects the
 // detector's own state.
 type StablePipeline struct {
-	detector stableDetector
-	gate     *relativeChangeGate // nil when the gate is disabled
+	detector              stableDetector
+	gate                  *relativeChangeGate // nil when the gate is disabled
+	warnedMissingEvidence bool
 }
 
 // newStablePipeline wraps detector with the configured gate. A threshold of
@@ -89,6 +91,10 @@ func (p *StablePipeline) Detect(
 	}
 	accepted := make([]observer.Anomaly, 0, len(result.Anomalies))
 	for _, anomaly := range result.Anomalies {
+		if anomaly.LevelChange == nil && !p.warnedMissingEvidence {
+			p.warnedMissingEvidence = true
+			logging.Warnf("stable pipeline %s: anomaly without level-change evidence; the gate mutes such candidates", p.Name())
+		}
 		if p.gate.passes(anomaly) {
 			accepted = append(accepted, anomaly)
 		} else {
@@ -126,9 +132,6 @@ type relativeChangeGate struct {
 	minChange float64
 	rejected  uint64
 }
-
-// Name returns the gate identity used in telemetry.
-func (g *relativeChangeGate) Name() string { return relativeChangeGateName }
 
 // passes reports whether the anomaly satisfies the relative change requirement.
 func (g *relativeChangeGate) passes(anomaly observer.Anomaly) bool {

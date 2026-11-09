@@ -36,7 +36,8 @@ dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --confi
 
 The workflows are mutually exclusive. The pipeline owns its detector defaults;
 legacy detector toggles and parameters do not configure it. Baseline and scorer
-settings apply in both modes. The UI does not switch workflows.
+settings apply in both modes. Pipeline replays include the stable
+relative-change gate (5% default). The UI does not switch workflows.
 
 Local `eval-scenarios`, `eval-tp`, `eval-combinations`, `eval-bayesian`,
 `eval-pipeline` and `eval-component` also accept `--use-metric-pipeline`.

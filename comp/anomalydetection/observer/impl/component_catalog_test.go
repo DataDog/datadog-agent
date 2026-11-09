@@ -293,6 +293,8 @@ func TestApplyTestbenchDefaults(t *testing.T) {
 	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
 	require.True(t, scorer.CorrelationEvents)
 	require.Equal(t, DefaultAnomalyScorerConfig().CooldownSecs, scorer.CooldownSecs)
+	require.NotNil(t, settings.StablePipeline)
+	require.InDelta(t, defaultStableMinRelativeChange, settings.StablePipeline.MinRelativeChange, 1e-12)
 }
 
 func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
