@@ -6,7 +6,10 @@
 # is available at the correct ref, and that the host has necessary tools and setup.
 # A resource_group per VM ensures only one AIX job uses the host at a time.
 #
-# The repository is cloned in $AIX_AGENT_SRC.
+# The repository is cloned in $AIX_AGENT_SRC, which depends on the GitLab project
+# (DataDog/datadog-agent or its private embargo mirror ddoghq/datadog-agent, see
+# aix_select_repo in aix_helpers.sh). A host-wide lock serializes jobs from both
+# projects, since resource_group is scoped to a single project.
 # Use aix_run_cmd, copy_file_from_aix, and copy_file_to_aix to connect to the host in job scripts, eg.:
 ## $ aix_run_cmd echo "Hello from AIX"
 ## $ aix_run_cmd <<EOF
@@ -18,6 +21,7 @@
 # template (aix_helpers.sh and aix_git_setup.sh), sourced in before_script.
 
 .aix_remote:
+  extends: .dd_octo_sts
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   # Wait for the setup job that uploads the agent-version cache, which the
@@ -28,9 +32,6 @@
   resource_group: aix_ci_host
   timeout: 2h
   variables:
-    # Where the agent source is cloned on the AIX host.
-    AIX_AGENT_SRC: "/opt/dd-build/datadog-agent"
-    AIX_GIT_REMOTE: "https://github.com/DataDog/datadog-agent.git"
     GIT_DEPTH: 1
   before_script:
     # Fetch the AIX host SSH connection details and private key from Vault.
@@ -43,15 +44,17 @@
     - $CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER key > ~/.ssh/aix_ci_key || exit $?
     - chmod 600 ~/.ssh/aix_ci_key
     - ssh-keyscan -p $AIX_PORT $AIX_HOST >> ~/.ssh/known_hosts
-    # Add the key to the ssh-agent so script steps don't need -i.
-    - eval $(ssh-agent -s)
-    - ssh-add ~/.ssh/aix_ci_key
-    # Add the port to the config so script steps don't need -p.
-    - echo -e "Host $AIX_HOST\n  Port $AIX_PORT" >> ~/.ssh/config
+    # Add the port and key to the config so script steps (and after_script,
+    # which runs in a separate shell) don't need -p or -i.
+    - echo -e "Host $AIX_HOST\n  Port $AIX_PORT\n  IdentityFile ~/.ssh/aix_ci_key" >> ~/.ssh/config
     - chmod 644 ~/.ssh/config
+    # Persist the connection details for after_script.
+    - echo -e "export AIX_HOST=$AIX_HOST\nexport AIX_USER=$AIX_USER" > ~/.aix_env
 
     # Helpers for connecting to the AIX host.
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_helpers.sh
+    - aix_select_repo
+    - aix_acquire_host_lock
 
     # Ensure the agent source is cloned on the AIX host at the commit under test.
     - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_git_setup.sh
@@ -84,3 +87,14 @@
     # -tt forces a PTY so the remote script's stdout/stderr stream live to the job log.
     - 'echo "=== AIX: provisioning host (setup-host.sh) ==="'
     - aix_run_cmd "cd $AIX_AGENT_SRC && sh packaging/aix/setup-host.sh"
+  after_script:
+    - source ~/.aix_env 2>/dev/null || exit 0
+    - source $CI_PROJECT_DIR/.gitlab/aix/common/aix_helpers.sh
+    - aix_select_repo
+    - aix_run_cmd "rm -f '$AIX_GIT_TOKEN_FILE'" || true
+    # Don't leave build outputs of embargoed code on the shared host.
+    - |
+      if [ "$AIX_REPO_PRIVATE" = "true" ]; then
+        aix_run_cmd "cd $AIX_AGENT_SRC/packaging/aix && sh ./clean.sh; rm -f /opt/dd-build/*.bff" || true
+      fi
+    - aix_release_host_lock || true
