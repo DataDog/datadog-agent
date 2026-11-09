@@ -14,7 +14,7 @@ cc_binary(
         "-O2",
         "-fPIC",
     ],
-    linkopts = ["-Wl,--version-script=$(location nosys.sym)"],
+    linkopts = ["-Wl,--version-script=$(execpath nosys.sym)"],
     linkshared = True,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
