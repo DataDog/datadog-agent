@@ -32,7 +32,7 @@ type componentEntry struct {
 	name           string
 	displayName    string
 	kind           componentKind
-	defaultConfig  any           // typed config value (e.g. BOCPDConfig, HoltResidualConfig)
+	defaultConfig  any           // typed constructor or catalog config
 	factory        func(any) any // accepts the config, returns the component
 	defaultEnabled bool
 
@@ -49,6 +49,12 @@ type componentEntry struct {
 	// values, so unspecified fields keep their default. Returns the populated
 	// typed config. Nil means the component has no tunable hyperparameters.
 	parseJSON func(defaults any, raw []byte) (any, error)
+}
+
+// detectorRegistration binds invocation selection to one detector instance.
+type detectorRegistration struct {
+	detector observerdef.Detector
+	filter   observerdef.DetectionFilter
 }
 
 // componentInstance tracks a component entry paired with its runtime instance and enabled state.
@@ -230,61 +236,51 @@ func defaultCatalog() *componentCatalog {
 				displayName: "ScanMW",
 				kind:        componentDetector,
 				factory: func(cfg any) any {
-					c := cfg.(*ScanMWDetector)
-					d := NewScanMWDetector()
-					d.MinPoints = c.MinPoints
-					d.MaxPoints = c.MaxPoints
-					return d
+					return NewScanMWDetector(cfg.(ScanMWConfig))
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := *defaults.(*ScanMWDetector)
+					cfg := defaults.(ScanMWConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("scanmw: failed to parse JSON config: %w", err)
 					}
-					return &cfg, nil
+					return cfg, nil
 				},
 				defaultEnabled: false,
-				defaultConfig:  NewScanMWDetector(),
+				defaultConfig:  DefaultScanMWConfig(),
 				readConfig: func(reader ConfigReader, prefix string) any {
-					d := NewScanMWDetector()
+					cfg := DefaultScanMWConfig()
 					if k := prefix + "min_points"; reader.IsConfigured(k) {
-						d.MinPoints = reader.GetInt(k)
+						cfg.MinPoints = reader.GetInt(k)
 					}
 					if k := prefix + "max_points"; reader.IsConfigured(k) {
-						d.MaxPoints = reader.GetInt(k)
+						cfg.MaxPoints = reader.GetInt(k)
 					}
-					return d
+					return cfg
 				},
 			},
 			{
-				name:        "scanwelch",
-				displayName: "ScanWelch",
-				kind:        componentDetector,
-				factory: func(cfg any) any {
-					c := cfg.(*ScanWelchDetector)
-					d := NewScanWelchDetector()
-					d.MinPoints = c.MinPoints
-					d.MaxPoints = c.MaxPoints
-					return d
-				},
+				name:           "scanwelch",
+				displayName:    "ScanWelch",
+				kind:           componentDetector,
+				factory:        func(cfg any) any { return NewScanWelchDetector(cfg.(ScanWelchConfig)) },
 				defaultEnabled: false,
-				defaultConfig:  NewScanWelchDetector(),
+				defaultConfig:  DefaultScanWelchConfig(),
 				readConfig: func(reader ConfigReader, prefix string) any {
-					d := NewScanWelchDetector()
+					cfg := DefaultScanWelchConfig()
 					if k := prefix + "min_points"; reader.IsConfigured(k) {
-						d.MinPoints = reader.GetInt(k)
+						cfg.MinPoints = reader.GetInt(k)
 					}
 					if k := prefix + "max_points"; reader.IsConfigured(k) {
-						d.MaxPoints = reader.GetInt(k)
+						cfg.MaxPoints = reader.GetInt(k)
 					}
-					return d
+					return cfg
 				},
 				parseJSON: func(defaults any, raw []byte) (any, error) {
-					cfg := *defaults.(*ScanWelchDetector)
+					cfg := defaults.(ScanWelchConfig)
 					if err := json.Unmarshal(raw, &cfg); err != nil {
 						return nil, fmt.Errorf("scanwelch: failed to parse JSON config: %w", err)
 					}
-					return &cfg, nil
+					return cfg, nil
 				},
 			},
 			{
@@ -292,7 +288,7 @@ func defaultCatalog() *componentCatalog {
 				displayName:    "HoltResidual",
 				kind:           componentDetector,
 				defaultConfig:  DefaultHoltResidualConfig(),
-				factory:        func(cfg any) any { return NewHoltResidualDetectorWithConfig(cfg.(HoltResidualConfig)) },
+				factory:        func(cfg any) any { return NewHoltResidualDetector(cfg.(HoltResidualConfig)) },
 				defaultEnabled: false,
 				readConfig: func(reader ConfigReader, prefix string) any {
 					cfg := DefaultHoltResidualConfig()
@@ -313,11 +309,13 @@ func defaultCatalog() *componentCatalog {
 				},
 			},
 			{
-				name:           "tukey_biweight",
-				displayName:    "TukeyBiweight",
-				kind:           componentDetector,
-				defaultConfig:  DefaultTukeyBiweightConfig(),
-				factory:        func(cfg any) any { return NewTukeyBiweightDetectorWithConfig(cfg.(TukeyBiweightConfig)) },
+				name:          "tukey_biweight",
+				displayName:   "TukeyBiweight",
+				kind:          componentDetector,
+				defaultConfig: DefaultTukeyBiweightConfig(),
+				factory: func(cfg any) any {
+					return NewTukeyBiweightDetector(cfg.(TukeyBiweightConfig))
+				},
 				defaultEnabled: false,
 				readConfig: func(reader ConfigReader, prefix string) any {
 					cfg := DefaultTukeyBiweightConfig()
@@ -387,7 +385,7 @@ func defaultCatalog() *componentCatalog {
 // It is NOT included in correlators — the engine handles that separately so it
 // can set the typed engine.scorer pointer at the same time.
 func (c *componentCatalog) Instantiate(settings ComponentSettings) (
-	detectors []observerdef.Detector,
+	detectors []detectorRegistration,
 	correlators []observerdef.Correlator,
 	scorer *anomalyScorer,
 	extractors []observerdef.LogMetricsExtractor,
@@ -421,10 +419,11 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 
 		switch entry.kind {
 		case componentDetector:
+			// Detectors register with an empty filter; no configuration feeds them yet.
 			if d, ok := instance.(observerdef.Detector); ok {
-				detectors = append(detectors, d)
+				detectors = append(detectors, detectorRegistration{detector: d})
 			} else if sd, ok := instance.(observerdef.SeriesDetector); ok {
-				detectors = append(detectors, newSeriesDetectorAdapter(sd, defaultAggregations))
+				detectors = append(detectors, detectorRegistration{detector: newSeriesDetectorAdapter(sd)})
 			}
 		case componentCorrelator:
 			// The anomaly_scorer entry is a componentCorrelator but returns an
@@ -593,7 +592,7 @@ func (c *componentCatalog) validateDetectorTeardownContract() error {
 		// in seriesDetectorAdapter, which is a SeriesRemover. A direct
 		// Detector implementation must be a SeriesRemover itself.
 		if sd, ok := instance.(observerdef.SeriesDetector); ok {
-			wrapped := newSeriesDetectorAdapter(sd, defaultAggregations)
+			wrapped := newSeriesDetectorAdapter(sd)
 			if _, ok := any(wrapped).(observerdef.SeriesRemover); !ok {
 				return &detectorTeardownContractError{name: entry.name, reason: "seriesDetectorAdapter no longer implements SeriesRemover — the wrapping invariant has regressed"}
 			}

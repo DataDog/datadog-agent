@@ -27,6 +27,7 @@ import (
 	testbenchimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/impl-testbench"
 	config "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/internal/anomalydetection/scorer/scoring"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
@@ -59,8 +60,20 @@ type EpisodeScenario struct {
 	LongDescription string `json:"long_description"`
 }
 
+// UnmarshalJSON also accepts the scenario name used by recording metadata.
+func (scenario *EpisodeScenario) UnmarshalJSON(data []byte) error {
+	if len(data) > 0 && data[0] == '"' {
+		return json.Unmarshal(data, &scenario.AppName)
+	}
+	type plain EpisodeScenario
+	return json.Unmarshal(data, (*plain)(scenario))
+}
+
 // EpisodeInfo holds the parsed episode.json metadata for a scenario run.
 type EpisodeInfo struct {
+	scoring.HealthyEpisode
+	Name        string          `json:"name,omitempty"`
+	Status      string          `json:"status,omitempty"`
 	Episode     string          `json:"episode,omitempty"`
 	Cycle       int             `json:"cycle,omitempty"`
 	Scenario    EpisodeScenario `json:"scenario,omitempty"`
@@ -73,6 +86,16 @@ type EpisodeInfo struct {
 	Baseline    *EpisodePhase   `json:"baseline,omitempty"`
 	Disruption  *EpisodePhase   `json:"disruption,omitempty"`
 	Cooldown    *EpisodePhase   `json:"cooldown,omitempty"`
+}
+
+// UnmarshalJSON preserves the raw disruption for healthy-label validation, alongside
+// the typed phase used to display fault scenarios.
+func (info *EpisodeInfo) UnmarshalJSON(data []byte) error {
+	type plain EpisodeInfo
+	if err := json.Unmarshal(data, (*plain)(info)); err != nil {
+		return err
+	}
+	return json.Unmarshal(data, &info.HealthyEpisode)
 }
 
 // Config configures the Bench.
@@ -147,18 +170,20 @@ type BaselineInfo struct {
 
 // StatusResponse is the response for /api/status.
 type StatusResponse struct {
-	Ready                 bool          `json:"ready"`
-	Scenario              string        `json:"scenario,omitempty"`
-	SeriesCount           int           `json:"seriesCount"`
-	AnomalyCount          int           `json:"anomalyCount"`
-	LogAnomalyCount       int           `json:"logAnomalyCount"`
-	ComponentCount        int           `json:"componentCount"`
-	CorrelatorsProcessing bool          `json:"correlatorsProcessing"`
-	ScenarioStart         *int64        `json:"scenarioStart,omitempty"`
-	ScenarioEnd           *int64        `json:"scenarioEnd,omitempty"`
-	EpisodeInfo           *EpisodeInfo  `json:"episodeInfo,omitempty"`
-	ServerConfig          ServerConfig  `json:"serverConfig"`
-	Baseline              *BaselineInfo `json:"baseline,omitempty"`
+	NoFaultEvaluation     *scoring.NoFaultResult `json:"noFaultEvaluation,omitempty"`
+	EvaluationError       string                 `json:"evaluationError,omitempty"`
+	Ready                 bool                   `json:"ready"`
+	Scenario              string                 `json:"scenario,omitempty"`
+	SeriesCount           int                    `json:"seriesCount"`
+	AnomalyCount          int                    `json:"anomalyCount"`
+	LogAnomalyCount       int                    `json:"logAnomalyCount"`
+	ComponentCount        int                    `json:"componentCount"`
+	CorrelatorsProcessing bool                   `json:"correlatorsProcessing"`
+	ScenarioStart         *int64                 `json:"scenarioStart,omitempty"`
+	ScenarioEnd           *int64                 `json:"scenarioEnd,omitempty"`
+	EpisodeInfo           *EpisodeInfo           `json:"episodeInfo,omitempty"`
+	ServerConfig          ServerConfig           `json:"serverConfig"`
+	Baseline              *BaselineInfo          `json:"baseline,omitempty"`
 }
 
 // ServerConfig exposes server-side configuration to the UI.
@@ -390,11 +415,17 @@ func (tb *Bench) LoadScenario(name string) error {
 	if data, err := os.ReadFile(filepath.Join(scenarioPath, "episode.json")); err == nil {
 		var info EpisodeInfo
 		if jsonErr := json.Unmarshal(data, &info); jsonErr == nil {
+			if info.Mode == "healthy-control" && info.Warmup == nil && info.StartTime != "" && info.EvaluationWindow != nil {
+				info.Warmup = &EpisodePhase{Start: info.StartTime, End: info.EvaluationWindow.Start}
+			}
 			tb.episodeInfo = &info
 		}
 	}
 
-	tb.resetAllState()
+	if err := tb.resetAllState(); err != nil {
+		tb.mu.Unlock()
+		return err
+	}
 
 	tb.mu.Unlock()
 	tb.broadcastStatus()
@@ -447,7 +478,9 @@ func (tb *Bench) LoadScenario(name string) error {
 		// timestamp without resetting or walking retained storage.
 		tb.finishStreamLocked()
 	} else {
-		tb.rerunDetectorsLocked()
+		if err := tb.rerunDetectorsLocked(); err != nil {
+			return loadFailed(err)
+		}
 	}
 	fmt.Printf("  Detector phase took %s\n", time.Since(analysisStart))
 	fmt.Printf("  Total scenario load took %s\n", time.Since(scenarioStart))
@@ -731,7 +764,7 @@ func streamingStorageCfg(settings observerimpl.ComponentSettings, includeDetecto
 }
 
 // resetAllState resets engine state via DebugView.Reset.
-func (tb *Bench) resetAllState() {
+func (tb *Bench) resetAllState() error {
 	tb.baselineMu.Lock()
 	tb.baselineFrozen = false
 	tb.baselineWindowEndSec = 0
@@ -741,7 +774,7 @@ func (tb *Bench) resetAllState() {
 	if tb.config.StreamParquet {
 		storageCfg = streamingStorageCfg(tb.settings, tb.config.IncludeDetectorAnomalies)
 	}
-	tb.debug.Reset(tb.settings, storageCfg)
+	return tb.debug.Reset(tb.settings, storageCfg)
 }
 
 // catalogEntries includes testbench-only adapters in addition to production
@@ -831,7 +864,28 @@ func (tb *Bench) GetStatus() StatusResponse {
 		}
 	}
 
+	var noFaultEvaluation *scoring.NoFaultResult
+	var evaluationError string
+	if tb.ready && tb.episodeInfo != nil && (tb.episodeInfo.Mode == "healthy-control" || tb.episodeInfo.Expectation == "healthy") {
+		if tb.replayStats == nil || tb.replayStats.InputLogsCount+int(tb.replayStats.InputMetricsCount) == 0 {
+			evaluationError = "Replay consumed no input"
+		} else if !tb.isComponentEnabled("anomaly_scorer") {
+			evaluationError = "No-fault evaluation requires the anomaly scorer to be enabled"
+		} else {
+			periods := []scoring.Period{}
+			for _, corr := range tb.correlationsLocked(sv) {
+				periods = append(periods, scoring.Period{Pattern: corr.Pattern, Start: float64(corr.FirstSeen), End: float64(corr.LastUpdated)})
+			}
+			var err error
+			noFaultEvaluation, err = scoring.ScoreNoFaults(periods, tb.episodeInfo.HealthyEpisode)
+			if err != nil {
+				evaluationError = err.Error()
+			}
+		}
+	}
 	return StatusResponse{
+		NoFaultEvaluation:     noFaultEvaluation,
+		EvaluationError:       evaluationError,
 		Ready:                 tb.ready,
 		Scenario:              tb.loadedScenario,
 		SeriesCount:           sv.TotalSeriesCount(),
@@ -867,13 +921,16 @@ func (tb *Bench) isComponentEnabled(name string) bool {
 
 // rerunDetectorsLocked re-runs all detectors and correlators on current data.
 // Caller must hold lock.
-func (tb *Bench) rerunDetectorsLocked() {
+func (tb *Bench) rerunDetectorsLocked() error {
 	// Reset engine with current settings (clears all storage).
-	tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies))
+	if err := tb.debug.Reset(tb.settings, unboundedStorageCfg(tb.config.IncludeDetectorAnomalies)); err != nil {
+		return err
+	}
 
 	tb.feedRawObservations()
 	tb.addRawMetricTelemetry()
 	tb.finishStreamLocked()
+	return nil
 }
 
 func (tb *Bench) feedRawObservations() {
@@ -1349,7 +1406,10 @@ func (tb *Bench) ToggleComponent(name string) error {
 	tb.settings.Enabled[name] = !current
 
 	if tb.ready {
-		tb.rerunDetectorsLocked()
+		if err := tb.rerunDetectorsLocked(); err != nil {
+			tb.mu.Unlock()
+			return err
+		}
 	}
 
 	tb.mu.Unlock()
@@ -1369,7 +1429,10 @@ func (tb *Bench) loadDemoScenario() error {
 	tb.ready = false
 	tb.loadedScenario = "demo"
 
-	tb.resetAllState()
+	if err := tb.resetAllState(); err != nil {
+		tb.mu.Unlock()
+		return err
+	}
 
 	fmt.Println("Generating demo scenario data...")
 
@@ -1449,7 +1512,10 @@ func (tb *Bench) loadDemoScenario() error {
 	}
 	fmt.Printf("  Generated %d demo log entries\n", len(tb.rawLogs))
 
-	tb.rerunDetectorsLocked()
+	if err := tb.rerunDetectorsLocked(); err != nil {
+		tb.mu.Unlock()
+		return err
+	}
 	sv := tb.debug.StateView()
 	rs := tb.replayStats
 	fmt.Printf("Demo scenario loaded: %d metric samples (%d unique series), %d metric anomalies, %d log entries, %d log anomalies\n",
