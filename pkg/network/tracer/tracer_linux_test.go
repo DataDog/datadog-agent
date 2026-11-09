@@ -2829,18 +2829,12 @@ func (s *TracerSuite) TestTCPOngoingConnectPidCleanedOnClose() {
 	}
 
 	// connect(AF_UNSPEC) disconnects the socket, clearing the tuple before tcp_close
-	srvIP := srv.Addr().(*net.TCPAddr).IP.To4()
-	require.NotNil(t, srvIP)
+	srvAddr := srv.Addr().(*net.TCPAddr)
 	for range 10 {
-		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
-		require.NoError(t, err)
-		sa := &unix.SockaddrInet4{Port: int(srvPort)}
-		copy(sa.Addr[:], srvIP)
-		require.NoError(t, unix.Connect(fd, sa))
-		unspec := unix.RawSockaddrAny{}
-		unspec.Addr.Family = unix.AF_UNSPEC
-		_, _, errno := unix.Syscall(unix.SYS_CONNECT, uintptr(fd), uintptr(unsafe.Pointer(&unspec)), unix.SizeofSockaddrAny)
-		require.Zero(t, errno)
+		fd := connectRawTCP(t, srvAddr)
+		// The echo ensures the server has accepted before the disconnect resets it
+		echoRawTCP(t, fd, []byte("x"))
+		disconnectTCP(t, fd)
 		require.NoError(t, unix.Close(fd))
 	}
 
@@ -2857,6 +2851,46 @@ func (s *TracerSuite) TestTCPOngoingConnectPidCleanedOnClose() {
 		require.NoError(collect, it.Err())
 		assert.Empty(collect, left, "tcp_ongoing_connect_pid entries left after close")
 	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// connectRawTCP returns a socket fd connected to addr
+func connectRawTCP(t *testing.T, addr *net.TCPAddr) int {
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
+	require.NoError(t, err)
+	sa := &unix.SockaddrInet4{Port: addr.Port}
+	copy(sa.Addr[:], addr.IP.To4())
+	require.NoError(t, unix.Connect(fd, sa))
+	return fd
+}
+
+// echoRawTCP writes payload and waits for the server to echo it back
+func echoRawTCP(t *testing.T, fd int, payload []byte) {
+	require.NoError(t, unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &unix.Timeval{Sec: 5}))
+	n, err := unix.Write(fd, payload)
+	require.NoError(t, err)
+	require.Equal(t, len(payload), n)
+	buf := make([]byte, len(payload))
+	for read := 0; read < len(buf); {
+		n, err := unix.Read(fd, buf[read:])
+		require.NoError(t, err)
+		require.NotZero(t, n, "server closed before echoing")
+		read += n
+	}
+}
+
+// disconnectTCP calls connect(AF_UNSPEC), which runs tcp_disconnect on the socket
+func disconnectTCP(t *testing.T, fd int) {
+	unspec := unix.RawSockaddrAny{}
+	unspec.Addr.Family = unix.AF_UNSPEC
+	_, _, errno := unix.Syscall(unix.SYS_CONNECT, uintptr(fd), uintptr(unsafe.Pointer(&unspec)), unix.SizeofSockaddrAny)
+	require.Zero(t, errno)
+}
+
+func rawTCPLocalAddr(t *testing.T, fd int) *net.TCPAddr {
+	sa, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	sa4 := sa.(*unix.SockaddrInet4)
+	return &net.TCPAddr{IP: net.IP(sa4.Addr[:]), Port: sa4.Port}
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {
