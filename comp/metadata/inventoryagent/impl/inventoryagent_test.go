@@ -1003,17 +1003,18 @@ func TestFilterScrubbedKeys(t *testing.T) {
 			expected:     []string{"snmp_traps.community_strings.1", "client_secret"},
 		},
 		{
-			// integration configs are prefixed by their name, and paths relative to the resolved section
+			// integration secrets are prefixed by their name and section, and never match a setting of the main
+			// configuration, even if their path relative to the section is the same
 			name:         "nested setting from an integration config",
 			scrubbedKeys: []string{"auth.password", "client_secret"},
-			paths:        []string{"http_check:auth.password"},
-			expected:     []string{"client_secret"},
+			paths:        []string{"http_check;instances.0:auth.password"},
+			expected:     []string{"auth.password", "client_secret"},
 		},
 		{
 			name:         "top-level setting from an integration config",
 			scrubbedKeys: []string{"token", "client_secret"},
-			paths:        []string{"http_check:token"},
-			expected:     []string{"client_secret"},
+			paths:        []string{"http_check;init_config:token"},
+			expected:     []string{"token", "client_secret"},
 		},
 		{
 			name:         "partial paths are not filtered",

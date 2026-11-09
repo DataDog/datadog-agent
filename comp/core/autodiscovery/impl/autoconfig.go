@@ -258,7 +258,8 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		if isEnc {
 			return
 		}
-		ac.queueSecretRefresh(origin)
+		// integration configs resolve each of their sections under its own origin, refresh the whole config
+		ac.queueSecretRefresh(secretOriginDigest(origin))
 	})
 
 	return ac
