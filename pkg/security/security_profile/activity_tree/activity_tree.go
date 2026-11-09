@@ -526,7 +526,8 @@ func EventInsertionError(event *model.Event) error {
 		return file.PathResolutionError
 	}
 	switch EventErrorType(event.Error) {
-	case EventErrorBrokenLineage:
+	case EventErrorBrokenLineage, EventErrorNoProcessContext:
+		// a process without context has no lineage at all, its activity can only be unattributed
 		return nil
 	case EventErrorPathResolution, EventErrorPathResolutionNotCritical:
 		// either another file failed, or the path is on a kernel-internal mount, where the dentry path is all there

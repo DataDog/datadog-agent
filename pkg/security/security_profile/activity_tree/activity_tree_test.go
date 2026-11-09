@@ -825,6 +825,7 @@ func TestEventInsertionError(t *testing.T) {
 	brokenLineage := &model.ErrProcessBrokenLineage{Err: errors.New("missing parent")}
 	critical := &path.ErrPathResolution{Err: errors.New("dentry not found")}
 	notCritical := &path.ErrPathResolutionNotCritical{Err: errors.New("kernel mount")}
+	unknown := errors.New("unknown")
 
 	tests := []struct {
 		name      string
@@ -854,7 +855,8 @@ func TestEventInsertionError(t *testing.T) {
 		{"path error of a dns event", model.DNSEventType, func(event *model.Event) {
 			event.SetPathResolutionError(&event.ProcessCacheEntry.LinuxBinprm.FileEvent, notCritical)
 		}, notCritical},
-		{"no process context", model.FileOpenEventType, func(event *model.Event) { event.Error = model.ErrNoProcessContext }, model.ErrNoProcessContext},
+		{"no process context", model.FileOpenEventType, func(event *model.Event) { event.Error = model.ErrNoProcessContext }, nil},
+		{"unknown error", model.FileOpenEventType, func(event *model.Event) { event.Error = unknown }, unknown},
 		{"dns decoding", model.DNSEventType, func(event *model.Event) { event.Error = model.ErrFailedDNSPacketDecoding }, model.ErrFailedDNSPacketDecoding},
 	}
 	for _, tt := range tests {
