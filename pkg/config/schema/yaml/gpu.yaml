@@ -158,7 +158,9 @@ properties:
     description: |-
       Identify the training job a GPU workload belongs to. The Agent reads the
       configured pod label, pod annotation, or environment variable and attaches
-      its value as a tag on GPU metrics.
+      its value as a tag on GPU metrics. By default, set the pod annotations
+      training.datadoghq.com/run-id and training.datadoghq.com/group-id to add
+      training_run_id and training_group_id tags without configuring gpu.jobs.
     properties:
       run:
         node_type: section
@@ -170,15 +172,17 @@ properties:
           key:
             node_type: setting
             type: string
-            default: ''
+            default: training.datadoghq.com/run-id
             visibility: public
             description: |-
               Name of the pod label, pod annotation, or environment variable holding
-              the run ID, for example _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
+              the run ID. Defaults to the training.datadoghq.com/run-id pod annotation.
+              Set type when using a label or environment variable, for example
+              _RAY_SUBMISSION_ID. Leave empty to disable run tagging.
           type:
             node_type: setting
             type: string
-            default: label
+            default: annotation
             enum:
             - label
             - annotation
@@ -197,16 +201,17 @@ properties:
           key:
             node_type: setting
             type: string
-            default: ''
+            default: training.datadoghq.com/group-id
             visibility: public
             description: |-
               Name of the pod label, pod annotation, or environment variable holding
-              the group ID, for example example/job-group-annotation. Leave empty to
+              the group ID. Defaults to the training.datadoghq.com/group-id pod annotation.
+              Set type when using a label or environment variable. Leave empty to
               disable group tagging.
           type:
             node_type: setting
             type: string
-            default: label
+            default: annotation
             enum:
             - label
             - annotation

@@ -260,3 +260,12 @@ Active time is derived from kernel execution intervals captured within each coll
 The GPU spec defines what metrics and tags the core check is expected to emit across architectures and device modes.
 It exists to keep metric behavior explicit, versioned, and testable from YAML-backed definitions instead of ad-hoc test assumptions.
 For full details (files, schemas, and validation commands), see `pkg/collector/corechecks/gpu/spec/README.md`.
+
+## Training identifiers
+
+`gpu.jobs.run` and `gpu.jobs.group` default to the pod annotations
+`training.datadoghq.com/run-id` and `training.datadoghq.com/group-id`.
+The defaults live in `pkg/config/schema/yaml/gpu.yaml` and are consumed both by
+metadata-to-tag extraction and by GPU tracer injection. Change the schema when
+changing these defaults so the two paths stay consistent. An explicitly empty
+identifier key disables that identifier. See `doc/how-to/gpu-training-identifiers.md`.
