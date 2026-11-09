@@ -147,11 +147,13 @@ namespace Datadog.CustomActions
                 var user = installed?.GetValue("installedUser") as string;
                 if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
                 {
+                    _session.Log($"Preserving services: installed Agent account metadata is missing (registry key present: {installed is not null}, domain present: {!string.IsNullOrEmpty(domain)}, user present: {!string.IsNullOrEmpty(user)})");
                     return ActionResult.Success;
                 }
                 var account = $"{domain}\\{user}";
                 if (!_nativeMethods.LookupAccountName(account, out _, out _, out var accountSid, out _))
                 {
+                    _session.Log($"Preserving services: could not resolve installed Agent account '{account}' to a SID");
                     return ActionResult.Success;
                 }
                 var names = new List<string>();
@@ -174,9 +176,14 @@ namespace Datadog.CustomActions
                     {
                         continue;
                     }
-                    if (string.IsNullOrEmpty(serviceAccount)
-                        || !_nativeMethods.LookupAccountName(serviceAccount, out _, out _, out var sid, out _))
+                    if (string.IsNullOrEmpty(serviceAccount))
                     {
+                        _session.Log($"Preserving services: service '{name}' has a missing or empty ObjectName registry value");
+                        return ActionResult.Success;
+                    }
+                    if (!_nativeMethods.LookupAccountName(serviceAccount, out _, out _, out var sid, out _))
+                    {
+                        _session.Log($"Preserving services: could not resolve service '{name}' account '{serviceAccount}' to a SID");
                         return ActionResult.Success;
                     }
                     if (AgentCredentials.IsBuiltIn(sid))
