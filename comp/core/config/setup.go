@@ -51,7 +51,11 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	}
 
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(config, secretComp, delegatedAuthComp, schemaComp)
+	var extraConfigPaths []string
+	if p.configLoadSecurityAgent {
+		extraConfigPaths = p.securityAgentConfigFilePaths
+	}
+	err := pkgconfigsetup.LoadDatadog(config, secretComp, delegatedAuthComp, schemaComp, extraConfigPaths...)
 
 	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message

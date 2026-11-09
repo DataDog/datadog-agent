@@ -49,7 +49,7 @@ import (
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	remoteagentfx "github.com/DataDog/datadog-agent/comp/core/remoteagent/fx-systemprobe"
 	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
-	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
+	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
@@ -202,7 +202,7 @@ func getSharedFxOption(coreAgentIPC bool) fx.Option {
 		agenttelemetryfx.Module(),
 		pidfx.Module(),
 		fx.Supply(rcclient.Params{AgentName: "system-probe", AgentVersion: version.AgentVersion, IsSystemProbe: true}),
-		secretsnoopfx.Module(),
+		secretsfx.Module(),
 		statsdFx.Module(),
 		rcclientfx.Module(),
 		fx.Provide(func(config config.Component, sysprobeconfig sysprobeconfig.Component) healthprobe.Options {

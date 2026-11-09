@@ -2029,3 +2029,22 @@ func TestApplyKubernetesContainerDefaults(t *testing.T) {
 func boolPtr(b bool) *bool {
 	return &b
 }
+
+func TestAuxiliarySecretRefreshIsScoped(t *testing.T) {
+	first, second := newTestConf(t), newTestConf(t)
+	key := "security_agent.internal_profiling.api_key"
+	first.Set(key, "ENC[first]", pkgconfigmodel.SourceFile)
+	second.Set(key, "ENC[second]", pkgconfigmodel.SourceFile)
+	resolver := secretsmock.New(t)
+	resolver.SetSecrets(map[string]string{"first": "value-one", "second": "value-two"})
+	require.NoError(t, ResolveSecretsInConfig(first, resolver, "first.yaml"))
+	require.NoError(t, ResolveSecretsInConfig(second, resolver, "second.yaml"))
+	require.Equal(t, "value-one", first.GetString(key))
+	require.Equal(t, "value-two", second.GetString(key))
+	resolver.SetSecrets(map[string]string{"first": "rotated", "second": "other"})
+	declaration := []byte("security_agent:\n  internal_profiling:\n    api_key: ENC[first]")
+	_, err := resolver.Resolve(declaration, "first.yaml", "", "", true)
+	require.NoError(t, err)
+	require.Equal(t, "rotated", first.GetString(key))
+	require.Equal(t, "value-two", second.GetString(key))
+}

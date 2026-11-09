@@ -40,7 +40,7 @@ go_library(
         "//comp/core/pid/impl",
         "//comp/core/remoteagent/fx-systemprobe",
         "//comp/core/schema/fx-noop",
-        "//comp/core/secrets/fx-noop",
+        "//comp/core/secrets/fx",
         "//comp/core/settings/def",
         "//comp/core/settings/fx",
         "//comp/core/sysprobeconfig/def",

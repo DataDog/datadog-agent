@@ -15,6 +15,7 @@ import (
 	"strings"
 
 	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -30,14 +31,23 @@ const (
 // New creates a config object for system-probe. It assumes no configuration has been loaded as this point. The
 // configuration is validated against its schema with schemaValidator.
 func New(configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator) (*types.Config, error) {
-	return newSysprobeConfig(configPath, fleetPoliciesDirPath, schemaValidator)
+	return newSysprobeConfig(configPath, fleetPoliciesDirPath, schemaValidator, nil)
 }
 
-func newSysprobeConfig(configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator) (*types.Config, error) {
+// NewWithSecrets resolves system-probe declarations before deriving typed settings.
+// The resolver is configured from the core Agent configuration by its component.
+func NewWithSecrets(configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator, secretResolver secrets.Component) (*types.Config, error) {
+	return newSysprobeConfig(configPath, fleetPoliciesDirPath, schemaValidator, secretResolver)
+}
+
+func newSysprobeConfig(configPath string, fleetPoliciesDirPath string, schemaValidator pkgconfigmodel.SchemaValidator, secretResolver secrets.Component) (*types.Config, error) {
 	if err := loadFiles(pkgconfigsetup.GlobalSystemProbeConfigBuilder(), configPath, fleetPoliciesDirPath, schemaValidator); err != nil {
 		return nil, err
 	}
 
+	if err := pkgconfigsetup.ResolveSecretsInConfig(pkgconfigsetup.GlobalSystemProbeConfigBuilder(), secretResolver, "system-probe.yaml"); err != nil {
+		return nil, err
+	}
 	return load()
 }
 

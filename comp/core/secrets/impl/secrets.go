@@ -708,9 +708,8 @@ var (
 )
 
 func secretMatchesAllowlist(secretCtx secretContext) bool {
-	// We allow refresh for all secrets found in integrations (ie: not datadog.yaml)
-	// We currently only resolve secrets from datadog.yaml. We still check for system-probe.yaml since at some point
-	// it will support secret too.
+	// Integrations can restart to apply any secret. Agent configuration files
+	// only refresh settings whose consumers support live updates.
 	if !slices.Contains(allowListOrigin, secretCtx.origin) {
 		return true
 	}

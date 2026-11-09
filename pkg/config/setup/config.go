@@ -279,8 +279,8 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 }
 
 // LoadDatadog reads config files and initializes config with decrypted secrets. The configuration is validated against
-// its schema with schemaValidator.
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, schemaValidator pkgconfigmodel.SchemaValidator) error {
+// its schema with schemaValidator. Extra configuration files are merged before secret resolution.
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, schemaValidator pkgconfigmodel.SchemaValidator, extraConfigPaths ...string) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -295,6 +295,13 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
 		}
+		return err
+	}
+
+	// Merge process-specific files before resolving secrets. Resolving the main
+	// file first leaves ENC declarations from security-agent.yaml untouched and
+	// can retain a main-file secret over a process-specific override.
+	if err := Merge(extraConfigPaths, config); err != nil {
 		return err
 	}
 
@@ -556,12 +563,13 @@ func ResolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 	return resolveSecrets(config, secretResolver, origin)
 }
 
-// resolveSecrets merges all the secret values from origin into config. Secret values
-// are identified by a value of the form "ENC[key]" where key is the secret key.
-// See: https://github.com/DataDog/datadog-agent/blob/main/docs/agent/secrets.md
-func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
-	log.Info("Starting to resolve secrets")
-
+// ConfigureSecrets configures a resolver from the core Agent settings. Call once
+// per resolver, including when the core configuration arrives over a config stream.
+// It returns whether a secret backend is configured.
+func ConfigureSecrets(config pkgconfigmodel.Reader, secretResolver secrets.Component) bool {
+	if secretResolver == nil {
+		return false
+	}
 	var multiBackends map[string]secrets.SecretBackendConfig
 	if err := structure.UnmarshalKey(config, "multi_secret_backends", &multiBackends); err != nil {
 		log.Warnf("multi_secret_backends: %v", err)
@@ -588,30 +596,41 @@ func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Compone
 		ImageToHandle:                config.GetStringMapStringSlice("secret_image_to_handle"),
 		APIKeyFailureRefreshInterval: config.GetInt("secret_refresh_on_api_key_failure_interval"),
 	})
+	return config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" || len(multiBackends) > 0
+}
 
-	if config.GetString("secret_backend_command") != "" || config.GetString("secret_backend_type") != "" || len(multiBackends) > 0 {
-		// Viper doesn't expose the final location of the file it
-		// loads. Since we are searching for 'datadog.yaml' in multiple
-		// locations we let viper determine the one to use before
-		// updating it.
-		yamlConf, err := yaml.Marshal(config.AllSettings())
-		if err != nil {
-			return fmt.Errorf("unable to marshal configuration to YAML to decrypt secrets: %w", err)
-		}
-
-		secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
-			if origin != settingOrigin {
-				return
-			}
-			if err := configAssignAtPath(config, settingPath, newValue); err != nil {
-				log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
-			}
-		})
-		if _, err = secretResolver.Resolve(yamlConf, origin, "", "", true); err != nil {
-			return fmt.Errorf("unable to decrypt secret from datadog.yaml: %v", err)
-		}
+func resolveSecrets(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
+	if !ConfigureSecrets(config, secretResolver) {
+		return nil
 	}
-	log.Info("Finished resolving secrets")
+	return ResolveSecretsInConfig(config, secretResolver, origin)
+}
+
+// ResolveSecretsInConfig resolves a configuration using an already-configured
+// resolver. Auxiliary configurations use the backend settings from datadog.yaml,
+// but maintain their own origin and refresh subscription.
+func ResolveSecretsInConfig(config pkgconfigmodel.Config, secretResolver secrets.Component, origin string) error {
+	if secretResolver == nil {
+		return nil
+	}
+	log.Infof("Starting to resolve secrets from %s", origin)
+	// Exclude resolved values so declarations from streamed config remain available.
+	yamlConf, err := yaml.Marshal(config.AllSettingsWithoutSecrets())
+	if err != nil {
+		return fmt.Errorf("unable to marshal configuration to decrypt secrets: %w", err)
+	}
+	secretResolver.SubscribeToChanges(func(handle, settingOrigin string, settingPath []string, _, newValue any) {
+		if origin != settingOrigin {
+			return
+		}
+		if err := configAssignAtPath(config, settingPath, newValue); err != nil {
+			log.Errorf("Could not assign new value of secret %s (%+q) to config: %s", handle, settingPath, err)
+		}
+	})
+	if _, err := secretResolver.Resolve(yamlConf, origin, "", "", true); err != nil {
+		return fmt.Errorf("unable to decrypt secrets from %s: %w", origin, err)
+	}
+	log.Infof("Finished resolving secrets from %s", origin)
 	return nil
 }
 

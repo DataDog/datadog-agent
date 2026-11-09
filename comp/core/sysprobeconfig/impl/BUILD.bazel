@@ -12,6 +12,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/schema/def",
+        "//comp/core/secrets/def",
         "//comp/core/sysprobeconfig/def",
         "//comp/def",
         "//pkg/config/model",

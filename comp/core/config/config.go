@@ -101,9 +101,13 @@ func newConfig(deps dependencies) (*cfg, error) {
 		// Feature detection still needs to run here since LoadDatadog (which
 		// normally triggers it) is skipped on this path.
 		pkgconfigenv.DetectFeatures(config)
+		pkgconfigsetup.ConfigureSecrets(config, deps.Secret)
 
 		if deps.Params.configLoadSecurityAgent {
 			if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
+				return &cfg{Config: config}, err
+			}
+			if err := pkgconfigsetup.ResolveSecretsInConfig(config, deps.Secret, "security-agent.yaml"); err != nil {
 				return &cfg{Config: config}, err
 			}
 		}
@@ -122,12 +126,6 @@ func newConfig(deps dependencies) (*cfg, error) {
 
 	if err != nil {
 		return returnErrFct(err)
-	}
-
-	if deps.Params.configLoadSecurityAgent {
-		if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
-			return returnErrFct(err)
-		}
 	}
 
 	return &cfg{Config: config}, nil

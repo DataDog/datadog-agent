@@ -50,12 +50,16 @@ go_library(
 dd_agent_go_test(
     name = "config_test",
     srcs = [
+        "auxiliary_secrets_test.go",
         "config_test.go",
         "params_test.go",
         "status_test.go",
     ],
     embed = [":config"],
     deps = [
+        "//comp/core/delegatedauth/noop-impl/types",
+        "//comp/core/schema/noop-impl",
+        "//comp/core/secrets/mock",
         "//pkg/config/model",
         "//pkg/util/defaultpaths",
         "@com_github_stretchr_testify//assert",
