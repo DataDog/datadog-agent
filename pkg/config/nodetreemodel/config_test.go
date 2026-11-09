@@ -2865,3 +2865,40 @@ func TestSetNotifiesOnlyWhenTheResolvedValueChanges(t *testing.T) {
 	assert.Equal(t, model.SourceFile, got[0].source)
 	assert.Equal(t, "from_file", got[0].value)
 }
+
+func TestMergedConfigRetainsSourceLayers(t *testing.T) {
+	for _, source := range []model.Source{model.SourceFile, model.SourceFleetPolicies} {
+		t.Run(string(source), func(t *testing.T) {
+			config := NewNodeTreeConfig("test", model.CoreSchema)
+			config.SetConfigType("yaml")
+			config.SetDefault("api_key", "")
+			config.SetDefault("other", "")
+			config.SetDefault("preserved", "")
+			config.BuildSchema()
+			config.Set("api_key", "ENC[old]", source)
+			config.Set("preserved", "original", source)
+			content := "api_key: ENC[new]"
+			if source == model.SourceFile {
+				require.NoError(t, config.MergeConfig(strings.NewReader(content)))
+			} else {
+				file, err := os.CreateTemp(t.TempDir(), "fleet-*.yaml")
+				require.NoError(t, err)
+				_, err = file.WriteString(content)
+				require.NoError(t, err)
+				require.NoError(t, file.Close())
+				require.NoError(t, config.MergeFleetPolicy(file.Name()))
+			}
+			require.Equal(t, "ENC[new]", config.GetString("api_key"))
+			require.Equal(t, "ENC[new]", config.AllSettingsWithoutSecrets()["api_key"])
+			require.Equal(t, "ENC[new]", config.AllSettingsBySource()[source].(map[string]interface{})["api_key"])
+			config.Set("api_key", "resolved", model.SourceSecret)
+			require.Equal(t, "ENC[new]", config.AllSettingsWithoutSecrets()["api_key"])
+			// Bulk updates rebuild the effective config from the stored layers.
+			config.DirectBulkSet([]model.DirectSetting{{Key: "other", Value: "updated", Source: model.SourceAgentRuntime}}, false)
+			require.Equal(t, "resolved", config.GetString("api_key"))
+			config.UnsetForSource("api_key", model.SourceSecret)
+			require.Equal(t, "ENC[new]", config.GetString("api_key"))
+			require.Equal(t, "original", config.GetString("preserved"))
+		})
+	}
+}

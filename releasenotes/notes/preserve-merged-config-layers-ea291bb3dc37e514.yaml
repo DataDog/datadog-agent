@@ -1,0 +1,5 @@
+fixes:
+  - |
+    Preserve merged configuration files and fleet policies in their source layers.
+    Their values now remain available in configuration snapshots that exclude
+    resolved secrets and survive subsequent configuration layer rebuilds.

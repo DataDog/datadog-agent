@@ -1093,10 +1093,17 @@ func (c *ntmConfig) MergeConfig(in io.Reader) error {
 		return err
 	}
 
+	// Keep the source layer in sync with the effective config. Secret-free
+	// snapshots and subsequent layer rebuilds must include these values too.
+	mergedLayer, err := c.file.Merge(other)
+	if err != nil {
+		return err
+	}
 	merged, err := c.root.Merge(other)
 	if err != nil {
 		return err
 	}
+	c.file = mergedLayer
 	c.root = merged
 	return nil
 }
@@ -1133,10 +1140,17 @@ func (c *ntmConfig) MergeFleetPolicy(configPath string) error {
 		return err
 	}
 
+	// Keep the source layer in sync with the effective config. Secret-free
+	// snapshots and subsequent layer rebuilds must include these values too.
+	mergedLayer, err := c.fleetPolicies.Merge(other)
+	if err != nil {
+		return err
+	}
 	merged, err := c.root.Merge(other)
 	if err != nil {
 		return err
 	}
+	c.fleetPolicies = mergedLayer
 	c.root = merged
 	return nil
 }
