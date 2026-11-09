@@ -11,7 +11,10 @@ package(default_package_metadata = [":package_metadata"])
 package_metadata(
     name = "package_metadata",
     attributes = [":license"],
-    purl = purl_for_golang("github.com/DataDog/datadog-agent", subpath = "cmd/secret-generic-connector"),
+    purl = purl_for_golang(
+        "github.com/DataDog/datadog-agent",
+        subpath = "cmd/secret-generic-connector",
+    ),
 )
 
 license(
