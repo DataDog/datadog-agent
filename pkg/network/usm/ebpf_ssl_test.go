@@ -454,6 +454,11 @@ func TestSSLSockByCtxMultiThreadedLeak(t *testing.T) {
 	})
 	t.Cleanup(serverDone)
 
+	// Start the helper before the monitor. The container builds the helper first, and the linker
+	// maps libssl.so while it runs: if the monitor is already running, it tries to attach to the
+	// short-lived linker, fails, and then skips the same library when the helper loads it.
+	helper := startSSLThreadPoolHelperDocker(t, serverHost, serverPort)
+
 	monitor := setupUSMTLSMonitor(t, cfg, useExistingConsumer)
 	require.NotNil(t, monitor)
 
@@ -461,7 +466,8 @@ func TestSSLSockByCtxMultiThreadedLeak(t *testing.T) {
 	require.NoError(t, err, "Error getting %s map", sslSockByCtxMap)
 	require.True(t, mapExists, "%s map does not exist", sslSockByCtxMap)
 
-	pid, requests := runSSLThreadPoolHelperDocker(t, serverHost, serverPort)
+	pid := helper.pid
+	requests := helper.run(t)
 	require.Positive(t, requests, "the helper did not complete any request")
 
 	leftover := countSSLSockByCtxEntriesOfPID(t, sslSockMap, pid)
@@ -571,7 +577,39 @@ func countSSLSockByCtxEntriesOfPID(t *testing.T, m *ebpf.Map, pid int) int {
 // once its process is traced, and waits for it to close all its connections. It returns the
 // helper's (host) PID and the number of requests it completed. The helper stays alive until the
 // test ends.
-func runSSLThreadPoolHelperDocker(t *testing.T, host, port string) (int, int) {
+// sslThreadPoolHelper is a running ssl_threadpool helper, waiting for the start signal.
+type sslThreadPoolHelper struct {
+	pid    int
+	outDir string
+}
+
+// readInt reads an integer the helper wrote to its output directory.
+func (h sslThreadPoolHelper) readInt(name string) (int, error) {
+	data, err := os.ReadFile(filepath.Join(h.outDir, name))
+	if err != nil {
+		return 0, err
+	}
+	return strconv.Atoi(strings.TrimSpace(string(data)))
+}
+
+// run waits for the helper to be traced, lets it send its requests, and returns how many it sent.
+func (h sslThreadPoolHelper) run(t *testing.T) int {
+	t.Helper()
+	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, h.pid, utils.ManualTracingFallbackEnabled)
+	require.NoError(t, os.WriteFile(filepath.Join(h.outDir, "start"), nil, 0o644))
+
+	var requests int
+	require.Eventually(t, func() bool {
+		var err error
+		requests, err = h.readInt("requests")
+		return err == nil
+	}, time.Minute, 200*time.Millisecond, "the helper did not finish its requests")
+	return requests
+}
+
+// startSSLThreadPoolHelperDocker builds and starts the ssl_threadpool helper in a Docker container.
+// The helper writes its PID, then waits for the start signal before opening any connection.
+func startSSLThreadPoolHelperDocker(t *testing.T, host, port string) sslThreadPoolHelper {
 	t.Helper()
 
 	curDir, err := testutil.CurDir()
@@ -604,25 +642,10 @@ func runSSLThreadPoolHelperDocker(t *testing.T, host, port string) (int, int) {
 		filepath.Join(testDataDir, "docker-compose.yml"))
 	require.NoError(t, dockerutils.Run(t, dockerCfg), "failed to run ssl_threadpool docker container")
 
-	readInt := func(name string) (int, error) {
-		data, err := os.ReadFile(filepath.Join(outDir, name))
-		if err != nil {
-			return 0, err
-		}
-		return strconv.Atoi(strings.TrimSpace(string(data)))
-	}
-
-	pid, err := readInt("pid")
+	helper := sslThreadPoolHelper{outDir: outDir}
+	helper.pid, err = helper.readInt("pid")
 	require.NoError(t, err)
-	utils.WaitForProgramsToBeTraced(t, consts.USMModuleName, UsmTLSAttacherName, pid, utils.ManualTracingFallbackEnabled)
-	require.NoError(t, os.WriteFile(filepath.Join(outDir, "start"), nil, 0o644))
-
-	var requests int
-	require.Eventually(t, func() bool {
-		requests, err = readInt("requests")
-		return err == nil
-	}, time.Minute, 200*time.Millisecond, "the helper did not finish its requests")
-	return pid, requests
+	return helper
 }
 
 // runBioLeakHelperDocker runs the bio_leak helper in a Docker container.
