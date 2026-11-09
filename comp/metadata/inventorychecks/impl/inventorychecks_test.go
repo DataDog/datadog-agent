@@ -333,12 +333,21 @@ func TestExpvarExist(t *testing.T) {
 	assert.NotNil(t, expvar.Get("inventories"))
 }
 
-func TestFileSecretDeclarationsDistinguishFilesAndInstances(t *testing.T) {
+func TestFileSecretDeclarationsDistinguishFilesAndSections(t *testing.T) {
 	dir := t.TempDir()
 	files := []string{filepath.Join(dir, "http_check.d", "one.yaml"), filepath.Join(dir, "http_check.d", "two.yaml")}
 	require.NoError(t, os.MkdirAll(filepath.Dir(files[0]), 0700))
 	for _, file := range files {
-		require.NoError(t, os.WriteFile(file, []byte("init_config:\n  password: ENC[shared]\ninstances:\n- password: ENC[shared]\n- password: raw-value\n"), 0600))
+		require.NoError(t, os.WriteFile(file, []byte(`init_config:
+  password: ENC[shared]
+instances:
+- password: ENC[shared]
+- password: raw-value
+logs:
+- password: raw-log-value
+jmx_metrics:
+- password: ENC[shared]
+`), 0600))
 	}
 	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.Option[logagent.Component]{}, nil)
 	providers.ResetReader([]string{dir})
@@ -351,21 +360,23 @@ func TestFileSecretDeclarationsDistinguishFilesAndInstances(t *testing.T) {
 		encoded, err := json.Marshal(fields)
 		require.NoError(t, err)
 		assert.NotContains(t, string(encoded), "raw-value")
+		assert.NotContains(t, string(encoded), "raw-log-value")
+		type reference struct {
+			Path   string `json:"path"`
+			Kind   string `json:"kind"`
+			Handle string `json:"handle"`
+		}
 		var decoded struct {
-			Secrets []struct {
-				Path   string `json:"path"`
-				Kind   string `json:"kind"`
-				Handle string `json:"handle"`
-			} `json:"secrets"`
+			Secrets []reference `json:"secrets"`
 		}
 		require.NoError(t, json.Unmarshal(encoded, &decoded))
-		require.Len(t, decoded.Secrets, 3)
-		assert.Equal(t, "init_config.password", decoded.Secrets[0].Path)
-		assert.Equal(t, "shared", decoded.Secrets[0].Handle)
-		assert.Equal(t, "instances.0.password", decoded.Secrets[1].Path)
-		assert.Equal(t, "shared", decoded.Secrets[1].Handle)
-		assert.Equal(t, "instances.1.password", decoded.Secrets[2].Path)
-		assert.Equal(t, "raw", decoded.Secrets[2].Kind)
+		assert.ElementsMatch(t, []reference{
+			{"init_config.password", "enc", "shared"},
+			{"instances.0.password", "enc", "shared"},
+			{"instances.1.password", "raw", ""},
+			{"logs.0.password", "raw", ""},
+			{"jmx_metrics.0.password", "enc", "shared"},
+		}, decoded.Secrets)
 	}
 	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
 	payload = ic.getPayload(true).(*Payload)

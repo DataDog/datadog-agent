@@ -8,9 +8,6 @@ package agentconfiguration
 import (
 	_ "embed"
 	"encoding/json"
-	"fmt"
-	"strings"
-	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -30,160 +27,104 @@ var metadataConfigsJSON []byte
 //go:embed secret/fixtures/metadata-secrets.py
 var metadataBackendScript string
 
-type metadataSecretCase struct {
-	file string
-	path []any
+type metadataSecretReference struct {
+	Path   string `json:"path"`
+	Kind   string `json:"kind"`
+	Handle string `json:"handle,omitempty"`
 }
 
-var metadataSecretCases = []metadataSecretCase{
-	{"datadog.yaml", []any{"api_key"}},
-	{"datadog.yaml", []any{"apm_config", "debugger_api_key"}},
-	{"datadog.yaml", []any{"logs_config", "api_key"}},
-	{"system-probe.yaml", []any{"system_probe_config", "internal_profiling", "api_key"}},
-	{"security-agent.yaml", []any{"security_agent", "internal_profiling", "api_key"}},
-	{"conf.d/http_check.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/postgres.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/mysql.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/redisdb.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/rabbitmq.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/mongo.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/elastic.d/fa-secrets.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/openmetrics.d/fa-secrets.yaml", []any{"instances", 0, "headers", "Authorization"}},
-	{"conf.d/http_check.d/fa-secrets.yaml", []any{"instances", 1, "password"}},
-	{"conf.d/http_check.d/fa-secrets-second.yaml", []any{"instances", 0, "password"}},
-	{"conf.d/http_check.d/fa-secrets.yaml", []any{"init_config", "password"}},
-	{"datadog.yaml", []any{"additional_endpoints", "http://127.0.0.1:18081", 0}},
-	{"datadog.yaml", []any{"additional_endpoints", "http://127.0.0.1:18081", 1}},
-	{"datadog.yaml", []any{"snmp_traps", "community_strings", 0}},
-	{"datadog.yaml", []any{"snmp_traps", "community_strings", 1}},
-	{"application_monitoring.yaml", []any{"api_key"}},
-}
-
-// TestSecretMetadataFiles exercises file loading, the assembled metadata providers,
-// scrubbing and forwarding. Assertions use actual intake requests, not a CLI-built payload.
+// TestSecretMetadataFiles checks file loading, assembled metadata providers and
+// forwarding with mixed raw/ENC secrets. Unit tests cover the path combinations.
 func (v *secretLinuxRuntimeSuite) TestSecretMetadataFiles() {
-	// Restore the provisioner's normal config and remove unmanaged integration
-	// files so this method can be retried on the same host.
-	v.T().Cleanup(func() {
-		for _, integration := range []string{"http_check", "postgres", "mysql", "redisdb", "rabbitmq", "mongo", "elastic", "openmetrics"} {
-			_, err := v.Env().RemoteHost.Execute("sudo rm -f /etc/datadog-agent/conf.d/" + integration + ".d/fa-secrets.yaml /etc/datadog-agent/conf.d/" + integration + ".d/fa-secrets-second.yaml")
-			assert.NoError(v.T(), err)
-		}
-		_, err := v.Env().RemoteHost.Execute("sudo rm -f /etc/datadog-agent/application_monitoring.yaml")
-		assert.NoError(v.T(), err)
+	t := v.T()
+	const configDir = "/etc/datadog-agent/"
+	expected := map[string][]metadataSecretReference{
+		"datadog.yaml": {
+			{"api_key", "enc", "metadata_core"},
+			{"apm_config.debugger_api_key", "raw", ""},
+			{"logs_config.api_key", "raw", ""},
+			{"additional_endpoints.http://127.0.0.1:18081.0", "raw", ""},
+			{"additional_endpoints.http://127.0.0.1:18081.1", "enc", "metadata_core"},
+			{"snmp_traps.community_strings.0", "raw", ""},
+			{"snmp_traps.community_strings.1", "enc", "metadata_community"},
+		},
+		"system-probe.yaml":           {{"system_probe_config.internal_profiling.api_key", "raw", ""}},
+		"security-agent.yaml":         {{"security_agent.internal_profiling.api_key", "enc", "metadata_security"}},
+		"application_monitoring.yaml": {{"api_key", "raw", ""}},
+		"conf.d/http_check.d/fa-secrets.yaml": {
+			{"init_config.password", "enc", "metadata_http_shared"},
+			{"instances.0.password", "enc", "metadata_http_shared"},
+			{"instances.0.headers.Authorization", "raw", ""},
+			{"instances.1.password", "enc", "metadata_http_shared"},
+		},
+		"conf.d/http_check.d/fa-secrets-second.yaml": {{"instances.0.password", "enc", "metadata_http_shared"}},
+	}
+	// Restore provisioned configuration and remove unmanaged files for suite retries.
+	t.Cleanup(func() {
+		_, err := v.Env().RemoteHost.Execute("sudo rm -f /etc/datadog-agent/conf.d/http_check.d/fa-secrets.yaml /etc/datadog-agent/conf.d/http_check.d/fa-secrets-second.yaml /etc/datadog-agent/application_monitoring.yaml")
+		assert.NoError(t, err)
 		v.UpdateEnv(awshost.Provisioner())
 	})
-	for _, kind := range []string{"raw", "enc"} {
-		v.T().Run(kind, func(t *testing.T) {
-			var configs map[string]map[string]any
-			require.NoError(t, json.Unmarshal(metadataConfigsJSON, &configs))
-			values := map[string]string{}
-			plaintexts := make([]string, 0, len(metadataSecretCases))
-			for i, entry := range metadataSecretCases {
-				handle := metadataFixtureHandle(i, entry)
-				value := fmt.Sprintf("%032d", i+1)
-				if handle == "metadata_http_shared" {
-					value = fmt.Sprintf("%032d", 101)
-				}
-				plaintexts = append(plaintexts, value)
-				values[handle] = value
-				configured := value
-				if kind == "enc" {
-					configured = "ENC[" + handle + "]"
-				}
-				setMetadataFixtureValue(configs["/etc/datadog-agent/"+entry.file], entry.path, configured)
-			}
-			core := configs["/etc/datadog-agent/datadog.yaml"]
-			core["secret_backend_command"] = "/tmp/fa-metadata-secrets.py"
-			opts := []agentparams.Option{agentparams.WithSkipAPIKeyInConfig(), secretsutils.WithUnixSetupCustomScript("/tmp/fa-metadata-secrets.py", metadataBackendScript, false)}
-			valueJSON, err := json.Marshal(values)
-			require.NoError(t, err)
-			opts = append(opts, agentparams.WithFile("/tmp/fa-metadata-values.json", string(valueJSON), true))
-			for file, config := range configs {
-				encoded, err := yaml.Marshal(config)
-				require.NoError(t, err)
-				switch file {
-				case "/etc/datadog-agent/datadog.yaml":
-					opts = append(opts, agentparams.WithAgentConfig(string(encoded)))
-				case "/etc/datadog-agent/system-probe.yaml":
-					opts = append(opts, agentparams.WithSystemProbeConfig(string(encoded)))
-				case "/etc/datadog-agent/security-agent.yaml":
-					opts = append(opts, agentparams.WithSecurityAgentConfig(string(encoded)))
-				default:
-					opts = append(opts, agentparams.WithFile(file, string(encoded), true))
-				}
-			}
-			v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(opts...))))
-			require.NoError(t, v.Env().FakeIntake.Client().FlushServerAndResetAggregators())
-			require.EventuallyWithT(t, func(c *assert.CollectT) {
-				requests, err := v.Env().FakeIntake.Client().GetRawPayloads("/api/v1/metadata")
-				require.NoError(c, err)
-				seen := map[string]bool{}
-				for _, request := range requests {
-					data, err := aggregator.Inflate(request.Data, request.Encoding)
-					require.NoError(c, err)
-					var payload struct {
-						Files map[string]struct {
-							Secrets []struct {
-								Path   string `json:"path"`
-								Kind   string `json:"kind"`
-								Handle string `json:"handle"`
-							} `json:"secrets"`
-						} `json:"files_metadata"`
-					}
-					require.NoError(c, json.Unmarshal(data, &payload))
-					for _, value := range plaintexts {
-						assert.NotContains(c, string(data), value)
-					}
-					for i, entry := range metadataSecretCases {
-						segments := make([]string, len(entry.path))
-						for i, segment := range entry.path {
-							segments[i] = fmt.Sprint(segment)
-						}
-						expectedPath := strings.Join(segments, ".")
-						for _, secret := range payload.Files["/etc/datadog-agent/"+entry.file].Secrets {
-							if secret.Path == expectedPath && secret.Kind == kind {
-								if kind == "enc" {
-									assert.Equal(c, metadataFixtureHandle(i, entry), secret.Handle)
-								}
-								seen[entry.file+":"+expectedPath] = true
-							}
-						}
-					}
-				}
-				assert.Len(c, seen, len(metadataSecretCases), "not all file-secret declarations reached intake")
-			}, 2*time.Minute, 5*time.Second)
-		})
-	}
-}
 
-// Reuse one handle across sections, instances and files to catch accidental deduplication.
-func metadataFixtureHandle(index int, entry metadataSecretCase) string {
-	if strings.HasPrefix(entry.file, "conf.d/http_check.d/") {
-		return "metadata_http_shared"
+	var configs map[string]map[string]any
+	require.NoError(t, json.Unmarshal(metadataConfigsJSON, &configs))
+	values := map[string]string{
+		"metadata_core":        "0123456789abcdef0123456789abcdef",
+		"metadata_security":    "fedcba9876543210fedcba9876543210",
+		"metadata_http_shared": "fixture-resolved-http-secret",
+		"metadata_community":   "fixture-resolved-community-secret",
 	}
-	return fmt.Sprintf("metadata_%d", index)
-}
-
-func setMetadataFixtureValue(config map[string]any, path []any, value string) {
-	var current any = config
-	for i, segment := range path {
-		switch node := current.(type) {
-		case map[string]any:
-			key := segment.(string)
-			if i == len(path)-1 {
-				node[key] = value
-				return
-			}
-			current = node[key]
-		case []any:
-			index := segment.(int)
-			if i == len(path)-1 {
-				node[index] = value
-				return
-			}
-			current = node[index]
+	// Non-hex raw values exercise key-based scrubbing, not just API-key detection.
+	plaintexts := []string{"fixture-raw-secret-value"}
+	for _, value := range values {
+		plaintexts = append(plaintexts, value)
+	}
+	valueJSON, err := json.Marshal(values)
+	require.NoError(t, err)
+	opts := []agentparams.Option{
+		agentparams.WithSkipAPIKeyInConfig(),
+		secretsutils.WithUnixSetupCustomScript("/tmp/fa-metadata-secrets.py", metadataBackendScript, false),
+		agentparams.WithFile("/tmp/fa-metadata-values.json", string(valueJSON), true),
+	}
+	for file, config := range configs {
+		encoded, err := yaml.Marshal(config)
+		require.NoError(t, err)
+		switch file {
+		case configDir + "datadog.yaml":
+			opts = append(opts, agentparams.WithAgentConfig(string(encoded)))
+		case configDir + "system-probe.yaml":
+			opts = append(opts, agentparams.WithSystemProbeConfig(string(encoded)))
+		case configDir + "security-agent.yaml":
+			opts = append(opts, agentparams.WithSecurityAgentConfig(string(encoded)))
+		default:
+			opts = append(opts, agentparams.WithFile(file, string(encoded), true))
 		}
 	}
-	panic("invalid fixture path: " + fmt.Sprint(path))
+	v.UpdateEnv(awshost.Provisioner(awshost.WithRunOptions(scenec2.WithAgentOptions(opts...))))
+	require.NoError(t, v.Env().FakeIntake.Client().FlushServerAndResetAggregators())
+	v.EventuallyWithT(func(c *assert.CollectT) {
+		requests, err := v.Env().FakeIntake.Client().GetRawPayloads("/api/v1/metadata")
+		require.NoError(c, err)
+		seen := map[string]bool{}
+		for _, request := range requests {
+			data, err := aggregator.Inflate(request.Data, request.Encoding)
+			require.NoError(c, err)
+			var payload struct {
+				Files map[string]struct {
+					Secrets []metadataSecretReference `json:"secrets"`
+				} `json:"files_metadata"`
+			}
+			require.NoError(c, json.Unmarshal(data, &payload))
+			for _, value := range plaintexts {
+				assert.NotContains(c, string(data), value)
+			}
+			for file, references := range expected {
+				if metadata, found := payload.Files[configDir+file]; found {
+					assert.ElementsMatch(c, references, metadata.Secrets, "secret references in %s", file)
+					seen[file] = true
+				}
+			}
+		}
+		assert.Len(c, seen, len(expected), "not all configuration files reached intake")
+	}, 2*time.Minute, 5*time.Second)
 }

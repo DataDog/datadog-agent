@@ -13,7 +13,7 @@ import (
 )
 
 // ConfigSecret describes a secret declaration in a configuration file, never its value.
-// Path is relative to the file, using the dotted notation of enc_info.
+// Path is relative to the file, using dotted notation.
 // Sequence indexes are path segments, for example instances.0.password.
 type ConfigSecret struct {
 	Path   string `json:"path"`
@@ -70,7 +70,7 @@ func (c *Scrubber) configSecrets(original, cleaned *yaml.Node, path string, out 
 			// A URL used as a map key can itself contain credentials. Do not
 			// bypass scrubbing by copying it into the metadata path.
 			safeKey := c.scrubYamlText(key)
-			c.configSecrets(original.Content[i+1], children[safeKey], joinPath(path, safeKey), out)
+			c.configSecrets(original.Content[i+1], children[safeKey], configSecretPath(path, safeKey), out)
 		}
 	case yaml.SequenceNode:
 		for i, child := range original.Content {
@@ -78,7 +78,7 @@ func (c *Scrubber) configSecrets(original, cleaned *yaml.Node, path string, out 
 			if cleaned != nil && cleaned.Kind == yaml.SequenceNode && i < len(cleaned.Content) {
 				scrubbedChild = cleaned.Content[i]
 			}
-			c.configSecrets(child, scrubbedChild, joinPath(path, strconv.Itoa(i)), out)
+			c.configSecrets(child, scrubbedChild, configSecretPath(path, strconv.Itoa(i)), out)
 		}
 	case yaml.ScalarNode:
 		if original.Tag == "!!str" && IsEnc(original.Value) {
@@ -93,4 +93,11 @@ func (c *Scrubber) configSecrets(original, cleaned *yaml.Node, path string, out 
 			*out = append(*out, ConfigSecret{Path: path, Kind: "raw"})
 		}
 	}
+}
+
+func configSecretPath(prefix, element string) string {
+	if prefix == "" {
+		return element
+	}
+	return prefix + "." + element
 }
