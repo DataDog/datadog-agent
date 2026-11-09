@@ -52,7 +52,7 @@ emit_metadata() {
         echo "skip metadata ${key}: unsupported characters" >&2
         return 0
     fi
-    printf 'build --build_metadata=%s=%s\n' "${key}" "${value}"
+    echo "build --build_metadata=${key}=${value}"
 }
 
 metadata() {
