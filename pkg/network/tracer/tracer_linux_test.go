@@ -2828,6 +2828,22 @@ func (s *TracerSuite) TestTCPOngoingConnectPidCleanedOnClose() {
 		require.NoError(t, c.Close())
 	}
 
+	// connect(AF_UNSPEC) disconnects the socket, clearing the tuple before tcp_close
+	srvIP := srv.Addr().(*net.TCPAddr).IP.To4()
+	require.NotNil(t, srvIP)
+	for range 10 {
+		fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
+		require.NoError(t, err)
+		sa := &unix.SockaddrInet4{Port: int(srvPort)}
+		copy(sa.Addr[:], srvIP)
+		require.NoError(t, unix.Connect(fd, sa))
+		unspec := unix.RawSockaddrAny{}
+		unspec.Addr.Family = unix.AF_UNSPEC
+		_, _, errno := unix.Syscall(unix.SYS_CONNECT, uintptr(fd), uintptr(unsafe.Pointer(&unspec)), unix.SizeofSockaddrAny)
+		require.Zero(t, errno)
+		require.NoError(t, unix.Close(fd))
+	}
+
 	require.EventuallyWithT(t, func(collect *assert.CollectT) {
 		var key netebpf.SkpConn
 		var val netebpf.PidTs

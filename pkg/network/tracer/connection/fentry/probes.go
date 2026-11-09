@@ -47,6 +47,8 @@ const (
 
 	// tcpDone traces the tcp_done() kernel function for failed connection tracking
 	tcpDone = "tcp_done"
+	// tcpDisconnect traces the tcp_disconnect() kernel function
+	tcpDisconnect = "tcp_disconnect"
 
 	// tcpReadSockReturn traces the return of tcp_read_sock() — only fexit is needed
 	tcpReadSockReturn = "tcp_read_sock_exit"
@@ -131,6 +133,7 @@ var programs = map[string]struct{}{
 	tcpSendMsgReturn:           {},
 	tcpSendPageReturn:          {},
 	tcpDone:                    {},
+	tcpDisconnect:              {},
 	tcpReadSockReturn:          {},
 	udpDestroySock:             {},
 	udpRecvMsg:                 {},
@@ -245,6 +248,7 @@ func enabledPrograms(c *config.Config, isClassificationSupported bool) (map[stri
 		enableProgram(enabled, tcpEnterRecovery)
 		enableProgram(enabled, tcpSendProbe0)
 		enableProgram(enabled, tcpDone)
+		enableProgram(enabled, tcpDisconnect)
 		enableProgram(enabled, tcpReadSockReturn)
 
 		if hasSendPage {

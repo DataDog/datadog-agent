@@ -267,6 +267,19 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     return 0;
 }
 
+// tcp_disconnect zeroes the destination port and source address, so the
+// tuple read at tcp_close no longer matches the entry. Delete it here instead.
+SEC("kprobe/tcp_disconnect")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_disconnect, struct sock *sk) {
+    conn_tuple_t t = {};
+    if (!read_conn_tuple(&t, sk, 0, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+    return 0;
+}
+
 SEC("kretprobe/tcp_close")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_close_clean_protocols) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
