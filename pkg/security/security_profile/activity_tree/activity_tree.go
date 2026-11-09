@@ -460,6 +460,49 @@ func InsertionErrorType(err error) string {
 	}
 }
 
+// Event error type labels used to tag the events-with-error metric.
+// Keep this list bounded to avoid metric tag cardinality explosion.
+const (
+	EventErrorBrokenLineage             = "broken_lineage"
+	EventErrorNoProcessContext          = "no_process_context"
+	EventErrorPathResolution            = "path_resolution"
+	EventErrorPathResolutionNotCritical = "path_resolution_not_critical"
+	EventErrorDNSDecoding               = "dns_decoding"
+	EventErrorOther                     = "other"
+)
+
+// EventErrorTypes is the exhaustive list of labels EventErrorType can return.
+var EventErrorTypes = []string{
+	EventErrorBrokenLineage,
+	EventErrorNoProcessContext,
+	EventErrorPathResolution,
+	EventErrorPathResolutionNotCritical,
+	EventErrorDNSDecoding,
+	EventErrorOther,
+}
+
+// EventErrorType categorizes the error carried by an event (model.Event.Error) into one of the
+// bounded EventErrorTypes labels.
+func EventErrorType(err error) string {
+	var brokenLineageErr *model.ErrProcessBrokenLineage
+	var pathResolutionErr *path.ErrPathResolution
+	var pathResolutionNotCriticalErr *path.ErrPathResolutionNotCritical
+	switch {
+	case errors.As(err, &brokenLineageErr):
+		return EventErrorBrokenLineage
+	case errors.Is(err, model.ErrNoProcessContext):
+		return EventErrorNoProcessContext
+	case errors.As(err, &pathResolutionErr):
+		return EventErrorPathResolution
+	case errors.As(err, &pathResolutionNotCriticalErr):
+		return EventErrorPathResolutionNotCritical
+	case errors.Is(err, model.ErrFailedDNSPacketDecoding):
+		return EventErrorDNSDecoding
+	default:
+		return EventErrorOther
+	}
+}
+
 // isEventValid evaluates if the provided event is valid
 func (at *ActivityTree) isEventValid(event *model.Event, dryRun bool) (bool, error) {
 	// check event type

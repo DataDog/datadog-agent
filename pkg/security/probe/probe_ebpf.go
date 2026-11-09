@@ -1336,7 +1336,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 			// Process event after evaluation because some monitors need the DentryResolver to have been called first.
 			p.profileManager.ProcessEvent(event)
 		}
-	} else if event.Error == nil {
+	} else {
 		p.profileManager.ProcessEvent(event)
 	}
 
