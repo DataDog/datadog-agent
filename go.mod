@@ -369,7 +369,7 @@ require (
 	github.com/prometheus-community/pro-bing v0.9.1
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.72.1
+	github.com/prometheus/common v0.73.0
 	github.com/prometheus/procfs v0.23.0
 	github.com/qri-io/jsonpointer v0.1.1
 	github.com/rabbitmq/amqp091-go v1.16.0
@@ -882,6 +882,7 @@ require (
 	github.com/ovh/go-ovh v1.9.0 // indirect
 	github.com/oxtoacart/bpool v0.0.0-20190530202638-03653db5a59c // indirect
 	github.com/package-url/packageurl-go v0.1.3 // indirect
+	github.com/pandatix/go-abnf v0.5.1 // indirect
 	github.com/pandatix/go-cvss v0.6.2 // indirect
 	github.com/pb33f/jsonpath v0.8.2 // indirect
 	github.com/pb33f/libopenapi v0.38.7 // indirect
