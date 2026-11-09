@@ -57,13 +57,14 @@ def _plugin(mctx, package, version, plugins, facts):
     filename = "pulumi-{}-{}-{}.tar.gz".format(name, repo_utils.os(mctx), repo_utils.arch(mctx))
     http_archive(
         name = name,
-        build_file_content = """load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
+        add_prefix = name,  # as Pulumi's plugin directory lays it out, which `GetPluginsFromDir` reads
+        build_file_content = """load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files", "strip_prefix")
 
 pkg_files(
     name = "{name}",
-    srcs = ["pulumi-resource-{res}{ext}"],
+    srcs = ["{name}/pulumi-resource-{res}{ext}"],
     attributes = pkg_attributes(mode = "0755"),
-    prefix = "{name}",
+    strip_prefix = strip_prefix.from_pkg(),
     visibility = ["//visibility:public"],
 )
 """.format(ext = ".exe" if repo_utils.is_windows(mctx) else "", name = name, res = package["name"]),
@@ -79,14 +80,22 @@ pkg_files(
 def _hub_impl(rctx):
     rctx.file("BUILD.bazel", """load("@rules_pkg//pkg:install.bzl", "pkg_install")
 
-pkg_install(
-    name = "install",
+filegroup(
+    name = "plugins",
     srcs = [
-        "{}",
+        "{plugins}",
     ],
     visibility = ["//visibility:public"],
 )
-""".format('",\n        "'.join(rctx.attr.plugins)))
+
+pkg_install(
+    name = "install",
+    srcs = [
+        "{plugins}",
+    ],
+    visibility = ["//visibility:public"],
+)
+""".format(plugins = '",\n        "'.join(rctx.attr.plugins)))
 
 _hub = repository_rule(implementation = _hub_impl, attrs = {"plugins": attr.string_list(mandatory = True)})
 
