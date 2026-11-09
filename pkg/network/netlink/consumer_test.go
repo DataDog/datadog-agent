@@ -21,6 +21,14 @@ import (
 	nettestutil "github.com/DataDog/datadog-agent/pkg/network/testutil"
 )
 
+// getSamplingRate returns the sampling rate of the current streaming socket, which the
+// receive goroutine changes when the circuit breaker trips
+func (c *Consumer) getSamplingRate() float64 {
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+	return c.samplingRate
+}
+
 func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 	ns := testutil.SetupCrossNsDNAT(t)
 	cfg := &config.Config{
@@ -83,7 +91,7 @@ func TestConsumerKeepsRunningAfterCircuitBreakerTrip(t *testing.T) {
 		}, 2*time.Second, 100*time.Millisecond)
 	} else {
 		require.EventuallyWithT(t, func(collect *assert.CollectT) {
-			assert.Lessf(collect, c.samplingRate, 1.0, "sampling rate should be less than 1.0")
+			assert.Lessf(collect, c.getSamplingRate(), 1.0, "sampling rate should be less than 1.0")
 		}, 2*time.Second, 100*time.Millisecond)
 		require.True(t, isRecvLoopRunning())
 	}
