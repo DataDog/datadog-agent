@@ -12,6 +12,7 @@ import (
 	"time"
 
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthimpl "github.com/DataDog/datadog-agent/comp/core/delegatedauth/impl"
 	rcx509client "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/def"
@@ -51,6 +52,10 @@ func TestAWSRCSecretsPOCSmoke(t *testing.T) {
 		TargetSite: "datad0g.com", RefreshInterval: 60,
 		ProviderConfig: &cloudauthconfig.AWSProviderConfig{Region: region},
 	}))
+	// Show the exchange client's sanitized error before the preparation handler
+	// deliberately reduces identity failures to a protocol status.
+	_, exchangeErr := auth.GetWorkloadToken(ctx, "api_key", common.WorkloadTokenRequest{Grants: []string{"rc_secrets"}})
+	require.NoError(t, exchangeErr)
 	deps.DelegatedAuth = auth
 	component := New(deps).Comp
 	require.NotNil(t, config.PrepareSecretDelivery)

@@ -9,6 +9,7 @@ package rcx509clientimpl
 
 import (
 	"fmt"
+	"os"
 
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	rcx509client "github.com/DataDog/datadog-agent/comp/remote-config/rcx509client/def"
@@ -22,6 +23,13 @@ const debugServicePingURI = "rc.x509.magic_tunnel.remote_config.v1.DebugService/
 // behavior without initializing the native x509 subsystem.
 func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 	return func(config rcx509client.ClientConfig) (rcx509client.Client, error) {
+		// The local POC needs the verified connection ID from native handshake
+		// logging. Its runbook enables only that logger, never payload logging.
+		if config.DeliverPOCSecret != nil {
+			if err := rcx509.EnableLogSink(os.Stderr); err != nil {
+				return nil, fmt.Errorf("enable POC connection logging: %w", err)
+			}
+		}
 		client, err := rcx509.NewClient(
 			config.URL,
 			config.AppName,
