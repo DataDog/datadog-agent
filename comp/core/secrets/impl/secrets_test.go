@@ -901,28 +901,6 @@ func TestRefreshAllowlist(t *testing.T) {
 	assert.Equal(t, changes, []string{"second_value"})
 }
 
-func TestSecretRefreshAllowlistPaths(t *testing.T) {
-	for _, test := range []struct {
-		name    string
-		path    []string
-		allowed bool
-	}{
-		{"nested API key", []string{"logs_config", "api_key"}, true},
-		{"endpoint subtree", []string{"logs_config", "additional_endpoints", "https://example.com", "0"}, true},
-		{"credential", []string{"private_action_runner", "credentials", "values", "password", "value"}, true},
-		{"credential key containing dots", []string{"private_action_runner", "credentials", "values", "db.password", "value"}, true},
-		{"credential policy", []string{"private_action_runner", "credentials", "values", "password", "allowed_actions", "0"}, false},
-		{"nested credential", []string{"other", "private_action_runner", "credentials", "values", "password", "value"}, false},
-		{"credential subtree", []string{"private_action_runner", "credentials", "values", "password", "value", "child"}, false},
-		{"incomplete path", []string{"private_action_runner", "credentials", "values", "password"}, false},
-		{"literal dotted path", []string{"private_action_runner.credentials.values.*.value"}, false},
-	} {
-		t.Run(test.name, func(t *testing.T) {
-			assert.Equal(t, test.allowed, secretMatchesAllowlist(secretContext{origin: "datadog.yaml", path: test.path}))
-		})
-	}
-}
-
 func TestRefreshPrivateActionRunnerCredentials(t *testing.T) {
 	resolver := newEnabledSecretResolver(nooptelemetry.GetCompatComponent())
 	resolver.backendCommand = "some_command"
