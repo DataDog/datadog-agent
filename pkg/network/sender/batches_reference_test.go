@@ -7,23 +7,26 @@
 
 package sender
 
-// Reference copy of the streaming-writer batch encoder, used to prove that
-// bulk compression with a reused context leaves the decompressed payload
-// unchanged.
+// Reference copy of the batch encoder without the tag cache and with a
+// streaming zstd writer per chunk, used to prove that neither optimization
+// changes the decompressed payload.
 
 import (
 	"bytes"
 	"io"
 	"iter"
+	"maps"
 	"slices"
 	"strconv"
 
 	model "github.com/DataDog/agent-payload/v5/process"
+	"go4.org/intern"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/network/encoding/marshal"
 	"github.com/DataDog/datadog-agent/pkg/network/indexedset"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
@@ -52,15 +55,7 @@ func (d *directSender) batchesReference(conns *network.Connections, groupID int3
 	}
 
 	// Build remote service resolver for intra-host connection enrichment.
-	for _, c := range conns.Conns {
-		// USM supports TCP only; skip UDP connections.
-		if c.IntraHost && c.Pid > 0 && c.SPort > 0 && c.Type == network.TCP {
-			key := listenKey{IP: c.Source.Addr, Port: int32(c.SPort)}
-			if _, exists := listeners[key]; !exists {
-				listeners[key] = int32(c.Pid)
-			}
-		}
-	}
+	addConnectionListeners(listeners, conns.Conns)
 	remoteServiceResolver := &serviceResolver{
 		GetServiceContext: func(pid int32) []string {
 			if dsc := directSenderConsumerInstance.Load(); dsc != nil {
@@ -136,9 +131,9 @@ func (d *directSender) batchesReference(conns *network.Connections, groupID int3
 			for _, nc := range connsChunk {
 				builder.AddConnections(func(builder *model.ConnectionBuilder) {
 					d.encodeConnection(builder, nc, conns, routeSet, resolvConfSet)
-					d.addContainerTags(builder, nc.ContainerID.Source, tagsEncoder)
+					d.addContainerTagsReference(builder, nc.ContainerID.Source, tagsEncoder)
 					d.addRemoteServiceTags(builder, nc, remoteServiceResolver, tagsEncoder)
-					d.addTags(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)
+					d.addTagsReference(builder, nc, tagsSet, usmEncoders, connectionsTagsEncoder)
 					d.addDNS(builder, nc, dnsSet, indexToOffset)
 				})
 			}
@@ -166,5 +161,68 @@ func (d *directSender) batchesReference(conns *network.Connections, groupID int3
 			}
 			messageIndex++
 		}
+	}
+}
+
+func (d *directSender) addContainerTagsReference(builder *model.ConnectionBuilder, sourceContainerID *intern.Value, tagsEncoder model.TagEncoder) {
+	if sourceContainerID != nil {
+		if d.resolver.shouldTagContainer(sourceContainerID) {
+			if cid := getInternedString(sourceContainerID); cid != "" {
+				if entityTags, err := d.tagger.Tag(types.NewEntityID(types.ContainerID, cid), types.HighCardinality); err != nil {
+					if log.ShouldLog(log.DebugLvl) {
+						log.Debugf("error getting tags for container %s: %v", cid, err)
+					}
+				} else if len(entityTags) > 0 {
+					builder.SetLocalContainerTagsIndex(int32(tagsEncoder.Encode(entityTags)))
+					return
+				}
+			}
+		}
+	}
+	builder.SetLocalContainerTagsIndex(-1)
+}
+
+func (d *directSender) addTagsReference(builder *model.ConnectionBuilder, nc network.ConnectionStats, tagsSet *indexedset.IndexedSet[string], usmEncoders []marshal.USMEncoder, connectionsTagsEncoder model.TagEncoder) {
+	var staticTags uint64
+	dynamicTags := nc.TLSTags.GetDynamicTags()
+	for _, encoder := range usmEncoders {
+		encoderStaticTags, encoderDynamicTags := encoder.EncodeConnection(nc, builder)
+		staticTags |= encoderStaticTags
+		if dynamicTags == nil {
+			dynamicTags = make(map[string]struct{})
+		}
+		maps.Copy(dynamicTags, encoderDynamicTags)
+	}
+
+	nc.StaticTags |= staticTags
+	tagIndexes, tagChecksum := formatTags(nc, tagsSet, dynamicTags)
+	builder.SetTagsChecksum(tagChecksum)
+
+	tagsStr := tagsSet.Subset(tagIndexes)
+	if nc.Pid > 0 {
+		reattributed := nc.NetNSOriginalContainerID != nil
+		var serviceTags []string
+		if dsc := directSenderConsumerInstance.Load(); dsc != nil {
+			if !reattributed {
+				serviceTags = dsc.extractor.GetServiceContext(int32(nc.Pid))
+			}
+			if processName := dsc.processNameExtractor.GetProcessName(int32(nc.Pid)); processName != "" {
+				tagsStr = append(tagsStr, "process_name:"+processName)
+			}
+		}
+		tagsStr = append(tagsStr, serviceTags...)
+		if !reattributed {
+			processEntityID := types.NewEntityID(types.Process, strconv.Itoa(int(nc.Pid)))
+			if processTags, err := d.tagger.Tag(processEntityID, types.HighCardinality); err != nil {
+				log.Debugf("error getting tags for process %v: %v", nc.Pid, err)
+			} else {
+				tagsStr = append(tagsStr, processTags...)
+			}
+		}
+	}
+	if len(tagsStr) > 0 {
+		builder.SetTagsIdx(int32(connectionsTagsEncoder.Encode(tagsStr)))
+	} else {
+		builder.SetTagsIdx(-1)
 	}
 }

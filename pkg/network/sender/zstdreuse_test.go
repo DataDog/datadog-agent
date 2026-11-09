@@ -72,22 +72,8 @@ func cloneConns(c *network.Connections) *network.Connections {
 	return &out
 }
 
-func collectBodies(seq func(func([]byte) bool)) [][]byte {
-	var out [][]byte
-	for p := range seq {
-		out = append(out, bytes.Clone(p))
-	}
-	return out
-}
-
-// decodeBody decodes a payload with the active zstd backend. model.DecodeMessage
-// cannot be used here because it rejects these payloads in no-cgo builds.
-func decodeBody(t *testing.T, d *directSender, payload []byte) *model.CollectorConnections {
-	raw, err := zstd.Decompress(nil, payload[len(d.staticEncodedHeader):])
-	require.NoError(t, err)
-	var cc model.CollectorConnections
-	require.NoError(t, cc.Unmarshal(raw))
-	return &cc
+func decodeBody(t *testing.T, payload []byte) *model.CollectorConnections {
+	return decodeChunks(t, [][]byte{payload})[0]
 }
 
 func TestBulkCompressionMatchesStreaming(t *testing.T) {
@@ -111,39 +97,33 @@ func TestBulkCompressionMatchesStreaming(t *testing.T) {
 				d, fc, _ := f.setup(t, maxConns)
 				base := decorate(fc)
 
-				want := collectBodies(d.batchesReference(cloneConns(base), 1))
-				again := collectBodies(d.batchesReference(cloneConns(base), 1))
-				got := collectBodies(d.batches(cloneConns(base), 1))
+				want := collectPayloads(d.batchesReference(cloneConns(base), 1))
+				again := collectPayloads(d.batchesReference(cloneConns(base), 1))
+				got := collectPayloads(d.batches(cloneConns(base), 1))
 
-				hdrLen := len(d.staticEncodedHeader)
-				require.Len(t, got, len(want))
-				for i := range want {
-					require.Equal(t, want[i][:hdrLen], got[i][:hdrLen], "header %d", i)
+				// The fixture must encode deterministically for the comparison to mean anything.
+				requireSamePayloads(t, want, again)
+				requireSamePayloads(t, want, got)
 
-					wantRaw, err := zstd.Decompress(nil, want[i][hdrLen:])
+				for i := range got {
+					_, wantRaw := splitPayload(t, want[i])
+					_, off, err := model.ReadHeader(got[i])
 					require.NoError(t, err)
-					againRaw, err := zstd.Decompress(nil, again[i][hdrLen:])
-					require.NoError(t, err)
-					// The fixture must encode deterministically for the comparison to mean anything.
-					require.True(t, bytes.Equal(wantRaw, againRaw), "reference is not deterministic, payload %d", i)
-
-					gotRaw, err := zstd.Decompress(nil, got[i][hdrLen:])
-					require.NoError(t, err)
-					require.Truef(t, bytes.Equal(wantRaw, gotRaw), "decompressed payload %d differs", i)
+					frame := got[i][off:]
 
 					// The pure-Go decoder reads every concatenated frame, so equality
 					// here also rules out trailing frames.
-					kRaw, err := kdec.DecodeAll(got[i][hdrLen:], nil)
+					kRaw, err := kdec.DecodeAll(frame, nil)
 					require.NoError(t, err)
 					require.Truef(t, bytes.Equal(wantRaw, kRaw), "pure-Go decode of payload %d differs", i)
 
 					var fh kzstd.Header
-					require.NoError(t, fh.Decode(got[i][hdrLen:]))
+					require.NoError(t, fh.Decode(frame))
 					if fh.HasFCS {
 						require.Equal(t, uint64(len(wantRaw)), fh.FrameContentSize, "first frame must hold the whole payload")
 					}
 
-					require.NotEmpty(t, decodeBody(t, d, got[i]).Connections)
+					require.NotEmpty(t, decodeBody(t, got[i]).Connections)
 				}
 			})
 		}
@@ -167,7 +147,7 @@ func TestBulkCompressionPayloadsDoNotAlias(t *testing.T) {
 	require.Len(t, kept, 10)
 	for i := range kept {
 		require.Truef(t, bytes.Equal(snapshots[i], kept[i]), "payload %d was overwritten", i)
-		require.Len(t, decodeBody(t, d, kept[i]).Connections, 600)
+		require.Len(t, decodeBody(t, kept[i]).Connections, 600)
 	}
 }
 
@@ -186,15 +166,15 @@ func TestBulkCompressionErrorDropsChunkAndResetsContext(t *testing.T) {
 	// The first chunk fails and is dropped; the context is replaced before the second.
 	failing := &failingCtx{}
 	d.zctx = failing
-	got := collectBodies(d.batches(cloneConns(base), 1))
+	got := collectPayloads(d.batches(cloneConns(base), 1))
 	assert.Equal(t, 1, failing.calls)
 	require.Len(t, got, 1)
 	require.NotNil(t, d.zctx)
 	assert.NotSame(t, failing, d.zctx)
 
-	assert.Len(t, decodeBody(t, d, got[0]).Connections, 600)
+	assert.Len(t, decodeBody(t, got[0]).Connections, 600)
 
-	got = collectBodies(d.batches(cloneConns(base), 1))
+	got = collectPayloads(d.batches(cloneConns(base), 1))
 	require.Len(t, got, 2)
 }
 
