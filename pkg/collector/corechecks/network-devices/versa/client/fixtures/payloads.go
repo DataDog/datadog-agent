@@ -1283,3 +1283,686 @@ const GetCircuitQoSMetrics = `
         ]
     ]
 }`
+
+// GetCircuitQoSMetricsTimeseries /versa/analytics/v1.0.0/data/provider/tenants/datadog/features/SDWAN
+// with qt=timeseries. Versa reports percentdrop as zero in every timeseries bucket, even
+// where totaldrop is non-zero, which is reproduced here.
+const GetCircuitQoSMetricsTimeseries = `
+{
+    "qTime": 2,
+    "data": [
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "betx",
+            "metricName": "betx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    2000.0
+                ],
+                [
+                    1793968200000,
+                    1000.0
+                ],
+                [
+                    1793969100000,
+                    500.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "betxdrop",
+            "metricName": "betxdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "eftx",
+            "metricName": "eftx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "eftxdrop",
+            "metricName": "eftxdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "aftx",
+            "metricName": "aftx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "aftxdrop",
+            "metricName": "aftxdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "nctx",
+            "metricName": "nctx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "nctxdrop",
+            "metricName": "nctxdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "bebandwidth",
+            "metricName": "bebandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "efbandwidth",
+            "metricName": "efbandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "afbandwidth",
+            "metricName": "afbandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "ncbandwidth",
+            "metricName": "ncbandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "volume-tx",
+            "metricName": "volume-tx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    2000.0
+                ],
+                [
+                    1793968200000,
+                    1000.0
+                ],
+                [
+                    1793969100000,
+                    500.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "totaldrop",
+            "metricName": "totaldrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    10.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    5.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "percentdrop",
+            "metricName": "percentdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-2B,INET-1",
+            "type": "data",
+            "metric": "bandwidth",
+            "metricName": "bandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "betx",
+            "metricName": "betx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "betxdrop",
+            "metricName": "betxdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "eftx",
+            "metricName": "eftx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "eftxdrop",
+            "metricName": "eftxdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "aftx",
+            "metricName": "aftx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "aftxdrop",
+            "metricName": "aftxdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "nctx",
+            "metricName": "nctx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "nctxdrop",
+            "metricName": "nctxdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "bebandwidth",
+            "metricName": "bebandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "efbandwidth",
+            "metricName": "efbandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "afbandwidth",
+            "metricName": "afbandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "ncbandwidth",
+            "metricName": "ncbandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "volume-tx",
+            "metricName": "volume-tx",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "totaldrop",
+            "metricName": "totaldrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "percentdrop",
+            "metricName": "percentdrop",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        },
+        {
+            "name": "test-branch-3A,MPLS-1",
+            "type": "data",
+            "metric": "bandwidth",
+            "metricName": "bandwidth",
+            "label": "Bytes",
+            "data": [
+                [
+                    1793967300000,
+                    0.0
+                ],
+                [
+                    1793968200000,
+                    0.0
+                ],
+                [
+                    1793969100000,
+                    0.0
+                ]
+            ]
+        }
+    ]
+}
+`

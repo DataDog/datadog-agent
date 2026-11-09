@@ -1198,3 +1198,50 @@ func TestGetCircuitQoSMetrics(t *testing.T) {
 		},
 	}, circuitQoSMetrics)
 }
+
+// Versa reports percentdrop as zero in every timeseries bucket, so the client computes it
+// as totaldrop/volume-tx, the fraction tableData reports, and leaves it unset where no
+// volume was transmitted.
+func TestGetCircuitQoSMetricsTimeseriesComputesPercentDrop(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+	client.directorEndpoint = server.URL
+	WithAnalyticsQueryType(QueryTypeTimeseries)(client)
+
+	metrics, err := client.GetCircuitQoSMetrics("datadog")
+	require.NoError(t, err)
+
+	// Two circuits, three buckets each, of which the newest is held back as still filling.
+	require.Len(t, metrics, 4)
+
+	assert.Equal(t, "test-branch-2B,INET-1", metrics[0].DrillKey)
+	assert.Equal(t, 0.005, metrics[0].PercentDrop)
+	assert.False(t, metrics[0].PercentDropUnset)
+	// No drops is a real 0, not an unset value.
+	assert.Equal(t, 0.0, metrics[1].PercentDrop)
+	assert.False(t, metrics[1].PercentDropUnset)
+
+	for _, m := range metrics[2:] {
+		assert.Equal(t, "test-branch-3A,MPLS-1", m.DrillKey)
+		assert.True(t, m.PercentDropUnset)
+	}
+}
+
+func TestGetCircuitQoSMetricsTableDataKeepsVersaPercentDrop(t *testing.T) {
+	server := SetupMockAPIServer()
+	defer server.Close()
+
+	client, err := testClient(server)
+	require.NoError(t, err)
+	client.directorEndpoint = server.URL
+
+	metrics, err := client.GetCircuitQoSMetrics("datadog")
+	require.NoError(t, err)
+	require.Len(t, metrics, 1)
+	// 0.54 is not totaldrop/volume-tx (10/1850), so this shows Versa's value is kept.
+	assert.Equal(t, 0.54, metrics[0].PercentDrop)
+	assert.False(t, metrics[0].PercentDropUnset)
+}
