@@ -2,18 +2,7 @@
 upgrade:
   - |
     APM: ``apm_config.replace_tags`` (``DD_APM_REPLACE_TAGS``) rules can no longer
-    change the ``env`` of a span. Rules named ``env`` are now ignored, with an
-    error logged at startup, and ``*`` rules skip the span ``env``. If you used a
-    replace rule to set or rename the env, set the env in the tracer instead. The
-    Agent env (``DD_APM_ENV`` or ``DD_ENV`` in the Agent) is only a fallback for
-    traces that have no env.
-fixes:
-  - |
-    APM: Fix replace tag rules changing the env of spans. By default, spans could
-    end up with a different env than their stats and sampling. When the trace
-    payload had no env, for example with OTLP spans that set
-    ``deployment.environment`` as a span attribute, or with the
-    ``disable-convert-traces`` feature, the replaced env was also used for
-    sampling and stats. With ``disable-convert-traces``, the sample rates sent
-    back to Datadog tracers then used an env they did not know, so they fell back
-    to 100% ingestion.
+    change the ``env`` of a span, because the Agent uses it for sampling and stats.
+    Rules named ``env`` are ignored, with an error logged at startup, and ``*``
+    rules skip the span ``env``. If you set or renamed the env with a replace
+    rule, set the env in the tracer instead.
