@@ -2,7 +2,10 @@ load("@rules_go//go:def.bzl", "go_library")
 
 go_library(
     name = "fixtures",
-    srcs = ["payloads.go"],
+    srcs = [
+        "payloads.go",
+        "sla_timeseries.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client/fixtures",
     visibility = ["//visibility:public"],
 )
