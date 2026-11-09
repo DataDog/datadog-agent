@@ -1,8 +1,8 @@
+load("@package_metadata//purl:purl.bzl", "purl")
 load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
 load("@rules_go//go:def.bzl", "go_library")
 load("@rules_license//rules:license.bzl", "license")
 load("//bazel/rules/go:go_binary.bzl", "dd_agent_go_binary")
-load("//compliance/rules:purl.bzl", "purl_for_golang")
 
 # The connector carries its own BSD-3-Clause license (RapDev.IO), shipped as
 # LICENSES/secret-generic-connector-LICENSE.
@@ -11,10 +11,12 @@ package(default_package_metadata = [":package_metadata"])
 package_metadata(
     name = "package_metadata",
     attributes = [":license"],
-    purl = purl_for_golang(
-        "github.com/DataDog/datadog-agent",
-        subpath = "cmd/secret-generic-connector",
-    ),
+    purl = purl.builder()
+        .type("golang")
+        .namespace("github.com/DataDog")
+        .name("datadog-agent")
+        .subpath("cmd/secret-generic-connector")
+        .build(),
 )
 
 license(
