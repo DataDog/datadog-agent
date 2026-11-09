@@ -66,7 +66,7 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 			require.NoError(t, err)
 			runner.Urn = util.MakeRunnerURN("us3", 42, "runner")
 			runner.OrgId, runner.RunnerId = 42, "runner"
-			snapshot, err := ControlPlaneConfig(cfg, runner)
+			snapshot, err := ControlPlaneConfig(parconfig.New(cfg), runner)
 			require.NoError(t, err)
 			require.True(t, snapshot.SplitMode)
 			require.Equal(t, "debug", snapshot.LogLevel)
@@ -99,7 +99,7 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 
 func TestDisabledControlPlaneConfig(t *testing.T) {
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.private_key": "invalid-key"})
-	snapshot, err := ControlPlaneConfig(cfg, nil)
+	snapshot, err := ControlPlaneConfig(parconfig.New(cfg), nil)
 	require.NoError(t, err)
 	require.False(t, snapshot.SplitMode)
 	require.Nil(t, snapshot.Identity)

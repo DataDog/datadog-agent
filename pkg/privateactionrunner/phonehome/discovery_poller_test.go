@@ -19,15 +19,16 @@ import (
 	"testing"
 	"time"
 
-	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
-
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	remote "github.com/DataDog/datadog-agent/pkg/config/remote/service"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	remote "github.com/DataDog/datadog-agent/pkg/config/remote/service"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 )
 
 const grantedScopeJSON = `{"data":{"attributes":{"valid":true,"api_key_scopes":["private_action_runner_enroll"]}}}`
@@ -87,7 +88,7 @@ func newScopeFixture(t *testing.T) *scopeFixture {
 	s, err := remote.NewService(cfg, "test", server.URL+"/rc", "host", func() []string { return nil }, nil, "test", remote.WithAPIKey("scope-test-key"))
 	require.NoError(t, err)
 	f.rcService = s
-	f.s = NewDiscovery(cfg, NewSource(cfg, s))
+	f.s = NewDiscovery(parconfig.New(cfg), NewSource(parconfig.New(cfg), s))
 	require.NotNil(t, f.s)
 	f.s.clock = f.clock
 	f.s.jitter = func(time.Duration) time.Duration { return 0 }

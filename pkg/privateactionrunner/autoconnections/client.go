@@ -15,12 +15,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
-	"github.com/DataDog/datadog-agent/pkg/version"
 	"github.com/DataDog/jsonapi"
+
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
@@ -41,13 +40,13 @@ type ConnectionsClient struct {
 	retryOpts  parutil.RetryHTTPOptions
 }
 
-func NewConnectionsAPIClient(cfg model.Reader, ddSite, apiKey, appKey string) (*ConnectionsClient, error) {
-	baseUrl, err := par.APIBaseURL(cfg, ddSite)
+func NewConnectionsAPIClient(cfg parconfig.RuntimeConfig, ddSite, apiKey, appKey string) (*ConnectionsClient, error) {
+	baseUrl, err := cfg.APIBaseURLForSite(ddSite)
 	if err != nil {
 		return nil, err
 	}
 
-	transport := httputils.CreateHTTPTransport(cfg)
+	transport := cfg.HTTPTransport()
 	httpClient := &http.Client{
 		Timeout:   10 * time.Second,
 		Transport: transport,

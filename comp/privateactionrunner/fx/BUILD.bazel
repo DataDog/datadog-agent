@@ -11,7 +11,7 @@ go_library(
         "//comp/privateactionrunner/def",
         "//comp/privateactionrunner/impl",
         "//comp/remote-config/rcclient/types",
-        "//pkg/privateactionrunner",
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/task-verifier",
         "//pkg/remoteconfig/state",
         "//pkg/util/fxutil",

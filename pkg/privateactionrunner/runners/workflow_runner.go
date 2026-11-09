@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -48,7 +47,7 @@ type WorkflowRunner struct {
 }
 
 func NewWorkflowRunner(
-	coreConfig config.Component,
+	coreConfig parconfig.RuntimeConfig,
 	metricsClient statsd.ClientInterface,
 	rcClient rcclient.Client,
 	keysManager taskverifier.KeysManager,
@@ -77,7 +76,7 @@ func NewWorkflowRunner(
 		keysManager:       keysManager,
 		taskExecutor:      taskExecutor,
 		encryptionStore:   encryptionStore,
-		sem:               make(chan struct{}, parconfig.New(coreConfig).TaskConcurrency()), // todo: we may consider moving to the semaphore before release.
+		sem:               make(chan struct{}, coreConfig.TaskConcurrency()), // todo: we may consider moving to the semaphore before release.
 		shutdownChannel:   make(chan struct{}),
 	}, nil
 }

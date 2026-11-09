@@ -14,11 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/config/mock"
-	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/jsonapi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parutil "github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
 // newTestClient builds a ConnectionsClient with retry intervals tight enough
@@ -68,7 +70,7 @@ func TestNewConnectionsAPIClientEndpointSelection(t *testing.T) {
 			t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", tc.fakeIntake)
 			cfg := mock.New(t)
 			cfg.SetInTest("dd_url", "http://fake-intake.example.test:8080/")
-			client, err := NewConnectionsAPIClient(cfg, tc.site, "test-api-key", "test-app-key")
+			client, err := NewConnectionsAPIClient(parconfig.New(cfg), tc.site, "test-api-key", "test-app-key")
 			require.NoError(t, err)
 			assert.Equal(t, tc.wantURL, client.baseUrl)
 		})
@@ -81,7 +83,7 @@ func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	appKey := "test-app-key"
 	ddSite := "datadoghq.com"
 
-	client, err := NewConnectionsAPIClient(cfg, ddSite, apiKey, appKey)
+	client, err := NewConnectionsAPIClient(parconfig.New(cfg), ddSite, apiKey, appKey)
 
 	require.NoError(t, err)
 	require.NotNil(t, client)
@@ -105,7 +107,7 @@ func TestConnectionsUsePAROverride(t *testing.T) {
 	cfg.SetInTest("private_action_runner.par_dd_url", server.URL+"/prefix/")
 	cfg.SetInTest("private_action_runner.enabled", true)
 	cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
-	client, err := NewConnectionsAPIClient(cfg, "datadoghq.eu", "api-key", "app-key")
+	client, err := NewConnectionsAPIClient(parconfig.New(cfg), "datadoghq.eu", "api-key", "app-key")
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

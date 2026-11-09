@@ -22,6 +22,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -53,7 +54,7 @@ func TestStandaloneEnrollmentUsesExistingStartupPath(t *testing.T) {
 	flavor.SetTestFlavor(t, flavor.PrivateActionRunner)
 	hostname, _ := hostnamemock.NewMock("test-host")
 	storage := enrollment.NewIdentityStorage(cfg, nil)
-	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
+	runner := &PrivateActionRunner{coreConfig: parconfig.New(cfg), hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
 	_, err := runner.getRunnerIdentity(context.Background())
 	require.NoError(t, err)
 	identity, err := storage.Load(context.Background())

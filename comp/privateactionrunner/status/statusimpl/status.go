@@ -16,7 +16,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/status"
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -45,14 +44,14 @@ func Module() fxutil.Module {
 }
 
 type statusProvider struct {
-	config    config.Component
+	config    parconfig.RuntimeConfig
 	phoneHome phonehome.Component
 }
 
 func newStatusProvider(deps dependencies) provides {
 	return provides{
 		StatusProvider: status.NewInformationProvider(statusProvider{
-			config:    deps.Config,
+			config:    parconfig.New(deps.Config),
 			phoneHome: deps.PhoneHome,
 		}),
 	}
@@ -98,19 +97,19 @@ func (s statusProvider) populateStatus(stats map[string]interface{}) {
 		}
 	}
 
-	enabled := s.config.GetBool(par.Enabled)
+	enabled := s.config.Enabled()
 	parStatus["Enabled"] = enabled
 
 	if enabled {
-		urn := s.config.GetString(par.URN)
+		urn := s.config.URN()
 		if urn == "" {
 			urn = "(not set)"
 		}
 		parStatus["URN"] = urn
-		parStatus["SelfEnroll"] = s.config.GetBool(par.SelfEnroll)
-		defaultActionsEnabled := s.config.GetBool(par.DefaultActionsEnabled)
+		parStatus["SelfEnroll"] = s.config.SelfEnroll()
+		defaultActionsEnabled := s.config.DefaultActionsEnabled()
 		parStatus["DefaultActionsEnabled"] = defaultActionsEnabled
-		allowlist := s.config.GetStringSlice(par.ActionsAllowlist)
+		allowlist := s.config.ActionPatterns()
 		if defaultActionsEnabled {
 			if flavor.GetFlavor() == flavor.ClusterAgent {
 				allowlist = append(allowlist, parconfig.DefaultClusterAgentActionFQNs...)

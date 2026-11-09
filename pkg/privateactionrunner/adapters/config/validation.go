@@ -19,12 +19,12 @@ const RshellCommandNamespacePrefix = "rshell:"
 
 // Validate checks routing and warns about ineffective operator policy entries.
 func Validate(config model.Reader) error {
-	ddSite := par.Site(config)
-	_, err := par.APIBaseURL(config, ddSite)
+	ddSite := site(config)
+	_, err := apiBaseURL(config, ddSite)
 	if err != nil {
 		return err
 	}
-	if par.ShouldWarnAboutRCOverride(config) {
+	if shouldWarnAboutRCOverride(config) {
 		log.Warn("PAR is enabled with remote_configuration.rc_dd_url set but private_action_runner.par_dd_url unset; the RC override does not change PAR routing. Set private_action_runner.par_dd_url explicitly if PAR requires custom routing.")
 	}
 

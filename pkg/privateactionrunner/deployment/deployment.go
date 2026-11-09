@@ -11,9 +11,8 @@ import (
 	"runtime"
 
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fips"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 // Mode identifies the selected PAR deployment architecture.
@@ -27,8 +26,8 @@ const (
 )
 
 // Requested reports whether split deployment was explicitly selected.
-func Requested(cfg model.Reader) bool {
-	return requested(cfg.GetBool(par.SplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"))
+func Requested(cfg parconfig.RuntimeConfig) bool {
+	return requested(cfg.SplitEnabled(), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"))
 }
 
 func requested(configEnabled, containerized bool, envValue string) bool {
@@ -40,15 +39,15 @@ func requested(configEnabled, containerized bool, envValue string) bool {
 
 // Resolve applies the same deployment policy to monolithic startup and the core startup gate.
 // Callers must not start either architecture when resolution fails.
-func Resolve(cfg model.Reader) (Mode, error) {
+func Resolve(cfg parconfig.RuntimeConfig) (Mode, error) {
 	return resolve(cfg, runtime.GOOS, configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"), fips.Enabled)
 }
 
-func resolve(cfg model.Reader, goos string, containerized bool, envValue string, fipsEnabled func() (bool, error)) (Mode, error) {
-	if !requested(cfg.GetBool(par.SplitEnabled), containerized, envValue) {
+func resolve(cfg parconfig.RuntimeConfig, goos string, containerized bool, envValue string, fipsEnabled func() (bool, error)) (Mode, error) {
+	if !requested(cfg.SplitEnabled(), containerized, envValue) {
 		return Monolithic, nil
 	}
-	if cfg.GetBool("fips.enabled") || !(goos == "linux" || (goos == "windows" && !containerized && cfg.GetBool("process_manager.enabled"))) {
+	if cfg.FIPSEnabled() || !(goos == "linux" || (goos == "windows" && !containerized && cfg.ProcessManagerEnabled())) {
 		return Monolithic, nil
 	}
 	buildFIPS, err := fipsEnabled()

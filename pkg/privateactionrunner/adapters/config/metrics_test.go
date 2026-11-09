@@ -61,7 +61,7 @@ func TestNewMetricsClient(t *testing.T) {
 
 			wantClient := &statsd.NoOpClient{}
 			statsdComp := &recordingStatsdComponent{client: wantClient, err: tt.createErr}
-			got, err := NewMetricsClient(mockConfig, statsdComp)
+			got, err := NewMetricsClient(New(mockConfig), statsdComp)
 
 			if tt.wantErr != "" {
 				require.Error(t, err)

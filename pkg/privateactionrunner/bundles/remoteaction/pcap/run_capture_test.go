@@ -22,6 +22,8 @@ import (
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	pcapuploadermock "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -59,8 +61,8 @@ func (failingHostname) GetSafe(context.Context) string {
 // newTestHandler builds a RunCaptureHandler wired to noopCaptureTrigger,
 // bypassing the platform-specific captureTrigger (which requires a live
 // system-probe socket on unix).
-func newTestHandler() *RunCaptureHandler {
-	handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
+func newTestHandler(t *testing.T) *RunCaptureHandler {
+	handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), pcapuploadermock.New(), newTestHostname())
 	handler.capture = &noopCaptureTrigger{}
 	return handler
 }
@@ -134,7 +136,7 @@ func TestRunCaptureTimeoutCoversCaptureAndUpload(t *testing.T) {
 				}
 			}
 			uploaded := false
-			handler := NewRunCaptureHandler(deadlineCheckingUploader{check: func(ctx context.Context) {
+			handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), deadlineCheckingUploader{check: func(ctx context.Context) {
 				check(ctx)
 				uploaded = true
 			}}, newTestHostname())
@@ -152,8 +154,8 @@ func TestRunCaptureTimeoutCoversCaptureAndUpload(t *testing.T) {
 	}
 }
 
-func newRecordingHandler() (*RunCaptureHandler, *recordingCaptureTrigger) {
-	handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
+func newRecordingHandler(t *testing.T) (*RunCaptureHandler, *recordingCaptureTrigger) {
+	handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), pcapuploadermock.New(), newTestHostname())
 	rec := &recordingCaptureTrigger{}
 	handler.capture = rec
 	return handler, rec
@@ -162,7 +164,7 @@ func newRecordingHandler() (*RunCaptureHandler, *recordingCaptureTrigger) {
 // An omitted bpfFilter means "capture everything", not an error. Callers may
 // dispatch without one.
 func TestRunCapture_OmittedBPFFilterIsAccepted(t *testing.T) {
-	handler, rec := newRecordingHandler()
+	handler, rec := newRecordingHandler(t)
 	task := newTask(map[string]interface{}{
 		"captureId":    "cap-1",
 		"durationSecs": 10,
@@ -177,7 +179,7 @@ func TestRunCapture_OmittedBPFFilterIsAccepted(t *testing.T) {
 // that correlates the dispatch with the uploaded pcap once the action result
 // has expired.
 func TestRunCapture_CaptureIDIsHonoured(t *testing.T) {
-	handler, _ := newRecordingHandler()
+	handler, _ := newRecordingHandler(t)
 	task := newTask(map[string]interface{}{
 		"captureId":    "cap-abc-123",
 		"bpfFilter":    "icmp",
@@ -193,7 +195,7 @@ func TestRunCapture_CaptureIDIsHonoured(t *testing.T) {
 // system-probe's drop, truncation and error counts must reach the action
 // result: a non-zero drop count is the only sign that a capture is incomplete.
 func TestRunCapture_ReportsCaptureCounts(t *testing.T) {
-	handler, rec := newRecordingHandler()
+	handler, rec := newRecordingHandler(t)
 	rec.out = captureOutcome{
 		PacketCount:      100,
 		PacketsDropped:   7,
@@ -217,7 +219,7 @@ func TestRunCapture_ReportsCaptureCounts(t *testing.T) {
 }
 
 func TestRunCapture_CaptureIDGeneratedWhenAbsent(t *testing.T) {
-	handler, _ := newRecordingHandler()
+	handler, _ := newRecordingHandler(t)
 	task := newTask(map[string]interface{}{
 		"bpfFilter":    "icmp",
 		"durationSecs": 5,
@@ -241,7 +243,7 @@ func TestRunCapture_CapsAlwaysBounded(t *testing.T) {
 		{"negative", map[string]interface{}{"durationSecs": 5, "maxPackets": -1, "maxBytes": -1}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			handler, rec := newRecordingHandler()
+			handler, rec := newRecordingHandler(t)
 			tc.inputs["captureId"] = "cap-1"
 
 			_, err := handler.Run(context.Background(), newTask(tc.inputs), nil)
@@ -253,7 +255,7 @@ func TestRunCapture_CapsAlwaysBounded(t *testing.T) {
 }
 
 func TestRunCapture_ExplicitCapsArePreserved(t *testing.T) {
-	handler, rec := newRecordingHandler()
+	handler, rec := newRecordingHandler(t)
 	task := newTask(map[string]interface{}{
 		"captureId":    "cap-1",
 		"durationSecs": 5,
@@ -269,7 +271,7 @@ func TestRunCapture_ExplicitCapsArePreserved(t *testing.T) {
 
 // A caller can lower the caps but not raise them.
 func TestRunCapture_LargerCapsAreLowered(t *testing.T) {
-	handler, rec := newRecordingHandler()
+	handler, rec := newRecordingHandler(t)
 	task := newTask(map[string]interface{}{
 		"captureId":    "cap-1",
 		"durationSecs": 5,
@@ -284,7 +286,7 @@ func TestRunCapture_LargerCapsAreLowered(t *testing.T) {
 }
 
 func TestRunCaptureValidation_DurationTooLow(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandler(t)
 	task := newTask(map[string]interface{}{
 		"bpfFilter":    "tcp port 80",
 		"durationSecs": 0,
@@ -296,7 +298,7 @@ func TestRunCaptureValidation_DurationTooLow(t *testing.T) {
 }
 
 func TestRunCaptureValidation_DurationTooHigh(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandler(t)
 	task := newTask(map[string]interface{}{
 		"bpfFilter":    "tcp port 80",
 		"durationSecs": maxDurationSecs + 1,
@@ -308,7 +310,7 @@ func TestRunCaptureValidation_DurationTooHigh(t *testing.T) {
 }
 
 func TestRunCaptureValidation_MaxDurationIsAccepted(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandler(t)
 	task := newTask(map[string]interface{}{
 		"durationSecs": maxDurationSecs,
 	})
@@ -318,7 +320,7 @@ func TestRunCaptureValidation_MaxDurationIsAccepted(t *testing.T) {
 }
 
 func TestRunCaptureValidation_ValidInputs(t *testing.T) {
-	handler := newTestHandler()
+	handler := newTestHandler(t)
 	task := newTask(validInputs())
 
 	output, err := handler.Run(context.Background(), task, nil)
@@ -332,7 +334,7 @@ func TestRunCaptureValidation_ValidInputs(t *testing.T) {
 // TestRunCaptureDefaults asserts the values Run() actually hands to the
 // capturer when the optional bounds are omitted.
 func TestRunCaptureDefaults(t *testing.T) {
-	handler, rec := newRecordingHandler()
+	handler, rec := newRecordingHandler(t)
 
 	task := newTask(map[string]interface{}{
 		"captureId":    "cap-defaults",
@@ -354,13 +356,13 @@ func TestRunCaptureDefaults(t *testing.T) {
 }
 
 func TestGetAction_RunCapture(t *testing.T) {
-	bundle := NewPcap(pcapuploadermock.New(), newTestHostname())
+	bundle := NewPcap(parconfig.New(configmock.New(t)), pcapuploadermock.New(), newTestHostname())
 	action := bundle.GetAction("runCapture")
 	assert.NotNil(t, action, "GetAction('runCapture') should return a non-nil Action")
 }
 
 func TestGetAction_Unknown(t *testing.T) {
-	bundle := NewPcap(pcapuploadermock.New(), newTestHostname())
+	bundle := NewPcap(parconfig.New(configmock.New(t)), pcapuploadermock.New(), newTestHostname())
 	action := bundle.GetAction("nonexistent")
 	assert.Nil(t, action, "GetAction('nonexistent') should return nil")
 }
@@ -377,7 +379,7 @@ func writeCapture(t *testing.T, data []byte) string {
 // attachment, with the capture ID in the event, and then removed.
 func TestRunCapture_UploadsCapture(t *testing.T) {
 	uploader := pcapuploadermock.New()
-	handler := NewRunCaptureHandler(uploader, newTestHostname())
+	handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), uploader, newTestHostname())
 	pcapPath := writeCapture(t, []byte("pcap bytes"))
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: pcapPath}}
 
@@ -418,7 +420,7 @@ func TestRunCapture_UploadsWithoutHostnameWhenLookupFails(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			uploader := pcapuploadermock.New()
-			handler := NewRunCaptureHandler(uploader, tt.hostname)
+			handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), uploader, tt.hostname)
 			handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: writeCapture(t, []byte("pcap"))}}
 
 			_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
@@ -438,7 +440,7 @@ func TestRunCapture_UploadsWithoutHostnameWhenLookupFails(t *testing.T) {
 func TestRunCapture_UploadFailureFailsTheAction(t *testing.T) {
 	uploader := pcapuploadermock.New()
 	uploader.SetError(errors.New("intake unavailable"))
-	handler := NewRunCaptureHandler(uploader, newTestHostname())
+	handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), uploader, newTestHostname())
 	pcapPath := writeCapture(t, []byte("pcap bytes"))
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: pcapPath}}
 
@@ -449,7 +451,7 @@ func TestRunCapture_UploadFailureFailsTheAction(t *testing.T) {
 }
 
 func TestRunCapture_NoUploaderFailsTheAction(t *testing.T) {
-	handler := NewRunCaptureHandler(nil, newTestHostname())
+	handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), nil, newTestHostname())
 	handler.capture = &recordingCaptureTrigger{out: captureOutcome{PcapPath: writeCapture(t, []byte("pcap"))}}
 
 	_, err := handler.Run(context.Background(), newTask(validInputs()), nil)
@@ -509,7 +511,7 @@ func TestRunCaptureOutcome_Reasons(t *testing.T) {
 			if tt.uploader != nil {
 				uploader = tt.uploader()
 			}
-			handler := NewRunCaptureHandler(uploader, newTestHostname())
+			handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), uploader, newTestHostname())
 			handler.capture = &recordingCaptureTrigger{out: captureOutcome{
 				PcapPath: writeCapture(t, []byte("pcap")),
 				Socket:   socketCapture,
@@ -551,7 +553,7 @@ func TestRunCaptureOutcome_CaptureFailures(t *testing.T) {
 		{errors.New("writing pcap data: unexpected EOF"), reasonCaptureError},
 	} {
 		t.Run(tt.reason, func(t *testing.T) {
-			handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
+			handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), pcapuploadermock.New(), newTestHostname())
 			handler.capture = &failingCaptureTrigger{err: tt.err, socket: socketMain}
 
 			before := outcomeCount(tt.reason, socketMain)

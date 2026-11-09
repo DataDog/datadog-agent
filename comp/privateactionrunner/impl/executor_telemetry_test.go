@@ -24,6 +24,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
@@ -119,7 +120,7 @@ func testStopFlushesTracesAfterDraining(t *testing.T, executorMode bool) {
 				return nil, 0, nil
 			},
 		}
-		runner.workflowRunner, err = runners.NewWorkflowRunner(cfg, &statsd.NoOpClient{}, telemetryTestRCClient{}, telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil, nil, nil)
+		runner.workflowRunner, err = runners.NewWorkflowRunner(parconfig.New(cfg), &statsd.NoOpClient{}, telemetryTestRCClient{}, telemetryTestKeysManager{}, nil, opmsClient, nil, nil, nil, nil, nil, nil, nil)
 		require.NoError(t, err)
 		require.NoError(t, runner.workflowRunner.Start(context.Background()))
 		<-pollStarted

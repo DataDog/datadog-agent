@@ -11,16 +11,14 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-func ControlPlaneConfig(config model.Reader, runner *parconfig.Identity) (*pb.GetControlPlaneConfigResponse, error) {
+func ControlPlaneConfig(config parconfig.RuntimeConfig, runner *parconfig.Identity) (*pb.GetControlPlaneConfigResponse, error) {
 	response := &pb.GetControlPlaneConfigResponse{
-		LogLevel: config.GetString("log_level"),
+		LogLevel: config.LogLevel(),
 	}
 	if runner == nil {
 		return response, nil
@@ -36,8 +34,7 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Identity) (*pb.Ge
 	if err != nil {
 		return nil, err
 	}
-	settings := parconfig.New(config)
-	endpoint, err := settings.APIBaseURL()
+	endpoint, err := config.APIBaseURL()
 	if err != nil {
 		return nil, err
 	}
@@ -46,15 +43,14 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Identity) (*pb.Ge
 		return nil, errors.New("invalid OPMS endpoint")
 	}
 	proxyURL := ""
-	if proxies := config.GetProxies(); proxies != nil {
-		proxy, err := httputils.GetProxyTransportFunc(proxies, config)(request)
-		if err != nil {
-			return nil, errors.New("failed to resolve OPMS proxy")
-		}
-		if proxy != nil {
-			proxyURL = proxy.String()
-		}
+	proxy, err := config.ProxyURL(request)
+	if err != nil {
+		return nil, errors.New("failed to resolve OPMS proxy")
 	}
+	if proxy != nil {
+		proxyURL = proxy.String()
+	}
+
 	response.SplitMode = true
 	response.Identity = &pb.ControlPlaneIdentity{
 		Urn:        runner.Urn,
@@ -64,11 +60,11 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Identity) (*pb.Ge
 	}
 	response.Runtime = &pb.ControlPlaneRuntime{
 		OpmsBaseUrl:       endpoint,
-		TaskConcurrency:   settings.TaskConcurrency(),
-		OpmsExtraHeaders:  settings.OPMSExtraHeaders(),
+		TaskConcurrency:   config.TaskConcurrency(),
+		OpmsExtraHeaders:  config.OPMSExtraHeaders(),
 		OpmsProxyUrl:      proxyURL,
-		SkipSslValidation: config.GetBool("skip_ssl_validation"),
-		MinTlsVersion:     config.GetString("min_tls_version"),
+		SkipSslValidation: config.SkipSSLValidation(),
+		MinTlsVersion:     config.MinTLSVersion(),
 	}
 	return response, nil
 }

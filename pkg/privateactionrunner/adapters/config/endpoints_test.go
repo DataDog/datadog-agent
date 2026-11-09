@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package privateactionrunner
+package config
 
 import (
 	"testing"
@@ -12,6 +12,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 )
 
@@ -33,11 +34,11 @@ func TestEndpoints(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetInTest(Enabled, true)
+			cfg.SetInTest(par.Enabled, true)
 			cfg.SetInTest("site", tc.site)
 			cfg.SetInTest("dd_url", tc.ddURL)
-			assert.Equal(t, tc.wantSite, Site(cfg))
-			endpoint, err := APIBaseURL(cfg, Site(cfg))
+			assert.Equal(t, tc.wantSite, site(cfg))
+			endpoint, err := apiBaseURL(cfg, site(cfg))
 			require.NoError(t, err)
 			assert.Equal(t, "https://api."+tc.wantSite, endpoint)
 		})
@@ -49,7 +50,7 @@ func TestAPIBaseURLPAROverride(t *testing.T) {
 		t.Run("fakeIntake="+fakeIntake, func(t *testing.T) {
 			t.Setenv(constants.InternalUseDDURLForOPMSEnvVar, fakeIntake)
 			cfg := configmock.New(t)
-			cfg.SetInTest(Enabled, true)
+			cfg.SetInTest(par.Enabled, true)
 			cfg.SetInTest("site", "datadoghq.eu")
 			cfg.SetInTest("dd_url", "https://app.us3.datadoghq.com")
 			cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
@@ -62,12 +63,12 @@ func TestAPIBaseURLPAROverride(t *testing.T) {
 				"https://proxy.example.com:65535",
 				"https://[::1]:65535/prefix",
 			} {
-				cfg.SetInTest(RunnerURL, endpoint)
-				actual, err := APIBaseURL(cfg, Site(cfg))
+				cfg.SetInTest(par.RunnerURL, endpoint)
+				actual, err := apiBaseURL(cfg, site(cfg))
 				require.NoError(t, err)
 				assert.Equal(t, endpoint, actual)
-				assert.False(t, ShouldWarnAboutRCOverride(cfg))
-				assert.Equal(t, "datadoghq.eu", Site(cfg), "routing must not change the runner's logical site")
+				assert.False(t, shouldWarnAboutRCOverride(cfg))
+				assert.Equal(t, "datadoghq.eu", site(cfg), "routing must not change the runner's logical site")
 			}
 		})
 	}
@@ -75,17 +76,17 @@ func TestAPIBaseURLPAROverride(t *testing.T) {
 
 func TestCanonicalRCURLDoesNotOverridePAR(t *testing.T) {
 	t.Setenv(constants.InternalUseDDURLForOPMSEnvVar, "false")
-	for _, site := range []string{"datadoghq.com", "datadoghq.eu", "us3.datadoghq.com", "us5.datadoghq.com", "ap1.datadoghq.com", "ap2.datadoghq.com", "uk1.datadoghq.com", "datad0g.com", "ddog-gov.com"} {
-		t.Run(site, func(t *testing.T) {
+	for _, testSite := range []string{"datadoghq.com", "datadoghq.eu", "us3.datadoghq.com", "us5.datadoghq.com", "ap1.datadoghq.com", "ap2.datadoghq.com", "uk1.datadoghq.com", "datad0g.com", "ddog-gov.com"} {
+		t.Run(testSite, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetInTest(Enabled, true)
-			cfg.SetInTest("site", site)
-			for _, rcURL := range []string{"", "https://config." + site, "https://config." + site + ".", "https://CONFIG." + site + ".:443/"} {
+			cfg.SetInTest(par.Enabled, true)
+			cfg.SetInTest("site", testSite)
+			for _, rcURL := range []string{"", "https://config." + testSite, "https://config." + testSite + ".", "https://CONFIG." + testSite + ".:443/"} {
 				cfg.SetInTest("remote_configuration.rc_dd_url", rcURL)
-				endpoint, err := APIBaseURL(cfg, Site(cfg))
+				endpoint, err := apiBaseURL(cfg, site(cfg))
 				require.NoError(t, err, rcURL)
-				assert.Equal(t, "https://api."+site, endpoint)
-				assert.Equal(t, rcURL != "", ShouldWarnAboutRCOverride(cfg), rcURL)
+				assert.Equal(t, "https://api."+testSite, endpoint)
+				assert.Equal(t, rcURL != "", shouldWarnAboutRCOverride(cfg), rcURL)
 			}
 		})
 	}
@@ -101,18 +102,18 @@ func TestRCURLOverrideWarnsWithoutChangingPAR(t *testing.T) {
 	} {
 		t.Run(rcURL, func(t *testing.T) {
 			cfg := configmock.New(t)
-			cfg.SetInTest(Enabled, true)
+			cfg.SetInTest(par.Enabled, true)
 			cfg.SetInTest("site", "datadoghq.eu")
 			cfg.SetInTest("remote_configuration.rc_dd_url", rcURL)
-			cfg.SetInTest(RunnerURL, "")
-			endpoint, err := APIBaseURL(cfg, Site(cfg))
+			cfg.SetInTest(par.RunnerURL, "")
+			endpoint, err := apiBaseURL(cfg, site(cfg))
 			require.NoError(t, err)
 			assert.Equal(t, "https://api.datadoghq.eu", endpoint)
-			assert.True(t, ShouldWarnAboutRCOverride(cfg))
+			assert.True(t, shouldWarnAboutRCOverride(cfg))
 
-			cfg.SetInTest(Enabled, false)
-			assert.False(t, ShouldWarnAboutRCOverride(cfg))
-			endpoint, err = APIBaseURL(cfg, Site(cfg))
+			cfg.SetInTest(par.Enabled, false)
+			assert.False(t, shouldWarnAboutRCOverride(cfg))
+			endpoint, err = apiBaseURL(cfg, site(cfg))
 			require.NoError(t, err, "disabled PAR must not reject RC configuration")
 			assert.Equal(t, "https://api.datadoghq.eu", endpoint)
 		})
@@ -126,8 +127,8 @@ func TestAPIBaseURLRejectsInvalidOverride(t *testing.T) {
 		"https://user:secret@proxy.example.com", "https://proxy.example.com?secret=value", "https://proxy.example.com#fragment",
 	} {
 		cfg := configmock.New(t)
-		cfg.SetInTest(RunnerURL, endpoint)
-		actual, err := APIBaseURL(cfg, "datadoghq.com")
+		cfg.SetInTest(par.RunnerURL, endpoint)
+		actual, err := apiBaseURL(cfg, "datadoghq.com")
 		require.Error(t, err, endpoint)
 		assert.Empty(t, actual)
 		assert.NotContains(t, err.Error(), "secret")
@@ -137,8 +138,8 @@ func TestAPIBaseURLRejectsInvalidOverride(t *testing.T) {
 func TestAPIBaseURLFromEnvironment(t *testing.T) {
 	t.Setenv("DD_PRIVATE_ACTION_RUNNER_PAR_DD_URL", "https://par-proxy.example.com/prefix")
 	cfg := configmock.New(t)
-	assert.Equal(t, "https://par-proxy.example.com/prefix", cfg.GetString(RunnerURL))
-	endpoint, err := APIBaseURL(cfg, Site(cfg))
+	assert.Equal(t, "https://par-proxy.example.com/prefix", cfg.GetString(par.RunnerURL))
+	endpoint, err := apiBaseURL(cfg, site(cfg))
 	require.NoError(t, err)
 	assert.Equal(t, "https://par-proxy.example.com/prefix", endpoint)
 }
@@ -150,7 +151,7 @@ func TestAPIBaseURLDoesNotAliasOldSetting(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("site", "datadoghq.eu")
 	cfg.SetInTest("private_action_runner.dd_url", "https://old-setting.example.com")
-	endpoint, err := APIBaseURL(cfg, Site(cfg))
+	endpoint, err := apiBaseURL(cfg, site(cfg))
 	require.NoError(t, err)
 	assert.Equal(t, "https://api.datadoghq.eu", endpoint)
 }
@@ -159,12 +160,12 @@ func TestAPIBaseURLFakeIntake(t *testing.T) {
 	t.Setenv(constants.InternalUseDDURLForOPMSEnvVar, "true")
 	for _, endpoint := range []string{"http://fakeintake.test:8080", "https://fakeintake.test:8443"} {
 		cfg := configmock.New(t)
-		cfg.SetInTest(Enabled, true)
+		cfg.SetInTest(par.Enabled, true)
 		cfg.SetInTest("dd_url", endpoint+"/")
 		cfg.SetInTest("remote_configuration.rc_dd_url", "http://localhost:1234")
-		actual, err := APIBaseURL(cfg, "datadoghq.com")
+		actual, err := apiBaseURL(cfg, "datadoghq.com")
 		require.NoError(t, err)
 		assert.Equal(t, endpoint, actual)
-		assert.True(t, ShouldWarnAboutRCOverride(cfg))
+		assert.True(t, shouldWarnAboutRCOverride(cfg))
 	}
 }

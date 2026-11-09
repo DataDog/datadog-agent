@@ -15,6 +15,8 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -46,7 +48,7 @@ func TestConnectivityCheckHandlerRun(t *testing.T) {
 
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), ipcmock.New(t).GetClient())
+			handler := NewConnectivityCheckHandler(parconfig.New(configmock.New(t)), encryptioncontext.NewStore(), ipcmock.New(t).GetClient())
 
 			res, err := handler.Run(context.Background(), makeConnectivityTask(tc.taskInputs), nil)
 			require.Equal(t, tc.expectedResults, res)
@@ -89,7 +91,7 @@ func TestConnectivityCheckHandlerTimeout(t *testing.T) {
 			ctx, cancel := context.WithDeadline(context.Background(), parentDeadline)
 			defer cancel()
 			before := time.Now()
-			handler := NewConnectivityCheckHandler(encryptioncontext.NewStore(), checkingIPCClient{
+			handler := NewConnectivityCheckHandler(parconfig.New(configmock.New(t)), encryptioncontext.NewStore(), checkingIPCClient{
 				HTTPClient: client,
 				check: func(ctx context.Context) {
 					deadline, ok := ctx.Deadline()

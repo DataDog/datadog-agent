@@ -14,13 +14,15 @@ import (
 	"strings"
 	"testing"
 
-	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
+
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 func captureLogs(t *testing.T) *bytes.Buffer {
@@ -199,6 +201,6 @@ func TestControllerLoggingCancellationAndDisabledPAR(t *testing.T) {
 	require.NotContains(t, output.String(), "[INFO]")
 	output.Reset()
 	f.cfg.SetInTest(par.Enabled, false)
-	Run(context.Background(), f.cfg, nil, func(State) { t.Fatal("disabled PAR must not report") })
+	Run(context.Background(), parconfig.New(f.cfg), nil, func(State) { t.Fatal("disabled PAR must not report") })
 	require.Empty(t, output.String())
 }

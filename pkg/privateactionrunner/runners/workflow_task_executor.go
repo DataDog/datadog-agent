@@ -12,7 +12,6 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
@@ -22,7 +21,7 @@ import (
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
@@ -34,7 +33,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 type PreparedWorkflowTask struct {
@@ -44,14 +42,14 @@ type PreparedWorkflowTask struct {
 
 type WorkflowTaskExecutor struct {
 	registry      *privatebundles.Registry
-	config        config.Config
+	config        parconfig.Config
 	metricsClient statsd.ClientInterface
 	taskVerifier  taskverifier.TaskVerifier
 	resolver      resolver.PrivateCredentialResolver
 }
 
 func NewWorkflowTaskExecutor(
-	coreConfig coreconfig.Component,
+	coreConfig parconfig.RuntimeConfig,
 	metricsClient statsd.ClientInterface,
 	rcClient rcclient.Client,
 	taskVerifier taskverifier.TaskVerifier,
@@ -69,16 +67,15 @@ func NewWorkflowTaskExecutor(
 		return nil, err
 	}
 
-	configuration := config.New(coreConfig)
-	agentHTTPClient := &http.Client{Transport: httputils.CreateHTTPTransport(coreConfig)}
-	registry, err := privatebundles.NewRegistry(configuration, agentHTTPClient, rcClient, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
+	agentHTTPClient := &http.Client{Transport: coreConfig.HTTPTransport()}
+	registry, err := privatebundles.NewRegistry(coreConfig, agentHTTPClient, rcClient, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
 	if err != nil {
 		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
 	}
 
 	return &WorkflowTaskExecutor{
 		registry:      registry,
-		config:        configuration,
+		config:        coreConfig,
 		metricsClient: metricsClient,
 		taskVerifier:  taskVerifier,
 		resolver:      credentialResolver,

@@ -11,8 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
@@ -27,8 +26,8 @@ type CommonRunner struct {
 }
 
 func NewCommonRunner(
-	coreCfg model.Reader,
-	identity *config.Identity,
+	coreCfg parconfig.RuntimeConfig,
+	identity *parconfig.Identity,
 	metricsClient statsd.ClientInterface,
 ) *CommonRunner {
 	return &CommonRunner{

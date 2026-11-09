@@ -13,6 +13,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -20,12 +21,13 @@ import (
 // GetConfigHandler handles the getConfig action, returning either the full
 // resolved agent configuration or a single configuration value as JSON.
 type GetConfigHandler struct {
+	cfg       config.Config
 	ipcClient ipc.HTTPClient
 }
 
 // NewGetConfigHandler creates a new GetConfigHandler.
-func NewGetConfigHandler(client ipc.HTTPClient) *GetConfigHandler {
-	return &GetConfigHandler{ipcClient: client}
+func NewGetConfigHandler(cfg config.Config, client ipc.HTTPClient) *GetConfigHandler {
+	return &GetConfigHandler{cfg: cfg, ipcClient: client}
 }
 
 // GetConfigInputs defines the inputs for the getConfig action.
@@ -50,7 +52,7 @@ func (h *GetConfigHandler) Run(
 		return nil, fmt.Errorf("getConfig: failed to parse inputs: %w", err)
 	}
 
-	base, err := agentBaseURL()
+	base, err := agentBaseURL(h.cfg)
 	if err != nil {
 		return nil, fmt.Errorf("getConfig: %w", err)
 	}

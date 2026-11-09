@@ -11,15 +11,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
-	"strconv"
 	"time"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -41,12 +38,13 @@ type secretInputs struct {
 }
 
 type ConnectivityCheckHandler struct {
+	cfg             config.Config
 	encryptionStore *encryptioncontext.Store
 	ipcClient       ipc.HTTPClient
 }
 
-func NewConnectivityCheckHandler(encryptionStore *encryptioncontext.Store, ipcClient ipc.HTTPClient) *ConnectivityCheckHandler {
-	return &ConnectivityCheckHandler{encryptionStore: encryptionStore, ipcClient: ipcClient}
+func NewConnectivityCheckHandler(cfg config.Config, encryptionStore *encryptioncontext.Store, ipcClient ipc.HTTPClient) *ConnectivityCheckHandler {
+	return &ConnectivityCheckHandler{cfg: cfg, encryptionStore: encryptionStore, ipcClient: ipcClient}
 }
 
 func (h *ConnectivityCheckHandler) Run(ctx context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
@@ -93,7 +91,7 @@ func (h *ConnectivityCheckHandler) runChecks(ctx context.Context, req Connectivi
 		return nil, fmt.Errorf("failed to marshal request: %w", err)
 	}
 
-	url, err := connectivityCheckURL()
+	url, err := h.connectivityCheckURL()
 	if err != nil {
 		return nil, err
 	}
@@ -116,12 +114,11 @@ func (h *ConnectivityCheckHandler) runChecks(ctx context.Context, req Connectivi
 	return &res, nil
 }
 
-func connectivityCheckURL() (string, error) {
-	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
+func (h *ConnectivityCheckHandler) connectivityCheckURL() (string, error) {
+	baseURL, err := h.cfg.AgentAPIURL()
 	if err != nil {
 		return "", fmt.Errorf("failed to get IPC address: %w", err)
 	}
 
-	port := pkgconfigsetup.Datadog().GetInt("cmd_port")
-	return fmt.Sprintf("https://%s/agent/networkdevices/connectivity-check", net.JoinHostPort(ipcAddress, strconv.Itoa(port))), nil
+	return baseURL + "/agent/networkdevices/connectivity-check", nil
 }

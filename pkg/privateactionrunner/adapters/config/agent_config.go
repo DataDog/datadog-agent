@@ -18,7 +18,7 @@ type agentConfig struct {
 }
 
 // New restricts access to the shared Agent configuration without copying values.
-func New(source model.Reader) Config {
+func New(source model.Reader) RuntimeConfig {
 	return &agentConfig{source: source}
 }
 
@@ -102,7 +102,7 @@ func (c *agentConfig) IsActionAllowed(bundle, action string) bool {
 }
 
 func (c *agentConfig) APIBaseURL() (string, error) {
-	return par.APIBaseURL(c.source, par.Site(c.source))
+	return apiBaseURL(c.source, c.Site())
 }
 
 func (c *agentConfig) OPMSExtraHeaders() map[string]string {

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-package privateactionrunner
+package config
 
 import (
 	"errors"
@@ -15,11 +15,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configconstants "github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 )
 
 // Site returns the logical Datadog site independently of intake URL overrides.
-func Site(cfg model.Reader) string {
+func site(cfg model.Reader) string {
 	site := strings.TrimRight(strings.ToLower(strings.TrimSpace(cfg.GetString("site"))), ".")
 	if site == "" {
 		return configconstants.DefaultSite
@@ -28,8 +29,8 @@ func Site(cfg model.Reader) string {
 }
 
 // APIBaseURL resolves the PAR API endpoint independently of the RC endpoint and runner identity.
-func APIBaseURL(cfg model.Reader, site string) (string, error) {
-	if endpoint := cfg.GetString(RunnerURL); endpoint != "" {
+func apiBaseURL(cfg model.Reader, site string) (string, error) {
+	if endpoint := cfg.GetString(par.RunnerURL); endpoint != "" {
 		u, err := url.Parse(endpoint)
 		if err != nil || u.Hostname() == "" || (u.Scheme != "https" && u.Scheme != "http") {
 			return "", errors.New("invalid private_action_runner.par_dd_url: expected an HTTP(S) URL with a host")
@@ -52,8 +53,8 @@ func APIBaseURL(cfg model.Reader, site string) (string, error) {
 }
 
 // ShouldWarnAboutRCOverride reports an RC override without an explicit PAR URL when PAR is enabled.
-func ShouldWarnAboutRCOverride(cfg model.Reader) bool {
-	return cfg.GetBool(Enabled) &&
-		cfg.GetString(RemoteConfigURL) != "" &&
-		cfg.GetString(RunnerURL) == ""
+func shouldWarnAboutRCOverride(cfg model.Reader) bool {
+	return cfg.GetBool(par.Enabled) &&
+		cfg.GetString(par.RemoteConfigURL) != "" &&
+		cfg.GetString(par.RunnerURL) == ""
 }

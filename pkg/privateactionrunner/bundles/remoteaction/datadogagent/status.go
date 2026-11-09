@@ -14,6 +14,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -21,12 +22,13 @@ import (
 // GetStatusHandler handles the getStatus action, returning the local agent's
 // status as JSON.
 type GetStatusHandler struct {
+	cfg       config.Config
 	ipcClient ipc.HTTPClient
 }
 
 // NewGetStatusHandler creates a new GetStatusHandler.
-func NewGetStatusHandler(client ipc.HTTPClient) *GetStatusHandler {
-	return &GetStatusHandler{ipcClient: client}
+func NewGetStatusHandler(cfg config.Config, client ipc.HTTPClient) *GetStatusHandler {
+	return &GetStatusHandler{cfg: cfg, ipcClient: client}
 }
 
 // GetStatusInputs defines the inputs for the getStatus action.
@@ -51,7 +53,7 @@ func (h *GetStatusHandler) Run(
 		return nil, fmt.Errorf("getStatus: failed to parse inputs: %w", err)
 	}
 
-	base, err := agentBaseURL()
+	base, err := agentBaseURL(h.cfg)
 	if err != nil {
 		return nil, fmt.Errorf("getStatus: %w", err)
 	}

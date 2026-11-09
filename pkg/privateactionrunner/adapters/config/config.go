@@ -7,12 +7,18 @@ package config
 
 import (
 	"time"
+
+	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
 )
 
 // Config exposes the settings PAR consumers may access. It deliberately excludes
 // generic key lookup, mutation, and access to the underlying Agent component.
 // Methods read current values; implementations must not cache configuration.
 type Config interface {
+	AgentAPIURL() (string, error)
+	HasAPIKey() bool
+	LogProcessingRules() ([]*logsconfig.ProcessingRule, error)
+	CaptureSocketPaths() (capture string, systemProbe string)
 	RunnerID() (string, error)
 	HTTPTimeout() time.Duration
 	HTTPAllowlist() []string

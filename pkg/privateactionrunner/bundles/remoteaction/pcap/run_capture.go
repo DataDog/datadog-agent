@@ -15,6 +15,7 @@ import (
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -69,11 +70,11 @@ type RunCaptureHandler struct {
 
 // NewRunCaptureHandler constructs a RunCaptureHandler. Uploaded captures are
 // tagged with the host name from hostname.
-func NewRunCaptureHandler(uploader pcapuploader.Component, hostname hostnameinterface.Component) *RunCaptureHandler {
+func NewRunCaptureHandler(cfg config.Config, uploader pcapuploader.Component, hostname hostnameinterface.Component) *RunCaptureHandler {
 	return &RunCaptureHandler{
 		uploader: uploader,
 		hostname: hostname,
-		capture:  newCaptureTrigger(),
+		capture:  newCaptureTrigger(cfg),
 	}
 }
 

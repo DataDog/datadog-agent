@@ -10,16 +10,14 @@ import (
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
-	"github.com/DataDog/datadog-agent/comp/core/config"
 	statsdcomp "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 )
 
 // NewMetricsClient builds a DogStatsD client from the Agent's configured
 // host/port endpoint.
-func NewMetricsClient(config config.Component, statsdComp statsdcomp.Component) (statsd.ClientInterface, error) {
-	port := config.GetInt("dogstatsd_port")
-	client, err := statsdComp.CreateForHostPort(configutils.GetBindHost(config), port)
+func NewMetricsClient(config RuntimeConfig, statsdComp statsdcomp.Component) (statsd.ClientInterface, error) {
+	host, port := config.MetricsAddress()
+	client, err := statsdComp.CreateForHostPort(host, port)
 	if err != nil {
 		return &statsd.NoOpClient{}, fmt.Errorf("failed to create DogStatsD client: %w", err)
 	}

@@ -15,6 +15,7 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -27,12 +28,13 @@ import (
 // is a planned follow-up (it requires either an agent-side send endpoint or
 // upload support in the runner).
 type GenerateFlareHandler struct {
+	cfg       config.Config
 	ipcClient ipc.HTTPClient
 }
 
 // NewGenerateFlareHandler creates a new GenerateFlareHandler.
-func NewGenerateFlareHandler(client ipc.HTTPClient) *GenerateFlareHandler {
-	return &GenerateFlareHandler{ipcClient: client}
+func NewGenerateFlareHandler(cfg config.Config, client ipc.HTTPClient) *GenerateFlareHandler {
+	return &GenerateFlareHandler{cfg: cfg, ipcClient: client}
 }
 
 // GenerateFlareInputs defines the inputs for the generateFlare action.
@@ -57,7 +59,7 @@ func (h *GenerateFlareHandler) Run(
 		return nil, fmt.Errorf("generateFlare: failed to parse inputs: %w", err)
 	}
 
-	base, err := agentBaseURL()
+	base, err := agentBaseURL(h.cfg)
 	if err != nil {
 		return nil, fmt.Errorf("generateFlare: %w", err)
 	}

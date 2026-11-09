@@ -81,7 +81,7 @@ private_action_runner:
         allowed_actions: %s
         allowed_http_domains: %s
 `, actions, domains, actions, domains))
-			credentialResolver, err := resolver.NewPrivateCredentialResolver(catalog)
+			credentialResolver, err := resolver.NewPrivateCredentialResolver(parconfig.New(catalog))
 			require.NoError(t, err)
 
 			plainToken := func(segments []string, value string) *privateactionspb.ConnectionTokenV2 {

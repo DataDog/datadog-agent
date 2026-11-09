@@ -26,7 +26,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 )
 
@@ -47,14 +47,14 @@ func newTestClient(t *testing.T, srv *httptest.Server) *client {
 	t.Helper()
 	return &client{
 		httpClient: &http.Client{Timeout: 5 * time.Second},
-		config:     config.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.par_dd_url": srv.URL})), identity: &config.Identity{OrgId: 1, RunnerId: "test-runner", PrivateKey: newTestKey(t)},
+		config:     parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.par_dd_url": srv.URL})), identity: &parconfig.Identity{OrgId: 1, RunnerId: "test-runner", PrivateKey: newTestKey(t)},
 		runnerStartedAt: time.Now().UTC(),
 	}
 }
 
 func TestEndpointURL(t *testing.T) {
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.par_dd_url": "https://api.datadoghq.com"})
-	client := &client{config: config.New(cfg)}
+	client := &client{config: parconfig.New(cfg)}
 	endpoint, err := EndpointURL(client.config, "/task")
 	require.NoError(t, err)
 	assert.Equal(t, "https://api.datadoghq.com/task", endpoint)
@@ -260,10 +260,10 @@ func TestHealthCheckUsesPAROverride(t *testing.T) {
 		"private_action_runner.enabled":    true,
 		"remote_configuration.rc_dd_url":   "https://rc-proxy.example.com",
 	})
-	runner, err := config.ReadIdentity(cfg)
+	runner, err := parconfig.ReadIdentity(cfg)
 	require.NoError(t, err)
 	runner.PrivateKey, runner.OrgId, runner.RunnerId = newTestKey(t), 1, "test-runner"
-	_, err = NewClient(cfg, runner).HealthCheck(context.Background())
+	_, err = NewClient(parconfig.New(cfg), runner).HealthCheck(context.Background())
 	require.NoError(t, err)
 }
 
@@ -319,9 +319,9 @@ func TestHealthCheck_RetryAfterMs_PopulatedOnError(t *testing.T) {
 func TestNewClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
-	parCfg := &config.Identity{}
+	parCfg := &parconfig.Identity{}
 
-	c := NewClient(cfg, parCfg).(*client)
+	c := NewClient(parconfig.New(cfg), parCfg).(*client)
 
 	transport, ok := c.httpClient.Transport.(*http.Transport)
 	require.True(t, ok)
@@ -335,7 +335,7 @@ func TestNewClientHonorsProxyConfig(t *testing.T) {
 
 func TestNewPublicClientPreservesHTTPBaseURL(t *testing.T) {
 	cfg := configmock.New(t)
-	pc := NewPublicClient(cfg, "http://fakeintake.test:8080/", nil).(*publicClient)
+	pc := NewPublicClient(parconfig.New(cfg), "http://fakeintake.test:8080/", nil).(*publicClient)
 	assert.Equal(t, "http://fakeintake.test:8080", pc.ddBaseURL)
 }
 
@@ -343,7 +343,7 @@ func TestNewPublicClientHonorsProxyConfig(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("proxy.https", "https://proxy.example.com:3128")
 
-	pc := NewPublicClient(cfg, "https://api.datadoghq.com", nil).(*publicClient)
+	pc := NewPublicClient(parconfig.New(cfg), "https://api.datadoghq.com", nil).(*publicClient)
 
 	transport, ok := pc.httpClient.Transport.(*http.Transport)
 	require.True(t, ok)
@@ -479,7 +479,7 @@ func TestClientReadsUpdatedEndpointAndHeaders(t *testing.T) {
 	defer server.Close()
 	client := newTestClient(t, server)
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.par_dd_url": server.URL})
-	client.config = config.New(cfg)
+	client.config = parconfig.New(cfg)
 	cfg.Set("private_action_runner.opms_extra_headers", map[string]string{"X-Test-Credential": "initial"}, model.SourceAgentRuntime)
 	_, err := client.HealthCheck(context.Background())
 	require.NoError(t, err)

@@ -13,16 +13,14 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/spf13/cobra"
 	"go.uber.org/fx"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
-
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	"github.com/DataDog/datadog-agent/comp/core/hostname/remotehostnameimpl"
 	ipcfx "github.com/DataDog/datadog-agent/comp/core/ipc/fx"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
@@ -41,8 +39,8 @@ import (
 	rcservicefx "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/fx"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	commonsettings "github.com/DataDog/datadog-agent/pkg/config/settings"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
@@ -61,7 +59,7 @@ func startTelemetryServer(lc fx.Lifecycle, cfg config.Component, logger log.Comp
 	mux := http.NewServeMux()
 	mux.Handle("/telemetry", tel.Handler())
 
-	addr := net.JoinHostPort(configutils.GetBindHost(cfg), strconv.Itoa(cfg.GetInt("metrics_port")))
+	addr := parconfig.New(cfg).TelemetryAddress()
 	server := &http.Server{
 		Addr:    addr,
 		Handler: mux,

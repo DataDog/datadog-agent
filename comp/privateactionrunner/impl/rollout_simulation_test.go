@@ -184,10 +184,10 @@ func (c *rolloutCluster) newReplica(apiKey string, selfEnroll, isLeader bool, ex
 		ctx:    c.ctx,
 		leader: leader,
 		runner: &PrivateActionRunner{
-			coreConfig:      cfg,
+			coreConfig:      parconfig.New(cfg),
 			hostnameGetter:  hostname,
 			logger:          logmock.New(c.t),
-			identityStorage: enrollment.NewK8sIdentityStorage(cfg, leader, c.client, rolloutPollInterval),
+			identityStorage: enrollment.NewK8sIdentityStorage(parconfig.New(cfg), leader, c.client, rolloutPollInterval),
 		},
 	}
 }

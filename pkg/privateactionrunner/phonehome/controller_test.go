@@ -17,18 +17,19 @@ import (
 	"testing/synctest"
 	"time"
 
-	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
-
-	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	grpcstatus "google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
+
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
 
 type supervisor struct {
@@ -82,7 +83,7 @@ func newFixture(t *testing.T) *fixture {
 		control:  &pb.ProcessDetail{Uuid: "control", State: pb.ProcessState_SKIPPED, RestartPolicy: "on-failure"},
 		executor: &pb.ProcessDetail{Uuid: "executor", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
 	}}
-	f.c = &controller{cfg: cfg, source: NewSource(cfg, f.rc), pm: f.pm, now: time.Now, emit: newStateEmitter(func(s State) {
+	f.c = &controller{cfg: parconfig.New(cfg), source: NewSource(parconfig.New(cfg), f.rc), pm: f.pm, now: time.Now, emit: newStateEmitter(func(s State) {
 		f.state = s
 	}, newStateLogger(false))}
 	return f

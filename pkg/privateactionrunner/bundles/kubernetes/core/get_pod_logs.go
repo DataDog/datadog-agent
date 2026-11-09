@@ -12,30 +12,26 @@ import (
 	"fmt"
 	"io"
 
+	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
 	logsconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
-	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	support "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundle-support/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 const maxPodLogsBytes int64 = 9 * 1024 * 1024
 
 // GetPodLogsHandler retrieves the finite log output for one Pod container.
 type GetPodLogsHandler struct {
-	config pkgconfigmodel.Reader
+	config config.Config
 }
 
 // NewGetPodLogsHandler creates a Pod logs handler.
-func NewGetPodLogsHandler() *GetPodLogsHandler {
-	return newGetPodLogsHandler(pkgconfigsetup.Datadog())
-}
-
-func newGetPodLogsHandler(config pkgconfigmodel.Reader) *GetPodLogsHandler {
-	return &GetPodLogsHandler{config: config}
+func NewGetPodLogsHandler(cfg config.Config) *GetPodLogsHandler {
+	return &GetPodLogsHandler{config: cfg}
 }
 
 // GetPodLogsInputs selects the Pod log stream and bounds the returned history.
@@ -90,7 +86,7 @@ func (h *GetPodLogsHandler) Run(
 }
 
 func (h *GetPodLogsHandler) maskSequences(logs string, timestamps bool) (string, error) {
-	rules, err := logsconfig.GlobalProcessingRules(h.config)
+	rules, err := h.config.LogProcessingRules()
 	if err != nil {
 		return "", fmt.Errorf("could not load global log processing rules: %w", err)
 	}

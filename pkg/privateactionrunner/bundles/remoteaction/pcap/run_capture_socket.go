@@ -20,7 +20,7 @@ import (
 	"strconv"
 	"time"
 
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
@@ -62,19 +62,19 @@ type captureRequest struct {
 // captureSocketPath returns system-probe's capture-only socket when one is
 // configured, so the runner does not need the main system-probe socket, and
 // the main socket otherwise.
-func captureSocketPath() string {
-	path, _ := captureSocket()
+func captureSocketPath(cfg config.Config) string {
+	path, _ := captureSocket(cfg)
 	return path
 }
 
 // captureSocket returns the socket captureSocketPath picks and which one it
 // is: socketCapture, socketMain, or socketNone when neither is configured.
-func captureSocket() (string, string) {
-	cfg := pkgconfigsetup.SystemProbe()
-	if p := cfg.GetString("packet_capture.socket"); p != "" {
+func captureSocket(cfg config.Config) (string, string) {
+	capturePath, systemProbePath := cfg.CaptureSocketPaths()
+	if p := capturePath; p != "" {
 		return p, socketCapture
 	}
-	if p := cfg.GetString("system_probe_config.sysprobe_socket"); p != "" {
+	if p := systemProbePath; p != "" {
 		return p, socketMain
 	}
 	return "", socketNone
@@ -82,17 +82,17 @@ func captureSocket() (string, string) {
 
 // socketCaptureTrigger triggers captures via system-probe's packet_capture
 // module over its unix domain socket.
-type socketCaptureTrigger struct{}
+type socketCaptureTrigger struct{ cfg config.Config }
 
-func newCaptureTrigger() captureTrigger {
-	return &socketCaptureTrigger{}
+func newCaptureTrigger(cfg config.Config) captureTrigger {
+	return &socketCaptureTrigger{cfg: cfg}
 }
 
 // Capture triggers a packet capture on system-probe over its unix socket
 // and streams the resulting PCAP data to a local temp file. Errors are
 // tagged with their outcome reason; untagged ones are capture errors.
-func (*socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInputs) (out captureOutcome, err error) {
-	socketPath, socket := captureSocket()
+func (t *socketCaptureTrigger) Capture(ctx context.Context, inputs RunCaptureInputs) (out captureOutcome, err error) {
+	socketPath, socket := captureSocket(t.cfg)
 	defer func() { out.Socket = socket }()
 	if socketPath == "" {
 		return captureOutcome{}, withReason(reasonSocketUnreachable, errors.New("system-probe socket path not configured (packet_capture.socket or system_probe_config.sysprobe_socket)"))

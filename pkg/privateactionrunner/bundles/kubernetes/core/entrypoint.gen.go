@@ -5,17 +5,20 @@
 
 package com_datadoghq_kubernetes_core
 
-import "github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+import (
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+)
 
 type KubernetesCore struct {
 	actions map[string]types.Action
 }
 
-func NewKubernetesCore() *KubernetesCore {
+func NewKubernetesCore(cfg config.Config) *KubernetesCore {
 	return &KubernetesCore{
 		actions: map[string]types.Action{
 			// Manual actions
-			"getPodLogs":     NewGetPodLogsHandler(),
+			"getPodLogs":     NewGetPodLogsHandler(cfg),
 			"testConnection": NewTestConnectionHandler(),
 			// Auto-generated actions
 			"createConfigMap":                      NewCreateConfigMapHandler(),

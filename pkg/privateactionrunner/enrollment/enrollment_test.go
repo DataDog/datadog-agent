@@ -17,6 +17,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -37,11 +38,11 @@ func TestEnrollmentUsesPAROverride(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		id := &AgentIdentifier{Hostname: "test-host"}
 		if apiKeyOnly {
-			_, err := SelfEnrollApiKeyOnly(ctx, cfg, "datadoghq.eu", "test", "api-key", id, nil)
+			_, err := SelfEnrollApiKeyOnly(ctx, parconfig.New(cfg), "datadoghq.eu", "test", "api-key", id, nil)
 			require.Error(t, err)
 			assert.Equal(t, "/prefix/api/unstable/on_prem_runners/api_key_only", path.Load())
 		} else {
-			_, err := SelfEnroll(ctx, cfg, "datadoghq.eu", "test", "api-key", "app-key", id, nil)
+			_, err := SelfEnroll(ctx, parconfig.New(cfg), "datadoghq.eu", "test", "api-key", "app-key", id, nil)
 			require.Error(t, err)
 			assert.Equal(t, "/prefix/api/unstable/on_prem_runners", path.Load())
 		}

@@ -21,6 +21,7 @@ import (
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	pcapuploaderimpl "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/impl"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -71,7 +72,7 @@ func TestRunCapture_RealEndToEnd(t *testing.T) {
 	handler := &RunCaptureHandler{
 		uploader: newRealUploader(t, apiKey, site, intakeHost),
 		hostname: newTestHostname(),
-		capture:  &socketCaptureTrigger{},
+		capture:  &socketCaptureTrigger{cfg: parconfig.New(configmock.New(t))},
 	}
 
 	out, err := handler.capture.Capture(context.Background(), RunCaptureInputs{
@@ -129,7 +130,7 @@ func TestRunCapture_RealEndToEndViaRun(t *testing.T) {
 	systemProbeConfig := configmock.NewSystemProbe(t)
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
 
-	handler := NewRunCaptureHandler(newRealUploader(t, apiKey, site, intakeHost), newTestHostname())
+	handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), newRealUploader(t, apiKey, site, intakeHost), newTestHostname())
 
 	// Deliberately low so the cap, not the duration, is what ends the capture —
 	// otherwise a quiet host would pass without the bound ever being exercised.

@@ -23,10 +23,8 @@ import (
 
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -73,14 +71,14 @@ func newStateEmitter(report, logState func(State)) func(State) {
 	}
 }
 
-func Enabled(cfg model.Reader) bool {
-	return runtime.GOOS != "windows" && cfg.GetBool(par.Enabled)
+func Enabled(cfg parconfig.RuntimeConfig) bool {
+	return runtime.GOOS != "windows" && cfg.Enabled()
 }
 
 // Run watches supervisor registrations and authorizes each new lifecycle's initial startup.
 // It never retries an ambiguous Start or stops a child.
 // Status updates on every observation; report receives state/reason transitions.
-func Run(ctx context.Context, cfg model.Reader, source Source, report func(State)) {
+func Run(ctx context.Context, cfg parconfig.RuntimeConfig, source Source, report func(State)) {
 	if !Enabled(cfg) {
 		return
 	}
@@ -92,7 +90,7 @@ func Run(ctx context.Context, cfg model.Reader, source Source, report func(State
 	if expvar.Get("par_phone_home") == nil {
 		expvar.Publish("par_phone_home", expvar.Func(func() interface{} { return Status() }))
 	}
-	if bypass || err != nil || !filepath.IsAbs(enrollment.GetIdentityFilePath(cfg)) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
+	if bypass || err != nil || !filepath.IsAbs(cfg.IdentityFilePath()) || os.Getenv("DD_PRIVATE_ACTION_RUNNER_EXTRA_CONFIG_PATH") != "" {
 		emit(State{State: phonehomedef.StateBlocked, Reason: phonehomedef.ReasonUnsupportedConfiguration})
 		return
 	}
@@ -120,7 +118,7 @@ func supervisorSocketPath() string {
 }
 
 type controller struct {
-	cfg           model.Reader
+	cfg           parconfig.RuntimeConfig
 	source        Source
 	pm            pb.ProcessManagerClient
 	emit          func(State)
@@ -220,7 +218,7 @@ func (c *controller) step(ctx context.Context) time.Duration {
 		}
 	}
 	// Old recovery experiments may hold credentials: require deliberate reconciliation before migration.
-	if _, err := os.Stat(enrollment.GetIdentityFilePath(c.cfg) + ".phone-home"); !os.IsNotExist(err) {
+	if _, err := os.Stat(c.cfg.IdentityFilePath() + ".phone-home"); !os.IsNotExist(err) {
 		return set(phonehomedef.StateBlocked, phonehomedef.ReasonLegacyAttemptRequiresReconciliation, 0)
 	}
 	gate := c.source.Read(c.now())

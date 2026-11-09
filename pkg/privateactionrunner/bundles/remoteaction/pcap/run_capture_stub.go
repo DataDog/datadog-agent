@@ -10,6 +10,8 @@ package com_datadoghq_remoteaction_pcap
 import (
 	"context"
 	"errors"
+
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 // stubCaptureTrigger reports that packet capture is unavailable: the
@@ -17,7 +19,7 @@ import (
 // socket.
 type stubCaptureTrigger struct{}
 
-func newCaptureTrigger() captureTrigger {
+func newCaptureTrigger(cfg config.Config) captureTrigger {
 	return &stubCaptureTrigger{}
 }
 

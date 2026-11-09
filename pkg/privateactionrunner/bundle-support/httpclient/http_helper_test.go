@@ -132,7 +132,10 @@ func TestExistingClientReadsUpdatedAllowlist(t *testing.T) {
 	require.NoError(t, resp.Body.Close())
 	cfg.SetInTest("private_action_runner.http_allowlist", []string{})
 	inner.called = false
-	_, err = client.Do(req)
+	resp, err = client.Do(req)
+	if resp != nil {
+		require.NoError(t, resp.Body.Close())
+	}
 	require.ErrorContains(t, err, "request url is not allowed")
 	require.False(t, inner.called)
 }

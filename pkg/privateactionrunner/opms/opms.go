@@ -23,8 +23,7 @@ import (
 	"github.com/DataDog/jsonapi"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
@@ -33,7 +32,6 @@ import (
 	actionsclientpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/actionsclient"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -152,27 +150,27 @@ type Client interface {
 }
 
 type client struct {
-	config     config.Config
-	identity   *config.Identity
+	config     parconfig.Config
+	identity   *parconfig.Identity
 	httpClient *http.Client
 
 	runnerStartedAt    time.Time
 	lastTaskReceivedAt atomic.Pointer[time.Time]
 }
 
-func NewClient(coreCfg model.Reader, identity *config.Identity) Client {
+func NewClient(coreCfg parconfig.RuntimeConfig, identity *parconfig.Identity) Client {
 	return &client{
 		httpClient: &http.Client{
 			Timeout:   30 * time.Second,
-			Transport: httputils.CreateHTTPTransport(coreCfg),
+			Transport: coreCfg.HTTPTransport(),
 		},
-		config:          config.New(coreCfg),
+		config:          coreCfg,
 		identity:        identity,
 		runnerStartedAt: time.Now().UTC(),
 	}
 }
 
-func EndpointURL(cfg config.Config, path string) (string, error) {
+func EndpointURL(cfg parconfig.Config, path string) (string, error) {
 	endpoint, err := cfg.APIBaseURL()
 	if err != nil {
 		return "", err

@@ -39,7 +39,6 @@ import (
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
@@ -54,18 +53,12 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/runners"
 	taskverifier "github.com/DataDog/datadog-agent/pkg/privateactionrunner/task-verifier"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
 const (
 	maxStartupWaitTimeout = 15 * time.Second
 )
-
-// isEnabled checks if the private action runner is enabled in the configuration
-func isEnabled(cfg config.Component) bool {
-	return cfg.GetBool(par.Enabled)
-}
 
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
@@ -90,7 +83,7 @@ type Provides struct {
 }
 
 type PrivateActionRunner struct {
-	coreConfig     model.ReaderWriter
+	coreConfig     parconfig.RuntimeConfig
 	hostnameGetter hostnameinterface.Component
 	rcClient       pkgrcclient.Client
 	logger         log.Component
@@ -126,13 +119,14 @@ type PrivateActionRunner struct {
 
 // NewComponent creates a new privateactionrunner component
 func NewComponent(reqs Requires) (Provides, error) {
+	cfg := parconfig.New(reqs.Config)
 	ctx := context.Background()
-	if !isEnabled(reqs.Config) {
+	if !cfg.Enabled() {
 		reqs.Log.Info("private-action-runner is not enabled. Set private_action_runner.enabled: true in your datadog.yaml file or set the environment variable DD_PRIVATE_ACTION_RUNNER_ENABLED=true.")
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	mode, err := deployment.Resolve(reqs.Config)
+	mode, err := deployment.Resolve(cfg)
 	if err != nil {
 		return Provides{}, err
 	}
@@ -141,13 +135,13 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrSplitDeployment
 	}
-	if deployment.Requested(reqs.Config) {
+	if deployment.Requested(cfg) {
 		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
 	}
 
 	// The standalone runner sends metrics over a DogStatsD socket/UDP, built from
 	// the Agent's configured endpoint (it runs alongside a node Agent listener).
-	metricsClient, err := parconfig.NewMetricsClient(reqs.Config, reqs.Statsd)
+	metricsClient, err := parconfig.NewMetricsClient(cfg, reqs.Statsd)
 	if err != nil {
 		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
 	}
@@ -170,9 +164,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 // NewExecutorComponent creates a privateactionrunner component in on-demand executor mode.
 func NewExecutorComponent(reqs Requires) (Provides, error) {
+	cfg := parconfig.New(reqs.Config)
 	ctx := context.Background()
 
-	metricsClient, err := parconfig.NewMetricsClient(reqs.Config, reqs.Statsd)
+	metricsClient, err := parconfig.NewMetricsClient(cfg, reqs.Statsd)
 	if err != nil {
 		reqs.Log.Errorf("Private action runner metrics disabled: %v", err)
 	}
@@ -195,7 +190,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 
 func NewPrivateActionRunner(
 	_ context.Context,
-	coreConfig model.ReaderWriter,
+	source model.ReaderWriter,
 	hostnameGetter hostnameinterface.Component,
 	rcClient pkgrcclient.Client,
 	logger log.Component,
@@ -210,7 +205,7 @@ func NewPrivateActionRunner(
 	identityStorage enrollment.IdentityStorage,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
-		coreConfig:      coreConfig,
+		coreConfig:      parconfig.New(source),
 		hostnameGetter:  hostnameGetter,
 		rcClient:        rcClient,
 		logger:          logger,
@@ -228,7 +223,7 @@ func NewPrivateActionRunner(
 }
 
 func (p *PrivateActionRunner) getRunnerIdentity(ctx context.Context) (*parconfig.Identity, error) {
-	if err := parconfig.Validate(p.coreConfig); err != nil {
+	if err := p.coreConfig.Validate(); err != nil {
 		return nil, err
 	}
 	agentIdentifier, err := enrollment.GetAgentIdentifier(ctx, p.hostnameGetter)
@@ -240,28 +235,30 @@ func (p *PrivateActionRunner) getRunnerIdentity(ctx context.Context) (*parconfig
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
-	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
+	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.APIKey()) {
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
-		p.coreConfig.Set(par.PrivateKey, persistedIdentity.PrivateKey, model.SourceAgentRuntime)
-		p.coreConfig.Set(par.URN, persistedIdentity.URN, model.SourceAgentRuntime)
+		if err := p.coreConfig.SetIdentity(persistedIdentity.PrivateKey, persistedIdentity.URN); err != nil {
+			return nil, err
+		}
 	}
 
-	cfg, err := parconfig.ReadIdentity(p.coreConfig)
+	cfg, err := p.coreConfig.Identity()
 	if err != nil {
 		return nil, err
 	}
 
-	canSelfEnroll := p.coreConfig.GetBool(par.SelfEnroll)
+	canSelfEnroll := p.coreConfig.SelfEnroll()
 	if cfg.IsIncomplete() && canSelfEnroll {
 		p.logger.Info("Identity not found and self-enrollment enabled. Self-enrolling private action runner")
 		updatedCfg, err := p.performSelfEnrollment(ctx, cfg, agentIdentifier)
 		if err != nil {
 			return nil, fmt.Errorf("self-enrollment failed: %w", err)
 		}
-		p.coreConfig.Set(par.PrivateKey, updatedCfg.PrivateKey, model.SourceAgentRuntime)
-		p.coreConfig.Set(par.URN, updatedCfg.Urn, model.SourceAgentRuntime)
+		if err := p.coreConfig.SetEnrolledIdentity(updatedCfg); err != nil {
+			return nil, err
+		}
 		cfg = updatedCfg
 	} else if cfg.IsIncomplete() {
 		return nil, errors.New("identity not found and self-enrollment disabled. Please provide a valid URN and private key")
@@ -322,7 +319,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	}
 	p.executorServer.SetControlPlaneConfig(snapshot, tlsConfig.Certificates[0].Certificate[0])
 
-	socketPath := p.coreConfig.GetString(par.ExecutorSocketPath)
+	socketPath := p.coreConfig.ExecutorSocketPath()
 	lis, err := executor.Listen(socketPath)
 	if err != nil {
 		cancel()
@@ -333,11 +330,11 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 	p.executorDone = make(chan struct{})
 	drainTimeout := 60 * time.Second
 	if cfg != nil {
-		if timeout := p.coreConfig.GetInt32(par.TaskTimeoutSeconds); timeout > 0 {
+		if timeout := p.coreConfig.TaskTimeoutSeconds(); timeout > 0 {
 			drainTimeout = time.Duration(timeout) * time.Second
 		}
 	}
-	idleTimeout := executorIdleTimeout(p.coreConfig.GetInt(par.IdleTimeoutSeconds))
+	idleTimeout := executorIdleTimeout(p.coreConfig.IdleTimeoutSeconds())
 	if cfg == nil {
 		idleTimeout = time.Minute
 	}
@@ -372,7 +369,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 // configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
 func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Identity, error) {
-	if !p.coreConfig.GetBool(par.Enabled) || !deployment.Requested(p.coreConfig) {
+	if !p.coreConfig.Enabled() || !deployment.Requested(p.coreConfig) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
 	}
@@ -380,7 +377,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	if err != nil {
 		return runCtx, nil, err
 	}
-	if buildFIPS || p.coreConfig.GetBool("fips.enabled") {
+	if buildFIPS || p.coreConfig.FIPSEnabled() {
 		return runCtx, nil, errors.New("private_action_runner.split_enabled is not supported in FIPS mode")
 	}
 	cfg, err := p.getRunnerIdentity(ctx)
@@ -509,8 +506,8 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
-	p.logger.Info("==> Site : " + par.Site(p.coreConfig))
-	endpointURL, _ := par.APIBaseURL(p.coreConfig, par.Site(p.coreConfig)) // Already validated during initialization.
+	p.logger.Info("==> Site : " + p.coreConfig.Site())
+	endpointURL, _ := p.coreConfig.APIBaseURL() // Already validated during initialization.
 	if endpoint, err := url.Parse(endpointURL); err == nil {
 		p.logger.Info("==> API Host : " + endpoint.Host)
 	}
@@ -575,9 +572,9 @@ func (p *PrivateActionRunner) Stop(ctx context.Context) error {
 
 func (p *PrivateActionRunner) startTelemetry() {
 	p.telemetry = telemetry.NewTelemetry(
-		&http.Client{Transport: httputils.CreateHTTPTransport(p.coreConfig)},
-		configutils.SanitizeAPIKey(p.coreConfig.GetString("api_key")),
-		par.Site(p.coreConfig),
+		&http.Client{Transport: p.coreConfig.HTTPTransport()},
+		configutils.SanitizeAPIKey(p.coreConfig.APIKey()),
+		p.coreConfig.Site(),
 		observability.ParService,
 	)
 }
@@ -604,8 +601,8 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 //   - true:  enroll with API key only (app key ignored, no auto-connections)
 //   - false: enroll with API key + app key (app key required, auto-connections created)
 func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *parconfig.Identity, agentIdentifier *enrollment.AgentIdentifier) (*parconfig.Identity, error) {
-	apiKey := p.coreConfig.GetString("api_key")
-	apiKeyOnlyEnrollment := p.coreConfig.GetBool(par.APIKeyOnlyEnrollment)
+	apiKey := p.coreConfig.APIKey()
+	apiKeyOnlyEnrollment := p.coreConfig.APIKeyOnlyEnrollment()
 
 	if apiKeyOK, err := util.ValidateAPIKey(apiKey); err != nil {
 		return nil, fmt.Errorf("invalid api_key: %w", err)
@@ -617,7 +614,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	if apiKeyOnlyEnrollment {
 		p.logger.Info("API-key-only enrollment enabled")
 	} else {
-		appKey = p.coreConfig.GetString("app_key")
+		appKey = p.coreConfig.AppKey()
 		if appKey == "" {
 			return nil, errors.New("app_key is required when api_key_only_enrollment is disabled")
 		}
