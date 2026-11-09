@@ -264,6 +264,7 @@ properties:
           if not overridden.
       configs:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
@@ -546,6 +547,7 @@ properties:
             - '<COMMUNITY_2>'
       users:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
