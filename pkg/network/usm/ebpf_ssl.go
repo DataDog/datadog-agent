@@ -879,7 +879,7 @@ func (o *sslProgram) deleteDeadPidsInSSLCtxMap(alivePIDs map[uint32]struct{}) er
 
 	// Second pass: Clean ssl_sock_by_ctx map and add more dead SSL contexts
 	o.sslSockByCtxMapCleaner.Clean(nil, nil, func(_ int64, key http.SSLCtxPidTGID, _ http.SslSock) bool {
-		pid := uint32(key.Tgid >> 32)
+		pid := key.Pid
 		if _, isAlive := alivePIDs[pid]; !isAlive {
 			sslCtxToClean[key.Ctx] = struct{}{}
 			return true

@@ -510,7 +510,7 @@ func countSSLSockByCtxEntriesOfPID(t *testing.T, m *ebpf.Map, pid int) int {
 	count := 0
 	iter := m.Iterate()
 	for iter.Next(unsafe.Pointer(&key), unsafe.Pointer(&value)) {
-		if int(key.Tgid>>32) == pid {
+		if int(key.Pid) == pid {
 			count++
 		}
 	}

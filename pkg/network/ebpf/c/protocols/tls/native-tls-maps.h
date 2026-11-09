@@ -2,15 +2,17 @@
 #define __NATIVE_TLS_MAPS_H
 
 #include "map-defs.h"
+#include "pid_tgid.h"
 
 BPF_HASH_MAP(ssl_sock_by_ctx, ssl_ctx_pid_tgid_t, ssl_sock_t, 1)
 
 // Builds the ssl_sock_by_ctx key. The key is per process, not per thread: any thread of
 // the process may use or close an SSL context, and the delete paths only see the thread
-// that closes it. The thread ID bits are cleared and the TGID stays in the upper 32 bits.
+// that closes it.
 static __always_inline ssl_ctx_pid_tgid_t ssl_sock_by_ctx_key(__u64 pid_tgid, void *ssl_ctx) {
     ssl_ctx_pid_tgid_t key = {
-        .pid_tgid = pid_tgid & 0xFFFFFFFF00000000ULL,
+        .pid = GET_USER_MODE_PID(pid_tgid),
+        .pad = 0,
         .ctx = ssl_ctx,
     };
     return key;
