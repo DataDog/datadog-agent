@@ -24,11 +24,19 @@ go_library(
 
 dd_agent_go_test(
     name = "versa_test",
-    srcs = ["versa_test.go"],
+    srcs = [
+        "configure_test.go",
+        "versa_test.go",
+    ],
     embed = [":versa"],
     deps = [
+        "//comp/core/autodiscovery/integration",
+        "//pkg/aggregator/mocksender",
+        "//pkg/collector/check/id",
         "//pkg/collector/corechecks/network-devices/versa/client",
         "//pkg/networkdevice/metadata",
+        "//pkg/util/log",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@in_yaml_go_yaml_v3//:yaml",
     ],

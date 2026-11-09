@@ -8,6 +8,8 @@
 package report
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
@@ -2008,7 +2010,17 @@ func TestSendCircuitQoSMetrics(t *testing.T) {
 // parser and sender, so a column added to the query but not to the parser (or the other
 // way round) shows up as a missing or misplaced metric.
 func TestCircuitQoSMetricsEndToEnd(t *testing.T) {
-	server := client.SetupMockAPIServer()
+	mockAPI := client.SetupMockAPIServer()
+	defer mockAPI.Close()
+	// Record the metrics the client asks for, in order, before handing the request to
+	// the mock API, so the column order the parser relies on is pinned at the source.
+	var requested []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Query().Get("q"), "cos(") {
+			requested = r.URL.Query()["metrics"]
+		}
+		mockAPI.Config.Handler.ServeHTTP(w, r)
+	}))
 	defer server.Close()
 	c, err := client.NewTestClient(server)
 	require.NoError(t, err)
@@ -2016,6 +2028,11 @@ func TestCircuitQoSMetricsEndToEnd(t *testing.T) {
 	metrics, err := c.GetCircuitQoSMetrics("datadog")
 	require.NoError(t, err)
 	require.Len(t, metrics, 1)
+	require.Equal(t, []string{
+		"betx", "betxdrop", "eftx", "eftxdrop", "aftx", "aftxdrop", "nctx", "nctxdrop",
+		"bebandwidth", "efbandwidth", "afbandwidth", "ncbandwidth",
+		"volume-tx", "totaldrop", "percentdrop", "bandwidth",
+	}, requested)
 
 	mockSender := mocksender.NewMockSender(t, "testID")
 	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
