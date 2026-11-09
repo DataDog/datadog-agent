@@ -81,7 +81,7 @@ func TestBraceExpansionWorkLimit(t *testing.T) {
 		"chained single-valued ranges": "true " + chain,
 		"nested alternatives":          "true " + strings.Repeat("{a,", 1000) + strings.Repeat("}", 1000),
 		"unclosed braces":              "true " + strings.Repeat("{a", 2000),
-		"many parts beside braces":     "true {a,b}{c,d}{e,f}{g,h}" + strings.Repeat("$e", 600000),
+		"many parts beside braces":     "true " + strings.Repeat("{a,b}", 8) + strings.Repeat("$e", 20000),
 		"alternatives without fields":  "true " + strings.Repeat("{$e,$e}", 14) + strings.Repeat("$e", 5000),
 		"blank values in alternatives": "true " + strings.Repeat("{$S,$S}", 8),
 		"command name":                 chain,
