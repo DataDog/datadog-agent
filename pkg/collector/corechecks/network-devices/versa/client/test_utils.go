@@ -149,7 +149,11 @@ func SetupMockAPIServer() *httptest.Server {
 				fixtureHandler(fixtures.GetPathQoSMetrics)(w, r)
 			}
 		} else if strings.Contains(query, "cos(") {
-			fixtureHandler(fixtures.GetCircuitQoSMetrics)(w, r)
+			if timeseries {
+				fixtureHandler(fixtures.GetCircuitQoSMetricsTimeseries)(w, r)
+			} else {
+				fixtureHandler(fixtures.GetCircuitQoSMetrics)(w, r)
+			}
 		} else if strings.Contains(query, "usage(") {
 			fixtureHandler(fixtures.GetDIAMetrics)(w, r)
 		} else if strings.Contains(query, "intfUtil(") {

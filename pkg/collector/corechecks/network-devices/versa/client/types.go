@@ -576,6 +576,9 @@ type CircuitQoSMetrics struct {
 	TotalDrop            float64
 	PercentDrop          float64
 	Bandwidth            float64
+	// PercentDropUnset is true when PercentDrop has no value to report: a timeseries
+	// bucket with no transmitted volume.
+	PercentDropUnset bool
 	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
 	// for a tableData query, which aggregates the whole lookback window into one row.
 	Timestamp int64

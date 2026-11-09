@@ -2119,3 +2119,16 @@ func TestSendSLAMetricsDedupeIsTenantKeyed(t *testing.T) {
 	s.SendSLAMetrics("tenant-2", slaBuckets(key, start, 4), nil)
 	mockSender.AssertNumberOfCalls(t, "GaugeWithTimestamp", 2*4*6)
 }
+
+func TestSendCircuitQoSMetricsSkipsUnsetPercentDrop(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s := NewSender(mockSender, "default")
+	s.SendCircuitQoSMetrics("datadog", []client.CircuitQoSMetrics{{
+		DrillKey: "site-001,circuit-a", Site: "site-001", AccessCircuit: "circuit-a",
+		PercentDropUnset: true,
+	}}, nil)
+
+	mockSender.AssertNotCalled(t, "Gauge", versaMetricPrefix+"circuit_qos.percent_drop", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 15)
+}

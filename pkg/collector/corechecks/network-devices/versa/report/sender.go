@@ -408,7 +408,9 @@ func (s *Sender) SendCircuitQoSMetrics(tenant string, qosMetrics []client.Circui
 		// Send aggregate metrics
 		s.sendBucketGauge("circuit_qos.volume_tx", qosMetric.VolumeTx, tags, ts)
 		s.sendBucketGauge("circuit_qos.total_drop", qosMetric.TotalDrop, tags, ts)
-		s.sendBucketGauge("circuit_qos.percent_drop", qosMetric.PercentDrop, tags, ts)
+		if !qosMetric.PercentDropUnset {
+			s.sendBucketGauge("circuit_qos.percent_drop", qosMetric.PercentDrop, tags, ts)
+		}
 		s.sendBucketGauge("circuit_qos.bandwidth", qosMetric.Bandwidth, tags, ts)
 	}
 

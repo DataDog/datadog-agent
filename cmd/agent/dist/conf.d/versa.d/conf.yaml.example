@@ -267,6 +267,10 @@ instances:
     ## Versa logs only the main traffic class unless log-fc-stats is enabled under the
     ## network's class of service configuration, so a tenant without it sees the four
     ## forwarding classes but no per queue detail.
+    ##
+    ## percent_drop is a fraction (total_drop / volume_tx). With the timeseries query
+    ## type it is computed per bucket from those two values, because Versa reports it as
+    ## zero there, and is not sent for a bucket with no transmitted volume.
     #
     # collect_circuit_qos_metrics: false
 
