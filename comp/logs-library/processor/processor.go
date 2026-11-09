@@ -215,6 +215,7 @@ func (p *Processor) processMessage(msg *message.Message) {
 		}
 	}
 
+	p.resolveTagFilter(msg)
 	if p.quotaEnforcer != nil && p.quotaEnforcer.Check(msg) {
 		return
 	}
@@ -230,8 +231,6 @@ func (p *Processor) processMessage(msg *message.Message) {
 			return
 		}
 		msg.SetRendered(rendered)
-
-		p.resolveTagFilter(msg)
 
 		// report this message to diagnostic receivers (e.g. `stream-logs` command)
 		p.diagnosticMessageReceiver.HandleMessage(msg, rendered, "")

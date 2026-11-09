@@ -20,6 +20,7 @@ type TagSnapshot struct {
 	config         *config.LogsConfig
 	configTags     []string
 	sourceCategory string
+	service        string
 	static         []string
 	dynamic        []string
 
@@ -31,6 +32,7 @@ func newTagSnapshot(source *sources.LogSource, static, dynamic []string) *TagSna
 		config:         source.Config,
 		configTags:     source.Config.Tags,
 		sourceCategory: source.Config.SourceCategory,
+		service:        source.Config.Service,
 		static:         static,
 		dynamic:        dynamic,
 	}
@@ -46,8 +48,11 @@ func (s *TagSnapshot) All() iter.Seq[string] {
 				}
 			}
 		}
-		if s.sourceCategory != "" {
-			yield("sourcecategory:" + s.sourceCategory)
+		if s.sourceCategory != "" && !yield("sourcecategory:"+s.sourceCategory) {
+			return
+		}
+		if s.service != "" {
+			yield("service:" + s.service)
 		}
 	}
 }
@@ -67,7 +72,7 @@ func (s *TagSnapshot) SetCached(v any) {
 
 func (s *TagSnapshot) describes(source *sources.LogSource) bool {
 	c := source.Config
-	return c == s.config && sameSlice(c.Tags, s.configTags) && c.SourceCategory == s.sourceCategory
+	return c == s.config && sameSlice(c.Tags, s.configTags) && c.SourceCategory == s.sourceCategory && c.Service == s.service
 }
 
 // TagSnapshotter returns the previous snapshot while a producer's shared tags are unchanged.

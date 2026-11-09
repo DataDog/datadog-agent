@@ -45,13 +45,19 @@ func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }
 
-// HasTag reports whether Tags would contain tag, without allocating.
+// HasTag reports whether Tags would contain tag, or tag is service:<Service()>, without allocating.
 func (o *Origin) HasTag(tag string) bool {
 	if o == nil || o.LogSource == nil {
 		return false
 	}
 	if slices.Contains(o.tags, tag) || slices.Contains(o.LogSource.Config.Tags, tag) {
 		return true
+	}
+	if tag == "" || tag[0] != 's' {
+		return false
+	}
+	if service, ok := strings.CutPrefix(tag, "service:"); ok {
+		return service != "" && service == o.Service()
 	}
 	category, ok := strings.CutPrefix(tag, "sourcecategory:")
 	return ok && category != "" && category == o.LogSource.Config.SourceCategory
@@ -199,9 +205,9 @@ func (o *Origin) SetTagsWithSnapshot(tags []string, shared *TagSnapshot, message
 }
 
 // TagSnapshot returns the shared tags and the message-specific tags that together match like HasTag.
-// ok is false when no snapshot was set or the source config changed since it was taken.
+// ok is false when no snapshot was set, the source config changed since it was taken, or Service differs from it.
 func (o *Origin) TagSnapshot() (shared *TagSnapshot, messageTags []string, ok bool) {
-	if o == nil || o.shared == nil || o.LogSource == nil || !o.shared.describes(o.LogSource) {
+	if o == nil || o.shared == nil || o.LogSource == nil || !o.shared.describes(o.LogSource) || o.Service() != o.shared.service {
 		return nil, nil, false
 	}
 	return o.shared, o.messageTags, true

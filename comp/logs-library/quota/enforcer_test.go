@@ -68,7 +68,8 @@ func TestMatchTags(t *testing.T) {
 		{"all tags required", []string{"env:prod", "team:a"}, newMsg("env:prod", "team:b"), false},
 		{"all tags present", []string{"team:a", "env:prod"}, newMsg("env:prod", "team:a"), true},
 		{"no tags drops everything", nil, newMsg(), true},
-		{"service is not a tag", []string{"service:web"}, newMsg("env:prod"), false},
+		{"top-level service", []string{"service:web"}, newMsg("env:prod"), true},
+		{"top-level service mismatch", []string{"service:api"}, newMsg("env:prod"), false},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -237,6 +238,35 @@ func BenchmarkCheck(b *testing.B) {
 		e.Update(map[string][]byte{"c": snap(time.Now().Add(time.Hour), []string{"env:prod", "team:search"})})
 		for b.Loop() {
 			e.Check(msg)
+		}
+	})
+	filtered := func(tags ...string) *message.Message {
+		m := newMsg(tags...)
+		setFilter(b, m.Origin.LogSource, nil, []string{"drop:*"})
+		return m
+	}
+	b.Run("tag hit+filter", func(b *testing.B) {
+		e := NewEnforcer()
+		e.Update(map[string][]byte{"c": snap(time.Now().Add(time.Hour), []string{"env:prod", "team:search"})})
+		m := filtered("env:prod", "team:search")
+		for b.Loop() {
+			e.Check(m)
+		}
+	})
+	b.Run("tag hit+filter+uppercase", func(b *testing.B) {
+		e := NewEnforcer()
+		e.Update(map[string][]byte{"c": snap(time.Now().Add(time.Hour), []string{"Env:prod", "Team:search"})})
+		m := filtered("Env:prod", "Team:search")
+		for b.Loop() {
+			e.Check(m)
+		}
+	})
+	b.Run("50 quotas miss+filter", func(b *testing.B) {
+		e := NewEnforcer()
+		e.Update(manyQuotas(50, time.Now().Add(time.Hour)))
+		m := filtered("env:prod", "team:search")
+		for b.Loop() {
+			e.Check(m)
 		}
 	})
 	b.Run("50 quotas miss", func(b *testing.B) {

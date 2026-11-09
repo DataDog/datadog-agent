@@ -31,6 +31,12 @@ func TestTagSnapshotterReuse(t *testing.T) {
 	last := s.Get(source, static, nil)
 	source.Config.Tags = []string{"env:dev"}
 	assert.NotSame(t, last, s.Get(source, static, nil))
+
+	last = s.Get(source, static, nil)
+	source.Config.Service = "web"
+	withService := s.Get(source, static, nil)
+	assert.NotSame(t, last, withService)
+	assert.Contains(t, slices.Collect(withService.All()), "service:web")
 }
 
 func TestOriginTagSnapshot(t *testing.T) {
@@ -48,6 +54,11 @@ func TestOriginTagSnapshot(t *testing.T) {
 	_, _, ok = o.TagSnapshot()
 	assert.False(t, ok)
 	source.Config.SourceCategory = ""
+
+	o.SetService("journal")
+	_, _, ok = o.TagSnapshot()
+	assert.False(t, ok, "a message service the snapshot does not hold disables it")
+	o.SetService("")
 
 	o.SetTags([]string{"team:a"})
 	_, _, ok = o.TagSnapshot()

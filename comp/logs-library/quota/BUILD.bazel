@@ -13,7 +13,9 @@ go_library(
     deps = [
         "//comp/core/telemetry/def",
         "//comp/logs-library/metrics",
+        "//comp/logs-library/tagfilter",
         "//pkg/logs/message",
+        "//pkg/logs/sources",
     ],
 )
 
@@ -26,6 +28,7 @@ dd_agent_go_test(
     embed = [":quota"],
     deps = [
         "//comp/logs-library/metrics",
+        "//comp/logs-library/tagfilter",
         "//comp/logs/agent/config",
         "//pkg/logs/message",
         "//pkg/logs/sources",

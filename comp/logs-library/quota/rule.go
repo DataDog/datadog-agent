@@ -13,7 +13,9 @@ import (
 	"strings"
 	"time"
 
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
+	"github.com/DataDog/datadog-agent/pkg/logs/sources"
 )
 
 type snapshot struct {
@@ -66,6 +68,19 @@ func (q *quota) expired(now time.Time) bool {
 func (q *quota) matches(o *message.Origin) bool {
 	for _, t := range q.tags {
 		if !o.HasTag(t) {
+			return false
+		}
+	}
+	return true
+}
+
+// retainedBy reports whether f keeps every tag of q, or its payload attribute, so a log carrying them all still matches.
+func (q *quota) retainedBy(f sources.TagFilter) bool {
+	if f == nil {
+		return true
+	}
+	for _, t := range q.tags {
+		if key, value, ok := strings.Cut(t, ":"); ok && !f.RetainsTag(key, value) && !tagfilter.IsPayloadAttributeKey(key) {
 			return false
 		}
 	}
