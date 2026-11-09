@@ -1277,6 +1277,29 @@ func TestManagerV2_eventsWithError(t *testing.T) {
 		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
 		assertZeroCounters(t, m.insertionErrors)
 	})
+
+	t.Run("broken lineage inside of the container is kept for a known process", func(t *testing.T) {
+		m, _ := newInsertionTestManagerV2(t)
+		execTime := time.Now()
+		known := newTestEventV2(model.FileOpenEventType, "v1", "known")
+		known.ProcessCacheEntry.Cookie = 42
+		known.ProcessCacheEntry.ExecTime = execTime
+		_, inserted := m.insertEventIntoProfile(known)
+		require.True(t, inserted)
+
+		event := newTestEventV2(model.FileOpenEventType, "v1", "new")
+		event.ProcessCacheEntry.Cookie = 42
+		event.ProcessCacheEntry.ExecTime = execTime
+		breakLineage(event, true)
+
+		p, inserted := m.insertEventIntoProfile(event)
+
+		require.NotNil(t, p)
+		assert.True(t, inserted)
+		assert.NotNil(t, findTestEventNode(p, model.FileOpenEventType, "new"))
+		assert.EqualValues(t, 1, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorKept))
+		assert.Zero(t, countOf(m, model.FileOpenEventType, activity_tree.EventErrorBrokenLineage, eventWithErrorDropped))
+	})
 }
 
 func TestManagerV2_seedMountsForWorkload(t *testing.T) {
