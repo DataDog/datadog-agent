@@ -1,6 +1,8 @@
 #ifndef _HOOKS_EXEC_H_
 #define _HOOKS_EXEC_H_
 
+#include <uapi/linux/capability.h>
+
 #include "constants/syscall_macro.h"
 #include "constants/offsets/filesystem.h"
 #include "helpers/cgroup.h"
@@ -69,6 +71,93 @@ HOOK_SYSCALL_EXIT(execve) {
 
 HOOK_SYSCALL_EXIT(execveat) {
     return handle_execve_exit();
+}
+
+// The cpu_vfs_cap_data layout varies across kernels. Read only the fields we
+// need at the resolved field offsets, without assuming a
+// particular layout or reading rootid. Linux 4.14's object is only 20 bytes.
+// Both mask representations can be read as u64 on amd64 and little-endian arm64.
+static __always_inline void read_exec_file_capabilities(void *file_caps, u64 permitted_offset, u64 inheritable_offset, struct file_capabilities_t *caps) {
+    *caps = (struct file_capabilities_t){};
+    if (!permitted_offset || !inheritable_offset) {
+        // Unresolved offsets are loaded as zero: leave unavailable.
+        return;
+    }
+
+    u32 magic_etc = 0;
+    struct file_capabilities_t result = {};
+    if (bpf_probe_read(&magic_etc, sizeof(magic_etc), file_caps) != 0 ||
+        bpf_probe_read(&result.permitted, sizeof(result.permitted), (char *)file_caps + permitted_offset) != 0 ||
+        bpf_probe_read(&result.inheritable, sizeof(result.inheritable), (char *)file_caps + inheritable_offset) != 0) {
+        return;
+    }
+
+    result.effective = (magic_etc & VFS_CAP_FLAGS_EFFECTIVE) != 0;
+    result.available = 1;
+    *caps = result;
+}
+
+HOOK_ENTRY("get_vfs_caps_from_disk")
+int hook_get_vfs_caps_from_disk(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall) {
+        return 0;
+    }
+
+    u64 argc;
+    LOAD_CONSTANT("get_vfs_caps_from_disk_argc", argc);
+    if (argc != 2 && argc != 3) {
+        return 0;
+    }
+
+    // Materialize the arguments before selecting between prototypes. Otherwise
+    // LLVM can merge the loads into a register-offset ctx access, which the
+    // verifier rejects in both kprobe and fentry programs.
+    u64 arg1 = CTX_PARM1(ctx);
+    u64 arg2 = CTX_PARM2(ctx);
+    barrier_var(arg1);
+    barrier_var(arg2);
+
+    u64 arg3 = 0;
+    if (argc == 3) {
+        // This slot is not valid for the two-argument fentry prototype.
+        arg3 = CTX_PARM3(ctx);
+        barrier_var(arg3);
+    }
+
+    // An idmap/user_namespace argument was added before dentry in Linux 5.12.
+    struct dentry *dentry = (struct dentry *)(argc == 3 ? arg2 : arg1);
+    if (dentry != syscall->exec.dentry) {
+        // In particular, do not attribute an interpreter's capabilities to a script.
+        return 0;
+    }
+
+    syscall->exec.file_caps = (void *)(argc == 3 ? arg3 : arg2);
+    syscall->exec.file_capabilities = (struct file_capabilities_t){};
+    return 0;
+}
+
+HOOK_EXIT("get_vfs_caps_from_disk")
+int rethook_get_vfs_caps_from_disk(ctx_t *ctx) {
+    struct syscall_cache_t *syscall = peek_syscall(EVENT_EXEC);
+    if (!syscall || !syscall->exec.file_caps) {
+        return 0;
+    }
+
+    void *file_caps = syscall->exec.file_caps;
+    syscall->exec.file_caps = NULL;
+    if ((int)CTX_PARMRET(ctx) != 0) {
+        return 0;
+    }
+
+    u64 permitted_offset, inheritable_offset;
+    LOAD_CONSTANT("cpu_vfs_cap_data_permitted_offset", permitted_offset);
+    LOAD_CONSTANT("cpu_vfs_cap_data_inheritable_offset", inheritable_offset);
+
+    // These are the file sets, before the bounding-set check. Merely acquiring
+    // capabilities during exec is deliberately not reported as capability usage.
+    read_exec_file_capabilities(file_caps, permitted_offset, inheritable_offset, &syscall->exec.file_capabilities);
+    return 0;
 }
 
 static __always_inline int handle_interpreted_exec_event(void *ctx, struct syscall_cache_t *syscall, struct file *file) {
@@ -824,6 +913,7 @@ static __always_inline int send_exec_event(ctx_t *ctx) {
                 },
             },
             .exec_timestamp = now,
+            .file_capabilities = syscall->exec.file_capabilities,
         },
         .cgroup = {},
     };
