@@ -84,6 +84,9 @@ func translateFieldType(rt string) string {
 	switch rt {
 	case "net.IPNet", "net.IP":
 		return "IP/CIDR"
+	case "map[string]string":
+		// a dictionary is only evaluated at a key, to one of its values
+		return "string"
 	}
 	return rt
 }
