@@ -1,76 +1,86 @@
 import os
 import sys
 import unittest
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 from invoke import Result
+from invoke.exceptions import UnexpectedExit
 
 from tasks.flavor import FipsBackend
 from tasks.libs.common.go import _with_pdb_extldflag, go_build
+from tasks.libs.common.utils import join_command
 
 
 class TestGoBuild(unittest.TestCase):
     def setUp(self) -> None:
         super().setUp()
         self.ctx_mock = MagicMock()
+        self.run_mock = self.enterContext(patch("tasks.libs.common.go.Local")).return_value.run
 
     def test_default(self):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
+        go_build(self.ctx_mock, "main.go")
 
-        result = go_build(self.ctx_mock, "main.go")
-
-        self.assertEqual(result.exited, 0)
-
-        calls = [call("go build -trimpath main.go", env={})]
-        self.ctx_mock.run.assert_has_calls(calls, any_order=False)
+        self.run_mock.assert_called_once_with("go build -trimpath main.go", env={}, hide=None)
 
     def test_with_gcflags(self):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
+        go_build(self.ctx_mock, "main.go", gcflags="-gcflags=all=-N -l")
 
-        result = go_build(self.ctx_mock, "main.go", gcflags="-gcflags=all=-N -l")
-
-        self.assertEqual(result.exited, 0)
-        calls = [call("go build -gcflags=\"-gcflags=all=-N -l\" -trimpath main.go", env={})]
-        self.ctx_mock.run.assert_has_calls(calls, any_order=False)
+        self.run_mock.assert_called_once_with(
+            join_command(["go", "build", "-gcflags=-gcflags=all=-N -l", "-trimpath", "main.go"]), env={}, hide=None
+        )
 
     def test_boringcrypto(self):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
+        go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "1"}, fips_backend=FipsBackend.boringcrypto)
 
-        result = go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "1"}, fips_backend=FipsBackend.boringcrypto)
-
-        self.assertEqual(result.exited, 0)
-        calls = [call("go build -trimpath main.go", env={"CGO_ENABLED": "1", "GOEXPERIMENT": "boringcrypto"})]
-        self.ctx_mock.run.assert_has_calls(calls, any_order=False)
+        self.run_mock.assert_called_once_with(
+            "go build -trimpath main.go", env={"CGO_ENABLED": "1", "GOEXPERIMENT": "boringcrypto"}, hide=None
+        )
 
     @patch.dict("os.environ", {"GOOS": "linux"})
-    def test_msgo_linux(self):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
-
+    @patch("tasks.libs.common.go.bazel")
+    def test_msgo_linux(self, bazel):
         go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "0"}, fips_backend=FipsBackend.msgo)
 
-        calls = [call("go build -trimpath main.go", env={"CGO_ENABLED": "0", "GOEXPERIMENT": "ms_nocgo_opensslcrypto"})]
-        self.ctx_mock.run.assert_has_calls(calls, any_order=False)
+        bazel.assert_called_once_with(
+            "run",
+            "//:msgo",
+            "--",
+            "-C",
+            os.getcwd(),
+            "build",
+            "-trimpath",
+            "main.go",
+            capture_stderr=False,
+            env={"CGO_ENABLED": "0", "GOEXPERIMENT": "ms_nocgo_opensslcrypto"},
+        )
 
     @patch.dict("os.environ", {"GOOS": "windows"})
-    def test_msgo_windows(self):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
-
+    @patch("tasks.libs.common.go.bazel")
+    def test_msgo_windows(self, bazel):
         go_build(self.ctx_mock, "main.go", env={"CGO_ENABLED": "1"}, fips_backend=FipsBackend.msgo)
 
-        calls = [call("go build -trimpath main.go", env={"CGO_ENABLED": "1"})]
-        self.ctx_mock.run.assert_has_calls(calls, any_order=False)
+        bazel.assert_called_once_with(
+            "run",
+            "//:msgo",
+            "--",
+            "-C",
+            os.getcwd(),
+            "build",
+            "-trimpath",
+            "main.go",
+            capture_stderr=False,
+            env={"CGO_ENABLED": "1"},
+        )
 
     @unittest.skipIf(sys.platform == "win32", "os.chown not available on Windows")
     @patch("os.path.exists")
     @patch("os.chown")
     @patch.dict("os.environ", {"HOST_UID": "1000", "HOST_GID": "1001"})
     def test_owner_correction(self, mock_chown, mock_exists):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
         mock_exists.return_value = True
 
-        result = go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
+        go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
 
-        self.assertEqual(result.exited, 0)
         mock_exists.assert_called_once_with("/tmp/test_binary")
         mock_chown.assert_called_once_with("/tmp/test_binary", 1000, 1001)
 
@@ -78,12 +88,10 @@ class TestGoBuild(unittest.TestCase):
     @patch("os.path.exists")
     @patch("os.chown")
     def test_default_no_owner_correction(self, mock_chown, mock_exists):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
         mock_exists.return_value = True
 
-        result = go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
+        go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
 
-        self.assertEqual(result.exited, 0)
         mock_exists.assert_called_once_with("/tmp/test_binary")
         mock_chown.assert_not_called()
 
@@ -91,12 +99,10 @@ class TestGoBuild(unittest.TestCase):
     @patch("os.path.exists")
     @patch("os.chown")
     def test_no_owner_correction_binary_not_exists(self, mock_chown, mock_exists):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
         mock_exists.return_value = False
 
-        result = go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
+        go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
 
-        self.assertEqual(result.exited, 0)
         mock_exists.assert_called_once_with("/tmp/test_binary")
         mock_chown.assert_not_called()
 
@@ -104,11 +110,8 @@ class TestGoBuild(unittest.TestCase):
     @patch("os.path.exists")
     @patch("os.chown")
     def test_no_owner_correction_no_bin_path(self, mock_chown, mock_exists):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=0)
+        go_build(self.ctx_mock, "main.go")
 
-        result = go_build(self.ctx_mock, "main.go")
-
-        self.assertEqual(result.exited, 0)
         mock_exists.assert_not_called()
         mock_chown.assert_not_called()
 
@@ -116,12 +119,12 @@ class TestGoBuild(unittest.TestCase):
     @patch("os.path.exists")
     @patch("os.chown")
     def test_no_owner_correction_build_failure(self, mock_chown, mock_exists):
-        self.ctx_mock.run.return_value = Result(stdout="", stderr="", exited=1)
+        self.run_mock.side_effect = UnexpectedExit(Result(exited=1))
         mock_exists.return_value = True
 
-        result = go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
+        with self.assertRaises(UnexpectedExit):
+            go_build(self.ctx_mock, "main.go", bin_path="/tmp/test_binary")
 
-        self.assertEqual(result.exited, 1)
         mock_exists.assert_not_called()
         mock_chown.assert_not_called()
 

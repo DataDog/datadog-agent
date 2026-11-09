@@ -53,7 +53,7 @@ func (tp *InternalTracerPayload) UnmarshalMsgDictionary(bts []byte) error {
 	}
 	// read dictionary
 	var sz uint32
-	if sz, bts, err = safeReadHeaderBytes(bts, msgp.ReadArrayHeaderBytes); err != nil {
+	if sz, bts, err = safeReadDictionaryHeaderBytes(bts); err != nil {
 		return err
 	}
 	dict := make([]string, sz)
@@ -210,12 +210,12 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if err != nil {
 		return bts, err
 	}
-	if s.span.Attributes == nil && sz > 0 {
-		s.span.Attributes = make(map[uint32]*AnyValue, sz)
-	}
 	if sz > 0 {
 		if err = checkSlabCount(sz, bts); err != nil {
 			return bts, err
+		}
+		if s.span.Attributes == nil {
+			s.span.Attributes = make(map[uint32]*AnyValue, sz)
 		}
 		// Slab-allocate the AnyValue containers and their string-ref oneof wrappers
 		// for every meta entry in two allocations, rather than two per entry. The map
@@ -243,12 +243,12 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	if err != nil {
 		return bts, err
 	}
-	if s.span.Attributes == nil && sz > 0 {
-		s.span.Attributes = make(map[uint32]*AnyValue, sz)
-	}
 	if sz > 0 {
 		if err = checkSlabCount(sz, bts); err != nil {
 			return bts, err
+		}
+		if s.span.Attributes == nil {
+			s.span.Attributes = make(map[uint32]*AnyValue, sz)
 		}
 		// Slab-allocate the AnyValue containers and their double oneof wrappers for
 		// every metric in two allocations, rather than two per metric.
@@ -281,19 +281,23 @@ func (s *InternalSpan) UnmarshalMsgDictionaryConverted(bts []byte, convertedFiel
 	return bts, nil
 }
 
+// errTooLongPayload is returned when a header in a v0.4/v0.5 payload declares more elements than allowed.
+var errTooLongPayload = errors.New("too long payload")
+
 // safeReadHeaderBytes wraps msgp header readers (typically ReadArrayHeaderBytes and ReadMapHeaderBytes).
-// It enforces the dictionary max size of 25MB and protects the caller from making unbounded allocations through `make(any, sz)`.
+// It protects the caller from making unbounded allocations through `make(any, sz)` by rejecting counts above
+// maxCollectionSize or larger than the bytes remaining in the buffer.
 func safeReadHeaderBytes(b []byte, read func([]byte) (uint32, []byte, error)) (uint32, []byte, error) {
-	sz, bts, err := read(b)
-	if err != nil {
-		return 0, nil, err
-	}
-	if sz > 25*1e6 {
-		// Dictionary can't be larger than 25 MB
-		return 0, nil, errors.New("too long payload")
-	}
-	return sz, bts, err
+	return readBoundedHeaderBytes(b, read, maxCollectionSize, tooLongPayload)
 }
+
+// safeReadDictionaryHeaderBytes is safeReadHeaderBytes for the v0.5 string dictionary, which keeps the
+// larger maxStringTableSize limit.
+func safeReadDictionaryHeaderBytes(b []byte) (uint32, []byte, error) {
+	return readBoundedHeaderBytes(b, msgp.ReadArrayHeaderBytes, maxStringTableSize, tooLongPayload)
+}
+
+func tooLongPayload(uint32) error { return errTooLongPayload }
 
 // minBytesPerSlabEntry is a conservative lower bound on the wire size of one meta/metrics/meta_struct
 // entry: every entry reads at least two msgpack values (e.g. two 1-byte nils).
