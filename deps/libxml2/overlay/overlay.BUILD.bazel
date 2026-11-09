@@ -19,10 +19,10 @@ license(
 copy_file(
     name = "copy_config_h",
     src = select({
-        "@@//:macos_amd64": "macos/config.h",
         "@@//:macos_arm64": "macos/config.h",
-        "@@//:linux_x86_64": "config-linux-x86_64.h",
+        "@@//:macos_x86_64": "macos/config.h",
         "@@//:linux_arm64": "config-linux-arm64.h",
+        "@@//:linux_x86_64": "config-linux-x86_64.h",
     }),
     out = "config.h",
     target_compatible_with = select({
