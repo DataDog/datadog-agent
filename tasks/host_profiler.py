@@ -79,13 +79,14 @@ def _get_profiler_agent_version(ctx):
 
 
 @task
-def build(ctx, enable_bazel=False):
+def build(ctx, enable_bazel=False, bin_path=None):
     """
     Build the host profiler
     """
-
-    if os.path.exists(BIN_PATH):
-        os.remove(BIN_PATH)
+    bin_path = bin_path or BIN_PATH
+    os.makedirs(os.path.dirname(os.path.abspath(bin_path)), exist_ok=True)
+    if os.path.exists(bin_path):
+        os.remove(bin_path)
 
     # generate windows resources
     if sys.platform == 'win32':
@@ -95,7 +96,7 @@ def build(ctx, enable_bazel=False):
         args = []
         if profiler_version := _get_profiler_agent_version(ctx):
             args.append(f"--repo_env=FORCE_AGENT_VERSION={profiler_version}")
-        build_binary_with_bazel("//cmd/host-profiler:host-profiler", args=args, bin_path=BIN_PATH)
+        build_binary_with_bazel("//cmd/host-profiler:host-profiler", args=args, bin_path=bin_path)
     else:
         build_tags = get_default_build_tags(build="host-profiler")
         ldflags, gcflags, env = get_build_flags(ctx)
@@ -111,7 +112,7 @@ def build(ctx, enable_bazel=False):
             build_tags=build_tags,
             ldflags=ldflags,
             gcflags=gcflags,
-            bin_path=BIN_PATH,
+            bin_path=bin_path,
             env=env,
         )
 
@@ -245,19 +246,15 @@ def publish(
         tag = f"dev-{slug}"
 
     _check_cross_compiler(arches)
-    # Each build moves its binary aside: both would otherwise write to
-    # bin/host-profiler/host-profiler. The second build is staggered because
-    # both run schema_codegen (inside go_build), which rewrites the same
-    # generated files non-atomically. The content is identical, so without
-    # the stagger the worst case is a failed build, not a broken image.
+    # Each arch builds straight to its own binary (bin/host-profiler/host-profiler.<arch>),
+    # so the parallel builds never share an output path. The second build is staggered
+    # because both run schema_codegen (inside go_build), which rewrites the same
+    # generated files non-atomically. The content is identical, so without the
+    # stagger the worst case is a failed build, not a broken image.
     jobs = [
         (
             f"host-profiler build {arch}",
-            [
-                "sh",
-                "-c",
-                f"'{sys.executable}' -m invoke host-profiler.build && mv '{BIN_PATH}' '{BIN_PATH}.{arch}'",
-            ],
+            [sys.executable, "-m", "invoke", "host-profiler.build", f"--bin-path={BIN_PATH}.{arch}"],
             {"GOARCH": arch},
             CODEGEN_STAGGER_SECONDS * i,
         )
@@ -288,6 +285,9 @@ def publish(
                 f"--build-arg AGENT_BASE_IMAGE_TAG={registry}/ci/datadog-agent/agent-base-image:{base}-{arch}",
                 f"--build-arg BASE_IMAGE_REGISTRY={registry}/images/mirror",
                 "--output=type=image,push=true,oci-mediatypes=false,compression=gzip,force-compression=true",
+                # Provenance attestations would turn each arch tag into a manifest
+                # index, which docker manifest create cannot consume.
+                "--provenance=false",
                 "--target",
                 "release",
                 "-t",
@@ -306,7 +306,8 @@ def publish(
                 f"docker manifest create {destination}:{tag} {destination}:{tag}-amd64 {destination}:{tag}-arm64",
                 echo=True,
             )
-            ctx.run(f"docker manifest push {destination}:{tag}", echo=True)
+            # --purge drops the local manifest list, so re-publishing the same tag works.
+            ctx.run(f"docker manifest push --purge {destination}:{tag}", echo=True)
     finally:
         for dst in context_files:
             path = os.path.join(LOCAL_IMAGE_BUILD_CONTEXT, dst)
