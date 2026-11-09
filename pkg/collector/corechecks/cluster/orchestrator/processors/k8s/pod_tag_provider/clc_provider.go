@@ -13,6 +13,7 @@ import (
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	kubernetesresourceparsers "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util/kubernetes_resource_parsers"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	corev1 "k8s.io/api/core/v1"
 )
@@ -24,7 +25,10 @@ type clcTagProvider struct {
 }
 
 func newCLCTagProvider(cfg config.Component, store workloadmeta.Component) PodTagProvider {
-	parser, _ := kubernetesresourceparsers.NewPodParser(cfg.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude"))
+	parser, err := kubernetesresourceparsers.NewPodParser(cfg.GetStringSlice("cluster_agent.kubernetes_resources_collection.pod_annotations_exclude"))
+	if err != nil {
+		_ = log.Errorf("unable to parse all pod_annotations_exclude: %v", err)
+	}
 	extractor := *collectors.NewPodTagExtractor(cfg, store)
 
 	return &clcTagProvider{

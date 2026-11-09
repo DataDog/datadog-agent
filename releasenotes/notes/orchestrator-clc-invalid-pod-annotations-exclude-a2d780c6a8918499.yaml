@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix the orchestrator check failing to collect pods on cluster check runners
+    when ``cluster_agent.kubernetes_resources_collection.pod_annotations_exclude``
+    contains an invalid regular expression. The valid expressions of the list are
+    now applied, and the invalid ones are logged and skipped.

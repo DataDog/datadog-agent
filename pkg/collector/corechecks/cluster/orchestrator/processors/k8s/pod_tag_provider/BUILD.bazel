@@ -18,6 +18,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//pkg/config/helper",
         "//pkg/config/setup",
+        "//pkg/util/log",
         "@io_k8s_api//core/v1:core",
     ],
 )
