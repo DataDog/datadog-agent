@@ -296,3 +296,14 @@ func combineAnalyticsFixtures(fixtures ...string) (string, error) {
 
 	return string(combinedBytes), nil
 }
+
+// NewTestClient returns a client wired to a mock API server, for tests outside this
+// package that need to exercise the real HTTP, parsing and sending path together.
+func NewTestClient(server *httptest.Server, options ...ClientOptions) (*Client, error) {
+	client, err := testClient(server, options...)
+	if err != nil {
+		return nil, err
+	}
+	client.directorEndpoint = server.URL
+	return client, nil
+}

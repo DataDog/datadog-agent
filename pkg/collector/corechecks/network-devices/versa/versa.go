@@ -29,6 +29,9 @@ import (
 )
 
 const (
+	// minTimeseriesLookbackMinutes is the shortest lookback that spans two buckets on a
+	// tenant with 15 minute buckets.
+	minTimeseriesLookbackMinutes = 30
 	// CheckName is the name of the check
 	CheckName            = "versa"
 	defaultCheckInterval = 1 * time.Minute
@@ -571,6 +574,15 @@ func (v *VersaCheck) Configure(senderManager sender.SenderManager, integrationCo
 	case "", "1MINUTE", "1HOUR", "1DAY":
 	default:
 		log.Warnf("analytics_gap %q is outside the values Versa documents (1MINUTE, 1HOUR, 1DAY) and may be rejected", v.config.AnalyticsGap)
+	}
+
+	// Timeseries holds back the newest bucket of every entity, so a window that cannot
+	// hold two buckets publishes nothing. The bucket size behind a 1MINUTE gap is tenant
+	// dependent (often 15 minutes), so warn conservatively below 30 minutes.
+	if v.config.AnalyticsQueryType == client.QueryTypeTimeseries &&
+		v.config.LookbackTimeWindowMinutes > 0 && v.config.LookbackTimeWindowMinutes < minTimeseriesLookbackMinutes {
+		log.Warnf("lookback_time_window_minutes %d may not span two analytics buckets; timeseries queries hold back the newest bucket and may publish nothing. Use at least %d (45 or more preferred)",
+			v.config.LookbackTimeWindowMinutes, minTimeseriesLookbackMinutes)
 	}
 
 	v.metricsSender = report.NewSender(sender, v.config.Namespace)

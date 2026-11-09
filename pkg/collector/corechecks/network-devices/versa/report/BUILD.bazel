@@ -29,5 +29,6 @@ dd_agent_go_test(
         "//pkg/aggregator/mocksender",
         "//pkg/collector/corechecks/network-devices/versa/client",
         "@com_github_stretchr_testify//mock",
+        "@com_github_stretchr_testify//require",
     ],
 )

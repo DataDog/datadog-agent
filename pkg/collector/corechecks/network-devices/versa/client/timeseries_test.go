@@ -153,3 +153,47 @@ func TestFlattenTimeseriesRepeatedSeriesDoesNotDoubleCount(t *testing.T) {
 	// The later series wins rather than widening the row or emitting it twice.
 	assert.Equal(t, float64(42), rows[0].row[3])
 }
+
+// TestFlattenTimeseriesRealShape runs a response shaped like a real Director reply (many
+// paths, sixteen buckets, all six SLA metrics, one null) through flatten and the SLA
+// parser, pinning row count, row width and the per path holdback.
+func TestFlattenTimeseriesRealShape(t *testing.T) {
+	var resp AnalyticsTimeseriesResponse
+	require.NoError(t, json.Unmarshal([]byte(fixtures.GetSLAMetricsTimeseriesRealShape), &resp))
+	metrics := []string{"delay", "fwdDelayVar", "revDelayVar", "fwdLossRatio", "revLossRatio", "pduLossRatio"}
+	require.Len(t, resp.Data, 6*len(metrics))
+
+	rows, dropped := flattenTimeseries(resp.Data, metrics, slaTimeseriesLayout.drillKeyFields)
+
+	// Six newest buckets held back (one per path) plus the bucket with the null.
+	assert.Equal(t, 7, dropped)
+	require.Len(t, rows, 6*16-7)
+
+	const newest = int64(1793966400000 + 15*900000)
+	perPath := map[string]int{}
+	for _, r := range rows {
+		assert.Len(t, r.row, 12, "row width must match parseSLAMetrics")
+		assert.NotEqual(t, newest, r.timestamp, "the still filling bucket must be held back")
+		perPath[r.row[0].(string)]++
+	}
+	require.Len(t, perPath, 6)
+	for name, n := range perPath {
+		if name == "site-002,hub-002,circuit-a,circuit-b,fc_be" {
+			assert.Equal(t, 14, n, name)
+		} else {
+			assert.Equal(t, 15, n, name)
+		}
+	}
+
+	data := make([][]interface{}, len(rows))
+	for i, r := range rows {
+		data[i] = r.row
+	}
+	parsed, err := parseSLAMetrics(data)
+	require.NoError(t, err)
+	require.Len(t, parsed, len(rows))
+	assert.Equal(t, "site-001", parsed[0].LocalSite)
+	assert.Equal(t, "fc_ef", parsed[0].ForwardingClass)
+	assert.Equal(t, 20.0, parsed[0].Delay)
+	assert.Equal(t, 22.5, parsed[0].PDULossRatio)
+}
