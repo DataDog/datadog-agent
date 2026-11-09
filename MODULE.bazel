@@ -75,7 +75,7 @@ archive_override(
     url = "https://github.com/bazel-contrib/supply-chain/releases/download/supply-chain-go-0.0.11/supply-chain-go-0.0.11.tar.gz",
 )
 
-bazel_dep(name = "apple_support", version = "2.11.0")  # provides --platforms=@apple_support//platforms:macos_x86_64
+bazel_dep(name = "apple_support", version = "2.12.0")  # provides --platforms=@apple_support//platforms:macos_x86_64
 bazel_dep(name = "bazel_features", version = "1.54.1")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
@@ -113,6 +113,16 @@ single_version_override(
         "//bazel/patches:protobuf-crate-universe-extensions.patch",  # protocolbuffers/protobuf#28230
     ],
     version = "35.1",
+)
+
+single_version_override(
+    module_name = "llvm",
+    patch_strip = 1,
+    patches = [
+        # Additional -L directory so -static links find real glibc archives; upstream proposal pending
+        "//bazel/patches:llvm/0001-glibc-additional-library-search-directory.patch",
+    ],
+    version = "0.8.26",
 )
 
 single_version_override(
