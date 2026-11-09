@@ -160,15 +160,22 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 // retain their old DeleteServices condition and cannot exercise this rollback.
 func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollback() {
 	vm := s.Env().RemoteHost
-	for _, account := range []string{"", "LocalSystem"} {
-		name := account
-		if name == "" {
-			name = "local_user"
-		}
-		if !s.Run(name, func() {
+	for _, tc := range []struct {
+		name             string
+		account          string
+		incomingAccount  string
+		missingPassword  bool
+		restoreAvailable bool
+	}{
+		{name: "local_password_change", restoreAvailable: true},
+		{name: "local_missing_password", missingPassword: true, restoreAvailable: true},
+		{name: "local_system", account: "LocalSystem", restoreAvailable: true},
+		{name: "switch_to_local_system", incomingAccount: "LocalSystem"},
+	} {
+		if !s.Run(tc.name, func() {
 			_, err := s.InstallAgent(vm,
 				windowsAgent.WithPackage(s.AgentPackage),
-				windowsAgent.WithAgentUser(account),
+				windowsAgent.WithAgentUser(tc.account),
 				windowsAgent.WithValidAPIKey(),
 				windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
 			)
@@ -177,9 +184,16 @@ func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollback() {
 			s.Require().NoError(err)
 			originalConfig, err := windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
 			s.Require().NoError(err)
+			const markerPath = `HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent`
+			s.Require().NoError(windowsCommon.SetRegistryDWORDValue(vm, markerPath, "E2ERecreationMarker", 1))
+			if tc.missingPassword {
+				// Keep the account's real password intact; remove only the installer's secret.
+				s.removeStoredAgentPassword()
+			}
 			logPath := filepath.Join(s.SessionOutputDir(), "upgrade-rollback.log")
 			_, err = s.InstallAgent(vm,
 				windowsAgent.WithAgentUserPassword("E2e-Changed-Password-472!"),
+				windowsAgent.WithAgentUser(tc.incomingAccount),
 				windowsAgent.WithPackage(s.upgradeAgentPackge),
 				windowsAgent.WithWixFailWhenDeferred(),
 				windowsAgent.WithInstallLogFile(logPath),
@@ -189,7 +203,13 @@ func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollback() {
 			s.Require().NoError(err)
 			log, err = windowsCommon.ConvertUTF16ToUTF8(log)
 			s.Require().NoError(err)
-			s.Require().Contains(string(log), "Allowing service deletion during upgrade removal", "must exercise conditional deletion")
+			if tc.missingPassword {
+				s.Require().Contains(string(log), "Preserving services:")
+				marker := vm.MustExecute(`(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent').E2ERecreationMarker`)
+				s.Require().Equal("1", strings.TrimSpace(marker), "rollback must retain the pre-existing service")
+			} else {
+				s.Require().Contains(string(log), "Allowing service deletion during upgrade removal", "must exercise conditional deletion")
+			}
 			restoredProduct, err := windowsAgent.GetDatadogAgentProductCode(vm)
 			s.Require().NoError(err)
 			s.Require().Equal(product, restoredProduct)
@@ -203,13 +223,65 @@ func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollback() {
 				config.Status = 0
 			}
 			s.Require().Equal(originalConfig, restoredConfig, "rollback must restore service configuration")
-			s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
-			RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+			if tc.restoreAvailable {
+				s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
+				RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+			} else {
+				s.Require().Contains(string(log), "current credentials unavailable for outgoing account; repair may be required")
+			}
 			s.uninstallAgent()
 		}) {
 			s.Require().FailNow("stopping after failed rollback scenario")
 		}
 	}
+}
+
+// Remove only the installer's LSA password, without changing the user's password
+// or the credentials retained by SCM. This models an upgrade without a saved secret.
+func (s *testUpgradeFromLatestSuite) removeStoredAgentPassword() {
+	s.T().Helper()
+	_, err := s.Env().RemoteHost.Execute(`
+if (-not ('E2eLsaSecret' -as [type])) {
+Add-Type -TypeDefinition @'
+using System;
+using System.ComponentModel;
+using System.Runtime.InteropServices;
+public static class E2eLsaSecret {
+    [StructLayout(LayoutKind.Sequential)]
+    struct Attributes {
+        public uint Length;
+        public IntPtr RootDirectory, ObjectName;
+        public uint Flags;
+        public IntPtr SecurityDescriptor, SecurityQualityOfService;
+    }
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    struct UnicodeString {
+        public ushort Length, MaximumLength;
+        [MarshalAs(UnmanagedType.LPWStr)] public string Buffer;
+    }
+    [DllImport("advapi32.dll")] static extern uint LsaOpenPolicy(IntPtr name, ref Attributes attrs, uint access, out IntPtr handle);
+    [DllImport("advapi32.dll")] static extern uint LsaStorePrivateData(IntPtr handle, ref UnicodeString key, IntPtr data);
+    [DllImport("advapi32.dll")] static extern uint LsaNtStatusToWinError(uint status);
+    [DllImport("advapi32.dll")] static extern uint LsaClose(IntPtr handle);
+    static void Check(uint status) {
+        if (status != 0) throw new Win32Exception((int)LsaNtStatusToWinError(status));
+    }
+    public static void RemovePassword() {
+        var attrs = new Attributes { Length = (uint)Marshal.SizeOf(typeof(Attributes)) };
+        IntPtr handle;
+        Check(LsaOpenPolicy(IntPtr.Zero, ref attrs, 0x20, out handle));
+        try {
+            const string name = "L$datadog_ddagentuser_password";
+            var key = new UnicodeString { Buffer = name, Length = (ushort)(name.Length * 2), MaximumLength = (ushort)((name.Length + 1) * 2) };
+            Check(LsaStorePrivateData(handle, ref key, IntPtr.Zero));
+        } finally { LsaClose(handle); }
+    }
+}
+'@
+}
+[E2eLsaSecret]::RemovePassword()
+`)
+	s.Require().NoError(err)
 }
 
 func TestUpgradeRollback(t *testing.T) {

@@ -17,6 +17,7 @@ namespace WixSetup.Tests
             actions.RestoreServiceRemovalCredentials.When.Should().Be(When.Before);
             actions.RestoreServiceRemovalCredentials.Step.Should().Be(Step.DeleteServices);
             actions.RestoreServiceRemovalCredentials.Execute.Should().Be(Execute.rollback);
+            actions.RestoreServiceRemovalCredentials.UsesProperties.Should().NotContain("Password");
             actions.UninstallUser.When.Should().Be(When.After);
             actions.UninstallUser.Step.Should().Be(Step.DeleteServices);
             actions.UninstallUserRollback.Step.ToString().Should().Be(actions.UninstallUser.Id.ToString());

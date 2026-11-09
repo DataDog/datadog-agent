@@ -28,6 +28,7 @@ namespace CustomActions.Tests.Service
             GivenService(Constants.TraceAgentServiceName, Account);
             GivenService(Constants.ProcmgrServiceName, "LocalSystem");
             NativeMethods.Setup(n => n.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(Password);
+            NativeMethods.Setup(n => n.FetchSecret(AgentCredentials.AccountSidKey)).Returns(AccountSid.Value);
         }
 
         private void GivenAccount(string account, SecurityIdentifier accountSid)
@@ -54,37 +55,88 @@ namespace CustomActions.Tests.Service
         }
 
         [Fact]
-        public void StoredCredentialsAllowDeletionAndAreCapturedForRollback()
+        public void RollbackReadsCurrentPasswordWithoutSavingOrResettingIt()
         {
-            Session.Object["DDAGENTUSER_PASSWORD"] = "incoming-password-for-another-account";
             Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
             Assert.Equal("1", Session.Object["CanDeleteServices"]);
             Assert.Equal(Account, Session.Object["ServiceRemovalAccount"]);
-            Assert.Equal("ddagentuser", Session.Object["ServiceRemovalLocalUser"]);
-            Assert.Equal(Password, Session.Object["ServiceRemovalPassword"]);
+            Assert.Equal(AccountSid.Value, Session.Object["ServiceRemovalSid"]);
             Assert.Equal("datadogagent,datadog-trace-agent", Session.Object["ServiceRemovalNames"]);
-            // The incoming install can overwrite LSA; rollback must use the captured value.
-            NativeMethods.Setup(n => n.FetchSecret(It.IsAny<string>())).Throws<Exception>();
+            // Normal installation may have rotated the same account's password.
+            const string currentPassword = "new;password";
+            NativeMethods.Setup(n => n.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(currentPassword);
             Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
-            NativeMethods.Verify(n => n.SetUserPassword("ddagentuser", Password), Times.Once);
-            NativeMethods.Verify(n => n.StoreSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), Password), Times.Once);
-            ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, Account, Password), Times.Once);
-            ServiceController.Verify(c => c.SetCredentials(Constants.TraceAgentServiceName, Account, Password), Times.Once);
-            ServiceController.Verify(c => c.SetCredentials(Constants.ProcmgrServiceName, It.IsAny<string>(), It.IsAny<string>()), Times.Never);
-            Session.Verify(s => s.Log(It.Is<string>(message => message.Contains(Password))), Times.Never);
+            NativeMethods.Verify(n => n.SetUserPassword(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            NativeMethods.Verify(n => n.StoreSecret(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, Account, currentPassword), Times.Once);
+            ServiceController.Verify(c => c.SetCredentials(Constants.TraceAgentServiceName, Account, currentPassword), Times.Once);
+            Session.Verify(s => s.Log(It.Is<string>(message => message.Contains(currentPassword))), Times.Never);
+            Session.VerifySet(s => s[It.IsAny<string>()] = It.Is<string>(value => value == Password || value == currentPassword), Times.Never);
+        }
+
+        [Theory]
+        [InlineData(false, null)]
+        [InlineData(false, "")]
+        [InlineData(true, null)]
+        [InlineData(true, "")]
+        public void MissingPasswordPreservesLocalAndDomainServices(bool domain, string password)
+        {
+            NativeMethods.Setup(n => n.IsDomainAccount(AccountSid)).Returns(domain);
+            NativeMethods.Setup(n => n.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(password);
+            Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
+            Assert.Equal("", Session.Object["CanDeleteServices"]);
         }
 
         [Theory]
         [InlineData(null)]
-        [InlineData("")]
-        [InlineData("unsupported;password")]
-        public void UnavailableOrUnencodablePasswordPreservesServices(string password)
+        [InlineData("S-1-5-21-1-2-3-1002")]
+        public void UnassociatedPasswordPreservesServices(string sid)
         {
-            Session.Object["CanDeleteServices"] = "1";
-            NativeMethods.Setup(n => n.FetchSecret(It.IsAny<string>())).Returns(password);
-            Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
+            NativeMethods.Setup(n => n.FetchSecret(AgentCredentials.AccountSidKey)).Returns(sid);
+            Create().PrepareServiceRemoval();
             Assert.Equal("", Session.Object["CanDeleteServices"]);
-            Assert.Equal("", Session.Object["ServiceRemovalPassword"]);
+        }
+
+        [Theory]
+        [InlineData(null)] // switched to a passwordless account, or secret was removed
+        [InlineData("S-1-5-21-1-2-3-1002")] // switched to another user
+        public void RollbackDoesNotUseAnotherAccountsPassword(string sid)
+        {
+            Create().PrepareServiceRemoval();
+            NativeMethods.Setup(n => n.FetchSecret(AgentCredentials.AccountSidKey)).Returns(sid);
+            Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
+            ServiceController.Verify(c => c.SetCredentials(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            Session.Verify(s => s.Log(It.Is<string>(message => message.Contains("repair may be required"))), Times.Once);
+        }
+
+        [Fact]
+        public void RollbackToleratesMissingPassword()
+        {
+            Create().PrepareServiceRemoval();
+            NativeMethods.Setup(n => n.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns((string)null);
+            Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
+            ServiceController.Verify(c => c.SetCredentials(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public void PasswordUpdateInvalidatesAssociationUntilBothWritesSucceed()
+        {
+            var order = new MockSequence();
+            var native = new Mock<INativeMethods>(MockBehavior.Strict);
+            native.InSequence(order).Setup(n => n.StoreSecret(AgentCredentials.AccountSidKey, "unassociated"));
+            native.InSequence(order).Setup(n => n.StoreSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), Password));
+            native.InSequence(order).Setup(n => n.StoreSecret(AgentCredentials.AccountSidKey, AccountSid.Value));
+            AgentCredentials.StorePassword(native.Object, AccountSid, Password);
+            native.VerifyAll();
+        }
+
+        [Fact]
+        public void FailedPasswordWriteDoesNotAssociateCredentialsWithNewAccount()
+        {
+            NativeMethods.Setup(n => n.StoreSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), Password)).Throws<Exception>();
+            Assert.Throws<Exception>(() => AgentCredentials.StorePassword(NativeMethods.Object, AccountSid, Password));
+            NativeMethods.Verify(n => n.StoreSecret(AgentCredentials.AccountSidKey, "unassociated"), Times.Once);
+            NativeMethods.Verify(n => n.StoreSecret(AgentCredentials.AccountSidKey, AccountSid.Value), Times.Never);
         }
 
         [Fact]

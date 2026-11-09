@@ -488,9 +488,8 @@ namespace WixSetup.Datadog_Agent
                 Impersonate = false
             }
                 .SetProperties("ServiceRemovalAccount=[ServiceRemovalAccount], " +
-                               "ServiceRemovalPassword=[ServiceRemovalPassword], " +
-                               "ServiceRemovalNames=[ServiceRemovalNames], " +
-                               "ServiceRemovalLocalUser=[ServiceRemovalLocalUser]")
+                               "ServiceRemovalSid=[ServiceRemovalSid], " +
+                               "ServiceRemovalNames=[ServiceRemovalNames]")
                 .HideTarget(true);
 
             UninstallUser = new CustomAction<CustomActions>(

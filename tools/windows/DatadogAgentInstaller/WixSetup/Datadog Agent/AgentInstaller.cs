@@ -92,11 +92,6 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
-                // Captured in the outgoing MSI for rollback; never expose the password in logs.
-                new Property("ServiceRemovalPassword")
-                {
-                    AttributesDefinition = "Hidden=yes"
-                },
                 new Property("PROJECTLOCATION")
                 {
                     AttributesDefinition = "Secure=yes",

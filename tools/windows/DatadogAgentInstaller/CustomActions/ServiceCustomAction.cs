@@ -138,9 +138,8 @@ namespace Datadog.CustomActions
         {
             _session["CanDeleteServices"] = "";
             _session["ServiceRemovalAccount"] = "";
-            _session["ServiceRemovalPassword"] = "";
             _session["ServiceRemovalNames"] = "";
-            _session["ServiceRemovalLocalUser"] = "";
+            _session["ServiceRemovalSid"] = "";
             try
             {
                 using var installed = _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
@@ -180,9 +179,7 @@ namespace Datadog.CustomActions
                     {
                         return ActionResult.Success;
                     }
-                    if (sid.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                        sid.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-                        sid.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+                    if (AgentCredentials.IsBuiltIn(sid))
                     {
                         continue;
                     }
@@ -194,28 +191,17 @@ namespace Datadog.CustomActions
                     names.Add(name);
                 }
 
-                // Use the outgoing product's stored credentials, not a password supplied
-                // for the incoming product's possibly different account. Never generate or
-                // reset a password during removal.
-                string password = null;
-                if (names.Count != 0 && !_nativeMethods.IsServiceAccount(accountSid))
+                // Passwords stay in LSA. Only capture identities for rollback, and
+                // preserve registrations if the current password cannot be associated
+                // with the installed account (including legacy secrets without a SID).
+                if (names.Count != 0 && AgentCredentials.RequiresPassword(_nativeMethods, accountSid) &&
+                    string.IsNullOrEmpty(AgentCredentials.ReadPassword(_nativeMethods, accountSid)))
                 {
-                    password = _nativeMethods.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey());
-                    if (string.IsNullOrEmpty(password))
-                    {
-                        _session.Log("Preserving services: the installed Agent user password is unavailable");
-                        return ActionResult.Success;
-                    }
-                    // CustomActionData uses semicolons as separators, like the existing
-                    // processed-password actions. Preserve services if it cannot be encoded.
-                    ProcessUserCustomActions.TestValidAgentUserPassword(password);
-                    if (!_nativeMethods.IsDomainAccount(accountSid))
-                    {
-                        _session["ServiceRemovalLocalUser"] = user;
-                    }
+                    _session.Log("Preserving services: the installed Agent user password is unavailable or unassociated");
+                    return ActionResult.Success;
                 }
                 _session["ServiceRemovalAccount"] = account;
-                _session["ServiceRemovalPassword"] = password;
+                _session["ServiceRemovalSid"] = accountSid.Value;
                 _session["ServiceRemovalNames"] = string.Join(",", names);
                 _session["CanDeleteServices"] = "1";
                 _session.Log("Allowing service deletion during upgrade removal: recreation credentials are available");
@@ -236,32 +222,34 @@ namespace Datadog.CustomActions
         internal ActionResult RestoreServiceRemovalCredentials()
         {
             var account = _session.Property("ServiceRemovalAccount");
-            var password = _session.Property("ServiceRemovalPassword");
-            var localUser = _session.Property("ServiceRemovalLocalUser");
+            var names = _session.Property("ServiceRemovalNames");
+            if (string.IsNullOrEmpty(names))
+                return ActionResult.Success;
+            string password = null;
             try
             {
-                // The incoming MSI can reset the same local account's password. Restore
-                // it together with service credentials; never reset a domain password.
-                if (!string.IsNullOrEmpty(localUser))
+                var sid = new SecurityIdentifier(_session.Property("ServiceRemovalSid"));
+                if (!_nativeMethods.LookupAccountName(account, out _, out _, out var currentSid, out _) || !sid.Equals(currentSid))
+                    throw new InvalidOperationException("The outgoing account identity has changed");
+                if (AgentCredentials.RequiresPassword(_nativeMethods, sid))
                 {
-                    _nativeMethods.SetUserPassword(localUser, password);
+                    password = AgentCredentials.ReadPassword(_nativeMethods, sid);
+                    if (string.IsNullOrEmpty(password))
+                        throw new InvalidOperationException("No current password associated with the outgoing account");
                 }
-                if (!string.IsNullOrEmpty(password))
-                {
-                    _nativeMethods.StoreSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), password);
-                }
+                AgentCredentials.NormalizeServiceCredentials(_nativeMethods, sid, ref account, ref password);
             }
             catch (Exception e)
             {
-                _session.Log($"Failed to restore the installed account password ({e.GetType().Name})");
+                _session.Log($"Could not restore service credentials: current credentials unavailable for outgoing account; repair may be required ({e.GetType().Name})");
+                return ActionResult.Success;
             }
-            foreach (var name in (_session.Property("ServiceRemovalNames") ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            foreach (var name in names.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 try
                 {
                     // MSI restores the service registration, but cannot recover its password.
-                    // An empty password here denotes a managed service account.
-                    _serviceController.SetCredentials(name, account, string.IsNullOrEmpty(password) ? null : password);
+                    _serviceController.SetCredentials(name, account, password);
                 }
                 catch (Exception e)
                 {
@@ -311,50 +299,11 @@ namespace Datadog.CustomActions
         internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
-            var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
-            // No password to give the services. Only reachable for domain accounts: local accounts
-            // always get a generated password, and IsServiceAccount covers gMSA and the well known
-            // accounts.
-            var passwordNotProvided = !isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword);
-            if (passwordNotProvided)
-            {
-                _session.Log("Password not provided, will not change service user password");
-                // set to null so we don't modify the service config
-                ddAgentUserPassword = null;
-            }
-            else if (isServiceAccount)
-            {
-                _session.Log("Ignoring provided password because account is a service account");
-                // Follow rules for ChangeServiceConfig
-                if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
-                    ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
-                    ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-                {
-                    // Specify an empty string if the account has no password or if the service runs in the LocalService, NetworkService, or LocalSystem account.
-                    ddAgentUserPassword = "";
-                }
-                else
-                {
-                    // If the account name specified by the lpServiceStartName parameter is the name of a managed service account or virtual account name, the lpPassword parameter must be NULL.
-                    ddAgentUserPassword = null;
-                }
-            }
-
+            // Missing domain passwords preserve existing service credentials; built-in
+            // and managed accounts use the empty/null forms required by ChangeServiceConfig.
+            AgentCredentials.NormalizeServiceCredentials(_nativeMethods, ddAgentUserSID,
+                ref ddAgentUserName, ref ddAgentUserPassword);
             _session.Log($"Configuring services with account {ddAgentUserName}");
-
-            // ddagentuser
-            if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalSystemSid))
-            {
-                ddAgentUserName = "LocalSystem";
-            }
-            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.LocalServiceSid))
-            {
-                ddAgentUserName = "LocalService";
-            }
-            else if (ddAgentUserSID.IsWellKnown(WellKnownSidType.NetworkServiceSid))
-            {
-                ddAgentUserName = "NetworkService";
-            }
             _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
             _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
             if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))

@@ -606,7 +606,6 @@ namespace Datadog.CustomActions
             // this isn't introducing any NEW security risks.
             // https://docs.microsoft.com/en-us/windows/win32/services/service-accounts
             // https://learn.microsoft.com/en-us/windows/win32/secmgmt/storing-private-data
-            var keyName = AgentPasswordPrivateDataKey();
             var isServiceAccount = _session.Property("DDAGENTUSER_IS_SERVICE_ACCOUNT") == "true";
             if (isServiceAccount)
             {
@@ -614,7 +613,7 @@ namespace Datadog.CustomActions
                 _session.Log("Agent user is a service account, removing password from LSA secret store");
                 try
                 {
-                    _nativeMethods.RemoveSecret(keyName);
+                    AgentCredentials.RemovePassword(_nativeMethods);
                 }
                 catch (Exception e)
                 {
@@ -632,7 +631,7 @@ namespace Datadog.CustomActions
                 //       ProcessDDAgentUserCredentials should read the password from the LSA secret store
                 //       if it wasn't provided on the command line so this may no longer be a possibility.
                 _session.Log("Agent user has a password, storing in LSA secret store");
-                _nativeMethods.StoreSecret(keyName, ddagentuserPassword);
+                AgentCredentials.StorePassword(_nativeMethods, _ddAgentUserSID, ddagentuserPassword);
             }
         }
 
@@ -867,8 +866,7 @@ namespace Datadog.CustomActions
             _session.Log("Uninstall detected, removing password from LSA secret store");
             try
             {
-                var keyName = AgentPasswordPrivateDataKey();
-                _nativeMethods.RemoveSecret(keyName);
+                AgentCredentials.RemovePassword(_nativeMethods);
             }
             catch (Exception e)
             {

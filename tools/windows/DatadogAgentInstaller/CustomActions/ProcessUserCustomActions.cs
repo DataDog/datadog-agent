@@ -370,8 +370,7 @@ namespace Datadog.CustomActions
             // If the password is not provided on the command line, try to fetch it from the LSA secret store
             try
             {
-                var keyName = ConfigureUserCustomActions.AgentPasswordPrivateDataKey();
-                ddAgentUserPassword = _nativeMethods.FetchSecret(keyName);
+                ddAgentUserPassword = AgentCredentials.ReadPassword(_nativeMethods);
             }
             catch (Exception e)
             {
@@ -626,7 +625,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        internal static void TestValidAgentUserPassword(string ddAgentUserPassword)
+        private void TestValidAgentUserPassword(string ddAgentUserPassword)
         {
             // password cannot contain semicolon
             // semicolon is the delimiter for CustomActionData, and we don't have special handling for this.
