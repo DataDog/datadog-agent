@@ -119,8 +119,8 @@ user saw an ERROR status.
 
 Goals:
 
-- Count and Gauge metric probes on function entry and on source lines, with
-  optional `when` conditions.
+- Count and Gauge metric probes on function entry, function return, and source
+  lines, with optional `when` conditions.
 - Cheap enough to put on hot functions: no per-call ringbuf events, no stack
   walks, no userspace work per call.
 - Metrics that look like a tracer's: same name, same probe ID tag,
@@ -131,8 +131,6 @@ Non-goals for this version:
 - Histogram and Distribution. They are rejected with a clear error. The design
   leaves room for them (see [Later: histograms and
   distributions](#later-histograms-and-distributions)).
-- Evaluating at function exit: `evaluateAt` is ignored, as it is for Go log
-  probes today, and values that use `@return` or `@duration` are rejected.
 - Container tags for targets outside Kubernetes.
 - Any change to dd-trace-go. Its Remote Config handler already accepts every
   probe type, and dyninst already gets service/env/version and the container
@@ -162,8 +160,14 @@ Non-goals for this version:
 
 ### When the probe fires
 
-- Function probes fire at function entry. `evaluateAt` is ignored. No return
-  probe is attached, so metric probes don't use `in_progress_calls`.
+- Function probes with `evaluateAt: EXIT` fire at function return. Entry probes
+  save call context in `in_progress_calls` without recording a metric. The
+  return probe evaluates the condition and value, then records one update.
+- An explicit `ENTRY`, an omitted timing, or `DEFAULT` retains entry-time
+  evaluation without entry/return pairing.
+- Return-time probes can read `@return` (or `@return.rN` for multiple returns)
+  and use `@duration` as a Gauge in milliseconds. Count values remain integer
+  or boolean. Unavailable return locations and inlined functions are rejected.
 - Line probes fire when the line is reached.
 - A `when` condition is evaluated first. If it is false, the call is not
   counted. If it can't be evaluated, the call is not counted and is reported
@@ -207,8 +211,8 @@ through Helm's `datadog.env`), metric probe metrics carry a second
 - RECEIVED and INSTALLED as for other probes.
 - EMITTING the first time a send finds a probe updated.
 - ERROR at install time for: unsupported kind, missing or invalid value, value
-  of an unsupported type, `@return`/`@duration` in the value, and the usual
-  location problems.
+  of an unsupported type, return-context values on entry/line probes, and the
+  usual location problems.
 
 ### Evaluation errors
 
@@ -223,7 +227,7 @@ shows up with the probe in the UI.
 
 ```
 RC ──▶ rcjson.MetricProbe ──▶ irgen ──▶ compiler ──▶ BPF program
-                              (entry-only event,    (cond → value →
+                              (selected event,      (cond → value →
                                value expression)     METRIC_UPDATE)
                                                           │ per call
                                                           ▼
@@ -259,16 +263,15 @@ the many other implementations unchanged.
   supports.
 - `makeInterests` accepts Count and Gauge metric probes and keeps rejecting the
   other kinds.
-- `newProbeInstance` skips return events for metric probes, as
-  `WithSkipReturnEvents` does globally. Injection points get
-  `NoReturnReasonReturnsDisabled`.
+- `newProbeInstance` creates paired entry/return events for `EXIT` function
+  probes. Entry and line probes do not require return events.
 - `analyzeAllProbes` treats the value like a capture expression bound to the
-  entry or line event, under a new `RootExpressionKindMetricValue`. Install-time
+  selected event, under `RootExpressionKindMetricValue`. Install-time
   issues are recorded on the analyzed probe and reported by
   `populateInstanceExpressions`, as condition issues are.
 - After resolution, the value's Go kind is checked against the table above.
-- The runtime.recovery probe is only needed for probes with return events, so
-  it is not added for programs whose function probes are all metric probes.
+- The runtime.recovery probe is added when return-time metrics require panic
+  unwinding cleanup, as it is for other probes with return events.
 
 ### Compiler and BPF
 
@@ -307,10 +310,11 @@ typedef struct metric_state {
 ```
 
 **Fast path.** `probe_params_t` gets an `is_metric` byte, taken from its
-padding. For metric injection points, `probe_run` skips reading the goroutine
-ID, the stack walk and hash, `in_progress_calls`, pointer chasing and the
-ringbuf submit. It initializes the scratch buffer, runs the stack machine and
-returns. The compiler gives metric events `ThrottleNone`, because their budget
+padding. Metric injection points skip the stack walk and hash, pointer chasing,
+and ringbuf submission. Entry-time and line metrics also skip reading the
+goroutine ID and `in_progress_calls`; return-time metrics use them to pair
+calls and measure duration. They initialize the scratch buffer, run the stack
+machine, save entry context when needed, and return. The compiler gives metric events `ThrottleNone`, because their budget
 is infinite anyway.
 
 **Loader.** The loader sizes `metrics_buf` and exposes `Program.MetricStates()`,
@@ -410,8 +414,8 @@ These fit the same structure:
   `METRIC_UPDATE` with integer log-linear bucketing (the exponent and mantissa
   bits for floats) plus exact min, max, sum and count;
 - a reporter branch that sends weighted samples;
-- support for `evaluateAt: EXIT` and `@duration`, which needs entry/return
-  pairing and a return-side `METRIC_UPDATE`.
+- reuse of the entry/return pairing and return-side `METRIC_UPDATE` for
+  duration histograms.
 
 ## Alternatives considered
 
@@ -451,9 +455,9 @@ smaller come first, in commits of their own that don't change behavior.
 4. **irgen: turn variable availability closures into functions.** Refactor, so
    that the metric code can reuse them.
 5. **irgen: generate IR for count and gauge metric probes.** Behind
-   `irgen.WithMetricProbes(true)`: entry-only events, the value expression with
-   its type checks and install-time issues, conditions, and no runtime.recovery
-   probe for metric-only programs.
+   `irgen.WithMetricProbes(true)`: entry, return, and line events, value type
+   checks and install-time issues, conditions, and runtime recovery for paired
+   probes.
 6. **ebpf: move goroutine and stack capture out of probe_run.** Refactor, so
    that metric probes can skip them.
 7. **dyninst: aggregate metric probe values in the kernel.** `metric_state_t`

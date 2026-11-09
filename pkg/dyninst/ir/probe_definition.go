@@ -58,6 +58,8 @@ type ProbeDefinition interface {
 // ProbeKindMetric.
 type MetricProbeDefinition interface {
 	ProbeDefinition
+	// GetEvaluateAt returns ENTRY, EXIT, or the default empty value.
+	GetEvaluateAt() string
 	// GetMetricKind returns the kind of metric that the probe emits, or 0 if
 	// the definition names an unknown kind.
 	GetMetricKind() MetricKind
