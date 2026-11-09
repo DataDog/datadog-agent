@@ -57,9 +57,12 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//comp/core/config",
+        "//comp/core/tagger/collectors",
+        "//comp/core/tagger/types",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
         "//pkg/languagedetection/languagemodels",
+        "//pkg/util/pointer",
         "@com_github_google_go_cmp//cmp",
         "@com_github_google_go_cmp//cmp/cmpopts",
         "@com_github_stretchr_testify//assert",

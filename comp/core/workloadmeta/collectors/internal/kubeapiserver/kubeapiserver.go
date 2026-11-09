@@ -46,9 +46,6 @@ type dependencies struct {
 	AutoscalingGate *autoscalinggate.Gate
 }
 
-// storeGenerator returns a new store specific to a given resource
-type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
-
 // syncedStore is implemented by both the reflector stores and the informer
 // event handler registrations, so that the startup check can wait for them.
 type syncedStore interface {
@@ -275,7 +272,7 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 		if lazyStart {
 			// The store is intentionally not added to objectStores. It would
 			// block the startup readiness check.
-			go c.startPodStoreOnGate(ctx, wlmetaStore, client, newPodStore)
+			go c.startPodStoreOnGate(ctx, wlmetaStore, client)
 		} else {
 			reflector, store := newPodStore(wlmetaStore, c.config, client)
 			objectStores = append(objectStores, store)
@@ -384,13 +381,13 @@ func (c *collector) Start(ctx context.Context, wlmetaStore workloadmeta.Componen
 
 // startPodStoreOnGate blocks until the autoscaling gate is enabled or the
 // context is cancelled. On gate enable, it starts the pod reflector.
-func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloadmeta.Component, client kubernetes.Interface, newStore storeGenerator) {
+func (c *collector) startPodStoreOnGate(ctx context.Context, wlmetaStore workloadmeta.Component, client kubernetes.Interface) {
 	if !c.autoscalingGate.WaitForEnable(ctx) {
 		return
 	}
 
 	log.Debug("Autoscaling gate enabled, starting workloadmeta pod reflector lazily")
-	reflector, store := newStore(wlmetaStore, c.config, client)
+	reflector, store := newPodStore(wlmetaStore, c.config, client)
 	go reflector.Run(ctx.Done())
 
 	c.markPodCollectionSyncedWhenReady(ctx, store)

@@ -17,8 +17,10 @@ import (
 	v1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	metafake "k8s.io/client-go/metadata/fake"
+	"k8s.io/client-go/tools/cache"
 
 	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/comp/core/config"
@@ -31,6 +33,9 @@ import (
 )
 
 const dummySubscriber = "dummy-subscriber"
+
+// storeGenerator returns a new store specific to a given resource
+type storeGenerator func(workloadmeta.Component, config.Reader, kubernetes.Interface) (*cache.Reflector, *reflectorStore)
 
 func testCollectEvent(t *testing.T, createResource func(*fake.Clientset) error, newStore storeGenerator, expected workloadmeta.EventBundle) {
 	// Create a fake client to mock API calls.
