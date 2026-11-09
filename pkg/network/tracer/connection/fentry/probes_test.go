@@ -19,8 +19,8 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	ddbtf "github.com/DataDog/datadog-agent/pkg/ebpf/btf"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
 	ddfeatures "github.com/DataDog/datadog-agent/pkg/ebpf/features"
-	"github.com/DataDog/datadog-agent/pkg/ebpf/perf"
 	"github.com/DataDog/datadog-agent/pkg/network/config"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 )
@@ -99,31 +99,35 @@ func TestLoadTracerRetriesWithoutTPBTF(t *testing.T) {
 	if err := ddfeatures.SupportsFentry("tcp_recvmsg"); err != nil {
 		t.Skipf("fentry not supported: %s", err)
 	}
-	prevAttempt := fentryTracerAttempt
+	prevInit := fentryTracerInit
 	t.Cleanup(func() {
-		fentryTracerAttempt = prevAttempt
+		fentryTracerInit = prevInit
 		util.NetDevQueueTPBTFRejected.Store(false)
 	})
 	util.NetDevQueueTPBTFRejected.Store(false)
 
-	var calls int
+	var managers []*ddebpf.Manager
 	var rejectedOnRetry bool
-	fentryTracerAttempt = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-		calls++
-		if calls == 1 {
-			return nil, nil, fmt.Errorf("failed to init ebpf manager: %w",
+	fentryTracerInit = func(_ bytecode.AssetReader, _ manager.Options, _ *config.Config, m *ddebpf.Manager) (func(), error) {
+		managers = append(managers, m)
+		if len(managers) == 1 {
+			return nil, fmt.Errorf("failed to init ebpf manager: %w",
 				fmt.Errorf("program %s: load program: %w", netDevQueueTPBTF, &ebpf.VerifierError{Cause: syscall.EACCES}))
 		}
 		rejectedOnRetry = util.NetDevQueueTPBTFRejected.Load()
-		return nil, nil, nil
+		return nil, nil
 	}
 
 	cfg := config.New()
 	cfg.EnableFentry = true
-	_, _, err := LoadTracer(cfg, manager.Options{}, nil)
+	m, _, err := LoadTracer(cfg, manager.Options{}, nil)
 	require.NoError(t, err)
-	assert.Equal(t, 2, calls)
+	require.Len(t, managers, 2)
 	assert.True(t, rejectedOnRetry)
+	assert.NotSame(t, managers[0], managers[1], "the retry uses a new manager")
+	assert.Same(t, managers[1], m)
+	// a recovered rejection is not a CO-RE verifier failure
+	assert.NotEqual(t, int32(ddebpf.VerifierError), ddebpf.GetCORETelemetryByAsset()["tracer-fentry"])
 }
 
 func TestEnabledProgramsSkipsRejectedTPBTF(t *testing.T) {
