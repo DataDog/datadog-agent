@@ -1,0 +1,24 @@
+---
+enhancements:
+  - |
+    SBOMs report the licenses that JAR files declare in their embedded
+    ``pom.xml``, and the versions of Go binaries built with ``-trimpath``,
+    which they read from the symbol table of the binary.
+  - |
+    The SBOMs of Bottlerocket hosts give package versions with their release,
+    such as ``1:1.7.25-1.1740525475.e3a5862c.br1`` for containerd.
+fixes:
+  - |
+    Fixed SBOMs cutting the names of JAR files whose manifest continues the
+    name on a second line.
+  - |
+    Fixed SBOMs reporting the Go modules that a ``go.mod`` at Go 1.17 or later
+    lists only in its ``go.sum``.
+  - |
+    Fixed SBOMs reporting Go standard library versions with their
+    GOEXPERIMENT suffix, such as ``v1.26.10-X:loopvar`` for ``v1.26.10``.
+other:
+  - |
+    The PURLs of modular RPM packages in SBOMs write the colons of their
+    ``modularitylabel`` qualifier as they are, which the package URL
+    specification allows, where they wrote ``%3A`` before.
