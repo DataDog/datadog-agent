@@ -26,9 +26,9 @@ require (
 	github.com/DataDog/datadog-go/v5 v5.9.1
 	github.com/DataDog/datadog-operator/api v0.0.0-20261009182314-b5af0bdd655b
 	github.com/aws/aws-sdk-go-v2 v1.47.5
-	github.com/aws/aws-sdk-go-v2/config v1.33.12
+	github.com/aws/aws-sdk-go-v2/config v1.33.13
 	github.com/aws/aws-sdk-go-v2/service/ec2 v1.343.0
-	github.com/aws/aws-sdk-go-v2/service/ecs v1.103.0
+	github.com/aws/aws-sdk-go-v2/service/ecs v1.103.1
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.114.6
 	github.com/cenkalti/backoff/v7 v7.0.2
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc
@@ -43,7 +43,7 @@ require (
 	github.com/jackc/pgx/v5 v5.11.0
 	github.com/kr/pretty v0.3.1
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.52.1
-	github.com/pulumi/pulumi-awsx/sdk/v3 v3.11.0
+	github.com/pulumi/pulumi-awsx/sdk/v3 v3.12.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.2
 	github.com/pulumi/pulumi/sdk/v3 v3.273.0
 	github.com/samber/lo v1.53.0
@@ -126,22 +126,22 @@ require (
 	github.com/asaskevich/govalidator v0.0.0-20230301143203-a9d515a09cc2 // indirect
 	github.com/aws/aws-sdk-go v1.55.8 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.7.25 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.20.12 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.20.13 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.20.5 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.5.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.8.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/v4a v1.5.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.90.3 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ecr v1.67.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/eks v1.105.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/cloudwatchlogs v1.91.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ecr v1.67.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/eks v1.105.2 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.13.23 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.11.9 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.14.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.20.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/signin v1.12.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.1 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.39.0 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.0 // indirect
+	github.com/aws/aws-sdk-go-v2/service/signin v1.12.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssm v1.81.2 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.39.1 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.44.1 // indirect
 	github.com/aws/aws-sdk-go-v2/service/sts v1.51.6 // indirect
 	github.com/aws/session-manager-plugin v0.0.0-20241119210807-82dc72922492 // indirect
 	github.com/aws/smithy-go v1.28.7 // indirect
@@ -306,11 +306,11 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-cloud-sdk/go v1.20260918.0 // indirect
-	github.com/pulumi/pulumi-command/sdk v1.2.1 // indirect
+	github.com/pulumi/pulumi-command/sdk v1.3.0 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v5 v5.2.0 // indirect
-	github.com/pulumi/pulumi-eks/sdk/v4 v4.4.0 // indirect
+	github.com/pulumi/pulumi-eks/sdk/v4 v4.5.0 // indirect
 	github.com/pulumi/pulumi-gcp/sdk/v10 v10.2.0 // indirect
 	github.com/pulumi/pulumi-libvirt/sdk v0.5.4 // indirect
 	github.com/pulumi/pulumi-random/sdk/v4 v4.21.4 // indirect

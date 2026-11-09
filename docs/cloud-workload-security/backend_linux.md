@@ -649,6 +649,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "metadata": {
                     "$ref": "#/$defs/FileMetadata"
+                },
+                "capabilities": {
+                    "$ref": "#/$defs/FileCapabilities",
+                    "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
                 }
             },
             "additionalProperties": false,
@@ -658,6 +662,41 @@ Workload Protection events for Linux systems have the following JSON schema:
                 "gid"
             ],
             "description": "FileSerializer serializes a file to JSON"
+        },
+        "FileCapabilities": {
+            "properties": {
+                "permitted": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Permitted capabilities attached to the executable, before the bounding-set check."
+                },
+                "inheritable": {
+                    "items": {
+                        "type": "string"
+                    },
+                    "type": "array",
+                    "description": "Inheritable capabilities attached to the executable."
+                },
+                "effective": {
+                    "type": "boolean",
+                    "description": "File effective capability bit, not a capability set."
+                },
+                "available": {
+                    "type": "boolean",
+                    "description": "Whether valid file capabilities were collected during exec or procfs resolution."
+                }
+            },
+            "additionalProperties": false,
+            "type": "object",
+            "required": [
+                "permitted",
+                "inheritable",
+                "effective",
+                "available"
+            ],
+            "description": "FileCapabilitiesSerializer serializes the executable's file capabilities."
         },
         "FileEvent": {
             "properties": {
@@ -804,6 +843,10 @@ Workload Protection events for Linux systems have the following JSON schema:
                 },
                 "metadata": {
                     "$ref": "#/$defs/FileMetadata"
+                },
+                "capabilities": {
+                    "$ref": "#/$defs/FileCapabilities",
+                    "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
                 },
                 "destination": {
                     "$ref": "#/$defs/File",
@@ -3736,6 +3779,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         },
         "metadata": {
             "$ref": "#/$defs/FileMetadata"
+        },
+        "capabilities": {
+            "$ref": "#/$defs/FileCapabilities",
+            "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
         }
     },
     "additionalProperties": false,
@@ -3784,10 +3831,62 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_origin` | MountOrigin origin of the mount |
 | `mount_visible` | MountVisible origin of the mount |
 | `mount_detached` | MountDetached origin of the mount |
+| `capabilities` | Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage. |
 
 | References |
 | ---------- |
 | [FileMetadata](#filemetadata) |
+| [FileCapabilities](#filecapabilities) |
+
+## `FileCapabilities`
+
+
+{{< code-block lang="json" collapsible="true" >}}
+{
+    "properties": {
+        "permitted": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Permitted capabilities attached to the executable, before the bounding-set check."
+        },
+        "inheritable": {
+            "items": {
+                "type": "string"
+            },
+            "type": "array",
+            "description": "Inheritable capabilities attached to the executable."
+        },
+        "effective": {
+            "type": "boolean",
+            "description": "File effective capability bit, not a capability set."
+        },
+        "available": {
+            "type": "boolean",
+            "description": "Whether valid file capabilities were collected during exec or procfs resolution."
+        }
+    },
+    "additionalProperties": false,
+    "type": "object",
+    "required": [
+        "permitted",
+        "inheritable",
+        "effective",
+        "available"
+    ],
+    "description": "FileCapabilitiesSerializer serializes the executable's file capabilities."
+}
+
+{{< /code-block >}}
+
+| Field | Description |
+| ----- | ----------- |
+| `permitted` | Permitted capabilities attached to the executable, before the bounding-set check. |
+| `inheritable` | Inheritable capabilities attached to the executable. |
+| `effective` | File effective capability bit, not a capability set. |
+| `available` | Whether valid file capabilities were collected during exec or procfs resolution. |
+
 
 ## `FileEvent`
 
@@ -3939,6 +4038,10 @@ Workload Protection events for Linux systems have the following JSON schema:
         "metadata": {
             "$ref": "#/$defs/FileMetadata"
         },
+        "capabilities": {
+            "$ref": "#/$defs/FileCapabilities",
+            "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
+        },
         "destination": {
             "$ref": "#/$defs/File",
             "description": "Target file information"
@@ -4002,6 +4105,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | `mount_origin` | MountOrigin origin of the mount |
 | `mount_visible` | MountVisible origin of the mount |
 | `mount_detached` | MountDetached origin of the mount |
+| `capabilities` | Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage. |
 | `destination` | Target file information |
 | `new_mount_id` | New Mount ID |
 | `device` | Device associated with the file |
@@ -4010,6 +4114,7 @@ Workload Protection events for Linux systems have the following JSON schema:
 | References |
 | ---------- |
 | [FileMetadata](#filemetadata) |
+| [FileCapabilities](#filecapabilities) |
 | [File](#file) |
 
 ## `FileMetadata`

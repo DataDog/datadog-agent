@@ -32,7 +32,13 @@ var draDeviceNameRegex = regexp.MustCompile(`^gpu-([0-9]+)$`)
 
 const (
 	nvidiaVisibleDevicesEnvVar = "NVIDIA_VISIBLE_DEVICES"
-	dockerInspectTimeout       = 100 * time.Millisecond
+	// nvidiaDriverCapabilitiesEnvVar is the environment variable through which a
+	// container declares which NVIDIA driver capabilities (e.g. compute,
+	// utility, graphics, video, ngx, compat32) are injected into it. The value
+	// is a comma-separated list, or "all".
+	// ref: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities
+	nvidiaDriverCapabilitiesEnvVar = "NVIDIA_DRIVER_CAPABILITIES"
+	dockerInspectTimeout           = 100 * time.Millisecond
 )
 
 // HasGPUs returns true if the container has GPUs assigned to it.
@@ -357,6 +363,47 @@ func findDeviceByIndex(devices []ddnvml.Device, index string) (ddnvml.Device, er
 	}
 
 	return nil, fmt.Errorf("%w with index %s", ErrCannotMatchDevice, index)
+}
+
+// IsUtilityOnlyContainer reports whether a container declares, through the
+// NVIDIA_DRIVER_CAPABILITIES environment variable, that "utility" is the
+// only capability injected into it. Utility-only containers (e.g. GPU
+// monitoring sidecars such as DCGM exporters) hold the GPU devices only to
+// observe them and cannot use them to run workloads, so they must not be
+// attributed as users of the device in GPU metrics.
+// Containers declaring any other capability are kept: besides compute,
+// capabilities such as graphics or video are also used by real workloads
+// (e.g. rendering, transcoding).
+// When the variable is unset, the NVIDIA toolkit injects a default capability
+// set (utility, compute), so the container is not considered utility-only.
+//
+// Known limitation: for containers provisioned through CDI (Kubernetes NVIDIA
+// DRA claims, docker CDI device requests), the CDI spec controls what is
+// injected and the environment variable does not restrict it. Such a
+// container can declare utility only and still run CUDA; it is excluded
+// anyway, which is the accepted trade-off (documented on AXT-73).
+// ref: https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities
+func IsUtilityOnlyContainer(container *workloadmeta.Container) bool {
+	capabilities, found := container.EnvVars[nvidiaDriverCapabilitiesEnvVar]
+	if !found || capabilities == "" {
+		return false
+	}
+
+	hasCapability := false
+	for _, capability := range strings.Split(capabilities, ",") {
+		switch strings.ToLower(strings.TrimSpace(capability)) {
+		case "":
+			continue
+		case "utility":
+			hasCapability = true
+		default:
+			// Another capability is requested: the container can use the GPU
+			// for more than monitoring it.
+			return false
+		}
+	}
+
+	return hasCapability
 }
 
 // IsDatadogAgentContainer checks if a container belong to the Datadog Agent (might be the agent, but also system-probe or other components)
