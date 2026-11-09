@@ -45,6 +45,35 @@ func TestConntrackNATMapLoadFailureFallsBack(t *testing.T) {
 	require.NoError(t, err)
 	t.Cleanup(func() { bad.Close() })
 
+	// the loaded programs' instructions aren't kept, so record the options the successful load got
+	var loaded struct {
+		mode   uint64
+		shared bool
+	}
+	record := func(o manager.Options, err error) {
+		if err != nil {
+			return
+		}
+		loaded.shared = o.MapEditors[probes.ConntrackMap] != nil
+		for _, c := range o.ConstantEditors {
+			if c.Name == "nat_lookup_mode" {
+				loaded.mode, _ = c.Value.(uint64)
+			}
+		}
+	}
+	prevFentryLoader, prevKprobeLoader := fentryTracerLoader, kprobeTracerLoader
+	t.Cleanup(func() { fentryTracerLoader, kprobeTracerLoader = prevFentryLoader, prevKprobeLoader })
+	fentryTracerLoader = func(c *config.Config, o manager.Options, h *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+		m, closeFn, err := prevFentryLoader(c, o, h)
+		record(o, err)
+		return m, closeFn, err
+	}
+	kprobeTracerLoader = func(c *config.Config, o manager.Options, h *perf.EventHandler) (*ddebpf.Manager, func(), kprobe.TracerType, error) {
+		m, closeFn, tt, err := prevKprobeLoader(c, o, h)
+		record(o, err)
+		return m, closeFn, tt, err
+	}
+
 	cfg := config.New()
 	tr, err := newEbpfTracer(cfg, nil, options{conntrackNATMap: bad})
 	require.NoError(t, err, "tracer should load without the shared map")
@@ -67,21 +96,9 @@ func TestConntrackNATMapLoadFailureFallsBack(t *testing.T) {
 		assert.True(t, probeRunning(mgr, probes.NetDevQueueRawTracepoint, probes.NetDevQueueTracepoint, probes.DevQueueXmitNitKprobe), "net_dev_queue isn't attached")
 	}
 
-	// and the programs look up NAT'd tuples in its map, not the conntracker's
-	specs, err := mgr.GetProgramSpecs()
-	require.NoError(t, err)
-	var modes []int64
-	for _, spec := range specs {
-		for _, ins := range spec.Instructions {
-			if ins.Reference() == "nat_lookup_mode" {
-				modes = append(modes, ins.Constant)
-			}
-		}
-	}
-	require.NotEmpty(t, modes, "no program reads nat_lookup_mode")
-	for _, mode := range modes {
-		assert.Equal(t, int64(natLookupSKBCache), mode, "nat_lookup_mode")
-	}
+	// and the programs were loaded to look up NAT'd tuples in its map, not the conntracker's
+	assert.Equal(t, natLookupSKBCache, loaded.mode, "nat_lookup_mode")
+	assert.False(t, loaded.shared, "loaded with the conntracker's map")
 }
 
 // probeRunning reports whether any probe with one of the given function names is running.
