@@ -60,11 +60,14 @@ namespace CustomActions.Tests.Service
             Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
             Assert.Equal("1", Session.Object["CanDeleteServices"]);
             Assert.Equal(Account, Session.Object["ServiceRemovalAccount"]);
+            Assert.Equal("ddagentuser", Session.Object["ServiceRemovalLocalUser"]);
             Assert.Equal(Password, Session.Object["ServiceRemovalPassword"]);
             Assert.Equal("datadogagent,datadog-trace-agent", Session.Object["ServiceRemovalNames"]);
             // The incoming install can overwrite LSA; rollback must use the captured value.
             NativeMethods.Setup(n => n.FetchSecret(It.IsAny<string>())).Throws<Exception>();
             Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
+            NativeMethods.Verify(n => n.SetUserPassword("ddagentuser", Password), Times.Once);
+            NativeMethods.Verify(n => n.StoreSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), Password), Times.Once);
             ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, Account, Password), Times.Once);
             ServiceController.Verify(c => c.SetCredentials(Constants.TraceAgentServiceName, Account, Password), Times.Once);
             ServiceController.Verify(c => c.SetCredentials(Constants.ProcmgrServiceName, It.IsAny<string>(), It.IsAny<string>()), Times.Never);
@@ -112,6 +115,16 @@ namespace CustomActions.Tests.Service
             Assert.Equal("1", Session.Object["CanDeleteServices"]);
             Assert.Equal("", Session.Object["ServiceRemovalNames"]);
             NativeMethods.Verify(n => n.FetchSecret(It.IsAny<string>()), Times.Never);
+        }
+
+        [Fact]
+        public void DomainPasswordIsNeverResetDuringRollback()
+        {
+            NativeMethods.Setup(n => n.IsDomainAccount(AccountSid)).Returns(true);
+            Create().PrepareServiceRemoval();
+            Create().RestoreServiceRemovalCredentials();
+            NativeMethods.Verify(n => n.SetUserPassword(It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, Account, Password), Times.Once);
         }
 
         [Fact]

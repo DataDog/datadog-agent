@@ -179,6 +179,7 @@ func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollback() {
 			s.Require().NoError(err)
 			logPath := filepath.Join(s.SessionOutputDir(), "upgrade-rollback.log")
 			_, err = s.InstallAgent(vm,
+				windowsAgent.WithAgentUserPassword("E2e-Changed-Password-472!"),
 				windowsAgent.WithPackage(s.upgradeAgentPackge),
 				windowsAgent.WithWixFailWhenDeferred(),
 				windowsAgent.WithInstallLogFile(logPath),

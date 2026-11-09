@@ -140,6 +140,7 @@ namespace Datadog.CustomActions
             _session["ServiceRemovalAccount"] = "";
             _session["ServiceRemovalPassword"] = "";
             _session["ServiceRemovalNames"] = "";
+            _session["ServiceRemovalLocalUser"] = "";
             try
             {
                 using var installed = _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
@@ -208,6 +209,10 @@ namespace Datadog.CustomActions
                     // CustomActionData uses semicolons as separators, like the existing
                     // processed-password actions. Preserve services if it cannot be encoded.
                     ProcessUserCustomActions.TestValidAgentUserPassword(password);
+                    if (!_nativeMethods.IsDomainAccount(accountSid))
+                    {
+                        _session["ServiceRemovalLocalUser"] = user;
+                    }
                 }
                 _session["ServiceRemovalAccount"] = account;
                 _session["ServiceRemovalPassword"] = password;
@@ -232,6 +237,24 @@ namespace Datadog.CustomActions
         {
             var account = _session.Property("ServiceRemovalAccount");
             var password = _session.Property("ServiceRemovalPassword");
+            var localUser = _session.Property("ServiceRemovalLocalUser");
+            try
+            {
+                // The incoming MSI can reset the same local account's password. Restore
+                // it together with service credentials; never reset a domain password.
+                if (!string.IsNullOrEmpty(localUser))
+                {
+                    _nativeMethods.SetUserPassword(localUser, password);
+                }
+                if (!string.IsNullOrEmpty(password))
+                {
+                    _nativeMethods.StoreSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey(), password);
+                }
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to restore the installed account password ({e.GetType().Name})");
+            }
             foreach (var name in (_session.Property("ServiceRemovalNames") ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
             {
                 try
