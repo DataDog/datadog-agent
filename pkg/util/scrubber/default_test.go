@@ -550,6 +550,38 @@ func TestAddStrippedKeysNewReplacer(t *testing.T) {
 	dynamicReplacers = []Replacer{}
 }
 
+func TestAddStrippedKeysMatchesKeysLiterally(t *testing.T) {
+	t.Cleanup(func() { dynamicReplacers = []Replacer{} })
+
+	t.Run("unbalanced brackets", func(t *testing.T) {
+		require.NotPanics(t, func() {
+			AddStrippedKeys([]string{"dsn(", "tok[0", "bad\xffkey"})
+		})
+
+		assertClean(t, `dsn(: s3cret`, `dsn(: "********"`)
+		assertClean(t, `tok[0: s3cret`, `tok[0: "********"`)
+
+		scrubbed, err := ScrubJSONString(`{"dsn(": "s3cret", "tok[0": "s3cret"}`)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"dsn(": "********", "tok[0": "********"}`, scrubbed)
+	})
+
+	t.Run("metacharacters and case", func(t *testing.T) {
+		AddStrippedKeys([]string{"conn.str", "user+id", "Mixed_Case_Dsn", "İdent"})
+
+		assertClean(t, `conn.str: s3cret`, `conn.str: "********"`)
+		assertClean(t, `user+id: s3cret`, `user+id: "********"`)
+
+		// Metacharacters are not interpreted as regexp syntax.
+		assertClean(t, `connXstr: visible`, `connXstr: visible`)
+		assertClean(t, `userrid: visible`, `userrid: visible`)
+
+		scrubbed, err := ScrubJSONString(`{"conn.str": "s3cret", "user+id": "s3cret", "Mixed_Case_Dsn": "s3cret", "İdent": "s3cret", "connXstr": "visible", "userrid": "visible"}`)
+		require.NoError(t, err)
+		assert.JSONEq(t, `{"conn.str": "********", "user+id": "********", "Mixed_Case_Dsn": "********", "İdent": "********", "connXstr": "visible", "userrid": "visible"}`, scrubbed)
+	})
+}
+
 func TestCertConfig(t *testing.T) {
 	assertClean(t,
 		`cert_key: >

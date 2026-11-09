@@ -1,8 +1,12 @@
 import hashlib
+import json
+import shlex
 import tempfile
 import unittest
 from io import StringIO
-from unittest.mock import patch
+from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import Mock, patch
 
 from invoke.exceptions import Exit
 
@@ -12,6 +16,7 @@ from tasks.anomalydetection import (
     _local_ddeval_command,
     eval_ddeval,
 )
+from tasks.libs.anomalydetection.datasets import DEFAULT_DATASET, DEFAULT_PROJECT
 from tasks.libs.anomalydetection.ddeval import (
     ARTIFACT_PREFIX,
     RedactingWriter,
@@ -170,7 +175,6 @@ class TestLocalDDEvalArtifacts(unittest.TestCase):
             config_path="/tmp/config.json",
             jobs=20,
             max_attempts=1,
-            data_env="staging",
             limit=2,
             where_in="metadata.record_id=a,b",
         )
@@ -180,6 +184,80 @@ class TestLocalDDEvalArtifacts(unittest.TestCase):
         self.assertEqual(args[args.index("--dataset-version") + 1], "6")
         self.assertIn("metadata.record_id=a,b", args)
         self.assertNotIn("--workflow-test-drive", args)
+        self.assertNotIn("--data-env", args)
+
+
+class TestDDEvalAlignment(unittest.TestCase):
+    def submit(self, *, config_flag="config", **kwargs):
+        with tempfile.TemporaryDirectory() as temporary:
+            directory = Path(temporary)
+            binary = directory / "testbench"
+            elf_header = bytearray(20)
+            elf_header[:6] = b"\x7fELF\x02\x01"
+            elf_header[18:20] = (62).to_bytes(2, "little")
+            binary.write_bytes(elf_header)
+            params = directory / "params.json"
+            params.write_text(json.dumps({"components": {"bocpd": {"enabled": True}}}))
+            submitted = {}
+
+            def run(command, **_kwargs):
+                args = shlex.split(command)
+                stdout = ""
+                if args[:2] == ["git", "rev-parse"]:
+                    stdout = "commit"
+                elif "head-object" in args:
+                    stdout = json.dumps(
+                        {"ContentLength": binary.stat().st_size, "Metadata": {"sha256": sha256_file(binary)}}
+                    )
+                elif "presign" in args:
+                    stdout = PRESIGNED_URL
+                elif args[:3] == ["ddeval", "workflow", "run"]:
+                    submitted["args"] = args
+                    submitted["config"] = json.loads(Path(args[args.index("-f") + 1]).read_text())
+                else:
+                    raise AssertionError(f"Unexpected command: {args}")
+                return SimpleNamespace(ok=True, failed=False, exited=0, stdout=stdout, stderr="")
+
+            ctx = Mock()
+            ctx.run.side_effect = run
+            with patch("tasks.anomalydetection._local_ddeval_command", return_value=(["ddeval"], None)):
+                eval_ddeval.body(ctx, build=False, testbench_binary=str(binary), **{config_flag: str(params)}, **kwargs)
+            return submitted
+
+    def test_defaults_select_shared_dataset_and_production_worker(self):
+        submitted = self.submit()
+        args = submitted["args"]
+        self.assertEqual(args[args.index("-d") + 1], DEFAULT_DATASET)
+        self.assertEqual(args[args.index("-p") + 1], DEFAULT_PROJECT)
+        self.assertEqual(args[args.index("--env") + 1], "ddbuild")
+        self.assertNotIn("--data-env", args)
+        self.assertNotIn("--dataset-version", args)
+        self.assertEqual(
+            submitted["config"]["input_parameters"]["testbench_config"],
+            {"components": {"bocpd": {"enabled": True}}},
+        )
+
+    def test_legacy_config_alias_and_explicit_selection_still_work(self):
+        submitted = self.submit(
+            config_flag="testbench_config", dataset="another-dataset", project="another-project", data_env="prod"
+        )
+        args = submitted["args"]
+        self.assertEqual(args[args.index("-d") + 1], "another-dataset")
+        self.assertEqual(args[args.index("-p") + 1], "another-project")
+        self.assertNotIn("--data-env", args)
+        self.assertEqual(
+            submitted["config"]["input_parameters"]["testbench_config"],
+            {"components": {"bocpd": {"enabled": True}}},
+        )
+
+    def test_unsupported_sites_fail_before_build_or_upload(self):
+        for kwargs in ({"site": "datad0g.com"}, {"site": "datadoghq.eu"}, {"data_env": "staging"}):
+            with self.subTest(kwargs=kwargs), self.assertRaisesRegex(Exit, "production LLMObs"):
+                eval_ddeval.body(None, **kwargs)
+
+    def test_conflicting_config_aliases_fail_before_build_or_upload(self):
+        with self.assertRaisesRegex(Exit, "must not specify different files"):
+            eval_ddeval.body(None, config="one.json", testbench_config="two.json")
 
 
 if __name__ == "__main__":

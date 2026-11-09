@@ -104,6 +104,7 @@ type PrivateActionRunner struct {
 	ownsMetricsClient bool
 	ha                helmactions.Component
 	ka                kubeactions.Component
+	identityStorage   enrollment.IdentityStorage
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -151,7 +152,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil, enrollment.NewIdentityStorage(reqs.Config, nil))
 	if err != nil {
 		return Provides{}, err
 	}
@@ -176,7 +177,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil, enrollment.NewIdentityStorage(reqs.Config, nil))
 	if err != nil {
 		return Provides{}, err
 	}
@@ -205,21 +206,23 @@ func NewPrivateActionRunner(
 	metricsClient statsdclient.ClientInterface,
 	ha helmactions.Component,
 	ka kubeactions.Component,
+	identityStorage enrollment.IdentityStorage,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
-		coreConfig:     coreConfig,
-		hostnameGetter: hostnameGetter,
-		rcClient:       rcClient,
-		logger:         logger,
-		tagger:         taggerComp,
-		traceroute:     tracerouteComp,
-		eventPlatform:  eventPlatform,
-		pcapUploader:   pcapUploader,
-		ipc:            ipcComp,
-		metricsClient:  metricsClient,
-		startChan:      make(chan struct{}),
-		ha:             ha,
-		ka:             ka,
+		coreConfig:      coreConfig,
+		hostnameGetter:  hostnameGetter,
+		rcClient:        rcClient,
+		logger:          logger,
+		tagger:          taggerComp,
+		traceroute:      tracerouteComp,
+		eventPlatform:   eventPlatform,
+		pcapUploader:    pcapUploader,
+		ipc:             ipcComp,
+		metricsClient:   metricsClient,
+		startChan:       make(chan struct{}),
+		ha:              ha,
+		ka:              ka,
+		identityStorage: identityStorage,
 	}, nil
 }
 
@@ -229,7 +232,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, fmt.Errorf("failed to get agent identifier: %w", err)
 	}
 
-	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, p.coreConfig)
+	persistedIdentity, err := p.identityStorage.Load(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
@@ -625,7 +628,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	}
 	p.logger.Info("Self-enrollment successful")
 
-	if err := enrollment.PersistIdentity(ctx, p.coreConfig, enrollmentResult); err != nil {
+	if err := p.identityStorage.Persist(ctx, enrollmentResult); err != nil {
 		return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
 	}
 

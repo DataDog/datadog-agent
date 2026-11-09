@@ -11,6 +11,8 @@ import (
 	"context"
 
 	egv1a1 "github.com/envoyproxy/gateway/api/v1alpha1"
+
+	appsecconfig "github.com/DataDog/datadog-agent/pkg/clusteragent/appsec/config"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
@@ -72,7 +74,20 @@ func (e *envoyGatewayInjectionPattern) createBackend(ctx context.Context, namesp
 // deleteBackend deletes the Backend resource from the given namespace.
 // It is idempotent: if the resource does not exist the call is a no-op.
 func (e *envoyGatewayInjectionPattern) deleteBackend(ctx context.Context, namespace string) error {
-	err := e.client.Resource(backendGVR).
+	backend, err := e.client.Resource(backendGVR).Namespace(namespace).Get(ctx, extProcName, metav1.GetOptions{})
+	if errors.IsNotFound(err) {
+		e.logger.Debugf("Backend %q already absent from namespace %s", extProcName, namespace)
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !appsecconfig.IsManagedByDatadog(backend.GetLabels()) {
+		e.logger.Warnf("Not deleting Backend %s/%s: it was not created by the Datadog Cluster Agent", namespace, extProcName)
+		return nil
+	}
+
+	err = e.client.Resource(backendGVR).
 		Namespace(namespace).
 		Delete(ctx, extProcName, metav1.DeleteOptions{})
 	if errors.IsNotFound(err) {
