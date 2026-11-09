@@ -238,7 +238,7 @@ jev-retrieval-qualification:
       unset JEV_RETRIEVAL_INPUT
     - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
     - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
-    - dda run i python -B tasks/jev_retrieval_comparison.py --input .jev-retrieval-input.json --out .jev-retrieval-output
+    - dda inv -- -r tasks -c jev_retrieval_comparison qualify --input .jev-retrieval-input.json --out .jev-retrieval-output
   artifacts:
     when: always
     access: developer

@@ -1,6 +1,6 @@
 """One bounded live Stage 9 pair; private artifacts, no prediction or publication.
 
-Run in the existing Jev CI runtime: python -B live_comparison.py --input INPUT --out NEWDIR.
+Run through the normal Jev `dda inv` runtime using the `qualify` task below.
 The coordinator prepares frozen inputs, then starts a fresh process per path. It
 analyzes full response captures only after the measured workers have exited.
 """
@@ -28,6 +28,8 @@ from datetime import datetime, timedelta, timezone
 from unittest.mock import patch
 from urllib.parse import urlsplit
 
+from invoke import Exit, task
+
 
 BASELINE = "8db4d8733c4484b7a07ccd6d0a21b564322b83fe"
 REVISION = "9aa8114582dc5e0530a24c3c4bbd575ded8ab9d0"
@@ -54,6 +56,13 @@ HOST = "api.datadoghq.com"
 def require(condition, message):
     if not condition:
         raise ValueError(message)
+
+
+def validate_launcher():
+    require(os.environ.get("JEV_COMPARISON_LAUNCHER") == "dda inv",
+            "Qualification must enter through the normal dda inv runtime")
+    require(os.environ.get("JEV_COMPARISON_LAUNCHER_PYTHON") == sys.executable,
+            "Qualification interpreter differs from the normal Invoke launcher")
 
 
 def sha(data):
@@ -495,6 +504,7 @@ def worker(args):
     validate_protocol(document)
     require(sys.platform.startswith("linux"), "The paired live probe requires the existing Linux CI runtime")
     require(os.environ.get("CI") == "true", "Live qualification is CI-only")
+    validate_launcher()
     require(os.environ.get("DD_SITE", "datadoghq.com") == "datadoghq.com", "Existing CI site differs")
     require(os.environ.get("DD_API_KEY") and os.environ.get("DD_APP_KEY"), "Existing CI credentials are unavailable")
     os.environ["TZ"] = "UTC"
@@ -508,7 +518,8 @@ def worker(args):
     require(not configuration.proxy, "A proxy would change the inspected direct transport path")
     require(not configuration.debug, "SDK debug logging must remain disabled to protect request credentials")
     require(getattr(configuration, "retry_policy", None) is None, "A custom retry policy changes the protocol")
-    runtime = {"python": sys.version, "executable": sys.executable, "platform": platform.platform(),
+    runtime = {"python": sys.version, "executable": sys.executable, "prefix": sys.prefix, "base_prefix": sys.base_prefix,
+               "platform": platform.platform(),
                "architecture": platform.machine(), "packages": {
                    name: importlib.metadata.version(name) for name in ("datadog-api-client", "urllib3", "invoke")},
                "sdk_retry_configuration": {name: getattr(configuration, name) for name in (
@@ -730,6 +741,7 @@ def coordinator(args):
     try:
         validate_protocol(document)
         require(sys.platform.startswith("linux") and os.environ.get("CI") == "true", "Live qualification is restricted to the existing Linux CI runtime")
+        validate_launcher()
         report["sources"] = retain_sources(source, document, out)
         before = time.perf_counter()
         with (out / "preparation.log").open("x", encoding="utf-8") as log:
@@ -740,7 +752,8 @@ def coordinator(args):
         report["ci_configuration"] = document["ci_configuration"]
         report["ci_runtime_identifiers"] = {name: os.environ.get(name) for name in (
             "CI_JOB_ID", "CI_JOB_URL", "CI_PIPELINE_ID", "CI_PIPELINE_URL", "CI_COMMIT_SHA", "CI_JOB_IMAGE",
-            "CI_RUNNER_ID", "CI_RUNNER_DESCRIPTION", "CI_RUNNER_EXECUTABLE_ARCH", "CI_IMAGE_LINUX", "CI_IMAGE_LINUX_SUFFIX")}
+            "CI_RUNNER_ID", "CI_RUNNER_DESCRIPTION", "CI_RUNNER_EXECUTABLE_ARCH", "CI_IMAGE_LINUX", "CI_IMAGE_LINUX_SUFFIX",
+            "DDA_NO_DYNAMIC_DEPS", "JEV_COMPARISON_LAUNCHER", "JEV_COMPARISON_LAUNCHER_PYTHON")}
         report["coverage"] = {kind: ("paired live" if any(case["kind"] == kind for case in document["cases"])
                                      else "Stage 8 synthetic tests only; no bound retained live inputs supplied") for kind in sorted(KINDS)}
         prepared = out / "prepared-input.json"
@@ -807,6 +820,17 @@ def main():
             write_json(args.out / "worker-preparation-error.json", safe_error(error))
             return 1
     return coordinator(args)
+
+
+@task
+def qualify(ctx, input, out):
+    """Start the probe in the exact interpreter selected by normal dda inv."""
+    environment = dict(os.environ, JEV_COMPARISON_LAUNCHER="dda inv",
+                       JEV_COMPARISON_LAUNCHER_PYTHON=sys.executable)
+    result = subprocess.run([sys.executable, "-B", str(Path(__file__).resolve()),
+                             "--input", input, "--out", out], env=environment, check=False)
+    if result.returncode:
+        raise Exit(code=result.returncode)
 
 
 if __name__ == "__main__":
