@@ -572,6 +572,10 @@ type CircuitQoSMetrics struct {
 	ExpeditedForwardBW   float64
 	AssuredForwardBW     float64
 	NetworkControlBW     float64
+	VolumeTx             float64
+	TotalDrop            float64
+	PercentDrop          float64
+	Bandwidth            float64
 	// Timestamp is the bucket time in epoch milliseconds for a timeseries query, and zero
 	// for a tableData query, which aggregates the whole lookback window into one row.
 	Timestamp int64

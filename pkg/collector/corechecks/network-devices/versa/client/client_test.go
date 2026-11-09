@@ -1191,6 +1191,10 @@ func TestGetCircuitQoSMetrics(t *testing.T) {
 			ExpeditedForwardBW:   4000.0,
 			AssuredForwardBW:     2400.0,
 			NetworkControlBW:     400.0,
+			VolumeTx:             1850.0,
+			TotalDrop:            10.0,
+			PercentDrop:          0.54,
+			Bandwidth:            14800.0,
 		},
 	}, circuitQoSMetrics)
 }

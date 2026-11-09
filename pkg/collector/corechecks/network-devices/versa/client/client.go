@@ -690,6 +690,10 @@ func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, 
 			"efbandwidth", // expedited forwarding bps
 			"afbandwidth", // assured forwarding bps
 			"ncbandwidth", // network control bps
+			"volume-tx",   // total volume bytes
+			"totaldrop",   // total drops bytes
+			"percentdrop", // percent drop bytes
+			"bandwidth",   // total bandwidth bps
 		},
 		circuitQoSTimeseriesLayout,
 		parseCircuitQoSMetrics,
@@ -899,7 +903,9 @@ func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfac
 //   - query: Versa query expression (e.g., "slam(...columns...)")
 //   - lookback: relative start date (e.g., "15minutesAgo", "1h", "24h")
 //   - endDate: relative end date, only sent for timeseries queries
-//   - gap: bucket size for timeseries queries (e.g. "15MINUTE"), ignored otherwise
+//   - gap: bucket size for timeseries queries, one of "1MINUTE", "1HOUR" or "1DAY",
+//     ignored otherwise. Versa rejects any other value, 15MINUTE included, and renders
+//     at the tenant's configured resolution whichever of the three is asked for.
 //   - filterQuery: filter query (e.g. "(accessType:DIA)")
 //   - joinQuery: table to join from (e.g. "siteStatus")
 //   - metrics: list of metric strings (e.g., "delay", "fwdLossRatio")
