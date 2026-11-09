@@ -8,7 +8,6 @@ package clusterinfo
 import (
 	"context"
 	"errors"
-	"fmt"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
@@ -16,14 +15,12 @@ import (
 	"github.com/cenkalti/backoff/v7"
 )
 
-// errClusterAgentUnreachable marks failures where the node Agent could not reach the Cluster Agent,
-// as opposed to the Cluster Agent answering that it has no identity to serve.
-var errClusterAgentUnreachable = errors.New("cluster agent is not reachable")
+var errIncompleteIdentity = errors.New("cluster agent returned incomplete EKS identity")
 
 var getEKSClusterIdentity = func(ctx context.Context) (*identity.ClusterIdentity, error) {
 	client, err := clusteragent.GetClusterAgentClient()
 	if err != nil {
-		return nil, fmt.Errorf("%w: %w", errClusterAgentUnreachable, err)
+		return nil, err
 	}
 	return client.GetEKSClusterIdentity(ctx)
 }
@@ -36,7 +33,7 @@ func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
 	}
 	tags := id.Tags()
 	if tags == nil {
-		return nil, errors.New("cluster agent returned incomplete EKS identity")
+		return nil, errIncompleteIdentity
 	}
 	return tags, nil
 }
@@ -45,12 +42,12 @@ func GetClusterAgentEKSIdentityTags(ctx context.Context) ([]string, error) {
 // backoff. The static-tags paths compute tags exactly once at Agent startup, where the node
 // Agent routinely becomes ready before the Cluster Agent is reachable; without a retry a single
 // cold-start miss would leave eks_cluster_arn permanently absent from container tags and APM
-// spans for the life of the process. Only that unreachable case is retried: once the Cluster
-// Agent answers (404 on non-EKS clusters or an older Cluster Agent, 503 when DescribeCluster
-// fails), the answer will not change within the window, and retrying it would block every
-// caller for the full budget on each startup. The host-metadata provider path, which re-runs on
-// its own refresh interval and is self-healing, keeps using the non-retrying call above with a
-// single attempt.
+// spans for the life of the process. Only failures to get an answer are retried: once the
+// Cluster Agent answers (404 on non-EKS clusters or an older Cluster Agent, 503 when
+// DescribeCluster fails, or an identity without a valid ARN), the answer will not change within
+// the window, and retrying it would block every caller for the full budget on each startup. The
+// host-metadata provider path, which re-runs on its own refresh interval and is self-healing,
+// keeps using the non-retrying call above with a single attempt.
 func GetClusterAgentEKSIdentityTagsWithRetry() ([]string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -58,7 +55,8 @@ func GetClusterAgentEKSIdentityTagsWithRetry() ([]string, error) {
 	backoffPolicy := backoff.NewConstantBackOff(1 * time.Second)
 	return backoff.Retry(ctx, func() ([]string, error) {
 		tags, err := GetClusterAgentEKSIdentityTags(ctx)
-		if err != nil && !errors.Is(err, errClusterAgentUnreachable) {
+		var statusErr *clusteragent.StatusError
+		if errors.As(err, &statusErr) || errors.Is(err, errIncompleteIdentity) {
 			return nil, backoff.Permanent(err)
 		}
 		return tags, err

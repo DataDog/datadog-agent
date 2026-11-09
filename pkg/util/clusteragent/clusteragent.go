@@ -331,8 +331,34 @@ func (c *DCAClient) httpClient(useLeaderClient bool) *http.Client {
 	return c.clusterAgentAPIClient
 }
 
+// StatusError is returned when the Cluster Agent answered a query with a non-200 HTTP status,
+// as opposed to the query failing before any answer was received. It unwraps to the
+// remote-service error, so errors.IsRemoteService still matches it.
+type StatusError struct {
+	StatusCode int
+	Err        error
+}
+
+func (e *StatusError) Error() string {
+	return e.Err.Error()
+}
+
+func (e *StatusError) Unwrap() error {
+	return e.Err
+}
+
 // TODO: remove the client parameter when we drop compatibility with older Agents, see end of `init()`
 func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Reader, readResponseBody, useLeaderClient bool) ([]byte, error) {
+	respBody, err := c.doQueryWithStatus(ctx, path, method, body, readResponseBody, useLeaderClient)
+	var statusErr *StatusError
+	if nativeerrors.As(err, &statusErr) {
+		return nil, statusErr.Err
+	}
+	return respBody, err
+}
+
+// doQueryWithStatus is doQuery, except that a non-200 answer is returned as a *StatusError.
+func (c *DCAClient) doQueryWithStatus(ctx context.Context, path, method string, body io.Reader, readResponseBody, useLeaderClient bool) ([]byte, error) {
 	url := c.buildURL(useLeaderClient, path)
 	req, err := http.NewRequestWithContext(ctx, method, url, body)
 	if err != nil {
@@ -363,7 +389,7 @@ func (c *DCAClient) doQuery(ctx context.Context, path, method string, body io.Re
 	// Make sure we read always body, required to re-use HTTP Connections
 	_, _ = io.Copy(io.Discard, resp.Body)
 	if resp.StatusCode != http.StatusOK {
-		return nil, errors.NewRemoteServiceError(url, resp.Status)
+		return nil, &StatusError{StatusCode: resp.StatusCode, Err: errors.NewRemoteServiceError(url, resp.Status)}
 	}
 	return nil, nil
 }
@@ -540,11 +566,17 @@ func (c *DCAClient) GetKubernetesClusterID() (string, error) {
 	return clusterID, nil
 }
 
-// GetEKSClusterIdentity queries the Cluster Agent for authoritative EKS identity.
+// GetEKSClusterIdentity queries the Cluster Agent for authoritative EKS identity. When the Cluster
+// Agent answers with a non-200 status, the error is a *StatusError.
 func (c *DCAClient) GetEKSClusterIdentity(ctx context.Context) (*eksidentity.ClusterIdentity, error) {
-	identity := &eksidentity.ClusterIdentity{}
-	if err := c.doJSONQuery(ctx, "api/v1/cluster/eks-identity", "GET", nil, identity, false); err != nil {
+	path := "api/v1/cluster/eks-identity"
+	respBody, err := c.doQueryWithStatus(ctx, path, "GET", nil, true, false)
+	if err != nil {
 		return nil, err
+	}
+	identity := &eksidentity.ClusterIdentity{}
+	if err := json.Unmarshal(respBody, identity); err != nil {
+		return nil, fmt.Errorf("failed to unmarshal JSON from URL: %s, err: %w, raw message: %q", path, err, respBody)
 	}
 	return identity, nil
 }

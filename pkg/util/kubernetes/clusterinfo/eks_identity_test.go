@@ -8,13 +8,16 @@ package clusterinfo
 import (
 	"context"
 	"errors"
-	"fmt"
+	"net/http"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
+	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/eks/identity"
 )
 
@@ -68,42 +71,77 @@ func TestGetClusterAgentEKSIdentityTagsReturnsClientError(t *testing.T) {
 }
 
 func TestGetClusterAgentEKSIdentityTagsWithRetryStopsOnClusterAgentAnswer(t *testing.T) {
-	original := getEKSClusterIdentity
-	t.Cleanup(func() { getEKSClusterIdentity = original })
-	expected := errors.New(`"https://dca:5005/api/v1/cluster/eks-identity" is unavailable: 404 Not Found`)
-	calls := 0
-	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
-		calls++
-		return nil, expected
-	}
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		expected := &clusteragent.StatusError{
+			StatusCode: http.StatusNotFound,
+			Err:        pkgerrors.NewRemoteServiceError("https://dca:5005/api/v1/cluster/eks-identity", "404 Not Found"),
+		}
+		calls := 0
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			calls++
+			return nil, expected
+		}
 
-	start := time.Now()
-	tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
-	assert.Nil(t, tags)
-	assert.ErrorIs(t, err, expected)
-	assert.Equal(t, 1, calls)
-	assert.Less(t, time.Since(start), time.Second)
+		start := time.Now()
+		tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		assert.Nil(t, tags)
+		assert.ErrorIs(t, err, expected)
+		assert.Equal(t, 1, calls)
+		assert.Zero(t, time.Since(start))
+	})
 }
 
-func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesUnreachableClusterAgent(t *testing.T) {
-	original := getEKSClusterIdentity
-	t.Cleanup(func() { getEKSClusterIdentity = original })
-	calls := 0
-	getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
-		calls++
-		if calls == 1 {
-			return nil, fmt.Errorf("%w: temporary failure in clusterAgentClient", errClusterAgentUnreachable)
+func TestGetClusterAgentEKSIdentityTagsWithRetryStopsOnIncompleteIdentity(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		original := getEKSClusterIdentity
+		t.Cleanup(func() { getEKSClusterIdentity = original })
+		calls := 0
+		getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+			calls++
+			return &identity.ClusterIdentity{ClusterName: "orders"}, nil
 		}
-		return &identity.ClusterIdentity{
-			ClusterName: "orders",
-			ClusterARN:  "arn:aws:eks:us-west-2:123456789012:cluster/orders",
-			AccountID:   "123456789012",
-			Region:      "us-west-2",
-		}, nil
-	}
 
-	tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
-	require.NoError(t, err)
-	assert.Equal(t, 2, calls)
-	assert.Contains(t, tags, "eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders")
+		start := time.Now()
+		tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+		assert.Nil(t, tags)
+		assert.ErrorIs(t, err, errIncompleteIdentity)
+		assert.Equal(t, 1, calls)
+		assert.Zero(t, time.Since(start))
+	})
+}
+
+func TestGetClusterAgentEKSIdentityTagsWithRetryRetriesTransportFailures(t *testing.T) {
+	for name, transportErr := range map[string]error{
+		"client init":       errors.New("temporary failure in clusterAgentClient"),
+		"after client init": pkgerrors.NewRemoteServiceError("https://dca:5005/api/v1/cluster/eks-identity", "dial tcp 10.0.0.1:5005: connect: connection refused"),
+	} {
+		t.Run(name, func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				original := getEKSClusterIdentity
+				t.Cleanup(func() { getEKSClusterIdentity = original })
+				calls := 0
+				getEKSClusterIdentity = func(context.Context) (*identity.ClusterIdentity, error) {
+					calls++
+					if calls == 1 {
+						return nil, transportErr
+					}
+					return &identity.ClusterIdentity{
+						ClusterName: "orders",
+						ClusterARN:  "arn:aws:eks:us-west-2:123456789012:cluster/orders",
+						AccountID:   "123456789012",
+						Region:      "us-west-2",
+					}, nil
+				}
+
+				start := time.Now()
+				tags, err := GetClusterAgentEKSIdentityTagsWithRetry()
+				require.NoError(t, err)
+				assert.Equal(t, 2, calls)
+				assert.Equal(t, time.Second, time.Since(start))
+				assert.Contains(t, tags, "eks_cluster_arn:arn:aws:eks:us-west-2:123456789012:cluster/orders")
+			})
+		})
+	}
 }

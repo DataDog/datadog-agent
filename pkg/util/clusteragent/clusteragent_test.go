@@ -759,6 +759,34 @@ func (suite *clusterAgentSuite) TestGetEKSClusterIdentity() {
 	assert.Equal(suite.T(), "us-west-2", identity.Region)
 }
 
+func (suite *clusterAgentSuite) TestGetEKSClusterIdentityDistinguishesAnswersFromTransportFailures() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+	delete(dca.rawResponses, "/api/v1/cluster/eks-identity")
+
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	client, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+
+	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	var statusErr *StatusError
+	require.ErrorAs(suite.T(), err, &statusErr)
+	assert.Equal(suite.T(), http.StatusInternalServerError, statusErr.StatusCode)
+	assert.True(suite.T(), errors.IsRemoteService(err))
+
+	ts.Close()
+	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	require.Error(suite.T(), err)
+	assert.NotErrorAs(suite.T(), err, &statusErr)
+	assert.True(suite.T(), errors.IsRemoteService(err))
+}
+
 func TestClusterAgentSuite(t *testing.T) {
 	clusterAgentAuthTokenFilename := "cluster_agent.auth_token"
 
