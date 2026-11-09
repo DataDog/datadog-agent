@@ -78,7 +78,7 @@ The Kubernetes provisioner (`gpuK8sProvisioner`):
    ```bash
    aws-vault login sso-agent-sandbox-account-admin-8h
    ```
-3. The default environment is `agent-sandbox` (see `test/new-e2e/pkg/runner/local_profile.go`). If you're in a different account, EC2 instances won't have the correct IAM permissions.
+3. The default environment is `agent-sandbox` (see `test/e2e-framework/testing/runner/local_profile.go`). If you're in a different account, EC2 instances won't have the correct IAM permissions.
 
 **Note**: The `-c ddagent:imagePullPassword` flags in the test command are for the Kubernetes agent to pull images, not for the EC2 instance. The EC2 instance uses its IAM role, which requires the correct AWS account setup.
 
