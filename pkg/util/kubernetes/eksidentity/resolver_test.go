@@ -9,6 +9,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -104,25 +105,30 @@ func TestResolveCachesDiscoveredClusterName(t *testing.T) {
 }
 
 func TestResolveRetriesEC2TagAfterConfiguredFallback(t *testing.T) {
-	origTTL := clusterNameRetryTTL
-	clusterNameRetryTTL = time.Nanosecond
-	t.Cleanup(func() { clusterNameRetryTTL = origTTL })
+	synctest.Test(t, func(t *testing.T) {
+		ec2Err := errors.New("ec2 tags unavailable")
+		state := stub(t, "eks", "", ec2Err, "orders-display-name")
+		_, err := Resolve(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, "orders-display-name", state.requested, "configured name is the fallback")
 
-	ec2Err := errors.New("ec2 tags unavailable")
-	state := stub(t, "eks", "", ec2Err, "orders-display-name")
-	_, err := Resolve(t.Context())
-	require.NoError(t, err)
-	assert.Equal(t, "orders-display-name", state.requested, "configured name is the fallback")
+		// Once the EC2 tag becomes available, the fallback must not pin the display name.
+		ec2ClusterName = func(context.Context) (string, error) { state.ec2Lookups++; return "OrdersProd", nil }
+		_, err = Resolve(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, "orders-display-name", state.requested, "fallback is served from cache until the retry TTL")
+		assert.Equal(t, 1, state.ec2Lookups)
 
-	// Once the EC2 tag becomes available, the fallback must not pin the display name.
-	ec2ClusterName = func(context.Context) (string, error) { state.ec2Lookups++; return "OrdersProd", nil }
-	_, err = Resolve(t.Context())
-	require.NoError(t, err)
-	assert.Equal(t, "OrdersProd", state.requested, "EC2 tag name must replace the configured fallback")
-	assert.Equal(t, 2, state.ec2Lookups, "EC2 tag discovery must be retried after the fallback TTL")
+		time.Sleep(clusterNameRetryTTL + time.Second)
+		_, err = Resolve(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, "OrdersProd", state.requested, "EC2 tag name must replace the configured fallback")
+		assert.Equal(t, 2, state.ec2Lookups, "EC2 tag discovery must be retried after the fallback TTL")
 
-	// The EC2 derived name is cached permanently.
-	_, err = Resolve(t.Context())
-	require.NoError(t, err)
-	assert.Equal(t, 2, state.ec2Lookups)
+		// The EC2 derived name is cached permanently.
+		time.Sleep(clusterNameRetryTTL + time.Second)
+		_, err = Resolve(t.Context())
+		require.NoError(t, err)
+		assert.Equal(t, 2, state.ec2Lookups)
+	})
 }
