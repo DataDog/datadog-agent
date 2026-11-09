@@ -152,6 +152,9 @@ Non-goals for this version:
   installation with an ERROR status naming the expression and its type.
 - Counts accumulate as `int64`. An unsigned value above `math.MaxInt64` wraps.
 - Kind names are matched case-insensitively (`COUNT`, `count`).
+- Values and conditions cannot read redacted types, including intermediate
+  objects and collection elements. When type-redaction rules are configured,
+  generic values whose concrete types are only known at runtime are rejected.
 
 ### When the probe fires
 
@@ -504,9 +507,6 @@ address and kernels at 6.10 or later, which use `uprobe_multi`.
 
 ## Known gaps
 
-- Type redaction: metric values are checked against redacted identifiers, but
-  not against `DD_DYNAMIC_INSTRUMENTATION_REDACTED_TYPES`, which only the
-  decoder applies. See the `TODO(andrei)` on `checkMetricValueType`.
 - EMITTING after ERROR. A metric probe becomes EMITTING when a report first
   finds it updated, up to 2s after its first hit, while the circuit breaker
   checks every second. A probe that is hot from the start can trip, and get its
