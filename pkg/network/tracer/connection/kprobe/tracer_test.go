@@ -370,15 +370,18 @@ func TestNetDevQueueProbeSelection(t *testing.T) {
 	}
 }
 
-func verifierErrorFor(prog string) error {
+func verifierErrorFor(prog string, cause error) error {
 	return fmt.Errorf("failed to init ebpf manager: verifier error loading eBPF programs: %w",
-		fmt.Errorf("program %s: load program: %w", prog, &libebpf.VerifierError{Cause: syscall.EACCES}))
+		fmt.Errorf("program %s: load program: %w", prog, &libebpf.VerifierError{Cause: cause}))
 }
 
 func TestLoadCORETracerRetriesWithoutTPBTF(t *testing.T) {
-	prevAttempt := coreTracerAttempt
+	if err := isCORETracerSupported(); err != nil {
+		t.Skipf("CO-RE tracer not supported: %s", err)
+	}
+	prevLoader := tracerLoaderFromAsset
 	t.Cleanup(func() {
-		coreTracerAttempt = prevAttempt
+		tracerLoaderFromAsset = prevLoader
 		util.NetDevQueueTPBTFRejected.Store(false)
 	})
 
@@ -387,15 +390,15 @@ func TestLoadCORETracerRetriesWithoutTPBTF(t *testing.T) {
 		firstErr      error
 		expectedCalls int
 	}{
-		{"tp_btf verifier error", verifierErrorFor(probes.NetDevQueueTPBTF), 2},
-		{"other program verifier error", verifierErrorFor(probes.NetDevQueueRawTracepoint), 1},
-		{"tp_btf non-verifier error", fmt.Errorf("program %s: %w", probes.NetDevQueueTPBTF, assert.AnError), 1},
+		{"tp_btf verifier error", verifierErrorFor(probes.NetDevQueueTPBTF, syscall.EACCES), 2},
+		{"other program verifier error", verifierErrorFor(probes.NetDevQueueRawTracepoint, syscall.EACCES), 1},
+		{"tp_btf ENOMEM", verifierErrorFor(probes.NetDevQueueTPBTF, syscall.ENOMEM), 1},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			util.NetDevQueueTPBTFRejected.Store(false)
 			var calls int
 			var rejectedOnRetry bool
-			coreTracerAttempt = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
+			tracerLoaderFromAsset = func(bytecode.AssetReader, bool, bool, *config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
 				calls++
 				if calls == 1 {
 					return nil, nil, tc.firstErr
@@ -406,25 +409,17 @@ func TestLoadCORETracerRetriesWithoutTPBTF(t *testing.T) {
 
 			_, _, err := loadCORETracer(config.New(), manager.Options{}, nil)
 			assert.Equal(t, tc.expectedCalls, calls)
+			coreResult := ddebpf.GetCORETelemetryByAsset()["tracer"]
 			if tc.expectedCalls == 1 {
 				assert.ErrorIs(t, err, tc.firstErr)
 				assert.False(t, util.NetDevQueueTPBTFRejected.Load())
+				assert.Equal(t, int32(ddebpf.VerifierError), coreResult)
 				return
 			}
 			assert.NoError(t, err)
 			assert.True(t, rejectedOnRetry)
+			// a recovered rejection is not a CO-RE verifier failure
+			assert.NotEqual(t, int32(ddebpf.VerifierError), coreResult)
 		})
 	}
-
-	t.Run("no second retry", func(t *testing.T) {
-		util.NetDevQueueTPBTFRejected.Store(true)
-		var calls int
-		coreTracerAttempt = func(*config.Config, manager.Options, *perf.EventHandler) (*ddebpf.Manager, func(), error) {
-			calls++
-			return nil, nil, verifierErrorFor(probes.NetDevQueueTPBTF)
-		}
-		_, _, err := loadCORETracer(config.New(), manager.Options{}, nil)
-		assert.Error(t, err)
-		assert.Equal(t, 1, calls)
-	})
 }

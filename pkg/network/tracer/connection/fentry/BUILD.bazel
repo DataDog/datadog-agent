@@ -61,8 +61,8 @@ dd_agent_go_test(
         "@rules_go//go/platform:android": [
             "//pkg/ebpf",
             "//pkg/ebpf/btf",
+            "//pkg/ebpf/bytecode",
             "//pkg/ebpf/features",
-            "//pkg/ebpf/perf",
             "//pkg/network/config",
             "//pkg/network/tracer/connection/util",
             "@com_github_cilium_ebpf//:ebpf",
@@ -73,8 +73,8 @@ dd_agent_go_test(
         "@rules_go//go/platform:linux": [
             "//pkg/ebpf",
             "//pkg/ebpf/btf",
+            "//pkg/ebpf/bytecode",
             "//pkg/ebpf/features",
-            "//pkg/ebpf/perf",
             "//pkg/network/config",
             "//pkg/network/tracer/connection/util",
             "@com_github_cilium_ebpf//:ebpf",
