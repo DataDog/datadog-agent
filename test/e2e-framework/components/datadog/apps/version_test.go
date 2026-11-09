@@ -45,3 +45,25 @@ func TestImage(t *testing.T) {
 		})
 	}
 }
+
+// TestImageWithVersion checks that both the internal registry and the ghcr.io fallback use the
+// version given rather than Version, which is all TestImage exercises.
+func TestImageWithVersion(t *testing.T) {
+	tests := []struct {
+		name             string
+		internalRegistry string
+		want             string
+	}{
+		{"internal registry", "669783387624.dkr.ecr.us-east-1.amazonaws.com", "669783387624.dkr.ecr.us-east-1.amazonaws.com/apps-churn:v1.2.3"},
+		{"no registry", "", "ghcr.io/datadog/apps-churn:v1.2.3"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := &fakeEnv{internalRegistry: tt.internalRegistry}
+			if got := ImageWithVersion(e, "apps-churn", "v1.2.3"); got != tt.want {
+				t.Errorf("ImageWithVersion(%q) = %q, want %q", tt.internalRegistry, got, tt.want)
+			}
+		})
+	}
+}
