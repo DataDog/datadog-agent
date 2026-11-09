@@ -6,11 +6,20 @@
 package containers
 
 import (
+	"os"
 	"strings"
 	"sync"
 
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
+
+// MaxEnvVarValueLen bounds env var values expanded from pod specs, so that
+// duplicated self-referencing entries such as DD_ENV=$(DD_ENV)$(DD_ENV) cannot
+// double the value without limit. It matches Linux's MAX_ARG_STRLEN
+// (32 * PAGE_SIZE), the largest single NAME=value string execve accepts, on the
+// node's own kernel (Windows is stricter), so only values of containers that
+// cannot start are dropped.
+var MaxEnvVarValueLen = 32 * os.Getpagesize()
 
 var (
 	defaultEnvVarsIncludeList = []string{

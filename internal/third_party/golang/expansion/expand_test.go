@@ -385,3 +385,35 @@ func doExpansionTest(t *testing.T, mapping func(string) (string, bool)) {
 		}
 	}
 }
+
+func TestExpandWithLimit(t *testing.T) {
+	mapping := MappingFuncFor(map[string]string{"VAR_A": "AAAA"})
+
+	cases := []struct {
+		name           string
+		input          string
+		maxLen         int
+		expected       string
+		expectedStatus bool
+		expectedErr    error
+	}{
+		{name: "within limit", input: "x$(VAR_A)y", maxLen: 6, expected: "xAAAAy", expectedStatus: true},
+		{name: "mapped value exceeds limit", input: "x$(VAR_A)y", maxLen: 5, expectedStatus: true, expectedErr: ErrMaxLenExceeded},
+		{name: "literal exceeds limit", input: "abcdef", maxLen: 5, expectedStatus: true, expectedErr: ErrMaxLenExceeded},
+		{name: "unresolved reference within limit", input: "$(VAR_DNE)", maxLen: 10, expected: "$(VAR_DNE)", expectedStatus: false},
+		{name: "negative limit means unlimited", input: "$(VAR_A)$(VAR_A)", maxLen: -1, expected: "AAAAAAAA", expectedStatus: true},
+	}
+
+	for _, tc := range cases {
+		expanded, status, err := ExpandWithLimit(tc.input, mapping, tc.maxLen)
+		if err != tc.expectedErr {
+			t.Errorf("%v: expected err %v, got %v", tc.name, tc.expectedErr, err)
+		}
+		if e, a := tc.expected, expanded; e != a {
+			t.Errorf("%v: expected %q, got %q", tc.name, e, a)
+		}
+		if e, a := tc.expectedStatus, status; e != a {
+			t.Errorf("%v: expected status=%v, got %v", tc.name, e, a)
+		}
+	}
+}

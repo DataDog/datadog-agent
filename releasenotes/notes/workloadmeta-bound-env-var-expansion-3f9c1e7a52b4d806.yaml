@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    The kubelet and node-filter workloadmeta collectors no longer expand
+    a container's environment variable past the largest value a process can
+    be started with on the node (32 memory pages, 128 KiB on most Linux
+    nodes). A pod spec that repeats a self-referencing variable, such as
+    ``DD_ENV=$(DD_ENV)$(DD_ENV)``, could otherwise make the Agent allocate an
+    unbounded amount of memory. Such a variable is now ignored.
