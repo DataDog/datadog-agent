@@ -1114,6 +1114,21 @@ func TestConvertEntityOriginDetectionTags(t *testing.T) {
 	assert.InEpsilon(t, 1.0, parsed.SampleRate, epsilon)
 }
 
+func TestConvertEntityOriginDetectionLastTagWins(t *testing.T) {
+	for _, tc := range []struct{ name, tags, want string }{
+		{"no_target_pod", "dd.internal.entity_id:agent-pod,dd.internal.entity_id:none", "none"},
+		{"target_pod", "dd.internal.entity_id:agent-pod,dd.internal.entity_id:none,dd.internal.entity_id:target-pod", "target-pod"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			message := []byte("dynamic.instrumentation.metric.probe.calls:1|c|#debugger.probeid:probe," + tc.tags)
+			parsed, err := parseAndEnrichSingleMetricMessage(t, message, enrichConfig{})
+			require.NoError(t, err)
+			require.Equal(t, tc.want, parsed.OriginInfo.LocalData.PodUID)
+			require.Equal(t, []string{"debugger.probeid:probe"}, parsed.Tags)
+		})
+	}
+}
+
 func TestConvertEntityOriginDetectionTagsError(t *testing.T) {
 	conf := enrichConfig{
 		defaultHostname: "default-hostname",

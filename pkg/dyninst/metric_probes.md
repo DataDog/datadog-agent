@@ -191,11 +191,16 @@ DogStatsD datagram (`|`, `,`, `#`, `:` in names, newlines) are replaced with
 `_`.
 
 Metrics go through a dedicated datadog-go client created with
-`WithoutOriginDetection()`, so DogStatsD never attributes them to
-system-probe's own container. datadog-go also adds `DD_ENV`, `DD_SERVICE` and
-`DD_VERSION` from system-probe's environment as tags; if a deployment sets
-those on system-probe (for example through Helm's `datadog.env`), metric probe
-metrics carry a second `env`/`service`/`version` value. We accept this.
+`WithoutOriginDetection()` to disable client-side origin detection. Each report
+also supplies `dd.internal.entity_id:none`, overriding the client's inherited
+`DD_ENTITY_ID`. When the target pod is known, its UID is appended last;
+DogStatsD uses the last entity tag. This does not disable server-side Unix socket
+origin detection.
+
+Datadog-go also adds `DD_ENV`, `DD_SERVICE` and `DD_VERSION` from system-probe's
+environment as tags; if a deployment sets those on system-probe (for example
+through Helm's `datadog.env`), metric probe metrics carry a second
+`env`/`service`/`version` value. We accept this.
 
 ### Probe status
 

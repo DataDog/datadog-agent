@@ -403,7 +403,7 @@ func (r *metricsReporter) notifyEmitting(programID ir.ProgramID, probes []*repor
 // probe's own tags, the probe ID, and the service, environment and version of
 // the target process.
 func metricProbeTags(def ir.ProbeDefinition, runtimeID procRuntimeID) []string {
-	tags := make([]string, 0, len(def.GetTags())+4)
+	tags := make([]string, 0, len(def.GetTags())+5)
 	for _, tag := range def.GetTags() {
 		tags = append(tags, sanitizeMetricTag(tag))
 	}
@@ -417,7 +417,8 @@ func metricProbeTags(def ir.ProbeDefinition, runtimeID procRuntimeID) []string {
 			tags = append(tags, t.key+":"+sanitizeMetricTag(t.value))
 		}
 	}
-	return tags
+	// Override the client's DD_ENTITY_ID until the target pod is known.
+	return append(tags, "dd.internal.entity_id:none")
 }
 
 // gaugeValueDecoder returns the function that converts the bits of a gauge
