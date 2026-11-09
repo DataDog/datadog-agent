@@ -37,6 +37,8 @@ import (
 func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 	t := s.T()
 	cfg := testConfig()
+	// sharing the eBPF conntracker's map leaves net_dev_queue unattached
+	cfg.ShareConntrackNATMap = false
 	skipEbpflessTodo(t, cfg)
 	if ebpftest.GetBuildMode() == ebpftest.SK {
 		t.Skip("net_dev_queue probe is not used by the SK tracer")
