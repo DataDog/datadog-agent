@@ -132,6 +132,127 @@ namespace Datadog.CustomActions
         {
             return EnsureNpmServiceDependendency(new SessionWrapper(session));
         }
+        // DeleteServices applies to the package's services as a group. Preserve them all
+        // if any non-built-in account cannot be recreated with the installed credentials.
+        internal ActionResult PrepareServiceRemoval()
+        {
+            _session["CanDeleteServices"] = "";
+            _session["ServiceRemovalAccount"] = "";
+            _session["ServiceRemovalPassword"] = "";
+            _session["ServiceRemovalNames"] = "";
+            try
+            {
+                using var installed = _registryServices.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey);
+                var domain = installed?.GetValue("installedDomain") as string;
+                var user = installed?.GetValue("installedUser") as string;
+                if (string.IsNullOrEmpty(domain) || string.IsNullOrEmpty(user))
+                {
+                    return ActionResult.Success;
+                }
+                var account = $"{domain}\\{user}";
+                if (!_nativeMethods.LookupAccountName(account, out _, out _, out var accountSid, out _))
+                {
+                    return ActionResult.Success;
+                }
+                var names = new List<string>();
+                foreach (var name in new[]
+                {
+                    Constants.AgentServiceName, Constants.TraceAgentServiceName,
+                    Constants.SecurityAgentServiceName, Constants.PrivateActionRunnerServiceName,
+                    Constants.ProcessAgentServiceName, Constants.SystemProbeServiceName,
+                    Constants.ProcmgrServiceName, Constants.InstallerServiceName
+                })
+                {
+                    using var service = _registryServices.OpenRegistryKey(Registries.LocalMachine,
+                        $@"SYSTEM\CurrentControlSet\Services\{name}");
+                    if (service == null)
+                    {
+                        continue;
+                    }
+                    var serviceAccount = service.GetValue("ObjectName") as string;
+                    if (string.Equals(serviceAccount, "LocalSystem", StringComparison.OrdinalIgnoreCase))
+                    {
+                        continue;
+                    }
+                    if (string.IsNullOrEmpty(serviceAccount) ||
+                        !_nativeMethods.LookupAccountName(serviceAccount, out _, out _, out var sid, out _))
+                    {
+                        return ActionResult.Success;
+                    }
+                    if (sid.IsWellKnown(WellKnownSidType.LocalSystemSid) ||
+                        sid.IsWellKnown(WellKnownSidType.LocalServiceSid) ||
+                        sid.IsWellKnown(WellKnownSidType.NetworkServiceSid))
+                    {
+                        continue;
+                    }
+                    if (!sid.Equals(accountSid))
+                    {
+                        _session.Log($"Preserving services: {name} uses a different account from the installed Agent user");
+                        return ActionResult.Success;
+                    }
+                    names.Add(name);
+                }
+
+                // Use the outgoing product's stored credentials, not a password supplied
+                // for the incoming product's possibly different account. Never generate or
+                // reset a password during removal.
+                string password = null;
+                if (names.Count != 0 && !_nativeMethods.IsServiceAccount(accountSid))
+                {
+                    password = _nativeMethods.FetchSecret(ConfigureUserCustomActions.AgentPasswordPrivateDataKey());
+                    if (string.IsNullOrEmpty(password))
+                    {
+                        _session.Log("Preserving services: the installed Agent user password is unavailable");
+                        return ActionResult.Success;
+                    }
+                    // CustomActionData uses semicolons as separators, like the existing
+                    // processed-password actions. Preserve services if it cannot be encoded.
+                    ProcessUserCustomActions.TestValidAgentUserPassword(password);
+                }
+                _session["ServiceRemovalAccount"] = account;
+                _session["ServiceRemovalPassword"] = password;
+                _session["ServiceRemovalNames"] = string.Join(",", names);
+                _session["CanDeleteServices"] = "1";
+                _session.Log("Allowing service deletion during upgrade removal: recreation credentials are available");
+            }
+            catch (Exception e)
+            {
+                // Credential lookup must not turn a previously supported upgrade into a failure.
+                _session.Log($"Preserving services: could not prepare recreation credentials ({e.GetType().Name})");
+            }
+            return ActionResult.Success;
+        }
+
+        public static ActionResult PrepareServiceRemoval(Session session)
+        {
+            return new ServiceCustomAction(new SessionWrapper(session)).PrepareServiceRemoval();
+        }
+
+        internal ActionResult RestoreServiceRemovalCredentials()
+        {
+            var account = _session.Property("ServiceRemovalAccount");
+            var password = _session.Property("ServiceRemovalPassword");
+            foreach (var name in (_session.Property("ServiceRemovalNames") ?? "").Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            {
+                try
+                {
+                    // MSI restores the service registration, but cannot recover its password.
+                    // An empty password here denotes a managed service account.
+                    _serviceController.SetCredentials(name, account, string.IsNullOrEmpty(password) ? null : password);
+                }
+                catch (Exception e)
+                {
+                    _session.Log($"Failed to restore credentials for {name} ({e.GetType().Name})");
+                }
+            }
+            return ActionResult.Success;
+        }
+
+        public static ActionResult RestoreServiceRemovalCredentials(Session session)
+        {
+            return new ServiceCustomAction(new SessionWrapper(session)).RestoreServiceRemovalCredentials();
+        }
+
         private ActionResult ConfigureServices()
         {
             try

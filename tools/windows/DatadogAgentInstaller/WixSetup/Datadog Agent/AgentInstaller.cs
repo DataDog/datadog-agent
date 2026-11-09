@@ -92,6 +92,11 @@ namespace WixSetup.Datadog_Agent
                 {
                     AttributesDefinition = "Hidden=yes;Secure=yes"
                 },
+                // Captured in the outgoing MSI for rollback; never expose the password in logs.
+                new Property("ServiceRemovalPassword")
+                {
+                    AttributesDefinition = "Hidden=yes"
+                },
                 new Property("PROJECTLOCATION")
                 {
                     AttributesDefinition = "Secure=yes",
@@ -436,7 +441,7 @@ namespace WixSetup.Datadog_Agent
                 document
                     .Select("Wix/Package/InstallExecuteSequence")
                     .AddElement("DeleteServices",
-                        "Condition=(Installed AND (REMOVE=\"ALL\") AND NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE))");
+                        "Condition=(Installed AND (REMOVE=\"ALL\") AND (NOT (WIX_UPGRADE_DETECTED OR UPGRADINGPRODUCTCODE) OR (UPGRADINGPRODUCTCODE AND CanDeleteServices=1)))");
 
                 // We don't use the Wix "Merge" MSM feature because it seems to be a no-op...
                 document

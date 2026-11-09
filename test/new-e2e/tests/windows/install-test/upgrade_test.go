@@ -7,6 +7,7 @@ package installtest
 
 import (
 	"fmt"
+	"os"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -115,6 +116,10 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
 	s.Require().NoError(err, "should get product version")
 
+	// This unowned value survives service reconfiguration but not deletion/recreation.
+	const markerPath = `HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent`
+	s.Require().NoError(windowsCommon.SetRegistryDWORDValue(vm, markerPath, "E2ERecreationMarker", 1))
+
 	// upgrade to test agent
 	if !s.Run("upgrade to "+s.upgradeAgentPackge.AgentVersion(), func() {
 		_, err := s.InstallAgent(vm,
@@ -126,6 +131,9 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
+
+	marker := vm.MustExecute(`(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent').PSObject.Properties.Name -contains 'E2ERecreationMarker'`)
+	s.Require().Equal("False", strings.TrimSpace(marker), "upgrade must recreate services when credentials are stored")
 
 	// run tests
 	testerOptions := []TesterOption{
@@ -146,6 +154,61 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 
 	s.uninstallAgentAndRunUninstallTests(t)
 
+}
+
+// Both MSIs contain the conditional deletion logic. Released source packages
+// retain their old DeleteServices condition and cannot exercise this rollback.
+func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollback() {
+	vm := s.Env().RemoteHost
+	for _, account := range []string{"", "LocalSystem"} {
+		name := account
+		if name == "" {
+			name = "local_user"
+		}
+		if !s.Run(name, func() {
+			_, err := s.InstallAgent(vm,
+				windowsAgent.WithPackage(s.AgentPackage),
+				windowsAgent.WithAgentUser(account),
+				windowsAgent.WithValidAPIKey(),
+				windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+			)
+			s.Require().NoError(err)
+			product, err := windowsAgent.GetDatadogAgentProductCode(vm)
+			s.Require().NoError(err)
+			originalConfig, err := windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
+			s.Require().NoError(err)
+			logPath := filepath.Join(s.SessionOutputDir(), "upgrade-rollback.log")
+			_, err = s.InstallAgent(vm,
+				windowsAgent.WithPackage(s.upgradeAgentPackge),
+				windowsAgent.WithWixFailWhenDeferred(),
+				windowsAgent.WithInstallLogFile(logPath),
+			)
+			s.Require().Error(err)
+			log, err := os.ReadFile(logPath)
+			s.Require().NoError(err)
+			log, err = windowsCommon.ConvertUTF16ToUTF8(log)
+			s.Require().NoError(err)
+			s.Require().Contains(string(log), "Allowing service deletion during upgrade removal", "must exercise conditional deletion")
+			restoredProduct, err := windowsAgent.GetDatadogAgentProductCode(vm)
+			s.Require().NoError(err)
+			s.Require().Equal(product, restoredProduct)
+			restoredConfig, err := windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
+			s.Require().NoError(err)
+			// Running state is checked by starting the Agent below; it is not service configuration.
+			for _, config := range originalConfig {
+				config.Status = 0
+			}
+			for _, config := range restoredConfig {
+				config.Status = 0
+			}
+			s.Require().Equal(originalConfig, restoredConfig, "rollback must restore service configuration")
+			s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
+			RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+			s.uninstallAgent()
+		}) {
+			s.Require().FailNow("stopping after failed rollback scenario")
+		}
+	}
 }
 
 func TestUpgradeRollback(t *testing.T) {

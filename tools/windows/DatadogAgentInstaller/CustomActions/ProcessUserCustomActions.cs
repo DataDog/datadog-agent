@@ -626,7 +626,7 @@ namespace Datadog.CustomActions
             }
         }
 
-        private void TestValidAgentUserPassword(string ddAgentUserPassword)
+        internal static void TestValidAgentUserPassword(string ddAgentUserPassword)
         {
             // password cannot contain semicolon
             // semicolon is the delimiter for CustomActionData, and we don't have special handling for this.
