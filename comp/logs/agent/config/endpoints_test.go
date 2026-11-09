@@ -1285,7 +1285,8 @@ func TestAwaitsDelegatedAuthKey(t *testing.T) {
 		assert.True(t, pending.AwaitsDelegatedAuthKey(), "pending on the %s write-back setting", key)
 	}
 
-	other := NewEndpoint(directive, "database_monitoring.samples.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
+	// agent_telemetry uses the same builder but is not enrolled for delegated-auth write-back.
+	other := NewEndpoint(directive, "agent_telemetry.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
 	assert.False(t, other.AwaitsDelegatedAuthKey(), "nothing writes keys back to this setting")
 
 	disabled := NewEndpoint(directive, "logs_config.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
