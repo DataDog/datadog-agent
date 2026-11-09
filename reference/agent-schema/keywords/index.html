@@ -5059,7 +5059,7 @@
 <li><strong>Default:</strong> <code>false</code>.</li>
 <li><strong>Accepted values:</strong> <code>true</code>, <code>false</code>.</li>
 </ul>
-<p>When <code>true</code>, the Agent scrubs the value from logs and diagnostic output. Fleet Automation treats the setting as a secret — it will not expose the raw value in its UI or API responses. Other services that consume the schema may use this flag in the future to apply additional protection.</p>
+<p>When <code>true</code>, the config's <code>IsSensitive(key)</code> reports the setting. Fleet Automation treats the setting as a secret — it will not expose the raw value in its UI or API responses. Other services that consume the schema may use this flag in the future to apply additional protection.</p>
 <div class="language-yaml highlight"><pre><span></span><code><span id="__span-11-1"><a id="__codelineno-11-1" name="__codelineno-11-1" href="#__codelineno-11-1"></a><span class="nt">api_key</span><span class="p">:</span>
 </span><span id="__span-11-2"><a id="__codelineno-11-2" name="__codelineno-11-2" href="#__codelineno-11-2"></a><span class="w">  </span><span class="nt">node_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">setting</span>
 </span><span id="__span-11-3"><a id="__codelineno-11-3" name="__codelineno-11-3" href="#__codelineno-11-3"></a><span class="w">  </span><span class="nt">type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">string</span>
