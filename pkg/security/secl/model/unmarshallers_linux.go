@@ -172,9 +172,22 @@ func isValidTTYName(ttyName string) bool {
 	return IsPrintableASCII(ttyName) && (strings.HasPrefix(ttyName, "tty") || strings.HasPrefix(ttyName, "pts"))
 }
 
+// UnmarshalBinary unmarshals the file_capabilities_t representation.
+func (e *FileCapabilities) UnmarshalBinary(data []byte) (int, error) {
+	if len(data) < FileCapabilitiesSize {
+		return 0, ErrNotEnoughData
+	}
+
+	e.Permitted = binary.NativeEndian.Uint64(data[0:8])
+	e.Inheritable = binary.NativeEndian.Uint64(data[8:16])
+	e.Effective = binary.NativeEndian.Uint32(data[16:20]) == 1
+	e.Available = binary.NativeEndian.Uint32(data[20:24]) == 1
+	return FileCapabilitiesSize, nil
+}
+
 // UnmarshalProcEntryBinary unmarshalls process_entry_t from process.h
 func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
-	const size = 160
+	const size = ProcessEntrySize
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}
@@ -205,6 +218,12 @@ func (e *Process) UnmarshalProcEntryBinary(data []byte) (int, error) {
 		return 0, err
 	}
 	read += 16
+
+	n, err := e.FileCapabilities.UnmarshalBinary(data[read:])
+	if err != nil {
+		return 0, err
+	}
+	read += n
 
 	return validateReadSize(size, read)
 }
@@ -246,7 +265,7 @@ func (e *Process) UnmarshalPidCacheBinary(data []byte) (int, error) {
 
 // UnmarshalBinary unmarshalls a binary representation of itself
 func (e *Process) UnmarshalBinary(data []byte) (int, error) {
-	const size = 300 // size of struct exec_event_t starting from process_entry_t, inclusive
+	const size = ProcessEntrySize + PidCacheEntrySize + PathKeySize + 28 // process_event_t starting at process_entry_t
 	if len(data) < size {
 		return 0, ErrNotEnoughData
 	}

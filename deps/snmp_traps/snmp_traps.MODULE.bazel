@@ -8,8 +8,8 @@ http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_
 
 http_file(
     name = "snmp_traps",
-    sha256 = "4d6fb613032ce45fb2ea717b2a330c658c661383516be815cf6afde7eaa68291",
+    sha256 = "04e5c4947d41b98742218acfa4c43b217203ca831872b8a812da1ea145e24351",
     urls = [
-        "https://mass-read.us1.ddbuild.io/internal/artifact/ndm-traps-db/v115323823-bbb629e5/dd_traps_db.json.gz",
+        "https://mass-read.us1.ddbuild.io/internal/artifact/ndm-traps-db/v150992245-0e4c1e69/dd_traps_db.json.gz",
     ],
 )
