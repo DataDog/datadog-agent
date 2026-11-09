@@ -59,7 +59,7 @@ func WriteAtomic(key, value string) error {
 	if err := os.MkdirAll(dir, 0700); err != nil {
 		return err
 	}
-	file, err := os.CreateTemp(dir, ".checkpoint-*")
+	file, err := os.CreateTemp(dir, ".persistentcache-*")
 	if err != nil {
 		return err
 	}

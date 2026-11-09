@@ -22,11 +22,19 @@ go_library(
 
 dd_agent_go_test(
     name = "persistentcache_test",
-    srcs = ["persistentcache_test.go"],
+    srcs = [
+        "persistentcache_test.go",
+        "replace_windows_test.go",
+    ],
     embed = [":persistentcache"],
     deps = [
         "//pkg/config/mock",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
