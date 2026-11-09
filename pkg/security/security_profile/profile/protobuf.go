@@ -249,14 +249,15 @@ func profileToSecDumpProto(p *Profile) *adprotov1.SecDump {
 
 	pad := adprotov1.SecDumpFromVTPool()
 	*pad = adprotov1.SecDump{
-		Host:             p.Header.Host,
-		Service:          p.Header.Service,
-		Source:           p.Header.Source,
-		Metadata:         mtdt.ToProto(&p.Metadata),
-		Tags:             make([]string, len(p.tags)),
-		Tree:             activity_tree.ToProto(p.ActivityTree),
-		SecurityContexts: securityContextsToProto(p.SecurityContexts),
-		Mounts:           activity_tree.MountsToProto(p.ActivityTree),
+		Host:                 p.Header.Host,
+		Service:              p.Header.Service,
+		Source:               p.Header.Source,
+		Metadata:             mtdt.ToProto(&p.Metadata),
+		Tags:                 make([]string, len(p.tags)),
+		Tree:                 activity_tree.ToProto(p.ActivityTree),
+		SecurityContexts:     securityContextsToProto(p.SecurityContexts),
+		Mounts:               activity_tree.MountsToProto(p.ActivityTree),
+		UnattributedActivity: activity_tree.UnattributedActivityToProto(p.ActivityTree),
 	}
 	copy(pad.Tags, p.tags)
 
@@ -280,6 +281,7 @@ func secDumpProtoToProfile(p *Profile, ad *adprotov1.SecDump) {
 
 	activity_tree.ProtoDecodeActivityTree(p.ActivityTree, ad.Tree)
 	activity_tree.ProtoDecodeMounts(p.ActivityTree, ad.Mounts)
+	activity_tree.ProtoDecodeUnattributedActivity(p.ActivityTree, ad.UnattributedActivity)
 }
 
 // EncodeSecDumpProtobuf encodes a Profile to its SecDump protobuf binary representation
@@ -368,13 +370,14 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 	}
 
 	output := adprotov1.SecurityProfile{
-		Metadata:         mtdt.ToProto(&p.Metadata),
-		ProfileContexts:  make(map[string]*adprotov1.ProfileContext),
-		Tree:             activity_tree.ToProto(p.ActivityTree),
-		Mounts:           activity_tree.MountsToProto(p.ActivityTree),
-		Selector:         cgroupModel.WorkloadSelectorToProto(&p.selector),
-		Disabled:         !p.isEnabled,
-		SecurityContexts: securityContextsToProto(p.SecurityContexts),
+		Metadata:             mtdt.ToProto(&p.Metadata),
+		ProfileContexts:      make(map[string]*adprotov1.ProfileContext),
+		Tree:                 activity_tree.ToProto(p.ActivityTree),
+		Mounts:               activity_tree.MountsToProto(p.ActivityTree),
+		Selector:             cgroupModel.WorkloadSelectorToProto(&p.selector),
+		Disabled:             !p.isEnabled,
+		SecurityContexts:     securityContextsToProto(p.SecurityContexts),
+		UnattributedActivity: activity_tree.UnattributedActivityToProto(p.ActivityTree),
 	}
 
 	var syscallsByImageTagID map[uint64][]uint32
@@ -458,6 +461,7 @@ func protoToSecurityProfile(output *Profile, input *adprotov1.SecurityProfile) {
 
 	activity_tree.ProtoDecodeActivityTree(output.ActivityTree, input.Tree)
 	activity_tree.ProtoDecodeMounts(output.ActivityTree, input.Mounts)
+	activity_tree.ProtoDecodeUnattributedActivity(output.ActivityTree, input.UnattributedActivity)
 }
 
 // LoadProtoFromFile loads proto profile from file
