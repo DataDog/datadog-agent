@@ -171,5 +171,83 @@ class TestJsonSchemaDuration(unittest.TestCase):
                     self.assertRegex(node["default"], re.compile(GO_DURATION_PATTERN), setting)
 
 
+def _schema_patterns():
+    """Yield (setting path, pattern) for every ``pattern`` in the published Agent JSON schemas."""
+    from tasks.schema.generate import JSON_SCHEMA_ENTRY_POINTS
+    from tasks.schema.merge_schema import resolve_schema
+    from tasks.schema.produce_byproduct import json_schema
+
+    def walk(node, path):
+        if isinstance(node, dict):
+            if isinstance(node.get("pattern"), str):
+                yield path, node["pattern"]
+            for key, value in node.items():
+                if key not in ("default", "enum", "const", "examples"):
+                    yield from walk(value, f"{path}/{key}")
+        elif isinstance(node, list):
+            for i, value in enumerate(node):
+                yield from walk(value, f"{path}/{i}")
+
+    for name, path in JSON_SCHEMA_ENTRY_POINTS.items():
+        yield from walk(json_schema(resolve_schema(path)), name)
+
+
+class TestSchemaPatterns(unittest.TestCase):
+    def test_patterns_reject_long_invalid_input_quickly(self):
+        """Guard against catastrophic backtracking: editors validate with backtracking regex engines
+        (like Python's ``re``), so a pattern with ambiguous nested quantifiers freezes them on invalid
+        input. The Agent itself uses Go's linear-time engine, so it would not catch this.
+
+        A slow pattern never returns in practice (the former dd_url pattern needed hours on a
+        40-character value), so matching runs in a subprocess that is killed after a timeout.
+        """
+        import subprocess
+        import sys
+
+        # Values that almost match common shapes, then fail on the last character.
+        inputs = [
+            "a" * 40 + "!",
+            "https://intake.example.com/" + "a" * 40 + "!",
+            "https://intake.example.com:8080/" + "a/" * 40 + "!",
+            "com.datadoghq." + "a." * 40 + "!",
+            "1h30m" * 40 + "!",
+        ]
+        matcher = "import re, sys\np = re.compile(sys.argv[1])\nfor value in sys.argv[2:]:\n    p.match(value)\n"
+        patterns = list(_schema_patterns())
+        self.assertTrue(patterns)
+        for setting, pattern in patterns:
+            try:
+                subprocess.run([sys.executable, "-I", "-c", matcher, pattern, *inputs], check=True, timeout=10)
+            except subprocess.TimeoutExpired:
+                self.fail(f"{setting}: {pattern!r} backtracks catastrophically on one of {inputs!r}")
+
+    def test_dd_url_pattern(self):
+        import re
+
+        patterns = {setting: pattern for setting, pattern in _schema_patterns() if setting.endswith("dd_url")}
+        self.assertEqual(
+            sorted(patterns),
+            [
+                "datadog/properties/apm_config/properties/apm_dd_url",
+                "datadog/properties/dd_url",
+                "datadog/properties/logs_config/properties/logs_dd_url",
+            ],
+        )
+        valid = [
+            "intake.datadoghq.com",
+            "https://app.datadoghq.com",
+            "https://app.datadoghq.com/",
+            "http://proxy:3128",
+            "https://proxy.example.com:443/logs",
+            "localhost:8080",
+        ]
+        invalid = ["", "ftp://x.com", "https://x.com/?q=1", "https://user@x.com", "https://"]
+        for setting, pattern in patterns.items():
+            for value in valid:
+                self.assertRegex(value, re.compile(pattern), setting)
+            for value in invalid:
+                self.assertNotRegex(value, re.compile(pattern), setting)
+
+
 if __name__ == "__main__":
     unittest.main()
