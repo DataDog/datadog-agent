@@ -216,6 +216,9 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	// Use the config to determine what kernel probes should be enabled
 	enabledProbes, err := enabledProbes(config, runtimeTracer, coreTracer, mgrOpts.MapEditors[probes.ConntrackMap] != nil)
 	if err != nil {
+		if closeProtocolClassifierSocketFilterFn != nil {
+			closeProtocolClassifierSocketFilterFn()
+		}
 		return nil, nil, fmt.Errorf("invalid probe configuration: %v", err)
 	}
 
@@ -250,6 +253,13 @@ func loadTracerFromAsset(buf bytecode.AssetReader, runtimeTracer, coreTracer boo
 	}
 
 	if err := m.InitWithOptions(buf, &mgrOpts); err != nil {
+		if closeProtocolClassifierSocketFilterFn != nil {
+			closeProtocolClassifierSocketFilterFn()
+		}
+		// Release what this attempt loaded and registered, since the caller may load again.
+		_ = m.Manager.Stop(manager.CleanAll)
+		ebpftelemetry.ClearHelperErrorKeys(m.Name)
+		ebpftelemetry.UnregisterTelemetry(m.Manager)
 		return nil, nil, fmt.Errorf("failed to init ebpf manager: %w", err)
 	}
 
