@@ -59,7 +59,7 @@ crate.annotation(
     crate = "rc-x509-client",
     gen_build_script = "off",
     repositories = ["libdd_rc_crates"],
-    rustc_env = {"BUILD_GIT_COMMIT_HASH": "b4c4b988bf0ab3b91799e9659d024981c975e0fa"},
+    rustc_env = {"BUILD_GIT_COMMIT_HASH": "4eb3d63ede653a38550276e25bdcefde75cf4431"},
 )
 
 # AWS-LC is built into librc_x509_ffi.a; the Agent's package metadata rule
@@ -81,7 +81,7 @@ use_repo(crate, "libdd_rc_crates")
 http_archive(
     name = "libdd_rc_source",
     build_file = "//deps/libdd_rc:libdd_rc.BUILD.bazel",
-    sha256 = "bdf457fa6cfb3b173d1f499d1fc337576df9fa1646c063913c3cd22c0f8689d0",
-    strip_prefix = "libdd-rc-b4c4b988bf0ab3b91799e9659d024981c975e0fa",
-    urls = ["https://github.com/DataDog/libdd-rc/archive/b4c4b988bf0ab3b91799e9659d024981c975e0fa.tar.gz"],
+    sha256 = "26f7208b6119585a2dc86d94212ec71f39344bfa7be8df38e3eb5215fefbc1d2",
+    strip_prefix = "libdd-rc-4eb3d63ede653a38550276e25bdcefde75cf4431",
+    urls = ["https://github.com/DataDog/libdd-rc/archive/4eb3d63ede653a38550276e25bdcefde75cf4431.tar.gz"],
 )

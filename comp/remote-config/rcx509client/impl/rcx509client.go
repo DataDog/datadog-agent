@@ -97,6 +97,9 @@ func New(deps Dependencies) Provides {
 			return deps.DelegatedAuth.GetWorkloadToken(ctx, instance, common.WorkloadTokenRequest{Grants: []string{"rc_secrets"}})
 		})
 		clientConfig.PrepareSecretDelivery = comp.secrets.prepare
+		if deps.Config.GetString("site") == "datad0g.com" && comp.secrets.products[pocProduct] {
+			clientConfig.DeliverPOCSecret = comp.secrets.deliverPOC
+		}
 	}
 	client, err := deps.Factory(clientConfig)
 	if err != nil {

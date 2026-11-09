@@ -47,6 +47,12 @@ func NewClientFactory(logger log.Component) rcx509client.ClientFactory {
 				return nil, fmt.Errorf("register x509 secret preparation handler: %w", err)
 			}
 		}
+		if config.DeliverPOCSecret != nil {
+			if err := client.RegisterHandler(deliverPOCSecretURI, config.DeliverPOCSecret); err != nil {
+				_ = client.Close()
+				return nil, fmt.Errorf("register x509 POC delivery handler: %w", err)
+			}
+		}
 		return client, nil
 	}
 }

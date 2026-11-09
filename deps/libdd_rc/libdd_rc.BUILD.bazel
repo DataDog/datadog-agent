@@ -24,7 +24,7 @@ package_metadata(
     purl = purl_for_generic(
         download_url = "https://github.com/DataDog/libdd-rc/archive/{version}.tar.gz",
         package = "libdd-rc",
-        version = "b4c4b988bf0ab3b91799e9659d024981c975e0fa",
+        version = "4eb3d63ede653a38550276e25bdcefde75cf4431",
     ),
 )
 
@@ -233,4 +233,18 @@ go_library(
         ":libddrcffi",
         "@com_github_coder_websocket//:websocket",
     ],
+)
+
+proto_library(
+    name = "rc_secrets_proto",
+    srcs = ["lib/rc-x509-proto/protos/rc/x509/magic_tunnel/remote_config/rc_secrets/v1/secrets.proto"],
+    strip_import_prefix = "/lib/rc-x509-proto/protos",
+    deps = ["@protobuf//:duration_proto"],
+)
+
+go_proto_library(
+    name = "rc_secrets_go_proto",
+    importpath = "github.com/DataDog/libdd-rc/ffi-hosts/go/rcproto/magic_tunnel/remote_config/rc_secrets",
+    proto = ":rc_secrets_proto",
+    visibility = ["//visibility:public"],
 )

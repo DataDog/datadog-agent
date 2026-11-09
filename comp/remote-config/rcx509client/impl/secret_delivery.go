@@ -145,3 +145,28 @@ func (s *secretDelivery) close() {
 		delete(s.keys, id)
 	}
 }
+
+// The demo product only acknowledges this fixed fixture; it never applies secrets
+// to Agent configuration. Registration requires the staging site and product opt-in.
+const pocProduct = "rc-secrets-poc"
+const pocPayload = "rc-secrets-poc: delivered"
+const deliverPOCSecretURI = "rc.x509.magic_tunnel.remote_config.rc_secrets.v1.SecretsService/DeliverPOCSecret"
+
+func (s *secretDelivery) deliverPOC(ctx context.Context, _ uint64, payload []byte) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	var request rcsecretsv1.DeliverPOCSecretRequest
+	if len(payload) > 8192 || proto.Unmarshal(payload, &request) != nil || request.EncryptionContextId == "" || len(request.Ciphertext) > 1024 {
+		return nil, errors.New("invalid POC delivery request")
+	}
+	plaintext, err := s.open(pocProduct, request.EncryptionContextId, request.Ciphertext)
+	if err != nil {
+		return nil, err
+	}
+	defer clear(plaintext)
+	if string(plaintext) != pocPayload {
+		return nil, errors.New("unexpected POC payload")
+	}
+	return proto.Marshal(&rcsecretsv1.DeliverPOCSecretResponse{Acknowledged: true})
+}

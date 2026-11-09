@@ -55,6 +55,7 @@ type ClientConfig struct {
 	HTTPClient            *http.Client
 	DebugPingEnabled      bool
 	PrepareSecretDelivery func(context.Context, uint64, []byte) ([]byte, error)
+	DeliverPOCSecret      func(context.Context, uint64, []byte) ([]byte, error)
 }
 
 // ClientFactory constructs an x509 client.

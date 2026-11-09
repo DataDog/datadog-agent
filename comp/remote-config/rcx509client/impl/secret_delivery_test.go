@@ -221,3 +221,42 @@ func TestSecretPreparationCannotAllocateAfterShutdown(t *testing.T) {
 	require.Empty(t, response.PublicKey)
 	require.Empty(t, s.keys)
 }
+
+func TestPOCDeliveryAcknowledgesOnlyExpectedPlaintextOnce(t *testing.T) {
+	for _, value := range []string{pocPayload, "wrong dummy value"} {
+		t.Run(value, func(t *testing.T) {
+			s := newSecretDelivery([]string{pocProduct}, func(context.Context) (string, error) { return "fixture-token", nil })
+			prepared := prepareTestSecret(t, s.prepare, pocProduct, "poc-context")
+			ciphertext, err := box.SealAnonymous(nil, []byte(value), (*[32]byte)(prepared.PublicKey), rand.Reader)
+			require.NoError(t, err)
+			request, err := proto.Marshal(&rcsecretsv1.DeliverPOCSecretRequest{EncryptionContextId: "poc-context", Ciphertext: ciphertext})
+			require.NoError(t, err)
+			raw, err := s.deliverPOC(context.Background(), 1, request)
+			if value == pocPayload {
+				require.NoError(t, err)
+				var response rcsecretsv1.DeliverPOCSecretResponse
+				require.NoError(t, proto.Unmarshal(raw, &response))
+				require.True(t, response.Acknowledged)
+			} else {
+				require.Error(t, err)
+				require.Empty(t, raw)
+			}
+			_, err = s.deliverPOC(context.Background(), 1, request)
+			require.Error(t, err)
+		})
+	}
+}
+
+func TestPOCHandlerRegistrationRequiresStagingAndProduct(t *testing.T) {
+	for _, site := range []string{"datad0g.com", "datadoghq.com"} {
+		for _, product := range []string{pocProduct, "other"} {
+			var config rcx509client.ClientConfig
+			deps, _ := newDependencies(t, map[string]interface{}{"site": site, enabledSetting: true, secretsEnabledSetting: true, secretProductsSetting: []string{product}}, func(c rcx509client.ClientConfig) (rcx509client.Client, error) {
+				config = c
+				return newFakeClient(), nil
+			})
+			New(deps)
+			require.Equal(t, site == "datad0g.com" && product == pocProduct, config.DeliverPOCSecret != nil)
+		}
+	}
+}
