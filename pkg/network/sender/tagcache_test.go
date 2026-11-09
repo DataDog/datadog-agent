@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -19,10 +20,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go4.org/intern"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	taggerfxmock "github.com/DataDog/datadog-agent/comp/core/tagger/fx-mock"
 	taggertypes "github.com/DataDog/datadog-agent/comp/core/tagger/types"
 	"github.com/DataDog/datadog-agent/pkg/network"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
+	evmodel "github.com/DataDog/datadog-agent/pkg/security/secl/model"
+	"github.com/DataDog/datadog-agent/pkg/zstd"
 )
 
 func collectPayloads(seq func(func([]byte) bool)) [][]byte {
@@ -31,6 +36,55 @@ func collectPayloads(seq func(func([]byte) bool)) [][]byte {
 		out = append(out, bytes.Clone(p))
 	}
 	return out
+}
+
+// requireSamePayloads compares headers and decompressed bodies, so the
+// comparison does not depend on how the body is framed.
+func requireSamePayloads(t *testing.T, want, got [][]byte) {
+	t.Helper()
+	require.Len(t, got, len(want))
+	for i := range want {
+		wantHdr, wantBody := splitPayload(t, want[i])
+		gotHdr, gotBody := splitPayload(t, got[i])
+		require.Equalf(t, wantHdr, gotHdr, "header %d differs", i)
+		require.Truef(t, bytes.Equal(wantBody, gotBody), "decompressed payload %d differs", i)
+	}
+}
+
+// splitPayload returns the message header and the decompressed body.
+func splitPayload(t *testing.T, p []byte) ([]byte, []byte) {
+	t.Helper()
+	_, off, err := model.ReadHeader(p)
+	require.NoError(t, err)
+	body, err := zstd.Decompress(nil, p[off:])
+	require.NoError(t, err)
+	return p[:off], body
+}
+
+// useFixtureConsumer installs a consumer that knows a service context and a
+// process name for a third of the fixture PIDs, and only a process name for
+// another third.
+func useFixtureConsumer(t *testing.T, pids int) {
+	dsc := newDirectSenderConsumer(logmock.New(t), sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"system_probe_config.process_service_inference.enabled": true,
+	}))
+	cwd := t.TempDir()
+	for i := 0; i < pids; i++ {
+		p := &process{Pid: uint32(1000 + i), Cwd: cwd, EventType: evmodel.ExecEventType}
+		switch i % 3 {
+		case 0:
+			p.Cmdline = []string{fmt.Sprintf("svc-%d.sh", i%7)}
+			p.Comm = fmt.Sprintf("svc-%d.sh", i%7)
+		case 1:
+			p.Comm = fmt.Sprintf("worker-%d", i%5)
+		default:
+			continue
+		}
+		dsc.extractor.process(p)
+		dsc.processNameExtractor.process(p)
+	}
+	directSenderConsumerInstance.Store(dsc)
+	t.Cleanup(func() { directSenderConsumerInstance.Store(nil) })
 }
 
 func TestTagCacheMatchesReference(t *testing.T) {
@@ -44,6 +98,14 @@ func TestTagCacheMatchesReference(t *testing.T) {
 			for _, maxConns := range []int{1, 2, 7, 600} {
 				t.Run(fmt.Sprintf("%s/seed=%d/max=%d", f, seed, maxConns), func(t *testing.T) {
 					d, fixtureConns, _ := f.setup(t, maxConns)
+					useFixtureConsumer(t, f.pids)
+					// Reattribute some connections so both tag paths are compared.
+					proxy := intern.GetByString("proxy-container")
+					for i := range fixtureConns {
+						if i%11 == 0 {
+							fixtureConns[i].NetNSOriginalContainerID = proxy
+						}
+					}
 
 					refConns := &network.Connections{BufferedData: network.BufferedData{Conns: slices.Clone(fixtureConns)}}
 					want := collectPayloads(d.batchesReference(refConns, 1))
@@ -51,24 +113,43 @@ func TestTagCacheMatchesReference(t *testing.T) {
 					newConns := &network.Connections{BufferedData: network.BufferedData{Conns: slices.Clone(fixtureConns)}}
 					got := collectPayloads(d.batches(newConns, 1))
 
-					require.Len(t, got, len(want))
-					for i := range want {
-						require.Truef(t, bytes.Equal(want[i], got[i]), "payload %d differs", i)
-					}
+					requireSamePayloads(t, want, got)
+					requireTagPrefixes(t, got, "process_context:", "process_name:")
 				})
 			}
 		}
 	}
 }
 
+// requireTagPrefixes fails unless every prefix starts at least one connection tag.
+func requireTagPrefixes(t *testing.T, payloads [][]byte, prefixes ...string) {
+	t.Helper()
+	seen := make(map[string]bool)
+	for _, c := range decodeChunks(t, payloads) {
+		for _, conn := range c.Connections {
+			for _, tag := range c.GetConnectionsTags(conn.TagsIdx) {
+				for _, p := range prefixes {
+					if strings.HasPrefix(tag, p) {
+						seen[p] = true
+					}
+				}
+			}
+		}
+	}
+	for _, p := range prefixes {
+		require.Truef(t, seen[p], "no connection tag starts with %q", p)
+	}
+}
+
+// decodeChunks decodes with the active zstd backend, since model.DecodeMessage
+// rejects these payloads in no-cgo builds.
 func decodeChunks(t *testing.T, payloads [][]byte) []*model.CollectorConnections {
 	var out []*model.CollectorConnections
 	for _, p := range payloads {
-		m, err := model.DecodeMessage(p)
-		require.NoError(t, err)
-		c, ok := m.Body.(*model.CollectorConnections)
-		require.True(t, ok)
-		out = append(out, c)
+		_, body := splitPayload(t, p)
+		var c model.CollectorConnections
+		require.NoError(t, c.Unmarshal(body))
+		out = append(out, &c)
 	}
 	return out
 }
