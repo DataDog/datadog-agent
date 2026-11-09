@@ -22,6 +22,7 @@ import (
 
 	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/bytecode"
+	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
 // Layout of skb_parse_result_t in skb-parse-test.c: ret, skb_info_t, conn_tuple_t.
@@ -41,6 +42,11 @@ type skbParseFrame struct {
 // TestReadConnTupleSKBEquivalence runs read_conn_tuple_skb_bulk, read_conn_tuple_skb_fields, and
 // read_conn_tuple_skb over a frame matrix at every truncation length and requires identical outputs.
 func TestReadConnTupleSKBEquivalence(t *testing.T) {
+	// Socket filters can't call bpf_skb_load_bytes before 4.11, the classification minimum.
+	if kv := kernel.MustHostVersion(); kv < kernel.VersionCode(4, 11, 0) {
+		t.Skipf("socket filters can't use bpf_skb_load_bytes on kernel %s", kv)
+	}
+
 	var prog *ebpf.Program
 	var seedMap, outMap *ebpf.Map
 	err := ddebpf.LoadCOREAsset("skb-parse-test.o", func(bc bytecode.AssetReader, opts manager.Options) error {
