@@ -36,15 +36,15 @@ const (
 // integration.Config entries. It supports both workload targets (Deployment,
 // DaemonSet, etc.) and Service targets, branching internally on the target kind.
 type checksHandler struct {
-	checkStore           *common.CheckStore
-	templateStore        *common.ServiceCheckTemplateStore
+	checkStore           common.ConfigWriter
+	templateStore        common.ServiceTemplateWriter
 	serviceTargetEnabled func() bool
 }
 
 // Requires defines the dependencies of the checks handler.
 type Requires struct {
-	CheckStore                *common.CheckStore
-	ServiceCheckTemplateStore *common.ServiceCheckTemplateStore
+	CheckStore                common.ConfigWriter
+	ServiceCheckTemplateStore common.ServiceTemplateWriter
 }
 
 // Provides exposes the checks handler component.

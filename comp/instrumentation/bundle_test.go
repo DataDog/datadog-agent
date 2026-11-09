@@ -49,8 +49,10 @@ func TestSharedHandlersAndStores(t *testing.T) {
 		APM            apm.Component
 		Handlers       []instrumentation.Handler
 		CheckStore     *common.CheckStore
+		ConfigWriter   common.ConfigWriter
 		APMStore       *common.APMTargetStore
 		TemplateStore  *common.ServiceCheckTemplateStore
+		TemplateWriter common.ServiceTemplateWriter
 		ServiceTracker adtypes.ServiceTracker
 	}
 	deps := fxutil.Test[dependencies](t, Bundle(), telemetrymock.Module())
@@ -61,6 +63,8 @@ func TestSharedHandlersAndStores(t *testing.T) {
 	assert.Same(t, deps.Logs, deps.Handlers[1])
 	assert.Same(t, deps.APM, deps.Handlers[2])
 	assert.Same(t, deps.TemplateStore, deps.ServiceTracker)
+	assert.Same(t, deps.CheckStore, deps.ConfigWriter)
+	assert.Same(t, deps.TemplateStore, deps.TemplateWriter)
 
 	cr := &datadoghq.DatadogInstrumentation{
 		TypeMeta:   metav1.TypeMeta{APIVersion: datadoghq.GroupVersion.String(), Kind: "DatadogInstrumentation"},

@@ -35,12 +35,12 @@ const (
 // logsHandler translates DatadogInstrumentation log sections into logs-only
 // integration.Config entries stored in the shared check store.
 type logsHandler struct {
-	checkStore *common.CheckStore
+	checkStore common.ConfigWriter
 }
 
 // Requires defines the dependencies of the logs handler.
 type Requires struct {
-	CheckStore *common.CheckStore
+	CheckStore common.ConfigWriter
 }
 
 // Provides exposes the logs handler component.

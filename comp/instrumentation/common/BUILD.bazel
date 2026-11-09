@@ -7,6 +7,7 @@ go_library(
         "apm_store.go",
         "autodiscovery_utils.go",
         "target.go",
+        "writers.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/instrumentation/common",
     visibility = ["//visibility:public"],

@@ -82,8 +82,10 @@ The core imports nothing product-specific: only the CRD type, client-go, and
 pattern. `bundle.go` provides the shared stores and the ordered handler slice
 (checks, logs, APM). Both reconciliation and admission use these same instances.
 `common/` contains the shared check, service-template, and APM stores, plus workload
-targeting helpers. Stores are injected into handlers rather than constructed by
-controller startup.
+targeting helpers. Checks and logs receive `ConfigWriter`; checks also receives
+`ServiceTemplateWriter`. The bundle exposes these interfaces using the same store
+instances supplied to readers. Keep store construction independent of handlers and
+Autodiscovery to avoid dependency cycles.
 
 The controller component's `Start(ctx, Params)` binds Kubernetes clients and
 leadership only after the CRD is available. The caller starts the informer factory

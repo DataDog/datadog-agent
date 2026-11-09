@@ -34,6 +34,8 @@ func Bundle() fxutil.BundleOptions {
 		logsfx.Module(),
 		apmfx.Module(),
 		fx.Provide(common.NewCheckStore, common.NewServiceCheckTemplateStore, common.NewAPMTargetStore),
+		fx.Provide(func(s *common.CheckStore) common.ConfigWriter { return s }),
+		fx.Provide(func(s *common.ServiceCheckTemplateStore) common.ServiceTemplateWriter { return s }),
 		fx.Provide(func(s *common.ServiceCheckTemplateStore) adtypes.ServiceTracker { return s }),
 		fx.Provide(func(checks checks.Component, logs logs.Component, apm apm.Component) []instrumentation.Handler {
 			return []instrumentation.Handler{checks, logs, apm}
