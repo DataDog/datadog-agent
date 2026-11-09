@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Fix the Agent hanging at startup when ``kubelet_use_api_server`` is enabled and the kubelet
+    ``/stats/summary`` endpoint is not reachable (for example in EKS Fargate with kubelet
+    fine-grained authorization, where ``nodes/proxy`` is not granted). When
+    ``kubernetes_kubelet_nodename`` is configured, the Agent now uses it as the node name and no
+    longer needs to fetch it from ``/stats/summary``, so Autodiscovery starts scheduling
+    annotation-based checks again.

@@ -174,18 +174,23 @@ func (ku *KubeUtil) init() error {
 
 	ku.updateKubeletClient(newKubeletClient, newRawConnectionInfo)
 
+	// We don't need to lock the node name mutex here because the "init" method is called under
+	// the globalKubeUtilMutex lock, and only once, so no concurrent access to the node name is possible.
 	if pkgconfigsetup.Datadog().GetBool("kubelet_use_api_server") {
 		ku.useAPIServer = true
-		nodeName, err := ku.getNodeNameFromStatsSummary(context.Background())
-		if err != nil {
-			return err
+		if newKubeletClient.config.nodeName != "" {
+			// The node name is already configured (e.g. kubernetes_kubelet_nodename), no need to
+			// fetch it from the /stats/summary endpoint, which may not be reachable when kubelet
+			// calls are proxied through the API server with fine-grained authorization.
+			ku.nodeName = newKubeletClient.config.nodeName
+		} else {
+			nodeName, err := ku.getNodeNameFromStatsSummary(context.Background())
+			if err != nil {
+				return err
+			}
+			ku.nodeName = nodeName
+			newKubeletClient.config.nodeName = nodeName
 		}
-
-		// We don't need to lock the node name mutex here because:
-		// - The "init" method is called under the globalKubeUtilMutex lock, which ensures that no other thread can access the node name
-		// - The "init" method is called once, so no concurrent access to the node name is possible
-		newKubeletClient.config.nodeName = nodeName
-		ku.nodeName = nodeName
 	}
 
 	if env.IsFeaturePresent(env.PodResources) {
