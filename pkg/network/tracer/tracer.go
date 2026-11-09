@@ -177,12 +177,17 @@ func newTracer(cfg *config.Config, telemetryComponent telemetryComponent.Compone
 	telemetryComponent.RegisterCollector(tr.conntracker)
 
 	var tracerOpts []connection.Option
-	if m := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane); m != nil {
-		tracerOpts = append(tracerOpts, connection.WithConntrackNATMap(m))
+	natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+	if natMap != nil {
+		tracerOpts = append(tracerOpts, connection.WithConntrackNATMap(natMap))
 	}
 	tr.ebpfTracer, err = connection.NewTracer(cfg, telemetryComponent, tracerOpts...)
 	if err != nil {
 		return nil, err
+	}
+	if natMap != nil {
+		// the tracer registered the shared map under its own module, which is keyed by map ID
+		ddebpf.AddNameMappingsForMap(natMap, probes.ConntrackMap, ebpfConntrackerModule)
 	}
 	telemetryComponent.RegisterCollector(tr.ebpfTracer)
 

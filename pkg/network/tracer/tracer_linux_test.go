@@ -2868,8 +2868,17 @@ func (s *TracerSuite) TestNATFromEbpfConntracker() {
 		if tr.ebpfTracer.Type() == connection.TracerTypeSK {
 			t.Skip("the sk tracer doesn't classify with the conntrack map")
 		}
-		if sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane) == nil {
+		natMap := sharedConntrackNATMap(cfg, tr.conntracker, hostBPFNATDataplane)
+		if natMap == nil {
 			t.Skip("ebpf conntracker map not shared")
+		}
+		// the shared map is still reported as the conntracker's
+		if info, err := natMap.Info(); err == nil {
+			if id, ok := info.ID(); ok {
+				module, err := ddebpf.GetModuleFromMapID(uint32(id))
+				require.NoError(t, err)
+				assert.Equal(t, ebpfConntrackerModule, module)
+			}
 		}
 		// net_dev_queue isn't attached, so its map is left at one entry
 		m, err := tr.ebpfTracer.GetMap(probes.ConnectionTupleToSocketSKBConnMap)

@@ -549,9 +549,12 @@ func getManager(cfg *config.Config, buf io.ReaderAt, opts manager.Options, build
 	if err != nil {
 		return nil, err
 	}
-	ddebpf.AddNameMappings(mgr.Manager, "npm_conntracker")
+	ddebpf.AddNameMappings(mgr.Manager, ebpfConntrackerModule)
 	return mgr.Manager, nil
 }
+
+// ebpfConntrackerModule is the module the eBPF conntracker's maps and programs are reported under
+const ebpfConntrackerModule = "npm_conntracker"
 
 var errPrebuiltConntrackerUnsupported = errors.New("prebuilt ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
 var errCOREConntrackerUnsupported = errors.New("CO-RE ebpf conntracker requires kernel version 4.14 or higher or a RHEL kernel with backported eBPF support")
