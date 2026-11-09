@@ -8,7 +8,6 @@ http_archive(
         "BUILD.bazel": "//deps/libxml2:overlay/overlay.BUILD.bazel",
         "config-linux-arm64.h": "//deps/libxml2:overlay/config-linux-arm64.h",
         "config-linux-x86_64.h": "//deps/libxml2:overlay/config-linux-x86_64.h",
-        "include/config.h": "//deps/libxml2:overlay/include/config.h",
         "macos/config.h": "//deps/libxml2:overlay/macos/config.h",
         "macos/include/libxml/xmlversion.h": "//deps/libxml2:overlay/macos/include/libxml/xmlversion.h",
         "macos_defs.bzl": "//deps/libxml2:overlay/macos_defs.bzl",
