@@ -20,7 +20,7 @@ func specWith(sc *corev1.SecurityContext) *corev1.PodSpec {
 }
 
 func capsRequest(add ...string) *Request {
-	return &Request{Control: ControlCapabilities, Target: Target{Container: "app"}, Parameters: Parameters{CapabilitiesAdd: add}}
+	return &Request{Control: ControlCapabilities, Workload: Workload{Container: "app"}, Parameters: Parameters{CapabilitiesAdd: add}}
 }
 
 func TestRenderCapabilities(t *testing.T) {
@@ -65,7 +65,7 @@ func TestRenderCommonSkips(t *testing.T) {
 	assert.Equal(t, "container is privileged", reason)
 
 	req := capsRequest()
-	req.Target.Container = "missing"
+	req.Workload.Container = "missing"
 	_, reason = Render(req, specWith(nil))
 	assert.Equal(t, "container not found", reason)
 
@@ -76,7 +76,7 @@ func TestRenderCommonSkips(t *testing.T) {
 }
 
 func TestRenderReadOnlyRootFS(t *testing.T) {
-	req := &Request{Control: ControlReadOnlyRootFS, Target: Target{Container: "app"}}
+	req := &Request{Control: ControlReadOnlyRootFS, Workload: Workload{Container: "app"}}
 	declared := &corev1.SecurityContext{ReadOnlyRootFilesystem: ptr.To(false)}
 	spec := specWith(declared)
 
@@ -86,34 +86,33 @@ func TestRenderReadOnlyRootFS(t *testing.T) {
 	assert.Equal(t, ptr.To(false), declared.ReadOnlyRootFilesystem, "the input is not modified")
 }
 
-func TestRenderSeccomp(t *testing.T) {
-	req := &Request{Control: ControlSeccompRuntimeDefault, Target: Target{Container: "app"}}
-	runtimeDefault := &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
-	localhost := &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeLocalhost, LocalhostProfile: ptr.To("p.json")}
+func TestRenderNonRoot(t *testing.T) {
+	req := &Request{Control: ControlNonRoot, Workload: Workload{Container: "app"}}
 
-	sc, reason := Render(req, specWith(nil))
+	sc, reason := Render(req, specWith(&corev1.SecurityContext{AllowPrivilegeEscalation: ptr.To(true)}))
 	assert.Empty(t, reason)
-	assert.Equal(t, runtimeDefault, sc.SeccompProfile)
+	assert.Equal(t, ptr.To(true), sc.RunAsNonRoot)
+	assert.Equal(t, ptr.To(false), sc.AllowPrivilegeEscalation, "an explicit true is overridden")
+	assert.Nil(t, sc.RunAsUser, "never sets runAsUser")
 
-	sc, reason = Render(req, specWith(&corev1.SecurityContext{SeccompProfile: &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeUnconfined}}))
-	assert.Empty(t, reason)
-	assert.Equal(t, runtimeDefault, sc.SeccompProfile)
-
-	_, reason = Render(req, specWith(&corev1.SecurityContext{SeccompProfile: localhost}))
-	assert.NotEmpty(t, reason)
+	_, reason = Render(req, specWith(&corev1.SecurityContext{RunAsUser: ptr.To(int64(0))}))
+	assert.Equal(t, "container runs as uid 0", reason)
 
 	spec := specWith(nil)
-	spec.SecurityContext = &corev1.PodSecurityContext{SeccompProfile: localhost}
+	spec.SecurityContext = &corev1.PodSecurityContext{RunAsUser: ptr.To(int64(0))}
 	_, reason = Render(req, spec)
-	assert.NotEmpty(t, reason, "a pod-level Localhost profile is not replaced either")
+	assert.Equal(t, "container runs as uid 0", reason, "from the pod's securityContext")
+
+	spec.Containers[1].SecurityContext = &corev1.SecurityContext{RunAsUser: ptr.To(int64(1000))}
+	_, reason = Render(req, spec)
+	assert.Empty(t, reason, "the container's runAsUser wins over the pod's")
 }
 
 func TestSetsControl(t *testing.T) {
-	ro := &Request{Control: ControlReadOnlyRootFS, Target: Target{Container: "app"}}
-	seccomp := &Request{Control: ControlSeccompRuntimeDefault, Target: Target{Container: "app"}}
-	runtimeDefault := &corev1.SeccompProfile{Type: corev1.SeccompProfileTypeRuntimeDefault}
-	podLevel := specWith(nil)
-	podLevel.SecurityContext = &corev1.PodSecurityContext{SeccompProfile: runtimeDefault}
+	ro := &Request{Control: ControlReadOnlyRootFS, Workload: Workload{Container: "app"}}
+	nonRoot := &Request{Control: ControlNonRoot, Workload: Workload{Container: "app"}}
+	podNonRoot := specWith(&corev1.SecurityContext{AllowPrivilegeEscalation: ptr.To(false)})
+	podNonRoot.SecurityContext = &corev1.PodSecurityContext{RunAsNonRoot: ptr.To(true)}
 
 	tests := []struct {
 		name string
@@ -128,9 +127,10 @@ func TestSetsControl(t *testing.T) {
 		{name: "no drop ALL", req: capsRequest("NET_BIND_SERVICE"), spec: specWith(&corev1.SecurityContext{Capabilities: &corev1.Capabilities{Drop: []corev1.Capability{"NET_RAW"}}})},
 		{name: "read-only root fs", req: ro, spec: specWith(&corev1.SecurityContext{ReadOnlyRootFilesystem: ptr.To(true)}), want: true},
 		{name: "writable root fs", req: ro, spec: specWith(&corev1.SecurityContext{ReadOnlyRootFilesystem: ptr.To(false)})},
-		{name: "container RuntimeDefault", req: seccomp, spec: specWith(&corev1.SecurityContext{SeccompProfile: runtimeDefault}), want: true},
-		{name: "pod RuntimeDefault", req: seccomp, spec: podLevel, want: true},
-		{name: "no seccomp profile", req: seccomp, spec: specWith(nil)},
+		{name: "non-root and no escalation", req: nonRoot, spec: specWith(&corev1.SecurityContext{RunAsNonRoot: ptr.To(true), AllowPrivilegeEscalation: ptr.To(false)}), want: true},
+		{name: "pod-level non-root", req: nonRoot, spec: podNonRoot, want: true},
+		{name: "non-root, escalation unset", req: nonRoot, spec: specWith(&corev1.SecurityContext{RunAsNonRoot: ptr.To(true)})},
+		{name: "no escalation, root allowed", req: nonRoot, spec: specWith(&corev1.SecurityContext{AllowPrivilegeEscalation: ptr.To(false)})},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

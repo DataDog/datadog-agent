@@ -26,18 +26,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 )
 
-const (
-	cluster = "cluster-1"
-	digest  = "33720bb7ebaf56d8cfc80a99b420c230cd5625d7383813057431170a4033662a"
-)
+const cluster = "cluster-1"
 
 func request(id, action, control, deployment string, expiresIn time.Duration, params string) []byte {
 	return []byte(fmt.Sprintf(`{"id":%q,"action":%q,"control":%q,
-		"k8s_target":{"cluster":%q,"kind":"Deployment","namespace":"shop","name":%q,"container":"app",
-			"image_id":"registry.example.com/shop/web@sha256:%s"},
-		"parameters":%s,"created_at":%q,"expires_at":%q}`,
-		id, action, control, cluster, deployment, digest, params,
-		time.Now().Add(-time.Minute).Format(time.RFC3339), time.Now().Add(expiresIn).Format(time.RFC3339)))
+		"workload":{"kind":"Deployment","namespace":"shop","name":%q,"container":"app"},
+		"clusters":[{"id":%q,"added_at":%q}],
+		"parameters":%s,"expires_at":%q}`,
+		id, action, control, deployment, cluster, time.Now().Add(-time.Minute).Format(time.RFC3339),
+		params, time.Now().Add(expiresIn).Format(time.RFC3339)))
 }
 
 func newWebhook(t *testing.T, reqs ...[]byte) *Webhook {
@@ -71,7 +68,7 @@ func applied(t *testing.T, p *corev1.Pod) map[string]string {
 }
 
 func TestWebhookAppliesCapabilities(t *testing.T) {
-	w := newWebhook(t, request("req-1", "trial", "capabilities", "web", time.Hour, `{"capabilities_add":["NET_BIND_SERVICE"]}`))
+	w := newWebhook(t, request("req-1", "enforce", "capabilities", "web", time.Hour, `{"capabilities_add":["NET_BIND_SERVICE"]}`))
 	p := pod("req-1", nil)
 
 	changed, err := w.mutate(p, "shop", nil)
@@ -84,7 +81,7 @@ func TestWebhookAppliesCapabilities(t *testing.T) {
 }
 
 func TestWebhookForgedAnnotation(t *testing.T) {
-	w := newWebhook(t, request("req-1", "trial", "read_only_root_fs", "web", time.Hour, `{}`))
+	w := newWebhook(t, request("req-1", "enforce", "read_only_root_fs", "web", time.Hour, `{}`))
 	p := pod("req-1", nil)
 	p.OwnerReferences[0].Name = "api-7c9d8f6b5" // a ReplicaSet of another Deployment
 
@@ -101,11 +98,13 @@ func TestWebhookForgedAnnotation(t *testing.T) {
 }
 
 func TestWebhookInactiveRequests(t *testing.T) {
+	unlisted := strings.Replace(string(request("unlisted", "enforce", "read_only_root_fs", "web", time.Hour, `{}`)), cluster, "cluster-2", 1)
 	w := newWebhook(t,
-		request("expired", "trial", "read_only_root_fs", "web", -time.Minute, `{}`),
+		request("expired", "enforce", "read_only_root_fs", "web", -time.Minute, `{}`),
 		request("reverted", "revert", "read_only_root_fs", "web", time.Hour, `{}`),
+		[]byte(unlisted),
 	)
-	p := pod("expired,reverted,unknown", nil)
+	p := pod("expired,reverted,unlisted,unknown", nil)
 
 	_, err := w.mutate(p, "shop", nil)
 	require.NoError(t, err)
@@ -113,30 +112,36 @@ func TestWebhookInactiveRequests(t *testing.T) {
 	assert.Equal(t, map[string]string{
 		"expired":  "skipped: request expired",
 		"reverted": "skipped: request action is revert",
+		"unlisted": "skipped: request does not list this cluster",
 		"unknown":  hardening.AppliedUnknown,
 	}, applied(t, p), "an unknown request is told apart from an expired one")
 }
 
-func TestWebhookImageDigest(t *testing.T) {
-	for image, want := range map[string]string{
-		"web:1.2": "applied",
-		"mirror.example.com/web@sha256:" + digest:            "applied",
-		"web@sha256:" + strings.Repeat("0", 64):              "skipped: image pins another digest than the request's image_id",
-		"registry.example.com/shop/web:1.2@sha256:" + digest: "applied",
-	} {
+func TestWebhookAppliesToEveryImage(t *testing.T) {
+	for _, image := range []string{"web:1.2", "web:1.3", "mirror.example.com/web@sha256:" + strings.Repeat("0", 64)} {
 		t.Run(image, func(t *testing.T) {
-			w := newWebhook(t, request("req-1", "trial", "read_only_root_fs", "web", time.Hour, `{}`))
+			w := newWebhook(t, request("req-1", "enforce", "read_only_root_fs", "web", time.Hour, `{}`))
 			p := pod("req-1", nil)
 			hardening.FindContainer(&p.Spec, "app").Image = image
 			_, err := w.mutate(p, "shop", nil)
 			require.NoError(t, err)
-			assert.Equal(t, want, applied(t, p)["req-1"])
+			assert.Equal(t, "applied", applied(t, p)["req-1"], "the request targets the workload, not a build")
 		})
 	}
 }
 
+func TestWebhookAppliesNonRoot(t *testing.T) {
+	w := newWebhook(t, request("req-1", "enforce", "non_root", "web", time.Hour, `{}`))
+	p := pod("req-1", nil)
+
+	_, err := w.mutate(p, "shop", nil)
+	require.NoError(t, err)
+	sc := hardening.FindContainer(&p.Spec, "app").SecurityContext
+	assert.Equal(t, &corev1.SecurityContext{RunAsNonRoot: ptr.To(true), AllowPrivilegeEscalation: ptr.To(false)}, sc)
+}
+
 func TestWebhookSkipsWithRenderReason(t *testing.T) {
-	w := newWebhook(t, request("req-1", "trial", "read_only_root_fs", "web", time.Hour, `{}`))
+	w := newWebhook(t, request("req-1", "enforce", "read_only_root_fs", "web", time.Hour, `{}`))
 	p := pod("req-1", &corev1.SecurityContext{Privileged: ptr.To(true)})
 
 	_, err := w.mutate(p, "shop", nil)
@@ -146,7 +151,7 @@ func TestWebhookSkipsWithRenderReason(t *testing.T) {
 }
 
 func TestWebhookNonDeploymentOwner(t *testing.T) {
-	w := newWebhook(t, request("req-1", "trial", "read_only_root_fs", "web", time.Hour, `{}`))
+	w := newWebhook(t, request("req-1", "enforce", "read_only_root_fs", "web", time.Hour, `{}`))
 	p := mutatecommon.FakePodSpec{
 		NS: "shop", ParentKind: "statefulset", ParentName: "web",
 		Annotations: map[string]string{hardening.RequestsAnnotation: "req-1"},
@@ -160,8 +165,8 @@ func TestWebhookNonDeploymentOwner(t *testing.T) {
 
 func TestWebhookTwoRequestsAndReinvocation(t *testing.T) {
 	w := newWebhook(t,
-		request("caps", "trial", "capabilities", "web", time.Hour, `{"capabilities_add":["CHOWN"]}`),
-		request("ro", "trial", "read_only_root_fs", "web", time.Hour, `{}`),
+		request("caps", "enforce", "capabilities", "web", time.Hour, `{"capabilities_add":["CHOWN"]}`),
+		request("ro", "enforce", "read_only_root_fs", "web", time.Hour, `{}`),
 	)
 	p := pod("caps,ro", nil)
 
@@ -187,7 +192,7 @@ func TestWebhookNoRequestsAnnotation(t *testing.T) {
 }
 
 func TestWebhookFuncReturnsPatch(t *testing.T) {
-	w := newWebhook(t, request("req-1", "trial", "read_only_root_fs", "web", time.Hour, `{}`))
+	w := newWebhook(t, request("req-1", "enforce", "read_only_root_fs", "web", time.Hour, `{}`))
 	raw, err := json.Marshal(pod("req-1", nil))
 	require.NoError(t, err)
 

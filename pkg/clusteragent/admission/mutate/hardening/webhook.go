@@ -6,7 +6,7 @@
 //go:build kubeapiserver
 
 // Package hardening implements the webhook that applies workload hardening
-// trials to the pods of the Deployments the leader marked.
+// requests to the pods of the Deployments the leader marked.
 package hardening
 
 import (
@@ -129,21 +129,18 @@ func (w *Webhook) apply(pod *corev1.Pod, ns, deployment, id string, now time.Tim
 	switch {
 	case !ok:
 		return hardening.AppliedUnknown
-	case req.Action != hardening.ActionTrial:
+	case req.Action != hardening.ActionEnforce:
 		return "skipped: request action is " + string(req.Action)
+	case !req.Listed():
+		return "skipped: request does not list this cluster"
 	case !req.Active(now):
 		return "skipped: request expired"
-	case req.Target.Namespace != ns || req.Target.Name != deployment:
+	case req.Workload.Namespace != ns || req.Workload.Name != deployment:
 		return "skipped: request targets another workload"
 	}
-	container := hardening.FindContainer(&pod.Spec, req.Target.Container)
+	container := hardening.FindContainer(&pod.Spec, req.Workload.Container)
 	if container == nil {
 		return "skipped: container not found"
-	}
-	// The finding's evidence is about one build. An image that pins no digest
-	// is checked by the leader once the pod runs.
-	if digest := hardening.Digest(container.Image); digest != "" && digest != hardening.Digest(req.Target.ImageID) {
-		return "skipped: image pins another digest than the request's image_id"
 	}
 	sc, reason := hardening.Render(req, &pod.Spec)
 	if reason != "" {

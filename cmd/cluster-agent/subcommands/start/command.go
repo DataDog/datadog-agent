@@ -554,7 +554,7 @@ func start(log log.Component,
 			products = append(products, state.ProductK8SActions)
 		}
 		if config.GetBool("admission_controller.hardening.enabled") {
-			products = append(products, state.ProductCWSWorkloadHardening)
+			products = append(products, state.ProductCWSProfiles)
 		}
 		if config.GetBool("admission_controller.auto_instrumentation.enabled") || config.GetBool("apm_config.instrumentation.enabled") {
 			products = append(products, state.ProductGradualRollout)
