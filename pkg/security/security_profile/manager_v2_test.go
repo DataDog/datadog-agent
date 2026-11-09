@@ -806,6 +806,7 @@ func TestManagerV2_insertEventIntoProfile_evictsLeastRecentlySeenVersion(t *test
 			_, inserted = m.insertEventIntoProfile(newTestEventV2(eventType, "v3", "known"))
 			assert.False(t, inserted, "activities shared with a retained version must stay learned")
 			assert.ElementsMatch(t, []string{"v1", "v3"}, p.GetVersions())
+			assert.ElementsMatch(t, []string{"image_name:" + testImageName, "image_tag:v1", "service:another-container", "image_tag:v3"}, p.GetDumpTags(), "only the tags of the retained versions must be sent with the profile")
 			assert.Zero(t, p.ActivityTree.GetImageTagID("v2"))
 			assert.Nil(t, findTestEventNode(p, eventType, "new"), "activities exclusive to the evicted version must be removed")
 
