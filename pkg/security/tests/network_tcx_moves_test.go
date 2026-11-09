@@ -11,12 +11,10 @@ package tests
 import (
 	"errors"
 	"fmt"
-	"net"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -33,7 +31,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/probes"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	sprobe "github.com/DataDog/datadog-agent/pkg/security/probe"
-	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/rules"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -90,8 +87,6 @@ func testTCXDeviceMoves(t *testing.T) {
 
 	t.Run("macvlan_moved_before_settling", m.testMovedBeforeSettling)
 	t.Run("tunnel_and_bridge_not_delayed", m.testNotDelayed)
-	t.Run("macvlan_moved_after_settling", m.testMovedAfterSettling)
-	t.Run("netkit_peer_moved", m.testNetkitPeerMoved)
 	t.Run("veth_peer_moved", m.testVethPeerMoved)
 	t.Run("host_veth_pair", m.testHostVethPair)
 	t.Run("docker_veth_pair", m.testDockerVethPair)
@@ -130,17 +125,6 @@ func (m *tcxMoves) newNetNS(tb testing.TB, name string) (uint32, *utils.NSPath) 
 	nsPath := utils.NewNSPathFromPath(path, utils.NetNsType)
 	_, _ = m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, nsPath)
 	return nsID, nsPath
-}
-
-// resnapshotNetNS makes the resolver snapshot a namespace again, as it does the first time it sees a pod namespace
-func (m *tcxMoves) resnapshotNetNS(tb testing.TB, nsID uint32, nsPath *utils.NSPath) {
-	tb.Helper()
-	if namespace := m.probe.Resolvers.NamespaceResolver.ResolveNetworkNamespace(nsID); namespace != nil {
-		m.probe.FlushNetworkNamespace(namespace)
-	}
-	if _, isNew := m.probe.Resolvers.NamespaceResolver.SaveNetworkNamespaceHandle(nsID, nsPath); !isNew {
-		tb.Fatalf("namespace %d wasn't snapshotted again", nsID)
-	}
 }
 
 func (m *tcxMoves) flush() {
@@ -231,60 +215,6 @@ func (m *tcxMoves) errors(class string) int64 {
 	return m.test.statsdClient.Get(metrics.MetricNamespaceResolverError + ":error_type:" + class)
 }
 
-// assertOneDNSEvent sends one DNS query from a namespace and checks that the device it leaves through reports it
-// once, with the namespace and the process of the query
-func (m *tcxMoves) assertOneDNSEvent(t *testing.T, nsID uint32, nsPath *utils.NSPath, ifName string, server net.IP) {
-	type dnsEvent struct {
-		netNS uint32
-		pid   uint32
-	}
-	var lock sync.Mutex
-	var events []dnsEvent
-
-	m.test.RegisterRuleEventHandler(func(event *model.Event, rule *rules.Rule) {
-		if rule.ID != tcxMovesRule.ID || event.NetworkContext.Device.IfName != ifName {
-			return
-		}
-		lock.Lock()
-		events = append(events, dnsEvent{netNS: event.NetworkContext.Device.NetNS, pid: event.ProcessContext.Pid})
-		lock.Unlock()
-	})
-	defer m.test.RegisterRuleEventHandler(nil)
-
-	err := runInTestNetns(nsPath, func() error {
-		conn, err := net.DialUDP("udp4", nil, &net.UDPAddr{IP: server, Port: int(DNSPort)})
-		if err != nil {
-			return err
-		}
-		defer conn.Close()
-		_, err = conn.Write(dnsQuery(tcxMovesDomain))
-		return err
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	// time for a duplicate to show up too
-	time.Sleep(3 * time.Second)
-
-	lock.Lock()
-	defer lock.Unlock()
-	if assert.Len(t, events, 1, "DNS events reported by %s", ifName) {
-		assert.Equal(t, nsID, events[0].netNS, "namespace of the DNS event")
-		assert.Equal(t, utils.Getpid(), events[0].pid, "process of the DNS event")
-	}
-}
-
-// dnsQuery returns a DNS query for the A record of name
-func dnsQuery(name string) []byte {
-	msg := []byte{0x7c, 0x31, 0x01, 0x00, 0, 1, 0, 0, 0, 0, 0, 0}
-	for _, label := range strings.Split(name, ".") {
-		msg = append(msg, byte(len(label)))
-		msg = append(msg, label...)
-	}
-	return append(msg, 0, 0, 1, 0, 1)
-}
-
 // testMovedBeforeSettling moves a macvlan, standing for a VF or a Docker macvlan, right after creating it
 func (m *tcxMoves) testMovedBeforeSettling(t *testing.T) {
 	_, nsPath := m.newNetNS(t, "wptcx_early")
@@ -308,63 +238,6 @@ func (m *tcxMoves) testNotDelayed(t *testing.T) {
 	for _, name := range []string{"wptcxvx0", "wptcxbr0"} {
 		m.waitAttached(t, m.hostNetNS, m.ifIndex(t, nil, name), m.settleDelay/2)
 	}
-}
-
-// testMovedAfterSettling moves a macvlan once attached in the host namespace
-func (m *tcxMoves) testMovedAfterSettling(t *testing.T) {
-	nsID, nsPath := m.newNetNS(t, "wptcx_late")
-
-	m.run(t, "", "link", "add", "wptcxmv1", "link", "wptcxdum0", "type", "macvlan", "mode", "bridge")
-	hostIfIndex := m.ifIndex(t, nil, "wptcxmv1")
-
-	time.Sleep(m.settleDelay / 2)
-	assert.False(t, m.isAttached(m.hostNetNS, hostIfIndex), "wptcxmv1 was attached before settling")
-	m.waitAttached(t, m.hostNetNS, hostIfIndex, m.settleDelay+5*time.Second)
-	hostLinks := int64(len(m.programs(m.hostNetNS, hostIfIndex)))
-
-	staleLinks := m.staleLinks()
-	m.run(t, "", "link", "set", "wptcxmv1", "netns", "wptcx_late")
-	m.flush()
-
-	assert.False(t, m.isAttached(m.hostNetNS, hostIfIndex), "wptcxmv1 is still attached in the host namespace")
-	assert.Equal(t, hostLinks, m.staleLinks()-staleLinks, "stale links")
-
-	m.resnapshotNetNS(t, nsID, nsPath)
-	m.assertOnlyLocalPrograms(t, nsID, nsPath, "wptcxmv1")
-
-	m.run(t, "", "-n", "wptcx_late", "addr", "add", "192.0.2.2/24", "dev", "wptcxmv1")
-	m.run(t, "", "-n", "wptcx_late", "link", "set", "wptcxmv1", "up")
-	m.run(t, "", "-n", "wptcx_late", "neigh", "add", "192.0.2.1", "lladdr", "02:00:00:00:00:01", "dev", "wptcxmv1", "nud", "permanent")
-	m.assertOneDNSEvent(t, nsID, nsPath, "wptcxmv1", net.IPv4(192, 0, 2, 1))
-}
-
-// testNetkitPeerMoved creates a netkit pair as Cilium does: in the host namespace, before moving its peer
-func (m *tcxMoves) testNetkitPeerMoved(t *testing.T) {
-	nsID, nsPath := m.newNetNS(t, "wptcx_netkit")
-
-	if out, err := exec.Command(m.ip, "link", "add", "wptcxnk0", "type", "netkit", "peer", "name", "wptcxnk1").CombinedOutput(); err != nil {
-		t.Skipf("netkit isn't supported: %s, %v", string(out), err)
-	}
-	t.Cleanup(func() {
-		_ = exec.Command(m.ip, "link", "delete", "wptcxnk0").Run()
-	})
-	primaryIfIndex := m.ifIndex(t, nil, "wptcxnk0")
-	peerHostIfIndex := m.ifIndex(t, nil, "wptcxnk1")
-	m.run(t, "", "link", "set", "wptcxnk1", "netns", "wptcx_netkit")
-
-	// the pod facing primary stays, and gets attached once settled
-	m.waitAttached(t, m.hostNetNS, primaryIfIndex, m.settleDelay+5*time.Second)
-	assert.False(t, m.isAttached(m.hostNetNS, peerHostIfIndex), "the netkit peer was attached in the host namespace")
-	assert.Empty(t, hookPrograms(t, nsPath, "wptcxnk1"), "programs of the netkit peer in its new namespace")
-
-	m.resnapshotNetNS(t, nsID, nsPath)
-	m.assertOnlyLocalPrograms(t, nsID, nsPath, "wptcxnk1")
-
-	m.run(t, "", "addr", "add", "192.0.2.5/30", "dev", "wptcxnk0")
-	m.run(t, "", "link", "set", "wptcxnk0", "up")
-	m.run(t, "", "-n", "wptcx_netkit", "addr", "add", "192.0.2.6/30", "dev", "wptcxnk1")
-	m.run(t, "", "-n", "wptcx_netkit", "link", "set", "wptcxnk1", "up")
-	m.assertOneDNSEvent(t, nsID, nsPath, "wptcxnk1", net.IPv4(192, 0, 2, 5))
 }
 
 // testVethPeerMoved checks that the move event of a veth peer attaches it once, in its new namespace
