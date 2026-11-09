@@ -9,11 +9,13 @@ package packages
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"os"
 	"os/user"
 	"path/filepath"
 	"strings"
+	"syscall"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -257,4 +259,173 @@ func TestStartDMGGUILoadsForTheConsoleSession(t *testing.T) {
 		}
 		assert.FileExists(t, filepath.Join(layout.launchAgentsDir, guiLabel+".plist"))
 	}
+}
+
+// stubLookupUserIDs makes the given names resolve to the current user, and every other name fail
+// as a home without an account would.
+func stubLookupUserIDs(t *testing.T, names ...string) {
+	t.Helper()
+	original := lookupUserIDs
+	lookupUserIDs = func(name string) (int, int, error) {
+		for _, n := range names {
+			if n == name {
+				return os.Getuid(), os.Getgid(), nil
+			}
+		}
+		return 0, 0, errors.New("unknown user " + name)
+	}
+	t.Cleanup(func() { lookupUserIDs = original })
+}
+
+// readNativeHostManifest returns the manifest written under home, checking it is a regular file
+// owned by the current user and readable by everyone.
+func readNativeHostManifest(t *testing.T, home string) nativeHostManifest {
+	t.Helper()
+	path := filepath.Join(home, nativeHostManifestDir, nativeHost+".json")
+	info, err := os.Lstat(path)
+	require.NoError(t, err)
+	require.True(t, info.Mode().IsRegular(), "the manifest must be a regular file")
+	assert.Equal(t, os.FileMode(0o644), info.Mode().Perm())
+	assert.Equal(t, uint32(os.Getuid()), info.Sys().(*syscall.Stat_t).Uid)
+	content, err := os.ReadFile(path)
+	require.NoError(t, err)
+	var manifest nativeHostManifest
+	require.NoError(t, json.Unmarshal(content, &manifest))
+	return manifest
+}
+
+// TestInstallNativeMessagingHosts pins which homes get the Chrome manifest and what it says: every
+// home with an account gets one, whether or not Chrome has created its directories yet, the
+// manifest names the launcher and the configured extension, and the old host's manifest goes.
+func TestInstallNativeMessagingHosts(t *testing.T) {
+	layout := stubDmgLayout(t)
+	launcher := filepath.Join(layout.installDir, "embedded", "bin", "run_ai_usage_native_host.sh")
+	require.NoError(t, os.MkdirAll(filepath.Dir(launcher), 0o755))
+	require.NoError(t, os.WriteFile(launcher, []byte("#!/bin/sh\n"), 0o755))
+	for _, name := range []string{"fresh", "existing", "Shared", "noaccount"} {
+		require.NoError(t, os.MkdirAll(filepath.Join(layout.usersDir, name), 0o755))
+	}
+	existingDir := filepath.Join(layout.usersDir, "existing", nativeHostManifestDir)
+	require.NoError(t, os.MkdirAll(existingDir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(existingDir, oldNativeHost+".json"), []byte("{}"), 0o644))
+	require.NoError(t, os.WriteFile(filepath.Join(existingDir, nativeHost+".json"), []byte("stale"), 0o600))
+	stubLookupUserIDs(t, "fresh", "existing", "Shared")
+	extensionID := strings.Repeat("abcdefghijklmnop", 2)
+
+	installNativeMessagingHosts(layout, installEnv{"DD_AI_USAGE_CHROME_EXTENSION_ID": extensionID + "\r"})
+
+	for _, name := range []string{"fresh", "existing"} {
+		home := filepath.Join(layout.usersDir, name)
+		assert.Equal(t, nativeHostManifest{
+			Name:           nativeHost,
+			Description:    "Datadog AI usage native messaging host",
+			Path:           launcher,
+			Type:           "stdio",
+			AllowedOrigins: []string{"chrome-extension://" + extensionID + "/"},
+		}, readNativeHostManifest(t, home), name)
+		entries, err := os.ReadDir(filepath.Join(home, nativeHostManifestDir))
+		require.NoError(t, err)
+		require.Len(t, entries, 1, "only the manifest must be left in %s", name)
+	}
+	assert.NoFileExists(t, filepath.Join(existingDir, oldNativeHost+".json"))
+	for _, name := range []string{"Shared", "noaccount"} {
+		assert.NoDirExists(t, filepath.Join(layout.usersDir, name, "Library"), name)
+	}
+}
+
+// TestInstallNativeMessagingHostsExtensionID pins where the extension ID comes from: the install
+// environment, then the native host configuration, then the default, and that anything which is
+// not an extension ID falls back to the default rather than ending up in the manifest.
+func TestInstallNativeMessagingHostsExtensionID(t *testing.T) {
+	configured := strings.Repeat("p", 32)
+	for _, tc := range []struct {
+		name, env, config, want string
+	}{
+		{name: "from the environment", env: strings.Repeat("a", 32), config: configured, want: strings.Repeat("a", 32)},
+		{name: "from the configuration", config: configured, want: configured},
+		{name: "default", want: defaultChromeExtensionID},
+		{name: "not an ID", env: `x/", "chrome-extension://evil`, want: defaultChromeExtensionID},
+		{name: "uppercase", env: strings.Repeat("A", 32), want: defaultChromeExtensionID},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			layout := stubDmgLayout(t)
+			launcher := filepath.Join(layout.installDir, "embedded", "bin", "run_ai_usage_native_host.sh")
+			require.NoError(t, os.MkdirAll(filepath.Dir(launcher), 0o755))
+			require.NoError(t, os.WriteFile(launcher, nil, 0o755))
+			if tc.config != "" {
+				require.NoError(t, os.WriteFile(filepath.Join(layout.confDir(), "ai_usage_native_host.yaml"),
+					[]byte("chrome_extension_id: "+tc.config+"\n"), 0o644))
+			}
+			home := filepath.Join(layout.usersDir, "someone")
+			require.NoError(t, os.MkdirAll(home, 0o755))
+			stubLookupUserIDs(t, "someone")
+
+			installNativeMessagingHosts(layout, installEnv{"DD_AI_USAGE_CHROME_EXTENSION_ID": tc.env})
+
+			assert.Equal(t, []string{"chrome-extension://" + tc.want + "/"}, readNativeHostManifest(t, home).AllowedOrigins)
+		})
+	}
+}
+
+// TestInstallNativeMessagingHostsWithoutLauncher pins that no manifest is written when the
+// launcher it would point Chrome at is missing.
+func TestInstallNativeMessagingHostsWithoutLauncher(t *testing.T) {
+	layout := stubDmgLayout(t)
+	require.NoError(t, os.MkdirAll(filepath.Join(layout.usersDir, "someone"), 0o755))
+	stubLookupUserIDs(t, "someone")
+
+	installNativeMessagingHosts(layout, installEnv{})
+
+	assert.NoDirExists(t, filepath.Join(layout.usersDir, "someone", "Library"))
+}
+
+// TestWriteNativeHostManifestDoesNotFollowLinks pins that the install, which runs as root, never
+// writes through a link the user controls: a symlink or hard link left at the manifest path is
+// replaced and its target left alone, a linked directory leading out of the home is refused, and
+// so is a home that is itself a link.
+func TestWriteNativeHostManifestDoesNotFollowLinks(t *testing.T) {
+	manifest := []byte(`{"name":"test"}` + "\n")
+	uid, gid := os.Getuid(), os.Getgid()
+
+	plant := func(t *testing.T, link func(target, path string) error) {
+		home, outside := t.TempDir(), t.TempDir()
+		target := filepath.Join(outside, "sudoers")
+		require.NoError(t, os.WriteFile(target, []byte("protected"), 0o644))
+		dir := filepath.Join(home, nativeHostManifestDir)
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, link(target, filepath.Join(dir, nativeHost+".json")))
+
+		require.NoError(t, writeNativeHostManifest(home, uid, gid, manifest))
+
+		content, err := os.ReadFile(target)
+		require.NoError(t, err)
+		assert.Equal(t, "protected", string(content), "the link target must be left alone")
+		readNativeHostManifest(t, home)
+	}
+	t.Run("symlink", func(t *testing.T) { plant(t, os.Symlink) })
+	t.Run("hard link", func(t *testing.T) { plant(t, os.Link) })
+
+	t.Run("linked directory", func(t *testing.T) {
+		home, outside := t.TempDir(), t.TempDir()
+		require.NoError(t, os.MkdirAll(filepath.Join(home, "Library", "Application Support"), 0o755))
+		require.NoError(t, os.Symlink(outside, filepath.Join(home, "Library", "Application Support", "Google")))
+
+		assert.Error(t, writeNativeHostManifest(home, uid, gid, manifest))
+
+		entries, err := os.ReadDir(outside)
+		require.NoError(t, err)
+		assert.Empty(t, entries, "nothing must be created outside the home")
+	})
+
+	t.Run("linked home", func(t *testing.T) {
+		users, outside := t.TempDir(), t.TempDir()
+		home := filepath.Join(users, "someone")
+		require.NoError(t, os.Symlink(outside, home))
+
+		assert.Error(t, writeNativeHostManifest(home, uid, gid, manifest))
+
+		entries, err := os.ReadDir(outside)
+		require.NoError(t, err)
+		assert.Empty(t, entries, "nothing must be created through a linked home")
+	})
 }

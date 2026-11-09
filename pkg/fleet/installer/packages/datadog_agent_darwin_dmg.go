@@ -10,6 +10,7 @@ package packages
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -110,7 +111,7 @@ func setUpDMGInstall(ctx context.Context, layout dmgLayout) error {
 	if err := setUpConfig(ctx, layout, env); err != nil {
 		return err
 	}
-	installNativeMessagingHosts(ctx, layout, env)
+	installNativeMessagingHosts(layout, env)
 	installLinks(layout)
 	return nil
 }
@@ -501,9 +502,25 @@ func secureConfig(ctx context.Context, conf string) error {
 	return nil
 }
 
-// installNativeMessagingHosts registers the AI usage native host with Chrome for every user. The
-// manifests go in each user's home, so they are written as that user, never by root.
-func installNativeMessagingHosts(ctx context.Context, layout dmgLayout, env installEnv) {
+// chromeExtensionIDPattern is the shape of a Chrome extension ID: 32 letters from a to p.
+var chromeExtensionIDPattern = regexp.MustCompile(`^[a-p]{32}$`)
+
+// nativeHostManifestDir is where Chrome looks for a user's native messaging hosts, relative to
+// the user's home.
+var nativeHostManifestDir = filepath.Join("Library", "Application Support", "Google", "Chrome", "NativeMessagingHosts")
+
+// nativeHostManifest is the Chrome native messaging host manifest.
+type nativeHostManifest struct {
+	Name           string   `json:"name"`
+	Description    string   `json:"description"`
+	Path           string   `json:"path"`
+	Type           string   `json:"type"`
+	AllowedOrigins []string `json:"allowed_origins"`
+}
+
+// installNativeMessagingHosts registers the AI usage native host with Chrome for every user, by
+// writing the manifest into each user's home.
+func installNativeMessagingHosts(layout dmgLayout, env installEnv) {
 	extensionID := strings.TrimSpace(strings.ReplaceAll(env["DD_AI_USAGE_CHROME_EXTENSION_ID"], "\r", ""))
 	if extensionID == "" {
 		extensionID = configuredChromeExtensionID(filepath.Join(layout.confDir(), "ai_usage_native_host.yaml"))
@@ -511,44 +528,90 @@ func installNativeMessagingHosts(ctx context.Context, layout dmgLayout, env inst
 	if extensionID == "" {
 		extensionID = defaultChromeExtensionID
 	}
+	if !chromeExtensionIDPattern.MatchString(extensionID) {
+		log.Warnf("%q is not a Chrome extension ID; using %s", extensionID, defaultChromeExtensionID)
+		extensionID = defaultChromeExtensionID
+	}
 	launcher := filepath.Join(layout.installDir, "embedded", "bin", "run_ai_usage_native_host.sh")
 	if _, err := os.Stat(launcher); err != nil {
 		log.Warnf("AI usage native host launcher missing at %s; skipping the Chrome manifests", launcher)
 		return
 	}
-	manifest := fmt.Sprintf(`{
-  "name": "%s",
-  "description": "Datadog AI usage native messaging host",
-  "path": "%s",
-  "type": "stdio",
-  "allowed_origins": [
-    "chrome-extension://%s/"
-  ]
-}
-`, nativeHost, launcher, extensionID)
+	manifest, err := json.MarshalIndent(nativeHostManifest{
+		Name:           nativeHost,
+		Description:    "Datadog AI usage native messaging host",
+		Path:           launcher,
+		Type:           "stdio",
+		AllowedOrigins: []string{"chrome-extension://" + extensionID + "/"},
+	}, "", "  ")
+	if err != nil {
+		log.Warnf("could not build the Chrome manifest: %v", err)
+		return
+	}
+	manifest = append(manifest, '\n')
 	homes, _ := os.ReadDir(layout.usersDir)
 	for _, home := range homes {
 		name := home.Name()
 		if !home.IsDir() || name == "Shared" {
 			continue
 		}
-		if _, err := user.Lookup(name); err != nil {
+		uid, gid, err := lookupUserIDs(name)
+		if err != nil {
 			continue
 		}
-		dir := filepath.Join(layout.usersDir, name, "Library", "Application Support", "Google", "Chrome", "NativeMessagingHosts")
-		path := filepath.Join(dir, nativeHost+".json")
-		for _, args := range [][]string{
-			{"-u", name, "mkdir", "-p", dir},
-			{"-u", name, "rm", "-f", filepath.Join(dir, oldNativeHost+".json")},
-			{"-u", name, "sh", "-c", `printf '%s' "$1" > "$2"`, "sh", manifest, path},
-			{"-u", name, "chmod", "644", path},
-		} {
-			if _, err := hostCommand(ctx, "sudo", args...); err != nil {
-				log.Warnf("could not install the Chrome manifest for %s: %v", name, err)
-				break
-			}
+		if err := writeNativeHostManifest(filepath.Join(layout.usersDir, name), uid, gid, manifest); err != nil {
+			log.Warnf("could not install the Chrome manifest for %s: %v", name, err)
 		}
 	}
+}
+
+// writeNativeHostManifest writes the manifest into the Chrome NativeMessagingHosts directory under
+// home, owned by uid:gid. The home belongs to the user, so every operation goes through an os.Root
+// that keeps it inside the home, and the manifest is written to a new file that is renamed into
+// place: a symlink or hard link the user left at the destination is replaced, never written
+// through. The directories it creates are handed to the user, so Chrome can still write to them.
+func writeNativeHostManifest(home string, uid, gid int, manifest []byte) error {
+	if info, err := os.Lstat(home); err != nil {
+		return err
+	} else if !info.IsDir() {
+		return fmt.Errorf("%s is not a directory", home)
+	}
+	root, err := os.OpenRoot(home)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+
+	dir := ""
+	for _, part := range strings.Split(nativeHostManifestDir, string(filepath.Separator)) {
+		dir = filepath.Join(dir, part)
+		if err := root.Mkdir(dir, 0o755); err == nil {
+			if err := root.Lchown(dir, uid, gid); err != nil {
+				return err
+			}
+		} else if !errors.Is(err, fs.ErrExist) {
+			return err
+		}
+	}
+	if err := root.Remove(filepath.Join(dir, oldNativeHost+".json")); err != nil && !errors.Is(err, fs.ErrNotExist) {
+		log.Warnf("could not remove the old Chrome manifest in %s: %v", home, err)
+	}
+
+	tmp := filepath.Join(dir, "."+nativeHost+".json."+strconv.Itoa(os.Getpid()))
+	_ = root.Remove(tmp)
+	f, err := root.OpenFile(tmp, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0o644)
+	if err != nil {
+		return err
+	}
+	_, err = f.Write(manifest)
+	err = errors.Join(err, f.Chown(uid, gid), f.Chmod(0o644), f.Close())
+	if err == nil {
+		err = root.Rename(tmp, filepath.Join(dir, nativeHost+".json"))
+	}
+	if err != nil {
+		_ = root.Remove(tmp)
+	}
+	return err
 }
 
 // configuredChromeExtensionID returns chrome_extension_id from the native host config.
@@ -691,6 +754,24 @@ var lookupOwner = func(owner string, group string) (int, int, error) {
 	}
 	uid, _ := strconv.Atoi(u.Uid)
 	gid, _ := strconv.Atoi(g.Gid)
+	return uid, gid, nil
+}
+
+// lookupUserIDs returns a user's uid and primary gid. It is indirected so the tests can pick which
+// home directories belong to an account.
+var lookupUserIDs = func(name string) (int, int, error) {
+	u, err := user.Lookup(name)
+	if err != nil {
+		return 0, 0, err
+	}
+	uid, err := strconv.Atoi(u.Uid)
+	if err != nil {
+		return 0, 0, err
+	}
+	gid, err := strconv.Atoi(u.Gid)
+	if err != nil {
+		return 0, 0, err
+	}
 	return uid, gid, nil
 }
 
