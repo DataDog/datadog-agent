@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"os"
+	"slices"
 	"time"
 
 	"github.com/coreos/go-semver/semver"
@@ -84,26 +85,27 @@ const (
 	categoryOther = "other"
 )
 
-// categorySteps maps each error category but categoryOther to the step it belongs to.
-var categorySteps = map[string]string{
-	categoryInvalidArguments:        stepValidate,
-	categoryNotDatadogPackage:       stepValidate,
-	categoryBasePackageRefused:      stepValidate,
-	categoryUserNotAllowed:          stepValidate,
-	categoryVersionBelowShipped:     stepValidate,
-	categoryLocalWheelUnreadable:    stepValidate,
-	categoryEnvironmentError:        stepValidate,
-	categoryNotFound:                stepDownload,
-	categoryNetwork:                 stepDownload,
-	categoryIntegrity:               stepDownload,
-	categoryMetadata:                stepDownload,
-	categoryVerification:            stepDownload,
-	categoryDownloaderNoResult:      stepDownload,
-	categoryNotAgentCheck:           stepCompatibility,
-	categoryBaseVersionIncompatible: stepCompatibility,
-	categoryWheelUnreadable:         stepCompatibility,
-	categoryPipFailed:               stepPipInstall,
-	categoryConfigMoveFailed:        stepConfigMove,
+// categorySteps maps each error category but categoryOther to the steps it belongs to. A category
+// of several steps is reported in the step that was running, or else in the first one.
+var categorySteps = map[string][]string{
+	categoryInvalidArguments:        {stepValidate},
+	categoryNotDatadogPackage:       {stepValidate},
+	categoryBasePackageRefused:      {stepValidate},
+	categoryUserNotAllowed:          {stepValidate},
+	categoryVersionBelowShipped:     {stepValidate},
+	categoryLocalWheelUnreadable:    {stepValidate},
+	categoryEnvironmentError:        {stepValidate, stepCompatibility},
+	categoryNotFound:                {stepDownload},
+	categoryNetwork:                 {stepDownload},
+	categoryIntegrity:               {stepDownload},
+	categoryMetadata:                {stepDownload},
+	categoryVerification:            {stepDownload},
+	categoryDownloaderNoResult:      {stepDownload},
+	categoryNotAgentCheck:           {stepCompatibility},
+	categoryBaseVersionIncompatible: {stepCompatibility},
+	categoryWheelUnreadable:         {stepCompatibility},
+	categoryPipFailed:               {stepPipInstall},
+	categoryConfigMoveFailed:        {stepConfigMove},
 }
 
 // userErrorCategories are the categories whose cause is certainly the customer's. Monitors count
@@ -217,8 +219,8 @@ func (ev *installEvent) finish(err error, duration time.Duration) {
 	}
 	ev.ErrorCategory = errorCategory(err)
 	ev.FailedStep = ev.step
-	if step, ok := categorySteps[ev.ErrorCategory]; ok {
-		ev.FailedStep = step
+	if steps, ok := categorySteps[ev.ErrorCategory]; ok && !slices.Contains(steps, ev.step) {
+		ev.FailedStep = steps[0]
 	}
 	ev.Result = resultFor(ev.ErrorCategory, ev.IntegrationSource)
 }
@@ -273,7 +275,7 @@ func downloadCategory(result *downloaderResult) string {
 	if result == nil {
 		return categoryDownloaderNoResult
 	}
-	if categorySteps[result.ErrorCategory] == stepDownload {
+	if slices.Contains(categorySteps[result.ErrorCategory], stepDownload) {
 		return result.ErrorCategory
 	}
 	return categoryOther

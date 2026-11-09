@@ -93,6 +93,7 @@ func TestInstallEventFailure(t *testing.T) {
 		name     string
 		params   cliParams
 		err      error
+		running  string
 		step     string
 		category string
 		result   string
@@ -120,8 +121,25 @@ func TestInstallEventFailure(t *testing.T) {
 			result:   resultFailure,
 		},
 		{
+			name:     "an environment error while validating",
+			err:      withCategory(categoryEnvironmentError, errors.New("no python")),
+			running:  stepValidate,
+			step:     stepValidate,
+			category: categoryEnvironmentError,
+			result:   resultFailure,
+		},
+		{
+			name:     "an environment error while checking compatibility",
+			err:      withCategory(categoryEnvironmentError, errors.New("no base version")),
+			running:  stepCompatibility,
+			step:     stepCompatibility,
+			category: categoryEnvironmentError,
+			result:   resultFailure,
+		},
+		{
 			name:     "an uncategorized error fails the current step",
 			err:      errors.New("unexpected"),
+			running:  stepPipInstall,
 			step:     stepPipInstall,
 			category: categoryOther,
 			result:   resultFailure,
@@ -130,7 +148,10 @@ func TestInstallEventFailure(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ev := newInstallEvent(&tt.params)
-			ev.step = stepPipInstall
+			ev.step = tt.running
+			if ev.step == "" {
+				ev.step = stepPipInstall
+			}
 
 			ev.finish(tt.err, time.Second)
 

@@ -498,7 +498,7 @@ func runInstall(cliParams *cliParams, ev *installEvent) error {
 	ev.step = stepCompatibility
 	shippedBaseVersion, found, err := installedVersion(cliParams, "datadog-checks-base")
 	if err != nil {
-		return fmt.Errorf("unable to get the version of datadog-checks-base: %v", err)
+		return withCategory(categoryEnvironmentError, fmt.Errorf("unable to get the version of datadog-checks-base: %v", err))
 	}
 	if ok, err := validateBaseDependency(wheelPath, shippedBaseVersion); found && err != nil {
 		return withCategory(categoryWheelUnreadable, fmt.Errorf("unable to validate compatibility of %s with the agent: %v", wheelPath, err))
