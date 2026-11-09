@@ -22,15 +22,15 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
+	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
-
-type serviceTracker interface {
-	NotifyOnChange(fn func(namespace, name string))
-	HasService(namespace string, name string) bool
-	AllTemplatesByService() map[string][]integration.Config
-}
 
 // KubeEndpointSlicesCRConfigProvider generates endpoint check configs from
 // DatadogInstrumentation CRs targeting Services. It reads check templates from
@@ -39,12 +39,18 @@ type serviceTracker interface {
 type KubeEndpointSlicesCRConfigProvider struct {
 	mu             sync.RWMutex
 	upToDate       bool
-	serviceTracker serviceTracker
+	serviceTracker types.ServiceCheckTemplateReader
 	epSliceLister  discv1listers.EndpointSliceLister
 }
 
 // NewKubeEndpointSlicesCRConfigProvider returns a new KubeEndpointSlicesCRConfigProvider.
-func NewKubeEndpointSlicesCRConfigProvider(serviceTracker serviceTracker) (types.ConfigProvider, error) {
+func NewKubeEndpointSlicesCRConfigProvider(_ *constants.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, serviceTracker types.ServiceCheckTemplateReader, _ *telemetry.Store) (types.ConfigProvider, error) {
+	if serviceTracker == nil {
+		return nil, fmt.Errorf("service check templates are not available")
+	}
+	if !apiserver.UseEndpointSlices() {
+		return nil, fmt.Errorf("EndpointSlice collection is disabled or unsupported")
+	}
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {
 		return nil, fmt.Errorf("cannot connect to apiserver for endpoint slices CR provider: %w", err)

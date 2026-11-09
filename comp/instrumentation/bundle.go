@@ -12,6 +12,7 @@ import (
 	"go.uber.org/fx"
 
 	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
+	providertypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 	apm "github.com/DataDog/datadog-agent/comp/instrumentation/apm/def"
 	apmfx "github.com/DataDog/datadog-agent/comp/instrumentation/apm/fx"
 	checks "github.com/DataDog/datadog-agent/comp/instrumentation/checks/def"
@@ -37,6 +38,7 @@ func Bundle() fxutil.BundleOptions {
 		fx.Provide(func(s *common.CheckStore) common.ConfigWriter { return s }),
 		fx.Provide(func(s *common.ServiceCheckTemplateStore) common.ServiceTemplateWriter { return s }),
 		fx.Provide(func(s *common.ServiceCheckTemplateStore) adtypes.ServiceTracker { return s }),
+		fx.Provide(func(s *common.ServiceCheckTemplateStore) providertypes.ServiceCheckTemplateReader { return s }),
 		fx.Provide(func(checks checks.Component, logs logs.Component, apm apm.Component) []instrumentation.Handler {
 			return []instrumentation.Handler{checks, logs, apm}
 		}),

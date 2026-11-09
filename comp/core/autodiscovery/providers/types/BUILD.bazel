@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/autodiscovery/common/types",
         "//comp/core/autodiscovery/integration",
         "//comp/core/autodiscovery/telemetry",
         "//comp/core/tagger/def",

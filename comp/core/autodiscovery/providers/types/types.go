@@ -9,6 +9,7 @@ package types
 import (
 	"context"
 
+	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/telemetry"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -38,7 +39,13 @@ const (
 )
 
 // ConfigProviderFactory is any function capable to create a ConfigProvider instance
-type ConfigProviderFactory func(providerConfig *constants.ConfigurationProviders, wmeta workloadmeta.Component, taggerComp tagger.Component, filterComp workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (ConfigProvider, error)
+type ConfigProviderFactory func(providerConfig *constants.ConfigurationProviders, wmeta workloadmeta.Component, taggerComp tagger.Component, filterComp workloadfilter.Component, hp healthplatformdef.Component, serviceTemplates ServiceCheckTemplateReader, telemetryStore *telemetry.Store) (ConfigProvider, error)
+
+// ServiceCheckTemplateReader provides service tracking and endpoint check templates.
+type ServiceCheckTemplateReader interface {
+	adtypes.ServiceTracker
+	AllTemplatesByService() map[string][]integration.Config
+}
 
 // ConfigProvider represents a source of `integration.Config` values
 // that can either be applied immediately or resolved for a service and

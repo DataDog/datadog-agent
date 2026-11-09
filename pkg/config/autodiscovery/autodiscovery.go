@@ -66,6 +66,11 @@ func DiscoverComponentsFromConfig(cfg config.Component) ([]constants.Configurati
 	// 1) Auto-add Prometheus HTTP SD config provider when a URL is configured
 	// 2) Auto-add file-based kube service and endpoints config providers based on check config files.
 	if flavor.GetFlavor() == flavor.ClusterAgent {
+		if cfg.GetBool("instrumentation_crd_controller.enabled") && cfg.GetBool("kubernetes_use_endpoint_slices") {
+			detectedProviders = append(detectedProviders, constants.ConfigurationProviders{
+				Name: names.KubeEndpointSlicesCR, Polling: true, PollInterval: "10s",
+			})
+		}
 
 		if cfg.IsConfigured("prometheus_http_sd.url") || cfg.IsConfigured("prometheus_http_sd.configs") {
 			log.Info("Prometheus HTTP SD is configured: Adding the prometheus_http_sd config provider")

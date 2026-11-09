@@ -64,16 +64,17 @@ var listenerCandidateIntl = 30 * time.Second
 // Requires is the set of dependencies for the AutoConfig component.
 type Requires struct {
 	compdef.In
-	Lc             compdef.Lifecycle
-	Config         configComponent.Component
-	Log            logComp.Component
-	TaggerComp     tagger.Component
-	Secrets        secrets.Component
-	WMeta          option.Option[workloadmeta.Component]
-	FilterStore    workloadfilter.Component
-	Telemetry      telemetry.Component
-	HealthPlatform healthplatformdef.Component
-	ServiceTracker adtypes.ServiceTracker `optional:"true"`
+	Lc                    compdef.Lifecycle
+	Config                configComponent.Component
+	Log                   logComp.Component
+	TaggerComp            tagger.Component
+	Secrets               secrets.Component
+	WMeta                 option.Option[workloadmeta.Component]
+	FilterStore           workloadfilter.Component
+	Telemetry             telemetry.Component
+	HealthPlatform        healthplatformdef.Component
+	ServiceTracker        adtypes.ServiceTracker                   `optional:"true"`
+	ServiceCheckTemplates providerTypes.ServiceCheckTemplateReader `optional:"true"`
 	// Without supplied params, preparation stays lazy until LoadAndRun.
 	Params autodiscoverydef.Params `optional:"true"`
 }
@@ -106,7 +107,7 @@ type AutoConfig struct {
 	telemetryStore           *acTelemetry.Store
 	healthPlatform           healthplatformdef.Component
 	staticConfigIndex        *listeners.StaticConfigIndex
-	serviceTracker           adtypes.ServiceTracker
+	serviceCheckTemplates    providerTypes.ServiceCheckTemplateReader
 	preparation              *preparation
 
 	// m covers the `configPollers`, `listenerCandidates`, `listeners`, and `listenerRetryStop`, but
@@ -185,7 +186,7 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker, deps.ServiceCheckTemplates)
 	ac.preparation = &preparation{initialize: func() {
 		started := time.Now()
 		ac.prepareDefaults(deps.Config)
@@ -212,11 +213,11 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 // LoadAndRun only runs explicitly registered providers on this instance.
 // Exported for use by the mock package.
 func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component) *AutoConfig {
-	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)
+	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil, nil)
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker, serviceTemplates providerTypes.ServiceCheckTemplateReader) *AutoConfig {
 	staticConfigIndex := listeners.NewStaticConfigIndex()
 	telStore := acTelemetry.NewStore(telemetryComp)
 	ac := &AutoConfig{
@@ -240,7 +241,7 @@ func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolv
 		telemetryStore:           telStore,
 		healthPlatform:           hp,
 		staticConfigIndex:        staticConfigIndex,
-		serviceTracker:           tracker,
+		serviceCheckTemplates:    serviceTemplates,
 	}
 
 	ac.cfgMgr = newReconcilingConfigManager(secretResolver, hp, staticConfigIndex, discovererPkg.NewPythonBridge(), telStore, ac.publishChanges)
@@ -547,7 +548,7 @@ func (ac *AutoConfig) AddConfigProviderFromCatalog(cp constants.ConfigurationPro
 
 	wmeta, _ := ac.wmeta.Get()
 
-	configProvider, err := factory(&cp, wmeta, ac.taggerComp, ac.filterStore, ac.healthPlatform, ac.telemetryStore)
+	configProvider, err := factory(&cp, wmeta, ac.taggerComp, ac.filterStore, ac.healthPlatform, ac.serviceCheckTemplates, ac.telemetryStore)
 	if err != nil {
 		return fmt.Errorf("error while adding config provider %v: %w", cp.Name, err)
 	}
@@ -639,7 +640,7 @@ func (ac *AutoConfig) addListenerCandidates(listenerConfigs []pkgconfigsetup.Lis
 			Tagger:            ac.taggerComp,
 			Wmeta:             ac.wmeta,
 			StaticConfigIndex: ac.staticConfigIndex,
-			ServiceTracker:    ac.serviceTracker,
+			ServiceTracker:    ac.serviceCheckTemplates,
 		}
 
 		ac.listenerCandidates[c.Name] = &listenerCandidate{factory: factory, options: factoryOptions}

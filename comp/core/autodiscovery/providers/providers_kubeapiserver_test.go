@@ -16,10 +16,13 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 )
 
-func TestRegisterProvidersDoesNotRegisterCloudFoundryInKubeAPIServerBuild(t *testing.T) {
+func TestRegisterProvidersKubeAPIServerBuild(t *testing.T) {
 	providerCatalog := map[string]types.ConfigProviderFactory{}
 
 	RegisterProviders(providerCatalog)
 
 	require.NotContains(t, providerCatalog, names.CloudFoundryBBS)
+	require.Contains(t, providerCatalog, names.KubeEndpointSlicesCR)
+	_, err := providerCatalog[names.KubeEndpointSlicesCR](nil, nil, nil, nil, nil, nil, nil)
+	require.ErrorContains(t, err, "service check templates are not available")
 }

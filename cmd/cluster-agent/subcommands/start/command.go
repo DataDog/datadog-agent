@@ -80,7 +80,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/appsec"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/instrumentation"
 
-	adproviders "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers"
 	instrumentationbundle "github.com/DataDog/datadog-agent/comp/instrumentation"
 	instrumentationchecks "github.com/DataDog/datadog-agent/comp/instrumentation/checks/def"
 	instrumentationstore "github.com/DataDog/datadog-agent/comp/instrumentation/common"
@@ -322,7 +321,6 @@ func start(log log.Component,
 	eventPlatform eventplatform.Component,
 	healthPlatform healthplatformdef.Component,
 	autoscalingGate *autoscalinggate.Gate,
-	serviceTemplateStore *instrumentationstore.ServiceCheckTemplateStore,
 	checkStore *instrumentationstore.CheckStore,
 	apmTargetStore *instrumentationstore.APMTargetStore,
 	instrumentationController instrumentationcontroller.Component,
@@ -447,7 +445,7 @@ func start(log log.Component,
 	if config.GetBool("instrumentation_crd_controller.enabled") {
 		useEndpointSlices := apiserver.UseEndpointSlices()
 		instrumentationChecks.SetServiceTargetEnabled(useEndpointSlices)
-		setupInstrumentationCRDHandler(ac, checkStore, serviceTemplateStore, useEndpointSlices)
+		setupInstrumentationCRDHandler(checkStore)
 	} else {
 		pkglog.Debug("DatadogInstrumentation CRD controller is disabled")
 	}
@@ -875,19 +873,11 @@ func loopbackOnly(h http.Handler) http.HandlerFunc {
 	}
 }
 
-func setupInstrumentationCRDHandler(ac autodiscovery.Component, checkStore *instrumentationstore.CheckStore, serviceTemplateStore *instrumentationstore.ServiceCheckTemplateStore, useEndpointSlices bool) {
+func setupInstrumentationCRDHandler(checkStore *instrumentationstore.CheckStore) {
 	api.ModifyAPIRouter(func(r *http.ServeMux) {
 		dcav1.InstallInstrumentationChecksEndpoints(r, checkStore)
 	})
 
-	if useEndpointSlices {
-		epSlicesCRProvider, err := adproviders.NewKubeEndpointSlicesCRConfigProvider(serviceTemplateStore)
-		if err != nil {
-			pkglog.Warnf("Failed to create EndpointSlices CR config provider: %v", err)
-		} else {
-			ac.AddConfigProvider(epSlicesCRProvider, true, 10*time.Second)
-		}
-	}
 }
 
 func setupClusterCheck(ctx context.Context, ac autodiscovery.Component, tagger tagger.Component) (*pkgclusterchecks.Handler, error) {

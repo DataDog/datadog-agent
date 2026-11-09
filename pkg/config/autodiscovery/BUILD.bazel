@@ -24,6 +24,7 @@ dd_agent_go_test(
     srcs = ["autodiscovery_test.go"],
     embed = [":autodiscovery"],
     deps = [
+        "//comp/core/autodiscovery/providers/names",
         "//pkg/config/env",
         "//pkg/config/mock",
         "//pkg/config/setup",

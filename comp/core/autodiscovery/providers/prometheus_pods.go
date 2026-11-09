@@ -39,7 +39,7 @@ type PrometheusPodsConfigProvider struct {
 }
 
 // NewPrometheusPodsConfigProvider returns a new Prometheus ConfigProvider connected to workloadmeta.
-func NewPrometheusPodsConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, _ *telemetry.Store) (providerTypes.ConfigProvider, error) {
+func NewPrometheusPodsConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, _ providerTypes.ServiceCheckTemplateReader, _ *telemetry.Store) (providerTypes.ConfigProvider, error) {
 	checks, err := getPrometheusConfigs()
 	if err != nil {
 		return nil, err

@@ -91,8 +91,11 @@ The controller component's `Start(ctx, Params)` binds Kubernetes clients and
 leadership only after the CRD is available. The caller starts the informer factory
 after registration and cancels the context on shutdown. Component construction
 must not contact the API server. DCA startup resolves EndpointSlice support once,
-after API initialization, and supplies the result to both the checks handler and
-the EndpointSlice CR provider setup before starting reconciliation or admission.
+after API initialization, and supplies the result to the checks handler before
+starting reconciliation or admission. The EndpointSlice CR provider is registered
+in the regular AD catalog, with an optional read-only template-store dependency
+provided by this bundle. AD config discovery enables it for the Cluster Agent when
+DDI and EndpointSlice collection are enabled, polling every 10 seconds.
 
 ## How reconciliation works
 

@@ -149,7 +149,7 @@ func discoverIntegrationSources() map[string]bool {
 }
 
 // NewProcessLogConfigProvider returns a new ConfigProvider subscribed to process events
-func NewProcessLogConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ healthplatformdef.Component, _ *telemetry.Store) (types.ConfigProvider, error) {
+func NewProcessLogConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, tagger tagger.Component, filter workloadfilter.Component, _ healthplatformdef.Component, _ types.ServiceCheckTemplateReader, _ *telemetry.Store) (types.ConfigProvider, error) {
 	cache, err := simplelru.NewLRU[string, struct{}](128, nil)
 	if err != nil {
 		return nil, err

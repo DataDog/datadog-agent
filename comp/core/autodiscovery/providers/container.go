@@ -41,7 +41,7 @@ type ContainerConfigProvider struct {
 
 // NewContainerConfigProvider returns a new ConfigProvider subscribed to both container
 // and pods
-func NewContainerConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+func NewContainerConfigProvider(_ *constants.ConfigurationProviders, wmeta workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, _ types.ServiceCheckTemplateReader, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 	return &ContainerConfigProvider{
 		workloadmetaStore: wmeta,
 		configCache:       make(map[string]map[string]integration.Config),

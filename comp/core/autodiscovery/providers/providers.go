@@ -32,7 +32,7 @@ func RegisterProvider(name string,
 
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *constants.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+		func(providerConfig *constants.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, _ types.ServiceCheckTemplateReader, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 			return factory(providerConfig, telemetryStore)
 		},
 		providerCatalog,
@@ -52,7 +52,7 @@ func RegisterProviderWithHealthPlatform(name string,
 
 	RegisterProviderWithComponents(
 		name,
-		func(providerConfig *constants.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
+		func(providerConfig *constants.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, hp healthplatformdef.Component, _ types.ServiceCheckTemplateReader, telemetryStore *telemetry.Store) (types.ConfigProvider, error) {
 			return factory(providerConfig, hp, telemetryStore)
 		},
 		providerCatalog,
@@ -100,5 +100,6 @@ func RegisterProviders(providerCatalog map[string]types.ConfigProviderFactory) {
 	RegisterProvider(names.KubeEndpointsFileRegisterName, endpointsFileProvider, providerCatalog)
 	RegisterProviderWithHealthPlatform(names.KubeEndpointsRegisterName, endpointsProvider, providerCatalog)
 	RegisterProvider(names.KubeCrdRegisterName, NewKubeCRDConfigProvider, providerCatalog)
+	RegisterProviderWithComponents(names.KubeEndpointSlicesCR, NewKubeEndpointSlicesCRConfigProvider, providerCatalog)
 	RegisterProvider(names.PrometheusHTTPSDRegisterName, NewPrometheusHTTPSDConfigProvider, providerCatalog)
 }

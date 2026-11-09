@@ -11,6 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -158,6 +159,37 @@ instrumentation_crd_controller:
 		providers, _ := DiscoverComponentsFromConfig(cfg)
 		assert.False(t, containsProvider(providers, "instrumentation_checks"))
 	})
+}
+
+func TestDiscoverEndpointSliceCRProviderFromConfig(t *testing.T) {
+	configmock.SetDefaultConfigType(t, "yaml")
+	for _, tt := range []struct {
+		name        string
+		agentFlavor string
+		ddi         bool
+		slices      bool
+		want        bool
+	}{
+		{"cluster agent enabled", flavor.ClusterAgent, true, true, true},
+		{"DDI disabled", flavor.ClusterAgent, false, true, false},
+		{"EndpointSlices disabled", flavor.ClusterAgent, true, false, false},
+		{"node agent", flavor.DefaultAgent, true, true, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			flavor.SetTestFlavor(t, tt.agentFlavor)
+			cfg := configmock.New(t)
+			cfg.SetInTest("instrumentation_crd_controller.enabled", tt.ddi)
+			cfg.SetInTest("kubernetes_use_endpoint_slices", tt.slices)
+			providers, _ := DiscoverComponentsFromConfig(cfg)
+			assert.Equal(t, tt.want, containsProvider(providers, names.KubeEndpointSlicesCR))
+			for _, provider := range providers {
+				if provider.Name == names.KubeEndpointSlicesCR {
+					assert.True(t, provider.Polling)
+					assert.Equal(t, "10s", provider.PollInterval)
+				}
+			}
+		})
+	}
 }
 
 func TestDiscoverComponentsFromConfigForSnmp(t *testing.T) {

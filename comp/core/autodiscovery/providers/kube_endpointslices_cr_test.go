@@ -22,6 +22,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/names"
+	providerTypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/providers/types"
 )
 
 type mockTemplateStore struct {
@@ -70,7 +71,7 @@ func newTestLister(slices ...*discv1.EndpointSlice) discv1listers.EndpointSliceL
 	return discv1listers.NewEndpointSliceLister(indexer)
 }
 
-func newTestProvider(store serviceTracker, slices ...*discv1.EndpointSlice) *KubeEndpointSlicesCRConfigProvider {
+func newTestProvider(store providerTypes.ServiceCheckTemplateReader, slices ...*discv1.EndpointSlice) *KubeEndpointSlicesCRConfigProvider {
 	return &KubeEndpointSlicesCRConfigProvider{
 		serviceTracker: store,
 		epSliceLister:  newTestLister(slices...),

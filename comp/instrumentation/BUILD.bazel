@@ -8,6 +8,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/autodiscovery/common/types",
+        "//comp/core/autodiscovery/providers/types",
         "//comp/instrumentation/apm/def",
         "//comp/instrumentation/apm/fx",
         "//comp/instrumentation/checks/def",

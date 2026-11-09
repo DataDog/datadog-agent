@@ -29,6 +29,7 @@ go_library(
         "kube_endpoints_nop.go",
         "kube_endpointslices.go",
         "kube_endpointslices_cr.go",
+        "kube_endpointslices_cr_nop.go",
         "kube_endpointslices_file.go",
         "kube_endpointslices_file_nop.go",
         "kube_endpointslices_nop.go",
