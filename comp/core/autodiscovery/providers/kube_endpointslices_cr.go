@@ -9,6 +9,7 @@ package providers
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -27,7 +28,7 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	healthplatformdef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/constants" //nolint:depguard // Required by the shared ConfigProviderFactory signature.
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -46,10 +47,10 @@ type KubeEndpointSlicesCRConfigProvider struct {
 // NewKubeEndpointSlicesCRConfigProvider returns a new KubeEndpointSlicesCRConfigProvider.
 func NewKubeEndpointSlicesCRConfigProvider(_ *constants.ConfigurationProviders, _ workloadmeta.Component, _ tagger.Component, _ workloadfilter.Component, _ healthplatformdef.Component, serviceTracker types.ServiceCheckTemplateReader, _ *telemetry.Store) (types.ConfigProvider, error) {
 	if serviceTracker == nil {
-		return nil, fmt.Errorf("service check templates are not available")
+		return nil, errors.New("service check templates are not available")
 	}
 	if !apiserver.UseEndpointSlices() {
-		return nil, fmt.Errorf("EndpointSlice collection is disabled or unsupported")
+		return nil, errors.New("EndpointSlice collection is disabled or unsupported")
 	}
 	ac, err := apiserver.GetAPIClient()
 	if err != nil {

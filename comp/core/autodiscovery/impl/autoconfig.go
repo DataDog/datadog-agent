@@ -27,7 +27,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/slices"
 
 	api "github.com/DataDog/datadog-agent/comp/api/api/def"
-	adtypes "github.com/DataDog/datadog-agent/comp/core/autodiscovery/common/types"
 	autodiscoverydef "github.com/DataDog/datadog-agent/comp/core/autodiscovery/def"
 	discovererPkg "github.com/DataDog/datadog-agent/comp/core/autodiscovery/discoverer"
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -73,7 +72,6 @@ type Requires struct {
 	FilterStore           workloadfilter.Component
 	Telemetry             telemetry.Component
 	HealthPlatform        healthplatformdef.Component
-	ServiceTracker        adtypes.ServiceTracker                   `optional:"true"`
 	ServiceCheckTemplates providerTypes.ServiceCheckTemplateReader `optional:"true"`
 	// Without supplied params, preparation stays lazy until LoadAndRun.
 	Params autodiscoverydef.Params `optional:"true"`
@@ -186,7 +184,7 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 		}
 	}()
 
-	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceTracker, deps.ServiceCheckTemplates)
+	ac := createNewAutoConfig(schController, deps.Secrets, deps.WMeta, deps.TaggerComp, deps.Log, deps.Telemetry, deps.FilterStore, deps.HealthPlatform, deps.ServiceCheckTemplates)
 	ac.preparation = &preparation{initialize: func() {
 		started := time.Now()
 		ac.prepareDefaults(deps.Config)
@@ -213,11 +211,11 @@ func newAutoConfig(deps Requires) autodiscoverydef.Component {
 // LoadAndRun only runs explicitly registered providers on this instance.
 // Exported for use by the mock package.
 func NewAutoConfigFromDeps(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component) *AutoConfig {
-	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil, nil)
+	return createNewAutoConfig(schedulerController, secretResolver, wmeta, taggerComp, logs, telemetryComp, filterStore, hp, nil)
 }
 
 // createNewAutoConfig creates an AutoConfig instance (without starting).
-func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, tracker adtypes.ServiceTracker, serviceTemplates providerTypes.ServiceCheckTemplateReader) *AutoConfig {
+func createNewAutoConfig(schedulerController *scheduler.Controller, secretResolver secrets.Component, wmeta option.Option[workloadmeta.Component], taggerComp tagger.Component, logs logComp.Component, telemetryComp telemetry.Component, filterStore workloadfilter.Component, hp healthplatformdef.Component, serviceTemplates providerTypes.ServiceCheckTemplateReader) *AutoConfig {
 	staticConfigIndex := listeners.NewStaticConfigIndex()
 	telStore := acTelemetry.NewStore(telemetryComp)
 	ac := &AutoConfig{
