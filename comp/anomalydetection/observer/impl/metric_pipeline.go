@@ -96,16 +96,7 @@ func newScanMWMetricPipeline(cfg ScanMWConfig) (*MetricPipeline, error) {
 	}
 	p, err := newMetricPipeline([]pipelineRegistration{registration}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()))
 	if err != nil {
-		return nil, fmt.Errorf("build scanmw metric pipeline: %w", err)
-	}
-	return p, nil
-}
-
-// newDefaultMetricPipeline builds the default metric workflow.
-func newDefaultMetricPipeline() (*MetricPipeline, error) {
-	p, err := newScanMWMetricPipeline(DefaultScanMWConfig())
-	if err != nil {
-		return nil, fmt.Errorf("default metric pipeline: %w", err)
+		return nil, err
 	}
 	return p, nil
 }

@@ -399,7 +399,7 @@ func (c *componentCatalog) Instantiate(settings ComponentSettings) (
 	components = make(map[string]*componentInstance, len(c.entries))
 
 	if settings.UseMetricPipeline {
-		pipeline, pipelineErr := newDefaultMetricPipeline()
+		pipeline, pipelineErr := newScanMWMetricPipeline(DefaultScanMWConfig())
 		if pipelineErr != nil {
 			return nil, nil, nil, nil, nil, pipelineErr
 		}

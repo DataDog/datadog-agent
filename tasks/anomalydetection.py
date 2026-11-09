@@ -188,7 +188,11 @@ def launch_testbench(
         raise Exit("--open-pprof supports one profile type at a time; choose --mem-profile or --cpu-profile")
 
     flags = []
-    for enabled, flag in [(use_metric_pipeline, "--use-metric-pipeline"), (verbose, "--verbose"), (logs_only, "--logs-only")]:
+    for enabled, flag in [
+        (use_metric_pipeline, "--use-metric-pipeline"),
+        (verbose, "--verbose"),
+        (logs_only, "--logs-only"),
+    ]:
         if enabled:
             flags.append(flag)
     if allowed_types:
