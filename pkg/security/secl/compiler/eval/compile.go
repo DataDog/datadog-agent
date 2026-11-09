@@ -186,7 +186,7 @@ func indexToEvaluator(node *ast.Index, opts *Opts, state *State) (interface{}, a
 	if !ok {
 		return nil, node.Pos, NewError(node.Pos, "`%s` isn't an array", ast.Sprint(node.Base))
 	}
-	evaluator, err := WrapEvaluatorWithArrayIndex(arrayEvaluator, indexInt.Value, arrayEvaluator.GetField())
+	evaluator, err := wrapEvaluatorWithArrayIndex(arrayEvaluator, indexInt.Value, arrayEvaluator.GetField())
 	if err != nil {
 		return nil, node.Pos, NewError(node.Pos, "failed to create array index accessor: %v", err)
 	}
