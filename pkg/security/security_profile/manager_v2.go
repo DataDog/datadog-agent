@@ -106,6 +106,20 @@ type errorTypeKey struct {
 	errorType string
 }
 
+// Outcomes of an event that carries an error
+const (
+	eventWithErrorKept    = "kept"
+	eventWithErrorDropped = "dropped"
+)
+
+var eventWithErrorOutcomes = []string{eventWithErrorKept, eventWithErrorDropped}
+
+// eventWithErrorKey identifies an events-with-error counter.
+type eventWithErrorKey struct {
+	errorTypeKey
+	outcome string
+}
+
 // perEventTypeMetrics holds the precomputed statsd tags and the counters for a
 // (source, event_type) pair.
 type perEventTypeMetrics struct {
@@ -150,7 +164,7 @@ type ManagerV2 struct {
 	eventFiltering map[eventFilteringEntry]*atomic.Uint64
 
 	insertionErrors map[errorTypeKey]*atomic.Uint64
-	eventsWithError map[errorTypeKey]*atomic.Uint64
+	eventsWithError map[eventWithErrorKey]*atomic.Uint64
 
 	eventMetrics [metricSourceCount]map[model.EventType]*perEventTypeMetrics
 
@@ -281,7 +295,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 		sendAnomalyDetection:        sendAnomalyDetection,
 		eventFiltering:              make(map[eventFilteringEntry]*atomic.Uint64),
 		insertionErrors:             make(map[errorTypeKey]*atomic.Uint64),
-		eventsWithError:             make(map[errorTypeKey]*atomic.Uint64),
+		eventsWithError:             make(map[eventWithErrorKey]*atomic.Uint64),
 		resolvedCgroups:             make(map[containerutils.CGroupID]struct{}),
 		pendingProfileRemovals:      make(map[cgroupModel.WorkloadSelector]time.Time),
 		sampleCookieMap:             cookieMap,
@@ -313,7 +327,10 @@ func (m *ManagerV2) initMetricsMap() {
 			m.insertionErrors[errorTypeKey{eventType: i, errorType: errorType}] = atomic.NewUint64(0)
 		}
 		for _, errorType := range activity_tree.EventErrorTypes {
-			m.eventsWithError[errorTypeKey{eventType: i, errorType: errorType}] = atomic.NewUint64(0)
+			for _, outcome := range eventWithErrorOutcomes {
+				key := eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: i, errorType: errorType}, outcome: outcome}
+				m.eventsWithError[key] = atomic.NewUint64(0)
+			}
 		}
 		for _, state := range model.AllEventFilteringProfileState {
 			for _, result := range allEventFilteringResults {
@@ -708,8 +725,8 @@ func (m *ManagerV2) ProcessEvent(event *model.Event) {
 		return
 	}
 
-	if event.Error != nil {
-		m.incrementEventWithError(event.GetEventType(), event.Error)
+	if event.Error != nil && !activity_tree.IsInsertableEventError(event.Error) {
+		m.incrementEventWithError(event.GetEventType(), event.Error, eventWithErrorDropped)
 		return
 	}
 
@@ -1028,7 +1045,7 @@ func (m *ManagerV2) SendStats() error {
 
 	for key, count := range m.eventsWithError {
 		if value := count.Swap(0); value > 0 {
-			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType}
+			tags := []string{"event_type:" + key.eventType.String(), "error_type:" + key.errorType, "outcome:" + key.outcome}
 			if err := m.statsdClient.Count(metrics.MetricSecurityProfileV2EventsWithError, int64(value), tags, 1.0); err != nil {
 				return err
 			}
@@ -1169,12 +1186,15 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	secprof.Unlock()
 	if err != nil {
 		if event.Error != nil {
-			m.incrementEventWithError(event.GetEventType(), event.Error)
+			m.incrementEventWithError(event.GetEventType(), event.Error, eventWithErrorDropped)
 		} else if !activity_tree.IsExpectedFilterError(err) {
 			m.incrementInsertionError(event.GetEventType(), err)
 			seclog.Debugf("couldn't insert event into profile: %v", err)
 		}
 		return nil, false
+	}
+	if event.Error != nil {
+		m.incrementEventWithError(event.GetEventType(), event.Error, eventWithErrorKept)
 	}
 
 	return secprof, inserted
@@ -1647,8 +1667,8 @@ func (m *ManagerV2) incrementInsertionError(eventType model.EventType, err error
 	}
 }
 
-func (m *ManagerV2) incrementEventWithError(eventType model.EventType, err error) {
-	key := errorTypeKey{eventType: eventType, errorType: activity_tree.EventErrorType(err)}
+func (m *ManagerV2) incrementEventWithError(eventType model.EventType, err error, outcome string) {
+	key := eventWithErrorKey{errorTypeKey: errorTypeKey{eventType: eventType, errorType: activity_tree.EventErrorType(err)}, outcome: outcome}
 	if entry, ok := m.eventsWithError[key]; ok {
 		entry.Inc()
 	}
