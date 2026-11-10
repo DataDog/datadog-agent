@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    Update Agent Data Plane to 1.7.3. The Remote Agents section of
+    ``agent status`` now reports Agent Data Plane Forwarder transaction
+    status, and Agent Data Plane reports additional aggregator and forwarder
+    telemetry through the Agent telemetry endpoint and flares.
+fixes:
+  - |
+    Agent Data Plane 1.7.3 no longer counts API key validation requests, or
+    events and service checks in discarded payloads, in its forwarder and
+    aggregator flush telemetry.
