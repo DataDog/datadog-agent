@@ -1959,6 +1959,189 @@ func TestActionSetVariableCapture(t *testing.T) {
 	})
 }
 
+func TestActionSetVariableEnvpField(t *testing.T) {
+	setRule := func(id string, sets ...*SetDefinition) *RuleDefinition {
+		rule := &RuleDefinition{
+			ID:         id,
+			Expression: `exec.file.path == "/usr/bin/` + id + `"`,
+		}
+		for _, set := range sets {
+			rule.Actions = append(rule.Actions, &ActionDefinition{Set: set})
+		}
+		return rule
+	}
+
+	type serialization int
+	const (
+		asIs serialization = iota
+		envFiltered
+		private
+	)
+
+	assertSerialization := func(t *testing.T, rs *RuleSet, varName string, expected serialization) {
+		t.Helper()
+		variable := rs.evalOpts.VariableStore.Get(varName)
+		require.NotNil(t, variable, "variable %s not found", varName)
+		opts := variable.GetVariableOpts()
+		switch expected {
+		case asIs:
+			assert.False(t, opts.Private, "variable %s should not be private", varName)
+			assert.Nil(t, opts.ValueFilter, "variable %s should not be filtered", varName)
+		case envFiltered:
+			assert.False(t, opts.Private, "variable %s should not be private", varName)
+			assert.NotNil(t, opts.ValueFilter, "variable %s should be filtered", varName)
+		case private:
+			assert.True(t, opts.Private, "variable %s should be private", varName)
+		}
+	}
+
+	t.Run("field", func(t *testing.T) {
+		policy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				setRule("field",
+					&SetDefinition{Name: "envp", Field: "exec.envp", Append: true},
+					&SetDefinition{Name: "parent_envp", Field: "process.parent.envp", Append: true},
+					&SetDefinition{Name: "ancestors_envp", Field: "process.ancestors.envp", Append: true},
+					&SetDefinition{Name: "first_env", Field: "exec.envp[0]"},
+					&SetDefinition{Name: "scoped_envp", Field: "exec.envp", Append: true, Scope: ScopeProcess},
+					&SetDefinition{Name: "lang", Field: "exec.envp[0]", Capture: "^LANG=(.+)$"},
+					&SetDefinition{Name: "envs", Field: "exec.envs", Append: true},
+					&SetDefinition{Name: "path", Field: "exec.file.path"},
+				),
+			},
+		}
+
+		rs, errs := loadPolicy(t, policy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		for _, varName := range []string{"envp", "parent_envp", "ancestors_envp", "first_env", "process.scoped_envp"} {
+			assertSerialization(t, rs, varName, envFiltered)
+		}
+		assertSerialization(t, rs, "lang", private)
+		assertSerialization(t, rs, "envs", asIs)
+		assertSerialization(t, rs, "path", asIs)
+	})
+
+	t.Run("filter", func(t *testing.T) {
+		policy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				setRule("filter", &SetDefinition{Name: "envp", Field: "exec.envp", Append: true}),
+			},
+		}
+
+		rs, errs := loadPolicy(t, policy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+		rs.opts.WithEnvsWithValue([]string{"PATH"})
+
+		filter := rs.evalOpts.VariableStore.Get("envp").GetVariableOpts().ValueFilter
+		require.NotNil(t, filter)
+		assert.Equal(t, "PATH=/usr/bin:/bin", filter("PATH=/usr/bin:/bin"))
+		assert.Equal(t, "AWS_SECRET_ACCESS_KEY", filter("AWS_SECRET_ACCESS_KEY=secret"))
+		assert.Equal(t, "PATHX", filter("PATHX=secret"))
+		assert.Equal(t, "NO_VALUE", filter("NO_VALUE"))
+	})
+
+	t.Run("expression", func(t *testing.T) {
+		policy := &PolicyDef{
+			Macros: []*MacroDefinition{
+				{ID: "envp_macro", Expression: `"%{exec.envp}"`},
+				{ID: "nested_envp_macro", Expression: `envp_macro`},
+			},
+			Rules: []*RuleDefinition{
+				setRule("expression",
+					&SetDefinition{Name: "envp", Expression: `exec.envp`, DefaultValue: []string{""}, Append: true},
+					&SetDefinition{Name: "envp_ref", Expression: `"%{exec.envp}"`, DefaultValue: ""},
+					&SetDefinition{Name: "envp_macro", Expression: `nested_envp_macro`, DefaultValue: ""},
+					&SetDefinition{Name: "path", Expression: `"%{exec.file.path}"`, DefaultValue: ""},
+				),
+			},
+		}
+
+		rs, errs := loadPolicy(t, policy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		for _, varName := range []string{"envp", "envp_ref", "envp_macro"} {
+			assertSerialization(t, rs, varName, private)
+		}
+		assertSerialization(t, rs, "path", asIs)
+	})
+
+	t.Run("propagation", func(t *testing.T) {
+		// the variables computed out of the sensitive ones are compiled before they are set
+		policy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				setRule("derived",
+					&SetDefinition{Name: "derived", Expression: `"display:${display}"`, DefaultValue: ""},
+					&SetDefinition{Name: "derived_twice", Expression: `"${derived}"`, DefaultValue: ""},
+					&SetDefinition{Name: "derived_from_filtered", Expression: `"${first_env}"`, DefaultValue: ""},
+					&SetDefinition{Name: "length_of_filtered", Expression: `${first_env.length}`, DefaultValue: 0},
+					&SetDefinition{Name: "unrelated", Expression: `"${path}"`, DefaultValue: ""},
+				),
+				setRule("source",
+					&SetDefinition{Name: "display", Field: "exec.envp[0]", Capture: "^DISPLAY=(.+)$"},
+					&SetDefinition{Name: "first_env", Field: "exec.envp[0]"},
+					&SetDefinition{Name: "path", Field: "exec.file.path"},
+				),
+			},
+		}
+
+		rs, errs := loadPolicy(t, policy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		for _, varName := range []string{"display", "derived", "derived_twice", "derived_from_filtered", "length_of_filtered"} {
+			assertSerialization(t, rs, varName, private)
+		}
+		assertSerialization(t, rs, "first_env", envFiltered)
+		assertSerialization(t, rs, "path", asIs)
+		assertSerialization(t, rs, "unrelated", asIs)
+	})
+
+	t.Run("most-restrictive", func(t *testing.T) {
+		// a variable set by several rules gets the most restrictive treatment
+		policy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				setRule("filtered", &SetDefinition{Name: "env", Field: "exec.envp[0]"}),
+				setRule("captured", &SetDefinition{Name: "env", Field: "exec.envp[0]", Capture: "^LANG=(.+)$"}),
+				setRule("constant", &SetDefinition{Name: "mixed", Value: "FOO=bar"}),
+				setRule("mixed", &SetDefinition{Name: "mixed", Field: "exec.envp[0]"}),
+			},
+		}
+
+		rs, errs := loadPolicy(t, policy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+
+		assertSerialization(t, rs, "env", private)
+		assertSerialization(t, rs, "mixed", envFiltered)
+	})
+
+	t.Run("not-overridable", func(t *testing.T) {
+		policy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				setRule("public", &SetDefinition{Name: "lang", Field: "exec.envp[0]", Capture: "^LANG=(.+)$", Private: false}),
+			},
+		}
+
+		rs, errs := loadPolicy(t, policy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+		assertSerialization(t, rs, "lang", private)
+	})
+
+	t.Run("chaining", func(t *testing.T) {
+		// a private variable can still be used by other rules
+		policy := &PolicyDef{
+			Rules: []*RuleDefinition{
+				setRule("source", &SetDefinition{Name: "display", Field: "exec.envp[0]", Capture: "^DISPLAY=(.+)$", Scope: ScopeProcess}),
+				{ID: "chained", Expression: `open.file.path == "/tmp/test" && ${process.display} == ":0"`},
+			},
+		}
+
+		rs, errs := loadPolicy(t, policy, PolicyLoaderOpts{})
+		require.NoError(t, errs.ErrorOrNil())
+		assert.NotNil(t, rs.GetRuleByID("chained"))
+		assertSerialization(t, rs, "process.display", private)
+	})
+}
+
 func TestActionSetVariableCaptureRuntime(t *testing.T) {
 	testPolicy := &PolicyDef{
 		Rules: []*RuleDefinition{{

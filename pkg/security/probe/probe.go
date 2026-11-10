@@ -445,6 +445,7 @@ func (p *Probe) NewRuleSet(eventTypeEnabled map[eval.EventType]bool) *rules.Rule
 	ruleOpts.WithSupportedMultiDiscarder(SupportedMultiDiscarder)
 	ruleOpts.WithRuleActionPerformedCb(p.onRuleActionPerformed)
 	ruleOpts.WithRuleCacheEnabled(p.Config.RuntimeSecurity.RuleCacheEnabled)
+	ruleOpts.WithEnvsWithValue(p.Config.Probe.EnvsWithValue)
 	evalOpts.WithTelemetry(&eval.Telemetry{TotalVariables: probeTelemetry.totalVariables})
 
 	eventCtor := func() eval.Event {

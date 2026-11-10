@@ -585,6 +585,12 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 				continue
 			}
 
+			// ex: removes the values of the environment variables not part of envs_with_value
+			valueFilter := variable.GetVariableOpts().ValueFilter
+			if valueFilter == nil {
+				valueFilter = func(value string) string { return value }
+			}
+
 			evaluator := variable.GetEvaluator()
 			if evaluator, ok := evaluator.(eval.Evaluator); ok {
 				value := evaluator.Eval(eval.NewContext(e))
@@ -597,13 +603,13 @@ func newVariablesContext(e *model.Event, rule *rules.Rule, prefix string) (varia
 					case []string:
 						scrubbedValues := make([]string, 0, len(value))
 						for _, elem := range value {
-							if scrubbed, err := scrubber.ScrubString(elem); err == nil {
+							if scrubbed, err := scrubber.ScrubString(valueFilter(elem)); err == nil {
 								scrubbedValues = append(scrubbedValues, scrubbed)
 							}
 						}
 						variables[trimmedName] = scrubbedValues
 					case string:
-						if scrubbed, err := scrubber.ScrubString(value); err == nil {
+						if scrubbed, err := scrubber.ScrubString(valueFilter(value)); err == nil {
 							variables[trimmedName] = scrubbed
 						}
 					default:

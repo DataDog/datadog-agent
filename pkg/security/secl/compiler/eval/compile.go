@@ -142,7 +142,7 @@ func compileNode(node ast.Node, opts *Opts, state *State) (interface{}, ast.Posi
 		return literalToEvaluator(node, opts, state)
 
 	case *ast.VariableRef:
-		return evaluatorFromVariable(node.Name, node.Pos, opts)
+		return evaluatorFromVariable(node.Name, node.Pos, opts, state)
 
 	case *ast.FieldRef:
 		return fieldToEvaluator(node.Name, node.Pos, opts, state)

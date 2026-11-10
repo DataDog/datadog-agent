@@ -45,6 +45,30 @@ func parseArrayFieldAccess(field string) (baseField string, index int, isArray b
 	return field, 0, false
 }
 
+// isEnvpField returns whether a field holds the raw environment of a process ('KEY=VALUE'
+// entries, unfiltered by 'envs_with_value'), ex: exec.envp, process.ancestors.envp, exec.envp[0]
+func isEnvpField(field eval.Field) bool {
+	baseField, _, _ := parseArrayFieldAccess(field)
+	return baseField == "envp" || strings.HasSuffix(baseField, ".envp")
+}
+
+// variableSensitivity describes how much of the value of a variable can be serialized
+// along with the events sent to the backend
+type variableSensitivity int
+
+const (
+	// notSensitive variables are serialized as is (unless they are 'private')
+	notSensitive variableSensitivity = iota
+	// envFilteredSensitive variables hold 'KEY=VALUE' entries copied as is out of an '*.envp'
+	// field. Like the '*.envs' fields, the value of an entry is only serialized when its key
+	// is part of 'envs_with_value'.
+	envFilteredSensitive
+	// privateSensitive variables hold a value derived from an '*.envp' field that can't be
+	// filtered with 'envs_with_value' (extracted with 'capture', computed by an expression or
+	// out of another sensitive variable). They are never serialized.
+	privateSensitive
+)
+
 // Rule presents a rule in a ruleset
 type Rule struct {
 	*PolicyRule
@@ -86,6 +110,11 @@ type RuleSet struct {
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
 	parsingContext   *parser.ParsingContext
+
+	// variableSensitivities holds the variables whose value is derived from the environment of a process
+	variableSensitivities map[string]variableSensitivity
+	// variableDependents holds, for each variable, the variables whose expression uses it
+	variableDependents map[string][]string
 
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []eval.Field
@@ -658,6 +687,41 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 	return errs
 }
 
+// filterEnvValue removes the value of an environment variable entry ('KEY=VALUE'), unless its
+// key is part of 'envs_with_value', the same way the '*.envs' fields are filtered
+func (rs *RuleSet) filterEnvValue(entry string) string {
+	key, _, found := strings.Cut(entry, "=")
+	if found && !rs.opts.EnvsWithValue[key] {
+		return key
+	}
+	return entry
+}
+
+// markVariableSensitivity records that the value of a variable is derived from the environment of
+// a process, and restricts its serialization accordingly. This can't be overridden by the policy
+// ('private: false'). The variables computed out of it are never serialized.
+func (rs *RuleSet) markVariableSensitivity(varName string, sensitivity variableSensitivity) {
+	if rs.variableSensitivities[varName] >= sensitivity {
+		return
+	}
+	rs.variableSensitivities[varName] = sensitivity
+
+	if variable := rs.evalOpts.VariableStore.Get(varName); variable != nil {
+		opts := variable.GetVariableOpts()
+		switch sensitivity {
+		case envFilteredSensitive:
+			opts.ValueFilter = rs.filterEnvValue
+		case privateSensitive:
+			opts.Private = true
+		}
+		variable.SetVariableOpts(opts)
+	}
+
+	for _, dependent := range rs.variableDependents[varName] {
+		rs.markVariableSensitivity(dependent, privateSensitive)
+	}
+}
+
 // ListFields returns all the fields accessed by all rules of this rule set
 func (rs *RuleSet) ListFields() []string {
 	return rs.fields
@@ -788,7 +852,21 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 				return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: err}
 			}
 
+			varName := action.Def.Set.Name
+			if action.Def.Set.Scope != "" {
+				varName = string(action.Def.Set.Scope) + "." + varName
+			}
+
 			if field := action.Def.Set.Field; field != "" {
+				if isEnvpField(field) {
+					if action.Def.Set.Capture != "" {
+						// the captured substring has no key to filter on
+						rs.markVariableSensitivity(varName, privateSensitive)
+					} else {
+						rs.markVariableSensitivity(varName, envFilteredSensitive)
+					}
+				}
+
 				ev := model.NewFakeEvent()
 				ruleEventType, err := rule.GetEventType()
 				if err != nil {
@@ -844,6 +922,20 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 				evaluator, _, err := eval.Compile(astExpr, rs.evalOpts, state)
 				if err != nil {
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
+				}
+
+				// the result of an expression can't be filtered with 'envs_with_value'
+				if slices.ContainsFunc(state.GetReferencedFields(), isEnvpField) {
+					rs.markVariableSensitivity(varName, privateSensitive)
+				}
+
+				// a variable computed out of a sensitive variable is private, whatever the
+				// order in which the rules are loaded
+				for _, referencedVariable := range state.GetReferencedVariables() {
+					rs.variableDependents[referencedVariable] = append(rs.variableDependents[referencedVariable], varName)
+					if rs.variableSensitivities[referencedVariable] != notSensitive {
+						rs.markVariableSensitivity(varName, privateSensitive)
+					}
 				}
 
 				exprEventType, err := eval.EventTypeFromState(rs.model, state)
@@ -1497,6 +1589,9 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
 		parsingContext:   parser.NewParsingContext(opts.RuleCacheEnabled),
+
+		variableSensitivities: make(map[string]variableSensitivity),
+		variableDependents:    make(map[string][]string),
 	}
 }
 

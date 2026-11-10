@@ -9,7 +9,7 @@ package eval
 import "github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 
 func evaluatorFromRootDomainHandler(fieldname string, pos ast.Position, state *State) (interface{}, ast.Position, error) {
-	evaluator, err := state.model.GetEvaluator(fieldname, "", 0)
+	evaluator, err := state.getEvaluator(fieldname, "", 0)
 	if err != nil {
 		return nil, pos, NewError(pos, "field '%s' doesn't exist", fieldname)
 	}
