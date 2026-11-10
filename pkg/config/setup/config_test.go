@@ -845,7 +845,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 func TestHealthPlatformDefaults(t *testing.T) {
 	config := confFromYAML(t, "")
 
-	assert.Equal(t, false, config.GetBool("health_platform.enabled"))
+	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
 	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
 	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
 	assert.Equal(t, true, config.GetBool("dogstatsd_client_drop_detection.enabled"))
@@ -2058,6 +2058,64 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
 		})
 	}
+}
+
+func TestApplyKubernetesHealthPlatformDefault(t *testing.T) {
+	const key = "health_platform.enabled"
+	setKubernetes := func(t *testing.T, k8s bool) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
+		if k8s {
+			t.Setenv("KUBERNETES", "yes")
+		} else {
+			t.Setenv("KUBERNETES", "")
+		}
+	}
+
+	t.Run("non-kubernetes keeps it enabled by default", func(t *testing.T) {
+		setKubernetes(t, false)
+		config := newTestConf(t)
+		applyKubernetesHealthPlatformDefault(config)
+		assert.True(t, config.GetBool(key))
+	})
+
+	t.Run("kubernetes disables it by default", func(t *testing.T) {
+		setKubernetes(t, true)
+		config := newTestConf(t)
+		applyKubernetesHealthPlatformDefault(config)
+		assert.False(t, config.GetBool(key))
+		assert.False(t, config.IsConfigured(key))
+	})
+
+	t.Run("eks fargate disables it by default", func(t *testing.T) {
+		setKubernetes(t, false)
+		t.Setenv("DD_EKS_FARGATE", "true")
+		config := newTestConf(t)
+		applyKubernetesHealthPlatformDefault(config)
+		assert.False(t, config.GetBool(key))
+	})
+
+	t.Run("explicit true wins on kubernetes", func(t *testing.T) {
+		setKubernetes(t, true)
+		config := confFromYAML(t, "health_platform:\n  enabled: true\n")
+		applyKubernetesHealthPlatformDefault(config)
+		assert.True(t, config.GetBool(key))
+	})
+
+	t.Run("explicit true from env var wins on kubernetes", func(t *testing.T) {
+		setKubernetes(t, true)
+		t.Setenv("DD_HEALTH_PLATFORM_ENABLED", "true")
+		config := newTestConf(t)
+		applyKubernetesHealthPlatformDefault(config)
+		assert.True(t, config.GetBool(key))
+	})
+
+	t.Run("explicit false wins off kubernetes", func(t *testing.T) {
+		setKubernetes(t, false)
+		config := confFromYAML(t, "health_platform:\n  enabled: false\n")
+		applyKubernetesHealthPlatformDefault(config)
+		assert.False(t, config.GetBool(key))
+	})
 }
 
 func TestApplyKubernetesContainerDefaults(t *testing.T) {

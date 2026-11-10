@@ -56,10 +56,8 @@ func AgentHealthDemoRun(ctx *pulumi.Context) error {
 			),
 		))
 	default:
-		// Plain EC2 VM with the Agent installed. health_platform is disabled by
-		// default, so the forwarder fixture also turns it on.
-		return ec2.VMRunWithParams(ctx, ec2.GetParams(
-			ec2.WithAgentOptions(agentparams.WithAgentConfig(demoForwarderInterval)),
-		))
+		// Plain EC2 VM with the Agent installed; health_platform is enabled by
+		// default, so no extra agent config is needed.
+		return ec2.VMRunWithParams(ctx, ec2.GetParams())
 	}
 }

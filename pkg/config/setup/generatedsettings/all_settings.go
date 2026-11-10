@@ -2089,7 +2089,7 @@ func InitCommonBase(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("genresources.use_v2_api", true)
 	config.BindEnvAndSetDefault("genresources.zstd_compression_level", 1)
 	config.BindEnvAndSetDefault("go_core_dump", false)
-	config.BindEnvAndSetDefault("health_platform.enabled", false)
+	config.BindEnvAndSetDefault("health_platform.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.forwarder.interval", 15*time.Minute)
 	config.BindEnvAndSetDefault("health_platform.invalidconfig_check.enabled", true)
 	config.BindEnvAndSetDefault("health_platform.invalidsysprobeconfig_check.enabled", true)

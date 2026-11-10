@@ -8,9 +8,11 @@
 ---
 fixes:
   - |
-    Disable the Agent Health Platform by default to avoid Autodiscovery stalls.
+    Disable the Agent Health Platform by default on Kubernetes to avoid Autodiscovery stalls.
     Reporting Autodiscovery annotation and template errors to the Health Platform
     could block Autodiscovery for several seconds, causing workloadmeta to drop
-    event bundles. This affects both the node Agent and the Cluster Agent. To turn
-    the Health Platform back on, set ``health_platform.enabled: true`` in
-    ``datadog.yaml`` or ``DD_HEALTH_PLATFORM_ENABLED=true``.
+    event bundles. This applies to both the node Agent and the Cluster Agent when
+    running on Kubernetes (including EKS Fargate); other environments keep the
+    Health Platform enabled by default. To turn it back on in Kubernetes, set
+    ``health_platform.enabled: true`` in ``datadog.yaml`` or
+    ``DD_HEALTH_PLATFORM_ENABLED=true``.
