@@ -6,8 +6,9 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/process/containercheck/mock",
     visibility = ["//visibility:public"],
     deps = [
-        "//comp/process/containercheck/impl",
-        "//pkg/util/fxutil",
-        "@org_uber_go_fx//:fx",
+        "//comp/process/containercheck/def",
+        "//pkg/process/checks",
+        "//pkg/process/checks/mocks",
+        "@com_github_stretchr_testify//mock",
     ],
 )
