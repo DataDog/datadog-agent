@@ -73,7 +73,7 @@ func TestContainerTagsV2(t *testing.T) {
 
 	// Set up pipeline with the Infra Attributes Processor + Trace Agent OTLP Receiver
 	out := make(chan *api.Payload, 1)
-	rcv := api.NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := api.NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	factory := infraattributesprocessor.NewFactoryForAgent(tagger, func(_ context.Context) (string, error) {
 		return "test-host", nil
 	})

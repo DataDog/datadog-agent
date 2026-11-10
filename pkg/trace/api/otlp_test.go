@@ -216,7 +216,7 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	stats := &teststatsd.Client{}
 
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, stats, &timing.NoopReporter{})
+	rcv := NewOTLPReceiver(out, nil, cfg, stats, &timing.NoopReporter{})
 	req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -280,7 +280,7 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -308,7 +308,7 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 func TestOTLPSampleRateFromTracestate(t *testing.T) {
 	cfg := NewTestConfig(t)
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -349,7 +349,7 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		in []testutil.OTLPResourceSpan
@@ -820,7 +820,7 @@ func TestCreateChunks(t *testing.T) {
 			}
 			cfg.OTLPReceiver.ProbabilisticSampling = 50
 			cfg.ProbabilisticSamplerEnabled = tt.probabilisticSamplerEnabled
-			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			const (
 				traceID1 = 123           // sampled by 50% rate
 				traceID2 = 1237892138897 // not sampled by 50% rate
@@ -893,7 +893,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		enableReceiveResourceSpansV2 bool
@@ -1332,7 +1332,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 func TestOTLPReceiveDoesNotHoistSDKOtlpExport(t *testing.T) {
 	cfg := NewTestConfig(t)
 	out := make(chan *Payload, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
@@ -1497,7 +1497,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		}
 		cfg.Hostname = tt.config
 		out := make(chan *Payload, 1)
-		rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		rcv := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		rattr := map[string]interface{}{}
 		if tt.resource != "" {
 			rattr["datadog.host.name"] = tt.resource
@@ -1543,7 +1543,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
+		assert.NotNil(t, NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
@@ -1551,7 +1551,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -1567,7 +1567,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			BindHost: "localhost",
 			GRPCPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
@@ -1584,7 +1584,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		o := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
@@ -2660,7 +2660,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			lib := pcommon.NewInstrumentationScope()
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
@@ -2724,7 +2724,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr              map[string]string
 		libname            string
@@ -3325,7 +3325,7 @@ func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t 
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr           map[string]string
 		libname         string
@@ -3695,7 +3695,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr           map[string]string
 		libname         string
@@ -4229,7 +4229,7 @@ func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -4273,7 +4273,7 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
-	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewOTLPReceiver(out, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -4328,7 +4328,7 @@ func TestConvertSpanDBNameMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := NewTestConfig(t)
-			rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			rcv := NewOTLPReceiver(nil, nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 			span := ptrace.NewSpan()
 			span.SetName("test-span")

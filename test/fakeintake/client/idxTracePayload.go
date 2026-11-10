@@ -7,7 +7,11 @@ package client
 
 import (
 	"encoding/binary"
+	"encoding/json"
+	"fmt"
+	"strconv"
 
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 )
@@ -109,4 +113,179 @@ func IdxPayloadHasService(p *aggregator.TracePayload, service string) bool {
 		}
 	}
 	return false
+}
+
+// TracerPayloadsV04 returns the tracer payloads of p in the legacy v04 shape, whichever
+// format the agent sent: the legacy TracerPayloads as they are, followed by every idx
+// payload converted with IdxTracerPayloadToV04. Tests that assert on what both formats
+// carry can use it to run unchanged against either.
+func TracerPayloadsV04(p *aggregator.TracePayload) []*pb.TracerPayload {
+	out := append([]*pb.TracerPayload(nil), p.TracerPayloads...)
+	for _, tp := range p.IdxTracerPayloads {
+		out = append(out, IdxTracerPayloadToV04(tp))
+	}
+	return out
+}
+
+// IdxTracerPayloadToV04 converts an idx tracer payload to the legacy v04 shape, resolving
+// every string reference:
+//   - payload attributes become payload Tags, and chunk attributes chunk Tags, plus
+//     _dd.p.dm from the chunk sampling mechanism;
+//   - span string and bool attributes become Meta, numeric ones Metrics, and bytes,
+//     arrays and maps a JSON string in Meta;
+//   - span env, version, component and kind become the Meta keys they were promoted
+//     from, and the upper 64 bits of the chunk trace ID become _dd.p.tid.
+//
+// Span events and links are not converted.
+func IdxTracerPayloadToV04(tp *idx.TracerPayload) *pb.TracerPayload {
+	strs := tp.GetStrings()
+	out := &pb.TracerPayload{
+		ContainerID:     IdxStr(strs, tp.GetContainerIDRef()),
+		LanguageName:    IdxStr(strs, tp.GetLanguageNameRef()),
+		LanguageVersion: IdxStr(strs, tp.GetLanguageVersionRef()),
+		TracerVersion:   IdxStr(strs, tp.GetTracerVersionRef()),
+		RuntimeID:       IdxStr(strs, tp.GetRuntimeIDRef()),
+		Env:             IdxStr(strs, tp.GetEnvRef()),
+		Hostname:        IdxStr(strs, tp.GetHostnameRef()),
+		AppVersion:      IdxStr(strs, tp.GetAppVersionRef()),
+		Tags:            idxAttrsAsTags(strs, tp.GetAttributes()),
+	}
+	for _, c := range tp.GetChunks() {
+		chunk := &pb.TraceChunk{
+			Priority:     c.GetPriority(),
+			Origin:       IdxStr(strs, c.GetOriginRef()),
+			Tags:         idxAttrsAsTags(strs, c.GetAttributes()),
+			DroppedTrace: c.GetDroppedTrace(),
+		}
+		if m := c.GetSamplingMechanism(); m != 0 {
+			if chunk.Tags == nil {
+				chunk.Tags = map[string]string{}
+			}
+			chunk.Tags["_dd.p.dm"] = fmt.Sprintf("-%d", m)
+		}
+		var traceID [16]byte
+		if tid := c.GetTraceID(); len(tid) <= 16 {
+			copy(traceID[16-len(tid):], tid)
+		} else {
+			copy(traceID[:], tid[len(tid)-16:])
+		}
+		for _, s := range c.GetSpans() {
+			chunk.Spans = append(chunk.Spans, idxSpanToV04(strs, s, traceID))
+		}
+		out.Chunks = append(out.Chunks, chunk)
+	}
+	return out
+}
+
+func idxSpanToV04(strs []string, s *idx.Span, traceID [16]byte) *pb.Span {
+	span := &pb.Span{
+		Service:  IdxStr(strs, s.GetServiceRef()),
+		Name:     IdxStr(strs, s.GetNameRef()),
+		Resource: IdxStr(strs, s.GetResourceRef()),
+		Type:     IdxStr(strs, s.GetTypeRef()),
+		TraceID:  binary.BigEndian.Uint64(traceID[8:]),
+		SpanID:   s.GetSpanID(),
+		ParentID: s.GetParentID(),
+		Start:    int64(s.GetStart()),
+		Duration: int64(s.GetDuration()),
+		Meta:     map[string]string{},
+		Metrics:  map[string]float64{},
+	}
+	if s.GetError() {
+		span.Error = 1
+	}
+	for k, v := range s.GetAttributes() {
+		key := IdxStr(strs, k)
+		switch val := v.GetValue().(type) {
+		case *idx.AnyValue_DoubleValue:
+			span.Metrics[key] = val.DoubleValue
+		case *idx.AnyValue_IntValue:
+			span.Metrics[key] = float64(val.IntValue)
+		default:
+			span.Meta[key] = idxValueString(strs, v)
+		}
+	}
+	for key, ref := range map[string]uint32{
+		"env":       s.GetEnvRef(),
+		"version":   s.GetVersionRef(),
+		"component": s.GetComponentRef(),
+	} {
+		if v := IdxStr(strs, ref); v != "" {
+			span.Meta[key] = v
+		}
+	}
+	if kind, ok := idxSpanKinds[s.GetKind()]; ok {
+		span.Meta["span.kind"] = kind
+	}
+	if hi := binary.BigEndian.Uint64(traceID[:8]); hi != 0 {
+		span.Meta["_dd.p.tid"] = fmt.Sprintf("%016x", hi)
+	}
+	return span
+}
+
+var idxSpanKinds = map[idx.SpanKind]string{
+	idx.SpanKind_SPAN_KIND_INTERNAL: "internal",
+	idx.SpanKind_SPAN_KIND_SERVER:   "server",
+	idx.SpanKind_SPAN_KIND_CLIENT:   "client",
+	idx.SpanKind_SPAN_KIND_PRODUCER: "producer",
+	idx.SpanKind_SPAN_KIND_CONSUMER: "consumer",
+}
+
+func idxAttrsAsTags(strs []string, attrs map[uint32]*idx.AnyValue) map[string]string {
+	if len(attrs) == 0 {
+		return nil
+	}
+	tags := make(map[string]string, len(attrs))
+	for k, v := range attrs {
+		tags[IdxStr(strs, k)] = idxValueString(strs, v)
+	}
+	return tags
+}
+
+// idxValueString returns the string form of v: scalars as text, and bytes, arrays and maps
+// as JSON.
+func idxValueString(strs []string, v *idx.AnyValue) string {
+	switch val := v.GetValue().(type) {
+	case *idx.AnyValue_StringValueRef:
+		return IdxStr(strs, val.StringValueRef)
+	case *idx.AnyValue_BoolValue:
+		return strconv.FormatBool(val.BoolValue)
+	case *idx.AnyValue_DoubleValue:
+		return strconv.FormatFloat(val.DoubleValue, 'g', -1, 64)
+	case *idx.AnyValue_IntValue:
+		return strconv.FormatInt(val.IntValue, 10)
+	}
+	b, err := json.Marshal(idxValueJSON(strs, v))
+	if err != nil {
+		return ""
+	}
+	return string(b)
+}
+
+func idxValueJSON(strs []string, v *idx.AnyValue) any {
+	switch val := v.GetValue().(type) {
+	case *idx.AnyValue_StringValueRef:
+		return IdxStr(strs, val.StringValueRef)
+	case *idx.AnyValue_BoolValue:
+		return val.BoolValue
+	case *idx.AnyValue_DoubleValue:
+		return val.DoubleValue
+	case *idx.AnyValue_IntValue:
+		return val.IntValue
+	case *idx.AnyValue_BytesValue:
+		return val.BytesValue
+	case *idx.AnyValue_ArrayValue:
+		out := []any{}
+		for _, e := range val.ArrayValue.GetValues() {
+			out = append(out, idxValueJSON(strs, e))
+		}
+		return out
+	case *idx.AnyValue_KeyValueList:
+		out := map[string]any{}
+		for _, kv := range val.KeyValueList.GetKeyValues() {
+			out[IdxStr(strs, kv.GetKey())] = idxValueJSON(strs, kv.GetValue())
+		}
+		return out
+	}
+	return nil
 }

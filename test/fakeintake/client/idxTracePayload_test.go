@@ -98,3 +98,94 @@ func TestIdxPayloadHasService(t *testing.T) {
 		}}}},
 	}}, "tracegen"))
 }
+
+func TestTracerPayloadsV04(t *testing.T) {
+	strings := []string{
+		"", "svc", "op", "res", "web", "prod", "1.0", "host", "cid", "go",
+		"_dd.tags.container", "pod_name:p", "http.method", "GET", "http.status_code", "flag",
+		"list", "a", "net/http", "origin", "_dd.otlp_sr",
+	}
+	tid := []byte{0, 0, 0, 0, 0, 0, 0, 0xa, 0, 0, 0, 0, 0, 0, 0, 0xb}
+	legacy := &pb.TracerPayload{Env: "legacy"}
+	payload := &aggregator.TracePayload{AgentPayload: &pb.AgentPayload{
+		TracerPayloads: []*pb.TracerPayload{legacy},
+		IdxTracerPayloads: []*idx.TracerPayload{{
+			Strings:         strings,
+			EnvRef:          5,
+			AppVersionRef:   6,
+			HostnameRef:     7,
+			ContainerIDRef:  8,
+			LanguageNameRef: 9,
+			Attributes:      map[uint32]*idx.AnyValue{10: strRef(11)},
+			Chunks: []*idx.TraceChunk{{
+				Priority:          2,
+				OriginRef:         19,
+				TraceID:           tid,
+				SamplingMechanism: 4,
+				Attributes:        map[uint32]*idx.AnyValue{20: {Value: &idx.AnyValue_DoubleValue{DoubleValue: 0.5}}},
+				Spans: []*idx.Span{{
+					ServiceRef:   1,
+					NameRef:      2,
+					ResourceRef:  3,
+					TypeRef:      4,
+					SpanID:       7,
+					ParentID:     6,
+					Start:        100,
+					Duration:     50,
+					Error:        true,
+					EnvRef:       5,
+					VersionRef:   6,
+					ComponentRef: 18,
+					Kind:         idx.SpanKind_SPAN_KIND_SERVER,
+					Attributes: map[uint32]*idx.AnyValue{
+						12: strRef(13),
+						14: {Value: &idx.AnyValue_IntValue{IntValue: 200}},
+						15: {Value: &idx.AnyValue_BoolValue{BoolValue: true}},
+						16: {Value: &idx.AnyValue_ArrayValue{ArrayValue: &idx.ArrayValue{Values: []*idx.AnyValue{strRef(17)}}}},
+					},
+				}},
+			}},
+		}},
+	}}
+
+	tps := TracerPayloadsV04(payload)
+	assert.Len(t, tps, 2)
+	assert.Same(t, legacy, tps[0])
+	tp := tps[1]
+	assert.Equal(t, "prod", tp.Env)
+	assert.Equal(t, "1.0", tp.AppVersion)
+	assert.Equal(t, "host", tp.Hostname)
+	assert.Equal(t, "cid", tp.ContainerID)
+	assert.Equal(t, "go", tp.LanguageName)
+	assert.Equal(t, map[string]string{"_dd.tags.container": "pod_name:p"}, tp.Tags)
+
+	assert.Len(t, tp.Chunks, 1)
+	chunk := tp.Chunks[0]
+	assert.Equal(t, int32(2), chunk.Priority)
+	assert.Equal(t, "origin", chunk.Origin)
+	assert.Equal(t, map[string]string{"_dd.otlp_sr": "0.5", "_dd.p.dm": "-4"}, chunk.Tags)
+
+	assert.Len(t, chunk.Spans, 1)
+	sp := chunk.Spans[0]
+	assert.Equal(t, "svc", sp.Service)
+	assert.Equal(t, "op", sp.Name)
+	assert.Equal(t, "res", sp.Resource)
+	assert.Equal(t, "web", sp.Type)
+	assert.Equal(t, uint64(0xb), sp.TraceID)
+	assert.Equal(t, uint64(7), sp.SpanID)
+	assert.Equal(t, uint64(6), sp.ParentID)
+	assert.Equal(t, int64(100), sp.Start)
+	assert.Equal(t, int64(50), sp.Duration)
+	assert.Equal(t, int32(1), sp.Error)
+	assert.Equal(t, map[string]string{
+		"http.method": "GET",
+		"flag":        "true",
+		"list":        `["a"]`,
+		"env":         "prod",
+		"version":     "1.0",
+		"component":   "net/http",
+		"span.kind":   "server",
+		"_dd.p.tid":   "000000000000000a",
+	}, sp.Meta)
+	assert.Equal(t, map[string]float64{"http.status_code": 200}, sp.Metrics)
+}

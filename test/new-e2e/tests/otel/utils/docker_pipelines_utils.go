@@ -53,24 +53,24 @@ func TestTracesDocker(s OTelDockerTestSuite) {
 		if !assert.NotEmpty(c, traces) {
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		tps := fakeintake.TracerPayloadsV04(traces[0])
+		if !assert.NotEmpty(c, tps) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
-		if !assert.NotEmpty(s.T(), tp.Chunks) {
+		tp := tps[0]
+		if !assert.NotEmpty(c, tp.Chunks) {
 			return
 		}
-		if !assert.NotEmpty(s.T(), tp.Chunks[0].Spans) {
+		if !assert.NotEmpty(c, tp.Chunks[0].Spans) {
 			return
 		}
-		assert.Equal(s.T(), CalendarService, tp.Chunks[0].Spans[0].Service)
+		assert.Equal(c, CalendarService, tp.Chunks[0].Spans[0].Service)
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
+	tp := fakeintake.TracerPayloadsV04(traces[0])[0]
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)
