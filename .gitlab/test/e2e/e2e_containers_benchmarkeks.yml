@@ -97,8 +97,9 @@ new-e2e-containers-benchmarkeks-instructions:
       dda inv -- -e github.pr-commenter --title="Agent performance benchmark (benchmarkeks)"
       --body='This pull request changes the `benchmarkeks` performance benchmark or the code it measures, and the
       benchmark only runs manually. To compare the resource usage of its Agent with the one of its base branch, play
-      the manual job `new-e2e-containers-benchmarkeks-baseline` of [the pipeline]('"$CI_PIPELINE_URL"'): the other
-      jobs of the benchmark run after it, on an EKS cluster.'
+      the manual job `new-e2e-containers-benchmarkeks-baseline` of [the change
+      request](https://mosaic.us1.ddbuild.io/change-request/'"$DDCI_REQUEST_ID"'): the other jobs of the benchmark
+      run after it, on an EKS cluster.'
 
 # Resolves the baseline and publishes its images to agent-qa, as qa_agent_linux and qa_dca did for the baseline
 # pipeline: the images of agent-qa expire after a day, the build outputs of registry.ddbuild.io are kept for months.
