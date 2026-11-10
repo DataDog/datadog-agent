@@ -375,7 +375,7 @@ func main() {
 		localTaggerFx.Module(),
 		healthprobeFx.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(coreconfig.NewParams("")),
+		fx.Supply(coreconfig.NewParams("", coreconfig.WithFullLoadOnMissingFile(true))),
 		coreconfig.Module(),
 		schemanoopfx.Module(),
 		logscompressionfx.Module(),
