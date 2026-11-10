@@ -172,7 +172,3 @@ class TestSourcePath(unittest.TestCase):
             go_tags.source_path("@@gazelle++go_deps+foo//b:b.go", "/ws", "/ob"),
             "/ob/external/gazelle++go_deps+foo/b/b.go",
         )
-
-
-if __name__ == "__main__":
-    unittest.main()
