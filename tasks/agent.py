@@ -27,6 +27,7 @@ from tasks.gointegrationtest import (
     containerized_integration_tests,
 )
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
+from tasks.libs.build.nosys_seccomp import build_nosys_so
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -447,13 +448,6 @@ def system_tests(_):
     pass
 
 
-NOSYS_SECCOMP_TARGET = "//Dockerfiles/nosys-seccomp:nosys.so"
-NOSYS_SECCOMP_BAZEL_PLATFORMS = {
-    "amd64": "//bazel/platforms:linux_x86_64",
-    "arm64": "//bazel/platforms:linux_arm64",
-}
-
-
 @task
 def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=None, push=False):
     """
@@ -473,11 +467,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
 
-    nosys_seccomp_platform_flag = f"--platforms={NOSYS_SECCOMP_BAZEL_PLATFORMS[arch]}"
-    bazel("build", nosys_seccomp_platform_flag, NOSYS_SECCOMP_TARGET)
-    bazel_bin = bazel("info", "bazel-bin", nosys_seccomp_platform_flag, capture_output=True).strip()
-    nosys_so_dest = f"{build_context}/nosys.so"
-    shutil.copy2(os.path.join(bazel_bin, "Dockerfiles", "nosys-seccomp", "nosys.so"), nosys_so_dest)
+    nosys_so_dest = build_nosys_so(arch, build_context)
 
     if tag is None:
         tag = AGENT_TAG
