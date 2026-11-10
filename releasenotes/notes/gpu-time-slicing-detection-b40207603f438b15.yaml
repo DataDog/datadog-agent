@@ -6,15 +6,20 @@ enhancements:
     PodResources API reports each replica allocation with a ``::<n>``
     suffixed device ID; the Agent resolves it to the shared base device
     and publishes:
-    ``gpu_sharing_mode`` with the new ``time-slicing``, ``mps`` and
-    ``unknown`` values (``unknown`` when the node carries no
-    ``nvidia.com/gpu.sharing-strategy`` label, as GPU Feature Discovery
-    writes it), ``gpu_sharing_replicas`` with the number of replicas
-    registered of the shared GPU, and, on the pods and containers holding
-    replicas, ``gpu_sharing_replicas_used`` with the number of replicas
-    they hold (a workload can hold several, e.g. requesting two shared
-    GPUs that are both replicas of one) and ``gpu_uuid`` with the base GPU
-    UUID, so workloads sharing a physical GPU can be grouped together.
+
+    - ``gpu_sharing_mode`` with the new ``time-slicing``, ``mps`` and
+      ``unknown`` values on GPU series (``unknown`` when the node carries
+      no ``nvidia.com/gpu.sharing-strategy`` label, as GPU Feature
+      Discovery writes it), and on the pods and containers holding
+      replicas;
+    - ``gpu_uuid`` with the base GPU UUID on the pods and containers
+      holding replicas, so workloads sharing a physical GPU can be
+      grouped together;
+    - ``gpu.device.sharing_replicas`` with the number of replicas
+      registered of each shared GPU, and ``gpu.device.sharing_replicas_used``
+      with the number of replicas each container holds (a workload can hold
+      several, e.g. requesting two shared GPUs that are both replicas of
+      one).
   - |
     Device-level GPU metrics on a GPU shared by several workloads
     (time-slicing, MPS, KAI fractions) are now emitted once per workload
@@ -24,6 +29,13 @@ enhancements:
     same on every series: the device is a whole. Aggregations that average
     device metrics per host now weight a shared GPU by its number of
     co-tenants; aggregate per ``gpu_uuid`` for the per-device value.
+  - |
+    The tags of the GPUs a container holds a share or a replica of no
+    longer leak into its GPU metric series: a container using several
+    GPUs reported every GPU's ``gpu_uuid`` on each device's series,
+    corrupting grouping and filtering by GPU. Device series carry their
+    own device's tags only, and the sharing quantities are reported by
+    the ``gpu.device.sharing_*`` metrics.
 fixes:
   - |
     GPU metrics are now attributed to pods whose GPU is shared by the

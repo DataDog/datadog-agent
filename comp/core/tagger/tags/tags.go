@@ -169,17 +169,11 @@ const (
 	GPUSlicingMode = "gpu_slicing_mode"
 	// GPUSharingMode is the tag for the mechanism through which the GPU is
 	// shared between workloads (none, kai_fraction, time-slicing, mps,
-	// unknown)
+	// unknown). The sharing quantities -- the number of replicas of the
+	// GPU, and the number a workload holds -- are metrics
+	// (gpu.device.sharing_replicas, gpu.device.sharing_replicas_used), not
+	// tags.
 	GPUSharingMode = "gpu_sharing_mode"
-	// GPUSharingReplicas is the tag for the number of device replicas the
-	// device plugin registered of a GPU shared by replication (time-slicing,
-	// MPS), i.e. how many workloads can share it.
-	GPUSharingReplicas = "gpu_sharing_replicas"
-	// GPUSharingReplicasUsed is the tag for the number of shared-GPU
-	// replicas (time-slicing, MPS) allocated to a workload: how many of the
-	// replicas of the shared GPU it holds. A workload can hold several of
-	// them (e.g. requesting 2 shared GPUs that are both replicas of one).
-	GPUSharingReplicasUsed = "gpu_sharing_replicas_used"
 	// GPUMIGProfile is the tag for the MIG profile of the GPU (e.g. 1g.35gb, 1g.24gb_me).
 	// Only set on MIG devices.
 	GPUMIGProfile = "gpu_mig_profile"

@@ -156,7 +156,10 @@ func TestSharingCollector(t *testing.T) {
 	}
 }
 
-func TestSharingCollectorDisabledWithoutKAIScheduler(t *testing.T) {
-	assert.True(t, collectorDisabled(sharing, gpuconfig.Config{}))
+func TestSharingCollectorAlwaysEnabled(t *testing.T) {
+	// The sharing collector reports KAI Scheduler fractions and shared-device
+	// replicas (time-slicing, MPS) alike, and walks only the containers
+	// holding one, so it needs no gate of its own.
+	assert.False(t, collectorDisabled(sharing, gpuconfig.Config{}))
 	assert.False(t, collectorDisabled(sharing, gpuconfig.Config{KAISchedulerEnabled: true}))
 }

@@ -28,19 +28,6 @@ tags:
     # shared-replica allocation exists but the node does not label its
     # strategy; none when no sharing mechanism was detected.
     regex: "^(none|kai_fraction|time-slicing|mps|unknown)$"
-  gpu_sharing_replicas:
-    # Number of device replicas the device plugin registered of a GPU shared
-    # by replication (time-slicing, MPS), i.e. how many workloads can share
-    # the GPU.
-    regex: "^[1-9][0-9]*$"
-    optional: true
-  gpu_sharing_replicas_used:
-    # Number of shared-GPU replicas (time-slicing, MPS) allocated to a
-    # workload: how many of the replicas of the shared GPU it holds. A
-    # workload can hold several of them (e.g. requesting 2 shared GPUs that
-    # are both replicas of one).
-    regex: "^[1-9][0-9]*$"
-    optional: true
   gpu_mig_profile:
     regex: "^(none|unknown|[0-9]+g\\.[0-9]+gb([_-][a-z]+(\\.[a-z]+)*)?)$"
   gpu_type:
@@ -135,8 +122,6 @@ tagsets:
       - gpu_architecture
       - gpu_slicing_mode
       - gpu_sharing_mode
-      - gpu_sharing_replicas
-      - gpu_sharing_replicas_used
       - gpu_mig_profile
       - gpu_type
       - gpu_parent_uuid
@@ -161,8 +146,3 @@ tagsets:
     tags:
       - pid
       - nspid
-      # The number of shared-GPU replicas the process's container holds.
-      # Absent when the container's GPUs are not shared by replication, so
-      # optional; gpu_uuid and gpu_sharing_mode need no entry here, they are
-      # device tags and reach process series through the device tagset.
-      - gpu_sharing_replicas_used

@@ -1248,9 +1248,6 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 	tagList.AddLow(tags.GPUArchitecture, strings.ToLower(gpu.Architecture))
 	tagList.AddLow(tags.GPUSlicingMode, gpu.SlicingMode())
 	tagList.AddLow(tags.GPUSharingMode, sharingModeTagValue(gpu))
-	if gpu.SharingReplicas > 0 {
-		tagList.AddLow(tags.GPUSharingReplicas, strconv.Itoa(gpu.SharingReplicas))
-	}
 	tagList.AddLow(tags.GPUMIGProfile, migProfileTagValue(gpu))
 	tagList.AddLow(tags.GPUPCIBusID, strings.ToLower(gpu.PCIBusID))
 	tagList.AddLow(tags.GPUNVLinkVersion, gpu.NVLinkVersion)
@@ -1287,17 +1284,16 @@ func ExtractGPUTags(gpu *workloadmeta.GPU, tagList *taglist.TagList) {
 
 // addGPUSharingTags adds the tags of the shared NVIDIA device replicas
 // (time-slicing, MPS) allocated to a workload, keyed by base device UUID:
-// the sharing mechanism of each shared device, the number of replicas of
-// it the workload holds, and the UUID of the shared base device, so that
-// workloads holding replicas of the same GPU can be grouped together. A
-// workload holding replicas of several GPUs gets one tag value per device.
+// the sharing mechanism of each shared device, and the UUID of the shared
+// base device, so that workloads holding replicas of the same GPU can be
+// grouped together. The number of replicas held is not a tag: it is a
+// quantity, reported by the gpu.device.sharing_replicas_used metric
+// instead. A workload holding replicas of several GPUs gets one tag value
+// per device.
 func addGPUSharingTags(tagList *taglist.TagList, replicasByDevice map[string]workloadmeta.GPUDeviceReplica) {
 	for baseUUID, replica := range replicasByDevice {
 		if replica.Mode != "" && replica.Mode != workloadmeta.GPUSharingModeNone {
 			tagList.AddLow(tags.GPUSharingMode, string(replica.Mode))
-		}
-		if replica.Replicas > 0 {
-			tagList.AddLow(tags.GPUSharingReplicasUsed, strconv.Itoa(replica.Replicas))
 		}
 		tagList.AddLow(tags.KubeGPUUUID, strings.ToLower(baseUUID))
 	}

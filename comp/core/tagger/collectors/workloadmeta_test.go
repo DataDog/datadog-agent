@@ -5318,7 +5318,6 @@ func TestHandleGPU(t *testing.T) {
 						"gpu_uuid:gpu-1234",
 						"gpu_slicing_mode:none",
 						"gpu_sharing_mode:time-slicing",
-						"gpu_sharing_replicas:4",
 						"gpu_mig_profile:none",
 						"gpu_parent_uuid:gpu-1234",
 						"gpu_nvlink_version:not_nvlink_capable",
@@ -5382,7 +5381,6 @@ func TestHandleContainerGPUSharingTags(t *testing.T) {
 		require.Len(t, tagInfos, 1)
 
 		assert.Contains(t, tagInfos[0].LowCardTags, "gpu_sharing_mode:time-slicing")
-		assert.Contains(t, tagInfos[0].LowCardTags, "gpu_sharing_replicas_used:2")
 		assert.Contains(t, tagInfos[0].LowCardTags, "gpu_uuid:"+strings.ToLower(baseUUID))
 	})
 
@@ -5464,7 +5462,6 @@ func TestHandleKubePodGPUSharingTags(t *testing.T) {
 
 	podInfo := findTagInfo(t, tagInfos, types.NewEntityID(types.KubernetesPodUID, pod.ID))
 	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_mode:time-slicing")
-	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_replicas_used:2")
 	assert.Contains(t, podInfo.LowCardTags, "gpu_uuid:"+strings.ToLower(baseUUID))
 
 	// The pod's container entities do not inherit the tags: a container's
@@ -5540,7 +5537,6 @@ func TestRetagPodOfGPUContainer(t *testing.T) {
 
 	podInfo := findTagInfo(t, tagInfos, types.NewEntityID(types.KubernetesPodUID, podEntityID.ID))
 	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_mode:time-slicing")
-	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_replicas_used:2")
 
 	// A container without shared-GPU replicas re-tags nothing.
 	assert.Nil(t, collector.retagPodOfGPUContainer(&workloadmeta.Container{
