@@ -18,6 +18,9 @@ permissions:
 
 jobs:
   CLAAssistant:
+    # The CLA only applies to the public repository: the signatures token policy
+    # (DataDog/cla-signatures) doesn't trust private mirrors, so the job would just fail there.
+    if: github.repository == 'DataDog/datadog-agent'
     runs-on: ubuntu-latest
     steps:
       - uses: DataDog/dd-octo-sts-action@c85802a58e202b7e764b5441e4378c76043c8108 # v1.0.5
