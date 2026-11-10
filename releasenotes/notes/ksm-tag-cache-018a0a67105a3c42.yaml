@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    Reduce the CPU and memory usage of the ``kubernetes_state_core`` check by
+    caching the tag strings it builds from metric labels, so identical label
+    pairs are resolved only once per check run.
