@@ -1,4 +1,3 @@
 enhancements:
   - |
-    APM: Batch peer and primary tag selection during OpenTelemetry statistics
-    conversion while preserving span precedence and resource fallback.
+    APM: More efficient peer and primary tag extraction when calculating OTLP span metrics.
