@@ -38,6 +38,7 @@ go_library(
 dd_agent_go_test(
     name = "helm_test",
     srcs = [
+        "cache_memory_test.go",
         "events_test.go",
         "helm_test.go",
         "map_utils_test.go",
@@ -63,5 +64,6 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_client_go//informers",
         "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//tools/cache",
     ],
 )

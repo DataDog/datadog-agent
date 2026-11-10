@@ -179,33 +179,26 @@ func (hc *HelmCheck) Cancel() {
 }
 
 func (hc *HelmCheck) setupInformers() error {
-	secretInformer := hc.informerFactory.Core().V1().Secrets()
-	if _, err := secretInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    hc.addSecret,
-		DeleteFunc: hc.deleteSecret,
-		UpdateFunc: hc.updateSecret,
-	}); err != nil {
-		log.Errorf("cannot add event handler to secret informer: %v", err)
+	informers := map[apiserver.InformerName]cache.SharedInformer{
+		"helm-secrets":    hc.informerFactory.Core().V1().Secrets().Informer(),
+		"helm-configmaps": hc.informerFactory.Core().V1().ConfigMaps().Informer(),
 	}
-	go secretInformer.Informer().Run(hc.informersStopCh)
-
-	configmapInformer := hc.informerFactory.Core().V1().ConfigMaps()
-	if _, err := configmapInformer.Informer().AddEventHandler(cache.ResourceEventHandlerFuncs{
-		AddFunc:    hc.addConfigmap,
-		DeleteFunc: hc.deleteConfigmap,
-		UpdateFunc: hc.updateConfigmap,
-	}); err != nil {
-		log.Errorf("cannot add event handler to config map informer: %v", err)
+	for name, informer := range informers {
+		if err := informer.SetTransform(hc.transformRelease); err != nil {
+			return fmt.Errorf("cannot set transform on %s informer: %w", name, err)
+		}
+		if _, err := informer.AddEventHandler(cache.ResourceEventHandlerFuncs{
+			AddFunc:    hc.addRelease,
+			DeleteFunc: hc.deleteRelease,
+			UpdateFunc: hc.updateRelease,
+		}); err != nil {
+			return fmt.Errorf("cannot add event handler to %s informer: %w", name, err)
+		}
 	}
-	go configmapInformer.Informer().Run(hc.informersStopCh)
-
-	return apiserver.SyncInformers(
-		map[apiserver.InformerName]cache.SharedInformer{
-			"helm-secrets":    secretInformer.Informer(),
-			"helm-configmaps": configmapInformer.Informer(),
-		},
-		hc.getExtraSyncTimeout(),
-	)
+	for _, informer := range informers {
+		go informer.Run(hc.informersStopCh)
+	}
+	return apiserver.SyncInformers(informers, hc.getExtraSyncTimeout())
 }
 
 func (hc *HelmCheck) setSharedInformerFactory(apiClient *apiserver.APIClient) {
@@ -284,182 +277,125 @@ func commonTags(release *release, storageDriver helmStorage) []string {
 	return tags
 }
 
-func (hc *HelmCheck) addSecret(obj interface{}) {
-	secret, ok := obj.(*v1.Secret)
-	if !ok {
-		log.Warnf("Expected *v1.Secret, got: %T", obj)
-		return
-	}
-
-	if !isManagedByHelm(secret) {
-		return
-	}
-
-	hc.addRelease(string(secret.Data["release"]), secret.GetCreationTimestamp(), k8sSecrets)
+// cachedRelease replaces the Kubernetes object before it enters the informer
+// cache. The compact release and tags are also shared with the check's store.
+// Neither the encoded payload nor the decoded Helm values are retained.
+type cachedRelease struct {
+	metav1.ObjectMeta
+	*taggedRelease
+	storage helmStorage
 }
 
-func (hc *HelmCheck) deleteSecret(obj interface{}) {
-	secret, ok := obj.(*v1.Secret)
-	if !ok {
-		// It's possible that we got a DeletedFinalStateUnknown here
-		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			log.Warnf("Received unexpected object: %T", obj)
-			return
-		}
-
-		secret, ok = deletedState.Obj.(*v1.Secret)
-		if !ok {
-			log.Warnf("Expected DeletedFinalStateUnknown to contain *v1.Secret, got: %T", deletedState.Obj)
-			return
-		}
+func (hc *HelmCheck) transformRelease(obj interface{}) (interface{}, error) {
+	var object metav1.Object
+	var encodedRelease string
+	var storage helmStorage
+	switch obj := obj.(type) {
+	case *cachedRelease:
+		// Transforms can be called again on objects already in the cache.
+		return obj, nil
+	case *v1.Secret:
+		object, encodedRelease, storage = obj, string(obj.Data["release"]), k8sSecrets
+	case *v1.ConfigMap:
+		object, encodedRelease, storage = obj, obj.Data["release"], k8sConfigmaps
+	default:
+		return nil, fmt.Errorf("expected Helm Secret or ConfigMap, got: %T", obj)
 	}
 
-	if !isManagedByHelm(secret) {
-		return
+	cached := &cachedRelease{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:              object.GetName(),
+			Namespace:         object.GetNamespace(),
+			ResourceVersion:   object.GetResourceVersion(),
+			CreationTimestamp: object.GetCreationTimestamp(),
+		},
+		storage: storage,
 	}
-
-	hc.deleteRelease(string(secret.Data["release"]), k8sSecrets)
-}
-
-func (hc *HelmCheck) updateSecret(old, new interface{}) {
-	oldSecret, ok := old.(*v1.Secret)
-	if !ok {
-		log.Warnf("Expected *v1.Secret, got: %T", old)
-		return
+	if !isManagedByHelm(object) {
+		return cached, nil
 	}
-
-	newSecret, ok := new.(*v1.Secret)
-	if !ok {
-		log.Warnf("Expected *v1.Secret, got: %T", new)
-		return
-	}
-
-	if oldSecret.ResourceVersion == newSecret.ResourceVersion {
-		return
-	}
-
-	hc.addSecret(newSecret)
-}
-
-func (hc *HelmCheck) addConfigmap(obj interface{}) {
-	configmap, ok := obj.(*v1.ConfigMap)
-	if !ok {
-		log.Warnf("Expected *v1.ConfigMap, got: %T", obj)
-		return
-	}
-
-	if !isManagedByHelm(configmap) {
-		return
-	}
-
-	hc.addRelease(configmap.Data["release"], configmap.GetCreationTimestamp(), k8sConfigmaps)
-}
-
-func (hc *HelmCheck) deleteConfigmap(obj interface{}) {
-	configmap, ok := obj.(*v1.ConfigMap)
-	if !ok {
-		// It's possible that we got a DeletedFinalStateUnknown here
-		deletedState, ok := obj.(cache.DeletedFinalStateUnknown)
-		if !ok {
-			log.Warnf("Received unexpected object: %T", obj)
-			return
-		}
-
-		configmap, ok = deletedState.Obj.(*v1.ConfigMap)
-		if !ok {
-			log.Warnf("Expected DeletedFinalStateUnknown to contain *v1.ConfigMap, got: %T", deletedState.Obj)
-			return
-		}
-	}
-
-	if !isManagedByHelm(configmap) {
-		return
-	}
-
-	hc.deleteRelease(configmap.Data["release"], k8sConfigmaps)
-}
-
-func (hc *HelmCheck) updateConfigmap(old, new interface{}) {
-	oldConfigmap, ok := old.(*v1.ConfigMap)
-	if !ok {
-		log.Warnf("Expected *v1.ConfigMap, got: %T", old)
-		return
-	}
-
-	newConfigmap, ok := new.(*v1.ConfigMap)
-	if !ok {
-		log.Warnf("Expected *v1.ConfigMap, got: %T", new)
-		return
-	}
-
-	if oldConfigmap.ResourceVersion == newConfigmap.ResourceVersion {
-		return
-	}
-
-	hc.addConfigmap(newConfigmap)
-}
-
-func (hc *HelmCheck) addRelease(encodedRelease string, creationTS metav1.Time, storageDriver helmStorage) {
 	decodedRelease, err := decodeRelease(encodedRelease)
 	if err != nil {
+		// Keep the object's identity so malformed releases do not block cache
+		// synchronization, but never retain their payload.
 		log.Debugf("Error while decoding Helm release: %s", err)
-		return
+		return cached, nil
 	}
 
-	needToEmitEvent := hc.instance.CollectEvents && creationTS.After(hc.startTS)
-
-	genericTags := commonTags(decodedRelease, storageDriver)
-	tagsMetricsAndEvents := hc.tagsForMetricsAndEvents(decodedRelease, true)
-	allTags := append(genericTags, tagsMetricsAndEvents...)
-
-	if needToEmitEvent {
-		if previous := hc.store.get(decodedRelease.namespacedName(), decodedRelease.revision(), storageDriver); previous != nil {
-			hc.eventsManager.addEventForUpdatedRelease(previous.release, decodedRelease, allTags)
-		} else {
-			hc.eventsManager.addEventForNewRelease(decodedRelease, allTags)
-		}
+	cached.taggedRelease = &taggedRelease{
+		release:                 decodedRelease,
+		commonTags:              commonTags(decodedRelease, storage),
+		tagsForMetricsAndEvents: hc.tagsForMetricsAndEvents(decodedRelease, true),
 	}
-
-	// The Helm values stored in "Config" and "Chart.Values" are needed only for
-	// the "helm values as tags" option. We've already generated the tags that
-	// we need, so we don't need to store the Helm values. This is important
-	// because the Helm values might need a lot of memory on clusters with many
-	// helm charts and configuration options.
+	// Values are only needed to compute helm_values_as_tags above.
 	decodedRelease.Config = nil
 	if decodedRelease.Chart != nil {
 		decodedRelease.Chart.Values = nil
 	}
-
-	hc.store.add(decodedRelease, storageDriver, genericTags, tagsMetricsAndEvents)
+	return cached, nil
 }
 
-func (hc *HelmCheck) deleteRelease(encodedRelease string, storageDriver helmStorage) {
-	decodedRelease, err := decodeRelease(encodedRelease)
-	if err != nil {
-		log.Debugf("Error while decoding Helm release: %s", err)
+func (hc *HelmCheck) addRelease(obj interface{}) {
+	cached, ok := obj.(*cachedRelease)
+	if !ok {
+		log.Warnf("Expected *cachedRelease, got: %T", obj)
 		return
 	}
+	if cached.taggedRelease == nil {
+		return
+	}
+	rel := cached.release
+	if hc.instance.CollectEvents && cached.CreationTimestamp.After(hc.startTS) {
+		tags := append(append([]string(nil), cached.commonTags...), cached.tagsForMetricsAndEvents...)
+		if previous := hc.store.get(rel.namespacedName(), rel.revision(), cached.storage); previous != nil {
+			hc.eventsManager.addEventForUpdatedRelease(previous.release, rel, tags)
+		} else {
+			hc.eventsManager.addEventForNewRelease(rel, tags)
+		}
+	}
+	hc.store.add(rel, cached.storage, cached.commonTags, cached.tagsForMetricsAndEvents)
+}
 
-	moreRevisionsLeft := hc.store.delete(decodedRelease, storageDriver)
+func (hc *HelmCheck) updateRelease(old, new interface{}) {
+	oldRelease, oldOK := old.(*cachedRelease)
+	newRelease, newOK := new.(*cachedRelease)
+	if !oldOK || !newOK {
+		log.Warnf("Expected *cachedRelease update, got: %T, %T", old, new)
+		return
+	}
+	if oldRelease.ResourceVersion == newRelease.ResourceVersion {
+		return
+	}
+	hc.addRelease(newRelease)
+}
+
+func (hc *HelmCheck) deleteRelease(obj interface{}) {
+	if deleted, ok := obj.(cache.DeletedFinalStateUnknown); ok {
+		obj = deleted.Obj
+	}
+	cached, ok := obj.(*cachedRelease)
+	if !ok {
+		log.Warnf("Expected *cachedRelease, got: %T", obj)
+		return
+	}
+	if cached.taggedRelease == nil {
+		return
+	}
+	moreRevisionsLeft := hc.store.delete(cached.release, cached.storage)
 
 	// When a release is deleted, all its revisions are deleted at the same
-	// time. To avoid generating many events with the same info, we just emit
-	// one when there are no more revisions left.
+	// time. Emit one event when there are no more revisions left.
 	if hc.instance.CollectEvents && !moreRevisionsLeft {
-		tags := hc.allTags(decodedRelease, storageDriver, false)
-
-		// The "helm_status" tag contains the last known status before
-		// uninstalling. Since the release is now deleted, we can set the status
-		// to "uninstalled".
+		// The first metric tag is the revision, which deletion events omit.
+		// Copy the tags before replacing the status, as the cache is read-only.
+		tags := append(append([]string(nil), cached.commonTags...), cached.tagsForMetricsAndEvents[1:]...)
 		for i, tag := range tags {
 			if strings.HasPrefix(tag, "helm_status:") {
 				tags[i] = "helm_status:uninstalled"
 				break
 			}
 		}
-
-		hc.eventsManager.addEventForDeletedRelease(decodedRelease, tags)
+		hc.eventsManager.addEventForDeletedRelease(cached.release, tags)
 	}
 }
 
