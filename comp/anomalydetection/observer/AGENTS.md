@@ -190,6 +190,16 @@ future points and unchanged-data advances provide no evidence. Classification
 uses constant/OLS linear fits with robust residual checks; plateau drift uses
 half-window medians so isolated spikes do not dominate it.
 
+### Metric pipeline
+
+`MetricPipeline` runs registered committed-kind detectors before matching. It is
+programmatic only today. Matching uses the matcher window; detector history
+requirements stay independent. Transitions clean the previous detector state,
+commit the successor kind, and reuse retained history.
+
+After reactivation to a supported kind, only anomalies after the cutoff are
+emitted. Direct `UNSET` assignments are not gated.
+
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to separate metric and log queues, each buffered
