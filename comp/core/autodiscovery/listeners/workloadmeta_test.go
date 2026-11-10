@@ -187,6 +187,23 @@ func TestProcessSetEntity(t *testing.T) {
 	}
 }
 
+func TestWorkloadmetaServiceSendStops(t *testing.T) {
+	synctest.Test(t, func(_ *testing.T) {
+		listener := &workloadmetaListenerImpl{
+			services: make(map[string]Service),
+			stop:     make(chan struct{}),
+		}
+		done := make(chan struct{})
+		go func() {
+			listener.AddService("container://test", nil, "")
+			close(done)
+		}()
+		synctest.Wait()
+		listener.Stop()
+		<-done
+	})
+}
+
 func TestProcessSetEntityAfterTagWaitTimeout(t *testing.T) {
 	processed := false
 	listener := newTestListenerWithWait(

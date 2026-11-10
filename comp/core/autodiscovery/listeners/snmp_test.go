@@ -14,6 +14,7 @@ import (
 	"sort"
 	"strconv"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gosnmp/gosnmp"
@@ -31,6 +32,29 @@ import (
 // ===========================================================================
 // Unit tests: config parsing, job dispatch, cache, and service extra config
 // ===========================================================================
+
+func TestSNMPShutdownWithBlockedJob(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("network_devices.autodiscovery.configs", []interface{}{
+		map[string]interface{}{"network": "192.0.2.0/30", "community": "public"},
+	})
+	cfg.SetInTest("network_devices.autodiscovery.workers", 1)
+	listener, err := NewSNMPListener(ServiceListernerDeps{})
+	require.NoError(t, err)
+	l := listener.(*SNMPListener)
+	l.workerFunc = func(l *SNMPListener, _ <-chan snmpJob) { <-l.stop }
+	synctest.Test(t, func(_ *testing.T) {
+		l.stop = make(chan struct{})
+		done := make(chan struct{})
+		go func() {
+			l.checkDevices()
+			close(done)
+		}()
+		synctest.Wait()
+		l.Stop()
+		<-done
+	})
+}
 
 func TestSNMPListener(t *testing.T) {
 	newSvc := make(chan Service, 10)

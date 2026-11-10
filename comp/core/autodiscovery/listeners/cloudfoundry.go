@@ -32,6 +32,7 @@ type CloudFoundryListener struct {
 	delService    chan<- Service
 	services      map[string]Service // maps ADIdentifiers to services
 	stop          chan bool
+	done          chan struct{}
 	refreshCount  int64
 	refreshTicker *time.Ticker
 	bbsCache      cloudfoundry.BBSCacheI
@@ -67,8 +68,10 @@ func (l *CloudFoundryListener) Listen(newSvc chan<- Service, delSvc chan<- Servi
 	// setup the I/O channels
 	l.newService = newSvc
 	l.delService = delSvc
+	l.done = make(chan struct{})
 
 	go func() {
+		defer close(l.done)
 		l.refreshServices()
 		for {
 			select {
@@ -110,12 +113,20 @@ func (l *CloudFoundryListener) refreshServices() {
 		svc := l.createService(id)
 		// if the container is not in RUNNING state, we can't populate ports, thus createService would return nil
 		if svc != nil {
-			l.newService <- svc
+			select {
+			case l.newService <- svc:
+			case <-l.stop:
+				return
+			}
 		}
 	}
 
 	for adID := range notSeen {
-		l.delService <- l.services[adID]
+		select {
+		case l.delService <- l.services[adID]:
+		case <-l.stop:
+			return
+		}
 		delete(l.services, adID)
 	}
 }
@@ -191,7 +202,10 @@ func (l *CloudFoundryListener) getAllADIdentifiers(desiredLRPs map[string]*cloud
 
 // Stop queues a shutdown of CloudFoundryListener
 func (l *CloudFoundryListener) Stop() {
-	l.stop <- true
+	close(l.stop)
+	if l.done != nil {
+		<-l.done
+	}
 }
 
 // Equal returns whether the two CloudFoundlyService are equal
