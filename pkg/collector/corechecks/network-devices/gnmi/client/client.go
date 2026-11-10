@@ -95,8 +95,11 @@ type ConnectionStatus struct {
 	LastError       string
 	LastErrorAt     time.Time
 	NextReconnectAt time.Time
-	EverConnected   bool
-	LastConnectedAt time.Time
+	// RejectedSubscriptions records isolated request rejections, not inferred
+	// lack of data. Other subscriptions can remain connected while these fail.
+	RejectedSubscriptions map[string]string
+	EverConnected         bool
+	LastConnectedAt       time.Time
 }
 
 // String returns a stable string representation of the stream state.
@@ -127,6 +130,8 @@ type Client struct {
 	closeErr error
 
 	cache *cache
+	// Protected by mu; scoped to this client/configuration and its encoding.
+	rejectedSubscriptions map[string]rejectedSubscription
 
 	synchronized atomic.Bool
 
@@ -294,11 +299,12 @@ func (c *Client) ConnectionStatus() ConnectionStatus {
 	defer c.mu.Unlock()
 
 	return ConnectionStatus{
-		LastError:       c.lastStreamError,
-		LastErrorAt:     c.lastStreamErrorAt,
-		NextReconnectAt: c.nextReconnectAt,
-		EverConnected:   c.everConnected,
-		LastConnectedAt: c.lastConnectedAt,
+		LastError:             c.lastStreamError,
+		LastErrorAt:           c.lastStreamErrorAt,
+		NextReconnectAt:       c.nextReconnectAt,
+		RejectedSubscriptions: c.rejectedSubscriptionErrors(),
+		EverConnected:         c.everConnected,
+		LastConnectedAt:       c.lastConnectedAt,
 	}
 }
 
@@ -398,13 +404,49 @@ func (c *Client) connectAndReceive(ctx context.Context) (bool, error) {
 		_ = conn.Close()
 	}()
 
+	specs := c.activeSubscriptions()
+	if len(specs) == 0 {
+		return false, noActiveSubscriptionsError()
+	}
+	synced, err := c.receiveSubscriptions(ctx, conn, specs)
+	if ctx.Err() != nil || !isRequestRejection(err) {
+		return synced, err
+	}
+	c.synchronized.Store(false)
+	c.setPostDisconnectStreamState()
+	c.mu.Lock()
+	c.lastStreamError = fmt.Sprintf("isolating rejected subscription request: %s", err)
+	c.lastStreamErrorAt = c.opt.clock.Now()
+	c.nextReconnectAt = time.Time{}
+	c.mu.Unlock()
+	isolated, isolationErr := c.isolateRequest(ctx, conn, specs)
+	if isolationErr != nil {
+		return synced, fmt.Errorf("isolate rejected subscription: %w", isolationErr)
+	}
+	if !isolated {
+		return synced, fmt.Errorf("subscription rejected without an isolated path; check model, encoding and mode: %w", err)
+	}
+	// At most one diagnostic pass per connection attempt. If the remaining
+	// combination still fails, normal reconnect backoff applies (no busy loop).
+	specs = c.activeSubscriptions()
+	if len(specs) == 0 {
+		return synced, noActiveSubscriptionsError()
+	}
+	recovered, err := c.receiveSubscriptions(ctx, conn, specs)
+	return synced || recovered, err
+}
+
+func (c *Client) receiveSubscriptions(ctx context.Context, conn *grpc.ClientConn, specs []SubscriptionSpec) (bool, error) {
+	c.synchronized.Store(false)
+	streamCtx, cancel := context.WithCancel(ctx)
+	defer cancel()
 	gnmiClient := gnmipb.NewGNMIClient(conn)
-	stream, err := gnmiClient.Subscribe(ctx)
+	stream, err := gnmiClient.Subscribe(streamCtx)
 	if err != nil {
 		return false, fmt.Errorf("open subscribe stream: %w", err)
 	}
 
-	subscribeReq, err := c.buildSubscribeRequest()
+	subscribeReq, err := c.buildSubscribeRequestForSpecs(specs)
 	if err != nil {
 		return false, err
 	}
@@ -472,7 +514,10 @@ func (c *Client) dial(ctx context.Context) (*grpc.ClientConn, error) {
 }
 
 func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
-	specs := buildSubscriptionSpecs(c.cfg)
+	return c.buildSubscribeRequestForSpecs(buildSubscriptionSpecs(c.cfg))
+}
+
+func (c *Client) buildSubscribeRequestForSpecs(specs []SubscriptionSpec) (*gnmipb.SubscribeRequest, error) {
 	subscriptions := make([]*gnmipb.Subscription, 0, len(specs))
 	for _, spec := range specs {
 		path, err := subscribePathFromSpec(spec)
@@ -498,6 +543,9 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 }
 
 func (c *Client) handleSubscribeResponse(targetCache *cache, resp *gnmipb.SubscribeResponse) (bool, error) {
+	if err := subscriptionResponseError(resp); err != nil {
+		return false, err
+	}
 	switch payload := resp.GetResponse().(type) {
 	case *gnmipb.SubscribeResponse_SyncResponse:
 		if !payload.SyncResponse {

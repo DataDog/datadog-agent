@@ -88,10 +88,12 @@ type Server struct {
 
 	subscribeRequests chan SubscribeEvent
 
-	expectedUsername  string
-	expectedPassword  string
-	rejectCredentials bool
-	delaySyncDefault  bool
+	expectedUsername      string
+	expectedPassword      string
+	rejectCredentials     bool
+	delaySyncDefault      bool
+	subscribeErrorHandler func(*gnmipb.SubscribeRequest) error
+	inBandSubscribeErrors bool
 
 	subscriptionCount atomic.Int32
 	activeStreams     atomic.Int32
@@ -181,6 +183,16 @@ func (s *Server) SetDelaySync(delay bool) {
 	s.delaySyncDefault = delay
 }
 
+// SetSubscribeErrorHandler configures deterministic request rejection. The hook
+// must be concurrency-safe. inBand exercises devices returning deprecated gNMI
+// error messages instead of terminating the RPC with a gRPC status.
+func (s *Server) SetSubscribeErrorHandler(handler func(*gnmipb.SubscribeRequest) error, inBand bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.subscribeErrorHandler = handler
+	s.inBandSubscribeErrors = inBand
+}
+
 // StopPublishing prevents further updates from being sent on the stream.
 func (s *Server) StopPublishing(streamID int) error {
 	s.mu.RLock()
@@ -202,6 +214,17 @@ func (s *Server) SendSyncResponse(streamID int) error {
 		Response: &gnmipb.SubscribeResponse_SyncResponse{
 			SyncResponse: true,
 		},
+	})
+}
+
+// SendSubscriptionError sends a deprecated in-band gNMI error without closing
+// the transport, to exercise devices which report failures inside the stream.
+func (s *Server) SendSubscriptionError(streamID int, err error) error {
+	rpcStatus := status.Convert(err)
+	return s.sendResponse(streamID, &gnmipb.SubscribeResponse{
+		Response: &gnmipb.SubscribeResponse_Error{Error: &gnmipb.Error{ //nolint:staticcheck // SA1019: Simulate legacy devices that send in-band errors.
+			Code: uint32(rpcStatus.Code()), Message: rpcStatus.Message(),
+		}},
 	})
 }
 
@@ -365,6 +388,21 @@ func (g *gnmiService) handleSubscribeRequest(streamID int, state *streamState, u
 			Request:  req,
 			Username: username,
 			Password: password,
+		}
+		g.server.mu.RLock()
+		handler, inBand := g.server.subscribeErrorHandler, g.server.inBandSubscribeErrors
+		g.server.mu.RUnlock()
+		if handler != nil {
+			if err := handler(req); err != nil {
+				select {
+				case g.server.subscribeRequests <- event:
+				default:
+				}
+				if !inBand {
+					return err
+				}
+				return g.server.SendSubscriptionError(streamID, err)
+			}
 		}
 		if !state.delaySync {
 			if err := g.server.SendSyncResponse(streamID); err != nil {

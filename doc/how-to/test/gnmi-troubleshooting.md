@@ -208,6 +208,39 @@ The stream has not received `sync_response` yet. Wait longer (`--timeout 60s`),
 or verify the target is up with `subscribe`. If `last_error` is set, fix
 transport or auth first.
 
+### A subscription path is rejected
+
+The client catches both gRPC status failures and in-band gNMI error messages.
+For explicit request/schema rejections (`InvalidArgument`, `NotFound`, or
+`Unimplemented`), it attempts bounded isolation instead of endlessly retrying
+an identical batch. Diagnostic STREAM requests use the same encoding/mode and
+connection, one at a time (30 seconds per probe, two minutes per isolation pass,
+and at most twice the configured path count). No Get, ONCE or Set is required.
+
+A path is temporarily excluded only after a singleton request explicitly fails
+and another probe reaches sync. That sync proves request acceptance, not that
+its metrics are populated. If every probe fails, the original request remains
+failed: an encoding/mode failure must not disable all paths. Unknown/silent
+paths remain enabled; if a failure cannot be isolated, normal backoff applies.
+
+Supported paths resume in one batch. `agent status` shows **Connected (partial)**
+with rejected paths and the device's error in verbose output/JSON. Both debug
+commands print `rejected_path="..." error="..."` lines even after the surviving
+stream recovers. Diagnostic samples never enter the reporting cache. Isolation
+can outlast the preview command's default sync deadline; use `--timeout 3m`
+with `preview-metrics --once` when diagnosing rejected paths.
+
+Rejections are local to this client/configuration. Paths become eligible again
+on a reconnect at least five minutes after rejection, or immediately when a
+configuration reload constructs a new client. There is no periodic interruption
+of a healthy stream solely to retry rejected paths.
+
+Authentication, permission, transport and resource-limit failures remain
+connection errors and do not quarantine paths. Empty data or sync-only replies
+are never evidence that a metric is unsupported. Publishers that never send
+sync can still prevent initial inventory readiness; isolation does not infer
+missing completion markers or promote partial data to a complete inventory.
+
 ### `no metrics emitted`
 
 Samples may be stale relative to `min_collection_interval`, or interface

@@ -244,6 +244,7 @@ func (c *Check) updateStatusFromClient(gnmiClient *client.Client, checkConfig *c
 		device.DeviceName = deviceHostname(snapshot, checkConfig.Profile.Metadata)
 		device.EverConnected = connStatus.EverConnected
 		device.LastConnectedAt = timeToUnixNano(connStatus.LastConnectedAt)
+		device.RejectedSubscriptions = connStatus.RejectedSubscriptions
 
 		if streamState == client.StreamStateConnected {
 			device.LastError = ""

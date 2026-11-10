@@ -1,0 +1,7 @@
+enhancements:
+  - |
+    The experimental gNMI check can isolate explicitly rejected subscription
+    paths and resume healthy telemetry instead of repeatedly retrying the same
+    failed batch. Agent status and gNMI troubleshooting commands retain the
+    rejected paths and device errors after recovery. Authentication, transport
+    failures, and silent paths do not cause paths to be excluded.

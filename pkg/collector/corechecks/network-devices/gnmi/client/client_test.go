@@ -18,10 +18,14 @@ import (
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
+	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/report"
 )
 
 func testProfile() config.ProfileDefinition {
@@ -570,4 +574,84 @@ func hostPort(addr string) (string, int, error) {
 		return "", 0, err
 	}
 	return host, port, nil
+}
+
+func TestRejectedQualifiedPathKeepsHealthyHostname(t *testing.T) {
+	const rejected = "/openconfig-system:system/state/hostname"
+	const accepted = "/openconfig/system/state/hostname"
+	qualifiedWire := &gnmipb.Path{Elem: []*gnmipb.PathElem{{Name: "openconfig-system:system"}, {Name: "state"}, {Name: "hostname"}}}
+	acceptedWire := &gnmipb.Path{Elem: []*gnmipb.PathElem{{Name: "openconfig"}, {Name: "system"}, {Name: "state"}, {Name: "hostname"}}}
+	for _, inBand := range []bool{false, true} {
+		t.Run("inband="+strconv.FormatBool(inBand), func(t *testing.T) {
+			server := startServer(t)
+			server.SetDelaySync(true)
+			server.SetSubscribeErrorHandler(func(request *gnmipb.SubscribeRequest) error {
+				for _, sub := range request.GetSubscribe().GetSubscription() {
+					if len(sub.GetPath().GetElem()) > 0 && sub.GetPath().GetElem()[0].GetName() == "openconfig-system:system" {
+						return status.Error(codes.NotFound, "qualified spelling unsupported")
+					}
+				}
+				return nil
+			}, inBand)
+			host, port, err := hostPort(server.Addr())
+			require.NoError(t, err)
+			profile := config.ProfileDefinition{
+				Metrics:  []config.MetricConfig{{Path: rejected}},
+				Metadata: config.MetadataConfig{Device: config.DeviceMetadataConfig{Hostname: accepted}},
+			}
+			c, err := client.New(client.Config{Address: host, Port: port, Username: "user", Password: "pass", Profile: profile}, client.WithReconnectDelays(time.Hour, time.Hour))
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, c.Close()) })
+			startClient(t, c)
+			initial := waitSubscribeEvent(t, server)
+			subs := initial.Request.GetSubscribe().GetSubscription()
+			require.Len(t, subs, 2)
+			require.True(t, proto.Equal(qualifiedWire, subs[0].GetPath()))
+			require.True(t, proto.Equal(acceptedWire, subs[1].GetPath()))
+			// Baseline-supported qualified and unqualified spellings have different
+			// actual wire elements; these tests do not imply explicit-origin support.
+			for i, wire := range []*gnmipb.Path{qualifiedWire, acceptedWire} {
+				probe := waitSubscribeEvent(t, server)
+				subs := probe.Request.GetSubscribe().GetSubscription()
+				require.Len(t, subs, 1)
+				require.True(t, proto.Equal(wire, subs[0].GetPath()))
+				if i == 1 {
+					require.NoError(t, server.SendUpdate(probe.StreamID, &gnmipb.Update{
+						Path: acceptedWire, Val: &gnmipb.TypedValue{Value: &gnmipb.TypedValue_StringVal{StringVal: "diagnostic-only"}},
+					}))
+					require.NoError(t, server.SendSyncResponse(probe.StreamID))
+				}
+			}
+			recovered := waitSubscribeEvent(t, server)
+			require.Empty(t, c.Snapshot(), "probe samples must never enter the reporting cache")
+			subs = recovered.Request.GetSubscribe().GetSubscription()
+			require.Len(t, subs, 1)
+			require.True(t, proto.Equal(acceptedWire, subs[0].GetPath()), "only the rejected spelling may be excluded")
+			require.NoError(t, server.SendUpdate(recovered.StreamID, &gnmipb.Update{
+				Path: acceptedWire, Val: &gnmipb.TypedValue{Value: &gnmipb.TypedValue_StringVal{StringVal: "healthy-control"}},
+			}))
+			require.NoError(t, server.SendSyncResponse(recovered.StreamID))
+			require.Eventually(t, func() bool {
+				entry, ok := c.Get(accepted, nil)
+				return ok && entry.Value == "healthy-control" && c.Synchronized() && c.StreamState() == client.StreamStateConnected
+			}, 5*time.Second, time.Millisecond)
+			snapshot := c.Snapshot()
+			require.Len(t, snapshot, 1)
+			require.Equal(t, accepted, snapshot[0].Key.Path)
+			require.Equal(t, "healthy-control", snapshot[0].Entry.Value)
+			capture := report.NewCaptureSender()
+			sent, err := report.ReportMetadata(capture, &config.CheckConfig{Profile: profile}, snapshot, time.Now())
+			require.NoError(t, err)
+			require.True(t, sent)
+			require.Len(t, capture.MetadataEvents(), 1)
+			require.Contains(t, string(capture.MetadataEvents()[0].Payload), `"os_hostname":"healthy-control"`)
+			diagnostics := c.ConnectionStatus().RejectedSubscriptions
+			require.Len(t, diagnostics, 1)
+			require.Contains(t, diagnostics[rejected], "qualified spelling unsupported")
+			require.NotContains(t, diagnostics, accepted)
+			require.Empty(t, c.ConnectionStatus().LastError, "recovered stream clears its connection error, not path diagnostics")
+			require.NoError(t, c.Close())
+			require.Eventually(t, func() bool { return server.ActiveStreamCount() == 0 && server.ConnectionCount() == 0 }, 5*time.Second, time.Millisecond)
+		})
+	}
 }
