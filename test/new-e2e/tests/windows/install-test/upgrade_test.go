@@ -156,84 +156,93 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 
 }
 
+// Keep each scenario in its own suite test so the existing BeforeTest/AfterTest
+// hooks collect the deletion audit before the Security log can roll over.
+func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollbackLocalPasswordChange() {
+	s.testServiceDeletionRollback(serviceDeletionRollbackCase{restoreAvailable: true})
+}
+
+func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollbackLocalMissingPassword() {
+	s.testServiceDeletionRollback(serviceDeletionRollbackCase{missingPassword: true, restoreAvailable: true})
+}
+
+func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollbackLocalSystem() {
+	s.testServiceDeletionRollback(serviceDeletionRollbackCase{account: "LocalSystem", restoreAvailable: true})
+}
+
+func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollbackSwitchToLocalSystem() {
+	s.testServiceDeletionRollback(serviceDeletionRollbackCase{incomingAccount: "LocalSystem"})
+}
+
+type serviceDeletionRollbackCase struct {
+	account          string
+	incomingAccount  string
+	missingPassword  bool
+	restoreAvailable bool
+}
+
 // Both MSIs contain the conditional deletion logic. Released source packages
 // retain their old DeleteServices condition and cannot exercise this rollback.
-func (s *testUpgradeFromLatestSuite) TestServiceDeletionRollback() {
+func (s *testUpgradeFromLatestSuite) testServiceDeletionRollback(tc serviceDeletionRollbackCase) {
+	s.T().Helper()
 	vm := s.Env().RemoteHost
-	for _, tc := range []struct {
-		name             string
-		account          string
-		incomingAccount  string
-		missingPassword  bool
-		restoreAvailable bool
-	}{
-		{name: "local_password_change", restoreAvailable: true},
-		{name: "local_missing_password", missingPassword: true, restoreAvailable: true},
-		{name: "local_system", account: "LocalSystem", restoreAvailable: true},
-		{name: "switch_to_local_system", incomingAccount: "LocalSystem"},
-	} {
-		if !s.Run(tc.name, func() {
-			_, err := s.InstallAgent(vm,
-				windowsAgent.WithPackage(s.AgentPackage),
-				windowsAgent.WithAgentUser(tc.account),
-				windowsAgent.WithValidAPIKey(),
-				windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
-			)
-			s.Require().NoError(err)
-			product, err := windowsAgent.GetDatadogAgentProductCode(vm)
-			s.Require().NoError(err)
-			originalConfig, err := windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
-			s.Require().NoError(err)
-			const markerPath = `HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent`
-			s.Require().NoError(windowsCommon.SetRegistryDWORDValue(vm, markerPath, "E2ERecreationMarker", 1))
-			if tc.missingPassword {
-				// Keep the account's real password intact; remove only the installer's secret.
-				s.removeStoredAgentPassword()
-			}
-			logPath := filepath.Join(s.SessionOutputDir(), "upgrade-rollback.log")
-			_, err = s.InstallAgent(vm,
-				windowsAgent.WithAgentUserPassword("E2e-Changed-Password-472!"),
-				windowsAgent.WithAgentUser(tc.incomingAccount),
-				windowsAgent.WithPackage(s.upgradeAgentPackge),
-				windowsAgent.WithWixFailWhenDeferred(),
-				windowsAgent.WithInstallLogFile(logPath),
-			)
-			s.Require().Error(err)
-			log, err := os.ReadFile(logPath)
-			s.Require().NoError(err)
-			log, err = windowsCommon.ConvertUTF16ToUTF8(log)
-			s.Require().NoError(err)
-			if tc.missingPassword {
-				s.Require().Contains(string(log), "Preserving services:")
-				marker := vm.MustExecute(`(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent').E2ERecreationMarker`)
-				s.Require().Equal("1", strings.TrimSpace(marker), "rollback must retain the pre-existing service")
-			} else {
-				s.Require().Contains(string(log), "Allowing service deletion during upgrade removal", "must exercise conditional deletion")
-			}
-			restoredProduct, err := windowsAgent.GetDatadogAgentProductCode(vm)
-			s.Require().NoError(err)
-			s.Require().Equal(product, restoredProduct)
-			restoredConfig, err := windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
-			s.Require().NoError(err)
-			// Running state is checked by starting the Agent below; it is not service configuration.
-			for _, config := range originalConfig {
-				config.Status = 0
-			}
-			for _, config := range restoredConfig {
-				config.Status = 0
-			}
-			s.Require().Equal(originalConfig, restoredConfig, "rollback must restore service configuration")
-			if tc.restoreAvailable {
-				s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
-				RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
-			} else {
-				s.Require().Contains(string(log), "current credentials unavailable for outgoing account; repair may be required")
-			}
-			s.uninstallAgent()
-		}) {
-			s.Require().FailNow("stopping after failed rollback scenario")
-		}
+	_, err := s.InstallAgent(vm,
+		windowsAgent.WithPackage(s.AgentPackage),
+		windowsAgent.WithAgentUser(tc.account),
+		windowsAgent.WithValidAPIKey(),
+		windowsAgent.WithInstallLogFile(filepath.Join(s.SessionOutputDir(), "install.log")),
+	)
+	s.Require().NoError(err)
+	product, err := windowsAgent.GetDatadogAgentProductCode(vm)
+	s.Require().NoError(err)
+	originalConfig, err := windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
+	s.Require().NoError(err)
+	const markerPath = `HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent`
+	s.Require().NoError(windowsCommon.SetRegistryDWORDValue(vm, markerPath, "E2ERecreationMarker", 1))
+	if tc.missingPassword {
+		// Keep the account's real password intact; remove only the installer's secret.
+		s.removeStoredAgentPassword()
 	}
+	logPath := filepath.Join(s.SessionOutputDir(), "upgrade-rollback.log")
+	_, err = s.InstallAgent(vm,
+		windowsAgent.WithAgentUserPassword("E2e-Changed-Password-472!"),
+		windowsAgent.WithAgentUser(tc.incomingAccount),
+		windowsAgent.WithPackage(s.upgradeAgentPackge),
+		windowsAgent.WithWixFailWhenDeferred(),
+		windowsAgent.WithInstallLogFile(logPath),
+	)
+	s.Require().Error(err)
+	log, err := os.ReadFile(logPath)
+	s.Require().NoError(err)
+	log, err = windowsCommon.ConvertUTF16ToUTF8(log)
+	s.Require().NoError(err)
+	if tc.missingPassword {
+		s.Require().Contains(string(log), "Preserving services:")
+		marker := vm.MustExecute(`(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Services\datadogagent').E2ERecreationMarker`)
+		s.Require().Equal("1", strings.TrimSpace(marker), "rollback must retain the pre-existing service")
+	} else {
+		s.Require().Contains(string(log), "Allowing service deletion during upgrade removal", "must exercise conditional deletion")
+	}
+	restoredProduct, err := windowsAgent.GetDatadogAgentProductCode(vm)
+	s.Require().NoError(err)
+	s.Require().Equal(product, restoredProduct)
+	restoredConfig, err := windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
+	s.Require().NoError(err)
+	// Running state is checked by starting the Agent below; it is not service configuration.
+	for _, config := range originalConfig {
+		config.Status = 0
+	}
+	for _, config := range restoredConfig {
+		config.Status = 0
+	}
+	s.Require().Equal(originalConfig, restoredConfig, "rollback must restore service configuration")
+	if tc.restoreAvailable {
+		s.Require().NoError(windowsCommon.StartService(vm, "datadogagent"))
+		RequireAgentVersionRunningWithNoErrors(s.T(), s.NewTestClientForHost(vm), s.AgentPackage.AgentVersion())
+	} else {
+		s.Require().Contains(string(log), "current credentials unavailable for outgoing account; repair may be required")
+	}
+	s.uninstallAgent()
 }
 
 // Remove only the installer's LSA password, without changing the user's password
