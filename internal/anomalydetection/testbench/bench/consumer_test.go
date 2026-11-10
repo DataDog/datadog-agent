@@ -120,6 +120,31 @@ func TestLoadTestbenchParamsInheritsReplayDefaults(t *testing.T) {
 	require.Equal(t, expected, settings)
 }
 
+func TestLoadTestbenchParamsAnomalyCutoff(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want *bool
+	}{
+		{"default", `{"components":{}}`, nil},
+		{"enabled", `{"anomaly_cutoff":true,"components":{}}`, ptrBool(true)},
+		{"disabled", `{"anomaly_cutoff":false,"components":{}}`, ptrBool(false)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "params.json")
+			require.NoError(t, os.WriteFile(path, []byte(tc.body), 0o600))
+			settings, err := LoadTestbenchParams(path)
+			require.NoError(t, err)
+			require.Equal(t, tc.want, settings.MetricPipelineAnomalyCutoff)
+			settings = observerimpl.ApplyTestbenchDefaults(settings)
+			require.NotNil(t, settings.MetricPipelineAnomalyCutoff)
+			require.True(t, *settings.MetricPipelineAnomalyCutoff || tc.want != nil && !*tc.want)
+		})
+	}
+}
+
+func ptrBool(v bool) *bool { return &v }
+
 type workflowResetRecorder struct {
 	observerimpl.DebugView
 	settings []observerimpl.ComponentSettings

@@ -320,6 +320,10 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 		return settings
 	}
 	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.metric_pipeline.enabled")
+	if cfg.IsConfigured("anomaly_detection.metric_pipeline.anomaly_cutoff") {
+		cutoff := cfg.GetBool("anomaly_detection.metric_pipeline.anomaly_cutoff")
+		settings.MetricPipelineAnomalyCutoff = &cutoff
+	}
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
 		// The anomaly_scorer has its own dedicated config prefix outside detectors.*.

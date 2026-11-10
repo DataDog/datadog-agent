@@ -113,10 +113,18 @@ anomaly_detection:
 `)
 	settings = settingsFromAgentConfig(defaultCatalog(), cfg)
 	require.True(t, settings.UseMetricPipeline)
+	require.Nil(t, settings.MetricPipelineAnomalyCutoff)
 	detectors, _, _, _, _ := instantiateForTest(t, defaultCatalog(), settings)
 	require.Equal(t, []string{"scanmw"}, detectorNames(detectors))
 	pipeline := detectors[0].detector.(*MetricPipeline)
 	require.Equal(t, observerdef.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}, pipeline.DetectorPointWindow())
+	require.True(t, pipeline.anomalyCutoff)
+
+	disabledCutoff := false
+	settings.MetricPipelineAnomalyCutoff = &disabledCutoff
+	detectors, _, _, _, _ = instantiateForTest(t, defaultCatalog(), settings)
+	pipeline = detectors[0].detector.(*MetricPipeline)
+	require.False(t, pipeline.anomalyCutoff)
 }
 
 func TestScanDetectors_CatalogConfiguration(t *testing.T) {

@@ -197,6 +197,8 @@ Set `anomaly_detection.metric_pipeline.enabled: true` to run only `MetricPipelin
 with its own detector instances and defaults; legacy detector settings do not
 configure the pipeline.
 Baseline and scorer settings apply in both workflows.
+`anomaly_detection.metric_pipeline.anomaly_cutoff` (default true) gates
+post-reactivation anomaly suppression; testbench params use `anomaly_cutoff`.
 
 `MetricPipeline` runs registered committed-kind detectors before matching.
 Matching uses the matcher window; detector history
