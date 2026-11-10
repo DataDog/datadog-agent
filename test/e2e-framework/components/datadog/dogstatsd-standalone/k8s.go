@@ -329,6 +329,28 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					pulumi.String("get"),
 				},
 			},
+			v1.PolicyRuleArgs{ // Node metadata mapping lists endpoints or endpointslices
+				ApiGroups: pulumi.StringArray{
+					pulumi.String(""),
+				},
+				Resources: pulumi.StringArray{
+					pulumi.String("endpoints"),
+				},
+				Verbs: pulumi.StringArray{
+					pulumi.String("list"),
+				},
+			},
+			v1.PolicyRuleArgs{
+				ApiGroups: pulumi.StringArray{
+					pulumi.String("discovery.k8s.io"),
+				},
+				Resources: pulumi.StringArray{
+					pulumi.String("endpointslices"),
+				},
+				Verbs: pulumi.StringArray{
+					pulumi.String("list"),
+				},
+			},
 		},
 	}
 
