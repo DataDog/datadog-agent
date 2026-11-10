@@ -264,7 +264,7 @@ func (p *ProcessCheck) run(groupID int32, collectRealTime bool) (RunResult, erro
 		return CombinedRunResult{}, nil
 	}
 
-	// Retain zombie PIDs so GPU usage changes between checks can affect submission.
+	// Store PIDs for RTProcess, retaining collected zombies for payload-time GPU filtering.
 	p.lastPIDs = p.lastPIDs[:0]
 	for pid, proc := range procs {
 		if proc == nil || proc.Stats == nil || (p.ignoreZombieProcesses && proc.Stats.IsZombie()) {
@@ -601,6 +601,7 @@ func fmtProcesses(
 		if skipProcess(disallowList, fp, lastProcs, zombiesIgnored) {
 			continue
 		}
+		// Omit non-GPU zombies only from the payload; parent aggregation still needs the raw snapshot.
 		gpuTags, usesGPU := pidToGPUTags[fp.Pid]
 		if fp.Stats.IsZombie() && !usesGPU {
 			continue
