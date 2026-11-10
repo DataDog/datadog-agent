@@ -191,6 +191,13 @@ func (ch *chooser) choose(wait bool) {
 			makeChoice(LogContainers)
 			return
 
+		// On ECS Managed Instances daemon mode there is no docker socket by design
+		// (containers are discovered via containerd/TMDS instead), so waiting on
+		// dockerReady would never succeed. Choose immediately, as with Podman above.
+		case env.IsECSManagedInstancesDaemonMode(pkgconfigsetup.Datadog()) && !k:
+			makeChoice(LogContainers)
+			return
+
 		case c && !k:
 			ready, delay = ch.dockerReady()
 			if ready {

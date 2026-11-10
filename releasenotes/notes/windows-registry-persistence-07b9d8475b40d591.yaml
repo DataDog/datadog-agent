@@ -1,0 +1,12 @@
+---
+upgrade:
+  - |
+    If you maintain a custom Windows integration that writes data under
+    ``HKLM\SOFTWARE\Datadog\Datadog Agent``, update it before upgrading:
+    the Agent user is no longer granted write access to that registry key.
+    Check your integration for writes to this location and store persistent
+    state using the `Agent persistent cache <https://datadoghq.dev/integrations-core/base/persistent-cache/>`_ instead.
+fixes:
+  - |
+    Move ``agentcrashdetect`` and ``wincrashdetect`` crash-report persistence
+    from the Windows registry to files in the Agent's ``run`` directory.

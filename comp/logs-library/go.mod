@@ -79,19 +79,21 @@ require (
 	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gofrs/flock v0.13.1 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/lufia/plan9stats v0.0.0-20260802145828-341c2f0c90b5 // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
 	github.com/mdlayher/socket v0.8.0 // indirect
-	github.com/mdlayher/vsock v1.3.0 // indirect
+	github.com/mdlayher/vsock v1.4.0 // indirect
 	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/pandatix/go-abnf v0.5.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.72.1 // indirect
+	github.com/prometheus/common v0.73.0 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/shirou/gopsutil/v4 v4.26.9 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
@@ -104,7 +106,7 @@ require (
 	go.uber.org/fx v1.24.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.28.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.4 // indirect
+	go.yaml.in/yaml/v2 v2.4.5 // indirect
 	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 	golang.org/x/sys v0.49.0 // indirect

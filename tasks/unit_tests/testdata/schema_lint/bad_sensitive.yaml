@@ -1,0 +1,24 @@
+properties:
+  not_bool:
+    node_type: setting
+    sensitive: "yes"
+    type: string
+    default: ''
+  sensitive_on_section:
+    node_type: section
+    sensitive: true
+    properties:
+      child:
+        node_type: setting
+        type: string
+        default: ''
+  valid_sensitive:
+    node_type: setting
+    sensitive: true
+    type: string
+    default: ''
+  valid_not_sensitive:
+    node_type: setting
+    sensitive: false
+    type: string
+    default: ''

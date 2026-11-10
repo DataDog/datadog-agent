@@ -680,7 +680,7 @@ func TestDelegatedAuthWithoutWriteBackDropsWithoutAcking(t *testing.T) {
 	// A directive in a setting delegated auth never writes back: no key will ever arrive.
 	server.Destination.endpoint = config.NewEndpoint(
 		"DELA[some-org-uuid, aws]",
-		"database_monitoring.samples.additional_endpoints",
+		"agent_telemetry.additional_endpoints",
 		server.Endpoint.Host,
 		server.Endpoint.Port,
 		config.EmptyPathPrefix,
