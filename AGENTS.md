@@ -317,3 +317,7 @@ tests), if you notice a gap or inaccuracy in an `AGENTS.md` or skill file, fix
 it — either in the same PR or as a follow-up. Small, incremental improvements
 are preferred over large rewrites. This creates a feedback loop where every
 session leaves the context more accurate for the next one.
+
+<!-- agent-notes:start -->
+- When a tool fails with a sign-in, auth or key-signing error, stop calling it and ask the user to sign in or unlock; don't retry it or work around it.
+<!-- agent-notes:end -->
