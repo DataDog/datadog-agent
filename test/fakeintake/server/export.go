@@ -18,6 +18,8 @@ import (
 // then writes retained original payloads before closing the store. The caller
 // owns the writer and its close result. Metadata retains parsed request values,
 // not original HTTP wire framing. Previously expired history is not recovered.
+// Only one Stop or StopAndExport call can stop the server; later calls return an
+// error, including after an export failure. A failed export cannot be retried.
 func (fi *Server) StopAndExport(output io.Writer) error {
 	if output == nil {
 		return errors.New("payload export writer is required")

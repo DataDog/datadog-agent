@@ -55,8 +55,11 @@ handlers and retention cleanup before exporting retained original payloads.
 It streams `{"payloads":{"route":[Payload,...]}}` through the existing bounded
 page reader, then closes store custody. The caller owns the output writer and
 its close result. Export failure fails the operation. `Server.Stop()` retains
-its no-export behavior. This exports retained history, not records already
-removed by retention or flush. Request metadata remains server-parsed.
+its no-export behavior. A server accepts one stop operation; later or concurrent
+`Stop`/`StopAndExport` calls return an error. This also applies after a writer
+failure: terminal export cannot be retried. This exports retained history, not
+records already removed by retention or flush. Request metadata remains
+server-parsed.
 
 ## Supported endpoints
 

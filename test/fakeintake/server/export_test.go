@@ -104,3 +104,105 @@ func TestTerminalExportPropagatesWriterFailure(t *testing.T) {
 	fi, _ := InitialiseForTests(t)
 	require.ErrorIs(t, fi.StopAndExport(failedExportWriter{}), io.ErrClosedPipe)
 }
+
+type closeCountingStore struct {
+	serverstore.Store
+	closeCalls int
+}
+
+func (s *closeCountingStore) Close() {
+	s.closeCalls++
+	s.Store.Close()
+}
+
+type shutdownErrorListener struct {
+	accepting chan struct{}
+	closed    chan struct{}
+	err       error
+}
+
+func (l *shutdownErrorListener) Accept() (net.Conn, error) {
+	close(l.accepting)
+	<-l.closed
+	return nil, net.ErrClosed
+}
+
+func (l *shutdownErrorListener) Close() error {
+	close(l.closed)
+	return l.err
+}
+
+func (*shutdownErrorListener) Addr() net.Addr { return &net.TCPAddr{} }
+
+func TestTerminalExportClosesStoreOnShutdownFailure(t *testing.T) {
+	ready := make(chan bool, 1)
+	fi := NewServer(WithAddress("127.0.0.1:0"), WithReadyChannel(ready), WithClock(clock.NewMock()))
+	store := &closeCountingStore{Store: fi.store}
+	fi.store = store
+	fi.Start()
+	require.True(t, <-ready)
+	shutdownErr := errors.New("listener close failed")
+	listener := &shutdownErrorListener{accepting: make(chan struct{}), closed: make(chan struct{}), err: shutdownErr}
+	served := make(chan error, 1)
+	go func() { served <- fi.server.Serve(listener) }()
+	<-listener.accepting
+	var output bytes.Buffer
+	require.ErrorIs(t, fi.StopAndExport(&output), shutdownErr)
+	require.ErrorIs(t, <-served, http.ErrServerClosed)
+	require.Empty(t, output.Bytes(), "a failed shutdown must not produce a successful export")
+	require.Equal(t, 1, store.closeCalls)
+	require.Error(t, fi.Stop())
+	require.Equal(t, 1, store.closeCalls)
+}
+
+func TestTerminalExportAllowsDeferredStop(t *testing.T) {
+	for _, output := range []struct {
+		name   string
+		writer io.Writer
+	}{
+		{"success", io.Discard},
+		{"writer failure", failedExportWriter{}},
+	} {
+		t.Run(output.name, func(t *testing.T) {
+			fi, _ := InitialiseForTests(t)
+			// Embedders commonly register Stop before attempting a final export.
+			defer func() { require.Error(t, fi.Stop()) }()
+			err := fi.StopAndExport(output.writer)
+			if output.name == "success" {
+				require.NoError(t, err)
+			} else {
+				require.ErrorIs(t, err, io.ErrClosedPipe)
+			}
+			require.Error(t, fi.StopAndExport(io.Discard))
+		})
+	}
+}
+
+type blockedExportWriter struct {
+	started chan struct{}
+	release chan struct{}
+	once    sync.Once
+}
+
+func (w *blockedExportWriter) Write(data []byte) (int, error) {
+	w.once.Do(func() {
+		close(w.started)
+		<-w.release
+	})
+	return len(data), nil
+}
+
+func TestTerminalExportRejectsConcurrentStop(t *testing.T) {
+	fi, _ := InitialiseForTests(t)
+	output := &blockedExportWriter{started: make(chan struct{}), release: make(chan struct{})}
+	finished := make(chan error, 1)
+	go func() { finished <- fi.StopAndExport(output) }()
+	<-output.started
+	// Release the writer even when an assertion fails, so export can settle.
+	func() {
+		defer close(output.release)
+		require.Error(t, fi.Stop())
+		require.Error(t, fi.StopAndExport(io.Discard))
+	}()
+	require.NoError(t, <-finished)
+}

@@ -28,6 +28,7 @@ import (
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/benbjohnson/clock"
@@ -70,6 +71,7 @@ type Server struct {
 	retention          time.Duration
 	shutdown           chan struct{}
 	cleanupDone        chan struct{}
+	stopStarted        atomic.Bool
 	dddevForward       bool
 	forwardEndpoint    string
 	logForwardEndpoint string
@@ -327,13 +329,16 @@ func (fi *Server) stop(output io.Writer) error {
 	if !fi.IsRunning() {
 		return errors.New("server not running")
 	}
+	if !fi.stopStarted.CompareAndSwap(false, true) {
+		return errors.New("server already stopping or stopped")
+	}
+	defer fi.store.Close()
 	close(fi.shutdown)
 	err := fi.server.Shutdown(context.Background())
 	<-fi.cleanupDone
 	if err != nil {
 		return err
 	}
-	defer fi.store.Close()
 	if output != nil {
 		return fi.exportPayloads(output)
 	}
