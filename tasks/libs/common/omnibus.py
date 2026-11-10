@@ -61,7 +61,6 @@ ENV_PASSHTROUGH = {
 OS_SPECIFIC_ENV_PASSTHROUGH = {
     'win32': {
         'APPDATA': 'Windows-specific folder',
-        'JARSIGN_JAR': 'Used for signing MSI packages',
         'LOCALAPPDATA': 'Required for go build cache (and maybe more)',
         'MSYSTEM': 'MSYS2-related',
         'MINGW_PACKAGE_PREFIX': 'MSYS2-related',
@@ -134,7 +133,6 @@ def _get_environment_for_cache(env: dict[str, str]) -> dict:
         'GOPRIVATE',
         'GOPROXY',
         'HOME',
-        'JARSIGN_JAR',
         'KEYCHAIN_NAME',
         'KEYCHAIN_PWD',
         'LD_PRELOAD',
