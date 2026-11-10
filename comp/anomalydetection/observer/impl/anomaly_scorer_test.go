@@ -168,6 +168,41 @@ func TestAnomalySeverityLabel(t *testing.T) {
 	assert.Equal(t, "xhigh", anomalySeverityLabel(4))
 }
 
+func TestAnomalyLevel_UsesRelativeChange(t *testing.T) {
+	tests := []struct {
+		name   string
+		score  *float64
+		before float64
+		after  float64
+		want   int
+	}{
+		{name: "very low bound", score: scorePtr(9), before: 100, after: 106, want: 0},
+		{name: "low", score: scorePtr(9), before: 100, after: 106.1, want: 1},
+		{name: "medium bound", score: scorePtr(9), before: 100, after: 120, want: 2},
+		{name: "high", score: scorePtr(9), before: 100, after: 120.1, want: 3},
+		{name: "xhigh bound", score: scorePtr(9), before: 100, after: 150, want: 3},
+		{name: "xhigh", score: scorePtr(9), before: 100, after: 150.1, want: 4},
+		{name: "high confidence bonus", score: scorePtr(20), before: 100, after: 106, want: 1},
+		{name: "high confidence bonus capped", score: scorePtr(20), before: 100, after: 160, want: 4},
+		{name: "negative baseline", score: scorePtr(20), before: -100, after: -90, want: 2},
+		{name: "zero baseline", score: scorePtr(9), before: 0, after: 1, want: 4},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			a := makeAnomaly("scanmw", 1000, tc.score)
+			a.LevelChange = &observer.LevelChangeEvidence{BeforeMedian: tc.before, AfterMedian: tc.after}
+			assert.Equal(t, tc.want, anomalyLevel(a, DefaultAnomalyScorerConfig().AnomalyScorerConfig))
+		})
+	}
+}
+
+func TestContributorWeight_UsesRelativeChange(t *testing.T) {
+	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
+	a := makeAnomaly("scanmw", 1000, scorePtr(20))
+	a.LevelChange = &observer.LevelChangeEvidence{BeforeMedian: 100, AfterMedian: 106}
+	assert.Equal(t, levelWeights[1], contributorWeight(a, cfg))
+}
+
 func TestContributorWeight_IsContinuousAndBounded(t *testing.T) {
 	cfg := DefaultAnomalyScorerConfig().AnomalyScorerConfig
 
