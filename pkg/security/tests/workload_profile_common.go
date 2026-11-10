@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -195,15 +196,27 @@ var sentinelCounter atomic.Uint64
 // every event of the action (along with its workload profile processing and any anomaly it triggered) has already
 // been processed.
 // onProbeEvent, if not nil, is called for each dispatched event until the sentinel.
-func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdWrapper, action func() error, onProbeEvent func(event *model.Event)) {
+// await, when non-nil, matches a probe event the action reports asynchronously. The handler stays registered
+// and the sentinel is held until that event arrives: a report that lands after the sentinel is no longer collected.
+func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdWrapper, action func() error, onProbeEvent func(event *model.Event), await ...func(*model.Event) bool) {
 	t.Helper()
+
+	var awaitEvent func(*model.Event) bool
+	if len(await) > 0 {
+		awaitEvent = await[0]
+	}
 
 	token := fmt.Sprintf("test-sentinel-%d", sentinelCounter.Add(1))
 	seen := make(chan struct{})
 	var once sync.Once
+	awaited := make(chan struct{})
+	var awaitOnce sync.Once
 	test.RegisterProbeEventHandler(func(event *model.Event) {
 		if onProbeEvent != nil {
 			onProbeEvent(event)
+		}
+		if awaitEvent != nil && awaitEvent(event) {
+			awaitOnce.Do(func() { close(awaited) })
 		}
 		if event.GetEventType() != model.ExecEventType {
 			return
@@ -218,6 +231,14 @@ func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdW
 		t.Fatal(err)
 	}
 
+	if awaitEvent != nil {
+		select {
+		case <-awaited:
+		case <-time.After(getEventTimeout):
+			t.Fatalf("the expected probe event wasn't received within %s", getEventTimeout)
+		}
+	}
+
 	if out, err := dockerInstance.Command("echo", []string{token}, []string{}).CombinedOutput(); err != nil {
 		t.Fatalf("couldn't run the sentinel: %v (%s)", err, string(out))
 	}
@@ -228,14 +249,15 @@ func runUntilSentinel(t *testing.T, test *testModule, dockerInstance *dockerCmdW
 	}
 }
 
-// collectAnomalies runs action in the container and returns the anomaly detection events it triggered
-func collectAnomalies(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper) []workloadProfileAnomaly {
+// collectAnomalies runs action in the container and returns the anomaly detection events it triggered.
+// await, when set, is forwarded to the sentinel collector: it waits for that probe event before stopping.
+func collectAnomalies(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper, await ...func(*model.Event) bool) []workloadProfileAnomaly {
 	t.Helper()
-	anomalies, _ := collectAnomaliesAndRuleEvents(t, test, action, dockerInstance)
+	anomalies, _ := collectAnomaliesAndRuleEvents(t, test, action, dockerInstance, await...)
 	return anomalies
 }
 
-func collectAnomaliesAndRuleEvents(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper) ([]workloadProfileAnomaly, []string) {
+func collectAnomaliesAndRuleEvents(t *testing.T, test *testModule, action func() error, dockerInstance *dockerCmdWrapper, await ...func(*model.Event) bool) ([]workloadProfileAnomaly, []string) {
 	t.Helper()
 
 	var (
@@ -265,7 +287,7 @@ func collectAnomaliesAndRuleEvents(t *testing.T, test *testModule, action func()
 	})
 	defer test.RegisterSendEventHandler(nil)
 
-	runUntilSentinel(t, test, dockerInstance, action, nil)
+	runUntilSentinel(t, test, dockerInstance, action, nil, await...)
 
 	lock.Lock()
 	defer lock.Unlock()
@@ -282,6 +304,10 @@ type workloadProfileEventType struct {
 	unsupported func(kv *kernel.Version) bool
 	// trigger produces the activity of the variant in the container
 	trigger func(t *testing.T, dockerInstance *dockerCmdWrapper, variant string)
+	// matchProbeEvent, when set, reports whether a probe event is the one this activity produces.
+	// The sentinel collector waits for it before stopping. The report can arrive after the syscall
+	// returns, and a report that lands after the sentinel is dropped with the collector.
+	matchProbeEvent func(event *model.Event) bool
 	// containerRunArgs are extra docker run arguments the container needs to produce the activity
 	containerRunArgs []string
 	// hasNode returns true if the profile contains the entry of the variant
@@ -765,10 +791,21 @@ func workloadProfileEventCooldownTypes() []workloadProfileEventType {
 			unsupported: func(kv *kernel.Version) bool {
 				return !kv.HasBPFForEachMapElemHelper() || !sprobe.IsCapabilitiesMonitoringSupported(kv)
 			},
-			// The capability is reported when the monitoring period elapses, not when the syscall returns.
+			// The capability is reported by the monitoring ticker, after the syscall returns.
 			trigger: func(t *testing.T, dockerInstance *dockerCmdWrapper, _ string) {
 				runInContainer(t, dockerInstance, workloadProfileExecPath("capabilities"), "chroot", "/tmp")
-				time.Sleep(2 * time.Second)
+			},
+			matchProbeEvent: func(event *model.Event) bool {
+				if event.GetEventType() != model.CapabilitiesEventType || event.ProcessContext == nil {
+					return false
+				}
+				file := event.ProcessContext.FileEvent
+				if file.BasenameStr != "wp-exec-capabilities" && !strings.HasSuffix(file.PathnameStr, "/wp-exec-capabilities") {
+					return false
+				}
+				mask := uint64(1) << unix.CAP_SYS_CHROOT
+				usage := event.CapabilitiesUsage
+				return usage.Used&mask != 0 || usage.Attempted&mask != 0
 			},
 			matchAnomaly: func(anomaly workloadProfileAnomaly, _ string) bool {
 				return strings.Contains(anomaly.json, "wp-exec-capabilities") && strings.Contains(anomaly.json, "CAP_SYS_CHROOT")

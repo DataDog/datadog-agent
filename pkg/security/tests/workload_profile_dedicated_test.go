@@ -477,7 +477,7 @@ func runWorkloadProfileCooldownMode(t *testing.T, mode string) {
 				return collectAnomalies(t, test, func() error {
 					et.trigger(t, dockerInstance, "known")
 					return nil
-				}, dockerInstance)
+				}, dockerInstance, et.matchProbeEvent)
 			}
 
 			started := time.Now()
