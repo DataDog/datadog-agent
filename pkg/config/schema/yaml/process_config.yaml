@@ -305,6 +305,7 @@ properties:
     description: Disable realtime process and container checks
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -390,6 +391,7 @@ properties:
     - DD_PROCESS_AGENT_MAX_MESSAGE_BYTES
   orchestrator_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     additionalProperties:

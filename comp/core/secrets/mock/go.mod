@@ -5,7 +5,7 @@ go 1.26.0
 require (
 	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/DataDog/datadog-agent/comp/core/secrets/utils v0.84.0-devel.0.20261028224924-1c255663adbd
-	go.yaml.in/yaml/v3 v3.0.5
+	go.yaml.in/yaml/v3 v3.0.6
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

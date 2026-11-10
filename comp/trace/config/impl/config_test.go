@@ -42,8 +42,10 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	configmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/config/utils"
 
 	traceconfigdef "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	traceconfig "github.com/DataDog/datadog-agent/pkg/trace/config"
@@ -96,13 +98,48 @@ func TestParseRepaceRules(t *testing.T) {
 		{Name: "http.url", Pattern: "guid", Repl: "[REDACTED]"},
 		{Name: "custom.tag", Pattern: "(/foo/bar/).*", Repl: "${1}extra"},
 	}
-	err := compileReplaceRules(rules)
+	compiled, err := compileReplaceRules(rules)
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, r := range rules {
+	assert.Equal(rules, compiled)
+	for _, r := range compiled {
 		assert.Equal(r.Pattern, r.Re.String())
 	}
+}
+
+// TestCompileReplaceRulesDropsEnv tests that rules named "env" are dropped, as replace
+// rules must not change the env used for sampling and stats.
+func TestCompileReplaceRulesDropsEnv(t *testing.T) {
+	t.Run("env rules are dropped", func(t *testing.T) {
+		rules := []*traceconfig.ReplaceRule{
+			{Name: "http.url", Pattern: "guid", Repl: "[REDACTED]"},
+			{Name: "env", Pattern: ".*", Repl: "myenv"},
+			{Name: "*", Pattern: "secret", Repl: "?"},
+			{Name: "env", Pattern: "prod", Repl: "production"},
+		}
+		compiled, err := compileReplaceRules(rules)
+		require.NoError(t, err)
+		require.Len(t, compiled, 2)
+		assert.Equal(t, "http.url", compiled[0].Name)
+		assert.Equal(t, "*", compiled[1].Name)
+		for _, r := range compiled {
+			assert.Equal(t, r.Pattern, r.Re.String())
+		}
+	})
+
+	t.Run("only env rules", func(t *testing.T) {
+		compiled, err := compileReplaceRules([]*traceconfig.ReplaceRule{{Name: "env", Pattern: ".*", Repl: "myenv"}})
+		require.NoError(t, err)
+		assert.Empty(t, compiled)
+	})
+
+	t.Run("invalid env rules still fail", func(t *testing.T) {
+		_, err := compileReplaceRules([]*traceconfig.ReplaceRule{{Name: "env", Pattern: "(", Repl: "myenv"}})
+		assert.Error(t, err)
+		_, err = compileReplaceRules([]*traceconfig.ReplaceRule{{Name: "env", Repl: "myenv"}})
+		assert.Error(t, err)
+	})
 }
 
 // TestSplitTag tests various split-tagging scenarios
@@ -851,13 +888,14 @@ func TestFullYamlConfig(t *testing.T) {
 	assert.True(t, cfg.OTLPReceiver.SpanNameAsResourceName)
 	assert.Equal(t, map[string]string{"a": "b", "and:colons": "in:values", "c": "d", "with.dots": "in.side"}, cfg.OTLPReceiver.SpanNameRemappings)
 
+	firstKey, secondKey, thirdKey := 0, 1, 2
 	assert.ElementsMatch(t, []*traceconfig.Endpoint{
 		{Host: "https://datadog.unittests", APIKey: "api_key_test"},
-		{Host: "https://my1.endpoint.com", APIKey: "apikey1"},
-		{Host: "https://my1.endpoint.com", APIKey: "apikey2"},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: true},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true},
-		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true},
+		{Host: "https://my1.endpoint.com", APIKey: "apikey1", APIKeyConfigIndex: &firstKey},
+		{Host: "https://my1.endpoint.com", APIKey: "apikey2", APIKeyConfigIndex: &secondKey},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey3", NoProxy: true, APIKeyConfigIndex: &firstKey},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey4", NoProxy: true, APIKeyConfigIndex: &secondKey},
+		{Host: "https://my2.endpoint.eu", APIKey: "apikey5", NoProxy: true, APIKeyConfigIndex: &thirdKey},
 	}, cfg.Endpoints)
 	// apm_config.traces_send_to_main_endpoint defaults to true: the writers use every endpoint.
 	assert.False(t, cfg.SkipMainEndpoint)
@@ -1302,9 +1340,29 @@ func TestLoadEnv(t *testing.T) {
 			Pattern: "pattern2",
 			Repl:    "replace2",
 		}
-		compileReplaceRules([]*traceconfig.ReplaceRule{rule1, rule2})
+		_, err := compileReplaceRules([]*traceconfig.ReplaceRule{rule1, rule2})
+		require.NoError(t, err)
 		assert.Contains(t, cfg.ReplaceTags, rule1)
 		assert.Contains(t, cfg.ReplaceTags, rule2)
+	})
+
+	t.Run(env+" drops env rules", func(t *testing.T) {
+		t.Setenv(env, `[{"name":"env","pattern":".*","repl":"myenv"},{"name":"name2","pattern":"pattern2","repl":"replace2"}]`)
+
+		c := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+
+		cfg := c.Object()
+
+		assert.NotNil(t, cfg)
+		for _, r := range cfg.ReplaceTags {
+			assert.NotEqual(t, "env", r.Name)
+		}
+		assert.Contains(t, cfg.ReplaceTags, &traceconfig.ReplaceRule{
+			Name:    "name2",
+			Pattern: "pattern2",
+			Re:      regexp.MustCompile("pattern2"),
+			Repl:    "replace2",
+		})
 	})
 
 	env = "DD_APM_FILTER_TAGS_REQUIRE"
@@ -1526,9 +1584,10 @@ func TestLoadEnv(t *testing.T) {
 
 		assert.NotNil(t, cfg)
 
-		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key1", Host: "url1"})
-		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key2", Host: "url1"})
-		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key3", Host: "url2"})
+		firstKey, secondKey := 0, 1
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key1", Host: "url1", APIKeyConfigIndex: &firstKey})
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key2", Host: "url1", APIKeyConfigIndex: &secondKey})
+		assert.Contains(t, cfg.Endpoints, &traceconfig.Endpoint{APIKey: "key3", Host: "url2", APIKeyConfigIndex: &firstKey})
 	})
 
 	env = "DD_APM_PROFILING_DD_URL"
@@ -3166,4 +3225,98 @@ func TestAcquireHostnameFallbackEUDM(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestAppendEndpointsHoldsPendingDelegatedAuth(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.SetInTest("apm_config.additional_endpoints", map[string][]string{
+		"https://trace.agent.second-org.datadoghq.com": {"00000000000000000000000000000001", "DELA[org-uuid-1, aws]"},
+		"https://trace.agent.third-org.datadoghq.com":  {"DELA[org-uuid-2, aws]", "DELA[org-uuid-3, aws]"},
+	})
+
+	var endpoints []*traceconfig.Endpoint
+	endpoints = appendEndpoints(endpoints, "apm_config.additional_endpoints")
+
+	var real, pending int
+	for _, e := range endpoints {
+		assert.False(t, utils.IsDelaDirective(e.APIKey), "a directive must never ship as an API key")
+		if e.HasPendingDelegatedAuth {
+			pending++
+			assert.Empty(t, e.APIKey)
+		} else {
+			real++
+		}
+	}
+	assert.Equal(t, 1, real, "static key on the mixed domain is kept")
+	assert.Equal(t, 3, pending, "one pending marker per directive, so two orgs sharing a host both ship")
+}
+
+func TestAppendEndpointsPendingMarkerForUnenrolledKey(t *testing.T) {
+	// The telemetry setting is not yet enrolled for delegated-auth write-back; a directive
+	// there must still never ship as an API key.
+	cfg := configmock.New(t)
+	cfg.SetInTest("apm_config.telemetry.additional_endpoints", map[string][]string{
+		"https://telemetry.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
+	})
+
+	var endpoints []*traceconfig.Endpoint
+	endpoints = appendEndpoints(endpoints, "apm_config.telemetry.additional_endpoints")
+
+	require.Len(t, endpoints, 1)
+	assert.Empty(t, endpoints[0].APIKey)
+	assert.True(t, endpoints[0].HasPendingDelegatedAuth)
+	assert.Nil(t, endpoints[0].APIKeyConfigIndex)
+}
+
+func TestOnAdditionalEndpointsUpdatePreservesKeySlots(t *testing.T) {
+	core := configcomp.NewMock(t)
+	const host = "https://trace.agent.second-org.datadoghq.com"
+	core.SetInTest("apm_config.additional_endpoints", map[string][]string{
+		host: {"DELA[org-uuid-1, aws]", " static-key ", " first-key "},
+	})
+	c := traceconfig.New()
+	c.DDAgentBin = "/not/exist"
+	require.NoError(t, applyDatadogConfig(c, core))
+	require.NotNil(t, c.OnAdditionalEndpointsUpdate)
+	require.Len(t, c.Endpoints, 4)
+	assert.Nil(t, c.Endpoints[0].APIKeyConfigIndex)
+	for index, endpoint := range c.Endpoints[1:] {
+		require.NotNil(t, endpoint.APIKeyConfigIndex)
+		assert.Equal(t, index, *endpoint.APIKeyConfigIndex)
+	}
+	assert.True(t, c.Endpoints[1].HasPendingDelegatedAuth)
+	assert.Equal(t, "static-key", c.Endpoints[2].APIKey)
+	assert.Equal(t, "first-key", c.Endpoints[3].APIKey)
+
+	var got [][]string
+	c.OnAdditionalEndpointsUpdate(func(gotHost string, apiKeys []string) {
+		assert.Equal(t, host, gotHost)
+		got = append(got, apiKeys)
+	})
+	assert.Equal(t, "DELA[org-uuid-1, aws]", core.GetStringMapStringSlice("apm_config.additional_endpoints")[host][0])
+	core.Set("apm_config.additional_endpoints", map[string][]string{
+		host: {"resolved-key", " static-key ", " rotated-key "},
+	}, configmodel.SourceSecret)
+
+	assert.Equal(t, [][]string{{"", "static-key", "first-key"}, {"resolved-key", "static-key", "rotated-key"}}, got)
+}
+
+func TestOnAdditionalEndpointsUpdateReconcilesResolvedKey(t *testing.T) {
+	core := configcomp.NewMock(t)
+	const host = "https://trace.agent.second-org.datadoghq.com"
+	core.SetInTest("apm_config.additional_endpoints", map[string][]string{host: {"first-key"}})
+	c := traceconfig.New()
+	c.DDAgentBin = "/not/exist"
+	require.NoError(t, applyDatadogConfig(c, core))
+	require.Len(t, c.Endpoints, 2)
+	require.NotNil(t, c.Endpoints[1].APIKeyConfigIndex)
+	assert.Zero(t, *c.Endpoints[1].APIKeyConfigIndex)
+	assert.False(t, c.Endpoints[1].HasPendingDelegatedAuth)
+
+	// Rotation can happen after the snapshot but before a writer subscribes.
+	core.Set("apm_config.additional_endpoints", map[string][]string{host: {"current-key"}}, configmodel.SourceSecret)
+	var got [][]string
+	c.OnAdditionalEndpointsUpdate(func(_ string, keys []string) { got = append(got, keys) })
+	core.Set("apm_config.additional_endpoints", map[string][]string{host: {"rotated-key"}}, configmodel.SourceSecret)
+	assert.Equal(t, [][]string{{"current-key"}, {"rotated-key"}}, got)
 }

@@ -295,6 +295,13 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_tls_ha
     }
 }
 
+// The only API-layer program (gRPC) needs an HTTP2 application layer, which queues and dbs never set,
+// so routing from them skips the API layer.
+static __always_inline void application_layer_next_program(struct __sk_buff *skb, classification_context_t *classification_ctx) {
+    classification_ctx->routing_skip_layers |= LAYER_API_BIT;
+    classification_next_program(skb, classification_ctx);
+}
+
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues(struct __sk_buff *skb) {
     classification_context_t *classification_ctx = classification_context(skb);
     if (!classification_ctx) {
@@ -314,7 +321,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_queues
     mark_as_fully_classified(protocol_stack);
 
  next_program:
-    classification_next_program(skb, classification_ctx);
+    application_layer_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(struct __sk_buff *skb) {
@@ -337,7 +344,7 @@ __maybe_unused static __always_inline void protocol_classifier_entrypoint_dbs(st
     update_protocol_information(classification_ctx, protocol_stack, cur_fragment_protocol);
     mark_as_fully_classified(protocol_stack);
  next_program:
-    classification_next_program(skb, classification_ctx);
+    application_layer_next_program(skb, classification_ctx);
 }
 
 __maybe_unused static __always_inline void protocol_classifier_entrypoint_grpc(struct __sk_buff *skb) {

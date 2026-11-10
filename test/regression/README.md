@@ -24,3 +24,25 @@ On `main`, Agent CI selects only the `always` bucket. Label and CODEOWNERS selec
 The [experiment selection guide](experiment-selection-guide.md) covers experiment structure, manifest syntax, optimization goals, and verification.
 
 [smp-local]: https://github.com/ddoghq/single-machine-performance/blob/main/docs/guides/local-run.md
+
+## CI Reports
+
+The SMP backend computes analysis data. After `smp job sync`, CI uses
+`report.v1.json` for local rendering and policy decisions.
+
+`test/regression/smp_ci.py` computes the CI pass/fail decisions
+and invokes `smp report render` with `report_template.md.j2`.
+Report links are selected in `smp_ci.py`; their URLs are defined in
+`report_template.md.j2`. The legacy `report` and `report_links` YAML sections
+are not used for local rendering.
+
+The CI job (`.gitlab/childs/smp-regression-child-pipeline.yml`) produces:
+
+| output | purpose |
+|---|---|
+| `outputs/report.v1.json` | server artifact, used for all local reporting |
+| `outputs/report.md` | rendered Markdown, including the Agent CI decision |
+| `outputs/decision.json` | three `passed` / `failed` values for tags and job control |
+| `outputs/pr_report_comment.json` | complete PR-comment JSON payload; its message equals the Markdown exactly |
+| `outputs/smp-failed-flag` | zero-byte marker when `decision.job` is `failed`; not uploaded |
+| `outputs/junit.xml` | direct SMP built-in render, uploaded with `datadog-ci junit upload` |

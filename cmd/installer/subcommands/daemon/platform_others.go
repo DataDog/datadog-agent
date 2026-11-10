@@ -11,8 +11,8 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
 )
 
-// daemonEnabledBeforeStart lets the daemon start outside macOS, where startDaemon checks
-// remote_updates once the daemon's components are built, as it always has.
+// daemonEnabledBeforeStart lets the daemon start outside macOS, where the updater component
+// checks remote_updates and remote configuration while the daemon's components are built.
 func daemonEnabledBeforeStart(*command.GlobalParams) (bool, error) {
 	return true, nil
 }

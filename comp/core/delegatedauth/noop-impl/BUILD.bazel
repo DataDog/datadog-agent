@@ -10,6 +10,7 @@ go_library(
         "//comp/core/delegatedauth/common",
         "//comp/core/delegatedauth/def",
         "//comp/core/status",
+        "//pkg/util/log",
     ],
 )
 

@@ -47,6 +47,41 @@ func Write(key, value string) error {
 	return os.WriteFile(path, []byte(value), 0600)
 }
 
+// WriteAtomic writes a value via a synchronized temporary file and replaces
+// the destination without exposing a partial write. The temporary file is
+// created in the destination directory, which is created if necessary.
+func WriteAtomic(key, value string) error {
+	path, err := GetFileForKey(key)
+	if err != nil {
+		return err
+	}
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0700); err != nil {
+		return err
+	}
+	file, err := os.CreateTemp(dir, ".persistentcache-*")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(file.Name())
+	if err := file.Chmod(0600); err != nil {
+		file.Close()
+		return err
+	}
+	if _, err := file.WriteString(value); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Sync(); err != nil {
+		file.Close()
+		return err
+	}
+	if err := file.Close(); err != nil {
+		return err
+	}
+	return replaceFile(file.Name(), path)
+}
+
 // Read returns a value previously stored, or the empty string.
 func Read(key string) (string, error) {
 	path, err := GetFileForKey(key)
