@@ -299,12 +299,12 @@ require (
 	github.com/prometheus/common v0.73.1 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/pulumi/appdash v0.0.0-20231130102222-75f619a67231 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.29.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.29.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.29.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.29.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.29.0 // indirect
-	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/authorization/v3 v3.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/compute/v3 v3.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/containerservice/v3 v3.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.30.0 // indirect
+	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.30.0 // indirect
 	github.com/pulumi/pulumi-cloud-sdk/go v1.20261027.1310 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.3.0 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
