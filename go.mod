@@ -732,8 +732,8 @@ require (
 	github.com/iancoleman/strcase v0.3.0 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/ionos-cloud/sdk-go/v6 v6.3.11 // indirect
-	github.com/itchyny/gojq v0.12.19 // indirect
-	github.com/itchyny/timefmt-go v0.1.8 // indirect
+	github.com/itchyny/gojq v0.12.20 // indirect
+	github.com/itchyny/timefmt-go v0.1.9 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.3 // indirect
@@ -779,7 +779,6 @@ require (
 	github.com/masahiro331/go-xfs-filesystem v0.0.0-20231205045356-1b22259a6c44 // indirect
 	github.com/mattn/go-colorable v0.1.16 // indirect
 	github.com/mattn/go-isatty v0.0.24 // indirect
-	github.com/mattn/go-runewidth v0.0.29 // indirect
 	github.com/mattn/go-shellwords v1.0.14 // indirect
 	github.com/mdlayher/kobject v0.0.0-20200520190114-19ca17470d7d // indirect
 	github.com/mdlayher/socket v0.8.0 // indirect
