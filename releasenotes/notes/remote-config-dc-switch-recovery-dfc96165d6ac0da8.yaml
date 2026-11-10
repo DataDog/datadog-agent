@@ -1,0 +1,13 @@
+---
+fixes:
+  - |
+    Fix Remote Config updates failing permanently when an organization is
+    migrated to another Datadog site region served behind the same Remote
+    Config endpoint. Previously the agent kept its state signed by the old
+    region's keys and could not verify the new region's metadata anymore.
+    The agent now verifies the new region's key chain from the root keys
+    embedded in its binary, resets its Remote Config database only after a
+    successful verification, and resumes fetching updates. Clients consuming
+    Remote Config through the agent (tracing libraries, process agent, system
+    probe) reset their own TUF state the same way after an update they cannot
+    verify, so they re-join from the embedded keys as well.

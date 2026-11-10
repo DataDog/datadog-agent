@@ -540,6 +540,60 @@ func newTestRepository(snapshotOrgID int, version int64, configTargets data.Targ
 	return repos
 }
 
+// newTestEmbeddedRepository models the open-source TUF roots embedded in the
+// agent: one root version shared by every DC, before any DC-local key rotation.
+func newTestEmbeddedRepository(snapshotOrgID int, sharedRootVersion int64, configTargets data.TargetFiles, directorTargets data.TargetFiles, targetFiles []*pbgo.File) testRepositories {
+	return newTestRepository(snapshotOrgID, sharedRootVersion, configTargets, directorTargets, targetFiles)
+}
+
+// rotateForDC rotates an embedded-style repository once to DC-local keys, the way
+// every DC migrated from the shared open-source roots to its own keys: the root
+// version moves to sharedRootVersion+1 and is cross-signed by the previous (shared)
+// root key so the rotation step verifies from the embedded root. All the signing
+// keys become DC-local, and the timestamp/targets/snapshot versions are set
+// independently (from dcVersion) to model per-DC version counters.
+func (r testRepositories) rotateForDC(snapshotOrgID int, configTargetFiles data.TargetFiles, directorTargetFiles data.TargetFiles, targetFiles []*pbgo.File, dcVersion int64) testRepositories {
+	r.snapshotOrgID = snapshotOrgID
+
+	// Rotate the config repository to DC-local keys
+	prevConfigRootKey := r.configRootKey
+	r.configRootKey = generateKey()
+	r.configTimestampKey = generateKey()
+	r.configTargetsKey = generateKey()
+	r.configSnapshotKey = generateKey()
+
+	r.configRootVersion++
+	r.configTimestampVersion = 10 + dcVersion
+	r.configTargetsVersion = 100 + dcVersion
+	r.configSnapshotVersion = 1000 + dcVersion
+
+	r.configRoot = generateRoot(r.configRootKey, r.configRootVersion, r.configTimestampKey, r.configTargetsKey, r.configSnapshotKey, prevConfigRootKey, nil)
+	r.configTargets = generateTargets(r.configTargetsKey, r.configTargetsVersion, configTargetFiles, nil)
+	r.configSnapshot = generateSnapshot(r.snapshotOrgID, r.configSnapshotKey, r.configSnapshotVersion, r.configTargetsVersion, nil)
+	r.configTimestamp = generateTimestamp(r.configTimestampKey, r.configTimestampVersion, r.configSnapshotVersion, r.configSnapshot, nil)
+
+	// Rotate the director repository to DC-local keys
+	prevDirectorRootKey := r.directorRootKey
+	r.directorRootKey = generateKey()
+	directorTimestampSnapshotTargetKey := generateKey()
+	r.directorTimestampKey = directorTimestampSnapshotTargetKey
+	r.directorTargetsKey = directorTimestampSnapshotTargetKey
+	r.directorSnapshotKey = directorTimestampSnapshotTargetKey
+
+	r.directorRootVersion++
+	r.directorTimestampVersion = 20 + dcVersion
+	r.directorTargetsVersion = 200 + dcVersion
+	r.directorSnapshotVersion = 2000 + dcVersion
+
+	r.directorRoot = generateRoot(r.directorRootKey, r.directorRootVersion, r.directorTimestampKey, r.directorTargetsKey, r.directorSnapshotKey, prevDirectorRootKey, nil)
+	r.directorTargets = generateTargets(r.directorTargetsKey, r.directorTargetsVersion, directorTargetFiles, nil)
+	r.directorSnapshot = generateSnapshot(r.snapshotOrgID, r.directorSnapshotKey, r.directorSnapshotVersion, r.directorTargetsVersion, nil)
+	r.directorTimestamp = generateTimestamp(r.directorTimestampKey, r.directorTimestampVersion, r.directorSnapshotVersion, r.directorSnapshot, nil)
+
+	r.targetFiles = targetFiles
+	return r
+}
+
 func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 	return &pbgo.LatestConfigsResponse{
 		ConfigMetas: &pbgo.ConfigMetas{
@@ -556,6 +610,15 @@ func (r testRepositories) toUpdate() *pbgo.LatestConfigsResponse {
 		},
 		TargetFiles: r.targetFiles,
 	}
+}
+
+// toUpdateNoRoots returns the update response a DC sends when the client reports
+// the same root version as the DC's current one: no root files at all.
+func (r testRepositories) toUpdateNoRoots() *pbgo.LatestConfigsResponse {
+	update := r.toUpdate()
+	update.ConfigMetas.Roots = nil
+	update.DirectorMetas.Roots = nil
+	return update
 }
 
 func generateRoot(key keys.Signer, version int64, timestampKey keys.Signer, targetsKey keys.Signer, snapshotKey keys.Signer, previousRootKey keys.Signer, expires *time.Time) []byte {

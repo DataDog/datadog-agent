@@ -41,6 +41,11 @@ const (
 
 	// number of update failed update attempts before reporting an error log
 	consecutiveFailuresThreshold = 5
+
+	// Minimum delay between two drops of the in-memory TUF state. Dropping the
+	// state makes the next update a fresh join that re-downloads everything,
+	// so it must not happen on every failed poll.
+	tufStateResetCooldown = 5 * time.Minute
 )
 
 // ConfigFetcher defines the interface that an agent client uses to get config updates
@@ -138,6 +143,14 @@ type Client struct {
 	// when in use
 	installerState *atomic.Value // *pbgo.ClientUpdater
 	cwsWorkloads   *atomic.Value // []string
+
+	// lastTUFStateReset is only read and written from the poll goroutine: it
+	// gates how often the TUF state can be dropped after failed updates.
+	lastTUFStateReset time.Time
+
+	// now is the clock used to evaluate the TUF state reset cooldown; it is
+	// injectable for tests.
+	now func() time.Time
 }
 
 // Options describes the client options
@@ -338,6 +351,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 		backoffPolicy:    backoffPolicy,
 		listeners:        make(map[string][]Listener),
 		configFetcher:    cf,
+		now:             time.Now,
 	}, nil
 }
 
@@ -529,6 +543,14 @@ func (c *Client) update() error {
 
 	changedProducts, err := c.applyUpdate(response)
 	if err != nil {
+		// An update that cannot be applied means the metadata did not verify
+		// against the latched TUF state. After an org DC switch this fails
+		// permanently: the latched chain belongs to the old DC while the core
+		// agent now serves the new DC's metadata, and no root file can repair
+		// the chain since both DCs sit at the same root version. Drop the
+		// in-memory TUF state (cooldown-gated) so the next update re-joins
+		// from the embedded root, the same way a restarted client would.
+		c.maybeResetTUFState()
 		return err
 	}
 	// We don't want to force the products to reload config if nothing changed
@@ -554,6 +576,50 @@ func (c *Client) update() error {
 
 func containsProduct(products []string, product string) bool {
 	return slices.Contains(products, product)
+}
+
+// maybeResetTUFState drops the in-memory TUF state and the Director proofs
+// after an update could not be applied, so that the next update is a fresh
+// join verified from the embedded root.
+//
+// This recovers from an org DC switch: the latched chain belongs to the old
+// DC and the new DC's metadata can never verify against it. Dropping the
+// state resets the reported root version to the embedded one, and the core
+// agent then serves the full root chain from there (each DC's root is
+// cross-signed by the embedded root's keys). The cost is one full
+// re-download, so the reset is cooldown-gated and limited to clients that
+// verify TUF metadata.
+func (c *Client) maybeResetTUFState() {
+	if c.skipTufVerification {
+		return
+	}
+	now := c.now()
+	if !c.lastTUFStateReset.IsZero() && now.Sub(c.lastTUFStateReset) < tufStateResetCooldown {
+		return
+	}
+	c.lastTUFStateReset = now
+
+	repository, err := state.NewRepository(meta.RootsDirector(c.site, c.directorRootOverride).Root())
+	if err != nil {
+		log.Errorf("could not rebuild the remote-config repository from the embedded root: %v", err)
+		return
+	}
+
+	c.m.Lock()
+	c.state = repository
+	c.m.Unlock()
+
+	// The Director proofs accumulate the root files of every accepted
+	// update: they must be dropped with the state, otherwise stale roots of
+	// the old DC would corrupt the proofs sent for the new one (both DCs sit
+	// at the same root version, so the chains cannot be merged).
+	c.proofMu.Lock()
+	c.proofRoots = nil
+	c.proofTargets = nil
+	c.proofTargetFiles = make(map[string][]byte)
+	c.proofMu.Unlock()
+
+	log.Warnf("could not apply the remote-config update, dropping the TUF state to re-join from the embedded root")
 }
 
 func (c *Client) applyUpdate(pbUpdate *pbgo.ClientGetConfigsResponse) ([]string, error) {

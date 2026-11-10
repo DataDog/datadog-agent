@@ -93,6 +93,16 @@ func (m *mockCoreAgentUptane) Update(response *pbgo.LatestConfigsResponse) error
 	return args.Error(0)
 }
 
+func (m *mockCoreAgentUptane) EmbeddedRootVersions() (uptane.TUFVersions, error) {
+	args := m.Called()
+	return args.Get(0).(uptane.TUFVersions), args.Error(1)
+}
+
+func (m *mockCoreAgentUptane) TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfigsResponse) error {
+	args := m.Called(response)
+	return args.Error(0)
+}
+
 func (m *mockUptane) State() (uptane.State, error) {
 	args := m.Called()
 	return args.Get(0).(uptane.State), args.Error(1)
