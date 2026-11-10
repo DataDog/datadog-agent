@@ -430,11 +430,11 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		if err := structure.UnmarshalKey(core, k, &rt); err != nil {
 			log.Errorf("Bad format for %q it should be of the form '[{\"name\": \"tag_name\",\"pattern\":\"pattern\",\"repl\":\"replace_str\"}]', error: %v", "apm_config.replace_tags", err)
 		} else {
-			err := compileReplaceRules(rt)
+			rules, err := compileReplaceRules(rt)
 			if err != nil {
 				return fmt.Errorf("replace_tags: %s", err)
 			}
-			c.ReplaceTags = rt
+			c.ReplaceTags = rules
 		}
 	}
 
@@ -804,26 +804,31 @@ func addReplaceRule(c *config.AgentConfig, tag, pattern, repl string) error {
 	return nil
 }
 
-// compileReplaceRules compiles the regular expressions found in the replace rules.
+// compileReplaceRules compiles the regular expressions found in the replace rules and
+// returns the rules to apply. Rules named "env" are validated but dropped: the span env
+// can be used as the env for sampling and stats, so replace rules must not change it.
 // If it fails it returns the first error.
-func compileReplaceRules(rules []*config.ReplaceRule) error {
+func compileReplaceRules(rules []*config.ReplaceRule) ([]*config.ReplaceRule, error) {
+	kept := make([]*config.ReplaceRule, 0, len(rules))
 	for _, r := range rules {
 		if r.Name == "" {
-			return errors.New(`all rules must have a "name" property (use "*" to target all)`)
-		}
-		if r.Name == "env" {
-			log.Error("Replace tags should not be used to change the env in the Agent, as it could have negative side effects. THIS WILL BE DISALLOWED IN FUTURE AGENT VERSIONS. See https://docs.datadoghq.com/getting_started/tracing/#environment-name for instructions on setting the env, and https://github.com/DataDog/datadog-agent/issues/21253 for more details about this issue.")
+			return nil, errors.New(`all rules must have a "name" property (use "*" to target all)`)
 		}
 		if r.Pattern == "" {
-			return errors.New(`all rules must have a "pattern"`)
+			return nil, errors.New(`all rules must have a "pattern"`)
 		}
 		re, err := regexp.Compile(r.Pattern)
 		if err != nil {
-			return fmt.Errorf("key %q: %s", r.Name, err)
+			return nil, fmt.Errorf("key %q: %s", r.Name, err)
 		}
 		r.Re = re
+		if r.Name == "env" {
+			log.Errorf("Ignoring the apm_config.replace_tags rule for \"env\" with pattern %q: replace tags cannot change the env, as it is used for sampling and stats. Set the env in the tracer instead, see https://docs.datadoghq.com/getting_started/tracing/#environment-name and https://github.com/DataDog/datadog-agent/issues/21253 for more details.", r.Pattern)
+			continue
+		}
+		kept = append(kept, r)
 	}
-	return nil
+	return kept, nil
 }
 
 // getDuration returns the duration of the provided value in seconds
