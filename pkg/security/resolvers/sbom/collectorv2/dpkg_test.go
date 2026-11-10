@@ -9,6 +9,7 @@ package collectorv2
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -167,6 +168,60 @@ func TestDpkgListsPackagesByStatus(t *testing.T) {
 			assert.Equal(t, "gzip", pkgs[0].Name)
 			assert.Equal(t, "1.13", pkgs[0].Version)
 			assert.Equal(t, "1", pkgs[0].Release)
+		})
+	}
+}
+
+// TestDpkgSkipsStatusDCopies checks that the scan leaves out a status.d record
+// of a package the status file lists at the same version.
+func TestDpkgSkipsStatusDCopies(t *testing.T) {
+	tests := []struct {
+		name  string
+		files map[string]string
+		want  []string // name, version and installed files of each package listed
+	}{
+		{
+			// Docker Hardened Images copy each record of the status file to
+			// status.d, without its status.
+			name: "copies",
+			files: map[string]string{
+				"var/lib/dpkg/status": "Package: libc6\nStatus: install ok installed\nArchitecture: amd64\nVersion: 2.41-12+dhi1\n\n" +
+					"Package: bash\nStatus: install ok installed\nArchitecture: amd64\nVersion: 5.2.37-2+dhi1\n",
+				"var/lib/dpkg/status.d/libc6":           "Package: libc6\nArchitecture: amd64\nVersion: 2.41-12+dhi1\n",
+				"var/lib/dpkg/status.d/bash":            "Package: bash\nArchitecture: amd64\nVersion: 5.2.37-2+dhi1\n",
+				"var/lib/dpkg/info/libc6:amd64.md5sums": "0  usr/lib/x86_64-linux-gnu/libc.so.6\n",
+				"var/lib/dpkg/info/bash.md5sums":        "0  usr/bin/bash\n",
+			},
+			want: []string{
+				"libc6 2.41-12+dhi1 [/usr/lib/x86_64-linux-gnu/libc.so.6]",
+				"bash 5.2.37-2+dhi1 [/usr/bin/bash]",
+			},
+		},
+		{
+			name: "other version",
+			files: map[string]string{
+				"var/lib/dpkg/status":            "Package: bash\nStatus: install ok installed\nVersion: 5.2.37-2\n",
+				"var/lib/dpkg/status.d/bash":     "Package: bash\nVersion: 5.2.37-1\n",
+				"var/lib/dpkg/info/bash.md5sums": "0  usr/bin/bash\n",
+			},
+			want: []string{"bash 5.2.37-2 [/usr/bin/bash]", "bash 5.2.37-1 [/usr/bin/bash]"},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			root, err := os.OpenRoot(writeRoot(t, tt.files))
+			require.NoError(t, err)
+			defer root.Close()
+
+			pkgs, err := (&dpkgScanner{}).ListPackages(context.Background(), root)
+			require.NoError(t, err)
+
+			var got []string
+			for _, pkg := range pkgs {
+				got = append(got, fmt.Sprintf("%s %s-%s %v", pkg.Name, pkg.Version, pkg.Release, pkg.InstalledFiles))
+			}
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

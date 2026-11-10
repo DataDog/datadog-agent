@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    The Agent can now collect container logs on Amazon ECS Managed Instances
+    when it runs as a managed daemon. It reads the logs of containers that use the
+    ``json-file`` log driver from the log driver volume mounted into the Agent
+    container at ``/var/log/ecs/json-file``, and tags them with the container's
+    ECS task, service, and cluster information. To enable it, set
+    ``logs_enabled`` and ``logs_config.container_collect_all`` to ``true``, or
+    configure the logs of each container with Autodiscovery labels.
