@@ -1696,7 +1696,6 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 	// unbuffered flowIn: once the send returns, run() has received the flow and handles it before stopping
 	conf := &config.NetflowConfig{
 		AggregatorFlushInterval:       300,
-		AggregatorFlowContextTTL:      300,
 		AggregatorPortRollupThreshold: 10,
 	}
 	assert.Nil(t, NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil).entropy, "off by default")
@@ -1704,6 +1703,7 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 	// created just before windowStart, so that window isn't partial
 	windowStart := int64(1_800_000_000)
 	setMockTimeNow(time.Unix(windowStart-1, 0))
+	t.Cleanup(func() { timeNow = time.Now })
 
 	conf.Entropy = config.EntropyConfig{
 		Enabled:                  true,
@@ -1716,6 +1716,8 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 	agg := NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil)
 	require.NotNil(t, agg.entropy)
 
+	// received in that window; the exporter's end time isn't used
+	setMockTimeNow(time.Unix(windowStart+10, 0))
 	go agg.run()
 	agg.flowIn <- &common.Flow{
 		Namespace:       "ns",
@@ -1728,12 +1730,11 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 		Bytes:           100,
 		Packets:         1,
 		SamplingRate:    1,
-		EndTimestamp:    uint64(windowStart + 10),
 	}
 	close(agg.stopChan)
 	<-agg.runDone
 
-	report := agg.entropy.CloseWindows(time.Unix(windowStart+600, 0))
+	report := agg.entropy.CloseWindows(time.Unix(windowStart+300, 0))
 	// one window for the ingress side and one for the egress side
 	require.Len(t, report.Windows, 2)
 	report.Submit(sender, logger)

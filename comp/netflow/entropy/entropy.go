@@ -4,7 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 // Package entropy computes per-interface Shannon entropy of NetFlow traffic across peers,
-// in windows by flow end time, from records before they're merged.
+// in windows by the time the Agent receives each record, before records are merged.
+// Exporter timestamps aren't used: exporter clocks can be minutes off.
 package entropy
 
 import (
@@ -37,8 +38,6 @@ const (
 	StatusValid QualityStatus = "valid"
 	// StatusInsufficientData is below MinRecords or MinBytes.
 	StatusInsufficientData QualityStatus = "insufficient_data"
-	// StatusUnsupportedSampling had a record with no sampling rate.
-	StatusUnsupportedSampling QualityStatus = "unsupported_sampling"
 	// StatusStateLimit hit a state limit.
 	StatusStateLimit QualityStatus = "state_limit"
 	// StatusProcessRestart started before the accumulator, so it's partial.
@@ -51,10 +50,8 @@ type DropReason string
 const (
 	// DropInvalidIdentity is a missing exporter IP, peer IP or interface index.
 	DropInvalidIdentity DropReason = "invalid_identity"
-	// DropLate is for an already closed window.
+	// DropLate is for an already closed window, when the Agent's clock goes back.
 	DropLate DropReason = "late"
-	// DropClockSkew ends more than one interval ahead of the Agent's clock.
-	DropClockSkew DropReason = "clock_skew"
 	// DropStateLimit is for a new exporter or interface past its limit.
 	DropStateLimit DropReason = "state_limit"
 )
@@ -62,8 +59,6 @@ const (
 // Config holds window and limit settings.
 type Config struct {
 	Interval time.Duration
-	// Lateness is how long after its end a window still accepts records.
-	Lateness time.Duration
 
 	MinRecords uint64
 	MinBytes   uint64
@@ -93,12 +88,11 @@ type counts struct {
 }
 
 type ifaceState struct {
-	peers        map[netip.Addr]counts
-	records      uint64
-	bytes        uint64
-	packets      uint64
-	zeroSampling bool
-	limitHit     bool
+	peers    map[netip.Addr]counts
+	records  uint64
+	bytes    uint64
+	packets  uint64
+	limitHit bool
 }
 
 type window struct {
@@ -110,13 +104,11 @@ type window struct {
 type Accumulator struct {
 	cfg         Config
 	intervalSec int64
-	latenessSec int64
 
 	mu           sync.Mutex
 	windows      map[int64]*window // by start, unix seconds
 	closedBefore int64             // windows starting earlier are closed
 	firstWindow  int64             // windows starting here or earlier are partial
-	futureLimit  int64             // later end times are clock skew
 	totalEntries int
 	dropped      map[DropReason]uint64
 }
@@ -127,12 +119,11 @@ func NewAccumulator(cfg Config, now time.Time) *Accumulator {
 	a := &Accumulator{
 		cfg:         cfg,
 		intervalSec: intervalSec,
-		latenessSec: int64(cfg.Lateness / time.Second),
 		windows:     make(map[int64]*window),
 		dropped:     make(map[DropReason]uint64),
 	}
 	a.firstWindow = a.windowStart(now.Unix())
-	a.futureLimit = now.Unix() + intervalSec
+	a.closedBefore = a.firstWindow
 	return a
 }
 
@@ -140,19 +131,17 @@ func (a *Accumulator) windowStart(ts int64) int64 {
 	return ts - ts%a.intervalSec
 }
 
-// Add counts a record towards its ingress and egress interfaces.
-func (a *Accumulator) Add(flow *common.Flow) {
+// Add counts a record received at now towards its ingress and egress interfaces.
+func (a *Accumulator) Add(flow *common.Flow, now time.Time) {
 	exporter, exporterOK := netip.AddrFromSlice(flow.ExporterAddr)
 	src, srcOK := netip.AddrFromSlice(flow.SrcAddr)
 	dst, dstOK := netip.AddrFromSlice(flow.DstAddr)
-	end := int64(flow.EndTimestamp)
+	start := a.windowStart(now.Unix())
 
-	weight := flow.Bytes * flow.SamplingRate
-	packets := flow.Packets * flow.SamplingRate
-	zeroSampling := flow.SamplingRate == 0
-	if zeroSampling {
-		weight, packets = flow.Bytes, flow.Packets
-	}
+	// 0 means the exporter didn't report a rate: unsampled, as in the NetFlow backend
+	rate := max(flow.SamplingRate, 1)
+	weight := flow.Bytes * rate
+	packets := flow.Packets * rate
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -161,11 +150,6 @@ func (a *Accumulator) Add(flow *common.Flow) {
 		a.dropped[DropInvalidIdentity] += 2
 		return
 	}
-	if end > a.futureLimit {
-		a.dropped[DropClockSkew] += 2
-		return
-	}
-	start := a.windowStart(end)
 	if start < a.closedBefore {
 		a.dropped[DropLate] += 2
 		return
@@ -191,7 +175,7 @@ func (a *Accumulator) Add(flow *common.Flow) {
 			a.dropped[DropStateLimit]++
 			continue
 		}
-		a.addToIface(state, side.peer, weight, packets, zeroSampling)
+		a.addToIface(state, side.peer, weight, packets)
 	}
 }
 
@@ -218,7 +202,7 @@ func (a *Accumulator) iface(start int64, key ifaceKey) *ifaceState {
 	return state
 }
 
-func (a *Accumulator) addToIface(state *ifaceState, peer netip.Addr, weight, packets uint64, zeroSampling bool) {
+func (a *Accumulator) addToIface(state *ifaceState, peer netip.Addr, weight, packets uint64) {
 	if state.limitHit {
 		return
 	}
@@ -240,7 +224,6 @@ func (a *Accumulator) addToIface(state *ifaceState, peer netip.Addr, weight, pac
 	state.bytes += weight
 	state.packets += packets
 	state.records++
-	state.zeroSampling = state.zeroSampling || zeroSampling
 }
 
 // WindowResult is one closed interface window.
@@ -274,12 +257,10 @@ type Report struct {
 	StateEntries int
 }
 
-// CloseWindows closes windows that ended more than Lateness ago. It computes outside the lock.
+// CloseWindows closes windows that ended by now. It computes outside the lock.
 func (a *Accumulator) CloseWindows(now time.Time) Report {
 	a.mu.Lock()
-	closedBefore := a.windowStart(now.Unix() - a.latenessSec)
-	a.closedBefore = max(a.closedBefore, closedBefore)
-	a.futureLimit = now.Unix() + a.intervalSec
+	a.closedBefore = max(a.closedBefore, a.windowStart(now.Unix()))
 
 	closed := make(map[int64]*window)
 	for start, w := range a.windows {
@@ -323,8 +304,6 @@ func (a *Accumulator) result(start int64, partial bool, key ifaceKey, state *ifa
 		r.Status = StatusStateLimit
 	case partial:
 		r.Status = StatusProcessRestart
-	case state.zeroSampling:
-		r.Status = StatusUnsupportedSampling
 	case state.records < a.cfg.MinRecords || state.bytes < a.cfg.MinBytes:
 		r.Status = StatusInsufficientData
 	default:

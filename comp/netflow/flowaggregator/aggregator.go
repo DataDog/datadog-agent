@@ -128,7 +128,6 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	if config.Entropy.Enabled {
 		entropyAcc = entropy.NewAccumulator(entropy.Config{
 			Interval:                 flushConfig.FlowCollectionDuration,
-			Lateness:                 flowContextTTL,
 			MinRecords:               config.Entropy.MinRecords,
 			MinBytes:                 config.Entropy.MinBytes,
 			MaxExporters:             config.Entropy.MaxExporters,
@@ -205,7 +204,7 @@ func (agg *FlowAggregator) run() {
 			agg.receivedFlowCount.Inc()
 			// before flowAcc.add, which merges later records into the first one it keeps
 			if agg.entropy != nil {
-				agg.entropy.Add(flow)
+				agg.entropy.Add(flow, timeNow())
 			}
 			agg.flowAcc.add(flow)
 		}
