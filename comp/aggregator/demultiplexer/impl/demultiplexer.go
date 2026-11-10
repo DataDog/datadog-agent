@@ -144,6 +144,8 @@ func createAgentDemultiplexerOptions(
 	options.FinalDogStatsDSerieObservers = finalDogStatsDSerieObservers
 	options.FinalDogStatsDSerieFlushListener = clientDropDetector
 
+	options.FlushInterval = config.GetDuration("aggregator_flush_interval")
+
 	// Override FlushInterval only if flushInterval is set by the user
 	if v, ok := params.flushInterval.Get(); ok {
 		options.FlushInterval = v

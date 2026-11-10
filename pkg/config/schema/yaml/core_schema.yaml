@@ -5337,6 +5337,11 @@ properties:
         default: false
   agent_telemetry:
     $ref: agent_telemetry.yaml
+  aggregator_flush_interval:
+    node_type: setting
+    type: string
+    default: 15s
+    format: duration
   aggregator_flush_metrics_and_serialize_in_parallel_buffer_size:
     node_type: setting
     type: integer

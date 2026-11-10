@@ -8,6 +8,7 @@ package demultiplexerimpl
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -85,6 +86,34 @@ func TestCreateAgentDemultiplexerOptionsStoresLookbackFactory(t *testing.T) {
 	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), factory, nil, nil)
 
 	require.NotNil(t, options.DogStatsDLookbackFactory)
+}
+
+func TestCreateAgentDemultiplexerOptionsFlushIntervalDefault(t *testing.T) {
+	cfg := configmock.NewMock(t)
+
+	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), nil, nil, nil)
+
+	require.Equal(t, 15*time.Second, options.FlushInterval)
+}
+
+func TestCreateAgentDemultiplexerOptionsFlushIntervalFromConfig(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"aggregator_flush_interval": "60s",
+	})
+
+	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(), nil, nil, nil)
+
+	require.Equal(t, 60*time.Second, options.FlushInterval)
+}
+
+func TestCreateAgentDemultiplexerOptionsFlushIntervalParamWins(t *testing.T) {
+	cfg := configmock.NewMockWithOverrides(t, map[string]interface{}{
+		"aggregator_flush_interval": "60s",
+	})
+
+	options := createAgentDemultiplexerOptions(cfg, NewDefaultParams(WithFlushInterval(0)), nil, nil, nil)
+
+	require.Equal(t, time.Duration(0), options.FlushInterval)
 }
 
 type recordingFinalDogStatsDSerieObserver struct{}
