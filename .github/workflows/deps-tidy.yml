@@ -15,6 +15,7 @@ jobs:
       group: deps-tidy-go-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
+      contents: read
       id-token: write # Required for dd-octo-sts OIDC token
       pull-requests: write # Required to auto-close PRs that bump the root go directive
     runs-on: ubuntu-latest
@@ -62,6 +63,7 @@ jobs:
       group: deps-tidy-cargo-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
+      contents: read
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
@@ -90,6 +92,7 @@ jobs:
   bazel_native_tidy:
     if: ${{ github.repository == 'DataDog/datadog-agent' && github.event.pull_request.user.login == 'renovate[bot]' && github.actor == 'renovate[bot]' && contains(github.event.pull_request.labels.*.name, 'dependencies-bazel-native') }}
     permissions:
+      contents: read
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
@@ -118,6 +121,7 @@ jobs:
       group: deps-tidy-bazel-${{ github.event.pull_request.number }}
       cancel-in-progress: true
     permissions:
+      contents: read
       id-token: write # Required for dd-octo-sts OIDC token
     runs-on: ubuntu-latest
     steps:
