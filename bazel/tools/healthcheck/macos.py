@@ -35,10 +35,10 @@ def _otool(args: list[str]) -> str:
 
 def _get_install_name(src_path: str) -> str | None:
     # otool -D output: header line ending with ":", then (optionally) the
-    # install name on its own line. Pick the first line ending in ".dylib".
+    # install name on its own line. Pick the first line that isn't a header.
     for line in _otool(["-D", src_path]).splitlines():
         stripped = line.strip()
-        if stripped.endswith(".dylib"):
+        if stripped and not stripped.endswith(":"):
             return stripped
     return None
 

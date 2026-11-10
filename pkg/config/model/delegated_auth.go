@@ -56,25 +56,17 @@ func DelaEventPlatformEndpointsKeys() []string {
 	return keys
 }
 
-// delaListEndpointsKeys are the list-shape additional_endpoints settings enrolled for delegated
-// auth. Endpoints built from these settings must hold DELA[...] directives as pending until the
-// resolved key is written back.
-var delaListEndpointsKeys = map[string]struct{}{
-	DelaLogsEndpointsKey:         {},
-	DelaCWSEndpointsKey:          {},
-	DelaComplianceEndpointsKey:   {},
-	DelaActivityDumpEndpointsKey: {},
-}
-
-func init() {
-	for _, key := range DelaEventPlatformEndpointsKeys() {
-		delaListEndpointsKeys[key] = struct{}{}
-	}
-}
-
 // IsDelaListEndpointsKey reports whether the config path is a list-shape additional_endpoints
 // setting that delegated auth can write resolved API keys back into.
 func IsDelaListEndpointsKey(path string) bool {
-	_, ok := delaListEndpointsKeys[path]
-	return ok
+	switch path {
+	case DelaLogsEndpointsKey, DelaCWSEndpointsKey, DelaComplianceEndpointsKey, DelaActivityDumpEndpointsKey:
+		return true
+	}
+	for _, prefix := range DelaEventPlatformEndpointsPrefixes {
+		if path == prefix+"additional_endpoints" {
+			return true
+		}
+	}
+	return false
 }

@@ -1,0 +1,9 @@
+description: Printf interprets \U Unicode escape sequences in the format string.
+input:
+  script: |+
+    printf "\U00000041\n"
+expect:
+  stdout: |+
+    A
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: A degenerate range where addr1 and addr2 match the same line is treated as a one-line match.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2,2s/line/LINE/' input.txt
+expect:
+  stdout: "line1\nLINE2\nline3\n"
+  stderr: ""
+  exit_code: 0

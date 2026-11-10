@@ -1,0 +1,11 @@
+description: jq raw slurp mode evaluates the complete input as one string.
+input:
+  script: |+
+    printf 'one\ntwo\n' | jq -Rsr '.'
+expect:
+  stdout: |+
+    one
+    two
+
+  stderr: |+
+  exit_code: 0

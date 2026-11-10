@@ -1,0 +1,11 @@
+description: Double quotes allow variable expansion and preserve spaces.
+input:
+  script: |+
+    echo "abc"
+    echo "'a'"
+expect:
+  stdout: |+
+    abc
+    'a'
+  stderr: ""
+  exit_code: 0

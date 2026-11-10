@@ -1,0 +1,257 @@
+load("@@//deps/krb5:krb5_codegen.bzl", "krb5_compile_et", "krb5_concat")
+load("@@//deps/krb5:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
+load("@@//deps/krb5:krb5_library.bzl", "krb5_shared_library")
+load("@@//deps/krb5:krb5_tests.bzl", "krb5_c_tests")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = [
+        "//:__subpackages__",
+        "@@//deps/krb5:__pkg__",
+    ],
+)
+
+exports_files([
+    "et/et_c.awk",
+    "et/et_h.awk",
+    "gen.pl",
+    "gen-map.pl",
+    "profile/profile.hin",
+])
+
+filegroup(
+    name = "perl_modules",
+    srcs = glob(["*.pm"]),
+)
+
+cc_library(
+    name = "com_err_h",
+    hdrs = ["et/com_err.h"],
+    strip_include_prefix = "et",
+)
+
+cc_library(
+    name = "verto_h",
+    hdrs = [
+        "verto/verto.h",
+        "verto/verto-module.h",
+    ],
+    strip_include_prefix = "verto",
+)
+
+krb5_concat(
+    name = "krb5support_exports",
+    out = "support/libkrb5support.exports",
+    epilogue = "krb5int_strlcpy\\nkrb5int_strlcat",
+    inputs = ["support/libkrb5support-fixed.exports"],
+)
+
+# libkrb5support (util/support): portability and helper functions shared by all libraries.
+krb5_shared_library(
+    name = "krb5support",
+    srcs = [
+        "support/base64.c",
+        "support/bcmp.c",
+        "support/cache-addrinfo.h",
+        "support/dir_filenames.c",
+        "support/errors.c",
+        "support/fake-addrinfo.c",
+        "support/gmt_mktime.c",
+        "support/hashtab.c",
+        "support/hex.c",
+        "support/init-addrinfo.c",
+        "support/json.c",
+        "support/k5buf.c",
+        "support/path.c",
+        "support/plugins.c",
+        "support/strerror_r.c",
+        "support/strlcpy.c",
+        "support/supp-int.h",
+        "support/threads.c",
+        "support/utf8.c",
+        "support/utf8_conv.c",
+        "support/zap.c",
+    ],
+    linkopts = [
+        "-ldl",
+        "-pthread",
+    ],
+    version = "0.1",
+    exports = ":krb5support_exports",
+    deps = ["//:include"],
+)
+
+# libcom_err (util/et): error table runtime.
+krb5_shared_library(
+    name = "com_err",
+    srcs = [
+        "et/com_err.c",
+        "et/error_message.c",
+        "et/error_table.h",
+        "et/et_name.c",
+        "et/mit-sipb-copyright.h",
+    ],
+    dynamic_deps = [":krb5support_pkg"],
+    version = "3.0",
+    exports = "et/libcom_err.exports",
+    deps = [
+        ":krb5support_lib",
+        "//:include",
+    ],
+)
+
+krb5_compile_et(
+    name = "prof_err",
+    src = "profile/prof_err.et",
+    out_c = "profile/prof_err.c",
+    out_h = "profile/prof_err.h",
+)
+
+# krb5.conf parser (util/profile). Static only: upstream links it into libkrb5.
+cc_library(
+    name = "profile",
+    srcs = [
+        "profile/prof_err.c",
+        "profile/prof_file.c",
+        "profile/prof_get.c",
+        "profile/prof_init.c",
+        "profile/prof_int.h",
+        "profile/prof_parse.c",
+        "profile/prof_set.c",
+        "profile/prof_tree.c",
+    ],
+    copts = KRB5_COPTS,
+    local_defines = KRB5_LOCAL_DEFINES + [
+        "HAS_STDARG",
+        'LIBDIR=\\"/nonexistent/krb5/lib\\"',
+    ],
+    deps = [
+        ":com_err_lib",
+        ":krb5support_lib",
+        "//:include",
+    ],
+)
+
+krb5_concat(
+    name = "verto_rename_h",
+    out = "verto/rename.h",
+    inputs = ["verto/Symbols.ev"],
+    line_format = "#define & k5&",
+)
+
+cc_library(
+    name = "verto_private_h",
+    hdrs = [
+        "verto/module.h",
+        ":verto_rename_h",
+    ],
+    includes = ["verto"],
+)
+
+# libverto (util/verto): event loop abstraction, with the bundled libev backend built in.
+krb5_shared_library(
+    name = "verto",
+    srcs = [
+        "verto/module.c",
+        "verto/verto.c",
+        "verto/verto-k5ev.c",
+    ],
+    implementation_deps = [":verto_private_h"],
+    linkopts = ["-lm"],
+    local_defines = [
+        "BUILTIN_MODULE=k5ev",
+        'DEFAULT_LIBRARY=\\"k5ev\\"',
+    ],
+    textual_hdrs = [
+        "verto/ev.c",
+        "verto/ev.h",
+        "verto/ev_poll.c",
+        "verto/ev_select.c",
+        "verto/ev_vars.h",
+        "verto/ev_wrap.h",
+    ],
+    version = "0.0",
+    exports = "verto/libverto.exports",
+    deps = ["//:include"],
+)
+
+pkg_files(
+    name = "com_err_hdr_files",
+    srcs = ["et/com_err.h"],
+    prefix = "embedded/include",
+)
+
+pkg_files(
+    name = "verto_hdr_files",
+    srcs = [
+        "verto/verto.h",
+        "verto/verto-module.h",
+    ],
+    prefix = "embedded/include",
+)
+
+cc_library(
+    name = "support_tests_textual_h",
+    textual_hdrs = ["support/hashtab.c"],
+)
+
+krb5_c_tests(
+    name = "support_tests",
+    srcs = [
+        "support/t_base64.c",
+        "support/t_hashtab.c",
+        "support/t_hex.c",
+        "support/t_json.c",
+        "support/t_k5buf.c",
+        "support/t_path.c",
+        "support/t_unal.c",
+        "support/t_utf16.c",
+        "support/t_utf8.c",
+    ],
+    copts = KRB5_COPTS,
+    local_defines = KRB5_LOCAL_DEFINES,
+    deps = [
+        ":krb5support_lib",
+        ":support_tests_textual_h",
+    ],
+)
+
+krb5_compile_et(
+    name = "et1_err",
+    src = "et/et1.et",
+    out_c = "et/et1.c",
+    out_h = "et/et1.h",
+)
+
+krb5_compile_et(
+    name = "et2_err",
+    src = "et/et2.et",
+    out_c = "et/et2.c",
+    out_h = "et/et2.h",
+)
+
+cc_library(
+    name = "com_err_tests_h",
+    hdrs = [
+        "et/et1.h",
+        "et/et2.h",
+    ],
+    includes = ["et"],
+)
+
+krb5_c_tests(
+    name = "com_err_tests",
+    srcs = ["et/t_com_err.c"],
+    copts = KRB5_COPTS,
+    local_defines = KRB5_LOCAL_DEFINES,
+    support_srcs = [
+        "et/et1.c",
+        "et/et2.c",
+    ],
+    deps = [
+        ":com_err_lib",
+        ":com_err_tests_h",
+    ],
+)

@@ -1,0 +1,23 @@
+# POSIX 4-arg ( X Y ) disambiguation: when test has exactly 4 args
+# "(" X Y ")" where first is "(" and last is ")", the inner 2 tokens
+# are evaluated as a 2-arg expression. This handles cases where ")"
+# appears as data inside the parenthesized group.
+description: "test POSIX 4-arg ( X Y ) disambiguation"
+input:
+  script: |+
+    # ( ! ) ) treats inner as "! )" → NOT non-empty ")" → false
+    test '(' '!' ')' ')'
+    echo "not-paren: $?"
+    # ( -n x ) treats inner as "-n x" → string has non-zero length → true
+    test '(' '-n' 'x' ')'
+    echo "n-x: $?"
+    # ( ! "" ) treats inner as "! ''" → NOT empty → true
+    test '(' '!' '' ')'
+    echo "not-empty: $?"
+expect:
+  stdout: |
+    not-paren: 1
+    n-x: 0
+    not-empty: 0
+  stderr: ""
+  exit_code: 0

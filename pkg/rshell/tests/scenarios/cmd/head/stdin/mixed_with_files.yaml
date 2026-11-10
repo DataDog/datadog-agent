@@ -1,0 +1,15 @@
+description: Stdin interleaved with file args shows a standard input header alongside file headers.
+setup:
+  files:
+    - path: empty.txt
+      content: ""
+    - path: stdin_src.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head empty.txt - empty.txt < stdin_src.txt
+expect:
+  stdout: "==> empty.txt <==\n\n==> standard input <==\nhello\n\n==> empty.txt <==\n"
+  stderr: ""
+  exit_code: 0

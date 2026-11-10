@@ -1,0 +1,13 @@
+description: Output produced before exit is preserved.
+input:
+  script: |+
+    echo first
+    echo second
+    exit 0
+    echo third
+expect:
+  stdout: |+
+    first
+    second
+  stderr: ""
+  exit_code: 0

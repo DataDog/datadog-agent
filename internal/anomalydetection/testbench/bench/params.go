@@ -39,7 +39,7 @@ type TestbenchParamsFile struct {
 // For each component mentioned in the file:
 //   - "enabled" (if present) overrides the catalog default enabled state.
 //   - remaining fields are passed to the component's parseJSON function (if
-//     registered), overlaying the catalog default config.
+//     registered), overlaying the testbench replay defaults.
 //
 // Returns an error if the file cannot be read, is invalid JSON, or references
 // an unknown component name.
@@ -54,5 +54,5 @@ func LoadTestbenchParams(path string) (observerimpl.ComponentSettings, error) {
 		return observerimpl.ComponentSettings{}, fmt.Errorf("parsing params file: %w", err)
 	}
 
-	return observerimpl.ParseSettingsFromJSON(file.Components)
+	return observerimpl.ParseTestbenchSettingsFromJSON(file.Components)
 }

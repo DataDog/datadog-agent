@@ -1,0 +1,22 @@
+description: df --help lists every flag we support. Locks in the supported-flag surface as part of the user-facing contract. Listed flags also appear in GNU df's help, so the assertion passes against bash too. We do NOT assert the absence of GNU-only flags here (--sync, --version, etc.), since stdout_contains can't express that — that coverage lives in builtins/df/df_test.go (TestDfHelp).
+input:
+  script: |+
+    df --help
+expect:
+  stdout_contains:
+    - "Usage: df"
+    - "--all"
+    - "--exclude-type"
+    - "--help"
+    - "--human-readable"
+    - "--inodes"
+    - "--local"
+    - "--no-sync"
+    - "--portability"
+    - "--print-type"
+    - "--si"
+    - "--total"
+    - "--type"
+    - "-k"
+  stderr: ""
+  exit_code: 0

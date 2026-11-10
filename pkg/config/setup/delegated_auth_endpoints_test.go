@@ -6,6 +6,7 @@
 package setup
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 	"strings"
@@ -17,6 +18,7 @@ import (
 	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -512,42 +514,46 @@ site: datadogh.com
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 }
 
-func TestDirectSendDelegatedAuthDirectives(t *testing.T) {
-	directiveEntry := []any{map[string]any{"host": "org2.datadoghq.com", "api_key": "DELA[org-uuid-1, aws]"}}
-	cwsKey := "runtime_security_config.endpoints.additional_endpoints"
-	complianceKey := "compliance_config.endpoints.additional_endpoints"
+func TestWarnDirectSendDelegatedAuthDirectives(t *testing.T) {
+	var output bytes.Buffer
+	logger, err := log.LoggerFromWriterWithMinLevelAndMsgFormat(&output, log.WarnLvl)
+	require.NoError(t, err)
+	log.SetupLogger(logger, log.WarnStr)
+	t.Cleanup(func() {
+		log.SetupLogger(log.Default(), log.DebugStr)
+		logger.Close()
+	})
 
-	directSendOff := confFromYAML(t, `
-runtime_security_config:
-  direct_send_from_system_probe: false
-`)
-	directSendOff.SetInTest(cwsKey, directiveEntry)
-	assert.Empty(t, directSendDelegatedAuthDirectives(directSendOff), "security-agent ships and can resolve")
+	for _, tc := range []struct {
+		key  string
+		flag string
+	}{
+		{"runtime_security_config.endpoints.additional_endpoints", "runtime_security_config.direct_send_from_system_probe"},
+		{"runtime_security_config.activity_dump.remote_storage.endpoints.additional_endpoints", "runtime_security_config.direct_send_from_system_probe"},
+		{"compliance_config.endpoints.additional_endpoints", "compliance_config.run_in_system_probe"},
+	} {
+		t.Run(tc.key, func(t *testing.T) {
+			config := confFromYAML(t, "{}")
+			config.SetInTest(tc.flag, true)
+			output.Reset()
+			WarnDirectSendDelegatedAuthDirectives(config)
+			assert.Empty(t, output.String(), "no directives present")
 
-	directSendOn := confFromYAML(t, `
-runtime_security_config:
-  direct_send_from_system_probe: true
-`)
-	assert.Empty(t, directSendDelegatedAuthDirectives(directSendOn), "no directives present")
+			config.SetInTest(tc.key, []any{
+				nil,
+				"invalid-entry",
+				map[string]any{"host": "static.example.com", "api_key": "static-key"},
+				map[string]any{"host": "org2.datadoghq.com", "API_KEY": " DELA[org-uuid-1, aws] "},
+			})
+			WarnDirectSendDelegatedAuthDirectives(config)
+			assert.Equal(t, fmt.Sprintf("%s[3] uses delegated auth, but %s ships its payloads from the system-probe process, which cannot resolve delegated-auth directives; those payloads will not dual-ship\n", tc.key, tc.flag), output.String())
 
-	directSendOn.SetInTest(cwsKey, directiveEntry)
-	assert.Equal(t, []directSendDirective{{path: cwsKey + "[0]", flag: "runtime_security_config.direct_send_from_system_probe"}}, directSendDelegatedAuthDirectives(directSendOn))
-
-	// Compliance events move to system-probe through their own flag.
-	complianceInSysprobe := confFromYAML(t, `
-compliance_config:
-  run_in_system_probe: true
-`)
-	assert.Empty(t, directSendDelegatedAuthDirectives(complianceInSysprobe), "no directives present")
-	complianceInSysprobe.SetInTest(complianceKey, directiveEntry)
-	assert.Equal(t, []directSendDirective{{path: complianceKey + "[0]", flag: "compliance_config.run_in_system_probe"}}, directSendDelegatedAuthDirectives(complianceInSysprobe))
-
-	complianceInAgent := confFromYAML(t, `
-compliance_config:
-  run_in_system_probe: false
-`)
-	complianceInAgent.SetInTest(complianceKey, directiveEntry)
-	assert.Empty(t, directSendDelegatedAuthDirectives(complianceInAgent), "security-agent ships and can resolve")
+			config.SetInTest(tc.flag, false)
+			output.Reset()
+			WarnDirectSendDelegatedAuthDirectives(config)
+			assert.Empty(t, output.String(), "security-agent ships and can resolve")
+		})
+	}
 }
 
 func TestConfigureDelegatedAuthEndpointsSkipsResolvedEntries(t *testing.T) {

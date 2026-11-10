@@ -1,0 +1,29 @@
+# "-" (stdin) must be rejected only once that specific operand is actually
+# reached in the processing sequence, not by a pre-scan of every operand
+# before any file is touched. Verified against real GNU sed 4.9:
+# `sed -i 's/a/b/' first.txt -` edits and commits first.txt before failing
+# on the "-" operand.
+description: sed -i processes earlier file operands before failing on a later "-" operand.
+setup:
+  files:
+    - path: first.txt
+      content: |+
+        a
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i 's/a/b/' first.txt -; echo "exit=$?"
+    cat first.txt
+expect:
+  stdout: |+
+    exit=1
+    b
+  stderr: |+
+    sed: -i: cannot edit standard input in place
+  exit_code: 0
+# skip: GNU sed's own error message/exit code for a failed "-" read differ
+# from this shell's wording (see stdin_rejected.yaml's existing divergence);
+# only the sequential-processing behavior (first.txt edited before the
+# failure) is what this scenario pins.
+skip_assert_against_bash: true

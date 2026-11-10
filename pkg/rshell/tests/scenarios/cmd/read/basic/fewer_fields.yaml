@@ -1,0 +1,9 @@
+description: With fewer fields than variables, missing variables are set to empty.
+input:
+  script: |+
+    echo "only" | { read A B C; echo "[$A][$B][$C]"; }
+expect:
+  stdout: |+
+    [only][][]
+  stderr: ""
+  exit_code: 0

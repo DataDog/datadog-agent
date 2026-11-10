@@ -1,0 +1,15 @@
+description: tee writes an identical copy to every FILE operand.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf "hi\n" | tee a.txt b.txt c.txt
+    cat a.txt b.txt c.txt
+expect:
+  stdout: |+
+    hi
+    hi
+    hi
+    hi
+  stderr: |+
+  exit_code: 0

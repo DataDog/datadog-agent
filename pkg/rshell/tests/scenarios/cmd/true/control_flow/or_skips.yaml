@@ -1,0 +1,8 @@
+description: The true builtin succeeds so || skips the fallback command.
+input:
+  script: |+
+    true || echo fallback
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

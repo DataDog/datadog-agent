@@ -1,0 +1,13 @@
+description: uniq --group=both adds blank lines before and after groups.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq --group=both input.txt
+expect:
+  stdout: "\na\na\n\nb\n\n"
+  stderr: ""
+  exit_code: 0

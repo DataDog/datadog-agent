@@ -8,7 +8,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/fxutil v0.84.0-devel.0.20261028224924-1c255663adbd
 	github.com/prometheus/client_golang v1.25.0
 	github.com/prometheus/client_model v0.6.3
-	github.com/prometheus/common v0.72.1
+	github.com/prometheus/common v0.73.0
 	github.com/stretchr/testify v1.12.1
 	go.uber.org/atomic v1.12.0
 	go.uber.org/fx v1.24.0
@@ -19,9 +19,11 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/option v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/klauspost/compress v1.20.3 // indirect
 	github.com/munnerz/goautoneg v0.0.0-20191010083416-a7dc8b61c822 // indirect
+	github.com/pandatix/go-abnf v0.5.1 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
@@ -63,6 +65,8 @@ replace (
 	github.com/DataDog/datadog-agent/comp/core/log/impl => ../../../comp/core/log/impl
 	github.com/DataDog/datadog-agent/comp/core/log/impl-trace => ../../../comp/core/log/impl-trace
 	github.com/DataDog/datadog-agent/comp/core/log/mock => ../../../comp/core/log/mock
+	github.com/DataDog/datadog-agent/comp/core/schema/def => ../../../comp/core/schema/def
+	github.com/DataDog/datadog-agent/comp/core/schema/noop-impl => ../../../comp/core/schema/noop-impl
 	github.com/DataDog/datadog-agent/comp/core/secrets/def => ../../../comp/core/secrets/def
 	github.com/DataDog/datadog-agent/comp/core/secrets/fx => ../../../comp/core/secrets/fx
 	github.com/DataDog/datadog-agent/comp/core/secrets/impl => ../../../comp/core/secrets/impl
@@ -160,6 +164,7 @@ replace (
 	github.com/DataDog/datadog-agent/pkg/proto => ../../../pkg/proto
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state => ../../../pkg/remoteconfig/state
 	github.com/DataDog/datadog-agent/pkg/remoteflags => ../../../pkg/remoteflags
+	github.com/DataDog/datadog-agent/pkg/rshell => ../../../pkg/rshell
 	github.com/DataDog/datadog-agent/pkg/security/secl => ../../../pkg/security/secl
 	github.com/DataDog/datadog-agent/pkg/security/seclwin => ../../../pkg/security/seclwin
 	github.com/DataDog/datadog-agent/pkg/serializer => ../../../pkg/serializer

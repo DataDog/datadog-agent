@@ -1103,6 +1103,17 @@ func TestLoadEnv(t *testing.T) {
 		assert.Equal(t, "123", cfg.Endpoints[0].APIKey)
 	})
 
+	env = "DD_APP_KEY"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, " 456 ")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, "456", cfg.EVPProxy.ApplicationKey)
+	})
+
 	env = "DD_SITE"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "my-site.com")
@@ -2589,6 +2600,37 @@ func TestOnUpdateAPIKeyCallback(t *testing.T) {
 	configC := config.(*cfg)
 	configC.updateAPIKey("foo", "bar")
 	assert.Equal(t, 1, n)
+}
+
+func TestOnUpdateApplicationKey(t *testing.T) {
+	// NewComponent rather than the mock: the mock skips the OnUpdate subscription under test.
+	coreConfig := configcomp.NewMock(t)
+	coreConfig.SetInTest("hostname", "testhostname")
+	coreConfig.SetInTest("api_key", "apikey")
+	coreConfig.SetInTest("app_key", "first_app_key")
+	pkgconfigsetup.LoadProxyFromEnv(coreConfig)
+	taggerComponent := fxutil.Test[taggermock.Mock](t,
+		fx.Provide(func() configcomp.Component { return coreConfig }),
+		fx.Provide(func() logdef.Component { return logmock.New(t) }),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		noopTelemetry.Module(),
+		taggerfxmock.MockModule(),
+	)
+
+	provides, err := NewComponent(Requires{
+		Params: traceconfigdef.Params{FailIfAPIKeyMissing: false},
+		Config: coreConfig,
+		Tagger: taggerComponent,
+		IPC:    ipcmock.New(t),
+	})
+	require.NoError(t, err)
+	configC := provides.Comp.(*cfg)
+	require.Equal(t, "first_app_key", configC.EVPProxy.ApplicationKey)
+
+	coreConfig.Set("app_key", " rotated_app_key ", configmodel.SourceAgentRuntime)
+
+	// Sanitized like the API key, so a key pasted with whitespace still works after rotation.
+	assert.Equal(t, "rotated_app_key", configC.EVPProxy.ApplicationKey)
 }
 
 func TestSetConfigHandlerLogLevel(t *testing.T) {
