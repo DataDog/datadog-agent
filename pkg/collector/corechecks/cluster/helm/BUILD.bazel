@@ -38,7 +38,6 @@ go_library(
 dd_agent_go_test(
     name = "helm_test",
     srcs = [
-        "cache_memory_test.go",
         "events_test.go",
         "helm_test.go",
         "map_utils_test.go",
