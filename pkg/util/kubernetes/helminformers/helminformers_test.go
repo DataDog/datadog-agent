@@ -9,7 +9,7 @@ package helminformers
 
 import (
 	"testing"
-	"time"
+	"testing/synctest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,36 +32,40 @@ func helmConfigMap(name string) *corev1.ConfigMap {
 }
 
 func TestAcquireSharesInformer(t *testing.T) {
-	client := fake.NewClientset(helmConfigMap("sh.helm.release.v1.a.v1"))
+	synctest.Test(t, func(t *testing.T) {
+		client := fake.NewClientset(helmConfigMap("sh.helm.release.v1.a.v1"))
 
-	first, releaseFirst := Acquire(client, ConfigMaps)
-	second, releaseSecond := Acquire(client, ConfigMaps)
-	assert.Same(t, first, second)
+		first, releaseFirst := Acquire(client, ConfigMaps)
+		second, releaseSecond := Acquire(client, ConfigMaps)
+		assert.Same(t, first, second)
 
-	other, releaseOther := Acquire(client, Secrets)
-	assert.NotSame(t, first, other)
-	releaseOther()
+		other, releaseOther := Acquire(client, Secrets)
+		assert.NotSame(t, first, other)
+		releaseOther()
 
-	require.True(t, cache.WaitForCacheSync(t.Context().Done(), first.HasSynced))
+		require.True(t, cache.WaitForCacheSync(t.Context().Done(), first.HasSynced))
 
-	// The informer is trimmed, and still has the data consumers need.
-	objs := first.GetStore().List()
-	require.Len(t, objs, 1)
-	cm := objs[0].(*corev1.ConfigMap)
-	assert.Nil(t, cm.ManagedFields)
-	assert.Equal(t, "payload", cm.Data["release"])
+		// The informer is trimmed, and still has the data consumers need.
+		objs := first.GetStore().List()
+		require.Len(t, objs, 1)
+		cm := objs[0].(*corev1.ConfigMap)
+		assert.Nil(t, cm.ManagedFields)
+		assert.Equal(t, "payload", cm.Data["release"])
 
-	// The informer outlives the first release, and stops with the last one.
-	releaseFirst()
-	releaseFirst() // releasing twice must not drop another holder's reference
-	assert.False(t, first.IsStopped())
-	releaseSecond()
-	assert.Eventually(t, first.IsStopped, 5*time.Second, 10*time.Millisecond)
+		// The informer outlives the first release, and stops with the last one.
+		releaseFirst()
+		releaseFirst() // releasing twice must not drop another holder's reference
+		synctest.Wait()
+		assert.False(t, first.IsStopped())
+		releaseSecond()
+		synctest.Wait()
+		assert.True(t, first.IsStopped())
 
-	// A new holder gets a fresh informer.
-	again, releaseAgain := Acquire(client, ConfigMaps)
-	defer releaseAgain()
-	assert.NotSame(t, first, again)
+		// A new holder gets a fresh informer.
+		again, releaseAgain := Acquire(client, ConfigMaps)
+		defer releaseAgain()
+		assert.NotSame(t, first, again)
+	})
 }
 
 func TestAcquireDifferentClients(t *testing.T) {

@@ -178,12 +178,19 @@ func (hc *HelmCheck) Cancel() {
 }
 
 func (hc *HelmCheck) setupInformers() error {
+	select {
+	case <-hc.informersStopCh:
+		return nil
+	default:
+	}
+
 	// Shared with the orchestrator check, so the release payloads are cached once.
 	secretInformer, releaseSecrets := helminformers.Acquire(hc.kubeClient, helminformers.Secrets)
 	configmapInformer, releaseConfigmaps := helminformers.Acquire(hc.kubeClient, helminformers.ConfigMaps)
 
 	// A period below the shared informers' would make them resync faster for every holder.
 	resyncPeriod := max(hc.getInformersResyncPeriod(), helminformers.ResyncPeriod)
+	var handlersSynced []cache.InformerSynced
 	secretReg, err := secretInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
 		AddFunc:    hc.addSecret,
 		DeleteFunc: hc.deleteSecret,
@@ -191,6 +198,8 @@ func (hc *HelmCheck) setupInformers() error {
 	}, resyncPeriod)
 	if err != nil {
 		log.Errorf("cannot add event handler to secret informer: %v", err)
+	} else {
+		handlersSynced = append(handlersSynced, secretReg.HasSynced)
 	}
 
 	configmapReg, err := configmapInformer.AddEventHandlerWithResyncPeriod(cache.ResourceEventHandlerFuncs{
@@ -200,15 +209,9 @@ func (hc *HelmCheck) setupInformers() error {
 	}, resyncPeriod)
 	if err != nil {
 		log.Errorf("cannot add event handler to config map informer: %v", err)
+	} else {
+		handlersSynced = append(handlersSynced, configmapReg.HasSynced)
 	}
-
-	err = apiserver.SyncInformers(
-		map[apiserver.InformerName]cache.SharedInformer{
-			"helm-secrets":    secretInformer,
-			"helm-configmaps": configmapInformer,
-		},
-		hc.getExtraSyncTimeout(),
-	)
 
 	// The shared informers outlive the check: detach from them when it stops.
 	go func() {
@@ -223,7 +226,21 @@ func (hc *HelmCheck) setupInformers() error {
 		releaseConfigmaps()
 	}()
 
-	return err
+	if err := apiserver.SyncInformers(
+		map[apiserver.InformerName]cache.SharedInformer{
+			"helm-secrets":    secretInformer,
+			"helm-configmaps": configmapInformer,
+		},
+		hc.getExtraSyncTimeout(),
+	); err != nil {
+		return err
+	}
+
+	// An informer another check already synced replays its objects to new handlers asynchronously.
+	if !cache.WaitForCacheSync(hc.informersStopCh, handlersSynced...) {
+		return errors.New("the Helm release event handlers did not sync")
+	}
+	return nil
 }
 
 func (hc *HelmCheck) allTags(release *release, storageDriver helmStorage, includeRevision bool) []string {
