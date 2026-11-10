@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"net/http"
 	"testing"
-	"time"
 
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
@@ -54,9 +53,6 @@ func (m *mockNetworkConfigManagement) RegisterDevice(device *config.DeviceInstan
 func (m *mockNetworkConfigManagement) RollbackConfig(_ context.Context, _, _, _ string) (*types.PushResult, types.RollbackError) {
 	return nil, types.InternalError(errors.New("unimplemented"))
 }
-
-// SetMaxReportInterval implements [networkconfigmanagement.Component].
-func (m *mockNetworkConfigManagement) SetMaxReportInterval(_ time.Duration) {}
 
 // Mock returns a networkconfigmanagement.Component backed by an in-memory store.
 func Mock(t *testing.T) networkconfigmanagement.Component {

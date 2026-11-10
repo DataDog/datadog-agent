@@ -16,14 +16,6 @@ init_config:
     #
     min_collection_interval: 900
 
-    ## @param inventory_report_max_interval - number - optional - default: 3600
-    ## Slowest cadence, in seconds, for sending an inventory report. A report is also
-    ## sent any time a new configuration is captured.
-    ## Currently must be set explicitly: the built-in default is not applied
-    ## correctly and results in a value far outside the intended range.
-    #
-    inventory_report_max_interval: 3600
-
     ## @param ssh - mapping - optional
     ## Global SSH configuration that applies to all device instances unless
     ## overridden at the device level.
