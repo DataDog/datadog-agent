@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    CWS: when the loaded policies contain ``sysctl`` rules, the agent now replays
+    the current value of every parameter in ``/proc/sys`` as a ``sysctl`` read event
+    when it starts and whenever it loads new policies. Rules can therefore match
+    values set before the agent started, such as ``kernel/yama/ptrace_scope`` set at
+    boot, for example to set a host-scoped variable. Replayed events have
+    ``event.source == "replay"``.
