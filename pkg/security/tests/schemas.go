@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
+	"sync"
 	"syscall"
 	"testing"
 	"time"
@@ -26,11 +27,32 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/serializers"
 )
 
-func getUpstreamEventSchema() string {
-	return fmt.Sprintf("https://raw.githubusercontent.com/DataDog/datadog-agent/%s/docs/cloud-workload-security/backend_linux.schema.json", GitAncestorOnMain)
+func upstreamEventSchemaURL(ref string) string {
+	return fmt.Sprintf("https://raw.githubusercontent.com/DataDog/datadog-agent/%s/docs/cloud-workload-security/backend_linux.schema.json", ref)
 }
 
-var upstreamEventSchema = getUpstreamEventSchema()
+// resolveUpstreamEventSchema returns the public schema URL pinned to the common ancestor with main. When that
+// commit doesn't exist on the public repository (e.g. a mirror whose history has internal-only commits), it
+// falls back to the schema at the tip of the public main branch instead of failing every test with a 404.
+var resolveUpstreamEventSchema = sync.OnceValue(func() string {
+	pinned := upstreamEventSchemaURL(GitAncestorOnMain)
+	if GitAncestorOnMain == "main" {
+		return pinned
+	}
+
+	resp, err := http.Head(pinned) //nolint:gosec,noctx // test-only, fixed public URL
+	if err != nil {
+		return pinned // transient network issue: let validateURLSchema retry and report it
+	}
+	resp.Body.Close()
+	if resp.StatusCode != http.StatusNotFound {
+		return pinned
+	}
+
+	fallback := upstreamEventSchemaURL("main")
+	fmt.Printf("Upstream schema not found at %s, falling back to %s\n", pinned, fallback)
+	return fallback
+})
 
 //nolint:unused
 func validateMessageSchema(t *testing.T, msg string) bool {
@@ -38,7 +60,7 @@ func validateMessageSchema(t *testing.T, msg string) bool {
 	if !validateStringSchema(t, msg, "file:///message.schema.json") {
 		return false
 	}
-	return validateURLSchema(t, msg, upstreamEventSchema)
+	return validateURLSchema(t, msg, resolveUpstreamEventSchema())
 }
 
 //nolint:unused
