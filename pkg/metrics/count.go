@@ -38,6 +38,11 @@ func (c *Count) isStateful() bool {
 	return false
 }
 
+// Counts flushed for the parts of a window sum up to the count of the window.
+func (c *Count) isDecomposable() bool {
+	return true
+}
+
 func (c *Count) metricType() MetricType {
 	return CountType
 }

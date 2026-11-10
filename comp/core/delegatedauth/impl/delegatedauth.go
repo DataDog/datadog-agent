@@ -53,6 +53,39 @@ var (
 	errWritebackTargetChanged = errors.New("delegated auth config writeback target changed")
 )
 
+// endpointRegistration captures the immutable routing and writeback identity.
+type endpointRegistration struct {
+	orgUUID string
+	// originalDirective is immutable and matches entries reverted by a racing write.
+	originalDirective string
+	// targetSite is the exchange site. Empty means use the primary site.
+	targetSite string
+	// additionalEndpointDomain routes map-shape writeback under additionalEndpointsConfigKey.
+	additionalEndpointDomain     string
+	additionalEndpointsConfigKey string
+	// additionalEndpointKeyIndex is the original position in the domain's key list.
+	additionalEndpointKeyIndex int
+	// additionalEndpointsListConfigKey routes list-shape writeback, instead of the domain.
+	additionalEndpointsListConfigKey string
+	listEntryIndex                   int
+	// additionalEndpointIdentity binds list writeback to the original route.
+	additionalEndpointIdentity string
+}
+
+func endpointRegistrationFor(params delegatedauth.InstanceParams) endpointRegistration {
+	return endpointRegistration{
+		orgUUID:                          params.OrgUUID,
+		originalDirective:                params.AdditionalEndpointDirective,
+		targetSite:                       resolveTargetSite(params),
+		additionalEndpointDomain:         params.AdditionalEndpointDomain,
+		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
+		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
+		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
+		listEntryIndex:                   params.ListEntryIndex,
+		additionalEndpointIdentity:       params.AdditionalEndpointIdentity,
+	}
+}
+
 type startupRecovery struct {
 	ctx                 context.Context
 	cancel              context.CancelFunc
@@ -60,6 +93,7 @@ type startupRecovery struct {
 	consecutiveFailures int
 	lastError           error
 	nextRetry           time.Time
+	registration        endpointRegistration
 }
 
 // detectAWSCredentialSource is a seam for tests. The real detection probes IMDS as its last step,
@@ -72,6 +106,8 @@ var errDelegatedAuthDisabled = errors.New("delegated auth disabled: no supported
 
 // authInstance holds the state for a single delegated auth configuration (one API key target).
 type authInstance struct {
+	endpointRegistration
+
 	apiKey          *string
 	provider        common.Provider
 	authConfig      *common.AuthConfig
@@ -79,31 +115,9 @@ type authInstance struct {
 	apiKeyConfigKey string // Configuration key where the API key should be written
 	providerName    string
 	providerRegion  string
-
-	// targetSite is the site to exchange the auth proof against. Empty means use the primary site.
-	targetSite string
-
-	// additionalEndpointDomain, if set, routes the key into the map-shape config at
-	// additionalEndpointsConfigKey under this domain instead of apiKeyConfigKey.
-	additionalEndpointDomain string
-	// additionalEndpointsConfigKey is the map-shape config path. Only set when additionalEndpointDomain is set.
-	additionalEndpointsConfigKey string
-	// additionalEndpointKeyIndex is this instance's position in the domain's key list. Only used
-	// when additionalEndpointDomain is set. See InstanceParams.AdditionalEndpointKeyIndex.
-	additionalEndpointKeyIndex int
-	// additionalEndpointsListConfigKey, if set, routes the key into the list-shape config at
-	// this path. Mutually exclusive with additionalEndpointDomain.
-	additionalEndpointsListConfigKey string
-	// listEntryIndex is this instance's position in the list. Only used when additionalEndpointsListConfigKey is set.
-	listEntryIndex int
-	// additionalEndpointIdentity binds list writeback to the original route.
-	additionalEndpointIdentity string
 	// lastWrittenValue is the value most recently written to the target, starting with the
 	// DELA[...] directive text. Used to find-and-replace this instance's own entry on each refresh.
 	lastWrittenValue string
-	// originalDirective is the literal DELA[...] text, never changes. Used as a fallback match
-	// in case a racing write reverted the entry back to the raw directive.
-	originalDirective string
 
 	// Exponential backoff for retry intervals
 	backoff *backoff.ExponentialBackOff
@@ -177,22 +191,11 @@ func NewComponent() Provides {
 	}
 }
 
-// newBackoff creates an ExponentialBackOff configured for delegated auth refresh.
-// It uses the refresh interval as the initial interval and caps at maxBackoffInterval.
-func newBackoff(refreshInterval time.Duration) *backoff.ExponentialBackOff {
+// newBackoff creates a delegated-auth retry backoff with the given initial and maximum intervals.
+func newBackoff(initialInterval, maxInterval time.Duration) *backoff.ExponentialBackOff {
 	b := backoff.NewExponentialBackOff()
-	b.InitialInterval = refreshInterval
-	b.MaxInterval = maxBackoffInterval
-	b.Multiplier = 2.0
-	b.RandomizationFactor = backoffRandomizationFactor
-	b.Reset()
-	return b
-}
-
-func newStartupBackoff() *backoff.ExponentialBackOff {
-	b := backoff.NewExponentialBackOff()
-	b.InitialInterval = startupRetryInitialInterval
-	b.MaxInterval = startupRetryMaxInterval
+	b.InitialInterval = initialInterval
+	b.MaxInterval = maxInterval
 	b.Multiplier = 2.0
 	b.RandomizationFactor = backoffRandomizationFactor
 	b.Reset()
@@ -311,6 +314,13 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 	d.startupMu.Lock()
 	defer d.startupMu.Unlock()
 
+	// Re-registering the same endpoint directive (e.g. the endpoint scan re-running after a
+	// config merge) is a no-op: the existing instance or its background recovery stays as it
+	// is, so a late scan cannot restart a fetch or extend startup during an auth outage.
+	if d.hasEquivalentEndpointRegistration(params) {
+		return nil
+	}
+
 	if err := d.stopStartupRecovery(ctx, params.APIKeyConfigKey); err != nil {
 		return err
 	}
@@ -325,6 +335,25 @@ func (d *delegatedAuthComponent) AddInstance(ctx context.Context, params delegat
 
 	d.startStartupRecovery(params, err)
 	return nil
+}
+
+// hasEquivalentEndpointRegistration reports whether an instance or startup recovery is already
+// registered under the same key with the same routing and writeback identity.
+func (d *delegatedAuthComponent) hasEquivalentEndpointRegistration(params delegatedauth.InstanceParams) bool {
+	if params.AdditionalEndpointDirective == "" {
+		return false
+	}
+	registration := endpointRegistrationFor(params)
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+	// A pending recovery owns the latest registration, even if an older instance remains.
+	if recovery := d.startupRecoveries[params.APIKeyConfigKey]; recovery != nil {
+		return recovery.registration == registration
+	}
+	if existing := d.instances[params.APIKeyConfigKey]; existing != nil {
+		return existing.endpointRegistration == registration
+	}
+	return false
 }
 
 func (d *delegatedAuthComponent) tryAddInstance(ctx context.Context, params delegatedauth.InstanceParams) error {
@@ -362,7 +391,7 @@ func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params del
 			return err
 		}
 		if params.FallbackAPIKey != "" {
-			if err := d.writeAPIKeyToTarget(fallbackTargetInstance(params), params.FallbackAPIKey, true); err != nil {
+			if err := d.writeAPIKeyToTarget(newAuthInstance(params, params.ProviderConfig), params.FallbackAPIKey, true); err != nil {
 				return fmt.Errorf("failed to write fallback API key: %w", err)
 			}
 		}
@@ -391,33 +420,18 @@ func (d *delegatedAuthComponent) addInstanceOnce(ctx context.Context, params del
 	authConfig := &common.AuthConfig{
 		OrgUUID: params.OrgUUID,
 	}
-	providerName, providerRegion := providerStatus(providerConfig)
-
 	// Create a context for the background refresh goroutine
 	refreshCtx, refreshCancel := context.WithCancel(context.Background())
 
 	// Create new auth instance with backoff configured
-	instance := &authInstance{
-		provider:                         tokenProvider,
-		authConfig:                       authConfig,
-		refreshInterval:                  refreshInterval,
-		apiKeyConfigKey:                  apiKeyConfigKey,
-		providerName:                     providerName,
-		providerRegion:                   providerRegion,
-		targetSite:                       resolveTargetSite(params),
-		additionalEndpointDomain:         params.AdditionalEndpointDomain,
-		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
-		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
-		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
-		listEntryIndex:                   params.ListEntryIndex,
-		additionalEndpointIdentity:       params.AdditionalEndpointIdentity,
-		lastWrittenValue:                 params.AdditionalEndpointDirective,
-		originalDirective:                params.AdditionalEndpointDirective,
-		backoff:                          newBackoff(refreshInterval),
-		refreshCtx:                       refreshCtx,
-		refreshCancel:                    refreshCancel,
-		done:                             make(chan struct{}),
-	}
+	instance := newAuthInstance(params, providerConfig)
+	instance.provider = tokenProvider
+	instance.authConfig = authConfig
+	instance.refreshInterval = refreshInterval
+	instance.backoff = newBackoff(refreshInterval, maxBackoffInterval)
+	instance.refreshCtx = refreshCtx
+	instance.refreshCancel = refreshCancel
+	instance.done = make(chan struct{})
 
 	if err := d.replaceInstance(ctx, apiKeyConfigKey, instance); err != nil {
 		refreshCancel()
@@ -466,6 +480,7 @@ func (d *delegatedAuthComponent) startStartupRecovery(params delegatedauth.Insta
 		done:                make(chan struct{}),
 		consecutiveFailures: 1,
 		lastError:           initialErr,
+		registration:        endpointRegistrationFor(params),
 	}
 
 	d.mu.Lock()
@@ -489,7 +504,7 @@ func (d *delegatedAuthComponent) runStartupRecovery(params delegatedauth.Instanc
 	}()
 
 	clk := d.componentClock()
-	retryBackoff := newStartupBackoff()
+	retryBackoff := newBackoff(startupRetryInitialInterval, startupRetryMaxInterval)
 	for {
 		nextInterval := retryBackoff.NextBackOff()
 		retryTimer := clk.Timer(nextInterval)
@@ -803,34 +818,15 @@ func (d *delegatedAuthComponent) validateAdditionalEndpointTarget(instance *auth
 		if !ok {
 			return fmt.Errorf("%w: invalid value at %s", errWritebackTargetChanged, instance.additionalEndpointsListConfigKey)
 		}
-		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
-			if entry, ok := entries[instance.listEntryIndex].(map[string]any); ok {
-				if _, matches := listEntryMatches(instance, entry); matches {
-					return nil
-				}
-			}
-		}
-		for _, entry := range entries {
-			if entry, ok := entry.(map[string]any); ok {
-				if _, matches := listEntryMatches(instance, entry); matches {
-					return nil
-				}
-			}
+		if index, _ := findListEntry(instance, entries); index >= 0 {
+			return nil
 		}
 		return fmt.Errorf("%w: previous value missing at %s", errWritebackTargetChanged, instance.additionalEndpointsListConfigKey)
 
 	case instance.additionalEndpointDomain != "":
 		keys := d.config.GetStringMapStringSlice(instance.additionalEndpointsConfigKey)[instance.additionalEndpointDomain]
-		if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
-			value := keys[instance.additionalEndpointKeyIndex]
-			if value == instance.lastWrittenValue || value == instance.originalDirective {
-				return nil
-			}
-		}
-		for _, value := range keys {
-			if value == instance.lastWrittenValue || value == instance.originalDirective {
-				return nil
-			}
+		if findMapKey(instance, keys) >= 0 {
+			return nil
 		}
 		return fmt.Errorf("%w: previous value missing for %s", errWritebackTargetChanged, instance.additionalEndpointDomain)
 	}
@@ -846,23 +842,54 @@ func resolveTargetSite(params delegatedauth.InstanceParams) string {
 	return params.AdditionalEndpointDomain
 }
 
-// fallbackTargetInstance builds a minimal authInstance for the no-cloud-provider case in AddInstance.
-func fallbackTargetInstance(params delegatedauth.InstanceParams) *authInstance {
-	providerName, providerRegion := providerStatus(params.ProviderConfig)
+// newAuthInstance initializes the shared routing and writeback state; callers add refresh state as needed.
+func newAuthInstance(params delegatedauth.InstanceParams, providerConfig common.ProviderConfig) *authInstance {
+	providerName, providerRegion := providerStatus(providerConfig)
 	return &authInstance{
-		apiKeyConfigKey:                  params.APIKeyConfigKey,
-		providerName:                     providerName,
-		providerRegion:                   providerRegion,
-		targetSite:                       resolveTargetSite(params),
-		additionalEndpointDomain:         params.AdditionalEndpointDomain,
-		additionalEndpointsConfigKey:     params.AdditionalEndpointsConfigKey,
-		additionalEndpointKeyIndex:       params.AdditionalEndpointKeyIndex,
-		additionalEndpointsListConfigKey: params.AdditionalEndpointsListConfigKey,
-		listEntryIndex:                   params.ListEntryIndex,
-		additionalEndpointIdentity:       params.AdditionalEndpointIdentity,
-		lastWrittenValue:                 params.AdditionalEndpointDirective,
-		originalDirective:                params.AdditionalEndpointDirective,
+		endpointRegistration: endpointRegistrationFor(params),
+		apiKeyConfigKey:      params.APIKeyConfigKey,
+		providerName:         providerName,
+		providerRegion:       providerRegion,
+		lastWrittenValue:     params.AdditionalEndpointDirective,
 	}
+}
+
+// findMapKey prefers the recorded index to distinguish equal keys, then scans for
+// the last written value or the original directive restored by a racing write.
+func findMapKey(instance *authInstance, keys []string) int {
+	if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
+		if value := keys[instance.additionalEndpointKeyIndex]; value == instance.lastWrittenValue || value == instance.originalDirective {
+			return instance.additionalEndpointKeyIndex
+		}
+	}
+	for index, value := range keys {
+		if value == instance.lastWrittenValue || value == instance.originalDirective {
+			return index
+		}
+	}
+	return -1
+}
+
+// findListEntry prefers the recorded index, then scans matching credentials and route
+// identities. Non-map entries are skipped; the API-key field retains its original casing.
+func findListEntry(instance *authInstance, entries []any) (int, string) {
+	if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
+		if entry, ok := entries[instance.listEntryIndex].(map[string]any); ok {
+			if field, matches := listEntryMatches(instance, entry); matches {
+				return instance.listEntryIndex, field
+			}
+		}
+	}
+	for index, rawEntry := range entries {
+		entry, ok := rawEntry.(map[string]any)
+		if !ok {
+			continue
+		}
+		if field, matches := listEntryMatches(instance, entry); matches {
+			return index, field
+		}
+	}
+	return -1, ""
 }
 
 func listEntryMatches(instance *authInstance, entry map[string]any) (string, bool) {
@@ -928,26 +955,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpoints(instance *authInst
 
 		keys := merged[domain]
 
-		// Prefer the recorded index; fall back to a value-only scan if the list was reordered or
-		// the index wasn't provided. Matching by value alone is ambiguous when another entry
-		// under the same domain (e.g. a static key equal to this instance's fallback value)
-		// happens to share the same string.
-		matchIndex := -1
-		if instance.additionalEndpointKeyIndex >= 0 && instance.additionalEndpointKeyIndex < len(keys) {
-			if v := keys[instance.additionalEndpointKeyIndex]; v == instance.lastWrittenValue || v == instance.originalDirective {
-				matchIndex = instance.additionalEndpointKeyIndex
-			}
-		}
-		if matchIndex == -1 {
-			for i, key := range keys {
-				// Also match originalDirective in case a racing write reverted the entry.
-				if key == instance.lastWrittenValue || key == instance.originalDirective {
-					matchIndex = i
-					break
-				}
-			}
-		}
-
+		matchIndex := findMapKey(instance, keys)
 		if matchIndex == -1 {
 			updateErr = fmt.Errorf("%w: previous value missing for %s", errWritebackTargetChanged, domain)
 			return nil, false
@@ -998,34 +1006,7 @@ func (d *delegatedAuthComponent) mergeIntoAdditionalEndpointsList(instance *auth
 		merged := make([]any, len(entries))
 		copy(merged, entries)
 
-		// Prefer the recorded index; fall back to a value-only scan if the list was reordered.
-		// Non-map entries (preserved as-is by NormalizeListShapeEntries) can never match and are
-		// skipped rather than causing a type-assertion panic.
-		matchIndex := -1
-		apiKeyField := ""
-		if instance.listEntryIndex >= 0 && instance.listEntryIndex < len(entries) {
-			if entryMap, ok := entries[instance.listEntryIndex].(map[string]any); ok {
-				if field, ok := listEntryMatches(instance, entryMap); ok {
-					matchIndex = instance.listEntryIndex
-					apiKeyField = field
-				}
-			}
-		}
-		if matchIndex == -1 {
-			for i, entry := range entries {
-				entryMap, ok := entry.(map[string]any)
-				if !ok {
-					continue
-				}
-				// Also match originalDirective in case a racing write reverted the entry.
-				if field, ok := listEntryMatches(instance, entryMap); ok {
-					matchIndex = i
-					apiKeyField = field
-					break
-				}
-			}
-		}
-
+		matchIndex, apiKeyField := findListEntry(instance, entries)
 		if matchIndex == -1 {
 			updateErr = fmt.Errorf("%w: previous value missing at %s", errWritebackTargetChanged, configKey)
 			return nil, false

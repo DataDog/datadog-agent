@@ -70,7 +70,7 @@ func TestDaemonSuite(t *testing.T) {
 // This does not instantiate any component and merely validates the
 // dependency graph.
 func (s *daemonTestSuite) TestRunCommand() {
-	s.Require().NoError(fx.ValidateApp(getFxOptions(&command.GlobalParams{}, &windowsService{})...))
+	s.Require().NoError(fx.ValidateApp(getFxOptions(&command.GlobalParams{})...))
 }
 
 // TestAppStartsAndStops creates a new app with our dependency graph and verify that we can start and stop it.
@@ -85,7 +85,6 @@ func (s *daemonTestSuite) TestAppStartsAndStops() {
 	testApp := &windowsService{}
 	testApp.App = fx.New(getFxOptions(
 		&command.GlobalParams{ConfFilePath: tempfile.Name()},
-		testApp,
 	)...)
 	s.Require().NoError(testApp.Start())
 	s.Require().NoError(testApp.Stop())
