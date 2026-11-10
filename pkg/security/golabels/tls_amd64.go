@@ -5,7 +5,7 @@
 
 //go:build linux && amd64
 
-package process
+package golabels
 
 import (
 	"fmt"

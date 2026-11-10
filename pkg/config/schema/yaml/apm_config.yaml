@@ -822,6 +822,7 @@ properties:
     env_parser: comma_then_space_separated
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1124,6 +1125,7 @@ properties:
     - DD_APM_DEBUG_V1_PAYLOADS
   debugger_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1134,6 +1136,7 @@ properties:
       type: array
   debugger_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1146,6 +1149,7 @@ properties:
     - DD_APM_DEBUGGER_DD_URL
   debugger_diagnostics_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1156,6 +1160,7 @@ properties:
       type: array
   debugger_diagnostics_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1282,6 +1287,7 @@ properties:
     - DD_APM_MODE
   profiling_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1370,6 +1376,7 @@ properties:
         default: 0
   symdb_additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     env_vars:
@@ -1380,6 +1387,7 @@ properties:
       type: array
   symdb_api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     env_vars:
@@ -1402,6 +1410,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         env_vars:

@@ -264,6 +264,7 @@ properties:
           if not overridden.
       configs:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
@@ -529,6 +530,7 @@ properties:
           the Datadog Agent can listen on ports below 1024.
       community_strings:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
@@ -545,6 +547,7 @@ properties:
             - '<COMMUNITY_2>'
       users:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
@@ -607,6 +610,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -796,6 +800,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -892,6 +897,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -1010,6 +1016,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
