@@ -507,6 +507,8 @@ type AgentConfig struct {
 
 	// ReplaceTags is used to filter out sensitive information from tag values.
 	// It maps tag keys to a set of replacements. Only supported in A6.
+	// It must not contain rules named "env": the span env can be used as the env
+	// for sampling and stats, so config loading drops them.
 	ReplaceTags []*ReplaceRule
 
 	// GlobalTags list metadata that will be added to all spans

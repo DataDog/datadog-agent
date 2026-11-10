@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Opt-in all-in-one supervisor. Unset ENTRYPOINT still runs /opt/entrypoints/_default (s6).
+set -euo pipefail
+
+# /var/run/s6 is a VOLUME: writable under --read-only, and kept across docker restart,
+# so wipe it before staging. Image COPY and ConfigMap mounts leave cont-init entries
+# mode 0644, often as symlinks into a read-only ..data directory.
+copy_dir=/var/run/s6/procmgr-cont-init.d
+rm -rf "$copy_dir"
+mkdir -p "$copy_dir"
+
+# C-locale order, as a prefix so dd-procmgrd does not inherit LC_ALL.
+# pipefail does not cover the process substitution, so wait reaps it: a failed sort
+# must not fall through to dd-procmgrd.
+mapfile -d '' inits < <(printf '%s\0' /etc/cont-init.d/* | LC_ALL=C sort -z)
+wait "$!"
+# Stage every regular file first, so a script can see a later sibling next to its own
+# path. [[ -f ]] follows symlinks and skips directories and an unmatched glob.
+# An inherited selected value would become the first entry.
+selected=()
+for init in "${inits[@]}"; do
+    if [[ -f "$init" ]]; then
+        copy="$copy_dir/${init##*/}"
+        cp -L -- "$init" "$copy"
+        chmod 0755 "$copy"
+        selected+=("$init")
+    fi
+done
+for init in "${selected[@]}"; do
+    printf '===== RUNNING %s =====\n' "$init"
+    "$copy_dir/${init##*/}"
+done
+
+export DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio
+# The image VOLUME keeps this directory writable under Docker --read-only.
+export DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}"
+printf '===== STARTING dd-procmgrd =====\n'
+exec /opt/datadog-agent/embedded/bin/dd-procmgrd
