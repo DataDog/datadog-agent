@@ -1,5 +1,6 @@
 import json
 import os
+import shlex
 import tempfile
 import unittest
 from types import SimpleNamespace
@@ -314,7 +315,7 @@ class TestMetricWorkflow(unittest.TestCase):
                         local=True,
                     )
                     command = ctx.run.call_args.args[0]
-                    self.assertEqual("--use-metric-pipeline" in command, pipeline)
+                    self.assertEqual("--use-metric-pipeline" in shlex.split(command), pipeline)
                     self.assertNotIn("--only", command)
                     self.assertEqual("--config" in command, bool(config))
 
@@ -369,6 +370,7 @@ class TestMetricWorkflow(unittest.TestCase):
             self.assertTrue(replay.call_args.kwargs["use_metric_pipeline"])
             with open(replay.call_args.kwargs["config"]) as f:
                 config = json.load(f)
+            self.assertTrue(config["use_metric_pipeline"])
             self.assertTrue(all(not config["components"][name]["enabled"] for name in DETECTORS))
 
     def test_tp_evaluation_forwards_workflow(self):
@@ -472,8 +474,55 @@ class TestMetricWorkflow(unittest.TestCase):
                 main_report_path=os.path.join(root, "report.json"),
                 use_metric_pipeline=True,
             )
-            self.assertIn("--use-metric-pipeline", ctx.run.call_args_list[0].args[0])
+            self.assertIn("--use-metric-pipeline", shlex.split(ctx.run.call_args_list[0].args[0]))
             self.assertTrue(report["use_metric_pipeline"])
+            self.assertIn(
+                "--use-metric-pipeline",
+                shlex.split(report["metadata"]["example"]["inspect_command"]),
+            )
+
+    def test_headless_evaluation_preserves_workflow_from_config_and_inspection(self):
+        with tempfile.TemporaryDirectory() as root, patch("builtins.print"):
+            os.makedirs(os.path.join(root, "example", "parquet"))
+            with open(os.path.join(root, "example", "parquet", "fixture.parquet"), "w") as f:
+                f.write("fixture")
+            with open(os.path.join(root, "observer-eval-example.json"), "w") as f:
+                json.dump({}, f)
+            config_path = os.path.join(root, "config.json")
+            with open(config_path, "w") as f:
+                json.dump({"use_metric_pipeline": True, "components": {}}, f)
+            ctx = Mock()
+            ctx.run.side_effect = [
+                SimpleNamespace(failed=False),
+                SimpleNamespace(
+                    failed=False,
+                    stdout=json.dumps(
+                        {
+                            "f1": 1.0,
+                            "precision": 1.0,
+                            "recall": 1.0,
+                            "num_predictions": 1,
+                            "num_baseline_fps": 0,
+                            "num_filtered_warmup": 0,
+                            "num_filtered_cascading": 0,
+                        }
+                    ),
+                ),
+            ]
+            report = eval_scenarios.body(
+                ctx,
+                scenario="example",
+                scenarios_dir=root,
+                config=config_path,
+                build=False,
+                local=True,
+                scenario_output_dir=root,
+                main_report_path=os.path.join(root, "report.json"),
+            )
+            self.assertIn("--use-metric-pipeline", shlex.split(ctx.run.call_args_list[0].args[0]))
+            self.assertTrue(report["use_metric_pipeline"])
+            inspect_command = report["metadata"]["example"]["inspect_command"]
+            self.assertIn("--use-metric-pipeline", shlex.split(inspect_command))
 
 
 if __name__ == "__main__":

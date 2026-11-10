@@ -356,6 +356,7 @@ def _combo_to_config(
     detectors: list,
     correlators: list,
     force_disable: list | None = None,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Build a testbench JSON params config enabling exactly the listed detectors and correlators.
 
@@ -371,7 +372,10 @@ def _combo_to_config(
             components[name] = _component_base_config(name, True)
     for name in EXTRACTORS:
         components[name] = _component_base_config(name, name not in force_disable_set)
-    return {"components": components}
+    config: dict[str, object] = {"components": components}
+    if use_metric_pipeline:
+        config["use_metric_pipeline"] = True
+    return config
 
 
 # --- Optuna helpers ---
@@ -459,6 +463,7 @@ def _build_optuna_config(
     trial,
     components: list,
     locked: set,
+    use_metric_pipeline: bool = False,
 ) -> dict:
     """Build a TestbenchParamsFile config dict for one Optuna trial."""
     active_set = set(components)
@@ -476,7 +481,10 @@ def _build_optuna_config(
             params.update(_sample_component_params(trial, name))
         result[name] = params
 
-    return {"components": result}
+    config: dict[str, object] = {"components": result}
+    if use_metric_pipeline:
+        config["use_metric_pipeline"] = True
+    return config
 
 
 # --- Aggregation helpers ---

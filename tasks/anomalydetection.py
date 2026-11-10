@@ -666,6 +666,8 @@ def eval_scenarios(
         print(color_message(f"Config: {config}", Color.BLUE))
         with open(config) as f:
             config_obj = json.load(f)
+        if isinstance(config_obj, dict) and config_obj.get("use_metric_pipeline", False):
+            use_metric_pipeline = True
 
     if build:
         build_testbench(ctx)
@@ -691,7 +693,6 @@ def eval_scenarios(
         output_path = os.path.join(scenario_output_dir, f"observer-eval-{name}.json")
         scenario_logger.step(name)
 
-        workflow_flag = " --use-metric-pipeline" if use_metric_pipeline else ""
         scenario_start = time.monotonic()
         command_args = [
             "bin/anomalydetection-testbench",
@@ -706,8 +707,8 @@ def eval_scenarios(
             command_args += ["--config", config]
         elif only_flag:
             command_args += ["--only", only_flag]
-        if workflow_flag:
-            command_args.append(workflow_flag)
+        if use_metric_pipeline:
+            command_args.append("--use-metric-pipeline")
         try:
             _run_headless_replay(
                 ctx,
@@ -797,6 +798,8 @@ def eval_scenarios(
             inspect_args += ["--config", str(replay_config.resolve())]
         elif only_flag:
             inspect_args += ["--only", only_flag]
+        if use_metric_pipeline:
+            inspect_args += ["--use-metric-pipeline"]
         inspect = join_command(inspect_args)
         results.append(
             {
@@ -1027,7 +1030,12 @@ def eval_combinations(
         combo_dir = os.path.join(output_dir, combo_label)
         os.makedirs(combo_dir, exist_ok=True)
 
-        config_data = _combo_to_config(combo["detectors"], combo["correlators"], force_disable=force_disable_list)
+        config_data = _combo_to_config(
+            combo["detectors"],
+            combo["correlators"],
+            force_disable=force_disable_list,
+            use_metric_pipeline=use_metric_pipeline,
+        )
         config_path = os.path.join(combo_dir, "config.json")
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
@@ -1520,7 +1528,7 @@ def eval_bayesian(
         trial_dir = os.path.join(output_dir, trial_label)
         os.makedirs(trial_dir, exist_ok=True)
 
-        config_data = _build_optuna_config(trial, components_list, locked_set)
+        config_data = _build_optuna_config(trial, components_list, locked_set, use_metric_pipeline=use_metric_pipeline)
         config_path = os.path.join(trial_dir, "config.json")
         with open(config_path, "w") as f:
             json.dump(config_data, f, indent=4)
