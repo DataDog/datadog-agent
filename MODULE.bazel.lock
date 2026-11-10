@@ -1009,13 +1009,13 @@
         "pulumi-resource-random-v4.21.6-windows-amd64.tar.gz": "sha1-UA3mITAgyV9fXf7cSczYs6IS8z8=",
         "pulumi-resource-random-v4.21.6-windows-arm64.tar.gz": "sha1-dcRAKo+540ipt7FcMyaUkOPQGE8="
       },
-      "https://github.com/pulumi/pulumi-tls/releases/download/v5.6.2/pulumi-tls_5.6.2_checksums.txt": {
-        "pulumi-resource-tls-v5.6.2-darwin-amd64.tar.gz": "sha1-UPzzXuQqxqd2vVqa1yKj7lFYCPE=",
-        "pulumi-resource-tls-v5.6.2-darwin-arm64.tar.gz": "sha1-HVFO5DbG4WGfhimOQcz6fMzdAms=",
-        "pulumi-resource-tls-v5.6.2-linux-amd64.tar.gz": "sha1-o4zFCPQp+FllZar6uVYNHhf5RhE=",
-        "pulumi-resource-tls-v5.6.2-linux-arm64.tar.gz": "sha1-MbFiOY4rH8IQi6qSnDNnNkMTN2Y=",
-        "pulumi-resource-tls-v5.6.2-windows-amd64.tar.gz": "sha1-AUh10NfcNhIDoRiuvPo5wlldxMA=",
-        "pulumi-resource-tls-v5.6.2-windows-arm64.tar.gz": "sha1-ntIFDyD1ZPAxgxQSCKXajRBkj20="
+      "https://github.com/pulumi/pulumi-tls/releases/download/v5.6.3/pulumi-tls_5.6.3_checksums.txt": {
+        "pulumi-resource-tls-v5.6.3-darwin-amd64.tar.gz": "sha1-NxB+R0jX+3AF+lQhyA71i0pa24s=",
+        "pulumi-resource-tls-v5.6.3-darwin-arm64.tar.gz": "sha1-xO96YcKIE4GWXOVSvFQrbIs2bJE=",
+        "pulumi-resource-tls-v5.6.3-linux-amd64.tar.gz": "sha1-uOBkPAgmbJprjHt0VfIJiRABmPc=",
+        "pulumi-resource-tls-v5.6.3-linux-arm64.tar.gz": "sha1-Yb884nTwFk82Ex2YiJ8QjSuQXkw=",
+        "pulumi-resource-tls-v5.6.3-windows-amd64.tar.gz": "sha1-aec8hWNGjSsAv/tfdTrmSbXFHxI=",
+        "pulumi-resource-tls-v5.6.3-windows-arm64.tar.gz": "sha1-dZy6FIIeRS6ln4coeQFziuM9nMw="
       },
       "https://github.com/pulumiverse/pulumi-time/releases/download/v0.1.0/pulumi-time_0.1.0_checksums.txt": {
         "pulumi-resource-time-v0.1.0-darwin-amd64.tar.gz": "sha256-p/pkRdejbGHoWbfk7m2b6oHEEO5Dx8Jcvp56gmqAqEI=",
@@ -1098,7 +1098,7 @@
         "name": "random",
         "url": "https://github.com/pulumi/pulumi-random"
       },
-      "https://registry.npmjs.org/@pulumi/tls/5.6.2": {
+      "https://registry.npmjs.org/@pulumi/tls/5.6.3": {
         "dependencies": {},
         "name": "tls",
         "url": "https://github.com/pulumi/pulumi-tls"
