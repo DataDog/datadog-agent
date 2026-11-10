@@ -10,6 +10,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
+	"encoding/json"
 	"errors"
 	"io"
 	"net/http"
@@ -468,4 +469,48 @@ func TestHeartbeat_OtherErrorIsNotJobNotFound(t *testing.T) {
 
 	require.Error(t, err)
 	assert.False(t, errors.Is(err, ErrJobNotFound), "500 must not be treated as job-not-found")
+}
+
+func TestPublishTaskUpdateExecutionFQN(t *testing.T) {
+	const publicFQN = "com.datadoghq.host.diskUsage"
+	for _, outcome := range []string{"succeed_task", "fail_task"} {
+		for _, executionFQN := range []string{"", "com.datadoghq.authoredscripts.host.diskUsage"} {
+			t.Run(outcome+"/"+executionFQN, func(t *testing.T) {
+				requests := make(chan map[string]interface{}, 1)
+				srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					assert.Equal(t, taskUpdatePath, r.URL.Path)
+					var body struct {
+						Data struct {
+							ID         string                 `json:"id"`
+							Attributes map[string]interface{} `json:"attributes"`
+						} `json:"data"`
+					}
+					if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+						assert.NoError(t, err)
+						w.WriteHeader(http.StatusBadRequest)
+						return
+					}
+					assert.Equal(t, outcome, body.Data.ID)
+					requests <- body.Data.Attributes
+					w.WriteHeader(http.StatusOK)
+				}))
+				defer srv.Close()
+				c := newTestClient(t, srv)
+				var err error
+				if outcome == "succeed_task" {
+					err = c.PublishSuccess(context.Background(), actionsclientpb.Client_WORKFLOWS, "task-id", "job-id", publicFQN, executionFQN, map[string]interface{}{}, "main")
+				} else {
+					err = c.PublishFailure(context.Background(), actionsclientpb.Client_WORKFLOWS, "task-id", "job-id", publicFQN, executionFQN, 0, "script failed", "")
+				}
+				require.NoError(t, err)
+				attrs := <-requests
+				assert.Equal(t, publicFQN, attrs["action_fqn"])
+				if executionFQN == "" {
+					assert.NotContains(t, attrs, "execution_fqn")
+				} else {
+					assert.Equal(t, executionFQN, attrs["execution_fqn"])
+				}
+			})
+		}
+	}
 }

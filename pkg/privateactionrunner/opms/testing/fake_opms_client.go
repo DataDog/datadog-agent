@@ -21,8 +21,8 @@ import (
 type FakeOpmsClient struct {
 	HealthCheckFn    func(ctx context.Context) (*opms.HealthCheckData, error)
 	DequeueTaskFn    func(ctx context.Context) (*types.Task, time.Duration, error)
-	PublishSuccessFn func(ctx context.Context, client actionsclientpb.Client, taskID, jobID, actionFQN string, output interface{}, branch string) error
-	PublishFailureFn func(ctx context.Context, client actionsclientpb.Client, taskID, jobID, actionFQN string, errorCode aperrorpb.ActionPlatformErrorCode, errorDetails, apiError string) error
+	PublishSuccessFn func(ctx context.Context, client actionsclientpb.Client, taskID, jobID, actionFQN, executionFQN string, output interface{}, branch string) error
+	PublishFailureFn func(ctx context.Context, client actionsclientpb.Client, taskID, jobID, actionFQN, executionFQN string, errorCode aperrorpb.ActionPlatformErrorCode, errorDetails, apiError string) error
 	HeartbeatFn      func(ctx context.Context, client actionsclientpb.Client, taskID, actionFQN, jobID string) error
 }
 
@@ -40,16 +40,16 @@ func (f *FakeOpmsClient) DequeueTask(ctx context.Context) (*types.Task, time.Dur
 	return nil, 0, nil
 }
 
-func (f *FakeOpmsClient) PublishSuccess(ctx context.Context, client actionsclientpb.Client, taskID, jobID, actionFQN string, output interface{}, branch string) error {
+func (f *FakeOpmsClient) PublishSuccess(ctx context.Context, client actionsclientpb.Client, taskID, jobID, actionFQN, executionFQN string, output interface{}, branch string) error {
 	if f.PublishSuccessFn != nil {
-		return f.PublishSuccessFn(ctx, client, taskID, jobID, actionFQN, output, branch)
+		return f.PublishSuccessFn(ctx, client, taskID, jobID, actionFQN, executionFQN, output, branch)
 	}
 	return nil
 }
 
-func (f *FakeOpmsClient) PublishFailure(ctx context.Context, client actionsclientpb.Client, taskID, jobID, actionFQN string, errorCode aperrorpb.ActionPlatformErrorCode, errorDetails, apiError string) error {
+func (f *FakeOpmsClient) PublishFailure(ctx context.Context, client actionsclientpb.Client, taskID, jobID, actionFQN, executionFQN string, errorCode aperrorpb.ActionPlatformErrorCode, errorDetails, apiError string) error {
 	if f.PublishFailureFn != nil {
-		return f.PublishFailureFn(ctx, client, taskID, jobID, actionFQN, errorCode, errorDetails, apiError)
+		return f.PublishFailureFn(ctx, client, taskID, jobID, actionFQN, executionFQN, errorCode, errorDetails, apiError)
 	}
 	return nil
 }

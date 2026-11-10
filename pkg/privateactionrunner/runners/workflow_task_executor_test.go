@@ -319,10 +319,11 @@ func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 		DequeueTaskFn: func(_ context.Context) (*types.Task, time.Duration, error) {
 			return dequeuedTask, 0, nil
 		},
-		PublishFailureFn: func(_ context.Context, _ actionsclientpb.Client, taskID, jobID, actionFQN string, errorCode aperrorpb.ActionPlatformErrorCode, _, _ string) error {
+		PublishFailureFn: func(_ context.Context, _ actionsclientpb.Client, taskID, jobID, actionFQN, executionFQN string, errorCode aperrorpb.ActionPlatformErrorCode, _, _ string) error {
 			assert.Equal(t, "wrapper-task", taskID)
 			assert.Equal(t, "job-id", jobID)
 			assert.Equal(t, "wrapper-bundle.wrapper-action", actionFQN)
+			assert.Empty(t, executionFQN)
 			assert.Equal(t, aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errorCode)
 			close(shutdown)
 			published <- struct{}{}
@@ -520,6 +521,39 @@ func TestWorkflowTaskExecutorRunPreparedUsesConfiguredTimeout(t *testing.T) {
 				assert.False(t, deadline.Before(before.Add(tc.wantTimeout)), "deadline %v earlier than expected", deadline)
 				assert.False(t, deadline.After(after.Add(tc.wantTimeout)), "deadline %v later than expected", deadline)
 			}
+		})
+	}
+}
+
+func TestWorkflowRunnerPublishesExecutionFQN(t *testing.T) {
+	const publicFQN = "com.datadoghq.host.diskUsage"
+	for _, executionFQN := range []string{"", "com.datadoghq.authoredscripts.host.diskUsage"} {
+		t.Run(executionFQN, func(t *testing.T) {
+			task := newWorkflowTask("task-id", "com.datadoghq.host", "diskUsage", "job-id")
+			task.Data.Attributes.ExecutionFQN = executionFQN
+			successes, failures := 0, 0
+			runner := &WorkflowRunner{opmsClient: &testopms.FakeOpmsClient{
+				PublishSuccessFn: func(_ context.Context, _ actionsclientpb.Client, taskID, jobID, actionFQN, gotExecutionFQN string, _ interface{}, _ string) error {
+					assert.Equal(t, "task-id", taskID)
+					assert.Equal(t, "job-id", jobID)
+					assert.Equal(t, publicFQN, actionFQN)
+					assert.Equal(t, executionFQN, gotExecutionFQN)
+					successes++
+					return nil
+				},
+				PublishFailureFn: func(_ context.Context, _ actionsclientpb.Client, taskID, jobID, actionFQN, gotExecutionFQN string, _ aperrorpb.ActionPlatformErrorCode, _, _ string) error {
+					assert.Equal(t, "task-id", taskID)
+					assert.Equal(t, "job-id", jobID)
+					assert.Equal(t, publicFQN, actionFQN)
+					assert.Equal(t, executionFQN, gotExecutionFQN)
+					failures++
+					return nil
+				},
+			}}
+			runner.publishSuccess(context.Background(), task, "output")
+			runner.publishFailure(context.Background(), task, errors.New("script failed"))
+			assert.Equal(t, 1, successes)
+			assert.Equal(t, 1, failures)
 		})
 	}
 }

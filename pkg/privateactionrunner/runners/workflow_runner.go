@@ -258,6 +258,7 @@ func (n *WorkflowRunner) publishFailure(ctx context.Context, task *types.Task, e
 		task.Data.ID,
 		task.Data.Attributes.JobId,
 		task.GetFQN(),
+		task.Data.Attributes.ExecutionFQN,
 		inputError.ErrorCode,
 		inputError.Message,
 		inputError.ExternalMessage,
@@ -279,6 +280,7 @@ func (n *WorkflowRunner) publishSuccess(ctx context.Context, task *types.Task, o
 		task.Data.ID,
 		task.Data.Attributes.JobId,
 		task.GetFQN(),
+		task.Data.Attributes.ExecutionFQN,
 		output,
 		"",
 	)

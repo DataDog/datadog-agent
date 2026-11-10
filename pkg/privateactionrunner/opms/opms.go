@@ -80,11 +80,12 @@ type PublishTaskUpdateJSONRequestPayload struct {
 }
 
 type PublishTaskUpdateJSONRequestAttributes struct {
-	TaskID    string                               `json:"task_id,omitempty"`
-	Client    actionsclientpb.Client               `json:"client,omitempty"`
-	ActionFQN string                               `json:"action_fqn,omitempty"`
-	JobId     string                               `json:"job_id,omitempty"`
-	Payload   *PublishTaskUpdateJSONRequestPayload `json:"payload,omitempty"`
+	TaskID       string                               `json:"task_id,omitempty"`
+	Client       actionsclientpb.Client               `json:"client,omitempty"`
+	ActionFQN    string                               `json:"action_fqn,omitempty"`
+	ExecutionFQN string                               `json:"execution_fqn,omitempty"`
+	JobId        string                               `json:"job_id,omitempty"`
+	Payload      *PublishTaskUpdateJSONRequestPayload `json:"payload,omitempty"`
 }
 
 type PublishTaskUpdateJSONData struct {
@@ -134,6 +135,7 @@ type Client interface {
 		taskID string,
 		jobID string,
 		actionFQN string,
+		executionFQN string,
 		output interface{},
 		branch string,
 	) error
@@ -143,6 +145,7 @@ type Client interface {
 		taskID string,
 		jobID string,
 		actionFQN string,
+		executionFQN string,
 		errorCode aperrorpb.ActionPlatformErrorCode,
 		errorDetails string,
 		apiError string,
@@ -223,6 +226,7 @@ func (c *client) PublishSuccess(
 	taskID string,
 	jobID string,
 	actionFQN string,
+	executionFQN string,
 	output interface{},
 	branch string,
 ) error {
@@ -244,9 +248,10 @@ func (c *client) PublishSuccess(
 		Type: "taskUpdate",
 		ID:   "succeed_task",
 		Attributes: &PublishTaskUpdateJSONRequestAttributes{
-			TaskID:    taskID,
-			Client:    client,
-			ActionFQN: actionFQN,
+			TaskID:       taskID,
+			Client:       client,
+			ActionFQN:    actionFQN,
+			ExecutionFQN: executionFQN,
 			Payload: &PublishTaskUpdateJSONRequestPayload{
 				Branch:  branch,
 				Outputs: asMap,
@@ -268,6 +273,7 @@ func (c *client) PublishFailure(
 	taskID string,
 	jobID string,
 	actionFQN string,
+	executionFQN string,
 	errorCode aperrorpb.ActionPlatformErrorCode,
 	errorDetails string,
 	apiError string,
@@ -276,9 +282,10 @@ func (c *client) PublishFailure(
 		Type: "taskUpdate",
 		ID:   "fail_task",
 		Attributes: &PublishTaskUpdateJSONRequestAttributes{
-			TaskID:    taskID,
-			Client:    client,
-			ActionFQN: actionFQN,
+			TaskID:       taskID,
+			Client:       client,
+			ActionFQN:    actionFQN,
+			ExecutionFQN: executionFQN,
 			Payload: &PublishTaskUpdateJSONRequestPayload{
 				ErrorCode:    errorCode,
 				ErrorDetails: errorDetails,
