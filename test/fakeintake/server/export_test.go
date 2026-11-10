@@ -11,10 +11,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net"
 	"net/http"
+	"strconv"
 	"sync"
 	"testing"
 
@@ -41,7 +41,7 @@ func TestTerminalExportJoinsAcceptedBodyAndIncludesEveryPage(t *testing.T) {
 	fi.Start()
 	require.True(t, <-ready)
 	for index := 0; index <= serverstore.MaxPageSize; index++ {
-		require.NoError(t, fi.store.AppendPayload("/earlier", "key", []byte(fmt.Sprint(index)), "", "text/plain", mock.Now()))
+		require.NoError(t, fi.store.AppendPayload("/earlier", "key", []byte(strconv.Itoa(index)), "", "text/plain", mock.Now()))
 	}
 	reader, writer := io.Pipe()
 	defer writer.Close()
@@ -82,7 +82,7 @@ func TestTerminalExportJoinsAcceptedBodyAndIncludesEveryPage(t *testing.T) {
 	require.NoError(t, json.Unmarshal(output.Bytes(), &exported))
 	require.Len(t, exported.Payloads["/earlier"], serverstore.MaxPageSize+1)
 	for index, payload := range exported.Payloads["/earlier"] {
-		require.Equal(t, []byte(fmt.Sprint(index)), payload.Data)
+		require.Equal(t, []byte(strconv.Itoa(index)), payload.Data)
 	}
 	require.Len(t, exported.Payloads["/late"], 1)
 	late := exported.Payloads["/late"][0]
