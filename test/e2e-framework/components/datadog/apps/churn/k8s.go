@@ -35,11 +35,6 @@ const (
 	LabelSelector = "app=" + appLabel
 )
 
-// imageVersion is the version of the apps-churn image, the first to handle custom resource
-// definitions and their custom resources. It is ahead of apps.Version, shared by the other
-// apps, which don't need it: drop it once apps.Version catches up.
-const imageVersion = "v0.0.10"
-
 // workloadNamespaces are the namespaces of the objects of the workload manifests.
 var workloadNamespaces = []string{"workload-fake", "workload-sleepers"}
 
@@ -198,7 +193,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 					Containers: corev1.ContainerArray{
 						&corev1.ContainerArgs{
 							Name:  pulumi.String("churn"),
-							Image: pulumi.String(apps.ImageWithVersion(e, "apps-churn", imageVersion)),
+							Image: pulumi.String(apps.Image(e, "apps-churn")),
 							Args: pulumi.StringArray{
 								pulumi.String("--manifests-dir"),
 								pulumi.String("/etc/churn/..data/"),

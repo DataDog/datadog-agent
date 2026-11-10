@@ -9,19 +9,11 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
 )
 
-const Version = "v0.0.9"
+const Version = "v0.0.10"
 
-// Image is ImageWithVersion at Version.
 func Image(e config.Env, repo string) string {
-	return ImageWithVersion(e, repo, Version)
-}
-
-// ImageWithVersion returns the image of the app repo at version, from the internal registry of
-// e if it has one, from ghcr.io otherwise. Apps use Image, unless they need another version of
-// their image than Version.
-func ImageWithVersion(e config.Env, repo, version string) string {
 	if reg := e.InternalRegistry(); reg != "" && reg != "none" {
-		return reg + "/" + repo + ":" + version
+		return reg + "/" + repo + ":" + Version
 	}
-	return "ghcr.io/datadog/" + repo + ":" + version
+	return "ghcr.io/datadog/" + repo + ":" + Version
 }
