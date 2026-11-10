@@ -40,6 +40,11 @@ type Payload struct {
 	UUID      string           `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeSigning
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -161,7 +166,7 @@ func (is *pkgSigning) getData() []signingKey {
 	return nil
 }
 
-func (is *pkgSigning) getPayload() marshaler.JSONMarshaler {
+func (is *pkgSigning) getPayload() marshaler.TypedJSONMarshaler {
 
 	return &Payload{
 		Hostname:  is.hostname,
