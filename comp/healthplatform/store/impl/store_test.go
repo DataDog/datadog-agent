@@ -137,7 +137,7 @@ func stopTestStore(t *testing.T, h *healthPlatformImpl) {
 
 func (h *healthPlatformImpl) sync() {
 	done := make(chan struct{})
-	h.ingestCh <- ingestCmd{kind: cmdSync, done: done}
+	h.enqueue(ingestCmd{kind: cmdSync, done: done})
 	<-done
 }
 
@@ -154,7 +154,7 @@ func newUnstartedTestStore(t *testing.T) *healthPlatformImpl {
 		issuesByName:     make(map[string][]string),
 		persistedIssues:  make(map[string]*PersistedIssue),
 		persistence:      &memPersistence{},
-		ingestCh:         make(chan ingestCmd, ingestChanBuf),
+		ingestWake:       make(chan struct{}, 1),
 		stopCh:           make(chan struct{}),
 		doneCh:           make(chan struct{}),
 		dropLogLimit:     utillog.NewLogLimit(10, time.Minute),

@@ -99,7 +99,9 @@ type healthPlatformImpl struct {
 	observersMu sync.RWMutex
 	observers   []healthplatformdef.IssuesObserver
 
-	ingestCh     chan ingestCmd
+	ingestMu     sync.Mutex
+	ingestQueue  []ingestCmd
+	ingestWake   chan struct{}
 	stopCh       chan struct{}
 	doneCh       chan struct{}
 	dirty        bool // Owned by the ingest worker.
@@ -310,7 +312,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		persistedIssues: make(map[string]*PersistedIssue),
 		persistence:     persistence,
-		ingestCh:        make(chan ingestCmd, ingestChanBuf),
+		ingestWake:      make(chan struct{}, 1),
 		stopCh:          make(chan struct{}),
 		doneCh:          make(chan struct{}),
 		dropLogLimit:    utillog.NewLogLimit(10, time.Minute),

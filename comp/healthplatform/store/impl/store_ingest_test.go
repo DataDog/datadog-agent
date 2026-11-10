@@ -22,23 +22,90 @@ import (
 	"google.golang.org/protobuf/types/known/structpb"
 )
 
+func (h *healthPlatformImpl) queueLen() int {
+	h.ingestMu.Lock()
+	defer h.ingestMu.Unlock()
+	return len(h.ingestQueue)
+}
+
 func TestIngestOverflow(t *testing.T) {
-	h := newUnstartedTestStore(t)
-	for i := 0; i < ingestChanBuf+100; i++ {
-		require.NoError(t, h.ReportIssue(&healthplatform.Issue{Id: strconv.Itoa(i), IssueName: "test"}))
+	synctest.Test(t, func(t *testing.T) {
+		h := newUnstartedTestStore(t)
+		for i := 0; i < ingestChanBuf+100; i++ {
+			require.NoError(t, h.ReportIssue(&healthplatform.Issue{Id: strconv.Itoa(i), IssueName: "test"}))
+		}
+		assert.Equal(t, ingestChanBuf, h.queueLen())
+		assert.Equal(t, 100.0, h.metrics.issuesDropped.WithValues("report").Get())
+		assert.Equal(t, float64(ingestChanBuf), h.metrics.ingestQueueLen.WithValues().Get())
+		startTestStore(t, h)
+		synctest.Wait()
+		h.sync()
+		count, _ := h.GetAllIssues()
+		assert.Equal(t, ingestChanBuf, count)
+		for i := 0; i < 100; i++ {
+			assert.Nil(t, h.GetIssue(strconv.Itoa(i)))
+		}
+		for i := 100; i < ingestChanBuf+100; i++ {
+			assert.NotNil(t, h.GetIssue(strconv.Itoa(i)))
+		}
+		assert.Equal(t, float64(ingestChanBuf), h.metrics.issuesCounter.WithValues("test", "ISSUE_SEVERITY_UNSPECIFIED").Get())
+	})
+}
+
+func TestIngestOverflowPreservesResolutions(t *testing.T) {
+	for _, resolveAll := range []bool{false, true} {
+		t.Run(fmt.Sprintf("resolve_all=%t", resolveAll), func(t *testing.T) {
+			synctest.Test(t, func(t *testing.T) {
+				h := newUnstartedTestStore(t)
+				p := &controlledPersistence{}
+				h.persistence = p
+				for i := 0; i < ingestChanBuf; i++ {
+					require.NoError(t, h.ReportIssue(&healthplatform.Issue{Id: strconv.Itoa(i), IssueName: "test"}))
+				}
+				id := strconv.Itoa(ingestChanBuf - 1)
+				if resolveAll {
+					h.ResolveAllIssues()
+				} else {
+					h.ResolveIssue(id)
+				}
+				assert.Equal(t, ingestChanBuf, h.queueLen())
+				assert.Zero(t, h.metrics.issuesDropped.WithValues("resolve").Get())
+				assert.Zero(t, h.metrics.issuesDropped.WithValues("resolve_all").Get())
+				assert.Equal(t, 1.0, h.metrics.issuesDropped.WithValues("report").Get())
+				startTestStore(t, h)
+				synctest.Wait()
+				h.sync()
+				assert.Nil(t, h.GetIssue(id))
+				assert.Nil(t, h.GetIssue("0"))
+				stopTestStore(t, h)
+				state := p.snapshot()
+				require.NotNil(t, state)
+				require.Contains(t, state.Issues, id)
+				assert.Equal(t, IssueStateResolved, state.Issues[id].State)
+				assert.NotContains(t, state.Issues, "0")
+			})
+		})
 	}
-	assert.Len(t, h.ingestCh, ingestChanBuf)
-	assert.Equal(t, 100.0, h.metrics.issuesDropped.WithValues("report").Get())
-	h.ResolveIssue("0")
+}
+
+func TestIngestOverflowWithoutReportsPreservesBarriers(t *testing.T) {
+	h := newUnstartedTestStore(t)
+	for i := 0; i < ingestChanBuf; i++ {
+		h.ResolveIssue(strconv.Itoa(i))
+	}
 	h.ResolveAllIssues()
-	assert.Equal(t, 1.0, h.metrics.issuesDropped.WithValues("resolve").Get())
-	assert.Equal(t, 1.0, h.metrics.issuesDropped.WithValues("resolve_all").Get())
-	assert.Nil(t, h.GetIssue("0"))
+	done := make(chan struct{})
+	h.enqueue(ingestCmd{kind: cmdSync, done: done})
+	require.NoError(t, h.ReportIssue(&healthplatform.Issue{Id: "dropped", IssueName: "test"}))
+	assert.Equal(t, ingestChanBuf+2, h.queueLen())
+	assert.Zero(t, h.metrics.issuesDropped.WithValues("resolve").Get())
+	assert.Zero(t, h.metrics.issuesDropped.WithValues("resolve_all").Get())
+	assert.Zero(t, h.metrics.issuesDropped.WithValues("sync").Get())
+	assert.Equal(t, 1.0, h.metrics.issuesDropped.WithValues("report").Get())
 	startTestStore(t, h)
+	<-done
 	h.sync()
-	count, _ := h.GetAllIssues()
-	assert.Equal(t, ingestChanBuf, count)
-	assert.Equal(t, float64(ingestChanBuf), h.metrics.issuesCounter.WithValues("test", "ISSUE_SEVERITY_UNSPECIFIED").Get())
+	assert.Nil(t, h.GetIssue("dropped"))
 }
 
 func TestIngestVisibilityAndQueueMetric(t *testing.T) {
@@ -156,7 +223,7 @@ func TestIngestDoesNotBlockOnPersistence(t *testing.T) {
 		h.ResolveIssue("first")
 		h.ResolveAllIssues()
 		require.NoError(t, h.ReportIssue(&healthplatform.Issue{Id: "third", IssueName: "test"}))
-		assert.Len(t, h.ingestCh, 4)
+		assert.Equal(t, 4, h.queueLen())
 		assert.Nil(t, h.GetIssue("second"))
 		p.release <- struct{}{}
 		h.sync()
@@ -197,6 +264,30 @@ func TestIngestCoalescesPersistence(t *testing.T) {
 	})
 }
 
+func TestIngestDrainServicesPersistenceTicks(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newUnstartedTestStore(t)
+		p := &controlledPersistence{}
+		h.persistence = p
+		require.NoError(t, h.ReportIssue(&healthplatform.Issue{Id: "first", IssueName: "test"}))
+		h.drain(false, nil)
+		require.NoError(t, h.ReportIssue(&healthplatform.Issue{Id: "second", IssueName: "test"}))
+		require.NoError(t, h.ReportIssue(&healthplatform.Issue{Id: "third", IssueName: "test"}))
+		ticker := time.NewTicker(flushInterval)
+		defer ticker.Stop()
+		time.Sleep(flushInterval)
+		h.drain(true, ticker.C)
+		assert.Equal(t, int32(1), p.saves.Load())
+		state := p.snapshot()
+		require.NotNil(t, state)
+		assert.Contains(t, state.Issues, "first")
+		assert.NotContains(t, state.Issues, "second")
+		assert.NotContains(t, state.Issues, "third")
+		count, _ := h.GetAllIssues()
+		assert.Equal(t, 3, count)
+	})
+}
+
 func TestIngestShutdownDrainsAndFlushes(t *testing.T) {
 	h := newUnstartedTestStore(t)
 	p := &controlledPersistence{}
@@ -207,7 +298,7 @@ func TestIngestShutdownDrainsAndFlushes(t *testing.T) {
 	h.ResolveIssue("0")
 	startTestStore(t, h)
 	stopTestStore(t, h)
-	assert.Empty(t, h.ingestCh)
+	assert.Zero(t, h.queueLen())
 	state := p.snapshot()
 	require.NotNil(t, state)
 	assert.Len(t, state.Issues, 100)
@@ -272,11 +363,11 @@ func TestIngestPersistenceFailureDoesNotBlockFurtherCommands(t *testing.T) {
 		assert.Equal(t, int32(1), p.saves.Load())
 		time.Sleep(flushInterval)
 		synctest.Wait()
-		assert.Equal(t, int32(1), p.saves.Load())
+		assert.Equal(t, int32(2), p.saves.Load())
 		h.ResolveIssue("id")
 		h.sync()
 		assert.Nil(t, h.GetIssue("id"))
 		stopTestStore(t, h)
-		assert.Equal(t, int32(2), p.saves.Load())
+		assert.Equal(t, int32(3), p.saves.Load())
 	})
 }

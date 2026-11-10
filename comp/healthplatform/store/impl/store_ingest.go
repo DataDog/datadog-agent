@@ -46,14 +46,29 @@ func (cmd ingestCmd) opLabel() string {
 }
 
 func (h *healthPlatformImpl) enqueue(cmd ingestCmd) {
-	select {
-	case h.ingestCh <- cmd:
-	default:
-		label := cmd.opLabel()
-		h.metrics.issuesDropped.Inc(label)
-		if h.dropLogLimit.ShouldLog() {
-			h.log.Warnf("health platform: ingest queue full, dropping %s operation", label)
+	h.ingestMu.Lock()
+	h.ingestQueue = append(h.ingestQueue, cmd)
+	droppedLabel := ""
+	if len(h.ingestQueue) > ingestChanBuf {
+		for i, queued := range h.ingestQueue {
+			if queued.kind == cmdReport {
+				copy(h.ingestQueue[i:], h.ingestQueue[i+1:])
+				h.ingestQueue[len(h.ingestQueue)-1] = ingestCmd{}
+				h.ingestQueue = h.ingestQueue[:len(h.ingestQueue)-1]
+				droppedLabel = queued.opLabel()
+				h.metrics.issuesDropped.Inc(droppedLabel)
+				break
+			}
 		}
+	}
+	h.metrics.ingestQueueLen.Set(float64(len(h.ingestQueue)))
+	h.ingestMu.Unlock()
+	select {
+	case h.ingestWake <- struct{}{}:
+	default:
+	}
+	if droppedLabel != "" && h.dropLogLimit.ShouldLog() {
+		h.log.Warnf("health platform: ingest queue full, dropping %s operation", droppedLabel)
 	}
 }
 
@@ -62,24 +77,44 @@ func (h *healthPlatformImpl) run() {
 	ticker := time.NewTicker(flushInterval)
 	defer ticker.Stop()
 	for {
-		h.metrics.ingestQueueLen.Set(float64(len(h.ingestCh)))
 		select {
-		case cmd := <-h.ingestCh:
-			h.apply(cmd, true)
+		case <-h.ingestWake:
+			h.drain(true, ticker.C)
 		case <-ticker.C:
 			h.flushIfDirty()
 		case <-h.stopCh:
-			for {
-				h.metrics.ingestQueueLen.Set(float64(len(h.ingestCh)))
-				select {
-				case cmd := <-h.ingestCh:
-					h.apply(cmd, false)
-				default:
-					h.flushIfDirty()
-					return
-				}
+			h.drain(false, nil)
+			h.flushIfDirty()
+			return
+		}
+	}
+}
+
+func (h *healthPlatformImpl) drain(enrich bool, ticks <-chan time.Time) {
+	for {
+		if enrich {
+			select {
+			case <-h.stopCh:
+				return
+			case <-ticks:
+				h.flushIfDirty()
+			default:
 			}
 		}
+		h.ingestMu.Lock()
+		if len(h.ingestQueue) == 0 {
+			h.ingestMu.Unlock()
+			return
+		}
+		cmd := h.ingestQueue[0]
+		h.ingestQueue[0] = ingestCmd{}
+		h.ingestQueue = h.ingestQueue[1:]
+		if len(h.ingestQueue) == 0 {
+			h.ingestQueue = nil
+		}
+		h.metrics.ingestQueueLen.Set(float64(len(h.ingestQueue)))
+		h.ingestMu.Unlock()
+		h.apply(cmd, enrich)
 	}
 }
 
@@ -104,6 +139,7 @@ func (h *healthPlatformImpl) flushIfDirty() {
 	}
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
+		return
 	}
 	h.dirty = false
 }
