@@ -12,7 +12,7 @@ WITH events AS (
             '@smp.ci_job_id', '@smp.analysis_end', '@smp.job_id'
         ],
         event_type => 'test',
-        filter => 'service:datadog-agent-smp-experiment-health @smp.report_kind:experiment_health @smp.report_version:1 @smp.context:pr'
+        filter => 'service:datadog-agent-smp-experiment-health @smp.report_kind:experiment_health @smp.report_version:2 @smp.context:pr'
     ) AS (
         pr_number VARCHAR, experiment VARCHAR, check_kind VARCHAR,
         check_name VARCHAR, outcome VARCHAR, parent_pipeline VARCHAR,

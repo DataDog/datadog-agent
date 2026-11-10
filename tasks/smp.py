@@ -7,10 +7,17 @@ from tasks.libs.smp.experiment_health import read_json, render_artifacts, summar
 
 @task
 def experiment_health(
-    _, smp='./smp', report='outputs/report.v1.json', output='outputs/experiment-health', pr_context='pr_context.json'
+    _,
+    smp='./smp',
+    report='outputs/report.v1.json',
+    output='outputs/experiment-health',
+    pr_context='pr_context.json',
+    replicate_report=None,
 ):
     """Render container experiment health artifacts for review."""
-    result = render_artifacts(smp, report, output, 'test/regression/container', pr_context)
+    result = render_artifacts(
+        smp, report, output, 'test/regression/container', pr_context, replicate_report_path=replicate_report
+    )
     print(f'Local SMP health report: {result}. Upload disabled.')
 
 

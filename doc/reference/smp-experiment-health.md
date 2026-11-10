@@ -4,7 +4,7 @@ This contract supports experiment owners who need evidence before they promote a
 
 ## Isolation and activation
 
-The proposed service is `datadog-agent-smp-experiment-health`. Every testcase has `smp.report_kind:experiment_health` and `smp.report_version:1`. Suites use `smp.health.<experiment>`. Names remain stable across branches, commits, and reruns.
+The proposed service is `datadog-agent-smp-experiment-health`. Every testcase has `smp.report_kind:experiment_health` and `smp.report_version:2`. Suites use `smp.health.<experiment>`. Names remain stable across branches, commits, and reruns.
 
 The report job generates artifacts. A separate manual job uploads the new XML for a platform pilot. It does not add the XML to GitLab's `reports:junit` section. The existing explicit `outputs/junit.xml` upload remains unchanged. The manual upload uses the new service, environment `ci-pilot`, and tag `smp.pilot:true`. Automatic ingestion needs a separate change.
 
@@ -21,7 +21,25 @@ An ignored regression remains a failure. `smp.ignores_regressions` records the e
 
 The inventory comes from the same selection manifest and inputs as submission. The renderer reads expected checks from the selected experiment definitions. It emits errors for missing experiments and checks. Bounds-only experiments have no synthetic optimization goal.
 
-Bounds attributes describe comparison replicas only. Numeric properties remain strings in JUnit. The report preserves replica counts, limits, observed ranges, percent change, and confidence intervals for inspection. It does not promise numeric aggregation in Datadog before an ingestion test.
+Bounds attributes describe comparison replicas only. Numeric properties remain strings in JUnit. The report preserves replica counts, limits, observed ranges, percent change, and confidence intervals.
+
+## Memory bounds statistics
+
+For each comparison replica, take its maximum memory value. The dashboard shows the range of those peaks beside the configured limit:
+
+| Label | Attribute | Calculation |
+| --- | --- | --- |
+| Configured limit | `smp.bounds.upper_bound` | Limit from the experiment definition used by the run |
+| Lowest replicate peak | `smp.bounds.lowest_replicate_peak` | Minimum of the comparison replicas' maxima |
+| Highest replicate peak | `smp.bounds.highest_replicate_peak` | Maximum of the comparison replicas' maxima |
+
+The renderer reads replica maxima from `report.json`, alongside `report.v1.json`. Both files must identify the same SMP job. Replica counts and outcomes must match. The highest replica peak must match the version 1 source report's observed maximum. An inconsistent source stops rendering and leaves the CI gate unchanged.
+
+`smp.bounds.peak_summary_status` is `complete` when every comparison replica has a maximum. Otherwise, it is `unavailable`, and the report omits both peak statistics. Missing values do not become zero. The original pass, failure, or error outcome remains visible.
+
+The existing `min_observed` and `max_observed` attributes retain the overall sample range. Do not label the sample minimum as the lowest replicate peak. Version 2 dashboard queries must use the new peak attributes without a fallback to version 1 sample minima. Convert byte values to MiB for display.
+
+For other checks, inspect the series expression before choosing labels. A terminal expression such as `avg(...)` produces a final value per replica. Its replica range describes those final values.
 
 ## Identity and attribution
 

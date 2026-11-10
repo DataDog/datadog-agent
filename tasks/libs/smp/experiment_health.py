@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import math
 import os
 import subprocess
 import xml.etree.ElementTree as ET
@@ -43,7 +44,7 @@ def ci_context(env, pr):
 
     tags = {
         'smp.report_kind': 'experiment_health',
-        'smp.report_version': '1',
+        'smp.report_version': '2',
         'smp.context': context,
         'smp.branch': branch,
         'smp.pr_context_status': 'not_applicable' if context == 'main' else pr.get('status', 'unavailable'),
@@ -214,7 +215,48 @@ def counts(rows):
     }
 
 
-def render_artifacts(smp, report_path, output_dir, config_dir, pr_path, env=None):
+def add_replicate_peaks(payload, replicate_report):
+    """Summarize comparison replica maxima, independently of sample minima."""
+    for row in payload['evaluations']:
+        tags = row['tags']
+        if tags['smp.job_id'] != replicate_report['job_id']:
+            raise ValueError('Replica report belongs to a different SMP job')
+        if row['kind'] != 'bounds':
+            continue
+        tags['smp.bounds.peak_summary_status'] = 'unavailable'
+        details = json.loads(row['details'])
+        total = details.get('total_count') if details else None
+        if row['outcome'] == 'error' or not total:
+            continue
+        rows = (
+            replicate_report['experiments']
+            .get(row['experiment'], {})
+            .get('bounds_checks', {})
+            .get(tags['smp.check_name'], {})
+            .get('results', {})
+            .get('comparison', [])
+        )
+        indices = [replica['replicate_idx'] for replica in rows]
+        if len(rows) != total or len(set(indices)) != total:
+            raise ValueError('Comparison replica count differs from the bounds result')
+        if sum(replica['passed'] is True for replica in rows) != details['pass_count']:
+            raise ValueError('Comparison replica outcomes differ from the bounds result')
+        peaks = [replica.get('max_observed') for replica in rows]
+        if any(peak is None for peak in peaks):
+            continue
+        if any(
+            isinstance(peak, bool) or not isinstance(peak, int | float) or not math.isfinite(peak) for peak in peaks
+        ):
+            raise ValueError('Comparison replica maxima must be finite numbers')
+        if max(peaks) != details['max_observed']:
+            raise ValueError('Comparison replica maximum differs from the bounds result')
+        stats = {'lowest_replicate_peak': min(peaks), 'highest_replicate_peak': max(peaks)}
+        tags.update({f'smp.bounds.{key}': str(value) for key, value in stats.items()})
+        tags['smp.bounds.peak_summary_status'] = 'complete'
+        row['details'] = json.dumps({**details, **stats}, sort_keys=True, allow_nan=False)
+
+
+def render_artifacts(smp, report_path, output_dir, config_dir, pr_path, env=None, replicate_report_path=None):
     """Render review artifacts with the installed SMP CLI, without network calls."""
     env = os.environ if env is None else env
     output = Path(output_dir)
@@ -242,6 +284,8 @@ def render_artifacts(smp, report_path, output_dir, config_dir, pr_path, env=None
     pr = read_json(pr_path) if Path(pr_path).is_file() else {'status': 'unavailable'}
     context = ci_context(env, pr)
     payload = build_payload(report, context, expected_experiments(config_dir, selected))
+    replica_path = replicate_report_path or Path(report_path).with_name('report.json')
+    add_replicate_peaks(payload, read_json(replica_path))
     write_json(output / 'selected-experiments.json', selected)
     write_json(output / 'pr-context.json', pr)
     write_json(output / 'selection-inputs.json', {key: env.get(key, '') for key in ['SMP_LABELS', 'SMP_INVOLVED']})
@@ -277,7 +321,7 @@ def render_artifacts(smp, report_path, output_dir, config_dir, pr_path, env=None
             'service': SERVICE,
             'path': str(xml_path),
             'report_kind': 'experiment_health',
-            'report_version': '1',
+            'report_version': '2',
         },
     )
     return actual

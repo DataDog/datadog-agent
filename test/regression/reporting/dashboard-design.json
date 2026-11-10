@@ -7,7 +7,12 @@
     {"name": "check", "attribute": "@smp.check_name", "default": "*"},
     {"name": "pr", "attribute": "@smp.pr_number", "default": "*", "applies_to": "pr_panels_only"}
   ],
-  "fixed_filter": "service:datadog-agent-smp-experiment-health @smp.report_kind:experiment_health @smp.report_version:1",
+  "fixed_filter": "service:datadog-agent-smp-experiment-health @smp.report_kind:experiment_health @smp.report_version:2",
+  "memory_bounds_columns": {
+    "Configured limit": "@smp.bounds.upper_bound",
+    "Lowest replicate peak": "@smp.bounds.lowest_replicate_peak",
+    "Highest replicate peak": "@smp.bounds.highest_replicate_peak"
+  },
   "views": {
     "all_evaluations": {
       "data_source": "ci_tests",

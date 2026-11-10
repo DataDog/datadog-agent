@@ -9,6 +9,7 @@ The report uses service `datadog-agent-smp-experiment-health`. CI generates arti
 Download these artifacts from the SMP child job:
 
 - `outputs/report.v1.json`: source analysis results.
+- `outputs/report.json`: comparison replica maxima used by the peak summary.
 - `outputs/experiment-health/selected-experiments.json`: selected experiment inventory.
 - `outputs/experiment-health/context.json`: branch, PR, and CI identifiers.
 - `outputs/experiment-health/pr-context.json`: resolved, absent, or unavailable PR context.
@@ -25,6 +26,8 @@ Trace each XML testcase through its `smp.experiment`, `smp.check_kind`, and `smp
 
 Missing checks must appear as errors. A check with zero comparison replicas must also appear as an error. Keep these errors separate from performance failures.
 
+For memory bounds, compare the configured limit with the lowest and highest replicate peaks. Calculate each replica's peak first, then take the minimum and maximum of those peaks. Do not use the lowest sample across all replicas as the lowest replicate peak. An incomplete peak summary must omit its values.
+
 ## Render a downloaded report
 
 Use an Agent checkout from the same commit as the original run. Install SMP v0.29.1. Keep the original selection labels, involved teams, and PR context when available.
@@ -33,9 +36,12 @@ Use an Agent checkout from the same commit as the original run. Install SMP v0.2
 dda inv smp.experiment-health \
   --smp /path/to/smp \
   --report /path/to/report.v1.json \
+  --replicate-report /path/to/report.json \
   --pr-context /path/to/pr-context.json \
   --output /path/to/health-artifacts
 ```
+
+Both source reports must come from the same SMP job. Without `--replicate-report`, the renderer reads `report.json` beside the version 1 source report.
 
 The command reads CI identifiers from the environment. Set `CI_COMMIT_BRANCH`, `CI_DEFAULT_BRANCH`, `PARENT_PIPELINE_ID`, `CI_JOB_ID`, and `CI_JOB_URL` to reproduce the original context. Set `SMP_LABELS` and `SMP_INVOLVED` to reproduce experiment selection. The task calls only local SMP selection and rendering commands.
 
@@ -50,7 +56,7 @@ The job adds `smp.pilot:true`, disables report-log forwarding, and has no automa
 In Test Optimization Explorer, use this query:
 
 ```text
-service:datadog-agent-smp-experiment-health env:ci-pilot @smp.pilot:true
+service:datadog-agent-smp-experiment-health env:ci-pilot @smp.pilot:true @smp.report_version:2
 ```
 
 Group by `smp.experiment`, `smp.check_kind`, and `smp.outcome`. Inspect a passing check, a failing check, and a diagnostic error when the source run contains them. Use `smp.pilot_upload_job_id` to isolate one upload.

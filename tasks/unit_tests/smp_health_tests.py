@@ -15,6 +15,7 @@ import yaml
 from tasks.libs.smp.experiment_health import (
     SCHEMA,
     SERVICE,
+    add_replicate_peaks,
     build_payload,
     ci_context,
     expected_experiments,
@@ -77,6 +78,93 @@ def context_fixture(pipeline='100', job='200', number=42):
         {'CI_COMMIT_BRANCH': 'feature', 'CI_DEFAULT_BRANCH': 'main', 'PARENT_PIPELINE_ID': pipeline, 'CI_JOB_ID': job},
         {'status': 'resolved', 'number': number, 'url': f'https://github.com/DataDog/datadog-agent/pull/{number}'},
     )
+
+
+def replica_fixture(check='rss'):
+    return {
+        'job_id': 'smp-run-1',
+        'experiments': {
+            'advisory': {
+                'bounds_checks': {
+                    check: {
+                        'results': {
+                            'baseline': [
+                                {'replicate_idx': 0, 'passed': True, 'min_observed': 1.0, 'max_observed': 2.0}
+                            ],
+                            'comparison': [
+                                {'replicate_idx': 0, 'passed': True, 'min_observed': 20.0, 'max_observed': 95.0},
+                                {'replicate_idx': 1, 'passed': False, 'min_observed': 90.0, 'max_observed': 110.0},
+                            ],
+                        }
+                    }
+                }
+            }
+        },
+    }
+
+
+class TestReplicatePeaks(unittest.TestCase):
+    def test_peak_range_uses_comparison_maxima_and_preserves_outcomes(self):
+        report = report_fixture()
+        report['experiments'][0]['bounds_checks'][0]['min_observed'] = 20.0
+        payload = build_payload(report, context_fixture(), {})
+        add_replicate_peaks(payload, replica_fixture())
+        bounds = payload['evaluations'][0]
+        self.assertEqual(bounds['outcome'], 'fail')
+        self.assertEqual(bounds['tags']['smp.report_version'], '2')
+        self.assertEqual(bounds['tags']['smp.bounds.min_observed'], '20.0')
+        self.assertEqual(bounds['tags']['smp.bounds.lowest_replicate_peak'], '95.0')
+        self.assertEqual(bounds['tags']['smp.bounds.highest_replicate_peak'], '110.0')
+        self.assertEqual(bounds['tags']['smp.bounds.peak_summary_status'], 'complete')
+        self.assertEqual(json.loads(bounds['details'])['lowest_replicate_peak'], 95.0)
+        self.assertEqual(payload['suites'][0]['evaluations'][0]['tags'], bounds['tags'])
+
+    def test_inconsistent_replica_reports_fail_closed(self):
+        for case in ['job', 'count', 'duplicate', 'outcome', 'maximum', 'boolean', 'infinite']:
+            with self.subTest(case=case):
+                legacy = replica_fixture()
+                rows = legacy['experiments']['advisory']['bounds_checks']['rss']['results']['comparison']
+                if case == 'job':
+                    legacy['job_id'] = 'other-job'
+                elif case == 'count':
+                    rows.pop()
+                elif case == 'duplicate':
+                    rows[1]['replicate_idx'] = 0
+                elif case == 'outcome':
+                    rows[1]['passed'] = True
+                else:
+                    rows[1]['max_observed'] = {'maximum': 120, 'boolean': True, 'infinite': float('inf')}[case]
+                with self.assertRaises(ValueError):
+                    add_replicate_peaks(build_payload(report_fixture(), context_fixture(), {}), legacy)
+
+    def test_missing_peak_does_not_create_a_zero_or_hide_a_failure(self):
+        legacy = replica_fixture()
+        legacy['experiments']['advisory']['bounds_checks']['rss']['results']['comparison'][0]['max_observed'] = None
+        payload = build_payload(report_fixture(), context_fixture(), {})
+        add_replicate_peaks(payload, legacy)
+        bounds = payload['evaluations'][0]
+        self.assertEqual(bounds['outcome'], 'fail')
+        self.assertEqual(bounds['tags']['smp.bounds.peak_summary_status'], 'unavailable')
+        self.assertNotIn('smp.bounds.lowest_replicate_peak', bounds['tags'])
+
+    def test_zero_is_a_valid_peak(self):
+        report = report_fixture()
+        report['experiments'][0]['bounds_checks'][0].update(pass_count=2, min_observed=0.0, max_observed=0.0)
+        legacy = replica_fixture()
+        for row in legacy['experiments']['advisory']['bounds_checks']['rss']['results']['comparison']:
+            row.update(passed=True, min_observed=0.0, max_observed=0.0)
+        payload = build_payload(report, context_fixture(), {})
+        add_replicate_peaks(payload, legacy)
+        self.assertEqual(payload['evaluations'][0]['tags']['smp.bounds.lowest_replicate_peak'], '0.0')
+        self.assertEqual(payload['evaluations'][0]['tags']['smp.bounds.peak_summary_status'], 'complete')
+
+    def test_missing_check_still_has_an_error_without_peak_values(self):
+        report = report_fixture()
+        report['experiments'][0]['bounds_checks'] = []
+        payload = build_payload(report, context_fixture(), {'advisory': {'bounds': ['rss']}})
+        add_replicate_peaks(payload, replica_fixture())
+        self.assertEqual(payload['evaluations'][0]['outcome'], 'error')
+        self.assertEqual(payload['evaluations'][0]['tags']['smp.bounds.peak_summary_status'], 'unavailable')
 
 
 class TestHealthOutcomes(unittest.TestCase):
@@ -306,12 +394,16 @@ class TestHealthRendering(unittest.TestCase):
             report['experiments'][0]['bounds_checks'][0]['name'] = 'rss & <limit>'
             report_path = root / 'report.v1.json'
             report_path.write_text(json.dumps(report))
+            (root / 'report.json').write_text(json.dumps(replica_fixture('rss & <limit>')))
             actual = render_artifacts(
                 shutil.which('smp'), report_path, root / 'health', str(config), root / 'absent-pr.json', {}
             )
             self.assertEqual(actual, {'tests': 2, 'failures': 2, 'errors': 0})
             tree = ET.parse(root / 'health/experiment-health.junit.xml')
             self.assertEqual(tree.find('.//testcase').attrib['name'], 'bounds::rss & <limit>')
+            properties = {p.attrib['name']: p.attrib['value'] for p in tree.findall('.//testcase/properties/property')}
+            self.assertEqual(properties['dd_tags[smp.bounds.lowest_replicate_peak]'], '95.0')
+            self.assertEqual(properties['dd_tags[smp.bounds.highest_replicate_peak]'], '110.0')
             self.assertEqual(json.loads((root / 'health/upload-plan.json').read_text())['service'], SERVICE)
             self.assertFalse(json.loads((root / 'health/upload-plan.json').read_text())['enabled'])
 
