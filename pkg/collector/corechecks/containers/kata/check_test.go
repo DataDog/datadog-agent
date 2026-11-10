@@ -313,10 +313,12 @@ func TestRun_ProcessesEventsWhileScrapeIsBlocked(t *testing.T) {
 	defer listener.Close()
 
 	// Accept connections but never answer, so the scrape hangs until the
-	// connection is closed.
+	// connection is closed. Once shutdown starts, connections are closed as
+	// soon as they're accepted so a scrape that reconnects fails immediately.
 	accepted := make(chan struct{}, 1)
 	var connsMu sync.Mutex
 	var conns []net.Conn
+	shuttingDown := false
 	go func() {
 		for {
 			conn, err := listener.Accept()
@@ -324,6 +326,11 @@ func TestRun_ProcessesEventsWhileScrapeIsBlocked(t *testing.T) {
 				return
 			}
 			connsMu.Lock()
+			if shuttingDown {
+				connsMu.Unlock()
+				conn.Close()
+				continue
+			}
 			conns = append(conns, conn)
 			connsMu.Unlock()
 			select {
@@ -332,14 +339,16 @@ func TestRun_ProcessesEventsWhileScrapeIsBlocked(t *testing.T) {
 			}
 		}
 	}()
-	closeConns := func() {
+	startShutdown := func() {
 		connsMu.Lock()
 		defer connsMu.Unlock()
+		shuttingDown = true
 		for _, conn := range conns {
 			conn.Close()
 		}
+		conns = nil
 	}
-	defer closeConns()
+	defer startShutdown()
 
 	store := &fakeStore{ch: make(chan workloadmeta.EventBundle)}
 	c := &KataCheck{
@@ -374,14 +383,17 @@ func TestRun_ProcessesEventsWhileScrapeIsBlocked(t *testing.T) {
 		}},
 		Ch: make(chan struct{}),
 	}
+	// The scrape is blocked until shutdown, and shimReadTimeout (10s) is longer
+	// than these watchdogs, so they only pass if events are handled
+	// independently of the scrape.
 	select {
 	case store.ch <- bundle:
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("event bundle was not received while a scrape was blocked")
 	}
 	select {
 	case <-bundle.Ch:
-	case <-time.After(time.Second):
+	case <-time.After(5 * time.Second):
 		t.Fatal("event bundle was not acknowledged while a scrape was blocked")
 	}
 
@@ -390,16 +402,11 @@ func TestRun_ProcessesEventsWhileScrapeIsBlocked(t *testing.T) {
 	c.mu.RUnlock()
 
 	c.Stop()
-	deadline := time.After(5 * time.Second)
-	for {
-		closeConns()
-		select {
-		case err := <-runDone:
-			assert.NoError(t, err)
-			return
-		case <-time.After(10 * time.Millisecond):
-		case <-deadline:
-			t.Fatal("Run did not return after Stop")
-		}
+	startShutdown()
+	select {
+	case err := <-runDone:
+		assert.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		t.Fatal("Run did not return after Stop")
 	}
 }
