@@ -1,6 +1,0 @@
----
-fixes:
-  - |
-    Private Action Runner: select the compatible authored-script package marked
-    ``latest`` when the catalog contains multiple versions, allowing upgrades
-    and rollbacks without rejecting the catalog.
