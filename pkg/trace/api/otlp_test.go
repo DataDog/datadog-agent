@@ -905,6 +905,10 @@ func TestOTLPReceiveStructuredBytes(t *testing.T) {
 			inputSpan := rspans.ScopeSpans().At(0).Spans().At(0)
 			inputSpan.Attributes().PutEmptyBytes("appsec").FromRaw(report)
 			inputSpan.Attributes().PutEmptyBytes("custom.report").FromRaw(report)
+			if legacy {
+				inputSpan.Attributes().PutStr("http.request.method", "GET")
+				inputSpan.Attributes().PutEmptyBytes("http.method").FromRaw([]byte{1})
+			}
 			_, err := rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
 			require.NoError(t, err)
 			select {
@@ -917,6 +921,9 @@ func TestOTLPReceiveStructuredBytes(t *testing.T) {
 				assert.NotContains(t, span.Meta, "appsec")
 				assert.Equal(t, "true", span.Meta["appsec.event"])
 				assert.Equal(t, float64(1), span.Metrics["_dd.appsec.enabled"])
+				if legacy {
+					assert.Equal(t, "GET", span.Meta["http.method"])
+				}
 			default:
 				t.Fatal("the OTLP receiver did not emit the converted trace")
 			}
