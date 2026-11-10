@@ -40,22 +40,69 @@ Find the commit being replayed (`git status` names it) and read its change to ea
 file, and what upstream changed meanwhile:
 
 ```bash
-git show <internal-commit> -- <file>                                       # internal intent
-git log --oneline <internal-commit>^..refs/sync-public-main/upstream -- <file>  # upstream changes
+base=$(git merge-base refs/sync-public-main/origin refs/sync-public-main/upstream)
+git show <internal-commit> -- <file>                                 # internal intent
+git log --oneline "$base"..refs/sync-public-main/upstream -- <file>  # upstream changes
 ```
 
 ## 3. Resolve each file
 
 Re-apply the internal intent on top of the upstream version; never revert upstream changes.
+Resolve **hunk by hunk**, keeping the upstream side of each conflict and re-applying the internal
+change in it. Avoid `git checkout --ours <file>` (during a rebase *ours* is upstream): it takes the
+whole upstream file and silently drops the internal changes git merged cleanly elsewhere in it.
+
 Known patterns of the internal patch:
 
 | Upstream change | Resolution |
 |---|---|
-| Content changed in a file the patch rewrites from `DataDog/…` to `ddoghq/…` (`.github/CODEOWNERS`, chainguard `*.sts.yaml` subjects and `job_workflow_ref`, CI scripts) | Take the upstream side (`git checkout --ours <file>`: during a rebase *ours* is upstream, *theirs* the internal commit), then re-apply the same rewrite to the new lines. For chainguard subjects keep the internal `repo:ddoghq@<org-id>/datadog-agent@<repo-id>:…` form used by the other internal `.sts.yaml` files. |
+| `.github/CODEOWNERS` conflicts | Don't resolve hunks: regenerate it from upstream with the internal rewrite (see below). |
+| Content changed in a file the patch rewrites from `DataDog/…` to `ddoghq/…` (chainguard `*.sts.yaml` subjects and `job_workflow_ref`, `dd-octo-sts --scope`, CI scripts, `GithubAPI(...)` repos) | Keep the upstream side of the hunk, then re-apply the same rewrite to its lines. For chainguard subjects keep the internal `repo:ddoghq@<org-id>/datadog-agent@<repo-id>:…` form used by the other internal `.sts.yaml` files. |
 | File deleted upstream, modified internally (`modify/delete`) | Usually accept the deletion (`git rm <file>`), then remove internal references to it (grep the old name, e.g. in chainguard `job_workflow_ref` patterns). Keep the file only if the internal change is the reason it exists; say so in the hand-over. |
-| Internal-only addition (lines with no public counterpart, e.g. `git remote set-url origin "$AIX_GIT_REMOTE"`) | Keep it, placed where it still makes sense in the new upstream code. |
+| Internal-only addition (lines with no public counterpart, e.g. `git remote set-url origin "$AIX_GIT_REMOTE"`) | If upstream adopted it, keep the upstream version only. Otherwise keep it, placed where it still makes sense in the new upstream code. |
+| Code moved or removed upstream while the internal patch edited it | Follow it: re-apply the internal change where the code went (see step 3b), or drop it with the removed code. |
 
 Anything else: stop and ask rather than guess.
+
+### CODEOWNERS
+
+The internal file is the public one with GitHub teams moved to the `ddoghq` org (in both `@DataDog/`
+and `@Datadog/` spellings) and personal handles mapped to their `ddoghq` accounts. Start from the team
+rule and check what else the current internal file maps, by rebuilding it from the public one at
+the merge base:
+
+```bash
+rule='s#@[Dd]ata[Dd]og/#@ddoghq/#g'
+diff <(git show "$base":.github/CODEOWNERS | sed -E "$rule") <(git show refs/sync-public-main/origin:.github/CODEOWNERS)
+```
+
+Each remaining difference should be a personal handle mapped to its `ddoghq` account: add one
+`; s#@<public-handle>([[:space:]]|$)#@<ddoghq-handle>\1#g` per mapping to `rule` until the diff is
+empty. Stop and ask if a difference is anything else. A handle new upstream has no mapping yet: ask
+the user for its `ddoghq` account. Then regenerate:
+
+```bash
+git show refs/sync-public-main/upstream:.github/CODEOWNERS | sed -E "$rule" > .github/CODEOWNERS
+grep -oE '@[A-Za-z0-9_-]+([[:space:]]|$)' .github/CODEOWNERS | sort -u   # personal handles: all must be ddoghq accounts
+```
+
+### 3b. Look beyond the conflicts
+
+Upstream can add public-identity references that conflict with nothing: new files, code moved to
+a new file, new functions next to rewritten ones. Git merges them silently and they break internal
+CI later. Scan what upstream added to CI configuration since the merge base:
+
+```bash
+git diff "$base" refs/sync-public-main/upstream -U0 -- .github .gitlab tools/ci tasks test \
+  | awk '/^\+\+\+ b\//{f=substr($0,7)} /^\+[^+]/ && /DataDog\/datadog-agent|"org": *"DataDog"|repo:DataDog|--scope DataDog/ \
+         && !/github\.com\/DataDog\/datadog-agent\// {print f": "$0}'   # skip Go imports and web links
+```
+
+Rewrite a hit when the internal patch already rewrites the same pattern elsewhere (compare with
+`git grep` on `refs/sync-public-main/origin`): `dd-octo-sts --scope`, `self.*` chainguard policies,
+git remotes such as `AIX_GIT_REMOTE`, `GithubAPI(...)` repositories, PR-comment payload orgs. Leave
+comments, documentation links, test fixtures and Go import paths as they are. List every rewrite in
+the hand-over: the user did not see them as conflicts.
 
 Check that no marker is left and that the rewrite did not miss a spot:
 
@@ -81,6 +128,7 @@ git range-diff refs/sync-public-main/upstream refs/sync-public-main/origin HEAD
 The range-diff compares the internal stack before and after: the only differences should be your
 resolutions. Report to the user, without pushing:
 - each conflicting file and how you resolved it (and any file you kept despite an upstream deletion),
+- each rewrite made outside the conflicts (step 3b), with why, and the hits you left as they are,
 - the range-diff summary,
 - the commands they must run themselves: the first pushes with a lease and re-enables the workflow,
   the second removes the worktree once the push succeeded:
