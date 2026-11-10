@@ -10,7 +10,7 @@
       "url": "https://google-workspace-mcp-server-834963730936.us-central1.run.app/mcp"
     },
     "atlassian": {
-      "url": "https://mcp.atlassian.com/v1/mcp/authv2"
+      "url": "https://atlassian-mcp-server-834963730936.us-central1.run.app/mcp"
     },
     "slack": {
       "url": "https://mcp.slack.com/mcp",
