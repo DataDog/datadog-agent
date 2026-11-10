@@ -536,7 +536,7 @@ func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, []scrubber.Co
 	return scrubbedConfig, secrets, true
 }
 
-func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
+func (ia *inventoryagent) getPayload() marshaler.TypedJSONMarshaler {
 	ia.refreshMetadata()
 	payload := ia.data.GetPayload(nil, uuid.GetUUID())
 	payload.FilesMetadata = ia.getRawFiles()

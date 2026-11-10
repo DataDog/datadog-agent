@@ -85,6 +85,7 @@ properties:
     properties:
       values:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         visibility: public
@@ -206,12 +207,14 @@ properties:
     default: ${log_path}/private-action-runner.log
   opms_extra_headers:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     additionalProperties:
       type: string
   private_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
   restricted_shell:

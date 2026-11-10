@@ -10,6 +10,7 @@ package agentmetadata
 import (
 	"encoding/json"
 
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -29,6 +30,11 @@ type Payload struct {
 	Metadata      agentMetadata      `json:"agent_metadata"`
 	FilesMetadata map[string]RawFile `json:"files_metadata,omitempty"`
 	UUID          string             `json:"uuid"`
+}
+
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
 }
 
 // MarshalJSON serialization a Payload to JSON

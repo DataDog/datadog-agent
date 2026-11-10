@@ -2865,3 +2865,77 @@ func TestSetNotifiesOnlyWhenTheResolvedValueChanges(t *testing.T) {
 	assert.Equal(t, model.SourceFile, got[0].source)
 	assert.Equal(t, "from_file", got[0].value)
 }
+
+// Values written to the infra-mode layer must survive every operation that rebuilds the
+// merged tree from the layers. Otherwise infrastructure_mode overrides are lost, e.g. in
+// system-probe after it clears its env layer and applies the config stream snapshot.
+func TestInfraModeLayerSurvivesRebuild(t *testing.T) {
+	newCfg := func(t *testing.T) *ntmConfig {
+		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg.SetEnvPrefix("TEST")
+		cfg.SetDefault("feature.enabled", false)
+		cfg.SetDefault("other", 0)
+		cfg.BuildSchema()
+		cfg.Set("feature.enabled", true, model.SourceInfraMode)
+		require.True(t, cfg.GetBool("feature.enabled"))
+		return cfg.(*ntmConfig)
+	}
+
+	assertInfraMode := func(t *testing.T, cfg *ntmConfig) {
+		t.Helper()
+		assert.True(t, cfg.GetBool("feature.enabled"))
+		assert.Equal(t, model.SourceInfraMode, cfg.GetSource("feature.enabled"))
+	}
+
+	t.Run("DirectBulkSet", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.DirectBulkSet([]model.DirectSetting{{Key: "other", Value: 1, Source: model.SourceFile}}, false)
+		assertInfraMode(t, cfg)
+	})
+
+	t.Run("DirectBulkSet with infra-mode source", func(t *testing.T) {
+		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg.SetDefault("feature.enabled", false)
+		cfg.BuildSchema()
+		ntm := cfg.(*ntmConfig)
+		// This is how a config stream consumer receives a value the sender resolved from infra mode.
+		ntm.DirectBulkSet([]model.DirectSetting{{Key: "feature.enabled", Value: true, Source: model.SourceInfraMode}}, false)
+		assertInfraMode(t, ntm)
+	})
+
+	t.Run("ClearEnvVars", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.ClearEnvVars()
+		assertInfraMode(t, cfg)
+	})
+
+	t.Run("BuildSchema", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.BuildSchema()
+		assertInfraMode(t, cfg)
+	})
+
+	t.Run("higher priority layers still win", func(t *testing.T) {
+		cfg := newCfg(t)
+		cfg.Set("feature.enabled", false, model.SourceFile)
+		cfg.ClearEnvVars()
+		assert.False(t, cfg.GetBool("feature.enabled"))
+		assert.Equal(t, model.SourceFile, cfg.GetSource("feature.enabled"))
+	})
+
+	t.Run("AllSettingsWithoutSecrets", func(t *testing.T) {
+		cfg := newCfg(t)
+		settings := cfg.AllSettingsWithoutSecrets()
+		feature, ok := settings["feature"].(map[string]interface{})
+		require.True(t, ok)
+		assert.Equal(t, true, feature["enabled"])
+	})
+
+	t.Run("AllSettingsBySource provided", func(t *testing.T) {
+		cfg := newCfg(t)
+		provided := cfg.AllSettingsBySource()[model.SourceProvided].(map[string]interface{})
+		feature, ok := provided["feature"].(map[string]interface{})
+		require.True(t, ok, "infra-mode settings must be part of the provided settings")
+		assert.Equal(t, true, feature["enabled"])
+	})
+}
