@@ -63,6 +63,30 @@ func (rs *RuleSet) parseSetField(field string) (*setField, error) {
 	return nil, fmt.Errorf("invalid field '%s': not a field or an index in an array field", field)
 }
 
+// isEnvpField returns whether a field holds the raw environment of a process ('KEY=VALUE'
+// entries, unfiltered by 'envs_with_value'), ex: exec.envp, process.ancestors.envp, exec.envp[0]
+func isEnvpField(field eval.Field) bool {
+	baseField, _, _ := strings.Cut(field, "[")
+	return baseField == "envp" || strings.HasSuffix(baseField, ".envp")
+}
+
+// variableSensitivity describes how much of the value of a variable can be serialized
+// along with the events sent to the backend
+type variableSensitivity int
+
+const (
+	// notSensitive variables are serialized as is (unless they are 'private')
+	notSensitive variableSensitivity = iota
+	// envFilteredSensitive variables hold 'KEY=VALUE' entries copied as is out of an '*.envp'
+	// field. Like the '*.envs' fields, the value of an entry is only serialized when its key
+	// is part of 'envs_with_value'.
+	envFilteredSensitive
+	// privateSensitive variables hold a value derived from an '*.envp' field that can't be
+	// filtered with 'envs_with_value' (extracted with 'capture', computed by an expression or
+	// out of another sensitive variable). They are never serialized.
+	privateSensitive
+)
+
 // Rule presents a rule in a ruleset
 type Rule struct {
 	*PolicyRule
@@ -104,6 +128,11 @@ type RuleSet struct {
 	globalVariables  *eval.Variables
 	scopedVariables  map[Scope]VariableProvider
 	parsingContext   *parser.ParsingContext
+
+	// variableSensitivities holds the variables whose value is derived from the environment of a process
+	variableSensitivities map[string]variableSensitivity
+	// variableDependents holds, for each variable, the variables whose expression uses it
+	variableDependents map[string][]string
 
 	// fields holds the list of event field queries (like "process.uid") used by the entire set of rules
 	fields []eval.Field
@@ -621,6 +650,70 @@ func (rs *RuleSet) PopulateFieldsWithRuleActionsData(policyRules []*PolicyRule, 
 	return errs
 }
 
+// filterEnvValue removes the value of an environment variable entry ('KEY=VALUE'), unless its
+// key is part of 'envs_with_value', the same way the '*.envs' fields are filtered
+func (rs *RuleSet) filterEnvValue(entry string) string {
+	key, _, found := strings.Cut(entry, "=")
+	if found && !rs.opts.EnvsWithValue[key] {
+		return key
+	}
+	return entry
+}
+
+// markVariableSensitivity records that the value of a variable is derived from the environment of
+// a process, and restricts its serialization accordingly. This can't be overridden by the policy
+// ('private: false'). The variables computed out of it are never serialized.
+func (rs *RuleSet) markVariableSensitivity(varName string, sensitivity variableSensitivity) {
+	if rs.variableSensitivities[varName] >= sensitivity {
+		return
+	}
+	rs.variableSensitivities[varName] = sensitivity
+
+	if variable := rs.evalOpts.VariableStore.Get(varName); variable != nil {
+		opts := variable.GetVariableOpts()
+		switch sensitivity {
+		case envFilteredSensitive:
+			opts.ValueFilter = rs.filterEnvValue
+		case privateSensitive:
+			opts.Private = true
+		}
+		variable.SetVariableOpts(opts)
+	}
+
+	for _, dependent := range rs.variableDependents[varName] {
+		rs.markVariableSensitivity(dependent, privateSensitive)
+	}
+}
+
+// markSetActionSensitivity restricts the serialization of the variable of a set action when
+// its value is derived from the environment of a process
+func (rs *RuleSet) markSetActionSensitivity(set *SetDefinition, state *eval.State) {
+	varName := set.Name
+	if set.Scope != "" {
+		varName = string(set.Scope) + "." + varName
+	}
+
+	if slices.ContainsFunc(state.GetReferencedFields(), isEnvpField) {
+		if set.Field != "" && set.Capture == "" {
+			// the 'KEY=VALUE' entries are copied as is, they can be filtered
+			rs.markVariableSensitivity(varName, envFilteredSensitive)
+		} else {
+			// a substring extracted with 'capture', or the result of an expression,
+			// has no key to filter on
+			rs.markVariableSensitivity(varName, privateSensitive)
+		}
+	}
+
+	// a variable computed out of a sensitive variable is private, whatever the
+	// order in which the rules are loaded
+	for _, referencedVariable := range state.GetReferencedVariables() {
+		rs.variableDependents[referencedVariable] = append(rs.variableDependents[referencedVariable], varName)
+		if rs.variableSensitivities[referencedVariable] != notSensitive {
+			rs.markVariableSensitivity(varName, privateSensitive)
+		}
+	}
+}
+
 // ListFields returns all the fields accessed by all rules of this rule set
 func (rs *RuleSet) ListFields() []string {
 	return rs.fields
@@ -739,7 +832,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 
 		case action.Def.Set != nil:
 			if scopeField := action.Def.Set.ScopeField; scopeField != "" {
-				evaluator, _, err := rs.compileActionValue(scopeField)
+				evaluator, _, _, err := rs.compileActionValue(scopeField)
 				if err != nil {
 					return model.UnknownCategory, &ErrRuleLoad{Rule: pRule, Err: &ErrScopeField{Expression: scopeField, Err: err}}
 				}
@@ -763,10 +856,12 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
 				}
 
-				evaluator, exprEventType, err := rs.compileActionValue(source)
+				evaluator, exprEventType, state, err := rs.compileActionValue(source)
 				if err != nil {
 					return model.UnknownCategory, actionErr(fmt.Errorf("failed to compile action expression: %w", err))
 				}
+
+				rs.markSetActionSensitivity(action.Def.Set, state)
 
 				if exprEventType != "" && exprEventType != ruleEventType {
 					return model.UnknownCategory, actionErr(fmt.Errorf("expression '%s' with event type `%s` is not compatible with '%s' rules", source, exprEventType, ruleEventType))
@@ -804,19 +899,20 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 }
 
 // compileActionValue compiles the field or the expression an action reads a
-// value from, and returns the event type of its fields.
-func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, eval.EventType, error) {
+// value from, and returns the event type of its fields, along with the
+// compilation state holding the fields and variables it references.
+func (rs *RuleSet) compileActionValue(expr string) (eval.Evaluator, eval.EventType, *eval.State, error) {
 	node, err := rs.parsingContext.BuildExpression(expr)
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 	state := eval.NewState(rs.model)
 	evaluator, _, err := eval.Compile(node, rs.evalOpts, state)
 	if err != nil {
-		return nil, "", err
+		return nil, "", nil, err
 	}
 	eventType, err := eval.EventTypeFromState(rs.model, state)
-	return evaluator.(eval.Evaluator), eventType, err
+	return evaluator.(eval.Evaluator), eventType, state, err
 }
 
 // checkTypeCompatibility validates that the evaluator's return type is compatible with the default value type.
@@ -1431,6 +1527,9 @@ func NewRuleSet(model eval.Model, eventCtor func() eval.Event, opts *Opts, evalO
 		scopedVariables:  make(map[Scope]VariableProvider),
 		globalVariables:  eval.NewVariables(),
 		parsingContext:   parser.NewParsingContext(opts.RuleCacheEnabled),
+
+		variableSensitivities: make(map[string]variableSensitivity),
+		variableDependents:    make(map[string][]string),
 	}
 }
 

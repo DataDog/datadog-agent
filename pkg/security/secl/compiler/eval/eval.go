@@ -95,7 +95,7 @@ func fieldToEvaluator(node *ast.FieldRef, state *State) (interface{}, ast.Positi
 		regID = node.Iter.Register
 	}
 
-	evaluator, err := state.model.GetEvaluator(field, regID, pos.Offset)
+	evaluator, err := state.getEvaluator(field, regID, pos.Offset)
 	if err != nil {
 		return nil, pos, err
 	}
@@ -126,6 +126,12 @@ func fieldToEvaluator(node *ast.FieldRef, state *State) (interface{}, ast.Positi
 }
 
 func evaluatorFromVariable(varname string, pos ast.Position, opts *Opts, state *State) (interface{}, ast.Position, error) {
+	// record the variable, and the base variable of 'length', as referenced
+	state.referencedVariables[varname] = true
+	if before, ok := strings.CutSuffix(varname, ".length"); ok {
+		state.referencedVariables[before] = true
+	}
+
 	var variableEvaluator interface{}
 	variable := opts.VariableStore.Get(varname)
 	if variable != nil {
