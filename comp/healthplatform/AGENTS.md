@@ -41,6 +41,8 @@ Sub-package roles:
 > **`HealthCheckFunc` returns `IssueReport`, not `*Issue`.** The function signature is `func() ([]IssueReport, error)` — a check cannot return a fully-formed proto issue. If you need full control over all proto fields, use Path B and call `store.ReportIssue` directly.
 > `BuildIssue` is optional on Path A: when no template is registered for an `IssueName`, the runner builds a minimal proto from the `IssueReport` fields directly. When a template *is* registered but `BuildIssue` errors, the minimal proto still gets `IssueType` from `Template.IssueType()` — only the fully-unregistered case ships an empty `IssueType`.
 
+The store validates and clones reports before enqueueing them. Reports and resolutions share a bounded FIFO queue; a single worker enriches and applies them, coalesces persistence writes, and drains queued commands on shutdown. Reads may lag writes. Queue overflow drops the command and increments `health_platform.issues_dropped` with its operation label. Store implementation tests use the test-only `sync()` barrier before asserting on queued writes.
+
 ### Consuming healthplatform components from other code
 
 **From an Fx component** — add the interface to your `Requires` struct; Fx injects it automatically:

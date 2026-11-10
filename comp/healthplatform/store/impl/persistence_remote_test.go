@@ -42,12 +42,12 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 		Category:  "configuration",
 	}}}
 
-	h := newTestStore(t)
+	h := newUnstartedTestStore(t)
 	h.persistence = newRemotePersistence(loader)
 	resolvedCh := make(chan *healthplatformpayload.Issue, 1)
 	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: resolvedCh})
 
-	require.NoError(t, h.start(context.Background()))
+	startTestStore(t, h)
 	assert.Equal(t, []string{issueID}, h.GetActiveIssueIDsByIssueName("Invalid Agent Configuration"))
 
 	persisted := h.persistedIssues[issueID]
@@ -60,6 +60,7 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	assert.NotEmpty(t, persisted.LastSeen)
 
 	h.ResolveIssue(issueID)
+	h.sync()
 	require.Len(t, resolvedCh, 1)
 	resolved := <-resolvedCh
 	assert.Equal(t, issueID, resolved.Id)
@@ -72,7 +73,7 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 }
 
 func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
-	remote := newTestStore(t)
+	remote := newUnstartedTestStore(t)
 	remote.persistence = newRemotePersistence(&fakeRemoteIssueLoader{issues: []remotedef.Issue{
 		{IssueID: "duplicate", IssueName: "Old", IssueType: "old", Category: "configuration"},
 		{IssueID: "duplicate", IssueName: "New"},
@@ -92,7 +93,7 @@ func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
 		"empty-type":{"issue_type":"Empty Type","category":"configuration","state":"active"},
 		"empty-category":{"issue_type":"Empty Category","proto_issue_type":"empty_category","state":"active"}
 	}}`), 0600))
-	disk := newTestStore(t)
+	disk := newUnstartedTestStore(t)
 	disk.persistence = newDiskPersistence(path, disk.log)
 	require.NoError(t, disk.loadPersistedState(context.Background()))
 
@@ -112,7 +113,7 @@ func TestLoadFromRemoteMatchesDiskIssueProcessing(t *testing.T) {
 }
 
 func TestRemotePersistencePropagatesLoadError(t *testing.T) {
-	h := newTestStore(t)
+	h := newUnstartedTestStore(t)
 	h.persistence = newRemotePersistence(&fakeRemoteIssueLoader{err: assert.AnError})
 	assert.ErrorIs(t, h.loadPersistedState(context.Background()), assert.AnError)
 }

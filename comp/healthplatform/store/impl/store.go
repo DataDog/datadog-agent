@@ -35,6 +35,7 @@ import (
 	remotedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/remote/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -98,12 +99,20 @@ type healthPlatformImpl struct {
 	observersMu sync.RWMutex
 	observers   []healthplatformdef.IssuesObserver
 
+	ingestCh     chan ingestCmd
+	stopCh       chan struct{}
+	doneCh       chan struct{}
+	dirty        bool // Owned by the ingest worker.
+	dropLogLimit *utillog.Limit
+
 	// Metrics
 	metrics telemetryMetrics
 }
 
 type telemetryMetrics struct {
-	issuesCounter telemetry.Counter
+	issuesCounter  telemetry.Counter
+	issuesDropped  telemetry.Counter
+	ingestQueueLen telemetry.Gauge
 }
 
 // IssueState is a type alias for the proto enum healthplatform.IssueState.
@@ -301,6 +310,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		persistedIssues: make(map[string]*PersistedIssue),
 		persistence:     persistence,
+		ingestCh:        make(chan ingestCmd, ingestChanBuf),
+		stopCh:          make(chan struct{}),
+		doneCh:          make(chan struct{}),
+		dropLogLimit:    utillog.NewLogLimit(10, time.Minute),
 	}
 
 	// Register lifecycle hooks for component start/stop
@@ -311,6 +324,8 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Initialize telemetry metrics
 	comp.metrics = telemetryMetrics{
+		issuesDropped:  reqs.Telemetry.NewCounter("health_platform", "issues_dropped", []string{"operation"}, "Number of health issue operations dropped when the ingest queue is full"),
+		ingestQueueLen: reqs.Telemetry.NewGauge("health_platform", "ingest_queue_length", nil, "Number of queued health issue operations"),
 		issuesCounter: reqs.Telemetry.NewCounter(
 			"health_platform",
 			"issues_detected",
@@ -341,12 +356,19 @@ func (h *healthPlatformImpl) start(ctx context.Context) error {
 	if err := h.loadPersistedState(ctx); err != nil {
 		h.log.Warn("Failed to restore persisted issues: " + err.Error())
 	}
+	go h.run()
 	return nil
 }
 
 // stop stops the health platform component
-func (h *healthPlatformImpl) stop(_ context.Context) error {
+func (h *healthPlatformImpl) stop(ctx context.Context) error {
 	h.log.Info("Stopping health platform component")
+	close(h.stopCh)
+	select {
+	case <-h.doneCh:
+	case <-ctx.Done():
+		h.log.Warn("health platform: timed out waiting for the ingest worker to drain on shutdown")
+	}
 	return nil
 }
 
@@ -379,10 +401,7 @@ func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 // Core Public API
 // ============================================================================
 
-// ReportIssue records a new or ongoing issue keyed by issue.Id. The caller is
-// responsible for building the complete proto Issue (template lookup, field
-// population), including issue.IssueType. issue.IssueName is used as the
-// issue-type key for telemetry and persistence.
+// ReportIssue validates and queues a copy of a complete issue for asynchronous processing. issue.IssueName is the issue-type key for telemetry and persistence.
 func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue == nil {
 		return errors.New("issue cannot be nil")
@@ -394,7 +413,14 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 		return errors.New("issue name cannot be empty")
 	}
 
-	h.enrichWithClusterIdentity(issue)
+	h.enqueue(ingestCmd{kind: cmdReport, issue: proto.Clone(issue).(*healthplatform.Issue)})
+	return nil
+}
+
+func (h *healthPlatformImpl) applyReport(issue *healthplatform.Issue, enrich bool) {
+	if enrich {
+		h.enrichWithClusterIdentity(issue)
+	}
 
 	h.issuesMux.RLock()
 	var previousIssue *healthplatform.Issue
@@ -405,7 +431,7 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 
 	h.handleIssueStateChange(issue.Source, previousIssue, issue)
 	h.storeIssue(issue.IssueName, issue)
-	return nil
+	h.dirty = true
 }
 
 // ============================================================================
@@ -467,8 +493,12 @@ func hydrateIssue(issue *healthplatform.Issue, stored *storedIssue) {
 // Clear Methods
 // ============================================================================
 
-// ResolveIssue marks an issue as resolved and removes it from the active set.
+// ResolveIssue queues an issue resolution and removal from the active set.
 func (h *healthPlatformImpl) ResolveIssue(issueID string) {
+	h.enqueue(ingestCmd{kind: cmdResolve, id: issueID})
+}
+
+func (h *healthPlatformImpl) applyResolve(issueID string) {
 	h.issuesMux.Lock()
 
 	stateChanged := false
@@ -504,14 +534,16 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 	}
 
 	if stateChanged {
-		if err := h.saveToDisk(); err != nil {
-			h.log.Warn("Failed to persist issues to disk: " + err.Error())
-		}
+		h.dirty = true
 	}
 }
 
-// ResolveAllIssues marks every active issue as resolved.
+// ResolveAllIssues queues the resolution of every active issue.
 func (h *healthPlatformImpl) ResolveAllIssues() {
+	h.enqueue(ingestCmd{kind: cmdResolveAll})
+}
+
+func (h *healthPlatformImpl) applyResolveAll() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
@@ -541,9 +573,7 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 		h.notifyResolved(t)
 	}
 
-	if err := h.saveToDisk(); err != nil {
-		h.log.Warn("Failed to persist issues to disk: " + err.Error())
-	}
+	h.dirty = true
 }
 
 // GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
@@ -705,10 +735,6 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	h.issues[issueID] = si
 
 	h.issuesMux.Unlock()
-
-	if err := h.saveToDisk(); err != nil {
-		h.log.Warn("Failed to persist issues to disk: " + err.Error())
-	}
 }
 
 // ============================================================================
