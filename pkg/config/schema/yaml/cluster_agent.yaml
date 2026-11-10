@@ -19,6 +19,7 @@ properties:
     description: Set to true to enable the Cluster Agent.
   auth_token:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     visibility: public
