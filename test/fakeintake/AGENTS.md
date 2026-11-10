@@ -48,6 +48,16 @@ full-history and typed APIs remain available. Non-Go callers can use
 `fakeintakectl --url URL get payload-page --endpoint /api/v2/logs --limit 32`
 and pass the returned `next_cursor` with `--cursor` on the next call.
 
+## Terminal raw export
+
+`Server.StopAndExport(io.Writer)` stops HTTP admission and joins accepted
+handlers and retention cleanup before exporting retained original payloads.
+It streams `{"payloads":{"route":[Payload,...]}}` through the existing bounded
+page reader, then closes store custody. The caller owns the output writer and
+its close result. Export failure fails the operation. `Server.Stop()` retains
+its no-export behavior. This exports retained history, not records already
+removed by retention or flush. Request metadata remains server-parsed.
+
 ## Supported endpoints
 
 | Route | Aggregator | Client method |

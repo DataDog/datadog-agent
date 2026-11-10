@@ -69,6 +69,7 @@ type Server struct {
 	clock              clock.Clock
 	retention          time.Duration
 	shutdown           chan struct{}
+	cleanupDone        chan struct{}
 	dddevForward       bool
 	forwardEndpoint    string
 	logForwardEndpoint string
@@ -293,6 +294,7 @@ func (fi *Server) Start() {
 		return
 	}
 	fi.shutdown = make(chan struct{})
+	fi.cleanupDone = make(chan struct{})
 
 	go fi.listenRoutine()
 	go fi.cleanUpPayloadsRoutine()
@@ -318,14 +320,22 @@ func (fi *Server) IsRunning() bool {
 
 // Stop Gracefully stop the http server
 func (fi *Server) Stop() error {
+	return fi.stop(nil)
+}
+
+func (fi *Server) stop(output io.Writer) error {
 	if !fi.IsRunning() {
 		return errors.New("server not running")
 	}
-	defer close(fi.shutdown)
-	defer fi.store.Close()
+	close(fi.shutdown)
 	err := fi.server.Shutdown(context.Background())
+	<-fi.cleanupDone
 	if err != nil {
 		return err
+	}
+	defer fi.store.Close()
+	if output != nil {
+		return fi.exportPayloads(output)
 	}
 	return nil
 }
@@ -358,6 +368,7 @@ func (fi *Server) listenRoutine() {
 }
 
 func (fi *Server) cleanUpPayloadsRoutine() {
+	defer close(fi.cleanupDone)
 	ticker := fi.clock.Ticker(1 * time.Minute)
 	defer ticker.Stop()
 	for {
