@@ -13,7 +13,7 @@ _DEFAULT_DEFINES = {
 
 # rpm only removes directories listed in the package on uninstall. Declare the
 # implicit parent directories of srcs so they don't get left behind.
-def _dd_pkg_rpm_impl(name, visibility, description, srcs, defines = None, **kwargs):
+def _rpm_package(name, srcs, defines = None, **kwargs):
     owned_dirs = "%s_owned_dirs_" % name
     dd_pkg_owned_dirs(
         name = owned_dirs,
@@ -33,6 +33,14 @@ def _dd_pkg_rpm_impl(name, visibility, description, srcs, defines = None, **kwar
             "//conditions:default": "w5T8.xzdio",
         }),
         defines = merged_defines,
+        **kwargs
+    )
+
+def _dd_pkg_rpm_impl(name, visibility, description, srcs, defines = None, **kwargs):
+    _rpm_package(
+        name = name,
+        srcs = srcs,
+        defines = defines,
         description = rpm_description(description),
         packager = "Datadog, Inc <package@datadoghq.com>",
         vendor = "Datadog <package@datadoghq.com>",
