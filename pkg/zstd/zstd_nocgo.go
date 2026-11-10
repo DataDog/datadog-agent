@@ -79,6 +79,28 @@ func CompressLevel(dst, src []byte, level Level) ([]byte, error) {
 	return enc.EncodeAll(src, dst), nil
 }
 
+type nocgoCompressor struct {
+	enc   *kzstd.Encoder
+	level Level
+}
+
+// NewCompressor returns a reusable compression context backed by one pure-Go encoder,
+// created on first use and recreated when the level changes.
+func NewCompressor() Compressor {
+	return &nocgoCompressor{}
+}
+
+func (c *nocgoCompressor) CompressLevel(dst, src []byte, level Level) ([]byte, error) {
+	if c.enc == nil || c.level != level {
+		enc, err := kzstd.NewWriter(nil, nocgoEncoderOptions(level)...)
+		if err != nil {
+			return nil, err
+		}
+		c.enc, c.level = enc, level
+	}
+	return c.enc.EncodeAll(src, dst[:0]), nil
+}
+
 // Decompress decompresses src using the pure-Go backend.
 func Decompress(dst, src []byte) ([]byte, error) {
 	dec, err := kzstd.NewReader(nil)

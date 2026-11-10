@@ -7,8 +7,9 @@
 
 package sender
 
-// Reference copy of the uncached batch encoder, used to prove that the tag
-// cache leaves every payload byte unchanged.
+// Reference copy of the batch encoder without the tag cache and with a
+// streaming zstd writer per chunk, used to prove that neither optimization
+// changes the decompressed payload.
 
 import (
 	"bytes"
