@@ -13,6 +13,7 @@
         - Dockerfiles/agent/cont-init.d/**/*
         - Dockerfiles/agent/entrypoint.d/privateactionrunner
         - Dockerfiles/agent/entrypoint.d/procmgr-all-in-one
+        - Dockerfiles/agent/entrypoint.d/_default
         - Dockerfiles/agent/par-probe.sh
         - Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml
         - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
