@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add OTTL conditions for filtering JSON log messages with the
+    ``include_at_match_ottl`` and ``exclude_at_match_ottl`` processing rules.
+    Add ``mask_ottl`` statements for masking nested JSON fields and message text.
+    Filtering keeps messages on evaluation errors; masking drops them on errors.

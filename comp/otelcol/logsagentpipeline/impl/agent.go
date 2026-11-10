@@ -12,6 +12,9 @@ import (
 	"fmt"
 	"time"
 
+	"go.uber.org/fx"
+	"go.uber.org/zap"
+
 	configComponent "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
@@ -20,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/diagnostic"
 	"github.com/DataDog/datadog-agent/comp/logs-library/pipeline"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
@@ -27,9 +31,6 @@ import (
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 	"github.com/DataDog/datadog-agent/pkg/util/startstop"
-
-	"go.uber.org/fx"
-	"go.uber.org/zap"
 )
 
 const (
@@ -130,7 +131,7 @@ func (a *Agent) Start(context.Context) error {
 
 func (a *Agent) setupAgent() error {
 	// setup global processing rules
-	processingRules, err := config.GlobalProcessingRules(a.config)
+	processingRules, err := ottl.GlobalProcessingRules(a.config)
 	if err != nil {
 		message := fmt.Sprintf("Invalid processing rules: %v", err)
 		return errors.New(message)

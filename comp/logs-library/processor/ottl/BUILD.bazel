@@ -1,0 +1,53 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ottl",
+    srcs = [
+        "compile.go",
+        "processing_rules_ottl.go",
+        "processing_rules_ottl_mask.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/logs-library/processor/ottl/internal/ottlfuncs",
+        "//comp/logs/agent/config",
+        "//pkg/config/model",
+        "//pkg/logs/sources",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//:ottl",
+        "@com_github_valyala_fastjson//:fastjson",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@org_uber_go_zap//:zap",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ottl_test",
+    srcs = [
+        "admission_test.go",
+        "json_compat_test.go",
+        "processing_rules_ottl_bench_test.go",
+        "processing_rules_ottl_functions_test.go",
+        "processing_rules_ottl_mask_test.go",
+        "processing_rules_ottl_test.go",
+    ],
+    embed = [":ottl"],
+    deps = [
+        "//comp/core/config",
+        "//comp/logs/agent/config",
+        "//pkg/logs/sources",
+        "@com_github_datadog_fastjq//:fastjq",
+        "@com_github_go_json_experiment_json//jsontext",
+        "@com_github_goccy_go_json//:go-json",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//:ottl",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//contexts/ottllog",
+        "@com_github_open_telemetry_opentelemetry_collector_contrib_pkg_ottl//ottlfuncs",
+        "@com_github_stretchr_testify//require",
+        "@com_github_valyala_fastjson//:fastjson",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_pdata//pcommon",
+        "@io_opentelemetry_go_collector_pdata//plog",
+        "@org_uber_go_zap//:zap",
+    ],
+)

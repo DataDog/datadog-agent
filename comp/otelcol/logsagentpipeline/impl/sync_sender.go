@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/client"
 	"github.com/DataDog/datadog-agent/comp/logs-library/client/http"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
+	"github.com/DataDog/datadog-agent/comp/logs-library/processor/ottl"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logsagentpipeline "github.com/DataDog/datadog-agent/comp/otelcol/logsagentpipeline/def"
@@ -78,7 +79,7 @@ func buildSyncSender(cfg pkgconfigmodel.Reader, logger log.Component, hostname h
 	if err != nil {
 		return nil, fmt.Errorf("invalid endpoints: %w", err)
 	}
-	processingRules, err := config.GlobalProcessingRules(cfg)
+	processingRules, err := ottl.GlobalProcessingRules(cfg)
 	if err != nil {
 		return nil, fmt.Errorf("invalid processing rules: %w", err)
 	}
