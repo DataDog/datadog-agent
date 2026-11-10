@@ -290,9 +290,6 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 	unassignedPodsTweakListOptions := func(options *metav1.ListOptions) {
 		options.FieldSelector = fields.OneTermEqualSelector("spec.nodeName", "").String()
 	}
-	helmReleasesTweakListOptions := func(options *metav1.ListOptions) {
-		options.LabelSelector = k8s.HelmReleaseLabelSelector
-	}
 
 	of := &collectors.OrchestratorInformerFactory{
 		InformerFactory:              informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval),
@@ -301,7 +298,6 @@ func getOrchestratorInformerFactory(apiClient *apiserver.APIClient) *collectors.
 		VPAInformerFactory:           vpai.NewSharedInformerFactory(apiClient.VPAInformerClient, defaultResyncInterval),
 		UnassignedPodInformerFactory: informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(unassignedPodsTweakListOptions)),
 	}
-	of.HelmReleaseConfigMapInformerFactory = informers.NewSharedInformerFactoryWithOptions(apiClient.InformerCl, defaultResyncInterval, informers.WithTweakListOptions(helmReleasesTweakListOptions))
 	of.SecretMetadataInformerFactory = metadatainformer.NewSharedInformerFactory(apiClient.MetadataInformerCl, defaultResyncInterval)
 
 	// When enabled, Helm release ConfigMaps are reported by the Helm release collector, with their data.

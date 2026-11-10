@@ -15,20 +15,17 @@ import (
 	utilTypes "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/util"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/orchestrator"
-	"github.com/DataDog/datadog-agent/pkg/redact"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
-	"github.com/DataDog/datadog-agent/pkg/util/log"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/helminformers"
 
-	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/labels"
-	corev1Informers "k8s.io/client-go/informers/core/v1"
 	corev1Listers "k8s.io/client-go/listers/core/v1"
 	"k8s.io/client-go/tools/cache"
 )
 
 const (
 	// HelmReleaseLabelSelector selects the ConfigMaps Helm uses to store releases.
-	HelmReleaseLabelSelector = "owner=helm"
+	HelmReleaseLabelSelector = helminformers.LabelSelector
 	// NonHelmReleaseLabelSelector excludes the ConfigMaps Helm uses to store releases.
 	NonHelmReleaseLabelSelector = "owner!=helm"
 )
@@ -44,7 +41,7 @@ func NewHelmReleaseConfigMapCollectorVersions(_ tagger.Component) collectors.Col
 // Every revision is collected and sent as is, as a ConfigMap. Its informer only watches ConfigMaps labeled owner=helm,
 // which the ConfigMap collector excludes, so each ConfigMap is reported by a single collector.
 type HelmReleaseConfigMapCollector struct {
-	informer  corev1Informers.ConfigMapInformer
+	informer  cache.SharedIndexInformer
 	lister    corev1Listers.ConfigMapLister
 	metadata  *collectors.CollectorMetadata
 	processor *processors.Processor
@@ -72,28 +69,21 @@ func NewHelmReleaseConfigMapCollector() *HelmReleaseConfigMapCollector {
 
 // Informer returns the shared informer.
 func (c *HelmReleaseConfigMapCollector) Informer() cache.SharedInformer {
-	return c.informer.Informer()
+	return c.informer
 }
 
-// Init is used to initialize the collector.
+// Init is used to initialize the collector. Its informer is shared with the Helm check, and released when the check
+// stops.
 func (c *HelmReleaseConfigMapCollector) Init(rcfg *collectors.CollectorRunConfig) {
-	c.informer = rcfg.OrchestratorInformerFactory.HelmReleaseConfigMapInformerFactory.Core().V1().ConfigMaps()
-	if err := c.informer.Informer().SetTransform(trimHelmReleaseConfigMap); err != nil {
-		log.Debugf("Unable to set transform on the Helm release ConfigMap informer: %v", err)
+	informer, release := helminformers.Acquire(rcfg.APIClient.InformerCl, helminformers.ConfigMaps)
+	c.informer = informer
+	c.lister = corev1Listers.NewConfigMapLister(informer.GetIndexer())
+	if rcfg.StopCh != nil {
+		go func() {
+			<-rcfg.StopCh
+			release()
+		}()
 	}
-	c.lister = c.informer.Lister()
-}
-
-// trimHelmReleaseConfigMap drops fields that are never sent before objects are
-// stored in the informer cache, to reduce its memory footprint. The
-// last-applied-configuration annotation, when present, holds a full copy of
-// the ConfigMap data.
-func trimHelmReleaseConfigMap(obj interface{}) (interface{}, error) {
-	if cm, ok := obj.(*corev1.ConfigMap); ok {
-		cm.ManagedFields = nil
-		redact.RemoveSensitiveAnnotationsAndLabels(cm.Annotations, cm.Labels)
-	}
-	return obj, nil
 }
 
 // Metadata is used to access information about the collector.
