@@ -76,12 +76,23 @@ type specScenario struct {
 	// startWorkload starts a GPU workload on the devices and returns the calibrated values to validate
 	// against, keyed by lowercase UUID; nil disables calibrated validation.
 	startWorkload func(t *testing.T, lib safenvml.SafeNVML) map[string]map[string]*float64
+	// workloadFreeDevices are the devices that never run a workload by design, such as MIG parents,
+	// whose workloads run on their MIG devices. They are validated as idle while the others run the
+	// workload.
+	workloadFreeDevices []safenvml.Device
 }
 
 func runSpecScenario(t *testing.T, specs *gpuspec.Specs, scenario specScenario) {
 	uuids := make([]string, len(scenario.devices))
+	var workloadUUIDs, workloadFreeUUIDs []string
 	for i, device := range scenario.devices {
-		uuids[i] = device.GetDeviceInfo().UUID
+		uuid := device.GetDeviceInfo().UUID
+		uuids[i] = uuid
+		if slices.Contains(scenario.workloadFreeDevices, device) {
+			workloadFreeUUIDs = append(workloadFreeUUIDs, uuid)
+		} else {
+			workloadUUIDs = append(workloadUUIDs, uuid)
+		}
 	}
 
 	t.Run("idle", func(t *testing.T) {
@@ -109,10 +120,13 @@ func runSpecScenario(t *testing.T, specs *gpuspec.Specs, scenario specScenario) 
 			smiOptionsByUUID: scenario.smiOptions,
 			injectXIDDevices: scenario.xidDevices,
 		})
-		validateCollectedMetrics(t, specs, uuids, scenario.configs, metricsByUUID, smiSamples, calibratedValuesByUUID, gpuspec.ValidationOptions{
+		validateCollectedMetrics(t, specs, workloadUUIDs, scenario.configs, metricsByUUID, smiSamples, calibratedValuesByUUID, gpuspec.ValidationOptions{
 			WorkloadActive:  true,
 			ConfigFeatures:  nil,
 			WorkloadTagsets: map[string]bool{"process": true},
+		})
+		validateCollectedMetrics(t, specs, workloadFreeUUIDs, scenario.configs, metricsByUUID, smiSamples, nil, gpuspec.ValidationOptions{
+			ConfigFeatures: nil,
 		})
 	})
 }
@@ -174,6 +188,8 @@ func TestSpecMIG(t *testing.T) {
 		smiOptions: nil,
 		// The XID metrics are not supported in MIG mode.
 		xidDevices: nil,
+		// Workloads run on the MIG devices, never on their parent.
+		workloadFreeDevices: grouped.migParents,
 		startWorkload: func(t *testing.T, _ safenvml.SafeNVML) map[string]map[string]*float64 {
 			// A CUDA process sees a single MIG device, so run one gpu-burner per MIG device.
 			for _, child := range grouped.migChildren {
