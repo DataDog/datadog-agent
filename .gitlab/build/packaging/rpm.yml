@@ -99,7 +99,7 @@ installer_rpm-amd64:
     # explicitly disable the check
     PACKAGE_REQUIRED_FILES_LIST: ""
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_ENABLE_VPA: false
+    DD_DISABLE_VPA: true
 
 agent_rpm-x64-a7-fips:
   extends: [.package_rpm_common, .package_rpm_x86]
@@ -194,7 +194,7 @@ installer_rpm-arm64:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_ENABLE_VPA: false
+    DD_DISABLE_VPA: true
 
 installer_suse_rpm-amd64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
@@ -203,7 +203,7 @@ installer_suse_rpm-amd64:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_ENABLE_VPA: false
+    DD_DISABLE_VPA: true
 
 installer_suse_rpm-arm64:
   extends: [.package_suse_rpm_common, .package_rpm_arm64]
@@ -212,7 +212,7 @@ installer_suse_rpm-arm64:
     DD_PROJECT: installer
     PACKAGE_REQUIRED_FILES_LIST: ""
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_ENABLE_VPA: false
+    DD_DISABLE_VPA: true
 
 .package_iot_rpm_common:
   extends: .bazel:defs:cache:omnibus-transition
@@ -264,7 +264,7 @@ iot_agent_rpm-armhf:
   variables:
     PACKAGE_ARCH: armhf
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_ENABLE_VPA: false
+    DD_DISABLE_VPA: true
   before_script:
     # Ensures uname -m reports armv7l
     - export LD_PRELOAD="/usr/local/lib/libfakearmv7l.so"
@@ -297,7 +297,7 @@ dogstatsd_rpm-x64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_dogstatsd_rpm_amd64"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_ENABLE_VPA: false
+    DD_DISABLE_VPA: true
 
 dogstatsd_suse-x64:
   extends: [.package_suse_rpm_common, .package_rpm_x86]
@@ -309,4 +309,4 @@ dogstatsd_suse-x64:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_dogstatsd_suse_amd64"
     PACKAGE_REQUIRED_FILES_LIST: "test/required_files/dogstatsd-rpm.txt"
     # TODO(agent-devx): Re-enable VPA by removing this when it will be possible to configure memory lower bound to avoid OOMs
-    DD_ENABLE_VPA: false
+    DD_DISABLE_VPA: true

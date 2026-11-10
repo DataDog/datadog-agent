@@ -174,7 +174,7 @@ func (e *egress) tick() {
 
 	bytesSent, err := e.forwarder.Send(ctx, e.buildReport(merged))
 	if err != nil {
-		e.log.Warn(fmt.Sprintf("Health platform egress: failed to send %d issues: %v", len(merged), err))
+		e.log.Errorf("Health platform egress: failed to send %d issues: %v", len(merged), err)
 		e.statusMu.Lock()
 		e.lastErr = err
 		e.sendErrorsTotal++

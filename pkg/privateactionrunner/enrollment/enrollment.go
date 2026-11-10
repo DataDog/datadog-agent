@@ -74,10 +74,9 @@ func GetAgentIdentifier(ctx context.Context, hostnameGetter hostnameinterface.Co
 	return agentIdentifier, nil
 }
 
-// Re-enrollment is only supported for the node agent: the cluster agent's identity is
-// shared across replicas via a K8s secret, so re-enrolling from one replica could race with others.
+// ShouldReenroll reports whether the saved identity no longer matches the current hostname or api_key.
 func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentity, currentAPIKey string) bool {
-	if identity == nil || flavor.GetFlavor() == flavor.ClusterAgent {
+	if identity == nil {
 		return false
 	}
 	if identity.Hostname != "" && identity.Hostname != agentIdentifier.Hostname {

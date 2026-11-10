@@ -514,3 +514,11 @@ func redirectTargetIsFD(rd *syntax.Redirect) bool {
 func isDevNull(path string) bool {
 	return allowedpaths.IsDevNull(path)
 }
+
+// isNativeDevNull delegates to allowedpaths.IsNativeDevNull. Input
+// redirects use it instead of isDevNull: on Windows the sandbox opens
+// "/dev/null" as an ordinary file relative to the working directory, so only
+// the native null-device name is exempt from input-redirect authorization.
+func isNativeDevNull(path string) bool {
+	return allowedpaths.IsNativeDevNull(path)
+}

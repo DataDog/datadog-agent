@@ -6,6 +6,7 @@ description: The schema to validate the datadog.yaml configuration for the DataD
 properties:
   api_key:
     node_type: setting
+    sensitive: true
     title: Basic Configuration
     type: string
     default: ''
@@ -18,6 +19,7 @@ properties:
     - template_section:Common
   app_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     visibility: public
@@ -99,6 +101,7 @@ properties:
     properties:
       https:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
         visibility: public
@@ -110,6 +113,7 @@ properties:
         - no-env
       http:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
         visibility: public
@@ -2141,6 +2145,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -2265,6 +2270,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -2396,6 +2402,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -3649,8 +3656,8 @@ properties:
     description: |-
       The list of environment variables that are allowed to be resolved in check
       configurations.
-      If the list is not set or is empty, the default behavior applies: all envs
-      are allowed.
+      If the list is not set or is empty, all envs are allowed except the ones
+      bound to Agent settings holding credentials, like `DD_API_KEY`.
       This list only applies when `ad_disable_env_var_resolution` is set to false.
     example: |2-
 
@@ -4521,6 +4528,7 @@ properties:
         example: <UAA_CLIENT_ID>
       client_secret:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
         visibility: public
@@ -5281,6 +5289,7 @@ properties:
       By default, 'http://localhost' is categorized as an "intranet" website, which is considered safer and allowed to use cookies. This is not the case for 'http://127.0.0.1'.
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: object
     default: {}
     additionalProperties:
@@ -5989,6 +5998,7 @@ properties:
         properties:
           api_key:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
             comment: |-
@@ -6389,6 +6399,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -6587,6 +6598,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -6850,6 +6862,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -6947,6 +6960,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -7113,6 +7127,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -7205,6 +7220,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -7707,6 +7723,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -7799,6 +7816,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         additionalProperties:
@@ -7807,6 +7825,7 @@ properties:
           type: array
       api_key:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
       dd_url:
@@ -8057,6 +8076,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: array
         default: []
         items:
@@ -8159,6 +8179,14 @@ properties:
         node_type: section
         type: object
         properties:
+          dd_url:
+            node_type: setting
+            type: string
+            default: ""
+            description: |
+              URL health reports are sent to, overriding the health platform intake of the
+              configured `site` (https://agenthealth-intake.<site>). Use it to route health
+              reports through a proxy.
           interval:
             node_type: setting
             type: string
@@ -8434,10 +8462,12 @@ properties:
         properties:
           auth:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
           password:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
           url:
@@ -8749,6 +8779,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -9166,6 +9197,7 @@ properties:
     properties:
       additional_endpoints:
         node_type: setting
+        sensitive: true
         type: object
         default: {}
         additionalProperties:
@@ -9174,6 +9206,7 @@ properties:
           type: array
       api_key:
         node_type: setting
+        sensitive: true
         type: string
         default: ''
       api_version:
@@ -9304,7 +9337,7 @@ properties:
               enabled:
                 node_type: setting
                 type: boolean
-                default: true
+                default: false
           sleep_interval:
             node_type: setting
             type: string
@@ -9383,7 +9416,7 @@ properties:
       enforce:
         node_type: setting
         type: boolean
-        default: true
+        default: false
         description: |-
           Reverts the settings that don't match the configuration schema to their default value. When disabled,
           invalid settings are still reported but keep their configured value.
@@ -9397,6 +9430,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -9519,6 +9553,7 @@ properties:
         properties:
           api_key:
             node_type: setting
+            sensitive: true
             type: string
             default: ''
             env_vars:
@@ -9732,6 +9767,13 @@ properties:
         default: false
         env_vars:
         - DD_SERVERLESS_INIT_METADATA_ENABLED
+      aas_extension_metadata_enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: Enables Azure App Service extension metadata when metadata collection is enabled.
+        env_vars:
+        - DD_SERVERLESS_AAS_EXTENSION_METADATA_ENABLED
       metadata_wrapped_command_enabled:
         node_type: setting
         type: boolean
@@ -9786,6 +9828,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -9903,6 +9946,7 @@ properties:
         properties:
           additional_endpoints:
             node_type: setting
+            sensitive: true
             type: array
             default: []
             items:
@@ -10141,7 +10185,7 @@ properties:
     tags:
     - full-agent-only:true
     comment: |-
-      the darwin and bsd network check has not been ported from python
+      the bsd network check has not been ported from python, and the darwin one is opt-in
       If true, then new version of network v2 check will be used.
       Otherwise, the python version of network check will be used.
     description: Flag to enable or disable the Go core network check. When disabled, the

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CWS: Custom events (``ruleset_loaded``, heartbeats, self-tests) sent by a
+    system-probe through another system-probe's remote event server, for
+    instance from a micro VM over vsock, now keep the hostname of the
+    system-probe that produced them instead of taking the relay's.

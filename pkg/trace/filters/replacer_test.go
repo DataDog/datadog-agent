@@ -224,6 +224,79 @@ func TestReplacer(t *testing.T) {
 	})
 }
 
+// TestReplacerWildcardEnv verifies that "*" rules never change the span env, which
+// the trace agent can use as the env for sampling and stats (see traceutil.GetEnv),
+// while they still apply to every other tag and to span event attributes.
+func TestReplacerWildcardEnv(t *testing.T) {
+	rules := parseRulesFromString([][3]string{{"*", "prod", "stage"}})
+
+	t.Run("v0 meta", func(t *testing.T) {
+		span := &pb.Span{
+			Resource: "prod-resource",
+			Meta:     map[string]string{"env": "prod", "custom.tag": "prod-value"},
+			SpanEvents: []*pb.SpanEvent{{Attributes: map[string]*pb.AttributeAnyValue{
+				"env": {Type: pb.AttributeAnyValue_STRING_VALUE, StringValue: "prod"},
+			}}},
+		}
+		NewReplacer(rules).Replace(pb.Trace{span})
+		assert.Equal(t, "prod", span.Meta["env"])
+		assert.Equal(t, "stage-value", span.Meta["custom.tag"])
+		assert.Equal(t, "stage-resource", span.Resource)
+		assert.Equal(t, "stage", span.SpanEvents[0].Attributes["env"].StringValue, "span event attributes are not the span env")
+	})
+
+	t.Run("v0 numeric env metric is not moved to meta", func(t *testing.T) {
+		// replaceNumericTag moves non-numeric results from Metrics to Meta.
+		span := &pb.Span{
+			Meta:    map[string]string{},
+			Metrics: map[string]float64{"env": 1, "latency": 1},
+		}
+		NewReplacer(parseRulesFromString([][3]string{{"*", "1", "prod"}})).Replace(pb.Trace{span})
+		assert.NotContains(t, span.Meta, "env")
+		assert.Equal(t, float64(1), span.Metrics["env"])
+		assert.Equal(t, "prod", span.Meta["latency"], "other metrics are still replaced")
+	})
+
+	t.Run("v1 env in attributes and env field", func(t *testing.T) {
+		// Spans decoded from msgpack v0.4/v0.5 payloads (UnmarshalMsgConverted)
+		// keep env both in the dedicated env field and in Attributes().
+		strings := idx.NewStringTable()
+		span := newTestSpanV1EmptyAttributes(strings)
+		span.SetEnv("prod")
+		envRef := strings.Add("env")
+		span.Attributes()[envRef] = &idx.AnyValue{Value: &idx.AnyValue_StringValueRef{StringValueRef: strings.Add("prod")}}
+		span.SetAttributeFromString("custom.tag", "prod-value")
+		chunk := &idx.InternalTraceChunk{Strings: strings, Spans: []*idx.InternalSpan{span}}
+		NewReplacer(rules).ReplaceV1(chunk)
+		assert.Equal(t, "prod", span.Env())
+		assert.Equal(t, "prod", span.Attributes()[envRef].AsString(strings))
+		custom, _ := span.GetAttributeAsString("custom.tag")
+		assert.Equal(t, "stage-value", custom)
+	})
+
+	t.Run("v1 env field only, span event env still replaced", func(t *testing.T) {
+		// Spans converted with api.ConvertToIdx (JSON payloads, v0.7, serverless)
+		// only have the dedicated env field, so the wildcard loop never sees env.
+		// This guards that, and that span event attributes named env are replaced.
+		strings := idx.NewStringTable()
+		span := idx.NewInternalSpan(strings, &idx.Span{
+			ResourceRef: strings.Add("prod-resource"),
+			Attributes:  map[uint32]*idx.AnyValue{},
+			Events: []*idx.SpanEvent{
+				{NameRef: strings.Add("event"), Attributes: map[uint32]*idx.AnyValue{}},
+			},
+		})
+		span.SetEnv("prod")
+		span.Events()[0].SetAttributeFromString("env", "prod")
+		chunk := &idx.InternalTraceChunk{Strings: strings, Spans: []*idx.InternalSpan{span}}
+		NewReplacer(rules).ReplaceV1(chunk)
+		assert.Equal(t, "prod", span.Env())
+		assert.Equal(t, "stage-resource", span.Resource())
+		eventEnv, _ := span.Events()[0].GetAttributeAsString("env")
+		assert.Equal(t, "stage", eventEnv, "span event attributes are not the span env")
+	})
+}
+
 // GetTestSpan returns a Span with different fields set
 func newTestSpanV1EmptyAttributes(strings *idx.StringTable) *idx.InternalSpan {
 	return idx.NewInternalSpan(strings, &idx.Span{

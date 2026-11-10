@@ -100,14 +100,15 @@ func (f fentry) String() string {
 
 func (f fentry) Env() map[string]string {
 	return map[string]string{
-		"DD_NETWORK_CONFIG_ENABLE_SK_TRACER": "false",
-		"DD_NETWORK_CONFIG_ENABLE_FENTRY":    "true",
-		"DD_ENABLE_RUNTIME_COMPILER":         "false",
-		"DD_ENABLE_CO_RE":                    "true",
-		"DD_NETWORK_CONFIG_ENABLE_CO_RE":     "false",
-		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK": "false",
-		"DD_ALLOW_PREBUILT_FALLBACK":         "false",
-		"DD_ENABLE_EBPFLESS":                 "false",
+		"DD_NETWORK_CONFIG_ENABLE_SK_TRACER":      "false",
+		"DD_NETWORK_CONFIG_ENABLE_FENTRY":         "true",
+		"DD_NETWORK_CONFIG_ALLOW_KPROBE_FALLBACK": "false",
+		"DD_ENABLE_RUNTIME_COMPILER":              "false",
+		"DD_ENABLE_CO_RE":                         "true",
+		"DD_NETWORK_CONFIG_ENABLE_CO_RE":          "false",
+		"DD_ALLOW_RUNTIME_COMPILED_FALLBACK":      "false",
+		"DD_ALLOW_PREBUILT_FALLBACK":              "false",
+		"DD_ENABLE_EBPFLESS":                      "false",
 	}
 }
 
