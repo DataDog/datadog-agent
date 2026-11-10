@@ -140,6 +140,10 @@ func (c *Check) withSchemaContainer(ctx context.Context, id int64, collect func(
 	if err := c.schemaContextError(ctx); err != nil {
 		return err
 	}
+	reserved, _ := c.schemaQueryer.(*sqlx.Conn)
+	if reserved != nil && c.schemaContainerConn == reserved && c.schemaContainerID == id {
+		return collect()
+	}
 	conn, ok := c.schemaQueryer.(schemaContainerSession)
 	if !ok {
 		if c.schemaQueryer != nil {
@@ -169,8 +173,13 @@ func (c *Check) withSchemaContainer(ctx context.Context, id int64, collect func(
 		return err
 	}
 	if originalID == id {
+		if reserved != nil {
+			c.schemaContainerConn = reserved
+			c.schemaContainerID = id
+		}
 		return collect()
 	}
+	c.schemaContainerConn = nil
 	var target string
 	if err := conn.QueryRowxContext(queryCtx, "SELECT name FROM v$containers WHERE con_id = :con_id", sql.Named("con_id", id)).Scan(&target); err != nil {
 		return err

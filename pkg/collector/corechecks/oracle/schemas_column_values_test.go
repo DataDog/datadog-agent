@@ -81,6 +81,57 @@ func TestSchemaContainerRestoredAfterCollection(t *testing.T) {
 	}
 }
 
+func TestSchemaContainerReusesReservedSession(t *testing.T) {
+	c, pool, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	pool.SetMaxOpenConns(1)
+	conn, err := pool.Connx(context.Background())
+	require.NoError(t, err)
+	defer conn.Close()
+	c.schemaQueryer = conn
+	expectSchemaSession(mock, 3, "PDB1")
+	calls := 0
+	for range 2 {
+		require.NoError(t, c.withSchemaContainer(context.Background(), 3, func() error {
+			calls++
+			return nil
+		}))
+	}
+	require.Equal(t, 2, calls)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	require.ErrorIs(t, c.withSchemaContainer(ctx, 3, func() error {
+		t.Fatal("canceled collection must not use the cached session")
+		return nil
+	}), context.Canceled)
+	c.schemaQueryError = nil
+	require.NoError(t, conn.Close())
+	replacement, err := pool.Connx(context.Background())
+	require.NoError(t, err)
+	defer replacement.Close()
+	c.schemaQueryer = replacement
+	expectSchemaSession(mock, 3, "PDB1")
+	require.NoError(t, c.withSchemaContainer(context.Background(), 3, func() error { return nil }))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
+func TestSchemaContainerRechecksAfterSwitch(t *testing.T) {
+	c, pool, mock, cleanup := newSchemaCheck(t)
+	defer cleanup()
+	conn, err := pool.Connx(context.Background())
+	require.NoError(t, err)
+	defer conn.Close()
+	c.schemaQueryer = conn
+	expectSchemaSession(mock, 1, "CDB$ROOT")
+	require.NoError(t, c.withSchemaContainer(context.Background(), 1, func() error { return nil }))
+	expectSchemaSwitch(mock, 3, "PDB1")
+	expectSchemaRestore(mock)
+	require.NoError(t, c.withSchemaContainer(context.Background(), 3, func() error { return nil }))
+	expectSchemaSession(mock, 1, "CDB$ROOT")
+	require.NoError(t, c.withSchemaContainer(context.Background(), 1, func() error { return nil }))
+	require.NoError(t, mock.ExpectationsWereMet())
+}
+
 func TestSchemaContainerDiscardedWhenRestoreFails(t *testing.T) {
 	c, pool, mock, cleanup := newSchemaCheck(t)
 	defer cleanup()
