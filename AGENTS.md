@@ -20,6 +20,11 @@ The Datadog Agent collects metrics, traces, logs, and security events and forwar
 
 - `/comp/` - Component-based architecture modules (Fx components)
 
+  Production component implementations (`impl/` and `impl-*/`) must not import
+  `go.uber.org/fx` or any `pkg/util/fxutil` subpackage. Inject framework-neutral
+  interfaces and keep Fx adapters in `fx/`. Run `dda inv components.lint-components`
+  alongside Go lint when changing component dependencies.
+
 - `/tasks/` - Python invoke tasks for development
   - Build, test, lint, and deployment automation
 

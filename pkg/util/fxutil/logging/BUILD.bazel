@@ -1,16 +1,29 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "logging",
     srcs = [
         "logging.go",
         "sender.go",
+        "startup.go",
         "tracer.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/fxutil/logging",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/trace/traceutil/startup",
         "@org_uber_go_fx//:fx",
+        "@org_uber_go_fx//fxevent",
+    ],
+)
+
+dd_agent_go_test(
+    name = "logging_test",
+    srcs = ["startup_test.go"],
+    embed = [":logging"],
+    deps = [
+        "//pkg/trace/traceutil/startup",
         "@org_uber_go_fx//fxevent",
     ],
 )
