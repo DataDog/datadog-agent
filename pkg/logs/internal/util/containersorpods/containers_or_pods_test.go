@@ -13,6 +13,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
 const (
@@ -21,17 +22,21 @@ const (
 )
 
 func TestChoose(t *testing.T) {
-	test := func(
+	testWithConfig := func(
 		features []env.Feature,
 		k8sContainerUseFile bool,
 		ready int,
 		expected LogWhat,
+		configureMock func(model.BuildableConfig),
 	) func(*testing.T) {
 		return func(t *testing.T) {
 			env.SetFeatures(t, features...)
 
 			mockConfig := configmock.New(t)
 			mockConfig.SetInTest("logs_config.k8s_container_use_file", k8sContainerUseFile)
+			if configureMock != nil {
+				configureMock(mockConfig)
+			}
 
 			chsr := chooser{
 				choice:       make(chan LogWhat, 1),
@@ -47,6 +52,15 @@ func TestChoose(t *testing.T) {
 				require.Equal(t, expected, LogUnknown, "did not get a choice at all")
 			}
 		}
+	}
+
+	test := func(
+		features []env.Feature,
+		k8sContainerUseFile bool,
+		ready int,
+		expected LogWhat,
+	) func(*testing.T) {
+		return testWithConfig(features, k8sContainerUseFile, ready, expected, nil)
 	}
 
 	// - if any of the container features (docker, containerd, cri, podman) are
@@ -120,4 +134,27 @@ func TestChoose(t *testing.T) {
 
 	t.Run("both ready, Containerds and kubernetes enabled, k8s_container_use_file=false",
 		test([]env.Feature{env.Docker, env.Kubernetes}, false, dockerReadyBit|kubernetesReadyBit, LogContainers))
+
+	// - on ECS Managed Instances daemon mode, there is no docker socket by design,
+	//   so the choice is made immediately without waiting for dockerReady, as with
+	//   Podman above.
+
+	t.Run("docker not ready, ECS Managed Instances enabled, daemon mode",
+		test([]env.Feature{env.ECSManagedInstances}, false, 0, LogContainers))
+
+	t.Run("docker not ready, ECS Managed Instances and Containerd enabled, daemon mode",
+		test([]env.Feature{env.ECSManagedInstances, env.Containerd}, false, 0, LogContainers))
+
+	t.Run("docker not ready, ECS Managed Instances enabled, sidecar mode",
+		func(t *testing.T) {
+			// IsECSSidecarMode (consulted by IsECSManagedInstancesDaemonMode) checks
+			// the real AWS_EXECUTION_ENV var directly rather than the env.Feature
+			// mock, so it must be set here too for the sidecar-mode check to agree
+			// with the mocked ECSManagedInstances feature.
+			t.Setenv("AWS_EXECUTION_ENV", "AWS_ECS_MANAGED_INSTANCES")
+			testWithConfig([]env.Feature{env.ECSManagedInstances}, false, 0, LogNothing,
+				func(mockConfig model.BuildableConfig) {
+					mockConfig.SetInTest("ecs_deployment_mode", "sidecar")
+				})(t)
+		})
 }

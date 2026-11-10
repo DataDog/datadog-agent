@@ -136,10 +136,11 @@ func (r *Result) Fail(err error) {
 type Report struct {
 	ClusterName string `json:"cluster_name"`
 	// Phases are the windows of the first phase and of the swapped one.
-	Phases     [2]Window `json:"phases"`
-	Baseline   Version   `json:"baseline"`
-	Comparison Version   `json:"comparison"`
-	Results    []Result  `json:"results"`
+	Phases       [2]Window `json:"phases"`
+	Baseline     Version   `json:"baseline"`
+	Comparison   Version   `json:"comparison"`
+	Results      []Result  `json:"results"`
+	DashboardURL string    `json:"dashboard_url,omitempty"`
 }
 
 // notable reports whether a metric improved, regressed or couldn't be compared: the outcomes
@@ -196,6 +197,9 @@ func (r *Report) Markdown() string {
 		r.ClusterName,
 		first.From.UTC().Format(timeFormat), first.To.UTC().Format(timeFormat), first.To.Sub(first.From),
 		swapped.From.UTC().Format(timeFormat), swapped.To.UTC().Format(timeFormat), swapped.To.Sub(swapped.From))
+	if r.DashboardURL != "" {
+		fmt.Fprintf(&b, "Graphs and profiles of the run: [dashboard](%s)\n\n", r.DashboardURL)
+	}
 
 	b.WriteString("| Component | Metric | Baseline | Comparison | Change | p-value | Verdict |\n")
 	b.WriteString("|---|---|--:|--:|--:|--:|---|\n")
@@ -290,30 +294,44 @@ func markdownCell(text string) string {
 	return strings.NewReplacer("|", `\|`, "\n", " ").Replace(text)
 }
 
-// MetricsExplorerURL returns the URL of the metrics explorer of the Datadog app at appURL
-// graphing the average of metric over [from, to], filtered by scope and split by groupBy.
-func MetricsExplorerURL(appURL, metric string, scope, groupBy []string, from, to time.Time) string {
+// MetricsExplorerURL returns the URL of the metrics explorer of the Datadog app at the root of
+// appURL graphing the average of metric over [from, to], filtered by scope and split by groupBy.
+func MetricsExplorerURL(appURL url.URL, metric string, scope, groupBy []string, from, to time.Time) string {
 	values := url.Values{}
 	values.Set("exp_metric", metric)
 	values.Set("exp_scope", strings.Join(scope, ","))
 	values.Set("exp_group", strings.Join(groupBy, ","))
 	values.Set("exp_agg", "avg")
 	values.Set("exp_row_type", "metric")
-	setTimeRange(values, from, to)
-	return appURL + "/metric/explorer?" + values.Encode()
+	return appPageURL(appURL, "/metric/explorer", values, from, to)
 }
 
-// ProfilesURL returns the URL of the profiling explorer of the Datadog app at appURL listing
-// the profiles matching query over [from, to].
-func ProfilesURL(appURL, query string, from, to time.Time) string {
+// ProfilesURL returns the URL of the profiling explorer of the Datadog app at the root of appURL
+// listing the profiles matching query over [from, to].
+func ProfilesURL(appURL url.URL, query string, from, to time.Time) string {
 	values := url.Values{}
 	values.Set("query", query)
-	setTimeRange(values, from, to)
-	return appURL + "/profiling/explorer?" + values.Encode()
+	return appPageURL(appURL, "/profiling/explorer", values, from, to)
 }
 
-func setTimeRange(values url.Values, from, to time.Time) {
+// DashboardURL returns the URL of the dashboard dashboardID of the Datadog app at the root of
+// appURL over [from, to], with its template variables set to templateVariables, by name.
+func DashboardURL(appURL url.URL, dashboardID string, templateVariables map[string]string, from, to time.Time) string {
+	values := url.Values{}
+	for name, value := range templateVariables {
+		values.Set("tpl_var_"+name+"[0]", value)
+	}
+	values.Set("refresh_mode", "paused")
+	return appPageURL(appURL, "/dashboard/"+dashboardID, values, from, to)
+}
+
+// appPageURL returns the URL of the page at path of the Datadog app at appURL, with the query
+// values, to which it adds the time range [from, to]. The app is at the root of appURL: only
+// its scheme and host are kept, and path, escaped as needed, replaces its path.
+func appPageURL(appURL url.URL, path string, values url.Values, from, to time.Time) string {
 	values.Set("from_ts", strconv.FormatInt(from.UnixMilli(), 10))
 	values.Set("to_ts", strconv.FormatInt(to.UnixMilli(), 10))
 	values.Set("live", "false")
+	page := url.URL{Scheme: appURL.Scheme, Host: appURL.Host, Path: path, RawQuery: values.Encode()}
+	return page.String()
 }

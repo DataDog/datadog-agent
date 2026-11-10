@@ -9,6 +9,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/DataDog/datadog-api-client-go/v2/api/datadog"
@@ -24,12 +25,15 @@ import (
 const (
 	// dddevSite is the site of dddev, the Datadog org the Agents of the e2e tests report to.
 	dddevSite = "datadoghq.com"
-	// dddevAppURL is the URL of the Datadog app of dddev.
-	dddevAppURL = "https://dddev.datadoghq.com"
+	// benchmarkDashboardID is the dashboard of dddev showing the data of a run of the benchmark.
+	benchmarkDashboardID = "bkx-svx-pjc"
 	// dddevQueryAttempts is the number of attempts of a query failing to reach the API. The
 	// API client already retries the rate-limited (429) and server error (5xx) responses.
 	dddevQueryAttempts = 3
 )
+
+// dddevAppURL is the URL of the Datadog app of dddev.
+var dddevAppURL = url.URL{Scheme: "https", Host: "dddev." + dddevSite}
 
 // dddevClient queries the timeseries of dddev.
 type dddevClient struct {

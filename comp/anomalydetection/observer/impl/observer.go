@@ -748,6 +748,7 @@ func (o *observerImpl) run() {
 			}
 		case <-ticker.C:
 			o.engine.flushFilteredMetrics()
+			o.publishSeriesFreshness()
 			continue
 		}
 		if obs.flush != nil {
@@ -825,7 +826,7 @@ func (o *observerImpl) run() {
 		}
 		o.replayMu.Unlock()
 	}
-
+	o.publishSeriesFreshness()
 }
 
 // publishSeriesCount updates the series-count gauge after an analysis advance,
@@ -835,6 +836,14 @@ func (o *observerImpl) publishSeriesCount() {
 		return
 	}
 	o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount())
+}
+
+// publishSeriesFreshness drains sampled fresh-series counts. Sampling itself
+// happens on engine advances; this method is publication-only.
+func (o *observerImpl) publishSeriesFreshness() {
+	if n := o.engine.pendingFreshSeries.Swap(0); n != 0 && o.telemetry != nil {
+		o.telemetry.recordFreshSeries(int(n))
+	}
 }
 
 // defaultDetectorWindowSec is the default window (in seconds) that limits how

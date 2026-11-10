@@ -317,6 +317,8 @@ type EVPProxy struct {
 	DDURL string
 	// APIKey is the main API Key (defaults to the main API key).
 	APIKey string `json:"-"` // Never marshal this field
+	// ApplicationKey is the top-level application key (app_key). Only the AI Guard proxy uses it.
+	ApplicationKey string `json:"-"` // Never marshal this field
 	// AdditionalEndpoints is a map of additional Datadog sites to API keys.
 	AdditionalEndpoints map[string][]string
 	// MaxPayloadSize indicates the size at which payloads will be rejected, in bytes.
@@ -831,6 +833,13 @@ func (c *AgentConfig) UpdateAPIKey(val string) {
 		return
 	}
 	c.Endpoints[0].APIKey = val
+}
+
+// UpdateApplicationKey updates the application key the AI Guard proxy sends to Datadog, so that
+// rotating app_key does not need a restart. Assigned in place like UpdateAPIKey above: this
+// struct is copied by value into the /info payload, so it cannot hold a lock.
+func (c *AgentConfig) UpdateApplicationKey(val string) {
+	c.EVPProxy.ApplicationKey = val
 }
 
 // WriterEndpoints returns the endpoints the trace and stats writers send
