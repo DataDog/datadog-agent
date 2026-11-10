@@ -30,7 +30,7 @@ const (
 	aioSocket = "/opt/datadog-agent/run/dd-procmgrd.sock"
 	// Above the 90s default stop_timeout, so a SIGKILL means a hung shutdown.
 	aioStopTimeoutSec = "120"
-	// Long enough for 01-check-apikey.sh to pass. The value is otherwise unused.
+	// Any non-empty value passes 01-check-apikey.sh.
 	aioThrowawayAPIKey = "0123456789abcdef0123456789abcdef"
 
 	aioContInitMarker90 = "cont-init-marker-90-bash-sh"
@@ -126,7 +126,7 @@ func (s *procmgrAIODockerSuite) TestDockerStopShutsDownGracefully() {
 // TestCoreAgentDeathEndsTheContainer is the exit_with_supervisor path: kill -9
 // of the core agent ends the container with 137. The supervisor stops the other
 // children before it exits, so the container can stay up well after the signal.
-// BeforeTest starts the container again for the following test.
+// Its cleanup starts the container again for the following test.
 func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	agentPID := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
@@ -151,7 +151,7 @@ func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	s.Contains(logs, "[datadog-agent] critical process ended, shutting down with exit code 137")
 	s.Contains(logs, "dd-procmgrd stopped (exit code 137)")
 	s.NotContains(logs, "force-killing")
-	s.NotContains(logs, "giving up")
+	s.NotContains(logs, "still running after force-kill, giving up")
 }
 
 // TestTraceCrashRestarts leaves the container up. datadog-agent-trace is already
@@ -252,7 +252,7 @@ func (s *procmgrAIODockerSuite) TestCustomContInitRunsNonShAndSymlink() {
 		shSingleQuote(image),
 	))
 	t.Cleanup(func() {
-		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -f "+shSingleQuote(name))
+		s.Env().RemoteHost.MustExecuteOn(t, "docker rm -fv "+shSingleQuote(name))
 	})
 
 	s.Env().RemoteHost.MustExecute(fmt.Sprintf(
