@@ -528,8 +528,12 @@ func (s *senderImpl) sendPayloadBytes(ctx context.Context, reqBodyRaw []byte, re
 	// re-enter the slog handler (see F1/F6 on PR #50607).
 	var errs error
 	for _, ep := range s.endpoints.Endpoints {
+		apiKey, ready := ep.GetAPIKeyIfReady()
+		if !ready {
+			continue
+		}
 		url := buildURL(ep)
-		status, sendErr := s.sendPayloadBody(ctx, reqBody, reqType, ep.GetAPIKey(), url, compressed)
+		status, sendErr := s.sendPayloadBody(ctx, reqBody, reqType, apiKey, url, compressed)
 		if sendErr != nil {
 			errs = errors.Join(errs, sendErr)
 			continue

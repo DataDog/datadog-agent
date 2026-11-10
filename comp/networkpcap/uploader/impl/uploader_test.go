@@ -421,3 +421,38 @@ func portOf(t *testing.T, in *intake) int {
 	t.Helper()
 	return in.srv.Listener.Addr().(*net.TCPAddr).Port
 }
+
+func TestUploadDelegatedAdditionalEndpointUpdates(t *testing.T) {
+	for _, initialKey := range []string{"DELA[org-uuid-1, aws]", "resolved-before-startup"} {
+		t.Run(initialKey, func(t *testing.T) {
+			main, secondary := newIntake(t), newIntake(t)
+			cfg := newTestConfig(t, main)
+			setKey := func(key string) {
+				cfg.SetInTest(testPrefix+"additional_endpoints", []map[string]any{
+					{"host": hostOf(t, secondary), "port": portOf(t, secondary), "api_key": key, "use_ssl": false},
+				})
+			}
+			setKey(initialKey)
+			u := newTestUploader(t, cfg)
+			req, _ := pcapRequest([]byte("pcap"))
+			err := u.Upload(context.Background(), req)
+			if initialKey == "DELA[org-uuid-1, aws]" {
+				require.Error(t, err, "a pending reliable endpoint still reports upload failure")
+				assert.Empty(t, secondary.received())
+			} else {
+				require.NoError(t, err)
+				require.Len(t, secondary.received(), 1)
+				assert.Equal(t, initialKey, secondary.received()[0].apiKey)
+			}
+			assert.EqualValues(t, 1, main.calls.Load())
+			for _, key := range []string{"resolved-key", "rotated-key"} {
+				setKey(key)
+				require.NoError(t, u.Upload(context.Background(), req))
+				got := secondary.received()
+				require.NotEmpty(t, got)
+				assert.Equal(t, key, got[len(got)-1].apiKey)
+			}
+			assert.EqualValues(t, 3, main.calls.Load())
+		})
+	}
+}

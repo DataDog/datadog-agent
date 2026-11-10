@@ -26,6 +26,7 @@ import (
 
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/log/errortracking"
 )
@@ -618,4 +619,44 @@ func BenchmarkSymbolizeStack(b *testing.B) {
 	// Defeat dead-store elimination so the compiler cannot prove sink is
 	// unused and elide the call.
 	runtime.KeepAlive(sink)
+}
+
+func TestTelemetryDelegatedAdditionalEndpointUpdates(t *testing.T) {
+	for _, initialKey := range []string{"DELA[org-uuid-1, aws]", "resolved-before-startup"} {
+		t.Run(initialKey, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("api_key", "main-key")
+			setKey := func(key string) {
+				cfg.SetInTest("agent_telemetry.additional_endpoints", []map[string]any{
+					{"host": "secondary.datadoghq.eu", "api_key": key},
+				})
+			}
+			setKey(initialKey)
+			endpoints, err := getEndpoints(cfg)
+			require.NoError(t, err)
+			cl := &captureClient{}
+			s := newTestSender(t, cl)
+			s.endpoints = endpoints
+			send := func() {
+				require.NoError(t, s.sendPayloadBytes(context.Background(), []byte(`{}`), "logs"))
+			}
+			send()
+			reqs, _ := cl.snapshot()
+			if initialKey == "DELA[org-uuid-1, aws]" {
+				require.Len(t, reqs, 1)
+			} else {
+				require.Len(t, reqs, 2)
+				assert.Equal(t, initialKey, reqs[1].Header.Get("DD-API-KEY"))
+			}
+			assert.Equal(t, "main-key", reqs[0].Header.Get("DD-API-KEY"))
+			for _, key := range []string{"resolved-key", "rotated-key"} {
+				setKey(key)
+				send()
+				reqs, _ = cl.snapshot()
+				assert.Equal(t, "main-key", reqs[len(reqs)-2].Header.Get("DD-API-KEY"))
+				assert.Equal(t, key, reqs[len(reqs)-1].Header.Get("DD-API-KEY"))
+				assert.Equal(t, "secondary.datadoghq.eu", reqs[len(reqs)-1].URL.Host)
+			}
+		})
+	}
 }
