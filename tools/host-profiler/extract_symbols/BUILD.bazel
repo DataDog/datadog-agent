@@ -7,7 +7,6 @@ go_library(
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:private"],
     deps = [
-        "//comp/host-profiler/symboluploader",
         "//comp/host-profiler/symboluploader/symbol",
         "//comp/host-profiler/symboluploader/symbolcopier",
     ],

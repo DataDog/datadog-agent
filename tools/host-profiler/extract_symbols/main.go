@@ -11,7 +11,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbolcopier"
 )
@@ -38,7 +37,7 @@ func extractDebugInfos(elfFile, outFile string) error {
 		sectionsToKeep = ef.GetSectionsRequiredForDynamicSymbols()
 	}
 
-	return symbolcopier.CopySymbols(context.Background(), elfFile, outFile, goPCLnTabInfo, sectionsToKeep, symboluploader.CheckObjcopyZstdSupport(context.Background()))
+	return symbolcopier.CopySymbols(context.Background(), elfFile, outFile, goPCLnTabInfo, sectionsToKeep)
 }
 
 func main() {
