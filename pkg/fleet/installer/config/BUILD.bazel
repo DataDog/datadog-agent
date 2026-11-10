@@ -125,6 +125,7 @@ go_library(
             "//pkg/fleet/installer/paths",
             "//pkg/fleet/installer/telemetry",
             "//pkg/util/log",
+            "@com_github_microsoft_go_winio//:go-winio",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],
@@ -147,6 +148,7 @@ dd_agent_go_test(
     ] + select({
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/paths",
+            "@com_github_microsoft_go_winio//:go-winio",
             "@org_golang_x_sys//windows",
         ],
         "//conditions:default": [],

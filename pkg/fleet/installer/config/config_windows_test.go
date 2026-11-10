@@ -17,6 +17,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 
+	"github.com/Microsoft/go-winio"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/windows"
@@ -433,6 +434,36 @@ func TestSecureCreateTargetDirectoryWithSourcePermissions(t *testing.T) {
 	assert.NoError(t, err)
 	sourceSD, err := windows.GetNamedSecurityInfo(sourcePath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 	assert.NoError(t, err)
+	assert.Equal(t, sourceSD.String(), targetSD.String())
+}
+
+// TestSecureCreateTargetDirectoryWithDifferentOwner exercises copying an owner that is not
+// the default owner of the token creating the experiment directory.
+func TestSecureCreateTargetDirectoryWithDifferentOwner(t *testing.T) {
+	const privilege = "SeRestorePrivilege"
+	if err := winio.RunWithPrivileges([]string{privilege}, func() error { return nil }); err != nil {
+		if os.Getenv("CI") == "" && os.Getenv("CI_JOB_ID") == "" {
+			t.Skipf("test requires %s: %v", privilege, err)
+		}
+		require.NoError(t, err)
+	}
+
+	sourcePath := filepath.Join(t.TempDir(), "source")
+	targetPath := filepath.Join(t.TempDir(), "target")
+	require.NoError(t, os.Mkdir(sourcePath, 0755))
+	systemSID, err := windows.CreateWellKnownSid(windows.WinLocalSystemSid)
+	require.NoError(t, err)
+	require.NoError(t, winio.RunWithPrivileges([]string{privilege}, func() error {
+		return windows.SetNamedSecurityInfo(sourcePath, windows.SE_FILE_OBJECT,
+			windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION,
+			systemSID, systemSID, nil, nil)
+	}))
+
+	require.NoError(t, secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath))
+	sourceSD, err := windows.GetNamedSecurityInfo(sourcePath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	require.NoError(t, err)
+	targetSD, err := windows.GetNamedSecurityInfo(targetPath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	require.NoError(t, err)
 	assert.Equal(t, sourceSD.String(), targetSD.String())
 }
 

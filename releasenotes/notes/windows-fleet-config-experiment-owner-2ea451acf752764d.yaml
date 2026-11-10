@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Fix Fleet Automation configuration updates on Windows installations whose
+    existing Agent configuration directory has a custom or unexpected owner.

@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 
+	"github.com/Microsoft/go-winio"
 	"golang.org/x/sys/windows"
 )
 
@@ -221,7 +222,15 @@ func secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath str
 		return fmt.Errorf("error getting security info for source directory: %w", err)
 	}
 	sddl := sd.String()
-	return paths.SecureCreateDirectory(targetPath, sddl)
+	// Most owners can be copied without enabling a privilege. When the source owner
+	// cannot be assigned by this token, retry with SeRestorePrivilege, which permits
+	// assigning a different owner. SeTakeOwnershipPrivilege only permits taking ownership.
+	if err := paths.SecureCreateDirectory(targetPath, sddl); err == nil || !errors.Is(err, windows.ERROR_INVALID_OWNER) {
+		return err
+	}
+	return winio.RunWithPrivileges([]string{"SeRestorePrivilege"}, func() error {
+		return paths.SecureCreateDirectory(targetPath, sddl)
+	})
 }
 
 // setFileOwnershipAndPermissions sets ACLs for a config file based on its configFileSpec.
