@@ -1,6 +1,8 @@
 #ifndef __HTTP2_DECODING_H
 #define __HTTP2_DECODING_H
 
+#define UINT32_MAX 0xFFFFFFFF
+
 #include "protocols/helpers/pktbuf.h"
 #include "protocols/http2/decoding-common.h"
 #include "protocols/http2/usm-events.h"
@@ -973,10 +975,15 @@ static __always_inline void headers_parser(pktbuf_t pkt, void *map_key, conn_tup
         }
         current_stream->tags = tags;
         pktbuf_set_offset(pkt, current_frame.offset);
-        
-         // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
-                // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
+
+        // If PRIORITY flag (0x20) set, skip 5-byte priority fields.
+        // See: https://datatracker.ietf.org/doc/html/rfc7540#section-6.2
         if (current_frame.frame.flags & HTTP2_PRIORITY_FLAG) {
+            // Keep the addition within the u32 range. TLS data_off is wider, and without this bound the
+            // verifier tracks values above the u32 range and can exceed its complexity limit.
+            if (current_frame.offset > (UINT32_MAX - HTTP2_PRIORITY_BUFFER_LEN)) {
+                continue;
+            }
             pktbuf_advance(pkt, HTTP2_PRIORITY_BUFFER_LEN);
             if (current_frame.frame.length > HTTP2_PRIORITY_BUFFER_LEN) {
                 current_frame.frame.length -= HTTP2_PRIORITY_BUFFER_LEN;
