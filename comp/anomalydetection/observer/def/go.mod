@@ -3,12 +3,12 @@ module github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def
 go 1.26.0
 
 require (
-	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.85.4-rc.1
-	github.com/DataDog/datadog-agent/pkg/tagset v0.85.4-rc.1
+	github.com/DataDog/datadog-agent/comp/anomalydetection/severityevents/def v0.85.4
+	github.com/DataDog/datadog-agent/pkg/tagset v0.85.4
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.85.4-rc.1 // indirect
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.85.4 // indirect
 	github.com/twmb/murmur3 v1.2.0 // indirect
 )
 
