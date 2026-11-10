@@ -44,7 +44,7 @@ type RuntimeSecurityAgent struct {
 	secInfoReporter      common.RawReporter
 	eventClient          *RuntimeSecurityEventClient
 	cmdClient            *RuntimeSecurityCmdClient
-	ipc                  ipc.Component
+	ipc                  ipc.Component //nolint:unused // only used on Linux and Windows
 	running              *atomic.Bool
 	wg                   sync.WaitGroup
 	connected            *atomic.Bool
