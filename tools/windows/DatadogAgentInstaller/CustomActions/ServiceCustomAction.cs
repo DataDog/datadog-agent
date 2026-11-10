@@ -205,7 +205,7 @@ namespace Datadog.CustomActions
                         throw new InvalidOperationException("No current password associated with the outgoing account");
                     }
                 }
-                AgentCredentials.NormalizeServiceCredentials(_nativeMethods, sid, ref account, ref password);
+                AgentCredentials.NormalizeServiceCredentials(!AgentCredentials.RequiresPassword(_nativeMethods, sid), sid, ref account, ref password);
             }
             catch (Exception e)
             {
@@ -265,16 +265,20 @@ namespace Datadog.CustomActions
         internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
-            if (string.IsNullOrEmpty(ddAgentUserPassword)
-                && AgentCredentials.RequiresPassword(_nativeMethods, ddAgentUserSID))
+            var isServiceAccount = _nativeMethods.IsServiceAccount(ddAgentUserSID);
+            if (!isServiceAccount && string.IsNullOrEmpty(ddAgentUserPassword))
             {
                 _session.Log("Password not provided, will not change service user password");
             }
+            else if (isServiceAccount)
+            {
+                _session.Log("Ignoring provided password because account is a service account");
+            }
+            _session.Log($"Configuring services with account {ddAgentUserName}");
             // Missing domain passwords preserve existing service credentials; built-in
             // and managed accounts use the empty/null forms required by ChangeServiceConfig.
-            AgentCredentials.NormalizeServiceCredentials(_nativeMethods, ddAgentUserSID,
+            AgentCredentials.NormalizeServiceCredentials(isServiceAccount, ddAgentUserSID,
                 ref ddAgentUserName, ref ddAgentUserPassword);
-            _session.Log($"Configuring services with account {ddAgentUserName}");
             SetServiceUsers(ddAgentUserName, ddAgentUserPassword);
         }
 

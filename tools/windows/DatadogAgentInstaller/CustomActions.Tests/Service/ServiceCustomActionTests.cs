@@ -8,6 +8,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.ServiceProcess;
+using System.Security.Principal;
 using Xunit;
 
 namespace CustomActions.Tests.Service
@@ -15,6 +16,63 @@ namespace CustomActions.Tests.Service
     public class ServiceCustomActionTests : ServiceCustomActionsTestSetup
     {
         public ServiceCustomActionsTestSetup Test { get; } = new();
+
+        [Theory]
+        [InlineData("S-1-5-21-1-2-3-1001", false, null, "TEST\\agent", null)]
+        [InlineData("S-1-5-21-1-2-3-1001", false, "", "TEST\\agent", null)]
+        [InlineData("S-1-5-21-1-2-3-1001", false, "password", "TEST\\agent", "password")]
+        [InlineData("S-1-5-21-1-2-3-1001", true, null, "TEST\\agent", null)]
+        [InlineData("S-1-5-21-1-2-3-1001", true, "password", "TEST\\agent", null)]
+        [InlineData("S-1-5-18", true, null, "LocalSystem", "")]
+        [InlineData("S-1-5-18", true, "password", "LocalSystem", "")]
+        [InlineData("S-1-5-19", true, "password", "LocalService", "")]
+        [InlineData("S-1-5-20", true, "password", "NetworkService", "")]
+        public void ConfigureServiceUsersPreservesCredentialAndLoggingSemantics(
+            string sidValue, bool isServiceAccount, string suppliedPassword, string expectedAccount, string expectedPassword)
+        {
+            var sid = new SecurityIdentifier(sidValue);
+            const string account = "TEST\\agent";
+            Test.Session.Setup(s => s["DDAGENTUSER_PROCESSED_PASSWORD"]).Returns(suppliedPassword);
+            Test.NativeMethods.Setup(n => n.IsServiceAccount(sid)).Returns(isServiceAccount);
+            var privateActionRunner = new Mock<IWindowsService>();
+            privateActionRunner.SetupGet(s => s.ServiceName).Returns(Constants.PrivateActionRunnerServiceName);
+            Test.ServiceController.SetupGet(c => c.Services).Returns(new[] { privateActionRunner.Object });
+
+            Test.Create().ConfigureServiceUsers(account, sid);
+
+            foreach (var name in new[] { Constants.AgentServiceName, Constants.TraceAgentServiceName,
+                Constants.PrivateActionRunnerServiceName, Constants.SecurityAgentServiceName })
+            {
+                Test.ServiceController.Verify(c => c.SetCredentials(name, expectedAccount, expectedPassword), Times.Once);
+            }
+            foreach (var name in new[] { Constants.SystemProbeServiceName, Constants.ProcessAgentServiceName,
+                Constants.ProcmgrServiceName, Constants.InstallerServiceName })
+            {
+                Test.ServiceController.Verify(c => c.SetCredentials(name, "LocalSystem", ""), Times.Once);
+            }
+            Test.NativeMethods.Verify(n => n.IsServiceAccount(sid), Times.Once);
+            Test.Session.Verify(s => s.Log("Password not provided, will not change service user password",
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()),
+                !isServiceAccount && string.IsNullOrEmpty(suppliedPassword) ? Times.Once() : Times.Never());
+            Test.Session.Verify(s => s.Log("Ignoring provided password because account is a service account",
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()),
+                isServiceAccount ? Times.Once() : Times.Never());
+            Test.Session.Verify(s => s.Log($"Configuring services with account {account}",
+                It.IsAny<string>(), It.IsAny<string>(), It.IsAny<int>()), Times.Once);
+        }
+
+        [Fact]
+        public void ConfigureServiceUsersPropagatesCredentialErrors()
+        {
+            var sid = new SecurityIdentifier("S-1-5-21-1-2-3-1001");
+            var error = new Win32Exception(5);
+            Test.ServiceController.Setup(c => c.SetCredentials(Constants.AgentServiceName,
+                It.IsAny<string>(), It.IsAny<string>())).Throws(error);
+
+            Assert.Same(error, Assert.Throws<Win32Exception>(() => Test.Create().ConfigureServiceUsers("TEST\\agent", sid)));
+            Test.ServiceController.Verify(c => c.SetCredentials(Constants.TraceAgentServiceName,
+                It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        }
 
         [Fact]
         public void ReturnsTrue_ForWin32Exception1060()

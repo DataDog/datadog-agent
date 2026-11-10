@@ -47,7 +47,7 @@ namespace Datadog.CustomActions
             native.RemoveSecret(AccountSidKey);
         }
 
-        internal static void NormalizeServiceCredentials(INativeMethods native, SecurityIdentifier sid,
+        internal static void NormalizeServiceCredentials(bool isServiceAccount, SecurityIdentifier sid,
             ref string account, ref string password)
         {
             if (sid.IsWellKnown(WellKnownSidType.LocalSystemSid))
@@ -63,13 +63,13 @@ namespace Datadog.CustomActions
                 account = "NetworkService";
             }
 
-            if (IsBuiltIn(sid))
-            {
-                password = "";
-            }
-            else if (!RequiresPassword(native, sid) || string.IsNullOrEmpty(password))
+            if (!isServiceAccount && string.IsNullOrEmpty(password))
             {
                 password = null;
+            }
+            else if (isServiceAccount)
+            {
+                password = IsBuiltIn(sid) ? "" : null;
             }
         }
     }
