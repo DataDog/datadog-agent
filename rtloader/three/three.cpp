@@ -43,7 +43,7 @@ Three::Three(const char *python_home, const char *python_exe, rtloader_malloc_t 
     , _pymemAlloc(0)
 {
     _pythonHome = python_home ? python_home : "";
-    _pythonExe = (python_exe && strlen(python_exe) > 0) ? python_exe : "";
+    _pythonExe = python_exe ? python_exe : "";
 }
 
 Three::~Three()
