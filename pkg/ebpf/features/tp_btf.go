@@ -12,7 +12,6 @@ import (
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/asm"
-	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/link"
 
 	"github.com/DataDog/datadog-agent/pkg/util/funcs"
@@ -23,10 +22,6 @@ import (
 // JIT_ALWAYS_ON kernels reject when the JIT has no exception table support, even if kernel BTF exists.
 // Other kernels run such a program in the interpreter, so the trial also requires it to be JIT-compiled.
 var SupportsTPBTFProbeMem = funcs.MemoizeArgNoError(func(tracepoint string) error {
-	if err := features.HaveProgramType(ebpf.Tracing); err != nil {
-		return err
-	}
-
 	spec := &ebpf.ProgramSpec{
 		Type:       ebpf.Tracing,
 		AttachType: ebpf.AttachTraceRawTp,
