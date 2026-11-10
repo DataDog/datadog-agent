@@ -30,7 +30,8 @@ import (
 //	  }
 //	}
 type TestbenchParamsFile struct {
-	Components map[string]json.RawMessage `json:"components"`
+	Components     map[string]json.RawMessage `json:"components"`
+	LogTimeBuckets json.RawMessage            `json:"log_time_buckets,omitempty"`
 }
 
 // LoadTestbenchParams reads a params JSON file and returns ComponentSettings
@@ -54,5 +55,16 @@ func LoadTestbenchParams(path string) (observerimpl.ComponentSettings, error) {
 		return observerimpl.ComponentSettings{}, fmt.Errorf("parsing params file: %w", err)
 	}
 
-	return observerimpl.ParseTestbenchSettingsFromJSON(file.Components)
+	settings, err := observerimpl.ParseTestbenchSettingsFromJSON(file.Components)
+	if err != nil {
+		return settings, err
+	}
+	if len(file.LogTimeBuckets) > 0 && string(file.LogTimeBuckets) != "null" {
+		buckets := observerimpl.DefaultLogCountBucketConfig()
+		if err := json.Unmarshal(file.LogTimeBuckets, &buckets); err != nil {
+			return settings, fmt.Errorf("parsing log_time_buckets: %w", err)
+		}
+		settings.LogCountBuckets = &buckets
+	}
+	return settings, nil
 }

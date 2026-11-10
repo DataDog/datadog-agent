@@ -89,6 +89,10 @@ type ComponentSettings struct {
 	// Baseline controls the baseline analysis window.
 	Baseline BaselineConfig
 
+	// LogCountBuckets optionally overrides log time buckets for replay. Nil
+	// preserves the current setting across DebugView resets.
+	LogCountBuckets *LogCountBucketConfig
+
 	// configs is populated internally by readConfig functions on catalog
 	// entries (e.g. from agent config). It is not exported because the
 	// values must match the typed config expected by each component's
