@@ -69,7 +69,8 @@ func TestStreamingStorageWarmsSparseBOCPD(t *testing.T) {
 		cfg := DefaultBOCPDConfig()
 		cfg.WarmupPoints = warmup
 		settings := ComponentSettings{configs: map[string]any{"bocpd": cfg}}
-		storageCfg := StorageConfigForComponents(settings)
+		storageCfg, err := StorageConfigForComponents(settings)
+		require.NoError(t, err)
 		storage := newTimeSeriesStorageWith(storageCfg)
 		detector := NewBOCPDDetector(cfg)
 		for i := 1; i <= 1000; i++ {
@@ -91,7 +92,8 @@ func TestStreamingStorageUsesConfiguredEnabledDetectors(t *testing.T) {
 		"holt_residual": json.RawMessage(`{"enabled":false,"warmup_points":1000}`),
 	})
 	require.NoError(t, err)
-	cfg := StorageConfigForComponents(settings)
+	cfg, err := StorageConfigForComponents(settings)
+	require.NoError(t, err)
 	require.Equal(t, 240, cfg.MaxPointsPerSeries)
 	require.Equal(t, int64(3616), cfg.PointRetentionSecs)
 }

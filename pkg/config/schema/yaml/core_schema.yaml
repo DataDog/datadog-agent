@@ -5873,6 +5873,21 @@ properties:
             comment: 0s derives retention from the maximum point window of enabled detectors.
             tags:
             - golang_type:duration
+      metric_pipeline:
+        node_type: section
+        type: object
+        properties:
+          enabled:
+            node_type: setting
+            type: boolean
+            default: false
+            comment: Run only the kind-routed metric pipeline. Legacy detectors remain the
+              default.
+          anomaly_cutoff:
+            node_type: setting
+            type: boolean
+            default: true
+            comment: Suppress reactivated-series anomalies until a fresh point is observed.
     tags:
     - full-agent-only:true
   appsec:
