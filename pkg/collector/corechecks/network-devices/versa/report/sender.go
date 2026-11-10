@@ -361,7 +361,9 @@ func (s *Sender) SendPathQoSMetrics(tenant string, qosMetrics []client.QoSMetric
 		// Send aggregate metrics
 		s.sendBucketGauge("qos.volume_tx", qosMetric.VolumeTx, tags, ts)
 		s.sendBucketGauge("qos.total_drop", qosMetric.TotalDrop, tags, ts)
-		s.sendBucketGauge("qos.percent_drop", qosMetric.PercentDrop, tags, ts)
+		if !qosMetric.PercentDropUnset {
+			s.sendBucketGauge("qos.percent_drop", qosMetric.PercentDrop, tags, ts)
+		}
 		s.sendBucketGauge("qos.bandwidth", qosMetric.Bandwidth, tags, ts)
 	}
 
