@@ -165,9 +165,10 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, proces
 		}
 	}
 
-	// exec replaces the address space holding the record: read it at the entry
+	// exec replaces the address space holding the record and the labels: read
+	// them at the entry
 	if nr == ExecveNr || nr == ExecveatNr {
-		syscallMsg.SpanContext = ctx.otelSpanContext(process, &regs)
+		syscallMsg.SpanContext = ctx.spanContext(process, &regs)
 	}
 
 	/* internal special cases */
@@ -227,7 +228,7 @@ func (ctx *CWSPtracerCtx) sendForkMsg(process *Process, creatorTID int, regs *sy
 			Fork: &ebpfless.ForkSyscallMsg{PPID: uint32(creator.Tgid)},
 		}
 		if regs != nil {
-			msg.SpanContext = ctx.otelSpanContext(creator, regs)
+			msg.SpanContext = ctx.spanContext(creator, regs)
 		}
 		ctx.sendSyscallMsg(process, msg)
 	}
@@ -242,6 +243,7 @@ func (ctx *CWSPtracerCtx) handleClone(flags uint64, process *Process, creatorTID
 
 	if flags&unix.CLONE_THREAD == 0 {
 		ctx.processCache.inheritOTel(creator.Tgid, process.Tgid)
+		ctx.processCache.inheritGoLabels(creator.Tgid, process.Tgid)
 		ctx.sendForkMsg(process, creatorTID, regs)
 	}
 	// Mark ready only after inheritance and fork enqueueing. Threads skip the
@@ -279,10 +281,10 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, creatorTID int, regs syscall.P
 		if handler.ShouldSend != nil {
 			syscallMsg.Retval = ctx.ReadRet(regs)
 			if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
-				// The thread is still stopped in the syscall, so its record is
-				// the one it had at the entry.
+				// The thread is still stopped in the syscall, so its record and
+				// its goroutine are the ones it had at the entry.
 				if nr != ExecveNr && nr != ExecveatNr {
-					syscallMsg.SpanContext = ctx.otelSpanContext(process, &regs)
+					syscallMsg.SpanContext = ctx.spanContext(process, &regs)
 				}
 				ctx.sendSyscallMsg(process, syscallMsg)
 			}
@@ -298,6 +300,13 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, creatorTID int, regs syscall.P
 		if process.otelProcessCtxNaming {
 			process.otelProcessCtxNaming = false
 			ctx.resolveOTelProcessContext(process)
+		}
+	case FcntlNr:
+		if process.tracerMemfdSealing {
+			process.tracerMemfdSealing = false
+			if ctx.ReadRet(regs) >= 0 {
+				ctx.resolveGoLabels(process)
+			}
 		}
 	case CloneNr:
 		ctx.handleClone(ctx.ReadArgUint64(regs, 0), process, creatorTID, &regs)
