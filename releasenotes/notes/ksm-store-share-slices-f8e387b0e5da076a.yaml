@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    Reduce the CPU and memory usage of the Agent on Kubernetes by sharing the
+    metric family slices of the ``kubernetes_state_core`` metric store with
+    its readers when no store filters are set, instead of copying them on
+    every read.
