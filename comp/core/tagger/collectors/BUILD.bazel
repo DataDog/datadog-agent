@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "collectors",
     srcs = [
+        "dependencies.go",
         "doc.go",
         "ecs_common.go",
         "pod_tag_extractor.go",
@@ -46,6 +47,7 @@ go_library(
 dd_agent_go_test(
     name = "collectors_test",
     srcs = [
+        "dependencies_test.go",
         "ecs_common_test.go",
         "ray_inference_kubelet_test.go",
         "resolvable_adapter_test.go",
@@ -64,6 +66,7 @@ dd_agent_go_test(
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/tagger/common",
         "//comp/core/tagger/taglist",
         "//comp/core/tagger/tags",
         "//comp/core/tagger/types",
