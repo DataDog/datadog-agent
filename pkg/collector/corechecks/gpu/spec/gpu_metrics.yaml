@@ -415,7 +415,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
-        mig_parent: true
+        mig_parent: false
         physical: true
         vgpu: true
   # device.sharing_memory is only reported for containers assigned a share of
@@ -446,7 +446,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
-        mig_parent: true
+        mig_parent: false
         physical: true
         vgpu: true
   device.total:
@@ -2400,7 +2400,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
-        mig_parent: true
+        mig_parent: false
         physical: true
         vgpu: true
   process.decoder_active:
@@ -2482,7 +2482,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
-        mig_parent: true
+        mig_parent: false
         physical: true
         vgpu: true
   process.sm_active:
@@ -2506,7 +2506,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: true
-        mig_parent: true
+        mig_parent: false
         physical: true
         vgpu: true
   remapped_rows.correctable:

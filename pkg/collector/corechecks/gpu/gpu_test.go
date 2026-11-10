@@ -2268,8 +2268,7 @@ func TestMetricsFollowSpec(t *testing.T) {
 				ConfigFeatures:  gpuspec.AllConfigFeatures(),
 				WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
 			}
-			if config.DeviceMode == gpuspec.DeviceModeMIGParent {
-				// Workloads run on MIG devices, never on their parent, so it is validated as idle.
+			if !config.CanRunWorkloads() {
 				validationOptions.WorkloadActive = false
 				validationOptions.WorkloadTagsets = nil
 			}
@@ -2379,7 +2378,7 @@ func setupMockCheckForMetricCollection(t *testing.T, config gpuspec.GPUConfig, a
 	deviceMetrics := make([]model.DeviceStatsTuple, 0, len(cacheDeviceUUIDs))
 	for _, uuid := range cacheDeviceUUIDs {
 		// Workloads run on MIG devices, never on their parent: there are no processes on it.
-		if config.DeviceMode != gpuspec.DeviceModeMIGParent {
+		if config.CanRunWorkloads() {
 			processMetrics = append(processMetrics, model.ProcessStatsTuple{
 				Key: model.ProcessStatsKey{
 					PID:        1234,
