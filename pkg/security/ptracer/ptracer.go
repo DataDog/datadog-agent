@@ -339,7 +339,7 @@ func (ctx *CWSPtracerCtx) trace() (int, error) {
 			case syscall.PTRACE_EVENT_EXEC:
 				// called at the exit of the syscall
 				ctx.handleHooks(CallbackPostType, ExecveNr, pid, 0, regs, nil)
-				ctx.unsetOTelOnExec(pid)
+				ctx.unsetSpanContextOnExec(pid)
 
 				if state := tracker.PeekState(pid); state != nil {
 					state.Exec = true
@@ -446,7 +446,7 @@ func (ctx *CWSPtracerCtx) traceWithSeccomp() (int, error) {
 			case syscall.PTRACE_EVENT_EXEC:
 				// called at the exit of the syscall
 				ctx.handleHooks(CallbackPostType, ExecveNr, pid, 0, regs, nil)
-				ctx.unsetOTelOnExec(pid)
+				ctx.unsetSpanContextOnExec(pid)
 			case unix.PTRACE_EVENT_SECCOMP:
 				switch nr {
 				case ForkNr, VforkNr, CloneNr, Clone3Nr:

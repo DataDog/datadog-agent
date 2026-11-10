@@ -319,6 +319,11 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	if cfg == nil {
 		return settings
 	}
+	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.metric_pipeline.enabled")
+	if cfg.IsConfigured("anomaly_detection.metric_pipeline.anomaly_cutoff") {
+		cutoff := cfg.GetBool("anomaly_detection.metric_pipeline.anomaly_cutoff")
+		settings.MetricPipelineAnomalyCutoff = &cutoff
+	}
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
 		// The anomaly_scorer has its own dedicated config prefix outside detectors.*.
@@ -427,7 +432,10 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, rawScorer, extractors, _, err := catalog.Instantiate(settings)
+	if err != nil {
+		return Provides{}, err
+	}
 
 	storageCfg := storageConfigFromAgentConfig(cfg, detectors)
 
@@ -744,6 +752,7 @@ func (o *observerImpl) run() {
 			}
 		case <-ticker.C:
 			o.engine.flushFilteredMetrics()
+			o.publishSeriesFreshness()
 			continue
 		}
 		if obs.flush != nil {
@@ -821,7 +830,7 @@ func (o *observerImpl) run() {
 		}
 		o.replayMu.Unlock()
 	}
-
+	o.publishSeriesFreshness()
 }
 
 // publishSeriesCount updates the series-count gauge after an analysis advance,
@@ -831,6 +840,14 @@ func (o *observerImpl) publishSeriesCount() {
 		return
 	}
 	o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount())
+}
+
+// publishSeriesFreshness drains sampled fresh-series counts. Sampling itself
+// happens on engine advances; this method is publication-only.
+func (o *observerImpl) publishSeriesFreshness() {
+	if n := o.engine.pendingFreshSeries.Swap(0); n != 0 && o.telemetry != nil {
+		o.telemetry.recordFreshSeries(int(n))
+	}
 }
 
 // defaultDetectorWindowSec is the default window (in seconds) that limits how
@@ -1140,7 +1157,10 @@ func (o *observerImpl) flushCtx(ctx context.Context) error {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) error {
 	o.Flush()
-	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorer, extractors, _, err := o.catalog.Instantiate(settings)
+	if err != nil {
+		return err
+	}
 	// Catalog scorers are unwatched standalone instances. Replay needs the same
 	// transition watcher as the live observer so scorer correlation episodes open
 	// and close as severity changes; telemetry gauges are optional here.

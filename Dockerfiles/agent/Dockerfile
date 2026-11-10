@@ -288,13 +288,11 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
-VOLUME ["/var/run/s6", "/var/log/datadog"]
+VOLUME ["/var/run/s6", "/opt/datadog-agent/run", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so
-# Use jemalloc for native allocations while preserving the syscall compatibility wrapper.
-# Set LD_PRELOAD=/opt/lib/nosys.so at runtime to disable jemalloc.
-ENV LD_PRELOAD=/opt/lib/nosys.so:/opt/datadog-agent/embedded/lib/libjemalloc.so.2
+ENV LD_PRELOAD=/opt/lib/nosys.so
 
 # Single entrypoint
 COPY --chmod=755 entrypoint.sh /bin/entrypoint.sh

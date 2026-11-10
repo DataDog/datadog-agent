@@ -5,7 +5,7 @@
   "features": {
     "registry.ddbuild.io/workspaces/features/omnigent:0.1.150008273": {},
     "registry.ddbuild.io/workspaces/features/trajectory:0.2.142808538": {},
-    "registry.ddbuild.io/workspaces/features/base:0.4.147918123": {
+    "registry.ddbuild.io/workspaces/features/base:0.4.151043360": {
       "installDeveloperTools": "false"
     },
     "./features/datadog-agent": {}

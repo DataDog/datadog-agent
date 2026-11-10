@@ -10,7 +10,7 @@ require (
 require (
 	github.com/google/go-cmp v0.7.0 // indirect
 	github.com/rogpeppe/go-internal v1.16.0 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 )
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually

@@ -48,8 +48,6 @@
     "compile_policy_windows_x86_64": "Pending tracking in Phase 2a. Shares VERSION with compile_policy_x86_64; tracked together.",
     "gstatus_binary": "Pending tracking in Phase 2a (github-releases batch). Released at github.com/gluster/gstatus.",
     "gstatus_license": "Intentionally untracked. License text only, pinned to the gstatus_binary version.",
-    "msodbcsql18_deb_amd64": "Pending tracking. Microsoft .deb package; no native datasource for packages.microsoft.com. Both arches share VERSION and will be tracked as one bundle when a customDatasource is added. Phase 3.",
-    "msodbcsql18_deb_arm64": "Pending tracking. Shares VERSION with msodbcsql18_deb_amd64; tracked together. Phase 3.",
     "snmp_traps": "Intentionally untracked. Datadog-internal SNMP traps DB published to dd-agent-omnibus S3; no public upstream to watch. Bumped manually when the traps DB is regenerated.",
     "cacert_pem": "Intentionally untracked. Bumped via a separate Datadog Synthetics-driven workflow (see deps/cacerts/cacerts.MODULE.bazel) that alerts team-agent-build on header changes; auto-PRs from Renovate would race that flow.",
     "cacert_license": "Intentionally untracked. Mozilla MPL-2.0 license text accompanying cacert_pem; updated together with cacert_pem via the same out-of-band flow.",
@@ -69,6 +67,8 @@
     "agent_data_plane_darwin-arm64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
-    "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped."
+    "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped.",
+    "glibc_static_x86_64": "Intentionally untracked. The x86_64 crosstool-NG GCC toolchain tarball (same URL and sha256 as bazel/patches/gcc-toolchain/0001-adapt-to-our-ctng-toolchain.patch). No upstream release; bump it only when that archive is republished.",
+    "glibc_static_aarch64": "Intentionally untracked. The aarch64 crosstool-NG GCC toolchain tarball, same as glibc_static_x86_64."
   }
 }

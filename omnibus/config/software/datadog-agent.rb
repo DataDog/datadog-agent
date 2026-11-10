@@ -301,8 +301,11 @@ build do
     else
       copy 'bin/secret-generic-connector/secret-generic-connector', "#{install_dir}/embedded/bin"
     end
-    mkdir "#{install_dir}/LICENSES"
-    copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    # On Linux, //packages/agent/linux:license_files_install ships this license.
+    unless linux_target?
+      mkdir "#{install_dir}/LICENSES"
+      copy 'cmd/secret-generic-connector/LICENSE', "#{install_dir}/LICENSES/secret-generic-connector-LICENSE"
+    end
   end
 
   if osx_target?

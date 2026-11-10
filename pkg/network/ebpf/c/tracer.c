@@ -1125,9 +1125,10 @@ static __always_inline int handle_net_dev_queue(struct sk_buff* skb) {
     return 0;
 }
 
+// BPF_BYPASSABLE_PROG runs the bypass check before skb is loaded from ctx,
+// so the injected bypass instructions cannot clobber it.
 SEC("raw_tracepoint/net/net_dev_queue")
-int BPF_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
-    CHECK_BPF_PROGRAM_BYPASSED()
+int BPF_BYPASSABLE_PROG(raw_tracepoint__net__net_dev_queue, struct sk_buff *skb) {
     if (!skb) {
         return 0;
     }

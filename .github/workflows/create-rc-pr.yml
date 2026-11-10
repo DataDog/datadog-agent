@@ -82,4 +82,8 @@ jobs:
         env:
           SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
-        run: dda inv -- -e release.create-rc -r "6.53.x" --patch-version
+        # release.create-rc pushes from its own clone of the repository (../datadog-agent-worktree), which the
+        # credentials persisted by actions/checkout don't cover: they only apply to this checkout's git directory
+        run: |
+          gh auth setup-git
+          dda inv -- -e release.create-rc -r "6.53.x" --patch-version

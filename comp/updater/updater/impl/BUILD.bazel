@@ -13,6 +13,7 @@ go_library(
         "//comp/def",
         "//comp/remote-config/rcservice/def",
         "//comp/updater/updater/def",
+        "//pkg/config/utils",
         "//pkg/fleet/daemon",
         "//pkg/util/option",
     ],
@@ -23,6 +24,7 @@ dd_agent_go_test(
     srcs = ["updater_test.go"],
     embed = [":impl"],
     deps = [
+        "//comp/core/config",
         "//comp/def",
         "//comp/remote-config/rcservice/def",
         "//pkg/util/option",

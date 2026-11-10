@@ -53,6 +53,12 @@ const (
 var tcpOngoingConnectMapTTL = 30 * time.Minute.Nanoseconds()
 var tlsTagsMapTTL = 3 * time.Minute.Nanoseconds()
 
+var (
+	// these primarily exist for mocking out in tests
+	fentryTracerLoader = fentry.LoadTracer
+	kprobeTracerLoader = kprobe.LoadTracer
+)
+
 // EbpfTracerTelemetryData holds telemetry from the EBPF tracer
 type EbpfTracerTelemetryData struct {
 	connections       telemetryComponent.Gauge
@@ -174,6 +180,45 @@ type ebpfTracer struct {
 	initialPortBindingIter  *manager.Probe
 }
 
+// loadFentryOrKprobeTracer attempts to load the fentry tracer, falling back to the kprobe
+// tracer if it fails to load and config.AllowKprobeFallback allows it. This includes a
+// verifier error: verifier rejections have been observed to be kernel-version or
+// compiler-dependent rather than evidence of a broken program, so they're treated the same
+// as any other load failure rather than exempted from the fallback setting.
+// The returned TracerType is only meaningful when the error is nil.
+func loadFentryOrKprobeTracer(config *config.Config, mgrOptions manager.Options, connCloseEventHandler *perf.EventHandler) (*ddebpf.Manager, func(), TracerType, error) {
+	m, closeTracerFn, err := fentryTracerLoader(config, mgrOptions, connCloseEventHandler)
+	if err == nil {
+		log.Info("fentry tracer loaded successfully")
+		return m, closeTracerFn, TracerTypeFentry, nil
+	}
+
+	var fentryErr error
+	if !errors.Is(err, fentry.ErrorDisabled) {
+		if !config.AllowKprobeFallback {
+			return nil, nil, 0, fmt.Errorf("fentry tracer failed to load: %w", err)
+		}
+		// unsupported is an expected, known kernel limitation (e.g. the tasks_rcu_exit_srcu
+		// deadlock), not a load error
+		if errors.Is(err, fentry.ErrorUnsupported) {
+			log.Infof("fentry network tracer unavailable, falling back to kprobe: %s", err)
+		} else {
+			log.Warnf("error loading fentry network tracer, falling back to kprobe: %s", err)
+		}
+		fentryErr = err
+	}
+
+	m, closeTracerFn, kprobeTracerType, err := kprobeTracerLoader(config, mgrOptions, connCloseEventHandler)
+	if err != nil {
+		if fentryErr != nil {
+			return nil, nil, 0, fmt.Errorf("kprobe tracer failed to load: %w (after fentry tracer failed to load: %w)", err, fentryErr)
+		}
+		return nil, nil, 0, fmt.Errorf("kprobe tracer failed to load: %w", err)
+	}
+	log.Info("kprobe tracer loaded successfully")
+	return m, closeTracerFn, TracerType(kprobeTracerType), nil
+}
+
 // NewTracer creates a new tracer
 func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Tracer, error) {
 	if _, err := tracefs.Root(); err != nil {
@@ -248,22 +293,9 @@ func newEbpfTracer(config *config.Config, _ telemetryComponent.Component) (Trace
 		mgrOptions.MapSpecEditors[probes.TCPOngoingConnectPid] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections, EditorFlag: manager.EditMaxEntries}
 		mgrOptions.MapSpecEditors[probes.TCPRecvMsgArgsMap] = manager.MapSpecEditor{MaxEntries: config.MaxTrackedConnections / 32, EditorFlag: manager.EditMaxEntries}
 
-		tracerType = TracerTypeFentry
-		m, closeTracerFn, err = fentry.LoadTracer(config, mgrOptions, connCloseEventHandler)
-		if err == nil {
-			log.Info("fentry tracer loaded successfully")
-		} else if !errors.Is(err, fentry.ErrorDisabled) {
-			return nil, fmt.Errorf("fentry tracer failed to load: %w", err)
-		}
-
+		m, closeTracerFn, tracerType, err = loadFentryOrKprobeTracer(config, mgrOptions, connCloseEventHandler)
 		if err != nil {
-			var kprobeTracerType kprobe.TracerType
-			m, closeTracerFn, kprobeTracerType, err = kprobe.LoadTracer(config, mgrOptions, connCloseEventHandler)
-			if err != nil {
-				return nil, fmt.Errorf("kprobe tracer failed to load: %w", err)
-			}
-			tracerType = TracerType(kprobeTracerType)
-			log.Info("kprobe tracer loaded successfully")
+			return nil, err
 		}
 	}
 	m.DumpHandler = dumpMapsHandler
@@ -447,6 +479,11 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 
 	if err := t.m.Start(); err != nil {
 		t.closeConsumer.Stop()
+		if classifierAttachENOMEM(t.m.Manager) {
+			// Attaching a socket filter charges the program's size after verification (and JIT constant blinding,
+			// if net.core.bpf_jit_harden is set) against net.core.optmem_max, and fails with ENOMEM if it doesn't fit.
+			return fmt.Errorf("could not start ebpf manager: %w: not enough memory to attach protocol classification ebpf socket filter. please consider raising the limit via sysctl -w net.core.optmem_max=<LIMIT>, or disabling protocol classification (network_config.enable_protocol_classification: false / DD_ENABLE_PROTOCOL_CLASSIFICATION=false)", err)
+		}
 		return fmt.Errorf("could not start ebpf manager: %s", err)
 	}
 	if t.sslProgram != nil {
@@ -460,6 +497,19 @@ func (t *ebpfTracer) Start(callback func(*network.ConnectionStats)) (err error) 
 	ddebpf.AddProbeFDMappings(t.m.Manager)
 
 	return nil
+}
+
+// classifierAttachENOMEM reports whether the protocol classification socket filter failed to attach for lack of
+// memory. The manager's error joins every failed probe's error, so check the classifier probe itself rather than
+// matching ENOMEM anywhere in it.
+func classifierAttachENOMEM(m *manager.Manager) bool {
+	for _, p := range m.Probes {
+		//nolint:forbidigo // ebpf-manager's Probe.GetLastError (the probe's recorded attach error), not the Windows syscall
+		if p.EBPFFuncName == string(probes.ProtocolClassifierEntrySocketFilter) && errors.Is(p.GetLastError(), unix.ENOMEM) {
+			return true
+		}
+	}
+	return false
 }
 
 func (t *ebpfTracer) Pause() error {

@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Provides list the provided interfaces from the delegatedauth Component
@@ -37,7 +38,12 @@ func NewComponent() Provides {
 }
 
 // AddInstance does nothing in the noop implementation
-func (d *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.InstanceParams) error {
+func (d *DelegatedAuthNoop) AddInstance(_ context.Context, params delegatedauth.InstanceParams) error {
+	if params.APIKeyConfigKey != "" {
+		// Config asked for delegated auth in a process that can't resolve it (e.g. the
+		// standalone otel agent): say so instead of silently discarding the instance.
+		log.Warnf("delegated auth is not available in this process; the credential for '%s' will not be resolved", params.APIKeyConfigKey)
+	}
 	return nil
 }
 
