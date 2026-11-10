@@ -624,7 +624,7 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 
 // GetPathQoSMetrics retrieves QoS (Class of Service) metrics from the Versa Analytics API
 func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
-	return getPaginatedAnalytics(
+	metrics, err := getPaginatedAnalytics(
 		client,
 		client.endpointConfig(EndpointQoSMetrics),
 		tenant,
@@ -654,6 +654,15 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 		pathQoSTimeseriesLayout,
 		parsePathQoSMetrics,
 	)
+	if err != nil {
+		return nil, err
+	}
+	if client.analyticsQueryType == QueryTypeTimeseries {
+		computePercentDrop(metrics, func(m *QoSMetrics) (*float64, *float64, *float64, *bool) {
+			return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset
+		})
+	}
+	return metrics, nil
 }
 
 // GetCircuitQoSMetrics retrieves per access circuit QoS (Class of Service) metrics from
@@ -702,25 +711,29 @@ func (client *Client) GetCircuitQoSMetrics(tenant string) ([]CircuitQoSMetrics, 
 		return nil, err
 	}
 	if client.analyticsQueryType == QueryTypeTimeseries {
-		computeCircuitQoSPercentDrop(metrics)
+		computePercentDrop(metrics, func(m *CircuitQoSMetrics) (*float64, *float64, *float64, *bool) {
+			return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset
+		})
 	}
 	return metrics, nil
 }
 
-// computeCircuitQoSPercentDrop replaces percentdrop in timeseries rows. Versa reports it
-// as zero in every timeseries bucket, even where totaldrop is non-zero, while tableData
-// reports it as totaldrop/volume-tx, a fraction. Each bucket gets that same ratio here;
-// a bucket with no transmitted volume has no defined ratio, so its percent drop is unset.
-func computeCircuitQoSPercentDrop(metrics []CircuitQoSMetrics) {
+// computePercentDrop replaces percentdrop in the rows of a timeseries QoS query. Versa
+// reports it as zero in every timeseries bucket, even where totaldrop is non-zero, while
+// tableData reports it as totaldrop/volume-tx, a fraction. Each bucket gets that same
+// ratio here; a bucket with no transmitted volume has no defined ratio, so its percent
+// drop is marked unset. fields returns pointers to the row's volume, drop, percent drop
+// and unset marker, so path and circuit QoS share the computation.
+func computePercentDrop[T any](metrics []T, fields func(*T) (volumeTx, totalDrop, percentDrop *float64, unset *bool)) {
 	for i := range metrics {
-		m := &metrics[i]
-		if m.VolumeTx == 0 {
-			m.PercentDrop = 0
-			m.PercentDropUnset = true
+		volumeTx, totalDrop, percentDrop, unset := fields(&metrics[i])
+		if *volumeTx == 0 {
+			*percentDrop = 0
+			*unset = true
 			continue
 		}
-		m.PercentDrop = m.TotalDrop / m.VolumeTx
-		m.PercentDropUnset = false
+		*percentDrop = *totalDrop / *volumeTx
+		*unset = false
 	}
 }
 
