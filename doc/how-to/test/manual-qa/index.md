@@ -36,6 +36,7 @@ metrics and logs in the Datadog UI to a specific environment.
 | [AWS VM](aws-vm.md) | `dda inv aws.create-vm` | EC2 instance + Agent |
 | [AWS Docker VM](aws-docker.md) | `dda inv aws.create-docker` | EC2 + Docker + containerized Agent |
 | [AWS EKS](aws-eks.md) | `dda inv aws.create-eks` | EKS cluster + Agent DaemonSet |
+| [AWS EKS benchmark](../e2e/benchmarkeks/index.md#run-it-locally) | `dda inv aws.create-benchmarkeks` | EKS cluster + two Agent installations + simulated workload |
 | [AWS ECS](aws-ecs.md) | `dda inv aws.create-ecs` | ECS cluster + Agent |
 | [AWS KinD](aws-kind.md) | `dda inv aws.create-kind` | EC2 + KinD cluster + Agent |
 | [Azure VM](azure-vm.md) | `dda inv az.create-vm` | Azure VM + Agent |

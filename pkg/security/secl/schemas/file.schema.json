@@ -34,6 +34,23 @@
         "change_time": {
             "$ref": "datetime.schema.json"
         },
+        "capabilities": {
+            "type": "object",
+            "properties": {
+                "permitted": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                },
+                "inheritable": {
+                    "type": "array",
+                    "items": {"type": "string"}
+                },
+                "effective": {"type": "boolean"},
+                "available": {"type": "boolean"}
+            },
+            "required": ["permitted", "inheritable", "effective", "available"],
+            "additionalProperties": false
+        },
         "flags": {
             "type": "array",
             "items": {

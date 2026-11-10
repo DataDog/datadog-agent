@@ -283,6 +283,32 @@ func assertSpanFields(t *testing.T, sc *traceJSON, expectedSpanID, expectedTrace
 	}
 }
 
+// ddTraceTouchPath returns the touch the span_go_tester execs: the host one, or
+// the one of the container image.
+func ddTraceTouchPath(kind wrapperType, executable string) string {
+	if kind == stdWrapperType {
+		return executable
+	}
+	return "/usr/bin/touch"
+}
+
+// parseDDTraceIDs parses the ids of the span the span_go_tester started out of
+// its output.
+func parseDDTraceIDs(out []byte) (spanID uint64, traceID utils.TraceID) {
+	for _, line := range strings.Split(string(out), "\n") {
+		if val, ok := strings.CutPrefix(line, "ddtrace_span_id="); ok {
+			spanID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+		}
+		if val, ok := strings.CutPrefix(line, "ddtrace_trace_id_hi="); ok {
+			traceID.Hi, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+		}
+		if val, ok := strings.CutPrefix(line, "ddtrace_trace_id_lo="); ok {
+			traceID.Lo, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
+		}
+	}
+	return spanID, traceID
+}
+
 // Discard the runtime, as in production: hashing a file opened by the previous
 // mode makes the agent open it too, and that stale open would match the next
 // mode's rule while its tester still waits on the event stream.
@@ -321,28 +347,6 @@ func TestDDTraceGoSpan(t *testing.T) {
 	spanTester, err := loadSyscallTester(t, test, "span_go_tester")
 	if err != nil {
 		t.Fatal(err)
-	}
-
-	touchPathFor := func(kind wrapperType) string {
-		if kind == stdWrapperType {
-			return executable
-		}
-		return "/usr/bin/touch"
-	}
-
-	parseDDTraceIDs := func(out []byte) (spanID uint64, traceID utils.TraceID) {
-		for _, line := range strings.Split(string(out), "\n") {
-			if val, ok := strings.CutPrefix(line, "ddtrace_span_id="); ok {
-				spanID, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
-			}
-			if val, ok := strings.CutPrefix(line, "ddtrace_trace_id_hi="); ok {
-				traceID.Hi, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
-			}
-			if val, ok := strings.CutPrefix(line, "ddtrace_trace_id_lo="); ok {
-				traceID.Lo, _ = strconv.ParseUint(strings.TrimSpace(val), 10, 64)
-			}
-		}
-		return spanID, traceID
 	}
 
 	t.Run("ddtrace_span", func(t *testing.T) {
@@ -398,7 +402,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			args := []string{
 				"-ddtrace-span-exec-test",
 				"-ddtrace-span-file-path", testFile,
-				"-ddtrace-span-exec-target", touchPathFor(kind),
+				"-ddtrace-span-exec-target", ddTraceTouchPath(kind, executable),
 			}
 
 			var expectedSpanID uint64
@@ -477,7 +481,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			args := []string{
 				"-ddtrace-no-span-exec-test",
 				"-ddtrace-span-file-path", testFile,
-				"-ddtrace-span-exec-target", touchPathFor(kind),
+				"-ddtrace-span-exec-target", ddTraceTouchPath(kind, executable),
 			}
 
 			test.WaitSignalFromRule(t, func() error {
@@ -520,7 +524,7 @@ func TestDDTraceGoSpan(t *testing.T) {
 			args := []string{
 				"-ddtrace-span-fork-exec-test",
 				"-ddtrace-span-file-path", testFile,
-				"-ddtrace-span-exec-target", touchPathFor(kind),
+				"-ddtrace-span-exec-target", ddTraceTouchPath(kind, executable),
 			}
 
 			// Read the tester's stdout for the span IDs dd-trace-go

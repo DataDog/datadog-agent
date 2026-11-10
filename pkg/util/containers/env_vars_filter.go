@@ -25,6 +25,7 @@ var (
 		"ECS_CONTAINER_METADATA_URI",
 		"ECS_CONTAINER_METADATA_URI_V4",
 		"MESOS_TASK_ID",
+		"NVIDIA_DRIVER_CAPABILITIES", // used to exclude non-compute GPU containers from GPU metrics attribution (see https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/latest/docker-specialized.html#driver-capabilities)
 		"NOMAD_DC",
 		"NOMAD_GROUP_NAME",
 		"NOMAD_JOB_NAME",

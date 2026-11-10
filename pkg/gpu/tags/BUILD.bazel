@@ -14,11 +14,13 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/config/setup",
+            "//pkg/gpu/amd/sysfsroot",
             "//pkg/util/kernel",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/config/setup",
+            "//pkg/gpu/amd/sysfsroot",
             "//pkg/util/kernel",
             "//pkg/util/log",
         ],
@@ -33,11 +35,13 @@ dd_agent_go_test(
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/config/mock",
+            "//pkg/gpu/amd/sysfsroot",
             "//pkg/util/kernel",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/config/mock",
+            "//pkg/gpu/amd/sysfsroot",
             "//pkg/util/kernel",
             "@com_github_stretchr_testify//assert",
         ],

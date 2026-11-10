@@ -399,6 +399,13 @@ func (cr *countBasedContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	return cr.resolver.get(key)
 }
 
+// remove stops tracking the given contexts
+func (cr *countBasedContextResolver) remove(keys []ckey.ContextKey) {
+	for _, key := range keys {
+		cr.resolver.remove(key)
+	}
+}
+
 // expireContexts cleans up the contexts that haven't been tracked since `expirationCount`
 // call to `expireContexts` and returns the associated contextKeys
 func (cr *countBasedContextResolver) expireContexts() []ckey.ContextKey {

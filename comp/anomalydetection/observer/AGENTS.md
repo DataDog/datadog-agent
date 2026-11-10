@@ -67,6 +67,20 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
 
+Construct detectors with statistical config values; normalize once and reset only
+runtime state.
+
+`Detector.Detect` takes a per-call `DetectionFilter`: independent kind/type
+restrictions and authoritative aggregation selection. Empty aggregations select
+average then count; explicit selections keep order, skipping duplicates and invalid
+values. Kind/type values and nil presence must stay constant per instance,
+including resets; equal-valued
+replacement pointers are allowed. Aggregations may vary per call. Empty means
+unrestricted workload detection; telemetry is always excluded. Filtering neither
+advances excluded state nor removes it; callers own reset/transition cleanup.
+Catalog registrations bind one filter per detector instance; no configuration
+populates it yet.
+
 `anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
 patterns across all tag groups (default 3,000). This includes patterns below
 the metric emission threshold. Non-positive values use the default. Capacity
@@ -175,6 +189,16 @@ recovery. Matching the committed kind cancels pending evidence. Each batch count
 future points and unchanged-data advances provide no evidence. Classification
 uses constant/OLS linear fits with robust residual checks; plateau drift uses
 half-window medians so isolated spikes do not dominate it.
+
+### Metric pipeline
+
+`MetricPipeline` runs registered committed-kind detectors before matching. It is
+programmatic only today. Matching uses the matcher window; detector history
+requirements stay independent. Transitions clean the previous detector state,
+commit the successor kind, and reuse retained history.
+
+After reactivation to a supported kind, only anomalies after the cutoff are
+emitted. Direct `UNSET` assignments are not gated.
 
 ### Non-blocking ingestion
 

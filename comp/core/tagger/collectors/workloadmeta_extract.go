@@ -1428,7 +1428,9 @@ func (c *WorkloadMetaCollector) extractKueueResourceFlavorTags(flavor *workloadm
 	c.addResourceLabelsAndAnnotationsAsTags(groupResource, flavor.Labels, flavor.Annotations, tagList)
 }
 
-func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *workloadmeta.KubernetesKueueWorkload, podSetName string, tagList *taglist.TagList) {
+// extractKueueWorkloadAndRelatedTags adds the tags of the Workload and of its
+// queues and flavors, and returns the name of its ClusterQueue, if known.
+func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *workloadmeta.KubernetesKueueWorkload, podSetName string, tagList *taglist.TagList) string {
 	// Add first the workload identification tags
 	tagList.AddOrchestrator(tags.KueueWorkload, workload.Name)
 	if workload.UID != "" {
@@ -1479,6 +1481,8 @@ func (c *WorkloadMetaCollector) extractKueueWorkloadAndRelatedTags(workload *wor
 
 		c.extractKueueResourceFlavorTags(flavor, tagList)
 	}
+
+	return clusterQueueName
 }
 
 func (c *WorkloadMetaCollector) extractKueueQueueTagsFromQueueName(namespace string, tagList *taglist.TagList, queueType workloadmeta.KueueQueueType, queueName string) *workloadmeta.KubernetesKueueQueue {
@@ -1538,7 +1542,8 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 	// If not, we fall back to the pod labels and annotations to get the queue names and their tags
 	workload := c.getKueueWorkloadForPod(pod)
 	if workload != nil {
-		c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
+		clusterQueueName := c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
+		addKueueSchedulerTags(workload.Name, clusterQueueName, tagList)
 		return
 	}
 
@@ -1549,6 +1554,9 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 		// fall back to that one
 		localQueueName = pod.Labels[kubernetes.KueueQueueNameLabelKey]
 	}
+	if localQueueName == "" && clusterQueueName == "" {
+		return
+	}
 
 	localQueue := c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueLocalQueue, localQueueName)
 
@@ -1558,6 +1566,16 @@ func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.Ku
 		clusterQueueName = localQueue.ClusterQueueName
 	}
 	_ = c.extractKueueQueueTagsFromQueueName(pod.Namespace, tagList, workloadmeta.KueueClusterQueue, clusterQueueName)
+	addKueueSchedulerTags("", clusterQueueName, tagList)
+}
+
+// addKueueSchedulerTags adds the tags shared by all batch schedulers. The
+// scheduler queue is the ClusterQueue, as it is the Kueue queue that holds the
+// quota; LocalQueues only point namespaces to it.
+func addKueueSchedulerTags(workloadName, clusterQueueName string, tagList *taglist.TagList) {
+	tagList.AddLow(tags.Scheduler, "kueue")
+	tagList.AddLow(tags.SchedulerQueue, clusterQueueName)
+	tagList.AddOrchestrator(tags.SchedulerWorkload, workloadName)
 }
 
 func kueueWorkloadNameForPod(pod *workloadmeta.KubernetesPod) string {
