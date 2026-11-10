@@ -40,8 +40,6 @@ jobs:
     needs: get-backport-targets
     if: needs.get-backport-targets.outputs.targets != '[]' && needs.get-backport-targets.outputs.targets != ''
     runs-on: ubuntu-latest
-    outputs:
-      author_email: ${{ steps.author.outputs.email }}
     strategy:
       fail-fast: false
       matrix:
@@ -82,19 +80,6 @@ jobs:
             GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
             GITHUB_EVENT_PATH: ${{ github.event_path }}
         run: dda gh cherry-pick-pr --target-branch "${{ steps.target.outputs.target_branch }}"
-
-      - name: Extract original PR author email
-        id: author
-        env:
-          CHERRY_PICK_AUTHOR: ${{ steps.cherry-pick.outputs.author }}
-        run: |
-          # The cherry-pick step outputs the author as 'Name <email>'
-          email=$(sed -n 's/.*<\(.*\)>/\1/p' <<< "$CHERRY_PICK_AUTHOR")
-          if [[ -n "$email" ]]; then
-            echo "email=$email" >> "$GITHUB_OUTPUT"
-          else
-            echo "email=" >> "$GITHUB_OUTPUT"
-          fi
 
       - name: Comment on backport failure
         if: steps.cherry-pick.outcome == 'failure'
@@ -167,7 +152,7 @@ jobs:
   notify-backport-slack:
     name: Notify PR owner on Slack
     needs: [get-backport-targets, backport]
-    if: ${{ !cancelled() && needs.backport.outputs.author_email != '' }}
+    if: ${{ !cancelled() }}
     runs-on: ubuntu-latest
     permissions:
       pull-requests: read # This is required to look up which backport PRs were actually created
@@ -195,20 +180,34 @@ jobs:
 
           echo "created=${created% }" >> "$GITHUB_OUTPUT"
 
+          # Resolve the PR owner's email from the original PR's commits.
+          # We deliberately don't use the cherry-picked merge commit's author: for PRs merged
+          # with a merge commit, that identifies the merger instead of the PR owner.
+          # The last commit's author is the PR owner (the commit author is preserved even when
+          # a commit is the result of a reviewer's suggested change).
+          owner_email=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls/${PR_NUMBER}/commits" \
+            | jq -r '.[-1] | .commit.author.email // empty')
+          echo "owner_email=${owner_email}" >> "$GITHUB_OUTPUT"
+
       - name: Send Slack DM to PR owner
         if: steps.backports.outputs.created != ''
         env:
           SLACK_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
-          AUTHOR_EMAIL: ${{ needs.backport.outputs.author_email }}
+          AUTHOR_EMAIL: ${{ steps.backports.outputs.owner_email }}
           PR_NUMBER: ${{ github.event.pull_request.number }}
           PR_TITLE: ${{ github.event.pull_request.title }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           CREATED_BACKPORTS: ${{ steps.backports.outputs.created }}
         run: |
-          # Look up the Slack user by email (same approach as tasks/pipeline.py changelog)
-          user_id=$(curl -sf -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
-            "https://slack.com/api/users.lookupByEmail?email=$(jq -rn --arg v "$AUTHOR_EMAIL" '$v|@uri')" \
-            | jq -r 'if .ok then .user.id else empty end')
+          if [[ -n "$AUTHOR_EMAIL" ]]; then
+            # Look up the Slack user by email (same approach as tasks/pipeline.py changelog)
+            user_id=$(curl -sf -H "Authorization: Bearer $SLACK_BOT_TOKEN" \
+              "https://slack.com/api/users.lookupByEmail?email=$(jq -rn --arg v "$AUTHOR_EMAIL" '$v|@uri')" \
+              | jq -r 'if .ok then .user.id else empty end')
+          else
+            user_id=""
+          fi
 
           # Build the list of created backports as Slack links, e.g. '<url|7.64.x>'
           links=$(tr ' ' '\n' <<< "$CREATED_BACKPORTS" | jq -Rr 'split("|") as [$branch, $url] | "<\($url)|\($branch)>"' | jq -sRr 'split("\n") | map(select(length > 0)) | join(", ")')
@@ -218,7 +217,7 @@ jobs:
             # DM the PR owner
             channel="$user_id"
           else
-            # Author has no Slack account (e.g. external contributor); notify agent-devx-ops instead
+            # PR owner has no resolvable email or no Slack account (e.g. external contributor); notify agent-devx-ops instead
             echo "No Slack user found for $AUTHOR_EMAIL, notifying #agent-devx-ops instead"
             message="${message}\n:warning: Could not DM the PR owner (no Slack user for ${AUTHOR_EMAIL}). Please reach out to them if needed."
             channel="#agent-devx-ops"
