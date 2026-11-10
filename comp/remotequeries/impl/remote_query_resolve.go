@@ -44,7 +44,7 @@ type remoteQueryResolveHandler struct {
 }
 
 // RemoteQueryResolveService resolves a Remote Queries target through the shared
-// integration matcher without side effects: no query, no session info, no page
+// integration matcher without side effects: no query, no result delivery, no page
 // writer, and no upload credentials ever reach this service. It answers the
 // structured zero/one/many outcome, and is shared by the HTTP diagnostic endpoint
 // and the AgentSecure RemoteQueryResolve RPC. There is no resolve-time binding:
@@ -62,7 +62,7 @@ func NewRemoteQueryResolveService(collector RemoteQueryCollector, enabled bool) 
 }
 
 // RemoteQueryResolveRequest is the typed resolve request: the integration and the
-// target only. There is no field that could carry SQL, session info, or
+// target only. There is no field that could carry SQL, result-delivery data, or
 // credentials.
 type RemoteQueryResolveRequest struct {
 	Integration string

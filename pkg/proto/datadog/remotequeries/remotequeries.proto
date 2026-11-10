@@ -11,6 +11,47 @@ message RemoteQueryTarget {
     string database_instance = 4;
 }
 
+// RemoteQueryUploadLimits carries the backend-owned effective limits of the paged
+// JSON result contract. The backend (its-agent) derives and injects every value; the
+// Agent forwards them opaquely and the integration enforces them.
+message RemoteQueryUploadLimits {
+    int64 max_file_bytes = 1;
+    int64 max_result_bytes = 2;
+    int64 max_row_bytes = 3;
+    int64 max_columns = 4;
+    int64 max_schema_bytes = 5;
+    int64 max_pages = 6;
+    int64 timeout_ms = 7;
+}
+
+// RemoteQueryResultDelivery carries the backend-injected upload-session
+// instructions for one run: the authoritative run/task identity used by every
+// page envelope, the its-agent-intake
+// session handle, and the effective limits. The session is identified solely by
+// upload_id and authorized by the org API/application keys plus the intake's
+// org binding, so no upload credential crosses the AgentSecure boundary; the
+// Agent forwards base_url to the integration check, which performs the HTTP
+// upload itself, and bulk result bytes never traverse AgentSecure.
+message RemoteQueryResultDelivery {
+    string run_id = 1;
+    string task_id = 2;
+    reserved 3;
+    reserved "artifact_version";
+    string upload_id = 4;
+    string base_url = 5;
+    // 6 was the per-session upload token: the session is identified solely by
+    // upload_id and authorized by the org API/application keys plus the intake's
+    // org binding, so no upload credential crosses the AgentSecure boundary.
+    reserved 6;
+    // 7 was part_bytes: the direct-page contract uploads one complete bounded page
+    // per request, so no public part sizing crosses the AgentSecure boundary.
+    reserved 7;
+    RemoteQueryUploadLimits limits = 8;
+    // Retired sessionless discriminator and scanning override.
+    reserved 9, 10;
+    reserved "protocol", "scan_sensitive_data";
+}
+
 // RemoteQueryTraceContext carries the optional trace-continuation metadata of the
 // private-action-runner trace active at the Remote Queries action boundary. It is
 // observability metadata only: never signed task data and never an authorization,
@@ -26,11 +67,9 @@ message RemoteQueryTraceContext {
 // result contract is fixed: the integration produces bounded JSON page files
 // and uploads them directly to its-agent-intake. There is no inline result-byte
 // path, no caller-provided format, and no COPY mode. include_schema controls
-// the optional per-page schema emission. session_info_json is the opaque
-// backend-injected session metadata: one JSON object whose contents the Agent
-// neither parses nor interprets, and which the integration owns and validates.
-// There is no resolve-time binding: the Agent resolves the target fresh under
-// the admission mutex and executes on a unique match.
+// the optional per-page schema emission; result_delivery is required. There is
+// no resolve-time binding: the Agent resolves the target fresh under the
+// admission mutex and executes on a unique match.
 // trace_context is the optional observability metadata of the active PAR trace;
 // a request without it, and a receiver that finds it absent or invalid, executes
 // exactly as before.
@@ -39,15 +78,10 @@ message RemoteQueryExecuteRequest {
     RemoteQueryTarget target = 2;
     string query = 3;
     bool include_schema = 4;
-    // 5 was the typed result_delivery message: the session metadata is now an
-    // arbitrary JSON object the Agent only transports. Tag 5 and the name are
-    // retired and never reused.
-    reserved 5;
-    reserved "result_delivery";
-    // session_info_json is one JSON object, carried as its exact bytes and
-    // forwarded to the integration without interpretation. The Agent bounds its size
-    // and requires it to be a JSON object; it never reads the nested fields.
-    bytes session_info_json = 8;
+    // Retired typed tag and opaque JSON transport; all POC callers rebuild together.
+    reserved 5, 8;
+    reserved "session_info_json";
+    RemoteQueryResultDelivery result_delivery = 9;
     // 6 was match_fingerprint: there is no resolve-time binding to revalidate;
     // the Agent resolves the target fresh under the admission mutex and executes
     // on a unique match.
@@ -63,11 +97,14 @@ message RemoteQueryStreamMetadata {
 
 message RemoteQueryStreamFinal {
     string status = 1;
-    // 2 was the typed upload_receipt message: the receipt is now an arbitrary
-    // bounded JSON object the Agent only transports. Tag 2 and the name are
-    // retired and never reused.
-    reserved 2;
-    reserved "upload_receipt";
+    // upload_receipt is the compact run receipt, set after the integration
+    // finalizes the run-scoped upload session. It is the only result identity
+    // and accounting that crosses the AgentSecure boundary; bulk page bytes
+    // and schema stay in the uploaded page artifacts.
+    // Retired typed tag and opaque JSON transport.
+    reserved 2, 5;
+    reserved "upload_receipt_json";
+    RemoteQueryUploadReceipt upload_receipt = 6;
     map<string, string> attributes = 3;
     // 4 was the optional typed execution-diagnostics summary: producer phases
     // are covered by the real distributed trace, so the typed diagnostics
@@ -76,12 +113,18 @@ message RemoteQueryStreamFinal {
     // forwarded, and never flattened into attributes.
     reserved 4;
     reserved "execution_diagnostics";
-    // upload_receipt_json is the compact run receipt, set after the integration
-    // finalizes the upload. It is one bounded JSON object carried as its exact bytes
-    // and is the only result identity and accounting that crosses the AgentSecure
-    // boundary; bulk page bytes and schema stay in the uploaded page artifacts. The
-    // Agent does not interpret it and the worker validates it.
-    bytes upload_receipt_json = 5;
+}
+
+// RemoteQueryUploadReceipt is the compact run receipt: exactly uploadId,
+// pageCount, totalRows, totalBytes. Bucket names, object paths, and checksums
+// are owned by the intake control plane.
+message RemoteQueryUploadReceipt {
+    string upload_id = 1;
+    int64 page_count = 2;
+    int64 total_rows = 3;
+    int64 total_bytes = 4;
+    reserved 5, 6;
+    reserved "protocol", "object_ids";
 }
 
 message RemoteQueryStreamError {
@@ -116,7 +159,7 @@ message RemoteQueryExecuteChunk {
 }
 
 // RemoteQueryResolveRequest is the side-effect-free target resolution request:
-// it carries only the integration and target. No query, no session info, and
+// it carries only the integration and target. No query, no result delivery, and
 // no credentials can cross this boundary; the resolver re-runs the same
 // integration matcher execute uses and answers with the structured zero/one/many
 // outcome.

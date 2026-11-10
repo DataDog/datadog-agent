@@ -38,13 +38,13 @@ func TestRemoteQueryExecuteStreamRejectsInvalidRequestWithTerminalErrorEvent(t *
 			Query:       "SELECT 1 AS value",
 		}, stream)
 
-	// A request without the backend-injected session_info fails closed as a terminal
+	// A request without the backend-injected delivery fails closed as a terminal
 	// error event; the final chunk still terminates the stream.
 	require.NoError(t, err)
 	require.Len(t, stream.chunks, 2)
 	assert.Equal(t, int32(0), stream.chunks[0].GetChunkIndex())
 	assert.Equal(t, remotequeriesimpl.RemoteQueryStatusInvalidRequest, stream.chunks[0].GetEvent().GetError().GetCode())
-	assert.Equal(t, "session_info is required", stream.chunks[0].GetEvent().GetError().GetMessage())
+	assert.Equal(t, "result_delivery is required", stream.chunks[0].GetEvent().GetError().GetMessage())
 	assert.Equal(t, int32(1), stream.chunks[1].GetChunkIndex())
 	assert.True(t, stream.chunks[1].GetFinal())
 }
@@ -54,22 +54,31 @@ func remoteQueriesServiceForTest(t *testing.T) *remotequeriesimpl.RemoteQueryExe
 	return remotequeriesimpl.NewRemoteQueryExecuteService(nil, true, nil)
 }
 
-// validRemoteQuerySessionInfoJSON is an arbitrary session_info object: the AgentSecure
-// boundary carries it as its exact bytes and never interprets any field of it, so the
-// fixture mixes nested objects, arrays, nulls and a future field.
-const validRemoteQuerySessionInfoJSON = `{"runId":"run-proof","taskId":"task-proof","uploadId":"upload-proof","baseUrl":"https://dd.datad0g.com/api/unstable/its-agent-intake","limits":{"maxFileBytes":134217728,"maxResultBytes":107374182400,"maxRowBytes":16777216,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":128,"timeoutMs":30000},"future":{"nested":[1,null,{"deep":[true]}]},"nullField":null}`
-
-func validRemoteQuerySessionInfoJSONBytes() []byte {
-	return []byte(validRemoteQuerySessionInfoJSON)
+func validRemoteQueryResultDeliveryProto() *pb.RemoteQueryResultDelivery {
+	return &pb.RemoteQueryResultDelivery{
+		RunId:    "run-proof",
+		TaskId:   "task-proof",
+		UploadId: "upload-proof",
+		BaseUrl:  "https://dd.datad0g.com/api/unstable/its-agent-intake",
+		Limits: &pb.RemoteQueryUploadLimits{
+			MaxFileBytes:   128 << 20,
+			MaxResultBytes: 100 << 30,
+			MaxRowBytes:    16 << 20,
+			MaxColumns:     1024,
+			MaxSchemaBytes: 1 << 20,
+			MaxPages:       128,
+			TimeoutMs:      30000,
+		},
+	}
 }
 
 func TestRemoteQueryExecuteRequestFromProtoPreservesPagedJSONContract(t *testing.T) {
 	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
-		Integration:     "postgres",
-		Target:          &pb.RemoteQueryTarget{Host: "LOCALHOST.", Port: 5432, Dbname: "postgres"},
-		Query:           "SELECT city, country FROM cities ORDER BY city",
-		IncludeSchema:   true,
-		SessionInfoJson: validRemoteQuerySessionInfoJSONBytes(),
+		Integration:    "postgres",
+		Target:         &pb.RemoteQueryTarget{Host: "LOCALHOST.", Port: 5432, Dbname: "postgres"},
+		Query:          "SELECT city, country FROM cities ORDER BY city",
+		IncludeSchema:  true,
+		ResultDelivery: validRemoteQueryResultDeliveryProto(),
 	})
 
 	require.NoError(t, err)
@@ -79,17 +88,31 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesPagedJSONContract(t *testing
 	assert.Equal(t, "postgres", req.Target.DBName)
 	assert.Equal(t, "SELECT city, country FROM cities ORDER BY city", req.Query)
 	assert.True(t, req.IncludeSchema)
-	// session_info crosses the boundary as its exact bytes, including nested future
-	// fields, arrays and nulls the Agent knows nothing about.
-	assert.Equal(t, validRemoteQuerySessionInfoJSON, string(req.SessionInfo))
+	require.NotNil(t, req.ResultDelivery)
+	assert.Equal(t, "run-proof", req.ResultDelivery.RunID)
+	assert.Equal(t, "task-proof", req.ResultDelivery.TaskID)
+	assert.Equal(t, "upload-proof", req.ResultDelivery.UploadID)
+	// The baseUrl handle crosses the boundary opaquely: the intake mints and owns
+	// the URL, and the Agent performs no allowlisting and no logging.
+	assert.Equal(t, "https://dd.datad0g.com/api/unstable/its-agent-intake", req.ResultDelivery.BaseURL)
+	require.NotNil(t, req.ResultDelivery.Limits)
+	assert.Equal(t, &remotequeriesimpl.RemoteQueryUploadLimits{
+		MaxFileBytes:   128 << 20,
+		MaxResultBytes: 100 << 30,
+		MaxRowBytes:    16 << 20,
+		MaxColumns:     1024,
+		MaxSchemaBytes: 1 << 20,
+		MaxPages:       128,
+		TimeoutMs:      30000,
+	}, req.ResultDelivery.Limits)
 }
 
 func TestRemoteQueryExecuteRequestFromProtoPreservesDatabaseInstanceTarget(t *testing.T) {
 	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
-		Integration:     "postgres",
-		Target:          &pb.RemoteQueryTarget{DatabaseInstance: "rq-proof-a1-db1"},
-		Query:           "SELECT city, country FROM cities ORDER BY city",
-		SessionInfoJson: validRemoteQuerySessionInfoJSONBytes(),
+		Integration:    "postgres",
+		Target:         &pb.RemoteQueryTarget{DatabaseInstance: "rq-proof-a1-db1"},
+		Query:          "SELECT city, country FROM cities ORDER BY city",
+		ResultDelivery: validRemoteQueryResultDeliveryProto(),
 	})
 
 	require.NoError(t, err)
@@ -99,50 +122,40 @@ func TestRemoteQueryExecuteRequestFromProtoPreservesDatabaseInstanceTarget(t *te
 	assert.Empty(t, req.Target.DBName)
 }
 
-// TestRemoteQueryExecuteRequestFromProtoPreservesArbitrarySessionInfo proves the transport
-// keeps any JSON object unchanged — large integers keep their exact text, an unknown
-// future shape passes, and even semantically invalid values are the integration's to
-// reject — while a non-object or oversized value fails closed.
-func TestRemoteQueryExecuteRequestFromProtoPreservesArbitrarySessionInfo(t *testing.T) {
-	passing := []string{
-		`{}`,
-		`{"cap":107374182400,"big":123456789012345678901234567890}`,
-		`{"protocol":"future-v9","artifactVersion":7,"baseUrl":"http://169.254.169.254/","limits":"nope"}`,
-		validRemoteQuerySessionInfoJSON,
-	}
-	for _, sessionInfo := range passing {
-		req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
-			Integration:     "postgres",
-			Target:          &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
-			Query:           "SELECT 1 AS value",
-			SessionInfoJson: []byte(sessionInfo),
-		})
-		require.NoError(t, err)
-		assert.Equal(t, sessionInfo, string(req.SessionInfo))
-	}
+// TestRemoteQueryExecuteRequestFromProtoPreserves100GiBInt64Fidelity proves the 100 GiB
+// result cap survives the AgentSecure proto boundary and the typed request without loss.
+// The limit fields are int64 so the backend-owned 100 GiB cap is representable without
+// overflow, and a value one byte above the cap fails closed rather than truncating.
+func TestRemoteQueryExecuteRequestFromProtoPreserves100GiBInt64Fidelity(t *testing.T) {
+	const hundredGiB = int64(100) << 30
+	const hundredGiBPlusOne = hundredGiB + 1
 
-	failing := map[string][]byte{
-		"null":      []byte(`null`),
-		"array":     []byte(`[]`),
-		"string":    []byte(`"x"`),
-		"truncated": []byte(`{"a":`),
-		"oversized": []byte(`{"a":"` + strings.Repeat("x", remotequeriesimpl.RemoteQuerySessionInfoMaxBytes) + `"}`),
-	}
-	for name, sessionInfo := range failing {
-		_, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
-			Integration:     "postgres",
-			Target:          &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
-			Query:           "SELECT 1 AS value",
-			SessionInfoJson: sessionInfo,
-		})
-		require.Error(t, err, name)
-	}
+	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+		Integration:    "postgres",
+		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+		Query:          "SELECT city, country FROM cities ORDER BY city",
+		ResultDelivery: validRemoteQueryResultDeliveryProto(),
+	})
+	require.NoError(t, err)
+	require.NotNil(t, req.ResultDelivery.Limits)
+	assert.Equal(t, hundredGiB, req.ResultDelivery.Limits.MaxResultBytes)
+
+	overflowProto := validRemoteQueryResultDeliveryProto()
+	overflowProto.Limits.MaxResultBytes = hundredGiBPlusOne
+	_, err = remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
+		Integration:    "postgres",
+		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+		Query:          "SELECT city, country FROM cities ORDER BY city",
+		ResultDelivery: overflowProto,
+	})
+	require.Error(t, err)
+	assert.EqualError(t, err, "result_delivery.limits.maxResultBytes must not exceed 107374182400")
 }
 
 func TestRemoteQueryStreamEventFromCheckEventMapsMetadata(t *testing.T) {
 	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
 		Type:         "metadata",
-		MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages","includeSchema":true,"session_info":{"runId":"run-proof","uploadId":"upload-proof","limits":{"maxPages":128}}}`,
+		MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages","includeSchema":true,"resultDelivery":{"runId":"run-proof","uploadId":"upload-proof","limits":{"maxPages":128}}}`,
 	}, "postgres")
 
 	require.NoError(t, err)
@@ -151,6 +164,21 @@ func TestRemoteQueryStreamEventFromCheckEventMapsMetadata(t *testing.T) {
 	assert.Equal(t, "produce_json_pages", event.GetMetadata().GetOperation())
 	assert.Equal(t, "postgres", event.GetMetadata().GetIntegration())
 	assert.Equal(t, map[string]string{"status": "STARTED", "includeSchema": "true"}, event.GetMetadata().GetAttributes())
+}
+
+func TestRemoteQueryStreamEventRejectsRetiredReceiptVariants(t *testing.T) {
+	for _, receipt := range []string{
+		`{"protocol":"sessionless-v1","objectIds":["object"],"pageCount":1,"totalRows":1,"totalBytes":10}`,
+		`{"uploadId":"upload-proof","protocol":"sessionless-v1","pageCount":1,"totalRows":1,"totalBytes":10}`,
+		`{"arbitrary":{"blob":true}}`,
+		`null`,
+	} {
+		_, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+			Type:         "final",
+			MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":` + receipt + `}`,
+		}, "postgres")
+		require.ErrorContains(t, err, "invalid session-backed upload receipt")
+	}
 }
 
 func TestRemoteQueryStreamEventFromCheckEventSurfacesCompactReceipt(t *testing.T) {
@@ -162,11 +190,15 @@ func TestRemoteQueryStreamEventFromCheckEventSurfacesCompactReceipt(t *testing.T
 	require.NoError(t, err)
 	require.NotNil(t, event.GetFinal())
 	assert.Equal(t, "SUCCEEDED", event.GetFinal().GetStatus())
-	// The receipt crosses as its exact JSON bytes: no field is copied, typed or rewritten.
-	assert.JSONEq(t, `{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654}`, string(event.GetFinal().GetUploadReceiptJson()))
+	receipt := event.GetFinal().GetUploadReceipt()
+	require.NotNil(t, receipt)
+	assert.Equal(t, "upload-proof", receipt.GetUploadId())
+	assert.Equal(t, int64(3), receipt.GetPageCount())
+	assert.Equal(t, int64(123456), receipt.GetTotalRows())
+	assert.Equal(t, int64(987654), receipt.GetTotalBytes())
 
 	// The run progress stats surface as compact string attributes, never as bulk
-	// result bytes, and the receipt never flattens into attributes.
+	// result bytes, and the receipt fields stay exactly the four contract fields.
 	attrs := event.GetFinal().GetAttributes()
 	assert.Equal(t, "123456", attrs["stats.rowsEmitted"])
 	assert.Equal(t, "3", attrs["stats.pagesEmitted"])
@@ -211,8 +243,12 @@ func TestRemoteQueryStreamEventFromCheckEventIgnoresLegacyExecutionDiagnostics(t
 
 			require.NoError(t, err)
 			require.NotNil(t, finalEvent.GetFinal())
-			require.NotEmpty(t, finalEvent.GetFinal().GetUploadReceiptJson(), "legacy diagnostics must never affect the receipt")
-			assert.JSONEq(t, `{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654}`, string(finalEvent.GetFinal().GetUploadReceiptJson()))
+			receipt := finalEvent.GetFinal().GetUploadReceipt()
+			require.NotNil(t, receipt, "legacy diagnostics must never affect the receipt")
+			assert.Equal(t, "upload-proof", receipt.GetUploadId())
+			assert.Equal(t, int64(3), receipt.GetPageCount())
+			assert.Equal(t, int64(123456), receipt.GetTotalRows())
+			assert.Equal(t, int64(987654), receipt.GetTotalBytes())
 			assert.Equal(t, "SUCCEEDED", finalEvent.GetFinal().GetStatus())
 			attrs := finalEvent.GetFinal().GetAttributes()
 			assert.NotContains(t, attrs, "executionDiagnostics", "legacy diagnostics must not leak into the flattened attributes")
@@ -276,7 +312,9 @@ func TestRemoteQueryIPCStreamForwarderIndexesAndTimesChunks(t *testing.T) {
 	final := stream.chunks[1].GetEvent().GetFinal()
 	require.NotNil(t, final)
 	assert.Equal(t, "SUCCEEDED", final.GetStatus())
-	assert.JSONEq(t, `{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}`, string(final.GetUploadReceiptJson()))
+	require.NotNil(t, final.GetUploadReceipt())
+	assert.Equal(t, "upload-proof", final.GetUploadReceipt().GetUploadId())
+	assert.Equal(t, int64(18), final.GetUploadReceipt().GetTotalBytes())
 
 	// The agent-side timing attributes are compact progress metadata on the final event.
 	assert.Equal(t, "2", final.GetAttributes()["agent_ipc_send_calls"])
@@ -318,10 +356,10 @@ func (s *captureRemoteQueryExecuteStreamServer) Send(chunk *pb.RemoteQueryExecut
 // bridge forwards.
 func TestRemoteQueryExecuteRequestFromProtoPreservesTraceContext(t *testing.T) {
 	req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
-		Integration:     "postgres",
-		Target:          &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
-		Query:           "SELECT 1 AS value",
-		SessionInfoJson: validRemoteQuerySessionInfoJSONBytes(),
+		Integration:    "postgres",
+		Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+		Query:          "SELECT 1 AS value",
+		ResultDelivery: validRemoteQueryResultDeliveryProto(),
 		TraceContext: &pb.RemoteQueryTraceContext{
 			TraceId:          1234567890123456789,
 			ParentId:         9876543210987654321,
@@ -358,68 +396,15 @@ func TestRemoteQueryExecuteRequestFromProtoDropsInvalidTraceContext(t *testing.T
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			req, err := remoteQueryExecuteRequestFromProto(&pb.RemoteQueryExecuteRequest{
-				Integration:     "postgres",
-				Target:          &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
-				Query:           "SELECT 1 AS value",
-				SessionInfoJson: validRemoteQuerySessionInfoJSONBytes(),
-				TraceContext:    tt.traceContext,
+				Integration:    "postgres",
+				Target:         &pb.RemoteQueryTarget{Host: "localhost", Port: 5432, Dbname: "postgres"},
+				Query:          "SELECT 1 AS value",
+				ResultDelivery: validRemoteQueryResultDeliveryProto(),
+				TraceContext:   tt.traceContext,
 			})
 
 			require.NoError(t, err, "invalid trace context must never fail the request")
 			assert.Nil(t, req.TraceContext)
-		})
-	}
-}
-
-// TestRemoteQueryStreamEventFromCheckEventTransportsArbitraryReceipt proves the final
-// event carries any bounded JSON object receipt unchanged: the sessionless and
-// session-backed shapes, nested future fields, arrays and nulls all cross as exact
-// bytes, with no per-field copy that could drop a member.
-func TestRemoteQueryStreamEventFromCheckEventTransportsArbitraryReceipt(t *testing.T) {
-	receipts := []string{
-		`{"objectIds":["0b9d2f4e-6a1c-4d3b-9f7e-1a2b3c4d5e6f",7,null],"pageCount":2,"totalRows":42,"totalBytes":4096}`,
-		`{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}`,
-		`{"future":{"nested":[1,null,{"deep":[]}]},"big":123456789012345678901234567890,"n":null}`,
-		`{}`,
-	}
-	for _, receipt := range receipts {
-		event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
-			Type:         "final",
-			MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":` + receipt + `,"stats":{"rowsEmitted":42}}`,
-		}, "postgres")
-
-		require.NoError(t, err)
-		assert.Equal(t, receipt, string(event.GetFinal().GetUploadReceiptJson()))
-		assert.NotContains(t, event.GetFinal().GetAttributes(), "upload_receipt")
-	}
-}
-
-func TestRemoteQueryStreamEventFromCheckEventWithoutReceiptHasNoReceipt(t *testing.T) {
-	for _, metadata := range []string{`{"status":"SUCCEEDED"}`, `{"status":"SUCCEEDED","upload_receipt":null}`} {
-		event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{Type: "final", MetadataJSON: metadata}, "postgres")
-		require.NoError(t, err)
-		assert.Empty(t, event.GetFinal().GetUploadReceiptJson())
-	}
-}
-
-// TestRemoteQueryStreamEventFromCheckEventRejectsUnboundedReceipt proves a receipt that is
-// not one JSON object within the transport bound fails the event instead of being
-// truncated or reshaped.
-func TestRemoteQueryStreamEventFromCheckEventRejectsUnboundedReceipt(t *testing.T) {
-	tests := map[string]string{
-		"array":     `[1,2]`,
-		"string":    `"x"`,
-		"number":    `1`,
-		"oversized": `{"a":"` + strings.Repeat("x", remotequeriesimpl.RemoteQueryUploadReceiptMaxBytes) + `"}`,
-	}
-	for name, receipt := range tests {
-		t.Run(name, func(t *testing.T) {
-			_, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
-				Type:         "final",
-				MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":` + receipt + `}`,
-			}, "postgres")
-			require.Error(t, err)
-			assert.NotContains(t, err.Error(), "xxxx")
 		})
 	}
 }

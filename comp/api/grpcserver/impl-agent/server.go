@@ -6,7 +6,6 @@
 package agentimpl
 
 import (
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -428,7 +427,7 @@ func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteReques
 // ambiguous_target, and failures to complete matching answer resolution_error.
 // There is no resolve-time binding: execute resolves the target fresh instead of
 // revalidating a resolve-time answer. The operation is side-effect-free by
-// construction: no query, no session info, and no credentials ever cross the
+// construction: no query, no result delivery, and no credentials ever cross the
 // AgentSecure boundary.
 func (s *serverSecure) RemoteQueryResolve(_ context.Context, req *pb.RemoteQueryResolveRequest) (*pb.RemoteQueryResolveResponse, error) {
 	if s.remoteQueriesResolve == nil {
@@ -556,13 +555,13 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 		DBName:           req.GetTarget().GetDbname(),
 		DatabaseInstance: req.GetTarget().GetDatabaseInstance(),
 	}
-	execReq, err := remotequeriesimpl.NewRemoteQueryExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetIncludeSchema(), req.GetSessionInfoJson())
+	execReq, err := remotequeriesimpl.NewRemoteQueryExecuteRequest(req.GetIntegration(), target, req.GetQuery(), req.GetIncludeSchema(), remoteQueryResultDeliveryFromProto(req.GetResultDelivery()))
 	if err != nil {
 		return remotequeriesimpl.RemoteQueryExecuteRequest{}, err
 	}
 	// The optional trace-continuation metadata is validated fail-open: absent or
 	// invalid values leave the request executing exactly as before, and nothing
-	// about the session info changes. Only the positive keep priorities 1 and 2
+	// about the delivery handle changes. Only the positive keep priorities 1 and 2
 	// survive the bridge — the exact domain the integration's strict carrier
 	// validation accepts — so a hand-built request carrying a drop priority (-1,
 	// 0) or any other value normalizes to absent instead of becoming a strict
@@ -573,6 +572,37 @@ func remoteQueryExecuteRequestFromProto(req *pb.RemoteQueryExecuteRequest) (remo
 		int(req.GetTraceContext().GetSamplingPriority()),
 	)
 	return execReq, nil
+}
+
+// remoteQueryResultDeliveryFromProto maps the backend-injected upload instructions. The
+// Agent forwards baseUrl opaquely: the intake mints and owns the URL, and it is never
+// logged. The session-id contract has no per-session upload token: the session is
+// identified solely by upload_id and the proto surface carries no token field, so no
+// upload credential can cross the AgentSecure boundary.
+func remoteQueryResultDeliveryFromProto(delivery *pb.RemoteQueryResultDelivery) *remotequeriesimpl.RemoteQueryResultDelivery {
+	if delivery == nil {
+		return nil
+	}
+	out := &remotequeriesimpl.RemoteQueryResultDelivery{
+		RunID:    delivery.GetRunId(),
+		TaskID:   delivery.GetTaskId(),
+		UploadID: delivery.GetUploadId(),
+		BaseURL:  delivery.GetBaseUrl(),
+	}
+	if limits := delivery.GetLimits(); limits != nil {
+		out.Limits = &remotequeriesimpl.RemoteQueryUploadLimits{
+			// Byte limits pass through as int64: truncating to int would silently
+			// corrupt the 100 GiB total cap on 32-bit platforms (armhf).
+			MaxFileBytes:   limits.GetMaxFileBytes(),
+			MaxResultBytes: limits.GetMaxResultBytes(),
+			MaxRowBytes:    limits.GetMaxRowBytes(),
+			MaxColumns:     int(limits.GetMaxColumns()),
+			MaxSchemaBytes: limits.GetMaxSchemaBytes(),
+			MaxPages:       int(limits.GetMaxPages()),
+			TimeoutMs:      int(limits.GetTimeoutMs()),
+		}
+	}
+	return out
 }
 
 // remoteQueryStreamEventFromCheckEvent converts a metadata-only check event into the
@@ -596,13 +626,13 @@ func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent, in
 			Attributes:  stringAttributes(metadata, "operation", "sequence"),
 		}}
 	case "final":
-		uploadReceiptJSON, err := uploadReceiptJSONFromEvent(event.MetadataJSON)
+		receipt, err := uploadReceiptFromMetadata(metadata)
 		if err != nil {
 			return nil, err
 		}
 		out.Event = &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
-			Status:            stringFromMetadata(metadata, "status"),
-			UploadReceiptJson: uploadReceiptJSON,
+			Status:        stringFromMetadata(metadata, "status"),
+			UploadReceipt: receipt,
 			// executionDiagnostics stays excluded so an older integration's legacy
 			// top-level diagnostics metadata never leaks into the flattened attributes.
 			Attributes: progressAttributes(metadata, "status", "sequence", "upload_receipt", "executionDiagnostics"),
@@ -685,33 +715,53 @@ func uint64FromMetadata(metadata map[string]interface{}, keys ...string) uint64 
 	return 0
 }
 
-// uploadReceiptJSONFromEvent extracts the compact run receipt carried in the final
-// event metadata as its exact JSON bytes. The receipt is an arbitrary object the Agent
-// only transports: it must be one JSON object within the transport size bound, and no
-// nested field is parsed, copied field by field or rewritten. Returns nil when no
-// receipt is present; a malformed or oversized receipt fails the event, never
-// truncating or reshaping it. The worker validates the receipt's contents.
-func uploadReceiptJSONFromEvent(metadataJSON string) ([]byte, error) {
-	if strings.TrimSpace(metadataJSON) == "" {
+func int64FromMetadata(metadata map[string]interface{}, keys ...string) int64 {
+	for _, key := range keys {
+		switch v := metadata[key].(type) {
+		case float64:
+			return int64(v)
+		case int:
+			return int64(v)
+		case json.Number:
+			if n, err := strconv.ParseInt(string(v), 10, 64); err == nil {
+				return n
+			}
+		case string:
+			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return n
+			}
+		}
+	}
+	return 0
+}
+
+// uploadReceiptFromMetadata parses the compact run receipt carried in the final event
+// metadata into the typed proto receipt: exactly uploadId, pageCount, totalRows,
+// totalBytes. Returns nil when no receipt is present.
+func uploadReceiptFromMetadata(metadata map[string]interface{}) (*pb.RemoteQueryUploadReceipt, error) {
+	value, present := metadata["upload_receipt"]
+	if !present {
 		return nil, nil
 	}
-	var metadata map[string]json.RawMessage
-	if err := json.Unmarshal([]byte(metadataJSON), &metadata); err != nil {
-		return nil, err
+	raw, ok := value.(map[string]interface{})
+	if !ok || len(raw) != 4 || stringFromMetadata(raw, "uploadId") == "" {
+		return nil, errors.New("invalid session-backed upload receipt")
 	}
-	raw, ok := metadata["upload_receipt"]
-	if !ok || string(bytes.TrimSpace(raw)) == "null" {
-		return nil, nil
+	for _, key := range []string{"uploadId", "pageCount", "totalRows", "totalBytes"} {
+		if _, ok := raw[key]; !ok {
+			return nil, errors.New("invalid session-backed upload receipt")
+		}
 	}
-	receipt, err := remotequeriesimpl.ValidateRemoteQueryJSONObject("upload_receipt", raw, remotequeriesimpl.RemoteQueryUploadReceiptMaxBytes)
-	if err != nil {
-		return nil, err
-	}
-	return append([]byte(nil), receipt...), nil
+	return &pb.RemoteQueryUploadReceipt{
+		UploadId:   stringFromMetadata(raw, "uploadId"),
+		PageCount:  int64FromMetadata(raw, "pageCount"),
+		TotalRows:  int64FromMetadata(raw, "totalRows"),
+		TotalBytes: int64FromMetadata(raw, "totalBytes"),
+	}, nil
 }
 
 // stringAttributes maps scalar metadata values into string attributes, skipping the
-// excluded keys and any nested objects (an echoed session_info object never surfaces).
+// excluded keys and any nested objects (the resultDelivery echo never surfaces).
 func stringAttributes(metadata map[string]interface{}, exclude ...string) map[string]string {
 	excluded := make(map[string]struct{}, len(exclude))
 	for _, key := range exclude {

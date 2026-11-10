@@ -7,7 +7,6 @@ package remotequeriesimpl
 
 import (
 	"context"
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -34,8 +33,9 @@ import (
 //
 //  1. The requestJSON forwarded to the integration emits the fixed operation
 //     produce_json_pages and carries the target, the query, the explicit includeSchema
-//     flag, and the opaque session_info object verbatim, without parsing or
-//     reshaping any nested field (it holds no token: the Agent adds none).
+//     flag, and the full resultDelivery: runId, taskId, uploadId,
+//     baseUrl, and the seven nested limits including timeoutMs — and no token, because
+//     the upload session no longer has one.
 //  2. The requestJSON does NOT carry the org API key or POC application key and carries
 //     no CSV/COPY-era fields: there is no format, no copyLimits, and no inline path.
 //  3. The Agent passes emit straight through: the events the integration emits surface
@@ -44,9 +44,12 @@ import (
 // The 243021 reference (task contract id) is carried through the run/task/upload ids
 // so the forwarded handle is stable end-to-end.
 
-// syntheticForwardSessionInfoJSON is an arbitrary session_info object: the transport
-// forwards it verbatim and never interprets a field of it.
-const syntheticForwardSessionInfoJSON = `{"runId":"run-243021","taskId":"task-243021","uploadId":"upload-243021","baseUrl":"https://dd.datad0g.com/api/unstable/its-agent-intake","limits":{"maxFileBytes":33554432,"maxResultBytes":33554432,"maxRowBytes":33554432,"maxColumns":1024,"maxSchemaBytes":1048576,"maxPages":128,"timeoutMs":30000},"futureField":{"nested":[null,1,{"k":"v"}]}}`
+const (
+	syntheticForwardRunID    = "run-243021"
+	syntheticForwardTaskID   = "task-243021"
+	syntheticForwardUploadID = "upload-243021"
+	syntheticForwardBaseURL  = "https://dd.datad0g.com/api/unstable/its-agent-intake"
+)
 
 func newSyntheticForwardRunner(events []check.RemoteQueryStreamEvent) *fakeStreamRunnerCheck {
 	return &fakeStreamRunnerCheck{
@@ -55,8 +58,22 @@ func newSyntheticForwardRunner(events []check.RemoteQueryStreamEvent) *fakeStrea
 	}
 }
 
-func syntheticForwardSessionInfo() json.RawMessage {
-	return json.RawMessage(syntheticForwardSessionInfoJSON)
+func syntheticForwardDelivery() *RemoteQueryResultDelivery {
+	return &RemoteQueryResultDelivery{
+		RunID:    syntheticForwardRunID,
+		TaskID:   syntheticForwardTaskID,
+		UploadID: syntheticForwardUploadID,
+		BaseURL:  syntheticForwardBaseURL,
+		Limits: &RemoteQueryUploadLimits{
+			MaxFileBytes:   32 << 20, // 32 MiB page cap
+			MaxResultBytes: 32 << 20, // 32 MiB total cap
+			MaxRowBytes:    32 << 20,
+			MaxColumns:     1024,
+			MaxSchemaBytes: 1 << 20,
+			MaxPages:       128,
+			TimeoutMs:      30000,
+		},
+	}
 }
 
 // TestExecuteStreamForwardsPagedJSONContractToIntegration proves the Agent forwards the
@@ -73,7 +90,7 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 		RemoteQueryExecuteTarget{Host: "LOCALHOST.", Port: 5432, DBName: "postgres"},
 		"SELECT repeat('x', 33554432) AS payload",
 		true,
-		syntheticForwardSessionInfo(),
+		syntheticForwardDelivery(),
 	)
 	require.NoError(t, err)
 
@@ -90,14 +107,29 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	assert.Equal(t, 1, runner.executeCalls)
 
 	// The integration receives the fixed operation, the explicit schema flag, the
-	// normalized target, and the opaque session_info object verbatim, which the integration
-	// interprets itself (upload target, limits, identity).
+	// normalized target, and the full upload handle including the intake base URL so it
+	// can upload page files directly. The nested limits carry the backend-owned effective
+	// values including timeoutMs.
 	assert.JSONEq(t, `{
 		"operation": "produce_json_pages",
 		"target": {"host": "localhost", "port": 5432, "dbname": "postgres"},
 		"query": "SELECT repeat('x', 33554432) AS payload",
 		"includeSchema": true,
-		"session_info": `+syntheticForwardSessionInfoJSON+`
+		"resultDelivery": {
+			"runId": "run-243021",
+			"taskId": "task-243021",
+			"uploadId": "upload-243021",
+			"baseUrl": "https://dd.datad0g.com/api/unstable/its-agent-intake",
+			"limits": {
+				"maxFileBytes": 33554432,
+				"maxResultBytes": 33554432,
+				"maxRowBytes": 33554432,
+				"maxColumns": 1024,
+				"maxSchemaBytes": 1048576,
+				"maxPages": 128,
+				"timeoutMs": 30000
+			}
+		}
 	}`, runner.streamSeen)
 
 	// The org API key and POC application key are NOT on the request wire: the
@@ -137,7 +169,7 @@ func TestExecuteStreamForwardsOmittedSchemaExplicitly(t *testing.T) {
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
 		"SELECT city, country FROM cities ORDER BY city",
 		false,
-		syntheticForwardSessionInfo(),
+		syntheticForwardDelivery(),
 	)
 	require.NoError(t, err)
 
@@ -147,9 +179,9 @@ func TestExecuteStreamForwardsOmittedSchemaExplicitly(t *testing.T) {
 	assert.Contains(t, runner.streamSeen, `"includeSchema":false`)
 }
 
-// TestExecuteStreamOmittedSessionInfoIsRejected proves there is no inline fallback:
-// without the backend-injected session_info object the request never reaches the integration.
-func TestExecuteStreamOmittedSessionInfoIsRejected(t *testing.T) {
+// TestExecuteStreamOmittedResultDeliveryIsRejected proves there is no inline fallback:
+// without the backend-injected upload handle the request never reaches the integration.
+func TestExecuteStreamOmittedResultDeliveryIsRejected(t *testing.T) {
 	runner := newSyntheticForwardRunner(nil)
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 
@@ -161,9 +193,9 @@ func TestExecuteStreamOmittedSessionInfoIsRejected(t *testing.T) {
 		nil,
 	)
 	require.Error(t, err)
-	assert.EqualError(t, err, "session_info is required")
+	assert.EqualError(t, err, "result_delivery is required")
 
-	// A hand-assembled request without session_info fails the same way and never runs
+	// A hand-assembled request without a delivery fails the same way and never runs
 	// the matched check.
 	result := service.ExecuteStream(context.Background(), RemoteQueryExecuteRequest{
 		Integration: "postgres",
@@ -173,7 +205,7 @@ func TestExecuteStreamOmittedSessionInfoIsRejected(t *testing.T) {
 
 	require.NotNil(t, result.Error)
 	assert.Equal(t, statusInvalidRequest, result.Error.Code)
-	assert.Equal(t, "session_info is required", result.Error.Message)
+	assert.Equal(t, "result_delivery is required", result.Error.Message)
 	assert.Equal(t, 0, runner.streamCalls)
 }
 
@@ -193,7 +225,7 @@ func TestExecuteStreamForwardsTraceContextToIntegration(t *testing.T) {
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
 		"SELECT 1 AS value",
 		false,
-		syntheticForwardSessionInfo(),
+		syntheticForwardDelivery(),
 	)
 	require.NoError(t, err)
 	req.TraceContext = NewRemoteQueryTraceContext(1234567890123456789, 9876543210987654321, 2)
@@ -236,7 +268,7 @@ func TestExecuteStreamDropsNonKeepTraceContext(t *testing.T) {
 				RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
 				"SELECT 1 AS value",
 				false,
-				syntheticForwardSessionInfo(),
+				syntheticForwardDelivery(),
 			)
 			require.NoError(t, err)
 			req.TraceContext = tc.traceContext
@@ -263,7 +295,7 @@ func TestExecuteStreamForwardsNoTraceContextWhenAbsent(t *testing.T) {
 		RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"},
 		"SELECT 1 AS value",
 		false,
-		syntheticForwardSessionInfo(),
+		syntheticForwardDelivery(),
 	)
 	require.NoError(t, err)
 

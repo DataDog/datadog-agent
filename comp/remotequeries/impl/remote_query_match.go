@@ -343,8 +343,21 @@ func parseJSONRequestError(err error) error {
 		return errTargetUnknownField
 	case errors.Is(err, errTargetMustBeObject):
 		return errTargetMustBeObject
+	case errors.Is(err, errDeliveryUnknownField):
+		return errDeliveryUnknownField
+	case errors.Is(err, errDeliveryMustBeObject):
+		return errDeliveryMustBeObject
+	case errors.Is(err, errLimitsUnknownField):
+		return errLimitsUnknownField
+	case errors.Is(err, errLimitsMustBeObject):
+		return errLimitsMustBeObject
 	case isUnknownJSONFieldError(err):
 		return invalidRequestError("request contains unknown field")
+	}
+
+	var deliveryTypeErr remoteQueryDeliveryTypeError
+	if errors.As(err, &deliveryTypeErr) {
+		return deliveryTypeErr
 	}
 
 	var typeErr *json.UnmarshalTypeError
@@ -358,6 +371,8 @@ func parseJSONRequestError(err error) error {
 			return errTargetMustBeObject
 		case "includeSchema":
 			return errors.New("includeSchema must be a boolean")
+		case "resultDelivery":
+			return errDeliveryMustBeObject
 		}
 	}
 
@@ -533,7 +548,7 @@ type remoteQueryResolveVerdict struct {
 
 // RemoteQueryOperationResolveTarget is the side-effect-free per-check resolution
 // operation of the resolve-over-bridge contract. The request carries only the
-// operation and the target — no query, no session info — and the integration
+// operation and the target — no query, no result delivery — and the integration
 // answers whether the requested target belongs to this check's effective
 // monitoring scope, reporting its sanitized effective identity when it does. The
 // Python entry point dispatches on this operation; the bridge transport is
