@@ -1153,7 +1153,9 @@ func TestEmitSampleSharedDeviceEmitsOneSeriesPerWorkload(t *testing.T) {
 		fakeTagger.SetTags(
 			taggertypes.NewEntityID(taggertypes.ContainerID, container.ID),
 			"spec-test",
-			[]string{"gpu_sharing_replicas_used:1"},
+			// GPU tags on the container, to check that the workload tag cache
+			// filters them out of device series.
+			[]string{"gpu_sharing_replicas_used:1", "gpu_uuid:gpu-other"},
 			[]string{"pod_name:pod-" + container.ID},
 			nil,
 			nil,
@@ -1172,8 +1174,11 @@ func TestEmitSampleSharedDeviceEmitsOneSeriesPerWorkload(t *testing.T) {
 	for _, call := range mockSender.Mock.Calls {
 		tags, ok := call.Arguments.Get(3).([]string)
 		require.True(t, ok)
-		require.ElementsMatch(t, []string{"gpu_uuid:gpu-1", "gpu_sharing_replicas_used:1"},
-			tagsWithoutPod(tags), "device tags on every series")
+		// Device tags only beyond the pod: the container's GPU tags are
+		// filtered, so a workload on several GPUs cannot tag a device's
+		// series with another GPU's identity.
+		require.ElementsMatch(t, []string{"gpu_uuid:gpu-1"},
+			tagsWithoutPod(tags), "device tags only on every series")
 		for _, tag := range tags {
 			if strings.HasPrefix(tag, "pod_name:") {
 				seriesPods = append(seriesPods, tag)

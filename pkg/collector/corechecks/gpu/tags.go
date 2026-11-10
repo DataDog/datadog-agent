@@ -283,7 +283,25 @@ func (c *WorkloadTagCache) buildContainerTags(containerID string) ([]string, err
 		cardinality = taggertypes.HighCardinality
 	}
 
-	return c.tagger.Tag(entityID, cardinality)
+	tags, err := c.tagger.Tag(entityID, cardinality)
+	if err != nil {
+		return nil, err
+	}
+
+	// The tagger adds to container entities the tags of every GPU the
+	// container holds a share or a replica of: gpu_uuid, gpu_sharing_mode, ...
+	// GPU metrics already carry the tags of their own device, so keeping
+	// these would tag a device's metrics with the tags of the other GPUs used
+	// by the same container. The same rationale filters the process entity
+	// tags in buildProcessTags.
+	filtered := make([]string, 0, len(tags))
+	for _, tag := range tags {
+		if strings.HasPrefix(tag, gpuTagPrefix) {
+			continue
+		}
+		filtered = append(filtered, tag)
+	}
+	return filtered, nil
 }
 
 // buildProcessTags builds the tags for a process. Can return "ErrNotFound" if the process
