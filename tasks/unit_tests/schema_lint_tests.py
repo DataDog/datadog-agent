@@ -314,6 +314,28 @@ class TestCheckRelativeDefaults(unittest.TestCase):
         self.assertFalse(any("valid_conf_path" in e for e in errors))
 
 
+class TestCheckSensitive(unittest.TestCase):
+    def test_valid_schema_produces_no_errors(self):
+        errors = errors_for(lint.check_sensitive, "valid.yaml")
+        self.assertEqual(errors, [])
+
+    def test_non_boolean_is_error(self):
+        errors = errors_for(lint.check_sensitive, "bad_sensitive.yaml")
+        self.assertTrue(any("not_bool" in e for e in errors), f"Expected error for not_bool, got: {errors}")
+
+    def test_sensitive_on_section_is_error(self):
+        errors = errors_for(lint.check_sensitive, "bad_sensitive.yaml")
+        self.assertTrue(
+            any("sensitive_on_section" in e for e in errors),
+            f"Expected error for sensitive_on_section, got: {errors}",
+        )
+
+    def test_valid_values_pass(self):
+        errors = errors_for(lint.check_sensitive, "bad_sensitive.yaml")
+        for key in ("valid_sensitive", "valid_not_sensitive", "sensitive_on_section.child"):
+            self.assertFalse(any(key in e for e in errors), f"'{key}' should not produce an error, got: {errors}")
+
+
 class TestCheckEnvParser(unittest.TestCase):
     def test_valid_schema_produces_no_errors(self):
         errors = errors_for(lint.check_env_parser, "valid.yaml")

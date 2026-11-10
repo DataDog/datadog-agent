@@ -278,3 +278,6 @@ pkg/config/setup/generatedsettings_local/*.go
 
 # Local EKS kubeconfig files
 *kubeconfig.yaml
+
+# Vitrine state
+.vitrine
