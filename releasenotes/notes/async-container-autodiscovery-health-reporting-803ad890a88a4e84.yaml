@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Move container Autodiscovery health issue reporting and resolution to a
+    background worker so slow health reporting does not delay configuration
+    discovery or workloadmeta event acknowledgements. This reduces the risk
+    of missing logs and checks for short-lived containers on busy nodes.
