@@ -30,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/network/ebpf/probes"
 	netlinktestutil "github.com/DataDog/datadog-agent/pkg/network/netlink/testutil"
 	"github.com/DataDog/datadog-agent/pkg/network/tracer/connection/kprobe"
+	connutil "github.com/DataDog/datadog-agent/pkg/network/tracer/connection/util"
 	tracertestutil "github.com/DataDog/datadog-agent/pkg/network/tracer/testutil"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -58,9 +59,12 @@ func (s *TracerSuite) TestNetDevQueueSKBConnTuple() {
 	skbMap, err := tr.GetMap(probes.ConnectionTupleToSocketSKBConnMap)
 	require.NoError(t, err)
 
-	// CO-RE and fentry use tp_btf wherever the kernel can load it; the other modes never do.
+	// CO-RE and fentry use tp_btf wherever the kernel can load it, unless the verifier rejected the
+	// full program and the tracer fell back to the raw tracepoint; the other modes never use it.
 	mode := ebpftest.GetBuildMode()
-	wantTPBTF := (mode == ebpftest.CORE || mode == ebpftest.Fentry) && ddfeatures.SupportsTPBTFProbeMem("net_dev_queue") == nil
+	wantTPBTF := (mode == ebpftest.CORE || mode == ebpftest.Fentry) &&
+		ddfeatures.SupportsTPBTFProbeMem("net_dev_queue") == nil &&
+		!connutil.NetDevQueueTPBTFRejected.Load()
 	require.Equal(t, wantTPBTF, tpBTFNetDevQueueLoaded(t), "tp_btf net_dev_queue program loaded")
 
 	t.Run("IPv4 TCP", func(t *testing.T) {
