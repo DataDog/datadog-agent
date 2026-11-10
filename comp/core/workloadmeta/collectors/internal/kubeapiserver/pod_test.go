@@ -453,7 +453,12 @@ func TestPodParsersRayInferenceTags(t *testing.T) {
 					parsedPod := entity.(*workloadmeta.KubernetesPod)
 					require.Len(t, parsedPod.Containers, len(pod.Spec.Containers))
 					assert.Equal(t, tt.imageName, parsedPod.Containers[0].Image.Name)
-					extractor := collectors.NewPodTagExtractor(config.NewMock(t), nil)
+					store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+						fx.Provide(func() log.Component { return logmock.New(t) }),
+						fx.Provide(func() config.Component { return config.NewMock(t) }),
+						workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+					))
+					extractor := collectors.NewPodTagExtractor(config.NewMock(t), store)
 					var got []string
 					for _, tag := range extractor.Extract(parsedPod, taggertypes.LowCardinality) {
 						if strings.HasPrefix(tag, "inference_workload:") || strings.HasPrefix(tag, "inference_workload_component:") {

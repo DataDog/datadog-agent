@@ -171,6 +171,11 @@ func (s *trackingStore) GetKubernetesKueueWorkload(id string) (*workloadmeta.Kub
 	return s.Component.GetKubernetesKueueWorkload(id)
 }
 
+func (s *trackingStore) GetKubernetesMetadata(id workloadmeta.KubeMetadataEntityID) (*workloadmeta.KubernetesMetadata, error) {
+	s.track(workloadmeta.KindKubernetesMetadata, string(id))
+	return s.Component.GetKubernetesMetadata(id)
+}
+
 func (s *trackingStore) GetKubernetesKAIPodGroup(id string) (*workloadmeta.KubernetesKAIPodGroup, error) {
 	s.track(workloadmeta.KindKubernetesKAIPodGroup, id)
 	return s.Component.GetKubernetesKAIPodGroup(id)
