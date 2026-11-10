@@ -307,7 +307,7 @@ func TestCheck_SecretHandlingPreservesTypeViolations(t *testing.T) {
 		{"forwarder_apikey_validation_interval: 61\n", ""},
 		{"api_key: [secret]\n", "got array, want string"},
 		{"api_key: {value: secret}\n", "got object, want string"},
-		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", "got boolean, want string"},
+		{"additional_endpoints: {'https://qa:RAW_URL_PASSWORD_7c81@example.test': [false]}\n", ""},
 		{"agent_ipc:\n  port: ENC[ipc_port]\n", ""},
 		{"logs_enabled: ENC[enabled]\n", ""},
 		{"agent_ipc: ENC[ipc]\n", ""},

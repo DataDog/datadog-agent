@@ -30,13 +30,8 @@ func ReadMetricsEndpointRouting(c model.Reader) (MetricsEndpointRouting, error) 
 
 func readMetricsEndpointRouting(c model.Reader, additional map[string][]string) (MetricsEndpointRouting, error) {
 	var routing MetricsEndpointRouting
-	var err error
-	if routing.MetricAllowlist, err = readMetricAllowlist(c, "metric_allowlist"); err != nil {
-		return routing, err
-	}
-	if routing.MetricPrefixAllowlist, err = readMetricAllowlist(c, "metric_prefix_allowlist"); err != nil {
-		return routing, err
-	}
+	routing.MetricAllowlist = readMetricAllowlist(c, "metric_allowlist")
+	routing.MetricPrefixAllowlist = readMetricAllowlist(c, "metric_prefix_allowlist")
 	hasPolicies := len(routing.MetricAllowlist) > 0 || len(routing.MetricPrefixAllowlist) > 0
 	if hasPolicies && !c.GetBool("use_v2_api.series") {
 		return routing, fmt.Errorf("%s requires use_v2_api.series to be enabled", MetricsEndpointRoutingKey)
@@ -53,46 +48,6 @@ func readMetricsEndpointRouting(c model.Reader, additional map[string][]string) 
 }
 
 // readMetricAllowlist validates endpoint-to-string-list mappings without coercing values.
-func readMetricAllowlist(c model.Reader, field string) (map[string][]string, error) {
-	key := MetricsEndpointRoutingKey + "." + field
-	raw := c.Get(key)
-	if raw == nil {
-		return nil, nil
-	}
-	if policies, ok := raw.(map[string][]string); ok {
-		for endpoint, names := range policies {
-			if names == nil {
-				return nil, fmt.Errorf("%s: endpoint %q must contain a list of strings, not null", key, endpoint)
-			}
-		}
-		return policies, nil
-	}
-	entries, ok := raw.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("%s: expected a map of endpoint URLs to string lists, got %T", key, raw)
-	}
-	policies := make(map[string][]string, len(entries))
-	for endpoint, value := range entries {
-		var names []string
-		switch list := value.(type) {
-		case []string:
-			names = list
-		case []any:
-			if list != nil {
-				names = make([]string, len(list))
-			}
-			for i, item := range list {
-				name, ok := item.(string)
-				if !ok {
-					return nil, fmt.Errorf("%s: endpoint %q entry %d must be a string, not %T", key, endpoint, i, item)
-				}
-				names[i] = name
-			}
-		}
-		if names == nil {
-			return nil, fmt.Errorf("%s: endpoint %q must contain a list of strings, not %T", key, endpoint, value)
-		}
-		policies[endpoint] = names
-	}
-	return policies, nil
+func readMetricAllowlist(c model.Reader, field string) map[string][]string {
+	return c.GetStringMapStringSlice(MetricsEndpointRoutingKey + "." + field)
 }

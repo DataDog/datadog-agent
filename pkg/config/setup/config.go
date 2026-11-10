@@ -219,15 +219,7 @@ func LoadProxyFromEnv(config pkgconfigmodel.ReaderWriter) {
 	if p.HTTPS != "" || p.HTTP != "" || len(p.NoProxy) > 0 {
 		config.Set("proxy.http", p.HTTP, pkgconfigmodel.SourceConfigPostInit)
 		config.Set("proxy.https", p.HTTPS, pkgconfigmodel.SourceConfigPostInit)
-
-		// If this is set to an empty []string, viper will have a type conflict when merging
-		// this config during secrets resolution. It unmarshals empty yaml lists to type
-		// []interface{}, which will then conflict with type []string and fail to merge.
-		noProxy := make([]interface{}, len(p.NoProxy))
-		for idx := range p.NoProxy {
-			noProxy[idx] = p.NoProxy[idx]
-		}
-		config.Set("proxy.no_proxy", noProxy, pkgconfigmodel.SourceConfigPostInit)
+		config.Set("proxy.no_proxy", slices.Clone(p.NoProxy), pkgconfigmodel.SourceConfigPostInit)
 	}
 }
 
@@ -695,6 +687,32 @@ func configAssignAtPath(config pkgconfigmodel.Config, settingPath []string, newV
 						}
 					}
 					modifyValue[elem] = newValue
+				} else {
+					iterateValue = modifyValue[elem]
+				}
+			case map[string]string:
+				if k == len(trailingElements)-1 {
+					modifyValue[elem] = fmt.Sprint(newValue)
+				} else {
+					iterateValue = modifyValue[elem]
+				}
+			case map[string][]string:
+				if k == len(trailingElements)-1 {
+					switch values := newValue.(type) {
+					case string:
+						modifyValue[elem] = []string{values}
+					case []string:
+						modifyValue[elem] = values
+					case []interface{}:
+						converted := make([]string, len(values))
+						for i, v := range values {
+							converted[i] = fmt.Sprint(v)
+						}
+						modifyValue[elem] = converted
+					default:
+						updateErr = fmt.Errorf("cannot assign value of type %T to setting '%s' of type %T", newValue, settingPath, iterateValue)
+						return nil, false
+					}
 				} else {
 					iterateValue = modifyValue[elem]
 				}

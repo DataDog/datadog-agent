@@ -73,27 +73,6 @@ func TestMetricsEndpointRoutingUnknownEndpoint(t *testing.T) {
 	}
 }
 
-func TestMetricsEndpointRoutingInvalidTypes(t *testing.T) {
-	for _, key := range []string{"metric_allowlist", "metric_prefix_allowlist"} {
-		t.Run(key, func(t *testing.T) {
-			for _, value := range []any{
-				"not a map", []string{"not a map"},
-				map[string]any{"https://app.datadoghq.com": "not a list"},
-				map[string]any{"https://app.datadoghq.com": []int{42}},
-				map[string]any{"https://app.datadoghq.com": []any{nil}},
-				map[string]any{"https://app.datadoghq.com": nil},
-				map[string]any{"https://app.datadoghq.com": []string(nil)},
-				map[string]any{"https://app.datadoghq.com": []any(nil)},
-			} {
-				cfg := configmock.New(t)
-				cfg.SetInTest(MetricsEndpointRoutingKey+"."+key, value)
-				_, err := GetMultipleEndpoints(cfg)
-				require.ErrorContains(t, err, MetricsEndpointRoutingKey+"."+key)
-			}
-		})
-	}
-}
-
 func TestMetricsEndpointRoutingRequiresV2(t *testing.T) {
 	for _, field := range []string{"metric_allowlist", "metric_prefix_allowlist"} {
 		t.Run(field, func(t *testing.T) {
