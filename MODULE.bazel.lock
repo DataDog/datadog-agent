@@ -1001,13 +1001,13 @@
         "pulumi-resource-libvirt-v0.5.4-linux-arm64.tar.gz": "sha1-HQDPn9OjYkPJ40Wr8o3ouazkpvQ=",
         "pulumi-resource-libvirt-v0.5.4-windows-amd64.tar.gz": "sha1-lyeuogO3nOacOknZ9VztW2KWSC8="
       },
-      "https://github.com/pulumi/pulumi-random/releases/download/v4.21.4/pulumi-random_4.21.4_checksums.txt": {
-        "pulumi-resource-random-v4.21.4-darwin-amd64.tar.gz": "sha1-FcgziCpmP5YIif84gUv/uksbo4s=",
-        "pulumi-resource-random-v4.21.4-darwin-arm64.tar.gz": "sha1-4Z2su57AMvv2iuf1atc16EvJ9lk=",
-        "pulumi-resource-random-v4.21.4-linux-amd64.tar.gz": "sha1-TW4pDJI1TmXnyy6hi8mt+v//DoE=",
-        "pulumi-resource-random-v4.21.4-linux-arm64.tar.gz": "sha1-hTxCeJgzQp4XpWPV3/OUfqQTSjc=",
-        "pulumi-resource-random-v4.21.4-windows-amd64.tar.gz": "sha1-9k3SEvWMWuwMl95KHMIbQQ+ZcmM=",
-        "pulumi-resource-random-v4.21.4-windows-arm64.tar.gz": "sha1-XUJOeABcqUmUYjZ8DlMYUJQLyXk="
+      "https://github.com/pulumi/pulumi-random/releases/download/v4.21.6/pulumi-random_4.21.6_checksums.txt": {
+        "pulumi-resource-random-v4.21.6-darwin-amd64.tar.gz": "sha1-LcpUqoakYgsRi9A5xG8O5E9Xvtk=",
+        "pulumi-resource-random-v4.21.6-darwin-arm64.tar.gz": "sha1-cR+74+WKTr39Oa/8E2H2CtVre4M=",
+        "pulumi-resource-random-v4.21.6-linux-amd64.tar.gz": "sha1-c8EWIwTA3Maj3baufHvjLzAxt2U=",
+        "pulumi-resource-random-v4.21.6-linux-arm64.tar.gz": "sha1-s/kxFr9+dQKLIZ3gamoacmbGYWU=",
+        "pulumi-resource-random-v4.21.6-windows-amd64.tar.gz": "sha1-UA3mITAgyV9fXf7cSczYs6IS8z8=",
+        "pulumi-resource-random-v4.21.6-windows-arm64.tar.gz": "sha1-dcRAKo+540ipt7FcMyaUkOPQGE8="
       },
       "https://github.com/pulumi/pulumi-tls/releases/download/v5.6.2/pulumi-tls_5.6.2_checksums.txt": {
         "pulumi-resource-tls-v5.6.2-darwin-amd64.tar.gz": "sha1-UPzzXuQqxqd2vVqa1yKj7lFYCPE=",
@@ -1093,7 +1093,7 @@
         "name": "libvirt",
         "url": "https://github.com/pulumi/pulumi-libvirt"
       },
-      "https://registry.npmjs.org/@pulumi/random/4.21.4": {
+      "https://registry.npmjs.org/@pulumi/random/4.21.6": {
         "dependencies": {},
         "name": "random",
         "url": "https://github.com/pulumi/pulumi-random"
