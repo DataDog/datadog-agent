@@ -7,6 +7,7 @@ package report
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"sort"
 	"strconv"
@@ -28,30 +29,52 @@ func indexSnapshot(snapshot []client.CachedValue) snapshotIndex {
 	return byPath
 }
 
-// snapshotPathAliases lets profiles and metadata use either the internal
-// /openconfig prefix produced by module-qualified JSON-IETF responses or the
-// corresponding wire path used by PROTO and unqualified JSON responses.
+// snapshotPathAliases shares the client's bounded legacy OpenConfig aliases.
 func snapshotPathAliases(path string) []string {
-	const openConfigPrefix = "/openconfig"
-	if strings.HasPrefix(path, openConfigPrefix+"/") {
-		return []string{path, strings.TrimPrefix(path, openConfigPrefix)}
-	}
+	return client.PathAliases(path)
+}
 
-	trimmed := strings.TrimPrefix(path, "/")
-	root, _, _ := strings.Cut(trimmed, "/")
-	switch root {
-	case "interfaces", "system", "components", "lldp", "network-instances", "routing":
-		return []string{path, openConfigPrefix + path}
-	default:
-		return []string{path}
+// selectSnapshotValues applies the selector compiler at the reporting boundary,
+// including segment-scoped literal predicates and legacy unambiguous snapshots.
+func selectSnapshotValues(index snapshotIndex, path string) []client.CachedValue {
+	selector, err := client.SelectorKey(path)
+	if err != nil {
+		return nil
 	}
+	var exact, aliases []client.CachedValue
+	seen := make(map[string]bool)
+	for _, pathAlias := range snapshotPathAliases(selector.Path) {
+		for _, cached := range index[pathAlias] {
+			if !cached.Key.MatchesSelectorKeys(selector) {
+				continue
+			}
+			// Alias buckets contain copies of the same sample. Use the entire
+			// key, including ordered ElementKeys, not its legacy tag projection.
+			// CacheKey contains only strings and string maps, so encoding cannot fail.
+			identity, _ := json.Marshal(cached.Key)
+			if seen[string(identity)] {
+				continue
+			}
+			seen[string(identity)] = true
+			if cached.Key.Path == selector.Path {
+				exact = append(exact, cached)
+			} else {
+				aliases = append(aliases, cached)
+			}
+		}
+	}
+	// Lookup and scalar metadata readers must prefer exact spellings regardless
+	// of input snapshot order, while retaining deterministic keyed ordering.
+	return append(sortCachedValues(exact), sortCachedValues(aliases)...)
 }
 
 func snapshotPathMatches(snapshotPath, profilePath string) bool {
 	profilePath = normalizeProfilePath(profilePath)
-	for _, alias := range snapshotPathAliases(snapshotPath) {
-		if alias == profilePath {
-			return true
+	for _, selectorAlias := range snapshotPathAliases(profilePath) {
+		for _, sampleAlias := range snapshotPathAliases(snapshotPath) {
+			if sampleAlias == selectorAlias {
+				return true
+			}
 		}
 	}
 	return false
@@ -70,7 +93,7 @@ func firstStringValue(index snapshotIndex, path string, keys map[string]string) 
 		return value
 	}
 
-	for _, cached := range sortCachedValues(index[path]) {
+	for _, cached := range selectSnapshotValues(index, path) {
 		if value, ok := stringValue(cached.Entry.Value); ok {
 			return value
 		}
@@ -89,14 +112,15 @@ func resolveDeviceHostname(index snapshotIndex, metadata config.MetadataConfig) 
 		return hostname
 	}
 
-	for path, values := range index {
-		if !strings.HasSuffix(path, "/hostname") {
+	// Retain the legacy OpenConfig config/state hostname compatibility, but
+	// never synthesize a fallback selector in an explicit native origin.
+	for _, alias := range snapshotPathAliases(resolved.Device.Hostname) {
+		if !strings.HasPrefix(alias, "openconfig:/") {
 			continue
 		}
-		for _, cached := range values {
-			if value, ok := stringValue(cached.Entry.Value); ok {
-				return value
-			}
+		parent, ok := pathParent(alias)
+		if ok && strings.HasSuffix(parent, "/state") {
+			return firstStringValue(index, strings.TrimSuffix(parent, "/state")+"/config/hostname", nil)
 		}
 	}
 	return ""
@@ -115,7 +139,7 @@ func firstInt32Value(index snapshotIndex, path string, keys map[string]string) (
 		return int32(value), true
 	}
 
-	for _, cached := range sortCachedValues(index[path]) {
+	for _, cached := range selectSnapshotValues(index, path) {
 		if value, ok := int64Value(cached.Entry.Value); ok {
 			return int32(value), true
 		}
@@ -124,8 +148,12 @@ func firstInt32Value(index snapshotIndex, path string, keys map[string]string) (
 }
 
 func lookupCachedValue(index snapshotIndex, path string, keys map[string]string) (client.CachedValue, bool) {
-	for _, cached := range index[path] {
-		if keysEqual(cached.Key.Keys, keys) {
+	selector, err := client.SelectorKey(path)
+	if err != nil {
+		return client.CachedValue{}, false
+	}
+	for _, cached := range selectSnapshotValues(index, path) {
+		if cached.Key.MatchesLookupKeys(selector, keys) {
 			return cached, true
 		}
 	}
@@ -135,7 +163,7 @@ func lookupCachedValue(index snapshotIndex, path string, keys map[string]string)
 func indexCachedValuesByKeys(entries []client.CachedValue) map[string]client.CachedValue {
 	indexed := make(map[string]client.CachedValue, len(entries))
 	for _, cached := range entries {
-		indexed[cacheKeysID(cached.Key.Keys)] = cached
+		indexed[cached.Key.KeysIdentity()] = cached
 	}
 	return indexed
 }
@@ -178,18 +206,6 @@ func pathParent(path string) (string, bool) {
 	return trimmed[:idx], true
 }
 
-func keysEqual(actual, expected map[string]string) bool {
-	if len(actual) != len(expected) {
-		return false
-	}
-	for key, value := range expected {
-		if actual[key] != value {
-			return false
-		}
-	}
-	return true
-}
-
 func sortCachedValues(entries []client.CachedValue) []client.CachedValue {
 	if len(entries) <= 1 {
 		return entries
@@ -215,17 +231,17 @@ func componentNameKey(metadata config.MetadataConfig) string {
 func componentNames(index snapshotIndex, metadata config.MetadataConfig) []string {
 	nameKey := componentNameKey(metadata)
 	names := make(map[string]struct{})
-	for path, values := range index {
-		if !strings.Contains(path, componentPathSegment) {
+	device := metadata.Resolved().Device
+	for _, path := range []string{device.ComponentType, device.VendorName, device.SerialNumber, device.Platform, device.HardwareVersion, device.SoftwareVersion} {
+		if !strings.Contains(normalizeProfilePath(path), componentPathSegment) {
 			continue
 		}
-		for _, cached := range values {
+		for _, cached := range selectSnapshotValues(index, path) {
 			if name := cached.Key.Keys[nameKey]; name != "" {
 				names[name] = struct{}{}
 			}
 		}
 	}
-
 	out := make([]string, 0, len(names))
 	for name := range names {
 		out = append(out, name)
@@ -237,7 +253,7 @@ func componentNames(index snapshotIndex, metadata config.MetadataConfig) []strin
 func resolveDeviceComponentName(index snapshotIndex, metadata config.MetadataConfig) string {
 	resolved := metadata.Resolved()
 	nameKey := componentNameKey(resolved)
-	for _, cached := range sortCachedValues(index[resolved.Device.ComponentType]) {
+	for _, cached := range selectSnapshotValues(index, resolved.Device.ComponentType) {
 		componentType, ok := stringValue(cached.Entry.Value)
 		if !ok {
 			continue
@@ -338,7 +354,7 @@ func interfaceNames(index snapshotIndex, metadata config.MetadataConfig, metricP
 		}
 	}
 
-	for _, cached := range index[resolved.Interface.Name] {
+	for _, cached := range selectSnapshotValues(index, resolved.Interface.Name) {
 		if name, ok := stringValue(cached.Entry.Value); ok {
 			collectName(name)
 		}
@@ -346,13 +362,13 @@ func interfaceNames(index snapshotIndex, metadata config.MetadataConfig, metricP
 	}
 
 	for _, path := range resolved.InterfaceLookupPaths() {
-		for _, cached := range index[path] {
+		for _, cached := range selectSnapshotValues(index, path) {
 			collectName(cached.Key.Keys[nameKey])
 		}
 	}
 
 	for _, metricPath := range metricPaths {
-		for _, cached := range index[metricPath.path] {
+		for _, cached := range selectSnapshotValues(index, metricPath.path) {
 			collectName(cached.Key.Keys[metricPath.keyName])
 		}
 	}
@@ -382,7 +398,7 @@ func lldpNeighborKeys(index snapshotIndex, topology config.TopologyConfig) []map
 	neighborKey := topology.NeighborIDKey()
 	seen := make(map[string]map[string]string)
 	for _, path := range topology.LookupPaths() {
-		for _, cached := range index[path] {
+		for _, cached := range selectSnapshotValues(index, path) {
 			interfaceName := cached.Key.Keys[interfaceKey]
 			neighborID := cached.Key.Keys[neighborKey]
 			if interfaceName == "" || neighborID == "" {

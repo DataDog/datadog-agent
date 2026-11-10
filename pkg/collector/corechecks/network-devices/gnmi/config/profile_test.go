@@ -10,11 +10,15 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
+
+	"go.yaml.in/yaml/v2"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
@@ -431,4 +435,245 @@ func fillNonZeroValue(v reflect.Value, counter *int) {
 		v.Set(reflect.MakeMap(v.Type()))
 		v.SetMapIndex(reflect.ValueOf(key), reflect.ValueOf(value))
 	}
+}
+
+// Both the check and CLI resolve profiles through these configuration-only
+// entry points, before constructing a client or attempting a connection.
+func TestLoadProfileRejectsMalformedSelectors(t *testing.T) {
+	selectors := []string{
+		"/openconfig/interfaces/interface[name=eth0/state/name",
+		"/openconfig/system//state/hostname",
+		"/openconfig/interfaces/interface[name=eth0][name=eth1]/state/name",
+		"bad origin:/system/state/hostname",
+		"/openconfig",
+		" ",
+	}
+	for _, field := range profileSelectorFields() {
+		for _, selector := range selectors {
+			for _, inherited := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/inherited=%t", field, selector, inherited), func(t *testing.T) {
+					mockConfig := configmock.New(t)
+					mockConfig.SetInTest("confd_path", t.TempDir())
+					profileDir := getProfilesRoot()
+					raw := validSelectorProfile()
+					setProfileSelector(&raw, field, selector)
+					if inherited {
+						writeRawTestProfile(t, profileDir, "base.yaml", raw)
+						raw = rawProfileDefinition{Extends: []string{"base"}}
+					}
+					writeRawTestProfile(t, profileDir, "test.yaml", raw)
+
+					profile, err := LoadProfile("test")
+					require.Error(t, err)
+					assert.Nil(t, profile)
+					assert.Contains(t, err.Error(), `validate profile "test"`)
+					assert.Contains(t, err.Error(), field)
+					if selector != " " {
+						assert.Contains(t, err.Error(), fmt.Sprintf("%q", selector))
+					}
+
+					cfg, err := NewCheckConfig(integration.Data("address: example.invalid\nusername: user\npassword: secret\nprofile: test\n"))
+					require.Error(t, err)
+					assert.Nil(t, cfg)
+					assert.Contains(t, err.Error(), field)
+				})
+			}
+		}
+	}
+}
+
+func TestLoadProfileRejectsAmbiguousSelectorBindings(t *testing.T) {
+	fields := []string{
+		"metrics[0].path",
+		"metadata.device.component_type",
+		"metadata.interface.ifindex",
+		"metadata.ip_address.ip",
+		"topology.lldp.chassis_id",
+	}
+	for _, field := range fields {
+		t.Run(field, func(t *testing.T) {
+			raw := validSelectorProfile()
+			var selector string
+			switch field {
+			case "metrics[0].path":
+				selector = "/interfaces/interface/interface/state/counters/in-octets"
+			case "metadata.device.component_type":
+				selector = "/components/component/component/state/type"
+			case "metadata.interface.ifindex":
+				selector = "/interfaces/interface/interface/state/ifindex"
+			case "metadata.ip_address.ip":
+				selector = "/interfaces/interface/subinterfaces/subinterface/addresses/address/address/state/ip"
+			case "topology.lldp.chassis_id":
+				selector = "/lldp/interfaces/interface/neighbors/neighbor/neighbor/state/chassis-id"
+			}
+			setProfileSelector(&raw, field, selector)
+			profileDir := t.TempDir()
+			writeRawTestProfile(t, profileDir, "test.yaml", raw)
+			_, err := LoadProfile(filepath.Join(profileDir, "test.yaml"))
+			require.Error(t, err)
+			assert.Contains(t, err.Error(), field)
+			assert.Contains(t, err.Error(), "ambiguous key binding")
+		})
+	}
+}
+
+func TestLoadProfileBareMetadataSelectorBindings(t *testing.T) {
+	for _, tc := range []struct {
+		field    string
+		selector string
+		segment  string
+	}{
+		{"metadata.interface.ifindex", "interfaces/interface/state/ifindex", "interface"},
+		{"metadata.device.component_type", "components/component/state/type", "component"},
+	} {
+		for _, ambiguous := range []bool{false, true} {
+			for _, inherited := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/ambiguous=%t/inherited=%t", tc.field, ambiguous, inherited), func(t *testing.T) {
+					mockConfig := configmock.New(t)
+					mockConfig.SetInTest("confd_path", t.TempDir())
+					selector := tc.selector
+					if ambiguous {
+						selector = strings.Replace(selector, "/"+tc.segment+"/", "/"+tc.segment+"/"+tc.segment+"/", 1)
+					}
+					raw := validSelectorProfile()
+					setProfileSelector(&raw, tc.field, selector)
+					if inherited {
+						writeRawTestProfile(t, getProfilesRoot(), "base.yaml", raw)
+						raw = rawProfileDefinition{Extends: []string{"base"}}
+					}
+					writeRawTestProfile(t, getProfilesRoot(), "test.yaml", raw)
+
+					profile, err := LoadProfile("test")
+					cfg, configErr := NewCheckConfig(integration.Data("address: example.invalid\nusername: user\npassword: secret\nprofile: test\n"))
+					if ambiguous {
+						require.Error(t, err)
+						assert.Nil(t, profile)
+						require.Error(t, configErr)
+						assert.Nil(t, cfg)
+						for _, loadErr := range []error{err, configErr} {
+							assert.Contains(t, loadErr.Error(), tc.field)
+							assert.Contains(t, loadErr.Error(), fmt.Sprintf("%q", selector))
+							assert.Contains(t, loadErr.Error(), "ambiguous key binding")
+						}
+						return
+					}
+					require.NoError(t, err)
+					require.NoError(t, configErr)
+					assert.Equal(t, selector, getProfileSelector(&rawProfileDefinition{Metadata: profile.Metadata}, tc.field))
+					var subscription *PathSubscriptionConfig
+					for _, path := range profile.Metadata.SubscriptionPaths() {
+						if path.Path == NormalizePath(selector) {
+							subscription = &path
+							break
+						}
+					}
+					require.NotNil(t, subscription)
+					assert.Equal(t, map[string]string{tc.segment: "name"}, subscription.Tags)
+					_, err = CompilePath(subscription.Path, subscription.Tags)
+					require.NoError(t, err)
+				})
+			}
+		}
+	}
+}
+
+func TestLoadProfileValidSelectorFormsAndOverrides(t *testing.T) {
+	for _, prefix := range []string{"", "/openconfig/", "openconfig:/", "native:/", "native:/vendor-module:"} {
+		t.Run(prefix, func(t *testing.T) {
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest("confd_path", t.TempDir())
+			profileDir := getProfilesRoot()
+			base := validSelectorProfile()
+			for _, field := range profileSelectorFields() {
+				setProfileSelector(&base, field, prefix+strings.TrimPrefix(getProfileSelector(&base, field), "/openconfig/"))
+			}
+			writeRawTestProfile(t, profileDir, "base.yaml", base)
+			override := rawProfileDefinition{
+				Extends: []string{"base"},
+				Metrics: append([]MetricConfig(nil), base.Metrics...),
+				Metadata: MetadataConfig{Device: DeviceMetadataConfig{
+					Hostname: prefix + `system/state/hostname[name="router/a"]`,
+				}},
+			}
+			override.Metrics[0].Type = MetricTypeMonotonicCount
+			writeRawTestProfile(t, profileDir, "test.yaml", override)
+
+			profile, err := LoadProfile("test")
+			require.NoError(t, err)
+			require.Len(t, profile.Metrics, 1)
+			assert.Equal(t, override.Metrics[0].Path, profile.Metrics[0].Path)
+			assert.Equal(t, override.Metrics[0].Metric, profile.Metrics[0].Metric)
+			assert.Equal(t, override.Metrics[0].Type, profile.Metrics[0].Type)
+			assert.Equal(t, override.Metrics[0].SubscriptionKeys(), profile.Metrics[0].SubscriptionKeys())
+			assert.Equal(t, override.Metadata.Device.Hostname, profile.Metadata.Device.Hostname)
+			assert.Equal(t, base.Metadata.Interface, profile.Metadata.Interface)
+			assert.Equal(t, base.Topology, profile.Topology)
+		})
+	}
+}
+
+func validSelectorProfile() rawProfileDefinition {
+	return rawProfileDefinition{
+		Metrics: []MetricConfig{{
+			Path:   "/openconfig/interfaces/interface/state/counters/in-octets",
+			Metric: "snmp.ifHCInOctets", Type: MetricTypeGauge,
+			Tags: map[string]string{"interface": "name"},
+		}},
+		Metadata: DefaultOpenConfigMetadata(),
+		Topology: DefaultOpenConfigLLDP(),
+	}
+}
+
+func writeRawTestProfile(t *testing.T, dir, name string, raw rawProfileDefinition) {
+	t.Helper()
+	buf, err := yaml.Marshal(raw)
+	require.NoError(t, err)
+	require.NoError(t, writeTestProfile(dir, name, string(buf)))
+}
+
+// Enumerate selector fields by YAML names so every metadata and topology field
+// is tested, including fields added in the future.
+func profileSelectorFields() []string {
+	fields := []string{"metrics[0].path"}
+	var walk func(reflect.Type, string)
+	walk = func(typ reflect.Type, prefix string) {
+		for i := 0; i < typ.NumField(); i++ {
+			field := typ.Field(i)
+			name := prefix + "." + field.Tag.Get("yaml")
+			switch field.Type.Kind() {
+			case reflect.Struct:
+				walk(field.Type, name)
+			case reflect.String:
+				fields = append(fields, name)
+			}
+		}
+	}
+	walk(reflect.TypeOf(MetadataConfig{}), "metadata")
+	walk(reflect.TypeOf(TopologyConfig{}), "topology")
+	return fields
+}
+
+func profileSelectorValue(raw *rawProfileDefinition, field string) reflect.Value {
+	if field == "metrics[0].path" {
+		return reflect.ValueOf(&raw.Metrics[0].Path).Elem()
+	}
+	value := reflect.ValueOf(raw).Elem()
+	for _, name := range strings.Split(field, ".") {
+		typ := value.Type()
+		for i := 0; i < typ.NumField(); i++ {
+			if typ.Field(i).Tag.Get("yaml") == name {
+				value = value.Field(i)
+				break
+			}
+		}
+	}
+	return value
+}
+
+func setProfileSelector(raw *rawProfileDefinition, field, selector string) {
+	profileSelectorValue(raw, field).SetString(selector)
+}
+
+func getProfileSelector(raw *rawProfileDefinition, field string) string {
+	return profileSelectorValue(raw, field).String()
 }

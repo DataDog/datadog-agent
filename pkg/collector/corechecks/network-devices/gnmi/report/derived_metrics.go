@@ -103,12 +103,12 @@ func reportCounterRates(
 		if metric.Type != config.MetricTypeMonotonicCount {
 			continue
 		}
-		for _, cached := range byPath[normalizeProfilePath(metric.Path)] {
+		for _, cached := range selectSnapshotValues(byPath, metric.Path) {
 			value, ok := decodeMetricValue(cached.Entry.Value, metric.ValueMap)
 			if !ok {
 				continue
 			}
-			seriesID := "rate\x00" + metric.Metric + "\x00" + cacheKeysID(cached.Key.Keys)
+			seriesID := "rate\x00" + metric.Metric + "\x00" + normalizeProfilePath(metric.Path) + "\x00" + cached.Key.KeysIdentity()
 			rate, err := rates.counterRate(seriesID, 0, value, cached.Entry.Timestamp)
 			if err != nil {
 				log.Tracef("skip %s.rate: %s", metric.Metric, err)
@@ -123,6 +123,8 @@ func reportCounterRates(
 
 type interfaceBandwidthData struct {
 	name      string
+	inSeries  string
+	outSeries string
 	inOctets  float64
 	outOctets float64
 	inTs      time.Time
@@ -147,10 +149,10 @@ func reportInterfaceBandwidthUsage(
 			continue
 		}
 		if iface.inOctets >= 0 && len(iface.inTags) > 0 {
-			emitBandwidthUsageRate(s, bandwidthState, iface.name, "ifBandwidthInUsage", iface.speed, iface.inOctets, iface.inTs, iface.inTags)
+			emitBandwidthUsageRate(s, bandwidthState, iface.inSeries, "ifBandwidthInUsage", iface.speed, iface.inOctets, iface.inTs, iface.inTags)
 		}
 		if iface.outOctets >= 0 && len(iface.outTags) > 0 {
-			emitBandwidthUsageRate(s, bandwidthState, iface.name, "ifBandwidthOutUsage", iface.speed, iface.outOctets, iface.outTs, iface.outTags)
+			emitBandwidthUsageRate(s, bandwidthState, iface.outSeries, "ifBandwidthOutUsage", iface.speed, iface.outOctets, iface.outTs, iface.outTags)
 		}
 	}
 }
@@ -168,13 +170,17 @@ func collectInterfaceBandwidthData(
 	interfaces := make(map[string]*interfaceBandwidthData)
 
 	for metricIndex, metric := range metricConfigs {
-		for _, cached := range byPath[normalizeProfilePath(metric.Path)] {
-			keysID := cacheKeysID(cached.Key.Keys)
+		for _, cached := range selectSnapshotValues(byPath, metric.Path) {
+			keysID := cached.Key.KeysIdentity()
 			if keysID == "" {
 				continue
 			}
 
-			entry := interfaces[keysID]
+			scopeID := keysID
+			if path, err := config.CompilePath(metric.Path, nil); err == nil && path.Origin != "" && path.Origin != "openconfig" {
+				scopeID = path.Origin + "\x00" + keysID
+			}
+			entry := interfaces[scopeID]
 			if metricIndex == 2 {
 				if entry == nil {
 					continue
@@ -196,14 +202,16 @@ func collectInterfaceBandwidthData(
 					continue
 				}
 				entry = &interfaceBandwidthData{name: interfaceName, inOctets: -1, outOctets: -1}
-				interfaces[keysID] = entry
+				interfaces[scopeID] = entry
 			}
 			tags := interfaceBandwidthTags(baseTags, deviceID, entry.name, inventory)
 			if metricIndex == 0 {
+				entry.inSeries = normalizeProfilePath(metric.Path) + "\x00" + keysID
 				entry.inOctets = value
 				entry.inTs = cached.Entry.Timestamp
 				entry.inTags = tags
 			} else {
+				entry.outSeries = normalizeProfilePath(metric.Path) + "\x00" + keysID
 				entry.outOctets = value
 				entry.outTs = cached.Entry.Timestamp
 				entry.outTags = tags
@@ -268,15 +276,15 @@ func reportMemoryUsage(s Sender, profile config.ProfileDefinition, snapshot []cl
 	}
 
 	byPath := indexSnapshotByPath(snapshot)
-	freeByKeys := indexCachedValuesByKeys(byPath[freePath])
+	freeByKeys := indexCachedValuesByKeys(selectSnapshotValues(byPath, freeMetric.Path))
 
-	for _, usedCached := range sortCachedValues(byPath[usedPath]) {
+	for _, usedCached := range sortCachedValues(selectSnapshotValues(byPath, usedMetric.Path)) {
 		keys := usedCached.Key.Keys
 		if len(keys) == 0 {
 			continue
 		}
 
-		freeCached, ok := freeByKeys[cacheKeysID(keys)]
+		freeCached, ok := freeByKeys[usedCached.Key.KeysIdentity()]
 		if !ok {
 			continue
 		}

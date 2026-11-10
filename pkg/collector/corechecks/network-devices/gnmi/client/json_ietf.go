@@ -22,7 +22,7 @@ func flattenJSONLeaves(basePath string, keys map[string]string, value any, times
 		nested, ok := asJSONMap(current)
 		if ok {
 			for childName, childValue := range nested {
-				walk(path+"/"+canonicalizeLeafName(childName), childValue)
+				walk(strings.TrimSuffix(path, "/")+"/"+childName, childValue)
 			}
 			return
 		}
@@ -41,7 +41,7 @@ func flattenJSONLeaves(basePath string, keys map[string]string, value any, times
 	}
 
 	for childName, childValue := range rootMap {
-		walk(basePath+"/"+canonicalizeLeafName(childName), childValue)
+		walk(strings.TrimSuffix(basePath, "/")+"/"+childName, childValue)
 	}
 	return leaves
 }
@@ -52,25 +52,6 @@ func asJSONMap(value any) (map[string]any, bool) {
 		return nil, false
 	}
 	return typed, true
-}
-
-func canonicalizeLeafName(name string) string {
-	_, local, ok := splitModuleQualifiedName(name)
-	if ok {
-		return local
-	}
-	return name
-}
-
-func expandModuleQualifiedSegment(segment string) []string {
-	module, local, ok := splitModuleQualifiedName(segment)
-	if !ok {
-		return []string{segment}
-	}
-	if strings.HasPrefix(module, "openconfig") && isOpenConfigRootSegment(local) {
-		return []string{"openconfig", local}
-	}
-	return []string{local}
 }
 
 func splitModuleQualifiedName(segment string) (module string, local string, ok bool) {

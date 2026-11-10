@@ -11,7 +11,6 @@ import (
 	"math"
 	"sort"
 	"strconv"
-	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
@@ -43,7 +42,7 @@ func ReportMetrics(s Sender, cfg *config.CheckConfig, metricSnapshot []client.Ca
 	byPath := indexSnapshotByPath(metricSnapshot)
 
 	for _, metric := range cfg.Profile.Metrics {
-		values := byPath[normalizeProfilePath(metric.Path)]
+		values := selectSnapshotValues(byPath, metric.Path)
 		for _, cached := range values {
 			tags := buildMetricTags(baseTags, metric, cached.Key.Keys)
 			tags = enrichInterfaceMetricTags(tags, deviceID, metric, cached.Key.Keys, interfaceInventory)
@@ -69,14 +68,11 @@ func indexSnapshotByPath(snapshot []client.CachedValue) map[string][]client.Cach
 }
 
 func normalizeProfilePath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return trimmed
+	key, err := client.SelectorKey(path)
+	if err != nil {
+		return ""
 	}
-	if trimmed[0] != '/' {
-		return "/" + trimmed
-	}
-	return trimmed
+	return key.Path
 }
 
 func buildBaseTags(cfg *config.CheckConfig, snapshot []client.CachedValue) []string {
@@ -158,7 +154,7 @@ func interfaceMetricPathsFromProfile(profile config.ProfileDefinition) []interfa
 		if !ok || keyName == "" {
 			continue
 		}
-		paths = append(paths, interfaceMetricPath{path: normalizeProfilePath(metric.Path), keyName: keyName})
+		paths = append(paths, interfaceMetricPath{path: metric.Path, keyName: keyName})
 	}
 	return paths
 }

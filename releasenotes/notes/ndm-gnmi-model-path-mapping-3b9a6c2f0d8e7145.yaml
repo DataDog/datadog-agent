@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix model-path handling in the experimental NDM gNMI check to preserve
+    explicit origins and ordered list keys when collecting and reporting
+    telemetry. Validate metric, metadata, and topology selectors while loading
+    profiles so malformed selectors are rejected before connecting to a device.

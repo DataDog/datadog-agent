@@ -97,17 +97,17 @@ func TestBuildSubscriptionSpecsIncludesTopologyWhenEnabled(t *testing.T) {
 	assert.True(t, found)
 }
 
-func TestSubscribePathKeepsOpenConfigPrefix(t *testing.T) {
+func TestSubscribePathUsesOpenConfigOrigin(t *testing.T) {
 	path, err := subscribePathFromSpec(SubscriptionSpec{
 		Path: "/openconfig/interfaces/interface/state/name",
 		Keys: map[string]string{"interface": "name"},
 	})
 	require.NoError(t, err)
-	require.Len(t, path.Elem, 5)
-	assert.Equal(t, "openconfig", path.Elem[0].Name)
-	assert.Equal(t, "interfaces", path.Elem[1].Name)
-	assert.Equal(t, "interface", path.Elem[2].Name)
-	assert.Equal(t, map[string]string{"name": "*"}, path.Elem[2].Key)
+	require.Equal(t, "openconfig", path.Origin)
+	require.Len(t, path.Elem, 4)
+	assert.Equal(t, "interfaces", path.Elem[0].Name)
+	assert.Equal(t, "interface", path.Elem[1].Name)
+	assert.Equal(t, map[string]string{"name": "*"}, path.Elem[1].Key)
 }
 
 func TestBuildSubscriptionSpecsExcludesTopologyByDefault(t *testing.T) {

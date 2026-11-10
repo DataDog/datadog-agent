@@ -295,7 +295,7 @@ func validateMetricConfig(metric MetricConfig, index int) error {
 	metricPrefix := fmt.Sprintf("metrics[%d]", index)
 
 	if strings.TrimSpace(metric.Path) == "" {
-		return fmt.Errorf("%s: `path` must not be empty", metricPrefix)
+		return fmt.Errorf("%s.path: `path` must not be empty", metricPrefix)
 	}
 	if strings.TrimSpace(metric.Metric) == "" {
 		return fmt.Errorf("%s: `metric` must not be empty", metricPrefix)
@@ -303,7 +303,17 @@ func validateMetricConfig(metric MetricConfig, index int) error {
 	if _, ok := supportedMetricTypes[metric.Type]; !ok {
 		return fmt.Errorf("%s: unsupported metric `type` %q (supported: gauge, monotonic_count)", metricPrefix, metric.Type)
 	}
-	return validateUniquePathKeyNames(metric.SubscriptionKeys(), metricPrefix)
+	if err := validateUniquePathKeyNames(metric.SubscriptionKeys(), metricPrefix); err != nil {
+		return err
+	}
+	return validateProfilePath(metric.Path, metric.SubscriptionKeys(), metricPrefix+".path")
+}
+
+func validateProfilePath(path string, bindings map[string]string, field string) error {
+	if _, err := CompilePath(path, bindings); err != nil {
+		return fmt.Errorf("%s: invalid selector %q: %w", field, path, err)
+	}
+	return nil
 }
 
 func validateUniquePathKeyNames(keys map[string]string, field string) error {

@@ -164,6 +164,13 @@ func New(cfg Config, opts ...Option) (*Client, error) {
 		cfg.SampleInterval = DefaultSampleInterval
 	}
 
+	// Reject malformed selectors before starting an endless reconnect loop.
+	for _, spec := range buildSubscriptionSpecs(cfg) {
+		if _, err := config.CompilePath(spec.Path, spec.Keys); err != nil {
+			return nil, fmt.Errorf("subscription path %q: %w", spec.Path, err)
+		}
+	}
+
 	clientOpts := options{
 		minReconnectDelay: defaultMinReconnectDelay,
 		maxReconnectDelay: defaultMaxReconnectDelay,
@@ -245,7 +252,11 @@ func (c *Client) Cancel() error {
 
 // Get returns the latest cached value for a normalized path and key set.
 func (c *Client) Get(path string, keys map[string]string) (CacheEntry, bool) {
-	return c.cache.get(CacheKey{Path: path, Keys: cloneKeys(keys)})
+	selector, err := SelectorKey(path)
+	if err != nil {
+		return CacheEntry{}, false
+	}
+	return c.cache.get(selector, keys)
 }
 
 // CachedValue pairs a cache key with its latest entry.
@@ -475,7 +486,7 @@ func (c *Client) buildSubscribeRequest() (*gnmipb.SubscribeRequest, error) {
 	specs := buildSubscriptionSpecs(c.cfg)
 	subscriptions := make([]*gnmipb.Subscription, 0, len(specs))
 	for _, spec := range specs {
-		path, err := subscribePathFromSpec(spec)
+		path, err := config.CompilePath(spec.Path, spec.Keys)
 		if err != nil {
 			return nil, fmt.Errorf("path %q: %w", spec.Path, err)
 		}

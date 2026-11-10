@@ -385,7 +385,10 @@ func buildIPAddressMetadataForFamily(
 		return strings.Join(parts, "\x00")
 	}
 
-	for _, cached := range snapshot {
+	index := indexSnapshot(snapshot)
+	values := append([]client.CachedValue(nil), selectSnapshotValues(index, ipPathConfig)...)
+	values = append(values, selectSnapshotValues(index, prefixPathConfig)...)
+	for _, cached := range values {
 		key := addressKey(cached.Key.Keys)
 		if key == "" {
 			continue
@@ -396,15 +399,17 @@ func buildIPAddressMetadataForFamily(
 			addresses[key] = entry
 		}
 
+		// Selection is exact-first for each path. Keep the first usable value
+		// per field so an alias cannot overwrite it (including a valid /0).
 		switch {
-		case snapshotPathMatches(cached.Key.Path, ipPath):
+		case snapshotPathMatches(cached.Key.Path, ipPath) && entry.ip == "":
 			if value, ok := stringValue(cached.Entry.Value); ok {
 				entry.ip = value
 			}
 			if entry.ip == "" {
 				entry.ip = cached.Key.Keys[addressValueKey]
 			}
-		case snapshotPathMatches(cached.Key.Path, prefixPath):
+		case snapshotPathMatches(cached.Key.Path, prefixPath) && !entry.hasPrefix:
 			if value, ok := int64Value(cached.Entry.Value); ok {
 				entry.prefixLen = int32(value)
 				entry.hasPrefix = true

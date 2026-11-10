@@ -193,3 +193,25 @@ func TestNormalizeLLDPIDType(t *testing.T) {
 	assert.Equal(t, "interface_name", normalizeLLDPPortIDType("5"))
 	assert.Equal(t, "mac_address", normalizeLLDPPortIDType("3"))
 }
+
+func TestVRFParentTopologyLookup(t *testing.T) {
+	base := "native:/vrfs/vrf[vrf-id=blue]/lldp/interfaces/interface/neighbors/neighbor/state/"
+	topology := config.TopologyConfig{LLDP: config.LLDPNeighborConfig{
+		Keys: map[string]string{"interface": "name", "neighbor": "id"}, ChassisID: base + "chassis-id", SystemName: base + "system-name", PortID: base + "port-id",
+	}}
+	var snapshot []client.CachedValue
+	for field, value := range map[string]string{"chassis-id": "remote-id", "system-name": "remote-host", "port-id": "remote-port"} {
+		for _, vrf := range []string{"blue", "red"} {
+			v := value
+			if vrf == "red" {
+				v = "wrong-vrf"
+			}
+			snapshot = append(snapshot, selectorCachedValue(t, "native:/vrfs/vrf[vrf-id="+vrf+"]/lldp/interfaces/interface[name=eth0]/neighbors/neighbor[id=1]/state/"+field, v))
+		}
+	}
+	links := buildTopologyLinks("default:router", topology, snapshot, nil)
+	require.Len(t, links, 1)
+	require.Equal(t, "remote-id", links[0].Remote.Device.ID)
+	require.Equal(t, "remote-host", links[0].Remote.Device.Name)
+	require.Equal(t, "remote-port", links[0].Remote.Interface.ID)
+}

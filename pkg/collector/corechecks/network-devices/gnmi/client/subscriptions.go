@@ -6,8 +6,6 @@
 package client
 
 import (
-	"strings"
-
 	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
@@ -98,30 +96,9 @@ func buildSubscriptionSpecs(cfg Config) []SubscriptionSpec {
 }
 
 func normalizeSubscriptionPath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return trimmed
-	}
-	if trimmed[0] != '/' {
-		return "/" + trimmed
-	}
-	return trimmed
+	return config.NormalizePath(path)
 }
 
 func subscribePathFromSpec(spec SubscriptionSpec) (*gnmipb.Path, error) {
-	segments, err := splitProfilePath(spec.Path)
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]*gnmipb.PathElem, 0, len(segments))
-	for _, segment := range segments {
-		elem := &gnmipb.PathElem{Name: segment}
-		if keyName, ok := spec.Keys[segment]; ok && keyName != "" {
-			elem.Key = map[string]string{keyName: "*"}
-		}
-		elems = append(elems, elem)
-	}
-
-	return &gnmipb.Path{Elem: elems}, nil
+	return config.CompilePath(spec.Path, spec.Keys)
 }
