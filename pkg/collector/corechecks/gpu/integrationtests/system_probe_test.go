@@ -43,7 +43,6 @@ const (
 )
 
 const systemProbeConfigTemplate = `system_probe_config:
-  enabled: true
   sysprobe_socket: %[1]s
   bpf_dir: %[2]s
   enable_co_re: true
@@ -61,6 +60,9 @@ gpu_monitoring:
   driver_events_enabled: false
 `
 
+// systemProbeDatadogConfig is the core Agent configuration system-probe reads. There is no core
+// Agent: cmd_port 0 makes system-probe skip it, otherwise it waits at startup for one on the default
+// IPC port and the GPU module does not start.
 const systemProbeDatadogConfig = `api_key: '00000000000000000000000000000001'
 hostname: gpu-spec-integration-test
 cmd_port: 0
@@ -91,7 +93,18 @@ func startSystemProbeIfRequested(t *testing.T) map[gpuspec.ConfigFeature]bool {
 	require.NoError(t, err, "get system-probe version: %s", version)
 	t.Logf("starting system-probe %s: %s (eBPF objects in %s)", bin, strings.TrimSpace(string(version)), bpfDir)
 
-	dir := t.TempDir()
+	// Not t.TempDir(): the directory is kept when the test fails, for the system-probe logs.
+	dir, err := os.MkdirTemp("", "gpu-spec-system-probe-")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("system-probe output and logs kept in %s", dir)
+			return
+		}
+		if err := os.RemoveAll(dir); err != nil {
+			t.Logf("remove %s: %v", dir, err)
+		}
+	})
 	socketPath := filepath.Join(dir, "sysprobe.sock")
 	logPath := filepath.Join(dir, "system-probe.log")
 	systemProbeConfigPath := filepath.Join(dir, "system-probe.yaml")
@@ -108,12 +121,13 @@ func startSystemProbeIfRequested(t *testing.T) map[gpuspec.ConfigFeature]bool {
 		// There is no core Agent to stream the configuration from; without this system-probe waits
 		// for it before starting.
 		"DD_REMOTE_AGENT_CONFIGSTREAM_CONSUMER_ENABLED=false",
-		"DD_SYSTEM_PROBE_NETWORK_ENABLED=false",
 	)
 	cmd.Stdout = output
 	cmd.Stderr = output
 	// Kill system-probe if the test binary dies without running its cleanups, so that it does not
-	// keep the eBPF probes loaded and NVML held.
+	// keep the eBPF probes loaded and NVML held. Linux sends the signal when the OS thread that
+	// started the process exits, not the whole test binary; the Go runtime only ends threads locked
+	// with runtime.LockOSThread, which this test does not use, so in practice that is the binary.
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	require.NoError(t, cmd.Start(), "start system-probe")
 
@@ -160,8 +174,7 @@ func requireSystemProbePrerequisites(t *testing.T, bin string, bpfDir string) {
 	object := filepath.Join(bpfDir, "co-re", "gpu.o")
 	info, err = os.Stat(object)
 	require.NoError(t, err, "GPU eBPF object not found; `dda inv system-probe.build` installs it in %s, or set %s", defaultSystemProbeBPFDir, systemProbeBPFDirEnv)
-	stat, ok := info.Sys().(*syscall.Stat_t)
-	require.True(t, ok)
+	stat := info.Sys().(*syscall.Stat_t)
 	require.True(t, stat.Uid == 0 && stat.Gid == 0 && info.Mode().Perm()&0o022 == 0,
 		"%s must be owned by root:root and not writable by group or others, system-probe refuses to load it otherwise", object)
 }
