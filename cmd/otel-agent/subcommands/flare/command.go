@@ -62,6 +62,9 @@ const (
 	defaultExtensionTimeout = 20 * time.Second
 	// debugSourceTimeout leaves room for the pprof CPU profile, which takes 30 seconds
 	debugSourceTimeout = 45 * time.Second
+	// noConfigProvided replaces the configurations when no --config is given. It isn't a YAML
+	// comment, which the scrubber would remove.
+	noConfigProvided = "No configuration files provided, pass the --config flags given to the collector"
 )
 
 // cliParams are the command-line arguments for this subcommand
@@ -206,6 +209,12 @@ func createOTelFlare(params *subcommands.GlobalParams, cfg pkgconfigmodel.Reader
 	if err != nil {
 		return "", fmt.Errorf("failed to collect OTel data: %w", err)
 	}
+	// Scrub the data before serializing it: once embedded in JSON, secrets are out of reach of the
+	// text scrubber applied to every file of the archive.
+	data, err = scrubResponse(data)
+	if err != nil {
+		return "", fmt.Errorf("failed to scrub OTel data: %w", err)
+	}
 	files := append(responseFiles(data), collectDebugSources(data.Sources)...)
 
 	// Private, unpredictable dir (0700 on Unix; per-user temp ACL on Windows) so others can't read/symlink the flare.
@@ -332,9 +341,9 @@ func collectConfigData(params *subcommands.GlobalParams) (*extensiontypes.Respon
 			fmt.Fprintf(color.Output, "%s", color.YellowString(fmt.Sprintf("Warning: Could not load runtime config: %v\n", err)))
 		}
 	} else {
-		customerConfig = "# No configuration files provided"
-		runtimeConfig = "# No configuration files provided"
-		envConfig = "# No configuration files provided"
+		customerConfig = noConfigProvided
+		runtimeConfig = noConfigProvided
+		envConfig = noConfigProvided
 	}
 
 	// Collect environment variables
@@ -635,6 +644,37 @@ type flareFile struct {
 	content []byte
 	// scrub is false for binary content only (pprof profiles)
 	scrub bool
+}
+
+// scrubResponse returns a copy of the flare data with credentials scrubbed from the configurations
+// and the environment, using the structured YAML and JSON scrubbers.
+func scrubResponse(data *extensiontypes.Response) (*extensiontypes.Response, error) {
+	scrubbed := *data
+	for _, conf := range []*string{&scrubbed.CustomerConfig, &scrubbed.EnvConfig, &scrubbed.RuntimeOverrideConfig, &scrubbed.RuntimeConfig} {
+		if *conf == "" || *conf == noConfigProvided {
+			continue
+		}
+		s, err := scrubber.ScrubYamlString(*conf)
+		if err != nil {
+			return nil, err
+		}
+		*conf = s
+	}
+
+	if len(data.Environment) > 0 {
+		envJSON, err := json.Marshal(data.Environment)
+		if err != nil {
+			return nil, err
+		}
+		if envJSON, err = scrubber.ScrubJSON(envJSON); err != nil {
+			return nil, err
+		}
+		scrubbed.Environment = nil
+		if err := json.Unmarshal(envJSON, &scrubbed.Environment); err != nil {
+			return nil, err
+		}
+	}
+	return &scrubbed, nil
 }
 
 // responseFiles returns the flare files built from the flare data

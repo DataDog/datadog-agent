@@ -224,6 +224,35 @@ func TestCreateOTelFlareFromRunningCollector(t *testing.T) {
 	}
 }
 
+// TestScrubResponseStructuredSecrets checks secrets that the text scrubber alone misses once
+// serialized: quoted JSON keys and YAML embedded in JSON strings.
+func TestScrubResponseStructuredSecrets(t *testing.T) {
+	data := &extensiontypes.Response{
+		ConfigResponse: extensiontypes.ConfigResponse{
+			CustomerConfig: noConfigProvided,
+			RuntimeConfig:  "exporters:\n  otlphttp:\n    headers:\n      password: hunter2\nreceivers:\n  otlp: {}\n",
+		},
+		Environment: map[string]string{"AWS_SECRET_ACCESS_KEY": "supersecret", "HOME": "/root"},
+	}
+
+	scrubbed, err := scrubResponse(data)
+	require.NoError(t, err)
+
+	tmp := filepath.Join(t.TempDir(), "flare.zip")
+	require.NoError(t, createFlareArchive(tmp, responseFiles(scrubbed)))
+	files := readZip(t, tmp)
+	for name, content := range files {
+		assert.NotContains(t, string(content), "supersecret", "secret not scrubbed from %s", name)
+		assert.NotContains(t, string(content), "hunter2", "secret not scrubbed from %s", name)
+	}
+	assert.Contains(t, string(files["environment.json"]), "/root", "non-secret values are kept")
+	assert.Contains(t, string(files["config/runtime-config.yaml"]), "otlp", "non-secret config is kept")
+	assert.Equal(t, noConfigProvided, string(files["config/customer-config.yaml"]))
+
+	// the input is not modified
+	assert.Equal(t, "supersecret", data.Environment["AWS_SECRET_ACCESS_KEY"])
+}
+
 func TestFlareConfigUsesExporterAPIKey(t *testing.T) {
 	globalParams := newGlobalParamsTest(t)
 	// flareConfigModule rebuilds the global config: the mock restores it after the test
