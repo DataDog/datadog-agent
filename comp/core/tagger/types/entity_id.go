@@ -83,6 +83,8 @@ const (
 	KueueResourceFlavor EntityIDPrefix = "kueue_resource_flavor"
 	// KueueWorkload is the prefix `kueue_workload`
 	KueueWorkload EntityIDPrefix = "kueue_workload"
+	// KubernetesAutoscaledWorkload is the prefix `kubernetes_autoscaled_workload`
+	KubernetesAutoscaledWorkload EntityIDPrefix = "kubernetes_autoscaled_workload"
 	// KubernetesCapabilities is the prefix `kubernetes_capabilities`
 	KubernetesCapabilities EntityIDPrefix = "kubernetes_capabilities"
 	// KubernetesPodUID is the prefix `kubernetes_pod_uid`
@@ -102,24 +104,31 @@ const (
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
 func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 	return map[EntityIDPrefix]struct{}{
-		ContainerID:            {},
-		ContainerImageMetadata: {},
-		ECSTask:                {},
-		Host:                   {},
-		KubernetesDeployment:   {},
-		KubernetesMetadata:     {},
-		KubernetesNode:         {},
-		KubernetesKueueQueue:   {},
-		KueueResourceFlavor:    {},
-		KueueWorkload:          {},
-		KubernetesPodUID:       {},
-		Process:                {},
-		InternalID:             {},
-		GPU:                    {},
-		Kubelet:                {},
-		Crd:                    {},
-		KubernetesCapabilities: {},
+		ContainerID:                  {},
+		ContainerImageMetadata:       {},
+		ECSTask:                      {},
+		Host:                         {},
+		KubernetesDeployment:         {},
+		KubernetesMetadata:           {},
+		KubernetesNode:               {},
+		KubernetesKueueQueue:         {},
+		KueueResourceFlavor:          {},
+		KueueWorkload:                {},
+		KubernetesPodUID:             {},
+		Process:                      {},
+		InternalID:                   {},
+		GPU:                          {},
+		Kubelet:                      {},
+		Crd:                          {},
+		KubernetesCapabilities:       {},
+		KubernetesAutoscaledWorkload: {},
 	}
+}
+
+// NewKubernetesAutoscaledWorkloadEntityID returns the entity ID of a workload
+// targeted by autoscalers. kind is deployment, statefulset or argo_rollout.
+func NewKubernetesAutoscaledWorkloadEntityID(kind, namespace, name string) EntityID {
+	return NewEntityID(KubernetesAutoscaledWorkload, kind+"/"+namespace+"/"+name)
 }
 
 // GetGlobalEntityID returns the entity ID that holds global tags

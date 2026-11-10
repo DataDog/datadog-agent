@@ -165,6 +165,12 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, proces
 		}
 	}
 
+	// exec replaces the address space holding the record and the labels: read
+	// them at the entry
+	if nr == ExecveNr || nr == ExecveatNr {
+		syscallMsg.SpanContext = ctx.spanContext(process, &regs)
+	}
+
 	/* internal special cases */
 	switch nr {
 	case ExecveNr:
@@ -213,23 +219,32 @@ func (ctx *CWSPtracerCtx) handlePreHooks(nr int, regs syscall.PtraceRegs, proces
 	}
 }
 
-func (ctx *CWSPtracerCtx) sendForkMsg(process *Process, creatorTID int) {
+// sendForkMsg reports a fork. regs, when not nil, are the creator's, stopped at
+// the fork event.
+func (ctx *CWSPtracerCtx) sendForkMsg(process *Process, creatorTID int, regs *syscall.PtraceRegs) {
 	if creator := ctx.processCache.Get(creatorTID); creator != nil {
-		ctx.sendSyscallMsg(process, &ebpfless.SyscallMsg{
+		msg := &ebpfless.SyscallMsg{
 			Type: ebpfless.SyscallTypeFork,
 			Fork: &ebpfless.ForkSyscallMsg{PPID: uint32(creator.Tgid)},
-		})
+		}
+		if regs != nil {
+			msg.SpanContext = ctx.spanContext(creator, regs)
+		}
+		ctx.sendSyscallMsg(process, msg)
 	}
 }
 
-func (ctx *CWSPtracerCtx) handleClone(flags uint64, process *Process, creatorTID int) {
-	if ctx.processCache.Get(creatorTID) == nil {
+func (ctx *CWSPtracerCtx) handleClone(flags uint64, process *Process, creatorTID int, regs *syscall.PtraceRegs) {
+	creator := ctx.processCache.Get(creatorTID)
+	if creator == nil {
 		return
 	}
 	ctx.processCache.shareResources(process, creatorTID, flags)
 
 	if flags&unix.CLONE_THREAD == 0 {
-		ctx.sendForkMsg(process, creatorTID)
+		ctx.processCache.inheritOTel(creator.Tgid, process.Tgid)
+		ctx.processCache.inheritGoLabels(creator.Tgid, process.Tgid)
+		ctx.sendForkMsg(process, creatorTID, regs)
 	}
 	// Mark ready only after inheritance and fork enqueueing. Threads skip the
 	// process-level fork message but still need their shared resource pointers.
@@ -249,7 +264,7 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, creatorTID int, regs syscall.P
 			// fork if telemetry has started, but can forward it if nothing has
 			// been reported for this child yet. Neither path waits again.
 			if process.Pid == process.Tgid {
-				ctx.sendForkMsg(process, creatorTID)
+				ctx.sendForkMsg(process, creatorTID, &regs)
 			}
 			process.creationHandled = true
 			return
@@ -266,6 +281,11 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, creatorTID int, regs syscall.P
 		if handler.ShouldSend != nil {
 			syscallMsg.Retval = ctx.ReadRet(regs)
 			if handler.ShouldSend(syscallMsg) && syscallMsg.Type != ebpfless.SyscallTypeUnknown {
+				// The thread is still stopped in the syscall, so its record and
+				// its goroutine are the ones it had at the entry.
+				if nr != ExecveNr && nr != ExecveatNr {
+					syscallMsg.SpanContext = ctx.spanContext(process, &regs)
+				}
 				ctx.sendSyscallMsg(process, syscallMsg)
 			}
 		}
@@ -276,16 +296,28 @@ func (ctx *CWSPtracerCtx) handlePostHooks(nr int, creatorTID int, regs syscall.P
 	case ExecveNr, ExecveatNr:
 		// now the pid is the tgid
 		process.Pid = process.Tgid
+	case PrctlNr:
+		if process.otelProcessCtxNaming {
+			process.otelProcessCtxNaming = false
+			ctx.resolveOTelProcessContext(process)
+		}
+	case FcntlNr:
+		if process.tracerMemfdSealing {
+			process.tracerMemfdSealing = false
+			if ctx.ReadRet(regs) >= 0 {
+				ctx.resolveGoLabels(process)
+			}
+		}
 	case CloneNr:
-		ctx.handleClone(ctx.ReadArgUint64(regs, 0), process, creatorTID)
+		ctx.handleClone(ctx.ReadArgUint64(regs, 0), process, creatorTID, &regs)
 	case Clone3Nr:
 		data, err := ctx.ReadArgData(process.Pid, regs, 0, 8 /*sizeof flags only*/)
 		if err != nil {
 			return
 		}
-		ctx.handleClone(binary.NativeEndian.Uint64(data), process, creatorTID)
+		ctx.handleClone(binary.NativeEndian.Uint64(data), process, creatorTID, &regs)
 	case ForkNr, VforkNr:
-		ctx.handleClone(0, process, creatorTID)
+		ctx.handleClone(0, process, creatorTID, &regs)
 	}
 }
 

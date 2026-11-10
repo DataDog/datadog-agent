@@ -104,7 +104,11 @@ func (e *WorkflowTaskExecutor) PrepareTask(
 	unwrappedTask.Data.Attributes.TraceId = task.Data.Attributes.TraceId
 	unwrappedTask.Data.Attributes.SpanId = task.Data.Attributes.SpanId
 
-	credential, err := e.resolver.ResolveConnectionInfoToCredential(ctx, unwrappedTask.Data.Attributes.ConnectionInfo, nil)
+	// Reject unknown or disabled actions before exposing any credentials.
+	if _, err := e.getAllowedAction(unwrappedTask); err != nil {
+		return nil, unwrappedTask, err
+	}
+	credential, err := e.resolver.ResolveCredentials(ctx, unwrappedTask)
 	if err != nil {
 		logger.Error("could not resolve connection", log.String(observability.TaskIDTagName, unwrappedTask.Data.ID), log.ErrorField(err))
 		return nil, unwrappedTask, err
@@ -123,10 +127,7 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 	preparedTask *PreparedWorkflowTask,
 ) (interface{}, error) {
 	logger := log.FromContext(ctx)
-	timeoutSeconds := preparedTask.Task.TimeoutSeconds()
-	if timeoutSeconds == nil {
-		timeoutSeconds = e.config.TaskTimeoutSeconds
-	}
+	timeoutSeconds := e.config.TaskTimeoutSeconds
 
 	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
 	defer timeoutCancel()
@@ -144,29 +145,13 @@ func (e *WorkflowTaskExecutor) RunTask(
 ) (output interface{}, err error) {
 	task := preparedTask.Task
 	fqn := task.GetFQN()
-	bundleName, actionName := actions.SplitFQN(fqn)
-	bundle := e.registry.GetBundle(bundleName)
-	if bundle == nil {
-		return nil, util.NewPARError(
-			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find bundle for %s", bundleName),
-		)
-	}
-	action := bundle.GetAction(actionName)
-	if action == nil {
-		return nil, util.NewPARError(
-			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
-			fmt.Errorf("could not find action for %s", actionName),
-		)
-	}
-	if !e.config.IsActionAllowed(bundleName, actionName) {
-		return nil, util.DefaultActionError(fmt.Errorf(
-			"action %s is not allowlisted in the private action runner config. Update the agent config `actionsAllowlist` or the environment variable `DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST`",
-			fqn,
-		))
+	action, err := e.getAllowedAction(task)
+	if err != nil {
+		return nil, err
 	}
 
 	logger := log.FromContext(ctx)
+	ctx, executionDetails := observability.WithExecutionDetails(ctx)
 
 	ctx = telemetry.WithService(ctx, observability.ParService)
 	span, ctx := telemetry.StartSpanFromUint64IDs(ctx, observability.ActionRunOperation, task.Data.Attributes.TraceId, task.Data.Attributes.SpanId)
@@ -176,11 +161,42 @@ func (e *WorkflowTaskExecutor) RunTask(
 
 	startTime := observability.ReportExecutionStart(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
 	output, err = action.Run(ctx, task, preparedTask.Credential)
-	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger)
+	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger, executionDetails)
 
 	if err != nil {
 		return nil, util.DefaultActionError(err)
 	}
 
 	return output, nil
+}
+
+// getAllowedAction is shared by preparation and execution so both apply the
+// same dispatch and authorization rules.
+func (e *WorkflowTaskExecutor) getAllowedAction(task *types.Task) (types.Action, error) {
+	fqn := task.GetFQN()
+	bundleName, actionName := actions.SplitFQN(fqn)
+	executionFQN := task.GetExecutionFQN()
+	executionBundle, executionAction := actions.SplitFQN(executionFQN)
+	bundle := e.registry.GetBundle(executionBundle)
+	if bundle == nil {
+		return nil, util.NewPARError(
+			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
+			fmt.Errorf("could not find bundle for %s", executionBundle),
+		)
+	}
+	action := bundle.GetAction(executionAction)
+	if action == nil {
+		return nil, util.NewPARError(
+			aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR,
+			fmt.Errorf("could not find action for %s", executionAction),
+		)
+	}
+	if !e.config.IsActionAllowed(bundleName, actionName) {
+		return nil, util.DefaultActionError(fmt.Errorf(
+			"action %s is not allowlisted in the private action runner config. Update the agent config `actionsAllowlist` or the environment variable `DD_PRIVATE_ACTION_RUNNER_ACTIONS_ALLOWLIST`",
+			fqn,
+		))
+	}
+
+	return action, nil
 }

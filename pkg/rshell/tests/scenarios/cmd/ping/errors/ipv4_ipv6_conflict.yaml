@@ -1,0 +1,10 @@
+# -4 and -6 are mutually exclusive; supplying both must exit 1.
+description: "ping with -4 and -6 together exits 1"
+input:
+  script: |+
+    ping -4 -6 localhost
+expect:
+  stdout: ""
+  stderr: "ping: -4 and -6 are mutually exclusive\n"
+  exit_code: 1
+skip_assert_against_bash: true

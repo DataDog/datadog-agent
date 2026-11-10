@@ -1,0 +1,12 @@
+description: df rejects --sync (it would invoke sync(2) and modify kernel buffer state)
+skip_assert_against_bash: true
+input:
+  script: |+
+    df --sync; echo "exit:$?"
+expect:
+  stdout_contains:
+    - "exit:1"
+  stderr_contains:
+    - "df:"
+    - "sync"
+  exit_code: 0

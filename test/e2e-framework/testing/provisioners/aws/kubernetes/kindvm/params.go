@@ -21,7 +21,8 @@ type provisionerParams struct {
 type provisionerOption func(*provisionerParams) error
 
 func getProvisionerParams(opts ...provisionerOption) *provisionerParams {
-	p := &provisionerParams{awsEnv: nil, runOptions: []kindvm.RunOption{}, extraConfigParams: runner.ConfigMap{}}
+	// Apply the default before caller options so WithInternetAccess can override it.
+	p := &provisionerParams{awsEnv: nil, runOptions: []kindvm.RunOption{kindvm.WithoutInternetAccess()}, extraConfigParams: runner.ConfigMap{}}
 	_ = optional.ApplyOptions(p, opts)
 	return p
 }

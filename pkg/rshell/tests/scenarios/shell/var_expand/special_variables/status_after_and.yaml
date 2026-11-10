@@ -1,0 +1,16 @@
+description: The $? variable after && reflects the last executed command.
+input:
+  script: |+
+    true && true
+    echo $?
+    true && false
+    echo $?
+    false && true
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+    1
+  stderr: ""
+  exit_code: 0

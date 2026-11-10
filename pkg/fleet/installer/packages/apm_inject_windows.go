@@ -65,8 +65,17 @@ func postInstallAPMInject(ctx HookContext) (err error) {
 	span, _ := ctx.StartSpan("setup_apm_inject")
 	defer func() { span.Finish(err) }()
 
-	if err := enableSystemProbeConfig(ctx); err != nil {
-		return fmt.Errorf("failed to enable system-probe config: %w", err)
+	// Best-effort: enabling windows crash detection in system-probe.yaml must
+	// never fail the overall APM inject install. The failure is still
+	// reported on its own span (see enableSystemProbeConfig, which finishes
+	// its span with the real error) and logged here; on failure we simply
+	// miss injector-crash telemetry, which is not worth blocking the install.
+	if sysProbeErr := enableSystemProbeConfig(ctx); sysProbeErr != nil {
+		log.Warnf("failed to enable system-probe config for APM inject, continuing install: %v", sysProbeErr)
+	}
+
+	if err = addLocalStableConfig(ctx); err != nil {
+		return fmt.Errorf("failed to add local stable config: %w", err)
 	}
 
 	// Get the installer path
@@ -120,6 +129,50 @@ func enableSystemProbeConfigAt(configPath string) error {
 		WindowsCrashDetection: config.WindowsCrashDetection{Enabled: config.BoolToPtr(true)},
 	}
 	return config.WriteConfig(configPath, update, 0640, true)
+}
+
+// addLocalStableConfig writes the APM product settings passed to the install
+// script into application_monitoring.yaml.
+func addLocalStableConfig(ctx HookContext) (err error) {
+	span, _ := telemetry.StartSpanFromContext(ctx, "add_local_stable_config")
+	defer func() { span.Finish(err) }()
+
+	configPath := filepath.Join(paths.AgentConfigDir, "application_monitoring.yaml")
+	return addLocalStableConfigAt(configPath, env.FromEnv().InstallScript)
+}
+
+// addLocalStableConfigAt merges the settings set in installScript into the
+// given file, preserving all other settings. No-op if no setting is set.
+func addLocalStableConfigAt(configPath string, installScript env.InstallScriptEnv) error {
+	update := config.APMConfigurationDefault{
+		RuntimeMetricsEnabled:    installScript.RuntimeMetricsEnabled,
+		LogsInjection:            installScript.LogsInjection,
+		APMTracingEnabled:        installScript.APMTracingEnabled,
+		DataStreamsEnabled:       installScript.DataStreamsEnabled,
+		AppsecEnabled:            installScript.AppsecEnabled,
+		IastEnabled:              installScript.IastEnabled,
+		DataJobsEnabled:          installScript.DataJobsEnabled,
+		AppsecScaEnabled:         installScript.AppsecScaEnabled,
+		LogsCollectionEnabled:    installScript.TracerLogsCollectionEnabled,
+		RumEnabled:               installScript.RumEnabled,
+		RumApplicationID:         installScript.RumApplicationID,
+		RumClientToken:           installScript.RumClientToken,
+		RumRemoteConfigurationID: installScript.RumRemoteConfigurationID,
+		RumSite:                  installScript.RumSite,
+	}
+	if installScript.ProfilingEnabled != "" {
+		update.ProfilingEnabled = &installScript.ProfilingEnabled
+	}
+	if update == (config.APMConfigurationDefault{}) {
+		return nil
+	}
+
+	err := config.WriteConfig(configPath, config.ApplicationMonitoringConfig{Default: update}, 0644, true)
+	if err != nil {
+		return fmt.Errorf("failed to write application_monitoring.yaml: %w", err)
+	}
+	// Non-admin identities (e.g. an IIS App Pool identity) must be able to read the file.
+	return paths.SetFileReadableByEveryone(configPath)
 }
 
 // preRemoveAPMInject is called before the APM inject package is removed

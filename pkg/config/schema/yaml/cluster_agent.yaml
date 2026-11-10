@@ -19,6 +19,7 @@ properties:
     description: Set to true to enable the Cluster Agent.
   auth_token:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     visibility: public
@@ -195,6 +196,24 @@ properties:
                     node_type: setting
                     type: string
                     default: ''
+  autoscaler_tags:
+    node_type: section
+    type: object
+    description: Settings for tagging workloads with the autoscalers that target them.
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        description: |-
+          Set to true to make the Cluster Agent collect which workloads
+          (Deployments, StatefulSets and Argo Rollouts) are targeted by an
+          autoscaler (HorizontalPodAutoscaler, VerticalPodAutoscaler,
+          WatermarkPodAutoscaler, DatadogPodAutoscaler or KEDA), and expose it
+          as the kube_autoscaler_kind tag (horizontalpodautoscaler,
+          verticalpodautoscaler, watermarkpodautoscaler, datadogpodautoscaler,
+          keda) on their pods, containers and KSM metrics. The Cluster Agent
+          needs permissions to list and watch these autoscaler resources.
   cluster_tagger:
     node_type: section
     type: object
@@ -281,6 +300,14 @@ properties:
         - ^ad\.datadoghq\.com\/([[:alnum:]]+\.)?(checks|check_names|init_configs|instances)$
         items:
           type: string
+  kai_scheduler:
+    node_type: section
+    type: object
+    properties:
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
   kueue:
     node_type: section
     type: object

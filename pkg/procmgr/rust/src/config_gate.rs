@@ -31,10 +31,11 @@
 //!    software inventory at `SourceInfraMode`.
 //! 6. The Agent's schema default.
 //!
-//! Two keys do not follow that ladder directly. `system_probe_config.enabled` is
+//! Three keys do not follow that ladder directly. `system_probe_config.enabled` is
 //! module-derived at runtime, so it resolves through [`system_probe::derived_enabled`]
 //! instead. `process_config.enabled` is normalized by the transform to the resulting
-//! process-collection value.
+//! process-collection value. `private_action_runner.split_enabled` reads only its env var,
+//! as containerized PAR does in `pkg/privateactionrunner/deployment`.
 //!
 //! # Keeping parity with Go
 //!
@@ -113,6 +114,11 @@ enum GatedKey {
     ApmEnabled,
     ApmErrorTrackingStandalone,
     DataPlaneEnabled,
+    ComplianceConfig,
+    OtelCollector,
+    PrivateActionRunnerEnabled,
+    PrivateActionRunnerSplitEnabled,
+    FipsEnabled,
 }
 
 struct GatedKeySpec {
@@ -139,6 +145,12 @@ const SYSTEM_PROBE_EXTERNAL_KEY: &str = "system_probe_config.external";
 const APM_ENABLED_KEY: &str = "apm_config.enabled";
 const APM_ERROR_TRACKING_STANDALONE_KEY: &str = "apm_config.error_tracking_standalone.enabled";
 const DATA_PLANE_ENABLED_KEY: &str = "data_plane.enabled";
+const COMPLIANCE_CONFIG_KEY: &str = "compliance_config.enabled";
+const OTELCOLLECTOR_ENABLED_KEY: &str = "otelcollector.enabled";
+const PRIVATE_ACTION_RUNNER_ENABLED_KEY: &str = "private_action_runner.enabled";
+const PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY: &str = "private_action_runner.split_enabled";
+const PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_ENV: &str = "DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED";
+const FIPS_ENABLED_KEY: &str = "fips.enabled";
 
 /// Single source of truth for gated keys.
 const GATED_KEY_SPECS: &[GatedKeySpec] = &[
@@ -232,6 +244,40 @@ const GATED_KEY_SPECS: &[GatedKeySpec] = &[
     GatedKeySpec {
         kind: GatedKey::DataPlaneEnabled,
         key: DATA_PLANE_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // The all-in-one security-agent also runs for compliance-only. Windows omits this key.
+    GatedKeySpec {
+        kind: GatedKey::ComplianceConfig,
+        key: COMPLIANCE_CONFIG_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // The all-in-one otel-agent. Absent from the Windows templates.
+    GatedKeySpec {
+        kind: GatedKey::OtelCollector,
+        key: OTELCOLLECTOR_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    GatedKeySpec {
+        kind: GatedKey::PrivateActionRunnerEnabled,
+        key: PRIVATE_ACTION_RUNNER_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // Container-only: `enabled` reads the env var, so `default` and `fleet_policy_file` are unused.
+    GatedKeySpec {
+        kind: GatedKey::PrivateActionRunnerSplitEnabled,
+        key: PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY,
+        default: false,
+        fleet_policy_file: AGENT_POLICY,
+    },
+    // par-control veto. Schema default is false. No platform override.
+    GatedKeySpec {
+        kind: GatedKey::FipsEnabled,
+        key: FIPS_ENABLED_KEY,
         default: false,
         fleet_policy_file: AGENT_POLICY,
     },
@@ -330,6 +376,11 @@ pub fn condition_config_summary(conditions: &[ConditionConfigFile]) -> String {
 impl GatedKeySpec {
     /// Resolves this key against `base_path`, following the order documented on the module.
     fn enabled(&self, base_path: &str, yaml: &mut YamlCache, os: HostOs) -> bool {
+        if self.kind == GatedKey::PrivateActionRunnerSplitEnabled {
+            // Exact match, as containerized PAR does in Go.
+            return env_bindings::env_var_value(PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_ENV).as_deref()
+                == Some("true");
+        }
         if let Some(enabled) = self.legacy_transform_value(base_path, yaml) {
             return enabled;
         }
@@ -2049,5 +2100,241 @@ process_config:
         let agent = fx.agent("# empty\n");
         fx.service_env(&[("DD_DATA_PLANE_ENABLED", "true")]);
         fx.assert_key(&agent, DATA_PLANE_ENABLED_KEY, true);
+    }
+
+    // -------------------------------- all-in-one compliance and OTel keys
+
+    #[test]
+    fn compliance_config_enabled_defaults_off() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, COMPLIANCE_CONFIG_KEY, false);
+    }
+
+    #[test]
+    fn compliance_config_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("compliance_config:\n  enabled: true\n");
+        fx.assert_key(&agent, COMPLIANCE_CONFIG_KEY, true);
+    }
+
+    #[test]
+    fn compliance_config_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("compliance_config:\n  enabled: false\n");
+        fx.env("DD_COMPLIANCE_CONFIG_ENABLED", "true");
+        fx.assert_key(&agent, COMPLIANCE_CONFIG_KEY, true);
+    }
+
+    #[test]
+    fn otelcollector_enabled_defaults_off() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, OTELCOLLECTOR_ENABLED_KEY, false);
+    }
+
+    #[test]
+    fn otelcollector_enabled_resolves_from_yaml() {
+        let fx = Gate::new();
+        let agent = fx.agent("otelcollector:\n  enabled: true\n");
+        fx.assert_key(&agent, OTELCOLLECTOR_ENABLED_KEY, true);
+    }
+
+    #[test]
+    fn otelcollector_enabled_resolves_from_env() {
+        let fx = Gate::new();
+        let agent = fx.agent("otelcollector:\n  enabled: false\n");
+        fx.env("DD_OTELCOLLECTOR_ENABLED", "true");
+        fx.assert_key(&agent, OTELCOLLECTOR_ENABLED_KEY, true);
+    }
+
+    fn par_key(path: &str, key: &str) -> ConditionConfigFile {
+        ConditionConfigFile {
+            path: path.to_owned(),
+            keys: vec![key.to_owned()],
+        }
+    }
+
+    fn par_control_would_start(fx: &Gate, agent: &str) -> bool {
+        fx.met(&[par_key(agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY)])
+            && fx.veto_clear(&[par_key(agent, FIPS_ENABLED_KEY)])
+    }
+
+    /// The monolith starts whenever PAR is enabled. Go stands it down in split mode.
+    fn par_monolith_would_start(fx: &Gate, agent: &str) -> bool {
+        fx.met(&[par_key(agent, PRIVATE_ACTION_RUNNER_ENABLED_KEY)])
+    }
+
+    #[test]
+    fn private_action_runner_empty_yaml_starts_neither_process() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.assert_key(&agent, PRIVATE_ACTION_RUNNER_ENABLED_KEY, false);
+        fx.assert_key(&agent, PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY, false);
+        assert!(
+            !par_control_would_start(&fx, &agent),
+            "missing split_enabled is false, so par-control stays down"
+        );
+        assert!(
+            !par_monolith_would_start(&fx, &agent),
+            "missing enabled is false, so the monolith stays down"
+        );
+    }
+
+    #[test]
+    fn private_action_runner_split_yaml_alone_starts_monolith() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: true\n  split_enabled: true\n");
+        assert!(
+            !par_control_would_start(&fx, &agent),
+            "containerized PAR ignores split_enabled in YAML"
+        );
+        assert!(par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_split_fleet_alone_starts_monolith() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: true\n");
+        fx.fleet(
+            AGENT_POLICY,
+            "private_action_runner:\n  split_enabled: true\n",
+        );
+        assert!(
+            !par_control_would_start(&fx, &agent),
+            "containerized PAR ignores split_enabled in fleet policy"
+        );
+        assert!(par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_split_env_beats_fleet_false() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.fleet(
+            AGENT_POLICY,
+            "private_action_runner:\n  split_enabled: false\n",
+        );
+        fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
+        assert!(par_control_would_start(&fx, &agent));
+        assert!(!par_monolith_would_start(&fx, &agent));
+    }
+
+    /// Host PAR also reads `split_enabled` from YAML and fleet policy, which this gate
+    /// ignores, so a host catalog must not gate on it.
+    #[test]
+    fn private_action_runner_split_gate_is_not_used_by_host_catalogs() {
+        let host_templates = [
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-data-plane-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-process-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-security-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-sysprobe-windows.yaml.tmpl"
+            ),
+            include_str!(
+                "../../../../pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-trace-windows.yaml.tmpl"
+            ),
+        ];
+        for template in host_templates {
+            assert!(!template.contains(PRIVATE_ACTION_RUNNER_SPLIT_ENABLED_KEY));
+        }
+    }
+
+    #[test]
+    fn private_action_runner_split_env_must_be_exactly_true() {
+        for value in ["TRUE", "True", "1", "yes", " true"] {
+            let fx = Gate::new();
+            let agent = fx.agent("private_action_runner:\n  enabled: true\n");
+            fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", value);
+            assert!(
+                !par_control_would_start(&fx, &agent),
+                "{value:?} is not split for containerized PAR"
+            );
+            assert!(par_monolith_would_start(&fx, &agent), "{value:?}");
+        }
+    }
+
+    #[test]
+    fn private_action_runner_enabled_true_split_false_starts_monolith() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: true\n  split_enabled: false\n");
+        assert!(!par_control_would_start(&fx, &agent));
+        assert!(par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_split_env_selects_control() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: false\n  split_enabled: false\n");
+        fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
+        assert!(par_control_would_start(&fx, &agent));
+        assert!(!par_monolith_would_start(&fx, &agent));
+    }
+
+    #[test]
+    fn private_action_runner_split_env_with_enabled_starts_both() {
+        let fx = Gate::new();
+        let agent = fx.agent("private_action_runner:\n  enabled: true\n");
+        fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
+        assert!(par_control_would_start(&fx, &agent));
+        assert!(
+            par_monolith_would_start(&fx, &agent),
+            "the monolith starts and stands down itself when split is supported"
+        );
+    }
+
+    #[test]
+    fn private_action_runner_fips_keeps_the_monolith() {
+        for label in ["yaml", "env", "fleet"] {
+            let fx = Gate::new();
+            let agent = if label == "yaml" {
+                fx.agent("private_action_runner:\n  enabled: true\nfips:\n  enabled: true\n")
+            } else {
+                fx.agent("private_action_runner:\n  enabled: true\n")
+            };
+            match label {
+                "env" => fx.env("DD_FIPS_ENABLED", "true"),
+                "fleet" => {
+                    fx.fleet(AGENT_POLICY, "fips:\n  enabled: true\n");
+                }
+                _ => {}
+            }
+            fx.env("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "true");
+            assert!(
+                !par_control_would_start(&fx, &agent),
+                "{label}: fips.enabled vetoes par-control"
+            );
+            assert!(par_monolith_would_start(&fx, &agent), "{label}");
+        }
+    }
+
+    #[test]
+    fn private_action_runner_enabled_env_selects_monolith() {
+        let fx = Gate::new();
+        let agent = fx.agent("# empty\n");
+        fx.env("DD_PRIVATE_ACTION_RUNNER_ENABLED", "true");
+        assert!(!par_control_would_start(&fx, &agent));
+        assert!(par_monolith_would_start(&fx, &agent));
     }
 }

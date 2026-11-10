@@ -4,7 +4,7 @@ from invoke.context import Context
 
 from tasks.libs.common.status import Status
 
-from ..tool import ensure_sudo_privileges, info, is_root
+from ..tool import authenticate_sudo, ensure_sudo_privileges, info, is_root
 from .requirement import Requirement, RequirementState, summarize_requirement_states
 
 
@@ -107,7 +107,7 @@ def check_requirements(
         print(
             "Some checks require root privileges, authenticating 'sudo' now to avoid prompts later. It might ask for your password."
         )
-        ctx.run("sudo true")
+        authenticate_sudo()
 
     requirement_succeded: dict[type[Requirement], bool] = {}
 
@@ -126,6 +126,10 @@ def check_requirements(
                 missing_requirements.append(dep.__name__)
 
         if len(missing_requirements) == 0:
+            if not is_root():
+                # Earlier requirements (downloads, Homebrew installs...) can outlast sudo's
+                # credential timeout: refresh it through the terminal before each check.
+                authenticate_sudo()
             try:
                 result = requirement.check(ctx, fix)
             except Exception as e:

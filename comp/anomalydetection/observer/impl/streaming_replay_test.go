@@ -20,7 +20,7 @@ type streamAdvanceRecorder struct {
 
 func (d *streamAdvanceRecorder) Name() string { return "stream_advance_recorder" }
 func (*streamAdvanceRecorder) Ready() bool    { return true }
-func (d *streamAdvanceRecorder) Detect(_ observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (d *streamAdvanceRecorder) Detect(_ observerdef.StorageReader, dataTime int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	d.times = append(d.times, dataTime)
 	return observerdef.DetectionResult{}
 }
@@ -34,9 +34,9 @@ func (e *streamMetricExtractor) ProcessLog(_ observerdef.LogView) observerdef.Lo
 
 func TestSynchronousLogStreamAdvancesAndFlushes(t *testing.T) {
 	detector := &streamAdvanceRecorder{}
-	obs := &observerImpl{engine: newEngine(engineConfig{
+	obs := &observerImpl{engine: mustNewEngine(engineConfig{
 		storage:   newTimeSeriesStorage(),
-		detectors: []observerdef.Detector{detector},
+		detectors: []detectorRegistration{{detector: detector}},
 	})}
 
 	obs.IngestLogAndAdvance("parquet", &mockLogView{timestampMs: 10_000})
@@ -49,7 +49,7 @@ func TestSynchronousLogStreamAdvancesAndFlushes(t *testing.T) {
 
 func TestSynchronousLogStreamUsesBoundedStorage(t *testing.T) {
 	storage := newTimeSeriesStorage()
-	obs := &observerImpl{engine: newEngine(engineConfig{
+	obs := &observerImpl{engine: mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{&streamMetricExtractor{}},
 	})}
@@ -69,13 +69,14 @@ func TestStreamingStorageWarmsSparseBOCPD(t *testing.T) {
 		cfg := DefaultBOCPDConfig()
 		cfg.WarmupPoints = warmup
 		settings := ComponentSettings{configs: map[string]any{"bocpd": cfg}}
-		storageCfg := StorageConfigForComponents(settings)
+		storageCfg, err := StorageConfigForComponents(settings)
+		require.NoError(t, err)
 		storage := newTimeSeriesStorageWith(storageCfg)
 		detector := NewBOCPDDetector(cfg)
 		for i := 1; i <= 1000; i++ {
 			ts := int64(i * 15)
 			storage.Add("parquet", "requests", float64(100+i%3), ts, nil)
-			detector.Detect(storage, ts)
+			detector.Detect(storage, ts, observerdef.DetectionFilter{})
 			if i == warmup {
 				require.True(t, detector.Ready(), "warmup=%d", warmup)
 			}
@@ -91,7 +92,8 @@ func TestStreamingStorageUsesConfiguredEnabledDetectors(t *testing.T) {
 		"holt_residual": json.RawMessage(`{"enabled":false,"warmup_points":1000}`),
 	})
 	require.NoError(t, err)
-	cfg := StorageConfigForComponents(settings)
+	cfg, err := StorageConfigForComponents(settings)
+	require.NoError(t, err)
 	require.Equal(t, 240, cfg.MaxPointsPerSeries)
 	require.Equal(t, int64(3616), cfg.PointRetentionSecs)
 }

@@ -1,0 +1,19 @@
+description: Quoted delimiter heredoc treats backslash sequences as completely literal.
+input:
+  script: |+
+    cat <<'END'
+    \a
+    \n
+    \\
+    \$
+    \
+    END
+expect:
+  stdout: |+
+    \a
+    \n
+    \\
+    \$
+    \
+  stderr: ""
+  exit_code: 0

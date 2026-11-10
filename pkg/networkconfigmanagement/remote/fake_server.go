@@ -44,10 +44,12 @@ func Fail(stderr string, exit uint32) FakeResponse {
 	return FakeResponse{Stderr: stderr, ExitStatus: exit}
 }
 
+// FakeData takes a mapping from commands to responses and generates a ShellFunc
+// that responds (statically) to each command with the specified response.
 func FakeData(data map[string]FakeResponse) ShellFunc {
-	return func(shell *ShellContext) uint32 {
+	return func(commands string, shell *ShellContext) uint32 {
 		var exitStatus uint32
-		for _, command := range strings.Split(shell.command, "\n") {
+		for _, command := range strings.Split(commands, "\n") {
 			command = strings.TrimSpace(command)
 			if command == "" {
 				continue
@@ -71,22 +73,42 @@ func FakeData(data map[string]FakeResponse) ShellFunc {
 	}
 }
 
+// Session modes, reported via ShellContext.mode.
+const (
+	modeExec  = "exec"
+	modeShell = "shell"
+)
+
+// ShellContext is the per-session state handed to a ShellFunc. It is created
+// once per session and shared by every command in it.
 type ShellContext struct {
-	command        string
+	mode           string
 	stdin          *bufio.Reader
 	stdout, stderr io.Writer
 }
 
-func NewShellContext(command string, ch ssh.Channel) *ShellContext {
+func NewShellContext(mode string, ch ssh.Channel) *ShellContext {
 	return &ShellContext{
-		command: command,
-		stdin:   bufio.NewReader(ch),
-		stdout:  ch,
-		stderr:  ch.Stderr(),
+		mode:   mode,
+		stdin:  bufio.NewReader(ch),
+		stdout: ch,
+		stderr: ch.Stderr(),
 	}
 }
 
-type ShellFunc func(*ShellContext) (returnCode uint32)
+// ShellFunc responds to a command. In exec mode it is called once with the
+// whole exec payload; in shell mode it is called once per line read from stdin.
+type ShellFunc func(command string, shell *ShellContext) (returnCode uint32)
+
+// SessionFactory is called once per session to produce the ShellFunc that will
+// handle every command in that session. It may write to the context (e.g. a
+// banner or initial prompt) before any command arrives.
+type SessionFactory func(*ShellContext) ShellFunc
+
+// StaticSession returns a SessionFactory that uses f for every session.
+func StaticSession(f ShellFunc) SessionFactory {
+	return func(*ShellContext) ShellFunc { return f }
+}
 
 // FakeSSHServer is an in-process SSH server backed by a map of canned
 // command -> response replies. It is intended for tests that exercise the
@@ -97,9 +119,10 @@ type ShellFunc func(*ShellContext) (returnCode uint32)
 // deterministically — this matters when a test wants to assert that NewSession
 // fails after the server goes away.
 type FakeSSHServer struct {
-	listener  net.Listener
-	hostKey   ssh.Signer
-	getOutput ShellFunc
+	listener   net.Listener
+	hostKey    ssh.Signer
+	newSession SessionFactory
+	onRequest  func(reqType string) // optional; called before each session request is handled
 
 	expectedUser     string
 	expectedPassword string
@@ -122,6 +145,15 @@ func WithCredentials(user, password string) FakeServerOption {
 	}
 }
 
+// WithRequestHook registers f to be called with each session request's type
+// (e.g. "pty-req", "shell") before the server handles it. f may block to
+// simulate a slow device.
+func WithRequestHook(f func(reqType string)) FakeServerOption {
+	return func(s *FakeSSHServer) {
+		s.onRequest = f
+	}
+}
+
 // StartFakeSSHServer launches an in-process SSH server on 127.0.0.1 with a
 // random port. The server is shut down via t.Cleanup, which closes the
 // listener and every accepted connection.
@@ -132,6 +164,13 @@ func StartFakeSSHServer(t *testing.T, outputs map[string]FakeResponse, opts ...F
 // StartFakeSSHServerWithFunc starts an in-process SSH server using the given
 // function to reply to requests.
 func StartFakeSSHServerWithFunc(t *testing.T, getOutput ShellFunc, opts ...FakeServerOption) *FakeSSHServer {
+	t.Helper()
+	return StartFakeSSHServerWithFactory(t, StaticSession(getOutput), opts...)
+}
+
+// StartFakeSSHServerWithFactory starts an in-process SSH server that calls
+// newSession once per session to produce that session's ShellFunc.
+func StartFakeSSHServerWithFactory(t *testing.T, newSession SessionFactory, opts ...FakeServerOption) *FakeSSHServer {
 	t.Helper()
 
 	_, priv, err := ed25519.GenerateKey(rand.Reader)
@@ -145,7 +184,7 @@ func StartFakeSSHServerWithFunc(t *testing.T, getOutput ShellFunc, opts ...FakeS
 
 	srv := &FakeSSHServer{
 		hostKey:          hostKey,
-		getOutput:        getOutput,
+		newSession:       newSession,
 		expectedUser:     "test",
 		expectedPassword: "hunter2",
 	}
@@ -222,6 +261,9 @@ func (s *FakeSSHServer) serveConn(conn net.Conn, cfg *ssh.ServerConfig) {
 func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) {
 	defer ch.Close()
 	for req := range reqs {
+		if s.onRequest != nil {
+			s.onRequest(req.Type)
+		}
 		switch req.Type {
 		case "exec":
 			// Per RFC 4254 §6.5: payload is "string", which is uint32 length
@@ -232,16 +274,40 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 				return
 			}
 
-			s.mu.Lock()
-			s.received = append(s.received, payload.Command)
-			s.mu.Unlock()
+			s.recordCommand(payload.Command)
 
 			_ = req.Reply(true, nil)
-			shell := NewShellContext(payload.Command, ch)
-			exitStatus := s.getOutput(shell)
-
-			_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: exitStatus}))
+			shell := NewShellContext(modeExec, ch)
+			run := s.newSession(shell)
+			sendExitStatus(ch, run(payload.Command, shell))
 			return
+
+		case "shell":
+			_ = req.Reply(true, nil)
+			shell := NewShellContext(modeShell, ch)
+			run := s.newSession(shell)
+			var exitStatus uint32
+			for {
+				line, err := shell.stdin.ReadString('\n')
+				if line == "" && err != nil {
+					break // client closed stdin
+				}
+				command := strings.TrimRight(line, "\r\n")
+				if command != "" {
+					s.recordCommand(command)
+				}
+				exitStatus = run(command, shell)
+				if err != nil {
+					break
+				}
+			}
+			sendExitStatus(ch, exitStatus)
+			return
+
+		case "pty-req", "env", "window-change":
+			if req.WantReply {
+				_ = req.Reply(true, nil)
+			}
 
 		default:
 			if req.WantReply {
@@ -249,6 +315,16 @@ func (s *FakeSSHServer) handleSession(ch ssh.Channel, reqs <-chan *ssh.Request) 
 			}
 		}
 	}
+}
+
+func (s *FakeSSHServer) recordCommand(command string) {
+	s.mu.Lock()
+	s.received = append(s.received, command)
+	s.mu.Unlock()
+}
+
+func sendExitStatus(ch ssh.Channel, status uint32) {
+	_, _ = ch.SendRequest("exit-status", false, ssh.Marshal(struct{ Status uint32 }{Status: status}))
 }
 
 // Stop closes the listener and every connection accepted so far. Idempotent.

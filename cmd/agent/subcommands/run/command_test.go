@@ -17,6 +17,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/agent/command"
 	"github.com/DataDog/datadog-agent/comp/core"
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -25,7 +26,9 @@ func TestCommand(t *testing.T) {
 		Commands(newGlobalParamsTest(t)),
 		[]string{"run"},
 		run,
-		func(_ pidimpl.Params, _ core.BundleParams) {})
+		func(_ pidimpl.Params, _ core.BundleParams, readiness *gpu.Readiness) {
+			require.Nil(t, readiness, "GPU readiness should be disabled by default")
+		})
 }
 
 func TestCommandPidfile(t *testing.T) {

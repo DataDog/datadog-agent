@@ -7,8 +7,8 @@
 package rules
 
 import (
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 )
 
 // Action represents the action to take when a rule is triggered
@@ -22,7 +22,7 @@ type Action struct {
 }
 
 // CompileFilter compiles the filter expression
-func (a *Action) CompileFilter(parsingContext *ast.ParsingContext, model eval.Model, evalOpts *eval.Opts) error {
+func (a *Action) CompileFilter(parsingContext *parser.ParsingContext, model eval.Model, evalOpts *eval.Opts) error {
 	if a.Def.Filter == nil || *a.Def.Filter == "" {
 		return nil
 	}

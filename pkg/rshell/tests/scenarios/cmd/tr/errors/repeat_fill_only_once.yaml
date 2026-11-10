@@ -1,0 +1,8 @@
+description: tr rejects multiple fill repeat constructs in string2.
+input:
+  script: |+
+    echo abc | tr abc '[x*][y*]'
+expect:
+  stdout: ""
+  stderr: "tr: only one [c*] repeat construct may appear in string2\n"
+  exit_code: 1

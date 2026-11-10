@@ -33,6 +33,8 @@ func TestEKSSuite(t *testing.T) {
 	suite := &eksSuite{}
 
 	eksOptions := []sceneks.Option{
+		// TODO: Route the Argo Rollouts chart's images through the internal registry.
+		sceneks.WithInternetAccess(),
 		sceneks.WithLinuxNodeGroup(),
 		sceneks.WithBottlerocketNodeGroup(),
 		sceneks.WithLinuxARMNodeGroup(),

@@ -6,6 +6,7 @@
 package config
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io/fs"
@@ -14,6 +15,7 @@ import (
 	"strings"
 
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -21,7 +23,7 @@ import (
 )
 
 // setupConfig loads additional configuration data from yaml files, fleet policies, and command-line options
-func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, p Params) error {
+func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Component, delegatedAuthComp delegatedauth.Component, schemaComp schema.Component, p Params) error {
 	confFilePath := p.ConfFilePath
 	configName := p.configName
 	defaultConfPath := p.defaultConfPath
@@ -50,7 +52,7 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 	}
 
 	// load the configuration
-	err := pkgconfigsetup.LoadDatadog(config, secretComp, delegatedAuthComp)
+	err := pkgconfigsetup.LoadDatadog(config, secretComp, delegatedAuthComp, schemaComp)
 
 	if err != nil && (!errors.Is(err, pkgconfigmodel.ErrConfigFileNotFound) || confFilePath != "") {
 		// special-case permission-denied with a clearer error message
@@ -87,6 +89,9 @@ func setupConfig(config pkgconfigmodel.BuildableConfig, secretComp secrets.Compo
 		pkgconfigsetup.ApplyUseDogstatsdSuppression(config)
 		pkgconfigsetup.ComputeDataPlaneStopTimeout(config)
 		pkgconfigsetup.SanitizeDataPlaneConfig(config)
+		// The same goes for delegated-auth endpoint directives: re-run the scan over
+		// the merged values (already-registered directives are replaced in place).
+		pkgconfigsetup.ConfigureDelegatedAuthEndpoints(context.Background(), config, delegatedAuthComp)
 	}
 
 	for k, v := range p.cliOverride {

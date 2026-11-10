@@ -27,13 +27,10 @@ if(WIN32)
      set(CMAKE_C_FLAGS "-D_hypot=hypot")
      set(CMAKE_CXX_FLAGS "-D_hypot=hypot")
   endif()
-  string(REPLACE "\\" "\\\\" Python3_STDLIB ${Python3_STDLIB})
 endif()
 
 include(GNUInstallDirs)
 
-configure_file(constants.h.in constants.h)
-include_directories(${CMAKE_CURRENT_BINARY_DIR})
 add_library(datadog-agent-three SHARED
     three.cpp
     three_mem.cpp

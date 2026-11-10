@@ -56,6 +56,13 @@ This also applies to indirect usage — do not shell out to `go build` or
 `go test` for compilation checks. If you need to verify that code compiles,
 build the relevant component with `dda inv *.build`.
 
+### Bazel dependency downloads
+
+ADMS is enabled by default for Bazel dependency downloads through
+`common --config=adms` in `.bazelrc`. If the Datadog intranet is unavailable,
+remove or comment out that line before invoking Bazel or `dda inv test`.
+See [Bazel's ADMS guidance](bazel/AGENTS.md#adms-dependency-mirror) for a local override.
+
 ### Common Commands
 
 ```bash
@@ -80,6 +87,15 @@ Place the dev config at `dev/dist/datadog.yaml` (e.g. `echo "api_key: 0000001" >
 - Main config: `datadog.yaml`
 - Check configs: `conf.d/<check_name>.d/conf.yaml`
 - Supports environment variable overrides with `DD_` prefix
+- Never edit or commit the schema-generated `pkg/config/example/<build-type>_<os>.yaml.example`
+  files: release automation refreshes them after each release. Change `pkg/config/schema/yaml/`
+  instead, and revert any rewrites left by `dda inv schema.template-all`. See
+  `pkg/config/example/README.md` (the static `security-agent` and `application_monitoring`
+  examples are the exception)
+- Never edit or commit the generated settings code. `pkg/config/setup/generatedsettings/` is a
+  snapshot that release automation refreshes, so don't run `dda inv schema.codegen-snapshot`.
+  The generated `*.go` files in `pkg/config/setup/generatedsettings_local/` are gitignored and
+  rebuilt by every `dda inv` task. See the README in each directory
 
 ### eBPF-based System Checks
 - Checks using eBPF probes require system-probe module running
@@ -98,6 +114,8 @@ eBPF programs, runtime-compilation bundles, and cgo godefs are built with Bazel 
 
 ### Unit Tests
 Go tests run via `dda inv test --targets=<package>` (see the `dda inv` table above) or `bazel test //pkg/... //comp/...`; Python checks use pytest.
+Both go through Bazel, so a new package has no test target until `bazel run //:gazelle -- <dir>` generates its `BUILD.bazel`.
+Run the same command after adding, removing, or renaming a `.go` file (tests included) or changing imports in an existing package, and commit the `BUILD.bazel` diff with it; otherwise the `bazel:run-gazelle` CI job fails.
 
 ### End-to-End Tests
 - E2E tests live in `test/new-e2e/tests/` and use the framework in `test/e2e-framework/`
@@ -137,6 +155,9 @@ derives the keypair name from the container username; use the host instead.
 - Python: various linters via `dda inv linter.python`
 - YAML: yamllint
 - Shell: shellcheck
+- Bazel: when the change touches `BUILD`, `BUILD.bazel`, `*.bzl`, `MODULE.bazel`, or `*.bazelrc`,
+  run `bazel run //bazel/buildifier:test`. If it fails, `bazel run //bazel/buildifier` and re-run
+  the test.
 
 #### Typechecking code for another platform
 Build-tagged files are invisible to the host test run, so `//go:build windows`
@@ -151,8 +172,7 @@ Cross-linting for Windows needs mingw-w64 on `PATH` (`brew install mingw-w64` on
 macOS). `CGO_ENABLED=0` is not a substitute: core packages reach
 `pkg/util/winutil`, which requires real cgo. Note that
 `bazel build --platforms=@rules_go//go/toolchain:windows_amd64` builds libraries
-but cannot build `*_test` targets — Bazel requires exec platform == target
-platform for test rules — so the linter is the route for test files.
+and `*_test` targets alike, cgo included, but `bazel test` cannot run the latter.
 
 ## Build System
 
@@ -177,6 +197,12 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 - `.gitlab-ci.yml` - CI/CD pipeline configuration
 
 ## CI/CD Pipeline
+
+### DDCI
+
+For failed or stuck DDCI requests—including a DDCI request ID, a Mosaic URL, or
+a branch, PR, or commit whose DDCI run failed—use the
+`ddci:fixing-ddci-failure` skill before investigating or acting.
 
 ### GitLab CI
 - Primary CI system
@@ -203,6 +229,12 @@ Secondary CI: pull-request/repository-configuration checks and release automatio
 ### Contributing
 PRs should follow `.github/PULL_REQUEST_TEMPLATE.md` and the guidelines in
 `doc/guidelines/` (contributing, coding style, components, etc.).
+
+When re-landing a reverted PR, generate a new release note with `reno new`
+rather than restoring the original file. reno keys notes by the UID in the
+filename and attributes a reused UID to the release it first appeared in, so
+the note silently drops out of the changelog
+(`dda inv linter.releasenote-reused-uids` catches this).
 
 ### Code ownership
 `.github/CODEOWNERS` is partly generated. The block between `# BEGIN COMPONENTS`

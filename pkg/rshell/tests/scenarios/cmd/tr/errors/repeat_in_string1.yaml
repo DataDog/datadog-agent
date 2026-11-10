@@ -1,0 +1,8 @@
+description: tr rejects repeat constructs in string1.
+input:
+  script: |+
+    echo abc | tr '[a*]' x
+expect:
+  stdout: ""
+  stderr: "tr: the [c*] repeat construct may not appear in string1\n"
+  exit_code: 1

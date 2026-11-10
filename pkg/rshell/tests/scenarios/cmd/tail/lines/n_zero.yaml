@@ -1,0 +1,13 @@
+description: tail -n 0 produces no output.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 0 file.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

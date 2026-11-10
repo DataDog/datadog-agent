@@ -18,8 +18,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 )
 
 // SerieSignature holds the elements that allow to know whether two similar `Serie`s
@@ -122,7 +122,7 @@ func (s *TimeSampler) sample(metricSample *metrics.MetricSample, timestamp float
 			s.metricsByTimestamp[bucketStart] = bucketMetrics
 		}
 		// Add sample to bucket
-		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, nil, pkgconfigsetup.Datadog()); err != nil {
+		if err := bucketMetrics.AddSample(contextKey, metricSample, timestamp, s.interval, dogstatsdAddSampleTelemetry, pkgconfigsetup.Datadog()); err != nil {
 			log.Debugf("TimeSampler #%d Ignoring sample '%s' on host '%s' and tags '%s': %s", s.id, metricSample.Name, metricSample.Host, metricSample.Tags, err)
 			return
 		}

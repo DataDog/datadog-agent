@@ -171,7 +171,7 @@ def build(
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
         include_python="python" in build_tags,
-        platform=target_platform,
+        target_platform=target_platform,
     )
 
     if target_platform == 'win32':
@@ -214,6 +214,7 @@ def build(
                 build_tags=build_tags,
                 check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
                 coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+                fips_backend=flavor.fips_backend(),
             )
 
     with gitlab_section("Generate configuration files", collapsed=True):
@@ -246,6 +247,33 @@ def generate_config_examples(ctx, flavor, skip_assets, build_tags, development, 
 
     if not skip_assets:
         refresh_assets(ctx, build_tags, development=development, flavor=flavor.name, windows_sysprobe=windows_sysprobe)
+
+
+# Removed from the Windows copy of font-awesome.min.css. EOT is the IE8
+# @font-face hack, and TTF is only chosen when the browser has neither WOFF2
+# nor WOFF. Edge uses WOFF2 and IE11 on Server 2016 uses WOFF, so neither file
+# is fetched on Windows versions the MSI supports. The source stylesheet is
+# left unchanged for Linux and macOS.
+_WINDOWS_FONTAWESOME_CSS_DROPS = (
+    # The first src: is the IE8-only declaration. Remove that declaration
+    # whole, then remove the EOT and TTF entries from the second list.
+    # The second src: has to stay, or the remaining URLs are not a font src.
+    b"src:url('../fonts/fontawesome-webfont.eot?v=4.7.0');",
+    b"url('../fonts/fontawesome-webfont.eot?#iefix&v=4.7.0') format('embedded-opentype'),",
+    b"url('../fonts/fontawesome-webfont.ttf?v=4.7.0') format('truetype'),",
+)
+
+
+def _drop_windows_fontawesome_sources(css: bytes) -> bytes:
+    for snippet in _WINDOWS_FONTAWESOME_CSS_DROPS:
+        if snippet not in css:
+            raise Exit(
+                "font-awesome.min.css no longer contains an expected @font-face source; "
+                "the Windows package would still reference a font file that is not shipped",
+                code=1,
+            )
+        css = css.replace(snippet, b"", 1)
+    return css
 
 
 @task
@@ -334,22 +362,36 @@ def refresh_assets(_, build_tags, development=True, flavor=AgentFlavor.base.name
             os.path.join(dist_folder, "conf.d/process_agent.yaml.default"),
         )
 
-    # The Agent Manager GUI assets are copied verbatim. On Windows we also skip
-    # fontawesome-webfont.svg: it is the last @font-face fallback in
-    # font-awesome.min.css and is only reachable by browsers that support
-    # neither woff2, woff nor ttf (pre-2011 mobile browsers), which cannot run on
-    # the Windows versions the MSI supports. This keeps ~430 KiB out of the
-    # Windows packages. On Linux/macOS we keep it, as we do not control which
-    # browser renders the GUI there.
+    # The Agent Manager GUI assets are copied verbatim. On Windows we skip font
+    # files no supported browser requests: fontawesome-webfont.svg (~430 KiB,
+    # pre-2011 fallback), fontawesome-webfont.eot (~162 KiB, IE8), and
+    # fontawesome-webfont.ttf (~162 KiB, used only when WOFF2 and WOFF are both
+    # absent). WOFF2 and WOFF stay for Edge and IE11. The copied stylesheet
+    # drops the EOT and TTF URLs so IE11 does not request the missing EOT.
+    # Linux and macOS keep every file and the original stylesheet.
+    target_platform = _resolve_target_platform()
     gui_asset_ignore = ["BUILD.bazel"]
-    if _resolve_target_platform() == "win32":
-        gui_asset_ignore.append("fontawesome-webfont.svg")
+    if target_platform == "win32":
+        gui_asset_ignore.extend(
+            [
+                "fontawesome-webfont.svg",
+                "fontawesome-webfont.eot",
+                "fontawesome-webfont.ttf",
+            ]
+        )
+    views_dir = os.path.join(dist_folder, "views")
     shutil.copytree(
         "./comp/core/gui/impl/views/private",
-        os.path.join(dist_folder, "views"),
+        views_dir,
         ignore=shutil.ignore_patterns(*gui_asset_ignore),
         dirs_exist_ok=True,
     )
+    if target_platform == "win32":
+        css_path = os.path.join(views_dir, "css", "font-awesome.min.css")
+        with open(css_path, "rb") as css_file:
+            css = css_file.read()
+        with open(css_path, "wb") as css_file:
+            css_file.write(_drop_windows_fontawesome_sources(css))
     if development:
         shutil.copytree("./dev/dist/", dist_folder, ignore=shutil.ignore_patterns("BUILD.bazel"), dirs_exist_ok=True)
 

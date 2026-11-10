@@ -1,0 +1,18 @@
+description: find -perm /0222 matches files with any write bit set.
+setup:
+  files:
+    - path: dir/rw.txt
+      content: "rw"
+      chmod: 0644
+    - path: dir/ro.txt
+      content: "ro"
+      chmod: 0444
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -perm /0222
+expect:
+  stdout: |+
+    dir/rw.txt
+  stderr: ""
+  exit_code: 0
