@@ -119,10 +119,9 @@ func runErrpt(ctx context.Context, match []string, args ...string) errptResult {
 	return res
 }
 
-// filterErrptRecords keeps the records — blocks starting with a line of
-// dashes — that contain one of the match strings, e.g. the Agent's binary
-// or subsystem names. Returns the kept records and whether the input had any
-// record at all.
+// filterErrptRecords keeps the records that contain one of the match strings, e.g. the
+// Agent's binary or subsystem names. Returns the kept records and whether the input
+// had any record at all.
 func filterErrptRecords(out []byte, match []string) ([]byte, bool) {
 	var kept, block bytes.Buffer
 	hadRecords := false
