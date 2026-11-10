@@ -123,6 +123,7 @@
       $FailFast = @'
       $ErrorActionPreference = 'Stop'
       $PSNativeCommandUseErrorActionPreference = $true
+      $ProgressPreference = 'SilentlyContinue' # avoid CLIXML garbage
       Set-StrictMode -Version 3.0
       '@
       Invoke-Expression $FailFast
