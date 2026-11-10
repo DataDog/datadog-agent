@@ -107,6 +107,13 @@ forwards metrics from your applications as well as system services.
 See http://www.datadoghq.com/ for more information
 """
 
+get_debug_symbols(
+    name = "debug_symbols",
+    srcs = [":whole_distro"],
+    prefix = "{install_dir}/.debug",
+    tags = ["manual"],
+)
+
 # TODO: Look at omnibus/config/projects/agent.rb for more content here.
 dd_pkg_deb(
     name = "debian",
@@ -116,6 +123,7 @@ dd_pkg_deb(
     ],
     out = "debian.deb",
     conflicts = ["datadog-iot-agent"],
+    debug_symbols = ":debug_symbols",
     description = _DESCRIPTION,
     homepage = "http://www.datadoghq.com",
     license = "Apache License Version 2.0",
