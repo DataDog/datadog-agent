@@ -29,6 +29,8 @@ type Counter interface {
 	// Even if less convenient, this signature could be used in hot path
 	// instead of Delete(...string) to avoid escaping the parameters on the heap.
 	DeleteWithTags(tags map[string]string)
+	// DeletePartialMatch deletes the values for the counters that match the subset of given tags
+	DeletePartialMatch(tags map[string]string)
 	// WithValues returns SimpleCounter for this metric with the given tag values.
 	WithValues(tagsValue ...string) SimpleCounter
 	// WithTags returns SimpleCounter for this metric with the given tag values.

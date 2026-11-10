@@ -51,6 +51,9 @@ func (c *slsCounter) Delete(...string) {}
 // instead of Delete(...string) to avoid escaping the parameters on the heap.
 func (c *slsCounter) DeleteWithTags(map[string]string) {}
 
+// DeletePartialMatch deletes the values for the counters that match the subset of given tags.
+func (c *slsCounter) DeletePartialMatch(map[string]string) {}
+
 // WithValues returns SimpleCounter for this metric with the given tag values.
 func (c *slsCounter) WithValues(...string) telemetry.SimpleCounter {
 	return &simpleNoOpCounter{}

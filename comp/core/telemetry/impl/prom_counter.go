@@ -73,6 +73,11 @@ func (c *promCounter) DeleteWithTags(tags map[string]string) {
 	c.pc.Delete(tags)
 }
 
+// DeletePartialMatch deletes the values for the counters that match the subset of given tags.
+func (c *promCounter) DeletePartialMatch(tags map[string]string) {
+	c.pc.DeletePartialMatch(tags)
+}
+
 // WithValues returns SimpleCounter for this metric with the given tag values.
 func (c *promCounter) WithValues(tagsValue ...string) telemetry.SimpleCounter {
 	return &simplePromCounter{c: c.pc.WithLabelValues(tagsValue...)}

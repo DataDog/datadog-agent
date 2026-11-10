@@ -11,6 +11,7 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"strings"
 	"testing"
 	"time"
 
@@ -1652,4 +1653,96 @@ func (p *podInfo) equals(other *podInfo) bool {
 		return false
 	}
 	return true
+}
+
+// newTestClientWithTelemetry builds a test client and returns the telemetry mock
+// so tests can inspect the registered Prometheus series.
+func newTestClientWithTelemetry(t *testing.T) (*languageDetectionClientImpl, telemetry.Mock) {
+	cfg := config.NewMockWithOverrides(t, map[string]interface{}{
+		"language_detection.reporting.enabled": "true",
+		"language_detection.enabled":           "true",
+		"cluster_agent.enabled":                "true",
+	})
+	tel := fxutil.Test[telemetry.Mock](t, mocktelemetry.Module())
+	wm := fxutil.Test[workloadmeta.Component](t, workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+		fx.Provide(func() config.Component { return cfg }),
+		fx.Provide(func() log.Component { return logmock.New(t) }),
+	)
+
+	reqs := Requires{
+		Lifecycle:    compdef.NewTestLifecycle(t),
+		Config:       cfg,
+		Log:          logmock.New(t),
+		Telemetry:    tel,
+		Workloadmeta: wm,
+	}
+
+	provides, _ := NewComponent(reqs)
+	comp, _ := provides.Comp.Get()
+	return comp.(*languageDetectionClientImpl), tel
+}
+
+// countProcessedEventsSeries returns the number of processed_events series tagged with the given pod.
+func countProcessedEventsSeries(t *testing.T, tel telemetry.Mock, podName string) int {
+	families, err := tel.GetRegistry().Gather()
+	require.NoError(t, err)
+
+	count := 0
+	for _, mf := range families {
+		if !strings.Contains(mf.GetName(), "processed_events") {
+			continue
+		}
+		for _, m := range mf.GetMetric() {
+			for _, lp := range m.GetLabel() {
+				if lp.GetName() == "scanned_pod" && lp.GetValue() == podName {
+					count++
+				}
+			}
+		}
+	}
+	return count
+}
+
+// TestProcessedEventsCleanedUpOnPodUnset verifies that the per-pod processed_events
+// series are evicted when the pod is deleted, preventing unbounded cardinality growth.
+func TestProcessedEventsCleanedUpOnPodUnset(t *testing.T) {
+	client, tel := newTestClientWithTelemetry(t)
+
+	container := &workloadmeta.Container{
+		EntityID:   workloadmeta.EntityID{ID: "nginx-cont-id", Kind: workloadmeta.KindContainer},
+		EntityMeta: workloadmeta.EntityMeta{Name: "nginx-cont-name"},
+		Owner:      &workloadmeta.EntityID{ID: "nginx-pod-id", Kind: workloadmeta.KindKubernetesPod},
+	}
+
+	pod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{ID: "nginx-pod-id", Kind: workloadmeta.KindKubernetesPod},
+		EntityMeta: workloadmeta.EntityMeta{Name: "nginx-pod-name", Namespace: "nginx-pod-namespace"},
+		Containers: []workloadmeta.OrchestratorContainer{{ID: container.ID, Name: container.Name}},
+		Owners:     []workloadmeta.KubernetesPodOwner{{ID: "rs-id", Name: "rs-name", Kind: "replicaset"}},
+	}
+
+	process := &workloadmeta.Process{
+		EntityID:    workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "123"},
+		Language:    &languagemodels.Language{Name: "java"},
+		ContainerID: container.ID,
+	}
+
+	client.store.Notify([]workloadmeta.CollectorEvent{
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceAll, Entity: pod},
+		{Type: workloadmeta.EventTypeSet, Source: workloadmeta.SourceAll, Entity: container},
+	})
+
+	// Process the event: a processed_events series is created for the pod.
+	client.handleEvent(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Entity: process, Type: workloadmeta.EventTypeSet}},
+		Ch:     make(chan struct{}),
+	})
+	require.Equal(t, 1, countProcessedEventsSeries(t, tel, pod.Name))
+
+	// Unset the pod: the series must be evicted.
+	client.handleEvent(workloadmeta.EventBundle{
+		Events: []workloadmeta.Event{{Entity: pod, Type: workloadmeta.EventTypeUnset}},
+		Ch:     make(chan struct{}),
+	})
+	assert.Equal(t, 0, countProcessedEventsSeries(t, tel, pod.Name))
 }
