@@ -113,7 +113,12 @@ def origin_to_module(origin):
 
 def purl_to_package(purl):
     # pkg:https/download.savannah.nongnu.org/attr@2.5.1?url=https://download.savannah.nongnu.org/releases/attr/attr-%2.5.1.tar.xz
-    base = purl.split("?")[0]
+    # pkg:golang/github.com/DataDog/datadog-agent#cmd/secret-generic-connector
+    # A subpath names a package inside the module, and its last segment is the name.
+    base, _, subpath = purl.partition("#")
+    if subpath.strip("/"):
+        return subpath.strip("/").split("/")[-1]
+    base = base.split("?")[0]
     package_version = base.split("/")[-1]
     package = package_version.split("@")[0]
     return package
