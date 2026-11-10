@@ -265,6 +265,11 @@ namespace Datadog.CustomActions
         internal void ConfigureServiceUsers(string ddAgentUserName, SecurityIdentifier ddAgentUserSID)
         {
             var ddAgentUserPassword = _session.Property("DDAGENTUSER_PROCESSED_PASSWORD");
+            if (string.IsNullOrEmpty(ddAgentUserPassword)
+                && AgentCredentials.RequiresPassword(_nativeMethods, ddAgentUserSID))
+            {
+                _session.Log("Password not provided, will not change service user password");
+            }
             // Missing domain passwords preserve existing service credentials; built-in
             // and managed accounts use the empty/null forms required by ChangeServiceConfig.
             AgentCredentials.NormalizeServiceCredentials(_nativeMethods, ddAgentUserSID,
