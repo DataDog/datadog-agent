@@ -933,6 +933,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:android": [
@@ -951,6 +952,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:darwin": [
@@ -969,6 +971,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -987,6 +990,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:freebsd": [
@@ -1005,6 +1009,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:illumos": [
@@ -1023,6 +1028,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:ios": [
@@ -1041,6 +1047,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:js": [
@@ -1059,6 +1066,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:linux": [
@@ -1077,6 +1085,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -1095,6 +1104,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:openbsd": [
@@ -1113,6 +1123,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:osx": [
@@ -1131,6 +1142,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:plan9": [
@@ -1149,6 +1161,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:qnx": [
@@ -1167,6 +1180,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "@rules_go//go/platform:solaris": [
@@ -1185,6 +1199,7 @@ dd_agent_go_test(
             "//pkg/serverless/metrics/metricstest",
             "//pkg/serverless/tags",
             "//pkg/util/fxutil",
+            "//pkg/util/http",
             "@com_github_stretchr_testify//assert",
         ],
         "//conditions:default": [],

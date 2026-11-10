@@ -248,13 +248,11 @@ func applyCloudServiceOverrides(cloudService cloudservice.CloudService) {
 	}
 }
 
-func main() {
-
-	preloadEarly()
-
-	modeConf = mode.DetectMode()
-	setEnvWithoutOverride(modeConf.EnvDefaults)
-
+// loadEarlyConfig loads the configuration file and the proxy settings from the
+// environment into the global config. main() must call it before fxutil.OneShot,
+// because the Fx-constructed metrics forwarder reads the proxy settings when it
+// builds its HTTP transport.
+func loadEarlyConfig() {
 	// Load the config file early so that yaml-configured values (e.g.
 	// api_key, dogstatsd_tags, tags, extra_tags) are visible to the tag
 	// computation, the merge, and the api_key check below. setup() calls
@@ -271,6 +269,25 @@ func main() {
 	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
+
+	// Load proxy settings (DD_PROXY_HTTP / DD_PROXY_HTTPS / DD_PROXY_NO_PROXY)
+	// before fxutil.OneShot. The metrics forwarder and its HTTP transport are
+	// built during Fx construction, and CreateHTTPTransport only installs a
+	// proxy function if the proxy settings are already in the config at that
+	// point. setup() also calls LoadProxyFromEnv, but it runs after OneShot has
+	// started, which is too late for the forwarder: metrics and sketches would
+	// bypass the proxy while logs and traces (created in setup()) honor it.
+	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
+}
+
+func main() {
+
+	preloadEarly()
+
+	modeConf = mode.DetectMode()
+	setEnvWithoutOverride(modeConf.EnvDefaults)
+
+	loadEarlyConfig()
 
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
