@@ -930,6 +930,85 @@ func TestStreamingProvider_handleDCAStreamUpdate_FlavorReenrichesJoinedPod(t *te
 	assert.Empty(t, unrelated.KubeServices)
 }
 
+func TestStreamingProvider_handleDCAStreamUpdate_NamespaceEntities(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{
+		dcaStream:              newDCAStreamClient("node-a", nil),
+		wmeta:                  wmetaMock,
+		collectNamespaceLabels: true,
+	}
+	getNamespace := func(name string) (*workloadmeta.KubernetesMetadata, error) {
+		return wmetaMock.GetKubernetesMetadata(workloadmeta.KubeMetadataEntityID(namespaceEntityID(name).ID))
+	}
+	apply := func(resp *pb.KubeMetadataStreamResponse) {
+		provider.dcaStream.applyResponse(resp)
+		provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), map[string]string{})
+	}
+
+	apply(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		NamespaceMetadata: []*pb.NamespaceMetadata{
+			{Namespace: "a", Labels: map[string]string{"team": "a"}, Annotations: map[string]string{"note": "x"}, Type: pb.KubeMetadataEventType_SET},
+			{Namespace: "b", Labels: map[string]string{"team": "b"}, Type: pb.KubeMetadataEventType_SET},
+		},
+	})
+	nsA, err := getNamespace("a")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"team": "a"}, nsA.Labels)
+	assert.Empty(t, nsA.Annotations, "annotations are not collected")
+	_, err = getNamespace("b")
+	require.NoError(t, err)
+
+	apply(&pb.KubeMetadataStreamResponse{
+		NamespaceMetadata: []*pb.NamespaceMetadata{
+			{Namespace: "a", Labels: map[string]string{"team": "a2"}, Type: pb.KubeMetadataEventType_SET},
+			{Namespace: "b", Type: pb.KubeMetadataEventType_UNSET},
+		},
+	})
+	nsA, err = getNamespace("a")
+	require.NoError(t, err)
+	assert.Equal(t, map[string]string{"team": "a2"}, nsA.Labels)
+	_, err = getNamespace("b")
+	assert.Error(t, err, "b was unset")
+
+	// A full state after a reconnect drops the namespaces it doesn't list.
+	apply(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		NamespaceMetadata: []*pb.NamespaceMetadata{
+			{Namespace: "c", Labels: map[string]string{"team": "c"}, Type: pb.KubeMetadataEventType_SET},
+		},
+	})
+	_, err = getNamespace("a")
+	assert.Error(t, err, "a is not in the new full state")
+	_, err = getNamespace("c")
+	assert.NoError(t, err)
+}
+
+func TestStreamingProvider_handleDCAStreamUpdate_NamespaceEntitiesNotCollected(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+	provider := &streamingProvider{
+		dcaStream: newDCAStreamClient("node-a", nil),
+		wmeta:     wmetaMock,
+	}
+
+	provider.dcaStream.applyResponse(&pb.KubeMetadataStreamResponse{
+		IsFullState: true,
+		NamespaceMetadata: []*pb.NamespaceMetadata{
+			{Namespace: "a", Labels: map[string]string{"team": "a"}, Type: pb.KubeMetadataEventType_SET},
+		},
+	})
+	provider.handleDCAStreamUpdate(provider.dcaStream.drainPendingUpdate(), map[string]string{})
+
+	_, err := wmetaMock.GetKubernetesMetadata(workloadmeta.KubeMetadataEntityID(namespaceEntityID("a").ID))
+	assert.Error(t, err)
+}
+
 // Reproduces a bug where the tagger computes the pod's tags while the Kueue
 // Workload is not yet in workloadmeta, so the Workload-derived tags are never
 // added to the pod and its containers.

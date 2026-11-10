@@ -70,6 +70,9 @@ type streamingProvider struct {
 	ignoreServiceReadiness      bool
 	collectNamespaceLabels      bool
 	collectNamespaceAnnotations bool
+
+	// emittedNamespaces is only accessed by the run goroutine.
+	emittedNamespaces map[string]struct{}
 }
 
 func newStreamingProvider(
@@ -198,7 +201,8 @@ func (p *streamingProvider) handleWmetaPodEvents(bundle workloadmeta.EventBundle
 }
 
 func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods map[string]string) {
-	var events []workloadmeta.CollectorEvent
+	// Namespaces go first so that pods in the same Notify are tagged with them.
+	events := p.buildNamespaceEvents(update)
 
 	if len(update.updatedKueueQueues) > 0 {
 		events = append(events, p.buildKueueQueueEvents(update.updatedKueueQueues)...)
@@ -367,6 +371,50 @@ func (p *streamingProvider) getNamespaceMetadata(ns string) (labels, annotations
 
 	metadata := namespaceMetadata{labels: nsLabels, annotations: nsAnnotations}
 	return selectNamespaceMetadata(metadata, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
+}
+
+// buildNamespaceEvents returns events for the namespace entities changed by
+// the update. A full state unsets the namespaces that are no longer in it.
+func (p *streamingProvider) buildNamespaceEvents(update streamUpdate) []workloadmeta.CollectorEvent {
+	if !p.collectNamespaceLabels && !p.collectNamespaceAnnotations {
+		return nil
+	}
+	if p.emittedNamespaces == nil {
+		p.emittedNamespaces = make(map[string]struct{})
+	}
+
+	updated := update.updatedNamespaces
+	if update.updateIsFullState {
+		updated = make(map[string]struct{}, len(p.emittedNamespaces))
+		for ns := range p.emittedNamespaces {
+			updated[ns] = struct{}{}
+		}
+		for _, ns := range p.dcaStream.namespaceNames() {
+			updated[ns] = struct{}{}
+		}
+	}
+
+	var events []workloadmeta.CollectorEvent
+	for ns := range updated {
+		labels, annotations, found := p.dcaStream.getNamespaceMetadata(ns)
+		if !found {
+			if _, emitted := p.emittedNamespaces[ns]; emitted {
+				delete(p.emittedNamespaces, ns)
+				events = append(events, createUnsetEvent(namespaceEntityID(ns)))
+			}
+			continue
+		}
+
+		labels, annotations = selectNamespaceMetadata(namespaceMetadata{labels: labels, annotations: annotations}, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
+		p.emittedNamespaces[ns] = struct{}{}
+		events = append(events, workloadmeta.CollectorEvent{
+			Source: workloadmeta.SourceClusterOrchestrator,
+			Type:   workloadmeta.EventTypeSet,
+			Entity: createNamespaceEntity(ns, namespaceMetadata{labels: labels, annotations: annotations}),
+		})
+	}
+
+	return events
 }
 
 func (p *streamingProvider) buildKueueQueueEvents(updatedQueueIDs map[string]struct{}) []workloadmeta.CollectorEvent {
@@ -555,6 +603,17 @@ func (sc *dcaStreamClient) getNamespaceMetadata(namespace string) (labels, annot
 		return nil, nil, false
 	}
 	return ns.labels, ns.annotations, true
+}
+
+func (sc *dcaStreamClient) namespaceNames() []string {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	names := make([]string, 0, len(sc.namespaces))
+	for ns := range sc.namespaces {
+		names = append(names, ns)
+	}
+	return names
 }
 
 func (sc *dcaStreamClient) getKueueQueue(queueID string) (*workloadmeta.KubernetesKueueQueue, bool) {

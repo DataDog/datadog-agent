@@ -375,6 +375,13 @@ func (c *collector) selectPullBasedProvider(ctx context.Context) (metadataProvid
 	return newDCAPerPodProvider(c.dcaClient, c.collectNamespaceLabels, c.collectNamespaceAnnotations), nil
 }
 
+func namespaceEntityID(namespaceName string) workloadmeta.EntityID {
+	return workloadmeta.EntityID{
+		Kind: workloadmeta.KindKubernetesMetadata,
+		ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespaceName)),
+	}
+}
+
 // createNamespaceEntity creates a KubernetesMetadata entity for a namespace
 func createNamespaceEntity(namespaceName string, metadata namespaceMetadata) *workloadmeta.KubernetesMetadata {
 	labels := make(map[string]string)
@@ -388,10 +395,7 @@ func createNamespaceEntity(namespaceName string, metadata namespaceMetadata) *wo
 	}
 
 	return &workloadmeta.KubernetesMetadata{
-		EntityID: workloadmeta.EntityID{
-			Kind: workloadmeta.KindKubernetesMetadata,
-			ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", namespaceName)),
-		},
+		EntityID: namespaceEntityID(namespaceName),
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:        namespaceName,
 			Labels:      labels,
