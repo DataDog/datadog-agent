@@ -1,0 +1,14 @@
+description: Redirecting echo output to /dev/null still sets $? to 0.
+input:
+  script: |+
+    echo hello > /dev/null
+    echo $?
+    false
+    echo world > /dev/null
+    echo $?
+expect:
+  stdout: |+
+    0
+    0
+  stderr: ""
+  exit_code: 0

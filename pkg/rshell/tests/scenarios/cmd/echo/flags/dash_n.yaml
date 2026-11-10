@@ -1,0 +1,8 @@
+description: Echo -n suppresses trailing newline.
+input:
+  script: |+
+    echo -n hello
+expect:
+  stdout: "hello"
+  stderr: ""
+  exit_code: 0

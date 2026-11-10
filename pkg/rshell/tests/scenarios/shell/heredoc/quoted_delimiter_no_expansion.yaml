@@ -1,0 +1,15 @@
+description: Quoted delimiter suppresses all expansions in heredoc.
+input:
+  envs:
+    foo: bar
+  script: |+
+    cat <<'END'
+    ${foo}
+    $foo
+    END
+expect:
+  stdout: |+
+    ${foo}
+    $foo
+  stderr: ""
+  exit_code: 0

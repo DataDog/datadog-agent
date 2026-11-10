@@ -1,0 +1,9 @@
+description: Exit executes when reached via && after a successful command.
+input:
+  script: |+
+    true && exit 3
+    echo unreachable
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 3

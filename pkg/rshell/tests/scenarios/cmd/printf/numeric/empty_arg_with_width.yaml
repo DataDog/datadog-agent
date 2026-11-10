@@ -1,0 +1,7 @@
+description: Empty string arg with width for %d defaults to 0 with padding.
+input:
+  script: |+
+    printf "%5d\n" ""
+expect:
+  stdout: "    0\n"
+  exit_code: 0

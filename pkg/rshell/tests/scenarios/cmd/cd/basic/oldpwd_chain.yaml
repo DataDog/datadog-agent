@@ -1,0 +1,21 @@
+description: OLDPWD always reflects the directory immediately before the most recent cd.
+setup:
+  files:
+    - path: a/leaf
+      content: ""
+    - path: b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    start=$(pwd)
+    cd a
+    after_a=$OLDPWD
+    cd ../b
+    after_b=$OLDPWD
+    if [ "$after_a" = "$start" ] && [ "$after_b" != "$after_a" ]; then echo correct; else echo wrong; fi
+expect:
+  stdout: |+
+    correct
+  stderr: ""
+  exit_code: 0

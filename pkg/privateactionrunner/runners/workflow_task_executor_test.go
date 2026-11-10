@@ -8,6 +8,7 @@ package runners
 import (
 	"context"
 	"errors"
+	"math"
 	"testing"
 	"time"
 
@@ -20,6 +21,7 @@ import (
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	testopms "github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms/testing"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -46,19 +48,27 @@ type fakeCredentialResolver struct {
 }
 
 type fakeBundle struct {
-	action types.Action
+	action        types.Action
+	gotActionName string
 }
 
-func (b *fakeBundle) GetAction(string) types.Action {
+func (b *fakeBundle) GetAction(actionName string) types.Action {
+	b.gotActionName = actionName
 	return b.action
 }
 
 type recordingAction struct {
+	report func(context.Context)
 	called bool
+	task   *types.Task
 }
 
-func (a *recordingAction) Run(context.Context, *types.Task, *privateconnection.PrivateCredentials) (interface{}, error) {
+func (a *recordingAction) Run(ctx context.Context, task *types.Task, _ *privateconnection.PrivateCredentials) (interface{}, error) {
 	a.called = true
+	a.task = task
+	if a.report != nil {
+		a.report(ctx)
+	}
 	return "executed", nil
 }
 
@@ -180,6 +190,126 @@ func TestWorkflowTaskExecutorEnforcesAuthoredScriptAllowlist(t *testing.T) {
 	assert.True(t, action.called)
 }
 
+func TestWorkflowTaskExecutorRoutesNativeExecutionFQN(t *testing.T) {
+	const (
+		publicBundle = "com.datadoghq.helm"
+		actionName   = "addRepo"
+		publicFQN    = publicBundle + "." + actionName
+	)
+
+	tests := []struct {
+		name         string
+		executionFQN string
+		wantError    string
+	}{
+		{
+			name: "native action uses public FQN when execution FQN is absent",
+		},
+		{
+			name:         "native action uses public FQN when execution FQN matches it",
+			executionFQN: publicFQN,
+		},
+		{
+			name:         "unknown execution FQN fails closed",
+			executionFQN: "com.datadoghq.unknown.action",
+			wantError:    "could not find bundle for com.datadoghq.unknown",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nativeAction := &recordingAction{}
+			nativeBundle := &fakeBundle{action: nativeAction}
+			executor := &WorkflowTaskExecutor{
+				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+					publicBundle: nativeBundle,
+				}},
+				config: &config.Config{
+					ActionsAllowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+					MetricsClient:    &statsd.NoOpClient{},
+				},
+			}
+			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
+			task.Data.Attributes.ExecutionFQN = tt.executionFQN
+
+			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				assert.Nil(t, output)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, "executed", output)
+			}
+			assert.Equal(t, tt.wantError == "", nativeAction.called)
+			if tt.wantError == "" {
+				assert.Equal(t, actionName, nativeBundle.gotActionName)
+			} else {
+				assert.Empty(t, nativeBundle.gotActionName)
+			}
+		})
+	}
+}
+
+func TestWorkflowTaskExecutorRoutesNewPublicActionToAuthoredScript(t *testing.T) {
+	const (
+		publicBundle = "com.datadoghq.hosts"
+		actionName   = "diskUtilization"
+		scriptBundle = "com.datadoghq.authoredscripts"
+		executionFQN = scriptBundle + ".hosts." + actionName
+	)
+
+	tests := []struct {
+		name      string
+		allowlist map[string]sets.Set[string]
+		wantError string
+	}{
+		{
+			name:      "public FQN is allowlisted",
+			allowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
+		},
+		{
+			name:      "execution FQN cannot authorize public action",
+			allowlist: map[string]sets.Set[string]{scriptBundle + ".hosts": sets.New(actionName)},
+			wantError: "not allowlisted",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			scriptAction := &recordingAction{}
+			scriptHandler := &fakeBundle{action: scriptAction}
+			// Use an exact fake bundle here; the node-only registry fallback has its own test.
+			registry := &privatebundles.Registry{Bundles: map[string]types.Bundle{
+				scriptBundle + ".hosts": scriptHandler,
+			}}
+			require.Nil(t, registry.GetBundle(publicBundle))
+			executor := &WorkflowTaskExecutor{
+				registry: registry,
+				config: &config.Config{
+					ActionsAllowlist: tt.allowlist,
+					MetricsClient:    &statsd.NoOpClient{},
+				},
+			}
+			task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
+			task.Data.Attributes.ExecutionFQN = executionFQN
+
+			output, err := executor.RunTask(context.Background(), &PreparedWorkflowTask{Task: task})
+			if tt.wantError != "" {
+				require.ErrorContains(t, err, tt.wantError)
+				assert.Nil(t, output)
+				assert.False(t, scriptAction.called)
+			} else {
+				require.NoError(t, err)
+				assert.Equal(t, "executed", output)
+				assert.True(t, scriptAction.called)
+				require.Same(t, task, scriptAction.task)
+				assert.Equal(t, publicBundle+"."+actionName, scriptAction.task.GetFQN())
+			}
+			assert.Equal(t, actionName, scriptHandler.gotActionName)
+		})
+	}
+}
+
 func TestWorkflowRunnerPublishesFailureWhenTaskPreparationFails(t *testing.T) {
 	verifyErr := errors.New("verification failed")
 	dequeuedTask := newWorkflowTask("wrapper-task", "wrapper-bundle", "wrapper-action", "job-id")
@@ -291,6 +421,105 @@ func TestPrepareTaskRejectsActionBeforeResolvingCredentials(t *testing.T) {
 			assert.Same(t, unwrapped, failureTask)
 			assert.Equal(t, "job-id", failureTask.Data.Attributes.JobId)
 			assert.Nil(t, credentialResolver.gotTask)
+		})
+	}
+}
+
+// executionLogger captures the shared executor's lifecycle records.
+type executionLogger struct {
+	log.Logger
+	entries []map[string]interface{}
+}
+
+func (l *executionLogger) With(...log.Field) log.Logger       { return l }
+func (l *executionLogger) Info(_ string, fields ...log.Field) { l.record(fields) }
+func (l *executionLogger) Warn(_ string, fields ...log.Field) { l.record(fields) }
+func (l *executionLogger) record(fields []log.Field) {
+	entry := map[string]interface{}{}
+	for _, field := range fields {
+		entry[field.Key] = field.Value
+	}
+	l.entries = append(l.entries, entry)
+}
+
+func TestWorkflowTaskExecutorExecutionReporting(t *testing.T) {
+	const bundleID = "com.datadoghq.test"
+	action := &recordingAction{report: func(ctx context.Context) {
+		observability.SetExecutionDetails(ctx, "execution", log.String("package_version", "1.2.3"))
+	}}
+	executor := &WorkflowTaskExecutor{
+		registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{bundleID: &fakeBundle{action: action}}},
+		config:   &config.Config{ActionsAllowlist: map[string]sets.Set[string]{bundleID: sets.New("test")}, MetricsClient: &statsd.NoOpClient{}},
+	}
+	logger := &executionLogger{}
+	task := newWorkflowTask("task-id", bundleID, "test", "job-id")
+	output, err := executor.RunTask(log.ContextWithLogger(context.Background(), logger), &PreparedWorkflowTask{Task: task})
+	require.NoError(t, err)
+	require.Equal(t, "executed", output)
+	require.Len(t, logger.entries, 2, "one shared start and one enriched completion")
+	require.Equal(t, "1.2.3", logger.entries[1]["package_version"])
+}
+
+func TestWorkflowTaskExecutorRunPreparedUsesConfiguredTimeout(t *testing.T) {
+	const (
+		bundleID   = "test-bundle"
+		actionName = "test-action"
+	)
+	int32Ptr := func(v int32) *int32 { return &v }
+
+	tests := []struct {
+		name          string
+		configTimeout *int32
+		taskTimeout   interface{}
+		wantTimeout   time.Duration
+		wantDeadline  bool
+	}{
+		{name: "task timeout above config is capped", configTimeout: int32Ptr(60), taskTimeout: float64(86400), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "task timeout at int32 max is capped", configTimeout: int32Ptr(60), taskTimeout: float64(math.MaxInt32), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "shorter input timeout belongs to the action", configTimeout: int32Ptr(60), taskTimeout: float64(5), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "task timeout equal to config is kept", configTimeout: int32Ptr(60), taskTimeout: float64(60), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "missing task timeout uses config", configTimeout: int32Ptr(60), wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "invalid task timeout uses config", configTimeout: int32Ptr(60), taskTimeout: "86400", wantTimeout: 60 * time.Second, wantDeadline: true},
+		{name: "unset config adds no deadline", taskTimeout: float64(120)},
+		{name: "negative config adds no deadline", configTimeout: int32Ptr(-1), taskTimeout: float64(120)},
+		{name: "zero config adds no deadline", configTimeout: int32Ptr(0), taskTimeout: float64(120)},
+		{name: "unset config and task timeout has no deadline"},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			var deadline time.Time
+			var hasDeadline bool
+			action := &recordingAction{report: func(ctx context.Context) {
+				deadline, hasDeadline = ctx.Deadline()
+			}}
+			executor := &WorkflowTaskExecutor{
+				registry: &privatebundles.Registry{Bundles: map[string]types.Bundle{
+					bundleID: &fakeBundle{action: action},
+				}},
+				config: &config.Config{
+					ActionsAllowlist:   map[string]sets.Set[string]{bundleID: sets.New(actionName)},
+					MetricsClient:      &statsd.NoOpClient{},
+					TaskTimeoutSeconds: tc.configTimeout,
+				},
+			}
+			task := newWorkflowTask("task-id", bundleID, actionName, "job-id")
+			if tc.taskTimeout != nil {
+				task.Data.Attributes.Inputs = map[string]interface{}{"timeout": tc.taskTimeout}
+			}
+
+			before := time.Now()
+			output, err := executor.RunPrepared(context.Background(), &PreparedWorkflowTask{Task: task})
+			after := time.Now()
+
+			require.NoError(t, err)
+			assert.Equal(t, "executed", output)
+			require.True(t, action.called)
+			require.Equal(t, tc.wantDeadline, hasDeadline)
+			if tc.wantDeadline {
+				assert.False(t, deadline.Before(before.Add(tc.wantTimeout)), "deadline %v earlier than expected", deadline)
+				assert.False(t, deadline.After(after.Add(tc.wantTimeout)), "deadline %v later than expected", deadline)
+			}
 		})
 	}
 }

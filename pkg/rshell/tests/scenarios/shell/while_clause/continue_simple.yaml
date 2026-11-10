@@ -1,0 +1,15 @@
+description: continue inside a while body skips the rest of the iteration and re-evaluates the condition.
+input:
+  script: |+
+    i=
+    while [ "$i" != aaa ]; do
+      i="${i}a"
+      continue
+      echo unreachable
+    done
+    echo "i=$i"
+expect:
+  stdout: |+
+    i=aaa
+  stderr: |+
+  exit_code: 0

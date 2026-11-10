@@ -1,0 +1,15 @@
+description: cd -P -- DIRECTORY accepts -P, then -- as end-of-flags, then a positional.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd -P -- child
+    pwd
+expect:
+  stdout_contains: ["/child"]
+  stdout_contains_windows: ["\\child"]
+  stderr: ""
+  exit_code: 0

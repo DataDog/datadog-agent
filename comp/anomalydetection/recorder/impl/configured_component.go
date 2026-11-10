@@ -20,9 +20,10 @@ import (
 
 // Requires lists the recorder's configuration and optional dependencies.
 type Requires struct {
-	Config    config.Component
-	Lifecycle compdef.Lifecycle `optional:"true"`
-	Factory   option.Option[recorder.WriterFactory]
+	Config       config.Component
+	Lifecycle    compdef.Lifecycle `optional:"true"`
+	Factory      option.Option[recorder.WriterFactory]
+	MetricFilter option.Option[recorder.MetricFilter]
 }
 
 // Provides contains the optional recorder component.
@@ -68,7 +69,8 @@ func NewConfiguredComponent(req Requires) (Provides, error) {
 	req.Lifecycle.Append(compdef.Hook{OnStop: func(context.Context) error {
 		return errors.Join(closeMetricWriter(metrics), closeLogWriter(logs))
 	}})
-	return Provides{Comp: option.New(NewComponent(metrics, logs))}, nil
+	filter, _ := req.MetricFilter.Get()
+	return Provides{Comp: option.New(NewComponent(metrics, logs, filter))}, nil
 }
 
 func closeMetricWriter(writer recorder.MetricWriter) error {

@@ -26,7 +26,6 @@ import (
 )
 
 const (
-	tokenURLEndpoint  = "%s/api/v2/intake-key"
 	authorizationType = "Delegated"
 
 	contentTypeHeader   = "Content-Type"
@@ -105,10 +104,17 @@ func getAPIDomain(endpoint string) string {
 // names and forwarders. Known Datadog targets are normalized to their HTTPS API domain; custom
 // explicit targets must use HTTPS. An empty targetSite falls back to the primary dd_url/site.
 func resolveTokenURL(cfg pkgconfigmodel.Reader, targetSite string) (string, error) {
+	return resolveExchangeURL(cfg, targetSite, "/api/v2/intake-key")
+}
+
+func resolveExchangeURL(cfg pkgconfigmodel.Reader, targetSite, path string) (string, error) {
 	explicitTarget := targetSite != ""
 	site := targetSite
 	if site == "" {
 		site = utils.GetInfraEndpoint(cfg)
+	}
+	if strings.HasPrefix(site, "//") {
+		site = "https:" + site
 	}
 	site = getAPIDomain(site)
 	if !strings.Contains(site, "://") {
@@ -123,7 +129,7 @@ func resolveTokenURL(cfg pkgconfigmodel.Reader, targetSite string) (string, erro
 			return "", fmt.Errorf("delegated auth target %q must use HTTPS", site)
 		}
 	}
-	return fmt.Sprintf(tokenURLEndpoint, site), nil
+	return site + path, nil
 }
 
 func checkDelegatedAuthRedirect(req *http.Request, via []*http.Request) error {

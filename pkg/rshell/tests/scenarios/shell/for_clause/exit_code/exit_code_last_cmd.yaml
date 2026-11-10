@@ -1,0 +1,8 @@
+description: For loop exit code reflects the last command in the body.
+input:
+  script: |+
+    for i in a; do false; done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1
