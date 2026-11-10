@@ -500,6 +500,8 @@ github.com/dustin/go-humanize v1.1.0 h1:dbKTrvD0klcbBV/h4AWJdMuZogJACoMlvWIWZ5b2
 github.com/dustin/go-humanize v1.1.0/go.mod h1:hc1CvRkJMsgxqjmjMQF3QNRAZBwY8AXBAzKYoSX9sFI=
 github.com/ebitengine/purego v0.11.1 h1:2zpWRSQNVKN4eKsKO9eM1ILDgWfYMY9GwqRmK6XeQ/0=
 github.com/ebitengine/purego v0.11.1/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
+github.com/ebitengine/purego v0.11.2 h1:WWiTx8rD8zYdOwSj8O/NiNbsOvSAgJMTlyV1XlbUSeU=
+github.com/ebitengine/purego v0.11.2/go.mod h1:DCHPP08djqhNSoTfImcnHYQRZmd0qhakvrozqaEYhGQ=
 github.com/edsrzf/mmap-go v1.2.1-0.20241212181136-fad1cd13edbd h1:I4PrRZuNMeDP3VbFrak4QsqwO5tWkQf0tqrrr1L2DsU=
 github.com/edsrzf/mmap-go v1.2.1-0.20241212181136-fad1cd13edbd/go.mod h1:19H/e8pUPLicwkyNgOykDXkJ9F0MHE+Z52B8EIth78Q=
 github.com/elastic/go-freelru v0.16.0 h1:gG2HJ1WXN2tNl5/p40JS/l59HjvjRhjyAa+oFTRArYs=
@@ -1518,6 +1520,8 @@ github.com/shirou/gopsutil/v3 v3.24.5 h1:i0t8kL+kQTvpAYToeuiVk3TgDeKOFioZO3Ztz/i
 github.com/shirou/gopsutil/v3 v3.24.5/go.mod h1:bsoOS1aStSs9ErQ1WWfxllSeS1K5D+U30r2NfcubMVk=
 github.com/shirou/gopsutil/v4 v4.26.9 h1:CaBo/hBFqvlJoLvAQEKdHdf5GD97/MN2ACfyv63+2Ig=
 github.com/shirou/gopsutil/v4 v4.26.9/go.mod h1:nKH+8wX2zxr/mDbsR+AAy6Qd2z4ZOQ7wfQaEp+yrYmg=
+github.com/shirou/gopsutil/v4 v4.26.10 h1:MJN6euesJx53MVEjscYeyRSRcrdIcy3sz5k9nosjldg=
+github.com/shirou/gopsutil/v4 v4.26.10/go.mod h1:XpkIrcUMQhwte/dGxu57KtnMMFsbKelI7PP23zweKBk=
 github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 h1:udFKJ0aHUL60LboW/A+DfgoHVedieIzIXE8uylPue0U=
 github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4/go.mod h1:qsXQc7+bwAM3Q1u/4XEfrquwF8Lw7D7y5cD8CuHnfIc=
 github.com/shoenig/go-m1cpu v0.2.2 h1:4nc55oVv7nygGnfI9bhLCLzUEs4794y0Bkqx4q2zy7Y=
