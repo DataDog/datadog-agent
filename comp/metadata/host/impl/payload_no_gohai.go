@@ -22,6 +22,13 @@ type Payload struct {
 	// TODO: gohai alternative (or fix gohai)
 }
 
+var _ marshaler.TypedJSONMarshaler = (*Payload)(nil)
+
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeHostV5
+}
+
 // getPayload returns the complete metadata payload as seen in Agent v5. Note: gohai can't be used on the platforms
 // this module builds for
 func (h *host) getPayload(hostname string) *Payload {

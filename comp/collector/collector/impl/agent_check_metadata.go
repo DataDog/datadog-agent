@@ -9,6 +9,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 	"strconv"
 	"time"
 	"unicode/utf8"
@@ -147,6 +148,13 @@ type Payload struct {
 	Meta             hostMetadataUtils.Meta `json:"meta"`
 	AgentChecks      []interface{}          `json:"agent_checks"`
 	ExternalhostTags externalhost.Payload   `json:"external_host_tags"`
+}
+
+var _ marshaler.TypedJSONMarshaler = (*Payload)(nil)
+
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgentChecks
 }
 
 // MarshalJSON serialization a Payload to JSON
