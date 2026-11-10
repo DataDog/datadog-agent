@@ -16,8 +16,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/benbjohnson/clock"
-
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	aperrorpb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/errorcode"
 	ddlog "github.com/DataDog/datadog-agent/pkg/util/log"
@@ -32,8 +30,8 @@ var errTaskAlreadyAccepted = errors.New("task was already accepted for execution
 // named after the task ID hash, with the task expiration as their mtime, so they
 // outlive the process (the split-mode executor exits when idle).
 type taskLedger struct {
-	dir   string
-	clock clock.Clock
+	dir string
+	now func() time.Time
 
 	mu        sync.Mutex
 	entries   map[string]time.Time
@@ -41,15 +39,18 @@ type taskLedger struct {
 }
 
 // newTaskLedger returns a ledger persisted under dir, or an in-memory one when
-// dir is empty or not writable.
-func newTaskLedger(dir string, clk clock.Clock) *taskLedger {
+// dir is empty or not writable. now defaults to time.Now when nil.
+func newTaskLedger(dir string, now func() time.Time) *taskLedger {
 	if dir != "" {
 		if err := checkLedgerDir(dir); err != nil {
 			ddlog.Warnf("Accepted task IDs will not persist across restarts: %v", err)
 			dir = ""
 		}
 	}
-	return &taskLedger{dir: dir, clock: clk}
+	if now == nil {
+		now = time.Now
+	}
+	return &taskLedger{dir: dir, now: now}
 }
 
 func checkLedgerDir(dir string) error {
@@ -96,13 +97,6 @@ func (l *taskLedger) accept(taskID string, expiresAt time.Time) error {
 	}
 	l.entries[taskID] = expiresAt
 	return nil
-}
-
-func (l *taskLedger) now() time.Time {
-	if l.clock == nil {
-		return time.Now()
-	}
-	return l.clock.Now()
 }
 
 // writeMarker creates the marker exclusively, so concurrent processes sharing

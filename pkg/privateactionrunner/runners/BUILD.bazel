@@ -36,7 +36,6 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/util/log",
-        "@com_github_benbjohnson_clock//:clock",
     ],
 )
 
@@ -67,7 +66,6 @@ dd_agent_go_test(
         "//pkg/proto/pbgo/privateactionrunner/actionsclient",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
-        "@com_github_benbjohnson_clock//:clock",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

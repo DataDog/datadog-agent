@@ -9,8 +9,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
-
-	"github.com/benbjohnson/clock"
+	"time"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -83,7 +82,7 @@ func NewWorkflowTaskExecutor(
 		config:       configuration,
 		taskVerifier: taskVerifier,
 		resolver:     credentialResolver,
-		ledger:       newTaskLedger(ledgerDir, clock.New()),
+		ledger:       newTaskLedger(ledgerDir, time.Now),
 	}, nil
 }
 

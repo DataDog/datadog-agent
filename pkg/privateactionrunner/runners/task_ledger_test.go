@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -66,23 +65,23 @@ func TestTaskLedgerAcceptsTaskOnceAcrossConcurrentInstances(t *testing.T) {
 
 func TestTaskLedgerPrunesExpiredEntries(t *testing.T) {
 	dir := t.TempDir()
-	clk := clock.NewMock()
-	clk.Set(time.Now())
+	now := time.Now()
+	clk := func() time.Time { return now }
 	ledger := newTaskLedger(dir, clk)
 
-	require.NoError(t, ledger.accept("short-lived", clk.Now().Add(time.Minute)))
-	require.NoError(t, ledger.accept("long-lived", clk.Now().Add(time.Hour)))
+	require.NoError(t, ledger.accept("short-lived", now.Add(time.Minute)))
+	require.NoError(t, ledger.accept("long-lived", now.Add(time.Hour)))
 
-	clk.Add(taskLedgerPruneInterval)
-	require.NoError(t, ledger.accept("trigger-prune", clk.Now().Add(time.Hour)))
+	now = now.Add(taskLedgerPruneInterval)
+	require.NoError(t, ledger.accept("trigger-prune", now.Add(time.Hour)))
 
 	_, err := os.Stat(filepath.Join(dir, markerName("short-lived")))
 	assert.ErrorIs(t, err, os.ErrNotExist)
 	_, err = os.Stat(filepath.Join(dir, markerName("long-lived")))
 	assert.NoError(t, err)
-	require.NoError(t, ledger.accept("short-lived", clk.Now().Add(time.Minute)))
-	require.ErrorContains(t, ledger.accept("long-lived", clk.Now().Add(time.Hour)), errTaskAlreadyAccepted.Error())
-	require.ErrorContains(t, newTaskLedger(dir, clk).accept("long-lived", clk.Now().Add(time.Hour)), errTaskAlreadyAccepted.Error())
+	require.NoError(t, ledger.accept("short-lived", now.Add(time.Minute)))
+	require.ErrorContains(t, ledger.accept("long-lived", now.Add(time.Hour)), errTaskAlreadyAccepted.Error())
+	require.ErrorContains(t, newTaskLedger(dir, clk).accept("long-lived", now.Add(time.Hour)), errTaskAlreadyAccepted.Error())
 }
 
 func TestTaskLedgerFallsBackToMemoryWhenDirIsUnusable(t *testing.T) {
