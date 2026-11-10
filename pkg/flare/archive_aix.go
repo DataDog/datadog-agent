@@ -23,13 +23,20 @@ import (
 const (
 	// errptWindow is how far back the collected entries go.
 	errptWindow = 7 * 24 * time.Hour
-	// errptMaxOutput caps each errpt section, both in the flare and in memory.
-	errptMaxOutput = 256 * 1024
+	// errptMaxCollect bounds the raw output collected from one errpt call.
+	errptMaxCollect = 4 * 1024 * 1024
 	// errptMaxErrOutput caps the stderr kept in error messages.
 	errptMaxErrOutput = 4 * 1024
 )
 
 const truncatedMarker = "\n[output truncated]\n"
+
+// Names our processes appear as in the error log: the binaries (CORE_DUMP
+// PROGRAM NAME) and the SRC subsystem names (FAILING MODULE, prefix).
+var (
+	errptBinaries   = []string{"agent-bin", "trace-agent-bin", "agent-data-plane-bin"}
+	errptSubsystems = []string{"datadog-"}
+)
 
 // getSvmonData captures the AIX virtual memory segment breakdown (heap,
 // stack, text, shared library segments) for the running Agent process, since
@@ -58,16 +65,20 @@ func getErrptData(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	since := errptSince(time.Now().Add(-errptWindow))
 
 	// A924A5FC CORE_DUMP, 620096CD/8527F6F4 out-of/no paging space.
-	deaths, errDeaths := runErrpt(ctx, "-a", "-j", "A924A5FC,620096CD,8527F6F4", "-s", since)
-	if errDeaths != nil {
-		_ = fb.Logf("error running errpt for process deaths: %s", errDeaths)
+	deaths := runErrpt(ctx, errptBinaries, "-a", "-j", "A924A5FC", "-s", since)
+	if deaths.err != nil {
+		_ = fb.Logf("error running errpt for process deaths: %s", deaths.err)
 	}
-	src, errSrc := runErrpt(ctx, "-a", "-N", "SRC", "-s", since)
-	if errSrc != nil {
-		_ = fb.Logf("error running errpt for SRC entries: %s", errSrc)
+	paging := runErrpt(ctx, nil, "-a", "-j", "620096CD,8527F6F4", "-s", since)
+	if paging.err != nil {
+		_ = fb.Logf("error running errpt for paging space entries: %s", paging.err)
+	}
+	src := runErrpt(ctx, errptSubsystems, "-a", "-N", "SRC", "-s", since)
+	if src.err != nil {
+		_ = fb.Logf("error running errpt for SRC entries: %s", src.err)
 	}
 
-	return fb.AddFile("errpt.log", buildErrptLog(deaths, errDeaths, src, errSrc))
+	return fb.AddFile("errpt.log", buildErrptLog(deaths, paging, src))
 }
 
 // errptSince formats t in the MMDDhhmmYY form expected by errpt's -s flag.
@@ -75,40 +86,98 @@ func errptSince(t time.Time) string {
 	return t.Format("0102150406")
 }
 
-// runErrpt returns errpt's stdout only, so query errors are never mistaken for
-// error-log content; stderr is folded into the returned error.
-func runErrpt(ctx context.Context, args ...string) ([]byte, error) {
-	stdout := &boundedWriter{max: errptMaxOutput}
+type errptResult struct {
+	out []byte
+	// hadRecords reports whether the unfiltered output had any record.
+	hadRecords bool
+	err        error
+}
+
+// runErrpt runs errpt; when match is not nil, only records containing one of
+// the strings are kept. stderr is folded into err so query errors are never
+// mistaken for error-log content.
+func runErrpt(ctx context.Context, match []string, args ...string) errptResult {
+	stdout := &boundedWriter{max: errptMaxCollect}
 	stderr := &boundedWriter{max: errptMaxErrOutput}
 	cmd := exec.CommandContext(ctx, "errpt", args...)
 	cmd.Stdout, cmd.Stderr = stdout, stderr
+
+	var res errptResult
 	if err := cmd.Run(); err != nil {
 		if stderr.buf.Len() > 0 {
 			err = fmt.Errorf("%w: %s", err, strings.TrimSpace(string(stderr.Bytes())))
 		}
-		return stdout.Bytes(), err
+		res.err = err
 	}
-	return stdout.Bytes(), nil
+	res.out = stdout.Bytes()
+
+	if match == nil {
+		res.hadRecords = len(bytes.TrimSpace(res.out)) > 0
+		return res
+	}
+	res.out, res.hadRecords = filterErrptRecords(res.out, match)
+	return res
+}
+
+// filterErrptRecords keeps the records — blocks starting with a line of
+// dashes — that contain one of the match strings, e.g. the Agent's binary
+// or subsystem names. Returns the kept records and whether the input had any
+// record at all.
+func filterErrptRecords(out []byte, match []string) ([]byte, bool) {
+	var kept, block bytes.Buffer
+	hadRecords := false
+
+	flush := func() {
+		if len(bytes.Trim(block.Bytes(), "-\n")) == 0 {
+			block.Reset()
+			return
+		}
+		hadRecords = true
+		for _, m := range match {
+			if bytes.Contains(block.Bytes(), []byte(m)) {
+				kept.Write(block.Bytes())
+				break
+			}
+		}
+		block.Reset()
+	}
+
+	for _, line := range bytes.Split(out, []byte("\n")) {
+		block.Write(line)
+		block.WriteByte('\n')
+		if len(line) > 0 && len(bytes.Trim(line, "-")) == 0 {
+			flush()
+		}
+	}
+	flush()
+
+	return kept.Bytes(), hadRecords
 }
 
 // buildErrptLog assembles errpt.log; query errors are reported inline, and the
-// root hint is written only when both queries succeeded and returned nothing.
-func buildErrptLog(deaths []byte, errDeaths error, src []byte, errSrc error) []byte {
+// root hint is written only when all queries succeeded but saw no record at
+// all (errpt is unreadable for non-root, e.g. the agent process).
+func buildErrptLog(deaths, paging, src errptResult) []byte {
 	content := bytes.NewBuffer(nil)
 
-	content.WriteString("=== Process deaths by signal, core dumps and paging space events (errpt -a -j A924A5FC,620096CD,8527F6F4) ===\n")
-	content.Write(deaths)
-	if errDeaths != nil {
-		content.WriteString(fmt.Sprintf("\n(errpt failed: %v)\n", errDeaths))
+	writeSection := func(header string, r errptResult) {
+		content.WriteString(header)
+		content.Write(r.out)
+		if r.err != nil {
+			content.WriteString(fmt.Sprintf("\n(errpt failed: %v)\n", r.err))
+		} else if len(r.out) == 0 && r.hadRecords {
+			content.WriteString("(no matching records)\n")
+		}
 	}
 
-	content.WriteString("\n\n=== SRC subsystem lifecycle (errpt -a -N SRC) ===\n")
-	content.Write(src)
-	if errSrc != nil {
-		content.WriteString(fmt.Sprintf("\n(errpt failed: %v)\n", errSrc))
-	}
+	writeSection("=== Agent process deaths by signal (errpt -a -j A924A5FC) ===\n", deaths)
+	content.WriteString("\n\n")
+	writeSection("=== Kernel paging space events (errpt -a -j 620096CD,8527F6F4) ===\n", paging)
+	content.WriteString("\n\n")
+	writeSection("=== Agent SRC subsystem lifecycle (errpt -a -N SRC) ===\n", src)
 
-	if errDeaths == nil && errSrc == nil && len(deaths) == 0 && len(src) == 0 {
+	if deaths.err == nil && paging.err == nil && src.err == nil &&
+		!deaths.hadRecords && !paging.hadRecords && !src.hadRecords {
 		content.WriteString("\nerrpt returned no entries. The AIX error log is only readable by root; " +
 			"to include it, run `sudo datadog-agent flare --local` so the CLI builds the flare as root " +
 			"instead of the agent process.\n")
