@@ -33,16 +33,17 @@ const (
 var mockCallStackFrames = []string{"frame1", "frame2"}
 
 func testSetup(t *testing.T) {
-	// change the hive to hku for the test
-	hive = registry.CURRENT_USER
-	baseKey = `SOFTWARE\Datadog\unit_test\windows_crash_reporting`
+	configmock.New(t).SetInTest("run_path", t.TempDir())
+	// Read the legacy fallback from HKCU rather than the production HKLM key.
+	legacyHive = registry.CURRENT_USER
+	legacyKey = `SOFTWARE\Datadog\unit_test\windows_crash_reporting`
 
 	// clear the key before starting
-	_ = registry.DeleteKey(hive, baseKey)
+	_ = registry.DeleteKey(legacyHive, legacyKey)
 
 	t.Cleanup(func() {
 		// clean up registry settings we left behind
-		_ = registry.DeleteKey(hive, baseKey)
+		_ = registry.DeleteKey(legacyHive, legacyKey)
 	})
 }
 
@@ -163,7 +164,7 @@ func TestWinCrashReporting(t *testing.T) {
 		mock.AssertNumberOfCalls(t, "Commit", 1)
 
 		// if we now create a new instance of the check, we should see a new event because
-		// it's a new bugcheck, different from the registry
+		// it's a new bugcheck, different from the saved file checkpoint
 		expected.Title = formatTitle(p)
 		expected.Text = formatText(p)
 
