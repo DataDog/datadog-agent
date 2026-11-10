@@ -41,17 +41,19 @@ def check_teams(_):
 
 
 @task
-def send_stats(_, dry_run=False):
+def send_stats(_, dry_run=False, pipeline_id=None):
     """
-    Send statistics to Datadog for the current pipeline. CI-only task.
+    Send statistics to Datadog for the selected pipeline (current by default). CI-only task.
     Use the --dry-run option to test this locally, without sending
     data points to Datadog.
     """
+    if pipeline_id is not None and not str(pipeline_id).isdecimal():
+        raise Exit("Provide a numeric --pipeline-id", code=1)
     if not (dry_run or os.environ.get("DD_API_KEY")):
         print("DD_API_KEY environment variable not set, cannot send pipeline metrics to the backend")
         raise Exit(code=1)
 
-    series = compute_failed_jobs_series(PROJECT_NAME)
+    series = compute_failed_jobs_series(PROJECT_NAME, pipeline_id=pipeline_id)
 
     if not dry_run:
         send_metrics(series)

@@ -5,8 +5,9 @@ import sys
 import unittest
 from unittest.mock import MagicMock, patch
 
-from gitlab.v4.objects import ProjectJob
+from gitlab.v4.objects import ProjectJob, ProjectPipelineBridge
 from invoke import MockContext
+from invoke.exceptions import Exit
 
 from tasks import notify
 from tasks.libs.pipeline.notifications import load_and_validate
@@ -29,6 +30,57 @@ def get_github_slack_map():
 
 
 class TestSendStats(unittest.TestCase):
+    def test_invalid_explicit_pipeline_id(self):
+        with self.assertRaisesRegex(Exit, "numeric"):
+            notify.send_stats(MockContext(), dry_run=True, pipeline_id="")
+
+    @patch.dict("os.environ", {"CI_PIPELINE_ID": "99", "CI_COMMIT_REF_NAME": "pr-branch", "DD_API_KEY": "test"})
+    @patch("tasks.notify.send_metrics")
+    @patch("tasks.libs.ciproviders.gitlab_api.get_gitlab_api")
+    def test_child_reports_parent_jobs_and_bridges(self, api, send):
+        repo = api.return_value.projects.get.return_value
+        attrs = {
+            "id": 1,
+            "name": "validation",
+            "status": "failed",
+            "stage": "e2e",
+            "created_at": "2026-11-09T10:00:00Z",
+            "allow_failure": False,
+            "failure_reason": "script_failure",
+            "tag_list": ["arch:amd64"],
+            "web_url": "https://gitlab.ddbuild.io/job/1",
+        }
+        pipeline = repo.pipelines.get.return_value
+        repo.jobs.get.return_value.trace.return_value = b"test assertion failed"
+        pipeline.jobs.list.return_value = [
+            ProjectJob(MagicMock(), attrs=attrs),
+            ProjectJob(MagicMock(), attrs={**attrs, "id": 2, "name": "optional", "allow_failure": True}),
+        ]
+        pipeline.bridges.list.return_value = [
+            ProjectPipelineBridge(MagicMock(), attrs={**attrs, "id": 3, "name": "required-child"})
+        ]
+        notify.send_stats(MockContext(), pipeline_id="42")
+        repo.pipelines.get.assert_called_once_with("42")
+        metrics = send.call_args.args[0]
+        self.assertEqual(
+            [metric.metric for metric in metrics],
+            ["datadog.ci.job_failures", "datadog.ci.job_failures", "datadog.ci.pipelines"],
+        )
+        self.assertEqual(sum(metric.points[0].value for metric in metrics[:2]), 2)
+        self.assertIn("status:failed", metrics[-1].tags)
+        self.assertIn("git_ref:pr-branch", metrics[-1].tags)
+        self.assertTrue(any("reason:FAILED_BRIDGE_JOB" in metric.tags for metric in metrics[:2]))
+
+        pipeline.jobs.list.return_value = [
+            ProjectJob(MagicMock(), attrs={**attrs, "id": 2, "name": "optional", "allow_failure": True})
+        ]
+        pipeline.bridges.list.return_value = []
+        notify.send_stats(MockContext(), pipeline_id="42")
+        metrics = send.call_args.args[0]
+        self.assertEqual(len(metrics), 1)
+        self.assertIn("status:succeeded", metrics[0].tags)
+
+    @patch.dict("os.environ", {"CI_PIPELINE_ID": "99"})
     @patch('tasks.libs.ciproviders.gitlab_api.get_gitlab_api')
     @patch("tasks.libs.notify.alerts.create_count", new=MagicMock())
     def test_nominal(self, api_mock):
@@ -45,6 +97,7 @@ class TestSendStats(unittest.TestCase):
         trace_mock.assert_called()
         pipeline_mock.assert_called()
         self.assertEqual(pipeline_mock.call_count, 1)
+        pipeline_mock.assert_called_once_with("99")
 
 
 class TestJobOwners(unittest.TestCase):

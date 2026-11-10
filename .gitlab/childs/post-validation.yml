@@ -1,0 +1,53 @@
+---
+include:
+  - local: .gitlab/.pre/common/shared.yml
+  - local: .gitlab/common/post-validation.yml
+
+workflow:
+  # An already-created child survives parent-only graceful cancellation.
+  # Direct pipeline cancellation can still stop jobs; always is not a guarantee.
+  auto_cancel:
+    on_new_commit: none
+    on_job_failure: none
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "parent_pipeline" && $POST_VALIDATION_PARENT_ID =~ /^[0-9]+$/
+    - when: never
+
+default:
+  retry:
+    max: 1
+    when: always
+  interruptible: false
+  id_tokens:
+    CI_IDENTITIES_GITLAB_ID_TOKEN:
+      aud: ci-identities
+
+stages:
+  - post_validation
+
+jev-dyntest-evaluate:
+  extends: .post-validation-jev
+  stage: post_validation
+  dependencies: []
+  rules:
+    - when: always
+  script:
+    - dda inv -- -e dyntest.evaluate-index --selector jev --commit-sha "$CI_COMMIT_SHA" --pipeline-id "$POST_VALIDATION_PARENT_ID" --pr-summary-from-pipeline
+
+new-e2e-cleanup-on-failure:
+  extends: .post-validation-cleanup
+  stage: post_validation
+  dependencies: []
+  variables:
+    CLEANUP_TARGET_PIPELINE_ID: $POST_VALIDATION_PARENT_ID
+  rules:
+    - when: always
+
+send_pipeline_stats:
+  extends: .post-validation-stats
+  stage: post_validation
+  needs: []
+  rules:
+    - when: always
+  script:
+    - dda inv -- -e notify.send-stats --pipeline-id "$POST_VALIDATION_PARENT_ID"

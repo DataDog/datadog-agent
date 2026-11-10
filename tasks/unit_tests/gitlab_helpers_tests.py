@@ -1,11 +1,27 @@
 import unittest
 from urllib.parse import quote
 
+from invoke import MockContext
+
 from tasks.gitlab_helpers import (
     create_gitlab_annotations_report,
 )
 from tasks.libs.ciproviders.gitlab_api import BASE_URL as GITLAB_BASE_URL
+from tasks.libs.ciproviders.gitlab_api import read_includes
 from tasks.libs.civisibility import CI_VISIBILITY_URL, TEST_VISIBILITY_URL
+
+
+class TestPostValidationCheckout(unittest.TestCase):
+    def test_forwarded_defaults_preserve_jev_full_history(self):
+        parent = read_includes(MockContext(), ".gitlab-ci.yml", return_config=True)
+        child = read_includes(MockContext(), ".gitlab/childs/post-validation.yml", return_config=True)
+        forwarded = parent["variables"] | parent["post-validation"]["variables"]
+        # Trigger variables take precedence over the downstream job's YAML.
+        effective = (
+            child[".post-validation-jev"]["variables"] | child["jev-dyntest-evaluate"].get("variables", {}) | forwarded
+        )
+        self.assertEqual(str(effective["GIT_DEPTH"]), "0")
+        self.assertEqual(effective["GIT_STRATEGY"], "clone")
 
 
 class TestCreateGitlabAnnotations(unittest.TestCase):
