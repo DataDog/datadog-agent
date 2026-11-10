@@ -60,6 +60,10 @@ bazel:run-gazelle:
 bazel:run-go-mod-tidy:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
-    - bazel run //:go_mod_tidy_all -- -diff
+    # Run the same tidy workflow as the pre-push hook, including generated Bazel files.
+    - dda inv -- -e tidy
+    # Include newly generated files (e.g. BUILD.bazel) in the diff as well.
+    - git add --intent-to-add .
+    - git diff --exit-code HEAD
   variables:
-    REMEDIATION: "bazel run //:go_mod_tidy_all"
+    REMEDIATION: "dda inv tidy"
