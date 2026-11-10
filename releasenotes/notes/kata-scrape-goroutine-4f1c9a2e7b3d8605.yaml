@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix the ``kata_containers`` check stalling workloadmeta when a Kata shim
+    metrics socket is slow to respond. The check now scrapes sandboxes on a
+    separate goroutine, so it keeps processing container events and no longer
+    causes "subscriber is not reading from channel" errors or delays other
+    workloadmeta subscribers.
