@@ -15,3 +15,9 @@ import (
 func threadPointer(_ int, regs *syscall.PtraceRegs) (uint64, error) {
 	return regs.Fs_base, nil
 }
+
+// goGRegister returns 0: amd64 has no g register, the Go runtime keeps g in
+// TLS.
+func goGRegister(_ *syscall.PtraceRegs) uint64 {
+	return 0
+}

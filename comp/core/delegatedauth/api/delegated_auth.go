@@ -113,6 +113,9 @@ func resolveExchangeURL(cfg pkgconfigmodel.Reader, targetSite, path string) (str
 	if site == "" {
 		site = utils.GetInfraEndpoint(cfg)
 	}
+	if strings.HasPrefix(site, "//") {
+		site = "https:" + site
+	}
 	site = getAPIDomain(site)
 	if !strings.Contains(site, "://") {
 		site = "https://" + site
