@@ -17,10 +17,13 @@ import (
 //
 // It sends each second of a series once. Samplers stamp what they hand it at commit, and the aggregator's run loop
 // handles commits and flushes one at a time, so a commit handled after a flush is stamped at or after its cutoff: a
-// flush sends the seconds before its cutoff, and holds the rest for the next flush to merge with later commits.
+// flush sends the seconds before its cutoff, and holds the rest for the next flush to merge with later commits. A
+// metric that starts being stripped has its points moved past the latest second committed before, which its output
+// sent before may have used.
 type checkOutputMerger struct {
-	series   map[serieSecond]*metrics.Serie
-	sketches map[sketchSecond]*metrics.SketchSeries
+	series            map[serieSecond]*metrics.Serie
+	sketches          map[sketchSecond]*metrics.SketchSeries
+	notBeforeByMetric map[string]int64
 }
 
 // mergedSketch is a sketch series handed to the merger, with the key of the series it merges into.
@@ -43,8 +46,9 @@ type sketchSecond struct {
 
 func newCheckOutputMerger() *checkOutputMerger {
 	return &checkOutputMerger{
-		series:   make(map[serieSecond]*metrics.Serie),
-		sketches: make(map[sketchSecond]*metrics.SketchSeries),
+		series:            make(map[serieSecond]*metrics.Serie),
+		sketches:          make(map[sketchSecond]*metrics.SketchSeries),
+		notBeforeByMetric: make(map[string]int64),
 	}
 }
 
@@ -52,7 +56,7 @@ func newCheckOutputMerger() *checkOutputMerger {
 func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 	for _, serie := range series {
 		for _, point := range serie.Points {
-			second := int64(point.Ts)
+			second := m.unsentSecond(serie.Name, int64(point.Ts))
 			key := serieSecond{contextKey: serie.ContextKey, second: second}
 			merged, held := m.series[key]
 			if !held {
@@ -73,7 +77,7 @@ func (m *checkOutputMerger) mergeSeries(series []*metrics.Serie) {
 func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
 	for _, s := range sketches {
 		for _, point := range s.sketch.Points {
-			second := point.Ts
+			second := m.unsentSecond(s.sketch.Name, point.Ts)
 			key := sketchSecond{contextKey: s.key, second: second}
 			merged, held := m.sketches[key]
 			if !held {
@@ -90,9 +94,28 @@ func (m *checkOutputMerger) mergeSketches(sketches []mergedSketch) {
 	}
 }
 
+// unsentSecond returns the second a point of a metric is sent in: its own, unless output sent before the metric
+// started being stripped may have used it.
+func (m *checkOutputMerger) unsentSecond(name string, ts int64) int64 {
+	return max(ts, m.notBeforeByMetric[name])
+}
+
+// startedStripping records, for metrics that started being stripped, the first second their points can use: their
+// output didn't come to the merger before, and output sent before may have used the earlier seconds.
+func (m *checkOutputMerger) startedStripping(notBefore map[string]int64) {
+	for name, second := range notBefore {
+		m.notBeforeByMetric[name] = second
+	}
+}
+
 // flush sends the seconds before cutoff, and holds the others for a later flush.
 func (m *checkOutputMerger) flush(cutoff int64, seriesSink metrics.SerieSink, sketchesSink metrics.SketchesSink) {
 	m.send(func(second int64) bool { return second < cutoff }, seriesSink, sketchesSink)
+	for name, second := range m.notBeforeByMetric {
+		if second <= cutoff {
+			delete(m.notBeforeByMetric, name)
+		}
+	}
 }
 
 // drain sends every second, for when no flush follows to send the seconds flush would hold.

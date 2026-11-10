@@ -151,22 +151,25 @@ func TestCheckSamplerRestripsWhenRulesChange(t *testing.T) {
 
 	// A rule is added.
 	cs.restrip(stripPodMatcher(t, "my.dist"))
+	cs.markStrippedMetrics()
 	tags, stripped := strippedTags(cs, key)
 	require.True(t, stripped)
 	assert.ElementsMatch(t, []string{"env:prod"}, tags)
 
-	// The rule is removed: the context's output keeps its full tags, and doesn't go to the merger.
+	// The rule is removed: the context stops being stripped, but the metric's output keeps going to the merger, with
+	// its full tags, so that none of it can land in a second already sent for the series.
 	cs.restrip(filterlistimpl.NewNoopTagMatcher())
+	cs.markStrippedMetrics()
 	_, stripped = strippedTags(cs, key)
 	require.False(t, stripped)
-	assert.Empty(t, cs.contextResolver.resolver.stripped.byKey)
 	cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, 100.1), filterlistimpl.NewNoopTagMatcher())
 	cs.commit(100.3, &flushMatcher)
-	out := flushSampler(cs)
-	assert.Empty(t, out.mergedSketches)
-	require.Len(t, out.sketches, 1)
-	assert.ElementsMatch(t, []string{"env:prod", "pod:a"}, tagsOf(out.sketches[0].Tags))
-	assert.Equal(t, int64(100), out.sketches[0].Points[0].Ts)
+	_, sketches := cs.flushMerged()
+	require.Len(t, sketches, 1)
+	assert.Equal(t, key, sketches[0].key)
+	assert.ElementsMatch(t, []string{"env:prod", "pod:a"}, tagsOf(sketches[0].sketch.Tags))
+	assert.Equal(t, int64(100), sketches[0].sketch.Points[0].Ts)
+	assert.Empty(t, cs.contextResolver.resolver.stripped.byKey)
 }
 
 // Context keys don't include the metric type: samples of different types with the same name and tags share a
@@ -286,4 +289,93 @@ func TestBecomesSketch(t *testing.T) {
 	assert.True(t, becomesSketch(&metrics.HistogramBucket{}), "histogram buckets are interpolated into sketches")
 	assert.False(t, becomesSketch(&metrics.MetricSample{Mtype: metrics.CounterType}))
 	assert.False(t, becomesSketch(&metrics.MetricSample{Mtype: metrics.HistogramType}), "ordinary histograms become series")
+}
+
+// flushThrough commits a sampler, and sends its output through a merger.
+func flushThrough(cs *CheckSampler, merger *checkOutputMerger, commit float64, cutoff int64) (metrics.Series, metrics.SketchSeriesList) {
+	flushMatcher := metricname.NewMatcher(nil, false)
+	cs.commit(commit, &flushMatcher)
+	out := flushSampler(cs)
+	sentSeries, sentSketches := out.series, out.sketches
+	merger.mergeSeries(out.mergedSeries)
+	merger.mergeSketches(out.mergedSketches)
+	merger.flush(cutoff, &sentSeries, &sentSketches)
+	return sentSeries, sentSketches
+}
+
+func TestCheckSamplerMergesStampedSketchesAfterARuleIsRemoved(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	cs := newStripTestSampler("check:0", newStrippedIdentityTable())
+	merger := newCheckOutputMerger()
+	cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, 100), stripPodMatcher(t, "my.dist"))
+	flushThrough(cs, merger, 100.5, 101)
+
+	// The rule is removed: the metric's sketches stay stamped at commit, so two commits in one second are two
+	// points for the same second, which must be merged.
+	noRule := filterlistimpl.NewNoopTagMatcher()
+	cs.restrip(noRule)
+	cs.markStrippedMetrics()
+	var sketches metrics.SketchSeriesList
+	for _, commit := range []float64{103.2, 103.6} {
+		cs.addSample(podSample("my.dist", metrics.DistributionType, "a", 1, commit-0.1), noRule)
+		_, sent := flushThrough(cs, merger, commit, int64(commit)) // flushes in the same second hold it
+		sketches = append(sketches, sent...)
+	}
+	_, sent := flushThrough(cs, merger, 104.5, 110)
+	sketches = append(sketches, sent...)
+
+	var points int
+	var count int64
+	for _, s := range sketches {
+		assert.ElementsMatch(t, []string{"env:prod", "pod:a"}, tagsOf(s.Tags))
+		for _, p := range s.Points {
+			points++
+			count += p.Sketch.Basic.Cnt
+			assert.Equal(t, int64(103), p.Ts)
+		}
+	}
+	assert.Equal(t, 1, points, "one point for the second")
+	assert.Equal(t, int64(2), count)
+}
+
+func TestStrippedIdentitiesMarkWhenMetricsStartBeingStripped(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	table := newStrippedIdentityTable()
+	cs := newStripTestSampler("check:0", table)
+	flushMatcher := metricname.NewMatcher(nil, false)
+
+	// Output committed before the metric is stripped may have used second 100.
+	cs.addSample(podSample("my.counter", metrics.CounterType, "a", 1, 100), filterlistimpl.NewNoopTagMatcher())
+	cs.commit(100.5, &flushMatcher)
+	assert.Empty(t, table.takeNotBefore())
+
+	// A new source starts stripping the metric, without a rule change.
+	cs.addSample(podSample("my.counter", metrics.CounterType, "b", 1, 100.6), stripPodMatcher(t, "my.counter"))
+	assert.Equal(t, map[string]int64{"my.counter": 101}, table.takeNotBefore())
+	assert.Empty(t, table.takeNotBefore(), "taken once")
+
+	cs.addSample(podSample("my.counter", metrics.CounterType, "c", 1, 100.7), stripPodMatcher(t, "my.counter"))
+	assert.Empty(t, table.takeNotBefore(), "only the first time a metric is stripped")
+}
+
+func TestStrippedIdentitiesMarkPastPeriodicFlushes(t *testing.T) {
+	configmock.New(t).SetInTest("metric_tag_filterlist_adp_only", false)
+	table := newStrippedIdentityTable()
+	periodic := newStripTestSampler("check:0", table)
+	other := newStripTestSampler("check:1", table)
+	flushMatcher := metricname.NewMatcher(nil, false)
+
+	// A periodic flush may use second 109, and a commit of another check before it only second 108.
+	other.commit(108.5, &flushMatcher)
+	periodic.addSample(podSample("my.counter", metrics.CounterType, "a", 1, 109), filterlistimpl.NewNoopTagMatcher())
+	periodic.commitDecomposable(110.5, &flushMatcher)
+
+	periodic.addSample(podSample("my.counter", metrics.CounterType, "b", 1, 110.6), stripPodMatcher(t, "my.counter"))
+	assert.Equal(t, map[string]int64{"my.counter": 110}, table.takeNotBefore())
+
+	// A periodic flush stamped before the latest commit doesn't move the mark back.
+	other.commit(112.5, &flushMatcher)
+	periodic.commitDecomposable(112.6, &flushMatcher)
+	periodic.addSample(podSample("other.counter", metrics.CounterType, "b", 1, 112.7), stripPodMatcher(t, "other.counter"))
+	assert.Equal(t, map[string]int64{"other.counter": 113}, table.takeNotBefore())
 }
