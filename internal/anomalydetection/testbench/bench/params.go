@@ -20,6 +20,7 @@ import (
 // Example:
 //
 //	{
+//	  "use_metric_pipeline": true,
 //	  "components": {
 //	    "bocpd": {
 //	      "enabled": true,
@@ -29,8 +30,16 @@ import (
 //	    }
 //	  }
 //	}
+//
+// use_metric_pipeline is optional and selects the kind-routed metric workflow
+// instead of the legacy detectors.
+//
+// anomaly_cutoff is optional and controls post-reactivation anomaly suppression;
+// omitted fields inherit the enabled default.
 type TestbenchParamsFile struct {
-	Components map[string]json.RawMessage `json:"components"`
+	UseMetricPipeline bool                       `json:"use_metric_pipeline"`
+	AnomalyCutoff     *bool                      `json:"anomaly_cutoff"`
+	Components        map[string]json.RawMessage `json:"components"`
 }
 
 // LoadTestbenchParams reads a params JSON file and returns ComponentSettings
@@ -39,7 +48,7 @@ type TestbenchParamsFile struct {
 // For each component mentioned in the file:
 //   - "enabled" (if present) overrides the catalog default enabled state.
 //   - remaining fields are passed to the component's parseJSON function (if
-//     registered), overlaying the catalog default config.
+//     registered), overlaying the testbench replay defaults.
 //
 // Returns an error if the file cannot be read, is invalid JSON, or references
 // an unknown component name.
@@ -54,5 +63,11 @@ func LoadTestbenchParams(path string) (observerimpl.ComponentSettings, error) {
 		return observerimpl.ComponentSettings{}, fmt.Errorf("parsing params file: %w", err)
 	}
 
-	return observerimpl.ParseSettingsFromJSON(file.Components)
+	settings, err := observerimpl.ParseTestbenchSettingsFromJSON(file.Components)
+	if err != nil {
+		return observerimpl.ComponentSettings{}, err
+	}
+	settings.UseMetricPipeline = file.UseMetricPipeline
+	settings.MetricPipelineAnomalyCutoff = file.AnomalyCutoff
+	return settings, nil
 }

@@ -743,6 +743,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		}
 	} else {
 		entry.FileEvent.FileFields = *info
+		entry.FileCapabilities = readFileCapabilitiesFromProcfs(procExecPath, info.Inode)
 	}
 
 	setPathname(&entry.FileEvent, pathnameStr)
@@ -1114,6 +1115,7 @@ func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
+		fileEvent.PathResolutionError = err
 
 		p.pathErrStats.Inc()
 
@@ -1203,12 +1205,12 @@ func (p *EBPFResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.Pr
 // resolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *EBPFResolver) resolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
 	if _, err := p.setProcessPath(&entry.FileEvent, entry); err != nil {
-		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
+		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path (pid=%d, comm=%q): %w", entry.Pid, entry.Comm, err)}
 	}
 
 	if entry.HasInterpreter() {
 		if _, err := p.setProcessPath(&entry.LinuxBinprm.FileEvent, entry); err != nil {
-			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
+			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path (pid=%d, comm=%q, exe=%q): %w", entry.Pid, entry.Comm, entry.FileEvent.PathnameStr, err)}
 		}
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow
@@ -1912,7 +1914,7 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 176)
+	procCacheEntryB := make([]byte, model.ProcCacheEntrySize)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
@@ -1960,6 +1962,8 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 			seclog.Debugf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
 
 			entry.FileEvent.Inode = inode
+			// The current executable is not the image observed by the event.
+			entry.FileCapabilities = model.FileCapabilities{}
 			entry.IsParentMissing = true
 			p.inodeErrStats[inodeErrTagProcfsMismatch].Inc()
 		}
@@ -1967,7 +1971,7 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {
-		if parent.Equals(entry) {
+		if parent.EqualsForProcfs(entry) {
 			entry.SetForkParent(parent)
 		} else if prev := p.entryCache[pid]; prev != nil { // exec-exec
 			entry.SetExecParent(prev)

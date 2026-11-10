@@ -56,6 +56,13 @@ This also applies to indirect usage — do not shell out to `go build` or
 `go test` for compilation checks. If you need to verify that code compiles,
 build the relevant component with `dda inv *.build`.
 
+### Bazel dependency downloads
+
+ADMS is enabled by default for Bazel dependency downloads through
+`common --config=adms` in `.bazelrc`. If the Datadog intranet is unavailable,
+remove or comment out that line before invoking Bazel or `dda inv test`.
+See [Bazel's ADMS guidance](bazel/AGENTS.md#adms-dependency-mirror) for a local override.
+
 ### Common Commands
 
 ```bash
@@ -190,6 +197,12 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 - `.gitlab-ci.yml` - CI/CD pipeline configuration
 
 ## CI/CD Pipeline
+
+### DDCI
+
+For failed or stuck DDCI requests—including a DDCI request ID, a Mosaic URL, or
+a branch, PR, or commit whose DDCI run failed—use the
+`ddci:fixing-ddci-failure` skill before investigating or acting.
 
 ### GitLab CI
 - Primary CI system

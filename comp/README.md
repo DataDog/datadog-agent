@@ -555,6 +555,12 @@ Package runner implements a component to generate metadata payload at the right 
 
 Package securityagent is the metadata provider for security-agent process
 
+### [comp/metadata/serverlessaas](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessaas)
+
+*Datadog Team*: serverless-azure-and-gcp fleet-automation
+
+Package serverlessaas defines the Azure App Service extension metadata component.
+
 ### [comp/metadata/serverlessinit](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/metadata/serverlessinit)
 
 *Datadog Team*: serverless-azure-and-gcp fleet-automation
@@ -964,6 +970,13 @@ Package metriclookback defines the metric lookback component.
 *Datadog Team*: network-device-monitoring-core
 
 Package ndmconnectivitycheck provides the interactive NDM connectivity check.
+
+### [comp/ndmdiscovery](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/ndmdiscovery)
+
+*Datadog Team*: network-device-monitoring-core
+
+Package ndmdiscovery sweeps the IP ranges it is asked to scan and reports the
+devices it finds to Network Device Monitoring. It never schedules a check.
 
 ### [comp/networkconfigmanagement](https://pkg.go.dev/github.com/DataDog/datadog-agent/comp/networkconfigmanagement)
 

@@ -558,6 +558,18 @@ func IsDevNull(path string) bool {
 	return false
 }
 
+// IsNativeDevNull reports whether path is the platform's own null-device
+// name, os.DevNull: "/dev/null" on Unix, "NUL" (case-insensitively) on
+// Windows. Unlike IsDevNull it does not accept "/dev/null" on Windows, where
+// Open resolves that spelling as an ordinary file relative to the working
+// directory rather than as the null device.
+func IsNativeDevNull(path string) bool {
+	if os.DevNull == "/dev/null" {
+		return path == os.DevNull
+	}
+	return strings.EqualFold(path, os.DevNull)
+}
+
 // allowedOpenFlags is the set of os.OpenFile flag bits the sandbox admits.
 // These are the minimal flags needed for shell redirections (O_RDONLY for <,
 // O_WRONLY|O_CREATE|O_TRUNC for >, O_WRONLY|O_APPEND|O_CREATE for >>).

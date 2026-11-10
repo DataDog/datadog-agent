@@ -19,6 +19,30 @@ Then open `http://localhost:5173` in your browser.
 
 The `--build` flag rebuilds the binary before launching. Omit it after the first run to skip the build step.
 
+### Metric workflow
+
+Legacy detectors remain the default. Add `--use-metric-pipeline` to select the
+kind-routed workflow at startup, in either the binary or Python wrapper:
+
+```bash
+# Interactive: legacy / pipeline
+dda inv anomalydetection.launch-testbench
+dda inv anomalydetection.launch-testbench --use-metric-pipeline
+
+# Headless: same scenario and parameter file, different workflows
+dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --config params.json --headless-output /tmp/legacy.json
+dda inv anomalydetection.launch-testbench --headless-scenario <scenario> --config params.json --headless-output /tmp/pipeline.json --use-metric-pipeline
+```
+
+The workflows are mutually exclusive. The pipeline owns its detector defaults;
+legacy detector toggles and parameters do not configure it. Baseline and scorer
+settings apply in both modes. The UI does not switch workflows.
+
+Local `eval-scenarios`, `eval-tp`, `eval-combinations`, `eval-bayesian`,
+`eval-pipeline` and `eval-component` also accept `--use-metric-pipeline`.
+Local reports identify the workflow, and resume never reuses another workflow's
+results. Remote DDEval does not support pipeline selection.
+
 ### Manual launch
 
 ```bash
@@ -72,6 +96,29 @@ stops with Ctrl-C; `--api-port` and `--ui-port` allow additional instances.
 Headless replay streams by default and fails if input cannot be replayed in order.
 `--retain-parquet` explicitly enables retained sorting for diagnosis. Interactive
 replay retains all data, so detections can differ.
+
+## No-fault evaluations
+
+```bash
+# Count false positives across the healthy dataset.
+dda inv anomalydetection.eval-scenarios --dataset observer-nofaults-2026-10-26
+
+# Open the same dataset for visual investigation.
+dda inv anomalydetection.launch-testbench --dataset observer-nofaults-2026-10-26
+```
+
+Scoring follows each recording's metadata. Healthy recordings require
+`mode: healthy-control`, `expectation: healthy`, an `evaluation_window`, and no
+disruptions. Each distinct High-severity episode starting in that window counts
+as one false positive. Warmup episodes are excluded, including those continuing
+into the window. No F1 is computed; fault scenarios keep their existing F1 score.
+A mixed dataset reports both metrics separately. Failed or incomplete evaluations
+have no aggregate score. Combination search and Bayesian optimization still
+require fault scenarios because they maximize F1.
+
+The testbench shows the healthy evaluation window and false-positive count.
+**Inspect High episodes** opens the counted reports; **View metrics** zooms to an
+episode's time range. Healthy recordings have no disruption or recovery markers.
 
 ## Evals
 
@@ -138,8 +185,9 @@ retention limits (120 points and 1,816 seconds for the default BOCPD window).
 Slowly sampled metrics can therefore retain fewer points, just as in production.
 Retained replay remains unbounded and serves as a diagnostic reference; identical
 detections between the two modes are not guaranteed.
-For JSON eval configs, set `bocpd.warmup_points` explicitly to `40` to match the
-replay profile; an explicit component config otherwise uses production defaults.
+JSON eval configs inherit the same replay profile as CLI toggles, including
+BOCPD's 40-point warmup. Only fields explicitly supplied in JSON override that
+profile; an enabled-only entry preserves the replay defaults.
 
 ### Correlators
 
@@ -282,7 +330,7 @@ dda inv -- anomalydetection.launch-testbench --headless-scenario <scenario-name>
 
 The `--config` flag accepts a JSON file that controls both enabled/disabled state and hyperparameters for any component. This is the recommended interface for **Bayesian hyperparameter optimization** — the optimizer writes a params file and runs the testbench in headless mode.
 
-When `--config` is provided it takes full precedence over `--enable`/`--disable`/`--only`. Components not mentioned in the file use their catalog defaults.
+When `--config` is provided it takes full precedence over `--enable`/`--disable`/`--only`. Components not mentioned in the file use the testbench replay defaults. Within each component entry, omitted fields also retain those defaults.
 
 ### Schema
 
@@ -329,7 +377,7 @@ When `--config` is provided it takes full precedence over `--enable`/`--disable`
 
 | Param | Default | Description |
 |-------|---------|-------------|
-| `warmup_points` | 120 | Points used to build the initial baseline |
+| `warmup_points` | 40 | Points used to build the initial baseline (testbench replay profile) |
 | `hazard` | 0.05 | Prior P(changepoint) per time step — primary sensitivity knob |
 | `cp_threshold` | 0.6 | Posterior P(changepoint) threshold to fire — primary FP/FN knob |
 | `short_run_length` | 5 | Secondary trigger: run-length horizon k |

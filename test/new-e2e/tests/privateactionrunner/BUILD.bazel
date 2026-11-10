@@ -35,6 +35,7 @@ go_library(
 dd_agent_go_test(
     name = "privateactionrunner_test",
     srcs = [
+        "aio_docker_test.go",
         "helpers_test.go",
         "private_action_runner_enabled_test.go",
         "private_action_runner_executor_nix_test.go",
