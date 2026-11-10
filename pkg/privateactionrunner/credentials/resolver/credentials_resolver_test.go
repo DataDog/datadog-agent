@@ -7,6 +7,10 @@ package resolver
 
 import (
 	"context"
+	"fmt"
+	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -15,6 +19,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
@@ -384,4 +389,96 @@ func credentialTask(conn *privateactionspb.ConnectionInfo, attributes types.Attr
 	task := &types.Task{}
 	task.Data.Attributes = &attributes
 	return task
+}
+
+func fileTokenConnection(token *privateactionspb.ConnectionToken) *privateactionspb.ConnectionInfo {
+	return &privateactionspb.ConnectionInfo{
+		CredentialsType: privateactionspb.CredentialsType_TOKEN_AUTH,
+		Tokens:          []*privateactionspb.ConnectionToken{token},
+	}
+}
+
+func TestCredentialFileErrors(t *testing.T) {
+	writeFile := func(t *testing.T, data []byte, mode os.FileMode) string {
+		t.Helper()
+		path := filepath.Join(t.TempDir(), "sensitive-name.json")
+		require.NoError(t, os.WriteFile(path, data, 0o600))
+		require.NoError(t, os.Chmod(path, mode))
+		t.Cleanup(func() { _ = os.Chmod(path, 0o600) })
+		return path
+	}
+	var skipPermission string
+	if runtime.GOOS == "windows" || os.Geteuid() == 0 {
+		skipPermission = "file permissions are not enforced here"
+	}
+
+	tests := []struct {
+		name string
+		skip string
+		path func(t *testing.T) string
+		want string
+	}{
+		{name: "empty path", path: func(*testing.T) string { return "" }, want: "credential file path is empty"},
+		{name: "not found", path: func(t *testing.T) string { return filepath.Join(t.TempDir(), "sensitive-name.json") }, want: "credentials file not found"},
+		{name: "permission denied", skip: skipPermission, path: func(t *testing.T) string { return writeFile(t, []byte("{}"), 0) }, want: "permission denied reading credentials file"},
+		{name: "empty file", path: func(t *testing.T) string { return writeFile(t, nil, 0o600) }, want: "the credentials file is empty"},
+		{name: "too large", path: func(t *testing.T) string { return writeFile(t, make([]byte, maxCredentialsFileSize+1), 0o600) }, want: "the credentials file is too large (maximum 1 MB)"},
+	}
+	tokenKinds := []struct {
+		name  string
+		token func(path string) *privateactionspb.ConnectionToken
+	}{
+		{name: "file secret", token: func(path string) *privateactionspb.ConnectionToken {
+			return privateconnection.NewFileSecretToken([]string{privateconnection.RootTokenGroupName, "token"}, path)
+		}},
+		{name: "yaml file", token: func(path string) *privateactionspb.ConnectionToken {
+			return privateconnection.NewYamlFileToken([]string{privateconnection.RootTokenGroupName, "token"}, path)
+		}},
+	}
+
+	resolver, err := NewPrivateCredentialResolver(nil)
+	require.NoError(t, err)
+	for _, tt := range tests {
+		for _, kind := range tokenKinds {
+			t.Run(tt.name+"/"+kind.name, func(t *testing.T) {
+				if tt.skip != "" {
+					t.Skip(tt.skip)
+				}
+				_, err := resolver.ResolveCredentials(context.Background(), credentialTask(fileTokenConnection(kind.token(tt.path(t))), types.Attributes{}))
+				require.EqualError(t, err, tt.want)
+			})
+		}
+	}
+}
+
+func TestCredentialFileContentIsNotLeakedInErrors(t *testing.T) {
+	const secret = "sensitive-marker"
+	tests := []struct {
+		name     string
+		contents string
+		want     string
+	}{
+		{name: "invalid JSON", contents: secret, want: "credentials file is not valid JSON"},
+		{name: "truncated JSON", contents: `{"auth_type":"Token Auth","credentials":["` + secret + `"`, want: "credentials file is not valid JSON"},
+		{
+			name:     "unsupported auth_type",
+			contents: `{"auth_type":"` + secret + `","credentials":[]}`,
+			want: fmt.Sprintf("the credential provided in the config file is not supported: auth_type must be %q or %q",
+				privateconnection.TokenAuthType, privateconnection.BasicAuthType),
+		},
+	}
+
+	resolver, err := NewPrivateCredentialResolver(nil)
+	require.NoError(t, err)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "credentials.json")
+			require.NoError(t, os.WriteFile(path, []byte(tt.contents), 0o600))
+			token := privateconnection.NewFileSecretToken([]string{privateconnection.RootTokenGroupName, "token"}, path)
+
+			_, err := resolver.ResolveCredentials(context.Background(), credentialTask(fileTokenConnection(token), types.Attributes{}))
+
+			require.EqualError(t, err, tt.want)
+		})
+	}
 }

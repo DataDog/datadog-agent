@@ -11,6 +11,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"net/url"
 	"os"
 	"reflect"
@@ -31,6 +32,15 @@ import (
 
 const (
 	maxCredentialsFileSize = 1 * 1024 * 1024 // 1 MB
+)
+
+// File-derived values and paths must never appear in these errors: they are returned to the backend.
+var (
+	errCredentialFileNotFound     = errors.New("credentials file not found")
+	errCredentialFilePermission   = errors.New("permission denied reading credentials file")
+	errCouldNotOpenCredentialFile = errors.New("could not open credentials file")
+	errCouldNotReadCredentialFile = errors.New("could not read credentials file")
+	errCredentialFileInvalidJSON  = errors.New("credentials file is not valid JSON")
 )
 
 type PrivateCredentialResolver interface {
@@ -354,7 +364,7 @@ func getSecretFromDockerLocation(
 			}
 		}
 	default:
-		return "", fmt.Errorf("the credential provided in the config file is not supported: invalid auth_type \"%s\"", privateCredentialConfig.AuthType)
+		return "", fmt.Errorf("the credential provided in the config file is not supported: auth_type must be %q or %q", privateconnection.TokenAuthType, privateconnection.BasicAuthType)
 	}
 	log.FromContext(ctx).Warn("credential not found in file", log.String("path", dockerSecretPath), log.String("secretName", secretName))
 	return "", nil
@@ -397,7 +407,7 @@ func loadConnectionCredentials(ctx context.Context, path string) (config *Privat
 	}
 	err = json.Unmarshal(data, &config)
 	if err != nil {
-		return config, fmt.Errorf("could not unmarshal credentials file: %v", err)
+		return config, errCredentialFileInvalidJSON
 	}
 	return config, nil
 }
@@ -408,27 +418,38 @@ func validateAndReadFile(ctx context.Context, path string) ([]byte, error) {
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return nil, fmt.Errorf("could not open credentials file: %v ", err)
+		return nil, openCredentialFileError(err)
 	}
 	defer closeSafely(ctx, file)
 
 	stat, err := file.Stat()
 	if err != nil {
-		return nil, err
+		return nil, errCouldNotReadCredentialFile
 	}
 	if stat.Size() == 0 {
 		return nil, errors.New("the credentials file is empty")
 	}
 	if stat.Size() > maxCredentialsFileSize {
-		return nil, errors.New("the credentials file is too large")
+		return nil, fmt.Errorf("the credentials file is too large (maximum %d MB)", maxCredentialsFileSize>>20)
 	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("could not load credentials file: %v", err)
+		return nil, errCouldNotReadCredentialFile
 	}
 
 	return data, nil
+}
+
+func openCredentialFileError(err error) error {
+	switch {
+	case errors.Is(err, fs.ErrNotExist):
+		return errCredentialFileNotFound
+	case errors.Is(err, fs.ErrPermission):
+		return errCredentialFilePermission
+	default:
+		return errCouldNotOpenCredentialFile
+	}
 }
 
 func closeSafely(ctx context.Context, closer io.Closer) {
