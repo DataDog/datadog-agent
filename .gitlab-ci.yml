@@ -526,8 +526,6 @@ variables:
     - test/regression/**/*
     # Containers
     - Dockerfiles/**/*
-    # CI jobs that build the Agent images or run SMP
-    - .gitlab/deploy/container_build/docker_linux.yml
     - .gitlab/test/functional_test/regression_detector.yml
     - .gitlab/childs/smp-regression-child-pipeline.yml
 
