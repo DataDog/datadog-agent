@@ -84,6 +84,13 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 		// Build the full key: SEC[key]
 		fullKey := fmt.Sprintf("SEC[%s]", key)
 
+		encodedValue, err := json.Marshal(decryptedValue)
+		if err != nil {
+			return fmt.Errorf("could not encode secret %s", key)
+		}
+		// Placeholders are inside JSON strings, so retain only the encoded contents.
+		escapedValue := encodedValue[1 : len(encodedValue)-1]
+
 		// Replace in all file operations. Patch and jq Arguments are both raw JSON blobs,
 		// so secrets are substituted with a flat textual replacement that is agnostic to
 		// nesting depth. For jq, secrets live in the arguments rather than the transform
@@ -94,14 +101,14 @@ func ReplaceSecrets(operations *Operations, decryptedSecrets map[string]string) 
 				operations.FileOperations[i].Patch = bytes.ReplaceAll(
 					operations.FileOperations[i].Patch,
 					[]byte(fullKey),
-					[]byte(decryptedValue),
+					escapedValue,
 				)
 			}
 			if bytes.Contains(operations.FileOperations[i].Arguments, []byte(fullKey)) {
 				operations.FileOperations[i].Arguments = bytes.ReplaceAll(
 					operations.FileOperations[i].Arguments,
 					[]byte(fullKey),
-					[]byte(decryptedValue),
+					escapedValue,
 				)
 			}
 		}

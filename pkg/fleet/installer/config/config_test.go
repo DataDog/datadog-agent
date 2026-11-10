@@ -1523,3 +1523,52 @@ init_config:
 		})
 	}
 }
+
+func TestReplaceSecretsJSONAndYAMLRoundTrip(t *testing.T) {
+	for name, secret := range map[string]string{
+		"quote":          `a"b`,
+		"backslash":      `a\z`,
+		"literal escape": `a\n\b`,
+		"controls":       "a\n\r\t\x00b",
+		"unicode":        "秘密🔑",
+		"mixed":          "quote\" slash\\ newline\n秘密",
+	} {
+		t.Run(name, func(t *testing.T) {
+			for _, operationType := range []FileOperationType{FileOperationMergePatch, FileOperationPatch, FileOperationJQ} {
+				t.Run(string(operationType), func(t *testing.T) {
+					op := FileOperation{FileOperationType: operationType, FilePath: "/datadog.yaml"}
+					switch operationType {
+					case FileOperationMergePatch:
+						op.Patch = []byte(`{"password":"SEC[id]"}`)
+					case FileOperationPatch:
+						op.Patch = []byte(`[{"op":"add","path":"/password","value":"SEC[id]"}]`)
+					case FileOperationJQ:
+						op.Transform = `.password = $auth.passwords[0]`
+						op.Arguments = json.RawMessage(`{"auth":{"passwords":["SEC[id]"]}}`)
+					}
+					ops := Operations{FileOperations: []FileOperation{op}}
+					require.NoError(t, ReplaceSecrets(&ops, map[string]string{"id": secret}))
+					op = ops.FileOperations[0]
+					if operationType == FileOperationJQ {
+						require.True(t, json.Valid(op.Arguments))
+					} else {
+						require.True(t, json.Valid(op.Patch))
+					}
+					dir := t.TempDir()
+					path := filepath.Join(dir, "datadog.yaml")
+					require.NoError(t, os.WriteFile(path, []byte("existing: value\n"), 0600))
+					root, err := os.OpenRoot(dir)
+					require.NoError(t, err)
+					defer root.Close()
+					require.NoError(t, op.apply(context.Background(), root))
+					contents, err := os.ReadFile(path)
+					require.NoError(t, err)
+					var values map[string]any
+					require.NoError(t, yaml.Unmarshal(contents, &values))
+					require.Equal(t, secret, values["password"])
+					require.Equal(t, "value", values["existing"])
+				})
+			}
+		})
+	}
+}
