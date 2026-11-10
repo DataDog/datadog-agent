@@ -77,6 +77,13 @@ def run_golangci_lint(
         headless_mode=headless_mode,
         include_python="python" in tags,
     )
+    # golangci-lint only reads the export data of the archives `go list -export` compiles, not their linker object,
+    # which is ~97% of their size (5.3 of 5.5 GB for an E2E package and its Pulumi SDKs). `go list` stores each archive
+    # in GOCACHE and also keeps it in its work directory until it exits, so discarding that object is what lets a cold
+    # run fit in a sandbox's disk. The flag is part of the build cache key, so builds never use these archives.
+    # Not on Windows, where seeking in NUL, as the compiler does in that file, is unverified.
+    if sys.platform != "win32":
+        env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} -gcflags=all=-linkobj={os.devnull}".lstrip()
 
     tags_arg = ",".join(sorted(set(tags)))
     timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
