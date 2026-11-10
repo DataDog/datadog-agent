@@ -101,20 +101,6 @@ func TestOnlyDirectivesRegisterInstances(t *testing.T) {
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 }
 
-func TestTraceProxyAdditionalEndpointsRemainOutsideScope(t *testing.T) {
-	// apm_config.additional_endpoints is enrolled (trace writers hold pending endpoints);
-	// the proxy settings (profiling, debugger, symdb, evp, ol) are not, until their
-	// senders gain pending handling. Keep a canary so their enrollment is a conscious act.
-	rec := newRecordingComponent()
-	config := confFromYAML(t, "site: datadogh.com\n")
-	config.SetInTest("apm_config.profiling_additional_endpoints", map[string][]string{
-		"https://trace.agent.second-org.datadoghq.com": {"DELA[org-uuid-1, aws]"},
-	})
-
-	configureAdditionalEndpointsDelegatedAuth(context.Background(), config, rec, nil)
-	assert.Empty(t, rec.recorded)
-}
-
 func TestProcessConfigAdditionalEndpointsAreWithinScope(t *testing.T) {
 	rec := newRecordingComponent()
 	config := confFromYAML(t, `
@@ -618,4 +604,34 @@ func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
 	require.Len(t, rec.recorded, 1)
 	assert.Equal(t, "org-uuid-1", rec.recorded[0].OrgUUID)
 	assert.Equal(t, "apm_config.additional_endpoints", rec.recorded[0].AdditionalEndpointsConfigKey)
+}
+
+func TestTraceProxySettingsRegisterDelegatedCredentials(t *testing.T) {
+	for _, setting := range []string{
+		"apm_config.profiling_additional_endpoints",
+		"apm_config.debugger_additional_endpoints",
+		"apm_config.debugger_diagnostics_additional_endpoints",
+		"apm_config.symdb_additional_endpoints",
+		"evp_proxy_config.additional_endpoints",
+		"ol_proxy_config.additional_endpoints",
+		"apm_config.telemetry.additional_endpoints",
+	} {
+		t.Run(setting, func(t *testing.T) {
+			config := confFromYAML(t, "{}")
+			host := "https://intake.datadoghq.eu/path"
+			if setting == "evp_proxy_config.additional_endpoints" || setting == "ol_proxy_config.additional_endpoints" {
+				host = "datadoghq.eu"
+			}
+			config.SetInTest(setting, map[string][]string{host: {"static-key", "DELA[org-a, aws]", "DELA[org-b, aws]"}})
+			rec := newRecordingComponent()
+			ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
+			require.Len(t, rec.recorded, 2)
+			for i, params := range rec.recorded {
+				assert.Equal(t, setting, params.AdditionalEndpointsConfigKey)
+				assert.Equal(t, host, params.AdditionalEndpointDomain)
+				assert.Equal(t, host, params.TargetSite)
+				assert.Equal(t, i+1, params.AdditionalEndpointKeyIndex)
+			}
+		})
+	}
 }

@@ -37,7 +37,7 @@ const (
 // profilingEndpoints returns the profiling intake urls and their corresponding
 // api keys based on agent configuration. Unless the main endpoint is skipped
 // via MainEndpointMode, it is returned as the first element in the slice.
-func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []string, err error) {
+func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []*config.Endpoint, err error) {
 	if conf.ProfilingProxy.MainEndpointMode == config.ProfilingMainEndpointSend {
 		main := mainProfilingURL(conf)
 		u, err := url.Parse(main)
@@ -46,7 +46,7 @@ func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []st
 			return nil, nil, fmt.Errorf("error parsing main profiling intake URL %s: %v", main, err)
 		}
 		urls = append(urls, u)
-		apiKeys = append(apiKeys, conf.APIKey())
+		apiKeys = append(apiKeys, &config.Endpoint{APIKey: conf.APIKey()})
 	}
 
 	if extra := conf.ProfilingProxy.AdditionalEndpoints; extra != nil {
@@ -66,9 +66,9 @@ func profilingEndpoints(conf *config.AgentConfig) (urls []*url.URL, apiKeys []st
 				log.Errorf("Error parsing additional profiling intake URL %s: %v", endpoint, err)
 				continue
 			}
-			for _, key := range extra[endpoint] {
+			for index, key := range extra[endpoint] {
 				urls = append(urls, u)
-				apiKeys = append(apiKeys, key)
+				apiKeys = append(apiKeys, conf.AdditionalEndpoint("apm_config.profiling_additional_endpoints", endpoint, key, index))
 			}
 		}
 	}
@@ -162,7 +162,7 @@ func isRetryableBodyReadError(err error) bool {
 //
 // The tags will be added as a header to all proxied requests.
 // For more details please see multiTransport.
-func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
+func newProfileProxy(conf *config.AgentConfig, targets []*url.URL, keys []*config.Endpoint, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	cidProvider := NewContainerIDProviderFromConfig(conf)
 	rewrite := func(req *httputil.ProxyRequest) {
 		req.SetXForwarded()
@@ -262,11 +262,18 @@ func handleProxyError(w http.ResponseWriter, r *http.Request, err error) {
 type multiTransport struct {
 	rt              http.RoundTripper
 	targets         []*url.URL
-	keys            []string
+	keys            []*config.Endpoint
 	maxRequestBytes int64
 }
 
 func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
+	targets, keys := readyProxyEndpoints(m.targets, m.keys)
+	if len(targets) == 0 {
+		if req.Body != nil {
+			req.Body.Close()
+		}
+		return nil, errNoReadyProxyEndpoint
+	}
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
@@ -282,8 +289,8 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 			rresp.StatusCode = http.StatusOK
 		}
 	}()
-	if len(m.targets) == 1 {
-		setTarget(req, m.targets[0], m.keys[0])
+	if len(targets) == 1 {
+		setTarget(req, targets[0], keys[0])
 		rresp, rerr = m.rt.RoundTrip(req)
 		// Avoid sub-sequent requests from getting a use of closed network connection error
 		if rerr != nil && req.Body != nil {
@@ -295,10 +302,10 @@ func (m *multiTransport) RoundTrip(req *http.Request) (rresp *http.Response, rer
 	if err != nil {
 		return nil, err
 	}
-	for i, u := range m.targets {
+	for i, u := range targets {
 		newreq := req.Clone(req.Context())
 		newreq.Body = body()
-		setTarget(newreq, u, m.keys[i])
+		setTarget(newreq, u, keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error

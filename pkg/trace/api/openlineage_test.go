@@ -49,7 +49,7 @@ func TestOpenLineageProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
-	newOpenLineageProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
+	newOpenLineageProxy(c, []*url.URL{u}, staticAPIKeys("123"), "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
@@ -89,7 +89,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 			"test_api_key_5": false,
 		}
 
-		urls, keys, err := openLineageEndpoints(&cfg)
+		urls, credentials, err := openLineageEndpoints(&cfg)
+		keys := snapshotAPIKeys(credentials)
 		assert.NoError(t, err)
 		assert.Equal(t, 5, len(urls))
 		assert.Equal(t, 5, len(keys))
@@ -148,7 +149,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 			"test_api_key_5": false,
 		}
 
-		urls, keys, err := openLineageEndpoints(&cfg)
+		urls, credentials, err := openLineageEndpoints(&cfg)
+		keys := snapshotAPIKeys(credentials)
 		assert.NoError(t, err)
 		assert.Equal(t, 5, len(urls))
 		assert.Equal(t, 5, len(keys))
@@ -185,7 +187,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 		cfg.OpenLineageProxy.APIKey = "test_api_key"
 		cfg.OpenLineageProxy.APIVersion = 1
 
-		urls, keys, err := openLineageEndpoints(&cfg)
+		urls, credentials, err := openLineageEndpoints(&cfg)
+		keys := snapshotAPIKeys(credentials)
 		assert.NoError(t, err)
 		assert.Equal(t, "https://data-obs-intake.datadoghq.eu/api/v1/lineage", urls[0].String())
 		assert.Equal(t, []string{"test_api_key"}, keys)
@@ -196,7 +199,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 		cfg.Site = "datadoghq.eu"
 		cfg.OpenLineageProxy.APIKey = "test_api_key"
 
-		urls, keys, err := openLineageEndpoints(&cfg)
+		urls, credentials, err := openLineageEndpoints(&cfg)
+		keys := snapshotAPIKeys(credentials)
 		assert.NoError(t, err)
 		assert.Equal(t, "https://data-obs-intake.datadoghq.eu/api/v1/lineage", urls[0].String())
 		assert.Equal(t, []string{"test_api_key"}, keys)
@@ -209,7 +213,8 @@ func TestOpenLineageEndpoint(t *testing.T) {
 		cfg.OpenLineageProxy.APIVersion = 17
 		cfg.OpenLineageProxy.AdditionalEndpoints = map[string][]string{}
 
-		urls, keys, err := openLineageEndpoints(&cfg)
+		urls, credentials, err := openLineageEndpoints(&cfg)
+		keys := snapshotAPIKeys(credentials)
 		assert.NoError(t, err)
 		assert.Equal(t, "https://data-obs-intake.datadoghq.com/api/v1/lineage?api-version=17", urls[0].String())
 		assert.Equal(t, []string{"test_api_key"}, keys)
@@ -318,6 +323,6 @@ func TestOpenLineageProxyHandler(t *testing.T) {
 func TestOpenLineageProxyMultipleEndpointsEmptyBody(t *testing.T) {
 	assertEmptyBodyFansOut(t, func(urls []*url.URL, keys []string) http.Handler {
 		c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc, MaxRequestBytes: 1024}
-		return newOpenLineageProxy(c, urls, keys, "key:val", &statsd.NoOpClient{})
+		return newOpenLineageProxy(c, urls, staticAPIKeys(keys...), "key:val", &statsd.NoOpClient{})
 	})
 }

@@ -184,33 +184,17 @@ func prepareConfig(c corecompcfg.Component, tagger tagger.Component, ipc ipc.Com
 // appendEndpoints appends any endpoint configuration found at the given cfgKey.
 // The format for cfgKey should be a map which has the URL as a key and one or
 // more API keys as an array value.
-//
-// DELA[...] delegated-auth directives are held aside as pending: the endpoint is
-// kept with no key until the delegatedauth component writes the resolved key back
-// into the config. Only keys whose writers are enrolled for delegated auth will
-// resolve; the others warn so the pending endpoint is not a silent no-op.
-func appendEndpoints(endpoints []*config.Endpoint, cfgKey string) []*config.Endpoint {
+func appendEndpoints(c *config.AgentConfig, endpoints []*config.Endpoint, cfgKey string) []*config.Endpoint {
 	if !pkgconfigsetup.Datadog().IsConfigured(cfgKey) {
 		return endpoints
 	}
-	for url, keys := range pkgconfigsetup.Datadog().GetStringMapStringSlice(cfgKey) {
+	for host, keys := range pkgconfigsetup.Datadog().GetStringMapStringSlice(cfgKey) {
 		if len(keys) == 0 {
 			log.Errorf("'%s' entries must have at least one API key present", cfgKey)
 			continue
 		}
 		for index, key := range keys {
-			endpoint := &config.Endpoint{Host: url, APIKey: utils.SanitizeAPIKey(key)}
-			if cfgKey == "apm_config.additional_endpoints" {
-				endpoint.APIKeyConfigIndex = &index
-			}
-			if utils.IsDelaDirective(key) {
-				endpoint.APIKey = ""
-				endpoint.HasPendingDelegatedAuth = true
-				if !pkgconfigsetup.IsDelegatedAuthMapEndpointKey(cfgKey) {
-					log.Warnf("DELA[...] is not supported in '%s'; this additional endpoint entry (%q) will not send data. Configure an API key or remove the entry", cfgKey, url)
-				}
-			}
-			endpoints = append(endpoints, endpoint)
+			endpoints = append(endpoints, c.AdditionalEndpoint(cfgKey, host, key, index))
 		}
 	}
 	return endpoints
@@ -228,6 +212,15 @@ func normalizeAPMMode(mode string) string {
 }
 
 func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error {
+	c.ReadAdditionalEndpointKey = func(setting, host string, index int) (string, bool) {
+		keys := core.GetStringMapStringSlice(setting)[host]
+		if index < 0 || index >= len(keys) || utils.IsDelaDirective(keys[index]) {
+			return "", false
+		}
+		key := utils.SanitizeAPIKey(keys[index])
+		return key, key != ""
+	}
+
 	if len(c.Endpoints) == 0 {
 		c.Endpoints = []*config.Endpoint{{}}
 	}
@@ -272,7 +265,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 		})
 	}
 
-	c.Endpoints = appendEndpoints(c.Endpoints, "apm_config.additional_endpoints")
+	c.Endpoints = appendEndpoints(c, c.Endpoints, "apm_config.additional_endpoints")
 
 	// Subscribe before reconciling so writeback between the snapshot and subscription
 	// is delivered even when the first credential resolved before sender construction.
@@ -552,7 +545,7 @@ func applyDatadogConfig(c *config.AgentConfig, core corecompcfg.Component) error
 			Host:   utils.GetMainEndpoint(pkgconfigsetup.Datadog(), config.TelemetryEndpointPrefix, "apm_config.telemetry.dd_url"),
 			APIKey: c.Endpoints[0].APIKey,
 		}}
-		c.TelemetryConfig.Endpoints = appendEndpoints(c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
+		c.TelemetryConfig.Endpoints = appendEndpoints(c, c.TelemetryConfig.Endpoints, "apm_config.telemetry.additional_endpoints")
 	}
 	c.Obfuscation = new(config.ObfuscationConfig)
 	c.Obfuscation.ES.Enabled = pkgconfigsetup.Datadog().GetBool("apm_config.obfuscation.elasticsearch.enabled")

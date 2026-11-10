@@ -12,6 +12,8 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -284,4 +286,45 @@ loop:
 	}
 	require.Len(t, events, expected) // `assert` doesn't guard against any next out-of-bounds access to events[N]
 	return events
+}
+
+func TestCollectorDelegatedEndpointUpdates(t *testing.T) {
+	var mu sync.Mutex
+	var received []string
+	intake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "/api/v2/apmtelemetry", req.URL.Path)
+		mu.Lock()
+		received = append(received, req.Header.Get("DD-API-KEY"))
+		mu.Unlock()
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer intake.Close()
+	cfg := testCfg(intake.URL)
+	cfg.TelemetryConfig.Endpoints[0].APIKey = "main-key"
+	var key atomic.Value
+	key.Store("")
+	cfg.ReadAdditionalEndpointKey = func(setting, host string, index int) (string, bool) {
+		assert.Equal(t, "apm_config.telemetry.additional_endpoints", setting)
+		assert.Equal(t, intake.URL, host)
+		assert.Zero(t, index)
+		value := key.Load().(string)
+		return value, value != ""
+	}
+	cfg.TelemetryConfig.Endpoints = append(cfg.TelemetryConfig.Endpoints,
+		cfg.AdditionalEndpoint("apm_config.telemetry.additional_endpoints", intake.URL, "DELA[org-a, aws]", 0))
+	collector := NewCollector(cfg).(*telemetryCollector)
+	for _, value := range []string{"", "resolved-key", "rotated-key"} {
+		key.Store(value)
+		mu.Lock()
+		received = nil
+		mu.Unlock()
+		require.NoError(t, collector.sendEvent(&OnboardingEvent{}))
+		want := []string{"main-key"}
+		if value != "" {
+			want = append(want, value)
+		}
+		mu.Lock()
+		assert.Equal(t, want, received)
+		mu.Unlock()
+	}
 }

@@ -190,21 +190,17 @@ func NewTelemetryForwarder(conf *config.AgentConfig, containerIDProvider IDProvi
 	var endpoints []*config.Endpoint
 	if conf.TelemetryConfig != nil {
 		for _, endpoint := range conf.TelemetryConfig.Endpoints {
-			if endpoint.HasPendingDelegatedAuth {
-				// A pending delegated-auth endpoint has no key yet; skip it rather than
-				// send with an empty one.
-				continue
-			}
 			u, err := url.Parse(endpoint.Host)
 			if err != nil {
 				log.Errorf("Error parsing apm_config.telemetry endpoint %q: %v", endpoint.Host, err)
 				continue
 			}
+			transportEndpoint := *endpoint
 			if u.Host != "" {
-				endpoint.Host = u.Host
+				transportEndpoint.Host = u.Host
 			}
 
-			endpoints = append(endpoints, endpoint)
+			endpoints = append(endpoints, &transportEndpoint)
 		}
 	}
 
@@ -623,6 +619,12 @@ func (f *TelemetryForwarder) forwardTelemetry(req forwardedRequest) {
 	f.setRequestHeader(req.req)
 
 	for i, e := range f.endpoints {
+		apiKey, ready := e.GetAPIKeyIfReady()
+		if !ready {
+			continue
+		}
+		endpoint := *e
+		endpoint.APIKey = apiKey
 		var newReq *http.Request
 		if i != len(f.endpoints)-1 {
 			newReq = req.req.Clone(req.req.Context())
@@ -633,7 +635,7 @@ func (f *TelemetryForwarder) forwardTelemetry(req forwardedRequest) {
 		}
 		newReq.Body = io.NopCloser(bytes.NewReader(req.body))
 
-		if resp, err := f.forwardTelemetryEndpoint(newReq, e); err == nil {
+		if resp, err := f.forwardTelemetryEndpoint(newReq, &endpoint); err == nil {
 			if !(200 <= resp.StatusCode && resp.StatusCode < 300) {
 				f.logger.Error("Received unexpected status code %v", resp.StatusCode)
 			}
