@@ -28,9 +28,7 @@ import (
 )
 
 func (p *Poller) init() {
-	li := newLinuxImpl(p.IncludeLocalhost)
-	li.tcpOnly = p.TCPOnly
-	p.os = li
+	p.os = newLinuxImpl(p.IncludeLocalhost, p.TCPOnly)
 }
 
 type linuxImpl struct {
@@ -55,11 +53,12 @@ type portMeta struct {
 
 var eofReader = bytes.NewReader(nil)
 
-func newLinuxImpl(includeLocalhost bool) *linuxImpl {
+func newLinuxImpl(includeLocalhost, tcpOnly bool) *linuxImpl {
 	return &linuxImpl{
 		br:               bufio.NewReader(eofReader),
 		known:            map[string]*portMeta{},
 		includeLocalhost: includeLocalhost,
+		tcpOnly:          tcpOnly,
 	}
 }
 

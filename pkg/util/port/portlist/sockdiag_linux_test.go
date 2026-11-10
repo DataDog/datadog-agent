@@ -214,8 +214,7 @@ func pollKnown(t *testing.T, includeLocalhost, useSockDiag bool) (map[string]str
 		dumpTCPListeners = func() ([]sockDiagListener, error) { return nil, errForcedSockDiag }
 	}
 
-	li := newLinuxImpl(includeLocalhost)
-	li.tcpOnly = true
+	li := newLinuxImpl(includeLocalhost, true)
 	ports, err := li.AppendListeningPorts(nil)
 	if err != nil {
 		t.Fatalf("AppendListeningPorts: %v", err)
@@ -658,8 +657,7 @@ func TestSockDiagLatch(t *testing.T) {
 				calls++
 				return nil, tc.err
 			}
-			li := newLinuxImpl(true)
-			li.tcpOnly = true
+			li := newLinuxImpl(true, true)
 			const polls = 3
 			for i := 0; i < polls; i++ {
 				if _, err := li.AppendListeningPorts(nil); err != nil {
@@ -692,8 +690,7 @@ func TestSockDiagLatchConcurrent(t *testing.T) {
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
-			li := newLinuxImpl(true)
-			li.tcpOnly = true
+			li := newLinuxImpl(true, true)
 			for j := 0; j < 5; j++ {
 				if err := li.appendSockDiagListeners(); err == nil {
 					t.Error("expected an error")
@@ -750,8 +747,7 @@ func BenchmarkTCPListeners(b *testing.B) {
 					if mode == "procfs-tcp" {
 						dumpTCPListeners = func() ([]sockDiagListener, error) { return nil, errForcedSockDiag }
 					}
-					li := newLinuxImpl(true)
-					li.tcpOnly = mode != "procfs-all"
+					li := newLinuxImpl(true, mode != "procfs-all")
 					// Warm the inode cache so the loop measures enumeration only.
 					buf, err := li.AppendListeningPorts(nil)
 					if err != nil {

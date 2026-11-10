@@ -40,9 +40,7 @@ func WithRootNS(procRoot string, fn func() error) error {
 var setNS = netns.Set
 
 // WithNS executes the given function in the given network namespace, and then
-// switches back to the previous namespace. If switching back fails, the OS
-// thread is left locked so the runtime discards it when the calling goroutine
-// exits instead of reusing it in the wrong namespace.
+// switches back to the previous namespace.
 func WithNS(ns netns.NsHandle, fn func() error) (err error) {
 	if ns == netns.None() {
 		return fn()
@@ -71,7 +69,6 @@ func WithNS(ns netns.NsHandle, fn func() error) (err error) {
 	defer func() {
 		if nsErr := setNS(prevNS); nsErr != nil {
 			err = errors.Join(err, fmt.Errorf("restoring network namespace: %w", nsErr))
-			return
 		}
 		runtime.UnlockOSThread()
 	}()
