@@ -5,11 +5,13 @@ type: object
 properties:
   api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     comment: Override the Datadog API Key for external metrics endpoint
   app_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     comment: Override the Datadog APP Key for external metrics endpoint
