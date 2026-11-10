@@ -12,13 +12,7 @@ load("//bazel/tools/tar_checksums:tar_md5sums.bzl", "tar_md5sums")
 load("//packages/rules:description.bzl", "deb_description")
 load("//packages/rules:package_naming.bzl", "package_name_variables")
 
-def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, description, homepage, license, maintainer, priority, product_name, section, srcs, **kwargs):
-    variables_name = "%s_vars_" % name
-    package_name_variables(
-        name = variables_name,
-        product_name = product_name,
-    )
-
+def _deb_package(name, srcs, variables, **kwargs):
     data_tar = "%s_data_tar" % name
     pkg_tar(
         name = data_tar,
@@ -52,17 +46,31 @@ def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, description, hom
 
     pkg_deb_impl(
         name = name,
+        data = ":" + data,
+        installed_size_file = ":" + size_out,
+        md5sums = ":" + sums_out,
+        package_variables = ":" + variables,
+        **kwargs
+    )
+
+def _dd_pkg_deb_impl(name, visibility, architecture, conflicts, description, homepage, license, maintainer, priority, product_name, section, srcs, **kwargs):
+    variables_name = "%s_vars_" % name
+    package_name_variables(
+        name = variables_name,
+        product_name = product_name,
+    )
+
+    _deb_package(
+        name = name,
+        srcs = srcs,
+        variables = variables_name,
         architecture = architecture or "{arch_deb}",
         conflicts = conflicts,
-        data = ":" + data,
         description = deb_description(description),
         homepage = homepage or "http://www.datadoghq.com",
-        installed_size_file = ":" + size_out,
         license = license or "Apache License Version 2.0",
         maintainer = maintainer or "Datadog Packages <package@datadoghq.com>",
-        md5sums = ":" + sums_out,
         package = "{product_name}",
-        package_variables = ":" + variables_name,
         priority = priority or "extra",
         section = section or "utils",
         vendor = "Datadog <package@datadoghq.com>",
