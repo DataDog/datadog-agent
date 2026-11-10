@@ -6,9 +6,11 @@ import json
 import os
 from time import sleep
 
+from gitlab.exceptions import GitlabGetError
 from invoke import Context, task
 from invoke.exceptions import Exit
 
+from tasks.libs.ciproviders.gitlab_api import get_gitlab_repo
 from tasks.libs.common.auth import get_aws_vault_env
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.feature_flags import is_enabled
@@ -93,6 +95,7 @@ def consolidate_index_in_s3(_: Context, bucket_uri: str, commit_sha: str):
         "send-stats": "Publish evaluation telemetry; use --no-send-stats for local trials",
         "ignore-sha-mismatch": "Evaluate a pipeline whose commit differs from the checkout: the Jev decisions are computed from the current checkout's PR context instead of the pipeline's (local experiments; the mismatch is always an error in CI)",
         "pr-summary-file": "Jev only: LLM PR summary written by dyntest.generate-jev-pr-summary, passed to Jev instead of the raw diff (a missing file falls back to the raw diff)",
+        "pr-summary-from-pipeline": "Jev only: read the optional summary from the exact evaluated pipeline instead of a local file",
     }
 )
 def evaluate_index(
@@ -104,6 +107,7 @@ def evaluate_index(
     send_stats: bool = True,
     ignore_sha_mismatch: bool = False,
     pr_summary_file: str = "",
+    pr_summary_from_pipeline: bool = False,
 ):
     """Compare a selector's predictions with executed tests using the shared evaluator.
 
@@ -127,6 +131,8 @@ def evaluate_index(
     --pr-summary-file, Jev sees the pre-generated LLM summary of the PR
     changes instead of the raw diff (no LLM call here); whether a summary was
     used is sent as the jev_llm_summary tag on the published metrics.
+    With --pr-summary-from-pipeline, retrieve that optional artifact from
+    --pipeline-id, including when this task executes in a child pipeline.
     """
     if selector not in {"coverage", "jev"}:
         raise Exit("--selector must be coverage or jev", code=1)
@@ -146,7 +152,9 @@ def evaluate_index(
         # the coverage executors keep theirs in S3). The shared evaluator owns
         # the CI Visibility queries; the executor's GitLab jobs fetch
         # supplies the allow-failure set.
-        pr_summary = _read_pr_summary(pr_summary_file)
+        pr_summary = (
+            _read_pipeline_pr_summary(pipeline_id) if pr_summary_from_pipeline else _read_pr_summary(pr_summary_file)
+        )
         extra_tags = [f"jev_llm_summary:{str(bool(pr_summary)).lower()}"]
         executor = JevDynTestExecutor(
             ctx, commit_sha, pipeline_id, require_pipeline_commit=not ignore_sha_mismatch, pr_summary=pr_summary
@@ -222,6 +230,29 @@ def _read_pr_summary(path: str) -> str:
         print(color_message(f"No usable LLM PR summary ({e}), passing the raw diff to Jev", Color.ORANGE))
         return ""
     print(f"LLM PR summary loaded from {path} ({len(summary)} chars)")
+    return summary
+
+
+def _read_pipeline_pr_summary(pipeline_id: str) -> str:
+    """Read the optional summary from this exact pipeline, never the latest ref."""
+    repo = get_gitlab_repo()
+    jobs = repo.pipelines.get(pipeline_id, lazy=True).jobs.list(iterator=True)
+    summaries = [job for job in jobs if job.name == "jev-pr-summary"]
+    summary_job = max(summaries, key=lambda job: job.id) if summaries else None
+    if summary_job is None or summary_job.status != "success":
+        print(f"No successful LLM PR summary in pipeline {pipeline_id}, passing the raw diff to Jev")
+        return ""
+    try:
+        summary = repo.jobs.get(summary_job.id, lazy=True).artifact("jev-pr-summary.txt").decode("utf-8").strip()
+    except GitlabGetError as error:
+        if error.response_code != 404:
+            raise
+        print(f"No LLM PR summary artifact in pipeline {pipeline_id}, passing the raw diff to Jev")
+        return ""
+    except UnicodeDecodeError:
+        print(f"Unreadable LLM PR summary in pipeline {pipeline_id}, passing the raw diff to Jev")
+        return ""
+    print(f"LLM PR summary loaded from pipeline {pipeline_id}, job {summary_job.id} ({len(summary)} chars)")
     return summary
 
 

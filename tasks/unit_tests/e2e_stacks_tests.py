@@ -5,8 +5,9 @@ from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from invoke.context import Context
+from invoke.exceptions import Exit
 
-from tasks.new_e2e_tests import _stacks_cleaned_up_by_job, cleanup_job_stacks
+from tasks.new_e2e_tests import _stacks_cleaned_up_by_job, cleanup_job_stacks, cleanup_remote_stacks
 from tasks.tools.e2e_stacks import (
     RECORDED_STACKS_FILE,
     StacksCleanupReason,
@@ -124,16 +125,55 @@ class TestCleanupJobStacks(unittest.TestCase):
 
 @patch.dict(os.environ, {"CI_JOB_NAME": "job", "CI_JOB_ID": "2", "CI_PIPELINE_ID": "1", "CI_COMMIT_REF_NAME": "branch"})
 class TestDestroyRemoteStackApi(unittest.TestCase):
+    @patch("tasks.agent_ci_api.datadog_infra_token", return_value="test")
+    @patch("tasks.agent_ci_api.requests.request")
+    def test_child_request_targets_parent_and_retains_origin(self, request, _):
+        result = destroy_remote_stack_api("organization/e2eci/ci-init-42-stack", Context(), pipeline_id="42")
+        self.assertEqual(result[0], 0)
+        attrs = request.call_args.kwargs["json"]["data"]["attributes"]
+        self.assertEqual(attrs["pipeline_id"], "42")
+        self.assertEqual(attrs["job_id"], "2")
+        self.assertEqual(attrs["job_name"], "job")
+        self.assertEqual(request.call_args.kwargs["headers"]["X-DdOrigin"], "2")
+
     @patch("tasks.tools.e2e_stacks.run")
     def test_default(self, run):
         destroy_remote_stack_api("organization/e2eci/stack", Context())
         self.assertNotIn("cancel_first", run.call_args.kwargs["attrs"])
+        self.assertIn(",pipeline_id=1,", run.call_args.kwargs["attrs"])
+
+    @patch("tasks.tools.e2e_stacks.run", side_effect=RuntimeError("submission failed"))
+    def test_submission_failure_remains_visible(self, _):
+        result = destroy_remote_stack_api("organization/e2eci/ci-init-42-stack", Context(), pipeline_id="42")
+        self.assertEqual(result, (1, "", "submission failed", "organization/e2eci/ci-init-42-stack"))
 
     @patch("tasks.tools.e2e_stacks.run")
     def test_cancel_first(self, run):
         destroy_remote_stack_api("organization/e2eci/stack", Context(), cancel_first=True)
         self.assertIn("stack_name=organization/e2eci/stack,", run.call_args.kwargs["attrs"])
         self.assertTrue(run.call_args.kwargs["attrs"].endswith(",cancel_first=bool:true"))
+
+
+class TestCleanupRemoteStacks(unittest.TestCase):
+    def test_invalid_explicit_pipeline_id(self):
+        with self.assertRaisesRegex(Exit, "numeric"):
+            cleanup_remote_stacks(Context(), stack_regex="ci-init-42-.*", pipeline_id="")
+
+    @patch.dict("os.environ", {"REMOTE_STACK_CLEANING": "true", "CI_PIPELINE_ID": "99"})
+    @patch("tasks.new_e2e_tests.multiprocessing.Pool")
+    @patch("tasks.new_e2e_tests.destroy_remote_stack_api")
+    @patch("tasks.new_e2e_tests.list_stacks")
+    def test_sweep_matches_parent_init_stacks_only(self, stacks, destroy, pool):
+        stacks.return_value = [
+            {"name": "organization/e2eci/ci-init-42-one"},
+            {"name": "organization/e2eci/ci-init-99-one"},
+            {"name": "organization/e2eci/ci-42-one"},
+            {"name": "organization/e2eci/ci-init-420-one"},
+        ]
+        destroy.return_value = (0, "submitted", "", "organization/e2eci/ci-init-42-one")
+        pool.return_value.__enter__.return_value.map.side_effect = lambda fn, values: list(map(fn, values))
+        cleanup_remote_stacks(Context(), stack_regex="ci-init-42-.*", pipeline_id="42")
+        destroy.assert_called_once_with("organization/e2eci/ci-init-42-one", pipeline_id="42")
 
 
 class TestStacksCleanedUpByJob(unittest.TestCase):

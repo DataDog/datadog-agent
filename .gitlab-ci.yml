@@ -24,6 +24,22 @@
 .if_deploy: &if_deploy
   if: $DEPLOY_AGENT == "true" || $DDR_WORKFLOW_ID != null
 
+# DDCI supplies the PR base separately from the changes comparison baseline.
+# Missing PR context keeps the existing jobs in the parent pipeline.
+.if_post_validation_child: &if_post_validation_child
+  if: >-
+    $CI_PIPELINE_SOURCE == "push" &&
+    $DDCI_REQUEST_KIND == "REQUEST_KIND_CHANGE_REQUEST" && $GIT_BASE_BRANCH == "main" &&
+    $COMPARE_TO_BRANCH == "main" && $CI_COMMIT_BRANCH &&
+    $CI_COMMIT_BRANCH != "main" && $CI_COMMIT_BRANCH !~ /^[0-9]+\.[0-9]+\.x$/ &&
+    $CI_COMMIT_BRANCH !~ /^mq-working-branch-/ && $CI_COMMIT_TAG == null &&
+    $DEPLOY_AGENT != "true" && $DEPLOY_INSTALLER != "true" && $DDR_WORKFLOW_ID == null &&
+    $TRIGGERED_PIPELINE != "true" && $E2E_COVERAGE_PIPELINE != "true"
+
+.except_post_validation_child:
+  - <<: *if_post_validation_child
+    when: never
+
 # Windows-specific Go source files, pkg/, and cmd/ (26 paths), need to be split because Gitlab has a limit to 50 paths in a single rule
 .windows_path:
   &windows_path # Windows-specific Go source files (by filename convention)
@@ -139,6 +155,7 @@
   - Cargo.lock
 
 include:
+  - local: .gitlab/common/post-validation.yml
   - local: .adms/**/*.yaml
   - local: .gitlab/.pre/**.yml
   - local: .gitlab/build/**.yml
@@ -234,6 +251,25 @@ stages:
   - internal_kubernetes_deploy
   - check_merge
   - .post
+
+# No needs: even allowed-failure E2E consumers must finish before cleanup.
+# Child creation is required; child execution does not hold parent readiness.
+post-validation:
+  stage: .post
+  rules:
+    - <<: *if_post_validation_child
+      when: always
+  variables:
+    POST_VALIDATION_PARENT_ID: $CI_PIPELINE_ID
+    DDCI_REQUEST_ID: $DDCI_REQUEST_ID
+    # Forwarded YAML defaults outrank the child's job variables.
+    # Jev needs full history to compute the PR merge base.
+    GIT_DEPTH: 0
+    GIT_STRATEGY: clone
+  trigger:
+    include:
+      - local: .gitlab/childs/post-validation.yml
+    # Omit strategy so the bridge succeeds when GitLab creates the child.
 
 variables:
   # Special variable that allows us to set the pipeline to compute the code coverage of the e2e tests. It will impact several jobs so that

@@ -16,6 +16,7 @@ import tempfile
 import time
 from collections import defaultdict
 from concurrent.futures import ThreadPoolExecutor
+from functools import partial
 from pathlib import Path
 
 import yaml
@@ -898,10 +899,12 @@ def list_stacks(ctx: Context, project: str = "e2eci") -> list[dict]:
 
 
 @task
-def cleanup_remote_stacks(ctx, stack_regex):
+def cleanup_remote_stacks(ctx, stack_regex, pipeline_id=None):
     """
-    Clean up remote stacks created by the pipeline
+    Clean up remote stacks, attributing requests to pipeline_id (current by default).
     """
+    if pipeline_id is not None and not str(pipeline_id).isdecimal():
+        raise Exit("Provide a numeric --pipeline-id", code=1)
     remote_stack_cleaning = os.getenv("REMOTE_STACK_CLEANING") == "true"
     if remote_stack_cleaning:
         print("Using remote stack cleaning")
@@ -927,7 +930,11 @@ def cleanup_remote_stacks(ctx, stack_regex):
     print("About to delete the following stacks:", to_delete_stacks)
 
     with multiprocessing.Pool(len(to_delete_stacks)) as pool:
-        destroy_func = destroy_remote_stack_api if remote_stack_cleaning else destroy_remote_stack_local
+        destroy_func = (
+            partial(destroy_remote_stack_api, pipeline_id=pipeline_id)
+            if remote_stack_cleaning
+            else destroy_remote_stack_local
+        )
         res = pool.map(destroy_func, to_delete_stacks)
         destroyed_stack = set()
         failed_stack = set()
