@@ -86,6 +86,49 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 		assert.Contains(t, names, "db.instance")
 		assert.Contains(t, names, "cassandra.keyspace")
 	})
+
+	t.Run("peer.aws.arn contains only callee ARNs", func(t *testing.T) {
+		var names []string
+		for _, info := range r.GetAttributePrecedence(semantics.ConceptPeerAWSARN) {
+			names = append(names, info.Name)
+		}
+		assert.Equal(t, []string{
+			"aws.sns.topic_arn",
+			"aws.topic.arn",
+			"aws.stream.arn",
+			"statemachinearn",
+			"aws.sns.topic.arn",
+			"aws.step_functions.state_machine.arn",
+		}, names)
+		// cloud.resource_id is an OTel resource attribute naming the caller's own resource,
+		// and OTLP spans carry resource attributes in Meta.
+		assert.NotContains(t, basePeerTags(r), "cloud.resource_id")
+	})
+
+	t.Run("peer.aws.sqs.queue.url contains queue URLs", func(t *testing.T) {
+		var names []string
+		for _, info := range r.GetAttributePrecedence(semantics.ConceptPeerAWSSQSQueueURL) {
+			names = append(names, info.Name)
+		}
+		assert.Equal(t, []string{"aws.queue.url", "aws.sqs.queue.url"}, names)
+	})
+
+	t.Run("scope concepts contain only callee values", func(t *testing.T) {
+		names := func(concept semantics.Concept) []string {
+			var out []string
+			for _, info := range r.GetAttributePrecedence(concept) {
+				out = append(out, info.Name)
+			}
+			return out
+		}
+		assert.Equal(t, []string{"aws.region"}, names(semantics.ConceptPeerAWSRegion))
+		assert.Equal(t, []string{"gcloud.project_id"}, names(semantics.ConceptPeerGCPProjectID))
+		assert.Equal(t, []string{"messaging.kafka.cluster_id", "kafka.cluster_id", "messaging.kafka.cluster.id"}, names(semantics.ConceptPeerKafkaClusterID))
+		// The Lambda extension sets region and aws_account from the function's own ARN,
+		// so on Lambda spans they describe the caller, not the peer.
+		assert.NotContains(t, basePeerTags(r), "region")
+		assert.NotContains(t, basePeerTags(r), "aws_account")
+	})
 }
 
 func TestPeerTagsAggregation(t *testing.T) {

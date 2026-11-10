@@ -480,6 +480,41 @@
         }
       ]
     },
+    "peer.aws.arn": {
+      "canonical": "peer.aws.arn",
+      "fallbacks": [
+        {
+          "name": "aws.sns.topic_arn",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "aws.topic.arn",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "aws.stream.arn",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "statemachinearn",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "aws.sns.topic.arn",
+          "provider": "otel",
+          "type": "string"
+        },
+        {
+          "name": "aws.step_functions.state_machine.arn",
+          "provider": "otel",
+          "type": "string"
+        }
+      ]
+    },
     "peer.aws.dynamodb.table": {
       "canonical": "peer.aws.dynamodb.table",
       "fallbacks": [
@@ -495,6 +530,16 @@
       "fallbacks": [
         {
           "name": "streamname",
+          "provider": "datadog",
+          "type": "string"
+        }
+      ]
+    },
+    "peer.aws.region": {
+      "canonical": "peer.aws.region",
+      "fallbacks": [
+        {
+          "name": "aws.region",
           "provider": "datadog",
           "type": "string"
         }
@@ -521,6 +566,21 @@
         {
           "name": "queuename",
           "provider": "datadog",
+          "type": "string"
+        }
+      ]
+    },
+    "peer.aws.sqs.queue.url": {
+      "canonical": "peer.aws.sqs.queue.url",
+      "fallbacks": [
+        {
+          "name": "aws.queue.url",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "aws.sqs.queue.url",
+          "provider": "otel",
           "type": "string"
         }
       ]
@@ -607,6 +667,16 @@
         }
       ]
     },
+    "peer.gcp.project_id": {
+      "canonical": "peer.gcp.project_id",
+      "fallbacks": [
+        {
+          "name": "gcloud.project_id",
+          "provider": "datadog",
+          "type": "string"
+        }
+      ]
+    },
     "peer.hostname": {
       "canonical": "peer.hostname",
       "fallbacks": [
@@ -681,6 +751,26 @@
         {
           "name": "messaging.kafka.bootstrap.servers",
           "provider": "otel",
+          "type": "string"
+        }
+      ]
+    },
+    "peer.kafka.cluster.id": {
+      "canonical": "peer.kafka.cluster.id",
+      "fallbacks": [
+        {
+          "name": "messaging.kafka.cluster_id",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "kafka.cluster_id",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "messaging.kafka.cluster.id",
+          "provider": "datadog",
           "type": "string"
         }
       ]
