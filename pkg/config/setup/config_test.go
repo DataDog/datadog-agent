@@ -845,7 +845,7 @@ func TestNetworkPathDefaults(t *testing.T) {
 func TestHealthPlatformDefaults(t *testing.T) {
 	config := confFromYAML(t, "")
 
-	assert.Equal(t, true, config.GetBool("health_platform.enabled"))
+	assert.Equal(t, false, config.GetBool("health_platform.enabled"))
 	assert.Equal(t, 15*time.Minute, config.GetDuration("health_platform.forwarder.interval"))
 	assert.Equal(t, true, config.GetBool("health_platform.invalidconfig_check.enabled"))
 	assert.Equal(t, true, config.GetBool("dogstatsd_client_drop_detection.enabled"))
