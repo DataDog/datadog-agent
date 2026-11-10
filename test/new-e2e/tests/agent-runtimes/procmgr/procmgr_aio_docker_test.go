@@ -131,6 +131,10 @@ func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	s.waitForAgentRunning(s.T(), 3*time.Minute)
 	agentPID := fieldValue(s.describeProcess(s.T(), "datadog-agent"), "PID")
 	requireHostPID(s.T(), agentPID)
+	// The graceful stop of a running sibling is what proves the supervisor shut it down.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		assertField(c, s.describeProcess(c, "datadog-agent-trace"), "State", "Running")
+	}, time.Minute, 2*time.Second)
 	s.cleanupStartAgentContainer(s.T())
 
 	// Suite host clock, same machine as dockerd. time.Now() here would be the Go process.
@@ -149,6 +153,7 @@ func (s *procmgrAIODockerSuite) TestCoreAgentDeathEndsTheContainer() {
 	logs := s.Env().RemoteHost.MustExecute(
 		"docker logs --since " + shSingleQuote(since) + " " + aioAgentContainer + " 2>&1")
 	s.Contains(logs, "[datadog-agent] critical process ended, shutting down with exit code 137")
+	s.Contains(logs, "[datadog-agent-trace] sending graceful stop (stop requested)")
 	s.Contains(logs, "dd-procmgrd stopped (exit code 137)")
 	s.NotContains(logs, "force-killing")
 	s.NotContains(logs, "still running after force-kill, giving up")
