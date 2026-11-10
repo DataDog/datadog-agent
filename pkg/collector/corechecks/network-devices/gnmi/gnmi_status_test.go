@@ -9,13 +9,20 @@ package gnmi
 
 import (
 	"context"
+	"net"
+	"strconv"
 	"testing"
+	"time"
 
+	gnmipb "github.com/openconfig/gnmi/proto/gnmi"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver"
 	gnmiStatus "github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/status"
 )
 
@@ -81,6 +88,46 @@ func TestUpdateStatusLastErrorIgnoresNilErrorAndUnconfiguredCheck(t *testing.T) 
 	c.config = nil
 	c.updateStatusLastError(assert.AnError)
 	assert.Empty(t, statusDevices(t, registry)[0].LastError)
+}
+
+func TestRecoveredClientKeepsPathRejectionsInAgentStatus(t *testing.T) {
+	server, err := fakeserver.New()
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, server.Close()) })
+	server.SetSubscribeErrorHandler(func(request *gnmipb.SubscribeRequest) error {
+		for _, sub := range request.GetSubscribe().GetSubscription() {
+			for _, elem := range sub.GetPath().GetElem() {
+				if elem.Name == "missing" {
+					return status.Error(codes.NotFound, "metric unavailable")
+				}
+			}
+		}
+		return nil
+	}, true)
+	host, portText, err := net.SplitHostPort(server.Addr())
+	require.NoError(t, err)
+	port, err := strconv.Atoi(portText)
+	require.NoError(t, err)
+	profile := config.ProfileDefinition{
+		Metrics:  []config.MetricConfig{{Path: "/openconfig/system/state/missing"}, {Path: "/openconfig/system/state/uptime"}},
+		Metadata: config.MetadataConfig{Device: config.DeviceMetadataConfig{Hostname: "/openconfig/system/state/hostname"}},
+	}
+	gnmiClient, err := client.New(client.Config{Address: host, Port: port, Username: "test", Password: "test", Profile: profile})
+	require.NoError(t, err)
+	t.Cleanup(func() { require.NoError(t, gnmiClient.Close()) })
+	require.NoError(t, gnmiClient.Start(context.Background()))
+	require.Eventually(t, func() bool {
+		return gnmiClient.StreamState() == client.StreamStateConnected && len(gnmiClient.ConnectionStatus().RejectedSubscriptions) == 1
+	}, 5*time.Second, 5*time.Millisecond)
+	c, registry := newStatusTestCheck(t)
+	c.config.Profile = profile
+	c.updateStatusFromClient(gnmiClient, c.config, gnmiClient.Snapshot())
+	devices := statusDevices(t, registry)
+	require.Len(t, devices, 1)
+	require.Equal(t, "Connected (partial)", devices[0].StatusLabel)
+	require.Equal(t, "warning", devices[0].StatusLevel)
+	require.Empty(t, devices[0].LastError, "recovered connection error is cleared")
+	require.Contains(t, devices[0].RejectedSubscriptions["/openconfig/system/state/missing"], "metric unavailable")
 }
 
 func TestCancelUnregistersDevice(t *testing.T) {

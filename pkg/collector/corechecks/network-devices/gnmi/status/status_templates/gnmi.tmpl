@@ -36,6 +36,12 @@
   {{- else if $device.LastError }}
     Last error: {{$device.LastError}}
   {{- end }}
+  {{- if $device.RejectedSubscriptions }}
+    Rejected subscriptions (other paths continue; retry on a later reconnect or reload):
+    {{- range $path, $error := $device.RejectedSubscriptions }}
+      - {{$path}}: {{$error}}
+    {{- end }}
+  {{- end }}
   {{- if $device.SubscriptionPaths }}
     Subscription paths:
     {{- range $path := $device.SubscriptionPaths }}

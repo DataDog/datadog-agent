@@ -7,6 +7,7 @@ package status
 
 import (
 	"fmt"
+	"maps"
 	"sort"
 	"sync"
 	"time"
@@ -14,26 +15,27 @@ import (
 
 // DeviceState holds runtime status for a single gNMI device check instance.
 type DeviceState struct {
-	Address           string
-	Port              int
-	Profile           string
-	DeviceName        string
-	CollectTopology   bool
-	Started           bool
-	StreamState       string
-	Transport         string
-	ReconnectCount    int
-	ReceivedSamples   int
-	CachedPaths       int
-	MetricsCollected  int
-	SubscriptionPaths []string
-	EverConnected     bool
-	LastConnectedAt   int64
-	LastError         string
-	LastErrorAt       int64
-	NextReconnectAt   int64
-	NextReconnectDue  bool
-	StatusUpdatedAt   int64
+	Address               string
+	Port                  int
+	Profile               string
+	DeviceName            string
+	CollectTopology       bool
+	Started               bool
+	StreamState           string
+	Transport             string
+	ReconnectCount        int
+	ReceivedSamples       int
+	CachedPaths           int
+	MetricsCollected      int
+	SubscriptionPaths     []string
+	RejectedSubscriptions map[string]string
+	EverConnected         bool
+	LastConnectedAt       int64
+	LastError             string
+	LastErrorAt           int64
+	NextReconnectAt       int64
+	NextReconnectDue      bool
+	StatusUpdatedAt       int64
 }
 
 // Registry holds the runtime status of configured gNMI devices.
@@ -93,6 +95,7 @@ func (r *Registry) UpdateDevice(address string, port int, update func(*DeviceSta
 		return
 	}
 	update(device)
+	device.RejectedSubscriptions = maps.Clone(device.RejectedSubscriptions)
 }
 
 func (r *Registry) listDevices() []DeviceState {
@@ -103,6 +106,7 @@ func (r *Registry) listDevices() []DeviceState {
 	for _, device := range r.devices {
 		copied := *device
 		copied.SubscriptionPaths = append([]string(nil), device.SubscriptionPaths...)
+		copied.RejectedSubscriptions = maps.Clone(device.RejectedSubscriptions)
 		devices = append(devices, copied)
 	}
 

@@ -6,6 +6,7 @@
 package status
 
 import (
+	"maps"
 	"strconv"
 	"strings"
 )
@@ -18,29 +19,30 @@ const (
 
 // DeviceDisplay is a device row enriched for status rendering.
 type DeviceDisplay struct {
-	Address           string
-	Port              int
-	Profile           string
-	DeviceName        string
-	StreamState       string
-	StatusLevel       string
-	StatusLabel       string
-	Started           bool
-	Transport         string
-	ReconnectCount    int
-	ReceivedSamples   int
-	CachedPaths       int
-	MetricsCollected  int
-	CollectTopology   bool
-	EverConnected     bool
-	LastConnectedAt   int64
-	LastError         string
-	LastErrorAt       int64
-	NextReconnectAt   int64
-	NextReconnectDue  bool
-	StatusUpdatedAt   int64
-	SubscriptionPaths []string
-	SearchText        string
+	Address               string
+	Port                  int
+	Profile               string
+	DeviceName            string
+	StreamState           string
+	StatusLevel           string
+	StatusLabel           string
+	Started               bool
+	Transport             string
+	ReconnectCount        int
+	ReceivedSamples       int
+	CachedPaths           int
+	MetricsCollected      int
+	CollectTopology       bool
+	EverConnected         bool
+	LastConnectedAt       int64
+	LastError             string
+	LastErrorAt           int64
+	NextReconnectAt       int64
+	NextReconnectDue      bool
+	StatusUpdatedAt       int64
+	SubscriptionPaths     []string
+	RejectedSubscriptions map[string]string
+	SearchText            string
 }
 
 func buildDeviceDisplay(device DeviceState) DeviceDisplay {
@@ -54,28 +56,29 @@ func buildDeviceDisplay(device DeviceState) DeviceDisplay {
 	}
 
 	display := DeviceDisplay{
-		Address:           device.Address,
-		Port:              device.Port,
-		Profile:           device.Profile,
-		DeviceName:        deviceName,
-		StreamState:       device.StreamState,
-		StatusLevel:       statusLevel,
-		StatusLabel:       statusLabel,
-		Started:           device.Started,
-		Transport:         device.Transport,
-		ReconnectCount:    device.ReconnectCount,
-		ReceivedSamples:   device.ReceivedSamples,
-		CachedPaths:       device.CachedPaths,
-		MetricsCollected:  device.MetricsCollected,
-		CollectTopology:   device.CollectTopology,
-		EverConnected:     device.EverConnected,
-		LastConnectedAt:   device.LastConnectedAt,
-		LastError:         device.LastError,
-		LastErrorAt:       device.LastErrorAt,
-		NextReconnectAt:   device.NextReconnectAt,
-		NextReconnectDue:  device.NextReconnectDue,
-		StatusUpdatedAt:   device.StatusUpdatedAt,
-		SubscriptionPaths: append([]string(nil), device.SubscriptionPaths...),
+		Address:               device.Address,
+		Port:                  device.Port,
+		Profile:               device.Profile,
+		DeviceName:            deviceName,
+		StreamState:           device.StreamState,
+		StatusLevel:           statusLevel,
+		StatusLabel:           statusLabel,
+		Started:               device.Started,
+		Transport:             device.Transport,
+		ReconnectCount:        device.ReconnectCount,
+		ReceivedSamples:       device.ReceivedSamples,
+		CachedPaths:           device.CachedPaths,
+		MetricsCollected:      device.MetricsCollected,
+		CollectTopology:       device.CollectTopology,
+		EverConnected:         device.EverConnected,
+		LastConnectedAt:       device.LastConnectedAt,
+		LastError:             device.LastError,
+		LastErrorAt:           device.LastErrorAt,
+		NextReconnectAt:       device.NextReconnectAt,
+		NextReconnectDue:      device.NextReconnectDue,
+		StatusUpdatedAt:       device.StatusUpdatedAt,
+		SubscriptionPaths:     append([]string(nil), device.SubscriptionPaths...),
+		RejectedSubscriptions: maps.Clone(device.RejectedSubscriptions),
 	}
 	display.SearchText = buildDeviceSearchText(display)
 	return display
@@ -92,12 +95,18 @@ func buildDeviceSearchText(device DeviceDisplay) string {
 		device.StatusLabel,
 		device.LastError,
 	}
+	for path, err := range device.RejectedSubscriptions {
+		parts = append(parts, path, err)
+	}
 	return strings.ToLower(strings.Join(parts, " "))
 }
 
 func deviceStatusLevel(device DeviceState) (string, string) {
 	switch device.StreamState {
 	case "connected":
+		if len(device.RejectedSubscriptions) > 0 {
+			return statusLevelWarning, "Connected (partial)"
+		}
 		return statusLevelOK, "Connected"
 	case "reconnecting":
 		if device.LastError != "" {

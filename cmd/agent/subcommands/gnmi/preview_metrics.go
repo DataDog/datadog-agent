@@ -231,6 +231,9 @@ func printPreviewStatus(gnmiClient *client.Client, metricCount int, metadataCoun
 		fmt.Printf(" next_reconnect=%s", connStatus.NextReconnectAt.Format(time.RFC3339))
 	}
 	fmt.Println()
+	for _, line := range formatRejectedSubscriptions(connStatus.RejectedSubscriptions) {
+		fmt.Println(line)
+	}
 }
 
 func printCapturedMetrics(metrics []report.CapturedMetric) {
