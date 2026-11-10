@@ -204,7 +204,7 @@ namespace Datadog.CustomActions
         /// Wrapper for the LookupAccountName Windows API that also supports additional syntax for the domain part of the name.
         /// See ParseUserName for details on the supported names.
         /// </summary>
-        private bool LookupAccountWithExtendedDomainSyntax(
+        internal bool LookupAccountWithExtendedDomainSyntax(
             string account,
             out string userName,
             out string domain,

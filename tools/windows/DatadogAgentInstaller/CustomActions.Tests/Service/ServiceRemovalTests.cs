@@ -77,6 +77,37 @@ namespace CustomActions.Tests.Service
         }
 
         [Theory]
+        [InlineData(false)]
+        [InlineData(true)]
+        public void DotQualifiedServiceAccountUsesExistingAccountResolution(bool domainController)
+        {
+            NativeMethods.Setup(n => n.IsDomainController()).Returns(domainController);
+            NativeMethods.Setup(n => n.GetComputerDomain()).Returns("TEST");
+            var resolvedAccount = $"{(domainController ? "TEST" : Environment.MachineName)}\\ddagentuser";
+            GivenAccount(resolvedAccount, AccountSid);
+            GivenService(Constants.AgentServiceName, @".\ddagentuser");
+            GivenService(Constants.TraceAgentServiceName, @".\ddagentuser");
+
+            Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
+            Assert.Equal("1", Session.Object["CanDeleteServices"]);
+            Assert.Equal(AccountSid.Value, Session.Object["ServiceRemovalSid"]);
+            Assert.Equal("datadogagent,datadog-trace-agent", Session.Object["ServiceRemovalNames"]);
+            Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
+            ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, Account, Password), Times.Once);
+            ServiceController.Verify(c => c.SetCredentials(Constants.TraceAgentServiceName, Account, Password), Times.Once);
+        }
+
+        [Fact]
+        public void UnresolvableServiceAccountPreservesServices()
+        {
+            GivenService(Constants.AgentServiceName, @".\missinguser");
+
+            Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
+            Assert.Equal("", Session.Object["CanDeleteServices"]);
+            ServiceController.Verify(c => c.SetCredentials(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+        }
+
+        [Theory]
         [InlineData(false, null)]
         [InlineData(false, "")]
         [InlineData(true, null)]

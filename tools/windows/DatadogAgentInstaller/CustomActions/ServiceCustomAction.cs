@@ -156,6 +156,7 @@ namespace Datadog.CustomActions
                     _session.Log($"Preserving services: could not resolve installed Agent account '{account}' to a SID");
                     return ActionResult.Success;
                 }
+                var accountResolver = new ProcessUserCustomActions(_session, _nativeMethods, _serviceController, _registryServices);
                 var names = new List<string>();
                 foreach (var name in new[]
                 {
@@ -181,7 +182,7 @@ namespace Datadog.CustomActions
                         _session.Log($"Preserving services: service '{name}' has a missing or empty ObjectName registry value");
                         return ActionResult.Success;
                     }
-                    if (!_nativeMethods.LookupAccountName(serviceAccount, out _, out _, out var sid, out _))
+                    if (!accountResolver.LookupAccountWithExtendedDomainSyntax(serviceAccount, out _, out _, out var sid, out _))
                     {
                         _session.Log($"Preserving services: could not resolve service '{name}' account '{serviceAccount}' to a SID");
                         return ActionResult.Success;
