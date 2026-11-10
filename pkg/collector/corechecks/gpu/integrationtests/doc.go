@@ -25,5 +25,19 @@ To run these tests locally, you need a machine with:
 TestSpecMIG validates GPUs in MIG mode. It runs on a host that is already in MIG mode, or, with
 GPU_TEST_CONFIGURE_MIG=1 (any boolean true), it enables MIG mode on the MIG-capable GPUs and creates MIG devices through
 NVML, then restores the GPUs when it ends. That needs root and GPUs that are not in use.
+
+By default the check runs without system-probe, so the metrics that only the system-probe GPU module
+provides are not validated. With GPU_TEST_SYSTEM_PROBE_BIN set to a system-probe binary, TestSpec and
+TestSpecMIG start it with the GPU module and its eBPF probes, as it runs in production, point the
+check at it, and also validate the metrics that need it. That needs root, and the eBPF objects
+installed root-owned in /opt/datadog-agent/embedded/share/system-probe/ebpf (or in the directory
+named by GPU_TEST_SYSTEM_PROBE_BPF_DIR). `dda inv system-probe.build` builds both:
+
+	dda inv system-probe.build
+	dda inv test --targets=./pkg/collector/corechecks/gpu/integrationtests
+	sudo env GPU_TEST_SYSTEM_PROBE_BIN=$PWD/bin/system-probe/system-probe GPU_BURNER_BIN=... \
+		<bazel-bin>/pkg/collector/corechecks/gpu/integrationtests/integrationtests_test_nvml_/integrationtests_test_nvml -test.run '^TestSpec'
+
+Run it while no other system-probe with the GPU eBPF probes is running on the host.
 */
 package integrationtests
