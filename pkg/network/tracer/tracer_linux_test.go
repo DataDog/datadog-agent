@@ -2972,8 +2972,8 @@ func (s *TracerSuite) TestTCPDisconnectFlushesConnection() {
 		collect(ct)
 		assert.NotEmpty(ct, secondClosed, "no close event after close")
 	}, 3*time.Second, 100*time.Millisecond)
-	// give a duplicate close event time to arrive
-	time.Sleep(500 * time.Millisecond)
+	// close() runs every hook that could emit for these sockets before it returns, and
+	// GetActiveConnections flushes pending close events, so this collection sees any duplicate.
 	collect(t)
 
 	assert.Empty(t, firstAgain, "close() emitted another close event for the disconnected connection")
