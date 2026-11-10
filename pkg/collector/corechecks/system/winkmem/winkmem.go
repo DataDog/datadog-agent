@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	modntdll                     = windows.NewLazyDLL("ntdll.dll")
+	modntdll                     = windows.NewLazySystemDLL("ntdll.dll")
 	procNtQuerySystemInformation = modntdll.NewProc("NtQuerySystemInformation")
 )
 

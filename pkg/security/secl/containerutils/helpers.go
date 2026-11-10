@@ -19,6 +19,8 @@ import (
 var ContainerIDPatternStr = ""
 var containerIDPattern *regexp.Regexp
 var podUIDPattern *regexp.Regexp
+var ecsTaskIDPattern *regexp.Regexp
+var ecsTaskSlicePattern *regexp.Regexp
 
 var containerIDCoreChars = "0123456789abcdefABCDEF"
 var podUIDBoundaryChars = "/-."
@@ -30,9 +32,14 @@ func init() {
 	ContainerIDPatternStr = "([0-9a-fA-F]{64})|([0-9a-fA-F]{32}-\\d+)|([0-9a-fA-F]{8}(-[0-9a-fA-F]{4}){4})"
 	containerIDPattern = regexp.MustCompile(ContainerIDPatternStr)
 	podUIDPattern = regexp.MustCompile(`pod([0-9a-fA-F]{8}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{4}[-_][0-9a-fA-F]{12})`)
+	// tasks created with the legacy ARN format have a UUID as task ID
+	ecsTaskIDPatternStr := `[0-9a-fA-F]{32}|[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}`
+	ecsTaskIDPattern = regexp.MustCompile(`^(?:` + ecsTaskIDPatternStr + `)$`)
+	ecsTaskSlicePattern = regexp.MustCompile(`^ecstasks-(` + ecsTaskIDPatternStr + `)\.slice$`)
 }
 
-// FindContainerID extracts the first sub string that matches the pattern of a container ID along with the container flags induced from the container runtime prefix
+// FindContainerID returns the last container ID found in s, which is the
+// innermost container of a nested cgroup path.
 func FindContainerID(s CGroupID) ContainerID {
 	matches := containerIDPattern.FindAllIndex([]byte(s), -1)
 
@@ -96,6 +103,37 @@ func FindPodUID(s CGroupID) string {
 		}
 
 		return strings.ToLower(strings.ReplaceAll(string(s[uidStart:uidEnd]), "_", "-"))
+	}
+
+	return ""
+}
+
+// FindECSTaskID extracts the ECS task ID from the innermost task cgroup found in s.
+//
+// The ECS agent creates a cgroup per task when task CPU and memory limits are
+// enabled (the default), with cgroup v1:
+//
+//	/ecs/<task-id>/<container-id>
+//
+// and with cgroup v2:
+//
+//	/ecstasks.slice/ecstasks-<task-id>.slice/docker-<container-id>.scope
+//
+// The returned task ID is normalized to lowercase.
+func FindECSTaskID(s CGroupID) string {
+	if !strings.Contains(string(s), "ecs") {
+		return ""
+	}
+
+	segments := strings.Split(string(s), "/")
+
+	for i := len(segments) - 1; i >= 0; i-- {
+		if i > 0 && segments[i-1] == "ecs" && ecsTaskIDPattern.MatchString(segments[i]) {
+			return strings.ToLower(segments[i])
+		}
+		if match := ecsTaskSlicePattern.FindStringSubmatch(segments[i]); match != nil {
+			return strings.ToLower(match[1])
+		}
 	}
 
 	return ""

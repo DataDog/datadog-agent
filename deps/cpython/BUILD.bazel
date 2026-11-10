@@ -1,18 +1,54 @@
 """Package delimiter."""
 
-load("@rules_python//python:py_library.bzl", "py_library")
+load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@rules_python//python:py_test.bzl", "py_test")
 
-exports_files(["fix_sysconfigdata.py"])
+exports_files([
+    "cxx_extension.cpp",
+    "cxx_extension_test.py",
+    "gen_sysconfigdata.py",
+    "python_test.py",
+    "python_test.sh",
+    "pyconfig-linux-arm64.h",
+    "pyconfig-linux-x86_64.h",
+    "pyconfig-macos-arm64.h",
+    "pyconfig-macos-x86_64.h",
+])
 
-py_library(
-    name = "fix_sysconfigdata_lib",
-    srcs = ["fix_sysconfigdata.py"],
-    imports = ["."],
+# The python_win outputs in one real directory, so python.exe finds its Lib
+# through the runfiles junction.
+copy_to_directory(
+    name = "python_home_win",
+    srcs = ["@cpython//:python_win"],
+    out = "python_home_win",
+    include_external_repositories = ["*"],
+    root_paths = ["build"],
+    target_compatible_with = ["@platforms//os:windows"],
 )
 
 py_test(
-    name = "fix_sysconfigdata_test",
-    srcs = ["fix_sysconfigdata_test.py"],
-    deps = [":fix_sysconfigdata_lib"],
+    name = "distrusted_spki_test",
+    srcs = ["distrusted_spki_test.py"],
+    data = [
+        "distrusted_spki_check.py",
+        "@cpython_distrusted_spki_zip//file",
+    ] + select({
+        "@platforms//os:windows": [":python_home_win"],
+        "//conditions:default": [
+            "@cpython//:python3_bin",
+            "@cpython//:python_unix",
+            "@cpython//:runtime_deps",
+        ],
+    }),
+    env = {
+        "CHECK_SCRIPT": "$(rlocationpath distrusted_spki_check.py)",
+        "DISTRUSTED_ZIP": "$(rlocationpath @cpython_distrusted_spki_zip//file)",
+    } | select({
+        "@platforms//os:windows": {"PYTHON": "$(rlocationpath :python_home_win)/python.exe"},
+        "//conditions:default": {
+            "PYTHON": "$(rlocationpath @cpython//:python3_bin)",
+            "SHARED_LIBS": "$(rlocationpaths @cpython//:runtime_deps)",
+        },
+    }),
+    deps = ["@rules_python//python/runfiles"],
 )

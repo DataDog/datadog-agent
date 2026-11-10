@@ -894,6 +894,8 @@ func TestApplicableTagSets(t *testing.T) {
 	linuxBpfLibrary := write("bpf.go", "//go:build linux && bpf")
 	clusterChecks := write("clusterchecks_test.go", "//go:build clusterchecks")
 	kubeAPIServerWithoutKubelet := write("kube_no_kubelet_test.go", "//go:build kubeapiserver && !kubelet")
+	platformBranches := write("platform_branches_test.go", "//go:build (linux && bpf) || (windows && npm)")
+	platformBranchesOrDarwin := write("platform_branches_darwin_test.go", "//go:build (windows && npm) || (linux && bpf) || darwin")
 	kubernetesTagSet := tagsList("cel", "clusterchecks", "kubeapiserver", "kubelet")
 	containerdTagSet := tagsList("cel", "containerd")
 	dockerTagSet := tagsList("cel", "docker", "kubelet")
@@ -1068,6 +1070,19 @@ func TestApplicableTagSets(t *testing.T) {
 			wantTagSets:       [][]string{kubernetesTagSet},
 		},
 		{
+			name:              "configured set for one platform branch does not hide another's",
+			srcs:              []string{platformBranches},
+			configuredTagSets: [][]string{tagsList("bpf")},
+			wantTagSets:       [][]string{tagsList("bpf"), tagsList("npm")},
+		},
+		{
+			name:              "platform branches next to an unconstrained platform need both targets",
+			srcs:              []string{platformBranchesOrDarwin},
+			configuredTagSets: [][]string{tagsList("bpf")},
+			wantDefault:       true,
+			wantTagSets:       [][]string{tagsList("bpf"), tagsList("npm")},
+		},
+		{
 			name:              "untagged test embedding bpf library selects configured set",
 			srcs:              []string{noConstraint},
 			librarySrcs:       []string{linuxBpfLibrary},
@@ -1116,8 +1131,7 @@ func TestKinds(t *testing.T) {
 
 // TestDepsMerge_KeptItemSurvivesResolveUpdate replays Gazelle's real two-phase
 // merge (PreResolve, then PostResolve after Resolve sets deps) against a
-// dd_agent_go_test rule with a `# keep`-annotated dep, the same pattern used
-// for split cgo_align targets (e.g. pkg/collector/corechecks/ebpf/probe/ebpfcheck).
+// dd_agent_go_test rule with a `# keep`-annotated dep.
 // It guards that a manually kept dep survives while a stale one is dropped and
 // a freshly resolved one is added — the same behavior go_test gets for free.
 func TestDepsMerge_KeptItemSurvivesResolveUpdate(t *testing.T) {

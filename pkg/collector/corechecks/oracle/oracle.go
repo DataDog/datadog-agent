@@ -254,6 +254,12 @@ func (c *Check) Run() error {
 					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect process memory %w", c.logPrompt, err))
 				}
 			}
+			if c.config.UserSessionsCount.Enabled {
+				err := c.UserSessionsCount()
+				if err != nil {
+					allErrors = errors.Join(allErrors, fmt.Errorf("%s failed to collect user sessions count %w", c.logPrompt, err))
+				}
+			}
 		}
 	}
 

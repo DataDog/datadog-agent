@@ -1,6 +1,7 @@
 """dd_collect_dependencies — collect transitive DdPackagingInfo for installation."""
 
-load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo")
+load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
+load("//bazel/rules:cc_graph_attrs.bzl", "CC_GRAPH_WALKED_ATTRS", "get_deps")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
 
 _CollectedPackagingInfo = provider(
@@ -12,19 +13,7 @@ _CollectedPackagingInfo = provider(
     },
 )
 
-def _get_deps(ctx, attr_names):
-    deps = []
-    for attr_name in attr_names:
-        val = getattr(ctx.rule.attr, attr_name, None)
-        if val == None:
-            continue
-        if type(val) == "list":
-            deps.extend(val)
-        else:
-            deps.append(val)
-    return deps
-
-_WALKED_ATTRS = ["dynamic_deps", "input", "shared_library", "embed", "deps", "cdeps", "data"]
+_WALKED_ATTRS = CC_GRAPH_WALKED_ATTRS
 
 def _collect_dd_packaging_aspect_impl(target, ctx):
     if DdPackagingInfo in target:
@@ -34,11 +23,17 @@ def _collect_dd_packaging_aspect_impl(target, ctx):
         # component declaring static assets it needs installed alongside
         # it, without going through the dd_cc_packaged wrapper.
         direct = [target[PackageFilegroupInfo]]
+    elif PackageFilesInfo in target:
+        direct = [PackageFilegroupInfo(
+            pkg_files = ((target[PackageFilesInfo], target.label),),
+            pkg_dirs = (),
+            pkg_symlinks = (),
+        )]
     else:
         direct = []
     transitive = [
         dep[_CollectedPackagingInfo].pkg_filegroups
-        for dep in _get_deps(ctx, _WALKED_ATTRS)
+        for dep in get_deps(ctx.rule.attr, _WALKED_ATTRS)
         if _CollectedPackagingInfo in dep
     ]
     return [_CollectedPackagingInfo(
@@ -48,15 +43,8 @@ def _collect_dd_packaging_aspect_impl(target, ctx):
 _collect_dd_packaging_aspect = aspect(
     implementation = _collect_dd_packaging_aspect_impl,
     doc = """
-        Traverses these edge types to walk the full CC dependency graph:
-        - dynamic_deps: cc_shared_library -> cc_shared_library edges
-        - input: _dd_cc_packaged_rule -> cc_shared_library edges (bridges a
-          packaged target back to its underlying cc_shared_library)
-        - shared_library: cc_import -> _dd_cc_packaged_rule edges (a cc_import
-          bridge pointed at an already-packaged shared library)
-        - embed, deps: go_library/go_binary edges, so a walk can start from a
-          real Go binary
-        - cdeps: go_library/go_binary -> cc_library edges (the cgo boundary)
+        Traverses the CC dependency graph edges (see CC_GRAPH_WALKED_ATTRS) to
+        walk the full CC dependency graph, plus one packaging-specific note:
         - data: a runtime dependency; either a cc_library -> _dd_cc_packaged_rule
           edge (a dlopen'd dependency), or a plain pkg_filegroup/pkg_files
           target declaring loose files a component needs installed alongside it

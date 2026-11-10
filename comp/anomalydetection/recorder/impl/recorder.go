@@ -19,18 +19,31 @@ import (
 type recorderImpl struct {
 	metrics recorder.MetricWriter
 	logs    recorder.LogWriter
+	filter  recorder.MetricFilter
 }
 
 // NewComponent wraps the supplied writers with recorder middleware.
 // The caller owns their lifecycle.
-func NewComponent(metrics recorder.MetricWriter, logs recorder.LogWriter) recorder.Component {
-	return &recorderImpl{metrics: metrics, logs: logs}
+func NewComponent(metrics recorder.MetricWriter, logs recorder.LogWriter, filter recorder.MetricFilter) recorder.Component {
+	return &recorderImpl{metrics: metrics, logs: logs, filter: filter}
 }
 
 func (r *recorderImpl) GetHandle(inner observer.HandleFunc) observer.HandleFunc {
 	return func(name string) observer.Handle {
 		return &recordingHandle{inner: inner(name), name: name, recorder: r}
 	}
+}
+
+func (r *recorderImpl) RecordLog(source string, msg observer.LogView) {
+	timestampMs := msg.GetTimestampUnixMilli()
+	if timestampMs == 0 {
+		timestampMs = time.Now().UnixMilli()
+	}
+	r.logs.WriteLog(recorder.LogData{
+		Source: source, TimestampMs: timestampMs,
+		Content: []byte(msg.GetContent()), Status: msg.GetStatus(),
+		Hostname: msg.GetHostname(), Tags: slices.Clone(msg.Tags()),
+	})
 }
 
 type metricDropObserver interface {
@@ -56,26 +69,24 @@ func (h *recordingHandle) ObserveMetric(sample observer.MetricView, contextKey u
 		timestamp = time.Now().Unix()
 	}
 	tagsView := sample.GetTags()
+	if h.recorder.filter != nil && h.recorder.filter.IsExcluded(sample) {
+		return
+	}
 	tags := make([]string, 0, tagsView.Len()+1)
 	tagsView.ForEach(func(tag string) { tags = append(tags, tag) })
 	if host := sample.GetHost(); host != "" && !slices.Contains(tags, "host:"+host) {
 		tags = append(tags, "host:"+host)
 	}
+	metricType := sample.GetMetricType().String()
+	if metricType == "" {
+		metricType = "Unknown"
+	}
 	h.recorder.metrics.WriteMetric(recorder.MetricData{
-		Source: h.name, Name: sample.GetName(), Value: sample.GetValue(),
+		Source: h.name, Name: sample.GetName(), MetricType: metricType, SampleRate: sample.GetSampleRate(), Value: sample.GetValue(),
 		Timestamp: timestamp, Tags: tags, Dropped: dropped,
 	})
 }
 
 func (h *recordingHandle) ObserveLog(msg observer.LogView) {
 	h.inner.ObserveLog(msg)
-	timestampMs := msg.GetTimestampUnixMilli()
-	if timestampMs == 0 {
-		timestampMs = time.Now().UnixMilli()
-	}
-	h.recorder.logs.WriteLog(recorder.LogData{
-		Source: h.name, TimestampMs: timestampMs,
-		Content: []byte(msg.GetContent()), Status: msg.GetStatus(),
-		Hostname: msg.GetHostname(), Tags: slices.Clone(msg.Tags()),
-	})
 }

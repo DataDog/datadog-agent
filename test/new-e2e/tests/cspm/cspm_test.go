@@ -41,6 +41,8 @@ func TestCSPM(t *testing.T) {
 	e2e.Run(t, &cspmTestSuite{}, e2e.WithProvisioner(
 		provkindvm.Provisioner(
 			provkindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenkindvm.WithInternetAccess(),
 				scenkindvm.WithAgentOptions(kubernetesagentparams.WithHelmValues(values)),
 				// Surface the EC2 host's dockerd inside the kind nodes so
 				// TestDockerRulesFilteredOnContainerdCRI can reproduce the
@@ -151,9 +153,11 @@ func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 	findings, err := parseFindingOutput(dump)
 	require.NoError(s.T(), err)
 
-	for rule := range findings {
-		assert.NotContains(s.T(), rule, "cis-docker-1.2.0-",
-			"CIS Docker rule %q must be filtered when kubelet's CRI runtime is containerd", rule)
+	for rule, results := range findings {
+		for _, r := range results {
+			assert.NotEqual(s.T(), "cis-docker", r["agent_framework_id"],
+				"CIS Docker rule %q must be filtered when kubelet's CRI runtime is containerd", rule)
+		}
 	}
 
 	// The assertion above holds vacuously on an agent that shipped no Docker
@@ -161,7 +165,7 @@ func (s *cspmTestSuite) TestDockerRulesFilteredOnContainerdCRI() {
 	// than missing.
 	_, stderr, err := s.Env().KubernetesCluster.KubernetesClient.PodExec(
 		"datadog", agentPod, "security-agent",
-		[]string{"test", "-s", "/etc/datadog-agent/compliance.d/cis-docker-1.2.0.yaml"})
+		[]string{"sh", "-c", `for f in /etc/datadog-agent/compliance.d/cis-docker-*.yaml; do test -s "$f" && exit 0; done; exit 1`})
 	require.NoError(s.T(), err, "the CIS Docker benchmark must ship in the agent image: %s", stderr)
 }
 

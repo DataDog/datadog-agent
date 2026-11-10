@@ -220,6 +220,9 @@ RUN adduser --system --no-create-home --disabled-password --ingroup root dd-agen
   && addgroup --system secret-manager \
   && usermod -a -G secret-manager dd-agent \
   && rm /var/run && mkdir -p /var/run/s6 /var/run/datadog /var/run/datadog-procmgrd /opt/datadog-agent/run \
+  && if [ -f /etc/datadog-agent/private-action-runner/script-config.yaml.example ]; then \
+       cp -n /etc/datadog-agent/private-action-runner/script-config.yaml.example /etc/datadog-agent/private-action-runner/script-config.yaml; \
+     fi \
   && chown -R dd-agent:root /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
   && chmod g+r,g+w,g+X -R /etc/datadog-agent/ /etc/s6/ /var/run/s6/ /var/log/datadog/ /var/run/datadog/ /var/run/datadog-procmgrd/ /opt/datadog-agent/run \
   && chmod 755 /probe.sh /par-probe.sh /initlog.sh \
@@ -285,7 +288,7 @@ HEALTHCHECK --interval=30s --timeout=5s --retries=2 \
   CMD ["/probe.sh"]
 
 # Leave following directories RW to allow use of kubernetes readonlyrootfs flag
-VOLUME ["/var/run/s6", "/var/log/datadog"]
+VOLUME ["/var/run/s6", "/opt/datadog-agent/run", "/var/log/datadog"]
 
 # Ensure the glibc doesn't try to call syscalls that may not be supported
 COPY --from=nosys-seccomp /tmp/nosys.so /opt/lib/nosys.so

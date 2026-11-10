@@ -1,0 +1,11 @@
+description: Redirecting to /dev/null preserves the command exit code.
+input:
+  script: |+
+    true >/dev/null
+    echo $?
+    false >/dev/null
+    echo $?
+expect:
+  stdout: "0\n1\n"
+  stderr: ""
+  exit_code: 0

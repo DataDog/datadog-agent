@@ -107,58 +107,41 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 	}
 }
 
-func TestGetDatadogHost(t *testing.T) {
+func TestIsActionAllowed(t *testing.T) {
 	tests := []struct {
-		name     string
-		endpoint string
-		expected string
+		name      string
+		allowlist []string
+		bundleID  string
+		action    string
+		allowed   bool
 	}{
-		{
-			name:     "removes https prefix and trailing dot",
-			endpoint: "https://api.datadoghq.com.",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "removes https prefix only",
-			endpoint: "https://api.datadoghq.com",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "removes trailing dot only",
-			endpoint: "api.datadoghq.com.",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "handles clean URL without modifications",
-			endpoint: "api.datadoghq.com",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "handles empty string",
-			endpoint: "",
-			expected: "",
-		},
-		{
-			name:     "handles EU site with https and trailing dot",
-			endpoint: "https://api.datadoghq.eu.",
-			expected: "api.datadoghq.eu",
-		},
-		{
-			name:     "handles gov site",
-			endpoint: "https://api.ddog-gov.com.",
-			expected: "api.ddog-gov.com",
-		},
-		{
-			name:     "handles custom domain",
-			endpoint: "https://custom.endpoint.example.com.",
-			expected: "custom.endpoint.example.com",
-		},
+		{"exact action", []string{"com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "getPod", true},
+		{"different action", []string{"com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "deletePod", false},
+		{"bundle wildcard", []string{"com.datadoghq.kubernetes.core.*"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"kubernetes wildcard", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"gitlab wildcard", []string{"com.datadoghq.gitlab.*"}, "com.datadoghq.gitlab.projects", "listProjects", true},
+		{"root bundle wildcard", []string{"com.datadoghq.http.*"}, "com.datadoghq.http", "request", true},
+		{"nested bundle wildcard", []string{"com.datadoghq.authoredscripts.*"}, "com.datadoghq.authoredscripts.helm.repo", "add", true},
+		{"parent wildcard with exact bundle entry", []string{"com.datadoghq.kubernetes.*", "com.datadoghq.kubernetes.core.getPod"}, "com.datadoghq.kubernetes.core", "deletePod", true},
+		{"other integration", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.gitlab.projects", "listProjects", false},
+		{"similar integration prefix", []string{"com.datadoghq.kubernetes.*"}, "com.datadoghq.kubernetesother.core", "getPod", false},
+		{"sibling bundle", []string{"com.datadoghq.kubernetes.core.*"}, "com.datadoghq.kubernetes.apps", "listDeployment", false},
+		{"exact action does not cover children", []string{"com.datadoghq.kubernetes.getPod"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"global wildcard", []string{"*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"namespace wildcard", []string{"com.datadoghq.*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"namespace wildcard on namespace", []string{"com.datadoghq.*"}, "com.datadoghq", "getPod", false},
+		{"empty integration", []string{"com.datadoghq..*"}, "com.datadoghq..core", "getPod", false},
+		{"other namespace", []string{"com.other.kubernetes.*"}, "com.other.kubernetes.core", "getPod", false},
+		{"embedded wildcard", []string{"com.datadoghq.kube*.*"}, "com.datadoghq.kubernetes.core", "getPod", false},
+		{"empty allowlist", nil, "com.datadoghq.kubernetes.core", "getPod", false},
 	}
-
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			result := getDatadogHost(tt.endpoint)
-			assert.Equal(t, tt.expected, result)
+			mockConfig := configmock.New(t)
+			mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+			mockConfig.SetInTest(par.ActionsAllowlist, tt.allowlist)
+			config := &Config{ActionsAllowlist: makeActionsAllowlist(mockConfig)}
+			assert.Equal(t, tt.allowed, config.IsActionAllowed(tt.bundleID, tt.action))
 		})
 	}
 }
@@ -168,43 +151,37 @@ func TestFromDDConfig(t *testing.T) {
 		name           string
 		site           string
 		ddURL          string
-		expectedDDHost string
 		expectedDDSite string
 	}{
 		{
 			name:           "US site (datadoghq.com)",
 			site:           "datadoghq.com",
 			ddURL:          "",
-			expectedDDHost: "api.datadoghq.com",
 			expectedDDSite: "datadoghq.com",
 		},
 		{
 			name:           "EU site (datadoghq.eu)",
 			site:           "datadoghq.eu",
 			ddURL:          "",
-			expectedDDHost: "api.datadoghq.eu",
 			expectedDDSite: "datadoghq.eu",
 		},
 		{
 			name:           "Gov site (ddog-gov.com)",
 			site:           "ddog-gov.com",
 			ddURL:          "",
-			expectedDDHost: "api.ddog-gov.com",
 			expectedDDSite: "ddog-gov.com",
 		},
 		{
-			name:           "dd_url overrides site",
+			name:           "dd_url does not override site",
 			site:           "datadoghq.com",
 			ddURL:          "https://api.datadoghq.eu.",
-			expectedDDHost: "api.datadoghq.eu",
-			expectedDDSite: "datadoghq.eu",
+			expectedDDSite: "datadoghq.com",
 		},
 		{
-			name:           "custom domain via dd_url",
+			name:           "metrics proxy does not override default site",
 			site:           "",
 			ddURL:          "https://custom.endpoint.example.com.",
-			expectedDDHost: "custom.endpoint.example.com",
-			expectedDDSite: "",
+			expectedDDSite: "datadoghq.com",
 		},
 	}
 
@@ -228,14 +205,37 @@ func TestFromDDConfig(t *testing.T) {
 			cfg, err := FromDDConfig(mockConfig, nil)
 			require.NoError(t, err)
 
-			// Verify both DDHost and DatadogSite are set correctly
-			assert.Equal(t, tt.expectedDDHost, cfg.DDHost, "DDHost mismatch")
-			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite, "DatadogSite mismatch")
-
-			// Verify DDApiHost is derived from site, not from dd_url
-			assert.Equal(t, "api."+tt.expectedDDSite, cfg.DDApiHost, "DDApiHost should be api.<site>")
+			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite)
+			assert.Equal(t, "https://api."+tt.expectedDDSite, cfg.APIBaseURL)
 		})
 	}
+}
+
+func TestFromDDConfigWarnsForRCWithoutPARURL(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest(par.Enabled, true)
+	cfg.SetInTest("site", "datad0g.com")
+	for _, rcURL := range []string{"https://config.datad0g.com.", "https://config.datadoghq.com."} {
+		cfg.SetInTest("remote_configuration.rc_dd_url", rcURL)
+		warnings := captureTransformWarnings(t, func() {
+			runner, err := FromDDConfig(cfg, nil)
+			require.NoError(t, err)
+			require.Equal(t, "https://api.datad0g.com", runner.APIBaseURL)
+		})
+		require.Contains(t, warnings, "[WARN]")
+		require.Contains(t, warnings, "the RC override does not change PAR routing")
+		require.Contains(t, warnings, "Set private_action_runner.par_dd_url explicitly")
+		require.NotContains(t, warnings, "nonstandard")
+	}
+
+	cfg.SetInTest(par.RunnerURL, "https://par-proxy.example.com/prefix")
+	warnings := captureTransformWarnings(t, func() {
+		runner, err := FromDDConfig(cfg, nil)
+		require.NoError(t, err)
+		require.Equal(t, "https://par-proxy.example.com/prefix", runner.APIBaseURL)
+	})
+	require.NotContains(t, warnings, "remote_configuration.rc_dd_url")
 }
 
 func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {
@@ -433,6 +433,32 @@ func TestMakeActionsAllowlistDefaultActionsEnabled(t *testing.T) {
 
 		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
 		assert.False(t, has)
+	})
+
+	t.Run("kubeactions bundle is not allowed when its private action runner path is disabled", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		_, has := allowlist["com.datadoghq.kubernetes.kubeactions"]
+		assert.False(t, has)
+	})
+
+	t.Run("explicit allowlist entries still apply when the kubeactions private action runner path is disabled", func(t *testing.T) {
+		mockConfig := configmock.New(t)
+		mockConfig.SetInTest(par.ActionsAllowlist, []string{"com.datadoghq.kubernetes.kubeactions.getResource"})
+		mockConfig.SetInTest(par.DefaultActionsEnabled, false)
+		mockConfig.SetInTest("kubeactions.enabled", true)
+		mockConfig.SetInTest("kubeactions.private_action_runner.enabled", false)
+
+		allowlist := makeActionsAllowlist(mockConfig)
+
+		assert.True(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("getResource"))
+		assert.False(t, allowlist["com.datadoghq.kubernetes.kubeactions"].Has("deletePod"))
 	})
 }
 

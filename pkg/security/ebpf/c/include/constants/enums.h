@@ -81,6 +81,7 @@ enum event_type
     EVENT_SOCKET,
     EVENT_UNSHARE_MNTNS,
     EVENT_OTEL_PROCESS_CTX,
+    EVENT_SETNS,
     EVENT_MAX, // has to be the last one
 
     EVENT_ALL = 0xffffffff // used as a mask for all the events
@@ -115,6 +116,7 @@ enum
     RESOLVER_FLAG_APPLY_DISCARDERS = 1 << 2, // defines whether to apply the discarders or not
     RESOLVER_FLAG_BASENAME_APPROVED = 1 << 3, // defines that the dentry was approved by basename during the dentry resolution
     SAMPLE_REFRESH_NEEDED = 1 << 4, // a sample refresh event should be emitted for this dedup cookie
+    RESOLVER_FLAG_SAMPLED = 1 << 5, // defines that the event was sampled, so it bypasses the discarders
 };
 
 enum policy_mode
@@ -162,6 +164,12 @@ enum MONITOR_KEYS
 enum tls_format
 {
     DEFAULT_TLS_FORMAT
+};
+
+enum prctl_flags
+{
+    PRCTL_FLAG_SEND_EVENT = 1 << 0,
+    PRCTL_FLAG_OTEL_PROCESS_CTX = 1 << 1,
 };
 
 enum otel_runtime_language

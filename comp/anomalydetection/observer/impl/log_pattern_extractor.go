@@ -10,6 +10,7 @@ import (
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	"github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl/patterns"
+	pkgmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
 )
 
@@ -210,8 +211,8 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 		e.activePatternCount -= gc.clustersEvicted
 	}
 	message := log.GetContent()
-	groupTags := tagsForPatternGrouping(log.Tags(), log.GetHostname())
-	groupHash, cluster, ok := e.taggedClusterer.Process(groupTags, message, logUnixSec)
+	groupKey := tagGroupForPatternGrouping(log.Tags(), log.GetHostname())
+	groupHash, cluster, ok := e.taggedClusterer.Process(groupKey, message, logUnixSec)
 	// Drain LRU evictions — from per-group MaxClusters or whole-group MaxTagGroups
 	// caps. Treated identically to GC evictions: drop engine context and decrement
 	// the active-pattern count. Done unconditionally so that whole-group evictions
@@ -243,6 +244,7 @@ func (e *LogPatternExtractor) ProcessLog(log observerdef.LogView) observerdef.Lo
 	result.Metrics = []observerdef.MetricOutput{{
 		Name:       metricName,
 		Value:      1,
+		MetricType: pkgmetrics.CountType,
 		Tags:       tagset.CompositeTagsFromSlice(log.Tags()),
 		HasContext: true,
 		Context: observerdef.MetricContext{

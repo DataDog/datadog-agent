@@ -20,17 +20,20 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"testing/synctest"
 	"time"
 
 	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"google.golang.org/protobuf/proto"
 
 	gzip "github.com/DataDog/datadog-agent/comp/trace/compression/impl-gzip"
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
+	"github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/api"
@@ -183,6 +186,7 @@ func TestFormatTrace(t *testing.T) {
 		&pb.Span{
 			Resource: resource,
 			Type:     "sql",
+			Meta:     map[string]string{"db.statement": resource},
 		},
 	}
 	result := formatTrace(testTrace)[0]
@@ -192,10 +196,11 @@ func TestFormatTrace(t *testing.T) {
 	assert.NotContains(result.Resource, "42")
 	assert.Contains(result.Resource, "SELECT name FROM people WHERE age = ?")
 
-	assert.Equal(25003, len(result.Meta["sql.query"])) // Ellipsis added in quantizer
-	assert.NotEqual("Non-parsable SQL query", result.Meta["sql.query"])
-	assert.NotContains(result.Meta["sql.query"], "42")
-	assert.Contains(result.Meta["sql.query"], "SELECT name FROM people WHERE age = ?")
+	assert.NotContains(result.Meta, "sql.query")
+	assert.Equal(25003, len(result.Meta["db.statement"])) // Ellipsis added in quantizer
+	assert.NotEqual("Non-parsable SQL query", result.Meta["db.statement"])
+	assert.NotContains(result.Meta["db.statement"], "42")
+	assert.Contains(result.Meta["db.statement"], "SELECT name FROM people WHERE age = ?")
 }
 
 func TestStopWaits(t *testing.T) {
@@ -257,16 +262,19 @@ func TestStopWaits(t *testing.T) {
 
 	assert := assert.New(t)
 	assert.Len(mtw.payloads, 1)
-	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", mtw.payloads[0].TracerPayload.Chunks[0].Spans[0].Meta["sql.query"])
+	outSpan := mtw.payloads[0].TracerPayload.Chunks[0].Spans[0]
+	assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", outSpan.Resource)
+	assert.NotContains(outSpan.Meta, "sql.query")
 }
 
 func TestProcess(t *testing.T) {
 	t.Run("Replacer", func(t *testing.T) {
 		// Ensures that for "sql" type spans:
 		// • obfuscator runs before replacer
-		// • obfuscator obfuscates both resource and "sql.query" tag
+		// • obfuscator obfuscates both resource and "db.statement" tag
 		// • resulting resource is obfuscated with replacements applied
-		// • resulting "sql.query" tag is obfuscated with no replacements applied
+		// • resulting "db.statement" tag is obfuscated with no replacements applied
+		// • no "sql.query" tag is added
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"
 		cfg.ReplaceTags = []*config.ReplaceRule{{
@@ -286,6 +294,7 @@ func TestProcess(t *testing.T) {
 			Type:     "sql",
 			Start:    now.Add(-time.Second).UnixNano(),
 			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Meta:     map[string]string{"db.statement": "SELECT name FROM people WHERE age = 42 AND extra = 55"},
 		}
 
 		agnt.Process(&api.Payload{
@@ -295,7 +304,8 @@ func TestProcess(t *testing.T) {
 
 		assert := assert.New(t)
 		assert.Equal("SELECT name FROM people WHERE age = ? ...", span.Resource)
-		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["sql.query"])
+		assert.Equal("SELECT name FROM people WHERE age = ? AND extra = ?", span.Meta["db.statement"])
+		assert.NotContains(span.Meta, "sql.query")
 	})
 
 	t.Run("TracerPayloadModifier", func(t *testing.T) {
@@ -367,6 +377,132 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "...", span.Meta["request.zipcode"])
 		assert.Equal(t, "very-normal-not-sensitive-data", span.Meta["keep.me"])
 		assert.Equal(t, 42.0, span.Metrics["safe.data"])
+	})
+
+	// Replace rules must not change the env used for sampling and stats (see issue
+	// #21253). Rules named "env" are dropped when the configuration is loaded, so
+	// only "*" rules can reach the span env here.
+	envReplaceRules := []*config.ReplaceRule{{Name: "*", Re: regexp.MustCompile("tracer"), Repl: "redacted"}}
+
+	t.Run("ReplacerDoesNotChangeEnv", func(t *testing.T) {
+		// Payloads without an env take it from the span env tag, after replace
+		// rules ran (setPayloadAttributes).
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.ReplaceTags = envReplaceRules
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		span := &pb.Span{
+			TraceID:  1,
+			SpanID:   1,
+			Resource: "resource",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Meta:     map[string]string{"env": "tracer-env", "custom.tag": "tracer-value"},
+		}
+		agnt.Process(&api.Payload{
+			TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpan(span)),
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+		})
+
+		assert.Equal(t, "tracer-env", span.Meta["env"])
+		assert.Equal(t, "redacted-value", span.Meta["custom.tag"], "other tags are still replaced")
+		mco := agnt.Concentrator.(*mockConcentrator)
+		require.Len(t, mco.stats, 1)
+		require.Len(t, mco.stats[0].Traces, 1)
+		assert.Equal(t, "tracer-env", mco.stats[0].Traces[0].TracerEnv, "sampling and stats env is unchanged")
+	})
+
+	t.Run("ReplacerDoesNotChangeEnvOTLP", func(t *testing.T) {
+		// The OTLP receiver only takes the payload env from resource attributes,
+		// but spans can set it in their own attributes. The agent then takes it
+		// from the span. (The legacy receiver, disable_receive_resource_spans_v2,
+		// takes the payload env from the first span itself.)
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.ReplaceTags = envReplaceRules
+		translator, err := attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+		require.NoError(t, err)
+		cfg.OTLPReceiver.AttributesTranslator = translator
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		out := make(chan *api.Payload, 1)
+		rcv := api.NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		now := uint64(time.Now().UnixNano())
+		req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{{
+			LibName:    "lib",
+			LibVersion: "1.0",
+			Attributes: map[string]interface{}{"service.name": "svc"},
+			Spans: []*testutil.OTLPSpan{{
+				Name:       "op",
+				Start:      now - uint64(time.Second),
+				End:        now,
+				Attributes: map[string]interface{}{"deployment.environment": "tracer-env", "custom.tag": "tracer-value"},
+			}},
+		}})
+		_, err = rcv.ReceiveResourceSpans(ctx, req.Traces().ResourceSpans().At(0), http.Header{}, nil)
+		require.NoError(t, err)
+		p := <-out
+		require.Empty(t, p.TracerPayload.Env, "the payload env must come from the span for this test")
+		agnt.Process(p)
+
+		mco := agnt.Concentrator.(*mockConcentrator)
+		require.Len(t, mco.stats, 1)
+		require.Len(t, mco.stats[0].Traces, 1)
+		trace := mco.stats[0].Traces[0]
+		assert.Equal(t, "tracer-env", trace.TracerEnv, "sampling and stats env is unchanged")
+		assert.Equal(t, "tracer-env", trace.Root.Meta["env"])
+		assert.Equal(t, "redacted-value", trace.Root.Meta["custom.tag"], "other tags are still replaced")
+	})
+
+	t.Run("ReplacerDoesNotChangeEnvV1", func(t *testing.T) {
+		// Default intake path for msgpack v0.4 payloads: they are converted to V1
+		// (UnmarshalMsgConverted), and converted spans keep env both in the
+		// dedicated env field and in their attributes. The payload env is set at
+		// decode time, before replace rules run, so only the span env is at risk.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		cfg.ReplaceTags = envReplaceRules
+		ctx, cancel := context.WithCancel(context.Background())
+		agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+		defer cancel()
+
+		now := time.Now()
+		bts, err := pb.Traces{{{
+			TraceID:  1,
+			SpanID:   1,
+			Service:  "service",
+			Name:     "name",
+			Resource: "resource",
+			Start:    now.Add(-time.Second).UnixNano(),
+			Duration: (500 * time.Millisecond).Nanoseconds(),
+			Meta:     map[string]string{"env": "tracer-env", "custom.tag": "tracer-value"},
+		}}}.MarshalMsg(nil)
+		require.NoError(t, err)
+		tp := &idx.InternalTracerPayload{}
+		_, err = tp.UnmarshalMsgConverted(bts)
+		require.NoError(t, err)
+		agnt.ProcessV1(&api.PayloadV1{
+			TracerPayload: tp,
+			Source:        info.NewReceiverStats(true).GetTagStats(info.Tags{}),
+		})
+
+		mco := agnt.Concentrator.(*mockConcentrator)
+		require.Len(t, mco.statsV1, 1)
+		require.Len(t, mco.statsV1[0].Traces, 1)
+		trace := mco.statsV1[0].Traces[0]
+		assert.Equal(t, "tracer-env", trace.TracerEnv, "sampling and stats env is unchanged")
+		assert.Equal(t, "tracer-env", trace.Root.Env(), "span env is unchanged")
+		envAttr, ok := trace.Root.Attributes()[trace.Root.Strings.Lookup("env")]
+		require.True(t, ok, "converted spans keep env in their attributes")
+		assert.Equal(t, "tracer-env", envAttr.AsString(trace.Root.Strings), "span env attribute is unchanged")
+		custom, _ := trace.Root.GetAttributeAsString("custom.tag")
+		assert.Equal(t, "redacted-value", custom, "other tags are still replaced")
 	})
 
 	t.Run("Blacklister", func(t *testing.T) {
@@ -1762,7 +1898,7 @@ func TestFilteredByTags(t *testing.T) {
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			if filteredByTags(&tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex) != tt.drop {
+			if filters.FilteredByTags(&tt.span, tt.require, tt.reject, tt.requireRegex, tt.rejectRegex) != tt.drop {
 				t.Fatal()
 			}
 		})
@@ -1859,7 +1995,7 @@ func runTraceFilteringBenchmark(b *testing.B, root *pb.Span, require []*config.T
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		filteredByTags(root, require, reject, requireRegex, rejectRegex)
+		filters.FilteredByTags(root, require, reject, requireRegex, rejectRegex)
 	}
 }
 
@@ -4904,6 +5040,99 @@ func TestShutdownFlushSyncInSyncMode(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("Stats were not flushed to the server during shutdown")
 	}
+}
+
+// newForceFlushTestAgent returns a sync-flushing agent with a real concentrator
+// and stats writer, pointed at an intake that counts stats requests. Trace
+// writers are mocks.
+func newForceFlushTestAgent(t *testing.T) (*Agent, *atomic.Int32) {
+	var statsRequests atomic.Int32
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		if r.URL.Path == "/api/v0.2/stats" {
+			statsRequests.Add(1)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(srv.Close)
+
+	cfg := config.New()
+	cfg.Endpoints[0].APIKey = "test"
+	cfg.Endpoints[0].Host = srv.URL
+	cfg.SynchronousFlushing = true
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	agnt := NewAgent(ctx, cfg, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, gzip.NewComponent())
+	agnt.TraceWriter = &mockTraceWriter{apiKey: "test"}
+	agnt.TraceWriterV1 = &mockTraceWriter{apiKey: "test"}
+	go agnt.StatsWriter.Run()
+	t.Cleanup(agnt.StatsWriter.Stop)
+	return agnt, &statsRequests
+}
+
+// TestForceFlushSyncSendsOpenStatsBuckets pins that ForceFlushSync sends the
+// concentrator's open bucket, which FlushSync holds back, before returning.
+func TestForceFlushSyncSendsOpenStatsBuckets(t *testing.T) {
+	agnt, statsRequests := newForceFlushTestAgent(t)
+	span := &pb.Span{
+		Service: "svc", Name: "op", Resource: "res", TraceID: 1, SpanID: 1,
+		Start: time.Now().UnixNano(), Duration: int64(time.Millisecond),
+		Metrics: map[string]float64{"_top_level": 1},
+	}
+	agnt.Concentrator.Add(stats.Input{Traces: []traceutil.ProcessedTrace{{
+		TraceChunk: &pb.TraceChunk{Spans: []*pb.Span{span}},
+		Root:       span,
+	}}})
+
+	agnt.FlushSync()
+	require.Zero(t, statsRequests.Load(), "precondition: FlushSync holds back the open bucket")
+
+	agnt.ForceFlushSync()
+
+	assert.Equal(t, int32(1), statsRequests.Load(), "ForceFlushSync must send the open bucket")
+	assert.Equal(t, 2, agnt.TraceWriter.(*mockTraceWriter).flushed, "ForceFlushSync must flush the trace writer")
+	assert.Equal(t, 2, agnt.TraceWriterV1.(*mockTraceWriter).flushed, "ForceFlushSync must flush the v1 trace writer")
+}
+
+// TestForceFlushSyncWithOtherConcentrator pins that ForceFlushSync still
+// flushes the writers when the concentrator isn't a *stats.Concentrator, as
+// when a caller disables stats computation.
+func TestForceFlushSyncWithOtherConcentrator(t *testing.T) {
+	agnt, statsRequests := newForceFlushTestAgent(t)
+	agnt.Concentrator = &mockConcentrator{}
+
+	agnt.ForceFlushSync()
+
+	assert.Zero(t, statsRequests.Load())
+	assert.Equal(t, 1, agnt.TraceWriter.(*mockTraceWriter).flushed)
+	assert.Equal(t, 1, agnt.TraceWriterV1.(*mockTraceWriter).flushed)
+}
+
+// TestForceFlushSyncSendsOpenClientStatsBuckets pins that ForceFlushSync also
+// sends the ClientStatsAggregator's open bucket (tracer-computed stats), which
+// FlushSync holds back.
+func TestForceFlushSyncSendsOpenClientStatsBuckets(t *testing.T) {
+	agnt, statsRequests := newForceFlushTestAgent(t)
+	agnt.Concentrator = &mockConcentrator{}
+	agnt.ClientStatsAggregator.Start()
+	t.Cleanup(agnt.ClientStatsAggregator.Stop)
+
+	agnt.ClientStatsAggregator.In <- &pb.ClientStatsPayload{
+		Hostname: "host", Env: "env", Version: "v1", Lang: "go",
+		Stats: []*pb.ClientStatsBucket{{
+			Start:    uint64(time.Now().UnixNano()),
+			Duration: uint64(2 * time.Second),
+			Stats:    []*pb.ClientGroupedStats{{Service: "svc", Name: "op", Resource: "res", Hits: 1}},
+		}},
+	}
+	require.Never(t, func() bool {
+		agnt.FlushSync()
+		return statsRequests.Load() > 0
+	}, 300*time.Millisecond, 20*time.Millisecond, "precondition: FlushSync holds back the open client stats bucket")
+
+	agnt.ForceFlushSync()
+
+	assert.Equal(t, int32(1), statsRequests.Load(), "ForceFlushSync must send the open client stats bucket")
 }
 
 func TestWaitForStoppedTimeout(t *testing.T) {

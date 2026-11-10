@@ -76,6 +76,7 @@ mod tests {
             "datadog-agent-action",
             "datadog-agent-ddot",
             "datadog-agent-trace",
+            "datadog-agent-security",
             "unknown-process",
         ] {
             assert_eq!(

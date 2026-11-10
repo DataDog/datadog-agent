@@ -1,0 +1,11 @@
+description: Break with non-numeric argument exits the shell and produces an error.
+input:
+  script: |+
+    for i in a b c; do
+      break abc
+    done
+expect:
+  stdout: ""
+  stderr_contains:
+    - "break: abc: numeric argument required"
+  exit_code: 128

@@ -28,7 +28,7 @@ import (
 // NewDeploymentRolloutFactory returns a new Deployment rollout factory that provides rollout duration metrics
 func NewDeploymentRolloutFactory(client *apiserver.APIClient, rolloutTracker RolloutOperations) customresource.RegistryFactory {
 	return &deploymentRolloutFactory{
-		client:         client.Cl,
+		client:         client.InformerCl,
 		rolloutTracker: rolloutTracker,
 	}
 }

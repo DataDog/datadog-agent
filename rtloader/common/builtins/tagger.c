@@ -94,9 +94,8 @@ PyObject *tag(PyObject *self, PyObject *args)
         return NULL;
     }
 
-    if (cardinality != DATADOG_AGENT_RTLOADER_TAGGER_LOW &&
-            cardinality != DATADOG_AGENT_RTLOADER_TAGGER_ORCHESTRATOR &&
-            cardinality != DATADOG_AGENT_RTLOADER_TAGGER_HIGH) {
+    if (cardinality != DATADOG_AGENT_RTLOADER_TAGGER_LOW && cardinality != DATADOG_AGENT_RTLOADER_TAGGER_ORCHESTRATOR
+        && cardinality != DATADOG_AGENT_RTLOADER_TAGGER_HIGH) {
         PyGILState_STATE gstate = PyGILState_Ensure();
 
         // The refcount for the error type: PyExc_TypeError need not be incremented

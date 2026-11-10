@@ -135,7 +135,7 @@ static void *(*bpf_telemetry_update_patch)(unsigned long, ...) = (void *)PATCH_T
     ({                                                                              \
         void *ret = bpf_sk_storage_get(&map, sk, val, BPF_SK_STORAGE_GET_F_CREATE); \
         if (ret == NULL) {                                                          \
-            __record_map_telemetry(map, ENOMEM);                                    \
+            __record_map_telemetry(map, -ENOMEM);                                   \
         }                                                                           \
         ret;                                                                        \
     })

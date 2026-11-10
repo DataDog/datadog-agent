@@ -14,7 +14,6 @@ import (
 	"github.com/benbjohnson/clock"
 	"github.com/stretchr/testify/assert"
 	"go.yaml.in/yaml/v3"
-	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/fake"
@@ -26,10 +25,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 )
 
-func createTestConfigMap(name string) *corev1.ConfigMap {
+func createTestConfigMap(name string) *metav1.PartialObjectMetadata {
 	creationTime := metav1.NewTime(time.Date(2021, time.April, 16, 14, 30, 0, 0, time.UTC))
 
-	cm := &corev1.ConfigMap{
+	cm := &metav1.PartialObjectMetadata{
+		// The metadata API reports objects as PartialObjectMetadata.
+		TypeMeta: metav1.TypeMeta{
+			Kind:       "PartialObjectMetadata",
+			APIVersion: "meta.k8s.io/v1",
+		},
 		ObjectMeta: metav1.ObjectMeta{
 			Name:              name,
 			Namespace:         "test-namespace",
@@ -42,13 +46,6 @@ func createTestConfigMap(name string) *corev1.ConfigMap {
 			Annotations: map[string]string{
 				"annotation": "my-annotation",
 			},
-		},
-		Data: map[string]string{
-			"key1": "value1",
-			"key2": "value2",
-		},
-		BinaryData: map[string][]byte{
-			"bin-key": []byte("binary-value"),
 		},
 	}
 	cm.ManagedFields = []metav1.ManagedFieldsEntry{
@@ -83,16 +80,16 @@ func TestConfigMapHandlers_ResourceList(t *testing.T) {
 	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
 	ctx := newConfigMapProcessorContext(cfg)
 
-	resources := handlers.ResourceList(ctx, []*corev1.ConfigMap{cm1, cm2})
+	resources := handlers.ResourceList(ctx, []*metav1.PartialObjectMetadata{cm1, cm2})
 
 	assert.Len(t, resources, 2)
 
-	r1, ok := resources[0].(*corev1.ConfigMap)
+	r1, ok := resources[0].(*metav1.PartialObjectMetadata)
 	assert.True(t, ok)
 	assert.Equal(t, "cm-1", r1.Name)
 	assert.Same(t, cm1, r1)
 
-	r2, ok := resources[1].(*corev1.ConfigMap)
+	r2, ok := resources[1].(*metav1.PartialObjectMetadata)
 	assert.True(t, ok)
 	assert.Equal(t, "cm-2", r2.Name)
 	assert.Same(t, cm2, r2)
@@ -179,8 +176,6 @@ func TestConfigMapHandlers_ScrubBeforeMarshalling(t *testing.T) {
 	handlers := NewConfigMapHandlers()
 
 	cm := createTestConfigMap("test-cm")
-	assert.NotEmpty(t, cm.Data)
-	assert.NotEmpty(t, cm.BinaryData)
 	assert.NotEmpty(t, cm.ManagedFields)
 
 	cfg := orchestratorconfig.NewDefaultOrchestratorConfig(nil)
@@ -188,8 +183,6 @@ func TestConfigMapHandlers_ScrubBeforeMarshalling(t *testing.T) {
 
 	handlers.ScrubBeforeMarshalling(ctx, cm)
 
-	assert.Nil(t, cm.Data)
-	assert.Nil(t, cm.BinaryData)
 	assert.Nil(t, cm.ManagedFields)
 }
 
@@ -199,18 +192,16 @@ func TestConfigMapHandlers_CloneResource(t *testing.T) {
 	original := createTestConfigMap("test-cm")
 	cloned := handlers.CloneResource(original)
 
-	clonedTyped, ok := cloned.(*corev1.ConfigMap)
+	clonedTyped, ok := cloned.(*metav1.PartialObjectMetadata)
 	assert.True(t, ok)
 	assert.NotSame(t, original, clonedTyped)
 	assert.Equal(t, original, clonedTyped)
 
 	// Mutating the clone must not affect the original (informer cache protection).
-	clonedTyped.Data = nil
-	clonedTyped.BinaryData = nil
 	clonedTyped.ManagedFields = nil
-	assert.NotEmpty(t, original.Data)
-	assert.NotEmpty(t, original.BinaryData)
+	clonedTyped.Annotations["annotation"] = "changed"
 	assert.NotEmpty(t, original.ManagedFields)
+	assert.Equal(t, "my-annotation", original.Annotations["annotation"])
 }
 
 func TestConfigMapHandlers_BuildManifestMessageBody(t *testing.T) {
@@ -262,7 +253,7 @@ func TestConfigMapProcessor_Process(t *testing.T) {
 	ctx := newConfigMapProcessorContext(cfg)
 
 	processor := processors.NewProcessor(NewConfigMapHandlers())
-	result, listed, processed := processor.Process(ctx, []*corev1.ConfigMap{cm1, cm2})
+	result, listed, processed := processor.Process(ctx, []*metav1.PartialObjectMetadata{cm1, cm2})
 
 	assert.Equal(t, 2, listed)
 	assert.Equal(t, 2, processed)
@@ -286,12 +277,14 @@ func TestConfigMapProcessor_Process(t *testing.T) {
 	assert.Equal(t, "v1", manifest1.Version)
 	assert.Equal(t, "json", manifest1.ContentType)
 
-	// Data and BinaryData must be absent from the emitted manifest.
+	// The manifest is emitted as a ConfigMap, not as PartialObjectMetadata.
 	var parsed map[string]interface{}
 	err := yaml.Unmarshal(manifest1.Content, &parsed)
 	assert.NoError(t, err)
-	assert.NotContains(t, parsed, "data", "data must be stripped before marshalling")
-	assert.NotContains(t, parsed, "binaryData", "binaryData must be stripped before marshalling")
+	assert.Equal(t, "ConfigMap", parsed["kind"])
+	assert.Equal(t, "v1", parsed["apiVersion"])
+	assert.NotContains(t, parsed, "data")
+	assert.NotContains(t, parsed, "binaryData")
 
 	metadata, ok := parsed["metadata"].(map[string]interface{})
 	assert.True(t, ok)
@@ -299,7 +292,7 @@ func TestConfigMapProcessor_Process(t *testing.T) {
 	assert.Equal(t, "cm-1", metadata["name"])
 	assert.Equal(t, string(cm1.UID), metadata["uid"])
 
-	// Verify the informer cache is unaffected: the originals still have their data.
-	assert.NotEmpty(t, cm1.Data)
-	assert.NotEmpty(t, cm1.BinaryData)
+	// Verify the informer cache is unaffected.
+	assert.Equal(t, "PartialObjectMetadata", cm1.Kind)
+	assert.NotEmpty(t, cm1.ManagedFields)
 }

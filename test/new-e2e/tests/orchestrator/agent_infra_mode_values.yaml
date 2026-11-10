@@ -22,3 +22,4 @@ clusterAgent:
           - deployments
   envDict:
     DD_INFRASTRUCTURE_MODE: cloud_cost_only
+    DD_COLLECT_KUBERNETES_EVENTS: true

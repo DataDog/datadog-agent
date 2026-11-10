@@ -4,7 +4,19 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 pkg_files(
     name = "static_files",
-    srcs = glob(["views/private/**"]),
+    srcs = select({
+        # fontawesome-webfont.svg is the last @font-face fallback in
+        # font-awesome.min.css, only reachable by browsers that support neither
+        # woff2, woff nor ttf (pre-2011 mobile browsers). None can run on the
+        # Windows versions the MSI supports, so it is not shipped on Windows.
+        # On other platforms we keep it, as we do not control the browser that
+        # renders the GUI there.
+        "@platforms//os:windows": glob(
+            ["views/private/**"],
+            exclude = ["views/private/fonts/fontawesome-webfont.svg"],
+        ),
+        "//conditions:default": glob(["views/private/**"]),
+    }),
     prefix = "bin/agent/dist/views",
     strip_prefix = strip_prefix.from_pkg("views/private"),
 )

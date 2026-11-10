@@ -1,0 +1,14 @@
+# skip: command-not-found error format differs from bash (no script:line prefix)
+skip_assert_against_bash: true
+description: Exit code from failed command is available in $?.
+input:
+  script: |+
+    nonexistent_cmd_xyz
+    echo "$?"
+expect:
+  stdout: |+
+    127
+  stderr: |+
+    rshell: nonexistent_cmd_xyz: unknown command
+    Run 'help' to see available commands.
+  exit_code: 0

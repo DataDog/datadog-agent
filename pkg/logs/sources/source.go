@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	status "github.com/DataDog/datadog-agent/pkg/logs/status/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/statstracker"
+	"go.uber.org/atomic"
 )
 
 // SourceType used for log line parsing logic.
@@ -48,9 +49,12 @@ type LogSource struct {
 	// LatencyStats tracks internal stats on the time spent by messages from this source in a processing pipeline, i.e.
 	// the duration between when a message is decoded by the tailer/listener/decoder and when the message is handled by a sender
 	LatencyStats     *statstracker.Tracker
-	BytesRead        *status.CountInfo
+	BytesRead        atomic.Int64
 	ProcessingInfo   *status.ProcessingInfo
 	hiddenFromStatus bool
+	// tagFilterState is read on every message, so it's cached behind an atomic
+	// pointer rather than lock.
+	tagFilterState atomic.Pointer[tagFilterState]
 }
 
 // NewLogSource creates a new log source.
@@ -62,13 +66,11 @@ func NewLogSource(name string, cfg *config.LogsConfig) *LogSource {
 		inputs:           make(map[string]bool),
 		lock:             &sync.Mutex{},
 		Messages:         config.NewMessages(),
-		BytesRead:        status.NewCountInfo("Bytes Read"),
 		ProcessingInfo:   status.NewProcessingInfo(),
 		info:             status.NewInfoRegistry(),
 		LatencyStats:     statstracker.NewTracker(time.Hour*24, time.Hour),
 		hiddenFromStatus: false,
 	}
-	source.RegisterInfo(source.BytesRead)
 	source.RegisterInfo(source.ProcessingInfo)
 	source.RegisterInfo(source.LatencyStats)
 	return source
@@ -171,6 +173,26 @@ func (s *LogSource) GetInfoStatus() map[string][]string {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	return s.info.Rendered()
+}
+
+type tagFilterState struct {
+	filter TagFilter
+}
+
+// TagFilter returns the tag filter currently cached for this source, without
+// resolving it, and whether resolution has happened.
+func (s *LogSource) TagFilter() (TagFilter, bool) {
+	state := s.tagFilterState.Load()
+	if state == nil {
+		return nil, false
+	}
+	return state.filter, true
+}
+
+// SetTagFilterIfUnset caches f if this source has not already been resolved.
+// It returns true only to the caller that installs the filter.
+func (s *LogSource) SetTagFilterIfUnset(f TagFilter) bool {
+	return s.tagFilterState.CompareAndSwap(nil, &tagFilterState{filter: f})
 }
 
 // HideFromStatus hides the source from the status output

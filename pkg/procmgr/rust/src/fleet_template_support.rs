@@ -37,9 +37,18 @@ pub(crate) fn load_template(template: &str, name: &str, etc: &Path) -> ProcessCo
 
     let catalog = tempfile::tempdir().expect("tempdir");
     std::fs::write(catalog.path().join(format!("{name}.yaml")), rendered).expect("write yaml");
-    let mut definitions = load_configs(catalog.path()).expect("load catalog");
-    assert_eq!(definitions.len(), 1, "expected exactly one process");
-    definitions.remove(0).config
+    let catalog_load = load_configs(catalog.path()).expect("load catalog");
+    assert!(
+        catalog_load.invalid.is_empty(),
+        "shipped template must parse: {:?}",
+        catalog_load.invalid
+    );
+    assert_eq!(
+        catalog_load.processes.len(),
+        1,
+        "expected exactly one process"
+    );
+    catalog_load.processes.into_iter().next().unwrap().config
 }
 
 pub(crate) fn sorted(keys: &[String]) -> Vec<String> {

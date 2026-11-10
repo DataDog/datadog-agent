@@ -19,6 +19,7 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/sds"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	pgcomp "github.com/DataDog/datadog-agent/test/e2e-framework/components/integration/postgres"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -60,7 +61,8 @@ func TestPostgresScanFixtures(t *testing.T) {
 
 func TestDataSecurityPostgresScan(t *testing.T) {
 	t.Parallel()
-	e2e.Run(t, &postgresScanSuite{}, e2e.WithPulumiProvisioner(postgresScanProvisioner(), nil))
+	e2e.Run(t, &postgresScanSuite{}, e2e.WithPulumiProvisioner(
+		postgresScanProvisioner(agentparams.WithIntegration("datasecurity.d", datasecurityCheckYAML())), nil))
 }
 
 func (s *postgresScanSuite) TestPackagedCheckLoadsAndEmitsSDSResult() {
@@ -169,6 +171,9 @@ func sdsSubTaskID(p *sds.SdsResultPayload) string {
 }
 
 func assertSDSResultsEqual(t require.TestingT, scenario, id string, want, got []*sds.SdsResultPayload) {
+	for _, g := range got {
+		assertScanTimes(t, g)
+	}
 	want = comparableSDSResults(want)
 	got = comparableSDSResults(got)
 	require.NotEmpty(t, got, "missing sds-result for scenario %q sub_task %s", scenario, id)
@@ -203,13 +208,27 @@ func comparableSDSResults(in []*sds.SdsResultPayload) []*sds.SdsResultPayload {
 	return out
 }
 
+// assertScanTimes checks the run-dependent scan timing is reported and consistent.
+func assertScanTimes(t require.TestingT, p *sds.SdsResultPayload) {
+	for _, result := range p.GetScanResults() {
+		meta := result.GetScanMetadata().GetScanTaskMetadata()
+		require.NotNil(t, meta.GetStartedAt(), "missing started_at")
+		require.NotNil(t, meta.GetEndedAt(), "missing ended_at")
+		elapsed := meta.GetEndedAt().AsTime().Sub(meta.GetStartedAt().AsTime())
+		assert.Equal(t, elapsed.Milliseconds(), result.GetDuration(), "duration (ms) should match ended_at - started_at")
+	}
+}
+
 // comparableSDSResult is the single place that strips fields we do not assert
-// (timestamp, failure_reason) before proto.Equal.
+// (timestamp, scan timing, failure_reason) before proto.Equal.
 func comparableSDSResult(p *sds.SdsResultPayload) *sds.SdsResultPayload {
 	out := proto.Clone(p).(*sds.SdsResultPayload)
 	out.Timestamp = 0
 	for _, result := range out.GetScanResults() {
+		result.Duration = 0
 		if meta := result.GetScanMetadata().GetScanTaskMetadata(); meta != nil {
+			meta.StartedAt = nil
+			meta.EndedAt = nil
 			meta.FailureReason = nil
 		}
 	}

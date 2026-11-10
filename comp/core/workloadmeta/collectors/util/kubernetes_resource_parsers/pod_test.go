@@ -9,6 +9,7 @@ package kubernetesresourceparsers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -141,6 +142,48 @@ func TestPodParser_Parse(t *testing.T) {
 		cmp.Equal(expected, parsed, opt),
 		cmp.Diff(expected, parsed, opt),
 	)
+}
+
+func TestResizeConditionsFromPodConditions(t *testing.T) {
+	transition := metav1.NewTime(time.Date(2026, 10, 19, 19, 28, 50, 0, time.UTC))
+
+	tests := []struct {
+		name       string
+		conditions []corev1.PodCondition
+		want       []workloadmeta.KubernetesPodCondition
+	}{
+		{
+			name:       "no conditions",
+			conditions: nil,
+			want:       nil,
+		},
+		{
+			name: "non-resize conditions are dropped",
+			conditions: []corev1.PodCondition{
+				{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+				{Type: corev1.PodScheduled, Status: corev1.ConditionTrue},
+			},
+			want: nil,
+		},
+		{
+			name: "pending and in-progress are kept, others dropped",
+			conditions: []corev1.PodCondition{
+				{Type: corev1.PodReady, Status: corev1.ConditionTrue},
+				{Type: corev1.PodResizePending, Status: corev1.ConditionTrue, Reason: corev1.PodReasonInfeasible, LastTransitionTime: transition},
+				{Type: corev1.PodResizeInProgress, Status: corev1.ConditionTrue, Reason: corev1.PodReasonError},
+			},
+			want: []workloadmeta.KubernetesPodCondition{
+				{Type: "PodResizePending", Status: "True", Reason: "Infeasible", LastTransitionTime: transition.Time},
+				{Type: "PodResizeInProgress", Status: "True", Reason: "Error"},
+			},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, ResizeConditionsFromPodConditions(tt.conditions))
+		})
+	}
 }
 
 func TestResizePolicyFromContainerResizePolicy(t *testing.T) {

@@ -31,7 +31,7 @@ const (
 )
 
 type upgradeScenarioSuite struct {
-	packageBaseSuite
+	*packageBaseSuite
 }
 
 type packageEntry struct {
@@ -79,8 +79,9 @@ const (
 )
 
 func testUpgradeScenario(os e2eos.Descriptor, arch e2eos.Architecture, method InstallMethodOption) packageSuite {
+	baseSuite := newPackageSuite("upgrade_scenario", os, arch, method)
 	return &upgradeScenarioSuite{
-		packageBaseSuite: newPackageSuite("upgrade_scenario", os, arch, method),
+		packageBaseSuite: &baseSuite,
 	}
 }
 
@@ -160,10 +161,12 @@ func (s *upgradeScenarioSuite) TestFipsUpgradeFromDebRPM() {
 		s.T().Skip("Exercise FIPS promotion on the Ubuntu amd64 and arm64 install-script hosts")
 	}
 
-	s.RunInstallScript("DD_AGENT_FLAVOR=datadog-fips-agent")
+	s.RunInstallScript("DD_AGENT_FLAVOR=datadog-fips-agent", "DD_OTELCOLLECTOR_ENABLED=true")
 	defer s.Purge()
 	s.host.AssertPackageInstalledByPackageManager("datadog-fips-agent")
-	s.Env().RemoteHost.MustExecute(`printf '\nremote_updates: true\nremote_configuration:\n  enabled: true\n' | sudo tee -a /etc/datadog-agent/datadog.yaml`)
+	// The legacy install script does not forward the pipeline version to the DDOT download.
+	s.Env().RemoteHost.MustExecute("sudo datadog-installer extension install oci://installtesting.datad0g.com.internal.dda-testing.com/agent-package:pipeline-" + os.Getenv("E2E_PIPELINE_ID") + " ddot")
+	s.Env().RemoteHost.MustExecute(`printf '\nremote_updates: true\nremote_configuration:\n  enabled: true\ninstaller:\n  registry:\n    url: installtesting.datad0g.com.internal.dda-testing.com\n' | sudo tee -a /etc/datadog-agent/datadog.yaml`)
 	s.Env().RemoteHost.MustExecute("sudo systemctl restart datadog-agent")
 	s.host.WaitForUnitActive(s.T(), agentUnit, installerUnit)
 	s.setCatalog(s.testCatalog())
@@ -179,6 +182,13 @@ func (s *upgradeScenarioSuite) TestFipsUpgradeFromDebRPM() {
 	s.assertSuccessfulAgentPromoteExperiment(timestamp, s.pipelineAgentVersion)
 	state := s.host.State()
 	state.AssertPathDoesNotExist("/opt/datadog-agent")
+
+	s.Env().RemoteHost.MustExecute("sudo -u dd-agent /opt/datadog-packages/datadog-agent/stable/ext/ddot/embedded/bin/otel-agent version")
+	if s.host.ProcmgrEnabled() {
+		s.host.WaitForProcessesRunning(s.T(), ddotProcess)
+	} else {
+		s.host.WaitForUnitActive(s.T(), ddotUnit)
+	}
 
 	// Match the daemon's user IDs; running as root would hide this library-loading failure.
 	s.EventuallyWithT(func(c *assert.CollectT) {
@@ -493,9 +503,7 @@ func (s *upgradeScenarioSuite) stopExperiment(pkg packageName) (string, error) {
 
 func (s *upgradeScenarioSuite) setCatalog(newCatalog catalog) {
 	serializedCatalog, err := json.Marshal(newCatalog)
-	if err != nil {
-		s.T().Fatal(err)
-	}
+	s.Require().NoError(err)
 	s.T().Logf("Running: daemon set-catalog '%s'", string(serializedCatalog))
 
 	assert.Eventually(s.T(), func() bool {
@@ -585,9 +593,7 @@ func (s *upgradeScenarioSuite) getInstallerStatusLegacy() installerStatus {
 
 	var statusLegacy installerStatusLegacy
 	err := json.Unmarshal([]byte(response), &statusLegacy)
-	if err != nil {
-		s.T().Fatal(err)
-	}
+	s.Require().NoError(err)
 	// Legacy status handling
 	for k, pkg := range statusLegacy.Packages {
 		if pkg.LegacyVersionStable != "" || pkg.LegacyVersionExperiment != "" {

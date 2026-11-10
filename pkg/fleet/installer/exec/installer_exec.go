@@ -185,9 +185,6 @@ func (i *InstallerExec) InstallConfigExperiment(
 	if err != nil {
 		return fmt.Errorf("error marshalling config operations: %w", err)
 	}
-	cmdLineArgs := []string{pkg, string(operationsBytes)}
-	cmd := i.newInstallerCmd(ctx, "install-config-experiment", cmdLineArgs...)
-
 	if secrets == nil {
 		secrets = make(map[string]string)
 	}
@@ -195,6 +192,11 @@ func (i *InstallerExec) InstallConfigExperiment(
 	if err != nil {
 		return fmt.Errorf("error marshalling decrypted secrets: %w", err)
 	}
+
+	// Operations go through stdin rather than the command line, which Windows caps
+	// at 32,767 characters.
+	stdinPayload := append(append(operationsBytes, '\n'), secretsBytes...)
+	cmd := i.newInstallerCmd(ctx, "install-config-experiment", pkg)
 
 	// Capture stderr so a failed run surfaces the installer's error (e.g. which
 	// config file failed to parse and why) instead of a bare "exit status N".
@@ -213,11 +215,9 @@ func (i *InstallerExec) InstallConfigExperiment(
 		return fmt.Errorf("error starting command: %w", err)
 	}
 
-	// Write secrets to stdin
-	if _, err = stdinPipe.Write(secretsBytes); err != nil {
-		stdinPipe.Close()
-		return fmt.Errorf("error writing secrets to stdin: %w", err)
-	}
+	// A child that exits before draining stdin makes the write fail; its stderr
+	// is the more useful error, so wait for it before reporting the write error.
+	_, writeErr := stdinPipe.Write(stdinPayload)
 	stdinPipe.Close()
 
 	if err = cmd.Wait(); err != nil {
@@ -226,6 +226,10 @@ func (i *InstallerExec) InstallConfigExperiment(
 		}
 		installerError := installerErrors.FromJSON(strings.TrimSpace(errBuf.String()))
 		return fmt.Errorf("%w \n%s", installerError, err.Error())
+	}
+	if writeErr != nil {
+		err = fmt.Errorf("error writing to stdin: %w", writeErr)
+		return err
 	}
 	return nil
 }

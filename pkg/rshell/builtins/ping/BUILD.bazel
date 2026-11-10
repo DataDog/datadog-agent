@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ping",
+    srcs = ["ping.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/ping",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "@com_github_prometheus_community_pro_bing//:pro-bing",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ping_test",
+    srcs = [
+        "builtin_ping_pentest_test.go",
+        "ping_fuzz_test.go",
+        "ping_internal_test.go",
+        "ping_test.go",
+    ],
+    embed = [":ping"],
+    deps = [
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+        "@com_github_stretchr_testify//assert",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

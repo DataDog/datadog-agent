@@ -1,0 +1,71 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "fx",
+    srcs = ["fx.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/fx",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:android": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:dragonfly": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:freebsd": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:illumos": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:js": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:linux": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:netbsd": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:openbsd": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:osx": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:plan9": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:qnx": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "@rules_go//go/platform:solaris": [
+            "//comp/metadata/serverlessinit/impl",
+            "//pkg/util/fxutil",
+        ],
+        "//conditions:default": [],
+    }),
+)

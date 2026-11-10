@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/model"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -60,7 +60,7 @@ func (c *PRMCache) Refresh() error {
 		return nil
 	}
 
-	responses, err := sysprobeclient.Post[[]model.PRMResponse](c.client, "/prm-metrics", c.requests, sysconfig.GPUMonitoringModule)
+	responses, err := sysprobeclient.Post[[]model.PRMResponse](c.client, "/prm-metrics", c.requests, sysconfigtypes.GPUMonitoringModule)
 	if err != nil {
 		c.responses = map[prmCacheKey]prmCacheEntry{}
 		if sysprobeclient.IgnoreStartupError(err) == nil {

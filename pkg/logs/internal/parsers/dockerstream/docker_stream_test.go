@@ -75,6 +75,21 @@ func TestDockerStandaloneParserShouldHandleEmptyTtyMessage(t *testing.T) {
 	assert.Equal(t, 0, len(msg.GetContent()))
 }
 
+func TestDockerStandaloneParserEmptyMessageKeepsIngestionTimestamp(t *testing.T) {
+	for _, content := range []string{
+		dockerHeader,
+		dockerHeader + " \\n",
+		"2018-06-14T18:27:03.246999277Z",
+		"2018-06-14T18:27:03.246999277Z \\r\\n",
+	} {
+		logMessage := message.NewMessage([]byte(content), nil, "", 1234)
+		msg, err := container1Parser.Parse(logMessage)
+		assert.NoError(t, err)
+		assert.False(t, msg.HasContent())
+		assert.Equal(t, int64(1234), msg.IngestionTimestamp, "content %q", content)
+	}
+}
+
 func TestDockerStandaloneParserShouldFailWithInvalidInput(t *testing.T) {
 	var msg []byte
 	var err error

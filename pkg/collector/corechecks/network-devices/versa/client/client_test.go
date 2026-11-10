@@ -8,9 +8,13 @@
 package client
 
 import (
+	"io"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/versa/client/fixtures"
 	"github.com/stretchr/testify/require"
@@ -717,8 +721,8 @@ func TestGetSLAMetricsPagination(t *testing.T) {
 	require.NoError(t, err)
 
 	// Override client settings to test pagination
-	client.maxCount = "2" // Small page size to force pagination
-	client.maxPages = 5   // Allow enough pages
+	client.maxCount = 2 // Small page size to force pagination
+	client.maxPages = 5 // Allow enough pages
 
 	// TODO: remove this override when single auth method is being used
 	client.directorEndpoint = server.URL
@@ -740,8 +744,8 @@ func TestGetSLAMetricsPaginationWithMaxPages(t *testing.T) {
 	require.NoError(t, err)
 
 	// Override client settings - limit to 1 page only
-	client.maxCount = "2" // Small page size
-	client.maxPages = 1   // Only allow 1 page
+	client.maxCount = 2 // Small page size
+	client.maxPages = 1 // Only allow 1 page
 
 	// TODO: remove this override when single auth method is being used
 	client.directorEndpoint = server.URL
@@ -765,8 +769,8 @@ func TestGetSLAMetricsPaginationEmptyResponse(t *testing.T) {
 	require.NoError(t, err)
 
 	// Override client settings to start from a high offset
-	client.maxCount = "100" // Large page size to get all data in first page
-	client.maxPages = 5     // Allow enough pages
+	client.maxCount = 100 // Large page size to get all data in first page
+	client.maxPages = 5   // Allow enough pages
 
 	// TODO: remove this override when single auth method is being used
 	client.directorEndpoint = server.URL
@@ -822,4 +826,139 @@ func TestGetAnalyticsInterfacesEmptyTenant(t *testing.T) {
 	_, err = client.GetAnalyticsInterfaces("")
 	require.Error(t, err)
 	require.Contains(t, err.Error(), "tenant cannot be empty")
+}
+
+func TestParseEndpoint(t *testing.T) {
+	endpoint, err := ParseEndpoint("sla_metrics")
+	require.NoError(t, err)
+	require.Equal(t, EndpointSLAMetrics, endpoint)
+
+	_, err = ParseEndpoint("sla")
+	require.ErrorContains(t, err, `unknown endpoint "sla"`)
+}
+
+func TestEndpointConfig(t *testing.T) {
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "testuser",
+		Password: "testpass",
+	}
+	client, err := NewClient("10.0.0.1", 0, "10.0.0.2", false, authConfig,
+		WithMaxCount(500),
+		WithMaxPages(10),
+		WithTimeout(20*time.Second),
+		WithEndpointConfig(EndpointSLAMetrics, EndpointConfig{MaxCount: 100, Timeout: time.Minute}),
+	)
+	require.NoError(t, err)
+
+	// client-wide timeout applies to the underlying HTTP client (used by auth requests)
+	require.Equal(t, 20*time.Second, client.httpClient.Timeout)
+
+	// overridden fields are applied, unset fields inherit client-wide settings
+	require.Equal(t, EndpointConfig{MaxCount: 100, MaxPages: 10, Timeout: time.Minute}, client.endpointConfig(EndpointSLAMetrics))
+	// endpoints without an override use client-wide settings
+	require.Equal(t, EndpointConfig{MaxCount: 500, MaxPages: 10, Timeout: 20 * time.Second}, client.endpointConfig(EndpointTunnelMetrics))
+}
+
+func TestGetSLAMetricsPaginationWithEndpointOverride(t *testing.T) {
+	server := SetupPaginationMockAPIServer()
+	defer server.Close()
+
+	// client-wide settings would return all 3 items in a single page
+	client, err := testClient(server,
+		WithMaxCount(100),
+		WithMaxPages(5),
+		WithEndpointConfig(EndpointSLAMetrics, EndpointConfig{MaxCount: 2, MaxPages: 1}),
+		// overrides for other endpoints must not leak into SLA requests
+		WithEndpointConfig(EndpointTunnelMetrics, EndpointConfig{MaxCount: 1}),
+	)
+	require.NoError(t, err)
+
+	// TODO: remove this override when single auth method is being used
+	client.directorEndpoint = server.URL
+
+	slaMetrics, err := client.GetSLAMetrics("datadog")
+	require.NoError(t, err)
+
+	// SLA override limits the request to a single page of 2 items
+	require.Equal(t, 2, len(slaMetrics))
+}
+
+// delayedTransport responds after a delay, or fails once the request context is
+// cancelled (which is how http.Client enforces its Timeout)
+type delayedTransport struct {
+	delay time.Duration
+	body  string
+}
+
+func (d *delayedTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	select {
+	case <-time.After(d.delay):
+		return &http.Response{
+			StatusCode: http.StatusOK,
+			Header:     http.Header{"Content-Type": []string{"application/json"}},
+			Body:       io.NopCloser(strings.NewReader(d.body)),
+			Request:    req,
+		}, nil
+	case <-req.Context().Done():
+		return nil, req.Context().Err()
+	}
+}
+
+func TestEndpointTimeout(t *testing.T) {
+	tests := []struct {
+		name        string
+		options     []ClientOptions
+		expectedErr string
+	}{
+		{
+			name:        "client-wide timeout exceeded",
+			options:     []ClientOptions{WithTimeout(50 * time.Millisecond)},
+			expectedErr: "context deadline exceeded",
+		},
+		{
+			name: "endpoint override longer than client-wide timeout",
+			options: []ClientOptions{
+				WithTimeout(50 * time.Millisecond),
+				WithEndpointConfig(EndpointDirectorStatus, EndpointConfig{Timeout: 5 * time.Second}),
+			},
+		},
+		{
+			name: "endpoint override shorter than client-wide timeout",
+			options: []ClientOptions{
+				WithTimeout(5 * time.Second),
+				WithEndpointConfig(EndpointDirectorStatus, EndpointConfig{Timeout: 50 * time.Millisecond}),
+			},
+			expectedErr: "context deadline exceeded",
+		},
+	}
+
+	authConfig := AuthConfig{
+		Method:   "basic",
+		Username: "testuser",
+		Password: "testpass",
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			// synctest uses virtual time, so the 200ms response delay and the
+			// client timeouts are deterministic regardless of CI load
+			synctest.Test(t, func(t *testing.T) {
+				client, err := NewClient("10.0.0.1", 9182, "10.0.0.2:8443", true, authConfig, append(tt.options, WithMaxAttempts(1))...)
+				require.NoError(t, err)
+				client.httpClient.Transport = &delayedTransport{
+					delay: 200 * time.Millisecond,
+					body:  fixtures.GetDirectorStatus,
+				}
+
+				status, err := client.GetDirectorStatus()
+				if tt.expectedErr != "" {
+					require.ErrorContains(t, err, tt.expectedErr)
+					return
+				}
+				require.NoError(t, err)
+				require.NotNil(t, status)
+			})
+		})
+	}
 }

@@ -31,7 +31,7 @@ type AgentError struct {
 }
 
 // Error satisfies the error interface
-func (e AgentError) Error() string {
+func (e *AgentError) Error() string {
 	return e.message
 }
 

@@ -1,0 +1,31 @@
+description: ls --limit caps the number of entries returned.
+# skip: pagination flags are an rshell-specific extension not present in the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: f01
+      content: ""
+      chmod: 0644
+    - path: f02
+      content: ""
+      chmod: 0644
+    - path: f03
+      content: ""
+      chmod: 0644
+    - path: f04
+      content: ""
+      chmod: 0644
+    - path: f05
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls --limit 3
+expect:
+  stdout: |+
+    f01
+    f02
+    f03
+  stderr: ""
+  exit_code: 0

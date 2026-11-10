@@ -8,7 +8,6 @@ package networkconfigmanagementimpl
 import (
 	"context"
 	"fmt"
-	"time"
 
 	ncmconfig "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/config"
 	ncmprofile "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/profile"
@@ -34,15 +33,12 @@ var _ types.RollbackError = (*UnknownDeviceError)(nil)
 // fetching and locking them.
 type DeviceMap struct {
 	devices *Map[*DeviceContext]
-	timeout time.Duration
 }
 
-// NewDeviceMap creates an empty DeviceMap. timeout is the maximum time to wait
-// for a device lock when calling RegisterDevice or GetAndLock.
-func NewDeviceMap(timeout time.Duration) *DeviceMap {
+// NewDeviceMap creates an empty DeviceMap.
+func NewDeviceMap() *DeviceMap {
 	return &DeviceMap{
 		devices: NewMap[*DeviceContext](),
-		timeout: timeout,
 	}
 }
 
@@ -55,7 +51,7 @@ func (d *DeviceMap) RegisterDevice(ctx context.Context, device *ncmconfig.Device
 		// it doesn't need to be reset.
 		return nil
 	}
-	err := dc.Lock(ctx, d.timeout)
+	err := dc.Lock(ctx, deviceTimeout)
 	if err != nil {
 		return err
 	}
@@ -81,7 +77,7 @@ func (d *DeviceMap) GetAndLock(ctx context.Context, deviceID string) (*DeviceCon
 	if err != nil {
 		return nil, err
 	}
-	err = dc.Lock(ctx, d.timeout)
+	err = dc.Lock(ctx, deviceTimeout)
 	if err != nil {
 		return nil, err
 	}

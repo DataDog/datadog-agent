@@ -159,7 +159,7 @@ func (l *NamedPipeListener) listen() {
 			buffer := l.packetManager.CreateBuffer()
 			go l.listenConnection(conn, buffer)
 
-		case errors.Is(err, winio.ErrPipeListenerClosed):
+		case errors.Is(err, net.ErrClosed):
 			{
 				// Called when the pipe listener is closed from Stop()
 				log.Debug("dogstatsd-named-pipes: stop listening")

@@ -22,6 +22,7 @@ import (
 
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/containersorpods"
 	"github.com/DataDog/datadog-agent/pkg/logs/internal/util/opener"
@@ -33,9 +34,10 @@ import (
 )
 
 var (
-	podLogsBasePath       = "/var/log/pods"
-	dockerLogsBasePathNix = "/var/lib/docker"
-	dockerLogsBasePathWin = "c:\\programdata\\docker"
+	podLogsBasePath         = "/var/log/pods"
+	dockerLogsBasePathNix   = "/var/lib/docker"
+	dockerLogsBasePathWin   = "c:\\programdata\\docker"
+	ecsJSONFileLogsBasePath = "/var/log/ecs/json-file"
 )
 
 // makeFileTailer makes a file-based tailer for the given source, or returns
@@ -71,6 +73,13 @@ func (tf *factory) makeFileSource(source *sources.LogSource) (*sources.LogSource
 			return tf.makeDockerFileSource(source)
 		case "podman":
 			return tf.makeDockerFileSource(source)
+		case config.ContainerdType:
+			// Only ECS Managed Instances daemons read containerd containers'
+			// logs from files; the json-file log driver writes the Docker format.
+			if env.IsECSManagedInstancesDaemonMode(pkgconfigsetup.Datadog()) {
+				return tf.makeDockerFileSource(source)
+			}
+			fallthrough
 		default:
 			return nil, fmt.Errorf("file tailing is not supported for source type %s", source.Config.Type)
 		}
@@ -121,14 +130,19 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		return nil, err
 	}
 
-	// check access to the file; if it is not readable, then returning an error will
-	// try to fall back to reading from a socket.
-	f, err := opener.OpenLogFile(path)
-	if err != nil {
-		// (this error already has the form 'open <path>: ..' so needs no further embellishment)
-		return nil, err
+	// The json-file log driver creates its file after the Agent first sees the
+	// container, and the path is a wildcard that cannot be opened. The file
+	// launcher rescans until the file appears, so skip the access check.
+	if !usesECSJSONFileLogs() {
+		// check access to the file; if it is not readable, then returning an error will
+		// try to fall back to reading from a socket.
+		f, err := opener.OpenLogFile(path)
+		if err != nil {
+			// (this error already has the form 'open <path>: ..' so needs no further embellishment)
+			return nil, err
+		}
+		f.Close()
 	}
-	f.Close()
 
 	sourceName, serviceName := tf.defaultSourceAndService(source, containersorpods.LogContainers)
 
@@ -142,6 +156,7 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 		Source:                        sourceName,
 		Encoding:                      source.Config.Encoding,
 		Tags:                          source.Config.Tags,
+		TagFilters:                    source.Config.TagFilters,
 		ProcessingRules:               source.Config.ProcessingRules,
 		FingerprintConfig:             source.Config.FingerprintConfig,
 		Format:                        source.Config.Format,
@@ -164,6 +179,14 @@ func (tf *factory) makeDockerFileSource(source *sources.LogSource) (*sources.Log
 	return fileSource, nil
 }
 
+// usesECSJSONFileLogs reports whether findDockerLogPath resolves to the ECS
+// Managed Instances json-file log driver directory.
+func usesECSJSONFileLogs() bool {
+	cfg := pkgconfigsetup.Datadog()
+	return cfg.GetString("logs_config.docker_path_override") == "" &&
+		env.IsECSManagedInstancesDaemonMode(cfg)
+}
+
 // findDockerLogPath returns a path for the given container.
 func (tf *factory) findDockerLogPath(containerID string) (string, error) {
 	// if the user has set a custom docker data root, this will pick it up
@@ -171,6 +194,18 @@ func (tf *factory) findDockerLogPath(containerID string) (string, error) {
 	overridePath := pkgconfigsetup.Datadog().GetString("logs_config.docker_path_override")
 	if len(overridePath) > 0 {
 		return filepath.Join(overridePath, "containers", containerID, containerID+"-json.log"), nil
+	}
+
+	// On ECS Managed Instances daemon mode the json-file log driver writes to a
+	// fixed, platform-managed path rather than a docker/containerd data root.
+	// Use the same daemon-mode check as the Chooser (containersorpods package) so
+	// the two agree on what counts as "MI".
+	//
+	// The driver creates the file after the container is first seen, so match it
+	// with a wildcard that the file launcher keeps resolving. "*-json.log" does
+	// not match rotated files (.log.1, .log.2.gz).
+	if env.IsECSManagedInstancesDaemonMode(pkgconfigsetup.Datadog()) {
+		return filepath.Join(ecsJSONFileLogsBasePath, containerID, "*-json.log"), nil
 	}
 
 	switch runtime.GOOS {
@@ -263,6 +298,7 @@ func (tf *factory) makeK8sFileSource(source *sources.LogSource) (*sources.LogSou
 			Source:                        sourceName,
 			Encoding:                      source.Config.Encoding,
 			Tags:                          source.Config.Tags,
+			TagFilters:                    source.Config.TagFilters,
 			ProcessingRules:               source.Config.ProcessingRules,
 			FingerprintConfig:             source.Config.FingerprintConfig,
 			Format:                        source.Config.Format,

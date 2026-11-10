@@ -5,6 +5,7 @@
 #include "compiler.h"
 #include "context.h"
 #include "debug.h"
+#include "dwarf_regs.h"
 #include "framing.h"
 #include "scratch.h"
 #include "types.h"
@@ -530,8 +531,7 @@ go_runtime_type_from_ptr(target_ptr_t type_ptr) {
   // Detect if the moduledata is up-to-date by checking if the address is
   // correct. If it is not, then we need to update the typebounds.
   if (moduledata->addr != VARIABLE_runtime_dot_firstmoduledata) {
-    moduledata->addr = VARIABLE_runtime_dot_firstmoduledata;
-    if (bpf_probe_read_user(&moduledata->types, sizeof(typebounds_t),
+    if (bpf_probe_read_user(&moduledata->types.types, sizeof(uint64_t),
                             (void*)(VARIABLE_runtime_dot_firstmoduledata +
                                     OFFSET_runtime_dot_moduledata__types))) {
       LOG(1, "go_runtime_type_from_ptr: failed to read moduledata types %llx + %d",
@@ -539,6 +539,13 @@ go_runtime_type_from_ptr(target_ptr_t type_ptr) {
           OFFSET_runtime_dot_moduledata__types);
       return -1;
     }
+    if (bpf_probe_read_user(&moduledata->types.etypes, sizeof(uint64_t),
+                            (void*)(VARIABLE_runtime_dot_firstmoduledata +
+                                    OFFSET_runtime_dot_moduledata__etypes))) {
+      LOG(1, "go_runtime_type_from_ptr: failed to read moduledata etypes");
+      return -1;
+    }
+    moduledata->addr = VARIABLE_runtime_dot_firstmoduledata;
   }
 
   typebounds_t* typebounds = &moduledata->types;
@@ -2195,7 +2202,8 @@ sm_swiss_map_hash_finish(scratch_buf_t* buf, stack_machine_t* sm) {
     buf_offset_t gs_off = sm->buf_offset_0 + global_shift_offset;
     if (!scratch_buf_bounds_check(&gs_off, 1)) return -1;
     uint8_t global_shift = (*buf)[gs_off];
-    uint64_t table_idx = hash >> global_shift;
+    // Go sets globalShift to 64 for a one-table directory; BPF would mask that shift to 0.
+    uint64_t table_idx = dir_len == 1 ? 0 : hash >> (global_shift & 63);
     target_ptr_t table_ptr;
     if (bpf_probe_read_user(&table_ptr, 8,
                              (void*)(dir_ptr + table_idx * 8)) != 0) {
@@ -2282,36 +2290,17 @@ sm_swiss_map_aesenc(stack_machine_t* sm) {
     sm->swiss_map_state.aes_rk_offset = off + 16;
   }
 
-  // MixColumns + AddRoundKey.
-  uint8_t a0, a1, a2, a3, x0, x1, x2, x3;
-
-  a0 = tmp[0]; a1 = tmp[1]; a2 = tmp[2]; a3 = tmp[3];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[0] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[0];
-  state[1] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[1];
-  state[2] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[2];
-  state[3] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[3];
-
-  a0 = tmp[4]; a1 = tmp[5]; a2 = tmp[6]; a3 = tmp[7];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[4] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[4];
-  state[5] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[5];
-  state[6] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[6];
-  state[7] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[7];
-
-  a0 = tmp[8]; a1 = tmp[9]; a2 = tmp[10]; a3 = tmp[11];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[8]  = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[8];
-  state[9]  = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[9];
-  state[10] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[10];
-  state[11] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[11];
-
-  a0 = tmp[12]; a1 = tmp[13]; a2 = tmp[14]; a3 = tmp[15];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[12] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[12];
-  state[13] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[13];
-  state[14] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[14];
-  state[15] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[15];
+  // MixColumns + AddRoundKey, one column at a time.
+  for (uint32_t c = 0; c < 4; c++) {
+    uint32_t off = (c * 4) & 12;
+    uint8_t a0 = tmp[off + 0], a1 = tmp[off + 1];
+    uint8_t a2 = tmp[off + 2], a3 = tmp[off + 3];
+    uint8_t x0 = xtime(a0), x1 = xtime(a1), x2 = xtime(a2), x3 = xtime(a3);
+    state[off + 0] = x0 ^ x1 ^ a1 ^ a2 ^ a3 ^ rk[off + 0];
+    state[off + 1] = a0 ^ x1 ^ x2 ^ a2 ^ a3 ^ rk[off + 1];
+    state[off + 2] = a0 ^ a1 ^ x2 ^ x3 ^ a3 ^ rk[off + 2];
+    state[off + 3] = x0 ^ a0 ^ a1 ^ a2 ^ x3 ^ rk[off + 3];
+  }
   return 0;
 }
 
@@ -2374,36 +2363,18 @@ sm_swiss_map_aese(stack_machine_t* sm) {
     return 0;
   }
 
-  // AESMC: MixColumns only (NO AddRoundKey — that was done before SubBytes).
-  uint8_t a0, a1, a2, a3, x0, x1, x2, x3;
-
-  a0 = tmp[0]; a1 = tmp[1]; a2 = tmp[2]; a3 = tmp[3];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[0] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
-  state[1] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
-  state[2] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
-  state[3] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
-
-  a0 = tmp[4]; a1 = tmp[5]; a2 = tmp[6]; a3 = tmp[7];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[4] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
-  state[5] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
-  state[6] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
-  state[7] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
-
-  a0 = tmp[8]; a1 = tmp[9]; a2 = tmp[10]; a3 = tmp[11];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[8]  = x0 ^ x1 ^ a1 ^ a2 ^ a3;
-  state[9]  = a0 ^ x1 ^ x2 ^ a2 ^ a3;
-  state[10] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
-  state[11] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
-
-  a0 = tmp[12]; a1 = tmp[13]; a2 = tmp[14]; a3 = tmp[15];
-  x0 = xtime(a0); x1 = xtime(a1); x2 = xtime(a2); x3 = xtime(a3);
-  state[12] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
-  state[13] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
-  state[14] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
-  state[15] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
+  // AESMC: MixColumns only (NO AddRoundKey — that was done before SubBytes),
+  // one column at a time.
+  for (uint32_t c = 0; c < 4; c++) {
+    uint32_t off = (c * 4) & 12;
+    uint8_t a0 = tmp[off + 0], a1 = tmp[off + 1];
+    uint8_t a2 = tmp[off + 2], a3 = tmp[off + 3];
+    uint8_t x0 = xtime(a0), x1 = xtime(a1), x2 = xtime(a2), x3 = xtime(a3);
+    state[off + 0] = x0 ^ x1 ^ a1 ^ a2 ^ a3;
+    state[off + 1] = a0 ^ x1 ^ x2 ^ a2 ^ a3;
+    state[off + 2] = a0 ^ a1 ^ x2 ^ x3 ^ a3;
+    state[off + 3] = x0 ^ a0 ^ a1 ^ a2 ^ x3;
+  }
   return 0;
 }
 
@@ -3200,7 +3171,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint8_t regnum = sm_read_program_uint8(sm);
     uint8_t byte_size = sm_read_program_uint8(sm);
     buf_offset_t output_offset = sm->offset + sm_read_program_uint32(sm);
-    struct pt_regs* regs = ctx->regs;
+    bpf_user_pt_regs_t* regs = ctx->regs;
     if (!regs) {
       LOG(2, "enqueue: missing regs");
       // Zero the data and move along. In the future when we track availability
@@ -3209,57 +3180,13 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       // garbage pointers in any subsequent enqueue logic (because we don't
       // chase zero values).
     } else {
+#define SM_READ_ARG_REG(n)                                                     \
+  case n:                                                                      \
+    *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(n);             \
+    break;
       switch (regnum) {
-      // We need to switch over the regnum, as DWARF_REGISTER macro for amd64 requires
-      // paramter to be a literal number.
-      case 0:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(0);
-        break;
-      case 1:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(1);
-        break;
-      case 2:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(2);
-        break;
-      case 3:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(3);
-        break;
-      case 4:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(4);
-        break;
-      case 5:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(5);
-        break;
-      case 6:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(6);
-        break;
-      case 7:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(7);
-        break;
-      case 8:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(8);
-        break;
-      case 9:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(9);
-        break;
-      case 10:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(10);
-        break;
-      case 11:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(11);
-        break;
-      case 12:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(12);
-        break;
-      case 13:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(13);
-        break;
-      case 14:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(14);
-        break;
-      case 15:
-        *(volatile uint64_t*)(&sm->value_0) = regs->DWARF_REGISTER(15);
-        break;
+        DWARF_ARG_REGS(SM_READ_ARG_REG)
+#undef SM_READ_ARG_REG
       default:
         LOG(2, "unknown register: %d", regnum);
         return 1;
@@ -3697,7 +3624,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       dict_ptr = sm->saved_dict_ptr;
     } else {
       // Entry probe: read from the register value saved in PT_REGS.
-      struct pt_regs* regs = ctx->regs;
+      bpf_user_pt_regs_t* regs = ctx->regs;
       if (regs) {
         switch (dict_register) {
         case 0: dict_ptr = regs->DWARF_REGISTER(0); break;
@@ -5000,7 +4927,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // verifier accepts sm_loop -> sm_run -> probe_run's worst-case
     // call chain. The helper takes gp by value (rather than the full
     // pt_regs*) so its signature uses verifier-friendly scalar types.
-    struct pt_regs* regs = ctx->regs;
+    bpf_user_pt_regs_t* regs = ctx->regs;
     uint64_t gp = regs ? regs->DWARF_REGISTER(0) : 0;
     if (!sm_panic_unwind_prepare(gp, buf)) {
       sm->condition_failed = true;

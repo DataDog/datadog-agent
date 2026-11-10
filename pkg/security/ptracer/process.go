@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/golabels"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"golang.org/x/sys/unix"
@@ -36,9 +37,10 @@ type FdResources struct {
 	FileHandleCache map[fileHandleKey]*fileHandleVal
 }
 
+// clone retains file-handle metadata, but not paths from the creator's live FD table.
 func (f *FdResources) clone() *FdResources {
 	return &FdResources{
-		Fd:              maps.Clone(f.Fd),
+		Fd:              make(map[int32]string),
 		FileHandleCache: maps.Clone(f.FileHandleCache),
 	}
 }
@@ -46,12 +48,6 @@ func (f *FdResources) clone() *FdResources {
 // FSResources defines shared process resources
 type FSResources struct {
 	Cwd string
-}
-
-func (f *FSResources) clone() *FSResources {
-	return &FSResources{
-		Cwd: f.Cwd,
-	}
 }
 
 // SocketInfo represents the status of an open socket
@@ -66,6 +62,10 @@ type SocketInfo struct {
 type Process struct {
 	Pid                      int
 	Tgid                     int
+	startTime                uint64 // /proc/<tgid>/stat starttime in clock ticks; zero if unavailable
+	forkPPID                 uint32 // known process parent, not necessarily the creating TID
+	creationHandled          bool   // creation hooks completed, or an initial tracee with no creation event
+	creationWaitTimedOut     bool   // resumed without creation; inherited resources must not be reapplied
 	CGroupID                 containerutils.CGroupID
 	ContainerID              containerutils.ContainerID
 	containerContextResolved bool
@@ -73,13 +73,18 @@ type Process struct {
 	FdRes                    *FdResources
 	FsRes                    *FSResources
 	FdToSocket               map[int32]SocketInfo
+	otelProcessCtxNaming     bool
+	tracerMemfdSealing       bool
 }
 
 // NewProcess returns a new process
 func NewProcess(pid int) *Process {
+	tgid := getPidTGID(pid)
+	_, startTime, _ := readProcessStat(tgid)
 	return &Process{
 		Pid:        pid,
-		Tgid:       pid,
+		Tgid:       tgid,
+		startTime:  startTime,
 		Nr:         make(map[int]*ebpfless.SyscallMsg),
 		FdToSocket: make(map[int32]SocketInfo),
 
@@ -89,6 +94,11 @@ func NewProcess(pid int) *Process {
 		},
 		FsRes: &FSResources{},
 	}
+}
+
+func (p *Process) identity() processIdentity {
+	// A nonleader exec changes its TID to the TGID, not the process generation.
+	return processIdentity{tgid: uint32(p.Tgid), startTime: p.startTime}
 }
 
 var errPipeFd = errors.New("pipe fd")
@@ -123,6 +133,8 @@ func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	// Inherited memfds must keep the memfd_create hook's naming convention.
+	filename = procExecutableName(filename)
 
 	// fill the cache for next time
 	p.FdRes.Fd[fd] = filename
@@ -134,6 +146,8 @@ func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
 type ProcessCache struct {
 	pid2Process map[int]*Process
 	tgid2Pid    map[int][]int
+	tgid2OTel   map[int]*otelState
+	tgid2Go     map[int]*golabels.Layout
 }
 
 // NewProcessCache returns a new thread cache
@@ -141,6 +155,8 @@ func NewProcessCache() *ProcessCache {
 	return &ProcessCache{
 		pid2Process: make(map[int]*Process),
 		tgid2Pid:    make(map[int][]int),
+		tgid2OTel:   make(map[int]*otelState),
+		tgid2Go:     make(map[int]*golabels.Layout),
 	}
 }
 
@@ -163,10 +179,25 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	// share resources, parent should never be nil
 	if cloneFlags&unix.CLONE_THREAD != 0 {
 		process.Tgid = parent.Tgid
+		process.startTime = parent.startTime
+	}
+	switch {
+	case cloneFlags&unix.CLONE_THREAD != 0:
+		// A thread belongs to the same process, with the same known parent.
+		process.forkPPID = parent.forkPPID
+	case cloneFlags&unix.CLONE_PARENT != 0:
+		// The creator is not the child's parent. Observe the actual parent
+		// once at creation instead of resolving it anew on every exec.
+		process.forkPPID = getPidPPID(process.Pid)
+	default:
+		process.forkPPID = uint32(parent.Tgid)
 	}
 	process.CGroupID = parent.CGroupID
 	process.ContainerID = parent.ContainerID
 
+	// A sibling can change the creator's FD/CWD caches after the kernel copies
+	// private resources but before this creation event. Leave private paths
+	// unresolved so they are read from the child's procfs entries instead.
 	if cloneFlags&unix.CLONE_FILES != 0 {
 		process.FdRes = parent.FdRes
 	} else {
@@ -175,7 +206,7 @@ func (tc *ProcessCache) shareResources(process *Process, ppid int, cloneFlags ui
 	if cloneFlags&unix.CLONE_FS != 0 {
 		process.FsRes = parent.FsRes
 	} else {
-		process.FsRes = parent.FsRes.clone()
+		process.FsRes = &FSResources{}
 	}
 
 	// re-add to update the caches
@@ -187,13 +218,16 @@ func (tc *ProcessCache) Remove(process *Process) {
 	delete(tc.pid2Process, process.Pid)
 
 	if process.Pid == process.Tgid {
+		delete(tc.tgid2OTel, process.Pid)
+		delete(tc.tgid2Go, process.Pid)
+
 		pids, ok := tc.tgid2Pid[process.Pid]
 		if !ok {
 			return
 		}
 		delete(tc.tgid2Pid, process.Pid)
 
-		for pid := range pids {
+		for _, pid := range pids {
 			delete(tc.pid2Process, pid)
 		}
 	} else {
@@ -209,4 +243,50 @@ func (tc *ProcessCache) Remove(process *Process) {
 // Get return the process entry for the given pid
 func (tc *ProcessCache) Get(pid int) *Process {
 	return tc.pid2Process[pid]
+}
+
+// getOTel returns the OTel thread context registration of the given tgid
+func (tc *ProcessCache) getOTel(tgid int) *otelState {
+	return tc.tgid2OTel[tgid]
+}
+
+// setOTel sets the OTel thread context registration of the given tgid
+func (tc *ProcessCache) setOTel(tgid int, state *otelState) {
+	tc.tgid2OTel[tgid] = state
+}
+
+// unsetOTel unsets the OTel thread context registration of the given tgid
+func (tc *ProcessCache) unsetOTel(tgid int) {
+	delete(tc.tgid2OTel, tgid)
+}
+
+// inheritOTel copies the OTel thread context registration to a forked child
+func (tc *ProcessCache) inheritOTel(ptgid, tgid int) {
+	if state := tc.tgid2OTel[ptgid]; state != nil {
+		inherited := *state
+		tc.tgid2OTel[tgid] = &inherited
+	}
+}
+
+// getGoLabels returns the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) getGoLabels(tgid int) *golabels.Layout {
+	return tc.tgid2Go[tgid]
+}
+
+// setGoLabels sets the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) setGoLabels(tgid int, layout *golabels.Layout) {
+	tc.tgid2Go[tgid] = layout
+}
+
+// unsetGoLabels unsets the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) unsetGoLabels(tgid int) {
+	delete(tc.tgid2Go, tgid)
+}
+
+// inheritGoLabels copies the Go pprof labels layout to a forked child: it
+// describes the executable, which a fork does not replace
+func (tc *ProcessCache) inheritGoLabels(ptgid, tgid int) {
+	if layout := tc.tgid2Go[ptgid]; layout != nil {
+		tc.tgid2Go[tgid] = layout
+	}
 }

@@ -7,7 +7,9 @@ package util
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -23,6 +25,10 @@ import (
 // Payload handles the JSON unmarshalling of the metadata payload
 type testPayload struct{}
 
+func (p *testPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
+}
+
 func (p *testPayload) MarshalJSON() ([]byte, error) {
 	return []byte("{\"test\": true}"), nil
 }
@@ -32,19 +38,8 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *Invent
 		config.NewMockWithOverrides(t, confOverrides),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
-		func() marshaler.JSONMarshaler { return &testPayload{} },
+		func() marshaler.TypedJSONMarshaler { return &testPayload{} },
 		"test.json",
-	)
-	return &i
-}
-
-func getEmptyInventoryPayload(t *testing.T, confOverrides map[string]any) *InventoryPayload {
-	i := CreateInventoryPayload(
-		config.NewMockWithOverrides(t, confOverrides),
-		logmock.New(t),
-		serializermock.NewMetricSerializer(t),
-		func() marshaler.JSONMarshaler { return nil },
-		"testempty.json",
 	)
 	return &i
 }
@@ -70,6 +65,25 @@ func TestDefaultInterval(t *testing.T) {
 
 	assert.Equal(t, defaultMinInterval, i.MinInterval)
 	assert.Equal(t, defaultMaxInterval, i.MaxInterval)
+}
+
+func TestProviderSpecificFirstRunDelay(t *testing.T) {
+	conf := config.NewMockWithOverrides(t, map[string]any{"inventories_first_run_delay": 3600})
+	l := logmock.New(t)
+	s := serializermock.NewMetricSerializer(t)
+	getPayload := func() marshaler.TypedJSONMarshaler { return &testPayload{} }
+	regular := CreateInventoryPayload(conf, l, s, getPayload, "regular.json")
+	immediate := CreateInventoryPayload(conf, l, s, getPayload, "immediate.json")
+	immediate.SetFirstRunDelay(0)
+
+	assert.Equal(t, time.Hour, regular.firstRunDelay)
+	assert.Zero(t, immediate.firstRunDelay)
+	assert.Equal(t, time.Duration(3600), conf.GetDuration("inventories_first_run_delay"))
+	s.On("SendMetadata", &testPayload{}).Return(nil).Once()
+	regular.Collect(t.Context())
+	s.AssertNotCalled(t, "SendMetadata", mock.Anything)
+	immediate.Collect(t.Context())
+	s.AssertNumberOfCalls(t, "SendMetadata", 1)
 }
 
 func TestInterval(t *testing.T) {
@@ -127,7 +141,7 @@ func TestCollectRecentLastCollect(t *testing.T) {
 	i.LastCollect = time.Now()
 	i.createdAt = time.Now().Add(-2 * time.Minute)
 
-	interval := i.collect(context.Background())
+	interval := i.Collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	// check that no Payload was send since LastCollect is recent
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
@@ -143,7 +157,7 @@ func TestCollectStartupTime(t *testing.T) {
 	serializerMock := i.serializer.(*serializermock.MetricSerializer)
 	duration := 1 * time.Minute
 
-	interval := i.collect(context.Background())
+	interval := i.Collect(context.Background())
 	assert.Equal(t, duration-time.Since(createdAt).Round(duration), interval.Round(duration))
 	assert.Empty(t, serializerMock.Calls)
 
@@ -165,7 +179,7 @@ func TestCollectStartupTime(t *testing.T) {
 		})).Return(nil)
 
 	i.serializer = serializerMock
-	interval = i.collect(context.Background())
+	interval = i.Collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	serializerMock.AssertExpectations(t)
 }
@@ -193,7 +207,7 @@ func TestCollect(t *testing.T) {
 	i.LastCollect = time.Now().Add(-1 * time.Hour)
 
 	now := time.Now()
-	interval := i.collect(context.Background())
+	interval := i.Collect(context.Background())
 	assert.Equal(t, defaultMinInterval, interval)
 	assert.False(t, i.LastCollect.Before(now))
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
@@ -205,7 +219,7 @@ func TestCollect(t *testing.T) {
 	i.serializer = serializerMock
 
 	i.LastCollect = time.Now().Add(-i.MinInterval + 1*time.Second)
-	i.collect(context.Background())
+	i.Collect(context.Background())
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 
 	// testing collect with LastCollect between MinInterval and MaxInterval with forceRefresh being trigger
@@ -222,22 +236,187 @@ func TestCollect(t *testing.T) {
 			return true
 		})).Return(nil)
 
-	i.collect(context.Background())
+	i.Collect(context.Background())
 	i.serializer.(*serializermock.MetricSerializer).AssertExpectations(t)
 	assert.False(t, i.forceRefresh.Load())
 }
 
-func TestCollectEmptyPayload(t *testing.T) {
-	i := getEmptyInventoryPayload(t, nil)
+func TestSubmitBypassesCollectionDelays(t *testing.T) {
+	for _, tt := range []struct {
+		name          string
+		firstRunDelay int
+	}{
+		{name: "startup delay", firstRunDelay: 3600},
+		{name: "recent collection"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			i := getTestInventoryPayload(t, map[string]any{
+				"inventories_enabled":         true,
+				"inventories_first_run_delay": tt.firstRunDelay,
+			})
+			i.LastCollect = time.Now()
+			serializerMock := i.serializer.(*serializermock.MetricSerializer)
+			i.Collect(context.Background())
+			serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
 
-	// Ensure calls to collect do not fail the check for createdAt
-	i.createdAt = time.Now().Add(-2 * time.Minute)
-	// Make sure the minInterval between two payload has expired
-	i.LastCollect = time.Now().Add(-1 * time.Hour)
+			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Twice()
+			for range 2 {
+				i.Refresh()
+				before := time.Now()
+				assert.NoError(t, i.Submit())
+				assert.False(t, i.LastCollect.Before(before))
+				assert.False(t, i.LastCollect.After(time.Now()))
+				assert.False(t, i.RefreshTriggered())
+			}
+			serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
+			i.Collect(context.Background())
+			serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
+		})
+	}
+}
 
-	now := time.Now()
-	interval := i.collect(context.Background())
-	assert.Equal(t, defaultMinInterval, interval)
-	assert.False(t, i.LastCollect.Before(now))
-	i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata")
+func TestSubmitSkippedWithoutCollectionOrSerializer(t *testing.T) {
+	for _, tt := range []struct {
+		name       string
+		enabled    bool
+		serializer bool
+		wantErr    string
+	}{
+		{name: "disabled", serializer: true, wantErr: "inventory metadata is disabled"},
+		{name: "missing serializer", enabled: true, wantErr: "inventory serializer is nil"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			i := getTestInventoryPayload(t, map[string]any{"inventories_enabled": tt.enabled})
+			i.getPayload = func() marshaler.TypedJSONMarshaler {
+				t.Fatal("skipped submission must not build a payload")
+				return nil
+			}
+			if !tt.serializer {
+				i.serializer = nil
+			}
+			lastCollect := time.Now().Add(-time.Hour)
+			i.LastCollect = lastCollect
+			i.forceRefresh.Store(true)
+			assert.EqualError(t, i.Submit(), tt.wantErr)
+			assert.Equal(t, lastCollect, i.LastCollect)
+			assert.True(t, i.forceRefresh.Load())
+			if !tt.enabled {
+				assert.Nil(t, i.MetadataProvider().Callback)
+				i.serializer.(*serializermock.MetricSerializer).AssertNotCalled(t, "SendMetadata", mock.Anything)
+			}
+		})
+	}
+}
+
+func TestSubmitRefreshAndScheduledCollection(t *testing.T) {
+	i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Times(3)
+
+	i.Refresh()
+	assert.NoError(t, i.Submit())
+	assert.False(t, i.RefreshTriggered())
+	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
+	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
+
+	i.Refresh()
+	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
+	assert.False(t, i.RefreshTriggered())
+	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
+
+	i.LastCollect = time.Now().Add(-i.MaxInterval)
+	assert.Equal(t, i.MinInterval, i.Collect(context.Background()))
+	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 3)
+}
+
+func TestSubmitPreservesRefreshTriggeredWhileBuildingPayload(t *testing.T) {
+	i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
+	serializerMock := i.serializer.(*serializermock.MetricSerializer)
+	serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Twice()
+	i.getPayload = func() marshaler.TypedJSONMarshaler {
+		i.Refresh()
+		return &testPayload{}
+	}
+	assert.NoError(t, i.Submit())
+	assert.True(t, i.RefreshTriggered())
+
+	i.getPayload = func() marshaler.TypedJSONMarshaler { return &testPayload{} }
+	i.Collect(context.Background())
+	assert.False(t, i.RefreshTriggered())
+	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
+}
+
+func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
+	for _, tt := range []struct {
+		name         string
+		emptyPayload bool
+		sendError    error
+		wantErr      string
+	}{
+		{name: "empty payload", emptyPayload: true, wantErr: "inventory payload is nil"},
+		{name: "serializer error", sendError: errors.New("submission failed"), wantErr: "unable to submit inventories payload: submission failed"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
+			serializerMock := i.serializer.(*serializermock.MetricSerializer)
+			if tt.emptyPayload {
+				i.getPayload = func() marshaler.TypedJSONMarshaler { return nil }
+			} else {
+				serializerMock.On("SendMetadata", &testPayload{}).Return(tt.sendError).Once()
+			}
+			i.Refresh()
+			before := time.Now()
+			err := i.Submit()
+			assert.EqualError(t, err, tt.wantErr)
+			if tt.sendError != nil {
+				assert.ErrorIs(t, err, tt.sendError)
+			}
+			assert.False(t, i.LastCollect.Before(before))
+			assert.False(t, i.RefreshTriggered())
+			lastCollect := i.LastCollect
+			i.Collect(context.Background())
+			assert.Equal(t, lastCollect, i.LastCollect)
+			if tt.emptyPayload {
+				serializerMock.AssertNotCalled(t, "SendMetadata", mock.Anything)
+			} else {
+				serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
+			}
+
+			i.getPayload = func() marshaler.TypedJSONMarshaler { return &testPayload{} }
+			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Once()
+			i.Refresh()
+			i.Collect(context.Background())
+			assert.False(t, i.RefreshTriggered())
+			serializerMock.AssertExpectations(t)
+		})
+	}
+}
+
+func TestCollectRetainsFullAgentTiming(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		i := getTestInventoryPayload(t, map[string]any{
+			"inventories_first_run_delay": 60,
+			"inventories_min_interval":    10,
+			"inventories_max_interval":    30,
+		})
+		s := i.serializer.(*serializermock.MetricSerializer)
+		s.On("SendMetadata", &testPayload{}).Return(nil).Times(3)
+		assert.Equal(t, time.Minute, i.Collect(t.Context()))
+		assert.Empty(t, s.Calls)
+		time.Sleep(time.Minute)
+		assert.Equal(t, 10*time.Second, i.Collect(t.Context()))
+		s.AssertNumberOfCalls(t, "SendMetadata", 1)
+		for range 2 {
+			time.Sleep(10 * time.Second)
+			i.Collect(t.Context())
+			s.AssertNumberOfCalls(t, "SendMetadata", 1)
+		}
+		time.Sleep(10 * time.Second)
+		i.Collect(t.Context())
+		s.AssertNumberOfCalls(t, "SendMetadata", 2)
+		i.Refresh()
+		time.Sleep(10 * time.Second)
+		i.Collect(t.Context())
+		s.AssertNumberOfCalls(t, "SendMetadata", 3)
+	})
 }

@@ -1,0 +1,9 @@
+description: awk preserves carriage returns before newline record separators.
+input:
+  script: |+
+    printf 'a\r\n' | awk '{ print $0 == "a", $0 == "a\r", $1 == "a", $1 == "a\r" }'
+expect:
+  stdout: |+
+    0 1 0 1
+  stderr: |+
+  exit_code: 0

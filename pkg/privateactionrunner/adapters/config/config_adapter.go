@@ -21,7 +21,7 @@ import (
 )
 
 type Config struct {
-	ActionsAllowlist                   map[string]sets.Set[string] // map of allowed bundle IDs to a set of allowed action names
+	ActionsAllowlist                   ActionsAllowlist
 	Allowlist                          []string
 	AllowIMDSEndpoint                  bool
 	KubernetesAllowedCustomResources   []string
@@ -34,8 +34,7 @@ type Config struct {
 	RShellPrivilegedElevatableCommands []string
 	RShellAllowedCommandsConfigured    bool
 	RShellAllowedPathsConfigured       bool
-	DDHost                             string
-	DDApiHost                          string
+	APIBaseURL                         string
 	Modes                              []modes.Mode
 	OrgId                              int64
 	PrivateKey                         *ecdsa.PrivateKey
@@ -77,8 +76,34 @@ type Config struct {
 }
 
 func (c *Config) IsActionAllowed(bundleId, actionName string) bool {
-	if _, ok := c.ActionsAllowlist[bundleId]; ok {
-		return c.ActionsAllowlist[bundleId].HasAny(actionName, "*")
+	return c.ActionsAllowlist.IsActionAllowed(bundleId, actionName)
+}
+
+// ActionsAllowlist maps bundle IDs to allowed action names, including wildcards.
+type ActionsAllowlist map[string]sets.Set[string]
+
+// IsActionAllowed matches exact actions and integration/sub-bundle wildcards.
+func (a ActionsAllowlist) IsActionAllowed(bundleId, actionName string) bool {
+	if a[bundleId].Has(actionName) {
+		return true
+	}
+
+	// Wildcards may cover an integration and its sub-bundles, but must never
+	// enable the entire com.datadoghq namespace.
+	if !strings.HasPrefix(bundleId, "com.datadoghq.") {
+		return false
+	}
+	parts := strings.Split(bundleId, ".")
+	for _, part := range parts {
+		if part == "" || strings.Contains(part, "*") {
+			return false
+		}
+	}
+	for len(parts) >= 3 {
+		if a[strings.Join(parts, ".")].Has("*") {
+			return true
+		}
+		parts = parts[:len(parts)-1]
 	}
 	return false
 }

@@ -24,8 +24,19 @@ typedef struct probe_params {
   char top_pc_offset;
   char no_return_reason;
   char throttle_mode; // actually a throttle_mode_t
-  char __padding[2];
+  // Where the context.Context in scope at this probe lives, if there is one.
+  // One of the CTX_LOC_* values below.
+  uint8_t ctx_loc_kind;
+  uint8_t ctx_reg_tab;
+  uint8_t ctx_reg_data;
+  char __padding[3];
+  int32_t ctx_stack_offset;
 } probe_params_t;
+
+// Values of probe_params_t.ctx_loc_kind.
+#define CTX_LOC_NONE 0      // no context.Context in scope
+#define CTX_LOC_REGISTERS 1 // interface in ctx_reg_tab / ctx_reg_data
+#define CTX_LOC_STACK 2     // interface at CFA + ctx_stack_offset
 
 typedef struct throttler_params {
   uint64_t period_ns;

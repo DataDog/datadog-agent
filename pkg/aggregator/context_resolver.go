@@ -41,12 +41,13 @@ type resolvedMetricView struct {
 	tags   tagset.CompositeTags
 }
 
-func (v resolvedMetricView) GetName() string               { return v.sample.GetName() }
-func (v resolvedMetricView) GetValue() float64             { return v.sample.GetValue() }
-func (v resolvedMetricView) GetTags() tagset.CompositeTags { return v.tags }
-func (v resolvedMetricView) GetHost() string               { return v.host }
-func (v resolvedMetricView) GetTimestampUnix() int64       { return v.sample.GetTimestampUnix() }
-func (v resolvedMetricView) GetSampleRate() float64        { return v.sample.GetSampleRate() }
+func (v resolvedMetricView) GetName() string                   { return v.sample.GetName() }
+func (v resolvedMetricView) GetValue() float64                 { return v.sample.GetValue() }
+func (v resolvedMetricView) GetTags() tagset.CompositeTags     { return v.tags }
+func (v resolvedMetricView) GetHost() string                   { return v.host }
+func (v resolvedMetricView) GetTimestampUnix() int64           { return v.sample.GetTimestampUnix() }
+func (v resolvedMetricView) GetSampleRate() float64            { return v.sample.GetSampleRate() }
+func (v resolvedMetricView) GetMetricType() metrics.MetricType { return v.sample.GetMetricType() }
 
 type resolverEntry struct {
 	lastSeen int64
@@ -396,6 +397,13 @@ func (cr *countBasedContextResolver) trackContext(metricSampleContext metrics.Me
 
 func (cr *countBasedContextResolver) get(key ckey.ContextKey) (*Context, bool) {
 	return cr.resolver.get(key)
+}
+
+// remove stops tracking the given contexts
+func (cr *countBasedContextResolver) remove(keys []ckey.ContextKey) {
+	for _, key := range keys {
+		cr.resolver.remove(key)
+	}
 }
 
 // expireContexts cleans up the contexts that haven't been tracked since `expirationCount`

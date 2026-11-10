@@ -1,0 +1,6 @@
+---
+enhancements:
+  - |
+    On Debian hosts that use SysV init, and on hosts that use Upstart, the Agent now starts ``dd-procmgrd`` with the core Agent. When the DDOT extension is installed, ``dd-procmgrd`` also runs it.
+
+    The process manager is on by default. To turn it off at install or upgrade, set ``DD_PROCESS_MANAGER_ENABLED=false``. An upgrade that does not set the variable turns it back on. To keep it off across upgrades, set ``DATADOG_ENABLED=no`` in ``/etc/default/datadog-agent-procmgr``.

@@ -13,6 +13,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+
+	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 )
 
 func newPCE(pid uint32, parent *ProcessCacheEntry, isParentMissing bool) *ProcessCacheEntry {
@@ -104,23 +106,69 @@ func TestEntryEquals(t *testing.T) {
 	e2 := NewProcessCacheEntry()
 	e2.Pid = 3
 	assert.True(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
 
 	// different file
 	e1.FileEvent.Inode = 33
 	e2.FileEvent.Inode = 44
 	assert.False(t, e1.Equals(e2))
+	assert.False(t, e1.EqualsForProcfs(e2))
 
 	// same file
 	e2.FileEvent.Inode = 33
 	assert.True(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
 
 	// different args
 	e2.ArgsEntry = &ArgsEntry{Values: []string{"aaa"}}
 	assert.False(t, e1.Equals(e2))
+	assert.False(t, e1.EqualsForProcfs(e2))
 
 	// same args
 	e1.ArgsEntry = &ArgsEntry{Values: []string{"aaa"}}
 	assert.True(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+
+	// Strict exec equality includes capabilities, unlike procfs fork inference.
+	e1.FileCapabilities = FileCapabilities{Permitted: 1 << 10, Effective: true, Available: true}
+	assert.False(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+	e2.FileCapabilities = e1.FileCapabilities
+	assert.True(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+
+	// Current xattrs may differ from the parent's exec-time metadata.
+	e2.FileCapabilities.Permitted = 1 << 12
+	assert.False(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+
+	// Availability alone must not imply that an exec occurred either.
+	e1.FileCapabilities = FileCapabilities{}
+	e2.FileCapabilities = FileCapabilities{Available: true}
+	assert.False(t, e1.Equals(e2))
+	assert.True(t, e1.EqualsForProcfs(e2))
+
+	// Credentials and environment differences still distinguish executions.
+	e2.Credentials.UID = 1000
+	assert.False(t, e1.EqualsForProcfs(e2))
+	e1.Credentials = e2.Credentials
+	assert.True(t, e1.EqualsForProcfs(e2))
+	e2.EnvsEntry = &EnvsEntry{Values: []string{"KEY=value"}}
+	assert.False(t, e1.EqualsForProcfs(e2))
+}
+
+func TestFileCapabilitiesForkAndExec(t *testing.T) {
+	parent := newPCE(2, nil, false)
+	parent.FileCapabilities = FileCapabilities{Permitted: 1 << 10, Effective: true, Available: true}
+	child := newPCE(3, nil, false)
+
+	parent.Fork(child)
+	assert.Equal(t, parent.FileCapabilities, child.FileCapabilities)
+
+	replacement := newPCE(3, nil, false)
+	child.Exec(replacement)
+	assert.Equal(t, FileCapabilities{}, replacement.FileCapabilities, "a new exec must not inherit the previous binary's file capabilities")
+	assert.Equal(t, parent.FileCapabilities, child.FileCapabilities, "the old executable's context must remain available in the lineage")
 }
 
 func TestCopyProcessContextFromParent(t *testing.T) {
@@ -193,5 +241,87 @@ func TestCopyProcessContextFromParent(t *testing.T) {
 		assert.Equal(t, parent.NetNS, child.NetNS)
 		assert.Equal(t, parent.UserSession.SSHSessionContext, child.UserSession.SSHSessionContext)
 		assert.Equal(t, parent.Credentials, child.Credentials)
+	})
+
+	t.Run("fork-clone-newns", func(t *testing.T) {
+		child := newPCE(2, nil, false)
+		child.ForkFlags = cloneNewNS
+		parent.Fork(child)
+
+		assert.Zero(t, child.MntNS)
+		assert.Equal(t, parent.NetNS, child.NetNS)
+
+		execChild := newPCE(2, nil, false)
+		execChild.ForkFlags = cloneNewNS
+		child.Exec(execChild)
+
+		assert.Zero(t, execChild.MntNS)
+	})
+}
+
+func TestCGroupAndContainerInheritedAsPair(t *testing.T) {
+	containerParent := func() *ProcessCacheEntry {
+		parent := newPCE(1, nil, false)
+		parent.CGroup = CGroupContext{
+			CGroupPathKey: PathKey{MountID: 1, Inode: 5678},
+			CGroupID:      "/kubepods.slice/cri-containerd-abcdef.scope",
+		}
+		parent.ContainerContext = ContainerContext{ContainerID: "abcdef"}
+		return parent
+	}
+
+	t.Run("own-host-cgroup-does-not-inherit-container", func(t *testing.T) {
+		child := newPCE(2, nil, false)
+		child.CGroup = CGroupContext{
+			CGroupPathKey: PathKey{MountID: 1, Inode: 1111},
+			CGroupID:      "/runtime.slice/containerd.service",
+		}
+
+		child.SetForkParent(containerParent())
+
+		assert.Equal(t, containerutils.CGroupID("/runtime.slice/containerd.service"), child.CGroup.CGroupID)
+		assert.True(t, child.ContainerContext.IsNull())
+	})
+
+	t.Run("no-cgroup-inherits-both", func(t *testing.T) {
+		parent := containerParent()
+		child := newPCE(2, nil, false)
+
+		child.SetForkParent(parent)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, parent.ContainerContext, child.ContainerContext)
+	})
+
+	// ebpfless entries only have a cgroup ID, no path key
+	t.Run("cgroup-id-only-parent-inherits-both", func(t *testing.T) {
+		parent := newPCE(1, nil, false)
+		parent.CGroup = CGroupContext{CGroupID: "/kubepods.slice/cri-containerd-abcdef.scope"}
+		parent.ContainerContext = ContainerContext{ContainerID: "abcdef"}
+		child := newPCE(2, nil, false)
+
+		child.SetForkParent(parent)
+
+		assert.Equal(t, parent.CGroup, child.CGroup)
+		assert.Equal(t, containerutils.ContainerID("abcdef"), child.ContainerContext.ContainerID)
+	})
+
+	t.Run("host-parent-does-not-clear-own-container", func(t *testing.T) {
+		hostParent := newPCE(1, nil, false)
+		hostParent.CGroup = CGroupContext{
+			CGroupPathKey: PathKey{MountID: 1, Inode: 1111},
+			CGroupID:      "/runtime.slice/containerd.service",
+		}
+
+		child := newPCE(2, nil, false)
+		child.CGroup = CGroupContext{
+			CGroupPathKey: PathKey{MountID: 1, Inode: 5678},
+			CGroupID:      "/kubepods.slice/cri-containerd-abcdef.scope",
+		}
+		child.ContainerContext = ContainerContext{ContainerID: "abcdef"}
+
+		child.SetForkParent(hostParent)
+
+		assert.Equal(t, containerutils.ContainerID("abcdef"), child.ContainerContext.ContainerID)
 	})
 }

@@ -533,6 +533,13 @@ func TestMountEvent(t *testing.T) {
 			assertFieldEqual(t, event, "mount.fs_type", testDrive.FSType())
 			assertFieldEqual(t, event, "process.file.path", executable)
 
+			if !ebpfLessEnabled {
+				// the root of the bind mount is relative to the root of the test drive file system
+				assertFieldEqual(t, event, "mount.root.path", "/"+bindMountSourceName)
+				assertSerializedFieldEqual(t, event, "$.mount.mp.path", bindMountPointPath)
+				assertSerializedFieldEqual(t, event, "$.mount.root.path", "/"+bindMountSourceName)
+			}
+
 			test.validateMountSchema(t, event)
 			validateSyscallContext(t, event, "$.syscall.mount.path")
 			validateSyscallContext(t, event, "$.syscall.mount.destination_path")

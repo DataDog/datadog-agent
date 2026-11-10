@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "catalog-remote",
@@ -11,6 +12,19 @@ go_library(
     deps = [
         "//comp/core/workloadmeta/collectors/internal/remote/workloadmeta",
         "//comp/core/workloadmeta/def",
+        "@org_uber_go_fx//:fx",
+    ],
+)
+
+dd_agent_go_test(
+    name = "catalog-remote_test",
+    srcs = ["options_test.go"],
+    embed = [":catalog-remote"],
+    deps = [
+        "//comp/core/workloadmeta/collectors/internal/remote/workloadmeta",
+        "//comp/core/workloadmeta/def",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
         "@org_uber_go_fx//:fx",
     ],
 )

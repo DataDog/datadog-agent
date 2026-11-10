@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Update ``libsepol`` and ``libselinux`` to 3.11.

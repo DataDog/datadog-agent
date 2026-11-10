@@ -237,6 +237,9 @@ func (l *Loader) Close() (err error) {
 
 // Program represents a loaded eBPF program.
 type Program struct {
+	// Collection is nil in Programs that tests build without loading
+	// anything into the kernel. Program's methods treat a nil Collection
+	// as one with no maps.
 	Collection   *ebpf.Collection
 	BpfProgram   *ebpf.Program
 	Attachpoints []BPFAttachPoint
@@ -303,6 +306,9 @@ type RuntimeStats struct {
 // eBPF). The returned slice has length equal to the program's probe
 // count.
 func (p *Program) RuntimeStats() []RuntimeStats {
+	if p.Collection == nil {
+		return nil
+	}
 	statsMap, ok := p.Collection.Maps["stats_buf"]
 	if !ok {
 		return nil
@@ -351,6 +357,9 @@ const dropNotifyLostAtMapName = "drop_notify_lost_at"
 // because the side-channel ringbuf was full. Returns 0 if no failure has
 // ever been recorded for this program (or if the map is unavailable).
 func (p *Program) DropNotifyLostAt() uint64 {
+	if p.Collection == nil {
+		return 0
+	}
 	m, ok := p.Collection.Maps[dropNotifyLostAtMapName]
 	if !ok {
 		return 0
@@ -603,6 +612,11 @@ func (l *Loader) loadData(
 	); err != nil {
 		return nil, fmt.Errorf("failed to set trace_context_type_id: %w", err)
 	}
+	if err := setVariable(
+		spec, "session_throttler_idx", serialized.sessionThrottlerIdx,
+	); err != nil {
+		return nil, fmt.Errorf("failed to set session_throttler_idx: %w", err)
+	}
 	// Allow a program to avoid setting common constants if it doesn't have
 	// any. This is something of a hack to allow for the rcscrape program to
 	// avoid needing constants, and corresponds to similar flexibility in the
@@ -717,6 +731,12 @@ func setCommonConstants(spec *ebpf.CollectionSpec, serialized *serializedProgram
 	if err := setVariable(
 		spec, "OFFSET_runtime_dot_moduledata__types",
 		serialized.goModuledataInfo.TypesOffset,
+	); err != nil {
+		return err
+	}
+	if err := setVariable(
+		spec, "OFFSET_runtime_dot_moduledata__etypes",
+		serialized.goModuledataInfo.ETypesOffset,
 	); err != nil {
 		return err
 	}

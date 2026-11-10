@@ -35,6 +35,7 @@ go_library(
 dd_agent_go_test(
     name = "privateactionrunner_test",
     srcs = [
+        "aio_docker_test.go",
         "helpers_test.go",
         "private_action_runner_enabled_test.go",
         "private_action_runner_executor_nix_test.go",
@@ -45,10 +46,14 @@ dd_agent_go_test(
         "split_win_test.go",
     ],
     embed = [":privateactionrunner"],
-    embedsrcs = ["fixtures/self-enroll.yaml.tmpl"],
+    embedsrcs = [
+        "fixtures/self-enroll.yaml.tmpl",
+        "fixtures/windows-pipe-probe.ps1",
+    ],
     tags = ["manual"],
     deps = [
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
+        "//pkg/rshell/privilegedhelper",
         "//test/e2e-framework/common/utils",
         "//test/e2e-framework/components/command",
         "//test/e2e-framework/components/datadog/agentparams",
@@ -68,7 +73,6 @@ dd_agent_go_test(
         "//test/new-e2e/tests/agent-platform/common",
         "//test/new-e2e/tests/agent-platform/common/process",
         "//test/new-e2e/tests/windows/common/agent",
-        "@com_github_datadog_rshell//privilegedhelper",
         "@com_github_google_uuid//:uuid",
         "@com_github_pulumi_pulumi_sdk_v3//go/pulumi",
         "@com_github_stretchr_testify//assert",

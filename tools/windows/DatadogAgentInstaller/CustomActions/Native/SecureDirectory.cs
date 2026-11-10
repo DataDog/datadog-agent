@@ -101,8 +101,10 @@ namespace Datadog.CustomActions.Native
         /// Unlike <see cref="CreateAndSecure"/> this neither creates nor modifies anything, so it can
         /// be used to fail an install before it has made any change to the system.
         /// </summary>
-        internal static void AssertSecureOwner(ISession session, string path)
+        /// <param name="exists">True if a trusted directory exists; false if the directory is missing.</param>
+        internal static void AssertSecureOwner(ISession session, string path, out bool exists)
         {
+            exists = false;
             // Opened rather than tested with Directory.Exists, which also returns false for a path that
             // is a file or cannot be read, and would report those as nothing to verify.
             SafeFileHandle handle;
@@ -130,6 +132,7 @@ namespace Datadog.CustomActions.Native
                 }
 
                 session.Log($"{path} is owned by {Describe(owner)}");
+                exists = true;
             }
         }
 

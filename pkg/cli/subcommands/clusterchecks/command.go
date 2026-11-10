@@ -44,8 +44,10 @@ type cliParams struct {
 	GlobalParams
 
 	checkName string
+	verbose   bool
+	json      bool
 	force     bool
-	checkID   string
+	logLevel  string
 }
 
 // MakeCommand returns a `clusterchecks` command to be used by cluster-agent
@@ -62,14 +64,17 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(bundleParams(globalParams)),
+				fx.Supply(bundleParams(globalParams, cliParams.logLevel)),
 				core.Bundle(core.WithSecrets()),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
 
+	cmd.PersistentFlags().StringVar(&cliParams.logLevel, "log_level", defaultLogLevel, "Override the log level for this command for debugging purposes")
 	cmd.Flags().StringVarP(&cliParams.checkName, "check", "", "", "the check name to filter for")
+	cmd.Flags().BoolVar(&cliParams.verbose, "verbose", false, "print the full check configurations")
+	cmd.Flags().BoolVar(&cliParams.json, "json", false, "print the dispatching state as JSON")
 
 	rebalanceCmd := &cobra.Command{
 		Use:   "rebalance",
@@ -80,7 +85,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 			return fxutil.OneShot(rebalance,
 				fx.Supply(cliParams),
-				fx.Supply(bundleParams(globalParams)),
+				fx.Supply(bundleParams(globalParams, cliParams.logLevel)),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -91,38 +96,30 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 	cmd.AddCommand(rebalanceCmd)
 
-	isolateCmd := &cobra.Command{
-		Use:   "isolate",
-		Short: "Isolates a single check in the cluster runner",
-		Long:  ``,
-		RunE: func(*cobra.Command, []string) error {
-			globalParams := globalParamsGetter()
-
-			return fxutil.OneShot(isolate,
-				fx.Supply(cliParams),
-				fx.Supply(bundleParams(globalParams)),
-				core.Bundle(),
-				ipcfx.ModuleReadOnly(),
-			)
-		},
-	}
-	isolateCmd.Flags().StringVarP(&cliParams.checkID, "checkID", "", "", "the check ID to isolate")
-	cmd.AddCommand(isolateCmd)
-
 	return cmd
 }
 
-func bundleParams(globalParams GlobalParams) core.BundleParams {
+func bundleParams(globalParams GlobalParams, logLevel string) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-		LogParams:    log.ForOneShot(loggerName, defaultLogLevel, true),
+		// DD_LOG_LEVEL is ignored: it's set for the Cluster Agent daemon in its pod,
+		// and its logs would mix with this command's output on stdout.
+		LogParams: log.ForOneShot(loggerName, logLevel, false),
 	}
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func run(_ log.Component, _ config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
-	if err := clusterAgentFlare.GetClusterChecks(color.Output, cliParams.checkName, client); err != nil {
+	opts := clusterAgentFlare.ClusterChecksOptions{
+		CheckName: cliParams.checkName,
+		Verbose:   cliParams.verbose,
+		JSON:      cliParams.json,
+	}
+	if err := clusterAgentFlare.GetClusterChecks(color.Output, opts, client); err != nil {
 		return err
+	}
+	if cliParams.json {
+		return nil
 	}
 
 	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName, client)
@@ -165,43 +162,9 @@ func rebalance(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) err
 	fmt.Printf("%d cluster checks rebalanced successfully\n", len(checksMoved))
 
 	for _, check := range checksMoved {
-		fmt.Printf("Config %s (%s) with weight %d moved from node %s to %s. source diff: %d, dest diff: %d\n",
-			check.Digest, check.CheckName, check.CheckWeight, check.SourceNodeName, check.DestNodeName, check.SourceDiff, check.DestDiff)
+		fmt.Printf("Config %s (%s) moved from node %s to %s\n",
+			check.Digest, check.CheckName, check.SourceNodeName, check.DestNodeName)
 	}
 
-	return nil
-}
-
-func isolate(_ log.Component, client ipc.HTTPClient, cliParams *cliParams) error {
-	if cliParams.checkID == "" {
-		return errors.New("checkID must be specified")
-	}
-	urlstr := fmt.Sprintf("https://localhost:%v/api/v1/clusterchecks/isolate/check/%s", pkgconfigsetup.Datadog().GetInt("cluster_agent.cmd_port"), cliParams.checkID)
-
-	r, err := client.Post(urlstr, "application/json", bytes.NewBuffer([]byte{}))
-	if err != nil {
-		var errMap = make(map[string]string)
-		json.Unmarshal(r, &errMap) //nolint:errcheck
-		// If the error has been marshalled into a json object, check it and return it properly
-		if e, found := errMap["error"]; found {
-			err = errors.New(e)
-		}
-
-		fmt.Printf(`
-		Could not reach agent: %v
-		Make sure the agent is running before requesting to isolate a cluster check.
-		Contact support if you continue having issues.`, err)
-
-		return err
-	}
-
-	var response types.IsolateResponse
-
-	json.Unmarshal(r, &response) //nolint:errcheck
-	if response.IsIsolated {
-		fmt.Printf("Check %s isolated successfully on node %s\n", response.CheckID, response.CheckNode)
-	} else {
-		fmt.Printf("Check %s could not be isolated: %s\n", response.CheckID, response.Reason)
-	}
 	return nil
 }

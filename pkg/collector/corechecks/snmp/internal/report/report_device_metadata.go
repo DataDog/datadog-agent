@@ -6,6 +6,7 @@
 package report
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -15,6 +16,7 @@ import (
 
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/integrations"
+	"github.com/DataDog/datadog-agent/pkg/util/hostname"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	sortutil "github.com/DataDog/datadog-agent/pkg/util/sort"
 
@@ -244,6 +246,11 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		vendor = profile.Device.Vendor
 	}
 
+	agentHostname, err := hostname.Get(context.TODO())
+	if err != nil {
+		log.Warnf("Error getting the hostname: %v", err)
+	}
+
 	return devicemetadata.DeviceMetadata{
 		ID:             deviceID,
 		IDTags:         idTags,
@@ -268,6 +275,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		OsHostname:     osHostname,
 		DeviceType:     deviceType,
 		Integration:    common.SnmpIntegrationName,
+		AgentHostname:  agentHostname,
 	}
 }
 

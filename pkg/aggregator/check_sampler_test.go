@@ -16,13 +16,15 @@ import (
 	"github.com/stretchr/testify/require"
 
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
+	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
+	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	filterlistimpl "github.com/DataDog/datadog-agent/comp/filterlist/impl"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/ckey"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	checkid "github.com/DataDog/datadog-agent/pkg/collector/check/id"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 	"github.com/DataDog/datadog-agent/pkg/tagset"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
 	"github.com/DataDog/datadog-agent/pkg/util/quantile"
 )
 
@@ -149,6 +151,59 @@ func testCheckRateSampling(t *testing.T, store *tags.Store) {
 
 	if assert.Equal(t, 1, len(series)) {
 		metrics.AssertSerieEqual(t, expectedSerie, series[0])
+	}
+}
+
+// countShardSeries returns the number of series of the given telemetry family
+// whose "shard" label equals shard.
+func countShardSeries(t *testing.T, family, shard string) int {
+	families, err := telemetryimpl.GetCompatComponent().Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	n := 0
+	for _, f := range families {
+		if f.GetName() != family {
+			continue
+		}
+		for _, m := range f.GetMetric() {
+			for _, l := range m.GetLabel() {
+				if l.GetName() == "shard" && l.GetValue() == shard {
+					n++
+				}
+			}
+		}
+	}
+	return n
+}
+
+func TestCheckSamplerReleaseDeletesContextTelemetry(t *testing.T) {
+	const id = "release:telemetry:1234"
+	families := []string{
+		"aggregator__checks_contexts",
+		"aggregator__checks_contexts_by_mtype",
+		"aggregator__checks_contexts_bytes_by_mtype",
+	}
+
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, tags.NewStore(true, "test"), checkid.ID(id), nooptagger.NewComponent())
+	checkSampler.addSample(&metrics.MetricSample{
+		Name:       "my.metric.name",
+		Value:      1,
+		Mtype:      metrics.GaugeType,
+		Tags:       []string{"foo"},
+		SampleRate: 1,
+		Timestamp:  12345.0,
+	}, filterlistimpl.NewNoopTagMatcher())
+	matcher := metricname.NewMatcher([]string{}, false)
+	checkSampler.commit(12346.0, &matcher)
+	checkSampler.flush()
+
+	for _, family := range families {
+		require.NotZero(t, countShardSeries(t, family, id), family)
+	}
+
+	checkSampler.release()
+
+	for _, family := range families {
+		assert.Zero(t, countShardSeries(t, family, id), family)
 	}
 }
 
@@ -610,6 +665,45 @@ func TestCheckHistogramBucketInfinityBucket(t *testing.T) {
 	testWithTagsStore(t, testCheckHistogramBucketInfinityBucket)
 }
 
+func testCheckHistogramBucketNegativeInfinityBucket(t *testing.T, store *tags.Store) {
+	taggerComponent := nooptagger.NewComponent()
+	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
+
+	tagmatcher := filterlistimpl.NewNoopTagMatcher()
+	matcher := metricname.NewMatcher([]string{}, false)
+
+	bucket1 := &metrics.HistogramBucket{
+		Name:       "my.histogram",
+		Value:      4.0,
+		LowerBound: math.Inf(-1),
+		UpperBound: -1.0,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  12345.0,
+	}
+	checkSampler.addBucket(bucket1, tagmatcher)
+
+	checkSampler.commit(12349.0, &matcher)
+	_, flushed := checkSampler.flush()
+	require.Len(t, flushed, 1)
+
+	expSketch := &quantile.Sketch{}
+	expSketch.InsertMany(quantile.Default(), []float64{-1.0, -1.0, -1.0, -1.0})
+
+	metrics.AssertSketchSeriesApproxEqual(t, &metrics.SketchSeries{
+		DistributionMetadata: metrics.DistributionMetadata{
+			Name: "my.histogram",
+			Tags: tagset.CompositeTagsFromSlice([]string{"foo", "bar"}),
+		},
+		Points: []metrics.SketchPoint{
+			{Ts: 12345.0, Sketch: expSketch},
+		},
+	}, flushed[0], .03)
+}
+
+func TestCheckHistogramBucketNegativeInfinityBucket(t *testing.T) {
+	testWithTagsStore(t, testCheckHistogramBucketNegativeInfinityBucket)
+}
+
 func testCheckDistribution(t *testing.T, store *tags.Store) {
 	taggerComponent := nooptagger.NewComponent()
 	checkSampler := newCheckSampler(1, true, true, 1*time.Second, true, store, checkid.ID("hello:world:1234"), taggerComponent)
@@ -863,4 +957,189 @@ func testSketchSeriesSourcePreserved(t *testing.T, store *tags.Store) {
 
 func TestSketchSeriesSourcePreserved(t *testing.T) {
 	testWithTagsStore(t, testSketchSeriesSourcePreserved)
+}
+
+type periodicFlushSampler struct {
+	*CheckSampler
+	matcher metricname.Matcher
+}
+
+func newPeriodicFlushSampler() *periodicFlushSampler {
+	cs := newCheckSampler(1, true, true, 1*time.Hour, true, tags.NewStore(true, "test"), checkid.ID("hello:world:1234"), nooptagger.NewComponent())
+	return &periodicFlushSampler{CheckSampler: cs, matcher: metricname.NewMatcher(nil, false)}
+}
+
+func newSample(name string, mtype metrics.MetricType, value, timestamp float64) *metrics.MetricSample {
+	return &metrics.MetricSample{
+		Name:       name,
+		Value:      value,
+		Mtype:      mtype,
+		Tags:       []string{"foo", "bar"},
+		SampleRate: 1,
+		Timestamp:  timestamp,
+	}
+}
+
+func (p *periodicFlushSampler) add(name string, mtype metrics.MetricType, value, timestamp float64) {
+	p.addSample(newSample(name, mtype, value, timestamp), filterlistimpl.NewNoopTagMatcher())
+}
+
+func (p *periodicFlushSampler) commit(timestamp float64) {
+	p.CheckSampler.commit(timestamp, &p.matcher)
+}
+
+func (p *periodicFlushSampler) commitDecomposable(timestamp float64) {
+	p.CheckSampler.commitDecomposable(timestamp, &p.matcher)
+}
+
+type pointsByName map[string][]metrics.Point
+
+// flushPoints flushes the sampler and returns the flushed series points by series name.
+func (p *periodicFlushSampler) flushPoints() pointsByName {
+	series, _ := p.flush()
+	byName := pointsByName{}
+	for _, s := range series {
+		byName[s.Name] = append(byName[s.Name], s.Points...)
+	}
+	return byName
+}
+
+func TestCheckSamplerCommitDecomposableGauge(t *testing.T) {
+	p := newPeriodicFlushSampler()
+
+	p.add("my.gauge", metrics.GaugeType, 1, 100.2)
+	p.commitDecomposable(100.5)
+	assert.Equal(t, pointsByName{"my.gauge": {{Ts: 99.5, Value: 1}}}, p.flushPoints())
+	assert.Equal(t, 0, p.contextResolver.length())
+
+	p.add("my.gauge", metrics.GaugeType, 2, 120)
+	assert.Equal(t, 1, p.contextResolver.length())
+	p.commit(130)
+	assert.Equal(t, pointsByName{"my.gauge": {{Ts: 130, Value: 2}}}, p.flushPoints())
+}
+
+func TestCheckSamplerCommitDecomposableMonotonicCount(t *testing.T) {
+	p := newPeriodicFlushSampler()
+
+	p.add("my.counter", metrics.MonotonicCountType, 10, 100)
+	p.commitDecomposable(110)
+	assert.Empty(t, p.flushPoints())
+	assert.Equal(t, 0, p.contextResolver.length())
+
+	p.add("my.counter", metrics.MonotonicCountType, 15, 120)
+	p.commit(130)
+	assert.Equal(t, pointsByName{"my.counter": {{Ts: 130, Value: 5}}}, p.flushPoints())
+}
+
+func TestCheckSamplerCommitDecomposableKeepsNonDecomposable(t *testing.T) {
+	p := newPeriodicFlushSampler()
+
+	p.add("my.histogram", metrics.HistogramType, 1, 100)
+	p.commitDecomposable(110)
+	assert.Empty(t, p.flushPoints())
+	assert.Equal(t, 1, p.contextResolver.length())
+
+	p.add("my.histogram", metrics.HistogramType, 3, 120)
+	p.commit(130)
+	points := p.flushPoints()
+	assert.Equal(t, []metrics.Point{{Ts: 130, Value: 2}}, points["my.histogram.count"])
+	assert.Equal(t, []metrics.Point{{Ts: 130, Value: 3}}, points["my.histogram.max"])
+}
+
+func TestCheckSamplerCommitDecomposableBeforeCheckCommit(t *testing.T) {
+	p := newPeriodicFlushSampler()
+
+	p.add("my.gauge", metrics.GaugeType, 1, 200.1)
+	p.commitDecomposable(200.25)
+	assert.Equal(t, pointsByName{"my.gauge": {{Ts: 199.25, Value: 1}}}, p.flushPoints())
+
+	p.add("my.gauge", metrics.GaugeType, 2, 200.3)
+	p.commit(200.5)
+	assert.Equal(t, pointsByName{"my.gauge": {{Ts: 200.5, Value: 2}}}, p.flushPoints())
+
+	p.add("my.gauge", metrics.GaugeType, 3, 200.6)
+	p.commit(200.75)
+	assert.Equal(t, pointsByName{"my.gauge": {{Ts: 200.75, Value: 3}}}, p.flushPoints())
+}
+
+func TestCheckSamplerCommitDecomposableAfterCheckCommit(t *testing.T) {
+	p := newPeriodicFlushSampler()
+
+	p.add("my.count", metrics.CountType, 1, 800.1)
+	p.commit(800.2)
+	p.add("my.count", metrics.CountType, 2, 800.4)
+	p.commitDecomposable(800.5)
+	p.add("my.count", metrics.CountType, 3, 801.1)
+	p.commitDecomposable(801.25)
+	assert.Equal(t, pointsByName{"my.count": {{Ts: 800.2, Value: 1}}}, p.flushPoints())
+
+	p.commitDecomposable(802.25)
+	assert.Equal(t, pointsByName{"my.count": {{Ts: 801.25, Value: 5}}}, p.flushPoints())
+}
+
+func TestCheckSamplerCommitDecomposableSameSecond(t *testing.T) {
+	p := newPeriodicFlushSampler()
+
+	p.add("my.count", metrics.CountType, 1, 900.1)
+	p.commitDecomposable(900.25)
+	p.add("my.count", metrics.CountType, 2, 900.5)
+	p.commitDecomposable(900.75)
+	assert.Equal(t, pointsByName{"my.count": {{Ts: 899.25, Value: 1}}}, p.flushPoints())
+
+	p.commitDecomposable(901.25)
+	assert.Equal(t, pointsByName{"my.count": {{Ts: 900.25, Value: 2}}}, p.flushPoints())
+}
+
+func TestCheckSamplerCommitDecomposableKeepsSharedContexts(t *testing.T) {
+	p := newPeriodicFlushSampler()
+
+	p.add("my.shared", metrics.DistributionType, 1, 400)
+	p.add("my.shared", metrics.GaugeType, 1, 400)
+	p.addBucket(&metrics.HistogramBucket{
+		Name:       "my.bucket",
+		Value:      4,
+		LowerBound: 10,
+		UpperBound: 20,
+		Tags:       []string{"foo", "bar"},
+		Timestamp:  400,
+		Monotonic:  true,
+	}, filterlistimpl.NewNoopTagMatcher())
+	p.add("my.bucket", metrics.GaugeType, 1, 400)
+
+	p.commitDecomposable(400.5)
+	assert.Equal(t, pointsByName{
+		"my.shared": {{Ts: 399.5, Value: 1}},
+		"my.bucket": {{Ts: 399.5, Value: 1}},
+	}, p.flushPoints())
+
+	_, ok := p.contextResolver.get(generateContextKey(newSample("my.shared", metrics.DistributionType, 1, 400)))
+	assert.True(t, ok, "context with a pending sketch must be kept")
+	_, ok = p.contextResolver.get(generateContextKey(newSample("my.bucket", metrics.GaugeType, 1, 400)))
+	assert.True(t, ok, "context with a bucket baseline must be kept")
+
+	p.commit(401)
+	_, sketches := p.flush()
+	if assert.Len(t, sketches, 1) {
+		assert.Equal(t, "my.shared", sketches[0].Name)
+	}
+}
+
+func TestCheckSamplerCommitDecomposableStatefulExpiry(t *testing.T) {
+	p := newPeriodicFlushSampler()
+
+	p.add("my.counter", metrics.MonotonicCountType, 10, 100)
+	p.add("my.counter", metrics.MonotonicCountType, 15, 101)
+	p.commitDecomposable(110)
+	assert.Equal(t, pointsByName{"my.counter": {{Ts: 109, Value: 5}}}, p.flushPoints())
+
+	// Later periodic flushes don't extend the stateful timeout of the unsampled metric.
+	for _, ts := range []float64{1000, 2000, 3000, 3700} {
+		p.commitDecomposable(ts)
+	}
+	p.commit(3800)
+
+	// The previous value is gone, so there is no delta to report.
+	p.add("my.counter", metrics.MonotonicCountType, 20, 3801)
+	p.commit(3802)
+	assert.Empty(t, p.flushPoints())
 }

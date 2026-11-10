@@ -1,0 +1,10 @@
+# -s (packet size) is not implemented and must be rejected.
+description: "ping -s (packet size) is rejected as unknown flag"
+input:
+  script: |+
+    ping -s 1000 localhost
+expect:
+  stdout: ""
+  stderr: "ping: invalid option -- 's'\nTry 'ping --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

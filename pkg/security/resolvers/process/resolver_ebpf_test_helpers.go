@@ -8,6 +8,8 @@
 package process
 
 import (
+	"time"
+
 	"github.com/hashicorp/golang-lru/v2/simplelru"
 	"go.uber.org/atomic"
 
@@ -65,7 +67,7 @@ func NewTestEBPFResolver(
 		inodeErrStats:                make(map[string]*atomic.Int64),
 		spanCtxStats:                 newSpanCtxStats(),
 		otelProcCtxQueue:             make(chan uint32, otelProcCtxQueueSize),
-		otelProcCtxPending:           make(map[uint32]struct{}),
+		otelProcCtxPending:           make(map[uint32]time.Time),
 	}
 
 	for _, t := range metrics.AllTypesTags {

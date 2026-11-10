@@ -34,7 +34,7 @@ type CStore struct {
 }
 
 var (
-	mod           = syscall.NewLazyDLL("libdatadog-interop.dll")
+	mod           = syscall.NewLazyDLL("libdatadog-interop.dll") //nolint:forbidigo // Deliberate exception: the agent-bundled DLL uses the existing PATH-based packaged-library lookup.
 	procGetStore  = mod.NewProc("GetStore")
 	procFreeStore = mod.NewProc("FreeStore")
 )

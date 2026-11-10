@@ -584,7 +584,7 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
 	assert.Equal(t, 85.0, deviceSmActive.Value)
-	assert.Equal(t, Low, deviceSmActive.Priority(), "sm_active should have Low priority")
+	assert.Equal(t, MediumLow, deviceSmActive.Priority(), "sm_active should have MediumLow priority")
 	assert.Empty(t, deviceSmActive.AssociatedWorkloads(), "device-level sm_active should not have associated workloads")
 
 	// Verify device-level gr_engine_active metric
@@ -628,7 +628,7 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
 	assert.Equal(t, 0.0, deviceSmActive.Value)
-	assert.Equal(t, Low, deviceSmActive.Priority(), "sm_active should have Low priority")
+	assert.Equal(t, MediumLow, deviceSmActive.Priority(), "sm_active should have MediumLow priority")
 	assert.Empty(t, deviceSmActive.AssociatedWorkloads(), "device-level sm_active should not have associated workloads")
 
 	deviceGrEngineActive := findMetric(metrics, "gr_engine_active")

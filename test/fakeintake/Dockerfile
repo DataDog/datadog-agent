@@ -2,7 +2,7 @@
 # syntax=docker/dockerfile:1
 ARG GO_BASE_IMAGE_REGISTRY=docker.io
 ARG ALPINE_BASE_IMAGE_REGISTRY=docker.io
-ARG GO_VERSION=1.26.7
+ARG GO_VERSION=1.27.2
 
 ## Build
 FROM ${GO_BASE_IMAGE_REGISTRY}/library/golang:${GO_VERSION} AS build
@@ -58,7 +58,7 @@ FROM ${ALPINE_BASE_IMAGE_REGISTRY}/library/alpine:3.24.1
 
 # --timeout (global flag, before the subcommand) bounds each network operation so
 # a slow Alpine CDN fails fast instead of hanging the build. Default is 60s.
-RUN apk --timeout 10 add curl
+RUN apk --timeout 10 add --no-cache ca-certificates curl
 
 COPY --from=build /fakeintake /fakeintake
 

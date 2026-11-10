@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -34,14 +35,20 @@ const Epsilon = 0.001 // Used for floating point comparisons
 
 // Fixtures
 
+// bubbleMutex is a mutex whose waiters are durably blocked in a synctest bubble, unlike sync.Mutex.
+type bubbleMutex chan struct{}
+
+func (m bubbleMutex) Lock()   { m <- struct{}{} }
+func (m bubbleMutex) Unlock() { <-m }
+
 type testCheck struct {
 	runCount *atomic.Uint64
 	stopped  *atomic.Bool
 
 	stub.StubCheck
-	RunLock   sync.Mutex
+	RunLock   bubbleMutex
 	StartLock sync.Mutex
-	StopLock  sync.Mutex
+	StopLock  bubbleMutex
 
 	doErr       bool
 	doWarn      bool
@@ -106,6 +113,8 @@ func newCheck(t *testing.T, id string, doErr bool, runFunc func(checkid.ID)) *te
 	return &testCheck{
 		runCount: atomic.NewUint64(0),
 		stopped:  atomic.NewBool(false),
+		RunLock:  make(bubbleMutex, 1),
+		StopLock: make(bubbleMutex, 1),
 		doErr:    doErr,
 		t:        t,
 		id:       id,
@@ -161,6 +170,10 @@ func testSetUp(t *testing.T) model.Config {
 // Tests
 
 func TestNewRunner(t *testing.T) {
+	synctest.Test(t, syncTestNewRunner)
+}
+
+func syncTestNewRunner(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 3)
 
@@ -175,6 +188,10 @@ func TestNewRunner(t *testing.T) {
 }
 
 func TestRunnerAddWorker(t *testing.T) {
+	synctest.Test(t, syncTestRunnerAddWorker)
+}
+
+func syncTestRunnerAddWorker(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 1)
 
@@ -190,6 +207,10 @@ func TestRunnerAddWorker(t *testing.T) {
 }
 
 func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
+	synctest.Test(t, syncTestRunnerStaticUpdateNumWorkers)
+}
+
+func syncTestRunnerStaticUpdateNumWorkers(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 2)
 
@@ -209,6 +230,10 @@ func TestRunnerStaticUpdateNumWorkers(t *testing.T) {
 }
 
 func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
+	synctest.Test(t, syncTestRunnerDynamicUpdateNumWorkers)
+}
+
+func syncTestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 0)
 
@@ -238,6 +263,10 @@ func TestRunnerDynamicUpdateNumWorkers(t *testing.T) {
 }
 
 func TestRunner(t *testing.T) {
+	synctest.Test(t, syncTestRunner)
+}
+
+func syncTestRunner(t *testing.T) {
 	testSetUp(t)
 	numChecks := 10
 
@@ -261,6 +290,10 @@ func TestRunner(t *testing.T) {
 }
 
 func TestRunnerShadowWorkerUsesShadowChannel(t *testing.T) {
+	synctest.Test(t, syncTestRunnerShadowWorkerUsesShadowChannel)
+}
+
+func syncTestRunnerShadowWorkerUsesShadowChannel(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 1)
 
@@ -287,6 +320,10 @@ func TestRunnerShadowWorkerUsesShadowChannel(t *testing.T) {
 }
 
 func TestRunnerStopStopsShadowWorkers(t *testing.T) {
+	synctest.Test(t, syncTestRunnerStopStopsShadowWorkers)
+}
+
+func syncTestRunnerStopStopsShadowWorkers(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 0)
 
@@ -338,6 +375,10 @@ func TestRunnerStopStopsShadowWorkers(t *testing.T) {
 }
 
 func TestRunnerStop(t *testing.T) {
+	synctest.Test(t, syncTestRunnerStop)
+}
+
+func syncTestRunnerStop(t *testing.T) {
 	mockConfig := testSetUp(t)
 
 	mockConfig.SetInTest("check_runners", 10)
@@ -391,6 +432,10 @@ func TestRunnerStop(t *testing.T) {
 }
 
 func TestRunnerConfigurableValues(t *testing.T) {
+	synctest.Test(t, syncTestRunnerConfigurableValues)
+}
+
+func syncTestRunnerConfigurableValues(t *testing.T) {
 	mockConfig := testSetUp(t)
 
 	// Test custom utilization threshold
@@ -417,6 +462,10 @@ func TestRunnerConfigurableValues(t *testing.T) {
 }
 
 func TestRunnerDefaultConfigurableValues(t *testing.T) {
+	synctest.Test(t, syncTestRunnerDefaultConfigurableValues)
+}
+
+func syncTestRunnerDefaultConfigurableValues(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 1)
 
@@ -443,6 +492,10 @@ func TestRunnerDefaultConfigurableValues(t *testing.T) {
 }
 
 func TestRunnerStopWithStuckCheck(t *testing.T) {
+	synctest.Test(t, syncTestRunnerStopWithStuckCheck)
+}
+
+func syncTestRunnerStopWithStuckCheck(t *testing.T) {
 	mockConfig := testSetUp(t)
 
 	mockConfig.SetInTest("check_runners", 10)
@@ -500,6 +553,10 @@ func TestRunnerStopWithStuckCheck(t *testing.T) {
 }
 
 func TestRunnerStopCheck(t *testing.T) {
+	synctest.Test(t, syncTestRunnerStopCheck)
+}
+
+func syncTestRunnerStopCheck(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 3)
 
@@ -548,6 +605,10 @@ func TestRunnerStopCheck(t *testing.T) {
 }
 
 func TestRunnerScheduler(t *testing.T) {
+	synctest.Test(t, syncTestRunnerScheduler)
+}
+
+func syncTestRunnerScheduler(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 3)
 
@@ -568,11 +629,17 @@ func TestRunnerScheduler(t *testing.T) {
 }
 
 func TestRunnerShouldAddCheckStats(t *testing.T) {
+	synctest.Test(t, syncTestRunnerShouldAddCheckStats)
+}
+
+func syncTestRunnerShouldAddCheckStats(t *testing.T) {
 	mockConfig := testSetUp(t)
 	mockConfig.SetInTest("check_runners", 3)
 
 	testCheck := newCheck(t, "test", false, nil)
 	sched := newScheduler()
+	sched.Run()        // otherwise Stop would be a no-op
+	defer sched.Stop() // ends the queue goroutine that Enter starts below
 
 	r := NewRunner(aggregator.NewNoOpSenderManager(), haagentmock.NewMockHaAgent())
 	require.NotNil(t, r)

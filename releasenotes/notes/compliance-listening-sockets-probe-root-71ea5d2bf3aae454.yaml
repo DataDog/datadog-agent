@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CSPM: The containerized agent now evaluates the host benchmark rules on
+    listening network services, such as ``has_nonlocal_mta``, on the sockets
+    of the host, where it reported them not applicable.

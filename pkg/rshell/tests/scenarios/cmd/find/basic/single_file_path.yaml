@@ -1,0 +1,16 @@
+description: find with a file as starting path lists just that file.
+setup:
+  files:
+    - path: dir/file.txt
+      content: "data"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir/file.txt
+expect:
+  stdout: |+
+    dir/file.txt
+  stderr: ""
+  exit_code: 0
+skip_assert_against_bash: true

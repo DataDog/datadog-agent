@@ -1,0 +1,30 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "procnetroute",
+    srcs = [
+        "procnetroute.go",
+        "procnetroute_linux.go",
+        "procnetroute_other.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/procnetroute",
+    visibility = ["//pkg/rshell/builtins:__subpackages__"],
+    deps = ["//pkg/rshell/builtins/internal/procpath"],
+)
+
+dd_agent_go_test(
+    name = "procnetroute_test",
+    srcs = [
+        "procnetroute_linux_vuln_hunt_test.go",
+        "procnetroute_other_vuln_hunt_test.go",
+        "procnetroute_vuln_hunt_test.go",
+    ],
+    embed = [":procnetroute"],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

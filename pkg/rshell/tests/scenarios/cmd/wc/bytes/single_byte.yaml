@@ -1,0 +1,13 @@
+description: wc -c on single byte input outputs 1.
+setup:
+  files:
+    - path: file.txt
+      content: "x"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -c file.txt
+expect:
+  stdout: "1 file.txt\n"
+  stderr: ""
+  exit_code: 0

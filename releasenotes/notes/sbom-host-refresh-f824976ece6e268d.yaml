@@ -1,0 +1,18 @@
+---
+enhancements:
+  - |
+    With CWS enabled, a write to the package databases of the host scans the
+    host packages of the CWS SBOM resolver again, as a write in a container
+    scans the packages of that container, so runtime usage enrichment follows
+    package upgrades on the host. A package found again, upgraded or not,
+    keeps its usage, and the processes running on the host then count as
+    using the packages of their executables.
+fixes:
+  - |
+    The SBOM refresh after a write to the package databases covers
+    ``/usr/lib/sysimage/rpm``, where RHEL 10 and Fedora keep the rpm database.
+  - |
+    A query of the rpm database leaves the SBOM of its container as it was.
+    Every rpm process opens the sqlite shared memory and log, the Berkeley DB
+    environment or the ndb index read-write, and such an open refreshed the
+    SBOM and reset the usage of its packages.

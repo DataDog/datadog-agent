@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The snapshot of running processes that system-probe replays at start
+    keeps up to 1024 mapped executable files per process, up from 128. The
+    packages of the shared libraries past the 128th, which a Python process
+    with a data science stack loads, appeared unused while it ran.

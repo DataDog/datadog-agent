@@ -8,8 +8,8 @@ package observerimpl
 import (
 	"math"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // scanmwStateKey identifies per-series state by ref and aggregation.
@@ -23,55 +23,47 @@ type scanmwStateKey struct {
 // (metrics_detector_bocpd.go). If more scan-based detectors are added,
 // consider extracting a shared scanSeriesState base.
 type scanmwSeriesState struct {
-	lastWriteGen       int64
-	lastProcessedCount int // visible point count (PointCountUpTo) at last Detect
+	lastObservedTime   int64
+	observedPoints     int // cumulative completed points, independent of storage eviction
+	lastProcessedCount int // cumulative point count at the last scan
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	// 0 initially (scan full history), advances to changepoint timestamp on fire.
 	segmentStartTime int64
 }
 
-// ScanMWDetector detects changepoints by scanning all possible split points
-// with the Mann-Whitney U test. It picks the split that gives the most
-// significant test result (smallest p-value), making it a non-parametric
-// changepoint detector that's robust to distribution shape.
-//
-// Uses an efficient O(n log n) implementation: ranks are assigned once via
-// sorting, then the rank sum is updated incrementally as the split point moves.
-//
-// Implements Detector (streaming) — after finding a changepoint, advances
-// the segment start so subsequent scans only examine post-change data.
+// ScanMWConfig contains construction-time statistical parameters.
+// Only MinPoints and MaxPoints are exposed through Agent/testbench settings.
+type ScanMWConfig struct {
+	MinSegment            int     `json:"-"` // minimum points on each side of a split
+	MinPoints             int     `json:"min_points"`
+	MaxPoints             int     `json:"max_points"`
+	SignificanceThreshold float64 `json:"-"` // maximum accepted p-value
+	MinEffectSize         float64 `json:"-"` // minimum absolute rank-biserial correlation
+	MinDeviationMAD       float64 `json:"-"` // median separation in pre-segment MADs
+}
+
+// DefaultScanMWConfig preserves unrestricted detection on averages and counts.
+func DefaultScanMWConfig() ScanMWConfig {
+	return ScanMWConfig{
+		MinSegment:            12,
+		MinPoints:             30,
+		MaxPoints:             scanMaxPoints,
+		SignificanceThreshold: 1e-8,
+		MinEffectSize:         0.85,
+		MinDeviationMAD:       3.0,
+	}
+}
+
+// ScanMWDetector scans candidate splits with a Mann-Whitney U test using ranks
+// assigned once per scan (O(n log n)). After a changepoint, only the new segment
+// is scanned. Configuration is immutable; state is single-writer.
 type ScanMWDetector struct {
-	ready bool
-	// MinSegment is the minimum number of points in each segment.
-	// Default: 12
-	MinSegment int
+	config ScanMWConfig
+	ready  bool
 
-	// MinPoints is the minimum total points before detection runs.
-	// Default: 30
-	MinPoints int `json:"min_points"`
-	// MaxPoints bounds the scan window. Default: 120.
-	MaxPoints int `json:"max_points"`
-
-	// SignificanceThreshold is the maximum p-value for the best split to be
-	// considered a changepoint. Default: 1e-8
-	SignificanceThreshold float64
-
-	// MinEffectSize is the minimum |rank-biserial correlation| for reporting.
-	// Default: 0.85
-	MinEffectSize float64
-
-	// MinDeviationMAD is the minimum |post_median - pre_median| / MAD.
-	// Default: 3.0
-	MinDeviationMAD float64
-
-	// Aggregations to run detection on. Default: [Average, Count]
-	Aggregations []observer.Aggregate
-
-	// per-series state keyed by ref+agg
 	series map[scanmwStateKey]*scanmwSeriesState
-	// scanBuf is shared by this single-writer detector instead of being retained
-	// once per live series and aggregation.
+	// Shared scratch avoids retaining a scan buffer per series and aggregation.
 	scanBuf   []observer.Point
 	workspace scanDetectorWorkspace
 
@@ -80,19 +72,33 @@ type ScanMWDetector struct {
 	cachedGen  uint64
 }
 
-// NewScanMWDetector creates a ScanMW detector with default settings.
-func NewScanMWDetector() *ScanMWDetector {
+// NewScanMWDetector normalizes and copies configuration once at construction.
+func NewScanMWDetector(cfg ScanMWConfig) *ScanMWDetector {
+	defaults := DefaultScanMWConfig()
+	if cfg.MinSegment <= 0 {
+		cfg.MinSegment = defaults.MinSegment
+	}
+	if cfg.MinPoints <= 0 {
+		cfg.MinPoints = defaults.MinPoints
+	}
+	if cfg.MaxPoints <= 0 {
+		cfg.MaxPoints = defaults.MaxPoints
+	}
+	if cfg.MaxPoints < cfg.MinPoints {
+		logging.Warnf("ScanMW max_points=%d is below min_points=%d; using %d", cfg.MaxPoints, cfg.MinPoints, cfg.MinPoints)
+		cfg.MaxPoints = cfg.MinPoints
+	}
+	if cfg.SignificanceThreshold <= 0 {
+		cfg.SignificanceThreshold = defaults.SignificanceThreshold
+	}
+	if cfg.MinEffectSize <= 0 {
+		cfg.MinEffectSize = defaults.MinEffectSize
+	}
+	if cfg.MinDeviationMAD <= 0 {
+		cfg.MinDeviationMAD = defaults.MinDeviationMAD
+	}
 	return &ScanMWDetector{
-		MinSegment:            12,
-		MinPoints:             30,
-		MaxPoints:             scanMaxPoints,
-		SignificanceThreshold: 1e-8,
-		MinEffectSize:         0.85,
-		MinDeviationMAD:       3.0,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		},
+		config: cfg,
 		series: make(map[scanmwStateKey]*scanmwSeriesState),
 	}
 }
@@ -106,8 +112,7 @@ func (d *ScanMWDetector) Ready() bool { return d.ready }
 
 // DetectorPointWindow implements observer.DetectorPointWindowRequirement.
 func (d *ScanMWDetector) DetectorPointWindow() observer.DetectorPointWindow {
-	d.ensureDefaults()
-	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: d.MaxPoints}
+	return observer.DetectorPointWindow{MinPoints: d.config.MinPoints, MaxPoints: d.config.MaxPoints}
 }
 
 // Reset clears all per-series state for replay/reanalysis.
@@ -120,12 +125,11 @@ func (d *ScanMWDetector) Reset() {
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
 func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
-	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, scanmwStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -139,16 +143,15 @@ func (d *ScanMWDetector) RemoveSeries(refs []observer.SeriesRef) {
 //
 // Iteration pattern is the same as BOCPD (metrics_detector_bocpd.go Detect loop)
 // and ScanWelch — consider dedup if more scan-based detectors are added.
-func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
-	d.ensureDefaults()
-
+func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
+		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
 	}
 
-	// Bulk-fetch write generations in a single lock acquisition.
+	// Bulk-fetch visible point counts for series activation.
 	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
@@ -156,14 +159,14 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
-		for _, agg := range d.Aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
 			sk := scanmwStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
-			if !exists && status.pointCount < d.MinPoints {
+			if !exists && status.pointCount < d.config.MinPoints {
 				continue
 			}
 			activated := !exists
@@ -172,20 +175,19 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				d.series[sk] = state
 			}
 
-			// Skip unless at least MinSegment new points are visible since the
-			// last scan. Gating on visible point count (not WriteGeneration
-			// alone) is required for replay: storage may already hold future
-			// points, so WriteGeneration reaches its final value before the
-			// simulated dataTime has advanced far enough to expose them, which
-			// would otherwise suppress every scan. WriteGeneration is still
-			// checked to catch same-bucket merges that leave the count
-			// unchanged but move stored values. Mirrors the BOCPD replay gate.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
+			// Count newly visible completed buckets, not storage writes. Preloaded
+			// replay has already written future points; streaming writes them as
+			// time advances. Retained point counts also stop growing on eviction.
+			storage.ForEachPoint(ref, state.lastObservedTime, dataTime, agg, func(_ *observer.Series, p observer.Point) {
+				state.observedPoints++
+				state.lastObservedTime = p.Timestamp
+			})
+			if !activated && state.observedPoints < state.lastProcessedCount+d.config.MinSegment {
 				continue
 			}
 
 			var seriesMeta *observer.Series
-			seriesMeta, d.scanBuf = collectLastPoints(storage, ref, dataTime, d.MaxPoints, agg, d.scanBuf)
+			seriesMeta, d.scanBuf = collectLastPoints(storage, ref, dataTime, d.config.MaxPoints, agg, d.scanBuf)
 			if state.segmentStartTime > 0 {
 				kept := d.scanBuf[:0]
 				for _, p := range d.scanBuf {
@@ -196,9 +198,8 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 				d.scanBuf = kept
 			}
 
-			if seriesMeta == nil || len(d.scanBuf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
-				state.lastWriteGen = status.writeGeneration
+			if seriesMeta == nil || len(d.scanBuf) < d.config.MinPoints {
+				state.lastProcessedCount = state.observedPoints
 				continue
 			}
 			d.ready = true
@@ -211,11 +212,10 @@ func (d *ScanMWDetector) Detect(storage observer.StorageReader, dataTime int64) 
 			}
 
 			if activated {
-				state.lastProcessedCount = 1 + ((status.pointCount-1)/d.MinSegment)*d.MinSegment
+				state.lastProcessedCount = 1 + ((state.observedPoints-1)/d.config.MinSegment)*d.config.MinSegment
 			} else {
-				state.lastProcessedCount = status.pointCount
+				state.lastProcessedCount = state.observedPoints
 			}
-			state.lastWriteGen = status.writeGeneration
 		}
 	}
 
@@ -232,7 +232,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	// Efficient O(n log n) scan: assign ranks once, then slide the split point.
 	ranks, tieCorrection := d.workspace.assignRanks(values)
 
-	minSeg := d.MinSegment
+	minSeg := d.config.MinSegment
 	var R1 float64
 	for i := 0; i < minSeg; i++ {
 		R1 += ranks[i]
@@ -281,7 +281,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		bestPValue = 1.0
 	}
 
-	if bestPValue >= d.SignificanceThreshold {
+	if bestPValue >= d.config.SignificanceThreshold {
 		return observer.Anomaly{}, 0, false
 	}
 
@@ -294,7 +294,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	bestU := math.Min(bestU1, float64(bestK)*float64(n-bestK)-bestU1)
 
 	effectSize := rankBiserialCorrelation(bestU, bestK, n-bestK)
-	if math.Abs(effectSize) < d.MinEffectSize {
+	if math.Abs(effectSize) < d.config.MinEffectSize {
 		return observer.Anomaly{}, 0, false
 	}
 
@@ -310,7 +310,7 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 		denom = math.Max(math.Abs(preMedian)*0.01, 1e-6)
 	}
 	deviation := math.Abs(postMedian-preMedian) / denom
-	if deviation < d.MinDeviationMAD {
+	if deviation < d.config.MinDeviationMAD {
 		return observer.Anomaly{}, 0, false
 	}
 
@@ -338,39 +338,4 @@ func (d *ScanMWDetector) scanMW(points []observer.Point, series *observer.Series
 	}
 
 	return anomaly, bestK, true
-}
-
-// ensureDefaults fills in zero-valued config fields with sensible defaults.
-func (d *ScanMWDetector) ensureDefaults() {
-	if d.MinSegment <= 0 {
-		d.MinSegment = 12
-	}
-	if d.MinPoints <= 0 {
-		d.MinPoints = 30
-	}
-	if d.MaxPoints <= 0 {
-		d.MaxPoints = scanMaxPoints
-	}
-	if d.MaxPoints < d.MinPoints {
-		pkglog.Warnf("[observer] ScanMW max_points=%d is below min_points=%d; using %d", d.MaxPoints, d.MinPoints, d.MinPoints)
-		d.MaxPoints = d.MinPoints
-	}
-	if d.SignificanceThreshold <= 0 {
-		d.SignificanceThreshold = 1e-8
-	}
-	if d.MinEffectSize <= 0 {
-		d.MinEffectSize = 0.85
-	}
-	if d.MinDeviationMAD <= 0 {
-		d.MinDeviationMAD = 3.0
-	}
-	if d.series == nil {
-		d.series = make(map[scanmwStateKey]*scanmwSeriesState)
-	}
-	if len(d.Aggregations) == 0 {
-		d.Aggregations = []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		}
-	}
 }

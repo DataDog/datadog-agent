@@ -931,7 +931,8 @@ profiles:
       "subnet": "127.0.0.0/30",
       "serial_number": "a-serial-num",
 	  "integration": "snmp",
-	  "device_type": "load_balancer"
+	  "device_type": "load_balancer",
+	  "agent_hostname": "my-hostname"
     }
   ],
   "interfaces": [
@@ -1610,7 +1611,8 @@ tags:
       "sys_object_id": "1.2.3.4",
       "subnet": "127.0.0.0/30",
 	  "integration": "snmp",
-	  "device_type": "other"
+	  "device_type": "other",
+	  "agent_hostname": "my-hostname"
     }
   ],
   "interfaces": [
@@ -1770,7 +1772,8 @@ tags:
       "status": 2,
       "subnet": "127.0.0.0/30",
 	  "integration": "snmp",
-	  "device_type": "other"
+	  "device_type": "other",
+	  "agent_hostname": "my-hostname"
     }
   ],
   "diagnoses": [
@@ -2096,7 +2099,8 @@ metric_tags:
       "name": "foo_sys_name",
       "subnet": "10.10.0.0/30",
 	  "integration": "snmp",
-	  "device_type": "other"
+	  "device_type": "other",
+	  "agent_hostname": "my-hostname"
     }
   ],
   "interfaces": [

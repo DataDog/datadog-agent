@@ -348,6 +348,51 @@ func requireSupervisedOnlyByProcmgr(t *testing.T, host *components.RemoteHost, c
 	}, timeout, 3*time.Second)
 }
 
+// requireUnspawnedWithLegacyDown requires the gate-closed half: name stays Skipped under
+// dd-procmgr and legacyService stays Stopped or Absent for procmgrHoldFor. Both are read
+// every tick and share one window, same as requireSupervisedOnlyByProcmgr. timeout is the
+// deadline for reaching that hold, not the length of it.
+func requireUnspawnedWithLegacyDown(t *testing.T, host *components.RemoteHost, cli, name, legacyService string, timeout time.Duration) {
+	t.Helper()
+
+	serviceQuery := fmt.Sprintf(
+		`$s = Get-Service -Name '%s' -ErrorAction SilentlyContinue; if ($null -eq $s) { 'Absent' } else { $s.Status }`,
+		legacyService,
+	)
+
+	var heldSince time.Time
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		describe, err := host.Execute(procmgrCmd(cli, "describe "+name))
+		if !assert.NoError(ct, err, "dd-procmgr describe %s", name) {
+			heldSince = time.Time{}
+			return
+		}
+		status, err := host.Execute(serviceQuery)
+		if !assert.NoError(ct, err, "Get-Service %s", legacyService) {
+			heldSince = time.Time{}
+			return
+		}
+
+		state := fieldValue(describe, "State")
+		serviceState := strings.TrimSpace(status)
+		skipped := assert.Equal(ct, "Skipped", state, "process %s: %s", name, describe)
+		legacyDown := assert.Contains(ct, []string{"Stopped", "Absent"}, serviceState,
+			"%s must stay down while %s is gated closed", legacyService, name)
+		if !skipped || !legacyDown {
+			heldSince = time.Time{}
+			return
+		}
+
+		now := time.Now()
+		if heldSince.IsZero() {
+			heldSince = now
+		}
+		assert.GreaterOrEqual(ct, now.Sub(heldSince), procmgrHoldFor,
+			"%s has held Skipped with %s down for %s, needs %s",
+			name, legacyService, now.Sub(heldSince).Round(time.Second), procmgrHoldFor)
+	}, timeout, 3*time.Second)
+}
+
 func ensureWindowsDirPS(dir string) string {
 	return psRemote(`New-Item -ItemType Directory -Force -Path '%s' | Out-Null`, dir)
 }
@@ -397,6 +442,7 @@ func TestProcmgrSmokeWindowsSuite(t *testing.T) {
 				ec2.WithAgentOptions(
 					agentparams.WithFile(winConfigDir+"/test-sleep.yaml", winTestProcessConfig, true),
 					agentparams.WithFile(winConfigDir+"/missing-binary.yaml", winMissingBinaryConfig, true),
+					agentparams.WithFile(winConfigDir+"/datadog-agent-par-control.yaml", skippedCatalogProcessYAML(`C:\nonexistent\par-control.exe`, `C:\nonexistent\par-control.exe`), true),
 					withADPEnabled(),
 				),
 			),
@@ -642,6 +688,60 @@ func (s *procmgrWindowsSuite) TestADPProcessRunning() {
 	))
 }
 
+// TestADPRecoversStaleLocalDomain simulates the installedDomain value left behind
+// by cloning a host while SCM still identifies the current local Agent user.
+func (s *procmgrWindowsSuite) TestADPRecoversStaleLocalDomain() {
+	s.requireCLI()
+	host := s.Env().RemoteHost
+	originalDomain, user, err := windowsagent.GetAgentUserFromRegistry(host)
+	require.NoError(s.T(), err)
+	computer, err := windowsCommon.GetHostname(host)
+	require.NoError(s.T(), err)
+	require.True(s.T(), strings.EqualFold(computer, originalDomain),
+		"test requires an installed local Agent account: computer=%q installedDomain=%q", computer, originalDomain)
+
+	serviceUser, err := windowsCommon.GetServiceAccountName(host, "datadogagent")
+	require.NoError(s.T(), err)
+	require.True(s.T(),
+		strings.EqualFold(serviceUser, `.\`+user) || strings.EqualFold(serviceUser, computer+`\`+user),
+		"datadogagent must be configured for the installed local user, got %q", serviceUser)
+	expectedOwner := computer + "/" + user
+
+	const staleDomain = "OLD-AGENT-HOST"
+	require.False(s.T(), strings.EqualFold(computer, staleDomain))
+	s.T().Cleanup(func() {
+		// Other tests and retries can reuse the host, so restore the registry
+		// before bringing the Agent and its procmgr back up.
+		assert.NoError(s.T(), windowsCommon.StopService(host, "dd-procmgr-service"))
+		assert.NoError(s.T(), windowsCommon.StopService(host, "datadogagent"))
+		assert.NoError(s.T(), windowsCommon.SetTypedRegistryValue(host, windowsagent.RegistryKeyPath, "installedDomain", originalDomain, "String"))
+		assert.NoError(s.T(), windowsCommon.StartService(host, "datadogagent"))
+		assert.NoError(s.T(), windowsCommon.StartService(host, "dd-procmgr-service"))
+	})
+	require.NoError(s.T(), windowsCommon.StopService(host, "dd-procmgr-service"))
+	require.NoError(s.T(), windowsCommon.StopService(host, "datadogagent"))
+	require.NoError(s.T(), windowsCommon.SetTypedRegistryValue(host, windowsagent.RegistryKeyPath, "installedDomain", staleDomain, "String"))
+
+	require.NoError(s.T(), windowsCommon.StartService(host, "datadogagent"))
+	require.NoError(s.T(), windowsCommon.StartService(host, "dd-procmgr-service"))
+	windowsCommon.AssertServiceState(s.T(), host, "datadogagent", "Running")
+	windowsCommon.AssertServiceState(s.T(), host, "dd-procmgr-service", "Running")
+	windowsagent.AssertProcmgrProcessRunning(s.T(), host, adpProcessName)
+
+	// Checking SCM alone would miss an ADP that failed to launch or launched
+	// under the wrong identity. Use the PID reported by procmgr for the owner check.
+	require.EventuallyWithT(s.T(), func(c *assert.CollectT) {
+		fields, output, err := windowsCommon.ProcmgrDescribe(host, winCLIBin, adpProcessName)
+		require.NoError(c, err, "describe Agent Data Plane: %s", output)
+		pid := fields["PID"]
+		require.NotEmpty(c, pid, "Agent Data Plane PID in: %s", output)
+		owner, err := windowsProcessOwnerByPID(host, pid)
+		require.NoError(c, err, "query owner for Agent Data Plane PID %s", pid)
+		assert.True(c, strings.EqualFold(owner, expectedOwner),
+			"Agent Data Plane PID %s must run as %s, got %s", pid, expectedOwner, owner)
+	}, 2*time.Minute, 5*time.Second)
+}
+
 func (s *procmgrWindowsSuite) TestADPCOATTelemetry() {
 	s.requireCLI()
 	s.waitWindowsADPRunning(90 * time.Second)
@@ -663,33 +763,8 @@ func (s *procmgrWindowsSuite) TestADPCOATTelemetry() {
 			"service": "agent-data-plane",
 			"mode":    "procmgr",
 		}), "ADP procmgr management-mode gauge should be emitted: %s", output)
+		assertAgentServiceRunningExclusive(ct, output, "agent-data-plane", "procmgr")
 	}, 7*time.Minute, 10*time.Second)
-}
-
-func telemetryGaugeIsTrue(output, metric string, labels map[string]string) bool {
-	for _, line := range strings.Split(output, "\n") {
-		line = strings.TrimSpace(line)
-		if !strings.HasPrefix(line, metric) {
-			continue
-		}
-
-		fields := strings.Fields(line)
-		if len(fields) < 2 || (fields[len(fields)-1] != "1" && fields[len(fields)-1] != "1.0") {
-			continue
-		}
-
-		allLabelsMatch := true
-		for key, value := range labels {
-			if !strings.Contains(line, key+`="`+value+`"`) {
-				allLabelsMatch = false
-				break
-			}
-		}
-		if allLabelsMatch {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *procmgrWindowsSuite) TestADPRestartAfterKill() {

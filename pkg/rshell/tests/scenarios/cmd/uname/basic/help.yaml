@@ -1,0 +1,11 @@
+# skip: GNU uname --help includes flags we don't support (-p, -i, -o, --version)
+# and GNU-specific footer text. Help format intentionally differs.
+description: uname --help prints usage to stdout
+skip_assert_against_bash: true
+input:
+  script: |+
+    uname --help
+expect:
+  stdout_contains: ["uname", "kernel-name", "nodename", "kernel-release", "kernel-version", "machine"]
+  stderr: ""
+  exit_code: 0
