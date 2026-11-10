@@ -173,13 +173,12 @@ go_library(
 dd_agent_go_test(
     name = "sender_test",
     srcs = [
+        "batches_reference_test.go",
         "docker_proxy_test.go",
         "sender_bench_test.go",
         "sender_test.go",
         "service_resolver_test.go",
-        "tagcache_reference_test.go",
         "tagcache_test.go",
-        "zstd_reference_test.go",
         "zstdreuse_test.go",
     ],
     embed = [":sender"],
