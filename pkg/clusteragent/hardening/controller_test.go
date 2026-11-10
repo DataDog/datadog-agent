@@ -733,3 +733,28 @@ func TestStartWithRequestsFileReturnsStore(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, store)
 }
+
+func TestRefreshImplicitCapabilities(t *testing.T) {
+	node := func(name, runtime string) *corev1.Node {
+		return &corev1.Node{
+			ObjectMeta: metav1.ObjectMeta{Name: name},
+			Status:     corev1.NodeStatus{NodeInfo: corev1.NodeSystemInfo{ContainerRuntimeVersion: runtime}},
+		}
+	}
+	ctx := context.Background()
+	store := NewStore(testCluster)
+	assert.Equal(t, implicitCapabilities, store.ImplicitCapabilities(), "the intersection until the nodes are listed")
+
+	client := fake.NewClientset(node("a", "containerd://1.7.2"), node("b", "containerd://2.0.0"))
+	refreshImplicitCapabilities(ctx, client, store)
+	assert.Equal(t, dockerCapabilities, store.ImplicitCapabilities())
+
+	client.PrependReactor("list", "nodes", func(k8stesting.Action) (bool, runtime.Object, error) {
+		return true, nil, errors.New("forbidden")
+	})
+	refreshImplicitCapabilities(ctx, client, store)
+	assert.Equal(t, dockerCapabilities, store.ImplicitCapabilities(), "a failed listing keeps the previous set")
+
+	refreshImplicitCapabilities(ctx, fake.NewClientset(node("a", "containerd://1.7.2"), node("c", "cri-o://1.29.1")), store)
+	assert.Equal(t, implicitCapabilities, store.ImplicitCapabilities())
+}
