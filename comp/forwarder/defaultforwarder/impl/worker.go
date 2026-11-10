@@ -7,6 +7,7 @@ package defaultforwarderimpl
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http/httptrace"
 	"sync"
@@ -49,6 +50,7 @@ type Worker struct {
 
 	// The maximum number of HTTP requests we can have inflight at any one time.
 	maxConcurrentRequests weightedSemaphore
+	requestCtx            context.Context
 	workerCtx             context.Context
 	cancel                context.CancelFunc
 	requestWg             sync.WaitGroup
@@ -75,7 +77,23 @@ func NewWorker(
 	httpClient *SharedConnection,
 	concurrency concurrencyDomain,
 ) *Worker {
-	workerCtx, cancel := context.WithCancel(context.Background())
+	return newWorker(context.Background(), config, log, secrets, highPrioChan, lowPrioChan, requeueChan, blocked, pointCountTelemetry, httpClient, concurrency)
+}
+
+func newWorker(
+	requestCtx context.Context,
+	config config.Component,
+	log log.Component,
+	secrets secrets.Component,
+	highPrioChan <-chan transaction.Transaction,
+	lowPrioChan <-chan transaction.Transaction,
+	requeueChan chan<- transaction.Transaction,
+	blocked *blockedEndpoints,
+	pointCountTelemetry PointCountTelemetry,
+	httpClient *SharedConnection,
+	concurrency concurrencyDomain,
+) *Worker {
+	workerCtx, cancel := context.WithCancel(requestCtx)
 
 	worker := &Worker{
 		config:                config,
@@ -91,6 +109,7 @@ func NewWorker(
 		pointCountTelemetry:   pointCountTelemetry,
 		waitForInflight:       config.GetBool("forwarder_stop_wait_for_inflight"),
 		maxConcurrentRequests: concurrency.newRequestSemaphore(),
+		requestCtx:            requestCtx,
 		workerCtx:             workerCtx,
 		cancel:                cancel,
 	}
@@ -119,21 +138,14 @@ func (w *Worker) stopWithoutWaitingForInflight(purgeHighPrio bool) {
 		w.drainHighPrioWithFreshContext()
 	}
 	w.requestWg.Wait()
+	w.cancel()
 }
 
 // stopWaitingForInflight signals the Start goroutine via stopChan, allows
 // in-flight HTTP requests to complete, and cancels workerCtx last.
-// forwarder_stop_timeout (applied by the caller in DefaultForwarder.Stop) is
-// the outer bound on this wait; if that deadline fires, the goroutines spawned
-// by callProcess continue running with no independent cancellation and finish
-// on their own (or via HTTP timeout).
-//
-// The process is expected to exit shortly after Stop returns, so any in-flight
-// goroutines are reaped on exit. This path is only appropriate for that "Stop
-// is the last thing before process exit" shape — there is no codepath today
-// that calls forwarder.Stop and keeps running, but a future caller that does
-// would observe shutdown returning before HTTP requests complete rather than
-// cancelling them mid-flight.
+// DefaultForwarder cancels requestCtx when its shutdown grace expires. Both
+// in-flight HTTP requests and semaphore acquisition observe that cancellation.
+// Stop still joins the worker loop and requests before their queues can close.
 func (w *Worker) stopWaitingForInflight(purgeHighPrio bool) {
 	close(w.stopChan)
 
@@ -148,24 +160,23 @@ func (w *Worker) stopWaitingForInflight(purgeHighPrio bool) {
 	w.cancel()
 }
 
-// drainHighPrioWithExistingContext synchronously processes every transaction
-// currently buffered in HighPrio using the worker's current workerCtx.
+// drainHighPrioWithExistingContext submits buffered high-priority work using
+// the current workerCtx. requestWg owns completion of the HTTP processing.
 func (w *Worker) drainHighPrioWithExistingContext() {
 	w.drainHighPrio()
 }
 
-// drainHighPrioWithFreshContext replaces workerCtx with a fresh background
+// drainHighPrioWithFreshContext replaces workerCtx with a fresh child
 // context, then drains HighPrio. Used when the caller has already cancelled
 // workerCtx and the drained transactions need a live context to acquire the
 // semaphore.
 func (w *Worker) drainHighPrioWithFreshContext() {
-	w.workerCtx, w.cancel = context.WithCancel(context.Background())
+	w.workerCtx, w.cancel = context.WithCancel(w.requestCtx)
 	w.drainHighPrio()
 }
 
-// drainHighPrio synchronously processes every transaction currently buffered
-// in HighPrio. Returns once HighPrio is empty; transactions submitted
-// concurrently after the drain is invoked are not guaranteed to be picked up.
+// drainHighPrio submits buffered transactions until HighPrio is empty or request
+// admission is canceled. Remaining work stays with the domain owner.
 // Callers should invoke one of the drainHighPrioWith* wrappers rather than
 // this method directly.
 func (w *Worker) drainHighPrio() {
@@ -173,7 +184,11 @@ func (w *Worker) drainHighPrio() {
 		select {
 		case t := <-w.HighPrio:
 			w.log.Debugf("Flushing one new transaction before stopping Worker")
-			w.callProcess(t) //nolint:errcheck
+			if w.callProcess(t) != nil {
+				// The current transaction was requeued. The domain owner retains
+				// the remaining work for persistence or explicit discard.
+				return
+			}
 		default:
 			return
 		}
@@ -245,8 +260,8 @@ func (w *Worker) callProcess(t transaction.Transaction) error {
 	w.requestWg.Add(1)
 	go func() {
 		defer func() {
-			w.requestWg.Done()
 			w.releaseRequestSemaphore()
+			w.requestWg.Done()
 		}()
 		w.process(ctx, t)
 	}()
@@ -263,6 +278,11 @@ func (w *Worker) process(ctx context.Context, t transaction.Transaction) {
 		return
 	}
 	if err := t.Process(ctx, w.config, w.log, w.secrets, w.Client.GetClient(), w.pointCountTelemetry); err != nil {
+		if ctx.Err() != nil && errors.Is(err, ctx.Err()) {
+			// Local shutdown is not evidence that the intake endpoint failed.
+			w.requeue(t)
+			return
+		}
 		w.blockedList.close(target, time.Now())
 		w.requeue(t)
 		w.log.Errorf("Error while processing transaction: %v", err)

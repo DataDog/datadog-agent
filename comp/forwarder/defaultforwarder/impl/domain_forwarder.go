@@ -33,6 +33,7 @@ var (
 // HTTP and retrying them if needed. One domainForwarder is created per HTTP
 // backend.
 type domainForwarder struct {
+	requestCtx              context.Context
 	config                  config.Component
 	log                     log.Component
 	secrets                 secrets.Component
@@ -57,6 +58,7 @@ type domainForwarder struct {
 }
 
 func newDomainForwarder(
+	requestCtx context.Context,
 	config config.Component,
 	log log.Component,
 	secrets secrets.Component,
@@ -69,6 +71,7 @@ func newDomainForwarder(
 	pointCountTelemetry *retry.PointCountTelemetry,
 	transport http.RoundTripper) *domainForwarder {
 	return &domainForwarder{
+		requestCtx:              requestCtx,
 		config:                  config,
 		log:                     log,
 		secrets:                 secrets,
@@ -218,7 +221,7 @@ func (f *domainForwarder) Start() error {
 
 	f.concurrency.start()
 	for i := 0; i < f.concurrency.numWorkers(); i++ {
-		w := NewWorker(f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, f.concurrency)
+		w := newWorker(f.requestCtx, f.config, f.log, f.secrets, f.highPrio, f.lowPrio, f.requeuedTransaction, f.blockedList, f.pointCountTelemetry, f.Client, f.concurrency)
 		w.Start()
 		f.workers = append(f.workers, w)
 	}
@@ -306,6 +309,7 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	for _, w := range f.workers {
 		w.Stop(purgeHighPrio)
 	}
+	f.Client.GetClient().CloseIdleConnections()
 	f.concurrency.stop()
 	f.workers = []*Worker{}
 	close(f.highPrio)
@@ -313,6 +317,9 @@ func (f *domainForwarder) Stop(purgeHighPrio bool) {
 	close(f.requeuedTransaction)
 
 	for t := range f.requeuedTransaction {
+		f.requeueTransaction(t)
+	}
+	for t := range f.highPrio {
 		f.requeueTransaction(t)
 	}
 	for t := range f.lowPrio {
@@ -369,13 +376,15 @@ func (f *domainForwarder) sendHTTPTransactionDirect(ctx context.Context, t *tran
 		}
 	}
 
-	if err := t.Process(ctx, f.config, f.log, f.secrets, f.Client.GetClient(), f.pointCountTelemetry); err != nil {
-		f.blockedList.close(target, time.Now())
-		return err
+	err := t.Process(ctx, f.config, f.log, f.secrets, f.Client.GetClient(), f.pointCountTelemetry)
+	if err == nil {
+		err = completionErr
 	}
-	if completionErr != nil {
-		f.blockedList.close(target, time.Now())
-		return completionErr
+	if err != nil {
+		if ctx.Err() == nil || !errors.Is(err, ctx.Err()) {
+			f.blockedList.close(target, time.Now())
+		}
+		return err
 	}
 
 	f.blockedList.recover(target, time.Now())

@@ -27,6 +27,7 @@ import (
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	defaultforwarderdef "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/endpoints"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/internal/retry"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/resolver"
 	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	mock "github.com/DataDog/datadog-agent/pkg/config/mock"
@@ -159,6 +160,173 @@ func TestStopWithoutPurgingTransaction(t *testing.T) {
 	mockConfig.SetInTest("forwarder_stop_timeout", 0)
 
 	testStop(t, mockConfig)
+}
+
+type shutdownRoundTripper func(*http.Request) (*http.Response, error)
+
+func (transport shutdownRoundTripper) RoundTrip(request *http.Request) (*http.Response, error) {
+	defer request.Body.Close()
+	return transport(request)
+}
+
+func TestForwarderShutdownSettlesCanceledRequests(t *testing.T) {
+	for _, waitForInflight := range []bool{false, true} {
+		for _, timeout := range []int{-1, 0, 2} {
+			for _, persist := range []bool{false, true} {
+				t.Run(fmt.Sprintf("wait=%t/timeout=%d/persist=%t", waitForInflight, timeout, persist), func(t *testing.T) {
+					synctest.Test(t, func(t *testing.T) {
+						cfg := mock.New(t)
+						cfg.SetInTest("forwarder_stop_wait_for_inflight", waitForInflight)
+						cfg.SetInTest("forwarder_stop_timeout", timeout)
+						cfg.SetInTest("forwarder_storage_max_size_in_bytes", 0)
+						cfg.SetInTest("forwarder_max_concurrent_requests", 1)
+						log := logmock.New(t)
+						resolvers, err := resolver.NewSingleDomainResolvers(monoKeysDomains)
+						require.NoError(t, err)
+						entered := make(chan struct{})
+						canceled := make(chan struct{})
+						cleanup := make(chan struct{})
+						returned := make(chan struct{})
+						options := NewOptionsWithResolvers(cfg, log, resolvers)
+						options.Secrets = secretsmock.New(t)
+						options.DisableAPIKeyChecking = true
+						options.transport = shutdownRoundTripper(func(r *http.Request) (*http.Response, error) {
+							close(entered)
+							<-r.Context().Done()
+							close(canceled)
+							<-cleanup
+							close(returned)
+							return nil, r.Context().Err()
+						})
+						f := NewDefaultForwarder(cfg, log, options)
+						df := f.domainForwarders[testVersionDomain]
+						storage := &mockDiskStorage{}
+						if persist {
+							df.retryQueue = retry.NewTransactionRetryQueue(storage, 1024, 0, retry.NewTransactionRetryQueueTelemetry(df.domain), retry.NewPointCountTelemetryMock())
+						}
+						require.NoError(t, f.Start())
+						w := df.workers[0]
+						abortRequest := w.cancel
+						points := &PointSuccessfullySentMock{}
+						w.pointCountTelemetry = points
+						tx := transaction.NewHTTPTransaction()
+						tx.Domain = testVersionDomain
+						tx.Endpoint = endpoints.SeriesEndpoint
+						tx.Payload = transaction.NewBytesPayload([]byte("authored metrics"), 37)
+						completions := 0
+						tx.CompletionHandler = func(_ *transaction.HTTPTransaction, _ int, _ []byte, _ error) { completions++ }
+						droppedBefore := transaction.TransactionsDropped.Value()
+						require.NoError(t, f.SubmitTransaction(tx))
+						<-entered
+						queued := transaction.NewHTTPTransaction()
+						queued.Domain = tx.Domain
+						queued.Endpoint = tx.Endpoint
+						queued.Payload = tx.Payload
+						queued.CompletionHandler = tx.CompletionHandler
+						require.NoError(t, f.SubmitTransaction(queued))
+						synctest.Wait()
+						assert.Empty(t, df.highPrio, "the second transaction must be waiting on request capacity")
+						stopped := make(chan struct{})
+						go func() { f.Stop(); close(stopped) }()
+						synctest.Wait()
+						if waitForInflight && timeout > 0 {
+							select {
+							case <-canceled:
+								t.Error("request canceled before the shutdown grace elapsed")
+							default:
+							}
+						}
+						if timeout > 0 {
+							time.Sleep(time.Duration(timeout) * time.Second) // Virtual time inside synctest.
+							synctest.Wait()
+						}
+						wasCanceled := false
+						select {
+						case <-canceled:
+							wasCanceled = true
+						default:
+						}
+						returnedEarly := false
+						select {
+						case <-stopped:
+							returnedEarly = true
+						default:
+						}
+						// Settle the original implementation too, so a failed regression leaves no work behind.
+						assert.Error(t, f.SubmitTransaction(transaction.NewHTTPTransaction()), "shutdown must reject admission without waiting for cleanup")
+						abortRequest()
+						close(cleanup)
+						<-returned
+						<-stopped
+						synctest.Wait()
+						assert.True(t, wasCanceled, "shutdown must cancel requests when grace is exhausted")
+						assert.False(t, returnedEarly, "Stop must join request cleanup before returning")
+						assert.Equal(t, Stopped, df.internalState)
+						assert.Empty(t, df.workers)
+						assert.Zero(t, points.count.Load(), "cancellation is not delivery")
+						assert.Zero(t, completions, "retryable canceled work must not report successful completion")
+						if persist {
+							assert.ElementsMatch(t, []transaction.Transaction{tx, queued}, storage.allStored)
+							assert.Equal(t, droppedBefore, transaction.TransactionsDropped.Value())
+						} else {
+							assert.Zero(t, df.retryQueue.GetTransactionCount(), "discarded forwarder must not retain unaccounted work")
+							assert.Equal(t, droppedBefore+2, transaction.TransactionsDropped.Value())
+						}
+					})
+				})
+			}
+		}
+	}
+}
+
+func TestForwarderShutdownCompletesWithinGrace(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		cfg := mock.New(t)
+		cfg.SetInTest("forwarder_stop_wait_for_inflight", true)
+		cfg.SetInTest("forwarder_storage_max_size_in_bytes", 0)
+		log := logmock.New(t)
+		resolvers, err := resolver.NewSingleDomainResolvers(monoKeysDomains)
+		require.NoError(t, err)
+		entered := make(chan struct{})
+		release := make(chan struct{})
+		options := NewOptionsWithResolvers(cfg, log, resolvers)
+		options.Secrets = secretsmock.New(t)
+		options.DisableAPIKeyChecking = true
+		options.transport = shutdownRoundTripper(func(r *http.Request) (*http.Response, error) {
+			close(entered)
+			select {
+			case <-release:
+				return &http.Response{StatusCode: http.StatusOK, Header: make(http.Header), Body: io.NopCloser(strings.NewReader("{}"))}, nil
+			case <-r.Context().Done():
+				return nil, r.Context().Err()
+			}
+		})
+		f := NewDefaultForwarder(cfg, log, options)
+		require.NoError(t, f.Start())
+		tx := transaction.NewHTTPTransaction()
+		tx.Domain = testVersionDomain
+		tx.Endpoint = endpoints.SeriesEndpoint
+		tx.Payload = transaction.NewBytesPayload([]byte("authored metrics"), 37)
+		completed := false
+		tx.CompletionHandler = func(_ *transaction.HTTPTransaction, status int, _ []byte, err error) {
+			assert.Equal(t, http.StatusOK, status)
+			assert.NoError(t, err)
+			completed = true
+		}
+		require.NoError(t, f.SubmitTransaction(tx))
+		<-entered
+		stopped := make(chan struct{})
+		go func() { f.Stop(); close(stopped) }()
+		synctest.Wait()
+		select {
+		case <-stopped:
+			t.Error("shutdown returned before the request completed")
+		default:
+		}
+		close(release)
+		<-stopped
+		assert.True(t, completed)
+	})
 }
 
 func TestStopWithPurgingTransaction(t *testing.T) {

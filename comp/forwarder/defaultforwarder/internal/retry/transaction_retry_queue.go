@@ -210,7 +210,37 @@ func (tc *TransactionRetryQueue) FlushToDisk() error {
 	defer tc.mutex.Unlock()
 
 	transactions := tc.extractTransactionsFromMemory(tc.maxMemSizeInBytes)
-	return tc.optionalStorage.Store(transactions)
+	if err := tc.optionalStorage.Store(transactions); err != nil {
+		tc.recordDropped(transactions)
+		return err
+	}
+	return nil
+}
+
+// DiscardInMemory accounts for transactions whose final owner is being destroyed.
+// Persisted transactions remain available for the next Agent process.
+func (tc *TransactionRetryQueue) DiscardInMemory() int {
+	tc.mutex.Lock()
+	defer tc.mutex.Unlock()
+	transactions := tc.transactions
+	tc.transactions = nil
+	tc.currentMemSizeInBytes = 0
+	tc.telemetry.setCurrentMemSizeInBytes(0)
+	tc.telemetry.setTransactionsCount(0)
+	tc.recordDropped(transactions)
+	return len(transactions)
+}
+
+func (tc *TransactionRetryQueue) recordDropped(transactions []transaction.Transaction) {
+	if len(transactions) == 0 {
+		return
+	}
+	points := 0
+	for _, tr := range transactions {
+		points += tr.GetPointCount()
+	}
+	tc.onDropPoints(points)
+	tc.telemetry.addTransactionsDropped(transactions)
 }
 
 func (tc *TransactionRetryQueue) extractTransactionsForDisk(payloadSize int) [][]transaction.Transaction {

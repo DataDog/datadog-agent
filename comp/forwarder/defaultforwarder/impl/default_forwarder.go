@@ -273,6 +273,8 @@ type DefaultForwarder struct {
 	healthChecker    *forwarderHealth
 	internalState    *atomic.Uint32
 	m                sync.Mutex // To control Start/Stop races
+	// The forwarder owns request cancellation across domains and replacement workers.
+	cancelRequests context.CancelFunc
 
 	agentName                       string
 	queueDurationCapacity           *retry.QueueDurationCapacity
@@ -282,6 +284,7 @@ type DefaultForwarder struct {
 // NewDefaultForwarder returns a new DefaultForwarder.
 // TODO: (components) Remove this method and other exported methods in comp/forwarder.
 func NewDefaultForwarder(config config.Component, log log.Component, options *Options) *DefaultForwarder {
+	requestCtx, cancelRequests := context.WithCancel(context.Background())
 	agentName := getAgentName(options)
 	concurrency := options.concurrency
 	if concurrency == nil {
@@ -294,6 +297,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 		domainForwarders: map[string]*domainForwarder{},
 		domainResolvers:  map[string]pkgresolver.DomainResolver{},
 		internalState:    atomic.NewUint32(Stopped),
+		cancelRequests:   cancelRequests,
 		healthChecker: &forwarderHealth{
 			log:                   log,
 			config:                config,
@@ -369,6 +373,7 @@ func NewDefaultForwarder(config config.Component, log log.Component, options *Op
 				domainConcurrency = newLocalConcurrencyDomainFromConfig(config, log)
 			}
 			fwd := newDomainForwarder(
+				requestCtx,
 				config,
 				log,
 				options.Secrets,
@@ -459,6 +464,11 @@ func (f *DefaultForwarder) Stop() {
 	}
 
 	f.internalState.Store(Stopped)
+	defer f.cancelRequests()
+	// Join admitted submissions before domain queues close. New submissions
+	// observe Stopped under this same lock.
+	f.retryQueueDurationCapacityMutex.Lock()
+	f.retryQueueDurationCapacityMutex.Unlock()
 
 	purgeTimeout := f.config.GetDuration("forwarder_stop_timeout") * time.Second
 	if purgeTimeout > 0 {
@@ -481,12 +491,21 @@ func (f *DefaultForwarder) Stop() {
 		select {
 		case <-donePurging:
 		case <-time.After(purgeTimeout):
-			// On timeout, transactions still queued for purge are dropped.
-			f.log.Warnf("Timeout emptying new transactions before stopping the forwarder %v", purgeTimeout)
+			f.cancelRequests()
+			<-donePurging
+			f.log.Warnf("Forwarder shutdown grace period expired after %v", purgeTimeout)
 		}
 	} else {
+		// A nonpositive timeout grants no delivery grace, even when draining
+		// in-flight requests is enabled.
+		f.cancelRequests()
 		for _, df := range f.domainForwarders {
 			df.Stop(false)
+		}
+	}
+	for _, df := range f.domainForwarders {
+		if count := df.retryQueue.DiscardInMemory(); count > 0 {
+			f.log.Warnf("Discarded %d unpersisted transactions while stopping forwarder for %s", count, df.domain)
 		}
 	}
 
@@ -510,7 +529,7 @@ func (f *DefaultForwarder) createHTTPTransactions(endpoint transaction.Endpoint,
 }
 
 func (f *DefaultForwarder) createAdvancedHTTPTransactions(endpoint transaction.Endpoint, payloads transaction.BytesPayloads, extra http.Header, priority transaction.Priority, kind transaction.Kind, storableOnDisk bool) []*transaction.HTTPTransaction {
-	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainForwarders))
+	transactions := make([]*transaction.HTTPTransaction, 0, len(payloads)*len(f.domainResolvers))
 	allowArbitraryTags := f.config.GetBool("allow_arbitrary_tags")
 
 	for _, payload := range payloads {
@@ -562,9 +581,11 @@ func (f *DefaultForwarder) sendHTTPTransactions(transactions []*transaction.HTTP
 	if f.internalState.Load() == Stopped {
 		return errors.New("the forwarder is not started")
 	}
-
 	f.retryQueueDurationCapacityMutex.Lock()
 	defer f.retryQueueDurationCapacityMutex.Unlock()
+	if f.internalState.Load() == Stopped {
+		return errors.New("the forwarder is not started")
+	}
 
 	now := time.Now()
 	for _, t := range transactions {

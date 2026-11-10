@@ -1,0 +1,11 @@
+---
+fixes:
+  - |
+    Cancel unfinished forwarder requests when ``forwarder_stop_timeout`` expires
+    and wait for request cleanup before releasing queues and state. Zero or
+    negative values grant no delivery grace, including when
+    ``forwarder_stop_wait_for_inflight`` is enabled. Canceled transactions now
+    report their context error instead of a successful completion. Retryable
+    queued work follows the configured disk-storage policy. Remaining in-memory
+    retries and failed persistence are counted as drops. The default shutdown
+    mode is unchanged.
