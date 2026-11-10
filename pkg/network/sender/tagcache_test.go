@@ -66,6 +66,7 @@ func splitPayload(t *testing.T, p []byte) ([]byte, []byte) {
 // another third.
 func useFixtureConsumer(t *testing.T, pids int) {
 	dsc := newDirectSenderConsumer(logmock.New(t), sysprobeconfigmock.NewMockWithOverrides(t, map[string]interface{}{
+		"network_config.enabled":                                true, // otherwise Adjust disables process service inference
 		"system_probe_config.process_service_inference.enabled": true,
 	}))
 	cwd := t.TempDir()
