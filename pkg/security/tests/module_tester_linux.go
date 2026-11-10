@@ -777,6 +777,12 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 
 	statsdClient := statsdclient.NewStatsdClient()
 
+	// the IPC component is only needed for TCP sockets
+	grpcServer, err := grpcutils.NewServer("unix", "/tmp/runtime-security.sock", nil)
+	if err != nil {
+		return nil, err
+	}
+
 	testMod = &testModule{
 		secconfig:     secconfig,
 		opts:          opts,
@@ -786,7 +792,7 @@ func newTestModule(t testing.TB, macroDefs []*rules.MacroDefinition, ruleDefs []
 		statsdClient:  statsdClient,
 		proFile:       proFile,
 		eventHandlers: eventHandlers{},
-		grpcServer:    grpcutils.NewServer("unix", "/tmp/runtime-security.sock"),
+		grpcServer:    grpcServer,
 	}
 
 	emopts := eventmonitor.Opts{
