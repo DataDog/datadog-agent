@@ -17,6 +17,7 @@ import (
 
 type pipelineStubDetector struct {
 	name       string
+	ref        observer.SeriesRef
 	ready      bool
 	calls      int
 	detected   []observer.MetricKind
@@ -44,7 +45,7 @@ func (d *pipelineStubDetector) Detect(
 	d.aggregates = append(d.aggregates, filter.Aggregations...)
 	return observer.DetectionResult{Anomalies: []observer.Anomaly{{
 		Timestamp: 1,
-		SourceRef: &observer.QueryHandle{Ref: observer.SeriesRef(d.calls), Aggregate: observer.AggregateAverage},
+		SourceRef: &observer.QueryHandle{Ref: d.ref, Aggregate: observer.AggregateAverage},
 	}}}
 }
 
@@ -83,6 +84,25 @@ func newScriptedPipelineMatcher(
 			return prediction
 		},
 	)
+}
+
+func newPipelineEngine(
+	t *testing.T,
+	s *timeSeriesStorage,
+	predictions ...observer.MetricKind,
+) (*engine, *MetricPipeline, *pipelineStubDetector) {
+	registration, detector := newPipelineStub(observer.STABLE, "pipeline")
+	pipeline, err := newMetricPipeline(
+		[]pipelineRegistration{registration}, NewMetricKindMatcher(DefaultMetricKindMatcherConfig()),
+	)
+	require.NoError(t, err)
+	pipeline.matcher = newScriptedPipelineMatcher(3, 3, 1, predictions...)
+	engine := mustNewEngine(engineConfig{
+		storage:                    s,
+		detectors:                  []detectorRegistration{{detector: pipeline}},
+		trackDetectorOutputHistory: true,
+	})
+	return engine, pipeline, detector
 }
 
 func addPipelinePoints(s *timeSeriesStorage, key uint64, start, end int64, metricType metrics.MetricType) observer.SeriesRef {
@@ -125,7 +145,7 @@ func newScanMWPipelineWithMatcher(
 }
 
 func newScanMWPipeline(tb testing.TB, cfg ScanMWConfig) *MetricPipeline {
-	p, err := newScanMWMetricPipeline(cfg)
+	p, err := newScanMWMetricPipeline(cfg, true)
 	require.NoError(tb, err)
 	return p
 }
@@ -385,6 +405,28 @@ func TestMetricPipelineReactivationCutoff(t *testing.T) {
 	p.Reset()
 }
 
+func TestMetricPipelineReactivationCutoffDisabled(t *testing.T) {
+	s := newDetectorTestStorage()
+	ref := addPipelineValues(s, 1, 1, 40, 10)
+	p, _ := newScanMWPipelineWithMatcher(t,
+		testScanMWPipelineConfig(), 30, 30, 3,
+		observer.STABLE, observer.UNKNOWN, observer.UNKNOWN, observer.UNKNOWN, observer.STABLE,
+	)
+	p.anomalyCutoff = false
+
+	p.advanceKinds(s, 40)
+	for ts := int64(41); ts <= 46; ts++ {
+		addPipelineValues(s, 1, ts, ts, 100)
+		p.Detect(s, ts, observer.DetectionFilter{})
+		p.advanceKinds(s, ts)
+	}
+
+	kind, _ := s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+	require.False(t, p.series[ref].reactivated)
+	require.NotEmpty(t, p.Detect(s, 46, observer.DetectionFilter{}).Anomalies)
+}
+
 func TestMetricPipelineReplayParity(t *testing.T) {
 	streaming, preloaded := newDetectorTestStorage(), newDetectorTestStorage()
 	for ts := int64(1); ts <= 100; ts++ {
@@ -417,6 +459,198 @@ func TestMetricPipelineReplayParity(t *testing.T) {
 		found += len(got)
 	}
 	require.Positive(t, found, "fixture must exercise anomaly output")
+}
+
+func TestEngineMetricPipelineDetectionAndKinds(t *testing.T) {
+	s := newDetectorTestStorage()
+	ref := addPipelineValues(s, 1, 1, 40, 10)
+	p, _ := newScanMWPipelineWithMatcher(t,
+		testScanMWPipelineConfig(), 30, 30, 3,
+		observer.STABLE, observer.UNKNOWN, observer.UNKNOWN, observer.UNKNOWN, observer.STABLE,
+	)
+	e := mustNewEngine(engineConfig{
+		storage:                    s,
+		detectors:                  []detectorRegistration{{detector: p}},
+		trackDetectorOutputHistory: true,
+	})
+
+	// Detection precedes matching, so the first advance assigns the initial
+	// kind and the next pass performs cold-start detection.
+	e.Advance(40)
+	addPipelineValues(s, 1, 41, 42, 100)
+	result := e.Advance(42)
+	accepted := len(result.anomalies)
+	require.Positive(t, accepted, "initial assignment preserves cold-start detection")
+	kind, _ := s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+
+	for ts := int64(43); ts <= 48; ts++ {
+		addPipelineValues(s, 1, ts, ts, 100)
+		result = e.Advance(ts)
+		accepted += len(result.anomalies)
+	}
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.STABLE, kind)
+	require.True(t, p.series[ref].reactivated)
+
+	require.Len(t, e.DetectorOutputAnomalies(), accepted,
+		"record emitted outputs exactly once without suppressed candidates")
+
+	p.advanceKinds(s, 48)
+	e.resetAnalysisState()
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.UNSET, kind, "replay reset clears committed kinds")
+
+	e.Reset()
+	kind, _ = s.SeriesKind(ref)
+	require.Equal(t, observer.UNSET, kind, "analysis restart clears committed kinds")
+	require.Empty(t, p.series)
+	require.Empty(t, p.matcher.(*metricKindMatcher).series)
+	require.EqualValues(t, 6, s.PointCountUpTo(ref, 6), "kind reset retains observations")
+}
+
+func TestEngineMetricPipelineBaseline(t *testing.T) {
+	newStorage := func() *timeSeriesStorage {
+		s := newDetectorTestStorage()
+		addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+		return s
+	}
+
+	disabled, _, _ := newPipelineEngine(t, newStorage(), observer.STABLE)
+	require.Len(t, disabled.Advance(3).anomalies, 1)
+
+	enabled, pipeline, _ := newPipelineEngine(t, newStorage(), observer.STABLE)
+	enabled.baseline = newBaselineController(
+		BaselineConfig{Enabled: true, DurationSec: 10, MuteNoisyMetrics: true},
+		detectorNames(enabled.detectors),
+	)
+	require.Empty(t, enabled.Advance(3).anomalies)
+	require.Len(t, enabled.baseline.detectors["pipeline"].pendingHashes, 1)
+	// The stub ignores storage, so its post-baseline emission is irrelevant to muting.
+	enabled.Advance(13)
+	require.Len(t, enabled.baseline.mutedHashes, 1)
+	require.Zero(t, enabled.storage.TotalSeriesCount())
+	require.Empty(t, pipeline.series)
+}
+
+func TestEngineMetricWorkflowReplayParity(t *testing.T) {
+	for _, pipeline := range []bool{false, true} {
+		for _, baseline := range []struct {
+			name string
+			cfg  BaselineConfig
+		}{
+			{"disabled", BaselineConfig{}},
+			{"default", DefaultBaselineConfig()},
+			{"enabled_without_muting", BaselineConfig{Enabled: true, DurationSec: 30}},
+		} {
+			t.Run(fmt.Sprintf("pipeline=%t/%s", pipeline, baseline.name), func(t *testing.T) {
+				settings := ComponentSettings{
+					UseMetricPipeline: pipeline,
+					Enabled:           map[string]bool{"bocpd": false, "scanmw": true},
+				}
+				newWorkflow := func() *engine {
+					detectors, _, _, _, _, err := defaultCatalog().Instantiate(settings)
+					require.NoError(t, err)
+					return mustNewEngine(engineConfig{
+						storage:                    newDetectorTestStorage(),
+						detectors:                  detectors,
+						scorer:                     newAnomalyScorerBase(DefaultAnomalyScorerConfig()),
+						baseline:                   baseline.cfg,
+						trackAnomalyHistory:        true,
+						trackDetectorOutputHistory: true,
+					})
+				}
+				live, replay := newWorkflow(), newWorkflow()
+				var advances []int64
+				for ts := int64(1); ts <= 2000; ts++ {
+					value := 100.0
+					if ts > 1200 && ts <= 1600 {
+						value = 1000
+					}
+					for _, e := range []*engine{live, replay} {
+						e.storage.AddWithKeyAndHostComposite("work", "metric", "", value, ts,
+							tagset.CompositeTags{}, 1, metrics.GaugeType)
+					}
+					if ts%20 == 0 {
+						live.Advance(ts)
+						advances = append(advances, ts)
+					}
+				}
+				replay.ReplayWithLiveSchedule(advances)
+				require.NotEmpty(t, live.DetectorOutputAnomalies(), "fixture must exercise real detector emissions")
+				require.NotEmpty(t, live.StateView().Anomalies(), "fixture must pass baseline qualification")
+				require.Equal(t, live.DetectorOutputAnomalies(), replay.DetectorOutputAnomalies())
+				require.Equal(t, live.StateView().Anomalies(), replay.StateView().Anomalies())
+				require.Equal(t, live.StateView().ScoreState(), replay.StateView().ScoreState())
+				replay.resetAnalysisState()
+				replay.ReplayWithLiveSchedule(advances)
+				require.Equal(t, live.DetectorOutputAnomalies(), replay.DetectorOutputAnomalies())
+				require.Equal(t, live.StateView().ScoreState(), replay.StateView().ScoreState())
+			})
+		}
+	}
+}
+
+func TestEngineMetricWorkflowNoisyBaselineReset(t *testing.T) {
+	for _, pipeline := range []bool{false, true} {
+		t.Run(fmt.Sprintf("pipeline=%t", pipeline), func(t *testing.T) {
+			s := newDetectorTestStorage()
+			ref := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+			e, p, detector := newPipelineEngine(t, s, observer.STABLE)
+			detector.ref = ref
+			if !pipeline {
+				e.SetDetectors([]detectorRegistration{{detector: detector}})
+			}
+			cfg := DefaultBaselineConfig()
+			cfg.DurationSec = 10
+			e.baseline = newBaselineController(cfg, detectorNames(e.detectors))
+			require.Empty(t, e.Advance(3).anomalies)
+			require.Len(t, e.baseline.detectors["pipeline"].pendingHashes, 1)
+			e.resetAnalysisState()
+			require.Empty(t, e.baseline.detectors["pipeline"].pendingHashes)
+			require.Equal(t, cfg, e.baseline.config)
+			require.EqualValues(t, 3, s.PointCountUpTo(ref, 3))
+			require.Empty(t, e.Advance(3).anomalies)
+			e.Advance(13)
+			require.Len(t, e.baseline.mutedHashes, 1)
+			require.Zero(t, s.TotalSeriesCount())
+			require.Empty(t, p.series)
+			require.Contains(t, detector.removed, ref)
+		})
+	}
+}
+
+func TestEngineMetricPipelineEvictionAndReplacement(t *testing.T) {
+	s := newDetectorTestStorage()
+	s.cfg.InactiveSeriesTTLSeconds = 10
+	s.cfg.InactiveSeriesCheckIntervalSeconds = 1
+	ref := addPipelineValues(s, 1, 1, 40, 100)
+	p := newScanMWPipeline(t, DefaultScanMWConfig())
+	e := mustNewEngine(engineConfig{storage: s, detectors: []detectorRegistration{{detector: p}}})
+	e.Advance(40)
+	e.Advance(41)
+	require.Contains(t, p.series, ref)
+	require.NotEmpty(t, p.registrations[0].detector.(*ScanMWDetector).series)
+	e.Advance(60)
+	require.Zero(t, s.TotalSeriesCount())
+	require.Empty(t, p.series)
+	require.Empty(t, p.matcher.(*metricKindMatcher).series)
+	require.Empty(t, p.registrations[0].detector.(*ScanMWDetector).series)
+	require.Empty(t, e.DetectorOutputAnomalies(), "production must not retain detector history")
+
+	ref = addPipelineValues(s, 1, 61, 100, 100)
+	e.Advance(100)
+	replacement := newScanMWPipeline(t, DefaultScanMWConfig())
+	e.SetDetectors([]detectorRegistration{{detector: replacement}})
+	e.Reset()
+	kind, ok := s.SeriesKind(ref)
+	require.True(t, ok)
+	require.Equal(t, observer.UNSET, kind)
+	require.EqualValues(t, 40, s.PointCountUpTo(ref, 100))
+	e.Advance(100)
+	e.Advance(101)
+	require.Contains(t, replacement.series, ref)
+	require.NotEmpty(t, replacement.registrations[0].detector.(*ScanMWDetector).series)
 }
 
 func BenchmarkMetricPipeline(b *testing.B) {
