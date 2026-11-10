@@ -299,12 +299,11 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             errors_found.append("modules dependencies are out of sync, please run go work sync")
 
         for mod in get_default_modules().values():
-            mod_dir = mod.full_workspace_dir()
-            with ctx.cd(mod_dir):
+            with ctx.cd(mod.full_workspace_dir()):
                 ctx.run("go mod tidy")
 
                 files = "go.mod"
-                if os.path.exists(os.path.join(mod_dir, "go.sum")):
+                if os.path.exists(os.path.join(mod.full_workspace_dir(), "go.sum")):
                     # if the module has no dependency, no go.sum file will be created
                     files += " go.sum"
 
