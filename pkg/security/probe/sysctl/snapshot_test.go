@@ -306,3 +306,32 @@ func TestSnapshot_InsertSnapshotEntry(t *testing.T) {
 		})
 	}
 }
+
+func TestWalkSystemControls(t *testing.T) {
+	root := t.TempDir()
+	files := map[string]string{
+		"kernel/yama/ptrace_scope":       "2\n",
+		"kernel/random/boot_id":          "secret\n",
+		"net/ipv4/conf/lo/forwarding":    " 0 \n",
+		"net/ipv4/tcp_rmem":              "4096\t131072\t6291456\n",
+		"vm/write_only_file_not_visited": "1",
+	}
+	for name, value := range files {
+		file := filepath.Join(root, name)
+		assert.NoError(t, os.MkdirAll(filepath.Dir(file), 0o755))
+		assert.NoError(t, os.WriteFile(file, []byte(value), 0o644))
+	}
+	assert.NoError(t, os.Chmod(filepath.Join(root, "vm/write_only_file_not_visited"), 0o200))
+
+	got := make(map[string]string)
+	err := walkSystemControls(root, []string{"boot_id"}, func(name, value string) {
+		got[name] = value
+	})
+	assert.NoError(t, err)
+	assert.Equal(t, map[string]string{
+		"kernel/yama/ptrace_scope":    "2",
+		"kernel/random/boot_id":       redactedContent,
+		"net/ipv4/conf/lo/forwarding": "0",
+		"net/ipv4/tcp_rmem":           "4096\t131072\t6291456",
+	}, got)
+}
