@@ -28,8 +28,8 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/DataDog/datadog-agent/pkg/zstd"
 	lru "github.com/elastic/go-freelru"
+	"github.com/klauspost/compress/zstd" //nolint:depguard
 	"go.opentelemetry.io/ebpf-profiler/libpf"
 	"go.opentelemetry.io/ebpf-profiler/reporter"
 	"golang.org/x/sync/errgroup"
@@ -69,14 +69,13 @@ const (
 )
 
 type DatadogSymbolUploader struct {
-	symbolEndpoints       []SymbolEndpoint
-	intakeURLs            []string
-	version               string
-	name                  string
-	dryRun                bool
-	uploadDynamicSymbols  bool
-	uploadGoPCLnTab       bool
-	compressDebugSections bool
+	symbolEndpoints      []SymbolEndpoint
+	intakeURLs           []string
+	version              string
+	name                 string
+	dryRun               bool
+	uploadDynamicSymbols bool
+	uploadGoPCLnTab      bool
 
 	uploadCache         *lru.SyncedLRU[libpf.FileID, struct{}]
 	client              *http.Client
@@ -116,8 +115,6 @@ func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*
 		return nil, fmt.Errorf("failed to create cache: %w", err)
 	}
 
-	compressDebugSections := !cfg.DisableDebugSectionCompression && CheckObjcopyZstdSupport(ctx)
-
 	httpClient := &http.Client{Timeout: uploadTimeout}
 	defaultTransport, ok := http.DefaultTransport.(*http.Transport)
 	if ok && !cfg.UseHTTP2 {
@@ -138,24 +135,19 @@ func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*
 	}
 
 	return &DatadogSymbolUploader{
-		symbolEndpoints:       cfg.SymbolEndpoints,
-		intakeURLs:            intakeURLs,
-		version:               cfg.Version,
-		name:                  cfg.Name,
-		dryRun:                cfg.DryRun,
-		uploadDynamicSymbols:  cfg.UploadDynamicSymbols,
-		uploadGoPCLnTab:       cfg.UploadGoPCLnTab,
-		client:                httpClient,
-		uploadCache:           uploadCache,
-		symbolQueriers:        symbolQueriers,
-		symbolQueryInterval:   cfg.SymbolQueryInterval,
-		compressDebugSections: compressDebugSections,
-		reporter:              newUploadReporter(cfg.Report),
+		symbolEndpoints:      cfg.SymbolEndpoints,
+		intakeURLs:           intakeURLs,
+		version:              cfg.Version,
+		name:                 cfg.Name,
+		dryRun:               cfg.DryRun,
+		uploadDynamicSymbols: cfg.UploadDynamicSymbols,
+		uploadGoPCLnTab:      cfg.UploadGoPCLnTab,
+		client:               httpClient,
+		uploadCache:          uploadCache,
+		symbolQueriers:       symbolQueriers,
+		symbolQueryInterval:  cfg.SymbolQueryInterval,
+		reporter:             newUploadReporter(cfg.Report),
 	}, nil
-}
-
-func CheckObjcopyZstdSupport(ctx context.Context) bool {
-	return exec.CommandContext(ctx, "objcopy", "--compress-debug-sections=zstd", "--version").Run() == nil
 }
 
 func buildSourcemapIntakeURL(site string) string {
@@ -524,7 +516,7 @@ func (d *DatadogSymbolUploader) createSymbolFile(ctx context.Context, e *symbol.
 
 	// keep track of the biggest binary size we try to upload for logging purposes
 	d.updateBiggestBinarySize(e.GetSize())
-	err = symbolcopier.CopySymbols(ctx, elfPath, symbolFile.Name(), goPCLnTabInfo, sectionsToKeep, d.compressDebugSections)
+	err = symbolcopier.CopySymbols(ctx, elfPath, symbolFile.Name(), goPCLnTabInfo, sectionsToKeep)
 
 	if err != nil {
 		var ExitError *exec.ExitError
@@ -544,24 +536,15 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 		return fmt.Errorf("failed to open symbol file: %w", err)
 	}
 	defer symbolFile.Close()
-
-	pipeR, pipeW := io.Pipe()
-
-	var compressed io.WriteCloser
-	var mw *multipart.Writer
-	var contentEncoding string
-	if !d.compressDebugSections {
-		compressed, err = zstd.NewWriter(pipeW)
-		if err != nil {
-			return fmt.Errorf("failed to create zstd writer: %w", err)
-		}
-		mw = multipart.NewWriter(compressed)
-		contentEncoding = "zstd"
-	} else {
-		mw = multipart.NewWriter(pipeW)
+	stat, err := symbolFile.Stat()
+	if err != nil {
+		return fmt.Errorf("failed to stat symbol file: %w", err)
 	}
 
-	req, err := d.buildSymbolUploadRequest(ctx, pipeR, mw.FormDataContentType(), contentEncoding, endpointIdx)
+	pipeR, pipeW := io.Pipe()
+	mw := multipart.NewWriter(pipeW)
+
+	req, err := d.buildSymbolUploadRequest(ctx, pipeR, mw.FormDataContentType(), endpointIdx)
 	if err != nil {
 		return fmt.Errorf("failed to build symbol upload request: %w", err)
 	}
@@ -569,23 +552,15 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	var wg sync.WaitGroup
 	wg.Go(func() {
 		defer pipeW.Close()
-		innerErr := streamRequestBody(symbolFile, e, mw)
+		innerErr := streamRequestBody(symbolFile, stat.Size(), e, mw)
 		if innerErr != nil {
 			pipeW.CloseWithError(fmt.Errorf("failed to stream request body: %w", innerErr))
 			return
 		}
-		// Close the multipart writer then the zstd writer
 		innerErr = mw.Close()
 		if innerErr != nil {
 			pipeW.CloseWithError(fmt.Errorf("failed to close multipart writer: %w", innerErr))
 			return
-		}
-		if compressed != nil {
-			innerErr = compressed.Close()
-			if innerErr != nil {
-				pipeW.CloseWithError(fmt.Errorf("failed to close zstd writer: %w", innerErr))
-				return
-			}
 		}
 	})
 
@@ -606,16 +581,43 @@ func (d *DatadogSymbolUploader) uploadSymbols(ctx context.Context, symbolFilePat
 	return nil
 }
 
-func streamRequestBody(symbolFile *os.File, e *symbolUploadRequestMetadata, mw *multipart.Writer) error {
-	// Copy the symbol file into the multipart writer
+// symbolCompressionLevel trades a little payload size for less CPU. Measured on
+// arm64 with 14 real inputs, zstd SpeedFastest used ~27% less encoder CPU than
+// SpeedDefault for ~2.5% larger payloads; the encoder is ~90% of streaming
+// upload CPU. SpeedBetterCompression cost ~2.4x the CPU to save ~1.6%.
+const symbolCompressionLevel = zstd.SpeedFastest
+
+// symbolCompressionWindow rounds up to cover the ELF, without exceeding the
+// default 8 MiB window. Keep at least 128 KiB to preserve the default block size.
+func symbolCompressionWindow(size int64) int {
+	window := 128 * 1024
+	for int64(window) < size && window < 8*1024*1024 {
+		window *= 2
+	}
+	return window
+}
+
+// streamRequestBody writes the zstd-compressed ELF part, then the JSON event part.
+// The caller closes mw to write the final multipart boundary.
+func streamRequestBody(symbolFile io.Reader, size int64, e *symbolUploadRequestMetadata, mw *multipart.Writer) error {
 	filePart, err := mw.CreateFormFile("elf_symbol_file", "elf_symbol_file")
 	if err != nil {
 		return fmt.Errorf("failed to create form file: %w", err)
 	}
-
-	_, err = io.Copy(filePart, symbolFile)
+	// Symbol Platform detects the zstd frame magic in the stored ELF blob.
+	// Compress only the file part: multipart framing and JSON stay unencoded.
+	compressed, err := zstd.NewWriter(filePart,
+		zstd.WithEncoderLevel(symbolCompressionLevel),
+		zstd.WithEncoderConcurrency(1),
+		zstd.WithWindowSize(symbolCompressionWindow(size)),
+	)
 	if err != nil {
-		return fmt.Errorf("failed to copy symbol file: %w", err)
+		return fmt.Errorf("failed to create symbol encoder: %w", err)
+	}
+	_, copyErr := io.Copy(compressed, symbolFile)
+	closeErr := compressed.Close() // Finish the frame before opening the JSON part.
+	if err := errors.Join(copyErr, closeErr); err != nil {
+		return fmt.Errorf("failed to compress symbol file: %w", err)
 	}
 
 	// Write the event metadata into the multipart writer
@@ -635,7 +637,7 @@ func streamRequestBody(symbolFile *os.File, e *symbolUploadRequestMetadata, mw *
 	return nil
 }
 
-func (d *DatadogSymbolUploader) buildSymbolUploadRequest(ctx context.Context, body io.Reader, contentType, contentEncoding string, ind int) (*http.Request, error) {
+func (d *DatadogSymbolUploader) buildSymbolUploadRequest(ctx context.Context, body io.Reader, contentType string, ind int) (*http.Request, error) {
 	r, err := http.NewRequestWithContext(ctx, http.MethodPost, d.intakeURLs[ind], body)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create request: %w", err)
@@ -645,9 +647,6 @@ func (d *DatadogSymbolUploader) buildSymbolUploadRequest(ctx context.Context, bo
 	r.Header.Set("Dd-Evp-Origin", d.name)
 	r.Header.Set("Dd-Evp-Origin-Version", d.version)
 	r.Header.Set("Content-Type", contentType)
-	if contentEncoding != "" {
-		r.Header.Set("Content-Encoding", contentEncoding)
-	}
 	return r, nil
 }
 

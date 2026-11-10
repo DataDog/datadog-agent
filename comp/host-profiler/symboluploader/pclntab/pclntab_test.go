@@ -161,7 +161,7 @@ func checkGoPCLnTabExtraction(t *testing.T, exe string, goMinorVersion int) {
 	}
 
 	symbolFile := exe + ".dbg"
-	err = symbolcopier.CopySymbols(t.Context(), exe, symbolFile, goPCLnTabInfo, nil, false)
+	err = symbolcopier.CopySymbols(t.Context(), exe, symbolFile, goPCLnTabInfo, nil)
 	require.NoError(t, err)
 	efSymbol, err := pfelf.Open(symbolFile)
 	require.NoError(t, err)
@@ -184,7 +184,7 @@ func checkGoPCLnTabExtraction(t *testing.T, exe string, goMinorVersion int) {
 	checkGoPCLnTab(t, ef2, goPCLnTabInfo2)
 
 	symbolFile2 := exeStripped + ".dbg"
-	err = symbolcopier.CopySymbols(t.Context(), exeStripped, symbolFile2, goPCLnTabInfo2, nil, false)
+	err = symbolcopier.CopySymbols(t.Context(), exeStripped, symbolFile2, goPCLnTabInfo2, nil)
 	require.NoError(t, err)
 	efSymbol2, err := pfelf.Open(symbolFile2)
 	require.NoError(t, err)
