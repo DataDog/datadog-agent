@@ -132,13 +132,12 @@ namespace Datadog.CustomActions
         {
             return EnsureNpmServiceDependendency(new SessionWrapper(session));
         }
-        // DeleteServices applies to the package's services as a group. Preserve them all
-        // if any non-built-in account cannot be recreated with the installed credentials.
+        // The installed account is authoritative, as it is during normal installation.
+        // Preserve services when its credentials are unavailable for recreation.
         internal ActionResult PrepareServiceRemoval()
         {
             _session["CanDeleteServices"] = "";
             _session["ServiceRemovalAccount"] = "";
-            _session["ServiceRemovalNames"] = "";
             _session["ServiceRemovalSid"] = "";
             try
             {
@@ -156,53 +155,10 @@ namespace Datadog.CustomActions
                     _session.Log($"Preserving services: could not resolve installed Agent account '{account}' to a SID");
                     return ActionResult.Success;
                 }
-                var accountResolver = new ProcessUserCustomActions(_session, _nativeMethods, _serviceController, _registryServices);
-                var names = new List<string>();
-                foreach (var name in new[]
-                {
-                    Constants.AgentServiceName, Constants.TraceAgentServiceName,
-                    Constants.SecurityAgentServiceName, Constants.PrivateActionRunnerServiceName,
-                    Constants.ProcessAgentServiceName, Constants.SystemProbeServiceName,
-                    Constants.ProcmgrServiceName, Constants.InstallerServiceName
-                })
-                {
-                    using var service = _registryServices.OpenRegistryKey(Registries.LocalMachine,
-                        $@"SYSTEM\CurrentControlSet\Services\{name}");
-                    if (service is null)
-                    {
-                        continue;
-                    }
-                    var serviceAccount = service.GetValue("ObjectName") as string;
-                    if (string.Equals(serviceAccount, "LocalSystem", StringComparison.OrdinalIgnoreCase))
-                    {
-                        continue;
-                    }
-                    if (string.IsNullOrEmpty(serviceAccount))
-                    {
-                        _session.Log($"Preserving services: service '{name}' has a missing or empty ObjectName registry value");
-                        return ActionResult.Success;
-                    }
-                    if (!accountResolver.LookupAccountWithExtendedDomainSyntax(serviceAccount, out _, out _, out var sid, out _))
-                    {
-                        _session.Log($"Preserving services: could not resolve service '{name}' account '{serviceAccount}' to a SID");
-                        return ActionResult.Success;
-                    }
-                    if (AgentCredentials.IsBuiltIn(sid))
-                    {
-                        continue;
-                    }
-                    if (!sid.Equals(accountSid))
-                    {
-                        _session.Log($"Preserving services: {name} uses a different account from the installed Agent user");
-                        return ActionResult.Success;
-                    }
-                    names.Add(name);
-                }
-
-                // Passwords stay in LSA. Only capture identities for rollback, and
+                // Passwords stay in LSA. Only capture the installed account identity for rollback, and
                 // preserve registrations if the current password cannot be associated
                 // with the installed account (including legacy secrets without a SID).
-                if (names.Count != 0 && AgentCredentials.RequiresPassword(_nativeMethods, accountSid)
+                if (AgentCredentials.RequiresPassword(_nativeMethods, accountSid)
                     && string.IsNullOrEmpty(AgentCredentials.ReadPassword(_nativeMethods, accountSid)))
                 {
                     _session.Log("Preserving services: the installed Agent user password is unavailable or unassociated");
@@ -210,7 +166,6 @@ namespace Datadog.CustomActions
                 }
                 _session["ServiceRemovalAccount"] = account;
                 _session["ServiceRemovalSid"] = accountSid.Value;
-                _session["ServiceRemovalNames"] = string.Join(",", names);
                 _session["CanDeleteServices"] = "1";
                 _session.Log("Allowing service deletion during upgrade removal: recreation credentials are available");
             }
@@ -230,8 +185,7 @@ namespace Datadog.CustomActions
         internal ActionResult RestoreServiceRemovalCredentials()
         {
             var account = _session.Property("ServiceRemovalAccount");
-            var names = _session.Property("ServiceRemovalNames");
-            if (string.IsNullOrEmpty(names))
+            if (string.IsNullOrEmpty(account))
             {
                 return ActionResult.Success;
             }
@@ -258,17 +212,15 @@ namespace Datadog.CustomActions
                 _session.Log($"Could not restore service credentials: current credentials unavailable for outgoing account; repair may be required ({e.GetType().Name})");
                 return ActionResult.Success;
             }
-            foreach (var name in names.Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries))
+            try
             {
-                try
-                {
-                    // MSI restores the service registration, but cannot recover its password.
-                    _serviceController.SetCredentials(name, account, password);
-                }
-                catch (Exception e)
-                {
-                    _session.Log($"Failed to restore credentials for {name} ({e.GetType().Name})");
-                }
+                // Restore the MSI-managed accounts, including LocalSystem services.
+                // Do not preserve manually customized service logon accounts.
+                SetServiceUsers(account, password, rollback: true);
+            }
+            catch (Exception e)
+            {
+                _session.Log($"Failed to restore service credentials ({e.GetType().Name})");
             }
             return ActionResult.Success;
         }
@@ -318,21 +270,42 @@ namespace Datadog.CustomActions
             AgentCredentials.NormalizeServiceCredentials(_nativeMethods, ddAgentUserSID,
                 ref ddAgentUserName, ref ddAgentUserPassword);
             _session.Log($"Configuring services with account {ddAgentUserName}");
-            _serviceController.SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
-            _serviceController.SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            SetServiceUsers(ddAgentUserName, ddAgentUserPassword);
+        }
+
+        private void SetServiceUsers(string ddAgentUserName, string ddAgentUserPassword, bool rollback = false)
+        {
+            void SetCredentials(string serviceName, string account, string password)
+            {
+                try
+                {
+                    _serviceController.SetCredentials(serviceName, account, password);
+                }
+                catch (Exception e) when (rollback)
+                {
+                    // Continue restoring other services if one restoration fails.
+                    _session.Log($"Failed to restore credentials for {serviceName} ({e.GetType().Name})");
+                }
+            }
+
+            SetCredentials(Constants.AgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            SetCredentials(Constants.TraceAgentServiceName, ddAgentUserName, ddAgentUserPassword);
             if (_serviceController.ServiceExists(Constants.PrivateActionRunnerServiceName))
             {
-                _serviceController.SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
+                SetCredentials(Constants.PrivateActionRunnerServiceName, ddAgentUserName, ddAgentUserPassword);
             }
             // SYSTEM
             // LocalSystem is a SCM specific shorthand that doesn't need to be localized
-            _serviceController.SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
-            _serviceController.SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
-            _serviceController.SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
-            EnableProcmgrService();
-            _serviceController.SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
+            SetCredentials(Constants.SystemProbeServiceName, "LocalSystem", "");
+            SetCredentials(Constants.ProcessAgentServiceName, "LocalSystem", "");
+            SetCredentials(Constants.ProcmgrServiceName, "LocalSystem", "");
+            if (!rollback)
+            {
+                EnableProcmgrService();
+            }
+            SetCredentials(Constants.InstallerServiceName, "LocalSystem", "");
 
-            _serviceController.SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
+            SetCredentials(Constants.SecurityAgentServiceName, ddAgentUserName, ddAgentUserPassword);
         }
 
         private void EnableProcmgrService()

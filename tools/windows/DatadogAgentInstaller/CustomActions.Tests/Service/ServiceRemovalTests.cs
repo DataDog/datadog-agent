@@ -1,5 +1,6 @@
 using System;
 using System.Security.Principal;
+using System.ServiceProcess;
 using CustomActions.Tests.ProcessUserCustomActions;
 using Datadog.CustomActions;
 using Datadog.CustomActions.Interfaces;
@@ -18,17 +19,19 @@ namespace CustomActions.Tests.Service
 
         public ServiceRemovalTests()
         {
-            var installed = new Mock<IRegistryKey>();
-            installed.Setup(k => k.GetValue("installedDomain")).Returns("TEST");
-            installed.Setup(k => k.GetValue("installedUser")).Returns("ddagentuser");
-            RegistryServices.Setup(r => r.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey))
-                .Returns(installed.Object);
-            GivenAccount(Account, AccountSid);
-            GivenService(Constants.AgentServiceName, Account);
-            GivenService(Constants.TraceAgentServiceName, Account);
-            GivenService(Constants.ProcmgrServiceName, "LocalSystem");
+            GivenInstalledAccount("TEST", "ddagentuser", AccountSid);
             NativeMethods.Setup(n => n.FetchSecret(Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(Password);
             NativeMethods.Setup(n => n.FetchSecret(AgentCredentials.AccountSidKey)).Returns(AccountSid.Value);
+        }
+
+        private void GivenInstalledAccount(string domain, string user, SecurityIdentifier sid)
+        {
+            var installed = new Mock<IRegistryKey>();
+            installed.Setup(k => k.GetValue("installedDomain")).Returns(domain);
+            installed.Setup(k => k.GetValue("installedUser")).Returns(user);
+            RegistryServices.Setup(r => r.OpenRegistryKey(Registries.LocalMachine, Constants.DatadogAgentRegistryKey))
+                .Returns(installed.Object);
+            GivenAccount($"{domain}\\{user}", sid);
         }
 
         private void GivenAccount(string account, SecurityIdentifier accountSid)
@@ -46,14 +49,6 @@ namespace CustomActions.Tests.Service
                 })).Returns(true);
         }
 
-        private void GivenService(string name, string account)
-        {
-            var service = new Mock<IRegistryKey>();
-            service.Setup(k => k.GetValue("ObjectName")).Returns(account);
-            RegistryServices.Setup(r => r.OpenRegistryKey(Registries.LocalMachine, $@"SYSTEM\CurrentControlSet\Services\{name}"))
-                .Returns(service.Object);
-        }
-
         [Fact]
         public void RollbackReadsCurrentPasswordWithoutSavingOrResettingIt()
         {
@@ -61,7 +56,6 @@ namespace CustomActions.Tests.Service
             Assert.Equal("1", Session.Object["CanDeleteServices"]);
             Assert.Equal(Account, Session.Object["ServiceRemovalAccount"]);
             Assert.Equal(AccountSid.Value, Session.Object["ServiceRemovalSid"]);
-            Assert.Equal("datadogagent,datadog-trace-agent", Session.Object["ServiceRemovalNames"]);
             // Normal installation may have rotated the same account's password.
             const string currentPassword = "new;password";
             NativeMethods.Setup(n => n.FetchSecret(Datadog.CustomActions.ConfigureUserCustomActions.AgentPasswordPrivateDataKey())).Returns(currentPassword);
@@ -79,32 +73,34 @@ namespace CustomActions.Tests.Service
         [Theory]
         [InlineData(false)]
         [InlineData(true)]
-        public void DotQualifiedServiceAccountUsesExistingAccountResolution(bool domainController)
+        public void RegistryAccountIsAuthoritativeWithoutInspectingServiceAccounts(bool privateActionRunnerInstalled)
         {
-            NativeMethods.Setup(n => n.IsDomainController()).Returns(domainController);
-            NativeMethods.Setup(n => n.GetComputerDomain()).Returns("TEST");
-            var resolvedAccount = $"{(domainController ? "TEST" : Environment.MachineName)}\\ddagentuser";
-            GivenAccount(resolvedAccount, AccountSid);
-            GivenService(Constants.AgentServiceName, @".\ddagentuser");
-            GivenService(Constants.TraceAgentServiceName, @".\ddagentuser");
-
+            if (privateActionRunnerInstalled)
+            {
+                var service = new Mock<IWindowsService>();
+                service.SetupGet(s => s.ServiceName).Returns(Constants.PrivateActionRunnerServiceName);
+                ServiceController.SetupGet(c => c.Services).Returns(new[] { service.Object });
+            }
             Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
             Assert.Equal("1", Session.Object["CanDeleteServices"]);
-            Assert.Equal(AccountSid.Value, Session.Object["ServiceRemovalSid"]);
-            Assert.Equal("datadogagent,datadog-trace-agent", Session.Object["ServiceRemovalNames"]);
+            RegistryServices.Verify(r => r.OpenRegistryKey(Registries.LocalMachine,
+                It.Is<string>(path => path.StartsWith(@"SYSTEM\CurrentControlSet\Services\"))), Times.Never);
+            NativeMethods.Verify(n => n.LookupAccountName(It.Is<string>(name => name != Account),
+                out It.Ref<string>.IsAny, out It.Ref<string>.IsAny,
+                out It.Ref<SecurityIdentifier>.IsAny, out It.Ref<SID_NAME_USE>.IsAny), Times.Never);
+
             Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
-            ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, Account, Password), Times.Once);
-            ServiceController.Verify(c => c.SetCredentials(Constants.TraceAgentServiceName, Account, Password), Times.Once);
-        }
-
-        [Fact]
-        public void UnresolvableServiceAccountPreservesServices()
-        {
-            GivenService(Constants.AgentServiceName, @".\missinguser");
-
-            Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
-            Assert.Equal("", Session.Object["CanDeleteServices"]);
-            ServiceController.Verify(c => c.SetCredentials(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<string>()), Times.Never);
+            foreach (var name in new[] { Constants.AgentServiceName, Constants.TraceAgentServiceName, Constants.SecurityAgentServiceName })
+            {
+                ServiceController.Verify(c => c.SetCredentials(name, Account, Password), Times.Once);
+            }
+            foreach (var name in new[] { Constants.ProcessAgentServiceName, Constants.SystemProbeServiceName, Constants.ProcmgrServiceName, Constants.InstallerServiceName })
+            {
+                ServiceController.Verify(c => c.SetCredentials(name, "LocalSystem", ""), Times.Once);
+            }
+            ServiceController.Verify(c => c.SetCredentials(Constants.PrivateActionRunnerServiceName, Account, Password),
+                privateActionRunnerInstalled ? Times.Once() : Times.Never());
+            ServiceController.Verify(c => c.SetStartType(It.IsAny<string>(), It.IsAny<ServiceStartMode>()), Times.Never);
         }
 
         [Theory]
@@ -193,15 +189,18 @@ namespace CustomActions.Tests.Service
             ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, Account, null), Times.Once);
         }
 
-        [Fact]
-        public void BuiltInServicesDoNotRequirePassword()
+        [Theory]
+        [InlineData("SYSTEM", WellKnownSidType.LocalSystemSid, "LocalSystem")]
+        [InlineData("LOCAL SERVICE", WellKnownSidType.LocalServiceSid, "LocalService")]
+        [InlineData("NETWORK SERVICE", WellKnownSidType.NetworkServiceSid, "NetworkService")]
+        public void BuiltInInstalledAccountDoesNotRequirePassword(string user, WellKnownSidType sidType, string serviceAccount)
         {
-            GivenService(Constants.AgentServiceName, "LocalSystem");
-            GivenService(Constants.TraceAgentServiceName, "LocalSystem");
+            GivenInstalledAccount("NT AUTHORITY", user, new SecurityIdentifier(sidType, null));
             Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
             Assert.Equal("1", Session.Object["CanDeleteServices"]);
-            Assert.Equal("", Session.Object["ServiceRemovalNames"]);
+            Assert.Equal(ActionResult.Success, Create().RestoreServiceRemovalCredentials());
             NativeMethods.Verify(n => n.FetchSecret(It.IsAny<string>()), Times.Never);
+            ServiceController.Verify(c => c.SetCredentials(Constants.AgentServiceName, serviceAccount, ""), Times.Once);
         }
 
         [Fact]
@@ -215,10 +214,11 @@ namespace CustomActions.Tests.Service
         }
 
         [Fact]
-        public void DifferentServiceAccountPreservesAllServices()
+        public void UnresolvableInstalledAccountPreservesServices()
         {
-            GivenAccount("TEST\\other", new SecurityIdentifier("S-1-5-21-1-2-3-1002"));
-            GivenService(Constants.TraceAgentServiceName, "TEST\\other");
+            NativeMethods.Setup(n => n.LookupAccountName(Account,
+                out It.Ref<string>.IsAny, out It.Ref<string>.IsAny,
+                out It.Ref<SecurityIdentifier>.IsAny, out It.Ref<SID_NAME_USE>.IsAny)).Returns(false);
             Assert.Equal(ActionResult.Success, Create().PrepareServiceRemoval());
             Assert.Equal("", Session.Object["CanDeleteServices"]);
         }
