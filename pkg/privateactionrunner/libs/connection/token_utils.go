@@ -15,8 +15,13 @@ type ConnectionToken interface {
 
 type GroupedTokens[T ConnectionToken] map[string][]T
 
+// GetName returns the last name segment, or "" when the token has none.
 func GetName[T ConnectionToken](token T) string {
-	return token.GetNameSegments()[len(token.GetNameSegments())-1]
+	segments := token.GetNameSegments()
+	if len(segments) == 0 {
+		return ""
+	}
+	return segments[len(segments)-1]
 }
 
 func GroupTokens[T ConnectionToken](tokens []T) GroupedTokens[T] {
