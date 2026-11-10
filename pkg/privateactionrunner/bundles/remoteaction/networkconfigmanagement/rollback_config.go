@@ -11,30 +11,29 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"strconv"
 	"strings"
 	"time"
 
 	"github.com/benbjohnson/clock"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
-	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	ncmtypes "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 // RollbackConfigHandler handles the rollbackConfig action for network config management
 type RollbackConfigHandler struct {
+	cfg       config.Config
 	ipcClient ipc.HTTPClient
 	clock     clock.Clock
 }
 
 // NewRollbackConfigHandler creates a new RollbackConfigHandler
-func NewRollbackConfigHandler(client ipc.HTTPClient) *RollbackConfigHandler {
+func NewRollbackConfigHandler(cfg config.Config, client ipc.HTTPClient) *RollbackConfigHandler {
 	return &RollbackConfigHandler{
+		cfg:       cfg,
 		ipcClient: client,
 		clock:     clock.New(),
 	}
@@ -87,12 +86,11 @@ func (h *RollbackConfigHandler) Run(
 		return nil, fmt.Errorf("rollbackConfig: failed to marshal request: %w", err)
 	}
 
-	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
+	baseURL, err := h.cfg.AgentAPIURL()
 	if err != nil {
 		return nil, fmt.Errorf("rollbackConfig: failed to get IPC address: %w", err)
 	}
-	port := pkgconfigsetup.Datadog().GetInt("cmd_port")
-	url := fmt.Sprintf("https://%s/agent/ncm/rollback", net.JoinHostPort(ipcAddress, strconv.Itoa(port)))
+	url := baseURL + "/agent/ncm/rollback"
 
 	resp, err := h.ipcClient.Post(url, "application/json", bytes.NewBuffer(body))
 	if err != nil {

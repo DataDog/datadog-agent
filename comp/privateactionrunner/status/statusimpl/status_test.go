@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
@@ -29,7 +30,7 @@ func TestStatusEnabled(t *testing.T) {
 	configComponent.SetInTest("private_action_runner.actions_allowlist", []string{"com.datadoghq.http.request"})
 	configComponent.SetInTest("private_action_runner.default_actions_enabled", true)
 
-	provider := statusProvider{config: configComponent}
+	provider := statusProvider{config: parconfig.New(configComponent)}
 
 	t.Run("JSON", func(t *testing.T) {
 		stats := make(map[string]interface{})
@@ -76,7 +77,7 @@ func TestStatusDisabled(t *testing.T) {
 	configComponent := config.NewMock(t)
 	configComponent.SetInTest("private_action_runner.enabled", false)
 
-	provider := statusProvider{config: configComponent}
+	provider := statusProvider{config: parconfig.New(configComponent)}
 
 	t.Run("JSON", func(t *testing.T) {
 		stats := make(map[string]interface{})
@@ -116,7 +117,7 @@ func TestPhoneHomeStartupStatus(t *testing.T) {
 	} {
 		t.Run(tc.wireState, func(t *testing.T) {
 			state := tc.state
-			provider := statusProvider{config: config.NewMock(t), phoneHome: phoneHomeStub{state: &state}}
+			provider := statusProvider{config: parconfig.New(config.NewMock(t)), phoneHome: phoneHomeStub{state: &state}}
 			stats := make(map[string]interface{})
 			require.NoError(t, provider.JSON(false, stats))
 			encoded, err := json.Marshal(stats["privateActionRunnerStatus"].(map[string]interface{})["PhoneHome"])
@@ -145,7 +146,7 @@ func TestPhoneHomeStartupStatus(t *testing.T) {
 		})
 	}
 	for _, source := range []phonehome.Component{nil, phoneHomeStub{}} {
-		provider := statusProvider{config: config.NewMock(t), phoneHome: source}
+		provider := statusProvider{config: parconfig.New(config.NewMock(t)), phoneHome: source}
 		stats := make(map[string]interface{})
 		require.NoError(t, provider.JSON(false, stats))
 		require.NotContains(t, stats["privateActionRunnerStatus"], "PhoneHome")

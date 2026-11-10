@@ -14,17 +14,16 @@ import (
 	"fmt"
 	"time"
 
-	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
-
 	corev1 "k8s.io/api/core/v1"
 	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/client-go/kubernetes"
+
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/common/namespace"
 )
 
 const (
@@ -51,20 +50,20 @@ type k8sIdentityStorage struct {
 	selfEnroll   bool
 }
 
-func newK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource) *k8sIdentityStorage {
+func newK8sIdentityStorage(cfg parconfig.Config, leader LeaderSource) *k8sIdentityStorage {
 	return &k8sIdentityStorage{
 		kubeClient:   getKubeClient,
 		namespace:    namespace.GetResourcesNamespace(),
 		secretName:   getSecretName(cfg),
 		leader:       leader,
 		pollInterval: secretPollInterval,
-		apiKeyHash:   HashAPIKey(cfg.GetString("api_key")),
-		selfEnroll:   cfg.GetBool(par.SelfEnroll),
+		apiKeyHash:   HashAPIKey(cfg.APIKey()),
+		selfEnroll:   cfg.SelfEnroll(),
 	}
 }
 
 // NewK8sIdentityStorage returns the secret storage backed by the given client instead of the apiserver client.
-func NewK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource, client kubernetes.Interface, pollInterval time.Duration) IdentityStorage {
+func NewK8sIdentityStorage(cfg parconfig.Config, leader LeaderSource, client kubernetes.Interface, pollInterval time.Duration) IdentityStorage {
 	s := newK8sIdentityStorage(cfg, leader)
 	s.kubeClient = func() (kubernetes.Interface, error) { return client, nil }
 	s.pollInterval = pollInterval
@@ -293,7 +292,7 @@ func (s *k8sIdentityStorage) Persist(ctx context.Context, result *Result) error 
 }
 
 // persistIdentityToK8sSecretNoLeader persists identity to K8s secret without requiring leadership.
-func persistIdentityToK8sSecretNoLeader(ctx context.Context, cfg configModel.Reader, result *Result) error {
+func persistIdentityToK8sSecretNoLeader(ctx context.Context, cfg parconfig.Config, result *Result) error {
 	client, err := getKubeClient()
 	if err != nil {
 		return err
@@ -325,8 +324,8 @@ func getKubeClient() (kubernetes.Interface, error) {
 	return client.Cl, nil
 }
 
-func getSecretName(cfg configModel.Reader) string {
-	if secretName := cfg.GetString(par.IdentitySecretName); secretName != "" {
+func getSecretName(cfg parconfig.Config) string {
+	if secretName := cfg.IdentitySecretName(); secretName != "" {
 		return secretName
 	}
 	return defaultSecretName

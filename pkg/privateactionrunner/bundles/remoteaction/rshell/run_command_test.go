@@ -19,8 +19,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
 	"google.golang.org/protobuf/types/known/structpb"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -28,7 +30,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/rshell/interp"
 	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"google.golang.org/protobuf/proto"
 )
 
 func makeTask(command string, allowedCommands []string) *types.Task {
@@ -70,19 +71,19 @@ func systemServiceActions(actions ...string) *structpb.ListValue {
 	return &structpb.ListValue{Values: values}
 }
 
-func defaultRunCommandHandlerConfig() RunCommandHandlerConfig {
-	return RunCommandHandlerConfig{
+func defaultCommandPolicy() commandPolicy {
+	return commandPolicy{
 		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
 	}
 }
 
 func newDefaultRunCommandHandler() *RunCommandHandler {
-	return NewRunCommandHandler(defaultRunCommandHandlerConfig())
+	return newTestRunCommandHandler(defaultCommandPolicy())
 }
 
 func newDefaultRunRemediationCommandHandler() *RunCommandHandler {
-	return NewRunRemediationCommandHandler(defaultRunCommandHandlerConfig())
+	return newTestRunRemediationCommandHandler(defaultCommandPolicy())
 }
 
 func TestFilterAllowedCommandsUsesBackendPayload(t *testing.T) {
@@ -186,7 +187,7 @@ func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+			handler := newTestRunCommandHandler(commandPolicy{
 				OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 				OperatorAllowedCommands: tc.agent,
 			})
@@ -292,7 +293,7 @@ func TestFilterAllowedSystemServices(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+			handler := newTestRunCommandHandler(commandPolicy{
 				OperatorAllowedSystemServices: test.operator,
 			})
 
@@ -387,7 +388,7 @@ func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+			handler := newTestRunCommandHandler(commandPolicy{
 				OperatorAllowedPaths: []string{par.RShellPathAllowAll},
 			})
 
@@ -543,7 +544,7 @@ func TestFilterAllowedPathsIntersectsAgentAllowlistByAccess(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			handler := NewRunCommandHandler(RunCommandHandlerConfig{
+			handler := newTestRunCommandHandler(commandPolicy{
 				OperatorAllowedPaths: tc.agent,
 			})
 
@@ -558,11 +559,11 @@ func TestFilterAllowedPathsIntersectsAgentAllowlistByAccess(t *testing.T) {
 	}
 }
 
-// TestNewRunCommandHandlerDoesNotMutateInputs guards against the
+// TestCommandPolicyDoesNotMutateInputs guards against the
 // constructor sorting (or otherwise reordering) the caller's slices in
 // place. The bundle wiring in entrypoint.go passes the same slice we read
 // from cfg, so any mutation here would leak into the rest of the agent.
-func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
+func TestCommandPolicyDoesNotMutateInputs(t *testing.T) {
 	paths := []string{"/var/log", "/etc"}
 	commands := []string{"rshell:zls", "rshell:cat", "rshell:cat"}
 	services := map[string][]string{
@@ -574,7 +575,7 @@ func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
 		"mysql.service": slices.Clone(services["mysql.service"]),
 	}
 
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:          paths,
 		OperatorAllowedCommands:       commands,
 		OperatorAllowedSystemServices: services,
@@ -589,8 +590,8 @@ func TestNewRunCommandHandlerDoesNotMutateInputs(t *testing.T) {
 		"AgentAllowedSystemServices must be copied before being retained")
 }
 
-func TestNewRunCommandHandlerReducesOperatorAllowedPathsByAccess(t *testing.T) {
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+func TestCommandPolicyReducesOperatorAllowedPathsByAccess(t *testing.T) {
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths: []string{
 			"/var/log",
 			"/var/log/datadog",
@@ -669,10 +670,10 @@ func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 func TestRunCommandWithoutSudoDoesNotRequirePrivilegedHelper(t *testing.T) {
 	for _, action := range []struct {
 		name       string
-		newHandler func(RunCommandHandlerConfig) *RunCommandHandler
+		newHandler func(commandPolicy) *RunCommandHandler
 	}{
-		{name: "read-only", newHandler: NewRunCommandHandler},
-		{name: "remediation", newHandler: NewRunRemediationCommandHandler},
+		{name: "read-only", newHandler: newTestRunCommandHandler},
+		{name: "remediation", newHandler: newTestRunRemediationCommandHandler},
 	} {
 		t.Run(action.name, func(t *testing.T) {
 			for _, policy := range []struct {
@@ -685,7 +686,7 @@ func TestRunCommandWithoutSudoDoesNotRequirePrivilegedHelper(t *testing.T) {
 				t.Run(policy.name, func(t *testing.T) {
 					// The policy permits elevation, but this invocation does not request it.
 					// It must still work with the locally disabled helper (the default).
-					handler := action.newHandler(defaultRunCommandHandlerConfig())
+					handler := action.newHandler(defaultCommandPolicy())
 					task := makeTaskWithPaths("echo hello",
 						[]string{"rshell:echo", "rshell:cat"}, []string{t.TempDir()})
 					task.Data.Attributes.Inputs["effectivePermissions"] = privilegedhelper.EscalationAllowed
@@ -742,15 +743,15 @@ func TestPrivilegedExecutionRequiresLocalOptIn(t *testing.T) {
 }
 
 func TestEnabledPrivilegedHelperFailureDoesNotFallBack(t *testing.T) {
-	cfg := defaultRunCommandHandlerConfig()
+	cfg := defaultCommandPolicy()
 	cfg.PrivilegedEnabled = true
 	cfg.PrivilegedSocket = filepath.Join(t.TempDir(), "missing-helper.sock")
 	for _, action := range []struct {
 		name    string
 		handler *RunCommandHandler
 	}{
-		{name: "read-only", handler: NewRunCommandHandler(cfg)},
-		{name: "remediation", handler: NewRunRemediationCommandHandler(cfg)},
+		{name: "read-only", handler: newTestRunCommandHandler(cfg)},
+		{name: "remediation", handler: newTestRunRemediationCommandHandler(cfg)},
 	} {
 		t.Run(action.name, func(t *testing.T) {
 			// This command would succeed locally, but an enabled helper's
@@ -777,9 +778,9 @@ func TestRunPrivilegedLogsSettingsAtInfoLevel(t *testing.T) {
 	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
 	log.SetupLogger(logger, "info")
 
-	cfg := defaultRunCommandHandlerConfig()
+	cfg := defaultCommandPolicy()
 	cfg.PrivilegedEnabled = true
-	handler := NewRunCommandHandler(cfg)
+	handler := newTestRunCommandHandler(cfg)
 	task := makeTask("sudo cat /root/secret", []string{"rshell:cat"})
 	task.Data.Attributes.Inputs["effectivePermissions"] = "EscalationAllowed"
 	task.Data.Attributes.Inputs["elevatableCommands"] = []string{"rshell:cat"}
@@ -802,7 +803,7 @@ func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T
 	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
 	log.SetupLogger(logger, "info")
 
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:              []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:           []string{"rshell:cat"},
 		OperatorAllowedCommandsConfigured: true,
@@ -830,7 +831,7 @@ func TestBuildAgentPolicyNoOperatorNarrowingIsNil(t *testing.T) {
 }
 
 func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:              []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:           []string{"rshell:truncate"},
 		OperatorAllowedCommandsConfigured: true,
@@ -846,7 +847,7 @@ func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *test
 }
 
 func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:       []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:    []string{rShellCommandAllowAllWildcard},
 		OperatorElevatableCommands: []string{"rshell:journalctl", "rshell:systemctl"},
@@ -862,7 +863,7 @@ func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *t
 }
 
 func TestBuildAgentPolicyExplicitlyEmptyElevatableCommandsIsKillSwitch(t *testing.T) {
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorElevatableCommands: []string{},
 	})
 
@@ -874,7 +875,7 @@ func TestBuildAgentPolicyExplicitlyEmptyElevatableCommandsIsKillSwitch(t *testin
 }
 
 func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:              []string{"/var/log:ro"},
 		OperatorAllowedCommands:           []string{"rshell:cat"},
 		OperatorAllowedCommandsConfigured: true,
@@ -893,7 +894,7 @@ func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
 }
 
 func TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch(t *testing.T) {
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:          []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:       []string{rShellCommandAllowAllWildcard},
 		OperatorAllowedSystemServices: map[string][]string{},
@@ -1001,9 +1002,9 @@ func TestRunCommandWithBackendAllowedCommand(t *testing.T) {
 }
 
 func TestRunCommandWithDisableDetailedTelemetryStillExecutes(t *testing.T) {
-	cfg := defaultRunCommandHandlerConfig()
+	cfg := defaultCommandPolicy()
 	cfg.DisableDetailedTelemetry = true
-	handler := NewRunCommandHandler(cfg)
+	handler := newTestRunCommandHandler(cfg)
 
 	out, err := handler.Run(context.Background(),
 		makeTask("echo hello", []string{"rshell:echo"}), nil)
@@ -1038,7 +1039,7 @@ func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
 	t.Cleanup(func() { log.SetupLogger(previousLogger, "debug") })
 	log.SetupLogger(logger, "debug")
 
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
 		OperatorAllowedSystemServices: map[string][]string{
@@ -1066,7 +1067,7 @@ func TestRunCommandLogsSettingsAtInfoLevel(t *testing.T) {
 	t.Cleanup(func() { log.SetupLogger(previousLogger, "info") })
 	log.SetupLogger(logger, "info")
 
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:     []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:  []string{rShellCommandAllowAllWildcard},
 		DisableDetailedTelemetry: true,
@@ -1101,7 +1102,7 @@ func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 }
 
 func TestRunCommandAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{"rshell:cat"},
 	})
@@ -1116,7 +1117,7 @@ func TestRunCommandAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
 }
 
 func TestRunCommandExplicitEmptyAgentCommandAllowlistBlocksExecution(t *testing.T) {
-	handler := NewRunCommandHandler(RunCommandHandlerConfig{
+	handler := newTestRunCommandHandler(commandPolicy{
 		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{},
 	})
@@ -1383,19 +1384,17 @@ func TestNewRshellBundleRegistersBothModes(t *testing.T) {
 	operatorServices := map[string][]string{
 		"mysql.service": {"read", "restart"},
 	}
-	bundle := NewRshellBundle(&parconfig.Config{
-		RShellAllowedSystemServices: operatorServices,
-	})
+	bundle := NewRshellBundle(parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.restricted_shell.allowed_system_services": operatorServices})))
 
 	runCommand, ok := bundle.GetAction("runCommand").(*RunCommandHandler)
 	require.True(t, ok, "runCommand should be registered")
 	assert.Equal(t, interp.ModeReadOnly, runCommand.mode)
-	assert.Equal(t, operatorServices, runCommand.operatorAllowedSystemServices)
+	assert.Equal(t, operatorServices, commandConfig(runCommand.config).OperatorAllowedSystemServices)
 
 	runRemediation, ok := bundle.GetAction("runRemediationCommand").(*RunCommandHandler)
 	require.True(t, ok, "runRemediationCommand should be registered")
 	assert.Equal(t, interp.ModeRemediation, runRemediation.mode)
-	assert.Equal(t, operatorServices, runRemediation.operatorAllowedSystemServices)
+	assert.Equal(t, operatorServices, commandConfig(runRemediation.config).OperatorAllowedSystemServices)
 }
 
 // TestRunRemediationCommandAllowsFileRedirect verifies that, in remediation
@@ -1487,4 +1486,29 @@ func TestRunRemediationCommandRedirectOutsideSandboxBlocked(t *testing.T) {
 		"redirection outside the sandbox must be rejected even in remediation mode")
 	_, statErr := os.Stat(filepath.FromSlash(outsideTarget))
 	assert.True(t, os.IsNotExist(statErr))
+}
+
+func TestRshellReadsUpdatedPolicyForEachTask(t *testing.T) {
+	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+		"private_action_runner.restricted_shell.allowed_commands": []string{"rshell:echo"},
+	})
+	handler := NewRshellBundle(parconfig.New(cfg)).GetAction("runCommand")
+	task := makeTaskWithPaths("echo hello", []string{"rshell:echo"}, []string{"/"})
+	out, err := handler.Run(context.Background(), task, nil)
+	require.NoError(t, err)
+	require.Equal(t, 0, out.(*RunCommandOutputs).ExitCode)
+	cfg.SetInTest("private_action_runner.restricted_shell.allowed_commands", []string{})
+	out, err = handler.Run(context.Background(), task, nil)
+	// Policy revocation is observed by the existing handler.
+	if err == nil {
+		require.NotEqual(t, 0, out.(*RunCommandOutputs).ExitCode)
+	}
+}
+
+func newTestRunCommandHandler(cfg commandPolicy) *RunCommandHandler {
+	return newRunCommandHandler(cfg, interp.ModeReadOnly)
+}
+
+func newTestRunRemediationCommandHandler(cfg commandPolicy) *RunCommandHandler {
+	return newRunCommandHandler(cfg, interp.ModeRemediation)
 }

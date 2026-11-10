@@ -13,9 +13,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
-	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/regions"
@@ -24,8 +23,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
 )
-
-const defaultIdentityFileName = "privateactionrunner_private_identity.json"
 
 // Result contains the result of a successful enrollment
 type Result struct {
@@ -93,7 +90,7 @@ func ShouldReenroll(agentIdentifier *AgentIdentifier, identity *PersistedIdentit
 // SelfEnroll performs self-registration using API key + application key.
 func SelfEnroll(
 	ctx context.Context,
-	cfg configModel.Reader,
+	cfg parconfig.Config,
 	ddSite,
 	runnerNamePrefix,
 	apiKey,
@@ -112,7 +109,7 @@ func SelfEnroll(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	endpoint, err := par.APIBaseURL(cfg, ddSite)
+	endpoint, err := cfg.APIBaseURLForSite(ddSite)
 	if err != nil {
 		return nil, err
 	}
@@ -155,10 +152,10 @@ func SelfEnroll(
 }
 
 // Enroll performs self-enrollment using config and an agent identifier.
-func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentIdentifier) (*Result, error) {
-	ddSite := par.Site(cfg)
-	apiKey := cfg.GetString("api_key")
-	extraHeaders := cfg.GetStringMapString(par.OPMSExtraHeaders)
+func Enroll(ctx context.Context, cfg parconfig.Config, agentIdentifier *AgentIdentifier) (*Result, error) {
+	ddSite := cfg.Site()
+	apiKey := cfg.APIKey()
+	extraHeaders := cfg.OPMSExtraHeaders()
 
 	runnerNamePrefix := agentIdentifier.Hostname
 	if flavor.GetFlavor() == flavor.ClusterAgent {
@@ -169,17 +166,17 @@ func Enroll(ctx context.Context, cfg configModel.Reader, agentIdentifier *AgentI
 		}
 	}
 
-	if cfg.GetBool(par.APIKeyOnlyEnrollment) {
+	if cfg.APIKeyOnlyEnrollment() {
 		return SelfEnrollApiKeyOnly(ctx, cfg, ddSite, runnerNamePrefix, apiKey, agentIdentifier, extraHeaders)
 	}
-	appKey := cfg.GetString("app_key")
+	appKey := cfg.AppKey()
 	return SelfEnroll(ctx, cfg, ddSite, runnerNamePrefix, apiKey, appKey, agentIdentifier, extraHeaders)
 }
 
 // SelfEnrollApiKeyOnly performs self-registration using only an API key (no application key).
 func SelfEnrollApiKeyOnly(
 	ctx context.Context,
-	cfg configModel.Reader,
+	cfg parconfig.Config,
 	ddSite,
 	runnerNamePrefix,
 	apiKey string,
@@ -197,7 +194,7 @@ func SelfEnrollApiKeyOnly(
 		return nil, fmt.Errorf("failed to generate key pair: %w", err)
 	}
 
-	endpoint, err := par.APIBaseURL(cfg, ddSite)
+	endpoint, err := cfg.APIBaseURLForSite(ddSite)
 	if err != nil {
 		return nil, err
 	}

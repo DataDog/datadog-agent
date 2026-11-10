@@ -14,16 +14,15 @@ import (
 	"sync/atomic"
 	"time"
 
-	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
-
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/benbjohnson/clock"
+
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 // Discovery owns PAR scope polling in core; RC supplies only org/key status.
 type Discovery struct {
-	cfg           model.Reader
+	cfg           parconfig.Config
 	clock         clock.Clock
 	rc            Source
 	demand        atomic.Bool
@@ -41,13 +40,13 @@ type Discovery struct {
 
 // NewDiscovery creates a worker for enabled PAR without starting background work.
 // Unsupported configuration or absent RC leaves discovery unavailable.
-func NewDiscovery(cfg model.Reader, rc Source) *Discovery {
+func NewDiscovery(cfg parconfig.Config, rc Source) *Discovery {
 	if !Enabled(cfg) || rc == nil {
 		return nil
 	}
-	p := &Discovery{cfg: cfg, clock: clock.New(), rc: rc, key: cfg.GetString("api_key"), endpoint: enrollmentEndpoint(cfg),
+	p := &Discovery{cfg: cfg, clock: clock.New(), rc: rc, key: cfg.APIKey(), endpoint: enrollmentEndpoint(cfg),
 		jitter: func(d time.Duration) time.Duration { return time.Duration(rand.Int64N(int64(d) + 1)) },
-		client: &http.Client{Timeout: 10 * time.Second, Transport: httputils.CreateHTTPTransport(cfg), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+		client: &http.Client{Timeout: 10 * time.Second, Transport: cfg.HTTPTransport(), CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
 	p.next = p.clock.Now().Add(p.jitter(time.Minute))
 	p.observation = PARScopeObservation{Reason: phonehomedef.ReasonPARScopeUnchecked, NextCheck: p.next}
 	return p

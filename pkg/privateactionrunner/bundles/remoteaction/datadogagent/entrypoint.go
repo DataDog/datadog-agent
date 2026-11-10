@@ -7,6 +7,7 @@ package com_datadoghq_remoteaction_datadogagent
 
 import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -17,14 +18,14 @@ type AgentBundle struct {
 
 // NewAgent creates a new agent bundle. The provided IPC HTTP client is used to
 // reach the local agent's authenticated command API.
-func NewAgent(client ipc.HTTPClient) types.Bundle {
+func NewAgent(cfg config.Config, client ipc.HTTPClient) types.Bundle {
 	return &AgentBundle{
 		actions: map[string]types.Action{
-			"getStatus":             NewGetStatusHandler(client),
-			"getDiagnose":           NewGetDiagnoseHandler(client),
-			"getConfig":             NewGetConfigHandler(client),
-			"generateFlare":         NewGenerateFlareHandler(client),
-			"dumpDogstatsdContexts": NewDumpDogstatsdContextsHandler(client),
+			"getStatus":             NewGetStatusHandler(cfg, client),
+			"getDiagnose":           NewGetDiagnoseHandler(cfg, client),
+			"getConfig":             NewGetConfigHandler(cfg, client),
+			"generateFlare":         NewGenerateFlareHandler(cfg, client),
+			"dumpDogstatsdContexts": NewDumpDogstatsdContextsHandler(cfg, client),
 		},
 	}
 }

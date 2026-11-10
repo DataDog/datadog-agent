@@ -15,9 +15,11 @@ import (
 	"testing"
 	"time"
 
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 	"github.com/stretchr/testify/require"
+
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/procmgr"
 )
 
 // Uses the real RC protobuf fetch, AAA HTTP client and production gate composition.
@@ -29,7 +31,7 @@ func stackController(t *testing.T, f *scopeFixture) (*controller, *supervisor) {
 		control:  &pb.ProcessDetail{Uuid: "control", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
 		executor: &pb.ProcessDetail{Uuid: "executor", State: pb.ProcessState_SKIPPED, RestartPolicy: "never"},
 	}
-	return &controller{cfg: f.cfg, source: NewScopedSource(f.s.rc, f.s), pm: pm, now: f.clock.Now, emit: func(State) {}}, pm
+	return &controller{cfg: parconfig.New(f.cfg), source: NewScopedSource(f.s.rc, f.s), pm: pm, now: f.clock.Now, emit: func(State) {}}, pm
 }
 
 func TestHTTPStackEveryStartRequiresRCAndPARScope(t *testing.T) {

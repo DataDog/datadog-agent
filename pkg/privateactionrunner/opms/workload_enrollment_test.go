@@ -19,6 +19,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -51,7 +52,7 @@ func TestEnrollWithWorkloadToken(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("skip_ssl_validation", true)
 	cfg.SetInTest("api_key", "existing-intake-key")
-	client := NewPublicClient(cfg, server.URL, map[string]string{
+	client := NewPublicClient(parconfig.New(cfg), server.URL, map[string]string{
 		"DD-API-KEY": "unused-api-key", "DD-APPLICATION-KEY": "unused-app-key", "Authorization": "unused-auth",
 	})
 	response, err := client.EnrollWithWorkloadToken(context.Background(), "workload-token", request)
@@ -90,7 +91,7 @@ func TestWorkloadEnrollmentFailuresDoNotRetryOrExposeCredentials(t *testing.T) {
 			defer server.Close()
 			cfg := configmock.New(t)
 			cfg.SetInTest("skip_ssl_validation", true)
-			response, err := NewPublicClient(cfg, server.URL, nil).EnrollWithWorkloadToken(context.Background(), "sensitive-token", par.CreateRunnerRequest{RunnerName: "test"})
+			response, err := NewPublicClient(parconfig.New(cfg), server.URL, nil).EnrollWithWorkloadToken(context.Background(), "sensitive-token", par.CreateRunnerRequest{RunnerName: "test"})
 			require.Error(t, err)
 			require.Nil(t, response)
 			require.NotContains(t, err.Error(), "sensitive")
@@ -109,15 +110,15 @@ func TestWorkloadEnrollmentFailuresDoNotRetryOrExposeCredentials(t *testing.T) {
 
 func TestWorkloadEnrollmentInvalidInputAndCancellation(t *testing.T) {
 	cfg := configmock.New(t)
-	_, err := NewPublicClient(cfg, "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(context.Background(), "", par.CreateRunnerRequest{})
+	_, err := NewPublicClient(parconfig.New(cfg), "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(context.Background(), "", par.CreateRunnerRequest{})
 	require.ErrorContains(t, err, "token is required")
-	_, err = NewPublicClient(cfg, "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(context.Background(), "token", par.CreateRunnerRequest{ID: "existing-runner"})
+	_, err = NewPublicClient(parconfig.New(cfg), "https://api.datadoghq.com", nil).EnrollWithWorkloadToken(context.Background(), "token", par.CreateRunnerRequest{ID: "existing-runner"})
 	require.ErrorContains(t, err, "existing runner")
-	_, err = NewPublicClient(cfg, "http://127.0.0.1:1", nil).EnrollWithWorkloadToken(context.Background(), "token", par.CreateRunnerRequest{})
+	_, err = NewPublicClient(parconfig.New(cfg), "http://127.0.0.1:1", nil).EnrollWithWorkloadToken(context.Background(), "token", par.CreateRunnerRequest{})
 	require.ErrorContains(t, err, "HTTPS")
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
-	_, err = NewPublicClient(cfg, "https://127.0.0.1:1", nil).EnrollWithWorkloadToken(ctx, "token", par.CreateRunnerRequest{})
+	_, err = NewPublicClient(parconfig.New(cfg), "https://127.0.0.1:1", nil).EnrollWithWorkloadToken(ctx, "token", par.CreateRunnerRequest{})
 	require.ErrorIs(t, err, context.Canceled)
 }
 
@@ -151,7 +152,7 @@ func TestWorkloadEnrollmentPreservesAPIKeyRedirectPolicy(t *testing.T) {
 	defer server.Close()
 	cfg := configmock.New(t)
 	cfg.SetInTest("skip_ssl_validation", true)
-	client := NewPublicClient(cfg, server.URL, nil).(*publicClient)
+	client := NewPublicClient(parconfig.New(cfg), server.URL, nil).(*publicClient)
 	_, err := client.EnrollWithWorkloadToken(context.Background(), "workload-token", par.CreateRunnerRequest{RunnerName: "test"})
 	require.ErrorIs(t, err, ErrEnrollmentRejected)
 	require.Zero(t, redirected)

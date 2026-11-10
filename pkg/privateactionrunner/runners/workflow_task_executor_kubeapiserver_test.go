@@ -9,14 +9,15 @@ package runners
 
 import (
 	"context"
+	"net/http"
 	"testing"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"k8s.io/apimachinery/pkg/util/sets"
 
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
 )
 
@@ -26,17 +27,17 @@ func TestWorkflowTaskExecutorRejectsAuthoredScriptOnClusterAgent(t *testing.T) {
 		actionName   = "addRepo"
 		executionFQN = "com.datadoghq.authoredscripts.helm.addRepo"
 	)
-	registry, err := privatebundles.NewRegistry(&config.Config{}, nil, nil, nil, nil, nil, nil, nil, nil, nil)
+	registry, err := privatebundles.NewRegistry(parconfig.New(coreconfig.NewMock(t)), http.DefaultClient, nil, nil, nil, nil, nil, nil, nil, nil, nil)
 	require.NoError(t, err)
 	require.NotNil(t, registry.GetBundle(publicBundle))
 	require.Nil(t, registry.GetBundle("com.datadoghq.authoredscripts.helm"))
 
 	executor := &WorkflowTaskExecutor{
 		registry: registry,
-		config: &config.Config{
-			ActionsAllowlist: map[string]sets.Set[string]{publicBundle: sets.New(actionName)},
-			MetricsClient:    &statsd.NoOpClient{},
-		},
+		config: parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+			"private_action_runner.default_actions_enabled": false,
+			"private_action_runner.actions_allowlist":       []string{publicBundle + "." + actionName},
+		})), metricsClient: &statsd.NoOpClient{},
 	}
 	task := newWorkflowTask("task-id", publicBundle, actionName, "job-id")
 	task.Data.Attributes.ExecutionFQN = executionFQN

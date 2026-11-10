@@ -12,10 +12,9 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 
-	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -36,15 +35,16 @@ type LeaderSource interface {
 
 // NewIdentityStorage returns the K8s secret storage on the Cluster Agent when configured, the identity file otherwise.
 // leader is only used by the K8s secret storage.
-func NewIdentityStorage(cfg configModel.Reader, leader LeaderSource) IdentityStorage {
-	if cfg.GetBool(par.IdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
+func NewIdentityStorage(source model.Reader, leader LeaderSource) IdentityStorage {
+	cfg := parconfig.New(source)
+	if cfg.IdentityUseK8sSecret() && flavor.GetFlavor() == flavor.ClusterAgent {
 		return newK8sIdentityStorage(cfg, leader)
 	}
 	return &fileIdentityStorage{cfg: cfg}
 }
 
 type fileIdentityStorage struct {
-	cfg configModel.Reader
+	cfg parconfig.Config
 }
 
 func (s *fileIdentityStorage) Load(_ context.Context) (*PersistedIdentity, error) {
@@ -56,16 +56,16 @@ func (s *fileIdentityStorage) Persist(_ context.Context, result *Result) error {
 }
 
 // RotateIdentity persists a new identity for explicit rotation.
-func RotateIdentity(ctx context.Context, cfg configModel.Reader, result *Result) error {
-	if cfg.GetBool(par.IdentityUseK8sSecret) && flavor.GetFlavor() == flavor.ClusterAgent {
+func RotateIdentity(ctx context.Context, cfg parconfig.Config, result *Result) error {
+	if cfg.IdentityUseK8sSecret() && flavor.GetFlavor() == flavor.ClusterAgent {
 		return persistIdentityToK8sSecretNoLeader(ctx, cfg, result)
 	}
 	return persistIdentityToFile(cfg, result)
 }
 
 // getIdentityFromFile returns the identity of the private action runner from the identity file. Returns nil if the identity file does not exist
-func getIdentityFromFile(cfg configModel.Reader) (*PersistedIdentity, error) {
-	filePath := GetIdentityFilePath(cfg)
+func getIdentityFromFile(cfg parconfig.Config) (*PersistedIdentity, error) {
+	filePath := cfg.IdentityFilePath()
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, nil
 	}
@@ -91,8 +91,8 @@ func getIdentityFromFile(cfg configModel.Reader) (*PersistedIdentity, error) {
 }
 
 // persistIdentityToFile saves the enrollment result to the identity file
-func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
-	filePath := GetIdentityFilePath(cfg)
+func persistIdentityToFile(cfg parconfig.Config, result *Result) error {
+	filePath := cfg.IdentityFilePath()
 
 	privateKeyJWK, err := util.EcdsaToJWK(result.PrivateKey)
 	if err != nil {
@@ -119,16 +119,4 @@ func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
 
 	log.Infof("Private Runner identity successfully persisted to %s", filePath)
 	return nil
-}
-
-// GetIdentityFilePath returns the path used to persist the runner's self-enrollment identity.
-func GetIdentityFilePath(cfg configModel.Reader) string {
-	if configPath := cfg.GetString(par.IdentityFilePath); configPath != "" {
-		return configPath
-	}
-	// similarly to pkg/api/security/cert/cert_getter.go we also check if auth_token_file_path as a fallback since customers would probably want these files to be next to each other
-	if cfg.GetString("auth_token_file_path") != "" {
-		return filepath.Join(filepath.Dir(cfg.GetString("auth_token_file_path")), defaultIdentityFileName)
-	}
-	return filepath.Join(filepath.Dir(cfg.ConfigFileUsed()), defaultIdentityFileName)
 }

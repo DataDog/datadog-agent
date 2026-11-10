@@ -14,7 +14,7 @@ type HttpBundle struct {
 	actions map[string]types.Action
 }
 
-func NewHttpBundle(cfg *config.Config) types.Bundle {
+func NewHttpBundle(cfg config.Config) types.Bundle {
 	return &HttpBundle{
 		actions: map[string]types.Action{
 			"request":            NewHttpRequestAction(cfg),

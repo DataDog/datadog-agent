@@ -9,14 +9,16 @@ package phonehome
 
 import (
 	"fmt"
-	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
+	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
-	"github.com/stretchr/testify/require"
 )
 
 type statusService struct {
@@ -39,7 +41,7 @@ func TestReaderRetainsLastSuccessfulRCStatus(t *testing.T) {
 		cfg.SetInTest(k, v)
 	}
 	rc := &statusService{}
-	source := NewSource(cfg, rc)
+	source := NewSource(parconfig.New(cfg), rc)
 	require.Equal(t, phonehomedef.ReasonRCUnchecked, source.Read(time.Now()).Reason)
 	rc.rc = &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}
 	require.True(t, source.Read(time.Now().Add(time.Hour)).Ready, "RC last success has no expiry")
@@ -52,7 +54,7 @@ func TestReaderRetainsLastSuccessfulRCStatus(t *testing.T) {
 	cfg.SetInTest("remote_configuration.enabled", false)
 	require.Equal(t, phonehomedef.ReasonRCLocallyDisabled, source.Read(time.Now()).Reason)
 	cfg.SetInTest("remote_configuration.enabled", true)
-	require.Equal(t, phonehomedef.ReasonRCServiceUnavailable, NewSource(cfg, nil).Read(time.Now()).Reason)
+	require.Equal(t, phonehomedef.ReasonRCServiceUnavailable, NewSource(parconfig.New(cfg), nil).Read(time.Now()).Reason)
 }
 
 func TestReaderRCEndpointFQDN(t *testing.T) {
@@ -70,17 +72,17 @@ func TestReaderRCEndpointFQDN(t *testing.T) {
 				rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
 				for _, endpoint := range []string{"", "https://config." + site, "https://config." + site + "."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
-					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, endpoint)
-					require.Equal(t, "https://api."+site, enrollmentEndpoint(cfg))
+					require.True(t, NewSource(parconfig.New(cfg), rc).Read(time.Now()).Ready, endpoint)
+					require.Equal(t, "https://api."+site, enrollmentEndpoint(parconfig.New(cfg)))
 				}
 				for _, endpoint := range []string{"https://rc-proxy.example.com:8443/prefix", "https://rc-proxy.example.com:8443/prefix/", "https://config.us5.datadoghq.com."} {
 					cfg.SetInTest("remote_configuration.rc_dd_url", endpoint)
 					cfg.SetInTest("private_action_runner.par_dd_url", "")
-					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, "custom RC routing alone must not block PAR")
-					require.Equal(t, "https://api."+site, enrollmentEndpoint(cfg))
+					require.True(t, NewSource(parconfig.New(cfg), rc).Read(time.Now()).Ready, "custom RC routing alone must not block PAR")
+					require.Equal(t, "https://api."+site, enrollmentEndpoint(parconfig.New(cfg)))
 					cfg.SetInTest("private_action_runner.par_dd_url", "https://par-proxy.example.com/api-prefix")
-					require.True(t, NewSource(cfg, rc).Read(time.Now()).Ready, endpoint)
-					require.Equal(t, "https://par-proxy.example.com/api-prefix", enrollmentEndpoint(cfg))
+					require.True(t, NewSource(parconfig.New(cfg), rc).Read(time.Now()).Ready, endpoint)
+					require.Equal(t, "https://par-proxy.example.com/api-prefix", enrollmentEndpoint(parconfig.New(cfg)))
 				}
 			})
 		}
@@ -94,7 +96,7 @@ func TestReaderRejectsInvalidPAROverride(t *testing.T) {
 		cfg.SetInTest("remote_configuration.enabled", true)
 		cfg.SetInTest("private_action_runner.par_dd_url", endpoint)
 		rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
-		require.Equal(t, phonehomedef.ReasonInvalidEndpoint, NewSource(cfg, rc).Read(time.Now()).Reason)
+		require.Equal(t, phonehomedef.ReasonInvalidEndpoint, NewSource(parconfig.New(cfg), rc).Read(time.Now()).Reason)
 	}
 }
 
@@ -107,9 +109,9 @@ func TestReaderIgnoresMetricsEndpoint(t *testing.T) {
 		cfg.SetInTest("dd_url", endpoint)
 		cfg.SetInTest("remote_configuration.enabled", true)
 		rc := &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}}
-		source := NewSource(cfg, rc)
+		source := NewSource(parconfig.New(cfg), rc)
 		require.True(t, source.Read(time.Now()).Ready)
-		require.Equal(t, "https://api.datadoghq.eu", enrollmentEndpoint(cfg))
+		require.Equal(t, "https://api.datadoghq.eu", enrollmentEndpoint(parconfig.New(cfg)))
 		cfg.SetInTest("dd_url", "https://another-metrics-proxy.example.com")
 		require.True(t, source.Read(time.Now()).Ready, "metrics routing changes must not affect PAR readiness")
 	}
@@ -121,7 +123,7 @@ func TestReaderFreezesLoopbackEndpoints(t *testing.T) {
 	for k, v := range map[string]interface{}{"api_key": "key", "dd_url": "http://127.0.0.1:1234", "remote_configuration.rc_dd_url": "http://127.0.0.1:5678", "remote_configuration.enabled": true} {
 		cfg.SetInTest(k, v)
 	}
-	source := NewSource(cfg, &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}})
+	source := NewSource(parconfig.New(cfg), &statusService{rc: &pbgo.OrgStatusResponse{Enabled: true, Authorized: true}})
 	require.True(t, source.Read(time.Now()).Ready)
 	cfg.SetInTest("dd_url", "http://127.0.0.1:4321")
 	require.Equal(t, phonehomedef.ReasonRCCredentialOrEndpointMismatch, source.Read(time.Now()).Reason)

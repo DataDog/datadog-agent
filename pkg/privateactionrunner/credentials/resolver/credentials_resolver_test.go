@@ -15,6 +15,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
 )
@@ -22,7 +23,7 @@ import (
 func TestResolveConnectionTokensV2FromConfig(t *testing.T) {
 	config := configmock.New(t)
 	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "secret-value"}}, model.SourceFile)
-	resolver, err := NewPrivateCredentialResolver(config)
+	resolver, err := NewPrivateCredentialResolver(parconfig.New(config))
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
@@ -99,7 +100,7 @@ func TestResolveConnectionTokensV2UsesOneSnapshot(t *testing.T) {
 	config := configmock.New(t)
 	config.Set(par.CredentialsValues, map[string]any{"api_token": map[string]any{"value": "original"}}, model.SourceFile)
 	liveConfig := &refreshOnReadConfig{Reader: config}
-	resolver, err := NewPrivateCredentialResolver(liveConfig)
+	resolver, err := NewPrivateCredentialResolver(parconfig.New(liveConfig))
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2}
 	for _, name := range []string{"first", "second"} {
@@ -134,7 +135,7 @@ private_action_runner:
 `
 	mockConfig := configmock.NewFromYAML(t, yaml)
 
-	resolver, err := NewPrivateCredentialResolver(mockConfig)
+	resolver, err := NewPrivateCredentialResolver(parconfig.New(mockConfig))
 	require.NoError(t, err)
 	conn := &privateactionspb.ConnectionInfo{
 		CredentialsType: privateactionspb.CredentialsType_CONNECTION_TOKENS_V2,
@@ -182,7 +183,7 @@ func TestNewPrivateCredentialResolverInvalidCredentials(t *testing.T) {
 		},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, test.yaml))
+			resolver, err := NewPrivateCredentialResolver(parconfig.New(configmock.NewFromYAML(t, test.yaml)))
 			require.Error(t, err)
 			assert.Nil(t, resolver)
 			assert.Contains(t, err.Error(), par.CredentialsValues)
@@ -233,7 +234,7 @@ func TestRunnerCredentialAllowedActions(t *testing.T) {
 			if test.policy != "" {
 				yaml += "        allowed_actions: " + test.policy + "\n"
 			}
-			resolver, err := NewPrivateCredentialResolver(configmock.NewFromYAML(t, yaml))
+			resolver, err := NewPrivateCredentialResolver(parconfig.New(configmock.NewFromYAML(t, yaml)))
 			require.NoError(t, err)
 			credentials, err := resolver.ResolveCredentials(context.Background(), credentialTask(runnerCredentialConnection("password"), types.Attributes{BundleID: test.bundle, Name: test.action}))
 			if test.allowed {
@@ -258,7 +259,7 @@ func TestRunnerCredentialInvalidPolicies(t *testing.T) {
 	} {
 		t.Run(policy, func(t *testing.T) {
 			config := configmock.NewFromYAML(t, "private_action_runner:\n  credentials:\n    values:\n      password:\n        value: secret-value\n        allowed_actions: "+policy+"\n")
-			resolver, err := NewPrivateCredentialResolver(config)
+			resolver, err := NewPrivateCredentialResolver(parconfig.New(config))
 			require.Error(t, err)
 			assert.Nil(t, resolver)
 			assert.NotContains(t, err.Error(), "secret-value")
@@ -275,7 +276,7 @@ func TestRunnerCredentialPolicyRefreshAndAllOrNothing(t *testing.T) {
 		}, model.SourceSecret)
 	}
 	setPolicy([]string{"com.datadoghq.mongodb.*"})
-	resolver, err := NewPrivateCredentialResolver(config)
+	resolver, err := NewPrivateCredentialResolver(parconfig.New(config))
 	require.NoError(t, err)
 	conn := runnerCredentialConnection("username", "password")
 	action := types.Attributes{BundleID: "com.datadoghq.mongodb", Name: "find"}
@@ -313,7 +314,7 @@ func TestRunnerCredentialHTTPDomains(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			config := configmock.NewFromYAML(t, "private_action_runner:\n  credentials:\n    values:\n      password:\n        value: secret-value\n        allowed_http_domains: "+test.domains+"\n")
-			resolver, err := NewPrivateCredentialResolver(config)
+			resolver, err := NewPrivateCredentialResolver(parconfig.New(config))
 			require.NoError(t, err)
 			conn := runnerCredentialConnection("password")
 			if test.testPath != "" {
@@ -349,7 +350,7 @@ func TestRunnerCredentialInvalidDomainPolicies(t *testing.T) {
 	for _, policy := range []string{"null", "api.example.com", "{}", "[null]", "[42]", "['https://api.example.com']", "['api.example.com:443']", "['*']"} {
 		t.Run(policy, func(t *testing.T) {
 			config := configmock.NewFromYAML(t, "private_action_runner:\n  credentials:\n    values:\n      password:\n        value: secret-value\n        allowed_http_domains: "+policy+"\n")
-			resolver, err := NewPrivateCredentialResolver(config)
+			resolver, err := NewPrivateCredentialResolver(parconfig.New(config))
 			require.Error(t, err)
 			assert.Nil(t, resolver)
 			assert.NotContains(t, err.Error(), "secret-value")
@@ -363,7 +364,7 @@ func TestRunnerCredentialHTTPDomainsRequireEveryCredential(t *testing.T) {
 		"username": map[string]any{"value": "user-value", "allowed_http_domains": []string{"*.example.com"}},
 		"password": map[string]any{"value": "secret-value", "allowed_http_domains": []string{"api.example.com"}},
 	}, model.SourceFile)
-	resolver, err := NewPrivateCredentialResolver(config)
+	resolver, err := NewPrivateCredentialResolver(parconfig.New(config))
 	require.NoError(t, err)
 	conn := runnerCredentialConnection("username", "password")
 	action := types.Attributes{BundleID: "com.datadoghq.http", Name: "request", Inputs: map[string]interface{}{"url": "https://api.example.com"}}

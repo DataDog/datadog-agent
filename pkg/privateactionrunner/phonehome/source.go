@@ -12,9 +12,7 @@ import (
 
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 type Observation struct {
@@ -29,35 +27,35 @@ type Source interface {
 }
 
 type rcSource struct {
-	cfg                model.Reader
+	cfg                parconfig.Config
 	service            rcservice.Component
 	key, rcURL, parURL string
 }
 
 // NewSource uses only the existing RC accessor. Positive RC is sufficient in this slice.
-func NewSource(cfg model.Reader, service rcservice.Component) Source {
-	return &rcSource{cfg: cfg, service: service, key: cfg.GetString("api_key"), rcURL: configutils.GetMainEndpoint(cfg, "https://config.", par.RemoteConfigURL), parURL: enrollmentEndpoint(cfg)}
+func NewSource(cfg parconfig.Config, service rcservice.Component) Source {
+	return &rcSource{cfg: cfg, service: service, key: cfg.APIKey(), rcURL: cfg.RemoteConfigURL(), parURL: enrollmentEndpoint(cfg)}
 }
 
 // Release is a no-op: RC polling is shared with the rest of core Agent.
 func (*rcSource) Release() {}
 
 func (r *rcSource) Read(_ time.Time) Observation {
-	if !configutils.IsRemoteConfigEnabled(r.cfg) {
+	if !r.cfg.RemoteConfigEnabled() {
 		return Observation{Reason: phonehomedef.ReasonRCLocallyDisabled}
 	}
 	if r.service == nil {
 		return Observation{Reason: phonehomedef.ReasonRCServiceUnavailable}
 	}
-	key := r.cfg.GetString("api_key")
-	rcURL := configutils.GetMainEndpoint(r.cfg, "https://config.", par.RemoteConfigURL)
-	parURL, err := par.APIBaseURL(r.cfg, par.Site(r.cfg))
+	key := r.cfg.APIKey()
+	rcURL := r.cfg.RemoteConfigURL()
+	parURL, err := r.cfg.APIBaseURL()
 	if err != nil {
 		return Observation{Reason: phonehomedef.ReasonInvalidEndpoint}
 	}
 	mockPair := os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
-	rcKey := r.cfg.GetString("remote_configuration.api_key")
-	if key == "" || key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" ||
+	rcKey := r.cfg.RemoteConfigAPIKey()
+	if key == "" || key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.RemoteConfigKey() != "" ||
 		(os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && !mockPair) {
 		return Observation{Reason: phonehomedef.ReasonRCCredentialOrEndpointMismatch}
 	}
@@ -74,9 +72,9 @@ func (r *rcSource) Read(_ time.Time) Observation {
 	return Observation{Ready: true, Reason: phonehomedef.ReasonRCReady}
 }
 
-func enrollmentEndpoint(cfg model.Reader) string {
+func enrollmentEndpoint(cfg parconfig.Config) string {
 	// Read rejects endpoint errors before discovery can dispatch.
-	endpoint, err := par.APIBaseURL(cfg, par.Site(cfg))
+	endpoint, err := cfg.APIBaseURL()
 	if err != nil {
 		return ""
 	}

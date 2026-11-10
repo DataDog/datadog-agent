@@ -12,13 +12,16 @@ import (
 	"strings"
 	"testing"
 
-	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/stretchr/testify/require"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 func TestGetPodLogsRegistered(t *testing.T) {
-	_, ok := NewKubernetesCore().GetAction("getPodLogs").(*GetPodLogsHandler)
+	_, ok := NewKubernetesCore(parconfig.New(configmock.New(t))).GetAction("getPodLogs").(*GetPodLogsHandler)
 	require.True(t, ok)
 }
 
@@ -131,7 +134,7 @@ func TestGetPodLogsMaskSequences(t *testing.T) {
 			},
 		},
 	})
-	handler := newGetPodLogsHandler(config)
+	handler := NewGetPodLogsHandler(parconfig.New(config))
 
 	logs, err := handler.maskSequences("first token=secret\ndrop this\nsecond token=another-secret", false)
 	require.NoError(t, err)
@@ -150,7 +153,7 @@ func TestGetPodLogsMaskSequencesAppliesAnchoredRulesPerEntry(t *testing.T) {
 		},
 	})
 
-	handler := newGetPodLogsHandler(config)
+	handler := NewGetPodLogsHandler(parconfig.New(config))
 	tests := []struct {
 		name       string
 		logs       string
@@ -191,7 +194,7 @@ func TestGetPodLogsMaskSequencesRejectsInvalidRules(t *testing.T) {
 		},
 	})
 
-	_, err := newGetPodLogsHandler(config).maskSequences("token=secret", false)
+	_, err := NewGetPodLogsHandler(parconfig.New(config)).maskSequences("token=secret", false)
 	require.ErrorContains(t, err, "could not load global log processing rules")
 }
 
@@ -207,7 +210,7 @@ func TestGetPodLogsMaskSequencesEnforcesOutputLimit(t *testing.T) {
 		},
 	})
 
-	_, err := newGetPodLogsHandler(config).maskSequences(strings.Repeat("x", int(maxPodLogsBytes)), false)
+	_, err := NewGetPodLogsHandler(parconfig.New(config)).maskSequences(strings.Repeat("x", int(maxPodLogsBytes)), false)
 	require.ErrorContains(t, err, "output limit")
 }
 

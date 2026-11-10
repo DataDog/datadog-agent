@@ -15,6 +15,7 @@ import (
 
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
@@ -35,9 +36,9 @@ func TestPersistIdentityToFile_RoundTripsAPIKeyHash(t *testing.T) {
 		APIKeyHash: HashAPIKey("my-api-key"),
 	}
 
-	require.NoError(t, persistIdentityToFile(cfg, result))
+	require.NoError(t, persistIdentityToFile(parconfig.New(cfg), result))
 
-	identity, err := getIdentityFromFile(cfg)
+	identity, err := getIdentityFromFile(parconfig.New(cfg))
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 	assert.Equal(t, HashAPIKey("my-api-key"), identity.APIKeyHash)
@@ -60,9 +61,9 @@ func TestPersistIdentityToFile_NoAPIKeyHash(t *testing.T) {
 		Hostname:   "my-host",
 	}
 
-	require.NoError(t, persistIdentityToFile(cfg, result))
+	require.NoError(t, persistIdentityToFile(parconfig.New(cfg), result))
 
-	identity, err := getIdentityFromFile(cfg)
+	identity, err := getIdentityFromFile(parconfig.New(cfg))
 	require.NoError(t, err)
 	require.NotNil(t, identity)
 	assert.Empty(t, identity.APIKeyHash)

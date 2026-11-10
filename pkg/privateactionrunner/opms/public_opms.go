@@ -19,14 +19,13 @@ import (
 	"github.com/DataDog/jsonapi"
 	"github.com/go-jose/go-jose/v4"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
 // ErrEnrollmentRejected is returned when enrollment fails with a client error
@@ -81,12 +80,12 @@ type publicClient struct {
 	extraHeaders map[string]string
 }
 
-func NewPublicClient(cfg model.Reader, ddBaseURL string, extraHeaders map[string]string) PublicClient {
+func NewPublicClient(cfg parconfig.Config, ddBaseURL string, extraHeaders map[string]string) PublicClient {
 	return &publicClient{
 		ddBaseURL: strings.TrimSuffix(ddBaseURL, "/"),
 		httpClient: &http.Client{
 			Timeout:   30 * time.Second,
-			Transport: httputils.CreateHTTPTransport(cfg),
+			Transport: cfg.HTTPTransport(),
 		},
 		extraHeaders: extraHeaders,
 	}

@@ -11,9 +11,8 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/core/ipc/def",
-        "//pkg/config/helper",
-        "//pkg/config/setup",
         "//pkg/networkdevices/connectivity",
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
@@ -27,6 +26,8 @@ dd_agent_go_test(
     deps = [
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
+        "//pkg/config/mock",
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/libs/encryptioncontext",
         "//pkg/privateactionrunner/types",
         "@com_github_stretchr_testify//require",

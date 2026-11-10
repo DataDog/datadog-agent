@@ -13,7 +13,6 @@ go_library(
         "//comp/core/hostname",
         "//comp/core/hostname/hostnameimpl",
         "//comp/core/log/def",
-        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/autoconnections",
         "//pkg/privateactionrunner/enrollment",

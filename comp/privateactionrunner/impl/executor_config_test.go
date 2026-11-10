@@ -17,15 +17,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/require"
+
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	parconstants "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
-	"github.com/stretchr/testify/require"
 )
 
 func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T) {
@@ -38,7 +40,7 @@ func TestDisabledExecutorDoesNotResolveIdentityOrInitializeActions(t *testing.T)
 		})
 		t.Setenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED", "false")
 		// Dependencies are deliberately absent: disabled startup must not use them.
-		runner := &PrivateActionRunner{coreConfig: cfg}
+		runner := &PrivateActionRunner{coreConfig: parconfig.New(cfg)}
 		_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
 		require.NoError(t, err)
 		require.Nil(t, resolved)
@@ -68,9 +70,9 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 				"private_action_runner.identity_file_path": filepath.Join(t.TempDir(), "identity.json"),
 			})
 			hostname, _ := hostnamemock.NewMock("test-host")
-			runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: enrollment.NewIdentityStorage(cfg, nil)}
+			runner := &PrivateActionRunner{coreConfig: parconfig.New(cfg), hostnameGetter: hostname, logger: logmock.New(t), identityStorage: enrollment.NewIdentityStorage(cfg, nil)}
 
-			_, err := runner.getRunnerConfig(context.Background())
+			_, err := runner.getRunnerIdentity(context.Background())
 			require.ErrorIs(t, err, opms.ErrEnrollmentRejected)
 			require.NotContains(t, err.Error(), "backoff")
 			_, resolved, err := runner.configureExecutor(context.Background(), context.Background())
@@ -78,7 +80,7 @@ func TestRejectedEnrollmentStopsSplitExecutorWithoutActions(t *testing.T) {
 			require.Nil(t, resolved)
 			require.NotNil(t, runner.executorServer)
 			require.Nil(t, runner.encryptionStore)
-			snapshot, err := executor.ControlPlaneConfig(cfg, resolved)
+			snapshot, err := executor.ControlPlaneConfig(parconfig.New(cfg), resolved)
 			require.NoError(t, err)
 			require.False(t, snapshot.SplitMode)
 
@@ -119,11 +121,11 @@ func TestExecutorSnapshotUsesMonolithPersistedIdentity(t *testing.T) {
 	storage := enrollment.NewIdentityStorage(cfg, nil)
 	require.NoError(t, storage.Persist(context.Background(), persisted))
 	hostname, _ := hostnamemock.NewMock("test-host")
-	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, identityStorage: storage}
-	resolved, err := runner.getRunnerConfig(context.Background())
+	runner := &PrivateActionRunner{coreConfig: parconfig.New(cfg), hostnameGetter: hostname, identityStorage: storage}
+	resolved, err := runner.getRunnerIdentity(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, persisted.URN, resolved.Urn)
-	snapshot, err := executor.ControlPlaneConfig(cfg, resolved)
+	snapshot, err := executor.ControlPlaneConfig(parconfig.New(cfg), resolved)
 	require.NoError(t, err)
 	require.Equal(t, persisted.URN, snapshot.Identity.Urn)
 	snapshotKey, err := util.Base64ToJWK(snapshot.Identity.PrivateKey)

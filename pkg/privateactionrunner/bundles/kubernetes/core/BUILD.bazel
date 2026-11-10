@@ -108,8 +108,7 @@ go_library(
     visibility = ["//visibility:public"],
     deps = [
         "//comp/logs/agent/config",
-        "//pkg/config/model",
-        "//pkg/config/setup",
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
@@ -126,6 +125,8 @@ dd_agent_go_test(
     embed = [":core"],
     deps = [
         "//comp/core/config",
+        "//pkg/config/mock",
+        "//pkg/privateactionrunner/adapters/config",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
     ],

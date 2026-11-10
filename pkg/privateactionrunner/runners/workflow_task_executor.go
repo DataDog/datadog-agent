@@ -8,6 +8,9 @@ package runners
 import (
 	"context"
 	"fmt"
+	"net/http"
+
+	"github.com/DataDog/datadog-go/v5/statsd"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -16,10 +19,9 @@ import (
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/actions"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	privatebundles "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles"
@@ -39,15 +41,16 @@ type PreparedWorkflowTask struct {
 }
 
 type WorkflowTaskExecutor struct {
-	registry     *privatebundles.Registry
-	config       *config.Config
-	taskVerifier taskverifier.TaskVerifier
-	resolver     resolver.PrivateCredentialResolver
+	registry      *privatebundles.Registry
+	config        parconfig.Config
+	metricsClient statsd.ClientInterface
+	taskVerifier  taskverifier.TaskVerifier
+	resolver      resolver.PrivateCredentialResolver
 }
 
 func NewWorkflowTaskExecutor(
-	configuration *config.Config,
-	coreConfig model.Reader,
+	coreConfig parconfig.Config,
+	metricsClient statsd.ClientInterface,
 	rcClient rcclient.Client,
 	taskVerifier taskverifier.TaskVerifier,
 	traceroute traceroute.Component,
@@ -64,16 +67,18 @@ func NewWorkflowTaskExecutor(
 		return nil, err
 	}
 
-	registry, err := privatebundles.NewRegistry(configuration, rcClient, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
+	agentHTTPClient := &http.Client{Transport: coreConfig.HTTPTransport()}
+	registry, err := privatebundles.NewRegistry(coreConfig, agentHTTPClient, rcClient, traceroute, eventPlatform, pcapUploader, hostname, ipcClient, encryptionStore, ha, ka)
 	if err != nil {
 		return nil, fmt.Errorf("could not create private action bundle registry: %w", err)
 	}
 
 	return &WorkflowTaskExecutor{
-		registry:     registry,
-		config:       configuration,
-		taskVerifier: taskVerifier,
-		resolver:     credentialResolver,
+		registry:      registry,
+		config:        coreConfig,
+		metricsClient: metricsClient,
+		taskVerifier:  taskVerifier,
+		resolver:      credentialResolver,
 	}, nil
 }
 
@@ -127,13 +132,13 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 	preparedTask *PreparedWorkflowTask,
 ) (interface{}, error) {
 	logger := log.FromContext(ctx)
-	timeoutSeconds := e.config.TaskTimeoutSeconds
+	timeoutSeconds := e.config.TaskTimeoutSeconds()
 
-	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
+	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, &timeoutSeconds)
 	defer timeoutCancel()
 
 	output, err := e.RunTask(timeoutCtx, preparedTask)
-	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, timeoutSeconds, logger); isTimeout {
+	if isTimeout, timeoutErr := util.HandleTimeoutError(timeoutCtx, err, &timeoutSeconds, logger); isTimeout {
 		return nil, timeoutErr
 	}
 	return output, err
@@ -159,9 +164,9 @@ func (e *WorkflowTaskExecutor) RunTask(
 	span.SetTag("task_id", task.Data.ID)
 	defer func() { span.Finish(err) }()
 
-	startTime := observability.ReportExecutionStart(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
+	startTime := observability.ReportExecutionStart(e.metricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, logger)
 	output, err = action.Run(ctx, task, preparedTask.Credential)
-	observability.ReportExecutionCompleted(e.config.MetricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger, executionDetails)
+	observability.ReportExecutionCompleted(e.metricsClient, task.Data.Attributes.Client, fqn, task.Data.ID, startTime, err, logger, executionDetails)
 
 	if err != nil {
 		return nil, util.DefaultActionError(err)

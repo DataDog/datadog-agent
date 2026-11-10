@@ -12,7 +12,6 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor",
     visibility = ["//visibility:public"],
     deps = [
-        "//pkg/config/model",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
         "//pkg/privateactionrunner/runners",
@@ -20,7 +19,6 @@ go_library(
         "//pkg/privateactionrunner/util",
         "//pkg/proto/pbgo/privateactionrunner/errorcode",
         "//pkg/proto/pbgo/privateactionrunner/executor",
-        "//pkg/util/http",
         "@com_github_benbjohnson_clock//:clock",
         "@org_golang_google_grpc//:grpc",
         "@org_golang_google_grpc//codes",

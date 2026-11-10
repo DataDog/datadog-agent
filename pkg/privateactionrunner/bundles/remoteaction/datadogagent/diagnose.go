@@ -16,7 +16,7 @@ import (
 	diagnose "github.com/DataDog/datadog-agent/comp/core/diagnose/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
@@ -24,12 +24,13 @@ import (
 // GetDiagnoseHandler handles the getDiagnose action, running the agent's
 // in-process diagnose suites and returning the result as JSON.
 type GetDiagnoseHandler struct {
+	cfg       config.Config
 	ipcClient ipc.HTTPClient
 }
 
 // NewGetDiagnoseHandler creates a new GetDiagnoseHandler.
-func NewGetDiagnoseHandler(client ipc.HTTPClient) *GetDiagnoseHandler {
-	return &GetDiagnoseHandler{ipcClient: client}
+func NewGetDiagnoseHandler(cfg config.Config, client ipc.HTTPClient) *GetDiagnoseHandler {
+	return &GetDiagnoseHandler{cfg: cfg, ipcClient: client}
 }
 
 // GetDiagnoseInputs defines the inputs for the getDiagnose action.
@@ -57,7 +58,7 @@ func (h *GetDiagnoseHandler) Run(
 	// Datadog backend can't run anything meaningful, so the request would
 	// otherwise come back looking like a clean pass. Mirror the same guard
 	// the CLI applies in cmd/agent/subcommands/diagnose/command.go.
-	if !pkgconfigsetup.Datadog().IsConfigured("api_key") {
+	if !h.cfg.HasAPIKey() {
 		return nil, errors.New("getDiagnose: no API key configured: diagnose requires an API key to run checks. Set the API key in datadog.yaml or use the DD_API_KEY environment variable")
 	}
 
@@ -76,7 +77,7 @@ func (h *GetDiagnoseHandler) Run(
 		return nil, fmt.Errorf("getDiagnose: failed to encode diagnose config: %w", err)
 	}
 
-	base, err := agentBaseURL()
+	base, err := agentBaseURL(h.cfg)
 	if err != nil {
 		return nil, fmt.Errorf("getDiagnose: %w", err)
 	}

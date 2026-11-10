@@ -19,9 +19,8 @@ import (
 
 	"github.com/go-viper/mapstructure/v2"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	log "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/logging"
 	connlib "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/connection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
@@ -48,11 +47,11 @@ func allowsAction(task *types.Task, patterns []string) bool {
 	if !actionPattern.MatchString(fqn) || strings.Contains(fqn, "*") || strings.Contains(task.Data.Attributes.Name, ".") {
 		return false
 	}
-	return config.NewActionsAllowlist(patterns).IsActionAllowed(task.Data.Attributes.BundleID, task.Data.Attributes.Name)
+	return parconfig.NewActionsAllowlist(patterns).IsActionAllowed(task.Data.Attributes.BundleID, task.Data.Attributes.Name)
 }
 
 type privateCredentialResolver struct {
-	config model.Reader
+	config parconfig.Config
 }
 
 type PrivateConnectionConfig struct {
@@ -70,7 +69,7 @@ type Credential struct {
 // NewPrivateCredentialResolver validates configured credentials and retains the
 // live config so subsequent tasks pick up secret refreshes. A nil config supports
 // connections that do not reference runner credentials.
-func NewPrivateCredentialResolver(config model.Reader) (PrivateCredentialResolver, error) {
+func NewPrivateCredentialResolver(config parconfig.Config) (PrivateCredentialResolver, error) {
 	if config != nil {
 		if _, err := readCredentialValues(config); err != nil {
 			return nil, err
@@ -79,7 +78,7 @@ func NewPrivateCredentialResolver(config model.Reader) (PrivateCredentialResolve
 	return &privateCredentialResolver{config: config}, nil
 }
 
-func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig, error) {
+func readCredentialValues(config parconfig.Config) (map[string]par.CredentialConfig, error) {
 	values := make(map[string]par.CredentialConfig)
 	decoder, err := mapstructure.NewDecoder(&mapstructure.DecoderConfig{
 		Result:      &values,
@@ -97,7 +96,7 @@ func readCredentialValues(config model.Reader) (map[string]par.CredentialConfig,
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
 	}
-	if err := decoder.Decode(config.Get(par.CredentialsValues)); err != nil {
+	if err := decoder.Decode(config.CredentialValues()); err != nil {
 		// Decoder errors can contain secret values; do not expose them to callers.
 		return nil, fmt.Errorf("failed to decode %s", par.CredentialsValues)
 	}

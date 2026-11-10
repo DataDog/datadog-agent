@@ -15,6 +15,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/mock"
 	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 func TestResolve(t *testing.T) {
@@ -47,7 +48,7 @@ func TestResolve(t *testing.T) {
 			cfg.SetInTest("fips.enabled", tc.configFIPS)
 			cfg.SetInTest("process_manager.enabled", tc.processManager)
 			calls := 0
-			mode, err := resolve(cfg, tc.goos, tc.containerized, tc.envValue, func() (bool, error) {
+			mode, err := resolve(parconfig.New(cfg), tc.goos, tc.containerized, tc.envValue, func() (bool, error) {
 				calls++
 				return tc.buildFIPS, tc.fipsErr
 			})

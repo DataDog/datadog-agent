@@ -8,8 +8,6 @@ package autoconnections
 import (
 	"context"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
-	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -30,28 +28,28 @@ func NewConnectionsCreator(client ConnectionsClient, provider TagsProvider) Conn
 // CreateConnectionsIfEnabled runs the best-effort connection auto-creation flow.
 func CreateConnectionsIfEnabled(
 	ctx context.Context,
-	cfg model.Reader,
-	parCfg *parconfig.Config,
+	cfg parconfig.Config,
 	apiKey, appKey, runnerID string,
 	enrollmentResult *enrollment.Result,
 	tagsProvider TagsProvider,
 ) {
-	if cfg.GetBool(par.APIKeyOnlyEnrollment) {
+	if cfg.APIKeyOnlyEnrollment() {
 		return
 	}
-	if cfg.GetBool(par.SkipConnectionCreation) {
+	if cfg.SkipConnectionCreation() {
 		return
 	}
 
-	actionsAllowlist := make([]string, 0, len(parCfg.ActionsAllowlist))
-	for fqnPrefix := range parCfg.ActionsAllowlist {
+	allowlist := cfg.AllowedActions()
+	actionsAllowlist := make([]string, 0, len(allowlist))
+	for fqnPrefix := range allowlist {
 		actionsAllowlist = append(actionsAllowlist, fqnPrefix)
 	}
 	if len(actionsAllowlist) == 0 {
 		return
 	}
 
-	client, err := NewConnectionsAPIClient(cfg, parCfg.DatadogSite, apiKey, appKey)
+	client, err := NewConnectionsAPIClient(cfg, cfg.Site(), apiKey, appKey)
 	if err != nil {
 		log.Warnf("Failed to create connections API client: %v", err)
 		return

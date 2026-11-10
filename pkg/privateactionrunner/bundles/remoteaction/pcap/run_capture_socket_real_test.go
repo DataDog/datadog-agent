@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 // TestSocketCaptureTrigger_RealSystemProbe exercises socketCaptureTrigger
@@ -51,7 +52,7 @@ func TestSocketCaptureTrigger_RealSystemProbe(t *testing.T) {
 	systemProbeConfig := configmock.NewSystemProbe(t)
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", socketPath)
 
-	trigger := &socketCaptureTrigger{}
+	trigger := &socketCaptureTrigger{cfg: parconfig.New(configmock.New(t))}
 	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "icmp",
 		DurationSecs: 3,

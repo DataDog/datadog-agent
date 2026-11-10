@@ -28,7 +28,7 @@ func (h *GetJobStatusHandler) WithHttpClientProvider(httpClientProvider httpclie
 	return h
 }
 
-func NewGetJobStatusHandler(runnerConfig *config.Config) *GetJobStatusHandler {
+func NewGetJobStatusHandler(runnerConfig config.Config) *GetJobStatusHandler {
 	return &GetJobStatusHandler{
 		httpClientProvider: httpclient.NewDefaultProvider(runnerConfig, httpclient.WithURLAllowlistDisabled()),
 	}

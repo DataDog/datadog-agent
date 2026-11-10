@@ -14,6 +14,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -27,7 +29,7 @@ func TestDumpDogstatsdContextsHandler(t *testing.T) {
 		},
 	}
 
-	result, err := NewDumpDogstatsdContextsHandler(client).Run(context.Background(), &types.Task{}, nil)
+	result, err := NewDumpDogstatsdContextsHandler(parconfig.New(configmock.New(t)), client).Run(context.Background(), &types.Task{}, nil)
 	require.NoError(t, err)
 	require.Equal(t, map[string]interface{}{
 		"path": "/opt/datadog-agent/run/dogstatsd_contexts.json.zstd",

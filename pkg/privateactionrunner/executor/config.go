@@ -11,21 +11,19 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
-	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 )
 
-func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetControlPlaneConfigResponse, error) {
+func ControlPlaneConfig(config parconfig.Config, runner *parconfig.Identity) (*pb.GetControlPlaneConfigResponse, error) {
 	response := &pb.GetControlPlaneConfigResponse{
-		LogLevel: config.GetString("log_level"),
+		LogLevel: config.LogLevel(),
 	}
 	if runner == nil {
 		return response, nil
 	}
-	if runner.IdentityIsIncomplete() {
+	if runner.IsIncomplete() {
 		return nil, errors.New("runner identity is incomplete")
 	}
 	jwk, err := util.EcdsaToJWK(runner.PrivateKey)
@@ -36,21 +34,23 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetC
 	if err != nil {
 		return nil, err
 	}
-	endpoint := runner.APIBaseURL
+	endpoint, err := config.APIBaseURL()
+	if err != nil {
+		return nil, err
+	}
 	request, err := http.NewRequest(http.MethodPost, endpoint, nil)
 	if err != nil {
 		return nil, errors.New("invalid OPMS endpoint")
 	}
 	proxyURL := ""
-	if proxies := config.GetProxies(); proxies != nil {
-		proxy, err := httputils.GetProxyTransportFunc(proxies, config)(request)
-		if err != nil {
-			return nil, errors.New("failed to resolve OPMS proxy")
-		}
-		if proxy != nil {
-			proxyURL = proxy.String()
-		}
+	proxy, err := config.ProxyURL(request)
+	if err != nil {
+		return nil, errors.New("failed to resolve OPMS proxy")
 	}
+	if proxy != nil {
+		proxyURL = proxy.String()
+	}
+
 	response.SplitMode = true
 	response.Identity = &pb.ControlPlaneIdentity{
 		Urn:        runner.Urn,
@@ -60,11 +60,11 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetC
 	}
 	response.Runtime = &pb.ControlPlaneRuntime{
 		OpmsBaseUrl:       endpoint,
-		TaskConcurrency:   runner.RunnerPoolSize,
-		OpmsExtraHeaders:  runner.OpmsExtraHeaders,
+		TaskConcurrency:   config.TaskConcurrency(),
+		OpmsExtraHeaders:  config.OPMSExtraHeaders(),
 		OpmsProxyUrl:      proxyURL,
-		SkipSslValidation: config.GetBool("skip_ssl_validation"),
-		MinTlsVersion:     config.GetString("min_tls_version"),
+		SkipSslValidation: config.SkipSSLValidation(),
+		MinTlsVersion:     config.MinTLSVersion(),
 	}
 	return response, nil
 }

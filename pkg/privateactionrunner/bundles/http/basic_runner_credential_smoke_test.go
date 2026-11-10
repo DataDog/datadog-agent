@@ -19,8 +19,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/credentials/resolver"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
@@ -80,7 +81,7 @@ private_action_runner:
         allowed_actions: %s
         allowed_http_domains: %s
 `, actions, domains, actions, domains))
-			credentialResolver, err := resolver.NewPrivateCredentialResolver(catalog)
+			credentialResolver, err := resolver.NewPrivateCredentialResolver(parconfig.New(catalog))
 			require.NoError(t, err)
 
 			plainToken := func(segments []string, value string) *privateactionspb.ConnectionTokenV2 {
@@ -136,7 +137,10 @@ private_action_runner:
 			}
 			require.NoError(t, err)
 			require.Equal(t, privateconnection.BasicAuthType, credentials.Type)
-			handler := NewHttpRequestAction(&config.Config{HTTPTimeout: 5 * time.Second, Allowlist: []string{target.Hostname()}})
+			handler := NewHttpRequestAction(parconfig.New(coreconfig.NewMockWithOverrides(t, map[string]interface{}{
+				"private_action_runner.http_timeout_seconds": int32((5 * time.Second) / time.Second),
+				"private_action_runner.http_allowlist":       []string{target.Hostname()},
+			})))
 			output, err := handler.Run(context.Background(), task, credentials)
 			require.NoError(t, err)
 			response, ok := output.(*RequestOutputs)

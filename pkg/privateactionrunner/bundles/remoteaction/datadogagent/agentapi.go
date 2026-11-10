@@ -21,30 +21,26 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"net"
-	"strconv"
 
 	"go.yaml.in/yaml/v3"
 
-	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
-	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 )
 
 // agentBaseURL returns the base URL (scheme + host + port) of the local agent's
 // IPC command API, e.g. "https://127.0.0.1:5001".
-func agentBaseURL() (string, error) {
+func agentBaseURL(cfg config.Config) (string, error) {
 	if flavor.GetFlavor() == flavor.ClusterAgent {
 		return "", errors.New("com.datadoghq.remoteaction.datadogagent must not run in the Cluster Agent: " +
-			"it targets the local agent via pkgconfigsetup.GetIPCAddress, which would resolve to the " +
+			"it targets the local agent via the configured IPC address, which would resolve to the " +
 			"Cluster Agent itself rather than a node's core agent")
 	}
-	ipcAddress, err := pkgconfighelper.GetIPCAddress(pkgconfigsetup.Datadog())
+	base, err := cfg.AgentAPIURL()
 	if err != nil {
 		return "", fmt.Errorf("failed to get agent IPC address: %w", err)
 	}
-	port := pkgconfigsetup.Datadog().GetInt("cmd_port")
-	return "https://" + net.JoinHostPort(ipcAddress, strconv.Itoa(port)), nil
+	return base, nil
 }
 
 // decodeAgentObject decodes an agent JSON response into a map. Action outputs

@@ -14,7 +14,7 @@ type RemoteAction struct {
 	actions map[string]types.Action
 }
 
-func NewRemoteAction(cfg *config.Config) *RemoteAction {
+func NewRemoteAction(cfg config.Config) *RemoteAction {
 	return &RemoteAction{
 		actions: map[string]types.Action{
 			"testConnection": NewTestConnectionHandler(cfg),

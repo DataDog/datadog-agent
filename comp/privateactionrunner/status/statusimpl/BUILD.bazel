@@ -14,7 +14,6 @@ go_library(
         "//comp/core/config",
         "//comp/core/status",
         "//comp/privateactionrunner/phonehome/def",
-        "//pkg/privateactionrunner",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
@@ -29,6 +28,7 @@ dd_agent_go_test(
     deps = [
         "//comp/core/config",
         "//comp/privateactionrunner/phonehome/def",
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/util/flavor",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

@@ -13,6 +13,6 @@ import (
 )
 
 // NewRshellBundle returns nil on platforms where rshell is not supported.
-func NewRshellBundle(_ *config.Config) types.Bundle {
+func NewRshellBundle(_ config.Config) types.Bundle {
 	return nil
 }

@@ -45,32 +45,40 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 				t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
 			}
 			cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
-				"site": "us3.datadoghq.com", "dd_url": tc.ddURL,
-				"remote_configuration.rc_dd_url":   tc.rcURL,
-				"private_action_runner.par_dd_url": tc.parURL, "private_action_runner.enabled": true,
+				"site":                                     "us3.datadoghq.com",
+				"dd_url":                                   tc.ddURL,
+				"remote_configuration.rc_dd_url":           tc.rcURL,
+				"private_action_runner.par_dd_url":         tc.parURL,
+				"private_action_runner.enabled":            true,
 				"private_action_runner.task_concurrency":   9,
 				"private_action_runner.opms_extra_headers": map[string]string{"X-PAR-Only": "header"},
-				"proxy.http": "http://user:password@proxy:3128", "proxy.https": "http://user:password@proxy:3128",
-				"proxy.no_proxy": []string{tc.bypass}, "no_proxy_nonexact_match": true,
-				"skip_ssl_validation": true, "min_tls_version": "tlsv1.3", "log_level": "debug",
+				"proxy.http":                               "http://user:password@proxy:3128",
+				"proxy.https":                              "http://user:password@proxy:3128",
+				"proxy.no_proxy":                           []string{tc.bypass},
+				"no_proxy_nonexact_match":                  true,
+				"skip_ssl_validation":                      true,
+				"min_tls_version":                          "tlsv1.3",
+				"log_level":                                "debug",
 			})
-			runner, err := parconfig.FromDDConfig(cfg, nil)
+			runner, err := parconfig.ReadIdentity(cfg)
 			require.NoError(t, err)
 			runner.PrivateKey, err = ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 			require.NoError(t, err)
 			runner.Urn = util.MakeRunnerURN("us3", 42, "runner")
 			runner.OrgId, runner.RunnerId = 42, "runner"
-			snapshot, err := ControlPlaneConfig(cfg, runner)
+			snapshot, err := ControlPlaneConfig(parconfig.New(cfg), runner)
 			require.NoError(t, err)
 			require.True(t, snapshot.SplitMode)
 			require.Equal(t, "debug", snapshot.LogLevel)
 			require.Equal(t, tc.wantURL, snapshot.Runtime.OpmsBaseUrl)
-			require.Equal(t, runner.RunnerPoolSize, snapshot.Runtime.TaskConcurrency)
-			require.Equal(t, runner.OpmsExtraHeaders, snapshot.Runtime.OpmsExtraHeaders)
+			require.Equal(t, cfg.GetInt32("private_action_runner.task_concurrency"), snapshot.Runtime.TaskConcurrency)
+			require.Equal(t, cfg.GetStringMapString("private_action_runner.opms_extra_headers"), snapshot.Runtime.OpmsExtraHeaders)
 			require.Equal(t, tc.wantProxy, snapshot.Runtime.OpmsProxyUrl)
 			transport := httputils.CreateHTTPTransport(cfg)
 			defer transport.CloseIdleConnections()
-			request, err := http.NewRequest(http.MethodPost, opms.EndpointURL(runner, ""), nil)
+			endpoint, err := opms.EndpointURL(parconfig.New(cfg), "")
+			require.NoError(t, err)
+			request, err := http.NewRequest(http.MethodPost, endpoint, nil)
 			require.NoError(t, err)
 			proxy, err := transport.Proxy(request)
 			require.NoError(t, err)
@@ -91,7 +99,7 @@ func TestControlPlaneConfigMatchesMonolithRuntime(t *testing.T) {
 
 func TestDisabledControlPlaneConfig(t *testing.T) {
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{"private_action_runner.private_key": "invalid-key"})
-	snapshot, err := ControlPlaneConfig(cfg, nil)
+	snapshot, err := ControlPlaneConfig(parconfig.New(cfg), nil)
 	require.NoError(t, err)
 	require.False(t, snapshot.SplitMode)
 	require.Nil(t, snapshot.Identity)

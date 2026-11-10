@@ -11,14 +11,14 @@ import (
 	"context"
 	"errors"
 
-	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 var errK8sSecretUnavailable = errors.New("Kubernetes secret storage is not available in this build")
 
 type k8sIdentityStorage struct{}
 
-func newK8sIdentityStorage(_ configModel.Reader, _ LeaderSource) *k8sIdentityStorage {
+func newK8sIdentityStorage(_ parconfig.Config, _ LeaderSource) *k8sIdentityStorage {
 	return &k8sIdentityStorage{}
 }
 
@@ -30,6 +30,6 @@ func (*k8sIdentityStorage) Persist(_ context.Context, _ *Result) error {
 	return errK8sSecretUnavailable
 }
 
-func persistIdentityToK8sSecretNoLeader(_ context.Context, _ configModel.Reader, _ *Result) error {
+func persistIdentityToK8sSecretNoLeader(_ context.Context, _ parconfig.Config, _ *Result) error {
 	return errK8sSecretUnavailable
 }

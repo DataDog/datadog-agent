@@ -14,6 +14,7 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	phonehome "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
 	rcservice "github.com/DataDog/datadog-agent/comp/remote-config/rcservice/def"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	engine "github.com/DataDog/datadog-agent/pkg/privateactionrunner/phonehome"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
 )
@@ -26,7 +27,7 @@ type Requires struct {
 }
 
 type Provides struct{ Comp phonehome.Component }
-type component struct{ cfg config.Component }
+type component struct{ cfg parconfig.Config }
 
 func (c *component) Status() *phonehome.State {
 	if !engine.Enabled(c.cfg) {
@@ -36,13 +37,14 @@ func (c *component) Status() *phonehome.State {
 }
 
 func NewComponent(r Requires) Provides {
-	c := &component{cfg: r.Config}
-	if !engine.Enabled(r.Config) {
+	cfg := parconfig.New(r.Config)
+	c := &component{cfg: cfg}
+	if !engine.Enabled(cfg) {
 		return Provides{Comp: c}
 	}
 	rc, _ := r.RC.Get()
-	rcSource := engine.NewSource(r.Config, rc)
-	discovery := engine.NewDiscovery(r.Config, rcSource)
+	rcSource := engine.NewSource(cfg, rc)
+	discovery := engine.NewDiscovery(cfg, rcSource)
 	source := engine.NewScopedSource(rcSource, discovery)
 	report := newTelemetryReporter(r.Telemetry)
 	ctx, cancel := context.WithCancel(context.Background())
@@ -53,7 +55,7 @@ func NewComponent(r Requires) Provides {
 				defer close(done)
 				discovery.Start()
 				defer discovery.Stop()
-				engine.Run(ctx, r.Config, source, report)
+				engine.Run(ctx, cfg, source, report)
 			}()
 			return nil
 		},

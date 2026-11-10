@@ -9,6 +9,7 @@ package privatebundles
 
 import (
 	"fmt"
+	"net/http"
 
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
@@ -79,8 +80,8 @@ type Registry struct {
 // ka is accepted for signature parity with the kubeapiserver build; the
 // kubeactions bundle is only available inside the cluster agent, so it is not
 // registered here.
-func NewRegistry(configuration *config.Config, rcClient rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, pcapUploader pcapuploader.Component, hostname hostnameinterface.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) (*Registry, error) {
-	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient, configuration.AgentHTTPClient)
+func NewRegistry(configuration config.Config, agentHTTPClient *http.Client, rcClient rcclient.Client, traceroute traceroute.Component, eventPlatform eventplatform.Component, pcapUploader pcapuploader.Component, hostname hostnameinterface.Component, ipcClient ipc.HTTPClient, encryptionStore *encryptioncontext.Store, _ helmactions.Component, _ kubeactions.Component) (*Registry, error) {
+	authoredScripts, err := com_datadoghq_authoredscripts.NewAuthoredScripts(rcClient, agentHTTPClient)
 	if err != nil {
 		return nil, fmt.Errorf("could not create authored-script bundle: %w", err)
 	}
@@ -115,20 +116,20 @@ func NewRegistry(configuration *config.Config, rcClient rcclient.Client, tracero
 			"com.datadoghq.kubernetes.apps":                   com_datadoghq_kubernetes_apps.NewKubernetesApps(),
 			"com.datadoghq.kubernetes.autoscaling":            com_datadoghq_kubernetes_autoscaling.NewKubernetesAutoscaling(),
 			"com.datadoghq.kubernetes.batch":                  com_datadoghq_kubernetes_batch.NewKubernetesBatch(),
-			"com.datadoghq.kubernetes.core":                   com_datadoghq_kubernetes_core.NewKubernetesCore(),
-			"com.datadoghq.kubernetes.customresources":        com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration.KubernetesAllowedCustomResources),
+			"com.datadoghq.kubernetes.core":                   com_datadoghq_kubernetes_core.NewKubernetesCore(configuration),
+			"com.datadoghq.kubernetes.customresources":        com_datadoghq_kubernetes_customresources.NewKubernetesCustomResources(configuration),
 			"com.datadoghq.kubernetes.discovery":              com_datadoghq_kubernetes_discovery.NewKubernetesDiscovery(),
 			"com.datadoghq.kubernetes.networking":             com_datadoghq_kubernetes_networking.NewKubernetesNetworking(),
 			"com.datadoghq.kubernetes.watermarkpodautoscaler": com_datadoghq_kubernetes_watermarkpodautoscaler.NewKubernetesWatermarkPodAutoscaler(),
 
 			"com.datadoghq.mongodb":                              com_datadoghq_mongodb.NewMongoDB(),
 			"com.datadoghq.remoteaction":                         com_datadoghq_remoteaction.NewRemoteAction(configuration),
-			"com.datadoghq.remoteaction.datadogagent":            com_datadoghq_remoteaction_datadogagent.NewAgent(ipcClient),
+			"com.datadoghq.remoteaction.datadogagent":            com_datadoghq_remoteaction_datadogagent.NewAgent(configuration, ipcClient),
 			"com.datadoghq.remoteaction.internal":                com_datadoghq_remoteaction_internal.NewInternal(encryptionStore),
-			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(ipcClient),
-			"com.datadoghq.remoteaction.networkdevices":          com_datadoghq_remoteaction_networkdevices.NewNetworkDevices(encryptionStore, ipcClient),
+			"com.datadoghq.remoteaction.networkconfigmanagement": com_datadoghq_remoteaction_networkconfigmanagement.NewNetworkConfigManagement(configuration, ipcClient),
+			"com.datadoghq.remoteaction.networkdevices":          com_datadoghq_remoteaction_networkdevices.NewNetworkDevices(configuration, encryptionStore, ipcClient),
 			"com.datadoghq.remoteaction.networks":                com_datadoghq_remoteaction_networks.NewNetworks(traceroute, eventPlatform),
-			"com.datadoghq.remoteaction.pcap":                    com_datadoghq_remoteaction_pcap.NewPcap(pcapUploader, hostname),
+			"com.datadoghq.remoteaction.pcap":                    com_datadoghq_remoteaction_pcap.NewPcap(configuration, pcapUploader, hostname),
 			"com.datadoghq.remoteaction.rshell":                  com_datadoghq_remoteaction_rshell.NewRshellBundle(configuration),
 			"com.datadoghq.script":                               com_datadoghq_script.NewScript(),
 			"com.datadoghq.temporal":                             com_datadoghq_temporal.NewTemporal(),

@@ -14,16 +14,18 @@ import (
 
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	ipchttp "github.com/DataDog/datadog-agent/comp/core/ipc/httphelpers"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
 type DumpDogstatsdContextsHandler struct {
+	cfg       config.Config
 	ipcClient ipc.HTTPClient
 }
 
-func NewDumpDogstatsdContextsHandler(client ipc.HTTPClient) *DumpDogstatsdContextsHandler {
-	return &DumpDogstatsdContextsHandler{ipcClient: client}
+func NewDumpDogstatsdContextsHandler(cfg config.Config, client ipc.HTTPClient) *DumpDogstatsdContextsHandler {
+	return &DumpDogstatsdContextsHandler{cfg: cfg, ipcClient: client}
 }
 
 func (h *DumpDogstatsdContextsHandler) Run(
@@ -35,7 +37,7 @@ func (h *DumpDogstatsdContextsHandler) Run(
 		return nil, errors.New("dumpDogstatsdContexts: IPC client is not available")
 	}
 
-	base, err := agentBaseURL()
+	base, err := agentBaseURL(h.cfg)
 	if err != nil {
 		return nil, fmt.Errorf("dumpDogstatsdContexts: %w", err)
 	}

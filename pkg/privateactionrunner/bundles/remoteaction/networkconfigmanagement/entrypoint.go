@@ -8,6 +8,7 @@ package com_datadoghq_remoteaction_networkconfigmanagement
 
 import (
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 )
 
@@ -17,10 +18,10 @@ type NetworkConfigManagementBundle struct {
 }
 
 // NewNetworkConfigManagement creates a new network config management bundle
-func NewNetworkConfigManagement(client ipc.HTTPClient) types.Bundle {
+func NewNetworkConfigManagement(cfg config.Config, client ipc.HTTPClient) types.Bundle {
 	return &NetworkConfigManagementBundle{
 		actions: map[string]types.Action{
-			"rollbackConfig": NewRollbackConfigHandler(client),
+			"rollbackConfig": NewRollbackConfigHandler(cfg, client),
 		},
 	}
 }

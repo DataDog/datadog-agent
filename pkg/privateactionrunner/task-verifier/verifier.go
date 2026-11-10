@@ -21,13 +21,13 @@ import (
 )
 
 // NewTaskVerifier returns a verifier for signed task envelopes.
-func NewTaskVerifier(keysManager KeysManager, cfg *config.Config) TaskVerifier {
+func NewTaskVerifier(keysManager KeysManager, cfg *config.Identity) TaskVerifier {
 	return &signedEnvelopeTaskVerifier{keysManager: keysManager, config: cfg}
 }
 
 type signedEnvelopeTaskVerifier struct {
 	keysManager KeysManager
-	config      *config.Config
+	config      *config.Identity
 }
 
 // UnwrapTask extracts and validates the task from its signed envelope.

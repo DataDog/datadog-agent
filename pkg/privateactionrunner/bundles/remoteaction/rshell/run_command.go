@@ -22,14 +22,14 @@ import (
 
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/DataDog/datadog-agent/pkg/rshell/interp"
-	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
-
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/privateconnection"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/observability"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
+	"github.com/DataDog/datadog-agent/pkg/rshell/interp"
+	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -50,8 +50,8 @@ const (
 // and can be overridden in tests.
 var statFn = os.Stat
 
-// RunCommandHandlerConfig carries agent-side rshell policy settings.
-type RunCommandHandlerConfig struct {
+// commandPolicy captures operator policy for one invocation.
+type commandPolicy struct {
 	OperatorAllowedPaths              []string
 	OperatorAllowedCommands           []string
 	OperatorAllowedSystemServices     map[string][]string
@@ -89,6 +89,7 @@ type RunCommandHandlerConfig struct {
 // An explicitly configured empty operator list or service map is the
 // kill-switch for that axis.
 type RunCommandHandler struct {
+	config                            config.Config
 	operatorAllowedPaths              []string
 	operatorAllowedCommands           []string
 	operatorAllowedSystemServices     map[string][]string
@@ -109,7 +110,7 @@ type RunCommandHandler struct {
 //  2. Commands are deduplicated.
 //  3. System-service actions are sorted and deduplicated while preserving nil
 //     as an unset operator policy.
-func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCommandHandler {
+func newRunCommandHandler(cfg commandPolicy, mode interp.Mode) *RunCommandHandler {
 	// remove duplicates
 	commands := slices.Clone(cfg.OperatorAllowedCommands)
 	slices.Sort(commands)
@@ -132,17 +133,6 @@ func newRunCommandHandler(cfg RunCommandHandlerConfig, mode interp.Mode) *RunCom
 		operatorAllowedCommandsConfigured: cfg.OperatorAllowedCommandsConfigured,
 		operatorAllowedPathsConfigured:    cfg.OperatorAllowedPathsConfigured,
 	}
-}
-
-func NewRunCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg, interp.ModeReadOnly)
-}
-
-// NewRunRemediationCommandHandler builds the write-capable runRemediationCommand
-// handler. It shares all sandboxing with runCommand and only switches rshell into
-// remediation mode.
-func NewRunRemediationCommandHandler(cfg RunCommandHandlerConfig) *RunCommandHandler {
-	return newRunCommandHandler(cfg, interp.ModeRemediation)
 }
 
 // filterAllowedCommands returns the effective command allowlist, passed to rshell:
@@ -297,6 +287,10 @@ func (h *RunCommandHandler) Run(
 	task *types.Task,
 	_ *privateconnection.PrivateCredentials,
 ) (interface{}, error) {
+	// Normalize a fresh policy for this invocation; concurrent tasks keep their own state.
+	if h.config != nil {
+		h = newRunCommandHandler(commandConfig(h.config), h.mode)
+	}
 	inputs, err := types.ExtractInputs[RunCommandInputs](task)
 	if err != nil {
 		return nil, err

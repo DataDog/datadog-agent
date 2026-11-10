@@ -18,6 +18,7 @@ import (
 
 	pcapuploadermock "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/mock"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/server"
 )
 
@@ -60,7 +61,7 @@ func TestSocketCaptureTrigger_Success(t *testing.T) {
 		w.Header().Set("X-Capture-Errors", "0")
 	})
 
-	trigger := &socketCaptureTrigger{}
+	trigger := &socketCaptureTrigger{cfg: parconfig.New(configmock.New(t))}
 	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
@@ -97,7 +98,7 @@ func TestSocketCaptureTrigger_CaptureErrorsTrailer(t *testing.T) {
 		w.Header().Set("X-Capture-Errors", "1")
 	})
 
-	trigger := &socketCaptureTrigger{}
+	trigger := &socketCaptureTrigger{cfg: parconfig.New(configmock.New(t))}
 	out, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
@@ -116,7 +117,7 @@ func TestSocketCaptureTrigger_ErrorStatus(t *testing.T) {
 		http.Error(w, "durationSecs must be positive", http.StatusBadRequest)
 	})
 
-	trigger := &socketCaptureTrigger{}
+	trigger := &socketCaptureTrigger{cfg: parconfig.New(configmock.New(t))}
 	_, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
@@ -130,7 +131,7 @@ func TestSocketCaptureTrigger_SocketPathNotConfigured(t *testing.T) {
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", "")
 	systemProbeConfig.SetInTest("packet_capture.socket", "")
 
-	trigger := &socketCaptureTrigger{}
+	trigger := &socketCaptureTrigger{cfg: parconfig.New(configmock.New(t))}
 	_, err := trigger.Capture(context.Background(), RunCaptureInputs{
 		BPFFilter:    "tcp port 443",
 		DurationSecs: 1,
@@ -144,10 +145,10 @@ func TestCaptureSocketPath(t *testing.T) {
 	systemProbeConfig.SetInTest("system_probe_config.sysprobe_socket", "/var/run/sysprobe/sysprobe.sock")
 
 	systemProbeConfig.SetInTest("packet_capture.socket", "")
-	assert.Equal(t, "/var/run/sysprobe/sysprobe.sock", captureSocketPath())
+	assert.Equal(t, "/var/run/sysprobe/sysprobe.sock", captureSocketPath(parconfig.New(configmock.New(t))))
 
 	systemProbeConfig.SetInTest("packet_capture.socket", "/var/run/sysprobe-capture/capture.sock")
-	assert.Equal(t, "/var/run/sysprobe-capture/capture.sock", captureSocketPath())
+	assert.Equal(t, "/var/run/sysprobe-capture/capture.sock", captureSocketPath(parconfig.New(configmock.New(t))))
 }
 
 // runOverSocket runs the action end-to-end over the socket configured by the
@@ -155,7 +156,7 @@ func TestCaptureSocketPath(t *testing.T) {
 func runOverSocket(t *testing.T, reason, socket string) (float64, error) {
 	t.Helper()
 	before := outcomeCount(reason, socket)
-	handler := NewRunCaptureHandler(pcapuploadermock.New(), newTestHostname())
+	handler := NewRunCaptureHandler(parconfig.New(configmock.New(t)), pcapuploadermock.New(), newTestHostname())
 	_, err := handler.Run(context.Background(), newTask(map[string]interface{}{"durationSecs": 1}), nil)
 	return outcomeCount(reason, socket) - before, err
 }

@@ -24,6 +24,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner/bundles/kubernetes/customresources",
     visibility = ["//visibility:public"],
     deps = [
+        "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/bundle-support/kubernetes",
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
@@ -40,6 +41,8 @@ dd_agent_go_test(
     srcs = ["resource_policy_test.go"],
     embed = [":customresources"],
     deps = [
+        "//comp/core/config",
+        "//pkg/privateactionrunner/adapters/config",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/runtime/schema",

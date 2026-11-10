@@ -11,6 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+
+	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
+	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 )
 
 func TestResourcePolicyCompatibilityMode(t *testing.T) {
@@ -39,7 +42,7 @@ func TestResourcePolicyCompatibilityMode(t *testing.T) {
 		{name: "empty resource", group: "example.com", version: "v1", resource: "", wantErr: "invalid Kubernetes resource resource"},
 	}
 
-	policy := newResourcePolicy(nil)
+	policy := newTestResourcePolicy(t, nil)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			got, err := policy.groupVersionResource(tt.group, tt.version, tt.resource)
@@ -56,40 +59,65 @@ func TestResourcePolicyCompatibilityMode(t *testing.T) {
 
 func TestResourcePolicyExactAllowlist(t *testing.T) {
 	t.Run("allows exact CRD", func(t *testing.T) {
-		policy := newResourcePolicy([]string{"cert-manager.io/v1/certificates"})
+		policy := newTestResourcePolicy(t, []string{"cert-manager.io/v1/certificates"})
 		got, err := policy.groupVersionResource("cert-manager.io", "v1", "certificates")
 		require.NoError(t, err)
 		assert.Equal(t, schema.GroupVersionResource{Group: "cert-manager.io", Version: "v1", Resource: "certificates"}, got)
 	})
 
 	t.Run("denies unlisted CRD", func(t *testing.T) {
-		policy := newResourcePolicy([]string{"cert-manager.io/v1/certificates"})
+		policy := newTestResourcePolicy(t, []string{"cert-manager.io/v1/certificates"})
 		_, err := policy.groupVersionResource("argoproj.io", "v1alpha1", "applications")
 		require.ErrorContains(t, err, "is not in private_action_runner.kubernetes_allowed_custom_resources")
 	})
 
 	t.Run("explicit empty list denies all", func(t *testing.T) {
-		policy := newResourcePolicy([]string{})
+		policy := newTestResourcePolicy(t, []string{})
 		_, err := policy.groupVersionResource("cert-manager.io", "v1", "certificates")
 		require.ErrorContains(t, err, "is not in private_action_runner.kubernetes_allowed_custom_resources")
 	})
 
 	t.Run("explicit native group override", func(t *testing.T) {
-		policy := newResourcePolicy([]string{"gateway.networking.k8s.io/v1/gateways"})
+		policy := newTestResourcePolicy(t, []string{"gateway.networking.k8s.io/v1/gateways"})
 		_, err := policy.groupVersionResource("gateway.networking.k8s.io", "v1", "gateways")
 		require.NoError(t, err)
 	})
 
 	t.Run("explicit core resource override", func(t *testing.T) {
-		policy := newResourcePolicy([]string{"v1/secrets"})
+		policy := newTestResourcePolicy(t, []string{"v1/secrets"})
 		got, err := policy.groupVersionResource("", "v1", "secrets")
 		require.NoError(t, err)
 		assert.Equal(t, schema.GroupVersionResource{Version: "v1", Resource: "secrets"}, got)
 	})
 
 	t.Run("invalid path cannot be overridden", func(t *testing.T) {
-		policy := newResourcePolicy([]string{"example.com/v1/pods/example/exec"})
+		policy := newTestResourcePolicy(t, []string{"example.com/v1/pods/example/exec"})
 		_, err := policy.groupVersionResource("example.com", "v1", "pods/example/exec")
 		require.ErrorContains(t, err, "invalid Kubernetes resource resource")
 	})
+}
+
+func TestResourcePolicyReadsUpdates(t *testing.T) {
+	cfg := coreconfig.NewMock(t)
+	policy := resourcePolicy{config: parconfig.New(cfg)}
+	_, err := policy.groupVersionResource("example.com", "v1", "widgets")
+	require.NoError(t, err)
+	cfg.SetInTest("private_action_runner.kubernetes_allowed_custom_resources", []string{"v1/secrets"})
+	_, err = policy.groupVersionResource("example.com", "v1", "widgets")
+	require.ErrorContains(t, err, "not in private_action_runner")
+	_, err = policy.groupVersionResource("", "v1", "secrets")
+	require.NoError(t, err)
+	cfg.SetInTest("private_action_runner.kubernetes_allowed_custom_resources", []string{})
+	_, err = policy.groupVersionResource("", "v1", "secrets")
+	require.ErrorContains(t, err, "not in private_action_runner")
+}
+
+// newTestResourcePolicy installs operator policy in the same config used by the bundle.
+func newTestResourcePolicy(t *testing.T, allowlist []string) resourcePolicy {
+	t.Helper()
+	cfg := coreconfig.NewMock(t)
+	if allowlist != nil {
+		cfg.SetInTest("private_action_runner.kubernetes_allowed_custom_resources", allowlist)
+	}
+	return resourcePolicy{config: parconfig.New(cfg)}
 }
