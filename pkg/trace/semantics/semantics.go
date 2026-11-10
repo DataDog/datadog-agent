@@ -51,6 +51,11 @@ const (
 	ConceptPeerAWSSQSQueue          Concept = "peer.aws.sqs.queue"
 	ConceptPeerAWSDynamoDBTable     Concept = "peer.aws.dynamodb.table"
 	ConceptPeerAWSKinesisStream     Concept = "peer.aws.kinesis.stream"
+	ConceptPeerAWSARN               Concept = "peer.aws.arn"
+	ConceptPeerAWSSQSQueueURL       Concept = "peer.aws.sqs.queue.url"
+	ConceptPeerAWSRegion            Concept = "peer.aws.region"
+	ConceptPeerGCPProjectID         Concept = "peer.gcp.project_id"
+	ConceptPeerKafkaClusterID       Concept = "peer.kafka.cluster.id"
 )
 
 // Stats Aggregation
