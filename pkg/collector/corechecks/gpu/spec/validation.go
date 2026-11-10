@@ -58,6 +58,13 @@ func nvLinkCapabilityEqual(a, b *bool) bool {
 	return *a == *b
 }
 
+// CanRunWorkloads returns false for the configs whose devices never run a workload, which must be validated as
+// idle even when workloads are running. A MIG parent hosts MIG devices: the workloads run on those, so the
+// workload tags and the per-process metrics are not reported for the parent.
+func (c *GPUConfig) CanRunWorkloads() bool {
+	return c.DeviceMode != DeviceModeMIGParent
+}
+
 // TagFilter returns the Datadog tag filter expression for a GPU config.
 func (c *GPUConfig) TagFilter() string {
 	// kube_cluster_name:* is required to exclude hosts that are not part of the standard clusters (e.g., workspaces)

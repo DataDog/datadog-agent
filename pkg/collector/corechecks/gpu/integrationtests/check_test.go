@@ -10,6 +10,7 @@ package integrationtests
 import (
 	"maps"
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
@@ -76,10 +77,6 @@ type specScenario struct {
 	// startWorkload starts a GPU workload on the devices and returns the calibrated values to validate
 	// against, keyed by lowercase UUID; nil disables calibrated validation.
 	startWorkload func(t *testing.T, lib safenvml.SafeNVML) map[string]map[string]*float64
-	// workloadFreeDevices are the devices that never run a workload by design, such as MIG parents,
-	// whose workloads run on their MIG devices. They are validated as idle while the others run the
-	// workload.
-	workloadFreeDevices []safenvml.Device
 }
 
 func runSpecScenario(t *testing.T, specs *gpuspec.Specs, scenario specScenario) {
@@ -88,10 +85,13 @@ func runSpecScenario(t *testing.T, specs *gpuspec.Specs, scenario specScenario) 
 	for i, device := range scenario.devices {
 		uuid := device.GetDeviceInfo().UUID
 		uuids[i] = uuid
-		if slices.Contains(scenario.workloadFreeDevices, device) {
-			workloadFreeUUIDs = append(workloadFreeUUIDs, uuid)
-		} else {
+		// The devices that never run a workload, such as MIG parents, are validated as idle while the
+		// others run the workload.
+		config := scenario.configs[strings.ToLower(uuid)]
+		if config.CanRunWorkloads() {
 			workloadUUIDs = append(workloadUUIDs, uuid)
+		} else {
+			workloadFreeUUIDs = append(workloadFreeUUIDs, uuid)
 		}
 	}
 
@@ -188,8 +188,6 @@ func TestSpecMIG(t *testing.T) {
 		smiOptions: nil,
 		// The XID metrics are not supported in MIG mode.
 		xidDevices: nil,
-		// Workloads run on the MIG devices, never on their parent.
-		workloadFreeDevices: grouped.migParents,
 		startWorkload: func(t *testing.T, _ safenvml.SafeNVML) map[string]map[string]*float64 {
 			// A CUDA process sees a single MIG device, so run one gpu-burner per MIG device.
 			for _, child := range grouped.migChildren {

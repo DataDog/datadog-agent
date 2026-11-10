@@ -80,9 +80,12 @@ func validateGPUConfig(client *metricsClient, specs *gpuspec.Specs, config gpusp
 	}
 
 	validationOptions := gpuspec.ValidationOptions{
-		WorkloadActive:  true,
+		WorkloadActive:  config.CanRunWorkloads(),
 		ConfigFeatures:  gpuspec.AllConfigFeatures(),
 		WorkloadTagsets: gpuspec.AllWorkloadTagsets(specs.Tags),
+	}
+	if !config.CanRunWorkloads() {
+		validationOptions.WorkloadTagsets = nil
 	}
 	expectedMetricsMap := gpuspec.ExpectedMetricsForConfig(specs, config, validationOptions)
 	queryFilter := combineMetricFilters(config.TagFilter(), metricFilter)

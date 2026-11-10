@@ -229,6 +229,13 @@ func TestMetricValidatorUnmarshalRejectsNonFiniteValues(t *testing.T) {
 	require.ErrorContains(t, err, "metric validator values must be finite")
 }
 
+func TestGPUConfigCanRunWorkloads(t *testing.T) {
+	for _, mode := range AllDeviceModes {
+		config := GPUConfig{DeviceMode: mode}
+		require.Equalf(t, mode != DeviceModeMIGParent, config.CanRunWorkloads(), "mode %s", mode)
+	}
+}
+
 func TestMetricMetadataSpecUnmarshalYAML(t *testing.T) {
 	var spec MetricSpec
 
