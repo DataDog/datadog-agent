@@ -33,6 +33,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: read
+      issues: read # listLabelsForRepo; anonymous access only works on public repos
     outputs:
       branches: ${{ steps.list.outputs.branches }}
     steps:
