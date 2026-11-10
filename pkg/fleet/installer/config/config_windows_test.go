@@ -459,9 +459,21 @@ func TestSecureCreateTargetDirectoryWithDifferentOwner(t *testing.T) {
 			systemSID, systemSID, nil, nil)
 	}))
 
-	require.NoError(t, secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath))
+	// os.Mkdir does not guarantee the AI flag on every Windows host (notably if
+	// the parent lacks it). Reapply the source descriptor so the fixture matches
+	// SecureCreateDirectory's auto-inheritance behavior before comparing SDDL.
 	sourceSD, err := windows.GetNamedSecurityInfo(sourcePath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 	require.NoError(t, err)
+	require.NoError(t, winio.RunWithPrivileges([]string{privilege}, func() error {
+		return paths.SecureCreateDirectory(sourcePath, sourceSD.String())
+	}))
+	sourceSD, err = windows.GetNamedSecurityInfo(sourcePath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+	require.NoError(t, err)
+	control, _, err := sourceSD.Control()
+	require.NoError(t, err)
+	require.NotZero(t, control&windows.SE_DACL_AUTO_INHERITED, "source DACL must be auto-inherited")
+
+	require.NoError(t, secureCreateTargetDirectoryWithSourcePermissions(sourcePath, targetPath))
 	targetSD, err := windows.GetNamedSecurityInfo(targetPath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 	require.NoError(t, err)
 	assert.Equal(t, sourceSD.String(), targetSD.String())
