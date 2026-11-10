@@ -32,6 +32,9 @@ The SMP backend computes analysis data. After `smp job sync`, CI uses
 
 `test/regression/smp_ci.py` computes the CI pass/fail decisions
 and invokes `smp report render` with `report_template.md.j2`.
+Report links are selected in `smp_ci.py`; their URLs are defined in
+`report_template.md.j2`. The legacy `report` and `report_links` YAML sections
+are not used for local rendering.
 
 The CI job (`.gitlab/childs/smp-regression-child-pipeline.yml`) produces:
 
