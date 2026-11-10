@@ -140,6 +140,11 @@ func Redact(config []byte, rules []RedactionRule) ([]byte, error) {
 	return scrub.ScrubBytes(config)
 }
 
+// RedactOutput applies the profile's redaction rules to arbitrary command output.
+func (p *NCMProfile) RedactOutput(output []byte) ([]byte, error) {
+	return Redact(output, p.Redactions)
+}
+
 // preprocessConfig applies preprocessing rules to remove extraneous CLI noise.
 func (p *NCMProfile) preprocessConfig(config []byte) ([]byte, error) {
 	// Apply preproc rules
