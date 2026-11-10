@@ -19,6 +19,30 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 )
 
+func TestPreStartExperimentRejectsAgentFlavorMismatch(t *testing.T) {
+	for _, fipsMode := range []bool{false, true} {
+		t.Run(fmt.Sprintf("fips=%t", fipsMode), func(t *testing.T) {
+			t.Setenv("DD_FIPS_MODE", fmt.Sprint(fipsMode))
+			expectedFIPSMode := getenv().FIPSMode
+			mismatch := errors.New("opposite Agent flavor is installed")
+			previous := checkAgentFlavorForExperiment
+			checkAgentFlavorForExperiment = func(gotFIPSMode bool) error {
+				assert.Equal(t, expectedFIPSMode, gotFIPSMode)
+				return mismatch
+			}
+			t.Cleanup(func() { checkAgentFlavorForExperiment = previous })
+
+			err := RunHook(HookContext{
+				Context: context.Background(),
+				Package: agentPackage,
+				Hook:    "preStartExperiment",
+			})
+			require.ErrorIs(t, err, mismatch)
+			require.ErrorContains(t, err, "cannot start remote update")
+		})
+	}
+}
+
 func TestPreStopExperimentRejectsInvalidMSI(t *testing.T) {
 	for _, corrupt := range []bool{false, true} {
 		t.Run(fmt.Sprintf("corrupt=%t", corrupt), func(t *testing.T) {

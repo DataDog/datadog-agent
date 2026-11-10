@@ -233,6 +233,8 @@ func ensureProcmgrConfig(cfg procmgrConfig) error {
 	return nil
 }
 
+var checkAgentFlavorForExperiment = msi.CheckAgentFlavor
+
 // preStartExperimentDatadogAgent checks prerequisites before starting the experiment
 //
 // These checks are intended to prevent entering a state where we are unable to reinstall stable
@@ -243,6 +245,12 @@ func ensureProcmgrConfig(cfg procmgrConfig) error {
 // otherwise unecessarily try to uninstall and then reinstall the stable Agent.
 func preStartExperimentDatadogAgent(_ HookContext) error {
 	env := getenv()
+	// Reject a cross-flavor update before the experiment is recorded or any services
+	// are stopped. The downloader selects the experiment flavor using FIPSMode.
+	// A FIPS installation may otherwise be upgraded with a standard Agent package.
+	if err := checkAgentFlavorForExperiment(env.FIPSMode); err != nil {
+		return fmt.Errorf("cannot start remote update: %w", err)
+	}
 	err := windowsuser.ValidateAgentUserRemoteUpdatePrerequisites(env.MsiParams.AgentUserName)
 	if err != nil {
 		return fmt.Errorf("cannot start remote update: %w", err)

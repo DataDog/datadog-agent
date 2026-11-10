@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    Reject Windows Fleet Automation upgrades when the selected Agent variant
+    differs from the installed variant, before making any changes to the
+    installation. When upgrading a FIPS Agent installed with a version earlier
+    than 7.85, Fleet could automatically select the standard Agent variant,
+    causing an upgrade and rollback failure that could leave Agent services
+    stopped.
