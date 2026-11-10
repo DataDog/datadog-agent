@@ -272,16 +272,16 @@ func applyCloudServiceOverrides(cloudService cloudservice.CloudService) {
 func loadEarlyConfig() {
 	// Load the config file early so that yaml-configured values (e.g.
 	// api_key, dogstatsd_tags, tags, extra_tags) are visible to the tag
-	// computation, the merge, and the api_key check below. setup() calls
-	// LoadDatadog again with the real Fx-injected components; that is
-	// intentional — the second call resolves secrets and applies any
+	// computation, the merge, and the api_key check below. The Fx config
+	// component loads the config again with the real secrets and
+	// delegated-auth components. That load resolves secrets and applies any
 	// delegated-auth overrides. The noop implementations used here are
 	// consistent with the pattern in cmd/agent/common/import.go.
 	//
 	// Caveat: because this early load uses noop secrets, ENC[...] secret
 	// references inside yaml-configured `tags` / `extra_tags` are NOT
 	// resolved here, so metricTags below is snapshotted from this pre-secrets
-	// view. The second LoadDatadog in setup() resolves them for the config,
+	// view. The Fx config load resolves them for the config,
 	// but the already-snapshotted metricTags keep the raw values.
 	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
@@ -379,7 +379,7 @@ func main() {
 		localTaggerFx.Module(),
 		healthprobeFx.Module(),
 		workloadmetafx.Module(workloadmeta.NewParams()),
-		fx.Supply(coreconfig.NewParams("")),
+		fx.Supply(coreconfig.NewParams("", coreconfig.WithFullLoadOnMissingFile(true))),
 		coreconfig.Module(),
 		schemanoopfx.Module(),
 		logscompressionfx.Module(),
