@@ -2066,8 +2066,6 @@ go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.4.1 h1:pso/53PWXao
 go.opentelemetry.io/proto/slim/otlp/profiles/v1development v0.4.1/go.mod h1:axuN0N02xZ3l+3zFqWXXRBTC6766vGQ0PbeCh46kuXA=
 go.step.sm/crypto v0.91.0 h1:0mN0DwVOvUuh7VbyTnxABZuAkxwak/Grp8Y/b4YaZDU=
 go.step.sm/crypto v0.91.0/go.mod h1:NxxObRBymdbyXLoTCW5Ea6sLxuy5yI/xr9+hSBlbU/Q=
-go.temporal.io/api v1.64.0 h1:Wu7TMdVN/4KdU+v0As6SMm86uapnM1yI7PhC5Hvhqso=
-go.temporal.io/api v1.64.0/go.mod h1:acM0I9WPuYg8W3Pd9jOZvEgi7mRUttUQ4+e7fowKVnM=
 go.temporal.io/api v1.64.1 h1:vqTmXhuTMdIbe7wqCQ8st/YBlAluV7EpfM4R3GrK4p4=
 go.temporal.io/api v1.64.1/go.mod h1:acM0I9WPuYg8W3Pd9jOZvEgi7mRUttUQ4+e7fowKVnM=
 go.temporal.io/sdk v1.50.0 h1:voD61vs0hfxXOI+evJ/rMdExDYf+I+YLhoawhwf1LVU=
