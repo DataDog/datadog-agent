@@ -212,6 +212,8 @@ gate (`anomaly_detection.metric_pipeline.stable.min_relative_change`, default
 5%, `0` disables it). The gate mutes candidates whose medians differ by less
 than the threshold without touching ScanMW state. `detections.gated` counts
 these mutes; kind emission counters stay downstream of dedup.
+Accepted anomalies are scored from relative change (≤6%, ≤10%, ≤20%, ≤50%
+bands) and gain one level when detector confidence is High or XHigh.
 
 The dispatch ticker publishes kind transitions, per-kind gauge-series counts and
 mean detector call durations every second. Timings identify inner detectors and
