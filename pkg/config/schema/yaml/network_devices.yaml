@@ -799,7 +799,7 @@ properties:
             type: boolean
             default: false
             comment: |-
-              Computes per-interface traffic entropy and logs it locally. Entropy values aren't sent to Datadog.
+              Computes per-interface traffic entropy and writes the values to the Agent log. Entropy values aren't sent as metrics.
           min_records:
             node_type: setting
             type: integer

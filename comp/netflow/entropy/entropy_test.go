@@ -244,6 +244,19 @@ func TestAccumulator_QualityStatus(t *testing.T) {
 		require.Len(t, report.Windows, 1)
 		assert.Equal(t, uint64(1), report.Dropped[DropStateLimit])
 	})
+
+	t.Run("peer limit on one interface leaves its neighbor valid", func(t *testing.T) {
+		cfg := testConfig()
+		cfg.MaxPeersPerInterface = 1
+		neighbor := ingressFlow(3, 100, 1, 1)
+		neighbor.InputInterface = 2
+		report := closeWindowW(t, cfg, w-1, []*common.Flow{ingressFlow(1, 100, 1, 1), ingressFlow(2, 100, 1, 1), neighbor})
+		statuses := make(map[uint32]QualityStatus)
+		for _, r := range report.Windows {
+			statuses[r.InterfaceIndex] = r.Status
+		}
+		assert.Equal(t, map[uint32]QualityStatus{1: StatusStateLimit, 2: StatusValid}, statuses)
+	})
 }
 
 // benchFlows returns n records with distinct source and destination IPs spread over 100 interfaces,
