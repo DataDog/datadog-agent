@@ -45,7 +45,12 @@ func (l redirectLogger) Write(b []byte) (int, error) {
 	case 'I':
 		log.InfoStackDepth(stackDepth, msg)
 	case 'W':
-		log.WarnStackDepth(stackDepth, msg)
+		// The peer went away mid-RPC, e.g. a restarting agent; expected during rollouts.
+		if strings.Contains(msg, "transport is closing") {
+			log.DebugStackDepth(stackDepth, msg)
+		} else {
+			log.WarnStackDepth(stackDepth, msg)
+		}
 	case 'E':
 		log.ErrorStackDepth(stackDepth, msg)
 	case 'F':

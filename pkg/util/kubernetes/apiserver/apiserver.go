@@ -295,7 +295,7 @@ func GetClientConfig(timeout time.Duration, qps float32, burst int) (*rest.Confi
 // You should not use this function except if you need to create a *NEW* Client.
 func GetKubeClient(timeout time.Duration, qps float32, burst int) (kubernetes.Interface, error) {
 	// TODO: Remove custom warning logger when we remove usage of ComponentStatus
-	rest.SetDefaultWarningHandler(CustomWarningLogger{})
+	rest.SetDefaultWarningHandler(defaultWarningLogger)
 	clientConfig, err := GetClientConfig(timeout, qps, burst)
 	if err != nil {
 		return nil, err
