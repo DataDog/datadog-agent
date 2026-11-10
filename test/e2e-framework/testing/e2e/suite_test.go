@@ -3,14 +3,13 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2016-present Datadog, Inc.
 
-//go:build e2eunit
-
 package e2e
 
 import (
 	"context"
 	"fmt"
 	"io"
+	"os"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components"
@@ -55,6 +54,32 @@ type testSuite struct {
 
 func testRawResources(key, value string) provisioners.RawResources {
 	return provisioners.RawResources{key: []byte(fmt.Sprintf(`{"myField":"%s"}`, value))}
+}
+
+// TestMain makes the runner use its local profile, faking what that reads: the keys BaseSuite
+// needs for its unused Datadog client, and the home dir holding its config file.
+func TestMain(m *testing.M) {
+	home, err := os.MkdirTemp("", "home")
+	if err != nil {
+		panic(err)
+	}
+	for key, value := range map[string]string{
+		"CI":          "false",
+		"E2E_PROFILE": "local",
+		"E2E_API_KEY": "fake-api-key",
+		"E2E_APP_KEY": "fake-app-key",
+		"HOME":        home, // for os.UserHomeDir on Unix
+		"USERPROFILE": home, // and on Windows
+	} {
+		if err := os.Setenv(key, value); err != nil {
+			panic(err)
+		}
+	}
+	code := m.Run()
+	if err := os.RemoveAll(home); err != nil {
+		panic(err)
+	}
+	os.Exit(code)
 }
 
 func TestCreateEnv(t *testing.T) {

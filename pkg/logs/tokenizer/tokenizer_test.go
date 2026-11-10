@@ -6,6 +6,7 @@
 package tokenizer
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -549,6 +550,57 @@ func FuzzTokenizerDeterminism(f *testing.F) {
 		tokens2, indices2 := tok.Tokenize(input)
 		assert.Equal(t, tokens1, tokens2)
 		assert.Equal(t, indices1, indices2)
+	})
+}
+
+// FuzzTokenizerReuseMatchesFresh checks that a Tokenizer reused for many lines
+// returns the same result as a new Tokenizer for each line.
+//
+// In production, every consumer creates one Tokenizer and calls
+// TokenizeBorrowed on every log line. To avoid allocating on each call, the
+// Tokenizer keeps its internal buffers from one line to the next
+// (perf_contract_test.go checks that it doesn't allocate). The risk is that
+// part of the previous line leaks into the next one. For example, after a
+// 100-token line, a 3-token line must return its 3 tokens and nothing from the
+// 100-token line.
+//
+// Each run tokenizes previous, then line, on the same Tokenizer, and compares
+// the tokens and their byte offsets with what a new Tokenizer returns for
+// line. The other fuzz targets in this file use a new Tokenizer every time, so
+// they cannot catch a leak.
+//
+// It also checks two things AAD relies on:
+//   - TokensToString returns the string of each token, joined together;
+//   - a non-empty line never prints as "", because AAD drops the metric of a
+//     log whose signature is empty.
+func FuzzTokenizerReuseMatchesFresh(f *testing.F) {
+	for i, l := range perfLines {
+		f.Add(l.line, perfLines[(i+1)%len(perfLines)].line, uint16(i%4))
+	}
+	f.Fuzz(func(t *testing.T, line, previous []byte, windowSeed uint16) {
+		// windowSeed 0 to 3 picks a consumer's window (0 means no limit);
+		// any other value is used as the window itself.
+		window := int(windowSeed)
+		if windowSeed < 4 {
+			window = [...]int{0, 60, 2048, 4096}[windowSeed]
+		}
+		reused := NewTokenizer(window)
+		reused.TokenizeBorrowed(previous)
+		got := reused.TokenizeBorrowed(line)
+
+		wantTokens, wantIndices := NewTokenizer(window).Tokenize(line)
+		assert.True(t, slices.Equal(wantTokens, got.Borrow()), "tokens of %q after %q, window %d", line, previous, window)
+		assert.True(t, slices.Equal(wantIndices, got.Indices()), "indices of %q after %q, window %d", line, previous, window)
+
+		var concatenated strings.Builder
+		for _, token := range got.Borrow() {
+			concatenated.WriteString(tokenToString(token))
+		}
+		printed := TokensToString(got.Borrow())
+		assert.Equal(t, concatenated.String(), printed)
+		if len(line) > 0 {
+			assert.NotEmpty(t, printed, "%q printed as an empty string, window %d", line, window)
+		}
 	})
 }
 

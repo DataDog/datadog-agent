@@ -129,6 +129,7 @@ class TestGoModuleSerialization(unittest.TestCase):
         self.assertEqual(module2.should_test_condition, module.should_test_condition)
         self.assertEqual(module2.used_by_otel, module.used_by_otel)
         self.assertEqual(module2.workspace_dir(), 'pkg/my/module_local')
+        self.assertEqual(module2.full_workspace_dir(), str(Path.cwd() / 'pkg/my/module_local'))
 
     def test_get_default_modules(self):
         # Ensure modules are loaded

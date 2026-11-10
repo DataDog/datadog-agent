@@ -49,6 +49,8 @@ const (
 	SkipReasonAlreadyInitSidecar      MutationSkipReason = "already_init_sidecar"
 	SkipReasonCrossNamespaceConfigMap MutationSkipReason = "cross_namespace_configmap"
 	SkipReasonInvalidConfigMapArg     MutationSkipReason = "invalid_configmap_arg"
+	SkipReasonForeignConfigMap        MutationSkipReason = "foreign_configmap"
+	SkipReasonGatewayNotFound         MutationSkipReason = "gateway_not_found"
 	SkipReasonUnknown                 MutationSkipReason = "unknown" // decorator-only sentinel; never emitted by proxies
 )
 

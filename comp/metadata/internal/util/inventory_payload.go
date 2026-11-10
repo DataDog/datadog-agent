@@ -48,7 +48,7 @@
 //		}
 //	}
 //
-// func (cp *customPayload) getPayload() marshaler.JSONMarshaler { ... }
+// func (cp *customPayload) getPayload() marshaler.TypedJSONMarshaler { ... }
 package util
 
 import (
@@ -80,7 +80,7 @@ var (
 )
 
 // PayloadGetter is the callback to generate a new payload exposed by each inventory payload to InventoryPayload utils
-type PayloadGetter func() marshaler.JSONMarshaler
+type PayloadGetter func() marshaler.TypedJSONMarshaler
 
 // InventoryPayload offers helpers for all inventory payloads providing all the common part to create a new payload.
 // InventoryPayload will handle the common configuration as well as refresh rates and flare. This type is meant to be
@@ -113,6 +113,14 @@ type InventoryPayload struct {
 	MaxInterval   time.Duration
 	forceRefresh  atomic.Bool
 	FlareFileName string
+}
+
+// SetFirstRunDelay sets a provider-specific startup delay. Providers without a
+// host-registration dependency can use zero to report immediately after startup.
+func (i *InventoryPayload) SetFirstRunDelay(delay time.Duration) {
+	i.m.Lock()
+	defer i.m.Unlock()
+	i.firstRunDelay = delay
 }
 
 // CreateInventoryPayload returns an initialized InventoryPayload. 'getPayload' will be called each time a new payload

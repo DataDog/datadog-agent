@@ -264,6 +264,7 @@ func TestHandleKubePod(t *testing.T) {
 						"kube_service:service1",
 						"kube_service:service2",
 						"kueue_local_queue:batch",
+						"kube_scheduler:kueue",
 						"kube_qos:guaranteed",
 						"kube_runtime_class:myclass",
 						"ns_team:containers",
@@ -2395,6 +2396,108 @@ func TestKueuePodLabelTagsPropagateWhenQueueEntityIsMissing(t *testing.T) {
 		return
 	}
 	t.Fatal("container tag info not found")
+}
+
+func TestKueueSchedulerTags(t *testing.T) {
+	const containerID = "container-id"
+	workload := &workloadmeta.KubernetesKueueWorkload{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueWorkload,
+			ID:   workloadmeta.GenerateKueueWorkloadEntityID("default", "job-sample"),
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: "job-sample", Namespace: "default"},
+		QueueName:  "batch",
+	}
+	localQueue := &workloadmeta.KubernetesKueueQueue{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesKueueQueue,
+			ID:   "localqueue/default/batch",
+		},
+		EntityMeta:       workloadmeta.EntityMeta{Name: "batch", Namespace: "default"},
+		QueueType:        workloadmeta.KueueLocalQueue,
+		ClusterQueueName: "cluster-batch",
+	}
+
+	for _, tt := range []struct {
+		name        string
+		entities    []workloadmeta.Entity
+		labels      map[string]string
+		annotations map[string]string
+		expected    []string
+	}{
+		{
+			name:        "from the Workload and its LocalQueue",
+			entities:    []workloadmeta.Entity{workload, localQueue},
+			annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "job-sample"},
+			expected: []string{
+				"kube_scheduler:kueue",
+				"kube_scheduler_queue:cluster-batch",
+				"kube_scheduler_workload:job-sample",
+			},
+		},
+		{
+			name:   "from the pod labels when the Workload is missing",
+			labels: map[string]string{kubernetes.KueueLocalQueueNameLabelKey: "batch", kubernetes.KueueClusterQueueNameLabelKey: "cluster-batch"},
+			annotations: map[string]string{
+				kubernetes.KueueWorkloadAnnotationKey: "missing-workload",
+			},
+			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+		},
+		{
+			name:     "with the ClusterQueue of the LocalQueue entity",
+			entities: []workloadmeta.Entity{localQueue},
+			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
+			expected: []string{"kube_scheduler:kueue", "kube_scheduler_queue:cluster-batch"},
+		},
+		{
+			name:     "with only a LocalQueue name",
+			labels:   map[string]string{kubernetes.KueueQueueNameLabelKey: "batch"},
+			expected: []string{"kube_scheduler:kueue"},
+		},
+		{
+			name:   "not for pods without Kueue information",
+			labels: map[string]string{"app": "web"},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+				fx.Provide(func() log.Component { return logmock.New(t) }),
+				fx.Provide(func() config.Component { return config.NewMock(t) }),
+				workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+			))
+			store.Set(&workloadmeta.Container{EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindContainer, ID: containerID}})
+			for _, entity := range tt.entities {
+				store.Set(entity)
+			}
+			collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
+
+			tagInfos := collector.handleKubePod(workloadmeta.Event{
+				Type: workloadmeta.EventTypeSet,
+				Entity: &workloadmeta.KubernetesPod{
+					EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+					EntityMeta: workloadmeta.EntityMeta{
+						Name:        "pod",
+						Namespace:   "default",
+						Labels:      tt.labels,
+						Annotations: tt.annotations,
+					},
+					Containers: []workloadmeta.OrchestratorContainer{{ID: containerID, Name: "app"}},
+				},
+				IsComplete: true,
+			})
+
+			require.Len(t, tagInfos, 2)
+			for _, tagInfo := range tagInfos {
+				var schedulerTags []string
+				for _, tag := range append(tagInfo.LowCardTags, tagInfo.OrchestratorCardTags...) {
+					if strings.HasPrefix(tag, "kube_scheduler") {
+						schedulerTags = append(schedulerTags, tag)
+					}
+				}
+				assert.ElementsMatch(t, tt.expected, schedulerTags, "tags of %s", tagInfo.EntityID)
+			}
+		})
+	}
 }
 
 func TestKAIPodGroupTagsPropagateToPodAndContainer(t *testing.T) {

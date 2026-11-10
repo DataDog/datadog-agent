@@ -2,7 +2,8 @@
   "enabledPlugins": {
     "datadog-agent-gopls@datadog-agent-local": true,
     "marketplace-auto-update@datadog-claude-plugins": true,
-    "dd@datadog-claude-plugins": true
+    "dd@datadog-claude-plugins": true,
+    "ddci@datadog-claude-plugins": true
   },
   "extraKnownMarketplaces": {
     "datadog-agent-local": {

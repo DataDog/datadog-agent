@@ -48,6 +48,12 @@ func (h *Historate) isStateful() bool {
 	return true
 }
 
+// Flushing drops the previous sample, losing the rate between the parts of a window,
+// and the resulting histogram aggregates can't be combined either.
+func (h *Historate) isDecomposable() bool {
+	return false
+}
+
 func (h *Historate) metricType() MetricType {
 	return HistorateType
 }

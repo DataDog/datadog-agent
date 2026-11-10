@@ -56,6 +56,11 @@ type Payload struct {
 	UUID string `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeClusterCheck
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -198,7 +203,7 @@ func (cc *clusterChecksImpl) getPayload() *Payload {
 }
 
 // getPayloadAsMarshaler returns the payload as a marshaler for the inventory system
-func (cc *clusterChecksImpl) getPayloadAsMarshaler() marshaler.JSONMarshaler {
+func (cc *clusterChecksImpl) getPayloadAsMarshaler() marshaler.TypedJSONMarshaler {
 	payload := cc.getPayload()
 	if payload == nil {
 		return nil

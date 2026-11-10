@@ -32,6 +32,11 @@ type Payload struct {
 	Metadata  *haAgentMetadata `json:"ha_agent_metadata"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeHAAgent
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -63,7 +68,7 @@ func (i *haagentimpl) refreshMetadata() {
 	}
 }
 
-func (i *haagentimpl) getPayload() marshaler.JSONMarshaler {
+func (i *haagentimpl) getPayload() marshaler.TypedJSONMarshaler {
 	i.m.Lock()
 	defer i.m.Unlock()
 
