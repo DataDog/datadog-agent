@@ -12,6 +12,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 	"unsafe"
 
@@ -477,6 +478,41 @@ func TestSecureCreateTargetDirectoryWithDifferentOwner(t *testing.T) {
 	targetSD, err := windows.GetNamedSecurityInfo(targetPath, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
 	require.NoError(t, err)
 	assert.Equal(t, sourceSD.String(), targetSD.String())
+}
+
+// TestSecureCreateTargetDirectoryAddsAutoInheritance covers hosts whose parent directory
+// lacks the AI flag: os.Mkdir inherits the ACEs but not the auto-inheritance flag.
+func TestSecureCreateTargetDirectoryAddsAutoInheritance(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "no-ai-root")
+	sd, err := windows.SecurityDescriptorFromString("D:P(A;OICI;FA;;;SY)(A;OICI;FA;;;BA)(A;OICI;FA;;;WD)")
+	require.NoError(t, err)
+	sa := &windows.SecurityAttributes{Length: uint32(unsafe.Sizeof(windows.SecurityAttributes{})), SecurityDescriptor: sd}
+	require.NoError(t, windows.CreateDirectory(windows.StringToUTF16Ptr(root), sa))
+
+	getSD := func(path string) *windows.SECURITY_DESCRIPTOR {
+		t.Helper()
+		result, err := windows.GetNamedSecurityInfo(path, windows.SE_FILE_OBJECT, windows.OWNER_SECURITY_INFORMATION|windows.GROUP_SECURITY_INFORMATION|windows.DACL_SECURITY_INFORMATION)
+		require.NoError(t, err)
+		return result
+	}
+	rootControl, _, err := getSD(root).Control()
+	require.NoError(t, err)
+	require.Zero(t, rootControl&windows.SE_DACL_AUTO_INHERITED, "fixture root must lack AI")
+
+	source := filepath.Join(root, "source")
+	target := filepath.Join(root, "target")
+	require.NoError(t, os.Mkdir(source, 0755))
+	sourceSD := getSD(source)
+	sourceControl, _, err := sourceSD.Control()
+	require.NoError(t, err)
+	require.Zero(t, sourceControl&windows.SE_DACL_AUTO_INHERITED, "source must inherit the missing AI flag")
+
+	require.NoError(t, secureCreateTargetDirectoryWithSourcePermissions(source, target))
+	targetSD := getSD(target)
+	targetControl, _, err := targetSD.Control()
+	require.NoError(t, err)
+	require.NotZero(t, targetControl&windows.SE_DACL_AUTO_INHERITED, "target must have AI")
+	assert.Equal(t, strings.Replace(sourceSD.String(), "D:", "D:AI", 1), targetSD.String(), "owner, group and ACEs should be preserved")
 }
 
 // everyoneCanRead reports whether path's DACL contains an allow ACE granting read access
