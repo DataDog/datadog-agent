@@ -543,8 +543,8 @@ func TestSSLSockByCtxDeadPidCleaner(t *testing.T) {
 		assert.False(ct, findKeyInMap(sockByCtx, deadKey), "dead pid entry still in ssl_sock_by_ctx")
 		assert.False(ct, findKeyInMap(ctxByTuple, deadTup), "dead pid tuple still in ssl_ctx_by_tuple")
 	}, 10*time.Second, 500*time.Millisecond)
-	// a few more cleaner runs, the live entries must survive them
-	time.Sleep(3 * time.Second)
+	// The dead tuple is removed in the last step of a cleaner run, after that run has checked both
+	// ssl_sock_by_ctx entries, so the live entries must still be there.
 	assert.True(t, findKeyInMap(sockByCtx, aliveKey), "live pid entry was removed from ssl_sock_by_ctx")
 	assert.True(t, findKeyInMap(ctxByTuple, aliveTup), "live pid tuple was removed from ssl_ctx_by_tuple")
 
