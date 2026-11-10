@@ -14,6 +14,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestPublishSeriesFreshness(t *testing.T) {
+	telComp := telemetryimpl.NewMock(t)
+	engine := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
+	engine.pendingFreshSeries.Store(2)
+	observer := &observerImpl{engine: engine, telemetry: newObserverTelemetry(telComp)}
+
+	observer.publishSeriesFreshness()
+
+	metricFamilies, err := telComp.Gather(telemetry.NoFilter)
+	require.NoError(t, err)
+	var found bool
+	for _, family := range metricFamilies {
+		if family.GetName() == "observer__"+telemetrySeriesFresh {
+			require.Len(t, family.GetMetric(), 1)
+			require.Nil(t, family.GetMetric()[0].GetLabel())
+			require.Equal(t, 2.0, family.GetMetric()[0].GetCounter().GetValue())
+			found = true
+		}
+	}
+	require.True(t, found)
+	require.Zero(t, engine.pendingFreshSeries.Load())
+}
+
 func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	filter, err := newDefaultMetricsFilterRules()
 	if err != nil {
@@ -21,7 +44,7 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	}
 
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		engine:       mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 		catalog:      defaultCatalog(),
 		metricsCh:    make(chan observation, 1),
 		logsCh:       make(chan observation, 1),
@@ -47,7 +70,7 @@ func TestObserverResetActivatesScorerCorrelationWatcher(t *testing.T) {
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackCorrelationHistory = true
 	storageCfg.TrackAnomalyHistory = true
-	obs.Reset(settings, storageCfg)
+	require.NoError(t, obs.Reset(settings, storageCfg))
 
 	scorer := obs.engine.scorer
 	if scorer == nil {
@@ -67,13 +90,13 @@ func TestSeriesDetectorAdapter_DoesNotReemitOutputsWithoutNewData(t *testing.T) 
 		anomalies: []observerdef.Anomaly{{
 			Timestamp: 100,
 		}},
-	}, []observerdef.Aggregate{observerdef.AggregateAverage})
+	})
 
-	first := adapter.Detect(storage, 100)
+	first := adapter.Detect(storage, 100, observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}})
 	if len(first.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly on first detect, got %d", len(first.Anomalies))
 	}
-	second := adapter.Detect(storage, 101)
+	second := adapter.Detect(storage, 101, observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}})
 	if len(second.Anomalies) != 0 {
 		t.Fatalf("expected 0 anomalies without new data, got %d", len(second.Anomalies))
 	}
@@ -87,16 +110,16 @@ func TestSeriesDetectorAdapter_ResetClearsVisibleCountCache(t *testing.T) {
 		anomalies: []observerdef.Anomaly{{
 			Timestamp: 100,
 		}},
-	}, []observerdef.Aggregate{observerdef.AggregateAverage})
+	})
 
-	first := adapter.Detect(storage, 100)
+	first := adapter.Detect(storage, 100, observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}})
 	if len(first.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly on first detect, got %d", len(first.Anomalies))
 	}
 
 	adapter.Reset()
 
-	afterReset := adapter.Detect(storage, 100)
+	afterReset := adapter.Detect(storage, 100, observerdef.DetectionFilter{Aggregations: []observerdef.Aggregate{observerdef.AggregateAverage}})
 	if len(afterReset.Anomalies) != 1 {
 		t.Fatalf("expected 1 anomaly after reset, got %d", len(afterReset.Anomalies))
 	}
@@ -108,7 +131,7 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 	filter, err := newDefaultMetricsFilterRules()
 	require.NoError(t, err)
 	obs := &observerImpl{
-		engine:       newEngine(engineConfig{storage: newTimeSeriesStorage()}),
+		engine:       mustNewEngine(engineConfig{storage: newTimeSeriesStorage()}),
 		catalog:      defaultCatalog(),
 		metricsCh:    make(chan observation, 4),
 		logsCh:       make(chan observation, 4),
@@ -145,13 +168,13 @@ func TestObserverPublishesSeriesCountOnAdvanceAndReplayBoundaries(t *testing.T) 
 	requireSeriesCountTelemetry(t, telComp, 1)
 
 	// Replacing storage during reset clears the gauge immediately.
-	obs.Reset(ComponentSettings{}, DefaultStorageConfig())
+	require.NoError(t, obs.Reset(ComponentSettings{}, DefaultStorageConfig()))
 	requireSeriesCountTelemetry(t, telComp, 0)
 
 	// Replay publishes once at its completion, not when data is preloaded.
 	obs.engine.storage.Add("ns", "replayed", 1, 10, nil)
 	requireSeriesCountTelemetry(t, telComp, 0)
-	obs.ReplayStoredData()
+	require.NoError(t, obs.ReplayStoredData())
 	requireSeriesCountTelemetry(t, telComp, 1)
 
 	// The final stream flush publishes even when no advance is needed.
@@ -188,7 +211,7 @@ func TestBaselineCompletedCallbackSink_AccumulatesGroupsUntilAllBaselinesComplet
 	}
 	var callbacks []callbackResult
 	sink := &baselineCompletedCallbackSink{
-		engine: newEngine(engineConfig{storage: storage}),
+		engine: mustNewEngine(engineConfig{storage: storage}),
 		callback: func(endSec int64, groups []string) {
 			callbacks = append(callbacks, callbackResult{endSec: endSec, groups: groups})
 		},
@@ -284,7 +307,7 @@ func TestObserverFlushProcessesBothQueues(t *testing.T) {
 	storage := newTimeSeriesStorage()
 	extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
 	obs := &observerImpl{
-		engine: newEngine(engineConfig{
+		engine: mustNewEngine(engineConfig{
 			storage:    storage,
 			extractors: []observerdef.LogMetricsExtractor{extractor},
 		}),
@@ -319,7 +342,7 @@ func TestObserverRunDrainsRemainingQueue(t *testing.T) {
 				storage := newTimeSeriesStorage()
 				extractor := NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig())
 				obs := &observerImpl{
-					engine: newEngine(engineConfig{
+					engine: mustNewEngine(engineConfig{
 						storage:    storage,
 						extractors: []observerdef.LogMetricsExtractor{extractor},
 					}),

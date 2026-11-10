@@ -213,6 +213,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "process.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "process.ancestors.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -813,6 +833,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "process.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "process.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -1296,6 +1336,26 @@
           "name": "process.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "process.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "process.parent.file.change_time",
@@ -3026,6 +3086,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "exec.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "exec.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "exec.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "exec.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "exec.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -3683,6 +3763,26 @@
           "name": "exit.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "exit.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "exit.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "exit.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "exit.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "exit.file.change_time",
@@ -5728,6 +5828,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "ptrace.tracee.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "ptrace.tracee.ancestors.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -6328,6 +6448,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "ptrace.tracee.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "ptrace.tracee.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -6811,6 +6951,26 @@
           "name": "ptrace.tracee.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "ptrace.tracee.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "ptrace.tracee.parent.file.change_time",
@@ -8301,6 +8461,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "setrlimit.target.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "setrlimit.target.ancestors.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -8901,6 +9081,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "setrlimit.target.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "setrlimit.target.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -9384,6 +9584,26 @@
           "name": "setrlimit.target.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "setrlimit.target.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "setrlimit.target.parent.file.change_time",
@@ -10342,6 +10562,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "signal.target.ancestors.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.ancestors.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "signal.target.ancestors.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -10942,6 +11182,26 @@
           "property_doc_link": "common-credentials-euser-doc"
         },
         {
+          "name": "signal.target.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
+        },
+        {
           "name": "signal.target.file.change_time",
           "definition": "Change time (ctime) of the file",
           "property_doc_link": "common-filefields-change_time-doc"
@@ -11425,6 +11685,26 @@
           "name": "signal.target.parent.euser",
           "definition": "Effective user of the process",
           "property_doc_link": "common-credentials-euser-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.available",
+          "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+          "property_doc_link": "common-filecapabilities-available-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.effective",
+          "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+          "property_doc_link": "common-filecapabilities-effective-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.inheritable",
+          "definition": "Inheritable capabilities attached to the executable file",
+          "property_doc_link": "common-filecapabilities-inheritable-doc"
+        },
+        {
+          "name": "signal.target.parent.file.capabilities.permitted",
+          "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+          "property_doc_link": "common-filecapabilities-permitted-doc"
         },
         {
           "name": "signal.target.parent.file.change_time",
@@ -12766,6 +13046,31 @@
       "examples": []
     },
     {
+      "name": "*.available",
+      "link": "common-filecapabilities-available-doc",
+      "type": "bool",
+      "definition": "Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
       "name": "*.cap_effective",
       "link": "common-credentials-cap_effective-doc",
       "type": "int",
@@ -13118,6 +13423,31 @@
         "signal.target.ancestors.container",
         "signal.target.container",
         "signal.target.parent.container"
+      ],
+      "constants": "",
+      "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.effective",
+      "link": "common-filecapabilities-effective-doc",
+      "type": "bool",
+      "definition": "File effective capability bit, which requests that capabilities granted during exec also become effective",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
       ],
       "constants": "",
       "constants_link": "",
@@ -13928,6 +14258,31 @@
       ],
       "constants": "",
       "constants_link": "",
+      "examples": []
+    },
+    {
+      "name": "*.inheritable",
+      "link": "common-filecapabilities-inheritable-doc",
+      "type": "int",
+      "definition": "Inheritable capabilities attached to the executable file",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
       "examples": []
     },
     {
@@ -15313,6 +15668,31 @@
           "description": "Matches any process opening the /etc/passwd file."
         }
       ]
+    },
+    {
+      "name": "*.permitted",
+      "link": "common-filecapabilities-permitted-doc",
+      "type": "int",
+      "definition": "Permitted capabilities attached to the executable file, before any process bounding-set filtering",
+      "prefixes": [
+        "exec.file.capabilities",
+        "exit.file.capabilities",
+        "process.ancestors.file.capabilities",
+        "process.file.capabilities",
+        "process.parent.file.capabilities",
+        "ptrace.tracee.ancestors.file.capabilities",
+        "ptrace.tracee.file.capabilities",
+        "ptrace.tracee.parent.file.capabilities",
+        "setrlimit.target.ancestors.file.capabilities",
+        "setrlimit.target.file.capabilities",
+        "setrlimit.target.parent.file.capabilities",
+        "signal.target.ancestors.file.capabilities",
+        "signal.target.file.capabilities",
+        "signal.target.parent.file.capabilities"
+      ],
+      "constants": "Kernel Capability constants",
+      "constants_link": "kernel-capability-constants",
+      "examples": []
     },
     {
       "name": "*.pid",

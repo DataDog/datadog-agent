@@ -271,6 +271,7 @@ properties:
       by default)
   additional_endpoints:
     node_type: setting
+    sensitive: true
     type: array
     default: []
     items:
@@ -286,6 +287,7 @@ properties:
       could happen while serializing large objects on log lines.
   api_key:
     node_type: setting
+    sensitive: true
     type: string
     default: ''
     comment: specific logs-agent api-key

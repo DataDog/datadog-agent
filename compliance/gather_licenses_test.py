@@ -122,6 +122,17 @@ class TestPurlToPackage(unittest.TestCase):
         result = purl_to_package("pkg:generic/libsepol@3.5?download_url=https://example.com&other=value")
         self.assertEqual(result, "libsepol")
 
+    def test_golang_purl_with_subpath(self):
+        """Test golang PURL naming a package inside a module"""
+        self.assertEqual(
+            purl_to_package("pkg:golang/github.com/DataDog/datadog-agent#cmd/secret-generic-connector"),
+            "secret-generic-connector",
+        )
+
+    def test_golang_purl_without_subpath(self):
+        """Test golang PURL for a whole module"""
+        self.assertEqual(purl_to_package("pkg:golang/github.com/DataDog/datadog-agent@v1.2.3"), "datadog-agent")
+
     def test_purl_with_hyphens_in_name(self):
         """Test PURL where package name has hyphens"""
         self.assertEqual(purl_to_package("pkg:generic/gpg-error@1.45?download_url=https://example.com"), "gpg-error")

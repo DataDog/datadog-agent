@@ -14,6 +14,7 @@ import (
 	"testing"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/gpu/amd/sysfsroot"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/stretchr/testify/assert"
 )
@@ -28,10 +29,10 @@ func TestGetTags(t *testing.T) {
 	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
 
 	// Keep the AMD detection away from the host sysfs
-	originalSysFSRoot := kernel.SysFSRoot
+	originalDeviceSysFSRoot := sysfsroot.DeviceSysFSRoot
 	sysDir := t.TempDir()
-	kernel.SysFSRoot = func() string { return sysDir }
-	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
+	sysfsroot.DeviceSysFSRoot = func() string { return sysDir }
+	defer func() { sysfsroot.DeviceSysFSRoot = originalDeviceSysFSRoot }()
 
 	tests := []struct {
 		name     string
@@ -125,8 +126,8 @@ func TestGetTagsAMD(t *testing.T) {
 	kernel.ProcFSRoot = func() string { return procDir }
 	defer func() { kernel.ProcFSRoot = originalProcFSRoot }()
 
-	originalSysFSRoot := kernel.SysFSRoot
-	defer func() { kernel.SysFSRoot = originalSysFSRoot }()
+	originalDeviceSysFSRoot := sysfsroot.DeviceSysFSRoot
+	defer func() { sysfsroot.DeviceSysFSRoot = originalDeviceSysFSRoot }()
 
 	cfg := configmock.New(t)
 
@@ -200,7 +201,7 @@ func TestGetTagsAMD(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			sysDir := t.TempDir()
-			kernel.SysFSRoot = func() string { return sysDir }
+			sysfsroot.DeviceSysFSRoot = func() string { return sysDir }
 			cfg.SetInTest("gpu.amd.enabled", !tt.amdDisabled)
 			if !tt.noDRM {
 				assert.NoError(t, os.MkdirAll(filepath.Join(sysDir, "class", "drm"), 0o755))

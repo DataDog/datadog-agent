@@ -125,7 +125,6 @@ installer-install-scripts:
   needs:
     [
       "setup_agent_version",
-      "go_deps",
       "installer-amd64-oci",
       "installer-arm64-oci",
     ]
@@ -134,7 +133,6 @@ installer-install-scripts:
     KUBERNETES_MEMORY_REQUEST: "16Gi"
     KUBERNETES_MEMORY_LIMIT: "16Gi"
   script:
-    - !reference [.retrieve_linux_go_deps]
     - VERSION="$(dda inv agent.version --url-safe)-1" || exit $?
     - echo "About to build for $VERSION"
     - mkdir -p $OMNIBUS_PACKAGE_DIR

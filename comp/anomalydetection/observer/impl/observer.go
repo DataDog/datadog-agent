@@ -319,6 +319,11 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	if cfg == nil {
 		return settings
 	}
+	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.metric_pipeline.enabled")
+	if cfg.IsConfigured("anomaly_detection.metric_pipeline.anomaly_cutoff") {
+		cutoff := cfg.GetBool("anomaly_detection.metric_pipeline.anomaly_cutoff")
+		settings.MetricPipelineAnomalyCutoff = &cutoff
+	}
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
 		// The anomaly_scorer has its own dedicated config prefix outside detectors.*.
@@ -427,7 +432,10 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, rawScorer, extractors, _, err := catalog.Instantiate(settings)
+	if err != nil {
+		return Provides{}, err
+	}
 
 	storageCfg := storageConfigFromAgentConfig(cfg, detectors)
 
@@ -449,7 +457,7 @@ func NewComponent(deps Requires) (Provides, error) {
 			scorer.config.Logs, scorer.config.CorrelationEvents, scorer.config.CooldownSecs)
 	}
 
-	eng := newEngine(engineConfig{
+	eng, err := newEngine(engineConfig{
 		storage:         newTimeSeriesStorageWith(storageCfg),
 		extractors:      extractors,
 		detectors:       detectors,
@@ -460,6 +468,9 @@ func NewComponent(deps Requires) (Provides, error) {
 		baseline:        settings.Baseline,
 		logCountBuckets: logCountBucketConfigFromAgent(cfg),
 	})
+	if err != nil {
+		return Provides{}, err
+	}
 
 	eng.onStorageSeriesEvicted = obsTelemetry.recordStorageSeriesEvicted
 	eng.onStorageCapacityHit = obsTelemetry.recordStorageCapacityHit
@@ -613,7 +624,7 @@ const (
 	storageRetentionPad  = 16 * time.Second
 )
 
-func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.Detector) StorageConfig {
+func storageConfigFromAgentConfig(cfg config.Component, detectors []detectorRegistration) StorageConfig {
 	storageCfg := DefaultStorageConfig()
 	maxPoints := maxDetectorPoints(detectors)
 	requiredRetention := time.Duration(maxPoints)*storagePointInterval + storageRetentionPad
@@ -671,9 +682,10 @@ func storageConfigFromAgentConfig(cfg config.Component, detectors []observerdef.
 	return storageCfg
 }
 
-func maxDetectorPoints(detectors []observerdef.Detector) int {
+func maxDetectorPoints(detectors []detectorRegistration) int {
 	var maxPoints int
-	for _, detector := range detectors {
+	for _, registration := range detectors {
+		detector := registration.detector
 		if requirement, ok := detector.(observerdef.DetectorPointWindowRequirement); ok {
 			maxPoints = max(maxPoints, requirement.DetectorPointWindow().MaxPoints)
 		}
@@ -740,6 +752,7 @@ func (o *observerImpl) run() {
 			}
 		case <-ticker.C:
 			o.engine.flushFilteredMetrics()
+			o.publishSeriesFreshness()
 			continue
 		}
 		if obs.flush != nil {
@@ -817,7 +830,7 @@ func (o *observerImpl) run() {
 		}
 		o.replayMu.Unlock()
 	}
-
+	o.publishSeriesFreshness()
 }
 
 // publishSeriesCount updates the series-count gauge after an analysis advance,
@@ -829,52 +842,45 @@ func (o *observerImpl) publishSeriesCount() {
 	o.telemetry.setSeriesCount(o.engine.Storage().TotalSeriesCount())
 }
 
+// publishSeriesFreshness drains sampled fresh-series counts. Sampling itself
+// happens on engine advances; this method is publication-only.
+func (o *observerImpl) publishSeriesFreshness() {
+	if n := o.engine.pendingFreshSeries.Swap(0); n != 0 && o.telemetry != nil {
+		o.telemetry.recordFreshSeries(int(n))
+	}
+}
+
 // defaultDetectorWindowSec is the default window (in seconds) that limits how
 // far back seriesDetectorAdapter reads when running detection. 300s = 5 minutes.
 const defaultDetectorWindowSec = 300
 
-// defaultAggregations is the standard set of aggregations used when adapting
-// a SeriesDetector into a Detector.
-var defaultAggregations = []observerdef.Aggregate{
-	observerdef.AggregateAverage,
-	observerdef.AggregateCount,
-}
-
 // seriesDetectorAdapter wraps a stateless SeriesDetector to implement Detector.
-// It runs the wrapped detector on all series, handling aggregation suffixes.
+// It runs the wrapped detector on eligible series/aggregations.
 //
-// The adapter tracks the visible point count per series so it can skip
+// The adapter tracks the visible point count per series/aggregation so it can skip
 // re-running the detector when no new data has arrived. This keeps the
 // stateless detector path simple and correct even as storage internals evolve.
 type seriesDetectorAdapter struct {
-	detector     observerdef.SeriesDetector
-	aggregations []observerdef.Aggregate
+	detector observerdef.SeriesDetector
 
 	// windowSec limits how far back GetSeriesRange reads. 0 means unbounded
 	// (read from timestamp 0). A positive value reads [dataTime-windowSec, dataTime],
 	// bounding per-call cost to O(windowSec) instead of O(totalPoints).
 	windowSec int64
 
-	// cachedRefs / cachedGen mirror the pattern used by BOCPDDetector,
-	// ScanWelchDetector, and ScanMWDetector: SeriesGeneration changes on series
-	// admission/removal and filterable metadata updates, not ordinary point writes.
-	// Reuse the selection while that generation is unchanged.
+	// Refresh on catalog or filterable metadata changes.
 	cachedRefs []observerdef.SeriesRef
 	cachedGen  uint64
 
-	// lastVisibleCount is keyed by the storage's compact SeriesRef so we
-	// avoid rebuilding a string key per series per Detect call. SeriesRefs
-	// are unique and never reused, so they remain stable for the lifetime of
-	// a series.
-	lastVisibleCount map[observerdef.SeriesRef]int
+	// Freshness is independent for each aggregation.
+	lastVisibleCount map[observerdef.QueryHandle]int
 }
 
-func newSeriesDetectorAdapter(detector observerdef.SeriesDetector, aggregations []observerdef.Aggregate) *seriesDetectorAdapter {
+func newSeriesDetectorAdapter(detector observerdef.SeriesDetector) *seriesDetectorAdapter {
 	return &seriesDetectorAdapter{
 		detector:         detector,
-		aggregations:     aggregations,
 		windowSec:        defaultDetectorWindowSec,
-		lastVisibleCount: make(map[observerdef.SeriesRef]int),
+		lastVisibleCount: make(map[observerdef.QueryHandle]int),
 	}
 }
 
@@ -888,7 +894,7 @@ func (a *seriesDetectorAdapter) Ready() bool {
 
 // Reset clears adapter-local caches and resets the wrapped detector when supported.
 func (a *seriesDetectorAdapter) Reset() {
-	a.lastVisibleCount = make(map[observerdef.SeriesRef]int)
+	a.lastVisibleCount = make(map[observerdef.QueryHandle]int)
 	a.cachedRefs = nil
 	a.cachedGen = 0
 	if resetter, ok := a.detector.(interface{ Reset() }); ok {
@@ -911,7 +917,9 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	}
 	if len(a.lastVisibleCount) > 0 {
 		for _, ref := range refs {
-			delete(a.lastVisibleCount, ref)
+			for _, agg := range [...]observerdef.Aggregate{observerdef.AggregateAverage, observerdef.AggregateSum, observerdef.AggregateCount} {
+				delete(a.lastVisibleCount, observerdef.QueryHandle{Ref: ref, Aggregate: agg})
+			}
 		}
 	}
 	a.cachedRefs = nil
@@ -921,10 +929,11 @@ func (a *seriesDetectorAdapter) RemoveSeries(refs []observerdef.SeriesRef) {
 	}
 }
 
-func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64) observerdef.DetectionResult {
+func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTime int64, filter observerdef.DetectionFilter) observerdef.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if a.cachedRefs == nil || gen != a.cachedGen {
-		a.cachedRefs = workloadSeriesRefs(storage, a.cachedRefs)
+		a.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), a.cachedRefs)
 		a.cachedGen = gen
 	}
 
@@ -932,15 +941,15 @@ func (a *seriesDetectorAdapter) Detect(storage observerdef.StorageReader, dataTi
 
 	for _, ref := range a.cachedRefs {
 		visibleCount := storage.PointCountUpTo(ref, dataTime)
-		if prev, ok := a.lastVisibleCount[ref]; ok && prev == visibleCount {
-			continue
-		}
-		a.lastVisibleCount[ref] = visibleCount
-
-		for _, agg := range a.aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
+			key := observerdef.QueryHandle{Ref: ref, Aggregate: agg}
+			if prev, ok := a.lastVisibleCount[key]; ok && prev == visibleCount {
+				continue
+			}
+			a.lastVisibleCount[key] = visibleCount
 			start := int64(0)
 			if a.windowSec > 0 {
 				start = dataTime - a.windowSec
@@ -1146,9 +1155,12 @@ func (o *observerImpl) flushCtx(ctx context.Context) error {
 }
 
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
-func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) {
+func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) error {
 	o.Flush()
-	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorer, extractors, _, err := o.catalog.Instantiate(settings)
+	if err != nil {
+		return err
+	}
 	// Catalog scorers are unwatched standalone instances. Replay needs the same
 	// transition watcher as the live observer so scorer correlation episodes open
 	// and close as severity changes; telemetry gauges are optional here.
@@ -1156,10 +1168,13 @@ func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfi
 		scorer = newAnomalyScorerWithTelemetry(scorer.config, nil, nil)
 	}
 	o.replayMu.Lock()
+	defer o.replayMu.Unlock()
 	o.metricFilter.muted.Store(nil)
-	o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline)
+	if err := o.engine.ResetForReplay(detectors, correlators, scorer, extractors, storageCfg, settings.Baseline); err != nil {
+		return err
+	}
 	o.publishSeriesCount()
-	o.replayMu.Unlock()
+	return nil
 }
 
 // baselineEventSink publishes the mute hash set to the shared filter when the
@@ -1273,15 +1288,18 @@ func (o *observerImpl) AddTelemetry(name string, value float64, timestamp int64,
 // ReplayStoredData resets analysis state (preserving extractor context) then
 // replays all stored data through the scheduler in chronological order.
 // Implements DebugView.
-func (o *observerImpl) ReplayStoredData() {
+func (o *observerImpl) ReplayStoredData() error {
 	// resetAnalysisState resets detectors/correlators and tracking state but
 	// preserves extractor state so enrichAnomaly can still attach log pattern
 	// context (stored on seriesStats) during replay.
 	o.replayMu.Lock()
-	o.engine.resetAnalysisState()
+	defer o.replayMu.Unlock()
+	if err := o.engine.resetAnalysisState(); err != nil {
+		return err
+	}
 	o.engine.ReplayStoredData()
 	o.publishSeriesCount()
-	o.replayMu.Unlock()
+	return nil
 }
 
 // StorageReader returns a read-only view of the engine's time-series storage.

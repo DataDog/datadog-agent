@@ -50,7 +50,7 @@ func newMockContainerProvider(t *testing.T, pidToContainerID map[int]string) *mo
 	return mockContainerProvider
 }
 
-const testAMDUUID = "amd-00c0ffee00c0ffee"
+const testAMDUUID = "000074a1-0000-1000-80c0-ffee00c0ffee"
 
 // fakeAMDHost returns a sysfs root with one MI300X-like GPU.
 func fakeAMDHost(t *testing.T) string {
@@ -166,7 +166,7 @@ func TestAMDOnlyHostEmitsMetrics(t *testing.T) {
 }
 
 func TestAMDDeviceExcludedByConfig(t *testing.T) {
-	check, mockSender := setupAMDCheck(t, fakeAMDHost(t), map[string]any{"gpu.excluded_devices": []string{"AMD-00C0FFEE00C0FFEE"}})
+	check, mockSender := setupAMDCheck(t, fakeAMDHost(t), map[string]any{"gpu.excluded_devices": []string{"000074A1-0000-1000-80C0-FFEE00C0FFEE"}})
 
 	require.NoError(t, check.Run(), "excluding every AMD GPU must not require an NVIDIA driver")
 	assert.Empty(t, emittedGauges(mockSender))
@@ -232,8 +232,8 @@ func TestAMDRediscoveryDropsRemovedDevices(t *testing.T) {
 	require.NoError(t, check.Run())
 	gauges := emittedGauges(mockSender)
 	require.Len(t, gauges["gpu.device.total"], 1)
-	assert.Contains(t, gauges["gpu.device.total"][0].Arguments.Get(3), "gpu_uuid:amd-2222")
-	assert.NotContains(t, check.deviceTags, "amd-1111")
+	assert.Contains(t, gauges["gpu.device.total"][0].Arguments.Get(3), "gpu_uuid:000074a1-0000-1000-8000-000000002222")
+	assert.NotContains(t, check.deviceTags, "000074a1-0000-1000-8000-000000001111")
 
 	require.NoError(t, os.Remove(filepath.Join(fs.Root, "class", "drm", "card1", "device")))
 	mockSender.ResetCalls()
@@ -537,6 +537,8 @@ func TestAMDKubernetesAllocationsTagDeviceMetrics(t *testing.T) {
 	// One partition each, with the "mixed" strategy resource name.
 	addPod("part1", workloadmeta.ContainerAllocatedResource{Name: "amd.com/cpx_nps4", ID: "amdgpu_xcp_1"})
 	addPod("part2", workloadmeta.ContainerAllocatedResource{Name: "amd.com/cpx_nps4", ID: "amdgpu_xcp_2"})
+	// A partition allocated through the AMD DRA driver, named after its render node.
+	addPod("dra", workloadmeta.ContainerAllocatedResource{Name: "gpu.amd.com", ID: "gpu-1-129", CdiDevices: []string{"k8s.gpu.amd.com/gpu=common"}})
 	// NVIDIA and unknown AMD allocations are not attributed to AMD GPUs.
 	addPod("nvidia", workloadmeta.ContainerAllocatedResource{Name: "nvidia.com/gpu", ID: "GPU-00000000-1234-1234-1234-123456789012"})
 	addPod("stale", workloadmeta.ContainerAllocatedResource{Name: "amd.com/gpu", ID: "0000:e1:00.0"})
@@ -559,7 +561,7 @@ func TestAMDKubernetesAllocationsTagDeviceMetrics(t *testing.T) {
 	}
 	require.Len(t, containersByUUID, 2)
 	assert.ElementsMatch(t, []string{"whole"}, containersByUUID[testAMDUUID])
-	assert.ElementsMatch(t, []string{"part1", "part2"}, containersByUUID["amd-0000-d1-00-0"])
+	assert.ElementsMatch(t, []string{"part1", "part2", "dra"}, containersByUUID["amd-0000-d1-00-0"])
 }
 
 func TestAMDCheckDisabledByConfig(t *testing.T) {

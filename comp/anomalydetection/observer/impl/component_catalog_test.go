@@ -8,11 +8,14 @@ package observerimpl
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
+	"slices"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
+	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
 
 // TestDefaultCatalog_DetectorTeardownContract is the structural guard that
@@ -26,8 +29,155 @@ func TestDefaultCatalog_DetectorTeardownContract(t *testing.T) {
 }
 
 func TestDefaultCatalog_EnabledDetectors(t *testing.T) {
-	detectors, _, _, _, _ := defaultCatalog().Instantiate(ComponentSettings{})
+	settings := ComponentSettings{UseMetricPipeline: true}
+	detectors, _, _, _, _ := instantiateForTest(t, defaultCatalog(), settings)
+	require.Equal(t, []string{"scanmw"}, detectorNames(detectors))
+
+	detectors, _, _, _, _ = instantiateForTest(t, defaultCatalog(), ComponentSettings{})
 	require.Equal(t, []string{"bocpd"}, detectorNames(detectors))
+}
+
+func TestDetectorWorkflowSelection(t *testing.T) {
+	for _, mode := range []struct {
+		name          string
+		pipeline      bool
+		enabled       map[string]bool
+		wantDetectors []string
+	}{
+		{
+			name:          "pipeline defaults",
+			pipeline:      true,
+			wantDetectors: []string{"scanmw"},
+		},
+		{
+			name:          "pipeline ignores enabled legacy detectors",
+			pipeline:      true,
+			enabled:       map[string]bool{"bocpd": true, "holt_residual": true, "tukey_biweight": true},
+			wantDetectors: []string{"scanmw"},
+		},
+		{
+			name:          "pipeline ignores scanmw disable",
+			pipeline:      true,
+			enabled:       map[string]bool{"scanmw": false},
+			wantDetectors: []string{"scanmw"},
+		},
+		{
+			name:          "legacy keeps catalog defaults",
+			wantDetectors: []string{"bocpd"},
+		},
+		{
+			name:          "legacy honors explicit selections",
+			enabled:       map[string]bool{"scanmw": true, "scanwelch": true},
+			wantDetectors: []string{"bocpd", "scanmw", "scanwelch"},
+		},
+	} {
+		t.Run(mode.name, func(t *testing.T) {
+			settings := ComponentSettings{
+				Enabled:           mode.enabled,
+				UseMetricPipeline: mode.pipeline,
+			}
+			detectors, _, _, _, components := instantiateForTest(t, defaultCatalog(), settings)
+			require.Equal(t, mode.wantDetectors, detectorNames(detectors))
+			if len(mode.wantDetectors) > 0 && slices.Contains(mode.wantDetectors, "scanmw") {
+				if !mode.pipeline {
+					scanmw := components["scanmw"]
+					require.True(t, scanmw.enabled)
+					require.IsType(t, &ScanMWDetector{}, scanmw.instance)
+				} else {
+					require.IsType(t, &MetricPipeline{}, detectors[0].detector)
+				}
+			}
+		})
+	}
+}
+
+func TestSettingsFromAgentConfigWorkflow(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+anomaly_detection:
+  detectors:
+    scanmw:
+      min_points: 42
+      max_points: 84
+`)
+	settings := settingsFromAgentConfig(defaultCatalog(), cfg)
+	require.False(t, settings.UseMetricPipeline)
+
+	cfg = configmock.NewFromYAML(t, `
+anomaly_detection:
+  detectors:
+    scanmw:
+      min_points: 42
+      max_points: 84
+  metric_pipeline:
+    enabled: true
+`)
+	settings = settingsFromAgentConfig(defaultCatalog(), cfg)
+	require.True(t, settings.UseMetricPipeline)
+	require.Nil(t, settings.MetricPipelineAnomalyCutoff)
+	detectors, _, _, _, _ := instantiateForTest(t, defaultCatalog(), settings)
+	require.Equal(t, []string{"scanmw"}, detectorNames(detectors))
+	pipeline := detectors[0].detector.(*MetricPipeline)
+	require.Equal(t, observerdef.DetectorPointWindow{MinPoints: 30, MaxPoints: 120}, pipeline.DetectorPointWindow())
+	require.True(t, pipeline.anomalyCutoff)
+
+	disabledCutoff := false
+	settings.MetricPipelineAnomalyCutoff = &disabledCutoff
+	detectors, _, _, _, _ = instantiateForTest(t, defaultCatalog(), settings)
+	pipeline = detectors[0].detector.(*MetricPipeline)
+	require.False(t, pipeline.anomalyCutoff)
+}
+
+func TestScanDetectors_CatalogConfiguration(t *testing.T) {
+	for _, name := range []string{"scanmw", "scanwelch"} {
+		for _, source := range []string{"agent", "json"} {
+			for _, enabled := range []bool{false, true} {
+				t.Run(fmt.Sprintf("%s/%s/enabled=%t", name, source, enabled), func(t *testing.T) {
+					var settings ComponentSettings
+					if source == "agent" {
+						cfg := configmock.NewFromYAML(t, fmt.Sprintf(`
+anomaly_detection:
+  detectors:
+    %s:
+      enabled: %t
+      min_points: 42
+      max_points: 84
+`, name, enabled))
+						settings = settingsFromAgentConfig(defaultCatalog(), cfg)
+					} else {
+						var err error
+						settings, err = ParseSettingsFromJSON(map[string]json.RawMessage{
+							name: json.RawMessage(fmt.Sprintf(
+								`{"enabled":%t,"min_points":42,"max_points":84}`,
+								enabled)),
+						})
+						require.NoError(t, err)
+					}
+					detectors, _, _, _, components := instantiateForTest(t, defaultCatalog(), settings)
+					var want, got any
+					switch d := components[name].instance.(type) {
+					case *ScanMWDetector:
+						cfg := DefaultScanMWConfig()
+						cfg.MinPoints, cfg.MaxPoints = 42, 84
+						want, got = cfg, d.config
+					case *ScanWelchDetector:
+						cfg := DefaultScanWelchConfig()
+						cfg.MinPoints, cfg.MaxPoints = 42, 84
+						want, got = cfg, d.config
+					default:
+						t.Fatalf("unexpected detector: %T", d)
+					}
+					require.Equal(t, want, components[name].activeConfig)
+					require.Equal(t, want, got)
+					require.Equal(t, enabled, components[name].enabled)
+					if enabled {
+						require.Contains(t, detectorNames(detectors), name)
+					} else {
+						require.NotContains(t, detectorNames(detectors), name)
+					}
+				})
+			}
+		}
+	}
 }
 
 // Every catalog detector can be enabled through anomaly_detection.detectors.*.
@@ -125,10 +275,10 @@ func TestApplyTestbenchDefaults_PreservesExplicitConfig(t *testing.T) {
 
 	settings = ApplyTestbenchDefaults(settings)
 	require.Equal(t, 42, settings.configs["bocpd"].(BOCPDConfig).WarmupPoints)
-	scanMW := settings.configs["scanmw"].(*ScanMWDetector)
+	scanMW := settings.configs["scanmw"].(ScanMWConfig)
 	require.Equal(t, 42, scanMW.MinPoints)
 	require.Equal(t, 84, scanMW.MaxPoints)
-	scanWelch := settings.configs["scanwelch"].(*ScanWelchDetector)
+	scanWelch := settings.configs["scanwelch"].(ScanWelchConfig)
 	require.Equal(t, 42, scanWelch.MinPoints)
 	require.Equal(t, 84, scanWelch.MaxPoints)
 	require.False(t, settings.Enabled["anomaly_scorer"])
@@ -143,7 +293,7 @@ type bareDetectorForValidator struct{}
 
 func (*bareDetectorForValidator) Name() string { return "bare-detector" }
 func (*bareDetectorForValidator) Ready() bool  { return true }
-func (*bareDetectorForValidator) Detect(_ observerdef.StorageReader, _ int64) observerdef.DetectionResult {
+func (*bareDetectorForValidator) Detect(_ observerdef.StorageReader, _ int64, _ observerdef.DetectionFilter) observerdef.DetectionResult {
 	return observerdef.DetectionResult{}
 }
 
@@ -171,9 +321,9 @@ func TestParseTestbenchSettingsFromJSON(t *testing.T) {
 	require.Equal(t, 40, tukey.MinPoints)
 	require.Equal(t, 40, tukey.WindowSize)
 	require.Equal(t, 6.0, tukey.ZThreshold)
-	require.Equal(t, 30, settings.configs["scanmw"].(*ScanMWDetector).MinPoints)
-	require.Equal(t, 96, settings.configs["scanmw"].(*ScanMWDetector).MaxPoints)
-	require.Equal(t, 30, settings.configs["scanwelch"].(*ScanWelchDetector).MinPoints)
+	require.Equal(t, 30, settings.configs["scanmw"].(ScanMWConfig).MinPoints)
+	require.Equal(t, 96, settings.configs["scanmw"].(ScanMWConfig).MaxPoints)
+	require.Equal(t, 30, settings.configs["scanwelch"].(ScanWelchConfig).MinPoints)
 	scorer := settings.configs["anomaly_scorer"].(AnomalyScorerConfig)
 	require.True(t, scorer.CorrelationEvents)
 	require.Equal(t, DefaultAnomalyScorerConfig().CooldownSecs, scorer.CooldownSecs)
@@ -184,7 +334,7 @@ func TestParseTestbenchSettingsFromJSON(t *testing.T) {
 	require.Equal(t, 24, production.configs["holt_residual"].(HoltResidualConfig).WarmupPoints)
 	require.Equal(t, 60, production.configs["holt_residual"].(HoltResidualConfig).ResidualWindow)
 	require.Equal(t, 80, production.configs["tukey_biweight"].(TukeyBiweightConfig).MinPoints)
-	require.Equal(t, 30, production.configs["scanmw"].(*ScanMWDetector).MinPoints)
+	require.Equal(t, 30, production.configs["scanmw"].(ScanMWConfig).MinPoints)
 
 	explicit, err := ParseTestbenchSettingsFromJSON(map[string]json.RawMessage{
 		"bocpd":          json.RawMessage(`{"warmup_points":42}`),
@@ -200,9 +350,21 @@ func TestParseTestbenchSettingsFromJSON(t *testing.T) {
 	require.Equal(t, 18, explicit.configs["holt_residual"].(HoltResidualConfig).ResidualWindow)
 	require.Equal(t, 20, explicit.configs["tukey_biweight"].(TukeyBiweightConfig).MinPoints)
 	require.Equal(t, 60, explicit.configs["tukey_biweight"].(TukeyBiweightConfig).WindowSize)
-	require.Equal(t, 42, explicit.configs["scanmw"].(*ScanMWDetector).MinPoints)
-	require.Equal(t, 36, explicit.configs["scanwelch"].(*ScanWelchDetector).MinPoints)
+	require.Equal(t, 42, explicit.configs["scanmw"].(ScanMWConfig).MinPoints)
+	require.Equal(t, 36, explicit.configs["scanwelch"].(ScanWelchConfig).MinPoints)
 	require.False(t, explicit.Enabled["anomaly_scorer"])
 	require.Zero(t, explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).CooldownSecs)
 	require.False(t, explicit.configs["anomaly_scorer"].(AnomalyScorerConfig).CorrelationEvents)
+}
+
+func instantiateForTest(t testing.TB, catalog *componentCatalog, settings ComponentSettings) (
+	[]detectorRegistration,
+	[]observerdef.Correlator,
+	*anomalyScorer,
+	[]observerdef.LogMetricsExtractor,
+	map[string]*componentInstance,
+) {
+	detectors, correlators, scorer, extractors, components, err := catalog.Instantiate(settings)
+	require.NoError(t, err)
+	return detectors, correlators, scorer, extractors, components
 }

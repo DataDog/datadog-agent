@@ -1,0 +1,308 @@
+{#- smp-report-schema: 1 -#}
+{#- Builtin template for markdown reports, matching the previous server-rendered version -#}
+{#- For readability, sections are separated with '## <sectionTitle>' comments -#}
+{%- set job = report.job -%}
+{%- set start_ms = job.metrics_query_start * 1000 -%}
+{%- set end_ms = job.metrics_query_end * 1000 -%}
+{%- set filter_start = (job.metrics_query_start - 7200) * 1000 -%}
+{%- set filter_end = (job.metrics_query_end + 3600) * 1000 -%}
+{#- Experiments goals -#}
+{%- set goals = report.experiments
+    | selectattr("optimization_goal.result")
+    | sort(attribute="optimization_goal.result.percent_change", reverse=true) -%}
+{%- set xps_with_significant_changes = goals | selectattr("optimization_goal.result.is_significant_change") | rejectattr("erratic") | list -%}
+{%- set regressions = xps_with_significant_changes | rejectattr("optimization_goal.result.is_improvement") | list -%}
+{%- set xps_with_missing_results = report.experiments
+    | selectattr("optimization_goal") | rejectattr("optimization_goal.result")
+    | map(attribute="name") | sort | list -%}
+{#- Bounds checks -#}
+{%- set checks = report.experiments | build_unified_check_rows -%}
+{%- set xps_with_crashed_replicates = report.failed_replicates
+    | selectattr("replicate_type", "equalto", "non_profiling") | selectattr("is_dead")
+    | map(attribute="experiment") | unique | sort | list -%}
+{%- set xps_with_retried_replicates = report.failed_replicates
+    | selectattr("replicate_type", "equalto", "non_profiling") | rejectattr("is_dead")
+    | map(attribute="experiment") | unique | sort | list -%}
+{%- set failed_replicates_grouped = report.failed_replicates | group_failed_executions_by_categories -%}
+
+{#- Agent URL templates. Python selects names; Jinja resolves report values. -#}
+{%- macro metrics_dashboard_link() -%}
+[Metrics dashboard](https://app.datadoghq.com/dashboard/ykh-ua8-vcu/SMP-Regression-Detector-Metrics?fromUser=true&refresh_mode=paused&tpl_var_run-id%5B0%5D={{ job.id }}&view=spans&from_ts={{ start_ms }}&to_ts={{ end_ms }}&live=false)
+{%- endmacro -%}
+{%- macro profiles_link() -%}
+[Target profiles](https://app.datadoghq.com/profiling/explorer?query=env%3Asingle-machine-performance%20service%3Adatadog-agent%20job_id%3A{{ job.id }}&agg_m=count&agg_m_source=base&agg_t=count&fromUser=false&viz=stream&start={{ filter_start }}&end={{ filter_end }}&paused=true)
+{%- endmacro -%}
+{%- macro logs_link(name) -%}
+[Logs](https://app.datadoghq.com/logs?query=experiment%3A{{ name | urlencode }}%20job_id%3A{{ job.id }}&agg_m=count&agg_m_source=base&agg_q=%40span.url&agg_q_source=base&agg_t=count&fromUser=true&index=single-machine-performance-target-logs&messageDisplay=inline&refresh_mode=paused&storage=hot&stream_sort=time%2Cdesc&top_n=100&top_o=top&viz=stream&x_missing=true&from_ts={{ filter_start }}&to_ts={{ filter_end }}&live=false)
+{%- endmacro -%}
+{%- macro bounds_dashboard_link(name) -%}
+[bounds checks dashboard](https://app.datadoghq.com/dashboard/vz3-jd5-bdi?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ name | urlencode }}&tpl_var_job_id%5B0%5D={{ job.id }}&view=spans&from_ts={{ start_ms }}&to_ts={{ end_ms }}&live=false)
+{%- endmacro -%}
+{%- macro debug_dashboard_link(rep) -%}
+[Debug Dashboard](https://app.datadoghq.com/dashboard/zv5-qgi-m66/smp-failed-replicates?fromUser=true&refresh_mode=paused&tpl_var_experiment%5B0%5D={{ rep.experiment | urlencode }}&tpl_var_job_id%5B0%5D={{ job.id }}&tpl_var_replicate_type%5B0%5D={{ rep.replicate_type }}&tpl_var_variant%5B0%5D={{ rep.variant }}&from_ts={{ filter_start }}&to_ts={{ filter_end }}&live=false)
+{%- endmacro -%}
+{%- macro header_link(template_name) -%}
+{%- if template_name == "metrics_dashboard" -%}{{ metrics_dashboard_link() }}
+{%- elif template_name == "profiles" -%}{{ profiles_link() }}
+{%- endif -%}
+{%- endmacro -%}
+{%- macro experiment_links(name, templates) -%}
+{%- for template_name in templates -%}
+{%- if not loop.first %} {% endif -%}
+{%- if template_name == "logs" -%}{{ logs_link(name) }}
+{%- elif template_name == "bounds_dashboard" -%}{{ bounds_dashboard_link(name) }}
+{%- endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+{%- macro default_experiment_links(name) -%}
+{{ experiment_links(name, extra.links.experiments[name].default) }}
+{%- endmacro -%}
+{%- macro debug_link(rep) -%}
+{%- for template_name in extra.links.failed_replicates -%}
+{%- if not loop.first %} {% endif -%}
+{%- if template_name == "debug_dashboard" -%}{{ debug_dashboard_link(rep) }}{% endif -%}
+{%- endfor -%}
+{%- endmacro -%}
+
+{#- Table macros. -#}
+{%- macro delta_cell(exp) -%}
+{{ "%+.2f" | format(exp.optimization_goal.result.percent_change) }}
+{%- endmacro -%}
+{%- macro optimization_links(exp) -%}
+{{ experiment_links(exp.name, extra.links.experiments[exp.name].optimization_goal) }}
+{%- endmacro -%}
+{%- macro check_links(check) -%}
+{{ experiment_links(check.experiment, extra.links.experiments[check.experiment].checks[check.check_name]) }}
+{%- endmacro -%}
+{%- macro goal_table(rows) -%}
+{{ rows | table([
+  ["perf", "", "format_perf_symbol"],
+  ["experiment", "name"],
+  ["goal", "optimization_goal.goal", "format_goal_label"],
+  ["Δ mean %", delta_cell],
+  ["Δ mean % CI", "optimization_goal.result.confidence_interval", "format_confidence_interval"],
+  ["trials", "optimization_goal.trial_count"],
+  ["links", optimization_links],
+]) }}
+{%- endmacro -%}
+{%- macro check_table(rows) -%}
+{{ rows | table([
+  ["perf", "", "check_format_perf_symbol"],
+  ["experiment", "experiment"],
+  ["bounds_check_name", "", "check_format_name"],
+  ["replicates_passed", "", "check_format_replicates_passed"],
+  ["observed_value", "", "check_format_observed_value"],
+  ["links", check_links],
+]) }}
+{%- endmacro -%}
+{#- ## Header -#}
+# Regression Detector Results
+
+{% for template_name in extra.links.header -%}
+{{ header_link(template_name) }}\
+{% endfor -%}
+Job ID: {{ job.id }}
+
+Baseline: {{ job.baseline_sha }}
+Comparison: {{ job.comparison_sha }}
+{%- if shas_are_shas(job.baseline_sha, job.comparison_sha) %}
+[Diff]({{ job.baseline_sha }}...{{ job.comparison_sha }})
+{%- endif %}
+
+
+{# ## Missing exps -#}
+{% if xps_with_missing_results -%}
+## ❌ Experiments with missing or malformed data
+
+This is a critical error. No usable optimization goal data was produced by the listed experiments. This may be a result of misconfiguration. Ping #single-machine-performance and we can help out.
+
+{% for name in xps_with_missing_results -%}
+* {{ name }} ({{ default_experiment_links(name) }})
+{% endfor %}
+
+{% endif -%}
+
+{# ## Missing analysis -#}
+{%- if xps_with_crashed_replicates -%}
+## ❌ Experiments with missing analysis due to target crashes
+
+This is a critical error. One or more replicates failed with a non-zero exit code. No optimization goal or bounds check analysis will be present for these experiment(s). Ping #single-machine-performance and we can help out. See Replicate Execution Details for more information.
+
+{% for name in xps_with_crashed_replicates -%}
+* {{ name }}
+{% endfor %}
+{% endif -%}
+
+{# ## Retried -#}
+{%- if xps_with_retried_replicates -%}
+## ❌ Experiments with retried target crashes
+
+This is a critical error. One or more replicates failed with a non-zero exit code. These replicates may have been retried. See Replicate Execution Details for more information.
+
+{% for name in xps_with_retried_replicates -%}
+* {{ name }}
+{% endfor %}
+{% endif -%}
+
+{# ## Failed analyses -#}
+{%- if report.analysis_errors -%}
+## ⚠️ Analysis Errors
+
+The following analyses failed:
+{%- for error in report.analysis_errors %}
+- **{{ error.experiment }}** - {{ error.check_name }}: {{ error.message }}
+{%- endfor %}
+{% endif -%}
+
+{# ## Optimization goals #}
+{%- if xps_with_significant_changes %}
+{% if regressions -%}
+## Optimization Goals: ❌ Regression(s) detected
+{% else -%}
+## Optimization Goals: ✅ Improvement(s) detected
+{% endif %}
+{{ goal_table(xps_with_significant_changes) }}
+{% else -%}
+## Optimization Goals: ✅ No significant changes detected
+{% endif %}
+{% set ignored = goals | selectattr("erratic") | list -%}
+{% if ignored %}<details>
+<summary><h2>
+Experiments ignored for regressions
+</h2></summary>
+
+Regressions in experiments with settings containing `erratic: true` are ignored.
+
+{{ goal_table(ignored) }}</details>
+{% endif %}
+<details>
+<summary><h2>
+Fine details of change detection per experiment
+</h2></summary>
+
+{{ goal_table(goals) }}
+{#- no goals experiments -#}
+{%- set xps_without_goals = report.experiments | rejectattr("optimization_goal")
+    | map(attribute="name") | sort | list -%}
+{%- if xps_without_goals -%}
+<h2>
+Experiments with no optimization goal
+</h2>
+Experiments with `optimization_goal: none` do not run analysis.
+
+{{ xps_without_goals | table([
+  ["experiment", ""],
+  ["links", default_experiment_links],
+]) }}
+{%- endif -%}
+</details>
+
+{# ## Checks -#}
+{% if checks %}
+{% if report.experiments | bounds_checks_all_passed -%}
+<details>
+<summary><h2>
+Bounds Checks: ✅ Passed
+</h2></summary>
+
+{{ check_table(checks) }}</details>
+
+{% else -%}
+## Bounds Checks: ❌ Failed
+
+{{ check_table(checks) }}
+{% endif %}
+{% endif -%}
+
+{# ## Methodology -#}
+<details>
+<summary><h2>
+Explanation
+</h2></summary>
+
+**Confidence level:** {{ job.tolerances.p_value | pvalue_to_confidence | format_percent }}
+**Effect size tolerance:** |Δ mean %| ≥ {{ job.tolerances.effect_size | format_percent }}
+
+Performance changes are noted in the **perf** column of each table:
+
+* ✅ = significantly better comparison variant performance
+* ❌ = significantly worse comparison variant performance
+* ➖ = no significant change in performance
+
+A regression test is an A/B test of target performance in a repeatable rig, where "performance" is measured as "comparison variant minus baseline variant" for an optimization goal (e.g., ingress throughput). Due to intrinsic variability in measuring that goal, we can only estimate its mean value for each experiment; we report uncertainty in that value as a {{ job.tolerances.p_value | pvalue_to_confidence | format_percent }} confidence interval denoted "Δ mean % CI".
+
+For each experiment, we decide whether a change in performance is a "regression" -- a change worth investigating further -- if all of the following criteria are true:
+
+1. Its estimated |Δ mean %| ≥ {{ job.tolerances.effect_size | format_percent }}, indicating the change is big enough to merit a closer look.
+
+2. Its {{ job.tolerances.p_value | pvalue_to_confidence | format_percent }} confidence interval "Δ mean % CI" does not contain zero, indicating that *if our statistical model is accurate*, there is at least a {{ job.tolerances.p_value | pvalue_to_confidence | format_percent }} chance there is a difference in performance between baseline and comparison variants.
+
+3. Its configuration does not mark it "erratic".
+</details>
+
+{# ## Failed replicates -#}
+{% if failed_replicates_grouped.any -%}
+{%- macro replicate_table(rows) -%}
+  {{ rows | table([
+    ["Experiment", "experiment"],
+    ["Variant", "variant"],
+    ["Replicates", "replicates", "format_replicate_buckets"],
+    ["Failure", "failure", "format_replicate_failure"],
+    ["Debug Dashboard", debug_link],
+  ]) }}
+{%- endmacro %}
+<details>
+<summary><h2>
+Replicate Execution Details
+</h2></summary>
+We run multiple replicates for each experiment/variant. However, we allow replicates to be automatically retried if there are any failures, up to 8 times, at which point the replicate is marked dead and we are unable to run analysis for the entire experiment. We call each of these attempts at running replicates a replicate execution. This section lists all replicate executions that failed due to the target crashing or being oom killed.
+
+Note: In the below tables we bucket failures by experiment, variant, and failure type. For each of these buckets we list out the replicate indexes that failed with an annotation signifying how many times said replicate failed with the given failure mode. In the below example the baseline variant of the experiment named experiment_with_failures had two replicates that failed by oom kills. Replicate 0, which failed 8 executions, and replicate 1 which failed 6 executions, all with the same failure mode.
+
+| Experiment         | Variant    | Replicates | Failure    | Logs | Debug Dashboard                                                                                                                                                                                                                                                                                                                                                                                     |
+|--------------------|------------|------------|------------|------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| experiment_with_failures        | baseline   | 0 (x8) 1 (x6)    | Oom killed |      | Debug Dashboard        |
+
+The debug dashboard links will take you to a debugging dashboard specifically designed to investigate replicate execution failures.
+{# Server-side rendering leaks blank lines around skipped sections; we do
+   not reproduce that, so reports may differ in whitespace when sections are
+   absent. #}
+{% if failed_replicates_grouped.retried_nonprofiling | length > 0 %}
+## ❌ Retried Normal Replicate Execution Failures (non-profiling)
+
+{{ replicate_table(failed_replicates_grouped.retried_nonprofiling) }}
+{% endif %}
+{% if failed_replicates_grouped.dead_nonprofiling | length > 0 %}
+## ❌ Normal Replicate Execution Failures (non-profiling)
+
+{{ replicate_table(failed_replicates_grouped.dead_nonprofiling) }}
+{% endif %}
+{% if failed_replicates_grouped.retried_ddprof | length > 0 %}
+## ❌ Retried Profiling Replicate Execution Failures (ddprof)
+Note: Profiling replicas may still be executing. See the debug dashboard for up to date status.
+
+{{ replicate_table(failed_replicates_grouped.retried_ddprof) }}
+{% endif %}
+{% if failed_replicates_grouped.dead_ddprof | length > 0 %}
+## ❌ Profiling Replicate Execution Failures (ddprof)
+Note: Profiling replicas may still be executing. See the debug dashboard for up to date status.
+
+{{ replicate_table(failed_replicates_grouped.dead_ddprof) }}
+{% endif %}
+{% if failed_replicates_grouped.retried_internal | length > 0 %}
+## ❌ Retried Profiling Replicate Execution Failures (target internal profiling)
+Note: Profiling replicas may still be executing. See the debug dashboard for up to date status.
+
+{{ replicate_table(failed_replicates_grouped.retried_internal) }}
+{% endif %}
+{% if failed_replicates_grouped.dead_internal | length > 0 %}
+## ❌ Profiling Replicate Execution Failures (target internal profiling)
+Note: Profiling replicas may still be executing. See the debug dashboard for up to date status.
+
+{{ replicate_table(failed_replicates_grouped.dead_internal) }}
+
+{% endif -%}
+</details>
+{% endif -%}
+
+{{ extra.tail_section }}
