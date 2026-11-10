@@ -39,28 +39,52 @@ module Omnibus
       super
     end
 
+    # Signs with windows-code-signer.exe from the build image, which uses the job's CI Identity AWS
+    # credentials (written by the assume-role call in buildwin.bat) instead of the runner instance profile.
     def ddwcssign(file)
       log.info(self.class.name) { "Signing #{file}" }
-      cmd = Array.new.tap do |arr|
-          arr << "dd-wcs"
+
+      # Signing is inherently flaky as the timestamp server may not be available
+      # retry a few times
+      max_retries = 3
+      attempts = 0
+      delay = 2
+
+      begin
+        attempts += 1
+        cmd = Array.new.tap do |arr|
+          arr << "C:/devtools/windows-code-signer.exe"
           arr << "sign"
           arr << "\"#{file}\""
-      end.join(" ")
-      status = shellout(cmd)
-      if status.exitstatus != 0
-        log.warn(self.class.name) do
-        <<-EOH.strip
-          Failed to sign with dd-wcs
+        end.join(" ")
 
-          STDOUT
-          ------
-          #{status.stdout}
+        status = shellout(cmd)
+        if status.exitstatus != 0
+          log.warn(self.class.name) do
+            <<-EOH.strip
+              Failed to sign with windows-code-signer.exe (Attempt #{attempts} of #{max_retries})
 
-          STDERR
-          ------
-          #{status.stderr}
-        EOH
+              STDOUT
+              ------
+              #{status.stdout}
+
+              STDERR
+              ------
+              #{status.stderr}
+            EOH
+          end
+          raise "Failed to sign with windows-code-signer.exe"
+        else
+          log.info(self.class.name) { "Successfully signed #{file} using windows-code-signer.exe after #{attempts} attempt(s)" }
         end
+      rescue => e
+        # Retry logic: raise error after 3 attempts
+        if attempts < max_retries
+          log.info(self.class.name) { "Retrying signing #{file} (Attempt #{attempts + 1})" }
+          sleep(delay)
+          retry
+        end
+        raise "Failed to sign with windows-code-signer.exe: #{e.message}"
       end
     end
 

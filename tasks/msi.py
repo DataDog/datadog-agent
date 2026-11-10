@@ -135,7 +135,8 @@ def _fix_makesfxca_dll(path):
 def sign_file(ctx, path, force=False):
     dd_wcs_enabled = os.environ.get('SIGN_WINDOWS_DD_WCS')
     if dd_wcs_enabled or force:
-        return ctx.run(f'dd-wcs sign {path}')
+        # windows-code-signer.exe uses the job's CI Identity AWS credentials (see buildwin.bat)
+        return ctx.run(f'C:/devtools/windows-code-signer.exe sign "{path}"')
 
 
 def _build(
