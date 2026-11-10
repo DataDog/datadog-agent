@@ -60,10 +60,14 @@ bazel:run-gazelle:
 bazel:run-go-mod-tidy:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
-    # Run the same tidy workflow as the pre-push hook, including generated Bazel files.
-    - dda inv -- -e tidy
-    # Include newly generated files (e.g. BUILD.bazel) in the diff as well.
-    - git add --intent-to-add .
-    - git diff --exit-code HEAD
+    - bazel run //:go_mod_tidy_all -- -diff
   variables:
-    REMEDIATION: "dda inv tidy"
+    REMEDIATION: "bazel run //:go_mod_tidy_all"
+
+bazel:write-test-binaries-bzl:
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
+  script:
+    - dda inv -- -e new-e2e-tests.write-test-binaries-bzl
+    - git diff --exit-code -- test/new-e2e/tests/test_binaries.bzl
+  variables:
+    REMEDIATION: "dda inv new-e2e-tests.write-test-binaries-bzl"
