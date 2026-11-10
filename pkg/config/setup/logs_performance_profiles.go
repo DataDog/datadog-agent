@@ -93,7 +93,7 @@ var logsPerformanceProfiles = map[string]logsPerformanceProfile{
 	"high-compression": {
 		description: "Reduce network bytes at the cost of CPU (higher zstd compression level; no effect when logs are sent with gzip, the default with additional_endpoints).",
 		settings: map[string]interface{}{
-			"logs_config.zstd_compression_level": 6,
+			"logs_config.zstd_compression_level": 5,
 		},
 	},
 }

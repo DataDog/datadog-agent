@@ -74,7 +74,7 @@ logs_config:
 
 	ApplyLogsPerformanceProfile(cfg)
 
-	assert.Equal(t, 6, cfg.GetInt("logs_config.zstd_compression_level"))
+	assert.Equal(t, 5, cfg.GetInt("logs_config.zstd_compression_level"))
 	assert.False(t, cfg.IsConfigured("logs_config.compression_kind"),
 		"a profile-written compression_kind would disable the gzip fallback for additional endpoints")
 }
