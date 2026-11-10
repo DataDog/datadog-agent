@@ -118,6 +118,18 @@ f, err := os.Open(path)
 Using `os` constants (`os.O_RDONLY`, `os.FileMode`) and types (`*os.File` for stdin) is fine;
 only the filesystem-accessing *functions* are forbidden.
 
+#### Restricted usermod POC
+
+`usermod` MUST use only `CallContext.AddDDAgentToDocker`. The capability accepts
+no target or replacement input and is supplied only during authorized elevated
+remediation dispatch. Its Linux backend MUST enforce writable AllowedPaths,
+no-follow single-linked regular-file handles, fixed local user/group validation,
+bounded snapshots, pre-write recovery copies and explicit write-error reporting.
+It MUST NOT change the kernel sandbox or signature policy. This POC explicitly
+uses non-crash-atomic in-place updates and only lckpwdf-compatible serialization;
+see the README's operational restrictions. Do not generalize its capability to
+arbitrary identity files, users, groups or metadata operations.
+
 #### Trusted systemd target exception
 
 Systemd-aware builtins MUST use the structured services on `callCtx.Systemd` and

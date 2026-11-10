@@ -27,6 +27,9 @@ package analysis
 // Every symbol listed here must also appear in builtinAllowedSymbols
 // (which acts as the global ceiling).
 var builtinPerCommandSymbols = map[string][]string{
+	"usermod": {
+		"context.Context", // 🟢 cancellation of the fixed elevated account capability; no direct I/O.
+	},
 	"awk": {
 		"bufio.NewScanner",                // 🟢 line-by-line record reading; no write or exec capability.
 		"bufio.Scanner",                   // 🟢 scanner type retained for incremental main-input reads; no write or exec capability.
@@ -866,6 +869,7 @@ var builtinPerCommandSymbols = map[string][]string{
 //
 // Every entry must match a field name declared in builtins/builtins.go.
 var callCtxAllFields = []string{
+	"AddDDAgentToDocker",
 	"AccessFile",
 	"AllowedPathsList",
 	"AllowedSystemServicesList",
@@ -912,6 +916,7 @@ var callCtxAllFields = []string{
 //   - "ChangeDir" (working-directory mutation) must appear only in "cd".
 //   - "SetVar" (shell-variable mutation) must appear only in "read".
 var builtinPerCommandCallContextFields = map[string][]string{
+	"usermod": {"AddDDAgentToDocker"},
 	"awk": {
 		"Env",
 		"OpenFile",

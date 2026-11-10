@@ -273,6 +273,10 @@ type CallContext struct {
 	// within the shell's path restrictions. Mode: 0x04=read, 0x02=write, 0x01=execute.
 	AccessFile func(ctx context.Context, path string, mode uint32) error
 
+	// AddDDAgentToDocker performs the fixed Linux POC under authorized elevation.
+	// Nil outside an elevated remediation dispatch; the backend enforces AllowedPaths.
+	AddDDAgentToDocker func(context.Context) error
+
 	// Truncate sets the size of the file at path within the shell's path
 	// restrictions. When create is true, a missing file is created (mode
 	// 0666 & ~umask); when create is false, a missing file returns
