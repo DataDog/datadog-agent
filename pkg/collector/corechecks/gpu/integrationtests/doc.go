@@ -34,9 +34,12 @@ installed root-owned in /opt/datadog-agent/embedded/share/system-probe/ebpf (or 
 named by GPU_TEST_SYSTEM_PROBE_BPF_DIR). `dda inv system-probe.build` builds both:
 
 	dda inv system-probe.build
-	dda inv test --targets=./pkg/collector/corechecks/gpu/integrationtests
+	bazel build //pkg/collector/corechecks/gpu/integrationtests:integrationtests_test_nvml
 	sudo env GPU_TEST_SYSTEM_PROBE_BIN=$PWD/bin/system-probe/system-probe GPU_BURNER_BIN=... \
-		<bazel-bin>/pkg/collector/corechecks/gpu/integrationtests/integrationtests_test_nvml_/integrationtests_test_nvml -test.run '^TestSpec'
+		bazel-bin/pkg/collector/corechecks/gpu/integrationtests/integrationtests_test_nvml_/integrationtests_test_nvml -test.run '^TestSpec'
+
+When a test fails, the system-probe output and logs are kept in a gpu-spec-system-probe-* directory
+under /tmp, and the test log names it.
 
 Run it while no other system-probe with the GPU eBPF probes is running on the host.
 */
