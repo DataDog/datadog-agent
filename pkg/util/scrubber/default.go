@@ -203,7 +203,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
 	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
-		walk(&data, "", func(key string, _ string, _ any) (bool, any) {
+		scrubber.walk(&data, "", func(key string, _ string, _ any) (bool, any) {
 			switch key {
 			// ADD rule info that can be shown
 			case "id", "license":

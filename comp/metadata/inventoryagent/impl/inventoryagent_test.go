@@ -872,6 +872,33 @@ func TestFetchSecrets(t *testing.T) {
 	}, ia.Get()["enc_info"])
 }
 
+func TestFetchSecretsSanitizesPaths(t *testing.T) {
+	secretsComp := secretsmock.New(t)
+	secretsComp.SetPathsAndHandles(
+		[]string{"some_setting.https://alice:********@proxy.example.com.token"},
+		[]string{"my_handle"},
+	)
+	p := getProvides(t, map[string]any{
+		"some_setting": map[string]any{
+			"https://alice:raw-url-secret@proxy.example.com": map[string]any{"password": "hunter2"},
+		},
+	}, nil, fx.Provide(func() secrets.Component { return secretsComp }))
+	ia := p.Comp.(*inventoryagent)
+	ia.fetchSecretsMetadata()
+
+	encInfo := ia.Get()["enc_info"].(map[string]interface{})
+	assert.Equal(t, []string{"some_setting.https://alice:********@proxy.example.com.token"}, encInfo["paths"])
+	assert.Equal(t, []string{"some_setting.https://alice:********@proxy.example.com.password"}, encInfo["scrubbed"])
+	assert.Equal(t, []string{"my_handle"}, encInfo["handles"])
+
+	// Check the backend payload without the additional flare or endpoint scrubbing.
+	payload, err := ia.data.GetPayload(nil, "test-uuid").MarshalJSON()
+	require.NoError(t, err)
+	for _, secret := range []string{"raw-url-secret", "hunter2"} {
+		assert.NotContains(t, string(payload), secret)
+	}
+}
+
 func TestFetchSecretsOmitted(t *testing.T) {
 	secretsComp := secretsmock.New(t)
 	secretsComp.SetPathsAndHandles([]string{"api_key"}, []string{"my_key"})

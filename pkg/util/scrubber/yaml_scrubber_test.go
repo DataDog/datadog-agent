@@ -1373,6 +1373,15 @@ headers: Bearer some-token-value
 			expected: []string{"custom_setting", "dd_url", "headers"},
 		},
 		{
+			name: "credentials in map keys are not reported in paths",
+			input: `
+some_setting:
+  "https://alice:url-secret@proxy.example.com":
+    password: hunter2
+`,
+			expected: []string{"some_setting.https://alice:********@proxy.example.com.password"},
+		},
+		{
 			name: "list elements are reported by index",
 			input: `
 forwarder_keys:

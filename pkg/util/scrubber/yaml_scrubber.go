@@ -30,16 +30,16 @@ func joinPath(prefix string, elem string) string {
 	return prefix + "." + elem
 }
 
-func walkSlice(data []interface{}, prefix string, callback scrubCallback) {
+func (c *Scrubber) walkSlice(data []interface{}, prefix string, callback scrubCallback) {
 	for i, k := range data {
 		path := joinPath(prefix, strconv.Itoa(i))
 		switch v := k.(type) {
 		case map[interface{}]interface{}:
-			walkHash(v, path, callback)
+			c.walkHash(v, path, callback)
 		case []interface{}:
-			walkSlice(v, path, callback)
+			c.walkSlice(v, path, callback)
 		case map[string]interface{}:
-			walkStringMap(v, path, callback)
+			c.walkStringMap(v, path, callback)
 		case string:
 			if match, newValue := callback("", path, v); match {
 				data[i] = newValue
@@ -48,10 +48,10 @@ func walkSlice(data []interface{}, prefix string, callback scrubCallback) {
 	}
 }
 
-func walkHash(data map[interface{}]interface{}, prefix string, callback scrubCallback) {
+func (c *Scrubber) walkHash(data map[interface{}]interface{}, prefix string, callback scrubCallback) {
 	for k, v := range data {
 		keyString, isString := k.(string)
-		path := joinPath(prefix, fmt.Sprint(k))
+		path := joinPath(prefix, c.scrubYamlText(fmt.Sprint(k)))
 		if isString {
 			if match, newValue := callback(keyString, path, v); match {
 				data[keyString] = newValue
@@ -61,25 +61,25 @@ func walkHash(data map[interface{}]interface{}, prefix string, callback scrubCal
 
 		switch v := data[k].(type) {
 		case map[interface{}]interface{}:
-			walkHash(v, path, callback)
+			c.walkHash(v, path, callback)
 		case []interface{}:
-			walkSlice(v, path, callback)
+			c.walkSlice(v, path, callback)
 		}
 	}
 }
 
-func walkStringMap(data map[string]interface{}, prefix string, callback scrubCallback) {
+func (c *Scrubber) walkStringMap(data map[string]interface{}, prefix string, callback scrubCallback) {
 	for k, v := range data {
-		path := joinPath(prefix, k)
+		path := joinPath(prefix, c.scrubYamlText(k))
 		if match, newValue := callback(k, path, v); match {
 			data[k] = newValue
 			continue
 		}
 		switch v := data[k].(type) {
 		case map[string]interface{}:
-			walkStringMap(v, path, callback)
+			c.walkStringMap(v, path, callback)
 		case []interface{}:
-			walkSlice(v, path, callback)
+			c.walkSlice(v, path, callback)
 		}
 
 	}
@@ -87,18 +87,18 @@ func walkStringMap(data map[string]interface{}, prefix string, callback scrubCal
 
 // walk will go through loaded data and call callback on every strings allowing
 // the callback to overwrite the string value. prefix is the path of data itself.
-func walk(data *interface{}, prefix string, callback scrubCallback) {
+func (c *Scrubber) walk(data *interface{}, prefix string, callback scrubCallback) {
 	if data == nil {
 		return
 	}
 
 	switch v := (*data).(type) {
 	case map[interface{}]interface{}:
-		walkHash(v, prefix, callback)
+		c.walkHash(v, prefix, callback)
 	case []interface{}:
-		walkSlice(v, prefix, callback)
+		c.walkSlice(v, prefix, callback)
 	case map[string]interface{}:
-		walkStringMap(v, prefix, callback)
+		c.walkStringMap(v, prefix, callback)
 	case string:
 		if match, newValue := callback("", prefix, v); match {
 			*data = newValue
@@ -114,7 +114,7 @@ func (c *Scrubber) ScrubDataObj(data *interface{}) {
 
 // scrubDataObjAt is like ScrubDataObj for data found at the given path, which prefixes the recorded paths
 func (c *Scrubber) scrubDataObjAt(data *interface{}, prefix string) {
-	walk(data, prefix, c.scrubDataValue)
+	c.walk(data, prefix, c.scrubDataValue)
 }
 
 func (c *Scrubber) scrubDataValue(key string, path string, value interface{}) (bool, interface{}) {

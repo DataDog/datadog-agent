@@ -839,7 +839,7 @@ func (r *secretResolver) RemoveOrigin(origin string) {
 // mainConfigOrigin is the origin of secrets found in the main Agent configuration
 const coreAgentConfig = "datadog.yaml"
 
-// GetPathsAndHandles returns the setting path and handle of every place a secret appears in the configuration
+// GetPathsAndHandles returns the sanitized setting path and handle of every place a secret appears in the configuration
 func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
@@ -895,7 +895,11 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	paths := make([]string, 0, len(entries))
 	handles := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		path := strings.Join(entry.path, ".")
+		parts := slices.Clone(entry.path)
+		for i := range parts {
+			parts[i], _ = scrubber.ScrubString(parts[i])
+		}
+		path := strings.Join(parts, ".")
 		// omit the datadog.yaml origin
 		// other origins are integrations, prefixed by the name given to SetOriginName
 		if entry.originName != coreAgentConfig {
