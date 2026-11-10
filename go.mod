@@ -39,7 +39,7 @@ require (
 	code.cloudfoundry.org/garden v0.10.0
 	code.cloudfoundry.org/lager/v3 v3.93.0
 	dario.cat/mergo v1.0.2
-	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.23.3
+	github.com/Azure/azure-sdk-for-go/sdk/azcore v1.24.0
 	github.com/Azure/azure-sdk-for-go/sdk/azidentity v1.15.0
 	github.com/Azure/azure-sdk-for-go/sdk/security/keyvault/azsecrets v1.5.1
 	github.com/CycloneDX/cyclonedx-go v0.12.0

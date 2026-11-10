@@ -83,6 +83,7 @@ core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/body,MIT,Copy
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/fake,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/loc,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/pollers/op,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
+core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/sanitizer,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/internal/shared,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/log,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
 core,github.com/Azure/azure-sdk-for-go/sdk/azcore/policy,MIT,Copyright (c) Microsoft Corporation | Copyright (c) Microsoft Corporation.
