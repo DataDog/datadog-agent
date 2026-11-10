@@ -400,8 +400,8 @@ github.com/mattn/go-colorable v0.1.16 h1:+2YjeAe7xP1OQbZW1jERPWWCDLlNqFNCvjiqGiA
 github.com/mattn/go-colorable v0.1.16/go.mod h1:6LmQG8QLFO4G5z1gPvYEzlUgJ2wF+stgPZH1UqBm1s8=
 github.com/mattn/go-isatty v0.0.24 h1:tGZZoVgT/KiqK1c8ocVLeDS8BSWMRd47J3Lbz7vsReI=
 github.com/mattn/go-isatty v0.0.24/go.mod h1:nMCL3Zebbrt45jsMDgnfIwz6ydEQApk5oEI3HqDio6A=
-github.com/mattn/go-runewidth v0.0.29 h1:3oGF3R/S2N9DQ3ptftzVIvg2eicmojCzlwBEmqEPDfQ=
-github.com/mattn/go-runewidth v0.0.29/go.mod h1:3qAiGCV4Koz/yuveO58qUefmUTRm8r0IGEXZ9jeHp/8=
+github.com/mattn/go-runewidth v0.0.31 h1:1oCV4ReTlosDBc6rYRw5cL8S/4y8iv5oRl4SJ5IBgwo=
+github.com/mattn/go-runewidth v0.0.31/go.mod h1:3qAiGCV4Koz/yuveO58qUefmUTRm8r0IGEXZ9jeHp/8=
 github.com/mattn/go-zglob v0.0.2-0.20191112051448-a8912a37f9e7 h1:6HgbBMgs3hI9y1/MYG0r9j6daUubUskZNsEW4fkWR/k=
 github.com/mattn/go-zglob v0.0.2-0.20191112051448-a8912a37f9e7/go.mod h1:9fxibJccNxU2cnpIKLRRFA7zX7qhkJIQWBb449FYHOo=
 github.com/mgechev/revive v1.17.1 h1:z8hV0L3uJ6yrwOMnJbkc5qBJpxXa2AxYKFKERGJyA4s=
