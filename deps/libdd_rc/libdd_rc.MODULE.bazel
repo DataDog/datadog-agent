@@ -65,11 +65,19 @@ crate.annotation(
 # AWS-LC is built into librc_x509_ffi.a; the Agent's package metadata rule
 # references its exact upstream license text. On Windows, use AWS-LC's prebuilt
 # assembly objects instead of requiring NASM; other platforms ignore this.
+#
+# Build AWS-LC's size-optimized variant (OPENSSL_SMALL): it drops large
+# precomputed tables and AVX-512 assembly, at the cost of slower elliptic-curve
+# operations. aws-lc-sys only enables it on its own for opt-level "s" or "z",
+# which Bazel never passes to build scripts, so request it explicitly.
 crate.annotation(
     additive_build_file_content = """
 exports_files(["LICENSE"], visibility = ["//visibility:public"])
 """,
-    build_script_env = {"AWS_LC_SYS_PREBUILT_NASM": "1"},
+    build_script_env = {
+        "AWS_LC_SYS_PREBUILT_NASM": "1",
+        "AWS_LC_SYS_SMALL": "1",
+    },
     crate = "aws-lc-sys",
     repositories = ["libdd_rc_crates"],
 )
