@@ -8,6 +8,7 @@
 package report
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -2131,4 +2132,89 @@ func TestSendCircuitQoSMetricsSkipsUnsetPercentDrop(t *testing.T) {
 
 	mockSender.AssertNotCalled(t, "Gauge", versaMetricPrefix+"circuit_qos.percent_drop", mock.Anything, mock.Anything, mock.Anything)
 	mockSender.AssertNumberOfCalls(t, "Gauge", 15)
+}
+
+func TestSendPathQoSMetricsSkipsUnsetPercentDrop(t *testing.T) {
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("Gauge", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return()
+	s := NewSender(mockSender, "default")
+	s.SendPathQoSMetrics("datadog", []client.QoSMetrics{{
+		DrillKey: "site-001,site-002", LocalSiteName: "site-001", RemoteSiteName: "site-002",
+		PercentDropUnset: true,
+	}}, nil)
+
+	mockSender.AssertNotCalled(t, "Gauge", versaMetricPrefix+"qos.percent_drop", mock.Anything, mock.Anything, mock.Anything)
+	mockSender.AssertNumberOfCalls(t, "Gauge", 15)
+}
+
+// pathQoSTimeseriesBody builds a small timeseries pathcos response in the shape Versa
+// returns: percentdrop is zero in every bucket even though totaldrop is not.
+func pathQoSTimeseriesBody(t *testing.T) []byte {
+	buckets := []float64{1704067200000, 1704068100000, 1704069000000}
+	values := map[string][]float64{
+		"volume-tx":   {2000, 4000, 1000},
+		"totaldrop":   {10, 0, 5},
+		"percentdrop": {0, 0, 0},
+		"bandwidth":   {16000, 32000, 8000},
+	}
+	var series []map[string]any
+	for _, metric := range []string{
+		"betx", "betxdrop", "eftx", "eftxdrop", "aftx", "aftxdrop", "nctx", "nctxdrop",
+		"bebandwidth", "efbandwidth", "afbandwidth", "ncbandwidth",
+		"volume-tx", "totaldrop", "percentdrop", "bandwidth",
+	} {
+		v, ok := values[metric]
+		if !ok {
+			v = []float64{0, 0, 0}
+		}
+		var points [][]float64
+		for i, ts := range buckets {
+			points = append(points, []float64{ts, v[i]})
+		}
+		series = append(series, map[string]any{
+			"name": "site-001,site-002", "type": "data", "metric": metric, "metricName": metric, "data": points,
+		})
+	}
+	body, err := json.Marshal(map[string]any{"qTime": 1, "data": series})
+	require.NoError(t, err)
+	return body
+}
+
+// TestPathQoSTimeseriesPercentDropEndToEnd runs a timeseries pathcos response through the
+// client and sender and checks qos.percent_drop is computed rather than Versa's zero.
+func TestPathQoSTimeseriesPercentDropEndToEnd(t *testing.T) {
+	mockAPI := client.SetupMockAPIServer()
+	defer mockAPI.Close()
+	body := pathQoSTimeseriesBody(t)
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Query().Get("q"), "pathcos(") {
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write(body)
+			return
+		}
+		mockAPI.Config.Handler.ServeHTTP(w, r)
+	}))
+	defer server.Close()
+	c, err := client.NewTestClient(server, client.WithAnalyticsQueryType(client.QueryTypeTimeseries))
+	require.NoError(t, err)
+
+	metrics, err := c.GetPathQoSMetrics("datadog")
+	require.NoError(t, err)
+	// Three buckets, of which the newest is held back as still filling.
+	require.Len(t, metrics, 2)
+
+	TimeNow = mockTimeNow
+	mockSender := mocksender.NewMockSender(t, "testID")
+	mockSender.On("GaugeWithTimestamp", mock.Anything, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+	s := NewSender(mockSender, "default")
+	s.SendPathQoSMetrics("datadog", metrics, nil)
+
+	var percentDrops []float64
+	for _, call := range mockSender.Calls {
+		if call.Method == "GaugeWithTimestamp" && call.Arguments.String(0) == versaMetricPrefix+"qos.percent_drop" {
+			percentDrops = append(percentDrops, call.Arguments.Get(1).(float64))
+		}
+	}
+	// 10/2000 for the bucket with drops, and a real 0 for the bucket without.
+	require.Equal(t, []float64{0.005, 0}, percentDrops)
 }

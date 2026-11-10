@@ -488,8 +488,9 @@ func TestGetQoSMetrics(t *testing.T) {
 			NetworkControlBW:     4000000.0,
 			VolumeTx:             5000.0,
 			TotalDrop:            160.0,
-			PercentDrop:          3.2,
-			Bandwidth:            40000000.0,
+			// tableData keeps Versa's value: 3.2 is not totaldrop/volume-tx (160/5000).
+			PercentDrop: 3.2,
+			Bandwidth:   40000000.0,
 		},
 	}
 	server := SetupMockAPIServer()
@@ -1157,9 +1158,10 @@ func TestGetPathQoSMetricsTimeseries(t *testing.T) {
 		NetworkControlBW:     400.0,
 		VolumeTx:             1850.0,
 		TotalDrop:            10.0,
-		PercentDrop:          0.0054,
-		Bandwidth:            14800.0,
-		Timestamp:            1793967300000,
+		// Computed as totaldrop/volume-tx in timeseries mode, not Versa's 0.0054.
+		PercentDrop: 10.0 / 1850.0,
+		Bandwidth:   14800.0,
+		Timestamp:   1793967300000,
 	}, qosMetrics[0])
 }
 
@@ -1244,4 +1246,19 @@ func TestGetCircuitQoSMetricsTableDataKeepsVersaPercentDrop(t *testing.T) {
 	// 0.54 is not totaldrop/volume-tx (10/1850), so this shows Versa's value is kept.
 	assert.Equal(t, 0.54, metrics[0].PercentDrop)
 	assert.False(t, metrics[0].PercentDropUnset)
+}
+
+func TestComputePercentDropPathQoS(t *testing.T) {
+	metrics := []QoSMetrics{
+		// Versa's zero, with drops: replaced by the ratio.
+		{VolumeTx: 2000, TotalDrop: 10, PercentDrop: 0},
+		// No volume: no defined ratio, so unset rather than a misleading 0.
+		{VolumeTx: 0, TotalDrop: 0, PercentDrop: 0},
+	}
+	computePercentDrop(metrics, func(m *QoSMetrics) (*float64, *float64, *float64, *bool) {
+		return &m.VolumeTx, &m.TotalDrop, &m.PercentDrop, &m.PercentDropUnset
+	})
+	assert.Equal(t, 0.005, metrics[0].PercentDrop)
+	assert.False(t, metrics[0].PercentDropUnset)
+	assert.True(t, metrics[1].PercentDropUnset)
 }
