@@ -41,7 +41,7 @@ type enrichConfig struct {
 	entityIDPrecedenceEnabled bool
 	serverlessMode            bool
 	infraTagger               *infratags.MetricTagger
-	disableTimingUnit         bool
+	enableTimingUnit          bool
 }
 
 // extractTagsMetadata returns tags (client tags + host tag), information needed to query the tagger
@@ -122,10 +122,10 @@ func enrichMetricType(dogstatsdMetricType metricType) metrics.MetricType {
 }
 
 // unitFromMetricType returns the Datadog unit string for a dogstatsd metric type.
-// Only timingType carries an implicit unit ("millisecond"), unless disabled by
-// dogstatsd_disable_timing_unit; all other types return an empty string.
-func unitFromMetricType(mt metricType, disableTimingUnit bool) string {
-	if mt == timingType && !disableTimingUnit {
+// Only timingType carries an implicit unit ("millisecond"), when enabled by
+// dogstatsd_set_timing_unit; all other types return an empty string.
+func unitFromMetricType(mt metricType, enableTimingUnit bool) string {
+	if mt == timingType && enableTimingUnit {
 		return metrics.UnitMilliseconds
 	}
 	return ""
@@ -176,7 +176,7 @@ func enrichMetricSample(dest []metrics.MetricSample, ddSample dogstatsdMetricSam
 	// if 'ddSample.values' contains values we're enriching a multi-value
 	// dogstatsd message and will create a MetricSample per value. If not
 	// we will use 'ddSample.value'and return a single MetricSample
-	unit := unitFromMetricType(ddSample.metricType, conf.disableTimingUnit)
+	unit := unitFromMetricType(ddSample.metricType, conf.enableTimingUnit)
 
 	if len(ddSample.values) > 0 {
 		for idx := range ddSample.values {

@@ -324,7 +324,7 @@ func newServerCompat(cfg model.ReaderWriter, log log.Component, hostname hostnam
 			defaultHostname:           defaultHostname,
 			serverlessMode:            serverless,
 			infraTagger:               infraTagger,
-			disableTimingUnit:         cfg.GetBool("dogstatsd_disable_timing_unit"),
+			enableTimingUnit:          cfg.GetBool("dogstatsd_set_timing_unit"),
 		},
 		wmeta:                   wmeta,
 		telemetry:               telemetrycomp,
