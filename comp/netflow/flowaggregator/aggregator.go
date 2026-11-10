@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 	config "github.com/DataDog/datadog-agent/comp/netflow/config/def"
 	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
+	"github.com/DataDog/datadog-agent/comp/netflow/entropy"
 	"github.com/DataDog/datadog-agent/comp/netflow/goflowlib"
 )
 
@@ -70,6 +71,8 @@ type FlowAggregator struct {
 
 	flowFilter FlowFlushFilter
 	logger     log.Component
+
+	entropy *entropy.Accumulator
 }
 
 type sequenceDeltaKey struct {
@@ -121,6 +124,20 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		appCache = dpi.NewApplicationCache()
 	}
 
+	var entropyAcc *entropy.Accumulator
+	if config.Entropy.Enabled {
+		entropyAcc = entropy.NewAccumulator(entropy.Config{
+			Interval:                 flushConfig.FlowCollectionDuration,
+			Lateness:                 flowContextTTL,
+			MinRecords:               config.Entropy.MinRecords,
+			MinBytes:                 config.Entropy.MinBytes,
+			MaxExporters:             config.Entropy.MaxExporters,
+			MaxInterfacesPerExporter: config.Entropy.MaxInterfacesPerExporter,
+			MaxPeersPerInterface:     config.Entropy.MaxPeersPerInterface,
+			MaxTotalEntries:          config.Entropy.MaxTotalEntries,
+		}, timeNow())
+	}
+
 	return &FlowAggregator{
 		flowIn:                       make(chan *common.Flow, config.AggregatorBufferSize),
 		flowAcc:                      newFlowAccumulator(flushConfig, flowScheduler, flowContextTTL, config.AggregatorPortRollupThreshold, config.AggregatorPortRollupDisabled, logger, rdnsQuerier),
@@ -143,6 +160,7 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 		lastSequencePerExporter:      make(map[sequenceDeltaKey]uint32),
 		logger:                       logger,
 		flowFilter:                   topNFilter,
+		entropy:                      entropyAcc,
 	}
 }
 
@@ -185,6 +203,10 @@ func (agg *FlowAggregator) run() {
 			return
 		case flow := <-agg.flowIn:
 			agg.receivedFlowCount.Inc()
+			// before flowAcc.add, which merges later records into the first one it keeps
+			if agg.entropy != nil {
+				agg.entropy.Add(flow)
+			}
 			agg.flowAcc.add(flow)
 		}
 	}
@@ -394,6 +416,10 @@ func (agg *FlowAggregator) flush(ctx common.FlushContext) int {
 		agg.sendFlows(flowsToFlush, ctx.FlushTime)
 	}
 	agg.sendExporterMetadata(flowsToFlush, ctx.FlushTime)
+
+	if agg.entropy != nil {
+		agg.entropy.CloseWindows(ctx.FlushTime).Submit(agg.sender, agg.logger)
+	}
 
 	flushCount := len(flowsToFlush)
 

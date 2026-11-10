@@ -1687,3 +1687,55 @@ func TestAggregatorFlushing(t *testing.T) {
 		sender.AssertCalled(t, "Gauge", "datadog.netflow.flow_truncation.threshold_value", float64(100), mock.Anything, mock.Anything)
 	})
 }
+
+func TestFlowAggregator_Entropy(t *testing.T) {
+	sender := mocksender.NewMockSender(t, "")
+	sender.SetupAcceptAll()
+	logger := logmock.New(t)
+	rdnsQuerier := fxutil.Test[rdnsquerier.Component](t, rdnsquerierfxmock.MockModule())
+	// unbuffered flowIn: once the send returns, run() has received the flow and handles it before stopping
+	conf := &config.NetflowConfig{
+		AggregatorFlushInterval:       300,
+		AggregatorFlowContextTTL:      300,
+		AggregatorPortRollupThreshold: 10,
+	}
+	assert.Nil(t, NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil).entropy, "off by default")
+
+	// created just before windowStart, so that window isn't partial
+	windowStart := int64(1_800_000_000)
+	setMockTimeNow(time.Unix(windowStart-1, 0))
+
+	conf.Entropy = config.EntropyConfig{
+		Enabled:                  true,
+		MinRecords:               1,
+		MaxExporters:             10,
+		MaxInterfacesPerExporter: 10,
+		MaxPeersPerInterface:     10,
+		MaxTotalEntries:          100,
+	}
+	agg := NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil)
+	require.NotNil(t, agg.entropy)
+
+	go agg.run()
+	agg.flowIn <- &common.Flow{
+		Namespace:       "ns",
+		FlowType:        common.TypeNetFlow9,
+		ExporterAddr:    []byte{127, 0, 0, 1},
+		SrcAddr:         []byte{10, 0, 0, 1},
+		DstAddr:         []byte{10, 0, 0, 2},
+		InputInterface:  1,
+		OutputInterface: 2,
+		Bytes:           100,
+		Packets:         1,
+		SamplingRate:    1,
+		EndTimestamp:    uint64(windowStart + 10),
+	}
+	close(agg.stopChan)
+	<-agg.runDone
+
+	report := agg.entropy.CloseWindows(time.Unix(windowStart+600, 0))
+	// one window for the ingress side and one for the egress side
+	require.Len(t, report.Windows, 2)
+	report.Submit(sender, logger)
+	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.windows", 2, "", []string{"quality_status:valid"})
+}

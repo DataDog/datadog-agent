@@ -19,6 +19,7 @@ go_library(
         "//comp/netflow/common",
         "//comp/netflow/config/def",
         "//comp/netflow/dpi",
+        "//comp/netflow/entropy",
         "//comp/netflow/format",
         "//comp/netflow/goflowlib",
         "//comp/netflow/payload",
