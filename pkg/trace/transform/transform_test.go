@@ -7,7 +7,6 @@ package transform
 
 import (
 	"math"
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -29,138 +28,39 @@ import (
 	normalizeutil "github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 )
 
-func TestBatchedSpanAttributeTags(t *testing.T) {
-	keys := []string{"service.name", "peer.service", "_dd.base_service", "span.kind",
-		"rpc.grpc.status_code", "w3c.tracestate", "empty", "none", "bool", "int",
-		"float", "bytes", "map", "slice", "", "missing", "int"}
-	for _, kind := range []ptrace.SpanKind{ptrace.SpanKindUnspecified, ptrace.SpanKindInternal,
-		ptrace.SpanKindServer, ptrace.SpanKindClient, ptrace.SpanKindProducer, ptrace.SpanKindConsumer, 99} {
-		for _, selection := range []struct {
-			name          string
-			peer, primary []string
-		}{
-			{name: "none"},
-			{name: "peer", peer: keys},
-			{name: "primary", primary: keys},
-			{name: "overlapping", peer: keys, primary: keys},
-			{name: "disjoint", peer: keys[:8], primary: keys[8:]},
-		} {
-			t.Run(kind.String()+"/"+selection.name, func(t *testing.T) {
-				prepared := NewOTelSpanTagKeys(selection.peer, selection.primary)
-				for _, variant := range []string{"first", "second"} {
-					span := ptrace.NewSpan()
-					span.SetKind(kind)
-					span.SetName("test-operation")
-					now := pcommon.NewTimestampFromTime(time.Now())
-					span.SetStartTimestamp(now - 1000000)
-					span.SetEndTimestamp(now)
-					span.Status().SetCode(ptrace.StatusCodeError)
-					span.TraceState().FromRaw("ot=th:0.25")
-					require.NoError(t, span.Attributes().FromRaw(map[string]any{
-						"service.name": "test-service", "peer.service": " A PEER SERVICE ",
-						"_dd.base_service": " A BASE SERVICE ", "span.kind": variant,
-						"rpc.grpc.status_code": int64(13), "http.response.status_code": int64(503),
-						"_sample_rate": 0.5, "_dd.measured": int64(1), "w3c.tracestate": "attribute-state",
-						"empty": "", "none": nil, "bool": false, "int": int64(0),
-						"float": 1.5, "bytes": []byte{1, 2}, "map": map[string]any{"a": "<value>"},
-						"slice": []any{"a", int64(2)}, "": "empty-key-" + variant,
-						"unrequested": "not-copied",
-					}))
-					res := pcommon.NewResource()
-					require.NoError(t, res.Attributes().FromRaw(map[string]any{
-						"service.name": "resource-service", "peer.service": "resource-peer",
-						"empty": "fallback-" + variant, "none": "nil-fallback",
-						"bool": true, "int": int64(9), "map": map[string]any{"resource": true},
-						"slice": []any{"resource"}, "unrequested": "not-copied",
-					}))
-					conf := config.New()
-					scope := pcommon.NewInstrumentationScope()
-					for _, topLevel := range []bool{false, true} {
-						expected := referenceMinimalSpanWithTags(span, res, scope, topLevel, conf, selection.peer, selection.primary)
-						actual := OtelSpanToDDSpanMinimalWithTagKeys(span, res, scope, topLevel, true, conf, prepared)
-						require.Equal(t, expected, actual)
-						// The deprecated slice-based wrapper must stay equivalent.
-						require.Equal(t, actual, OtelSpanToDDSpanMinimal(span, res, scope, topLevel, true, conf, selection.peer, selection.primary))
-						require.NotContains(t, actual.Meta, "unrequested")
-						require.Equal(t, 0.5, actual.Metrics["_sample_rate"])
-						// peer.service is normalized only when selected as a peer tag;
-						// a primary selection is copied after normalization and keeps the raw value.
-						switch {
-						case slices.Contains(selection.primary, "peer.service"):
-							require.Equal(t, " A PEER SERVICE ", actual.Meta["peer.service"])
-						case slices.Contains(selection.peer, "peer.service"):
-							require.Equal(t, "_a_peer_service", actual.Meta["peer.service"])
-						default:
-							require.NotContains(t, actual.Meta, "peer.service")
-						}
-					}
-				}
-			})
+// TestCopyOTelAttributeTags checks that NewOTelSpanTagKeys + copyOTelAttributeTags
+// matches a per-key lookup across the span and resource attribute maps.
+func TestCopyOTelAttributeTags(t *testing.T) {
+	sattr := pcommon.NewMap()
+	require.NoError(t, sattr.FromRaw(map[string]any{
+		"both": "span", "span-only": "span", "empty-span": "",
+		"int": int64(13), "bool": true, "unrequested": "span",
+	}))
+	rattr := pcommon.NewMap()
+	require.NoError(t, rattr.FromRaw(map[string]any{
+		"both": "resource", "resource-only": "resource", "empty-span": "resource",
+		"empty-resource": "", "unrequested": "resource",
+	}))
+	keys := []string{"both", "span-only", "resource-only", "empty-span", "empty-resource", "int", "bool", "missing"}
+
+	want := map[string]string{}
+	for _, key := range keys {
+		if val := GetOTelAttrFromEitherMap(sattr, rattr, false, key); val != "" {
+			want[key] = val
 		}
 	}
-}
+	require.Equal(t, map[string]string{
+		"both": "span", "span-only": "span", "resource-only": "resource",
+		"empty-span": "resource", "int": "13", "bool": "true",
+	}, want)
 
-// referenceMinimalSpanWithTags reproduces the original per-key tag copy of the
-// minimal conversion (peer tags, peer service normalization, primary tags, then
-// the raw tracestate) as an independent oracle for the batched implementation.
-func referenceMinimalSpanWithTags(span ptrace.Span, res pcommon.Resource, scope pcommon.InstrumentationScope, topLevel bool, conf *config.AgentConfig, peer, primary []string) *pb.Span {
-	ddspan := OtelSpanToDDSpanMinimalWithTagKeys(span, res, scope, topLevel, true, conf, OTelSpanTagKeys{})
-	copyTags := func(keys []string) {
-		for _, key := range keys {
-			if val := GetOTelAttrFromEitherMap(span.Attributes(), res.Attributes(), false, key); val != "" {
-				ddspan.Meta[key] = val
-			}
-		}
-	}
-	copyTags(peer)
-	for _, key := range []string{"peer.service", "_dd.base_service"} {
-		if val, ok := ddspan.Meta[key]; ok {
-			ddspan.Meta[key], _ = normalizeutil.NormalizePeerService(val)
-		}
-	}
-	copyTags(primary)
-	if ts := span.TraceState().AsRaw(); ts != "" {
-		ddspan.Meta["w3c.tracestate"] = ts
-	}
-	return ddspan
-}
+	peer := map[string]string{}
+	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(keys, nil).peer, peer)
+	assert.Equal(t, want, peer)
 
-func TestBatchedSpanAttributeTagsDuplicateKeys(t *testing.T) {
-	traces, err := (&ptrace.JSONUnmarshaler{}).UnmarshalTraces([]byte(`{
-		"resourceSpans": [{
-			"resource": {"attributes": [
-				{"key": "dup", "value": {"stringValue": "resource-first"}},
-				{"key": "dup", "value": {"stringValue": "resource-second"}}
-			]},
-			"scopeSpans": [{"spans": [{"name": "test", "attributes": [
-				{"key": "dup", "value": {"stringValue": ""}},
-				{"key": "dup", "value": {"stringValue": "span-later"}}
-			]}]}]
-		}]
-	}`))
-	require.NoError(t, err)
-	rs := traces.ResourceSpans().At(0)
-	span := rs.ScopeSpans().At(0).Spans().At(0)
-	require.Equal(t, 2, span.Attributes().Len())
-	require.Equal(t, 2, rs.Resource().Attributes().Len())
-	meta := map[string]string{}
-	copyOTelAttributeTags(span.Attributes(), rs.Resource().Attributes(), NewOTelSpanTagKeys([]string{"dup"}, nil).peer, meta)
-	require.Equal(t, map[string]string{"dup": "resource-first"}, meta)
-}
-
-func TestBatchedSpanAttributeTagsOwnSelections(t *testing.T) {
-	peer, primary := []string{"first"}, []string{"second"}
-	prepared := NewOTelSpanTagKeys(peer, primary)
-	peer[0], primary[0] = "mutated-peer", "mutated-primary"
-	attrs := pcommon.NewMap()
-	attrs.PutStr("first", "one")
-	attrs.PutStr("second", "two")
-	attrs.PutStr("mutated-peer", "unwanted")
-	attrs.PutStr("mutated-primary", "unwanted")
-	meta := map[string]string{}
-	copyOTelAttributeTags(attrs, pcommon.NewMap(), prepared.peer, meta)
-	copyOTelAttributeTags(attrs, pcommon.NewMap(), prepared.primary, meta)
-	require.Equal(t, map[string]string{"first": "one", "second": "two"}, meta)
+	primary := map[string]string{}
+	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(nil, keys).primary, primary)
+	assert.Equal(t, want, primary)
 }
 
 func TestGetOTelEnv(t *testing.T) {

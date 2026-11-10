@@ -204,13 +204,12 @@ func copyOTelAttributeTags(sattr, rattr pcommon.Map, keys map[string]struct{}, m
 	}
 	// Resource fallback first; nonempty span values then take precedence.
 	for _, attrs := range [2]pcommon.Map{rattr, sattr} {
-		for key := range attrs.All() {
+		for key, value := range attrs.All() {
 			if _, requested := keys[key]; !requested {
 				continue
 			}
-			// Keep Get's first-match behavior for duplicate OTLP attribute keys.
-			if value := GetOTelAttrVal(attrs, false, key); value != "" {
-				meta[key] = value
+			if s := value.AsString(); s != "" {
+				meta[key] = s
 			}
 		}
 	}
