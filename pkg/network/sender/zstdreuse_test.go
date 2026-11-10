@@ -151,9 +151,9 @@ func TestBulkCompressionPayloadsDoNotAlias(t *testing.T) {
 	}
 }
 
-type failingCtx struct{ calls int }
+type failingCompressor struct{ calls int }
 
-func (f *failingCtx) CompressLevel(_, _ []byte, _ zstd.Level) ([]byte, error) {
+func (f *failingCompressor) CompressLevel(_, _ []byte, _ zstd.Level) ([]byte, error) {
 	f.calls++
 	return nil, errors.New("compression failed")
 }
@@ -164,13 +164,13 @@ func TestBulkCompressionErrorDropsChunkAndResetsContext(t *testing.T) {
 	base := decorate(fc)
 
 	// The first chunk fails and is dropped; the context is replaced before the second.
-	failing := &failingCtx{}
-	d.zctx = failing
+	failing := &failingCompressor{}
+	d.compressor = failing
 	got := collectPayloads(d.batches(cloneConns(base), 1))
 	assert.Equal(t, 1, failing.calls)
 	require.Len(t, got, 1)
-	require.NotNil(t, d.zctx)
-	assert.NotSame(t, failing, d.zctx)
+	require.NotNil(t, d.compressor)
+	assert.NotSame(t, failing, d.compressor)
 
 	assert.Len(t, decodeBody(t, got[0]).Connections, 600)
 

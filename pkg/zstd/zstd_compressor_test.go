@@ -11,11 +11,11 @@ import (
 	"testing"
 )
 
-// TestCtxReuse checks that a reused context emits independent frames: each
+// TestCompressorReuse checks that a reused context emits independent frames: each
 // output decompresses on its own to exactly its input, whatever came before.
-func TestCtxReuse(t *testing.T) {
+func TestCompressorReuse(t *testing.T) {
 	rng := rand.New(rand.NewSource(1))
-	ctx := NewCtx()
+	c := NewCompressor()
 	var scratch []byte
 	for i, size := range []int{0, 1, 100, 64 << 10, 300 << 10, 10, 1 << 20, 0, 5000} {
 		src := make([]byte, size)
@@ -27,7 +27,7 @@ func TestCtxReuse(t *testing.T) {
 		if cap(scratch) < bound {
 			scratch = make([]byte, bound)
 		}
-		out, err := ctx.CompressLevel(scratch[:bound], src, DefaultCompression)
+		out, err := c.CompressLevel(scratch[:bound], src, DefaultCompression)
 		if err != nil {
 			t.Fatalf("input %d: compress: %v", i, err)
 		}
@@ -41,11 +41,11 @@ func TestCtxReuse(t *testing.T) {
 	}
 }
 
-func TestCtxMatchesCompressLevel(t *testing.T) {
+func TestCompressorMatchesCompressLevel(t *testing.T) {
 	src := bytes.Repeat([]byte("connection payload "), 4096)
-	ctx := NewCtx()
+	c := NewCompressor()
 	for range 3 {
-		out, err := ctx.CompressLevel(nil, src, DefaultCompression)
+		out, err := c.CompressLevel(nil, src, DefaultCompression)
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -222,7 +222,7 @@ type directSender struct {
 
 	// Compression state reused across chunks and collects. Only the serial
 	// collect loop touches it.
-	zctx        zstd.Ctx
+	compressor  zstd.Compressor
 	rawBuf      bytes.Buffer
 	compressBuf []byte
 }
@@ -512,17 +512,17 @@ const maxRetainedScratch = 4 << 20
 // The forwarder keeps the returned slice, so it is always newly allocated; only
 // the context and the scratch buffer are reused.
 func (d *directSender) compressChunk(raw []byte) ([]byte, error) {
-	if d.zctx == nil {
-		d.zctx = zstd.NewCtx()
+	if d.compressor == nil {
+		d.compressor = zstd.NewCompressor()
 	}
 	bound := zstd.CompressBound(len(raw))
 	if cap(d.compressBuf) < bound {
 		d.compressBuf = make([]byte, bound)
 	}
-	compressed, err := d.zctx.CompressLevel(d.compressBuf[:bound], raw, zstd.DefaultCompression)
+	compressed, err := d.compressor.CompressLevel(d.compressBuf[:bound], raw, zstd.DefaultCompression)
 	if err != nil {
 		// Never reuse a context after a failure.
-		d.zctx = nil
+		d.compressor = nil
 		return nil, err
 	}
 	body := make([]byte, len(d.staticEncodedHeader)+len(compressed))

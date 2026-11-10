@@ -25,9 +25,9 @@ type Writer interface {
 	Flush() error
 }
 
-// Ctx is a reusable bulk compression context. Each CompressLevel call emits
-// one complete, independent zstd frame. A Ctx is not safe for concurrent use.
-type Ctx interface {
+// Compressor is a reusable bulk compression context. Each CompressLevel call emits
+// one complete, independent zstd frame. A Compressor is not safe for concurrent use.
+type Compressor interface {
 	// CompressLevel compresses src into dst, reusing dst when its capacity is
 	// at least CompressBound(len(src)), and allocating otherwise.
 	CompressLevel(dst, src []byte, level Level) ([]byte, error)

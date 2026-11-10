@@ -41,11 +41,11 @@ func FuzzCrossCompatibility(f *testing.F) {
 	}
 	defer nocgoDec.Close()
 	// One context for every input, as long-lived callers use it.
-	cgoCtx := NewCtx()
+	cgoCompressor := NewCompressor()
 
 	f.Fuzz(func(t *testing.T, data []byte) {
 		// Reused CGO context -> pure-Go decompress
-		ctxCompressed, err := cgoCtx.CompressLevel(nil, data, DefaultCompression)
+		ctxCompressed, err := cgoCompressor.CompressLevel(nil, data, DefaultCompression)
 		if err != nil {
 			t.Fatalf("CGO context compress failed: %v", err)
 		}
