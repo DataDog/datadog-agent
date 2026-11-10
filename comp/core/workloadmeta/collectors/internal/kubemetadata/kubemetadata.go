@@ -295,7 +295,8 @@ func (c *collector) parsePods(
 			}
 		}
 
-		nsLabels, nsAnnotations := provider.getNamespaceMetadata(pod.Metadata.Namespace)
+		// Fills the namespaces emitted as entities below.
+		_, _ = provider.getNamespaceMetadata(pod.Metadata.Namespace)
 
 		entityID := workloadmeta.EntityID{
 			Kind: workloadmeta.KindKubernetesPod,
@@ -312,9 +313,7 @@ func (c *collector) parsePods(
 				Annotations: pod.Metadata.Annotations,
 				Labels:      pod.Metadata.Labels,
 			},
-			KubeServices:         services,
-			NamespaceLabels:      nsLabels,
-			NamespaceAnnotations: nsAnnotations,
+			KubeServices: services,
 		}
 
 		events = append(events, workloadmeta.CollectorEvent{

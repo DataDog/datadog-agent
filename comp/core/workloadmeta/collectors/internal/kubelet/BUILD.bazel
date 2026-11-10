@@ -37,16 +37,12 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
-        "//comp/core",
         "//comp/core/config",
         "//comp/core/workloadmeta/collectors/util",
         "//comp/core/workloadmeta/def",
-        "//comp/core/workloadmeta/fx-mock",
-        "//comp/core/workloadmeta/mock",
         "//pkg/config/env",
         "//pkg/config/helper",
         "//pkg/errors",
-        "//pkg/util/fxutil",
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/pointer",
@@ -54,6 +50,5 @@ dd_agent_go_test(
         "@com_github_stretchr_testify//require",
         "@io_k8s_api//core/v1:core",
         "@io_k8s_apimachinery//pkg/api/resource",
-        "@org_uber_go_fx//:fx",
     ],
 )

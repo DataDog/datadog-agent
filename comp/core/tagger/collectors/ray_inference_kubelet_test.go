@@ -54,7 +54,7 @@ func TestRayInferenceTagsFromKubeletSpec(t *testing.T) {
 					pod.Status.Containers = append(pod.Status.Containers, kubelet.ContainerStatus{Name: "llm", ID: "containerd://ray", Image: primaryImage})
 				}
 				var parsed *workloadmeta.KubernetesPod
-				for _, event := range util.ParseKubeletPods([]*kubelet.Pod{pod}, false, store) {
+				for _, event := range util.ParseKubeletPods([]*kubelet.Pod{pod}, false) {
 					if entity, ok := event.Entity.(*workloadmeta.KubernetesPod); ok {
 						parsed = entity
 					}

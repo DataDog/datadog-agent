@@ -30,9 +30,31 @@ import (
 )
 
 type expectedPod struct {
-	services      []string
+	services []string
+	// nsLabels and nsAnnotations are expected on the pod's namespace entity.
 	nsLabels      map[string]string
 	nsAnnotations map[string]string
+}
+
+func assertNamespaceEntity(t *testing.T, wmeta workloadmeta.Component, namespace string, expected expectedPod) {
+	t.Helper()
+	if len(expected.nsLabels) == 0 && len(expected.nsAnnotations) == 0 {
+		return
+	}
+
+	ns, err := wmeta.GetKubernetesMetadata(workloadmeta.KubeMetadataEntityID(namespaceEntityID(namespace).ID))
+	require.NoError(t, err, "namespace %s", namespace)
+	assertSameMap(t, expected.nsLabels, ns.Labels)
+	assertSameMap(t, expected.nsAnnotations, ns.Annotations)
+}
+
+func assertSameMap(t *testing.T, expected, actual map[string]string) {
+	t.Helper()
+	if len(expected) == 0 {
+		assert.Empty(t, actual)
+		return
+	}
+	assert.Equal(t, expected, actual)
 }
 
 type expectedKueueQueue struct {
@@ -130,7 +152,7 @@ func TestStreamingProvider_run(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 	pod, _ := wmetaMock.GetKubernetesPod(podUID)
 	assert.Equal(t, []string{"svc-a"}, pod.KubeServices)
-	assert.Equal(t, map[string]string{"l1": "v1"}, pod.NamespaceLabels)
+	assertNamespaceEntity(t, wmetaMock, namespace, expectedPod{nsLabels: map[string]string{"l1": "v1"}})
 
 	// DCA adds a new service for the test pod
 	stream.applyResponse(&pb.KubeMetadataStreamResponse{
@@ -150,7 +172,7 @@ func TestStreamingProvider_run(t *testing.T) {
 	}, 5*time.Second, 10*time.Millisecond)
 	pod, _ = wmetaMock.GetKubernetesPod(podUID)
 	assert.ElementsMatch(t, []string{"svc-a", "svc-b"}, pod.KubeServices)
-	assert.Equal(t, map[string]string{"l1": "v1"}, pod.NamespaceLabels) // Unchanged
+	assertNamespaceEntity(t, wmetaMock, namespace, expectedPod{nsLabels: map[string]string{"l1": "v1"}}) // Unchanged
 }
 
 func TestStreamingProvider_handleWmetaPodEvents(t *testing.T) {
@@ -177,7 +199,7 @@ func TestStreamingProvider_handleWmetaPodEvents(t *testing.T) {
 		expectedSeenPods map[string]string
 	}{
 		{
-			name:                        "set enriches pod with services and namespace metadata",
+			name:                        "set enriches pod with services",
 			collectNamespaceLabels:      true,
 			collectNamespaceAnnotations: true,
 			dcaResponse: &pb.KubeMetadataStreamResponse{
@@ -203,11 +225,7 @@ func TestStreamingProvider_handleWmetaPodEvents(t *testing.T) {
 				makePodSetEvent("uid-1", "default", "pod1", true),
 			},
 			expectedPods: map[string]expectedPod{
-				"uid-1": {
-					services:      []string{"svc-a", "svc-b"},
-					nsLabels:      map[string]string{"env": "prod"},
-					nsAnnotations: map[string]string{"a1": "v1"},
-				},
+				"uid-1": {services: []string{"svc-a", "svc-b"}},
 			},
 			expectedSeenPods: map[string]string{"default/pod1": "uid-1"},
 		},
@@ -282,8 +300,8 @@ func TestStreamingProvider_handleWmetaPodEvents(t *testing.T) {
 				makePodUnsetEvent("uid-3"),
 			},
 			expectedPods: map[string]expectedPod{
-				"uid-1": {services: []string{"svc-a"}, nsLabels: map[string]string{"env": "prod"}},
-				"uid-2": {services: []string{"svc-b"}, nsLabels: map[string]string{"env": "prod"}},
+				"uid-1": {services: []string{"svc-a"}},
+				"uid-2": {services: []string{"svc-b"}},
 			},
 			expectedSeenPods: map[string]string{"default/pod1": "uid-1", "default/pod2": "uid-2"},
 		},
@@ -329,39 +347,6 @@ func TestStreamingProvider_handleWmetaPodEvents(t *testing.T) {
 				"uid-1": {services: []string{"svc-a"}},
 			},
 		},
-		{
-			name:                        "namespace annotations excluded when collectNamespaceAnnotations=false",
-			collectNamespaceLabels:      true,
-			collectNamespaceAnnotations: false,
-			dcaResponse: &pb.KubeMetadataStreamResponse{
-				IsFullState: true,
-				Mappings: []*pb.PodServiceMapping{
-					{
-						Namespace:    "default",
-						PodName:      "pod1",
-						ServiceNames: []string{"svc-a"},
-						Type:         pb.KubeMetadataEventType_SET,
-					},
-				},
-				NamespaceMetadata: []*pb.NamespaceMetadata{
-					{
-						Namespace:   "default",
-						Labels:      map[string]string{"env": "prod"},
-						Annotations: map[string]string{"note": "important"},
-						Type:        pb.KubeMetadataEventType_SET,
-					},
-				},
-			},
-			bundleEvents: []workloadmeta.Event{
-				makePodSetEvent("uid-1", "default", "pod1", true),
-			},
-			expectedPods: map[string]expectedPod{
-				"uid-1": {
-					services: []string{"svc-a"},
-					nsLabels: map[string]string{"env": "prod"},
-				},
-			},
-		},
 	}
 
 	for _, test := range tests {
@@ -400,8 +385,6 @@ func TestStreamingProvider_handleWmetaPodEvents(t *testing.T) {
 				pod, err := wmetaMock.GetKubernetesPod(podUID)
 				require.NoError(t, err)
 				assert.ElementsMatch(t, expected.services, pod.KubeServices)
-				assert.Equal(t, expected.nsLabels, pod.NamespaceLabels)
-				assert.Equal(t, expected.nsAnnotations, pod.NamespaceAnnotations)
 			}
 			if test.expectedSeenPods != nil {
 				assert.Equal(t, test.expectedSeenPods, seenPods)
@@ -655,7 +638,7 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 			},
 		},
 		{
-			name: "namespace-only update re-enriches pods in that namespace",
+			name: "namespace-only update sets the namespace without re-emitting pods",
 			dcaResponse: &pb.KubeMetadataStreamResponse{
 				IsFullState: true,
 				Mappings: []*pb.PodServiceMapping{
@@ -699,7 +682,6 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 			},
 			expectedPods: map[string]expectedPod{
 				"uid-1": {
-					services:      []string{"svc-a"},
 					nsLabels:      map[string]string{"l1": "v1"},
 					nsAnnotations: map[string]string{"a1": "v1"},
 				},
@@ -847,8 +829,7 @@ func TestStreamingProvider_handleDCAStreamUpdate(t *testing.T) {
 				pod, err := wmetaMock.GetKubernetesPod(podUID)
 				require.NoError(t, err)
 				assert.ElementsMatch(t, expected.services, pod.KubeServices)
-				assert.Equal(t, expected.nsLabels, pod.NamespaceLabels)
-				assert.Equal(t, expected.nsAnnotations, pod.NamespaceAnnotations)
+				assertNamespaceEntity(t, wmetaMock, pod.Namespace, expected)
 			}
 			assertKueueQueues(t, wmetaMock, test.expectedKueueQueues)
 			assertKueueResourceFlavors(t, wmetaMock, test.expectedKueueResourceFlavors)

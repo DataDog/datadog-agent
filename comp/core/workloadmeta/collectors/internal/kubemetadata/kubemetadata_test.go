@@ -433,9 +433,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Namespace: "default",
 						},
 						KubeServices: []string{"svc1", "svc2"},
-						NamespaceLabels: map[string]string{
-							"label": "value",
-						},
 					},
 				},
 				{
@@ -558,9 +555,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Namespace: "default",
 						},
 						KubeServices: []string{"svc1", "svc2"},
-						NamespaceLabels: map[string]string{
-							"label": "value",
-						},
 					},
 				},
 				{
@@ -634,12 +628,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Namespace: "default",
 						},
 						KubeServices: []string{"svc1", "svc2"},
-						NamespaceLabels: map[string]string{
-							"label": "value",
-						},
-						NamespaceAnnotations: map[string]string{
-							"annotation": "value",
-						},
 					},
 				},
 				{
@@ -715,9 +703,6 @@ func TestKubeMetadataCollector_parsePods(t *testing.T) {
 							Namespace: "default",
 						},
 						KubeServices: []string{"svc1", "svc2"},
-						NamespaceLabels: map[string]string{
-							"label": "value",
-						},
 					},
 				},
 				{
