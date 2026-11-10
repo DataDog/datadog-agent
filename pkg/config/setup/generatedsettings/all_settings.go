@@ -789,7 +789,6 @@ func InitCoreAgentFull(config pkgconfigmodel.Setup) {
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.allowed_types", []string{})
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.enabled", true)
 	config.BindEnvAndSetDefault("anomaly_detection.metrics.processing_rules", []map[string]interface{}{})
-	config.BindEnvAndSetDefault("anomaly_detection.metric_pipeline.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.recording.enabled", false)
 	config.BindEnvAndSetDefault("anomaly_detection.recording.only", true)
 	config.BindEnvAndSetDefault("anomaly_detection.recording.flush_interval", "60s")
