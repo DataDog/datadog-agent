@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,7 +23,7 @@ import (
 func TestPreStartExperimentRejectsAgentFlavorMismatch(t *testing.T) {
 	for _, fipsMode := range []bool{false, true} {
 		t.Run(fmt.Sprintf("fips=%t", fipsMode), func(t *testing.T) {
-			t.Setenv("DD_FIPS_MODE", fmt.Sprint(fipsMode))
+			t.Setenv("DD_FIPS_MODE", strconv.FormatBool(fipsMode))
 			expectedFIPSMode := getenv().FIPSMode
 			mismatch := errors.New("opposite Agent flavor is installed")
 			previous := checkAgentFlavorForExperiment
