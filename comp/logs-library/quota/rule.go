@@ -23,11 +23,11 @@ type snapshot struct {
 }
 
 type entry struct {
-	Tags      []string `json:"tags"`
-	ExpiresAt int64    `json:"expires_at"`
+	Tags      *[]string `json:"tags"`
+	ExpiresAt int64     `json:"expires_at"`
 }
 
-// quota drops every log carrying all of its tags until its deadline.
+// quota drops every log carrying all of its lowercase tags, ignoring ASCII case, until its deadline.
 type quota struct {
 	tags     []string
 	key      string
@@ -48,10 +48,18 @@ func parseSnapshot(raw []byte) ([]*quota, error) {
 		if e.ExpiresAt <= 0 {
 			return nil, fmt.Errorf("quotas[%d]: missing expires_at", i)
 		}
-		if slices.Contains(e.Tags, "") {
-			return nil, fmt.Errorf("quotas[%d]: empty tag", i)
+		if e.Tags == nil {
+			return nil, fmt.Errorf("quotas[%d]: missing tags", i)
 		}
-		tags := slices.Compact(slices.Sorted(slices.Values(e.Tags)))
+		tags := make([]string, len(*e.Tags))
+		for j, t := range *e.Tags {
+			if t == "" {
+				return nil, fmt.Errorf("quotas[%d]: empty tag", i)
+			}
+			tags[j] = asciiLower(t)
+		}
+		slices.Sort(tags)
+		tags = slices.Compact(tags)
 		quotas = append(quotas, &quota{
 			tags:     tags,
 			key:      quotaKey(tags),

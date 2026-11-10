@@ -460,7 +460,7 @@ func buildMessage(tailer *Tailer, output *message.Message) *message.Message {
 	var tags []string
 	tags = append(tags, output.ParsingExtra.Tags...)
 	tags = append(tags, providerTags...)
-	origin.SetTagsWithSnapshot(tags, tailer.tagSnapshots.Get(tailer.Source, nil, providerTags), output.ParsingExtra.Tags)
+	origin.SetTagsWithSnapshot(tags, tailer.tagSnapshots.Get(tailer.Source, nil, providerTags), tags[:len(output.ParsingExtra.Tags)])
 
 	// XXX(remy): is it OK recreating a message here?
 	// Preserve ParsingExtra information from decoder output (including IsTruncated flag)

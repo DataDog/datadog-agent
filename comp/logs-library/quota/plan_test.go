@@ -75,7 +75,9 @@ func transportMatch(rs *ruleSet, o *message.Origin) *quota {
 		tags = append(tags, "service:"+service)
 	}
 	for _, q := range rs.quotas {
-		if !slices.ContainsFunc(q.tags, func(t string) bool { return !slices.Contains(tags, t) }) {
+		if !slices.ContainsFunc(q.tags, func(t string) bool {
+			return !slices.ContainsFunc(tags, func(have string) bool { return equalFold(have, t) })
+		}) {
 			return q
 		}
 	}
@@ -90,7 +92,7 @@ func ruleSetOf(t *testing.T, tagLists ...[]string) *ruleSet {
 
 func TestPlanMatchesLinear(t *testing.T) {
 	rng := rand.New(rand.NewPCG(1, 2))
-	vocab := []string{"env:prod", "env:dev", "ENV:prod", "team:a", "team:b", "stream:stderr", "stream:stdout", "app:x", "sourcecategory:cat", "sourcecategory:other", "region:us", "service:web", "service:api", "Host:a"}
+	vocab := []string{"env:prod", "env:dev", "ENV:prod", "team:a", "team:b", "stream:stderr", "stream:stdout", "app:x", "sourcecategory:cat", "sourcecategory:other", "region:us", "service:web", "service:api", "Service:WEB", "Host:a", "Team:A"}
 	filters := []struct{ include, exclude []string }{
 		{},
 		{exclude: []string{"env:prod"}},
@@ -116,12 +118,12 @@ func TestPlanMatchesLinear(t *testing.T) {
 		if rng.IntN(2) == 0 {
 			category = "cat"
 		}
-		service := []string{"", "web", "api"}[rng.IntN(3)]
+		service := []string{"", "web", "api", "API"}[rng.IntN(4)]
 		src := newServiceSource(pick(2), pick(2), category, service)
 		filter := filters[rng.IntN(len(filters))]
 		setFilter(t, src.source, filter.include, filter.exclude)
 		for range 20 {
-			src.msgService = []string{"", "web", "api", "db"}[rng.IntN(4)]
+			src.msgService = []string{"", "web", "api", "db", "Web"}[rng.IntN(5)]
 			dynamic, msgTags := pick(3), pick(2)
 			msg := src.msg(dynamic, msgTags)
 			_, _, _, ok := msg.Origin.TagSnapshot()
@@ -266,8 +268,10 @@ func TestCheckWithSnapshotExpiry(t *testing.T) {
 	src := newSnapshotSource(nil, []string{"env:prod", "app:x"}, "")
 	require.True(t, e.Check(src.msg(nil, nil)))
 	now = t0.Add(2 * time.Minute)
+	e.tick()
 	require.True(t, e.Check(src.msg(nil, nil)))
 	now = t0.Add(2 * time.Hour)
+	e.tick()
 	assert.False(t, e.Check(src.msg(nil, nil)))
 
 	_, configs := e.Status()

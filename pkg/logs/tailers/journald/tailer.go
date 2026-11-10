@@ -437,7 +437,8 @@ func (t *Tailer) getOrigin(entry *sdjournal.JournalEntry) *message.Origin {
 	origin.SetSource(applicationName)
 	origin.SetService(applicationName)
 	providerTags := t.tagProvider.GetTags()
-	origin.SetTagsWithSnapshot(append(tags, providerTags...), t.tagSnapshots.Get(t.source, nil, providerTags), tags)
+	all := append(tags, providerTags...)
+	origin.SetTagsWithSnapshot(all, t.tagSnapshots.Get(t.source, nil, providerTags), all[:len(tags)])
 
 	return origin
 }

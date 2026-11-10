@@ -59,6 +59,13 @@ func TestHasTag(t *testing.T) {
 	origin.SetService("ignored")
 	assert.True(t, origin.HasTag("service:web"))
 	assert.False(t, origin.HasTag("service:ignored"))
+
+	cfg = &config.LogsConfig{Service: "MyService", SourceCategory: "Cat", Tags: []string{"Env:Prod"}}
+	origin = NewOrigin(sources.NewLogSource("", cfg))
+	origin.SetTags([]string{"Team:A"})
+	for _, tag := range []string{"env:prod", "team:a", "service:myservice", "sourcecategory:cat"} {
+		assert.True(t, origin.HasTag(tag), tag)
+	}
 }
 
 func TestSetTagsWithNoConfigTags(t *testing.T) {

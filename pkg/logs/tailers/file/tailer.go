@@ -525,7 +525,7 @@ func (t *Tailer) forwardMessages() {
 		copy(tags, t.tags)
 		tags = append(tags, providerTags...)
 		tags = append(tags, output.ParsingExtra.Tags...)
-		origin.SetTagsWithSnapshot(tags, t.tagSnapshots.Get(source, t.tags, providerTags), output.ParsingExtra.Tags)
+		origin.SetTagsWithSnapshot(tags, t.tagSnapshots.Get(source, t.tags, providerTags), tags[len(t.tags)+len(providerTags):])
 		if !output.HasContent() {
 			continue
 		}

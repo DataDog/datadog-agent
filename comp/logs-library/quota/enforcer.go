@@ -66,16 +66,22 @@ type Enforcer struct {
 	stats    map[string]*quotaStats
 	lastSync time.Time
 
-	now    func() time.Time
+	now func() time.Time
+	// tickEvery is how often the clock advances while quotas are active, or 0 to advance it only in tick.
+	tickEvery time.Duration
+	ticking   bool
+
 	active atomic.Pointer[ruleSet]
+	clock  atomic.Int64
 }
 
 // NewEnforcer returns an enforcer with no active quotas.
 func NewEnforcer() *Enforcer {
 	return &Enforcer{
-		configs: map[string]*configEntry{},
-		stats:   map[string]*quotaStats{},
-		now:     time.Now,
+		configs:   map[string]*configEntry{},
+		stats:     map[string]*quotaStats{},
+		now:       time.Now,
+		tickEvery: time.Second,
 	}
 }
 
@@ -118,7 +124,43 @@ func (e *Enforcer) Update(configs map[string][]byte) map[string]error {
 	}
 	e.stats = stats
 	e.active.Store(newRuleSet(quotas, e.lastSync))
+	if e.advance(e.lastSync) && e.tickEvery > 0 && !e.ticking {
+		e.ticking = true
+		go e.runClock()
+	}
 	return result
+}
+
+func (e *Enforcer) runClock() {
+	t := time.NewTicker(e.tickEvery)
+	defer t.Stop()
+	for range t.C {
+		if !e.tick() {
+			return
+		}
+	}
+}
+
+// tick advances the clock to now and reports whether quotas remain active.
+func (e *Enforcer) tick() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if !e.advance(e.now()) {
+		e.ticking = false
+		return false
+	}
+	return true
+}
+
+// advance sets the clock to now, drops expired quotas, and reports whether any remain. e.mu must be held.
+func (e *Enforcer) advance(now time.Time) bool {
+	e.clock.Store(now.Unix())
+	rs := e.active.Load()
+	if len(rs.quotas) > 0 && !now.Before(rs.nextExpiry) {
+		rs = newRuleSet(rs.quotas, now)
+		e.active.Store(rs)
+	}
+	return len(rs.quotas) > 0
 }
 
 // Check reports whether msg should be dropped.
@@ -127,10 +169,6 @@ func (e *Enforcer) Check(msg *message.Message) bool {
 	if rs == nil || len(rs.quotas) == 0 {
 		return false
 	}
-	now := e.now()
-	if !now.Before(rs.nextExpiry) {
-		rs = e.prune(rs, now)
-	}
 	q := rs.match(msg.Origin)
 	if q == nil {
 		return false
@@ -138,17 +176,10 @@ func (e *Enforcer) Check(msg *message.Message) bool {
 	size := msg.Size()
 	q.stats.droppedEvents.Add(1)
 	q.stats.droppedBytes.Add(size)
-	q.stats.lastDrop.Store(now.Unix())
+	q.stats.lastDrop.Store(e.clock.Load())
 	q.stats.tlmEvents.Inc()
 	q.stats.tlmBytes.Add(float64(size))
 	return true
-}
-
-// prune drops expired quotas from the active set unless Update replaced it concurrently.
-func (e *Enforcer) prune(rs *ruleSet, now time.Time) *ruleSet {
-	pruned := newRuleSet(rs.quotas, now)
-	e.active.CompareAndSwap(rs, pruned)
-	return pruned
 }
 
 // ConfigStatus describes one received config for agent status.

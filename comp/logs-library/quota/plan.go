@@ -6,7 +6,6 @@
 package quota
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
@@ -29,7 +28,7 @@ type plan struct {
 func newPlan(rs *ruleSet, snap *message.TagSnapshot, f sources.TagFilter) *plan {
 	have := map[string]struct{}{}
 	for t := range snap.All() {
-		have[t] = struct{}{}
+		have[asciiLower(t)] = struct{}{}
 	}
 	p := &plan{rs: rs, filter: f, full: len(rs.quotas), anchors: map[string][]int{}}
 	var flat []string
@@ -68,12 +67,12 @@ func (p *plan) match(msgTags []string, service string) int {
 		return best
 	}
 	for _, t := range msgTags {
-		if candidates := p.anchors[t]; len(candidates) > 0 {
+		if candidates := lookupLower(p.anchors, t); len(candidates) > 0 {
 			best = p.first(candidates, best, msgTags, service)
 		}
 	}
 	if service != "" && len(p.serviceAnchors) > 0 {
-		best = p.first(p.serviceAnchors[service], best, msgTags, service)
+		best = p.first(lookupLower(p.serviceAnchors, service), best, msgTags, service)
 	}
 	return best
 }
@@ -93,11 +92,20 @@ func (p *plan) first(candidates []int, best int, msgTags []string, service strin
 
 func hasAll(msgTags []string, service string, want []string) bool {
 	for _, t := range want {
-		if !slices.Contains(msgTags, t) && !isService(t, service) {
+		if !containsFold(msgTags, t) && !isService(t, service) {
 			return false
 		}
 	}
 	return true
+}
+
+func containsFold(tags []string, tag string) bool {
+	for _, t := range tags {
+		if equalFold(t, tag) {
+			return true
+		}
+	}
+	return false
 }
 
 func isService(tag, service string) bool {
@@ -105,7 +113,52 @@ func isService(tag, service string) bool {
 		return false
 	}
 	v, ok := strings.CutPrefix(tag, "service:")
-	return ok && v == service
+	return ok && equalFold(v, service)
+}
+
+// lookupLower returns m[asciiLower(k)], folding short keys on the stack instead of allocating.
+func lookupLower(m map[string][]int, k string) []int {
+	var buf [128]byte
+	if len(k) > len(buf) {
+		return m[asciiLower(k)]
+	}
+	for i := 0; i < len(k); i++ {
+		buf[i] = lowerASCII(k[i])
+	}
+	return m[string(buf[:len(k)])]
+}
+
+// equalFold is strings.EqualFold restricted to ASCII, matching how tag filters fold.
+func equalFold(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if a[i] != b[i] && lowerASCII(a[i]) != lowerASCII(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func asciiLower(s string) string {
+	for i := 0; i < len(s); i++ {
+		if 'A' <= s[i] && s[i] <= 'Z' {
+			b := []byte(s)
+			for j := i; j < len(b); j++ {
+				b[j] = lowerASCII(b[j])
+			}
+			return string(b)
+		}
+	}
+	return s
+}
+
+func lowerASCII(c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		return c + 'a' - 'A'
+	}
+	return c
 }
 
 func (rs *ruleSet) planFor(snap *message.TagSnapshot, f sources.TagFilter) *plan {

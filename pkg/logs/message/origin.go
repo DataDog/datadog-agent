@@ -6,7 +6,6 @@
 package message
 
 import (
-	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/logs/sources"
@@ -45,22 +44,50 @@ func (o *Origin) Tags() []string {
 	return o.tagsToStringArray()
 }
 
-// HasTag reports whether Tags would contain tag, or tag is service:<Service()>, without allocating.
+// HasTag reports whether Tags would contain the lowercase tag, or tag is service:<Service()>, ignoring ASCII case and without allocating.
 func (o *Origin) HasTag(tag string) bool {
 	if o == nil || o.LogSource == nil {
 		return false
 	}
-	if slices.Contains(o.tags, tag) || slices.Contains(o.LogSource.Config.Tags, tag) {
+	if containsFold(o.tags, tag) || containsFold(o.LogSource.Config.Tags, tag) {
 		return true
 	}
 	if tag == "" || tag[0] != 's' {
 		return false
 	}
 	if service, ok := strings.CutPrefix(tag, "service:"); ok {
-		return service != "" && service == o.Service()
+		return service != "" && equalFold(service, o.Service())
 	}
 	category, ok := strings.CutPrefix(tag, "sourcecategory:")
-	return ok && category != "" && category == o.LogSource.Config.SourceCategory
+	return ok && category != "" && equalFold(category, o.LogSource.Config.SourceCategory)
+}
+
+func containsFold(tags []string, tag string) bool {
+	for _, t := range tags {
+		if equalFold(t, tag) {
+			return true
+		}
+	}
+	return false
+}
+
+func equalFold(a, b string) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for i := 0; i < len(a); i++ {
+		if a[i] != b[i] && lowerASCII(a[i]) != lowerASCII(b[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+func lowerASCII(c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		return c + 'a' - 'A'
+	}
+	return c
 }
 
 // TransportTags returns tags after filtering for intake encoders. Tags remains unfiltered.

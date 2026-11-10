@@ -27,6 +27,7 @@ var t0 = time.Date(2026, 10, 16, 12, 0, 0, 0, time.UTC)
 func newTestEnforcer(now *time.Time) *Enforcer {
 	e := NewEnforcer()
 	e.now = func() time.Time { return *now }
+	e.tickEvery = 0
 	return e
 }
 
@@ -70,6 +71,9 @@ func TestMatchTags(t *testing.T) {
 		{"no tags drops everything", nil, newMsg(), true},
 		{"top-level service", []string{"service:web"}, newMsg("env:prod"), true},
 		{"top-level service mismatch", []string{"service:api"}, newMsg("env:prod"), false},
+		{"quota uppercase", []string{"Env:PROD"}, newMsg("env:prod"), true},
+		{"message uppercase", []string{"env:prod"}, newMsg("ENV:Prod"), true},
+		{"service uppercase", []string{"SERVICE:Web"}, newMsg(), true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -89,6 +93,8 @@ func TestInvalidConfigs(t *testing.T) {
 		"json":      []byte(`{`),
 		"noquotas":  []byte(`{"hello":"world"}`),
 		"noexpiry":  []byte(`{"quotas":[{"tags":["env:prod"]}]}`),
+		"notags":    []byte(`{"quotas":[{"tag":["env:prod"],"expires_at":` + exp + `}]}`),
+		"nulltags":  []byte(`{"quotas":[{"tags":null,"expires_at":` + exp + `}]}`),
 		"emptytag":  []byte(`{"quotas":[{"tags":[""],"expires_at":1}]}`),
 		"unknown":   []byte(`{"quotas":[{"tags":["env:prod"],"expires_at":` + exp + `,"future":1}],"other":true}`),
 		"oneBadAll": []byte(`{"quotas":[{"tags":["team:a"],"expires_at":` + exp + `},{"tags":["team:b"]}]}`),
@@ -116,6 +122,7 @@ func TestExpiry(t *testing.T) {
 	assert.True(t, e.Check(newMsg("team:b")))
 
 	now = t0.Add(10 * time.Minute)
+	e.tick()
 	assert.False(t, e.Check(newMsg("team:b")), "stops at expires_at without a new config")
 
 	_, configs := e.Status()
@@ -134,14 +141,38 @@ func TestExpiredQuotasArePruned(t *testing.T) {
 	})
 	assert.Len(t, e.active.Load().quotas, 2)
 
+	now = t0.Add(time.Minute - time.Second)
+	assert.True(t, e.tick())
+	assert.Len(t, e.active.Load().quotas, 2)
+
 	now = t0.Add(time.Minute)
+	assert.True(t, e.tick())
 	assert.False(t, e.Check(newMsg("team:a")))
 	assert.Len(t, e.active.Load().quotas, 1)
 	assert.True(t, e.Check(newMsg("team:b")))
 
 	now = t0.Add(time.Hour)
+	assert.False(t, e.tick())
 	assert.False(t, e.Check(newMsg("team:b")))
 	assert.Empty(t, e.active.Load().quotas)
+}
+
+func TestClockPrunesAndStops(t *testing.T) {
+	e := NewEnforcer()
+	e.tickEvery = 10 * time.Millisecond
+	e.Update(map[string][]byte{"c": snap(time.Now().Add(2*time.Second), []string{"team:a"})})
+	require.True(t, e.Check(newMsg("team:a")))
+
+	assert.Eventually(t, func() bool { return !e.Check(newMsg("team:a")) }, 5*time.Second, 10*time.Millisecond)
+	assert.Eventually(t, func() bool {
+		e.mu.Lock()
+		defer e.mu.Unlock()
+		return !e.ticking
+	}, time.Second, 10*time.Millisecond)
+
+	e.Update(map[string][]byte{"c": snap(time.Now().Add(time.Hour), []string{"team:a"})})
+	assert.True(t, e.Check(newMsg("team:a")), "a new config restarts enforcement")
+	e.Update(map[string][]byte{})
 }
 
 func TestTelemetrySeriesRemovedWithQuota(t *testing.T) {
@@ -189,6 +220,7 @@ func TestStats(t *testing.T) {
 	assert.Equal(t, "enforcing", q.State)
 	assert.EqualValues(t, 3, q.DroppedEvents, "counts survive a re-sent config")
 	assert.EqualValues(t, 15, q.DroppedBytes)
+	assert.Equal(t, t0.Format(time.RFC3339), q.LastDrop)
 }
 
 func TestConcurrentCheckAndUpdate(_ *testing.T) {
@@ -277,9 +309,11 @@ func BenchmarkCheck(b *testing.B) {
 		}
 	})
 	b.Run("50 quotas expired", func(b *testing.B) {
-		e := NewEnforcer()
-		e.Update(manyQuotas(50, time.Now().Add(time.Second)))
-		e.now = func() time.Time { return time.Now().Add(time.Hour) }
+		now := time.Now()
+		e := newTestEnforcer(&now)
+		e.Update(manyQuotas(50, now.Add(time.Second)))
+		now = now.Add(time.Hour)
+		e.tick()
 		for b.Loop() {
 			e.Check(msg)
 		}

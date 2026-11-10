@@ -167,7 +167,7 @@ func (t *Tailer) forwardMessages() {
 			if msg.Origin != nil {
 				// Combine tags from multiple sources: parsing extra tags and source config tags
 				tags := append(msg.ParsingExtra.Tags, t.source.Config.Tags...)
-				msg.Origin.SetTagsWithSnapshot(tags, t.tagSnapshots.Get(t.source, nil, nil), msg.ParsingExtra.Tags)
+				msg.Origin.SetTagsWithSnapshot(tags, t.tagSnapshots.Get(t.source, nil, nil), tags[:len(msg.ParsingExtra.Tags)])
 			}
 
 			t.outputChan <- msg
