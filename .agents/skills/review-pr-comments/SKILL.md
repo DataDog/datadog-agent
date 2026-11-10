@@ -104,9 +104,11 @@ For already-resolved threads (PR author replied last), present them as a summary
 **Reply**: Post via gh API:
 
 ```bash
-gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/comments \
-  -f body="$REPLY_TEXT" -f in_reply_to=$COMMENT_ID
+gh api repos/{owner}/{repo}/pulls/{PR_NUMBER}/comments/$COMMENT_ID/replies \
+  -f body="$REPLY_TEXT"
 ```
+
+`$COMMENT_ID` is the thread's root comment.
 
 **TODO**: Use the TodoWrite tool to track it.
 
