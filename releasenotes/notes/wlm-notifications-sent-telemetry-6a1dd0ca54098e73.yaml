@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Add the ``workloadmeta.notifications_sent`` metric to the Agent's internal
+    telemetry.
