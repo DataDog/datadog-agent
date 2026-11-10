@@ -10,10 +10,11 @@ BPF_HASH_MAP(ssl_sock_by_ctx, ssl_ctx_pid_tgid_t, ssl_sock_t, 1)
 // the process may use or close an SSL context, and the delete paths only see the thread
 // that closes it.
 static __always_inline ssl_ctx_pid_tgid_t ssl_sock_by_ctx_key(__u64 pid_tgid, void *ssl_ctx) {
-    // Zero the whole key first: the padding after pid is part of the map key.
-    ssl_ctx_pid_tgid_t key = {};
-    key.ctx = ssl_ctx;
-    key.pid = GET_USER_MODE_PID(pid_tgid);
+    ssl_ctx_pid_tgid_t key = {
+        .pid = GET_USER_MODE_PID(pid_tgid),
+        .pad = 0,
+        .ctx = ssl_ctx,
+    };
     return key;
 }
 

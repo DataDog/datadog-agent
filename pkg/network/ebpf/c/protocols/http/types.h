@@ -61,8 +61,9 @@ typedef struct {
 // Key of ssl_sock_by_ctx. It is per process (TGID), not per thread: any thread of the
 // process may use or close an SSL context.
 typedef struct {
-    void *ctx;
     __u32 pid;
+    __u32 pad;
+    void *ctx;
 } ssl_ctx_pid_tgid_t;
 
 typedef struct {
