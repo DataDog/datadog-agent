@@ -170,9 +170,11 @@ jobs:
           for target in $(jq -r '.[]' <<< "$TARGET_BRANCHES"); do
             branch="${target/backport\//}" # strip the 'backport/' prefix
             head="backport-${PR_NUMBER}-to-${branch}"
+            # Use the pulls endpoint filtered by head branch, not the search API: GitHub's search
+            # index updates asynchronously, so a just-created PR can be missing from search results.
             url=$(curl -sf -H "Authorization: Bearer $GH_TOKEN" \
-              "https://api.github.com/search/issues?q=repo:${GITHUB_REPOSITORY}%20type:pr%20head:${head}" \
-              | jq -r '.items | sort_by(.created_at) | last | .html_url // empty')
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/pulls?head=${GITHUB_REPOSITORY%%/*}:${head}&state=all&per_page=1" \
+              | jq -r '.[0] | .html_url // empty')
             if [[ -n "$url" ]]; then
               created+="${branch}|${url} "
             fi
