@@ -73,6 +73,9 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 
 	intermediate := newTestCert(t, "intermediate", nil, longAgo, future, ca)
 	expiredIntermediate := newTestCert(t, "expired-intermediate", nil, longAgo, past, ca)
+	futureIntermediate := newTestCert(t, "future-intermediate", nil, future, future.Add(time.Hour), ca)
+	invalidSignatureLeaf := newTestCert(t, host, []string{host}, longAgo, past, ca)
+	invalidSignatureLeaf.cert.Signature[0] ^= 1
 
 	tests := []struct {
 		name       string
@@ -128,8 +131,41 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 			serverName: host,
 		},
 		{
+			name: "expired leaf and intermediate with unrelated expiry instants",
+			chain: []*x509.Certificate{
+				newTestCert(t, host, []string{host}, longAgo, past.Add(time.Hour), expiredIntermediate).cert,
+				expiredIntermediate.cert,
+				newTestCert(t, "extra-1", nil, longAgo, past.Add(45*time.Minute), ca).cert,
+				newTestCert(t, "extra-2", nil, longAgo, past.Add(30*time.Minute), ca).cert,
+				newTestCert(t, "extra-3", nil, longAgo, past.Add(15*time.Minute), ca).cert,
+			},
+			serverName: host,
+		},
+		{
+			name:       "expired leaf with omitted root expiring before it",
+			chain:      []*x509.Certificate{newTestCert(t, host, []string{host}, longAgo, past.Add(time.Hour), expiredCA).cert},
+			serverName: host,
+		},
+		{
+			name: "valid leaf with expired intermediate",
+			chain: []*x509.Certificate{
+				newTestCert(t, host, []string{host}, longAgo, future, expiredIntermediate).cert,
+				expiredIntermediate.cert,
+			},
+			serverName: host,
+		},
+		{
 			name:       "expired leaf from untrusted CA",
 			chain:      []*x509.Certificate{newTestCert(t, host, []string{host}, longAgo, past, untrustedCA).cert},
+			serverName: host,
+			wantErr:    "unknown authority",
+		},
+		{
+			name: "expired leaf with untrusted peer root",
+			chain: []*x509.Certificate{
+				newTestCert(t, host, []string{host}, longAgo, past, untrustedCA).cert,
+				untrustedCA.cert,
+			},
 			serverName: host,
 			wantErr:    "unknown authority",
 		},
@@ -164,6 +200,21 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 			wantErr:    "not yet valid",
 		},
 		{
+			name: "expired leaf with not yet valid intermediate",
+			chain: []*x509.Certificate{
+				newTestCert(t, host, []string{host}, longAgo, past, futureIntermediate).cert,
+				futureIntermediate.cert,
+			},
+			serverName: host,
+			wantErr:    "before",
+		},
+		{
+			name:       "expired leaf with invalid signature",
+			chain:      []*x509.Certificate{invalidSignatureLeaf.cert},
+			serverName: host,
+			wantErr:    "unknown authority",
+		},
+		{
 			name:       "leaf from expired CA",
 			chain:      []*x509.Certificate{newTestCert(t, host, []string{host}, past.Add(-time.Hour), past.Add(-time.Minute), expiredCA).cert},
 			serverName: host,
@@ -192,6 +243,36 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVerifyAllowingExpiredCertificateRetryLimit(t *testing.T) {
+	now := time.Now()
+	const host = "example.test"
+	notBefore := now.Add(-24 * time.Hour)
+	ca := newTestCert(t, "test-ca", nil, notBefore, now.Add(time.Hour), nil)
+	roots := x509.NewCertPool()
+	roots.AddCert(ca.cert)
+	parent := ca
+	var chain []*x509.Certificate
+	intermediates := x509.NewCertPool()
+	for i := maxExpiryRetries + 1; i >= 2; i-- {
+		parent = newTestCert(t, "intermediate", nil, notBefore, now.Add(-time.Duration(i)*time.Hour), parent)
+		chain = append(chain, parent.cert)
+		intermediates.AddCert(parent.cert)
+	}
+	leaf := newTestCert(t, host, []string{host}, notBefore, now.Add(-time.Hour), parent)
+	chain = append([]*x509.Certificate{leaf.cert}, chain...)
+
+	// The chain is otherwise valid, but needs more expiry retries than permitted.
+	_, err := leaf.cert.Verify(x509.VerifyOptions{
+		DNSName:       host,
+		Roots:         roots,
+		Intermediates: intermediates,
+		CurrentTime:   chain[1].NotAfter,
+	})
+	require.NoError(t, err)
+	verify := verifyAllowingExpiredCertificate(roots, func() time.Time { return now })
+	assert.Error(t, verify(tls.ConnectionState{PeerCertificates: chain, ServerName: host}))
 }
 
 func TestNewRunnerHttpClientAllowExpiredCertificateStillVerifiesChain(t *testing.T) {

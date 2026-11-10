@@ -11,7 +11,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"slices"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/httpclient"
@@ -69,7 +68,7 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 	return httpclient.WrapClient(client, authorizer), nil
 }
 
-// maxExpiryRetries bounds the extra chain verifications a server can trigger by presenting many expired certificates.
+// maxExpiryRetries bounds the extra chain verifications for expired certificates.
 const maxExpiryRetries = 4
 
 // verifyAllowingExpiredCertificate verifies chain and hostname against roots (system roots when nil),
@@ -95,34 +94,18 @@ func verifyAllowingExpiredCertificate(roots *x509.CertPool, now func() time.Time
 		}
 		leaf := cs.PeerCertificates[0]
 		_, err := leaf.Verify(opts)
-		var invalidErr x509.CertificateInvalidError
-		if err == nil || !errors.As(err, &invalidErr) || invalidErr.Reason != x509.Expired {
-			return err
-		}
-
-		// A chain can only verify while the leaf is valid, so instants outside it would waste retries.
-		var expiries []time.Time
-		for _, cert := range cs.PeerCertificates {
-			at := cert.NotAfter
-			if at.Before(opts.CurrentTime) && !at.After(leaf.NotAfter) && !at.Before(leaf.NotBefore) &&
-				!slices.ContainsFunc(expiries, at.Equal) {
-				expiries = append(expiries, at)
+		for retries := 0; err != nil && retries < maxExpiryRetries; retries++ {
+			var invalidErr x509.CertificateInvalidError
+			if !errors.As(err, &invalidErr) || invalidErr.Reason != x509.Expired || invalidErr.Cert == nil {
+				return err
 			}
-		}
-		slices.SortFunc(expiries, func(a, b time.Time) int { return b.Compare(a) })
-		var firstRetryErr error
-		for _, at := range expiries[:min(len(expiries), maxExpiryRetries)] {
+			// Follow the failing certificate, including omitted roots, so unrelated peers cannot consume retries.
+			at := invalidErr.Cert.NotAfter
+			if !at.Before(opts.CurrentTime) || at.Before(leaf.NotBefore) {
+				return err
+			}
 			opts.CurrentTime = at
-			_, retryErr := leaf.Verify(opts)
-			if retryErr == nil {
-				return nil
-			}
-			if firstRetryErr == nil {
-				firstRetryErr = fmt.Errorf("verifying as of certificate expiry %s: %w", at.UTC().Format(time.RFC3339), retryErr)
-			}
-		}
-		if firstRetryErr != nil {
-			return firstRetryErr
+			_, err = leaf.Verify(opts)
 		}
 		return err
 	}
