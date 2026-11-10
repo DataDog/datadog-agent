@@ -6,6 +6,7 @@
 package transform
 
 import (
+	"encoding/base64"
 	"math"
 	"strings"
 	"testing"
@@ -62,6 +63,61 @@ func TestCopyOTelAttributeTags(t *testing.T) {
 	primary := map[string]string{}
 	copyOTelAttributeTags(sattr, rattr, NewOTelSpanTagKeys(nil, keys).primary, primary)
 	assert.Equal(t, want, primary)
+}
+
+func TestOtelSpanToDDSpanStructuredBytes(t *testing.T) {
+	// {"value": [1, "two"]}, as emitted by the Datadog meta_struct encoder.
+	report := []byte{0x81, 0xa5, 'v', 'a', 'l', 'u', 'e', 0x92, 0x01, 0xa3, 't', 'w', 'o'}
+	for _, tt := range []struct {
+		name       string
+		key        string
+		sdk        string
+		data       []byte
+		structured bool
+	}{
+		{name: "appsec", key: "appsec", sdk: "datadog", data: report, structured: true},
+		{name: "iast", key: "iast", sdk: "datadog", data: report, structured: true},
+		{name: "new structured attribute", key: "custom.report", sdk: "datadog", data: report, structured: true},
+		{name: "empty map", key: "custom.report", sdk: "datadog", data: []byte{0x80}, structured: true},
+		{name: "upstream SDK", key: "appsec", sdk: "opentelemetry", data: report},
+		{name: "no SDK identity", key: "appsec", data: report},
+		{name: "raw binary", key: "appsec", sdk: "datadog", data: []byte{0xde, 0xad}},
+		{name: "empty bytes", key: "appsec", sdk: "datadog", data: []byte{}},
+		{name: "scalar", key: "appsec", sdk: "datadog", data: []byte{0x01}},
+		{name: "truncated map", key: "appsec", sdk: "datadog", data: []byte{0x81}},
+		{name: "trailing bytes", key: "appsec", sdk: "datadog", data: append(append([]byte{}, report...), 0x01)},
+		{name: "dedicated field", key: "resource.name", sdk: "datadog", data: report},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			span := ptrace.NewSpan()
+			span.SetName("test-span")
+			span.Attributes().PutEmptyBytes(tt.key).FromRaw(tt.data)
+			res := pcommon.NewResource()
+			if tt.sdk != "" {
+				res.Attributes().PutStr("telemetry.sdk.name", tt.sdk)
+			}
+			if tt.structured {
+				res.Attributes().PutStr(tt.key, "resource fallback")
+			}
+			cfg := &config.AgentConfig{Features: map[string]struct{}{}, OTLPReceiver: &config.OTLP{}}
+			cfg.OTLPReceiver.AttributesTranslator, _ = attributes.NewTranslator(componenttest.NewNopTelemetrySettings())
+
+			ddspan := OtelSpanToDDSpan(span, res, pcommon.NewInstrumentationScope(), cfg)
+
+			if tt.structured {
+				require.Equal(t, tt.data, ddspan.MetaStruct[tt.key])
+				assert.NotContains(t, ddspan.Meta, tt.key)
+				value, _ := span.Attributes().Get(tt.key)
+				value.Bytes().AsRaw()[0] = 0
+				assert.Equal(t, tt.data, ddspan.MetaStruct[tt.key], "the converted span must own its bytes")
+			} else {
+				assert.Empty(t, ddspan.MetaStruct)
+				if tt.key != "resource.name" {
+					assert.Equal(t, base64.StdEncoding.EncodeToString(tt.data), ddspan.Meta[tt.key])
+				}
+			}
+		})
+	}
 }
 
 func TestGetOTelEnv(t *testing.T) {
