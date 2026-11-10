@@ -289,6 +289,15 @@ func main() {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
 
+	// Load proxy settings (DD_PROXY_HTTP / DD_PROXY_HTTPS / DD_PROXY_NO_PROXY)
+	// before fxutil.OneShot. The metrics forwarder and its HTTP transport are
+	// built during Fx construction, and CreateHTTPTransport only installs a
+	// proxy function if the proxy settings are already in the config at that
+	// point. setup() also calls LoadProxyFromEnv, but it runs after OneShot has
+	// started, which is too late for the forwarder: metrics and sketches would
+	// bypass the proxy while logs and traces (created in setup()) honor it.
+	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
+
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
 	applyCloudServiceOverrides(cloudService)
