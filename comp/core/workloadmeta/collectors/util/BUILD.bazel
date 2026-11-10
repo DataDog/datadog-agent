@@ -47,18 +47,12 @@ dd_agent_go_test(
         "kubelet",
     ]],
     deps = [
-        "//comp/core",
         "//comp/core/workloadmeta/def",
-        "//comp/core/workloadmeta/fx-mock",
-        "//comp/core/workloadmeta/mock",
         "//pkg/util/ecs/metadata/v3or4",
-        "//pkg/util/fxutil",
         "//pkg/util/kubernetes/kubelet",
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/api/resource",
-        "@io_k8s_apimachinery//pkg/runtime/schema",
-        "@org_uber_go_fx//:fx",
     ],
 )

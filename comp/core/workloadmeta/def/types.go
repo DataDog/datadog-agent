@@ -869,9 +869,7 @@ type KubernetesPod struct {
 	GPUVendorList              []string `proto:"ignore"`
 	RuntimeClass               string
 	KubeServices               []string
-	NamespaceLabels            map[string]string
-	NamespaceAnnotations       map[string]string `proto:"ignore"`
-	FinishedAt                 time.Time         `proto:"ignore"`
+	FinishedAt                 time.Time `proto:"ignore"`
 	SecurityContext            *PodSecurityContext
 	Resources                  ContainerResources `proto:"ignore"`
 	DeletionTimestamp          *time.Time         `proto:"ignore"`
@@ -964,8 +962,6 @@ func (p KubernetesPod) String(verbose bool) string {
 		_, _ = fmt.Fprintln(&sb, "Runtime Class:", p.RuntimeClass)
 		_, _ = fmt.Fprintln(&sb, "PVCs:", sliceToString(p.PersistentVolumeClaimNames))
 		_, _ = fmt.Fprintln(&sb, "Kube Services:", sliceToString(p.KubeServices))
-		_, _ = fmt.Fprintln(&sb, "Namespace Labels:", mapToString(p.NamespaceLabels))
-		_, _ = fmt.Fprintln(&sb, "Namespace Annotations:", mapToString(p.NamespaceAnnotations))
 
 		if !p.FinishedAt.IsZero() {
 			_, _ = fmt.Fprintln(&sb, "Finished At:", p.FinishedAt)

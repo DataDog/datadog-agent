@@ -172,7 +172,7 @@ func (c *collector) pullFromKubelet(ctx context.Context) error {
 		return nil
 	}
 
-	events = append(events, util.ParseKubeletPods(podList.Items, c.collectEphemeralContainers, c.store)...)
+	events = append(events, util.ParseKubeletPods(podList.Items, c.collectEphemeralContainers)...)
 
 	// Mark return pods and containers as seen now
 	now := time.Now()

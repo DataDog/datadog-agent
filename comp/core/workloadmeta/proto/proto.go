@@ -571,7 +571,6 @@ func protoKubernetesPodFromWorkloadmetaKubernetesPod(kubernetesPod *workloadmeta
 		QosClass:                   kubernetesPod.QOSClass,
 		RuntimeClass:               kubernetesPod.RuntimeClass,
 		KubeServices:               kubernetesPod.KubeServices,
-		NamespaceLabels:            kubernetesPod.NamespaceLabels,
 		SecurityContext:            toProtoPodSecurityContext(kubernetesPod.SecurityContext),
 	}, nil
 }
@@ -1273,7 +1272,6 @@ func toWorkloadmetaKubernetesPod(protoKubernetesPod *pb.KubernetesPod) (*workloa
 		QOSClass:                   protoKubernetesPod.QosClass,
 		RuntimeClass:               protoKubernetesPod.RuntimeClass,
 		KubeServices:               protoKubernetesPod.KubeServices,
-		NamespaceLabels:            protoKubernetesPod.NamespaceLabels,
 		SecurityContext:            toWorkloadmetaPodSecurityContext(protoKubernetesPod.SecurityContext),
 	}, nil
 }

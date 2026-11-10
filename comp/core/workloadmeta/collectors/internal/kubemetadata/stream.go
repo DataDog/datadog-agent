@@ -61,8 +61,8 @@ const (
 )
 
 // streamingProvider generates pod workloadmeta events enriched with the
-// Kubernetes services each pod belongs to and, when configured, the namespace
-// labels and annotations relevant to those pods.
+// Kubernetes services each pod belongs to and, when configured, namespace
+// entities with their labels and annotations.
 type streamingProvider struct {
 	dcaStream                   *dcaStreamClient
 	wmeta                       workloadmeta.Component
@@ -233,20 +233,6 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 			}
 		}
 
-		// Re-enrich pods in updated namespaces so they pick up the new
-		// namespace labels/annotations.
-		reenrichedPods := make(map[string]struct{})
-		for ns := range update.updatedNamespaces {
-			for namespacedName, uid := range seenPods {
-				if strings.HasPrefix(namespacedName, ns+"/") {
-					if podEvent, ok := p.buildPodEventFromUID(uid); ok {
-						events = append(events, podEvent)
-						reenrichedPods[uid] = struct{}{}
-					}
-				}
-			}
-		}
-
 		// Kueue Workload and ResourceFlavor updates can change tags for any
 		// seen pod that joins to those entities. Only re-enrich pods that
 		// actually join to an updated Workload (directly, or transitively
@@ -255,10 +241,6 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 		// in use) are skipped, so this loop is a no-op then.
 		if len(update.updatedKueueWorkloads) > 0 || len(update.updatedKueueResourceFlavors) > 0 {
 			for _, uid := range seenPods {
-				// this pod is already being re-enriched for a previous reason, so skip
-				if _, seen := reenrichedPods[uid]; seen {
-					continue
-				}
 				pod, err := p.wmeta.GetKubernetesPod(uid)
 				if err != nil {
 					continue
@@ -267,7 +249,6 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 					continue
 				}
 				events = append(events, p.buildPodEvent(pod))
-				reenrichedPods[uid] = struct{}{}
 			}
 		}
 	}
@@ -285,8 +266,6 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 		}
 	}
 
-	nsLabels, nsAnnotations := p.getNamespaceMetadata(pod.Namespace)
-
 	return workloadmeta.CollectorEvent{
 		Source: workloadmeta.SourceClusterOrchestrator,
 		Type:   workloadmeta.EventTypeSet,
@@ -298,9 +277,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 				// Labels and annotations are omitted because they're filled by
 				// the kubelet collector
 			},
-			KubeServices:         services,
-			NamespaceLabels:      nsLabels,
-			NamespaceAnnotations: nsAnnotations,
+			KubeServices: services,
 		},
 	}
 }
@@ -361,16 +338,6 @@ func podKueueWorkloadID(pod *workloadmeta.KubernetesPod) string {
 	}
 
 	return workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
-}
-
-func (p *streamingProvider) getNamespaceMetadata(ns string) (labels, annotations map[string]string) {
-	nsLabels, nsAnnotations, found := p.dcaStream.getNamespaceMetadata(ns)
-	if !found {
-		return nil, nil
-	}
-
-	metadata := namespaceMetadata{labels: nsLabels, annotations: nsAnnotations}
-	return selectNamespaceMetadata(metadata, p.collectNamespaceLabels, p.collectNamespaceAnnotations)
 }
 
 // buildNamespaceEvents returns events for the namespace entities changed by

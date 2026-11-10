@@ -357,9 +357,6 @@ func TestConversions(t *testing.T) {
 					KubeServices: []string{
 						"service1",
 					},
-					NamespaceLabels: map[string]string{
-						"a_label": "a_label_value",
-					},
 				},
 			},
 			protoWorkloadmetaEvent: &pb.WorkloadmetaEvent{
@@ -423,9 +420,6 @@ func TestConversions(t *testing.T) {
 					RuntimeClass:  "myclass",
 					KubeServices: []string{
 						"service1",
-					},
-					NamespaceLabels: map[string]string{
-						"a_label": "a_label_value",
 					},
 				},
 			},

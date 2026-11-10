@@ -387,7 +387,7 @@ func (suite *ProviderTestSuite) fillWorkloadmetaStore(testDataFile string) error
 		return err
 	}
 
-	wmetaEvents := util.ParseKubeletPods(podList.Items, true, suite.provider.store)
+	wmetaEvents := util.ParseKubeletPods(podList.Items, true)
 
 	wmetaEvents = append(wmetaEvents, workloadmeta.CollectorEvent{
 		Type: workloadmeta.EventTypeSet,

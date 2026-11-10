@@ -134,8 +134,6 @@ func TestConvertWorkloadmetaPodToK8sPod(t *testing.T) {
 		EphemeralContainers:        nil,
 		FinishedAt:                 time.Time{},
 		GPUVendorList:              nil,
-		NamespaceAnnotations:       nil,
-		NamespaceLabels:            nil,
 		PersistentVolumeClaimNames: nil,
 		Ready:                      true,
 	}
