@@ -98,7 +98,6 @@ single_machine_performance-regression_detector-merge_base_check:
     # Setup AWS credentials for single-machine-performance AWS account to check ECR images
     - AWS_NAMED_PROFILE="single-machine-performance"
     - SMP_ACCOUNT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT account_id) || exit $?
-    - SMP_AGENT_TEAM_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT agent_team_id) || exit $?
     - SMP_BOT_ID=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_login) || exit $?
     - SMP_BOT_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SMP_ACCOUNT bot_token) || exit $?
     - aws configure set aws_access_key_id "$SMP_BOT_ID" --profile ${AWS_NAMED_PROFILE}
@@ -121,7 +120,7 @@ single_machine_performance-regression_detector-merge_base_check:
     # we avoid wasting time checking for expired images in common cases.
     - echo "Checking if image exists for commit ${BASELINE_SHA}..."
     - |
-      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
+      while [[ ! $(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name agent --image-ids imageTag="${BASELINE_SHA}-7-full-amd64") ]]
       do
           echo "No image exists for ${BASELINE_SHA} - checking predecessor of ${BASELINE_SHA} next"
           BASELINE_SHA=$(git rev-parse ${BASELINE_SHA}^)
@@ -158,7 +157,7 @@ single_machine_performance-regression_detector-merge_base_check:
                   # The distinguishing information is on stderr, so capture
                   # that and discard stdout. `if VAR=$(...)` is exempt from
                   # `set -e`.
-                  if SMP_ECR_ERROR=$(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name "${SMP_AGENT_TEAM_ID}-agent" --image-ids imageTag="${SMP_BASE_TIP}-7-full-amd64" 2>&1 >/dev/null)
+                  if SMP_ECR_ERROR=$(aws ecr describe-images --region us-west-2 --profile single-machine-performance --registry-id "${SMP_ACCOUNT_ID}" --repository-name agent --image-ids imageTag="${SMP_BASE_TIP}-7-full-amd64" 2>&1 >/dev/null)
                   then
                       echo "A baseline image already exists for the ${SMP_BASE_BRANCH} tip (${SMP_BASE_TIP})"
                   elif [[ "${SMP_ECR_ERROR}" != *ImageNotFoundException* ]]
