@@ -12,9 +12,11 @@ import (
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	winawshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host/windows"
+	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 
 	"testing"
 )
@@ -45,6 +47,8 @@ func (s *testAgentScriptInstallsAPMInject) TestInstallFromScript() {
 			"DD_INSTALLER_REGISTRY_URL":                           "install.datad0g.com",
 			"DD_INSTALLER_DEFAULT_PKG_VERSION_DATADOG_APM_INJECT": s.currentAPMInjectVersion.PackageVersion(),
 			"DD_APM_INSTRUMENTATION_LIBRARIES":                    "dotnet:3,java:1",
+			"DD_PROFILING_ENABLED":                                "auto",
+			"DD_DATA_STREAMS_ENABLED":                             "true",
 		}),
 	)
 
@@ -52,6 +56,29 @@ func (s *testAgentScriptInstallsAPMInject) TestInstallFromScript() {
 	s.assertSuccessfulPromoteExperiment()
 
 	s.assertDriverInjections(true)
+	s.assertLocalStableConfig(map[string]any{
+		"DD_PROFILING_ENABLED":    "auto",
+		"DD_DATA_STREAMS_ENABLED": true,
+	})
+}
+
+// assertLocalStableConfig checks that application_monitoring.yaml holds the
+// expected APM defaults and is readable by Everyone.
+func (s *testAgentScriptInstallsAPMInject) assertLocalStableConfig(expected map[string]any) {
+	host := s.Env().RemoteHost
+	configRoot, err := windowsAgent.GetConfigRootFromRegistry(host)
+	s.Require().NoError(err)
+	configPath := configRoot + `\application_monitoring.yaml`
+
+	configBytes, err := host.ReadFile(configPath)
+	s.Require().NoError(err, "failed to read application_monitoring.yaml")
+	var cfg struct {
+		Default map[string]any `yaml:"apm_configuration_default"`
+	}
+	s.Require().NoError(yaml.Unmarshal(configBytes, &cfg), "failed to unmarshal application_monitoring.yaml")
+	s.Require().Equal(expected, cfg.Default)
+
+	s.Require().Host(host).HasGlobalReadAccess(configPath)
 }
 
 // installCurrentAgentVersionWithAPMInject installs the current agent version with APM inject via script
