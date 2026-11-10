@@ -81,26 +81,8 @@ func (n *UnaryExpr) editChildren(edit func(Node) Node) {
 func (n *Ident) copy() Node                   { c := *n; return &c }
 func (n *Ident) editChildren(func(Node) Node) {}
 
-func (n *IntLiteral) copy() Node                   { c := *n; return &c }
-func (n *IntLiteral) editChildren(func(Node) Node) {}
-
-func (n *DurationLiteral) copy() Node                   { c := *n; return &c }
-func (n *DurationLiteral) editChildren(func(Node) Node) {}
-
-func (n *StringLiteral) copy() Node                   { c := *n; return &c }
-func (n *StringLiteral) editChildren(func(Node) Node) {}
-
-func (n *PatternLiteral) copy() Node                   { c := *n; return &c }
-func (n *PatternLiteral) editChildren(func(Node) Node) {}
-
-func (n *RegexpLiteral) copy() Node                   { c := *n; return &c }
-func (n *RegexpLiteral) editChildren(func(Node) Node) {}
-
-func (n *IPLiteral) copy() Node                   { c := *n; return &c }
-func (n *IPLiteral) editChildren(func(Node) Node) {}
-
-func (n *CIDRLiteral) copy() Node                   { c := *n; return &c }
-func (n *CIDRLiteral) editChildren(func(Node) Node) {}
+func (n *Literal) copy() Node                   { c := *n; return &c }
+func (n *Literal) editChildren(func(Node) Node) {}
 
 func (n *VariableRef) copy() Node                   { c := *n; return &c }
 func (n *VariableRef) editChildren(func(Node) Node) {}
@@ -111,22 +93,12 @@ func (n *FieldRef) editChildren(func(Node) Node) {}
 // The copy of an array owns its slice of members, editing them leaves the
 // original unchanged.
 
-func (n *StringArray) copy() Node { c := *n; c.Members = slices.Clone(n.Members); return &c }
-func (n *StringArray) editChildren(edit func(Node) Node) {
+func (n *Array) copy() Node { c := *n; c.Members = slices.Clone(n.Members); return &c }
+func (n *Array) editChildren(edit func(Node) Node) {
 	for i, member := range n.Members {
-		n.Members[i] = edit(member).(StringArrayMember)
+		n.Members[i] = edit(member).(*Literal)
 	}
 }
-
-func (n *CIDRArray) copy() Node { c := *n; c.Members = slices.Clone(n.Members); return &c }
-func (n *CIDRArray) editChildren(edit func(Node) Node) {
-	for i, member := range n.Members {
-		n.Members[i] = edit(member).(CIDRArrayMember)
-	}
-}
-
-func (n *IntArray) copy() Node                   { c := *n; c.Values = slices.Clone(n.Values); return &c }
-func (n *IntArray) editChildren(func(Node) Node) {}
 
 func (n *IdentArray) copy() Node                   { c := *n; c.Names = slices.Clone(n.Names); return &c }
 func (n *IdentArray) editChildren(func(Node) Node) {}

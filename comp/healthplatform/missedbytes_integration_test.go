@@ -75,7 +75,7 @@ func TestMissedBytesSurvivesFullPipeline(t *testing.T) {
 		fx.Provide(func(t testing.TB) config.Component {
 			cfg := config.NewMock(t)
 			cfg.SetInTest("api_key", "test-api-key")
-			cfg.SetInTest("dd_url", fi.URL())
+			cfg.SetInTest("health_platform.forwarder.dd_url", fi.URL())
 			cfg.SetInTest("logs_enabled", true)
 			cfg.SetInTest("health_platform.enabled", true)
 			cfg.SetInTest("health_platform.persist_on_kubernetes", true)

@@ -299,11 +299,11 @@ def check_mod_tidy(ctx, test_folder="testmodule"):
             errors_found.append("modules dependencies are out of sync, please run go work sync")
 
         for mod in get_default_modules().values():
-            with ctx.cd(mod.full_path()):
+            with ctx.cd(mod.full_workspace_dir()):
                 ctx.run("go mod tidy")
 
                 files = "go.mod"
-                if os.path.exists(os.path.join(mod.full_path(), "go.sum")):
+                if os.path.exists(os.path.join(mod.full_workspace_dir(), "go.sum")):
                     # if the module has no dependency, no go.sum file will be created
                     files += " go.sum"
 
@@ -342,7 +342,9 @@ def tidy(ctx, verbose: bool = False, time: bool = False):
     """
     time: report how long each of tidy's subtasks took.
     """
-    _check_valid_mods()
+    # Pre-Bazel branches have modules whose root is not a package (e.g. Agent 6's pkg/security/seclwin)
+    if is_bazel_workspace():
+        _check_valid_mods()
     # `go mod tidy` in the in-repo generatedsettings module needs its generated code
     if os.path.isdir(GENERATED_SETTINGS_DIR):
         schema_codegen(ctx)
@@ -383,7 +385,7 @@ def _go_only_tidy(ctx, verbose: bool, timings=None):
         promises = []
         for mod in get_default_modules().values():
             # tidy the go.mod go.work uses, as `go mod tidy` in Bazel's //:go_mod_tidy_all does
-            with ctx.cd(os.path.abspath(mod.workspace_dir())):
+            with ctx.cd(mod.full_workspace_dir()):
                 # https://docs.pyinvoke.org/en/stable/api/runners.html#invoke.runners.Runner.run
                 promises.append(ctx.run(f"go mod tidy {verbosity}", asynchronous=True))
 
@@ -456,7 +458,7 @@ def go_fix(ctx, fix=None):
     oslist = ["linux", "windows", "darwin"]
 
     for mod in get_default_modules().values():
-        with ctx.cd(mod.full_path()):
+        with ctx.cd(mod.full_workspace_dir()):
             for osname in oslist:
                 tags = set(ALL_TAGS).union({osname, "ebpf_bindata"})
                 ctx.run(f"go fix{fixarg} -tags {','.join(tags)} ./...")

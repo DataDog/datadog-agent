@@ -249,7 +249,7 @@ func (c *serverlessinitComp) recordSubmission() {
 
 // getPayload stamps the submission state as the report reason: the first
 // payload for an identity is a startup report, later ones periodic.
-func (c *serverlessinitComp) getPayload() marshaler.JSONMarshaler {
+func (c *serverlessinitComp) getPayload() marshaler.TypedJSONMarshaler {
 	fields := maps.Clone(c.fields)
 	reason := reportReasonStartup
 	if c.submittedCurrentIdentity {
