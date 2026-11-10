@@ -244,9 +244,9 @@ type Store struct {
 	mu   sync.RWMutex
 	rc   map[string]*Request // by request id
 	file map[string]*Request // by request id
-	// implicitCaps is what the cluster's runtimes grant a container that
-	// declares no capabilities; the leader and the webhook must agree on it.
-	implicitCaps []string
+	// defaults is what the cluster's runtimes grant a container that declares
+	// no capabilities; the leader and the webhook must agree on it.
+	defaults Defaults
 
 	changes chan struct{}
 }
@@ -254,28 +254,28 @@ type Store struct {
 // NewStore returns an empty Store for the cluster whose ID is clusterID.
 func NewStore(clusterID string) *Store {
 	return &Store{
-		clusterID:    clusterID,
-		rc:           map[string]*Request{},
-		file:         map[string]*Request{},
-		implicitCaps: implicitCapabilities,
-		changes:      make(chan struct{}, 1),
+		clusterID: clusterID,
+		rc:        map[string]*Request{},
+		file:      map[string]*Request{},
+		defaults:  fallbackDefaults,
+		changes:   make(chan struct{}, 1),
 	}
 }
 
-// ImplicitCapabilities returns what the cluster's runtimes grant a container
-// that declares no capabilities, as of the last node listing.
-func (s *Store) ImplicitCapabilities() []string {
+// Defaults returns what the cluster's runtimes grant a container that declares
+// no capabilities, as of the last node listing.
+func (s *Store) Defaults() Defaults {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	return s.implicitCaps
+	return s.defaults
 }
 
-// setImplicitCapabilities reports whether caps differs from the previous set.
-func (s *Store) setImplicitCapabilities(caps []string) bool {
+// setDefaults reports whether d differs from the previous Defaults.
+func (s *Store) setDefaults(d Defaults) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	changed := !slices.Equal(s.implicitCaps, caps)
-	s.implicitCaps = caps
+	changed := d.Exact != s.defaults.Exact || !slices.Equal(d.Capabilities, s.defaults.Capabilities)
+	s.defaults = d
 	return changed
 }
 

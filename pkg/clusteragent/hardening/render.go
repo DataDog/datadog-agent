@@ -30,20 +30,32 @@ var implicitCapabilities = []string{
 var dockerCapabilities = append(slices.Clone(implicitCapabilities),
 	"AUDIT_WRITE", "MKNOD", "NET_RAW", "SETFCAP", "SYS_CHROOT")
 
-// ImplicitCapabilities returns the set a container that declares none gets on
-// every node, given each node's status.nodeInfo.containerRuntimeVersion (such
-// as "containerd://1.7.2"). CRI-O, whose set is configurable, an unknown
-// runtime, or no node at all, keep the intersection.
+// Defaults is what the cluster's runtimes grant a container that declares no
+// capabilities.
+type Defaults struct {
+	// Capabilities are granted on every node.
+	Capabilities []string
+	// Exact is set when every node's runtime is known, so no node grants more.
+	Exact bool
+}
+
+// fallbackDefaults applies until the nodes are listed.
+var fallbackDefaults = Defaults{Capabilities: implicitCapabilities}
+
+// RuntimeDefaults returns the Defaults of nodes whose
+// status.nodeInfo.containerRuntimeVersion are runtimes (such as
+// "containerd://1.7.2"). CRI-O, whose set is configurable, an unknown runtime,
+// or no node at all, keep the intersection, and it is not exact.
 // ponytail: assumes containerd's default base spec; one with fewer capabilities
 // (base_runtime_spec) would let a request add some back.
-func ImplicitCapabilities(runtimes []string) []string {
+func RuntimeDefaults(runtimes []string) Defaults {
 	grantsDocker := func(runtime string) bool {
 		return strings.HasPrefix(runtime, "containerd://") || strings.HasPrefix(runtime, "docker://")
 	}
 	if len(runtimes) == 0 || slices.ContainsFunc(runtimes, func(r string) bool { return !grantsDocker(r) }) {
-		return implicitCapabilities
+		return fallbackDefaults
 	}
-	return dockerCapabilities
+	return Defaults{Capabilities: dockerCapabilities, Exact: true}
 }
 
 // FindContainer returns the container named name in spec.Containers, or nil.
@@ -59,10 +71,8 @@ func FindContainer(spec *corev1.PodSpec, name string) *corev1.Container {
 
 // Render returns the target container's securityContext with req's control
 // applied, or the reason it cannot be applied. It only ever narrows what the
-// container may do, given implicit, the capabilities the cluster's runtimes
-// grant a container that declares none (ImplicitCapabilities), and never
-// modifies spec.
-func Render(req *Request, spec *corev1.PodSpec, implicit []string) (*corev1.SecurityContext, string) {
+// container may do, given the cluster's runtime defaults, and never modifies spec.
+func Render(req *Request, spec *corev1.PodSpec, defaults Defaults) (*corev1.SecurityContext, string) {
 	c := FindContainer(spec, req.Workload.Container)
 	if c == nil {
 		return nil, "container not found"
@@ -77,15 +87,11 @@ func Render(req *Request, spec *corev1.PodSpec, implicit []string) (*corev1.Secu
 
 	switch req.Control {
 	case ControlCapabilities:
-		var add []corev1.Capability
-		for _, name := range req.Parameters.CapabilitiesAdd {
-			if !isGranted(sc.Capabilities, name, implicit) {
-				return nil, fmt.Sprintf("capability %s is not granted to the container today", name)
-			}
-			add = append(add, corev1.Capability(name))
+		add, reason := keptCapabilities(req.Parameters.CapabilitiesAdd, sc.Capabilities, defaults)
+		if reason != "" {
+			return nil, reason
 		}
-		slices.Sort(add)
-		sc.Capabilities = &corev1.Capabilities{Add: slices.Compact(add), Drop: []corev1.Capability{"ALL"}}
+		sc.Capabilities = &corev1.Capabilities{Add: add, Drop: []corev1.Capability{"ALL"}}
 	case ControlNonRoot:
 		// The kubelet would refuse to start the container, and the rollout would stall.
 		if uid := runAsUser(spec, sc); uid != nil && *uid == 0 {
@@ -139,29 +145,60 @@ func runAsNonRoot(spec *corev1.PodSpec, sc *corev1.SecurityContext) *bool {
 	return sc.RunAsNonRoot
 }
 
-// isGranted reports whether a container declaring caps runs with capability
-// name. The runtimes apply add:[ALL] (every capability), then drop:[ALL]
-// (nothing), then the individual adds, then the individual drops — so a
-// specific entry always wins over ALL, and drop always wins over add. Checked
-// in that order: a specific drop loses the capability; a specific add (or
-// ALL) grants it; drop:[ALL] with no matching specific add then denies it;
-// otherwise the container gets the implicit default set.
-func isGranted(caps *corev1.Capabilities, name string, implicit []string) bool {
+// keptCapabilities returns the requested capabilities the container holds
+// today, sorted. One it provably lacks is left out: the container already runs
+// without it, so a check the workload makes for it keeps failing the same way.
+// One only some nodes' runtime may grant makes the request unsafe.
+func keptCapabilities(requested []string, declared *corev1.Capabilities, defaults Defaults) ([]corev1.Capability, string) {
+	var add []corev1.Capability
+	for _, name := range requested {
+		switch capabilityGrant(declared, name, defaults) {
+		case grantUnknown:
+			return nil, fmt.Sprintf("capability %s is granted by default on some runtimes only", name)
+		case granted:
+			add = append(add, corev1.Capability(name))
+		}
+	}
+	slices.Sort(add)
+	return slices.Compact(add), ""
+}
+
+type grant int
+
+const (
+	granted grant = iota
+	notGranted
+	grantUnknown
+)
+
+// capabilityGrant reports whether a container declaring caps runs with
+// capability name. The runtimes apply add:[ALL] (every capability), then
+// drop:[ALL] (nothing), then the individual adds, then the individual drops —
+// so a specific entry always wins over ALL, and drop always wins over add.
+// Checked in that order: a specific drop loses the capability; a specific add
+// (or ALL) grants it; drop:[ALL] with no matching specific add then denies it;
+// otherwise the runtime default decides, which is unknown for a capability
+// outside defaults.Capabilities unless defaults is exact.
+func capabilityGrant(caps *corev1.Capabilities, name string, defaults Defaults) grant {
 	var add, drop []corev1.Capability
 	if caps != nil {
 		add, drop = caps.Add, caps.Drop
 	}
 	switch {
 	case hasCapability(drop, name):
-		return false
+		return notGranted
 	case hasCapability(add, name):
-		return true
+		return granted
 	case hasCapability(drop, "ALL"):
-		return false
+		return notGranted
 	case hasCapability(add, "ALL"):
-		return true
+		return granted
+	case slices.Contains(defaults.Capabilities, name):
+		return granted
+	case defaults.Exact:
+		return notGranted
 	}
-	return slices.Contains(implicit, name)
+	return grantUnknown
 }
 
 func hasCapability(list []corev1.Capability, name string) bool {
