@@ -1026,6 +1026,8 @@
 /tasks/unit_tests/kmt_tests.py                                  @DataDog/ebpf-platform
 /tasks/unit_tests/system_probe_test_programs_tests.py            @DataDog/debugger-go
 /tasks/unit_tests/macos_tests.py                                @DataDog/windows-products
+/tasks/unit_tests/macos_install_script_tests.py                 @DataDog/windows-products
+/tasks/unit_tests/adp_macos_windows_packaging_tests.py          @DataDog/windows-products
 /tasks/unit_tests/winbuild_tests.py                             @DataDog/windows-products
 /tasks/cluster_agent_cloudfoundry.py                            @DataDog/agent-integrations
 /tasks/cluster_agent.py                                         @DataDog/container-platform
