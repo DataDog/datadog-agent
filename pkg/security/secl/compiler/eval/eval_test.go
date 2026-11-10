@@ -146,6 +146,28 @@ func TestIdentArrayError(t *testing.T) {
 	}
 }
 
+func TestCompareLeftOperandError(t *testing.T) {
+	for expr, expected := range map[string]string{
+		`["a", "b"] == "a"`:                        "string expected: 1:1",
+		`process.uid == 0 && ["a"] =~ "a*"`:        "string expected: 1:21",
+		`[1.1.1.1, 10.0.0.0/8] != 1.1.1.1`:         "struct expected: 1:1",
+		`process.array.flag in [true]`:             "bool expected: 1:1",
+		`process.uid == 0 && [true] not in [true]`: "bool expected: 1:21",
+	} {
+		model := &testModel{}
+		opts := newOptsWithParams(testConstants, nil)
+		rule, err := parseRule(expr, model, opts)
+		if rule == nil {
+			t.Fatal(err)
+		}
+
+		_, err = NewRuleEvaluator(rule.GetAst(), model, opts)
+		if err == nil || err.Error() != expected {
+			t.Errorf("%s: should report `%s`, got `%v`", expr, expected, err)
+		}
+	}
+}
+
 func TestSimpleString(t *testing.T) {
 	event := &testEvent{
 		process: testProcess{

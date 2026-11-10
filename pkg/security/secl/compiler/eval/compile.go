@@ -659,6 +659,9 @@ func compileArrayCompare(node *ast.ArrayCompareExpr, opts *Opts, state *State) (
 		default:
 			return nil, pos, NewCIDRTypeError(pos, reflect.Array, right)
 		}
+	case *BoolArrayEvaluator:
+		leftPos := node.Left.Position()
+		return nil, leftPos, NewTypeError(leftPos, reflect.Bool)
 	default:
 		return nil, pos, NewTypeError(pos, reflect.Array)
 	}
@@ -1095,6 +1098,12 @@ func compileScalarCompare(node *ast.ScalarCompareExpr, opts *Opts, state *State)
 			}
 			return nil, pos, NewOpUnknownError(node.Pos, node.Op.String())
 		}
+	case *StringValuesEvaluator:
+		leftPos := node.Left.Position()
+		return nil, leftPos, NewTypeError(leftPos, reflect.String)
+	case *CIDRValuesEvaluator:
+		leftPos := node.Left.Position()
+		return nil, leftPos, NewTypeError(leftPos, familyKinds[ast.IPFamily])
 	}
 
 	return nil, ast.Position{}, NewError(ast.Position{}, "unknown entity '%s'", reflect.TypeOf(node))
