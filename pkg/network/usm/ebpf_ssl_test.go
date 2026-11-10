@@ -214,7 +214,7 @@ func checkPidNotFoundInMaps(originalT *testing.T, t require.TestingT, manager *m
 // findKeyInMap is a generic helper to find a key in an eBPF map.
 func findKeyInMap[K comparable](m *ebpf.Map, theKey K) bool {
 	val := make([]byte, m.ValueSize())
-	return m.Lookup(unsafe.Pointer(&theKey), unsafe.Pointer(&val)) == nil
+	return m.Lookup(unsafe.Pointer(&theKey), unsafe.Pointer(&val[0])) == nil
 }
 
 // startDummyProgram starts sleeping thread.
