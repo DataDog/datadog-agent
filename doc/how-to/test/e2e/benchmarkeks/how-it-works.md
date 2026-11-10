@@ -69,7 +69,8 @@ The churn orchestrator creates the workload from the manifests of <<<repo("test/
 ```text
   ┌─ Kubernetes API server ────────────────────────────────────────┐
   │ 300 KWOK nodes and their pods, Deployments, Services,          │
-  │ CronJobs, Jobs, ConfigMaps: created, deleted, recreated        │
+  │ CronJobs, Jobs, ConfigMaps, a custom resource definition and   │
+  │ its custom resources: created, deleted, recreated              │
   └───────┬─────────────────┬─────────────────┬─────────────────┬──┘
           │ watch           │ watch           │ watch           │ watch
           ▼                 ▼                 ▼                 ▼
@@ -87,6 +88,10 @@ The churn orchestrator creates the workload from the manifests of <<<repo("test/
 | `steady-*` Services | 200 | Steady | |
 | `cron-*` CronJobs, a Job of 3 pods every minute | 30 | Steady | Pods owned by Jobs owned by CronJobs, and the job metrics of KSM. KWOK completes their pods at once, and the CronJobs keep their last 3 successful Jobs |
 | `big-*` ConfigMaps, 128 KiB each | 300 | 30 minutes | Large objects KSM lists and watches, though it only needs their metadata |
+| `widgets.benchmark.datadoghq.com` custom resource definition | 1 | 5 minutes | Makes the KSM checks rebuild their stores, see below. The Cluster Agents collect custom resource definitions too |
+| `widget-*` Widgets, custom resources of that definition | 5 | 1 minute | Custom resources the KSM checks collect, whose store comes and goes with their definition. They are all back about a minute after its recreation |
+
+The KSM checks rebuild all their stores at their first run after any event of a custom resource definition. Without the churned definition, they would only rebuild them while the Agents start, a number of times that varies from one run to the next. Recreated every 5 minutes, the length of a [block](statistics.md#blocks) of a full-length phase, the definition makes them rebuild their stores once or twice per recreation, depending on whether a check run falls between its deletion and its creation. A cost paid at each rebuild, such as old stores that are never released, then grows at a steady pace in every phase and every run.
 
 ### Real pods, for the node Agents
 

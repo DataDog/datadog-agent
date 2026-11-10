@@ -537,6 +537,8 @@ func TestAMDKubernetesAllocationsTagDeviceMetrics(t *testing.T) {
 	// One partition each, with the "mixed" strategy resource name.
 	addPod("part1", workloadmeta.ContainerAllocatedResource{Name: "amd.com/cpx_nps4", ID: "amdgpu_xcp_1"})
 	addPod("part2", workloadmeta.ContainerAllocatedResource{Name: "amd.com/cpx_nps4", ID: "amdgpu_xcp_2"})
+	// A partition allocated through the AMD DRA driver, named after its render node.
+	addPod("dra", workloadmeta.ContainerAllocatedResource{Name: "gpu.amd.com", ID: "gpu-1-129", CdiDevices: []string{"k8s.gpu.amd.com/gpu=common"}})
 	// NVIDIA and unknown AMD allocations are not attributed to AMD GPUs.
 	addPod("nvidia", workloadmeta.ContainerAllocatedResource{Name: "nvidia.com/gpu", ID: "GPU-00000000-1234-1234-1234-123456789012"})
 	addPod("stale", workloadmeta.ContainerAllocatedResource{Name: "amd.com/gpu", ID: "0000:e1:00.0"})
@@ -559,7 +561,7 @@ func TestAMDKubernetesAllocationsTagDeviceMetrics(t *testing.T) {
 	}
 	require.Len(t, containersByUUID, 2)
 	assert.ElementsMatch(t, []string{"whole"}, containersByUUID[testAMDUUID])
-	assert.ElementsMatch(t, []string{"part1", "part2"}, containersByUUID["amd-0000-d1-00-0"])
+	assert.ElementsMatch(t, []string{"part1", "part2", "dra"}, containersByUUID["amd-0000-d1-00-0"])
 }
 
 func TestAMDCheckDisabledByConfig(t *testing.T) {

@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.yaml.in/yaml/v3"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/setup/config"
 )
 
@@ -154,6 +155,59 @@ func TestEnableSystemProbeConfig_UnmarshalError(t *testing.T) {
 
 	err := enableSystemProbeConfigAt(configPath)
 	require.Error(t, err)
+}
+
+func TestAddLocalStableConfig_NothingSet(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "application_monitoring.yaml")
+
+	err := addLocalStableConfigAt(configPath, env.InstallScriptEnv{})
+	require.NoError(t, err)
+
+	_, err = os.Stat(configPath)
+	assert.True(t, os.IsNotExist(err), "file should not be created when no setting is set")
+}
+
+func TestAddLocalStableConfig_NoExistingFile(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "application_monitoring.yaml")
+
+	err := addLocalStableConfigAt(configPath, env.InstallScriptEnv{
+		ProfilingEnabled:   "auto",
+		DataStreamsEnabled: config.BoolToPtr(true),
+	})
+	require.NoError(t, err)
+
+	var cfg config.ApplicationMonitoringConfig
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	require.NoError(t, yaml.Unmarshal(data, &cfg))
+	require.NotNil(t, cfg.Default.ProfilingEnabled)
+	assert.Equal(t, "auto", *cfg.Default.ProfilingEnabled)
+	require.NotNil(t, cfg.Default.DataStreamsEnabled)
+	assert.True(t, *cfg.Default.DataStreamsEnabled)
+	assert.Nil(t, cfg.Default.AppsecEnabled)
+}
+
+func TestAddLocalStableConfig_PreservesExistingSettings(t *testing.T) {
+	configPath := filepath.Join(t.TempDir(), "application_monitoring.yaml")
+
+	writeFile(t, configPath, `apm_configuration_default:
+  DD_PROFILING_ENABLED: "false"
+  DD_RUNTIME_METRICS_ENABLED: true
+some_future_key: value
+`)
+
+	err := addLocalStableConfigAt(configPath, env.InstallScriptEnv{ProfilingEnabled: "auto"})
+	require.NoError(t, err)
+
+	data, err := os.ReadFile(configPath)
+	require.NoError(t, err)
+	var raw map[string]any
+	require.NoError(t, yaml.Unmarshal(data, &raw))
+
+	defaults := raw["apm_configuration_default"].(map[string]any)
+	assert.Equal(t, "auto", defaults["DD_PROFILING_ENABLED"])
+	assert.Equal(t, true, defaults["DD_RUNTIME_METRICS_ENABLED"])
+	assert.Equal(t, "value", raw["some_future_key"])
 }
 
 func writeFile(t *testing.T, path, content string) {

@@ -27,6 +27,8 @@ variables:
     TRACE_AGENT_CPUS: 40-41
     DD_APM_MAX_CPU_PERCENT: 0
     DD_APM_MAX_MEMORY: 0
+    # Benchmarks need stable resources across runs
+    DD_DISABLE_VPA: true
 
     # Uncomment to force k8s memory limits for CI job container.
     # KUBERNETES_MEMORY_REQUEST: "4Gi"
