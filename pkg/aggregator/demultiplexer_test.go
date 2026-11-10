@@ -22,6 +22,7 @@ import (
 	nooptagger "github.com/DataDog/datadog-agent/comp/core/tagger/impl-noop"
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	filterlistfx "github.com/DataDog/datadog-agent/comp/filterlist/fx"
+	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
 	defaultforwardermock "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/mock"
 	eventplatform "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/def"
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
@@ -292,7 +293,7 @@ func createDemuxDepsWithOrchestratorFwd(
 	eventPlatformParams eventplatform.Params) aggregatorDeps {
 	modules := fx.Options(
 		fx.Provide(func() secrets.Component { return secretsmock.New(t) }),
-		defaultforwardermock.MockModule(),
+		fx.Provide(func() defaultforwarder.Component { return defaultforwardermock.New(t) }),
 		core.MockBundle(),
 		hostnameimpl.MockModule(),
 		orchestratorForwarderFx.Module(orchestratorParams),
