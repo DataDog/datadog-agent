@@ -7,7 +7,10 @@ package client_test
 
 import (
 	"context"
+	"fmt"
 	"net"
+	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -22,6 +25,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/client"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/config"
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/internal/fakeserver"
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/network-devices/gnmi/report"
 )
 
 func testProfile() config.ProfileDefinition {
@@ -570,4 +574,130 @@ func hostPort(addr string) (string, int, error) {
 		return "", 0, err
 	}
 	return host, port, nil
+}
+
+func TestReportMatchesGetAfterEquivalentOpenConfigUpdates(t *testing.T) {
+	qualified := "openconfig:/openconfig-interfaces:interfaces/interface/state/counters/in-octets"
+	unqualified := "openconfig:/interfaces/interface/state/counters/in-octets"
+	for _, selector := range []string{qualified, unqualified} {
+		for _, lastPath := range []string{qualified, unqualified} {
+			t.Run(selector+"/last="+lastPath, func(t *testing.T) {
+				server := startServer(t)
+				c := newTestClient(t, server)
+				startClient(t, c)
+				event := waitSubscribeEvent(t, server)
+				send := func(path string, value int64) {
+					wire, err := config.CompilePath(path, map[string]string{"interface": "name"})
+					require.NoError(t, err)
+					wire.Elem[1].Key["name"] = "eth0"
+					require.NoError(t, server.SendUpdate(event.StreamID, &gnmipb.Update{
+						Path: wire, Val: &gnmipb.TypedValue{Value: &gnmipb.TypedValue_IntVal{IntVal: value}},
+					}))
+				}
+				send(strings.Replace(qualified, "openconfig:", "native:", 1), 99)
+				send(strings.Replace(unqualified, "openconfig:", "native:", 1), 98)
+				firstPath := qualified
+				if lastPath == qualified {
+					firstPath = unqualified
+				}
+				send(firstPath, 1)
+				send(lastPath, 2)
+				// Observing the final value synchronizes with all earlier messages on
+				// this stream; no fixed sleep or virtual-time socket wait is needed.
+				require.Eventually(t, func() bool {
+					entry, ok := c.Get(selector, map[string]string{"name": "eth0"})
+					return ok && entry.Value == int64(2)
+				}, 2*time.Second, time.Millisecond)
+				entry, ok := c.Get(selector, map[string]string{"name": "eth0"})
+				require.True(t, ok)
+				snapshot := c.Snapshot()
+				require.Len(t, snapshot, 3, "equivalent OpenConfig updates replace one sample; native names stay distinct")
+				capture := report.NewCaptureSender()
+				cfg := &config.CheckConfig{Profile: config.ProfileDefinition{Metrics: []config.MetricConfig{{
+					Path: selector, Metric: "snmp.counter", Type: config.MetricTypeGauge,
+				}}}}
+				require.NoError(t, report.ReportMetrics(capture, cfg, snapshot, nil))
+				require.Len(t, capture.Metrics(), 1, "alias traversal must not duplicate a sample or borrow native data")
+				require.Equal(t, float64(entry.Value.(int64)), capture.Metrics()[0].Value)
+			})
+		}
+	}
+}
+
+// Exercise admission and reporting together: a selector accepted from disk must
+// retain its origin and ordered literal predicates through the real stream cache.
+func TestLoadedProfileSelectorsReachReporting(t *testing.T) {
+	for _, tt := range []struct {
+		name     string
+		selector string
+		matching string
+		wrongKey string
+		foreign  string
+	}{
+		{
+			name:     "qualified OpenConfig selector with literal interface",
+			selector: "openconfig:/openconfig-interfaces:interfaces/interface[name=eth0]/state/counters/in-octets",
+			matching: "openconfig:/interfaces/interface[name=eth0]/state/counters/in-octets",
+			wrongKey: "openconfig:/interfaces/interface[name=eth1]/state/counters/in-octets",
+			foreign:  "native:/openconfig-interfaces:interfaces/interface[name=eth0]/state/counters/in-octets",
+		},
+		{
+			name:     "native selector with repeated ordered key names",
+			selector: "native:/root/item[name=outer]/child/item[name=inner]/state/value",
+			matching: "native:/root/item[name=outer]/child/item[name=inner]/state/value",
+			wrongKey: "native:/root/item[name=other]/child/item[name=inner]/state/value",
+			foreign:  "foreign:/root/item[name=outer]/child/item[name=inner]/state/value",
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			profilePath := filepath.Join(t.TempDir(), "admitted.yaml")
+			require.NoError(t, os.WriteFile(profilePath, []byte(fmt.Sprintf(`metrics:
+  - path: %q
+    metric: snmp.admitted
+    type: gauge
+`, tt.selector)), 0o600))
+			server := startServer(t)
+			host, port, err := hostPort(server.Addr())
+			require.NoError(t, err)
+			cfg, err := config.NewCheckConfig([]byte(fmt.Sprintf(`address: %q
+port: %d
+username: user
+password: pass
+use_tls: false
+profile: %q
+`, host, port, profilePath)))
+			require.NoError(t, err)
+			require.Equal(t, tt.selector, cfg.Profile.Metrics[0].Path)
+			encoding, err := config.ParseEncoding(cfg.Instance.Encoding)
+			require.NoError(t, err)
+			c, err := client.New(client.Config{
+				Address: cfg.Instance.Address, Port: cfg.Instance.Port,
+				Username: cfg.Instance.Username, Password: cfg.Instance.Password,
+				Profile: cfg.Profile, Encoding: encoding,
+			})
+			require.NoError(t, err)
+			t.Cleanup(func() { require.NoError(t, c.Close()) })
+			startClient(t, c)
+			event := waitSubscribeEvent(t, server)
+			for i, path := range []string{tt.wrongKey, tt.foreign, tt.matching} {
+				wire, err := config.CompilePath(path, nil)
+				require.NoError(t, err)
+				require.NoError(t, server.SendUpdate(event.StreamID, &gnmipb.Update{
+					Path: wire, Val: &gnmipb.TypedValue{Value: &gnmipb.TypedValue_IntVal{IntVal: int64(i + 1)}},
+				}))
+			}
+			// The final sample synchronizes with the preceding negative controls.
+			require.Eventually(t, func() bool {
+				entry, ok := c.Get(tt.selector, nil)
+				return ok && entry.Value == int64(3)
+			}, 2*time.Second, time.Millisecond)
+			snapshot := c.Snapshot()
+			require.Len(t, snapshot, 3, "foreign origins and ordered keys must remain distinct")
+			capture := report.NewCaptureSender()
+			require.NoError(t, report.ReportMetrics(capture, cfg, snapshot, nil))
+			require.Len(t, capture.Metrics(), 1, "only the admitted origin and literal predicates may match")
+			require.Equal(t, "snmp.admitted", capture.Metrics()[0].Name)
+			require.Equal(t, float64(3), capture.Metrics()[0].Value)
+		})
+	}
 }

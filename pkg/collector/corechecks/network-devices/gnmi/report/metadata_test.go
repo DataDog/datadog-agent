@@ -464,6 +464,109 @@ func TestBuildIPAddressMetadata(t *testing.T) {
 	assert.Equal(t, int32(24), ipAddresses[0].Prefixlen)
 }
 
+func TestBuildIPAddressMetadataExactPathPrecedence(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		ipv6        bool
+		exactIP     any
+		aliasIP     any
+		exactPrefix any
+		aliasPrefix any
+		wantIP      string
+		wantPrefix  int32
+	}{
+		{name: "exact prefix", exactIP: "10.1.1.1", aliasIP: "10.1.1.1", exactPrefix: 24, aliasPrefix: 30, wantIP: "10.1.1.1", wantPrefix: 24},
+		{name: "exact IP", exactIP: "10.1.1.1", aliasIP: "10.1.1.2", exactPrefix: 24, aliasPrefix: 30, wantIP: "10.1.1.1", wantPrefix: 24},
+		{name: "zero prefix", exactIP: "10.1.1.1", aliasIP: "10.1.1.1", exactPrefix: 0, aliasPrefix: 30, wantIP: "10.1.1.1"},
+		{name: "IPv6 exact fields", ipv6: true, exactIP: "2001:db8::1", aliasIP: "2001:db8::2", exactPrefix: 64, aliasPrefix: 96, wantIP: "2001:db8::1", wantPrefix: 64},
+		{name: "IPv6 zero prefix", ipv6: true, exactIP: "2001:db8::1", aliasIP: "2001:db8::1", exactPrefix: 0, aliasPrefix: 96, wantIP: "2001:db8::1"},
+		{name: "alias prefix with exact IP", exactIP: "10.1.1.1", aliasIP: "10.1.1.2", aliasPrefix: 30, wantIP: "10.1.1.1", wantPrefix: 30},
+		{name: "alias IP with exact prefix", aliasIP: "10.1.1.1", exactPrefix: 24, aliasPrefix: 30, wantIP: "10.1.1.1", wantPrefix: 24},
+		{name: "unparseable exact prefix", exactIP: "10.1.1.1", aliasIP: "10.1.1.1", exactPrefix: "invalid", aliasPrefix: 30, wantIP: "10.1.1.1", wantPrefix: 30},
+		{name: "empty exact IP uses address key", exactIP: "", aliasIP: "10.1.1.2", exactPrefix: 24, aliasPrefix: 30, wantIP: "10.1.1.1", wantPrefix: 24},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			for _, reverse := range []bool{false, true} {
+				order := "exact first"
+				if reverse {
+					order = "alias first"
+				}
+				t.Run(order, func(t *testing.T) {
+					metadata := config.DefaultOpenConfigMetadata()
+					family, address := "ipv4", "10.1.1.1"
+					if tt.ipv6 {
+						family, address = "ipv6", "2001:db8::1"
+					}
+					path := "/interfaces/interface/subinterfaces/subinterface/" + family + "/addresses/address/state/"
+					keyedPath := "/interfaces/interface[name=Ethernet1]/subinterfaces/subinterface[index=0]/" + family + "/addresses/address[ip=" + address + "]/state/"
+					if tt.ipv6 {
+						metadata.IPAddress.IPv6 = "openconfig:" + path + "ip"
+						metadata.IPAddress.IPv6PrefixLength = "openconfig:" + path + "prefix-length"
+					} else {
+						metadata.IPAddress.IP = "openconfig:" + path + "ip"
+						metadata.IPAddress.PrefixLength = "openconfig:" + path + "prefix-length"
+					}
+					snapshot := []client.CachedValue{
+						selectorCachedValue(t, "openconfig:/interfaces/interface[name=Ethernet1]/state/name", "Ethernet1"),
+						selectorCachedValue(t, "openconfig:/interfaces/interface[name=Ethernet1]/state/ifindex", 42),
+					}
+					for _, sample := range []struct {
+						origin string
+						field  string
+						value  any
+					}{
+						{"openconfig:", "ip", tt.exactIP}, {"", "ip", tt.aliasIP},
+						{"openconfig:", "prefix-length", tt.exactPrefix}, {"", "prefix-length", tt.aliasPrefix},
+					} {
+						if sample.value != nil {
+							snapshot = append(snapshot, selectorCachedValue(t, sample.origin+keyedPath+sample.field, sample.value))
+						}
+					}
+					if reverse {
+						for i, j := 0, len(snapshot)-1; i < j; i, j = i+1, j-1 {
+							snapshot[i], snapshot[j] = snapshot[j], snapshot[i]
+						}
+					}
+					interfaces := buildInterfaceMetadata("default:router", metadata, snapshot, nil)
+					require.Len(t, interfaces, 1)
+					require.EqualValues(t, 42, interfaces[0].Index)
+					addresses := buildIPAddressMetadata("default:router", metadata, interfaces, snapshot)
+					require.Equal(t, []devicemetadata.IPAddressMetadata{{
+						InterfaceID: "default:router:gnmi-Ethernet1", IPAddress: tt.wantIP, Prefixlen: tt.wantPrefix,
+					}}, addresses)
+				})
+			}
+		})
+	}
+}
+
+func TestBuildIPAddressMetadataSelectorIsolation(t *testing.T) {
+	root := "/interfaces/interface/subinterfaces/subinterface[index=0]/ipv4/addresses/address/state/"
+	metadata := config.DefaultOpenConfigMetadata()
+	metadata.IPAddress.IP = "openconfig:" + root + "ip"
+	metadata.IPAddress.PrefixLength = "openconfig:" + root + "prefix-length"
+	interfaces := []devicemetadata.InterfaceMetadata{{Name: "Ethernet1"}}
+	for _, path := range []string{
+		"native:/interfaces/interface[name=Ethernet1]/subinterfaces/subinterface[index=0]/ipv4/addresses/address[ip=10.1.1.1]/state/",
+		"openconfig:/interfaces/interface[name=Ethernet1]/subinterfaces[index=0]/subinterface/ipv4/addresses/address[ip=10.1.1.1]/state/",
+	} {
+		t.Run(path, func(t *testing.T) {
+			snapshot := []client.CachedValue{
+				selectorCachedValue(t, path+"ip", "10.1.1.1"),
+				selectorCachedValue(t, path+"prefix-length", 30),
+			}
+			assert.Empty(t, buildIPAddressMetadata("default:router", metadata, interfaces, snapshot))
+			snapshot = append(snapshot,
+				selectorCachedValue(t, "openconfig:/interfaces/interface[name=Ethernet1]/subinterfaces/subinterface[index=0]/ipv4/addresses/address[ip=10.1.1.1]/state/ip", "10.1.1.1"),
+				selectorCachedValue(t, "openconfig:/interfaces/interface[name=Ethernet1]/subinterfaces/subinterface[index=0]/ipv4/addresses/address[ip=10.1.1.1]/state/prefix-length", 24),
+			)
+			assert.Equal(t, []devicemetadata.IPAddressMetadata{{
+				InterfaceID: "default:router:gnmi-Ethernet1", IPAddress: "10.1.1.1", Prefixlen: 24,
+			}}, buildIPAddressMetadata("default:router", metadata, interfaces, snapshot))
+		})
+	}
+}
+
 func TestBuildIPAddressMetadataWithoutIfIndex(t *testing.T) {
 	metadata := config.DefaultOpenConfigMetadata()
 	deviceID := "default:router-1"
@@ -719,4 +822,62 @@ func TestReportMetadataSkipsEmptyPayload(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, sent)
 	mockSender.AssertNotCalled(t, "EventPlatformEvent", mock.Anything, mock.Anything)
+}
+
+func TestVRFParentMetadataDescriptionAndStatus(t *testing.T) {
+	base := "native:/vrfs/vrf[vrf-id=blue]/interfaces/interface/state/"
+	metadata := config.MetadataConfig{Interface: config.InterfaceMetadataConfig{
+		Keys: map[string]string{"interface": "name"}, Name: base + "name", Description: base + "description", AdminStatus: base + "admin-status", OperStatus: base + "oper-status",
+	}}
+	var snapshot []client.CachedValue
+	for field, value := range map[string]string{"name": "eth0", "description": "uplink", "admin-status": "UP", "oper-status": "UP"} {
+		snapshot = append(snapshot, selectorCachedValue(t, "native:/vrfs/vrf[vrf-id=blue]/interfaces/interface[name=eth0]/state/"+field, value))
+		snapshot = append(snapshot, selectorCachedValue(t, "native:/vrfs/vrf[vrf-id=red]/interfaces/interface[name=eth0]/state/"+field, "wrong-vrf"))
+	}
+	interfaces := buildInterfaceMetadata("default:router", metadata, snapshot, nil)
+	require.Len(t, interfaces, 1)
+	require.Equal(t, "uplink", interfaces[0].Description)
+	require.Equal(t, devicemetadata.AdminStatusUp, interfaces[0].AdminStatus)
+	require.Equal(t, devicemetadata.OperStatusUp, interfaces[0].OperStatus)
+}
+
+func TestSoftwareOnlyComponentMetadataFallback(t *testing.T) {
+	metadata := config.DefaultOpenConfigMetadata()
+	metadata.Device.SoftwareVersion = "openconfig:/components/component/state/software-version"
+	cfg := &config.CheckConfig{Profile: config.ProfileDefinition{Metadata: metadata}}
+	snapshot := []client.CachedValue{
+		selectorCachedValue(t, "openconfig:/components/component[name=Chassis]/state/software-version", "1.2.3"),
+		selectorCachedValue(t, "native:/components/component[name=Chassis]/state/software-version", "wrong-origin"),
+	}
+	device := buildDeviceMetadata("default:router", cfg, snapshot, nil)
+	require.Equal(t, "1.2.3", device.OsVersion)
+}
+
+func TestQualifiedOpenConfigMetadataSelectorsMatchUnqualifiedSamples(t *testing.T) {
+	root := "openconfig:/openconfig-interfaces:interfaces/interface"
+	metadata := config.MetadataConfig{
+		Interface: config.InterfaceMetadataConfig{Keys: map[string]string{"interface": "name"},
+			Name: root + "/state/name", Description: root + "/state/description", IfIndex: root + "/state/ifindex",
+		},
+		IPAddress: config.IPAddressMetadataConfig{
+			IP:           root + "/subinterfaces/subinterface/ipv4/addresses/address/state/ip",
+			PrefixLength: root + "/subinterfaces/subinterface/ipv4/addresses/address/state/prefix-length",
+		},
+	}
+	snapshot := []client.CachedValue{
+		selectorCachedValue(t, "openconfig:/interfaces/interface[name=eth0]/state/name", "eth0"),
+		selectorCachedValue(t, "openconfig:/interfaces/interface[name=eth0]/state/description", "uplink"),
+		selectorCachedValue(t, "openconfig:/interfaces/interface[name=eth0]/state/ifindex", 7),
+		selectorCachedValue(t, "openconfig:/interfaces/interface[name=eth0]/subinterfaces/subinterface[index=0]/ipv4/addresses/address[ip=192.0.2.1]/state/ip", "192.0.2.1"),
+		selectorCachedValue(t, "openconfig:/interfaces/interface[name=eth0]/subinterfaces/subinterface[index=0]/ipv4/addresses/address[ip=192.0.2.1]/state/prefix-length", 24),
+		selectorCachedValue(t, "native:/openconfig-interfaces:interfaces/interface[name=eth0]/state/description", "wrong-origin"),
+	}
+	interfaces := buildInterfaceMetadata("default:router", metadata, snapshot, nil)
+	require.Len(t, interfaces, 1)
+	require.Equal(t, "uplink", interfaces[0].Description)
+	require.EqualValues(t, 7, interfaces[0].Index)
+	addresses := buildIPAddressMetadata("default:router", metadata, interfaces, snapshot)
+	require.Len(t, addresses, 1)
+	require.Equal(t, "192.0.2.1", addresses[0].IPAddress)
+	require.EqualValues(t, 24, addresses[0].Prefixlen)
 }

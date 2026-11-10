@@ -193,3 +193,99 @@ func TestComponentNamesIgnoresInterfacePaths(t *testing.T) {
 
 	assert.Equal(t, []string{"Chassis"}, componentNames(index, metadata))
 }
+
+func TestHostnameFallbackDoesNotGuessNativeSelectors(t *testing.T) {
+	snapshot := []client.CachedValue{
+		{Key: client.CacheKey{Path: "native:/system/config/hostname"}, Entry: client.CacheEntry{Value: "native-config"}},
+		{Key: client.CacheKey{Path: "other:/system/state/hostname"}, Entry: client.CacheEntry{Value: "other-host"}},
+	}
+	metadata := config.MetadataConfig{Device: config.DeviceMetadataConfig{Hostname: "native:/system/state/hostname"}}
+	require.Empty(t, ResolveDeviceHostname(snapshot, metadata))
+	metadata.Device.Hostname = "openconfig:/system/state/hostname"
+	require.Empty(t, ResolveDeviceHostname(snapshot, metadata), "native hostnames cannot fill missing OpenConfig metadata")
+	snapshot = append(snapshot, client.CachedValue{Key: client.CacheKey{Path: "/system/config/hostname"}, Entry: client.CacheEntry{Value: "legacy"}})
+	require.Equal(t, "legacy", ResolveDeviceHostname(snapshot, metadata))
+}
+
+func TestOpenConfigAliasesAreFiniteAndNativeModulesStayExact(t *testing.T) {
+	for _, path := range []string{
+		"native:/system/state/hostname",
+		"native:/openconfig-system:system/state/hostname",
+		"/vendor:system/state/hostname",
+		"/unknown-root/state/hostname",
+	} {
+		require.Equal(t, []string{path}, snapshotPathAliases(path))
+		require.False(t, snapshotPathMatches(path, "openconfig:/system/state/hostname"))
+	}
+}
+
+func selectorCachedValue(t *testing.T, selector string, value any) client.CachedValue {
+	t.Helper()
+	key, err := client.SelectorKey(selector)
+	require.NoError(t, err)
+	return client.CachedValue{Key: key, Entry: client.CacheEntry{Value: value}}
+}
+
+func TestRepeatedSegmentPredicatesDoNotMatchWrongParent(t *testing.T) {
+	selector := "native:/entry[name=A]/entry[name=B]/counter"
+	snapshot := []client.CachedValue{
+		selectorCachedValue(t, selector, 1),
+		selectorCachedValue(t, "native:/entry[name=C]/entry[name=B]/counter", 2),
+	}
+	values := selectSnapshotValues(indexSnapshot(snapshot), selector)
+	require.Len(t, values, 1)
+	require.Equal(t, 1, values[0].Entry.Value)
+	capture := NewCaptureSender()
+	cfg := &config.CheckConfig{Profile: config.ProfileDefinition{Metrics: []config.MetricConfig{{Path: selector, Metric: "snmp.counter", Type: config.MetricTypeGauge}}}}
+	require.NoError(t, ReportMetrics(capture, cfg, snapshot, nil))
+	require.Len(t, capture.Metrics(), 1)
+	require.Equal(t, 1.0, capture.Metrics()[0].Value)
+}
+
+func TestLookupMergesLiteralParentKeysAndRejectsConflicts(t *testing.T) {
+	path := "native:/vrfs/vrf[vrf-id=blue]/interfaces/interface/state/description"
+	cached := selectorCachedValue(t, "native:/vrfs/vrf[vrf-id=blue]/interfaces/interface[name=eth0]/state/description", "uplink")
+	index := indexSnapshot([]client.CachedValue{cached})
+	value, ok := lookupCachedValue(index, path, map[string]string{"name": "eth0"})
+	require.True(t, ok)
+	require.Equal(t, "uplink", value.Entry.Value)
+	_, ok = lookupCachedValue(index, path, map[string]string{"vrf-id": "red", "name": "eth0"})
+	require.False(t, ok)
+}
+
+func TestOpenConfigSelectorAliasesPreserveFullScopedIdentity(t *testing.T) {
+	snapshot := []client.CachedValue{
+		selectorCachedValue(t, "openconfig:/interfaces/entry[name=B]/entry/counter", 1),
+		selectorCachedValue(t, "openconfig:/interfaces/entry/entry[name=B]/counter", 2),
+		selectorCachedValue(t, "native:/interfaces/entry[name=B]/entry/counter", 99),
+	}
+	values := selectSnapshotValues(indexSnapshot(snapshot), "openconfig:/openconfig-interfaces:interfaces/entry/entry/counter")
+	require.Len(t, values, 2, "one result per full scoped identity, not per flat key map or alias bucket")
+	require.ElementsMatch(t, []any{1, 2}, []any{values[0].Entry.Value, values[1].Entry.Value})
+}
+
+func TestOpenConfigSelectorAliasesPreferExactPath(t *testing.T) {
+	qualified := "openconfig:/openconfig-system:system/state/hostname"
+	unqualified := "openconfig:/system/state/hostname"
+	for _, selector := range []string{qualified, unqualified} {
+		exact := selectorCachedValue(t, selector, "exact")
+		aliasPath := unqualified
+		if selector == unqualified {
+			aliasPath = qualified
+		}
+		index := indexSnapshot([]client.CachedValue{selectorCachedValue(t, aliasPath, "alias"), exact})
+		require.Equal(t, "exact", firstStringValue(index, selector, nil))
+		value, ok := lookupCachedValue(index, selector, nil)
+		require.True(t, ok)
+		require.Equal(t, "exact", value.Entry.Value)
+	}
+}
+
+func TestSnapshotPathMatchesAliasesOnBothSides(t *testing.T) {
+	qualified := "openconfig:/openconfig-interfaces:interfaces/interface/state/name"
+	unqualified := "openconfig:/interfaces/interface/state/name"
+	require.True(t, snapshotPathMatches(unqualified, qualified))
+	require.True(t, snapshotPathMatches(qualified, unqualified))
+	require.False(t, snapshotPathMatches("native:/interfaces/interface/state/name", qualified))
+	require.False(t, snapshotPathMatches("native:/interfaces/interface/state/name", "native:/openconfig-interfaces:interfaces/interface/state/name"))
+}

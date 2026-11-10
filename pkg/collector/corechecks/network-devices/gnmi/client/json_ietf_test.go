@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestNormalizeGNMIPathCanonicalizesModulePrefixes(t *testing.T) {
+func TestNormalizeGNMIPathPreservesModulePrefixes(t *testing.T) {
 	path := &gnmipb.Path{
 		Elem: []*gnmipb.PathElem{
 			{Name: "openconfig-interfaces:interfaces"},
@@ -24,11 +24,11 @@ func TestNormalizeGNMIPathCanonicalizesModulePrefixes(t *testing.T) {
 	}
 
 	key := cacheKeyFromGNMIPath(path)
-	require.Equal(t, "/openconfig/interfaces/interface/state/counters", key.Path)
+	require.Equal(t, "/openconfig-interfaces:interfaces/interface/state/counters", key.Path)
 	require.Equal(t, map[string]string{"name": "ethernet-1/1"}, key.Keys)
 }
 
-func TestNormalizeGNMIPathCanonicalizesNestedModulePrefixes(t *testing.T) {
+func TestNormalizeGNMIPathPreservesNestedModulePrefixes(t *testing.T) {
 	path := &gnmipb.Path{
 		Elem: []*gnmipb.PathElem{
 			{Name: "openconfig-interfaces:interfaces"},
@@ -39,7 +39,7 @@ func TestNormalizeGNMIPathCanonicalizesNestedModulePrefixes(t *testing.T) {
 	}
 
 	key := cacheKeyFromGNMIPath(path)
-	require.Equal(t, "/openconfig/interfaces/interface/ethernet/state", key.Path)
+	require.Equal(t, "/openconfig-interfaces:interfaces/interface/openconfig-if-ethernet:ethernet/state", key.Path)
 	require.Equal(t, map[string]string{"name": "ethernet-1/1"}, key.Keys)
 }
 

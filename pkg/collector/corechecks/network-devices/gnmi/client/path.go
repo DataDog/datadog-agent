@@ -6,7 +6,6 @@
 package client
 
 import (
-	"errors"
 	"fmt"
 	"sort"
 	"strconv"
@@ -20,16 +19,114 @@ import (
 // CacheKey identifies a cached value by normalized path and gNMI path keys.
 type CacheKey struct {
 	Path string
+	// Keys is the legacy last-occurrence projection, used for metric tags.
 	Keys map[string]string
+	// ElementKeys preserves ordered, segment-scoped identity. Positions follow
+	// CompilePath elements (the legacy synthetic OpenConfig wrapper is omitted).
+	// Nil remains supported for older snapshots with unambiguous flat keys.
+	ElementKeys []map[string]string
 }
 
 func (k CacheKey) cacheKey() string {
-	return strconv.Quote(k.Path) + "{" + formatQuotedKeys(k.Keys) + "}"
+	return strconv.Quote(k.Path) + "{" + formatQuotedKeys(k.Keys) + "}" + k.elementKeysID()
 }
 
 // String returns a stable string representation for logging and debugging.
 func (k CacheKey) String() string {
-	return fmt.Sprintf("%s{%s}", k.Path, formatKeys(k.Keys))
+	return fmt.Sprintf("%s{%s}", k.Path, k.KeysIdentity())
+}
+
+// KeysIdentity distinguishes repeated same-named keys without changing legacy
+// identities for the common case where each key name occurs only once.
+func (k CacheKey) KeysIdentity() string {
+	seen := make(map[string]bool)
+	for _, keys := range k.ElementKeys {
+		for name := range keys {
+			if seen[name] {
+				return "scoped:" + k.elementKeysID()
+			}
+			seen[name] = true
+		}
+	}
+	return formatKeys(k.Keys)
+}
+
+func (k CacheKey) elementKeysID() string {
+	var id strings.Builder
+	for i, keys := range k.ElementKeys {
+		if len(keys) > 0 {
+			fmt.Fprintf(&id, "[%d{%s}]", i, formatQuotedKeys(keys))
+		}
+	}
+	return id.String()
+}
+
+// MatchesSelectorKeys applies predicates at their ordered schema elements.
+// An older flat snapshot cannot prove a selector with repeated key names.
+func (k CacheKey) MatchesSelectorKeys(selector CacheKey) bool {
+	seen := make(map[string]bool)
+	for i, predicates := range selector.ElementKeys {
+		for name, value := range predicates {
+			actual, exists := k.Keys[name]
+			if len(k.ElementKeys) > 0 {
+				exists = false
+				if i < len(k.ElementKeys) {
+					actual, exists = k.ElementKeys[i][name]
+				}
+			} else if seen[name] {
+				return false
+			}
+			seen[name] = true
+			if !exists || (value != "*" && actual != value) {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// MatchesLookupKeys merges caller keys with selector predicates. Caller keys
+// retain their legacy meaning (the last occurrence); predicates bind parents
+// at their own positions. Every sample key must be accounted for, and callers
+// cannot override a conflicting literal predicate.
+func (k CacheKey) MatchesLookupKeys(selector CacheKey, caller map[string]string) bool {
+	if !k.MatchesSelectorKeys(selector) {
+		return false
+	}
+	for name, value := range caller {
+		if actual, exists := k.Keys[name]; !exists || actual != value {
+			return false
+		}
+	}
+	if len(k.ElementKeys) == 0 {
+		for name := range k.Keys {
+			if _, supplied := caller[name]; !supplied {
+				if _, bound := selector.Keys[name]; !bound {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	last := make(map[string]int)
+	for i, keys := range k.ElementKeys {
+		for name := range keys {
+			last[name] = i
+		}
+	}
+	for i, keys := range k.ElementKeys {
+		for name := range keys {
+			if i < len(selector.ElementKeys) {
+				if _, bound := selector.ElementKeys[i][name]; bound {
+					continue
+				}
+			}
+			if _, supplied := caller[name]; !supplied || last[name] != i {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 func formatKeys(keys map[string]string) string {
@@ -94,6 +191,9 @@ func normalizedPathFromGNMIPath(path *gnmipb.Path) normalizedPath {
 }
 
 func (p normalizedPath) id() string {
+	if elements, ok := p.openConfigElements(); ok {
+		p.elements = elements
+	}
 	var builder strings.Builder
 	builder.WriteString("origin=")
 	builder.WriteString(strconv.Quote(p.origin))
@@ -110,8 +210,16 @@ func (p normalizedPath) id() string {
 }
 
 func (p normalizedPath) cacheKey() CacheKey {
-	segments := canonicalizePathSegments(p.elements)
+	segments := make([]string, 0, len(p.elements))
+	for _, elem := range p.elements {
+		segments = append(segments, elem.name)
+	}
 	keys := make(map[string]string)
+	elements := p.elements
+	if p.origin == "" && len(elements) > 0 && elements[0].name == "openconfig" && len(elements[0].keys) == 0 {
+		elements = elements[1:]
+	}
+	var elementKeys []map[string]string
 	for _, elem := range p.elements {
 		for name, value := range elem.keys {
 			keys[name] = value
@@ -119,19 +227,33 @@ func (p normalizedPath) cacheKey() CacheKey {
 	}
 	if len(keys) == 0 {
 		keys = nil
+	} else {
+		elementKeys = make([]map[string]string, len(elements))
+		for i, elem := range elements {
+			elementKeys[i] = cloneKeys(elem.keys)
+		}
 	}
-	if len(segments) == 0 {
+	if len(segments) == 0 && p.origin == "" {
 		return CacheKey{Keys: keys}
 	}
-	return CacheKey{Path: "/" + strings.Join(segments, "/"), Keys: keys}
+	path := "/" + strings.Join(segments, "/")
+	if p.origin != "" {
+		path = p.origin + ":" + path
+	}
+	return CacheKey{Path: path, Keys: keys, ElementKeys: elementKeys}
 }
 
 func (p normalizedPath) matchesPrefix(prefix normalizedPath) bool {
-	if prefix.origin != "" && p.origin != prefix.origin {
+	if p.origin != prefix.origin {
 		return false
 	}
 	if prefix.target != "" && p.target != prefix.target {
 		return false
+	}
+	if elements, ok := p.openConfigElements(); ok {
+		if prefixElements, prefixOK := prefix.openConfigElements(); prefixOK {
+			p.elements, prefix.elements = elements, prefixElements
+		}
 	}
 	if len(prefix.elements) > len(p.elements) {
 		return false
@@ -148,6 +270,33 @@ func (p normalizedPath) matchesPrefix(prefix normalizedPath) bool {
 		}
 	}
 	return true
+}
+
+// openConfigElements is the same finite compatibility surface used by lookup,
+// applied structurally for update identity and subtree deletion. Origins are
+// deliberately not rewritten, so originless deletes remain origin-scoped.
+func (p normalizedPath) openConfigElements() ([]pathElement, bool) {
+	if p.origin != "" && p.origin != "openconfig" {
+		return nil, false
+	}
+	elements := p.elements
+	if p.origin == "" && len(elements) > 0 && elements[0].name == "openconfig" && len(elements[0].keys) == 0 {
+		elements = elements[1:]
+	}
+	out := make([]pathElement, len(elements))
+	for i, elem := range elements {
+		if module, local, qualified := splitModuleQualifiedName(elem.name); qualified {
+			if module != "openconfig" && !strings.HasPrefix(module, "openconfig-") {
+				return nil, false
+			}
+			elem.name = local
+		}
+		out[i] = elem
+	}
+	if len(out) == 0 || !isOpenConfigRootSegment(out[0].name) {
+		return nil, false
+	}
+	return out, true
 }
 
 func cacheKeyFromGNMIPath(path *gnmipb.Path) CacheKey {
@@ -173,48 +322,44 @@ func joinGNMIPaths(prefix, path *gnmipb.Path) *gnmipb.Path {
 	return joined
 }
 
-func canonicalizePathSegments(elems []pathElement) []string {
-	segments := make([]string, 0, len(elems)+1)
-	for _, elem := range elems {
-		segments = append(segments, expandModuleQualifiedSegment(elem.name)...)
+// SelectorKey compiles a configured selector to its cache path and predicates.
+// Wildcard predicates remain wildcards; callers decide whether to require an
+// exact key set (Get) or select matching samples (reporting).
+func SelectorKey(value string) (CacheKey, error) {
+	path, err := config.CompilePath(value, nil)
+	if err != nil {
+		return CacheKey{}, err
 	}
-	return segments
+	return cacheKeyFromGNMIPath(path), nil
+}
+
+// PathAliases retains the historical finite OpenConfig compatibility surface.
+// Raw module-qualified names are always preserved. Native origins never acquire
+// aliases, and only OpenConfig module qualifiers can be elided for compatibility.
+func PathAliases(value string) []string {
+	path, err := config.CompilePath(value, nil)
+	if err != nil {
+		return []string{value}
+	}
+	raw := cacheKeyFromGNMIPath(path).Path
+	aliases := []string{raw}
+	elements, ok := normalizedPathFromGNMIPath(path).openConfigElements()
+	if !ok {
+		return aliases
+	}
+	segments := make([]string, 0, len(elements))
+	for _, elem := range elements {
+		segments = append(segments, elem.name)
+	}
+	local := "/" + strings.Join(segments, "/")
+	for _, alias := range []string{"openconfig:" + local, "/openconfig" + local, local} {
+		if alias != raw {
+			aliases = append(aliases, alias)
+		}
+	}
+	return aliases
 }
 
 func subscribePathFromMetric(metric config.MetricConfig) (*gnmipb.Path, error) {
-	segments, err := splitProfilePath(metric.Path)
-	if err != nil {
-		return nil, err
-	}
-
-	elems := make([]*gnmipb.PathElem, 0, len(segments))
-	for _, segment := range segments {
-		elem := &gnmipb.PathElem{Name: segment}
-		if keyName, ok := metric.SubscriptionKeys()[segment]; ok && keyName != "" {
-			elem.Key = map[string]string{keyName: "*"}
-		}
-		elems = append(elems, elem)
-	}
-
-	return &gnmipb.Path{Elem: elems}, nil
-}
-
-func splitProfilePath(path string) ([]string, error) {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return nil, errors.New("path must not be empty")
-	}
-
-	trimmed = strings.TrimPrefix(trimmed, "/")
-	if trimmed == "" {
-		return nil, errors.New("path must not be empty")
-	}
-
-	segments := strings.Split(trimmed, "/")
-	for _, segment := range segments {
-		if segment == "" {
-			return nil, fmt.Errorf("invalid path %q: empty segment", path)
-		}
-	}
-	return segments, nil
+	return config.CompilePath(metric.Path, metric.SubscriptionKeys())
 }

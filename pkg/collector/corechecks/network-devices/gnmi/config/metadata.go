@@ -306,10 +306,10 @@ func validateMetadataConfig(metadata MetadataConfig) error {
 		{"ip_address.ipv6_prefix_length", resolved.IPAddress.IPv6PrefixLength},
 	}
 	for _, item := range paths {
-		if strings.TrimSpace(item.path) == "" {
+		if item.path == "" {
 			continue
 		}
-		if err := validateMetadataPath(item.path, item.field); err != nil {
+		if err := validateProfilePath(item.path, metadataSubscriptionKeys(resolved, normalizeMetadataPath(item.path)), "metadata."+item.field); err != nil {
 			return err
 		}
 	}
@@ -370,26 +370,8 @@ func deviceUsesComponentPaths(device DeviceMetadataConfig) bool {
 	return false
 }
 
-func validateMetadataPath(path, field string) error {
-	trimmed := normalizeMetadataPath(path)
-	if trimmed == "" {
-		return fmt.Errorf("metadata.%s must not be empty", field)
-	}
-	if !strings.HasPrefix(trimmed, "/") {
-		return fmt.Errorf("metadata.%s must start with '/'", field)
-	}
-	return nil
-}
-
 func normalizeMetadataPath(path string) string {
-	trimmed := strings.TrimSpace(path)
-	if trimmed == "" {
-		return ""
-	}
-	if trimmed[0] != '/' {
-		return "/" + trimmed
-	}
-	return trimmed
+	return NormalizePath(path)
 }
 
 func copyStringMap(in map[string]string) map[string]string {

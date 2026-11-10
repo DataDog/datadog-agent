@@ -7,6 +7,7 @@ package client
 
 import (
 	"maps"
+	"slices"
 	"sync"
 	"time"
 )
@@ -48,6 +49,9 @@ func (c *cache) set(path normalizedPath, entry CacheEntry) {
 	id := path.id()
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if previous, exists := c.entries[id]; exists {
+		delete(c.byLookup, previous.key.cacheKey())
+	}
 	c.entries[id] = storedEntry{path: path, key: key, entry: entry}
 	c.byLookup[key.cacheKey()] = id
 }
@@ -69,12 +73,35 @@ func (c *cache) deletePrefix(prefix normalizedPath) {
 	}
 }
 
-func (c *cache) get(key CacheKey) (CacheEntry, bool) {
+func (c *cache) get(key CacheKey, caller map[string]string) (CacheEntry, bool) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	id, ok := c.byLookup[key.cacheKey()]
+	if ok && !c.entries[id].key.MatchesLookupKeys(key, caller) {
+		ok = false
+	}
 	if !ok {
-		return CacheEntry{}, false
+		// Compatibility lookups are bounded by PathAliases, never by stripping
+		// arbitrary origins or native module names. Prefer exact matches above.
+		aliases := PathAliases(key.Path)
+		for candidateID, candidate := range c.entries {
+			if !candidate.key.MatchesLookupKeys(key, caller) {
+				continue
+			}
+			for _, alias := range PathAliases(candidate.key.Path) {
+				if !slices.Contains(aliases, alias) {
+					continue
+				}
+				exact := candidate.key.Path == key.Path
+				previousExact := ok && c.entries[id].key.Path == key.Path
+				if !ok || (exact && !previousExact) || (exact == previousExact && candidateID < id) {
+					id, ok = candidateID, true
+				}
+			}
+		}
+		if !ok {
+			return CacheEntry{}, false
+		}
 	}
 	stored, ok := c.entries[id]
 	if !ok {
@@ -126,6 +153,13 @@ func cloneCacheEntry(entry CacheEntry) CacheEntry {
 
 func cloneCacheKey(key CacheKey) CacheKey {
 	key.Keys = maps.Clone(key.Keys)
+	if key.ElementKeys != nil {
+		cloned := make([]map[string]string, len(key.ElementKeys))
+		for i, keys := range key.ElementKeys {
+			cloned[i] = maps.Clone(keys)
+		}
+		key.ElementKeys = cloned
+	}
 	return key
 }
 

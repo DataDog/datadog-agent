@@ -24,10 +24,11 @@ func TestSubscribePathFromMetric(t *testing.T) {
 
 	path, err := subscribePathFromMetric(metric)
 	require.NoError(t, err)
-	require.Len(t, path.GetElem(), 6)
-	require.Equal(t, "openconfig", path.GetElem()[0].GetName())
-	require.Equal(t, "interface", path.GetElem()[2].GetName())
-	require.Equal(t, map[string]string{"name": "*"}, path.GetElem()[2].GetKey())
+	require.Equal(t, "openconfig", path.GetOrigin())
+	require.Len(t, path.GetElem(), 5)
+	require.Equal(t, "interfaces", path.GetElem()[0].GetName())
+	require.Equal(t, "interface", path.GetElem()[1].GetName())
+	require.Equal(t, map[string]string{"name": "*"}, path.GetElem()[1].GetKey())
 }
 
 func TestCacheKeyFromGNMIPath(t *testing.T) {
@@ -109,5 +110,23 @@ func TestCacheKeyFromGNMIPathModulePrefixedSegments(t *testing.T) {
 	}
 
 	key := cacheKeyFromGNMIPath(path)
-	require.Equal(t, "/openconfig/system/state", key.Path)
+	require.Equal(t, "/openconfig-system:system/state", key.Path)
+}
+
+func TestScopedLookupKeysAndLegacySnapshots(t *testing.T) {
+	actual, err := SelectorKey("native:/entry[name=A]/entry[name=B]/counter")
+	require.NoError(t, err)
+	parent, err := SelectorKey("native:/entry[name=A]/entry/counter")
+	require.NoError(t, err)
+	require.True(t, actual.MatchesLookupKeys(parent, map[string]string{"name": "B"}))
+	require.False(t, actual.MatchesLookupKeys(parent, map[string]string{"name": "C"}))
+	wildcard, err := SelectorKey("native:/entry[name=A]/entry[name=*]/counter")
+	require.NoError(t, err)
+	require.True(t, actual.MatchesSelectorKeys(wildcard))
+	legacy := CacheKey{Path: actual.Path, Keys: actual.Keys}
+	require.False(t, legacy.MatchesSelectorKeys(actual), "an old flat snapshot cannot establish both segment predicates")
+	unique, err := SelectorKey("native:/vrf[vrf-id=blue]/interface[name=eth0]/counter")
+	require.NoError(t, err)
+	legacy = CacheKey{Path: unique.Path, Keys: unique.Keys}
+	require.True(t, legacy.MatchesLookupKeys(unique, nil), "unambiguous old flat snapshots still work")
 }

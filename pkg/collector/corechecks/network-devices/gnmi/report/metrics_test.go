@@ -7,6 +7,7 @@ package report
 
 import (
 	"math"
+	"strings"
 	"testing"
 	"time"
 
@@ -485,4 +486,35 @@ type expectedMetric struct {
 	name   string
 	value  float64
 	tags   []string
+}
+
+func TestReportMetricsOriginSelectors(t *testing.T) {
+	for _, tc := range []struct {
+		selector string
+		path     string
+	}{
+		{"openconfig:/interfaces/interface/state/counters/in-octets", "openconfig:/interfaces/interface/state/counters/in-octets"},
+		{"openconfig:/interfaces/interface/state/counters/in-octets", "/interfaces/interface/state/counters/in-octets"},
+		{"/openconfig/interfaces/interface/state/counters/in-octets", "openconfig:/interfaces/interface/state/counters/in-octets"},
+		{"openconfig:/interfaces/interface/state/counters/in-octets", "/openconfig-interfaces:interfaces/interface/state/counters/in-octets"},
+		{"native:/vendor:interfaces/interface[name=eth0]/state/counter", "native:/vendor:interfaces/interface/state/counter"},
+	} {
+		t.Run(tc.selector+"->"+tc.path, func(t *testing.T) {
+			cfg := &config.CheckConfig{Instance: config.InstanceConfig{Address: "router"}, Profile: config.ProfileDefinition{Metrics: []config.MetricConfig{{
+				Path: tc.selector, Metric: "snmp.counter", Type: config.MetricTypeGauge, Tags: map[string]string{"interface": "name"},
+			}}}}
+			snapshot := []client.CachedValue{
+				{Key: client.CacheKey{Path: tc.path, Keys: map[string]string{"name": "eth0"}}, Entry: client.CacheEntry{Value: 7}},
+				{Key: client.CacheKey{Path: "other:/interfaces/interface/state/counters/in-octets", Keys: map[string]string{"name": "eth0"}}, Entry: client.CacheEntry{Value: 99}},
+				{Key: client.CacheKey{Path: "other:/vendor:interfaces/interface/state/counter", Keys: map[string]string{"name": "eth0"}}, Entry: client.CacheEntry{Value: 99}},
+			}
+			if strings.Contains(tc.selector, "[name=eth0]") {
+				snapshot = append(snapshot, client.CachedValue{Key: client.CacheKey{Path: tc.path, Keys: map[string]string{"name": "eth1"}}, Entry: client.CacheEntry{Value: 99}})
+			}
+			capture := NewCaptureSender()
+			require.NoError(t, ReportMetrics(capture, cfg, snapshot, nil))
+			require.Len(t, capture.Metrics(), 1)
+			require.Equal(t, 7.0, capture.Metrics()[0].Value)
+		})
+	}
 }

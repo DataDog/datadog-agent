@@ -556,3 +556,78 @@ func TestEvaluateMemoryUsage(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 25.0, usage)
 }
+
+func TestDerivedMetricsExplicitOrigins(t *testing.T) {
+	cfg := &config.CheckConfig{Instance: config.InstanceConfig{Address: "router"}, Profile: config.ProfileDefinition{Metrics: []config.MetricConfig{
+		{Path: "openconfig:/components/component/state/memory/utilized", Metric: "snmp.memory.used", Type: config.MetricTypeGauge},
+		{Path: "openconfig:/components/component/state/memory/available", Metric: "snmp.memory.free", Type: config.MetricTypeGauge},
+		{Path: "native-a:/vendor:ports/port/state/counter", Metric: "snmp.counter", Type: config.MetricTypeMonotonicCount},
+		{Path: "native-b:/vendor:ports/port/state/counter", Metric: "snmp.counter", Type: config.MetricTypeMonotonicCount},
+	}}}
+	state := NewBandwidthState()
+	capture := NewCaptureSender()
+	now := time.Unix(100, 0)
+	snapshot := []client.CachedValue{
+		{Key: client.CacheKey{Path: "openconfig:/components/component/state/memory/utilized", Keys: map[string]string{"name": "Chassis"}}, Entry: client.CacheEntry{Value: 25}},
+		{Key: client.CacheKey{Path: "openconfig:/components/component/state/memory/available", Keys: map[string]string{"name": "Chassis"}}, Entry: client.CacheEntry{Value: 75}},
+		{Key: client.CacheKey{Path: "other:/components/component/state/memory/available", Keys: map[string]string{"name": "Chassis"}}, Entry: client.CacheEntry{Value: 999}},
+		{Key: client.CacheKey{Path: "native-a:/vendor:ports/port/state/counter", Keys: map[string]string{"name": "eth0"}}, Entry: client.CacheEntry{Value: 100, Timestamp: now}},
+		{Key: client.CacheKey{Path: "native-b:/vendor:ports/port/state/counter", Keys: map[string]string{"name": "eth0"}}, Entry: client.CacheEntry{Value: 1000, Timestamp: now}},
+	}
+	require.NoError(t, ReportDerivedMetrics(capture, cfg, snapshot, state))
+	require.Len(t, capture.Metrics(), 1)
+	require.Equal(t, metricMemoryUsage, capture.Metrics()[0].Name)
+	require.Equal(t, 25.0, capture.Metrics()[0].Value)
+	capture.Reset()
+	snapshot[3].Entry = client.CacheEntry{Value: 120, Timestamp: now.Add(10 * time.Second)}
+	snapshot[4].Entry = client.CacheEntry{Value: 1100, Timestamp: now.Add(10 * time.Second)}
+	require.NoError(t, ReportDerivedMetrics(capture, cfg, snapshot, state))
+	var rates []float64
+	for _, metric := range capture.Metrics() {
+		if metric.Name == "snmp.counter.rate" {
+			rates = append(rates, metric.Value)
+		}
+	}
+	require.ElementsMatch(t, []float64{2, 10}, rates, "counter history must not collide across origins")
+}
+
+func TestBandwidthDoesNotJoinDistinctOrigins(t *testing.T) {
+	profile := config.ProfileDefinition{Metrics: []config.MetricConfig{
+		{Path: "native-a:/interfaces/interface/state/counters/in-octets", Metric: "snmp.ifHCInOctets", Type: config.MetricTypeMonotonicCount, Tags: map[string]string{"interface": "name"}},
+		{Path: "native-b:/interfaces/interface/ethernet/state/port-speed", Metric: "snmp.ifInSpeed", Type: config.MetricTypeGauge},
+	}}
+	keys := map[string]string{"name": "eth0"}
+	data := collectInterfaceBandwidthData(nil, "default:router", profile, []client.CachedValue{
+		{Key: client.CacheKey{Path: profile.Metrics[0].Path, Keys: keys}, Entry: client.CacheEntry{Value: 100}},
+		{Key: client.CacheKey{Path: profile.Metrics[1].Path, Keys: keys}, Entry: client.CacheEntry{Value: 1000000}},
+	}, nil)
+	require.Len(t, data, 1)
+	for _, entry := range data {
+		require.Zero(t, entry.speed, "a speed from another origin must not be paired with the counter")
+	}
+}
+
+func TestRepeatedParentCounterHistoryRemainsDistinct(t *testing.T) {
+	cfg := &config.CheckConfig{Profile: config.ProfileDefinition{Metrics: []config.MetricConfig{{
+		Path: "native:/entry[name=*]/entry[name=B]/counter", Metric: "snmp.counter", Type: config.MetricTypeMonotonicCount,
+	}}}}
+	state := NewBandwidthState()
+	capture := NewCaptureSender()
+	snapshot := []client.CachedValue{
+		selectorCachedValue(t, "native:/entry[name=A]/entry[name=B]/counter", 100),
+		selectorCachedValue(t, "native:/entry[name=C]/entry[name=B]/counter", 1000),
+	}
+	for i := range snapshot {
+		snapshot[i].Entry.Timestamp = time.Unix(100, 0)
+	}
+	require.NoError(t, ReportDerivedMetrics(capture, cfg, snapshot, state))
+	require.Empty(t, capture.Metrics())
+	snapshot[0].Entry = client.CacheEntry{Value: 110, Timestamp: time.Unix(110, 0)}
+	snapshot[1].Entry = client.CacheEntry{Value: 1200, Timestamp: time.Unix(110, 0)}
+	require.NoError(t, ReportDerivedMetrics(capture, cfg, snapshot, state))
+	var rates []float64
+	for _, metric := range capture.Metrics() {
+		rates = append(rates, metric.Value)
+	}
+	require.ElementsMatch(t, []float64{1, 20}, rates)
+}

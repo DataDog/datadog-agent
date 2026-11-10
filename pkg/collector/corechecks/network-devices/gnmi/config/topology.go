@@ -148,7 +148,7 @@ func validateTopologyConfig(topology TopologyConfig) error {
 		{"lldp.management_address", topology.LLDP.ManagementAddress},
 	}
 	for _, item := range paths {
-		if err := validateMetadataPath(item.path, item.field); err != nil {
+		if err := validateProfilePath(item.path, topology.LLDP.Keys, "topology."+item.field); err != nil {
 			return err
 		}
 	}
