@@ -19,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/tagger/taglist"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/tags"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	wmutil "github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
@@ -599,14 +600,10 @@ func (c *WorkloadMetaCollector) extractTagsFromPodEntity(pod *workloadmeta.Kuber
 		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesAnnotationsAsTags["pods"], c.globK8sResourcesAnnotations["pods"], tagList)
 	}
 
-	// namespace labels as tags
-	for name, value := range pod.NamespaceLabels {
-		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesLabelsAsTags["namespaces"], c.globK8sResourcesLabels["namespaces"], tagList)
-	}
-
-	// namespace annotations as tags
-	for name, value := range pod.NamespaceAnnotations {
-		k8smetadata.AddMetadataAsTags(name, value, c.k8sResourcesAnnotationsAsTags["namespaces"], c.globK8sResourcesAnnotations["namespaces"], tagList)
+	// namespace labels and annotations as tags
+	namespaceID := wmutil.GenerateKubeMetadataEntityID("", "namespaces", "", pod.Namespace)
+	if namespace, err := c.store.GetKubernetesMetadata(namespaceID); err == nil {
+		c.addResourceLabelsAndAnnotationsAsTags("namespaces", namespace.Labels, namespace.Annotations, tagList)
 	}
 
 	// gpu requested vendor as tags

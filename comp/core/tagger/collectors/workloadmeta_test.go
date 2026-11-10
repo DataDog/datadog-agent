@@ -132,11 +132,33 @@ func TestHandleKubePod(t *testing.T) {
 		staticTags                    map[string][]string
 		k8sResourcesAnnotationsAsTags map[string]map[string]string
 		k8sResourcesLabelsAsTags      map[string]map[string]string
+		namespace                     *workloadmeta.KubernetesMetadata
 		pod                           workloadmeta.KubernetesPod
 		expected                      []*types.TagInfo
 	}{
 		{
 			name: "fully formed pod (no containers)",
+			namespace: &workloadmeta.KubernetesMetadata{
+				EntityID: workloadmeta.EntityID{
+					Kind: workloadmeta.KindKubernetesMetadata,
+					ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", podNamespace)),
+				},
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: podNamespace,
+					// NS labels as tags
+					Labels: map[string]string{
+						"ns_env":       "dev",
+						"ns_ownerteam": "containers",
+						"foo":          "bar",
+					},
+					// NS annotations as tags
+					Annotations: map[string]string{
+						"ns_tier":            "some_tier",
+						"namespace_security": "critical",
+					},
+				},
+				GVR: &schema.GroupVersionResource{Version: "v1", Resource: "namespaces"},
+			},
 			k8sResourcesAnnotationsAsTags: map[string]map[string]string{
 				"pods": {
 					"ns_tier":   "ns_tier",
@@ -197,19 +219,6 @@ func TestHandleKubePod(t *testing.T) {
 						"app.kubernetes.io/managed-by": "helm",
 						"kueue.x-k8s.io/queue-name":    "batch",
 					},
-				},
-
-				// NS labels as tags
-				NamespaceLabels: map[string]string{
-					"ns_env":       "dev",
-					"ns_ownerteam": "containers",
-					"foo":          "bar",
-				},
-
-				// NS annotations as tags
-				NamespaceAnnotations: map[string]string{
-					"ns_tier":            "some_tier",
-					"namespace_security": "critical",
 				},
 
 				// kube_service tags
@@ -1088,6 +1097,10 @@ func TestHandleKubePod(t *testing.T) {
 			collector := NewWorkloadMetaCollector(context.Background(), cfg, store, nil)
 			collector.staticTags = tt.staticTags
 			collector.initK8sResourcesMetaAsTags(tt.k8sResourcesLabelsAsTags, tt.k8sResourcesAnnotationsAsTags)
+			if tt.namespace != nil {
+				store.Set(tt.namespace)
+				defer store.Unset(tt.namespace)
+			}
 
 			actual := collector.handleKubePod(workloadmeta.Event{
 				Type:   workloadmeta.EventTypeSet,

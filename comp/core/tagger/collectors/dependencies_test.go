@@ -12,12 +12,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/common"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/types"
+	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/collectors/util"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -161,6 +163,30 @@ func TestEntityInBundleIsTaggedOnce(t *testing.T) {
 	assert.Equal(t, 1, count)
 }
 
+func TestNamespaceChangeRetagsPodsInNamespace(t *testing.T) {
+	h := newDependencyTestHarness(t)
+	h.collector.initK8sResourcesMetaAsTags(map[string]map[string]string{"namespaces": {"team": "team"}}, nil)
+
+	podInOther := newKueuePod("pod-b", "ctr-b", "")
+	podInOther.Namespace = "other"
+	got := h.add(newContainer("ctr-a"), newContainer("ctr-b"), newKueuePod("pod-a", "ctr-a", ""), podInOther)
+	assert.NotContains(t, tagInfoFor(got, podTaggerID("pod-a")).LowCardTags, "team:a")
+
+	got = h.add(newNamespace("default", "a"))
+	for _, id := range []types.EntityID{podTaggerID("pod-a"), containerTaggerID("ctr-a")} {
+		tagInfo := tagInfoFor(got, id)
+		require.NotNil(t, tagInfo, "%s was not re-tagged", id)
+		assert.Contains(t, tagInfo.LowCardTags, "team:a", "tags for %s", id)
+	}
+	assert.Nil(t, tagInfoFor(got, podTaggerID("pod-b")), "pod-b is in another namespace")
+
+	got = h.add(newNamespace("default", "b"))
+	podTags := tagInfoFor(got, podTaggerID("pod-a"))
+	require.NotNil(t, podTags)
+	assert.Contains(t, podTags.LowCardTags, "team:b")
+	assert.NotContains(t, podTags.LowCardTags, "team:a")
+}
+
 type dependencyTestHarness struct {
 	store     workloadmetamock.Mock
 	collector *WorkloadMetaCollector
@@ -283,5 +309,16 @@ func newKueueResourceFlavor(name, gpuFamily string) *workloadmeta.KubernetesKueu
 		},
 		EntityMeta:         workloadmeta.EntityMeta{Name: name},
 		NodeAffinityLabels: map[string]string{"nvidia.com/gpu.family": gpuFamily},
+	}
+}
+
+func newNamespace(name, team string) *workloadmeta.KubernetesMetadata {
+	return &workloadmeta.KubernetesMetadata{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesMetadata,
+			ID:   string(util.GenerateKubeMetadataEntityID("", "namespaces", "", name)),
+		},
+		EntityMeta: workloadmeta.EntityMeta{Name: name, Labels: map[string]string{"team": team}},
+		GVR:        &schema.GroupVersionResource{Version: "v1", Resource: "namespaces"},
 	}
 }
