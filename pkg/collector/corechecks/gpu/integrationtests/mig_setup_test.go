@@ -41,8 +41,10 @@ type migConfigurationState struct {
 	uuid string
 	// enabledMIGMode is true if MIG mode was off and configureMIG turned it on.
 	enabledMIGMode bool
-	// gpuInstanceIDs are the GPU instances configureMIG created.
-	gpuInstanceIDs []uint32
+	// createdMIGDevices is true if the GPU had no MIG devices and configureMIG created some, so the cleanup
+	// destroys every MIG device of the GPU. It is set before creating them, so that a failure while creating
+	// them is cleaned up too.
+	createdMIGDevices bool
 }
 
 // configureMIG enables MIG mode on every MIG-capable GPU that does not have it and creates MIG devices
@@ -102,36 +104,34 @@ func configureMIG(t *testing.T) {
 			continue
 		}
 
-		state.gpuInstanceIDs = createMIGDevices(t, device, index)
+		state.createdMIGDevices = true
+		createMIGDevices(t, device, index)
 	}
 }
 
 // createMIGDevices creates migInstancesPerGPU GPU instances with the smallest profile, each with a
-// compute instance, and returns the IDs of the GPU instances.
-func createMIGDevices(t *testing.T, device nvml.Device, index int) []uint32 {
+// compute instance.
+func createMIGDevices(t *testing.T, device nvml.Device, index int) {
 	t.Helper()
 
 	profile, ret := device.GetGpuInstanceProfileInfo(nvml.GPU_INSTANCE_PROFILE_1_SLICE)
 	requireNVMLSuccess(t, ret, "get the 1-slice GPU instance profile of GPU %d", index)
 
-	var ids []uint32
+	created := 0
 	for range migInstancesPerGPU {
 		if capacity, ret := device.GetGpuInstanceRemainingCapacity(&profile); ret != nvml.SUCCESS || capacity == 0 {
 			break
 		}
 		instance, ret := device.CreateGpuInstance(&profile)
 		requireNVMLSuccess(t, ret, "create a GPU instance on GPU %d", index)
-		info, ret := instance.GetInfo()
-		requireNVMLSuccess(t, ret, "get the GPU instance info on GPU %d", index)
-		ids = append(ids, info.Id)
+		created++
 
 		computeProfile, ret := instance.GetComputeInstanceProfileInfo(nvml.COMPUTE_INSTANCE_PROFILE_1_SLICE, nvml.COMPUTE_INSTANCE_ENGINE_PROFILE_SHARED)
 		requireNVMLSuccess(t, ret, "get the compute instance profile on GPU %d", index)
 		_, ret = instance.CreateComputeInstance(&computeProfile)
 		requireNVMLSuccess(t, ret, "create a compute instance on GPU %d", index)
 	}
-	require.NotEmpty(t, ids, "could not create any MIG device on GPU %d", index)
-	return ids
+	require.NotZero(t, created, "could not create any MIG device on GPU %d", index)
 }
 
 // restoreMIGConfiguration destroys the MIG devices configureMIG created and turns MIG mode off on the
@@ -155,8 +155,8 @@ func restoreMIGConfiguration(t *testing.T, states []*migConfigurationState) {
 			continue
 		}
 
-		for _, id := range state.gpuInstanceIDs {
-			destroyGPUInstance(t, device, state.uuid, id)
+		if state.createdMIGDevices {
+			destroyMIGDevices(t, device, state.uuid)
 		}
 		if state.enabledMIGMode {
 			activation, ret := device.SetMigMode(nvml.DEVICE_MIG_DISABLE)
@@ -176,29 +176,45 @@ func restoreMIGConfiguration(t *testing.T, states []*migConfigurationState) {
 	}
 }
 
-func destroyGPUInstance(t *testing.T, device nvml.Device, uuid string, id uint32) {
+// destroyMIGDevices destroys every GPU instance of the smallest profile on the GPU, which are the ones
+// createMIGDevices creates, along with their compute instances. It lists the instances instead of
+// remembering the ones created, so it also removes those left by a partial creation.
+func destroyMIGDevices(t *testing.T, device nvml.Device, uuid string) {
 	t.Helper()
 
-	instance, ret := device.GetGpuInstanceById(int(id))
+	profile, ret := device.GetGpuInstanceProfileInfo(nvml.GPU_INSTANCE_PROFILE_1_SLICE)
 	if ret != nvml.SUCCESS {
-		t.Errorf("get GPU instance %d of GPU %s: %v", id, uuid, nvml.ErrorString(ret))
+		t.Errorf("get the 1-slice GPU instance profile of GPU %s: %v", uuid, nvml.ErrorString(ret))
 		return
 	}
+	instances, ret := device.GetGpuInstances(&profile)
+	if ret != nvml.SUCCESS {
+		t.Errorf("list the GPU instances of GPU %s: %v", uuid, nvml.ErrorString(ret))
+		return
+	}
+	for _, instance := range instances {
+		destroyGPUInstance(t, uuid, instance)
+	}
+}
+
+func destroyGPUInstance(t *testing.T, uuid string, instance nvml.GpuInstance) {
+	t.Helper()
+
 	// A GPU instance can only be destroyed once its compute instances are gone.
 	computeProfile, ret := instance.GetComputeInstanceProfileInfo(nvml.COMPUTE_INSTANCE_PROFILE_1_SLICE, nvml.COMPUTE_INSTANCE_ENGINE_PROFILE_SHARED)
 	if ret == nvml.SUCCESS {
 		computeInstances, ret := instance.GetComputeInstances(&computeProfile)
 		if ret != nvml.SUCCESS {
-			t.Errorf("list the compute instances of GPU instance %d on GPU %s: %v", id, uuid, nvml.ErrorString(ret))
+			t.Errorf("list the compute instances of a GPU instance on GPU %s: %v", uuid, nvml.ErrorString(ret))
 		}
 		for _, computeInstance := range computeInstances {
 			if ret := retryWhileInUse(computeInstance.Destroy); ret != nvml.SUCCESS {
-				t.Errorf("destroy a compute instance of GPU instance %d on GPU %s: %v", id, uuid, nvml.ErrorString(ret))
+				t.Errorf("destroy a compute instance on GPU %s: %v", uuid, nvml.ErrorString(ret))
 			}
 		}
 	}
 	if ret := retryWhileInUse(instance.Destroy); ret != nvml.SUCCESS {
-		t.Errorf("destroy GPU instance %d on GPU %s: %v", id, uuid, nvml.ErrorString(ret))
+		t.Errorf("destroy a GPU instance on GPU %s: %v", uuid, nvml.ErrorString(ret))
 	}
 }
 
