@@ -3,7 +3,7 @@ name: create-epic-recap
 description: "Use when an engineer or manager asks to recap, summarize, or post an update on a Jira Epic — a progress update for an in-progress Epic (how far along it is, what's shipped so far, what's next) or a resolution recap for a finished one. Gathers child-issue progress, merged GitHub PRs, release notes, and Epic/child comments, previews a stakeholder-ready recap, and posts only after approval."
 argument-hint: "<EPIC-KEY e.g. OTAGENT-820> [--dry-run]"
 model: sonnet
-allowed-tools: Bash, Read, Write, Glob, Grep, AskUserQuestion, mcp__atlassian__getJiraIssue, mcp__atlassian__searchJiraIssuesUsingJql, mcp__atlassian__getJiraIssueRemoteIssueLinks, mcp__atlassian__addCommentToJiraIssue, mcp__atlassian__getAccessibleAtlassianResources
+allowed-tools: Bash, Read, Write, Glob, Grep, AskUserQuestion, mcp__atlassian__get_issue, mcp__atlassian__search_issues, mcp__atlassian__add_comment
 ---
 
 Generate a recap for the Jira Epic **$ARGUMENTS**, aggregating child-issue progress, merged GitHub PRs, and release notes. The recap adapts to the Epic's state: a **progress update** while it's in flight (how far along it is, what's shipped so far, what's next) or a **resolution recap** once it's done — see *Determine the recap mode* in Step 2. Show a preview and post it as a comment on the Epic **only after explicit user approval**. This lets an engineer communicate progress or resolution to PMs and stakeholders without losing flow (motivation: [OTAGENT-1038](https://datadoghq.atlassian.net/browse/OTAGENT-1038)).
@@ -12,23 +12,23 @@ Generate a recap for the Jira Epic **$ARGUMENTS**, aggregating child-issue progr
 
 ## Reference files (load as needed)
 
-- **`references/runtime-tooling.md`** — runtime detection, the Cursor vs Claude Code tool mapping, `cloudId`, large responses, JQL. **Read this before Step 2.**
-- **`references/pr-discovery.md`** — the full Step 4 algorithm: Phase A/B, tier classification + regex, drop rules, throttling, the `{{pr_discovery_note}}` variants, and the Claude Code capability gap. **Read this before Step 4.**
+- **`references/runtime-tooling.md`** — server detection, the `mcp-atlassian` vs internal tool mapping, comments, large responses, JQL. **Read this before Step 2.**
+- **`references/pr-discovery.md`** — the full Step 4 algorithm: Phase A/B, tier classification + regex, drop rules, throttling, the `{{pr_discovery_note}}` variants, and the internal server capability gap. **Read this before Step 4.**
 
-This skill runs in **two runtimes** with different Atlassian MCP servers (Cursor's `mcp-atlassian` and Claude Code's Atlassian Rovo). The key gap: Rovo has **no dev-status endpoint**, so Phase A1/Tier 0 is Cursor-only and `cloudId` is required on every Rovo call. Whenever a step says "call the *Fetch issue* / *Search children* / *Post comment* tool", look up the exact tool and params in `references/runtime-tooling.md`.
+This skill works with **two kinds** of Atlassian MCP server: the community `mcp-atlassian` (e.g. Cursor's `user-atlassian`) and Datadog's internal server (the `atlassian` entry in this repo's MCP configs). The key gap: the internal server has **no dev-status endpoint** and no field selection, so Phase A1/Tier 0 is `mcp-atlassian`-only. Whenever a step says "call the *Fetch issue* / *Search children* / *Post comment* tool", look up the exact tool and params in `references/runtime-tooling.md`.
 
 ## Prerequisites
 
 If any check fails, stop and tell the user what to fix.
 
-1. **Atlassian MCP server** — connected and authenticated (Cursor: `user-atlassian`; Claude Code: Atlassian Rovo). Probe with a known issue fetch; if it fails, ask the user to authenticate/connect.
+1. **Atlassian MCP server** — connected and authenticated (`mcp-atlassian`, e.g. Cursor's `user-atlassian`; or the internal `atlassian` server). Probe with a known issue fetch; if it fails, ask the user to authenticate/connect.
 2. **GitHub CLI (`gh`)** — installed and authenticated for the DataDog org. Run `gh auth status`; if no active account, ask the user to run `gh auth login`.
 
 ## Example
 
 **Input:** `/create-epic-recap OTAGENT-304 --dry-run`
 
-Fetches Epic OTAGENT-304, finds its completed child issues, discovers merged PRs across all child keys (Jira Development panel on Cursor + GitHub search), reads release notes from the PR file lists, renders the recap, prints a preview, and — because of `--dry-run` — saves a draft without posting:
+Fetches Epic OTAGENT-304, finds its completed child issues, discovers merged PRs across all child keys (Jira Development panel on `mcp-atlassian` + GitHub search), reads release notes from the PR file lists, renders the recap, prints a preview, and — because of `--dry-run` — saves a draft without posting:
 
 ```
 Saved draft to /tmp/OTAGENT-304-recap.md
@@ -42,11 +42,11 @@ Saved draft to /tmp/OTAGENT-304-recap.md
 
 ## Step 2: Fetch the Epic
 
-Call the **Fetch issue** tool (see `references/runtime-tooling.md`) requesting fields `summary, description, status, issuetype, labels, assignee, reporter` **and the Epic's comments** (Cursor: `comment_limit: 20`; Claude Code: add `"comment"` to the `fields` array with `responseContentFormat: "markdown"`). See *Reading comments* in `references/runtime-tooling.md`.
+Call the **Fetch issue** tool (see `references/runtime-tooling.md`) requesting fields `summary, description, status, issuetype, labels, assignee, reporter` **and the Epic's comments** (`mcp-atlassian`: `comment_limit: 20`; internal: `get_issue` takes only `issue_key`; read the comments from its default response). See *Reading comments* in `references/runtime-tooling.md`.
 
 Validate:
 - If the issue cannot be found, stop and inform the user.
-- Read the issue type from whichever shape the runtime returns — accept **both** `issuetype.name` (Rovo) **and** `issue_type.name` (some `mcp-atlassian` versions). If the resolved name is not `Epic`, stop and tell the user this skill only works on Epics (suggest `/run-jira` for non-Epics). Do not reject just because one of the two shapes is absent.
+- Read the issue type from whichever shape the runtime returns — accept **both** `issuetype.name` **and** `issue_type.name` (some `mcp-atlassian` versions). If the resolved name is not `Epic`, stop and tell the user this skill only works on Epics (suggest `/run-jira` for non-Epics). Do not reject just because one of the two shapes is absent.
 
 **Determine the recap mode** (`epic_mode`), used from here on to shape wording and sections:
 - If `--mode` was passed in Step 1, use it verbatim.
@@ -59,7 +59,7 @@ Keep `summary`, `description`, `status`, `labels`, `epic_mode`, and `epic_commen
 
 ## Step 3: Fetch child issues
 
-Call the **Search children** tool with the Epic-children JQL (see `references/runtime-tooling.md`), `fields: summary, status, issuetype, assignee, labels`, limit `50`. On Claude Code, also request `customfield_10000` in this call so Step 4 Phase A2 counts come back for free. If the response spills to a file, parse with `jq`.
+Call the **Search children** tool with the Epic-children JQL (see `references/runtime-tooling.md`), `fields: summary, status, issuetype, assignee, labels`, limit `50` (internal: `max_results: 50`; no field selection, the default fields come back). If the results carry `customfield_10000`, keep it so Step 4 Phase A2 counts come for free. If the response spills to a file, parse with `jq`.
 
 Collect each child's `key`, `summary`, `status.name`, and `status.category` (accept `status.statusCategory.key` too).
 
@@ -73,7 +73,7 @@ Compute progress counts for rendering: `done = len(done_children)`, `total = <co
 - In **`resolution`** mode, PR discovery and the recap body are driven by `done_children`; unfinished items go into `skipped_children` and are only mentioned if asked (as before).
 - In **`progress`** mode, `done_children` still drive PR discovery (merged PRs), while `in_progress_children` and `todo_children` are surfaced in the `Progress` section as remaining work.
 
-**Read comments on the relevant child issues too** — useful context often lives only in task comments, so don't skip them. For each relevant child (in `resolution` mode: `done_children`; in `progress` mode: prioritise `in_progress_children`, then `done_children`), call the **Fetch issue** tool individually with `comment_limit` / `fields:["comment"]` and skim the latest comments. Do **not** request the `comment` field in the bulk *Search children* call (it blows up the response — see *Large responses* / *Reading comments* in `references/runtime-tooling.md`). Bound the work: cap at ~10 issues and the latest ~10 comments each; capture anything material as `child_comment_context`.
+**Read comments on the relevant child issues too** — useful context often lives only in task comments, so don't skip them. For each relevant child (in `resolution` mode: `done_children`; in `progress` mode: prioritise `in_progress_children`, then `done_children`), call the **Fetch issue** tool individually (`mcp-atlassian`: with `comment_limit`) and skim the latest comments. Do **not** request the `comment` field in the bulk *Search children* call (it blows up the response — see *Large responses* / *Reading comments* in `references/runtime-tooling.md`). Bound the work: cap at ~10 issues and the latest ~10 comments each; capture anything material as `child_comment_context`.
 
 An empty list of completed children is fine — some Epics are resolved by PRs that reference the Epic key directly. Continue with just `<EPIC-KEY>` as the search term.
 
@@ -81,8 +81,8 @@ An empty list of completed children is fine — some Epics are resolved by PRs t
 
 **Read `references/pr-discovery.md` and follow it.** In short:
 - Build the key list `[EPIC-KEY, <completed child keys>]`. PR discovery is **merged-only**: even in `progress` mode only `done_children` contribute keys — `in_progress_children`/`todo_children` are represented as remaining work in the `Progress` section, not searched for PRs.
-- **Phase A** (Cursor only): A1 reads Tier 0 PRs from the Jira Development panel; A2 reads merged-PR counts from `customfield_10000` into `jira_pr_counts` for cross-validation. On Claude Code, skip A1 (no dev-status) and use A2 + Phase B only.
-- **Phase B** (both runtimes): `gh search prs` once per key, then classify each hit into Tier 1 (include) / Tier 2 (include) / Tier 3 (opt-in, surfaced in preview) / Tier 4 (cross-ref, drop).
+- **Phase A**: A1 (`mcp-atlassian` only) reads Tier 0 PRs from the Jira Development panel; A2 reads merged-PR counts from `customfield_10000` into `jira_pr_counts` for cross-validation. On the internal server, skip A1 (no dev-status) and use A2 (when the field is returned) + Phase B only.
+- **Phase B** (both servers): `gh search prs` once per key, then classify each hit into Tier 1 (include) / Tier 2 (include) / Tier 3 (opt-in, surfaced in preview) / Tier 4 (cross-ref, drop).
 - Apply the revert/bot drop rules, dedup across phases, and record `tier3_candidates` and `pr_shortfall`.
 - If zero PRs are found, use the manual-URL / empty-section / cancel fallback from the reference.
 
@@ -170,8 +170,8 @@ Read [recap-template.md](recap-template.md) and substitute each `{{placeholder}}
 | `{{agent_footprint}}` | Step 8 answer, or omit if `No change` AND no footprint-relevant release notes |
 | `{{repositories_touched}}` | Step 7 list, bullet form |
 | `{{customer_tracking}}` | Step 8 answer, or omit if `Not tracked yet` |
-| `{{linked_prs}}` | Bullet list `- [<repo>#<number>](<url>) — <title>`, then indented release-note bullets (`  - <section>: <one-line excerpt>`). Group Tier 0 PRs first with a `_(linked via Jira)_` annotation, then Tier 1/2 from GitHub search. On Claude Code there are no Tier 0 PRs — start with Tier 1/2. |
-| `{{pr_discovery_note}}` | One of the quiet/loud/empty variants — see *PR discovery note* in `references/pr-discovery.md`. Quiet whenever Tier 0 was unavailable (always on Rovo) and no shortfall; loud whenever `pr_shortfall` is non-empty; empty only when Tier 0 was available (Cursor) and `pr_shortfall` is empty. |
+| `{{linked_prs}}` | Bullet list `- [<repo>#<number>](<url>) — <title>`, then indented release-note bullets (`  - <section>: <one-line excerpt>`). Group Tier 0 PRs first with a `_(linked via Jira)_` annotation, then Tier 1/2 from GitHub search. On the internal server there are no Tier 0 PRs — start with Tier 1/2. |
+| `{{pr_discovery_note}}` | One of the quiet/loud/empty variants — see *PR discovery note* in `references/pr-discovery.md`. Quiet whenever Tier 0 was unavailable (always on the internal server) and no shortfall; loud whenever `pr_shortfall` is non-empty; empty only when Tier 0 was available (`mcp-atlassian`) and `pr_shortfall` is empty. |
 
 Drop the HTML rendering-rules comment from the template before producing the final markdown. When omitting an optional section, remove its `##` heading too — no empty headings.
 
@@ -179,7 +179,7 @@ Drop the HTML rendering-rules comment from the template before producing the fin
 
 Print the rendered markdown under `### Preview — <EPIC-KEY> recap`.
 
-**Before the recap, print a one-line PR discovery summary** (on Claude Code the Tier 0 count is always 0 — make clear discovery was GitHub-only):
+**Before the recap, print a one-line PR discovery summary** (on the internal server the Tier 0 count is always 0 — make clear discovery was GitHub-only):
 
 ```
 > Found N PRs: X via Jira Development panel (Tier 0), Y via GitHub search (Tier 1/2). Z Tier 3 candidates skipped (see below).
@@ -214,7 +214,7 @@ If `--dry-run` was set, skip the question and jump to Step 12 with `cancel` sema
 
 Call the **Post comment** tool (see `references/runtime-tooling.md`) with the rendered markdown from Step 9 (including the attribution footer). Do not set `visibility`/`commentVisibility` — this is a regular comment.
 
-**POST-action verification:** re-fetch the Epic (Cursor: `comment_limit=5`; Claude Code: `fields: ["comment"]`) and confirm the new comment is present (match the footer string `Generated by create-epic-recap`). If verification fails, surface the error and do not retry automatically.
+**POST-action verification:** re-fetch the Epic (`mcp-atlassian`: `comment_limit=5`; internal: `get_issue`) and confirm the new comment is present (match the footer string `Generated by create-epic-recap`). If verification fails, surface the error and do not retry automatically.
 
 On success, print:
 
@@ -232,8 +232,7 @@ When the user picks `Cancel` or `--dry-run` was specified:
 ## Errors and edge cases
 
 - **Atlassian MCP auth failure** — stop, do not try a different transport, ask the user to authenticate.
-- **Claude Code `cloudId` errors** — see `references/runtime-tooling.md` (use `getAccessibleAtlassianResources` to resolve the UUID).
-- **`jira_get_issue_development_info` 500/empty** — the dev-status endpoint is fragile (no parallel calls, occasional downtime, exact CamelCase `"GitHub"`). On failure, A2 + Phase B carry the pipeline; on Rovo this tool doesn't exist at all. Full handling in `references/pr-discovery.md`.
+- **`jira_get_issue_development_info` 500/empty** — the dev-status endpoint is fragile (no parallel calls, occasional downtime, exact CamelCase `"GitHub"`). On failure, A2 + Phase B carry the pipeline; on the internal server this tool doesn't exist at all. Full handling in `references/pr-discovery.md`.
 - **`gh` not authenticated** — `gh auth status`; if it fails, ask the user to `gh auth login`.
 - **`gh search prs` rate-limited** — back off 60 s, retry once; if still failing, ask for manual PR URLs (Step 4 fallback).
 - **Very large PR set (> 25 PRs)** — present a numbered list and ask via `AskUserQuestion` whether to include all or narrow by date / label / repo.
@@ -245,4 +244,4 @@ When the user picks `Cancel` or `--dry-run` was specified:
 - **Never modify the Epic description or other fields** — comments only.
 - **Always include the attribution footer** so future readers know the recap was AI-generated.
 - **Never include secrets, internal-only URLs, or sensitive customer data.** Mask customer names as `<customer>` and flag during preview.
-- **Comment body is markdown** — pass it directly; do not pre-render to ADF/Wiki. On Cursor `jira_add_comment` takes Markdown in `body`; on Claude Code pass `commentBody` with `contentFormat: "markdown"`.
+- **Comment body is markdown** — pass it directly; do not pre-render to ADF/Wiki. On `mcp-atlassian` `jira_add_comment` takes Markdown in `body`; on the internal server pass `body` with `body_format: "markdown"` (the default, `plain_text`, would not render it).

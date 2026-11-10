@@ -101,16 +101,18 @@ _none_
 Use the **Atlassian MCP** tools as the primary method:
 
 ```
-mcp__atlassian__searchJiraIssuesUsingJql   — query tickets
-mcp__atlassian__getJiraIssue               — fetch ticket details
-mcp__atlassian__editJiraIssue              — assign, update fields
-mcp__atlassian__transitionJiraIssue        — change status
-mcp__atlassian__addCommentToJiraIssue      — add comments
-mcp__atlassian__getTransitionsForJiraIssue — list available transitions
-mcp__atlassian__atlassianUserInfo          — get your account ID
+mcp__atlassian__search_issues    — query tickets with JQL
+mcp__atlassian__get_issue        — fetch ticket details
+mcp__atlassian__update_issue     — assign, update fields
+mcp__atlassian__transition_issue — change status
+mcp__atlassian__add_comment      — add comments
 ```
 
-All calls use `cloudId: datadoghq.atlassian.net`.
+Calls take an `issue_key` (or `jql`), never a `cloudId`: the server only serves the Datadog Atlassian site.
+
+`update_issue` and `transition_issue` are two-step writes. A call with `confirmed=false` (the default) changes nothing and returns a preview. Check that the preview targets the right ticket and change, then repeat the same call with `confirmed=true`.
+
+There is no tool to list a ticket's transitions or to look up your account ID; [ticket-workflow.md](ticket-workflow.md) and [troubleshooting.md](troubleshooting.md) cover the workarounds.
 
 **If MCP authentication fails for any reason, STOP.** Mark the ticket HOLD and report the failure.
 

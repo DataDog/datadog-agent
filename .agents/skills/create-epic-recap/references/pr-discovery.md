@@ -2,15 +2,15 @@
 
 Find every **merged** PR that resolves the Epic or one of its completed children. Build the list of Jira keys to search for: `[EPIC-KEY, <completed child keys from Step 3>]`.
 
-Two phases run for **all** keys: Phase A reads Jira's Development panel (Cursor only), Phase B searches GitHub (both runtimes). Phase B is the source of truth for PR URLs; Phase A adds high-confidence Tier 0 hits and a cross-validation count.
+Two phases run for **all** keys: Phase A reads Jira's Development panel (A1 on `mcp-atlassian` only), Phase B searches GitHub (both servers). Phase B is the source of truth for PR URLs; Phase A adds high-confidence Tier 0 hits and a cross-validation count.
 
 ## Phase A — Jira Development panel (Tier 0)
 
-### A1 — Detail endpoint (full PR info) — Cursor only
+### A1 — Detail endpoint (full PR info) — `mcp-atlassian` only
 
-> **Claude Code (Rovo): SKIP A1 entirely.** This server has no dev-status / Development-panel tool, so Tier 0 PR URLs cannot be read from Jira. Go straight to A2 (counts) and rely on Phase B for URLs.
+> **Internal server: SKIP A1 entirely.** This server has no dev-status / Development-panel tool, so Tier 0 PR URLs cannot be read from Jira. Go straight to A2 (counts) and rely on Phase B for URLs.
 
-For each key, call `jira_get_issue_development_info` on the `user-atlassian` server with:
+For each key, call `jira_get_issue_development_info` on the `mcp-atlassian` server with:
 - `issue_key`: `<KEY>`
 - `application_type`: `"GitHub"` — **CamelCase is mandatory**; lowercase `"github"` returns empty results (Jira REST API quirk in `/rest/dev-status/1.0/issue/detail`).
 - `data_type`: `"pullrequest"` — **mandatory**; omitting it causes HTTP 500 with `"message":"dataType"`.
@@ -32,8 +32,8 @@ From each successful response, collect `pullRequests` entries where `status == "
 If A1 failed (fail-fast) or returned zero Tier 0 PRs for any key, fetch the cached development summary. This reads a standard Jira custom field via the stable `/rest/api/2/issue/` API (not the flaky `dev-status` endpoint).
 
 Call the **Fetch issue** tool (see `references/runtime-tooling.md`) requesting only `customfield_10000` (the "Development" field):
-- **Cursor:** `jira_get_issue` — `fields: "customfield_10000"`, `comment_limit: 0`. Value under `customfield_10000.value`.
-- **Claude Code:** `mcp__atlassian__getJiraIssue` — `fields: ["customfield_10000"]`. Value is a **string** (see *customfield_10000 shape* below), not an object — extract the embedded `json={…}` first.
+- **`mcp-atlassian`:** `jira_get_issue` — `fields: "customfield_10000"`, `comment_limit: 0`. Value under `customfield_10000.value`.
+- **Internal:** `mcp__atlassian__get_issue` takes no field list — read `customfield_10000` from the default response (the Step 3 search results may already carry it). If the field is absent, A2 is unavailable for that key: omit it from `jira_pr_counts` so it never triggers a shortfall. The value may be a **string** (see *customfield_10000 shape* below) — extract the embedded `json={…}` first.
 
 In both cases the embedded JSON holds `cachedValue.summary.pullrequest.overall.count` (total linked PRs in **any** state) and `…overall.state` (`MERGED`, `OPEN`, etc.).
 
@@ -117,7 +117,7 @@ If zero PRs are found across both phases, ask the user via `AskUserQuestion` whe
 
 Rendered in Step 9 inside the *Linked PRs & release notes* section, right after `{{linked_prs}}`. It degrades gracefully when the MCP server cannot read Jira's Development panel — pick exactly one variant:
 
-- **Quiet footnote** — when Tier 0 (Phase A1) was unavailable this run (always on Claude Code/Rovo) **and** `pr_shortfall` is empty:
+- **Quiet footnote** — when Tier 0 (Phase A1) was unavailable this run (always on the internal server) **and** `pr_shortfall` is empty:
 
   ```
   > ℹ️ _PR discovery was GitHub-search-only: this MCP server has no dev-status endpoint, so PRs attached only in Jira's Development panel can't be read. The list above may be incomplete._
@@ -129,25 +129,25 @@ Rendered in Step 9 inside the *Linked PRs & release notes* section, right after 
   > ⚠️ **Some Jira-attached PRs could not be retrieved due to MCP server limitations.**
   > Jira's Development panel reports more linked PRs than GitHub search found:
   > - OTAGENT-307: Jira 4, found 2
-  > These PRs are attached in Jira, but their URLs live in the dev-status endpoint, which this MCP server (official Atlassian Rovo) does not expose.
+  > These PRs are attached in Jira, but their URLs live in the dev-status endpoint, which this MCP server does not expose.
   > **To recover them:** connect a community Atlassian MCP server that wraps dev-status — e.g. [`mcp-atlassian`](https://github.com/sooperset/mcp-atlassian) (the `user-atlassian` server in the Cursor setup), which provides `jira_get_issue_development_info`. Then re-run the recap.
   ```
 
-- **Empty** — when Tier 0 was available (Cursor) **and** `pr_shortfall` is empty. Collapse the placeholder, leaving no blank line.
+- **Empty** — when Tier 0 was available (`mcp-atlassian`) **and** `pr_shortfall` is empty. Collapse the placeholder, leaving no blank line.
 
 Keep the tone neutral — it is PM-facing. The MCP-install recommendation appears only in the loud variant, so stakeholders never see developer-setup noise unless PRs were actually missed.
 
-## Claude Code (Rovo) capability gap
+## Internal server capability gap
 
-The Rovo server exposes **no Development/dev-status endpoint**, so on Claude Code:
+The internal server exposes **no Development/dev-status endpoint**, so on it:
 
-- **Phase A1 / Tier 0 is unavailable** — you cannot read linked-PR **URLs** from Jira. Do **not** use remote links as a substitute: `getJiraIssueRemoteIssueLinks` does **not** return GitHub PRs (the integration stores them in dev-status, not remote links — verified empty on OTAGENT-304).
-- The only Jira-side PR signal is **Phase A2** (`customfield_10000`): counts + state, never URLs.
+- **Phase A1 / Tier 0 is unavailable** — you cannot read linked-PR **URLs** from Jira. Remote issue links are no substitute: they do **not** hold GitHub PRs (the integration stores them in dev-status, not remote links — verified empty on OTAGENT-304), and the internal server has no tool to read them anyway.
+- The only possible Jira-side PR signal is **Phase A2** (`customfield_10000`): counts + state, never URLs, and only if the default `get_issue` / `search_issues` response includes the field.
 - Therefore **all PR URLs come from Phase B (`gh search prs`)**; A2 counts are a weak cross-check. `gh search prs <KEY>` over-matches body/cross-reference mentions, so a count can coincide while the actual PRs differ (e.g. OTAGENT-307: Jira count 4, `gh` also returns 4, but two carry a *different* key in their title). Lean on the Tier 1/2/4 classification and surface Tier 3 in preview rather than trusting a count match.
 - **Surface this limitation in the recap itself** via `{{pr_discovery_note}}` (Step 9), not just in the preview.
 
 ### customfield_10000 shape (A2)
 
-On Rovo, `customfield_10000` comes back as a **single string**, e.g. `{pullrequest={dataType=pullrequest, state=MERGED, stateCount=4}, json={"cachedValue":{…}}}`. Extract the embedded `json={…}` object and read `cachedValue.summary.pullrequest.overall.count` and `…overall.state`. Keys whose dev field has no `pullrequest` block (or is null) have count 0.
+`customfield_10000` can come back as a **single string** (the public Atlassian Rovo server returned it that way), e.g. `{pullrequest={dataType=pullrequest, state=MERGED, stateCount=4}, json={"cachedValue":{…}}}`. Extract the embedded `json={…}` object and read `cachedValue.summary.pullrequest.overall.count` and `…overall.state`. Keys whose dev field has no `pullrequest` block (or is null) have count 0.
 
 Remember `overall.count` totals **all** linked PRs, not just merged ones. The summary-prefix `state`/`stateCount` pair (`state=MERGED, stateCount=4` above) is the merged-only count when present; otherwise only trust `overall.count` as a merged count when `overall.state == "MERGED"`. When the state is `OPEN`/mixed, treat the merged count as unknown and skip the shortfall comparison for that key.
