@@ -90,7 +90,6 @@ func WithMetricProbes(enabled bool) Option {
 	return optionFunc(func(c *config) { c.metricProbes = enabled })
 }
 
-
 type optionFunc func(c *config)
 
 func (o optionFunc) apply(c *config) { o(c) }

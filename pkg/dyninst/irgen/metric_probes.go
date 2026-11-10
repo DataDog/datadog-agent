@@ -8,6 +8,7 @@
 package irgen
 
 import (
+	"errors"
 	"fmt"
 	"reflect"
 	"strings"
@@ -253,7 +254,7 @@ func checkMetricValueType(kind ir.MetricKind, t ir.Type) error {
 		if kind == ir.MetricKindGauge {
 			return nil
 		}
-		return fmt.Errorf("@duration is measured in fractional milliseconds; use a gauge metric")
+		return errors.New("@duration is measured in fractional milliseconds; use a gauge metric")
 	}
 	goKind, ok := t.GetGoKind()
 	if !ok {
