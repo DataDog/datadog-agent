@@ -5467,9 +5467,16 @@ func TestHandleKubePodGPUSharingTags(t *testing.T) {
 	assert.Contains(t, podInfo.LowCardTags, "gpu_sharing_replicas_used:2")
 	assert.Contains(t, podInfo.LowCardTags, "gpu_uuid:"+strings.ToLower(baseUUID))
 
-	// The pod's container entities inherit the tags from the pod's tag list.
+	// The pod's container entities do not inherit the tags: a container's
+	// own tags, its GPU allocation included, come from its own event
+	// (handleContainer), and inheriting here would leak a sibling's
+	// allocation — a CPU-only sidecar in a GPU pod, or a second container
+	// holding another GPU.
 	containerInfo := findTagInfo(t, tagInfos, types.NewEntityID(types.ContainerID, containerID))
-	assert.Contains(t, containerInfo.LowCardTags, "gpu_sharing_replicas_used:2")
+	for _, tag := range containerInfo.LowCardTags {
+		assert.NotContains(t, tag, "gpu_sharing")
+		assert.NotContains(t, tag, "gpu_uuid:"+strings.ToLower(baseUUID))
+	}
 }
 
 func findTagInfo(t *testing.T, tagInfos []*types.TagInfo, entityID types.EntityID) *types.TagInfo {
