@@ -201,13 +201,13 @@ func (m *TargetMutator) MutatePod(pod *corev1.Pod, ns string, _ dynamic.Interfac
 	annotation.Set(pod, annotation.InjectionSource, string(resolved.selectedBy))
 
 	injection := resolved.plan
-	if injection.skipReason != "" {
-		log.Infof("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), injection.skipReason)
-		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusSkipped)
-		annotation.Set(pod, annotation.InjectionError, injection.skipReason)
-		return false, nil
-	}
 	if injection.blocked {
+		if injection.skipReason != "" {
+			log.Debugf("Skipping APM library injection for pod %s: %s", mutatecommon.PodString(pod), injection.skipReason)
+			annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusSkipped)
+			annotation.Set(pod, annotation.InjectionError, injection.skipReason)
+			return false, nil
+		}
 		annotation.Set(pod, annotation.AppliedConfig, injection.appliedMetadataJSON)
 		annotation.Set(pod, annotation.InjectionStatus, annotation.InjectionStatusBlocked)
 		return false, nil
@@ -272,9 +272,9 @@ func (m *TargetMutator) ShouldMutatePod(pod *corev1.Pod) bool {
 	return m.getTarget(pod) != nil
 }
 
-// getTarget returns an injectable resolution. A remote-config denial is not
-// injectable, but resolveTarget still exposes it so MutatePod can record the
-// blocking policy on the pod.
+// getTarget returns an injectable resolution. A remote-config denial or a veto
+// is not injectable, but resolveTarget still exposes it so MutatePod can record
+// why on the pod.
 func (m *TargetMutator) getTarget(pod *corev1.Pod) *injectionResolution {
 	resolved := m.resolveTarget(pod)
 	if resolved != nil && resolved.plan.blocked {

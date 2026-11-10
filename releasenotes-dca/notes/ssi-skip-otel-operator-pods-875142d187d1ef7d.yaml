@@ -14,4 +14,5 @@ features:
     rules, targets and cluster-wide injection skip these pods, which get the
     ``internal.apm.datadoghq.com/injection-status: skipped`` annotation with the reason in
     ``internal.apm.datadoghq.com/injection-error``. Datadog library annotations and
-    ``DatadogInstrumentation`` resources still inject them.
+    ``DatadogInstrumentation`` resources still inject them. Annotations set on the namespace are
+    not considered yet, so pods that only inherit them are still instrumented twice.
