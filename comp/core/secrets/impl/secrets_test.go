@@ -1756,6 +1756,15 @@ snmp_traps:
 	assert.Empty(t, paths)
 	assert.Empty(t, handles)
 	assert.Empty(t, resolver.originNames)
+
+	// Reporting must sanitize URL keys without changing the resolver's original paths.
+	_, err = resolver.Resolve([]byte("some_setting:\n  https://alice:url-secret@proxy.example.com:\n    password: ENC[url_key]\n"), "datadog.yaml", "", "", false)
+	require.NoError(t, err)
+	paths, handles = resolver.GetPathsAndHandles()
+	assert.Equal(t, []string{"some_setting.https://alice:********@proxy.example.com.password"}, paths)
+	assert.Equal(t, []string{"url_key"}, handles)
+	require.Len(t, resolver.origin["url_key"], 1)
+	assert.Equal(t, []string{"some_setting", "https://alice:url-secret@proxy.example.com", "password"}, resolver.origin["url_key"][0].path)
 }
 
 func TestGetHashValues(t *testing.T) {
