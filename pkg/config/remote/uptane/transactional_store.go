@@ -75,6 +75,36 @@ func recreateTransactionalStore(metadata *Metadata) (*transactionalStore, error)
 	return s, nil
 }
 
+// reopenTransactionalStore reopens a store on the DB file currently on disk,
+// after a failed wipe. The metadata must be the one read from the previous
+// DB (getTSMetadata): its APIKey field holds the stored API key HASH, which
+// is what recreate expects, unlike newTransactionalStore whose openCacheDB
+// hashes the key again.
+//
+// When the file is missing (the wipe removed it but could not create the new
+// DB), bbolt creates an empty one; the metadata check catches that and the
+// DB is recreated fresh with its metadata.
+func reopenTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
+	db, err := bbolt.Open(metadata.Path, 0600, &bbolt.Options{
+		Timeout: databaseLockTimeout,
+	})
+	if err != nil {
+		return nil, err
+	}
+	if _, err := getMetadata(db); err != nil {
+		_ = db.Close()
+		db, err = recreate(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
+		if err != nil {
+			return nil, err
+		}
+	}
+	s := &transactionalStore{
+		db:         db,
+		cachedData: make(map[string]dbBucket),
+	}
+	return s, nil
+}
+
 // getTSMetadata gets metadata from existing transactional db and then closes the existing underlying boltDB
 func (ts *transactionalStore) getTSMetadata() (*Metadata, error) {
 	metadata, err := getMetadata(ts.db)

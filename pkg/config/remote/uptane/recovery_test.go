@@ -6,6 +6,7 @@
 package uptane
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/DataDog/go-tuf/data"
@@ -261,4 +262,46 @@ func TestTryRecoverFromEmbeddedRootUntrustedPayloadRejected(t *testing.T) {
 	directorRoot18, err := client.DirectorRoot(18)
 	require.NoError(t, err)
 	assert.Equal(t, dcA.directorRoot, directorRoot18)
+}
+
+// TestTryRecoverFromEmbeddedRootWipeFailureIsRetried covers a transient DB
+// wipe failure: the DB file cannot be removed, for example when an antivirus
+// scanner holds it open without sharing deletes. The recovery must fail
+// without replaying the new DC's payload on the current state, the client
+// must stay usable on the old DC (no closed DB left behind), and the next
+// recovery attempt must succeed once the wipe works again.
+func TestTryRecoverFromEmbeddedRootWipeFailureIsRetried(t *testing.T) {
+	configTargets, directorTargets, targetFiles := dcTestTargets()
+	embedded, dcA, dcB := newDCTestTopology(configTargets, directorTargets, targetFiles)
+
+	client := newDCTestClient(t, embedded)
+
+	err := client.Update(dcA.toUpdate())
+	require.NoError(t, err)
+	assertClientLatchedToDC(t, client, dcA)
+
+	// Simulate a transient wipe failure on the first recovery attempt.
+	client.recreateStore = func(_ *Metadata) (*transactionalStore, error) {
+		client.recreateStore = recreateTransactionalStore
+		return nil, errors.New("could not remove existing rc db")
+	}
+
+	err = client.TryRecoverFromEmbeddedRoot(dcB.toUpdate())
+	require.Error(t, err)
+
+	// The client was rebuilt on the reopened store and still serves the old
+	// DC's state: no wipe, no replay, and no closed DB.
+	assertClientLatchedToDC(t, client, dcA)
+
+	// The normal update path works again for the old DC (the client is live,
+	// not wedged until restart).
+	dcA2 := dcA.incrementalChange(configTargets, directorTargets, targetFiles, nil, dcA.directorSnapshotVersion+1)
+	err = client.Update(dcA2.toUpdate())
+	require.NoError(t, err)
+	assertClientLatchedToDC(t, client, dcA2)
+
+	// The recovery can be retried and succeeds once the wipe works.
+	err = client.TryRecoverFromEmbeddedRoot(dcB.toUpdate())
+	require.NoError(t, err)
+	assertClientLatchedToDC(t, client, dcB)
 }

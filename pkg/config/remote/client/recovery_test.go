@@ -258,7 +258,7 @@ func TestUpdateTUFStateResetCooldown(t *testing.T) {
 	// the client keeps reporting the latched version instead of re-joining
 	// on every poll.
 	now = now.Add(time.Minute)
-	fetcher.answer = func(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+	fetcher.answer = func(*pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
 		return dcResponse(dcB, false), nil
 	}
 	require.Error(t, client.update())

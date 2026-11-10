@@ -55,6 +55,11 @@ type CoreAgentClient struct {
 	*Client
 	configRemoteStore   *remoteStoreConfig
 	directorRemoteStore *remoteStoreDirector
+
+	// recreateStore recreates the underlying transactional store after a DB
+	// wipe. It is a field so tests can simulate transient wipe failures
+	// (for example a file removal blocked by an antivirus scanner).
+	recreateStore func(metadata *Metadata) (*transactionalStore, error)
 }
 
 // ClientOption describes a function in charge of changing the uptane client
@@ -94,6 +99,7 @@ func newCoreAgentClient(transactionalStore *transactionalStore, orgUUIDProvider 
 	c = &CoreAgentClient{
 		configRemoteStore:   newRemoteStoreConfig(targetStore),
 		directorRemoteStore: newRemoteStoreDirector(targetStore),
+		recreateStore:       recreateTransactionalStore,
 		Client: &Client{
 			orgStore:               orgStore,
 			orgUUIDProvider:        orgUUIDProvider,

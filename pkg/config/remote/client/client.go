@@ -351,7 +351,7 @@ func newClient(cf ConfigFetcher, opts ...func(opts *Options)) (*Client, error) {
 		backoffPolicy:    backoffPolicy,
 		listeners:        make(map[string][]Listener),
 		configFetcher:    cf,
-		now:             time.Now,
+		now:              time.Now,
 	}, nil
 }
 

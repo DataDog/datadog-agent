@@ -228,20 +228,33 @@ func (c *CoreAgentClient) verifyFromEmbeddedRoot(response *pbgo.LatestConfigsRes
 // the embedded roots, empty remote stores, empty target and org stores). The
 // metadata (path, agent version, API key, URL) of the previous DB is reused.
 //
-// If anything fails between closing the old DB and recreating the new one, the
-// client is left with a closed DB and the next update errors until the agent
-// restarts or the DB file is recreated. This equals the behavior of the
-// existing DB wipe on URL change and is an accepted failure mode: the DB can
-// be recreated empty with no security impact.
+// Wiping the DB means removing its file and creating a new one. The removal
+// can fail transiently, for example when an antivirus scanner or a backup
+// tool holds the file open without sharing deletes (common on Windows). In
+// that case the client falls back to reopening a store on whatever is on
+// disk, so it stays usable on its current state instead of being left with a
+// closed DB until restart; the recovery can then be retried later. The
+// returned error distinguishes the two outcomes: a nil return means the wipe
+// happened, the store now starts from the embedded root.
 func (c *CoreAgentClient) recreateTransactionalStoreInPlace() error {
 	metadata, err := c.transactionalStore.getTSMetadata()
 	if err != nil {
 		return fmt.Errorf("could not read the transactional store metadata before the wipe: %w", err)
 	}
 
-	transactionalStore, err := recreateTransactionalStore(metadata)
+	transactionalStore, err := c.recreateStore(metadata)
+	wipeDone := err == nil
 	if err != nil {
-		return fmt.Errorf("could not recreate the transactional store: %w", err)
+		// The wipe failed: the DB file could not be removed, or the new DB
+		// could not be created. Reopen a store on whatever is on disk: if the
+		// file is still there the client keeps its current state, if it was
+		// removed a fresh DB is created and the state restarts from the
+		// embedded root. Either way the client stays usable and the recovery
+		// can be retried.
+		transactionalStore, err = reopenTransactionalStore(metadata)
+		if err != nil {
+			return fmt.Errorf("could not recreate the transactional store: %w", err)
+		}
 	}
 
 	targetStore := newTargetStore(transactionalStore)
@@ -262,6 +275,12 @@ func (c *CoreAgentClient) recreateTransactionalStoreInPlace() error {
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
 
+	if !wipeDone {
+		// The internals were rebuilt on the reopened store, but the DB wipe
+		// did not happen: the caller must not replay the recovery payload on
+		// the current (old) state.
+		return errors.New("the DB wipe failed: the transactional store was reopened on the existing DB, keeping the current state; the recovery can be retried")
+	}
 	return nil
 }
 
