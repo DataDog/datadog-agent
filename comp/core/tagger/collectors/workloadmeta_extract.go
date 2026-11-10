@@ -142,6 +142,7 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 
 	// Autoscaler targets with changes in this bundle
 	autoscalerTargets := make(map[workloadmeta.AutoscalerTarget]struct{})
+	tagged := make(map[workloadmeta.EntityID]struct{}, len(evBundle.Events))
 
 	for _, ev := range evBundle.Events {
 		entityID := ev.Entity.GetID()
@@ -186,21 +187,42 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			continue
 		}
 
+		tagged[entityID] = struct{}{}
+
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
-			tagInfos = append(tagInfos, c.handleSet(ev)...)
-			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
+			tagInfos = append(tagInfos, c.tagEntity(ev)...)
 			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		case workloadmeta.EventTypeUnset:
+			c.dependencies.forget(entityID)
 			tagInfos = append(tagInfos, c.handleDelete(ev)...)
-			// A removed Kueue entity is no longer in the store, so the pods
-			// that used it get re-tagged without it.
-			tagInfos = append(tagInfos, c.retagKueueDependentPods(ev.Entity)...)
 			tagInfos = append(tagInfos, c.retagProcessContainer(ev.Entity)...)
 
 		default:
 			log.Errorf("cannot handle event of type %d", ev.Type)
+		}
+	}
+
+	// Workloadmeta updates its store with the whole bundle before sending it,
+	// so the entities tagged above already used the new state of the entities
+	// they depend on.
+	for _, ev := range evBundle.Events {
+		for _, readerID := range c.dependencies.readersOf(ev.Entity.GetID()) {
+			if _, ok := tagged[readerID]; ok {
+				continue
+			}
+			tagged[readerID] = struct{}{}
+
+			reader, ok := c.getEntity(readerID)
+			if !ok {
+				continue
+			}
+			tagInfos = append(tagInfos, c.tagEntity(workloadmeta.Event{
+				Type:       workloadmeta.EventTypeSet,
+				Entity:     reader,
+				IsComplete: c.dependencies.isComplete(readerID),
+			})...)
 		}
 	}
 
@@ -215,6 +237,15 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 	}
 
 	evBundle.Acknowledge()
+}
+
+// tagEntity tags the entity of a set event and records the entities its
+// handler looked up, so that changes to them re-tag it.
+func (c *WorkloadMetaCollector) tagEntity(ev workloadmeta.Event) []*types.TagInfo {
+	c.store.startTracking()
+	tagInfos := c.handleSet(ev)
+	c.dependencies.replace(ev.Entity.GetID(), c.store.stopTracking(), ev.IsComplete)
+	return tagInfos
 }
 
 func (c *WorkloadMetaCollector) handleSet(ev workloadmeta.Event) []*types.TagInfo {
@@ -279,6 +310,25 @@ func (c *WorkloadMetaCollector) handleSet(ev workloadmeta.Event) []*types.TagInf
 	tagInfos = append(tagInfos, c.handleDeleteChildren(source, unseen)...)
 
 	return tagInfos
+}
+
+// getEntity returns the current state of an entity that a dependency change
+// re-tags. Only kinds whose handlers make tracked lookups can be re-tagged.
+func (c *WorkloadMetaCollector) getEntity(id workloadmeta.EntityID) (workloadmeta.Entity, bool) {
+	var entity workloadmeta.Entity
+	var err error
+
+	switch id.Kind {
+	case workloadmeta.KindKubernetesPod:
+		entity, err = c.store.GetKubernetesPod(id.ID)
+	case workloadmeta.KindKubernetesKueueWorkload:
+		entity, err = c.store.GetKubernetesKueueWorkload(id.ID)
+	default:
+		log.Errorf("cannot re-tag entity %q with kind %q", id.ID, id.Kind)
+		return nil, false
+	}
+
+	return entity, err == nil
 }
 
 func (c *WorkloadMetaCollector) handleContainer(ev workloadmeta.Event) []*types.TagInfo {
@@ -1595,25 +1645,6 @@ func kueueWorkloadNameForPod(pod *workloadmeta.KubernetesPod) string {
 	return workloadName
 }
 
-func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
-	return kueueWorkloadNameForPod(pod) != "" ||
-		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
-		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
-		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
-}
-
-// retagKueueDependentPods recomputes the tags of the pods whose Kueue tags can
-// depend on the given Kueue entity.
-func (c *WorkloadMetaCollector) retagKueueDependentPods(entity workloadmeta.Entity) []*types.TagInfo {
-	if !isKueueKind(entity.GetID().Kind) {
-		return nil
-	}
-
-	return c.retagPods(func(pod *workloadmeta.KubernetesPod) bool {
-		return kueueEntityAffectsPod(entity, pod)
-	})
-}
-
 // retagKAIDependentPods recomputes the tags of the pods that reference one of
 // the given KAI PodGroups.
 func (c *WorkloadMetaCollector) retagKAIDependentPods(podGroupIDs map[string]struct{}) []*types.TagInfo {
@@ -1648,30 +1679,6 @@ func (c *WorkloadMetaCollector) retagPods(affected func(*workloadmeta.Kubernetes
 		})...)
 	}
 	return tagInfos
-}
-
-func isKueueKind(kind workloadmeta.Kind) bool {
-	return kind == workloadmeta.KindKubernetesKueueWorkload ||
-		kind == workloadmeta.KindKubernetesKueueQueue ||
-		kind == workloadmeta.KindKubernetesKueueResourceFlavor
-}
-
-// kueueEntityAffectsPod reports whether the tags of the pod can depend on the
-// given Kueue entity.
-func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
-	switch e := entity.(type) {
-	case *workloadmeta.KubernetesKueueWorkload:
-		return pod.Namespace == e.Namespace && kueueWorkloadNameForPod(pod) == e.Name
-	case *workloadmeta.KubernetesKueueQueue:
-		// Pods can reach a queue through their Workload, so matching them
-		// exactly would need a Workload lookup per pod. Queue events are rare,
-		// so match every Kueue pod that can use the queue instead.
-		return podHasKueueInfo(pod) && (e.QueueType == workloadmeta.KueueClusterQueue || pod.Namespace == e.Namespace)
-	case *workloadmeta.KubernetesKueueResourceFlavor:
-		return kueueWorkloadNameForPod(pod) != ""
-	default:
-		return false
-	}
 }
 
 func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
