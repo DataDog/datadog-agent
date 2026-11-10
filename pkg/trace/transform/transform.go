@@ -7,6 +7,7 @@
 package transform
 
 import (
+	"bytes"
 	"context"
 	"encoding/binary"
 	"encoding/hex"
@@ -15,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/tinylib/msgp/msgp"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/ptrace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.17.0"
@@ -237,6 +239,9 @@ func GetDDKeyForOTLPAttribute(k string) string {
 
 func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span) {
 	mappedKey := GetDDKeyForOTLPAttribute(k)
+	if _, ok := ddspan.MetaStruct[mappedKey]; ok {
+		return
+	}
 	if ddspan.Meta[mappedKey] != "" {
 		return
 	}
@@ -246,6 +251,29 @@ func conditionallyMapOTLPAttributeToMeta(k string, value string, ddspan *pb.Span
 	if mappedKey != "" {
 		SetMetaOTLPIfEmpty(ddspan, mappedKey, value)
 	}
+}
+
+// SetMetaStructOTLP preserves MessagePack maps exported as byte attributes by Datadog SDKs.
+// Other SDKs and byte encodings retain the normal OTLP attribute mapping.
+func SetMetaStructOTLP(s *pb.Span, k string, v pcommon.Value, res pcommon.Resource) bool {
+	sdk, ok := res.Attributes().Get("telemetry.sdk.name")
+	if !ok || sdk.Str() != "datadog" || v.Type() != pcommon.ValueTypeBytes || isDatadogAPMConventionKey(k) {
+		return false
+	}
+	data := v.Bytes().AsRaw()
+	if msgp.NextType(data) != msgp.MapType {
+		return false
+	}
+	remaining, err := msgp.Skip(data)
+	if err != nil || len(remaining) != 0 {
+		return false
+	}
+	if s.MetaStruct == nil {
+		s.MetaStruct = make(map[string][]byte)
+	}
+	s.MetaStruct[k] = bytes.Clone(data)
+	delete(s.Meta, k)
+	return true
 }
 
 func conditionallyMapOTLPAttributeToMetric(k string, value float64, ddspan *pb.Span) {
@@ -374,6 +402,10 @@ func OtelSpanToDDSpan(
 			conditionallyMapOTLPAttributeToMetric(k, v.Double(), ddspan)
 		case pcommon.ValueTypeInt:
 			conditionallyMapOTLPAttributeToMetric(k, float64(v.Int()), ddspan)
+		case pcommon.ValueTypeBytes:
+			if !SetMetaStructOTLP(ddspan, k, v, otelres) {
+				conditionallyMapOTLPAttributeToMeta(k, v.AsString(), ddspan)
+			}
 		default:
 			conditionallyMapOTLPAttributeToMeta(k, v.AsString(), ddspan)
 		}

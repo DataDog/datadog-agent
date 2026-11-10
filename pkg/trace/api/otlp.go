@@ -726,6 +726,10 @@ func (o *OTLPReceiver) convertSpan(res pcommon.Resource, lib pcommon.Instrumenta
 		case pcommon.ValueTypeInt:
 			transform.SetMetricOTLP(span, k, float64(v.Int()))
 			dropResourceMetaOverriddenBySpanMetric(span, res, k)
+		case pcommon.ValueTypeBytes:
+			if !transform.SetMetaStructOTLP(span, k, v, res) {
+				transform.SetMetaOTLP(span, k, v.AsString())
+			}
 		default:
 			// Exclude Datadog APM conventions.
 			// These are handled below explicitly.
