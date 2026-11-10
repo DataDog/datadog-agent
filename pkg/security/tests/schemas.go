@@ -40,18 +40,23 @@ var resolveUpstreamEventSchema = sync.OnceValue(func() string {
 		return pinned
 	}
 
-	resp, err := http.Head(pinned) //nolint:gosec,noctx // test-only, fixed public URL
-	if err != nil {
-		return pinned // transient network issue: let validateURLSchema retry and report it
+	// retry the probe so that a transient network error doesn't pin us to a URL that may not exist
+	client := &http.Client{Timeout: 10 * time.Second}
+	for attempt := 0; attempt < 5; attempt++ {
+		resp, err := client.Head(pinned)
+		if err != nil {
+			time.Sleep(time.Duration(attempt+1) * time.Second)
+			continue
+		}
+		resp.Body.Close()
+		if resp.StatusCode != http.StatusNotFound {
+			return pinned
+		}
+		fallback := upstreamEventSchemaURL("main")
+		fmt.Printf("Upstream schema not found at %s, falling back to %s\n", pinned, fallback)
+		return fallback
 	}
-	resp.Body.Close()
-	if resp.StatusCode != http.StatusNotFound {
-		return pinned
-	}
-
-	fallback := upstreamEventSchemaURL("main")
-	fmt.Printf("Upstream schema not found at %s, falling back to %s\n", pinned, fallback)
-	return fallback
+	return pinned // still unreachable: let validateURLSchema retry and report the error
 })
 
 //nolint:unused
