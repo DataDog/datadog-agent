@@ -22,6 +22,10 @@ func convertExternalCallError(err error, query string, retryAfter time.Time) err
 
 	apiErr := &autoscalers.APIError{}
 	switch {
+	case errors.Is(err, autoscalers.ErrNoData):
+		queryErr := newQueryError(query, err.Error(), time.Time{})
+		queryErr.cause = err
+		return queryErr
 	case errors.As(err, &apiErr):
 		return newBatchError(err, retryAfter)
 	default:
@@ -32,6 +36,7 @@ func convertExternalCallError(err error, query string, retryAfter time.Time) err
 
 // queryError represents an error at the query level (not all queries failed).
 type queryError struct {
+	cause      error
 	query      string
 	reason     string
 	retryAfter time.Time
@@ -106,3 +111,6 @@ func (e *batchError) Is(err error) bool {
 	return e.err.Error() == batchErr.err.Error() &&
 		((batchErr.retryAfter.IsZero() && e.retryAfter.IsZero()) || (!batchErr.retryAfter.IsZero() && !e.retryAfter.IsZero()))
 }
+
+// Unwrap preserves the no-data classification across the query-level error.
+func (e *queryError) Unwrap() error { return e.cause }

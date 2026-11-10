@@ -127,3 +127,21 @@ func (e *ProcessingError) Is(err error) bool {
 
 	return processingErr.Err == e.Err
 }
+
+// ErrNoData identifies an empty query result, rather than a failed API call.
+var ErrNoData = errors.New("no metric data")
+
+type noDataError struct {
+	*ProcessingError
+}
+
+// NewNoDataError preserves the processing error detail while classifying missing data.
+func NewNoDataError(message string) error {
+	return &noDataError{ProcessingError: NewProcessingError(message)}
+}
+
+func (e *noDataError) Is(target error) bool {
+	return target == ErrNoData || e.ProcessingError.Is(target)
+}
+
+func (e *noDataError) Unwrap() error { return e.ProcessingError }

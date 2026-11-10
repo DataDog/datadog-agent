@@ -131,7 +131,7 @@ func TestDatadogExternalQuery(t *testing.T) {
 				"another.metric{foo:empty}": {
 					Valid:     false,
 					Timestamp: testTime.Unix(),
-					Error:     NewProcessingError("only null values found in API response (4 points), check data is available in the last 300 seconds (interval was 2)"),
+					Error:     NewNoDataError("only null values found in API response (4 points), check data is available in the last 300 seconds (interval was 2)"),
 				},
 			},
 			nil,

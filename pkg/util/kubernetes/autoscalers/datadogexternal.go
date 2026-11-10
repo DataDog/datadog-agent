@@ -187,7 +187,7 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 				errString += fmt.Sprintf(" (interval was %d)", *serie.Interval)
 			}
 
-			resultPoint.Error = NewProcessingError(errString)
+			resultPoint.Error = NewNoDataError(errString)
 			processedMetrics[matchedQuery] = resultPoint
 			continue
 		}
@@ -210,7 +210,7 @@ func (p *Processor) queryDatadogExternal(currentTime time.Time, ddQueries []stri
 		if _, found := processedMetrics[ddQuery]; !found {
 			processedMetrics[ddQuery] = Point{
 				Timestamp: currentTimeUnix,
-				Error:     NewProcessingError("no serie was found for this query in API Response, check Cluster Agent logs for QueryIndex errors"),
+				Error:     NewNoDataError("no serie was found for this query in API Response, check Cluster Agent logs for QueryIndex errors"),
 			}
 		}
 	}

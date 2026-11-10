@@ -1426,3 +1426,42 @@ func Test429TooManyRequestsErrorHandling(t *testing.T) {
 		})
 	}
 }
+
+func TestNoDataRemainsInvalidAndRecoversInRegularBatch(t *testing.T) {
+	store := NewDatadogMetricsInternalStore()
+	for _, id := range []string{"sparse", "healthy"} {
+		metric := model.DatadogMetricInternal{ID: id, Active: true, MaxAge: 90 * time.Second}
+		metric.SetQueries(id)
+		store.Set(id, metric, "utest")
+	}
+	processor := &mockedProcessorWithBackoff{points: map[string]autoscalers.Point{
+		"sparse":  {Valid: false, Error: autoscalers.NewNoDataError("no series")},
+		"healthy": {Valid: true, Value: 10, Timestamp: time.Now().Unix()},
+	}}
+	retriever, err := NewMetricsRetriever(0, 90, processor, getIsLeaderFunction(true), &store, true)
+	require.NoError(t, err)
+	for i := 0; i < 4; i++ {
+		processor.queryCapture = nil
+		retriever.retrieveMetricsValues()
+		assert.Equal(t, [][]string{{"healthy", "sparse"}}, processor.queryCapture)
+		metric := store.Get("sparse")
+		require.NotNil(t, metric)
+		assert.False(t, metric.Valid)
+		assert.ErrorIs(t, metric.Error, autoscalers.ErrNoData)
+		assert.Zero(t, metric.Retries)
+		assert.True(t, metric.RetryAfter.IsZero())
+		assert.True(t, store.Get("healthy").Valid)
+	}
+	// Newly arriving data is observed on the next cycle, without waiting for backoff.
+	processor.points["sparse"] = autoscalers.Point{Valid: true, Value: 75, Timestamp: time.Now().Unix()}
+	retriever.retrieveMetricsValues()
+	assert.True(t, store.Get("sparse").Valid)
+	assert.NoError(t, store.Get("sparse").Error)
+	assert.Equal(t, float64(75), store.Get("sparse").Value)
+	// Normal processing errors still trigger exponential backoff.
+	processor.points["sparse"] = autoscalers.Point{Valid: false, Error: autoscalers.NewProcessingError("multiple series")}
+	retriever.retrieveMetricsValues()
+	assert.False(t, store.Get("sparse").Valid)
+	assert.Equal(t, 1, store.Get("sparse").Retries)
+	assert.False(t, store.Get("sparse").RetryAfter.IsZero())
+}

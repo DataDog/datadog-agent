@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Keep external metric queries with empty results in the regular polling batch
+    instead of applying exponential error backoff. Sparse metrics can recover on
+    the next poll when new samples arrive. Missing data remains invalid and is
+    never substituted with zero; other processing and API errors retain their
+    existing retry behavior.
