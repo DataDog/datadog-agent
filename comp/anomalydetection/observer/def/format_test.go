@@ -51,3 +51,28 @@ func TestFormatAnomaly(t *testing.T) {
 		})
 	}
 }
+
+func TestMetricKindString(t *testing.T) {
+	cases := []struct {
+		kind MetricKind
+		want string
+	}{
+		{UNSET, "unset"},
+		{UNKNOWN, "unknown"},
+		{STABLE, "stable"},
+		{LINEAR, "linear"},
+		{MetricKind(99), "unknown"},
+	}
+	for _, tc := range cases {
+		if got := tc.kind.String(); got != tc.want {
+			t.Fatalf("MetricKind(%d).String() = %q, want %q", tc.kind, got, tc.want)
+		}
+	}
+}
+
+func TestMetricKindZeroValue(t *testing.T) {
+	var kind MetricKind
+	if kind != UNSET {
+		t.Fatalf("zero metric kind = %v, want UNSET", kind)
+	}
+}

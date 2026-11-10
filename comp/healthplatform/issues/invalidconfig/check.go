@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"hash/fnv"
+	"strconv"
 	"strings"
 	"time"
 
@@ -18,12 +19,11 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issues"
 	runnerdef "github.com/DataDog/datadog-agent/comp/healthplatform/runner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	"github.com/DataDog/datadog-agent/pkg/config/schema"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
 
@@ -33,17 +33,19 @@ type violationPayload struct {
 	ExpectedTypes []string `json:"expected_types"`
 	DefaultStatus string   `json:"default_status"`
 	DefaultValue  any      `json:"default_value,omitempty"`
+	Reverted      bool     `json:"reverted,omitempty"`
 }
 
-// checker validates the merged in-memory config against the schema.
+// checker reports the schema violations found when the Agent configuration was loaded.
 type checker struct {
 	cfg       config.Component
+	schema    schema.Component
 	hostname  hostnameinterface.Component
 	selfIdent *selfident.SelfIdent
 }
 
-func newChecker(cfg config.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
-	return &checker{cfg: cfg, hostname: hostname, selfIdent: selfIdent}
+func newChecker(cfg config.Component, schema schema.Component, hostname hostnameinterface.Component, selfIdent *selfident.SelfIdent) *checker {
+	return &checker{cfg: cfg, schema: schema, hostname: hostname, selfIdent: selfIdent}
 }
 
 func (c *checker) Run() ([]runnerdef.IssueReport, error) {
@@ -51,11 +53,7 @@ func (c *checker) Run() ([]runnerdef.IssueReport, error) {
 }
 
 func (c *checker) validate() ([]runnerdef.IssueReport, error) {
-	violations, schemaErr := schema.ValidateConfig(c.cfg, model.CoreSchema)
-	if schemaErr != nil {
-		pkglog.Warnf("invalidconfig: schema validator unavailable; skipping check: %v", schemaErr)
-		return nil, schemaErr
-	}
+	violations := c.schema.GetViolations(model.CoreSchema)
 	if len(violations) == 0 {
 		return nil, nil
 	}
@@ -71,22 +69,26 @@ func (c *checker) validate() ([]runnerdef.IssueReport, error) {
 	return reports, nil
 }
 
-// BuildContext builds issue details from scrubbed paths, types, and registered defaults.
-func BuildContext(cfg model.Reader, configPath string, violation schema.Violation) map[string]string {
+// BuildContext builds issue details from scrubbed paths and messages, types, and registered defaults.
+func BuildContext(cfg model.Reader, configPath string, violation *model.Violation) map[string]string {
 	path := scrubViolationPath(violation.Path)
 	ctx := map[string]string{
 		contextKeyConfigPath:  configPath,
 		contextKeySettingPath: path,
+		contextKeyReverted:    strconv.FormatBool(violation.WasReverted()),
 	}
-	// Raw validator messages can expose configured values or credentials in paths.
-	// Send only the scrubbed path, type names, and registered default.
+	ctx[contextKeyMessage] = violation.Warning()
 	if violation.ActualType == "" || len(violation.ExpectedTypes) == 0 {
 		return ctx
 	}
 	defaultStatus, defaultValue := resolveDefault(cfg, violation.Path)
 	payload := violationPayload{
-		Path: path, ActualType: violation.ActualType, ExpectedTypes: violation.ExpectedTypes,
-		DefaultStatus: defaultStatus, DefaultValue: defaultValue,
+		Path:          path,
+		ActualType:    violation.ActualType,
+		ExpectedTypes: violation.ExpectedTypes,
+		DefaultStatus: defaultStatus,
+		DefaultValue:  defaultValue,
+		Reverted:      violation.WasReverted(),
 	}
 	if encoded, err := json.Marshal(payload); err == nil {
 		ctx[contextKeyViolation] = string(encoded)

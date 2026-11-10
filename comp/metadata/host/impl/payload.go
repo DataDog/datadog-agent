@@ -10,6 +10,7 @@ package hostimpl
 import (
 	"context"
 	"encoding/json"
+	"github.com/DataDog/datadog-agent/pkg/serializer/marshaler"
 
 	"github.com/DataDog/datadog-agent/comp/metadata/host/impl/utils"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
@@ -23,6 +24,13 @@ type Payload struct {
 
 	ResourcesPayload interface{} `json:"resources,omitempty"`
 	GohaiPayload     string      `json:"gohai"`
+}
+
+var _ marshaler.TypedJSONMarshaler = (*Payload)(nil)
+
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeHostV5
 }
 
 // MarshalJSON serialization a Payload to JSON

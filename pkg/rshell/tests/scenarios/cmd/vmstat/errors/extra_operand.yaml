@@ -1,0 +1,10 @@
+description: vmstat with more than two positional operands exits 1 with an "extra operand" error.
+skip_assert_against_bash: true
+input:
+  script: |+
+    vmstat 1 2 3
+expect:
+  stdout: |+
+  stderr: |+
+    vmstat: extra operand '3'
+  exit_code: 1

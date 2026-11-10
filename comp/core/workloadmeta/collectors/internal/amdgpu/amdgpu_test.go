@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build linux && test
+//go:build linux && nvml && test
 
 package amdgpu
 
@@ -83,10 +83,10 @@ func TestPullReportsGPUEntities(t *testing.T) {
 
 	require.NoError(t, c.Pull(context.Background()))
 
-	gpu, err := store.GetGPU("amd-00c0ffee00c0ffee")
+	gpu, err := store.GetGPU("000074a1-0000-1000-80c0-ffee00c0ffee")
 	require.NoError(t, err)
 	assert.Equal(t, &workloadmeta.GPU{
-		EntityID:      workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: "amd-00c0ffee00c0ffee"},
+		EntityID:      workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: "000074a1-0000-1000-80c0-ffee00c0ffee"},
 		EntityMeta:    workloadmeta.EntityMeta{Name: "AMD Instinct MI300X"},
 		Vendor:        "amd",
 		Device:        "AMD Instinct MI300X",
@@ -120,7 +120,7 @@ func TestPullReportsClocksAndBusWidth(t *testing.T) {
 
 	require.NoError(t, c.Pull(context.Background()))
 
-	gpu, err := store.GetGPU("amd-00c0ffee00c0ffee")
+	gpu, err := store.GetGPU("000074a1-0000-1000-80c0-ffee00c0ffee")
 	require.NoError(t, err)
 	assert.Equal(t, uint32(2100), gpu.MaxClockRates[workloadmeta.GPUSM])
 	assert.Equal(t, uint32(1300), gpu.MaxClockRates[workloadmeta.GPUMemory])
@@ -157,7 +157,7 @@ func TestPullPreservesProcessesWithPartialKFDTopology(t *testing.T) {
 	fs.AddKFDProcess(200, 4102, 40)
 	fs.AddKFDProcess(200, 5100, 0)
 	c := newTestCollector(t, store, fs.Root)
-	firstGPU := workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: "amd-00c0ffee00c0ffee"}
+	firstGPU := workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: "000074a1-0000-1000-80c0-ffee00c0ffee"}
 	nvidiaGPU := workloadmeta.EntityID{Kind: workloadmeta.KindGPU, ID: "GPU-nvidia"}
 	processID := workloadmeta.EntityID{Kind: workloadmeta.KindProcess, ID: "200"}
 	store.Notify([]workloadmeta.CollectorEvent{
@@ -216,7 +216,7 @@ func TestPullReportsGPUProcesses(t *testing.T) {
 	proc, err := store.GetProcess(100)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []workloadmeta.EntityID{
-		{Kind: workloadmeta.KindGPU, ID: "amd-00c0ffee00c0ffee"},
+		{Kind: workloadmeta.KindGPU, ID: "000074a1-0000-1000-80c0-ffee00c0ffee"},
 		{Kind: workloadmeta.KindGPU, ID: "amd-0000-41-00-0"},
 	}, proc.GPUs)
 
@@ -256,7 +256,7 @@ func TestPullRemovesVanishedGPUs(t *testing.T) {
 
 	gpus := store.ListGPUs()
 	require.Len(t, gpus, 1)
-	assert.Equal(t, "amd-00c0ffee00c0ffee", gpus[0].ID)
+	assert.Equal(t, "000074a1-0000-1000-80c0-ffee00c0ffee", gpus[0].ID)
 }
 
 // GPUs sharing a serial keep one entity each, under their PCI identities, while
@@ -320,7 +320,7 @@ func TestPullKeepsOtherProcessSources(t *testing.T) {
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []workloadmeta.EntityID{
 		nvidiaID,
-		{Kind: workloadmeta.KindGPU, ID: "amd-00c0ffee00c0ffee"},
+		{Kind: workloadmeta.KindGPU, ID: "000074a1-0000-1000-80c0-ffee00c0ffee"},
 		{Kind: workloadmeta.KindGPU, ID: "amd-0000-41-00-0"},
 	}, process.GPUs)
 	assert.Equal(t, "container-100", process.ContainerID)
@@ -332,7 +332,7 @@ func TestPullKeepsOtherProcessSources(t *testing.T) {
 	process, err = store.GetProcess(100)
 	require.NoError(t, err)
 	assert.ElementsMatch(t, []workloadmeta.EntityID{
-		nvidiaID, {Kind: workloadmeta.KindGPU, ID: "amd-00c0ffee00c0ffee"},
+		nvidiaID, {Kind: workloadmeta.KindGPU, ID: "000074a1-0000-1000-80c0-ffee00c0ffee"},
 	}, process.GPUs)
 
 	require.NoError(t, os.RemoveAll(filepath.Join(fs.Root, "class/kfd/kfd/proc/100")))

@@ -59,6 +59,7 @@ Triggers are events that correspond to types of activity seen by the system. The
 | `rmdir` | File | A directory was removed | 7.27 |
 | `selinux` | Kernel | An SELinux operation was run | 7.30 |
 | `setgid` | Process | A process changed its effective gid | 7.27 |
+| `setns` | Kernel | A thread joined an existing namespace | 7.86 |
 | `setrlimit` | Process | A setrlimit command was executed | 7.68 |
 | `setsockopt` | Network | A setsockopt was executed | 7.68 |
 | `setuid` | Process | A process changed its effective uid | 7.27 |
@@ -223,6 +224,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`process.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.ancestors.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`process.ancestors.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`process.ancestors.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`process.ancestors.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`process.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`process.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -343,6 +348,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`process.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`process.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`process.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`process.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`process.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`process.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -440,6 +449,10 @@ The *file.rights* attribute can now be used in addition to *file.mode*. *file.mo
 | [`process.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`process.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`process.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`process.parent.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`process.parent.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`process.parent.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`process.parent.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`process.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`process.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`process.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -852,6 +865,10 @@ A process was executed (does not trigger on fork syscalls).
 | [`exec.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`exec.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`exec.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`exec.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`exec.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`exec.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`exec.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`exec.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`exec.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exec.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -989,6 +1006,10 @@ A process was terminated
 | [`exit.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`exit.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`exit.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`exit.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`exit.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`exit.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`exit.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`exit.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`exit.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`exit.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1462,6 +1483,10 @@ A ptrace command was executed
 | [`ptrace.tracee.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`ptrace.tracee.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.ancestors.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`ptrace.tracee.ancestors.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`ptrace.tracee.ancestors.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`ptrace.tracee.ancestors.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`ptrace.tracee.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`ptrace.tracee.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1582,6 +1607,10 @@ A ptrace command was executed
 | [`ptrace.tracee.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`ptrace.tracee.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`ptrace.tracee.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`ptrace.tracee.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`ptrace.tracee.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`ptrace.tracee.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`ptrace.tracee.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1679,6 +1708,10 @@ A ptrace command was executed
 | [`ptrace.tracee.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`ptrace.tracee.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`ptrace.tracee.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`ptrace.tracee.parent.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`ptrace.tracee.parent.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`ptrace.tracee.parent.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`ptrace.tracee.parent.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`ptrace.tracee.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`ptrace.tracee.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`ptrace.tracee.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -1944,6 +1977,33 @@ A process changed its effective gid
 | [`setgid.gid`](#setgid-gid-doc) | New GID of the process |
 | [`setgid.group`](#setgid-group-doc) | New group of the process |
 
+### Event `setns`
+
+A thread joined an existing namespace
+
+| Property | Definition |
+| -------- | ------------- |
+| [`setns.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
+| [`setns.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
+| [`setns.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.mntns_host`](#setns-mntns_host-doc) | Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved |
+| [`setns.mntns_outside_base`](#setns-mntns_outside_base-doc) | Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved |
+| [`setns.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
+| [`setns.nstype`](#setns-nstype-doc) | Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined |
+| [`setns.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
+| [`setns.previous.cgroupns`](#common-namespaceids-cgroupns-doc) | Cgroup namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.ipcns`](#common-namespaceids-ipcns-doc) | IPC namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.mntns`](#common-namespaceids-mntns-doc) | Mount namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.netns`](#common-namespaceids-netns-doc) | Network namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.pidns`](#common-namespaceids-pidns-doc) | ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved |
+| [`setns.previous.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces |
+| [`setns.previous.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
+| [`setns.previous.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
+| [`setns.retval`](#common-syscallevent-retval-doc) | Return value of the syscall |
+| [`setns.timens`](#common-namespaceids-timens-doc) | Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces |
+| [`setns.userns`](#common-namespaceids-userns-doc) | User namespace ID, 0 if it couldn't be resolved |
+| [`setns.utsns`](#common-namespaceids-utsns-doc) | UTS namespace ID, 0 if it couldn't be resolved |
+
 ### Event `setrlimit`
 
 A setrlimit command was executed
@@ -1986,6 +2046,10 @@ A setrlimit command was executed
 | [`setrlimit.target.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`setrlimit.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`setrlimit.target.ancestors.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`setrlimit.target.ancestors.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`setrlimit.target.ancestors.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`setrlimit.target.ancestors.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`setrlimit.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`setrlimit.target.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2106,6 +2170,10 @@ A setrlimit command was executed
 | [`setrlimit.target.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`setrlimit.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`setrlimit.target.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`setrlimit.target.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`setrlimit.target.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`setrlimit.target.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`setrlimit.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`setrlimit.target.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2203,6 +2271,10 @@ A setrlimit command was executed
 | [`setrlimit.target.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`setrlimit.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`setrlimit.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`setrlimit.target.parent.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`setrlimit.target.parent.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`setrlimit.target.parent.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`setrlimit.target.parent.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`setrlimit.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`setrlimit.target.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`setrlimit.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2415,6 +2487,10 @@ A signal was sent
 | [`signal.target.ancestors.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`signal.target.ancestors.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.ancestors.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.ancestors.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`signal.target.ancestors.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`signal.target.ancestors.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`signal.target.ancestors.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`signal.target.ancestors.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`signal.target.ancestors.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.ancestors.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2535,6 +2611,10 @@ A signal was sent
 | [`signal.target.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`signal.target.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`signal.target.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`signal.target.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`signal.target.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`signal.target.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`signal.target.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -2632,6 +2712,10 @@ A signal was sent
 | [`signal.target.parent.envs_truncated`](#common-process-envs_truncated-doc) | Indicator of environment variables truncation |
 | [`signal.target.parent.euid`](#common-credentials-euid-doc) | Effective UID of the process |
 | [`signal.target.parent.euser`](#common-credentials-euser-doc) | Effective user of the process |
+| [`signal.target.parent.file.capabilities.available`](#common-filecapabilities-available-doc) | Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection |
+| [`signal.target.parent.file.capabilities.effective`](#common-filecapabilities-effective-doc) | File effective capability bit, which requests that capabilities granted during exec also become effective |
+| [`signal.target.parent.file.capabilities.inheritable`](#common-filecapabilities-inheritable-doc) | Inheritable capabilities attached to the executable file |
+| [`signal.target.parent.file.capabilities.permitted`](#common-filecapabilities-permitted-doc) | Permitted capabilities attached to the executable file, before any process bounding-set filtering |
 | [`signal.target.parent.file.change_time`](#common-filefields-change_time-doc) | Change time (ctime) of the file |
 | [`signal.target.parent.file.extension`](#common-fileevent-extension-doc) | File's extension |
 | [`signal.target.parent.file.filesystem`](#common-fileevent-filesystem-doc) | File's filesystem |
@@ -3013,6 +3097,15 @@ Definition: Login UID of the process
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.available` {#common-filecapabilities-available-doc}
+Type: bool
+
+Definition: Whether valid file capability data was collected during exec or read from the current executable during procfs snapshot/fallback; false also covers absent attributes and unavailable collection
+
+`*.available` has 14 possible prefixes:
+`exec.file.capabilities` `exit.file.capabilities` `process.ancestors.file.capabilities` `process.file.capabilities` `process.parent.file.capabilities` `ptrace.tracee.ancestors.file.capabilities` `ptrace.tracee.file.capabilities` `ptrace.tracee.parent.file.capabilities` `setrlimit.target.ancestors.file.capabilities` `setrlimit.target.file.capabilities` `setrlimit.target.parent.file.capabilities` `signal.target.ancestors.file.capabilities` `signal.target.file.capabilities` `signal.target.parent.file.capabilities`
+
+
 ### `*.cap_effective` {#common-credentials-cap_effective-doc}
 Type: int
 
@@ -3085,6 +3178,15 @@ Constants: [Kernel Capability constants](#kernel-capability-constants)
 
 
 
+### `*.cgroupns` {#common-namespaceids-cgroupns-doc}
+Type: int
+
+Definition: Cgroup namespace ID, 0 if it couldn't be resolved
+
+`*.cgroupns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.change_time` {#common-filefields-change_time-doc}
 Type: int
 
@@ -3146,6 +3248,15 @@ Definition: ECS task ID
 
 `*.ecs_task_id` has 14 possible prefixes:
 `exec.container` `exit.container` `process.ancestors.container` `process.container` `process.parent.container` `ptrace.tracee.ancestors.container` `ptrace.tracee.container` `ptrace.tracee.parent.container` `setrlimit.target.ancestors.container` `setrlimit.target.container` `setrlimit.target.parent.container` `signal.target.ancestors.container` `signal.target.container` `signal.target.parent.container`
+
+
+### `*.effective` {#common-filecapabilities-effective-doc}
+Type: bool
+
+Definition: File effective capability bit, which requests that capabilities granted during exec also become effective
+
+`*.effective` has 14 possible prefixes:
+`exec.file.capabilities` `exit.file.capabilities` `process.ancestors.file.capabilities` `process.file.capabilities` `process.parent.file.capabilities` `ptrace.tracee.ancestors.file.capabilities` `ptrace.tracee.file.capabilities` `ptrace.tracee.parent.file.capabilities` `setrlimit.target.ancestors.file.capabilities` `setrlimit.target.file.capabilities` `setrlimit.target.parent.file.capabilities` `signal.target.ancestors.file.capabilities` `signal.target.file.capabilities` `signal.target.parent.file.capabilities`
 
 
 ### `*.egid` {#common-credentials-egid-doc}
@@ -3382,6 +3493,18 @@ Definition: Indicator of the file layer, for example, in an OverlayFS
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
 
 
+### `*.inheritable` {#common-filecapabilities-inheritable-doc}
+Type: int
+
+Definition: Inheritable capabilities attached to the executable file
+
+`*.inheritable` has 14 possible prefixes:
+`exec.file.capabilities` `exit.file.capabilities` `process.ancestors.file.capabilities` `process.file.capabilities` `process.parent.file.capabilities` `ptrace.tracee.ancestors.file.capabilities` `ptrace.tracee.file.capabilities` `ptrace.tracee.parent.file.capabilities` `setrlimit.target.ancestors.file.capabilities` `setrlimit.target.file.capabilities` `setrlimit.target.parent.file.capabilities` `signal.target.ancestors.file.capabilities` `signal.target.file.capabilities` `signal.target.parent.file.capabilities`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `*.inode` {#common-pathkey-inode-doc}
 Type: int
 
@@ -3398,6 +3521,15 @@ Definition: IP address
 
 `*.ip` has 9 possible prefixes:
 `accept.addr` `bind.addr` `connect.addr` `network.destination` `network.source` `network_flow_monitor.flows.destination` `network_flow_monitor.flows.source` `packet.destination` `packet.source`
+
+
+### `*.ipcns` {#common-namespaceids-ipcns-doc}
+Type: int
+
+Definition: IPC namespace ID, 0 if it couldn't be resolved
+
+`*.ipcns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.is_exec` {#common-process-is_exec-doc}
@@ -3505,6 +3637,15 @@ Definition: Length of the corresponding element
 `accept.addr.hostname` `cgroup_write.file.name` `cgroup_write.file.path` `chdir.file.name` `chdir.file.path` `chmod.file.name` `chmod.file.path` `chown.file.name` `chown.file.path` `connect.addr.hostname` `dns.question.name` `exec.aws_security_credentials` `exec.file.name` `exec.file.path` `exec.interpreter.file.name` `exec.interpreter.file.path` `exit.aws_security_credentials` `exit.file.name` `exit.file.path` `exit.interpreter.file.name` `exit.interpreter.file.path` `link.file.destination.name` `link.file.destination.path` `link.file.name` `link.file.path` `load_module.file.name` `load_module.file.path` `mkdir.file.name` `mkdir.file.path` `mmap.file.name` `mmap.file.path` `network_flow_monitor.flows` `open.file.name` `open.file.path` `process.ancestors` `process.ancestors.file.name` `process.ancestors.file.path` `process.ancestors.interpreter.file.name` `process.ancestors.interpreter.file.path` `process.aws_security_credentials` `process.file.name` `process.file.path` `process.interpreter.file.name` `process.interpreter.file.path` `process.parent.file.name` `process.parent.file.path` `process.parent.interpreter.file.name` `process.parent.interpreter.file.path` `ptrace.tracee.ancestors` `ptrace.tracee.ancestors.file.name` `ptrace.tracee.ancestors.file.path` `ptrace.tracee.ancestors.interpreter.file.name` `ptrace.tracee.ancestors.interpreter.file.path` `ptrace.tracee.aws_security_credentials` `ptrace.tracee.file.name` `ptrace.tracee.file.path` `ptrace.tracee.interpreter.file.name` `ptrace.tracee.interpreter.file.path` `ptrace.tracee.parent.file.name` `ptrace.tracee.parent.file.path` `ptrace.tracee.parent.interpreter.file.name` `ptrace.tracee.parent.interpreter.file.path` `removexattr.file.name` `removexattr.file.path` `rename.file.destination.name` `rename.file.destination.path` `rename.file.name` `rename.file.path` `rmdir.file.name` `rmdir.file.path` `setrlimit.target.ancestors` `setrlimit.target.ancestors.file.name` `setrlimit.target.ancestors.file.path` `setrlimit.target.ancestors.interpreter.file.name` `setrlimit.target.ancestors.interpreter.file.path` `setrlimit.target.aws_security_credentials` `setrlimit.target.file.name` `setrlimit.target.file.path` `setrlimit.target.interpreter.file.name` `setrlimit.target.interpreter.file.path` `setrlimit.target.parent.file.name` `setrlimit.target.parent.file.path` `setrlimit.target.parent.interpreter.file.name` `setrlimit.target.parent.interpreter.file.path` `setxattr.file.name` `setxattr.file.path` `signal.target.ancestors` `signal.target.ancestors.file.name` `signal.target.ancestors.file.path` `signal.target.ancestors.interpreter.file.name` `signal.target.ancestors.interpreter.file.path` `signal.target.aws_security_credentials` `signal.target.file.name` `signal.target.file.path` `signal.target.interpreter.file.name` `signal.target.interpreter.file.path` `signal.target.parent.file.name` `signal.target.parent.file.path` `signal.target.parent.interpreter.file.name` `signal.target.parent.interpreter.file.path` `splice.file.name` `splice.file.path` `unlink.file.name` `unlink.file.path` `utimes.file.name` `utimes.file.path`
 
 
+### `*.mntns` {#common-namespaceids-mntns-doc}
+Type: int
+
+Definition: Mount namespace ID, 0 if it couldn't be resolved
+
+`*.mntns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.mntns` {#common-pidcontext-mntns-doc}
 Type: int
 
@@ -3579,6 +3720,15 @@ exec.file.name == "apt"
 {{< /code-block >}}
 
 Matches the execution of any file named apt.
+
+### `*.netns` {#common-namespaceids-netns-doc}
+Type: int
+
+Definition: Network namespace ID, 0 if it couldn't be resolved
+
+`*.netns` has 2 possible prefixes:
+`setns` `setns.previous`
+
 
 ### `*.netns` {#common-networkdevicecontext-netns-doc}
 Type: int
@@ -3708,6 +3858,18 @@ open.file.path == "/etc/passwd"
 
 Matches any process opening the /etc/passwd file.
 
+### `*.permitted` {#common-filecapabilities-permitted-doc}
+Type: int
+
+Definition: Permitted capabilities attached to the executable file, before any process bounding-set filtering
+
+`*.permitted` has 14 possible prefixes:
+`exec.file.capabilities` `exit.file.capabilities` `process.ancestors.file.capabilities` `process.file.capabilities` `process.parent.file.capabilities` `ptrace.tracee.ancestors.file.capabilities` `ptrace.tracee.file.capabilities` `ptrace.tracee.parent.file.capabilities` `setrlimit.target.ancestors.file.capabilities` `setrlimit.target.file.capabilities` `setrlimit.target.parent.file.capabilities` `signal.target.ancestors.file.capabilities` `signal.target.file.capabilities` `signal.target.parent.file.capabilities`
+
+Constants: [Kernel Capability constants](#kernel-capability-constants)
+
+
+
 ### `*.pid` {#common-pidcontext-pid-doc}
 Type: int
 
@@ -3715,6 +3877,15 @@ Definition: Process ID of the process (also called thread group ID)
 
 `*.pid` has 14 possible prefixes:
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
+
+
+### `*.pidns` {#common-namespaceids-pidns-doc}
+Type: int
+
+Definition: ID of the PID namespace future children are created in (pid_for_children), 0 if it couldn't be resolved
+
+`*.pidns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.pod_uid` {#common-containercontext-pod_uid-doc}
@@ -3749,8 +3920,8 @@ Type: int
 
 Definition: Return value of the syscall
 
-`*.retval` has 29 possible prefixes:
-`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `unshare` `utimes`
+`*.retval` has 30 possible prefixes:
+`accept` `bind` `bpf` `chdir` `chmod` `chown` `connect` `link` `load_module` `mkdir` `mmap` `mount` `mprotect` `open` `prctl` `ptrace` `removexattr` `rename` `rmdir` `setns` `setrlimit` `setsockopt` `setxattr` `signal` `socket` `splice` `unlink` `unload_module` `unshare` `utimes`
 
 Constants: [Error constants](#error-constants)
 
@@ -3870,6 +4041,15 @@ Definition: Thread ID of the thread
 `exec` `exit` `process` `process.ancestors` `process.parent` `ptrace.tracee` `ptrace.tracee.ancestors` `ptrace.tracee.parent` `setrlimit.target` `setrlimit.target.ancestors` `setrlimit.target.parent` `signal.target` `signal.target.ancestors` `signal.target.parent`
 
 
+### `*.timens` {#common-namespaceids-timens-doc}
+Type: int
+
+Definition: Time namespace ID, 0 if it couldn't be resolved or the kernel doesn't support time namespaces
+
+`*.timens` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
 ### `*.tty_name` {#common-process-tty_name-doc}
 Type: string
 
@@ -3943,6 +4123,24 @@ Definition: User of the file's owner
 
 `*.user` has 46 possible prefixes:
 `cgroup_write.file` `chdir.file` `chmod.file` `chown.file` `exec.file` `exec.interpreter.file` `exit.file` `exit.interpreter.file` `link.file` `link.file.destination` `load_module.file` `mkdir.file` `mmap.file` `open.file` `process.ancestors.file` `process.ancestors.interpreter.file` `process.file` `process.interpreter.file` `process.parent.file` `process.parent.interpreter.file` `ptrace.tracee.ancestors.file` `ptrace.tracee.ancestors.interpreter.file` `ptrace.tracee.file` `ptrace.tracee.interpreter.file` `ptrace.tracee.parent.file` `ptrace.tracee.parent.interpreter.file` `removexattr.file` `rename.file` `rename.file.destination` `rmdir.file` `setrlimit.target.ancestors.file` `setrlimit.target.ancestors.interpreter.file` `setrlimit.target.file` `setrlimit.target.interpreter.file` `setrlimit.target.parent.file` `setrlimit.target.parent.interpreter.file` `setxattr.file` `signal.target.ancestors.file` `signal.target.ancestors.interpreter.file` `signal.target.file` `signal.target.interpreter.file` `signal.target.parent.file` `signal.target.parent.interpreter.file` `splice.file` `unlink.file` `utimes.file`
+
+
+### `*.userns` {#common-namespaceids-userns-doc}
+Type: int
+
+Definition: User namespace ID, 0 if it couldn't be resolved
+
+`*.userns` has 2 possible prefixes:
+`setns` `setns.previous`
+
+
+### `*.utsns` {#common-namespaceids-utsns-doc}
+Type: int
+
+Definition: UTS namespace ID, 0 if it couldn't be resolved
+
+`*.utsns` has 2 possible prefixes:
+`setns` `setns.previous`
 
 
 ### `*.version` {#common-cgroupcontext-version-doc}
@@ -4901,6 +5099,30 @@ Definition: New GID of the process
 Type: string
 
 Definition: New group of the process
+
+
+
+### `setns.mntns_host` {#setns-mntns_host-doc}
+Type: bool
+
+Definition: Indicates that the mount namespace of the thread after the syscall is the host's initial one, the namespace that PID 1 on the host lives in. false if either namespace couldn't be resolved
+
+
+
+### `setns.mntns_outside_base` {#setns-mntns_outside_base-doc}
+Type: bool
+
+Definition: Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one, the namespace of the container's root process. false if either namespace couldn't be resolved
+
+
+
+### `setns.nstype` {#setns-nstype-doc}
+Type: int
+
+Definition: Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0. Reported even when the join was denied. 0 if it couldn't be determined
+
+
+Constants: [Clone flags](#clone-flags)
 
 
 

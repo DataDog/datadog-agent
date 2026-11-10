@@ -41,11 +41,10 @@ import (
 	doqueryactionsfx "github.com/DataDog/datadog-agent/comp/dataobs/queryactions/fx"
 	dataplanepreflightmodefx "github.com/DataDog/datadog-agent/comp/dataplane/preflightmode/fx"
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
+	intakeroutingfx "github.com/DataDog/datadog-agent/comp/intakerouting/fx"
 	logondurationfx "github.com/DataDog/datadog-agent/comp/logonduration/fx"
-	ndmrcconfigfx "github.com/DataDog/datadog-agent/comp/ndm/rcconfig/fx"
 	networkconfigmanagement "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/def"
 	networkconfigmanagementfx "github.com/DataDog/datadog-agent/comp/networkconfigmanagement/fx"
-	networkdevicesfx "github.com/DataDog/datadog-agent/comp/networkdevices/fx"
 	networkpathrcproviderfx "github.com/DataDog/datadog-agent/comp/networkpath/rcprovider/fx"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
@@ -102,6 +101,7 @@ import (
 	pidimpl "github.com/DataDog/datadog-agent/comp/core/pid/impl"
 	flareprofiler "github.com/DataDog/datadog-agent/comp/core/profiler/fx"
 	remoteagentregistryfx "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/fx"
+	schemafx "github.com/DataDog/datadog-agent/comp/core/schema/fx"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	settingsfx "github.com/DataDog/datadog-agent/comp/core/settings/fx"
@@ -183,7 +183,6 @@ import (
 	metricscompressorfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
 	snmpscanmanager "github.com/DataDog/datadog-agent/comp/snmpscanmanager/def"
 	syntheticsTestsfx "github.com/DataDog/datadog-agent/comp/syntheticstestscheduler/fx"
-	tracetelemetryfx "github.com/DataDog/datadog-agent/comp/trace-telemetry/fx"
 	traceagentStatusImpl "github.com/DataDog/datadog-agent/comp/trace/status/fx"
 	daemoncheckerfx "github.com/DataDog/datadog-agent/comp/updater/daemonchecker/fx"
 	pkgcollector "github.com/DataDog/datadog-agent/pkg/collector"
@@ -216,6 +215,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection"
 	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
+	"github.com/DataDog/datadog-agent/pkg/util/sigdanger"
 	"github.com/DataDog/datadog-agent/pkg/version"
 
 	// runtime init routines
@@ -337,6 +337,9 @@ func run(log log.Component,
 		stopAgent(cfg, sysprobeConf)
 	}()
 
+	// Handle SIGDANGER (AIX paging space low); no-op on other platforms.
+	sigdanger.Init()
+
 	// Setup a channel to catch OS signals
 	signalCh := make(chan os.Signal, 1)
 	signal.Notify(signalCh, os.Interrupt, syscall.SIGTERM)
@@ -440,7 +443,7 @@ func getSharedFxOption() fx.Option {
 			defaultpaths.GetDefaultDogstatsDProtocolLogFile(),
 			defaultpaths.GetDefaultStreamlogsLogFile(),
 		)),
-		core.Bundle(core.WithSecrets()),
+		core.Bundle(core.WithSecrets(), core.WithSchema(schemafx.Module())),
 		hostnameimpl.Module(),
 		flareprofiler.Module(),
 		fx.Provide(func(cfg config.Component) flaretypes.Provider {
@@ -518,7 +521,6 @@ func getSharedFxOption() fx.Option {
 		adfx.Module(),
 		fx.Supply(autodiscovery.Params{PreloadConfigsOnStart: true}),
 		networkpathrcproviderfx.Module(),
-		ndmrcconfigfx.Module(),
 		configfilesdiscoveryfx.Module(),
 		// InitSharedContainerProvider must be called before the application starts so the workloadmeta collector can be initiailized correctly.
 		// Since the tagger depends on the workloadmeta collector, we can not make the tagger a dependency of workloadmeta as it would create a circular dependency.
@@ -531,6 +533,8 @@ func getSharedFxOption() fx.Option {
 		// OneShot resolves the run arguments during Fx construction.
 		fx.Provide(newGPUReadiness),
 		logs.Bundle(),
+		// Intake routing serves every telemetry type, so it is not part of the logs bundle.
+		intakeroutingfx.Module(),
 		observerfx.Module(),
 		logssourcefx.Module(),
 		recorderfx.Module(),
@@ -556,7 +560,8 @@ func getSharedFxOption() fx.Option {
 		snmpscanfx.Module(),
 		snmpscanmanagerfx.Module(),
 		networkconfigmanagementfx.Module(),
-		networkdevicesfx.Module(),
+		ndmConnectivityCheckModule(),
+		ndmRemoteConfigModules(),
 		collectorimpl.Module(),
 		fx.Provide(func(demux demultiplexer.Component, hostname hostnameinterface.Component) (ddgostatsd.ClientInterface, error) {
 			return aggregator.NewStatsdDirect(demux, hostname)
@@ -612,7 +617,6 @@ func getSharedFxOption() fx.Option {
 		configstreamfx.Module(),
 		logondurationfx.Module(),
 		healthplatform.Bundle(healthplatform.WithRemoteIssueRestoration()),
-		tracetelemetryfx.Module(),
 		dataplanepreflightmodefx.Module(),
 	)
 }

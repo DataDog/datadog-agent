@@ -1,0 +1,21 @@
+description: awk truncates fractional field indexes toward zero.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        alpha beta gamma
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '{ print $(NF/2), $(-0.5) }' input.txt
+    awk 'BEGIN { x=-1; print $x }' 2>/dev/null
+    printf 'read=%s\n' "$?"
+    awk 'BEGIN { x=-1; $x=1 }' 2>/dev/null
+    printf 'assignment=%s\n' "$?"
+expect:
+  stdout: |+
+    alpha alpha beta gamma
+    read=2
+    assignment=2
+  stderr: |+
+  exit_code: 0

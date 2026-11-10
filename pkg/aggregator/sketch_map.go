@@ -24,6 +24,16 @@ func (m sketchMap) Len() int {
 	return l
 }
 
+// contains reports whether a sketch is stored for the given contextKey, at any timestamp
+func (m sketchMap) contains(ck ckey.ContextKey) bool {
+	for _, byCtx := range m {
+		if _, ok := byCtx[ck]; ok {
+			return true
+		}
+	}
+	return false
+}
+
 // insert v into a sketch for the given (ts, contextKey)
 // NOTE: ts is truncated to bucketSize
 func (m sketchMap) insert(ts int64, ck ckey.ContextKey, v float64, sampleRate float64) bool {

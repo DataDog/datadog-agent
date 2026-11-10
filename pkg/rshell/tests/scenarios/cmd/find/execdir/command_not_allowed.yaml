@@ -1,0 +1,16 @@
+description: find -execdir with a command absent from allowed_commands is rejected at parse time.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+  script: |+
+    find dir -execdir echo {} \;
+expect:
+  stderr_contains: ["not allowed"]
+  exit_code: 1

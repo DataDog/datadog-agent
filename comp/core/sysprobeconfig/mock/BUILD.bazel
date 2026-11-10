@@ -6,6 +6,7 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/schema/noop-impl",
         "//comp/core/sysprobeconfig/def",
         "//comp/core/sysprobeconfig/impl",
         "//pkg/config/mock",

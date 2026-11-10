@@ -1,0 +1,10 @@
+description: Pipe output of printf through grep to filter lines.
+input:
+  script: |+
+    printf "apple\nbanana\napricot\n" | grep ap
+expect:
+  stdout: |+
+    apple
+    apricot
+  stderr: ""
+  exit_code: 0

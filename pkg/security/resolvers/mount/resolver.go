@@ -72,7 +72,7 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 	}
 
 	if mountID < mr.minMountID {
-		return false, ErrMountKernelID
+		return false, fmt.Errorf("%w (mount_id=%d < min_mount_id=%d)", ErrMountKernelID, mountID, mr.minMountID)
 	}
 
 	return true, nil
@@ -225,8 +225,10 @@ func (mr *Resolver) syncPidFunc() func(uint32) error {
 
 func isPreExistingMount(mnt *model.Mount) bool {
 	switch mnt.Origin {
-	case model.MountOriginEvent, model.MountOriginMoveMount, model.MountOriginPivotRoot, model.MountOriginFsmount, model.MountOriginOpenTree:
+	case model.MountOriginEvent, model.MountOriginMoveMount, model.MountOriginFsmount, model.MountOriginOpenTree:
 		return false
+	case model.MountOriginPivotRoot:
+		return !mnt.Detached && (mnt.MountPointStr == "/" || mnt.Path == "/")
 	default:
 		return true
 	}
@@ -536,7 +538,10 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, depth int) (string
 
 	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, pid, depth+1)
 	if err != nil {
-		return "", parentSource, parentOrigin, err
+		if errors.Is(err, ErrMountLoop) {
+			return "", parentSource, parentOrigin, err
+		}
+		return "", parentSource, parentOrigin, fmt.Errorf("parent mount resolution failed for mount_id=%d (parent_mount_id=%d, depth=%d): %w", mountID, mount.ParentPathKey.MountID, depth+1, err)
 	}
 
 	// mount points from kernel events are resolved from the root of the parent file system, not from the root of
@@ -598,29 +603,29 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	path, source, origin, err := mr.getMountPath(mountID, pid)
-	if err == nil {
+	path, source, origin, cacheErr := mr.getMountPath(mountID, pid)
+	if cacheErr == nil {
 		mr.cacheHitsStats.Inc()
 		return path, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, cacheErr
 	}
 
-	if err := mr.syncPidNamespace(pid); err != nil {
-		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
+	if syncErr := mr.syncPidNamespace(pid); syncErr != nil {
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, fmt.Errorf("cache lookup failed (%w) and procfs sync failed: %w", cacheErr, syncErr)
 	}
 
-	path, source, origin, err = mr.getMountPath(mountID, pid)
+	path, source, origin, err := mr.getMountPath(mountID, pid)
 	if err == nil {
 		mr.procHitsStats.Inc()
 		return path, source, origin, nil
 	}
 	mr.procMissStats.Inc()
 
-	return "", model.MountSourceUnknown, model.MountOriginUnknown, err
+	return "", model.MountSourceUnknown, model.MountOriginUnknown, fmt.Errorf("after procfs sync (pid=%d, initial_cache_err=%v): %w", pid, cacheErr, err)
 }
 
 // ResolveMount returns the mount
@@ -644,7 +649,7 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 	mr.cacheMissStats.Inc()
 
 	if err := mr.syncPidNamespace(pid); err != nil {
-		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, fmt.Errorf("mount %d not in cache and procfs sync failed: %w", mountID, err)
 	}
 
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
@@ -653,7 +658,7 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 	}
 	mr.procMissStats.Inc()
 
-	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
+	return nil, model.MountSourceUnknown, model.MountOriginUnknown, fmt.Errorf("after procfs sync (pid=%d): %w", pid, &ErrMountNotFound{MountID: mountID})
 }
 
 // SendStats sends metrics about the current state of the mount resolver

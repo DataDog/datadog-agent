@@ -3,6 +3,7 @@ crate.from_cargo(
     name = "crates",
     cargo_lock = "//:Cargo.lock",
     cargo_toml = "//:Cargo.toml",
+    # Keep in sync with rust/deny.toml's [graph] targets, minus powerpc64-ibm-aix.
     platform_triples = [
         "aarch64-apple-darwin",
         "aarch64-unknown-linux-gnu",

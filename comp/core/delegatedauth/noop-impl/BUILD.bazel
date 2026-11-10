@@ -7,8 +7,10 @@ go_library(
     importpath = "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl",
     visibility = ["//visibility:public"],
     deps = [
+        "//comp/core/delegatedauth/common",
         "//comp/core/delegatedauth/def",
         "//comp/core/status",
+        "//pkg/util/log",
     ],
 )
 
@@ -17,6 +19,7 @@ dd_agent_go_test(
     srcs = ["delegatedauth_noop_test.go"],
     embed = [":noop-impl"],
     deps = [
+        "//comp/core/delegatedauth/common",
         "//comp/core/delegatedauth/def",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

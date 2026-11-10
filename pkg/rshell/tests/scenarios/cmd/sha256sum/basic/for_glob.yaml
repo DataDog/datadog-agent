@@ -1,0 +1,17 @@
+description: sha256sum composes with shell for-loops and glob expansion.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    for file in *.txt; do sha256sum "$file"; done
+expect:
+  stdout: |+
+    e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  a.txt
+    ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad  b.txt
+  stderr: |+
+  exit_code: 0

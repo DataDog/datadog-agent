@@ -1,0 +1,10 @@
+---
+upgrade:
+  - |
+    The serverless-init metadata settings are renamed.
+    ``DD_SERVERLESS_INIT_INVENTORY_ENABLED`` is now
+    ``DD_SERVERLESS_INIT_METADATA_ENABLED`` (``serverless.metadata_enabled``),
+    and ``DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED`` is now
+    ``DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED``
+    (``serverless.metadata_wrapped_command_enabled``). The previous names had
+    no effect and are no longer recognized.

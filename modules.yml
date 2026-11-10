@@ -62,6 +62,10 @@ modules:
   comp/core/log/impl-trace: default
   comp/core/log/mock:
     used_by_otel: true
+  comp/core/schema/def:
+    used_by_otel: true
+  comp/core/schema/noop-impl:
+    used_by_otel: true
   comp/core/secrets/def:
     used_by_otel: true
   comp/core/secrets/fx:
@@ -279,7 +283,9 @@ modules:
     used_by_otel: true
   pkg/remoteflags:
     used_by_otel: true
-  pkg/security/resolvers/process/testdata: ignored
+  pkg/rshell:
+    should_test_condition: not_aix
+  pkg/security/golabels/testdata: ignored
   pkg/security/secl: default
   pkg/security/seclwin:
     should_test_condition: never

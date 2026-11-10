@@ -33,6 +33,8 @@ target
 *.syso
 *.log
 /main
+# Version cache written by during releasing.
+/agent-version.cache
 
 # Build System Protocol (Bazel <-> JetBrains IDEs)
 /.bazelbsp/
@@ -273,3 +275,9 @@ flake.lock
 # in-repo copy only: the pkg/config/setup/generatedsettings snapshot is committed
 pkg/config/setup/generatedsettings_local/*.go
 !pkg/config/setup/generatedsettings_local/doc.go
+
+# Local EKS kubeconfig files
+*kubeconfig.yaml
+
+# Vitrine state
+.vitrine

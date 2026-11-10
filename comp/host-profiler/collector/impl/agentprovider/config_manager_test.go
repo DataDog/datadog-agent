@@ -20,7 +20,8 @@ api_key: test-key
 site: datadoghq.com
 hostprofiler:
   debug:
-    verbosity: detailed
+    exporter:
+      verbosity: detailed
 `)
 	mgr := newConfigManager(cfg)
 
@@ -28,7 +29,7 @@ hostprofiler:
 }
 
 func TestNewConfigManagerDebugFromEnvVar(t *testing.T) {
-	t.Setenv("DD_HOSTPROFILER_DEBUG_VERBOSITY", "detailed")
+	t.Setenv("DD_HOSTPROFILER_DEBUG_EXPORTER_VERBOSITY", "detailed")
 
 	cfg := config.NewMockFromYAML(t, `
 api_key: test-key
@@ -52,6 +53,24 @@ func TestSendErrorFrames(t *testing.T) {
 		receivers := conf["receivers"].(map[string]any)
 		profiling := receivers["profiling"].(map[string]any)
 		assert.Equal(t, enabled, profiling["send_error_frames"])
+	}
+}
+
+func TestFilterMinProcessAge(t *testing.T) {
+	for _, tc := range []struct {
+		settings string
+		expected string
+	}{
+		{"", "0s"},
+		{"hostprofiler:\n  filter_min_process_age: 5s", "5s"},
+	} {
+		cfg := config.NewMockFromYAML(t, tc.settings)
+		conf := confMap{}
+		buildReceivers(conf, newConfigManager(cfg))
+
+		receivers := conf["receivers"].(map[string]any)
+		profiling := receivers["profiling"].(map[string]any)
+		assert.Equal(t, tc.expected, profiling["filter_min_process_age"])
 	}
 }
 
@@ -234,6 +253,41 @@ site: datadoghq.com
 	mgr := newConfigManager(cfg)
 
 	assert.Equal(t, 7778, mgr.hostProfilerConfig.HPFlare.Port)
+}
+
+func TestNewConfigManagerHealthMetricsDisabledByDefault(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.False(t, mgr.hostProfilerConfig.HealthMetrics.Enabled)
+}
+
+func TestNewConfigManagerHealthMetricsEnabledFromYAML(t *testing.T) {
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+hostprofiler:
+  health_metrics:
+    enabled: true
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.HealthMetrics.Enabled)
+}
+
+func TestNewConfigManagerHealthMetricsEnabledFromEnvVar(t *testing.T) {
+	t.Setenv("DD_HOSTPROFILER_HEALTH_METRICS_ENABLED", "true")
+
+	cfg := config.NewMockFromYAML(t, `
+api_key: test-key
+site: datadoghq.com
+`)
+	mgr := newConfigManager(cfg)
+
+	assert.True(t, mgr.hostProfilerConfig.HealthMetrics.Enabled)
 }
 
 func TestNewConfigManagerSymbolUploaderReportIntervalFromYAML(t *testing.T) {

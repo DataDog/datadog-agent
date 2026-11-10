@@ -357,7 +357,7 @@ Marks a setting as containing sensitive data.
 - **Default:** `false`.
 - **Accepted values:** `true`, `false`.
 
-When `true`, the Agent scrubs the value from logs and diagnostic output. Fleet Automation treats the setting as a secret — it will not expose the raw value in its UI or API responses. Other services that consume the schema may use this flag in the future to apply additional protection.
+When `true`, the config's `IsSensitive(key)` reports the setting. Fleet Automation treats the setting as a secret — it will not expose the raw value in its UI or API responses. Other services that consume the schema may use this flag in the future to apply additional protection.
 
 ```yaml
 api_key:
