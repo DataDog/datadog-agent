@@ -1,0 +1,22 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+security:
+  - |
+    ``otel-agent flare`` now scrubs credentials, such as the API key, from the
+    flare archive.
+fixes:
+  - |
+    ``otel-agent flare`` now collects the effective configuration and the
+    pprof, zpages, and health_check data of the running collector through its
+    ddflare extension, like the core Agent flare does. It falls back to the
+    configuration files when the collector can't be reached.
+  - |
+    ``otel-agent flare`` now uploads the flare with the API key and site of the
+    Datadog exporter configuration when ``DD_API_KEY`` isn't set, and keeps the
+    customer configuration when it contains ``${env:...}`` references.
