@@ -22,7 +22,9 @@ dd_agent_go_test(
     srcs = ["entropy_test.go"],
     embed = [":entropy"],
     deps = [
+        "//comp/core/log/mock",
         "//comp/netflow/common",
+        "//pkg/aggregator/mocksender",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

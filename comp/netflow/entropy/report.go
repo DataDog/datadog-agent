@@ -15,7 +15,8 @@ import (
 
 const metricPrefix = "datadog.netflow.entropy."
 
-// Submit logs valid windows and sends counts. No peer IPs, and no exporter or interface tags.
+// Submit logs valid windows and sends counts. Drops are tagged by exporter like the aggregator's
+// sequence metrics; no metric has interface or peer tags.
 func (r Report) Submit(s sender.Sender, logger log.Component) {
 	windowsByStatus := make(map[QualityStatus]int)
 	for _, w := range r.Windows {
@@ -37,8 +38,12 @@ func (r Report) Submit(s sender.Sender, logger log.Component) {
 	for status, n := range windowsByStatus {
 		s.Count(metricPrefix+"windows", float64(n), "", []string{"quality_status:" + string(status)})
 	}
-	for reason, n := range r.Dropped {
-		s.Count(metricPrefix+"records_dropped", float64(n), "", []string{"reason:" + string(reason)})
+	for k, n := range r.Dropped {
+		tags := []string{"reason:" + string(k.Reason), "device_namespace:" + k.Namespace}
+		if k.Exporter.IsValid() {
+			tags = append(tags, "exporter_ip:"+k.Exporter.String())
+		}
+		s.Count(metricPrefix+"records_dropped", float64(n), "", tags)
 	}
 	s.Gauge(metricPrefix+"state_entries", float64(r.StateEntries), "", nil)
 }

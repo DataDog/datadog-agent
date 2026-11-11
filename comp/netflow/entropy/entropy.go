@@ -48,13 +48,24 @@ const (
 type DropReason string
 
 const (
-	// DropInvalidIdentity is a missing exporter IP, peer IP or interface index.
-	DropInvalidIdentity DropReason = "invalid_identity"
+	// DropNoInputInterface is an ingress side whose record has no input interface.
+	DropNoInputInterface DropReason = "no_input_interface"
+	// DropNoOutputInterface is an egress side whose record has no output interface.
+	DropNoOutputInterface DropReason = "no_output_interface"
+	// DropInvalidIP is a missing or unparseable exporter or peer IP.
+	DropInvalidIP DropReason = "invalid_ip"
 	// DropLate is for an already closed window, when the Agent's clock goes back.
 	DropLate DropReason = "late"
 	// DropStateLimit is for a new exporter or interface past its limit.
 	DropStateLimit DropReason = "state_limit"
 )
+
+// DropKey is the exporter a drop came from (Exporter is zero when its IP was invalid) and why.
+type DropKey struct {
+	Namespace string
+	Exporter  netip.Addr
+	Reason    DropReason
+}
 
 // Config holds window and limit settings.
 type Config struct {
@@ -110,7 +121,7 @@ type Accumulator struct {
 	closedBefore int64             // windows starting earlier are closed
 	firstWindow  int64             // windows starting here or earlier are partial
 	totalEntries int
-	dropped      map[DropReason]uint64
+	dropped      map[DropKey]uint64
 }
 
 // NewAccumulator treats the window containing now as partial.
@@ -120,7 +131,7 @@ func NewAccumulator(cfg Config, now time.Time) *Accumulator {
 		cfg:         cfg,
 		intervalSec: intervalSec,
 		windows:     make(map[int64]*window),
-		dropped:     make(map[DropReason]uint64),
+		dropped:     make(map[DropKey]uint64),
 	}
 	a.firstWindow = a.windowStart(now.Unix())
 	a.closedBefore = a.firstWindow
@@ -136,6 +147,8 @@ func (a *Accumulator) Add(flow *common.Flow, now time.Time) {
 	exporter, exporterOK := netip.AddrFromSlice(flow.ExporterAddr)
 	src, srcOK := netip.AddrFromSlice(flow.SrcAddr)
 	dst, dstOK := netip.AddrFromSlice(flow.DstAddr)
+	// IPv4-mapped addresses print as IPv4, like the aggregator's exporter_ip tags
+	exporter, src, dst = exporter.Unmap(), src.Unmap(), dst.Unmap()
 	start := a.windowStart(now.Unix())
 
 	// 0 means the exporter didn't report a rate: unsampled, as in the NetFlow backend
@@ -147,32 +160,37 @@ func (a *Accumulator) Add(flow *common.Flow, now time.Time) {
 	defer a.mu.Unlock()
 
 	if !exporterOK {
-		a.dropped[DropInvalidIdentity] += 2
+		a.dropped[DropKey{Namespace: flow.Namespace, Reason: DropInvalidIP}] += 2
 		return
 	}
 	if start < a.closedBefore {
-		a.dropped[DropLate] += 2
+		a.dropped[DropKey{flow.Namespace, exporter, DropLate}] += 2
 		return
 	}
 
 	exp := exporterKey{namespace: flow.Namespace, exporter: exporter}
 	sides := [2]struct {
-		ifIndex uint32
-		point   ObservationPoint
-		peer    netip.Addr
-		ok      bool
+		ifIndex  uint32
+		point    ObservationPoint
+		peer     netip.Addr
+		ok       bool
+		noIfDrop DropReason
 	}{
-		{flow.InputInterface, Ingress, src, srcOK},
-		{flow.OutputInterface, Egress, dst, dstOK},
+		{flow.InputInterface, Ingress, src, srcOK, DropNoInputInterface},
+		{flow.OutputInterface, Egress, dst, dstOK, DropNoOutputInterface},
 	}
 	for _, side := range sides {
-		if side.ifIndex == 0 || !side.ok {
-			a.dropped[DropInvalidIdentity]++
+		if side.ifIndex == 0 {
+			a.dropped[DropKey{flow.Namespace, exporter, side.noIfDrop}]++
+			continue
+		}
+		if !side.ok {
+			a.dropped[DropKey{flow.Namespace, exporter, DropInvalidIP}]++
 			continue
 		}
 		state := a.iface(start, ifaceKey{exporterKey: exp, ifIndex: side.ifIndex, point: side.point})
 		if state == nil {
-			a.dropped[DropStateLimit]++
+			a.dropped[DropKey{flow.Namespace, exporter, DropStateLimit}]++
 			continue
 		}
 		a.addToIface(state, side.peer, weight, packets)
@@ -253,7 +271,7 @@ type WindowResult struct {
 // Report holds closed windows, drops since the last call, and peer entries still held.
 type Report struct {
 	Windows      []WindowResult
-	Dropped      map[DropReason]uint64
+	Dropped      map[DropKey]uint64
 	StateEntries int
 }
 
@@ -273,7 +291,7 @@ func (a *Accumulator) CloseWindows(now time.Time) Report {
 		}
 	}
 	dropped := a.dropped
-	a.dropped = make(map[DropReason]uint64)
+	a.dropped = make(map[DropKey]uint64)
 	report := Report{Dropped: dropped, StateEntries: a.totalEntries}
 	firstWindow := a.firstWindow
 	a.mu.Unlock()

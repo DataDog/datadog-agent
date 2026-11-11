@@ -9,6 +9,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"math"
+	"net/netip"
 	"runtime"
 	"testing"
 	"time"
@@ -16,7 +17,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
 )
 
 const testInterval = 5 * time.Minute
@@ -25,6 +28,8 @@ const testInterval = 5 * time.Minute
 const w = int64(1_800_000_000)
 
 var received = time.Unix(w+10, 0)
+
+var exporter = netip.MustParseAddr("127.0.0.1")
 
 func testConfig() Config {
 	return Config{
@@ -128,7 +133,7 @@ func TestComputeEntropy(t *testing.T) {
 			assert.Equal(t, tt.wantDistinct, r.DistinctCount)
 			assert.Equal(t, Ingress, r.ObservationPoint)
 			// the missing output interface is dropped, not counted as a peer
-			assert.Equal(t, uint64(len(tt.flows)), report.Dropped[DropInvalidIdentity])
+			assert.Equal(t, uint64(len(tt.flows)), report.Dropped[DropKey{"ns", exporter, DropNoOutputInterface}])
 		})
 	}
 }
@@ -159,7 +164,7 @@ func TestAccumulator_Windows(t *testing.T) {
 	assert.Equal(t, time.Unix(w+300, 0), report.Windows[0].Start)
 	assert.Equal(t, uint64(3), report.Windows[0].RecordCount)
 	// both sides of a dropped record are counted
-	assert.Equal(t, uint64(2), report.Dropped[DropLate])
+	assert.Equal(t, uint64(2), report.Dropped[DropKey{"ns", exporter, DropLate}])
 	assert.Equal(t, 0, report.StateEntries)
 }
 
@@ -242,7 +247,7 @@ func TestAccumulator_QualityStatus(t *testing.T) {
 		other.ExporterAddr = []byte{127, 0, 0, 2}
 		report := closeWindowW(t, cfg, w-1, []*common.Flow{ingressFlow(1, 100, 1, 1), other})
 		require.Len(t, report.Windows, 1)
-		assert.Equal(t, uint64(1), report.Dropped[DropStateLimit])
+		assert.Equal(t, uint64(1), report.Dropped[DropKey{"ns", netip.MustParseAddr("127.0.0.2"), DropStateLimit}])
 	})
 
 	t.Run("peer limit on one interface leaves its neighbor valid", func(t *testing.T) {
@@ -257,6 +262,31 @@ func TestAccumulator_QualityStatus(t *testing.T) {
 		}
 		assert.Equal(t, map[uint32]QualityStatus{1: StatusStateLimit, 2: StatusValid}, statuses)
 	})
+}
+
+func TestAccumulator_DropReasons(t *testing.T) {
+	noInterfaces := ingressFlow(1, 100, 1, 1)
+	noInterfaces.InputInterface = 0
+	badPeer := ingressFlow(2, 100, 1, 1)
+	badPeer.SrcAddr = nil
+	badExporter := ingressFlow(3, 100, 1, 1)
+	badExporter.ExporterAddr = nil
+
+	report := closeWindowW(t, testConfig(), w-1, []*common.Flow{noInterfaces, badPeer, badExporter})
+	assert.Equal(t, map[DropKey]uint64{
+		{"ns", exporter, DropNoInputInterface}:  1,
+		{"ns", exporter, DropNoOutputInterface}: 2,
+		{"ns", exporter, DropInvalidIP}:         1,
+		{"ns", netip.Addr{}, DropInvalidIP}:     2,
+	}, report.Dropped)
+
+	sender := mocksender.NewMockSender(t, "")
+	sender.SetupAcceptAll()
+	report.Submit(sender, logmock.New(t))
+	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.records_dropped", 2, "",
+		[]string{"reason:no_output_interface", "device_namespace:ns", "exporter_ip:127.0.0.1"})
+	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.records_dropped", 2, "",
+		[]string{"reason:invalid_ip", "device_namespace:ns"})
 }
 
 // benchFlows returns n records with distinct source and destination IPs spread over 100 interfaces,
