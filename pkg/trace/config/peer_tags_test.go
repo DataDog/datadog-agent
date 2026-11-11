@@ -96,6 +96,7 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 			"aws.sns.topic_arn",
 			"aws.topic.arn",
 			"aws.stream.arn",
+			"aws.state_machine.arn",
 			"aws.sns.topic.arn",
 			"aws.step_functions.state_machine.arn",
 		}, names)
