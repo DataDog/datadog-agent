@@ -1,6 +1,14 @@
 import unittest
 
-from tasks.libs.logs_tokenizer.compare import Row, find_regressions, parse_benchstat_csv
+from tasks.libs.logs_tokenizer.compare import (
+    BYPASS_LABEL,
+    Row,
+    benchmark_metrics,
+    bypassed,
+    find_regressions,
+    markdown_report,
+    parse_benchstat_csv,
+)
 
 # Output of `benchstat -format csv base=base.txt head=head.txt` (golang.org/x/perf, the version
 # pinned in internal/tools) for three benchmarks: one 8.18% slower, one 44.82% faster, one unchanged.
@@ -104,6 +112,70 @@ class TestFindRegressions(unittest.TestCase):
             Row("allocs/op", "Consumer/a", 7, 1, "-85.71%"),
         ]
         self.assertEqual(find_regressions(rows, 5), [])
+
+
+class TestMarkdownReport(unittest.TestCase):
+    def setUp(self):
+        self.rows = parse_benchstat_csv(BENCHSTAT_CSV)
+
+    def test_regression(self):
+        report = markdown_report(
+            "Benchmarks of `pkg/logs/tokenizer`",
+            self.rows,
+            find_regressions(self.rows, 5),
+            "4a84f5c051b0d",
+            5,
+            "the benchstat tables",
+        )
+        self.assertIn("### Benchmarks of `pkg/logs/tokenizer`", report)
+        self.assertIn("**Regression** against `4a84f5c051b`", report)
+        self.assertIn("- `Consumer/aad_log_signature/applog sec/op: +8.18%`", report)
+        self.assertIn(f"add the `{BYPASS_LABEL}` label", report)
+        # Significant changes only, with readable units; "~" rows stay in the benchstat block.
+        self.assertIn("| Consumer/aad_log_signature/applog | sec/op | 1.497 µs | 1.619 µs | +8.18% |", report)
+        self.assertIn("| Consumer/logs_auto_multiline/short | allocs/op | 0 | 1 | new allocations |", report)
+        self.assertNotIn("| Consumer/logs_auto_multiline/short | sec/op", report)
+        self.assertIn("| Consumer/aad_log_signature/applog | B/op | 512 | 1024 | +100.00% |", report)
+        self.assertNotIn("| Consumer/logs_auto_multiline/short | B/op", report)
+        self.assertIn("```\nthe benchstat tables\n```", report)
+
+    def test_no_regression(self):
+        report = markdown_report("Benchmarks", self.rows, [], "4a84f5c051b0d", 5, "tables")
+        self.assertIn("**No regression**", report)
+        self.assertNotIn(BYPASS_LABEL, report)
+
+
+class TestBenchmarkMetrics(unittest.TestCase):
+    def test_head_side_per_benchmark(self):
+        metrics = benchmark_metrics(parse_benchstat_csv(BENCHSTAT_CSV))
+        by_key = {(name, benchmark): (value, unit) for name, value, benchmark, unit in metrics}
+        value, unit = by_key[("datadog.agent.benchmark.time_per_op", "Consumer/aad_log_signature/applog")]
+        self.assertAlmostEqual(value, 1619.45)
+        self.assertEqual(unit, "nanosecond")
+        value, unit = by_key[("datadog.agent.benchmark.time_change", "Consumer/aad_log_signature/applog")]
+        self.assertAlmostEqual(value, 8.1833, places=3)
+        self.assertEqual(unit, "percent")
+        # Sent even when not significant, so noise shows over time.
+        self.assertIn(("datadog.agent.benchmark.time_change", "Consumer/logs_auto_multiline/short"), by_key)
+        self.assertEqual(
+            by_key[("datadog.agent.benchmark.allocs_per_op", "Consumer/logs_auto_multiline/short")], (1, None)
+        )
+        self.assertEqual(
+            by_key[("datadog.agent.benchmark.bytes_per_op", "Consumer/aad_log_signature/applog")], (1024, "byte")
+        )
+        # The geomean has a time but no allocation or byte count.
+        self.assertIn(("datadog.agent.benchmark.time_per_op", "geomean"), by_key)
+        self.assertNotIn(("datadog.agent.benchmark.allocs_per_op", "geomean"), by_key)
+        self.assertNotIn(("datadog.agent.benchmark.bytes_per_op", "geomean"), by_key)
+        self.assertEqual(len(metrics), 4 * 2 + 3 + 3)
+
+
+class TestBypassed(unittest.TestCase):
+    def test_label_accepts_a_regression(self):
+        self.assertTrue(bypassed({"verdict": "regression"}, ["team/agent-log-pipelines", BYPASS_LABEL]))
+
+    def test_without_the_label(self):
+        self.assertFalse(bypassed({"verdict": "regression"}, ["team/agent-log-pipelines"]))
 
 
 if __name__ == "__main__":
