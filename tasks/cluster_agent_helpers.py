@@ -5,6 +5,7 @@ Common utilities for building Cluster Agent variants
 import os
 import shutil
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import build_binary_with_bazel
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import REPO_PATH, bin_name, get_build_flags, get_version
@@ -33,6 +34,7 @@ def build_common(
     go_mod="readonly",
     cover=False,
     enable_bazel=False,
+    fips_backend=FipsBackend.none,
 ):
     """
     Build Cluster Agent
@@ -61,6 +63,7 @@ def build_common(
             env=env,
             check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
             coverage=cover,
+            fips_backend=fips_backend,
         )
 
     # Render the configuration file template. The cluster-agent and the

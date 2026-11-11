@@ -498,10 +498,11 @@ func promoteExperimentCommand() *cobra.Command {
 
 func installConfigExperimentCommand() *cobra.Command {
 	cmd := &cobra.Command{
-		Use:     "install-config-experiment <package> <operations>",
+		Use:     "install-config-experiment <package>",
 		Short:   "Install a config experiment",
+		Long:    "Install a config experiment. Stdin carries the operations JSON followed by the decrypted secrets JSON.",
 		GroupID: "installer",
-		Args:    cobra.ExactArgs(2),
+		Args:    cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) (err error) {
 			i, err := newInstallerCmd("install_config_experiment")
 			if err != nil {
@@ -510,24 +511,9 @@ func installConfigExperimentCommand() *cobra.Command {
 			defer func() { i.stop(err) }()
 			i.span.SetTag("params.package", args[0])
 
-			// Parse operations from command-line argument
-			var operations config.Operations
-			err = json.Unmarshal([]byte(args[1]), &operations)
+			operations, decryptedSecrets, err := readConfigExperimentInput(os.Stdin)
 			if err != nil {
-				return fmt.Errorf("could not decode operations: %w", err)
-			}
-
-			// Read decrypted secrets from stdin
-			// For backwards compatibility, accept empty stdin (no secrets)
-			var decryptedSecrets map[string]string
-			decoder := json.NewDecoder(os.Stdin)
-			err = decoder.Decode(&decryptedSecrets)
-			if err != nil && err != io.EOF {
-				return fmt.Errorf("could not decode secrets from stdin: %w", err)
-			}
-			// If stdin is empty or EOF, use empty map
-			if decryptedSecrets == nil {
-				decryptedSecrets = make(map[string]string)
+				return err
 			}
 
 			i.span.SetTag("params.deployment_id", operations.DeploymentID)
@@ -536,6 +522,22 @@ func installConfigExperimentCommand() *cobra.Command {
 		},
 	}
 	return cmd
+}
+
+func readConfigExperimentInput(stdin io.Reader) (config.Operations, map[string]string, error) {
+	var operations config.Operations
+	var decryptedSecrets map[string]string
+	decoder := json.NewDecoder(stdin)
+	if err := decoder.Decode(&operations); err != nil {
+		return operations, nil, fmt.Errorf("could not decode operations from stdin: %w", err)
+	}
+	if err := decoder.Decode(&decryptedSecrets); err != nil {
+		return operations, nil, fmt.Errorf("could not decode secrets from stdin: %w", err)
+	}
+	if decryptedSecrets == nil {
+		decryptedSecrets = make(map[string]string)
+	}
+	return operations, decryptedSecrets, nil
 }
 
 func removeConfigExperimentCommand() *cobra.Command {

@@ -423,10 +423,10 @@ func TestLoadSettings(t *testing.T) {
 		expectedGrace   time.Duration
 		expectedRefresh time.Duration
 	}{
-		{"defaults", nil, time.Second, 6 * time.Hour},
-		{"custom", map[string]interface{}{startupGraceKey: "3s", refreshKey: "10m"}, 3 * time.Second, 10 * time.Minute},
-		{"grace too long", map[string]interface{}{startupGraceKey: "45s"}, 30 * time.Second, 6 * time.Hour},
-		{"negative grace", map[string]interface{}{startupGraceKey: "-1s"}, 0, 6 * time.Hour},
+		{"defaults", nil, time.Second, 10 * time.Minute},
+		{"custom", map[string]interface{}{startupGraceKey: "3s", refreshKey: "30m"}, 3 * time.Second, 30 * time.Minute},
+		{"grace too long", map[string]interface{}{startupGraceKey: "45s"}, 30 * time.Second, 10 * time.Minute},
+		{"negative grace", map[string]interface{}{startupGraceKey: "-1s"}, 0, 10 * time.Minute},
 		{"refresh too short", map[string]interface{}{refreshKey: "10s"}, time.Second, time.Minute},
 	}
 	for _, tc := range tests {

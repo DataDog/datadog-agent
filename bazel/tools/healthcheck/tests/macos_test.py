@@ -1,8 +1,19 @@
 """Unit tests for the macOS @rpath/@loader_path substitution and allowlist logic."""
 
 import unittest
+from unittest import mock
 
-from macos import _is_allowed, _resolve_paths
+from macos import _get_install_name, _is_allowed, _resolve_paths
+
+
+class GetInstallNameTest(unittest.TestCase):
+    @mock.patch("macos._otool", return_value="_bisect.so:\n@rpath/_bisect.so\n")
+    def test_so_suffix(self, _):
+        self.assertEqual(_get_install_name("_bisect.so"), "@rpath/_bisect.so")
+
+    @mock.patch("macos._otool", return_value="agent:\n")
+    def test_no_install_name(self, _):
+        self.assertIsNone(_get_install_name("agent"))
 
 
 class ResolvePathsTest(unittest.TestCase):

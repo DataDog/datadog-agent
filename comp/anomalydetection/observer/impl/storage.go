@@ -128,8 +128,7 @@ type timeSeriesStorage struct {
 	// It is updated under mu whenever a non-telemetry series is added or removed.
 	liveSeriesCount int
 
-	// Global generation for the series catalog; increments only when a new
-	// series key is created, not on every write to an existing series.
+	// Generation of filterable series membership and metadata, not point writes.
 	seriesGen uint64
 
 	// tagIntern maps an unordered tag-set fingerprint to the canonical immutable
@@ -169,6 +168,7 @@ type bucketCounts struct {
 // seriesStats contains accumulated statistics for a time series (internal).
 // Buckets are stored in timestamp order, enabling binary search for range queries.
 type seriesStats struct {
+	MetricKind observer.MetricKind
 	MetricType metrics.MetricType
 	Namespace  string
 	Name       string
@@ -417,6 +417,7 @@ func (s *timeSeriesStorage) addWithKeyAndHost(namespace, name, host string, valu
 	// later observation, but conflicting known types do not rewrite history.
 	if stats.MetricType == observer.UnknownType && metricType != observer.UnknownType {
 		stats.MetricType = metricType
+		s.seriesGen++
 	}
 	res := AddResult{IsNew: !exists, Ref: stats.ref, CapacityEvictedRefs: capacityEvictedRefs}
 	stats.writeGeneration++
@@ -760,6 +761,7 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 	}
 	return &observer.SeriesMeta{
 		MetricType: ss.MetricType,
+		MetricKind: ss.MetricKind,
 		Ref:        ref,
 		Namespace:  ss.Namespace,
 		Name:       ss.Name,
@@ -771,6 +773,7 @@ func (s *timeSeriesStorage) GetSeriesMeta(ref observer.SeriesRef) *observer.Seri
 // seriesMeta is lightweight series metadata including point count,
 // used for API listing without materializing point data.
 type seriesMeta struct {
+	MetricKind observer.MetricKind
 	MetricType metrics.MetricType
 	Ref        observer.SeriesRef // compact numeric ref
 	Namespace  string
@@ -791,6 +794,7 @@ func (s *timeSeriesStorage) ListSeriesMetadata(namespace string) []seriesMeta {
 		if stats != nil && stats.Namespace == namespace {
 			result = append(result, seriesMeta{
 				MetricType: stats.MetricType,
+				MetricKind: stats.MetricKind,
 				Ref:        stats.ref,
 				Namespace:  stats.Namespace,
 				Name:       stats.Name,
@@ -935,14 +939,50 @@ func (s *timeSeriesStorage) DataTimestamps() []int64 {
 	return timestamps
 }
 
-// SeriesGeneration returns a counter that increments whenever the series
-// catalog changes — either when a new series key is created or when an
-// existing key is removed via RemoveSeriesByRefs or RemoveSeriesByMetricName.
-// Callers can use this to safely cache ListSeries results.
+// SeriesGeneration invalidates filtered series caches on admission/removal,
+// committed-kind changes and unknown-to-known input-type promotion.
+// Ordinary point writes leave it unchanged.
 func (s *timeSeriesStorage) SeriesGeneration() uint64 {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.seriesGen
+}
+
+// SeriesKind returns the committed shape without allocating SeriesMeta.
+func (s *timeSeriesStorage) SeriesKind(ref observer.SeriesRef) (observer.MetricKind, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	stats := s.resolveByID(ref)
+	if stats == nil {
+		return observer.UNSET, false
+	}
+	return stats.MetricKind, true
+}
+
+// SetSeriesKind commits a classification without modifying observations or identity.
+func (s *timeSeriesStorage) SetSeriesKind(ref observer.SeriesRef, kind observer.MetricKind) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if stats := s.resolveByID(ref); stats != nil && stats.MetricKind != kind {
+		stats.MetricKind = kind
+		s.seriesGen++
+	}
+}
+
+// ResetSeriesKinds starts a fresh analysis while retaining observations.
+func (s *timeSeriesStorage) ResetSeriesKinds() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	changed := false
+	for _, stats := range s.seriesIDStats {
+		if stats.MetricKind != observer.UNSET {
+			stats.MetricKind = observer.UNSET
+			changed = true
+		}
+	}
+	if changed {
+		s.seriesGen++
+	}
 }
 
 // RemoveSeriesByRefs deletes series by their compact numeric refs. Each removed
@@ -1253,6 +1293,7 @@ func (s *timeSeriesStorage) ListSeries(filter observer.SeriesFilter) []observer.
 		}
 		result = append(result, observer.SeriesMeta{
 			MetricType: stats.MetricType,
+			MetricKind: stats.MetricKind,
 			Ref:        stats.ref,
 			Namespace:  stats.Namespace,
 			Name:       stats.Name,
@@ -1313,6 +1354,27 @@ func (s *timeSeriesStorage) TotalSeriesCount() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.liveSeriesCount
+}
+
+// FreshSeriesCount returns the number of non-telemetry series whose latest
+// bucket visible at cutoff is newer than previousCutoff. Buckets beyond cutoff
+// are not yet visible to analysis and are ignored.
+func (s *timeSeriesStorage) FreshSeriesCount(excludeNamespace string, cutoff, previousCutoff int64) int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	fresh := 0
+	for _, stats := range s.seriesIDStats {
+		if stats == nil || (excludeNamespace != "" && stats.Namespace == excludeNamespace) {
+			continue
+		}
+		lastVisible := searchAfter(stats.buckets, cutoff) - 1
+		if lastVisible < 0 || stats.buckets[lastVisible].timestamp <= previousCutoff {
+			continue
+		}
+		fresh++
+	}
+	return fresh
 }
 
 // PointCountUpTo returns the number of raw data points with timestamp <= endTime.
@@ -1393,6 +1455,12 @@ func matchTags(tags tagset.CompositeTags, matchers map[string]string) bool {
 }
 
 func matchesSeriesFilter(stats *seriesStats, filter observer.SeriesFilter) bool {
+	if filter.MetricType != nil && stats.MetricType != *filter.MetricType {
+		return false
+	}
+	if filter.MetricKind != nil && stats.MetricKind != *filter.MetricKind {
+		return false
+	}
 	if filter.Namespace != "" {
 		if stats.Namespace != filter.Namespace {
 			return false

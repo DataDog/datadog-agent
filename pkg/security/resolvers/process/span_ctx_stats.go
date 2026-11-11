@@ -17,8 +17,10 @@ import (
 
 	"go.uber.org/atomic"
 
+	"github.com/DataDog/datadog-agent/pkg/security/golabels"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/golabelsctx"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/otelattrs"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -29,12 +31,12 @@ import (
 var (
 	// errSpanCtxNotApplicable marks a process that is instrumented, but not
 	// through the reader that returned this error.
-	errSpanCtxNotApplicable = errors.New("not applicable")
+	errSpanCtxNotApplicable = otelthreadctx.ErrNotApplicable
 	// errSpanCtxUnsupported marks a shape this code recognizes but cannot handle
-	errSpanCtxUnsupported = errors.New("unsupported")
+	errSpanCtxUnsupported = otelthreadctx.ErrUnsupported
 	// errSpanCtxMalformed marks a process that violated the contract it published
 	// under
-	errSpanCtxMalformed = errors.New("malformed")
+	errSpanCtxMalformed = otelthreadctx.ErrMalformed
 	// errSpanCtxGone marks a target that stopped existing mid-resolution
 	errSpanCtxGone = errors.New("gone")
 	// errSpanCtxMapError marks a failure to push resolved offsets into a BPF map.
@@ -142,9 +144,9 @@ func classifySpanCtxError(err error) spanCtxStatus {
 		return spanCtxGone
 	case errors.Is(err, errSpanCtxNotApplicable), errors.Is(err, otelprocessctx.ErrLegacyVersion):
 		return spanCtxNotApplicable
-	case errors.Is(err, errSpanCtxUnsupported):
+	case errors.Is(err, errSpanCtxUnsupported), errors.Is(err, golabels.ErrUnsupported):
 		return spanCtxUnsupported
-	case errors.Is(err, errSpanCtxMalformed):
+	case errors.Is(err, errSpanCtxMalformed), errors.Is(err, golabels.ErrMalformed):
 		return spanCtxMalformed
 	case errors.Is(err, errSpanCtxMapError):
 		return spanCtxMapError

@@ -1,0 +1,14 @@
+---
+features:
+  - |
+    When ``DD_SERVERLESS_INIT_METADATA_ENABLED`` is set, serverless-init
+    reports metadata for the resource it runs in. The supported resources are
+    Cloud Run services, Cloud Run (gen2) functions, Cloud Run jobs, Azure App
+    Service, Azure Function Apps, Azure Container Apps, and AWS Lambda MicroVM
+    instances. On AWS Lambda MicroVM, it also reports metadata each time an
+    instance resumes from a snapshot. serverless-init sends its first payload
+    when the resource identity is known, and it ignores
+    ``inventories_first_run_delay``. The new
+    ``DD_SERVERLESS_INIT_METADATA_RUNTIME`` setting
+    (``serverless.metadata_runtime``) sets the reported application runtime. It
+    takes priority over the detected runtime.

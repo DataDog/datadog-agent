@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import errno
 import json
 import os
@@ -12,19 +11,17 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.build_tags import get_default_build_tags
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.go import run_golangci_lint
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
+from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_go_version,
-    get_version,
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
@@ -58,7 +55,7 @@ def build(
     install_path=None,
     go_mod="readonly",
     static=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     enable_bazel=False,
 ):
     """
@@ -74,21 +71,12 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
-        if fips_mode:
-            raise NotImplementedError("--enable-bazel does not support --fips-mode.")
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
         build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
-
-    main = "main."
-    ld_vars = {
-        "Version": get_version(ctx),
-        "GoVersion": get_go_version(),
-        "GitBranch": get_current_branch(ctx),
-        "GitCommit": get_commit_sha(ctx, short=True),
-        "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-    }
 
     ## build windows resources
     # generate windows resources
@@ -102,10 +90,7 @@ def build(
             out="cmd/security-agent/rsrc.syso",
         )
 
-    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
-        build="security-agent", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
-    )
+    build_tags += get_default_build_tags(build="security-agent", flavor=fips_backend.agent_flavor())
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
@@ -123,6 +108,7 @@ def build(
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        fips_backend=fips_backend,
     )
 
 
@@ -302,7 +288,7 @@ OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifact
 # so there is no musl counterpart to build.
 #
 # musl is covered by TestResolveOTelTLSMuslDTV in
-# pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
+# pkg/security/otelthreadctx/layout_test.go instead: the only thing musl
 # changes is the DTV layout its libc reports, which is resolved entirely in
 # user space and needs neither eBPF nor a VM.
 def build_otel_tls_artifacts(build_dir, arch: Arch):

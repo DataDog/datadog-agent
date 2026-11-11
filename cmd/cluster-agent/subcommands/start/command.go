@@ -117,6 +117,7 @@ import (
 	configUtils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/diagnose/connectivity"
 	clusterAgentFlare "github.com/DataDog/datadog-agent/pkg/flare/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	hostnameStatus "github.com/DataDog/datadog-agent/pkg/status/clusteragent/hostname"
@@ -939,7 +940,7 @@ func startPrivateActionRunner(
 
 	// No packet capture uploader: its only user, the packet capture bundle, is
 	// not registered in the Cluster Agent.
-	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, nil, ipc, metricsClient, ha, ka)
+	app, err := privateactionrunner.NewPrivateActionRunner(ctx, config, hostnameGetter, rcClient, log, tagger, tracerouteComp, eventPlatform, nil, ipc, metricsClient, ha, ka, enrollment.NewIdentityStorage(config, le))
 	if err != nil {
 		return nil, err
 	}

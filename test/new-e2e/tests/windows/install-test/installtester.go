@@ -6,7 +6,9 @@
 package installtest
 
 import (
+	"encoding/json"
 	"errors"
+	"fmt"
 	"io/fs"
 	"path/filepath"
 	"slices"
@@ -429,26 +431,52 @@ func (t *Tester) testCurrentVersionExpectations(tt *testing.T) {
 	})
 
 	tt.Run("registry permissions", func(tt *testing.T) {
-		// ensure registry key has normal inherited permissions and an explicit
-		// full access rule for ddagentuser
-		path := windowsAgent.RegistryKeyPath
-		out, err := windows.GetSecurityInfoForPath(t.host, path)
-		require.NoError(tt, err)
-		if !windows.IsIdentityLocalSystem(ddAgentUserIdentity) {
-			agentUserFullAccessDirRule := windows.NewExplicitAccessRule(
-				ddAgentUserIdentity,
-				windows.RegistryFullControl,
-				windows.AccessControlTypeAllow,
-			)
-			windows.AssertContainsEqualable(tt, out.Access, agentUserFullAccessDirRule, "%s should have full access rule for %s", path, ddAgentUserIdentity)
-		}
-		assert.False(tt, out.AreAccessRulesProtected, "%s should inherit access rules", path)
+		t.testInstalledRegistryPermissions(tt)
 	})
 
 	RequireAgentRunningWithNoErrors(tt, t.InstallTestClient)
 
 	if !testing.Short() {
 		t.runTestsForKitchenCompat(tt)
+	}
+}
+
+// testInstalledRegistryPermissions inventories the entire Datadog subtree,
+// including inherited and group ACEs. The Agent no longer needs registry writes.
+func (t *Tester) testInstalledRegistryPermissions(tt *testing.T) {
+	root := `HKLM:\SOFTWARE\Datadog`
+	output, err := t.host.Execute(fmt.Sprintf(`ConvertTo-Json -Compress -InputObject @((Get-Item '%s').PSPath; Get-ChildItem '%s' -Recurse | ForEach-Object { $_.PSPath })`, root, root))
+	require.NoError(tt, err)
+	var paths []string
+	require.NoError(tt, json.Unmarshal([]byte(output), &paths), output)
+
+	writeRights := windows.KEY_SET_VALUE | windows.KEY_CREATE_SUB_KEY | windows.KEY_CREATE_LINK |
+		windows.DELETE | windows.WRITE_DAC | windows.WRITE_OWNER | windows.GENERIC_WRITE | windows.GENERIC_ALL
+	for _, path := range paths {
+		// PowerShell's PSPath includes the registry provider prefix; use a
+		// provider-qualified path for Get-Acl and a normalized path for matching.
+		normalized := path
+		if i := strings.Index(strings.ToLower(path), `hkey_local_machine\`); i >= 0 {
+			normalized = `HKLM:\` + path[i+len(`hkey_local_machine\`):]
+		}
+		security, err := windows.GetSecurityInfoForPath(t.host, path)
+		require.NoError(tt, err, path)
+		for _, rule := range security.Access {
+			if !rule.IsAllow() || rule.Rights&writeRights == 0 {
+				continue
+			}
+			sid := rule.Identity.SID
+			if sid == windows.LocalSystemSID || sid == windows.AdministratorsSID {
+				continue
+			}
+			// CREATOR OWNER is a template for descendants, not an additional
+			// non-admin principal. Only ignore it when this key's owner is
+			// SYSTEM or Administrators; a non-admin-owned key remains suspect.
+			if sid == "S-1-3-0" && (security.Owner.SID == windows.LocalSystemSID || security.Owner.SID == windows.AdministratorsSID) {
+				continue
+			}
+			assert.Failf(tt, "unexpected registry write grant", "%s: %s (%s) rights %#x inherited=%t", normalized, rule.Identity.Name, sid, rule.Rights, rule.IsInherited)
+		}
 	}
 }
 

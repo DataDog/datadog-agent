@@ -24,10 +24,9 @@ static __always_inline __u64 offset_rtt();
 static __always_inline __u64 offset_rtt_var();
 #endif
 
-static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
-    conn_tuple_t normalized_tup = *tuple;
-    normalize_tuple(&normalized_tup);
-    tls_info_wrapper_t *wrapper = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+// Like get_tls_enhanced_tags, for a tuple that is already normalized.
+static __always_inline tls_info_t* __get_tls_enhanced_tags(conn_tuple_t* normalized_tup) {
+    tls_info_wrapper_t *wrapper = bpf_map_lookup_elem(&tls_enhanced_tags, normalized_tup);
     if (!wrapper) {
         return NULL;
     }
@@ -35,16 +34,23 @@ static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
     return &wrapper->info;
 }
 
-static __always_inline tls_info_t* get_or_create_tls_enhanced_tags(conn_tuple_t *tuple) {
-    tls_info_t *tags = get_tls_enhanced_tags(tuple);
+static __always_inline tls_info_t* get_tls_enhanced_tags(conn_tuple_t* tuple) {
+    conn_tuple_t normalized_tup = *tuple;
+    normalize_tuple(&normalized_tup);
+    return __get_tls_enhanced_tags(&normalized_tup);
+}
+
+// Returns the TLS tags for an already-normalized tuple, creating an empty entry if there isn't one.
+// There's deliberately no wrapper that normalizes the tuple: it would be unused, which fails runtime compilation
+// against kernel headers whose `inline` doesn't imply __maybe_unused (e.g. CentOS 7's 3.10).
+static __always_inline tls_info_t* __get_or_create_tls_enhanced_tags(conn_tuple_t *normalized_tup) {
+    tls_info_t *tags = __get_tls_enhanced_tags(normalized_tup);
     if (!tags) {
-        conn_tuple_t normalized_tup = *tuple;
-        normalize_tuple(&normalized_tup);
         tls_info_wrapper_t empty_tags_wrapper = {};
         empty_tags_wrapper.updated = bpf_ktime_get_ns();
 
-        bpf_map_update_with_telemetry(tls_enhanced_tags, &normalized_tup, &empty_tags_wrapper, BPF_ANY);
-        tls_info_wrapper_t *wrapper_ptr = bpf_map_lookup_elem(&tls_enhanced_tags, &normalized_tup);
+        bpf_map_update_with_telemetry(tls_enhanced_tags, normalized_tup, &empty_tags_wrapper, BPF_ANY);
+        tls_info_wrapper_t *wrapper_ptr = bpf_map_lookup_elem(&tls_enhanced_tags, normalized_tup);
         if (!wrapper_ptr) {
             return NULL;
         }
@@ -156,13 +162,13 @@ static __always_inline void update_protocol_classification_information(conn_tupl
     conn_tuple_copy.pid = 0;
     normalize_tuple(&conn_tuple_copy);
 
-    // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
+    // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack_t *protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
-    tls_info_t *tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    tls_info_t *tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);
     merge_tls_info(&stats->tls_tags, tls_tags);
 
     conn_tuple_t *cached_skb_conn_tup_ptr = bpf_map_lookup_elem(&conn_tuple_to_socket_skb_conn_tuple, &conn_tuple_copy);
@@ -172,13 +178,13 @@ static __always_inline void update_protocol_classification_information(conn_tupl
 
     conn_tuple_copy = *cached_skb_conn_tup_ptr;
     normalize_tuple(&conn_tuple_copy);
-    // Using __get_protocol_stack_if_exists as `conn_tuple_copy` is already normalized.
+    // Using __get_protocol_stack_if_exists and __get_tls_enhanced_tags as `conn_tuple_copy` is already normalized.
     protocol_stack = __get_protocol_stack_if_exists(&conn_tuple_copy);
     set_protocol_flag(protocol_stack, FLAG_NPM_ENABLED);
     mark_protocol_direction(t, &conn_tuple_copy, protocol_stack);
     merge_protocol_stacks(&stats->protocol_stack, protocol_stack);
 
-    tls_tags = get_tls_enhanced_tags(&conn_tuple_copy);
+    tls_tags = __get_tls_enhanced_tags(&conn_tuple_copy);
     merge_tls_info(&stats->tls_tags, tls_tags);
 }
 

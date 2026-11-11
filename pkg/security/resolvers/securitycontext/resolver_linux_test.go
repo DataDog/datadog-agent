@@ -9,7 +9,11 @@ package securitycontext
 
 import (
 	"errors"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -259,7 +263,7 @@ func TestWorkloadmetaResolver_SeccompDefaultRuntimeDefaultForUndeclared(t *testi
 			"cid": newPod("web-abc", "frontend", nil),
 		},
 	}
-	r := &WorkloadmetaResolver{wmeta: src, seccompDefaultEnabled: true}
+	r := &WorkloadmetaResolver{wmeta: src, kubeletLookupTime: time.Now(), seccompDefaultEnabled: true}
 	_, sc := r.Resolve(containerutils.ContainerID("cid"))
 	require.NotNil(t, sc)
 	require.NotNil(t, sc.Seccomp)
@@ -276,7 +280,7 @@ func TestWorkloadmetaResolver_SeccompDefaultForPodWithoutSecurityContext(t *test
 			"cid": newPod("web-abc", "frontend", nil),
 		},
 	}
-	r := &WorkloadmetaResolver{wmeta: src, seccompDefaultEnabled: true}
+	r := &WorkloadmetaResolver{wmeta: src, kubeletLookupTime: time.Now(), seccompDefaultEnabled: true}
 	key, sc := r.Resolve(containerutils.ContainerID("cid"))
 	require.NotNil(t, sc)
 	require.NotNil(t, sc.Seccomp)
@@ -335,10 +339,43 @@ func TestWorkloadmetaResolver_SeccompDefaultDisabledLeavesUndeclaredNil(t *testi
 			"cid": newPod("web-abc", "frontend", nil),
 		},
 	}
-	r := &WorkloadmetaResolver{wmeta: src, seccompDefaultEnabled: false}
+	r := &WorkloadmetaResolver{wmeta: src, kubeletLookupTime: time.Now(), seccompDefaultEnabled: false}
 	_, sc := r.Resolve(containerutils.ContainerID("cid"))
 	require.NotNil(t, sc)
 	assert.Nil(t, sc.Seccomp)
+}
+
+func TestWorkloadmetaResolver_SeccompDefaultFollowsKubeletRestart(t *testing.T) {
+	proc := t.TempDir()
+	writeKubelet := func(pid string, args ...string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(proc, pid), 0o755))
+		cmdline := strings.Join(append([]string{"kubelet"}, args...), "\x00") + "\x00"
+		require.NoError(t, os.WriteFile(filepath.Join(proc, pid, "cmdline"), []byte(cmdline), 0o600))
+	}
+	t.Setenv("HOST_PROC", proc)
+	t.Setenv("HOST_ROOT", t.TempDir())
+	src := &fakeWmeta{
+		containers: map[string]*workloadmeta.Container{
+			"cid": {EntityMeta: workloadmeta.EntityMeta{Name: "nginx"}},
+		},
+		pods: map[string]*workloadmeta.KubernetesPod{
+			"cid": newPod("web-abc", "frontend", nil),
+		},
+	}
+
+	writeKubelet("100", "--seccomp-default=false")
+	r := &WorkloadmetaResolver{wmeta: src}
+	_, sc := r.Resolve(containerutils.ContainerID("cid"))
+	assert.Nil(t, sc)
+
+	require.NoError(t, os.RemoveAll(filepath.Join(proc, "100")))
+	writeKubelet("200", "--seccomp-default")
+	r.kubeletLookupTime = time.Now().Add(-kubeletLookupInterval)
+
+	_, sc = r.Resolve(containerutils.ContainerID("cid"))
+	require.NotNil(t, sc)
+	require.NotNil(t, sc.Seccomp)
+	assert.Equal(t, SeccompRuntimeDefault, sc.Seccomp.Type)
 }
 
 func TestWorkloadmetaResolver_KeyFromDeploymentOwnedPod(t *testing.T) {

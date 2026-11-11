@@ -44,7 +44,10 @@ type cliParams struct {
 	GlobalParams
 
 	checkName string
+	verbose   bool
+	json      bool
 	force     bool
+	logLevel  string
 }
 
 // MakeCommand returns a `clusterchecks` command to be used by cluster-agent
@@ -61,14 +64,17 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
-				fx.Supply(bundleParams(globalParams)),
+				fx.Supply(bundleParams(globalParams, cliParams.logLevel)),
 				core.Bundle(core.WithSecrets()),
 				ipcfx.ModuleReadOnly(),
 			)
 		},
 	}
 
+	cmd.PersistentFlags().StringVar(&cliParams.logLevel, "log_level", defaultLogLevel, "Override the log level for this command for debugging purposes")
 	cmd.Flags().StringVarP(&cliParams.checkName, "check", "", "", "the check name to filter for")
+	cmd.Flags().BoolVar(&cliParams.verbose, "verbose", false, "print the full check configurations")
+	cmd.Flags().BoolVar(&cliParams.json, "json", false, "print the dispatching state as JSON")
 
 	rebalanceCmd := &cobra.Command{
 		Use:   "rebalance",
@@ -79,7 +85,7 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 
 			return fxutil.OneShot(rebalance,
 				fx.Supply(cliParams),
-				fx.Supply(bundleParams(globalParams)),
+				fx.Supply(bundleParams(globalParams, cliParams.logLevel)),
 				core.Bundle(),
 				ipcfx.ModuleReadOnly(),
 			)
@@ -93,17 +99,27 @@ func MakeCommand(globalParamsGetter func() GlobalParams) *cobra.Command {
 	return cmd
 }
 
-func bundleParams(globalParams GlobalParams) core.BundleParams {
+func bundleParams(globalParams GlobalParams, logLevel string) core.BundleParams {
 	return core.BundleParams{
 		ConfigParams: config.NewClusterAgentParams(globalParams.ConfFilePath),
-		LogParams:    log.ForOneShot(loggerName, defaultLogLevel, true),
+		// DD_LOG_LEVEL is ignored: it's set for the Cluster Agent daemon in its pod,
+		// and its logs would mix with this command's output on stdout.
+		LogParams: log.ForOneShot(loggerName, logLevel, false),
 	}
 }
 
 //nolint:revive // TODO(CINT) Fix revive linter
 func run(_ log.Component, _ config.Component, cliParams *cliParams, client ipc.HTTPClient) error {
-	if err := clusterAgentFlare.GetClusterChecks(color.Output, cliParams.checkName, client); err != nil {
+	opts := clusterAgentFlare.ClusterChecksOptions{
+		CheckName: cliParams.checkName,
+		Verbose:   cliParams.verbose,
+		JSON:      cliParams.json,
+	}
+	if err := clusterAgentFlare.GetClusterChecks(color.Output, opts, client); err != nil {
 		return err
+	}
+	if cliParams.json {
+		return nil
 	}
 
 	return clusterAgentFlare.GetEndpointsChecks(color.Output, cliParams.checkName, client)

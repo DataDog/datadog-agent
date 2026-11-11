@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix serverless-init sometimes dropping the last log lines a process writes
+    before it exits, including crash tracebacks. On exit, serverless-init now
+    waits for the final batch of logs to be sent, for up to 1.5 seconds.

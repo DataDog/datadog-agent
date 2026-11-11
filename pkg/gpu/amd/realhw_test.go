@@ -71,7 +71,7 @@ func TestRealMI350XVirtualFunction(t *testing.T) {
 	require.Len(t, devices, 1, "the 7 amdgpu_xcp_* platform devices are not GPUs")
 	dev := devices[0]
 
-	assert.Equal(t, "amd-00c0ffee00c0ffee", dev.UUID)
+	assert.Equal(t, "000075b0-0000-1000-80c0-ffee00c0ffee", dev.UUID)
 	assert.Equal(t, "0000:83:00.0", dev.PCIBusID)
 	assert.Equal(t, uint16(0x75b0), dev.DeviceID)
 	assert.Equal(t, "AMD Instinct MI350X VF", dev.Name, "no product_name attribute on this host; the name comes from amdgpu.ids")

@@ -19,8 +19,8 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime
 from functools import wraps
-from pathlib import Path
-from subprocess import check_output, list2cmdline
+from pathlib import Path, PurePosixPath
+from subprocess import list2cmdline
 from types import SimpleNamespace
 
 import requests
@@ -293,7 +293,7 @@ def get_build_flags(
     headless_mode=False,
     arch: Arch | None = None,
     include_python: bool = False,
-    platform: str | None = None,
+    target_platform: str | None = None,
 ):
     """
     Build the common value for both ldflags and gcflags, and return an env accordingly.
@@ -303,7 +303,7 @@ def get_build_flags(
     """
     if arch is None:
         arch = Arch.from_str(os.getenv("GOARCH") or "local")
-    target_platform = _resolve_target_platform(platform)
+    target_platform = _resolve_target_platform(target_platform)
 
     gcflags = ""
     ldflags = get_version_ldflags(ctx, install_path=install_path)
@@ -459,6 +459,9 @@ def get_build_flags(
             ldflags += "-w "
             # Ignore multiple definition errors
             ldflags += "-extldflags=-Wl,--allow-multiple-definition "
+    # Bazel's Go SDK follows the 64-bit kernel, so pin the armhf image's 32-bit userland, with cgo
+    elif platform.machine() == "aarch64" and platform.architecture()[0] == "32bit":
+        env |= {"CGO_ENABLED": "1", "GOARCH": "arm"}
 
     return ldflags, gcflags, env
 
@@ -498,6 +501,13 @@ def get_version_ldflags(ctx, install_path=None):
             # TODO: what if we want a -2 ? Where does that value even come from in the pipeline?
             #       it's also hardcoded in Generate-OCIPackage.ps1
             package_version = f"{package_version}-1"
+        elif sys.platform == 'darwin':
+            # Fleet Automation health-checks the host against this value. Only the OCI layout,
+            # <root>/datadog-packages/<product>/<version>, carries the version in the install path;
+            # the .dmg is built into a staging directory such as $TMPDIR/datadog-agent-build/bin,
+            # whose last component is not a version, so keep the default there.
+            if PurePosixPath(install_path).parent.parent.name == "datadog-packages":
+                package_version = PurePosixPath(install_path).name
         else:
             install_dir = os.path.basename(install_path)
             if install_dir != "datadog-agent":
@@ -505,13 +515,6 @@ def get_version_ldflags(ctx, install_path=None):
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentPackageVersion={package_version} "
     ldflags += f"-X {REPO_PATH}/pkg/version.AgentVersionURLSafe={version_url_safe} "
     return ldflags
-
-
-def get_go_version():
-    """
-    Get the version of Go used
-    """
-    return check_output(['go', 'version']).decode('utf-8').strip()
 
 
 @contextmanager

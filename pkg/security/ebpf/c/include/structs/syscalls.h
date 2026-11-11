@@ -175,6 +175,8 @@ struct syscall_cache_t {
             struct span_context_t span_context;
             struct go_labels_context_t go_labels;
             struct linux_binprm_t linux_binprm;
+            void *file_caps;
+            struct file_capabilities_t file_capabilities;
             u32 is_through_symlink;
         } exec;
 

@@ -39,21 +39,32 @@ func ReportExecutionStart(metricsClient statsd.ClientInterface, client actionscl
 	return time.Now()
 }
 
-func ReportExecutionCompleted(metricsClient statsd.ClientInterface, client actionsclientpb.Client, fqn, taskId string, startTime time.Time, err error, logger log.Logger) {
+func ReportExecutionCompleted(metricsClient statsd.ClientInterface, client actionsclientpb.Client, fqn, taskId string, startTime time.Time, err error, logger log.Logger, details *ExecutionDetails) {
 	// action_fqn and task_id are already bound on logger's context fields (see
 	// WorkflowRunner.handleTask), so only action_client is added here to avoid
 	// duplicate fields in the log output.
 	logger = logger.With(log.String(ActionClientTagName, client.String()))
 	tags := []string{fmt.Sprintf("%s:%s", ActionClientTagName, client), fmt.Sprintf("%s:%s", ActionFqnTagName, fqn)}
-	if err != nil {
+	stage, fields, enriched := details.snapshot()
+	if enriched {
+		// Use the action's audit metadata for its completion record.
+		ReportExecutionOutcome(logger, startTime, ExecutionOutcome{Failed: err != nil, FailureStage: stage}, fields...)
+	} else if err != nil {
 		logger.Warn("Private actions completed with failure", log.ErrorField(err))
-		tags = append(tags, fmt.Sprintf("%s:%s", ExecutionResultTagName, "error"))
 	} else {
 		logger.Info("Private actions completed with success")
+	}
+	if err != nil {
+		tags = append(tags, fmt.Sprintf("%s:%s", ExecutionResultTagName, "error"))
+	} else {
 		tags = append(tags, fmt.Sprintf("%s:%s", ExecutionResultTagName, "success"))
 	}
 	_ = metricsClient.Timing(ActionExecutionLatencyMetric, time.Since(startTime), tags, 1.0)
-	_ = metricsClient.Incr(ActionExecutionCompletedMetric, tags, 1.0)
+	completionTags := tags
+	if err != nil && stage != "" {
+		completionTags = append(append([]string(nil), tags...), "failure_stage:"+stage)
+	}
+	_ = metricsClient.Incr(ActionExecutionCompletedMetric, completionTags, 1.0)
 }
 
 func ReportHealthCheck(metricsClient statsd.ClientInterface) {

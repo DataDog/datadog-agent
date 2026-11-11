@@ -26,6 +26,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/kubernetes/fake"
 	k8stesting "k8s.io/client-go/testing"
 )
@@ -53,6 +54,23 @@ func newServerTimeoutError() *k8serrors.StatusError {
 	)
 }
 
+func acceptAnySecret(*corev1.Secret) bool { return true }
+
+type fakeLeader struct {
+	leader atomic.Bool
+	notify chan struct{}
+}
+
+func newFakeLeader(isLeader bool) *fakeLeader {
+	l := &fakeLeader{notify: make(chan struct{}, 1)}
+	l.leader.Store(isLeader)
+	return l
+}
+
+func (l *fakeLeader) IsLeader() bool { return l.leader.Load() }
+
+func (l *fakeLeader) Subscribe() (<-chan struct{}, func() bool) { return l.notify, l.IsLeader }
+
 func TestWaitForLeaderAndSecret_RetriesTransientThenSucceeds(t *testing.T) {
 	secret := makeTestSecret("default", "test-secret")
 
@@ -72,7 +90,7 @@ func TestWaitForLeaderAndSecret_RetriesTransientThenSucceeds(t *testing.T) {
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, acceptAnySecret,
 	)
 
 	require.NoError(t, err)
@@ -108,7 +126,7 @@ func TestWaitForLeaderAndSecret_HandlesAlternatingTransientAndNotFound(t *testin
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, acceptAnySecret,
 	)
 
 	require.NoError(t, err)
@@ -133,7 +151,7 @@ func TestWaitForLeaderAndSecret_ExitsOnContextCancel(t *testing.T) {
 
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, acceptAnySecret,
 	)
 
 	require.Error(t, err)
@@ -160,7 +178,7 @@ func TestWaitForLeaderAndSecret_ReturnsNilWhenBecomesLeader(t *testing.T) {
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, acceptAnySecret,
 	)
 
 	require.NoError(t, err)
@@ -176,7 +194,7 @@ func TestWaitForLeaderAndSecret_ReturnsNilIfAlreadyLeader(t *testing.T) {
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, acceptAnySecret,
 	)
 
 	require.NoError(t, err)
@@ -196,7 +214,7 @@ func TestWaitForLeaderAndSecret_FailsImmediatelyOnNonTransientError(t *testing.T
 	ctx := context.Background()
 	result, err := waitForLeaderAndSecret(
 		ctx, leadershipChange, isLeader, client, "default", "test-secret",
-		testPollInterval,
+		testPollInterval, acceptAnySecret,
 	)
 
 	require.Error(t, err)
@@ -266,6 +284,85 @@ func TestWriteIdentitySecret_ReturnsErrorOnFailure(t *testing.T) {
 	err := writeIdentitySecret(context.Background(), client, "default", "par-identity", makeTestResult(t))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create secret")
+}
+
+func TestIdentitySecretStoreLoad(t *testing.T) {
+	const ns, name = "default", "par-identity"
+	secretWithHash := func(hash string) *corev1.Secret {
+		s := makeTestSecret(ns, name)
+		if hash != "" {
+			s.Data[apiKeyHashField] = []byte(hash)
+		}
+		return s
+	}
+	updateSecret := func(c *fake.Clientset, s *corev1.Secret) {
+		_, err := c.CoreV1().Secrets(ns).Update(context.Background(), s, metav1.UpdateOptions{})
+		require.NoError(t, err)
+	}
+
+	tests := []struct {
+		name       string
+		secretHash string
+		selfEnroll bool
+		leader     bool
+		afterStart func(c *fake.Clientset, l *fakeLeader)
+		wantURN    string
+	}{
+		{name: "matching hash", secretHash: HashAPIKey("key-a"), selfEnroll: true, wantURN: "urn:test"},
+		{name: "no hash", selfEnroll: true, wantURN: "urn:test"},
+		{name: "mismatched hash, leader", secretHash: HashAPIKey("key-b"), selfEnroll: true, leader: true},
+		{name: "mismatched hash, self-enroll disabled", secretHash: HashAPIKey("key-b")},
+		{
+			name: "mismatched hash, follower, secret later matches", secretHash: HashAPIKey("key-b"), selfEnroll: true,
+			afterStart: func(c *fake.Clientset, _ *fakeLeader) {
+				updated := secretWithHash(HashAPIKey("key-a"))
+				updated.Data[urnField] = []byte("urn:updated")
+				updateSecret(c, updated)
+			},
+			wantURN: "urn:updated",
+		},
+		{
+			name: "mismatched hash, follower, leadership gained with notification", secretHash: HashAPIKey("key-b"), selfEnroll: true,
+			afterStart: func(_ *fake.Clientset, l *fakeLeader) {
+				l.leader.Store(true)
+				l.notify <- struct{}{}
+			},
+		},
+		{
+			name: "mismatched hash, follower, leadership gained without notification", secretHash: HashAPIKey("key-b"), selfEnroll: true,
+			afterStart: func(_ *fake.Clientset, l *fakeLeader) { l.leader.Store(true) },
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := fake.NewSimpleClientset(secretWithHash(tt.secretHash))
+			leader := newFakeLeader(tt.leader)
+			storage := &k8sIdentityStorage{
+				kubeClient:   func() (kubernetes.Interface, error) { return client, nil },
+				namespace:    ns,
+				secretName:   name,
+				leader:       leader,
+				pollInterval: testPollInterval,
+				apiKeyHash:   HashAPIKey("key-a"),
+				selfEnroll:   tt.selfEnroll,
+			}
+			if tt.afterStart != nil {
+				time.AfterFunc(5*testPollInterval, func() { tt.afterStart(client, leader) })
+			}
+
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+			defer cancel()
+			identity, err := storage.Load(ctx)
+
+			require.NoError(t, err)
+			if tt.wantURN != "" {
+				require.NotNil(t, identity)
+				assert.Equal(t, tt.wantURN, identity.URN)
+			} else {
+				assert.Nil(t, identity)
+			}
+		})
+	}
 }
 
 func TestIsNonTransientK8sError(t *testing.T) {

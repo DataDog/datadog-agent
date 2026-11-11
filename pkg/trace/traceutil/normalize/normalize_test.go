@@ -14,6 +14,15 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+func TestIsValidStatusCode(t *testing.T) {
+	assert := assert.New(t)
+	assert.True(IsValidStatusCode("100"))
+	assert.True(IsValidStatusCode("599"))
+	assert.False(IsValidStatusCode("99"))
+	assert.False(IsValidStatusCode("600"))
+	assert.False(IsValidStatusCode("Invalid status code"))
+}
+
 func TestNormalizeTag(t *testing.T) {
 	for _, tt := range []struct{ in, out string }{
 		{in: "#test_starting_hash", out: "test_starting_hash"},

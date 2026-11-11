@@ -55,7 +55,7 @@ func BenchmarkIngestion_SeriesCount(b *testing.B) {
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
 				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{storage: storage})
+				e := mustNewEngine(engineConfig{storage: storage})
 				b.StartTimer()
 
 				for _, o := range obs {

@@ -62,3 +62,21 @@ The quiet-tail rule is an evaluation requirement, not proof that the recording
 is healthy. It does not validate telemetry coverage or relabel recorded late
 changes. Inspect incomplete recordings and real late deterioration separately;
 the window is never shortened to make an incomplete recording appear quiet.
+
+## No-fault recordings
+
+Use `--score-no-faults` for recordings explicitly labelled `mode: healthy-control`
+and `expectation: healthy`, with no disruptions and a valid `evaluation_window`.
+The scorer counts distinct High episode starts in `[start, end)`, excluding
+warmup starts even when their episodes continue into the window. Results use
+`high-severity-nofault-v1` and contain `false_positives`, not F1, precision or recall.
+The same rules power the testbench's healthy evaluation display.
+
+```sh
+bin/anomalydetection-scorer --input /tmp/observer-eval-healthy.json \
+  --scenarios-dir /path/to/scenarios --score-no-faults --json
+```
+
+`dda inv anomalydetection.eval-scenarios` selects this mode automatically from
+recording metadata. See the [testbench instructions](../testbench/README.md#no-fault-evaluations)
+for dataset replay and visual inspection.

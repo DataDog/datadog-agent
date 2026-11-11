@@ -9,7 +9,6 @@ package jmx
 
 import (
 	"context"
-	"os"
 	"path/filepath"
 	"runtime"
 	"strings"
@@ -106,8 +105,15 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 			cliParams.jmxLogLevel = "debug"
 		}
 		params := core.BundleParams{
-			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath, config.WithExtraConfFiles(globalParams.ExtraConfFilePath), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
-			LogParams:    log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
+			ConfigParams: config.NewAgentParams(globalParams.ConfFilePath,
+				config.WithExtraConfFiles(globalParams.ExtraConfFilePath),
+				config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+				// avoid binding the same port/socket as a potentially running agent:
+				// cmd_port 0 makes the OS pick an unused port, the IPC server is disabled
+				config.WithCLIOverride("cmd_port", 0),
+				config.WithCLIOverride("agent_ipc.port", 0),
+				config.WithCLIOverride("agent_ipc.use_socket", false)),
+			LogParams: log.ForOneShot(command.LoggerName, cliParams.jmxLogLevel, false),
 		}
 		if cliParams.logFile != "" {
 			params.LogParams.LogToFile(cliParams.logFile)
@@ -148,7 +154,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "collect"
-			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
 		},
 	}
@@ -162,7 +167,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_everything"
-			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
 		},
 	}
@@ -173,7 +177,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_matching_attributes"
-			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
 		},
 	}
@@ -184,7 +187,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_with_metrics"
-			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
 		},
 	}
@@ -195,7 +197,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_with_rate_metrics"
-			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
 		},
 	}
@@ -206,7 +207,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_limited_attributes"
-			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
 		},
 	}
@@ -217,7 +217,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_collected_attributes"
-			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
 		},
 	}
@@ -228,7 +227,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 		Long:  ``,
 		RunE: func(*cobra.Command, []string) error {
 			cliParams.command = "list_not_matching_attributes"
-			disableCmdPort()
 			return runOneShot(runJmxCommandConsole)
 		},
 	}
@@ -254,16 +252,6 @@ func Commands(globalParams *command.GlobalParams) []*cobra.Command {
 
 	// attach the command to the root
 	return []*cobra.Command{jmxCmd}
-}
-
-// disableCmdPort overrrides the `cmd_port` configuration so that when the
-// server starts up, it does not do so on the same port as a running agent.
-//
-// Ideally, the server wouldn't start up at all, but this workaround has been
-// in place for some times.
-func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
-	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
 }
 
 // runJmxCommandConsole sets up the common utils necessary for JMX, and executes the command

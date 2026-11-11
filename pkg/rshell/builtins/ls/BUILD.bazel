@@ -18,12 +18,15 @@ dd_agent_go_test(
     srcs = [
         "builtin_ls_pentest_test.go",
         "ls_bench_test.go",
+        "readlink_error_test.go",
         "total_line_test.go",
     ],
+    embed = [":ls"],
     deps = [
-        ":ls",
+        "//pkg/rshell/builtins",
         "//pkg/rshell/builtins/testutil",
         "//pkg/rshell/interp",
+        "@com_github_spf13_pflag//:pflag",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],

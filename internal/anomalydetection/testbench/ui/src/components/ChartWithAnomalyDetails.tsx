@@ -98,6 +98,7 @@ export function ChartWithAnomalyDetails({
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [hoveredAnomalyId, setHoveredAnomalyId] = useState<string | null>(null);
   const [visibleSeriesIds, setVisibleSeriesIds] = useState<Set<SeriesID>>(() => buildSeriesIDSet(seriesVariants));
+  const anomalyDetailsRef = useRef<HTMLDetailsElement>(null);
   const anomalyRowRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const seriesVariantsSig = useMemo(() => seriesIDSignature(seriesVariants), [seriesVariants]);
   const seriesVariantColorByID = useMemo(() => buildSeriesVariantColorMap(seriesVariants), [seriesVariants]);
@@ -186,6 +187,7 @@ export function ChartWithAnomalyDetails({
   const handleMarkerClick = (markerId: string) => {
     const idx = filteredAnomalyIds.findIndex((id) => id === markerId);
     if (idx === -1) return;
+    if (anomalyDetailsRef.current) anomalyDetailsRef.current.open = true;
     setExpandedIndex(idx);
     setHoveredAnomalyId(markerId);
     anomalyRowRefs.current.get(markerId)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -224,11 +226,11 @@ export function ChartWithAnomalyDetails({
 
       {/* Anomaly details - compact list below chart */}
       {filteredAnomalies.length > 0 && (
-        <div className="border-t border-slate-700 px-4 py-2">
-          <div className="text-xs text-slate-500 mb-1">
+        <details ref={anomalyDetailsRef} className="border-t border-slate-700 px-4 py-2">
+          <summary className="text-xs text-slate-400 cursor-pointer select-none hover:text-slate-200">
             {filteredAnomalies.length} anomal{filteredAnomalies.length === 1 ? 'y' : 'ies'} detected
-          </div>
-          <div className="space-y-0">
+          </summary>
+          <div className="space-y-0 mt-1">
             {filteredAnomalies.map((anomaly, idx) => {
               const isExpanded = expandedIndex === idx;
               const debug = anomaly.debugInfo;
@@ -344,7 +346,7 @@ export function ChartWithAnomalyDetails({
               );
             })}
           </div>
-        </div>
+        </details>
       )}
     </div>
   );

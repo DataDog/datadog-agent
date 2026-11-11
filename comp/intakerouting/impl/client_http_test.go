@@ -49,7 +49,7 @@ func hostOf(r *http.Request) string {
 func TestQueryRequest(t *testing.T) {
 	srv := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodGet, r.Method)
-		assert.Equal(t, "api.us3.datadoghq.com", hostOf(r))
+		assert.Equal(t, "config.us3.datadoghq.com", hostOf(r))
 		assert.Equal(t, routingPath, r.URL.Path)
 		assert.Empty(t, r.URL.RawQuery, "the query does not select telemetry types")
 		assert.Equal(t, testKey, r.Header.Get(apiKeyHeader))
@@ -162,27 +162,27 @@ func TestQueryRedirects(t *testing.T) {
 	}{
 		{
 			name:           "to an official Datadog host",
-			location:       "https://api.us5.datadoghq.com/final",
+			location:       "https://config.us5.datadoghq.com/final",
 			expectedStatus: statusSuccess,
-			expectedHosts:  []string{"api.datadoghq.com", "api.us5.datadoghq.com"},
+			expectedHosts:  []string{"config.datadoghq.com", "config.us5.datadoghq.com"},
 		},
 		{
 			name:           "to another domain",
-			location:       "https://api.example.com/final",
+			location:       "https://config.example.com/final",
 			expectedStatus: statusHTTPError,
-			expectedHosts:  []string{"api.datadoghq.com"},
+			expectedHosts:  []string{"config.datadoghq.com"},
 		},
 		{
 			name:           "to plain HTTP",
-			location:       "http://api.us5.datadoghq.com/final",
+			location:       "http://config.us5.datadoghq.com/final",
 			expectedStatus: statusHTTPError,
-			expectedHosts:  []string{"api.datadoghq.com"},
+			expectedHosts:  []string{"config.datadoghq.com"},
 		},
 		{
 			name:           "too many",
-			location:       "https://api.us5.datadoghq.com/loop",
+			location:       "https://config.us5.datadoghq.com/loop",
 			expectedStatus: statusHTTPError,
-			expectedHosts:  []string{"api.datadoghq.com", "api.us5.datadoghq.com", "api.us5.datadoghq.com", "api.us5.datadoghq.com"},
+			expectedHosts:  []string{"config.datadoghq.com", "config.us5.datadoghq.com", "config.us5.datadoghq.com", "config.us5.datadoghq.com"},
 		},
 	}
 	for _, tc := range tests {
@@ -198,7 +198,7 @@ func TestQueryRedirects(t *testing.T) {
 				case "/final":
 					_, _ = w.Write([]byte(answer))
 				case "/loop":
-					http.Redirect(w, r, "https://api.us5.datadoghq.com/loop", http.StatusFound)
+					http.Redirect(w, r, "https://config.us5.datadoghq.com/loop", http.StatusFound)
 				default:
 					http.Redirect(w, r, tc.location, http.StatusFound)
 				}

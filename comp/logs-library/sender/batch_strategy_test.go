@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -336,4 +337,104 @@ func TestBatchStrategyMRFRouting(t *testing.T) {
 	assert.True(t, hasMRF, "Should have received MRF payload")
 
 	strategy.Stop()
+}
+
+func TestBatchStrategyFlushWaitsForQueuedMessages(t *testing.T) {
+	// input is buffered so messages can still be queued when Flush is called
+	input := make(chan *message.Message, 10)
+	// output is buffered so the flushed payload can be checked once Flush returns
+	output := make(chan *message.Payload, 10)
+
+	// batch size and flush time are large so only Flush sends the payload
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		make(chan struct{}),
+		NewMockServerlessMeta(false),
+		time.Hour,
+		100,
+		100,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+	defer strategy.Stop()
+
+	messages := []*message.Message{
+		message.NewMessage([]byte("a"), nil, "", 0),
+		message.NewMessage([]byte("b"), nil, "", 0),
+		message.NewMessage([]byte("c"), nil, "", 0),
+	}
+	messageMeta := make([]*message.MessageMetadata, len(messages))
+	for idx, m := range messages {
+		input <- m
+		messageMeta[idx] = &m.MessageMetadata
+	}
+
+	strategy.(*batchStrategy).Flush(context.Background())
+
+	// Once Flush returns, every message queued before it is in a single payload on the output
+	if assert.Len(t, output, 1) {
+		assert.ElementsMatch(t, messageMeta, (<-output).MessageMetas)
+	}
+}
+
+// TestBatchStrategyFlushAfterPendingSendWaitTimesOut checks that after a wait for pending sends ends
+// because its context is done, a following flush still queues its payload for sending.
+func TestBatchStrategyFlushAfterPendingSendWaitTimesOut(t *testing.T) {
+	// input is unbuffered, so each send returns once the strategy has received the message
+	input := make(chan *message.Message)
+	// output stands in for the sender: payloads read from it are not marked as sent, so they stay pending
+	output := make(chan *message.Payload, 10)
+	serverlessMeta := NewServerlessMeta(true)
+
+	// batch size and flush time are large so only Flush sends payloads
+	strategy := NewBatchStrategy(
+		input,
+		output,
+		make(chan struct{}),
+		serverlessMeta,
+		time.Hour,
+		100,
+		100,
+		"test",
+		compressionfx.NewMockCompressor().NewCompressor(compression.NoneKind, 1),
+		metrics.NewNoopPipelineMonitor(""),
+		"test")
+	strategy.Start()
+	defer strategy.Stop()
+	batchStrategy := strategy.(*batchStrategy)
+
+	first := message.NewMessage([]byte("a"), nil, "", 0)
+	input <- first
+	batchStrategy.Flush(context.Background())
+	if assert.Len(t, output, 1) {
+		assert.Equal(t, &first.MessageMetadata, (<-output).MessageMetas[0])
+	}
+
+	// The first payload is still pending, so the wait ends only when its context is done
+	waitCtx, cancelWait := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancelWait()
+	serverlessMeta.WaitPendingSends(waitCtx)
+	assert.ErrorIs(t, waitCtx.Err(), context.DeadlineExceeded)
+
+	// The next flush must queue its payload without waiting for the first one to be sent
+	second := message.NewMessage([]byte("b"), nil, "", 0)
+	input <- second
+	flushCtx, cancelFlush := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelFlush()
+	batchStrategy.Flush(flushCtx)
+	assert.NoError(t, flushCtx.Err(), "the flush waited for the earlier pending send")
+	if assert.Len(t, output, 1) {
+		assert.Equal(t, &second.MessageMetadata, (<-output).MessageMetas[0])
+	}
+
+	// Once both payloads are sent, nothing is pending
+	serverlessMeta.PendingSendDone()
+	serverlessMeta.PendingSendDone()
+	doneCtx, cancelDone := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancelDone()
+	serverlessMeta.WaitPendingSends(doneCtx)
+	assert.NoError(t, doneCtx.Err(), "sends were still pending after both were marked as sent")
 }
