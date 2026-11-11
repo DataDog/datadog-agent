@@ -8,6 +8,7 @@
 package apikeybridge
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/agentcomponents"
@@ -183,9 +184,9 @@ func TestBridgeRotatesForwarderResolver(t *testing.T) {
 
 // TestBridgeRotatesRepeatedly covers more than one rotation in the life of a process, which
 // is what a secrets backend on a refresh interval produces. The tracking decision is taken
-// once, on the first rotation: recomputing it would compare the extension's already-rotated
-// key against the key captured at arm time, find them different, and silently stop following
-// the Agent from the second rotation onwards.
+// once, when the option runs: recomputing it per rotation would compare the extension's
+// already-rotated key against the key captured at arm time, find them different, and
+// silently stop following the Agent from the second rotation onwards.
 func TestBridgeRotatesRepeatedly(t *testing.T) {
 	logger := logmock.New(t)
 	shared := newSharedConfig(t, "key-1")
@@ -208,13 +209,13 @@ func TestBridgeRotatesRepeatedly(t *testing.T) {
 	}
 }
 
-// TestBridgeToleratesRotationBeforeConstruction covers the window between Option
-// registering its callback and NewConfigComponent calling BuildSchema. A rotation
-// landing there reads the extension's key as empty, because reads on an unready config
-// yield the zero value rather than failing. The bridge must not conclude anything from
-// that: latching "not following" would make it ignore every later rotation, which is
-// exactly the bug this package exists to fix.
-func TestBridgeToleratesRotationBeforeConstruction(t *testing.T) {
+// TestBridgeAppliesRotationBeforeConstruction covers the window between Option running
+// and NewConfigComponent calling BuildSchema. configsync and the standalone secrets
+// refresher are already live there, so a rotation can land while the private config is
+// still unready -- and nothing is guaranteed to follow it, since configsync rewriting
+// unchanged settings fires no notification at all. The rotation must therefore be
+// applied in the window, not deferred to an unrelated later write.
+func TestBridgeAppliesRotationBeforeConstruction(t *testing.T) {
 	logger := logmock.New(t)
 	shared := newSharedConfig(t, "key-old")
 
@@ -225,22 +226,49 @@ func TestBridgeToleratesRotationBeforeConstruction(t *testing.T) {
 	}
 	priv := newExtensionConfig(t, "key-old", shared, logger, rotateDuringConstruction)
 
-	// The in-window rotation could not be applied -- there was nothing readable to
-	// compare against -- but any later write reconciles it. configsync seeds a batch of
-	// settings on its first sync, so this is what production looks like too.
-	shared.Set("site", "datadoghq.eu", pkgconfigmodel.SourceLocalConfigProcess)
-
+	// No further shared-config activity: the key must already be there.
 	assert.Equal(t, "key-new", priv.GetString("api_key"),
-		"a rotation during construction must be reconciled, not latched away")
+		"a rotation during construction must be applied, not discarded")
 
 	// And the bridge must still follow subsequent rotations normally.
 	shared.Set("api_key", "key-newer", pkgconfigmodel.SourceLocalConfigProcess)
 	assert.Equal(t, "key-newer", priv.GetString("api_key"))
 }
 
-// TestBridgeStillSkipsUserKeyAfterUnrelatedUpdate guards the other half of the
-// tri-state: subscribing to every setting must not turn an unrelated config write into
-// a way to overwrite a key the user set explicitly.
+// rotateAfterFirstRead rotates api_key once, immediately after the first read of it.
+// It reproduces a rotation landing in the window between Option capturing the Agent's
+// key and its callback being subscribed -- the one interleaving that produces no
+// notification the bridge can ever see.
+type rotateAfterFirstRead struct {
+	coreconfig.Component
+	once sync.Once
+	to   string
+}
+
+func (c *rotateAfterFirstRead) GetString(key string) string {
+	value := c.Component.GetString(key)
+	if key == "api_key" {
+		c.once.Do(func() { c.Component.Set(key, c.to, pkgconfigmodel.SourceSecret) })
+	}
+	return value
+}
+
+// TestBridgeReconcilesRotationBeforeSubscribing covers the other half of that window.
+// The reconciling push that follows the subscription is what closes it.
+func TestBridgeReconcilesRotationBeforeSubscribing(t *testing.T) {
+	logger := logmock.New(t)
+	shared := &rotateAfterFirstRead{Component: newSharedConfig(t, "key-old"), to: "key-missed"}
+
+	priv := newExtensionConfig(t, "key-old", shared, logger)
+	require.Equal(t, "key-missed", shared.Component.GetString("api_key"), "precondition: the Agent rotated")
+
+	assert.Equal(t, "key-missed", priv.GetString("api_key"),
+		"a rotation the bridge was never notified of must still be reconciled")
+}
+
+// TestBridgeStillSkipsUserKeyAfterUnrelatedUpdate guards the decision from the other
+// side: no config write, related or not, may turn into a way to overwrite a key the
+// user set explicitly.
 func TestBridgeStillSkipsUserKeyAfterUnrelatedUpdate(t *testing.T) {
 	shared := newSharedConfig(t, "agent-key")
 	priv := newExtensionConfig(t, "user-supplied-key", shared, logmock.New(t))
