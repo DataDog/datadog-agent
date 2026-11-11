@@ -2,6 +2,36 @@
 Release Notes
 =============
 
+.. _Release Notes_7.85.4:
+
+7.85.4
+======
+
+.. _Release Notes_7.85.4_Prelude:
+
+Prelude
+-------
+
+Released on: 2026-11-10
+
+- Please refer to the `7.85.4 tag on integrations-core <https://github.com/DataDog/integrations-core/blob/master/AGENT_CHANGELOG.md#datadog-agent-version-7854>`_ for the list of changes on the Core Checks
+
+
+.. _Release Notes_7.85.4_Bug Fixes:
+
+Bug Fixes
+---------
+
+- Disable the Agent Health Platform by default on Kubernetes to avoid Autodiscovery stalls.
+  Reporting Autodiscovery annotation and template errors to the Health Platform
+  could block Autodiscovery for several seconds, causing workloadmeta to drop
+  event bundles. This applies to both the node Agent and the Cluster Agent when
+  running on Kubernetes (including EKS Fargate); other environments keep the
+  Health Platform enabled by default. To turn it back on in Kubernetes, set
+  ``health_platform.enabled: true`` in ``datadog.yaml`` or
+  ``DD_HEALTH_PLATFORM_ENABLED=true``.
+
+
 .. _Release Notes_7.85.3:
 
 7.85.3
