@@ -68,6 +68,7 @@
     "agent_data_plane_windows-amd64": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped.",
+    "libdd_rc_source": "Intentionally untracked for now. Pinned to a libdd-rc release commit that must match the go.mod version, the Cargo.toml git revs, BUILD_GIT_COMMIT_HASH, and the purl (enforced by tasks/unit_tests/rc_x509_pin_tests.py), so it is bumped by hand.",
     "glibc_static_x86_64": "Intentionally untracked. The x86_64 crosstool-NG GCC toolchain tarball (same URL and sha256 as bazel/patches/gcc-toolchain/0001-adapt-to-our-ctng-toolchain.patch). No upstream release; bump it only when that archive is republished.",
     "glibc_static_aarch64": "Intentionally untracked. The aarch64 crosstool-NG GCC toolchain tarball, same as glibc_static_x86_64."
   }

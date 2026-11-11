@@ -19,6 +19,7 @@ code.cloudfoundry.org/*: Copyright (c) 2016-Present CloudFoundry.org Foundation,
 github.com/GoogleCloudPlatform/docker-credential-gcr: Copyright 2016 Google, Inc.
 github.com/Azure/azure-sdk-for-go: Copyright (c) Microsoft Corporation.
 github.com/Azure/go-autorest: Copyright 2015 Microsoft Corporation
+github.com/DataDog/libdd-rc/*: Copyright 2026-Present Datadog, Inc.
 github.com/aws/aws-lambda-go: Copyright 2017 Amazon.com, Inc. or its affiliates. All Rights Reserved.
 github.com/aws/aws-sdk-go: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]
 github.com/aws/aws-sdk-go-v2: ["Copyright 2015 Amazon.com, Inc. or its affiliates. All Rights Reserved.", "Copyright 2014-2015 Stripe, Inc."]

@@ -1,0 +1,5 @@
+---
+other:
+  - |
+    Add a next-generation Remote Configuration client to the Agent. The client
+    is disabled by default and is only available in the standard Agent flavor.

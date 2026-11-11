@@ -59,6 +59,8 @@ ALL_TAGS = set([
     "podman",
     "python",
     "requirefips",  # used for Linux FIPS mode to avoid having to set GOFIPS
+    "rc_x509",  # includes the native Remote Config x509 client
+    "rcx509_nonfips",  # links libdd-rc's x509 client without the AWS-LC FIPS library
     "seclmax",  # used for security agent/system-probe to compile the full feature set of secl
     "serverless",
     "sharedlibrarycheck",
@@ -117,6 +119,8 @@ AGENT_TAGS = set([
     "otlp",
     "podman",
     "python",
+    "rc_x509",
+    "rcx509_nonfips",
     "sharedlibrarycheck",
     "systemd",
     "systemprobechecks",
@@ -153,6 +157,10 @@ AGENT_HEROKU_TAGS = AGENT_TAGS.difference(
 )
 
 FIPS_TAGS = set(["goexperiment.systemcrypto", "requirefips"])
+
+# Tags always removed from FIPS builds: the Remote Config x509 client does not
+# support the FIPS flavor yet.
+FIPS_EXCLUDED_TAGS = set(["rc_x509", "rcx509_nonfips"])
 
 # CLUSTER_AGENT_TAGS lists the tags needed when building the cluster-agent
 CLUSTER_AGENT_TAGS = set([

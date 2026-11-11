@@ -1,0 +1,30 @@
+# gazelle:ignore
+
+load("@bazel_skylib//rules:copy_file.bzl", "copy_file")
+load("@rules_go//go:def.bzl", "go_test")
+
+copy_file(
+    name = "client_lifecycle_test_src",
+    src = "client_lifecycle_test.go.in",
+    out = "client_lifecycle_generated_test.go",
+)
+
+go_test(
+    name = "client_lifecycle_test",
+    srcs = [":client_lifecycle_test_src"],
+    # External Go links invoke dsymutil unless DWARF is disabled. The macOS
+    # amd64 runner's bundled dsymutil cannot execute under its host dyld; this
+    # smoke does not consume debug data, and release Agent binaries use -w too.
+    gc_linkopts = select({
+        "@platforms//os:macos": ["-w"],
+        "//conditions:default": [],
+    }),
+    tags = ["manual"],
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "@platforms//os:macos": [],
+        "@platforms//os:windows": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+    deps = ["@libdd_rc_source//:rcx509"],
+)
