@@ -6,6 +6,7 @@
 package remoteconfig
 
 import (
+	"context"
 	"encoding/pem"
 	"net"
 	"net/http"
@@ -34,8 +35,7 @@ func TestCollectorBackendTrustAndRedirectPolicy(t *testing.T) {
 	want := &pbgo.OrgDataResponse{Uuid: "test-org"}
 	body, err := proto.Marshal(want)
 	require.NoError(t, err)
-	var connections atomic.Int32
-	backend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	backend := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, []string{"collector-secret"}, r.Header.Values("DD-API-KEY"))
 		if redirect.Load() {
 			http.Redirect(w, r, target.URL, http.StatusTemporaryRedirect)
@@ -43,15 +43,6 @@ func TestCollectorBackendTrustAndRedirectPolicy(t *testing.T) {
 		}
 		_, _ = w.Write(body)
 	}))
-	backend.Config.ConnState = func(_ net.Conn, state http.ConnState) {
-		switch state {
-		case http.StateNew:
-			connections.Add(1)
-		case http.StateClosed:
-			connections.Add(-1)
-		}
-	}
-	backend.StartTLS()
 	t.Cleanup(backend.Close)
 	e := testExtension(t, &fakeService{})
 	u, err := url.Parse(backend.URL)
@@ -75,7 +66,56 @@ func TestCollectorBackendTrustAndRedirectPolicy(t *testing.T) {
 	_, err = client.FetchOrgData(t.Context())
 	require.Error(t, err)
 	require.Zero(t, redirected.Load(), "Collector authentication must stay at the configured origin")
+
+}
+
+func TestCollectorBackendReleasesIdleConnection(t *testing.T) {
+	idle := make(chan net.Conn, 1)
+	closed := make(chan net.Conn, 1)
+	body, err := proto.Marshal(&pbgo.OrgDataResponse{Uuid: "test-org"})
+	require.NoError(t, err)
+	backend := httptest.NewUnstartedServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = w.Write(body)
+	}))
+	backend.Config.ConnState = func(conn net.Conn, state http.ConnState) {
+		switch state {
+		case http.StateIdle:
+			idle <- conn
+		case http.StateClosed:
+			closed <- conn
+		}
+	}
+	backend.StartTLS()
+	t.Cleanup(backend.Close)
+	e := testExtension(t, &fakeService{})
+	ca := filepath.Join(t.TempDir(), "backend-ca.pem")
+	require.NoError(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: backend.Certificate().Raw}), 0600))
+	e.config.Backend.TLS.CAFile = ca
+	u, err := url.Parse(backend.URL)
+	require.NoError(t, err)
+	client, err := e.newAPIClient(t.Context(), componenttest.NewNopHost(), configmock.New(t), u)
+	require.NoError(t, err)
+	t.Cleanup(client.CloseIdleConnections)
+	_, err = client.FetchOrgData(t.Context())
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
+	defer cancel()
+	var connection net.Conn
+	select {
+	case connection = <-idle:
+	case <-ctx.Done():
+		t.Fatal("successful request did not leave an idle connection")
+	}
+	select {
+	case <-closed:
+		t.Fatal("connection closed before cleanup was invoked")
+	default:
+	}
 	client.CloseIdleConnections()
-	require.Eventually(t, func() bool { return connections.Load() == 0 }, time.Second, 10*time.Millisecond,
-		"OTel instrumentation must preserve cleanup of the owned connection pool")
+	select {
+	case got := <-closed:
+		require.Same(t, connection, got)
+	case <-ctx.Done():
+		t.Fatal("OTel instrumentation did not preserve pool cleanup")
+	}
 }
