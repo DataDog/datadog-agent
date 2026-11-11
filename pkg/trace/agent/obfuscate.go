@@ -11,6 +11,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/log"
 	"github.com/DataDog/datadog-agent/pkg/trace/transform"
 )
@@ -333,6 +334,77 @@ func (a *Agent) ccObfuscateAttributeArray(v *pb.AttributeAnyValue) {
 			*vElement = pb.AttributeArrayValue{Type: pb.AttributeArrayValue_STRING_VALUE, StringValue: newVal}
 		}
 	}
+}
+
+// obfuscateSpanV1 is the V1 counterpart of ObfuscateSpan. Besides the span
+// attributes, it credit-card obfuscates the span events and the component,
+// which idx promotes out of the attributes but pb.Span keeps in Meta.
+func (a *Agent) obfuscateSpanV1(span *idx.InternalSpan) {
+	o := a.lazyInitObfuscator()
+	if a.conf.Obfuscation != nil && a.conf.Obfuscation.CreditCards.Enabled {
+		for _, spanEvent := range span.Events() {
+			a.ccObfuscateSpanEventV1(spanEvent)
+		}
+		if c := span.Component(); c != "" && o.ShouldObfuscateCCKey("component") {
+			if newC := o.ObfuscateCreditCardNumber(c); newC != c {
+				log.Debugf("obfuscating possible credit card under key component from service %s", span.Service())
+				span.SetComponent(newC)
+			}
+		}
+	}
+	a.obfuscateSpanInternal(span)
+}
+
+// ccObfuscateSpanEventV1 credit-card obfuscates the attributes of a V1 span
+// event with the same semantics as obfuscateSpanEvent: numbers are checked in
+// their string form, an obfuscated value becomes the string "?", booleans are
+// skipped and arrays are obfuscated element-wise.
+func (a *Agent) ccObfuscateSpanEventV1(spanEvent *idx.InternalSpanEvent) {
+	attrs := spanEvent.Attributes()
+	for k, v := range attrs {
+		if v == nil || !a.obfuscator.ShouldObfuscateCCKey(spanEvent.Strings.Get(k)) {
+			continue
+		}
+		if arr, ok := v.Value.(*idx.AnyValue_ArrayValue); ok {
+			if arr.ArrayValue == nil {
+				continue
+			}
+			for i, elem := range arr.ArrayValue.Values {
+				if newElem := a.ccObfuscateScalarV1(elem, spanEvent.Strings); newElem != nil {
+					arr.ArrayValue.Values[i] = newElem
+				}
+			}
+			continue
+		}
+		if newV := a.ccObfuscateScalarV1(v, spanEvent.Strings); newV != nil {
+			attrs[k] = newV
+		}
+	}
+}
+
+// ccObfuscateScalarV1 returns the obfuscated replacement for a string or
+// numeric value that looks like a credit card number, or nil to keep it.
+// Values are replaced rather than mutated, since they may be shared.
+func (a *Agent) ccObfuscateScalarV1(v *idx.AnyValue, strTable *idx.StringTable) *idx.AnyValue {
+	if v == nil {
+		return nil
+	}
+	var strValue string
+	switch val := v.Value.(type) {
+	case *idx.AnyValue_StringValueRef:
+		strValue = strTable.Get(val.StringValueRef)
+	case *idx.AnyValue_DoubleValue:
+		strValue = strconv.FormatFloat(val.DoubleValue, 'f', -1, 64)
+	case *idx.AnyValue_IntValue:
+		strValue = strconv.FormatInt(val.IntValue, 10)
+	default:
+		return nil // Booleans can't be credit cards; pb events have no other scalar types
+	}
+	newVal := a.obfuscator.ObfuscateCreditCardNumber(strValue)
+	if newVal == strValue {
+		return nil
+	}
+	return &idx.AnyValue{Value: &idx.AnyValue_StringValueRef{StringValueRef: strTable.Add(newVal)}}
 }
 
 func (a *Agent) obfuscateStatsGroup(b *pb.ClientGroupedStats) {

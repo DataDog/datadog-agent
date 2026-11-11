@@ -718,19 +718,6 @@ func forEachChunk(want, got *otlpParityPayload, f func(want, got *otlpParityChun
 	}
 }
 
-// forEachSpan calls f for each span of want with the span of the same ID in got,
-// and stores the spans f changed.
-func forEachSpan(want, got *otlpParityChunk, f func(want, got *otlpParitySpan)) {
-	for id, ws := range want.spans {
-		gs, ok := got.spans[id]
-		if !ok {
-			continue
-		}
-		f(&ws, &gs)
-		want.spans[id], got.spans[id] = ws, gs
-	}
-}
-
 // inputAttributeValues returns the values of the attributes keys of the spans,
 // resource and scopes of the OTLP input, raw and normalized as tag values.
 func inputAttributeValues(in ptrace.ResourceSpans, keys ...string) []string {
@@ -821,35 +808,6 @@ var otlpPipelineParityExceptions = []otlpPipelineParityException{
 					delete(got.attributes, k)
 				}
 			}
-		},
-	},
-	{
-		reason: "When credit card obfuscation is enabled, ProcessV1 doesn't obfuscate the span event attributes nor the component " +
-			"span field, which Process does (ObfuscateSpan / obfuscateSpanEvent). This is a gap of the V1 pipeline for all V1 payloads.",
-		apply: func(cfg *config.AgentConfig, _ ptrace.ResourceSpans, want, got *otlpParityPayload) {
-			if cfg.Obfuscation == nil || !cfg.Obfuscation.CreditCards.Enabled {
-				return
-			}
-			forEachChunk(want, got, func(w, g *otlpParityChunk) {
-				forEachSpan(w, g, func(ws, gs *otlpParitySpan) {
-					if ws.component == "?" && gs.component != "?" {
-						ws.component = gs.component
-					}
-					for i := range ws.events {
-						if i >= len(gs.events) {
-							break
-						}
-						wattrs := maps.Clone(ws.events[i].attributes)
-						for k, v := range wattrs {
-							if v == "s:?" && gs.events[i].attributes[k] != v {
-								wattrs[k] = gs.events[i].attributes[k]
-							}
-						}
-						ws.events = slices.Clone(ws.events)
-						ws.events[i].attributes = wattrs
-					}
-				})
-			})
 		},
 	},
 	{
