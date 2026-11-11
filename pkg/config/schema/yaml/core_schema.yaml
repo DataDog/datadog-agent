@@ -2782,10 +2782,10 @@ properties:
   dogstatsd_set_timing_unit:
     node_type: setting
     type: boolean
-    default: true
+    default: false
     visibility: public
     description: Attach the "millisecond" unit to DogStatsD timing (ms) metrics.
-      Set to false to send timing metrics without a unit.
+      By default, timing metrics are sent without a unit.
     tags:
     - template_section:Dogstatsd
   dogstatsd_no_aggregation_pipeline:

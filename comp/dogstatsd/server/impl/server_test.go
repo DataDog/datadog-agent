@@ -59,10 +59,10 @@ func TestStartHookNoListenerDefault(t *testing.T) {
 
 func TestSetTimingUnitConfig(t *testing.T) {
 	_, s := fulfillDepsWithInactiveServer(t, map[string]interface{}{})
-	assert.True(t, s.enrichConfig.enableTimingUnit, "timing unit should be enabled by default")
+	assert.False(t, s.enrichConfig.enableTimingUnit, "timing unit should be disabled by default")
 
-	_, s = fulfillDepsWithInactiveServer(t, map[string]interface{}{"dogstatsd_set_timing_unit": false})
-	assert.False(t, s.enrichConfig.enableTimingUnit)
+	_, s = fulfillDepsWithInactiveServer(t, map[string]interface{}{"dogstatsd_set_timing_unit": true})
+	assert.True(t, s.enrichConfig.enableTimingUnit)
 }
 
 func TestNewServerUseDogstatsdFalse(t *testing.T) {
