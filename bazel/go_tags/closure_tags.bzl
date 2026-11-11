@@ -727,6 +727,8 @@ CLOSURE_TAGS = {
     "github.com/DataDog/datadog-agent/comp/ndm/rcconfig/fx": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/ndmconnectivitycheck/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/comp/ndmdiscovery/fx": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
+    "github.com/DataDog/datadog-agent/comp/ndmdiscovery/impl": ["clusterchecks", "functionaltests", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/ndmtmp": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test", "zlib"],
     "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/def": ["clusterchecks", "goexperiment.systemcrypto", "requirefips", "serverless", "test"],
     "github.com/DataDog/datadog-agent/comp/ndmtmp/forwarder/fx": ["cel", "clusterchecks", "docker", "ec2", "fargateprocess", "functionaltests", "goexperiment.systemcrypto", "grpcnotrace", "kubeapiserver", "kubelet", "requirefips", "serverless", "test", "zlib"],
