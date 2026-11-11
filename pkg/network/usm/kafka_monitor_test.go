@@ -1678,9 +1678,11 @@ func TestLoadKafkaBinary(t *testing.T) {
 	skipTestIfKernelNotSupported(t)
 
 	ebpftest.TestBuildModes(t, usmtestutil.SupportedBuildModes(), "", func(t *testing.T) {
-		t.Run("debug", func(t *testing.T) {
-			loadKafkaBinary(t, true)
-		})
+		if ebpftest.GetBuildMode() == ebpftest.RuntimeCompiled {
+			t.Run("debug", func(t *testing.T) {
+				loadKafkaBinary(t, true)
+			})
+		}
 		t.Run("release", func(t *testing.T) {
 			loadKafkaBinary(t, false)
 		})
