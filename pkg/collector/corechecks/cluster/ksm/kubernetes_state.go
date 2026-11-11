@@ -6,6 +6,7 @@
 //go:build kubeapiserver
 
 // Package ksm implements the Kubernetes State Core cluster check.
+// TEST ONLY: a comment-only change, for an A/A run of the benchmarkeks benchmark.
 package ksm
 
 import (
