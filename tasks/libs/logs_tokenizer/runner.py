@@ -24,6 +24,7 @@ from tasks.libs.logs_tokenizer.compare import (
     benchmark_metrics,
     bypassed,
     find_regressions,
+    is_noisy,
     markdown_report,
     parse_benchstat_csv,
 )
@@ -118,8 +119,10 @@ def run_compare(
 
         print(f"Comparing {base[:11]} with the working tree at {root}: {rounds} rounds of {bench}")
         outputs = {side: work / f"{side}.txt" for side in files}
-        for _ in range(rounds):
-            for side in files:
+        for round_number in range(rounds):
+            # Alternate which side goes first: the side that runs second gets a machine that is warmer
+            # (or busier) than the first, so base-first every round would favor one side every time.
+            for side in files if round_number % 2 == 0 else reversed(files):
                 run = [str(binaries[side]), "-test.run", "^$", "-test.bench", bench]
                 run += ["-test.benchmem", "-test.benchtime", benchtime, "-test.cpu", "1"]
                 with contextlib.chdir(work / side / pkg):
@@ -140,11 +143,17 @@ def run_compare(
 
     rows = parse_benchstat_csv(table)
     regressions = find_regressions(rows, max_slowdown)
+    time_judged = not is_noisy(rows, max_slowdown)
     if report:
         markdown = markdown_report(f"Benchmarks of `{pkg}`", rows, regressions, base, max_slowdown, text)
         Path(report).write_text(markdown, encoding="utf-8")
     if verdict_file:
-        verdict = {"verdict": "regression" if regressions else "pass", "regressions": regressions, "base": base}
+        verdict = {
+            "verdict": "regression" if regressions else "pass",
+            "regressions": regressions,
+            "base": base,
+            "time_judged": time_judged,
+        }
         Path(verdict_file).write_text(json.dumps(verdict, indent=2), encoding="utf-8")
     if send_metrics:
         _send_benchmark_metrics(ctx, pkg, rows)
@@ -154,6 +163,12 @@ def run_compare(
         raise Exit(
             message="FAIL: a benchmark got slower or uses more memory (see REGRESSION lines)", code=EXIT_REGRESSION
         )
+    if not time_judged:
+        print(
+            f"PASS: no benchmark allocates more or uses more than {max_slowdown:g}% more bytes. Time was not judged: "
+            f"the median ± band is above {max_slowdown:g}% (too noisy, or fewer than 6 rounds)"
+        )
+        return
     print(
         f"PASS: no benchmark is more than {max_slowdown:g}% slower, allocates more, or uses more than {max_slowdown:g}% more bytes"
     )

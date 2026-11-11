@@ -1,6 +1,8 @@
 ---
 # Tells you whether this change made the shared log tokenizer (pkg/logs/tokenizer) slower. It runs
 # `dda inv logs-tokenizer.bench-compare` on the merge base and on this commit, alternating on the same runner.
+# Allocations and bytes per call are exact and always judged. Time is only judged when the run is
+# quiet (median ± band at most --max-slowdown); on a noisy runner it is reported but can't fail the job.
 # This job only writes the verdict to verdict.json; logs_tokenizer_benchmark_check decides whether
 # a regression blocks.
 #

@@ -15,7 +15,7 @@ from tasks.libs.logs_tokenizer.runner import run_check_verdict, run_compare
         "base": "Revision to compare against. Defaults to the merge base of HEAD and origin/main.",
         "rounds": "Rounds per side, alternating between the sides. At least 4: fewer cannot reach p < 0.05.",
         "benchtime": "The -benchtime of each run.",
-        "max_slowdown": "Slowdown, or growth in bytes per call, in percent, above which a benchmark (or the geomean, for time) fails the comparison.",
+        "max_slowdown": "Slowdown, or growth in bytes per call, in percent, above which a benchmark (or the geomean, for time) fails the comparison. Time is only judged when the median ± band is at most this much.",
         "report": "Also write the result as Markdown to this file, for a PR comment.",
         "verdict_file": "Also write the verdict as JSON to this file, for logs-tokenizer.bench-check-verdict.",
         "send_metrics": "Also send each benchmark's result to Datadog (needs DD_API_KEY). Failing to send does not change the result.",
@@ -38,9 +38,10 @@ def bench_compare(
     Tells you whether your change made a package's benchmarks slower or use more memory, by running
     them on this machine at a base revision (the merge base by default) and in your working tree.
 
-    Exits 0 on a pass, and 1 if a benchmark is more than max_slowdown percent slower (p < 0.05), the
-    geomean is, a benchmark allocates more, or its bytes per call grow by more than max_slowdown
-    percent. Exits 2 if it couldn't compare. Each side builds as a throwaway module with the
+    Exits 0 on a pass, and 1 if a benchmark allocates more or its bytes per call grow by more than
+    max_slowdown percent (both p < 0.05), or, on a quiet run, it is more than max_slowdown percent slower (p < 0.05)
+    or the geomean is. A run is quiet when the median ± band of its timings is at most max_slowdown
+    percent; on a noisy machine time is reported but not judged. Exits 2 if it couldn't compare. Each side builds as a throwaway module with the
     package's sources and this tree's benchmark files, so the benchmark code is identical and only
     the package differs. The runs alternate between the sides, so background noise on the machine
     hits both equally.
