@@ -180,7 +180,7 @@ func TestAMDSamplesOmitUnavailableValues(t *testing.T) {
 		VRAMUsedBytes:        amdgpu.Reading{Value: 150, Valid: true}, // inconsistent snapshot
 		PCIeLinkSpeedGTs:     amdgpu.Reading{Value: 7, Valid: true},   // not a PCIe rate
 		PCIeLinkWidth:        amdgpu.Reading{Value: 16, Valid: true},
-	})
+	}, activity{})
 
 	values := map[string]float64{}
 	for _, s := range samples {
