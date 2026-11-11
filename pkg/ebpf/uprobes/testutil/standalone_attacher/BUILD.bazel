@@ -22,8 +22,11 @@ go_binary(
     embed = [":standalone_attacher_lib"],
     gotags = [
         "bpf",
+        "netgo",
+        "osusergo",
         "test",
     ],
+    static = "on",  # runs in a minimal container without the dynamic loader
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

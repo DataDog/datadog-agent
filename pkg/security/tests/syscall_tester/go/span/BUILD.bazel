@@ -10,7 +10,10 @@ go_binary(
         "osusergo",
         "syscalltesters",
     ],
-    static = "on",
+    # dd-trace-go dlopens libddwaf, and the go_labels reader expects the TLS layout of a
+    # cgo-linked dynamic binary.
+    pure = "off",
+    static = "off",
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = select({
