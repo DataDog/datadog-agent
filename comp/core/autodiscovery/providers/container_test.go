@@ -8,9 +8,14 @@
 package providers
 
 import (
+	"context"
+	"sync"
 	"testing"
+	"time"
 
+	healthplatformpayload "github.com/DataDog/agent-payload/v5/healthplatform"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -24,8 +29,170 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
+	healthplatformmock "github.com/DataDog/datadog-agent/comp/healthplatform/store/mock"
+	healthplatformnoop "github.com/DataDog/datadog-agent/comp/healthplatform/store/noop-impl"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
+
+type containerHealthTestStore struct {
+	workloadmeta.Component
+	events chan workloadmeta.EventBundle
+	once   sync.Once
+}
+
+func (s *containerHealthTestStore) Subscribe(string, workloadmeta.SubscriberPriority, *workloadmeta.Filter) chan workloadmeta.EventBundle {
+	return s.events
+}
+
+func (s *containerHealthTestStore) Unsubscribe(chan workloadmeta.EventBundle) {
+	s.once.Do(func() { close(s.events) })
+}
+
+type blockingContainerHealth struct {
+	*healthplatformmock.Mock
+	reportStarted  chan string
+	resolveStarted chan string
+	completed      chan string
+	reportRelease  <-chan struct{}
+	resolveRelease <-chan struct{}
+}
+
+func (h *blockingContainerHealth) ReportIssue(issue *healthplatformpayload.Issue) error {
+	h.reportStarted <- issue.Id
+	if h.reportRelease != nil {
+		<-h.reportRelease
+	}
+	err := h.Mock.ReportIssue(issue)
+	h.completed <- "report:" + issue.Id
+	return err
+}
+
+func (h *blockingContainerHealth) ResolveIssue(id string) {
+	h.resolveStarted <- id
+	if h.resolveRelease != nil {
+		<-h.resolveRelease
+	}
+	h.Mock.ResolveIssue(id)
+	h.completed <- "resolve:" + id
+}
+
+func newContainerHealthTestStream(t *testing.T, reportRelease, resolveRelease <-chan struct{}) (*ContainerConfigProvider, *containerHealthTestStore, *blockingContainerHealth, <-chan integration.ConfigChanges) {
+	t.Helper()
+	store := &containerHealthTestStore{events: make(chan workloadmeta.EventBundle)}
+	hp := &blockingContainerHealth{
+		Mock: healthplatformmock.New(t), reportStarted: make(chan string, 10),
+		resolveStarted: make(chan string, 10), completed: make(chan string, 10),
+		reportRelease: reportRelease, resolveRelease: resolveRelease,
+	}
+	provider, err := NewContainerConfigProvider(nil, store, nil, nil, hp, nil)
+	require.NoError(t, err)
+	cp := provider.(*ContainerConfigProvider)
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	return cp, store, hp, cp.Stream(ctx)
+}
+
+func processContainerHealthTestEvent(t *testing.T, store *containerHealthTestStore, changes <-chan integration.ConfigChanges, eventType workloadmeta.EventType, entity workloadmeta.Entity) integration.ConfigChanges {
+	t.Helper()
+	ack := make(chan struct{})
+	bundle := workloadmeta.EventBundle{Ch: ack, Events: []workloadmeta.Event{{Type: eventType, Entity: entity}}}
+	select {
+	case store.events <- bundle:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider stopped reading workloadmeta events")
+	}
+	var result integration.ConfigChanges
+	select {
+	case result = <-changes:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider waited for health reporting before delivering configs")
+	}
+	select {
+	case <-ack:
+	case <-time.After(5 * time.Second):
+		t.Fatal("provider waited for health reporting before acknowledging events")
+	}
+	return result
+}
+
+func receiveContainerHealthCall(t *testing.T, calls <-chan string) string {
+	t.Helper()
+	select {
+	case call := <-calls:
+		return call
+	case <-time.After(5 * time.Second):
+		t.Fatal("health worker did not process the update")
+		return ""
+	}
+}
+
+func TestContainerHealthReportDoesNotBlockStream(t *testing.T) {
+	release := make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	cp, store, hp, changes := newContainerHealthTestStream(t, release, nil)
+	t.Cleanup(unblock)
+	bad := basicDockerContainer()
+	bad.Labels["com.datadoghq.ad.check_names"] = "["
+	issueID := adAnnotationIssueID(buildEntityName(bad))
+	processContainerHealthTestEvent(t, store, changes, workloadmeta.EventTypeSet, bad)
+	assert.Equal(t, issueID, receiveContainerHealthCall(t, hp.reportStarted))
+	assert.NotEmpty(t, cp.GetConfigErrors())
+
+	// Multiple updates coalesce while the first report is blocked, and the
+	// fixed configuration still reaches AD and is acknowledged immediately.
+	for range 20 {
+		processContainerHealthTestEvent(t, store, changes, workloadmeta.EventTypeSet, bad)
+	}
+	got := processContainerHealthTestEvent(t, store, changes, workloadmeta.EventTypeSet, basicDockerContainer())
+	assert.Len(t, got.Schedule, 2)
+	assert.Empty(t, cp.GetConfigErrors())
+	unblock()
+	assert.Equal(t, "report:"+issueID, receiveContainerHealthCall(t, hp.completed))
+	assert.Equal(t, "resolve:"+issueID, receiveContainerHealthCall(t, hp.completed))
+	assert.Nil(t, hp.GetIssue(issueID), "the delayed report must not reopen the fixed issue")
+}
+
+func TestContainerHealthResolveDoesNotBlockStream(t *testing.T) {
+	release := make(chan struct{})
+	var once sync.Once
+	unblock := func() { once.Do(func() { close(release) }) }
+	cp, store, hp, changes := newContainerHealthTestStream(t, nil, release)
+	t.Cleanup(unblock)
+	bad := basicDockerContainer()
+	bad.Labels["com.datadoghq.ad.check_names"] = "["
+	issueID := adAnnotationIssueID(buildEntityName(bad))
+	processContainerHealthTestEvent(t, store, changes, workloadmeta.EventTypeSet, bad)
+	assert.Equal(t, "report:"+issueID, receiveContainerHealthCall(t, hp.completed))
+	processContainerHealthTestEvent(t, store, changes, workloadmeta.EventTypeSet, basicDockerContainer())
+	assert.Equal(t, issueID, receiveContainerHealthCall(t, hp.resolveStarted))
+
+	// A new error arriving during resolution must be reported after the clear.
+	bad.Labels["com.datadoghq.ad.check_names"] = "not-json"
+	processContainerHealthTestEvent(t, store, changes, workloadmeta.EventTypeSet, bad)
+	assert.NotEmpty(t, cp.GetConfigErrors())
+	unblock()
+	assert.Equal(t, "resolve:"+issueID, receiveContainerHealthCall(t, hp.completed))
+	assert.Equal(t, "report:"+issueID, receiveContainerHealthCall(t, hp.completed))
+	issue := hp.GetIssue(issueID)
+	require.NotNil(t, issue)
+	assert.Equal(t, string(types.ContainerLabelSource), issue.Extra.Fields["error_source"].GetStringValue())
+
+	processContainerHealthTestEvent(t, store, changes, workloadmeta.EventTypeUnset, bad)
+	assert.Equal(t, "resolve:"+issueID, receiveContainerHealthCall(t, hp.completed))
+	assert.Empty(t, cp.GetConfigErrors())
+	assert.Nil(t, hp.GetIssue(issueID))
+}
+
+func TestContainerHealthResolvesRestoredIssue(t *testing.T) {
+	_, store, hp, changes := newContainerHealthTestStream(t, nil, nil)
+	container := basicDockerContainer()
+	issueID := adAnnotationIssueID(buildEntityName(container))
+	require.NoError(t, hp.Mock.ReportIssue(&healthplatformpayload.Issue{Id: issueID, IssueName: "restored"}))
+	processContainerHealthTestEvent(t, store, changes, workloadmeta.EventTypeSet, container)
+	assert.Equal(t, "resolve:"+issueID, receiveContainerHealthCall(t, hp.completed))
+	assert.Nil(t, hp.GetIssue(issueID), "a valid entity must clear issues restored before this provider started")
+}
 
 func TestProcessEvents(t *testing.T) {
 	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
@@ -37,12 +204,9 @@ func TestProcessEvents(t *testing.T) {
 	telemetry := fxutil.Test[telemetry.Component](t, mocktelemetry.Module())
 	telemetryStore := acTelemetry.NewStore(telemetry)
 
-	cp := &ContainerConfigProvider{
-		workloadmetaStore: store,
-		configCache:       make(map[string]map[string]integration.Config),
-		configErrors:      make(map[string]types.ErrorMsgSet),
-		telemetryStore:    telemetryStore,
-	}
+	provider, err := NewContainerConfigProvider(nil, store, nil, nil, healthplatformnoop.NewNoopComponent(), telemetryStore)
+	require.NoError(t, err)
+	cp := provider.(*ContainerConfigProvider)
 
 	tests := []struct {
 		name    string
@@ -481,11 +645,9 @@ func TestGenerateConfig(t *testing.T) {
 				}
 			}
 
-			cp := &ContainerConfigProvider{
-				workloadmetaStore: store,
-				configCache:       make(map[string]map[string]integration.Config),
-				configErrors:      make(map[string]types.ErrorMsgSet),
-			}
+			provider, providerErr := NewContainerConfigProvider(nil, store, nil, nil, healthplatformnoop.NewNoopComponent(), nil)
+			require.NoError(t, providerErr)
+			cp := provider.(*ContainerConfigProvider)
 
 			configs, err, _ := cp.generateConfig(tt.entity)
 
