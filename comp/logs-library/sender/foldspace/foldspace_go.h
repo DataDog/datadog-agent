@@ -473,7 +473,10 @@ typedef struct {
  `*_candidate_bytes` are the values the admission gate is holding back, which
  sit outside the table and outside that budget; the bytes are estimated from
  the set's capacity, because a set emptied at its cap keeps its allocation.
- A pattern table with no gate reports zero candidates.
+ `*_candidate_bytes` also count the admission contest's frequency sketch and
+ victim queue, and for the pattern table its churn meter, so a table with no
+ gate reports zero candidates and still reports candidate bytes once its
+ sketch is in use.
  */
 typedef struct {
   uint64_t byte_evictions;
