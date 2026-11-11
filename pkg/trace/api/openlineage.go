@@ -27,7 +27,7 @@ const (
 )
 
 // openLineageEndpoint returns the openlineage intake url and the corresponding API key.
-func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []*config.Endpoint, err error) {
+func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []string, err error) {
 	host := openlineageURLDefault
 	apiKey := cfg.OpenLineageProxy.APIKey
 	if apiKey == "" {
@@ -57,10 +57,10 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []*
 	}
 
 	urls = append(urls, u)
-	apiKeys = append(apiKeys, &config.Endpoint{APIKey: apiKey})
+	apiKeys = append(apiKeys, apiKey)
 
 	for host, keys := range cfg.OpenLineageProxy.AdditionalEndpoints {
-		for index, key := range keys {
+		for _, key := range keys {
 			urlStr := fmt.Sprintf(openlineageURLTemplate, host)
 			u, err := url.Parse(urlStr)
 			if err != nil {
@@ -71,7 +71,7 @@ func openLineageEndpoints(cfg *config.AgentConfig) (urls []*url.URL, apiKeys []*
 				addOpenLineageAPIVersion(u, cfg.OpenLineageProxy.APIVersion)
 			}
 			urls = append(urls, u)
-			apiKeys = append(apiKeys, cfg.AdditionalEndpoint("ol_proxy_config.additional_endpoints", host, key, index))
+			apiKeys = append(apiKeys, key)
 		}
 	}
 	return urls, apiKeys, nil
@@ -108,7 +108,7 @@ func (r *HTTPReceiver) openLineageProxyHandler() http.Handler {
 
 // newOpenLineageProxy creates an http.ReverseProxy which forwards requests to the openlineage intake.
 // The tags will be added as a header to all proxied requests.
-func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []*config.Endpoint, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
+func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []string, tags string, statsd statsd.ClientInterface) *httputil.ReverseProxy {
 	log.Debug("[openlineage] Creating reverse proxy")
 	cidProvider := NewContainerIDProviderFromConfig(conf)
 	rewrite := func(req *httputil.ProxyRequest) {
@@ -142,31 +142,24 @@ func newOpenLineageProxy(conf *config.AgentConfig, urls []*url.URL, keys []*conf
 type openLineageTransport struct {
 	rt              http.RoundTripper
 	urls            []*url.URL
-	keys            []*config.Endpoint
+	keys            []string
 	maxRequestBytes int64
 }
 
 func (m *openLineageTransport) RoundTrip(req *http.Request) (rresp *http.Response, rerr error) {
-	urls, keys := readyProxyEndpoints(m.urls, m.keys)
-	if len(urls) == 0 {
-		if req.Body != nil {
-			req.Body.Close()
-		}
-		return nil, errNoReadyProxyEndpoint
-	}
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		r.Host = u.Host
 		r.URL = u
 		// OL endpoint follows where OL OSS client puts API key
 		r.Header.Set("Authorization", "Bearer "+apiKey)
 	}
-	if len(urls) == 1 {
-		setTarget(req, urls[0], keys[0])
+	if len(m.urls) == 1 {
+		setTarget(req, m.urls[0], m.keys[0])
 		rresp, rerr = m.rt.RoundTrip(req)
 		if rerr != nil {
 			log.Errorf("[openlineage] RoundTrip failed: %v", rerr)
 		} else {
-			log.Debugf("[openlineage] Returned status: %s, from host: %s, path: %s, query %s", rresp.Status, urls[0].Host, urls[0].Path, urls[0].Query())
+			log.Debugf("[openlineage] Returned status: %s, from host: %s, path: %s, query %s", rresp.Status, m.urls[0].Host, m.urls[0].Path, m.urls[0].Query())
 		}
 
 		return rresp, rerr
@@ -175,10 +168,10 @@ func (m *openLineageTransport) RoundTrip(req *http.Request) (rresp *http.Respons
 	if err != nil {
 		return nil, err
 	}
-	for i, u := range urls {
+	for i, u := range m.urls {
 		newreq := req.Clone(req.Context())
 		newreq.Body = body()
-		setTarget(newreq, u, keys[i])
+		setTarget(newreq, u, m.keys[i])
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error

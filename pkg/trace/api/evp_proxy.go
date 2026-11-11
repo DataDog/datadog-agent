@@ -55,8 +55,11 @@ func evpProxyEndpointsFromConfig(conf *config.AgentConfig) []config.Endpoint {
 	}
 	endpoints := []config.Endpoint{{Host: endpoint, APIKey: apiKey}} // main endpoint
 	for host, keys := range conf.EVPProxy.AdditionalEndpoints {
-		for index, key := range keys {
-			endpoints = append(endpoints, *conf.AdditionalEndpoint("evp_proxy_config.additional_endpoints", host, key, index))
+		for _, key := range keys {
+			endpoints = append(endpoints, config.Endpoint{
+				Host:   host,
+				APIKey: key,
+			})
 		}
 	}
 	return endpoints
@@ -307,15 +310,11 @@ func (t *evpProxyTransport) RoundTrip(req *http.Request) (rresp *http.Response, 
 		slurp = body
 	}
 	for i, endpointDomain := range t.endpoints {
-		apiKey, ready := endpointDomain.GetAPIKeyIfReady()
-		if !ready {
-			continue
-		}
 		newreq := req.Clone(req.Context())
 		if slurp != nil {
 			newreq.Body = io.NopCloser(bytes.NewReader(slurp))
 		}
-		setTarget(newreq, endpointDomain.Host, apiKey)
+		setTarget(newreq, endpointDomain.Host, endpointDomain.APIKey)
 		if i == 0 {
 			// given the way we construct the list of targets the main endpoint
 			// will be the first one called, we return its response and error

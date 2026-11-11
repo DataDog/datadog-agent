@@ -25,12 +25,6 @@ import (
 
 func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 	for _, setting := range []string{
-		"apm_config.profiling_additional_endpoints",
-		"apm_config.debugger_additional_endpoints",
-		"apm_config.debugger_diagnostics_additional_endpoints",
-		"apm_config.symdb_additional_endpoints",
-		"evp_proxy_config.additional_endpoints",
-		"ol_proxy_config.additional_endpoints",
 		"apm_config.additional_endpoints",
 	} {
 		for _, initiallyResolved := range []bool{false, true} {
@@ -43,10 +37,6 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 				var received []string
 				intake := httptest.NewTLSServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 					key := req.Header.Get("DD-API-KEY")
-					if setting == "ol_proxy_config.additional_endpoints" {
-						key = strings.TrimPrefix(req.Header.Get("Authorization"), "Bearer ")
-						assert.Equal(t, "2", req.URL.Query().Get("api-version"))
-					}
 					assert.NotEmpty(t, key)
 					assert.NotContains(t, key, "DELA[")
 					mu.Lock()
@@ -63,10 +53,6 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 				conf := newTestReceiverConfigNoPort()
 				conf.Endpoints[0] = &config.Endpoint{Host: "https://main.datadoghq.com", APIKey: "main-key"}
 				conf.Site = "datadoghq.com"
-				conf.DebuggerLogsEnabled = true
-				conf.EVPProxy.Enabled = true
-				conf.OpenLineageProxy.Enabled = true
-				conf.OpenLineageProxy.APIVersion = 2
 				transport := intake.Client().Transport.(*http.Transport).Clone()
 				transport.TLSClientConfig.ServerName = "example.com"
 				transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
@@ -75,9 +61,6 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 				defer transport.CloseIdleConnections()
 				conf.HTTPTransportFunc = func() *http.Transport { return transport }
 				host := "https://secondary.datadoghq.eu"
-				if setting == "evp_proxy_config.additional_endpoints" || setting == "ol_proxy_config.additional_endpoints" {
-					host = "datadoghq.eu"
-				}
 				initial := []string{"DELA[org-a, aws]", "static-key", "DELA[org-b, aws]"}
 				if initiallyResolved {
 					initial = []string{"initial-a", "static-key", "initial-b"}
@@ -93,28 +76,9 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 					}
 					return keys[index], true
 				}
-				extra := map[string][]string{host: initial}
 				receiver := newTestReceiverFromConfig(conf)
 				var handler http.Handler
 				switch setting {
-				case "apm_config.profiling_additional_endpoints":
-					conf.ProfilingProxy.AdditionalEndpoints = extra
-					handler = receiver.profileProxyHandler()
-				case "apm_config.debugger_additional_endpoints":
-					conf.DebuggerProxy.AdditionalEndpoints = extra
-					handler = receiver.debuggerLogsProxyHandler()
-				case "apm_config.debugger_diagnostics_additional_endpoints":
-					conf.DebuggerIntakeProxy.AdditionalEndpoints = extra
-					handler = receiver.debuggerDiagnosticsProxyHandler()
-				case "apm_config.symdb_additional_endpoints":
-					conf.SymDBProxy.AdditionalEndpoints = extra
-					handler = receiver.symDBProxyHandler()
-				case "evp_proxy_config.additional_endpoints":
-					conf.EVPProxy.AdditionalEndpoints = extra
-					handler = receiver.evpProxyHandler(2)
-				case "ol_proxy_config.additional_endpoints":
-					conf.OpenLineageProxy.AdditionalEndpoints = extra
-					handler = receiver.openLineageProxyHandler()
 				case "apm_config.additional_endpoints":
 					for i, key := range initial {
 						conf.Endpoints = append(conf.Endpoints, conf.AdditionalEndpoint(setting, host, key, i))
@@ -148,31 +112,6 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 			})
 		}
 	}
-}
-
-func TestProfilingOnlyPendingEndpointResolves(t *testing.T) {
-	var calls atomic.Int32
-	intake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
-		assert.Equal(t, "resolved-key", req.Header.Get("DD-API-KEY"))
-		calls.Add(1)
-		w.WriteHeader(http.StatusAccepted)
-	}))
-	defer intake.Close()
-	conf := newTestReceiverConfigNoPort()
-	conf.ProfilingProxy.MainEndpointMode = config.ProfilingMainEndpointSkip
-	conf.ProfilingProxy.AdditionalEndpoints = map[string][]string{intake.URL: {"DELA[org-a, aws]"}}
-	var ready atomic.Bool
-	conf.ReadAdditionalEndpointKey = func(_, _ string, _ int) (string, bool) { return "resolved-key", ready.Load() }
-	handler := newTestReceiverFromConfig(conf).profileProxyHandler()
-	rec := httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/profiling/v1/input", strings.NewReader("payload")))
-	assert.GreaterOrEqual(t, rec.Code, 500)
-	assert.Zero(t, calls.Load())
-	ready.Store(true)
-	rec = httptest.NewRecorder()
-	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/profiling/v1/input", strings.NewReader("payload")))
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.EqualValues(t, 1, calls.Load())
 }
 
 func TestTelemetryProxyDelegatedEndpointUpdates(t *testing.T) {

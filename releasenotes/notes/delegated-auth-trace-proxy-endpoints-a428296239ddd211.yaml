@@ -1,8 +1,7 @@
 ---
 features:
   - |
-    APM : Support DELA directives in additional endpoints for profiling, Dynamic
-    Instrumentation logs and diagnostics, symbol databases, EVP, OpenLineage,
-    and instrumentation telemetry. These senders and pipeline stats pick up
-    resolved and rotated API keys without restarting the trace-agent. Pending
-    destinations are skipped while other destinations continue sending.
+    APM : Support DELA directives in instrumentation telemetry additional
+    endpoints. Telemetry and pipeline stats pick up resolved and rotated API
+    keys without restarting the trace-agent. Pending destinations are skipped
+    while other destinations continue sending.

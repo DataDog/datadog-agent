@@ -40,13 +40,13 @@ func (r *HTTPReceiver) debuggerLogsProxyHandler() http.Handler {
 	if !r.conf.DebuggerLogsEnabled {
 		return debuggerLogsDisabledHandler(r.conf.MaxRequestBytes)
 	}
-	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy, "apm_config.debugger_additional_endpoints")
+	return r.debuggerProxyHandler(logsIntakeURLTemplate, r.conf.DebuggerProxy)
 }
 
 // debuggerDiagnosticsProxyHandler returns an http.Handler proxying Dynamic Instrumentation diagnostic messages
 // to the debugger intake.
 func (r *HTTPReceiver) debuggerDiagnosticsProxyHandler() http.Handler {
-	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy, "apm_config.debugger_diagnostics_additional_endpoints")
+	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
 }
 
 // debuggerV2IntakeProxyHandler returns an http.Handler proxying Dynamic
@@ -57,7 +57,7 @@ func (r *HTTPReceiver) debuggerV2IntakeProxyHandler() http.Handler {
 	if !r.conf.DebuggerLogsEnabled {
 		return debuggerLogsDisabledHandler(r.conf.MaxRequestBytes)
 	}
-	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy, "apm_config.debugger_diagnostics_additional_endpoints")
+	return r.debuggerProxyHandler(debuggerIntakeURLTemplate, r.conf.DebuggerIntakeProxy)
 }
 
 // debuggerLogsDisabledHandler returns an http.Handler that silently drops
@@ -75,7 +75,7 @@ func debuggerLogsDisabledHandler(maxBytes int64) http.Handler {
 
 // debuggerProxyHandler returns an http.Handler proxying requests to the configured intake. If the intake url cannot be
 // parsed, the returned handler will always return http.StatusInternalServerError with a clarifying message.
-func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig config.DebuggerProxyConfig, configKey string) http.Handler {
+func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig config.DebuggerProxyConfig) http.Handler {
 	hostTags := fmt.Sprintf("host:%s,default_env:%s,agent_version:%s", r.conf.Hostname, r.conf.DefaultEnv, r.conf.AgentVersion)
 	if orch := r.conf.FargateOrchestrator; orch != config.OrchestratorUnknown {
 		hostTags = hostTags + ",orchestrator:fargate_" + strings.ToLower(string(orch))
@@ -96,7 +96,7 @@ func (r *HTTPReceiver) debuggerProxyHandler(urlTemplate string, proxyConfig conf
 		apiKey = strings.TrimSpace(k)
 	}
 	transport := newMeasuringForwardingTransport(
-		r.conf.NewHTTPTransport(), target, apiKey, proxyConfig.AdditionalEndpoints, r.conf, configKey, r.conf.MaxRequestBytes, "datadog.trace_agent.debugger", []string{}, r.statsd)
+		r.conf.NewHTTPTransport(), target, apiKey, proxyConfig.AdditionalEndpoints, r.conf.MaxRequestBytes, "datadog.trace_agent.debugger", []string{}, r.statsd)
 	return newDebuggerProxy(r.conf, transport, hostTags)
 }
 

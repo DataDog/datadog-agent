@@ -65,7 +65,7 @@ func TestProfileProxy(t *testing.T) {
 	}
 	rec := httptest.NewRecorder()
 	c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
-	newProfileProxy(c, []*url.URL{u}, staticAPIKeys("123"), "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
+	newProfileProxy(c, []*url.URL{u}, []string{"123"}, "key:val", &statsd.NoOpClient{}).ServeHTTP(rec, req)
 	result := rec.Result()
 	slurp, err := io.ReadAll(result.Body)
 	result.Body.Close()
@@ -84,8 +84,7 @@ func TestProfilingEndpoints(t *testing.T) {
 		cfg.ProfilingProxy = config.ProfilingProxyConfig{
 			DDURL: "https://intake.profile.datadoghq.fr/api/v2/profile",
 		}
-		urls, credentials, err := profilingEndpoints(cfg)
-		keys := snapshotAPIKeys(credentials)
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.fr/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
@@ -95,8 +94,7 @@ func TestProfilingEndpoints(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test_api_key"
 		cfg.Site = "datadoghq.eu"
-		urls, credentials, err := profilingEndpoints(cfg)
-		keys := snapshotAPIKeys(credentials)
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.eu/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
@@ -105,8 +103,7 @@ func TestProfilingEndpoints(t *testing.T) {
 	t.Run("default", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test_api_key"
-		urls, credentials, err := profilingEndpoints(cfg)
-		keys := snapshotAPIKeys(credentials)
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, urls, makeURLs(t, "https://intake.profile.datadoghq.com/api/v2/profile"))
 		assert.Equal(t, keys, []string{"test_api_key"})
@@ -122,8 +119,7 @@ func TestProfilingEndpoints(t *testing.T) {
 				"https://dd.datad0g.com":          {"api_key_3"},
 			},
 		}
-		urls, credentials, err := profilingEndpoints(cfg)
-		keys := snapshotAPIKeys(credentials)
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		expectedURLs := makeURLs(t,
 			"https://intake.profile.datadoghq.jp/api/v2/profile",
@@ -139,7 +135,7 @@ func TestProfilingEndpoints(t *testing.T) {
 		assert.Equal(t, keys[0], expectedKeys[0], "The main api key should be the first in the slice")
 
 		assert.ElementsMatch(t, urls, expectedURLs, "All urls from the config should be returned")
-		assert.ElementsMatch(t, expectedKeys, keys, "All keys from the config should be returned")
+		assert.ElementsMatch(t, keys, keys, "All keys from the config should be returned")
 
 		// check that we have the correct pairing between urls and api keys
 		for i := range keys {
@@ -161,8 +157,7 @@ func TestProfilingEndpoints(t *testing.T) {
 				"https://ddstaging.datadoghq.com": {"api_key_1", "api_key_2"},
 			},
 		}
-		urls, credentials, err := profilingEndpoints(cfg)
-		keys := snapshotAPIKeys(credentials)
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.NoError(t, err)
 		assert.Equal(t, makeURLs(t, "https://ddstaging.datadoghq.com", "https://ddstaging.datadoghq.com"), urls)
 		assert.Equal(t, []string{"api_key_1", "api_key_2"}, keys)
@@ -172,8 +167,7 @@ func TestProfilingEndpoints(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "main_api_key"
 		cfg.ProfilingProxy = config.ProfilingProxyConfig{MainEndpointMode: config.ProfilingMainEndpointSkip}
-		urls, credentials, err := profilingEndpoints(cfg)
-		keys := snapshotAPIKeys(credentials)
+		urls, keys, err := profilingEndpoints(cfg)
 		assert.Nil(t, urls)
 		assert.Nil(t, keys)
 		assert.EqualError(t, err, "profiling proxy has no valid endpoints configured")
@@ -196,8 +190,7 @@ func TestProfilingEndpoints(t *testing.T) {
 					"https://intake.mmm.example.com": {"key_m1", "key_m2"},
 				},
 			}
-			urls, credentials, err := profilingEndpoints(cfg)
-			keys := snapshotAPIKeys(credentials)
+			urls, keys, err := profilingEndpoints(cfg)
 			assert.NoError(t, err)
 			assert.Equal(t, makeURLs(t,
 				"https://intake.aaa.example.com",
@@ -480,6 +473,6 @@ func TestProfileProxyMultipleEndpointsEmptyBody(t *testing.T) {
 	assertEmptyBodyFansOut(t, func(urls []*url.URL, keys []string) http.Handler {
 		c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc}
 		c.ProfilingProxy.MaxRequestBytes = 1024
-		return newProfileProxy(c, urls, staticAPIKeys(keys...), "key:val", &statsd.NoOpClient{})
+		return newProfileProxy(c, urls, keys, "key:val", &statsd.NoOpClient{})
 	})
 }

@@ -29,7 +29,7 @@ func (m *nilResponseTransport) RoundTrip(_ *http.Request) (*http.Response, error
 // when the underlying transport returns a nil response with an error.
 func TestForwardingTransport_NilResponse(t *testing.T) {
 	mainEndpoint, _ := url.Parse("http://localhost:8080")
-	ft := newForwardingTransport(&nilResponseTransport{}, mainEndpoint, "test-key", nil, config.New(), "apm_config.debugger_additional_endpoints", 25*1024*1024)
+	ft := newForwardingTransport(&nilResponseTransport{}, mainEndpoint, "test-key", nil, 25*1024*1024)
 	req, err := http.NewRequest("POST", "http://localhost:8080/v1/traces", strings.NewReader("test body"))
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
@@ -58,7 +58,7 @@ func TestForwardingTransport_MultipleTargetsNilResponse(t *testing.T) {
 		"http://localhost:8081": {"key1"},
 	}
 
-	ft := newForwardingTransport(&nilResponseTransport{}, mainEndpoint, "test-key", additionalEndpoints, config.New(), "apm_config.debugger_additional_endpoints", 25*1024*1024)
+	ft := newForwardingTransport(&nilResponseTransport{}, mainEndpoint, "test-key", additionalEndpoints, 25*1024*1024)
 	req, err := http.NewRequest("POST", "http://localhost:8080/v1/traces", strings.NewReader("test body"))
 	if err != nil {
 		t.Fatalf("failed to create request: %v", err)
@@ -98,7 +98,7 @@ func TestForwardingTransport_MultipleTargets(t *testing.T) {
 		additionalEndpoints := map[string][]string{
 			additionalEndpoint.String(): {"key1"},
 		}
-		return newForwardingTransport(http.DefaultTransport, mainEndpoint, "test-key", additionalEndpoints, config.New(), "apm_config.debugger_additional_endpoints", 25*1024*1024)
+		return newForwardingTransport(http.DefaultTransport, mainEndpoint, "test-key", additionalEndpoints, 25*1024*1024)
 	}
 	validateResponse := func(t *testing.T, rt http.RoundTripper, req *http.Request) {
 		resp, err := rt.RoundTrip(req)
@@ -160,21 +160,4 @@ func snapshotAPIKeys(endpoints []*config.Endpoint) []string {
 		keys[i], _ = endpoint.GetAPIKeyIfReady()
 	}
 	return keys
-}
-
-func TestForwardingTransportNoResolvedCredential(t *testing.T) {
-	target, _ := url.Parse("http://localhost")
-	transport := newForwardingTransport(&nilResponseTransport{}, target, "DELA[org-a, aws]", nil, config.New(), "apm_config.debugger_additional_endpoints", 1024)
-	body := &trackingBody{}
-	req, err := http.NewRequest(http.MethodPost, "http://localhost", body)
-	if err != nil {
-		t.Fatal(err)
-	}
-	resp, err := transport.RoundTrip(req)
-	if resp != nil && resp.Body != nil {
-		defer resp.Body.Close()
-	}
-	if !errors.Is(err, errNoReadyProxyEndpoint) || resp != nil || !body.closed {
-		t.Fatalf("unexpected pending result: response=%v, error=%v, closed=%v", resp, err, body.closed)
-	}
 }

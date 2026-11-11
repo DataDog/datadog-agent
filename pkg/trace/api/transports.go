@@ -12,6 +12,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -58,7 +59,7 @@ func (m *measuringTransport) RoundTrip(req *http.Request) (rres *http.Response, 
 type forwardingTransport struct {
 	rt              http.RoundTripper
 	targets         []*url.URL
-	keys            []*config.Endpoint
+	keys            []string
 	logger          *log.ThrottledLogger
 	maxRequestBytes int64
 }
@@ -71,21 +72,19 @@ func newForwardingTransport(
 	mainEndpoint *url.URL,
 	mainEndpointKey string,
 	additionalEndpoints map[string][]string,
-	conf *config.AgentConfig,
-	configKey string,
 	maxRequestBytes int64,
 ) *forwardingTransport {
 	targets := []*url.URL{mainEndpoint}
-	apiKeys := []*config.Endpoint{{APIKey: mainEndpointKey}}
+	apiKeys := []string{mainEndpointKey}
 	for endpoint, keys := range additionalEndpoints {
 		u, err := url.Parse(endpoint)
 		if err != nil {
 			log.Errorf("Error parsing additional intake URL %s: %v", endpoint, err)
 			continue
 		}
-		for index, key := range keys {
+		for _, key := range keys {
 			targets = append(targets, u)
-			apiKeys = append(apiKeys, conf.AdditionalEndpoint(configKey, endpoint, key, index))
+			apiKeys = append(apiKeys, strings.TrimSpace(key))
 		}
 	}
 	return &forwardingTransport{rt: rt, targets: targets, keys: apiKeys, logger: log.NewThrottled(10, 10*time.Second), maxRequestBytes: maxRequestBytes}
@@ -94,23 +93,15 @@ func newForwardingTransport(
 // RoundTrip makes an HTTP round trip forwarding one request to multiple
 // additional endpoints.
 func (m *forwardingTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	targets, keys := readyProxyEndpoints(m.targets, m.keys)
-	if len(targets) == 0 {
-		if req.Body != nil {
-			req.Body.Close()
-		}
-		return nil, errNoReadyProxyEndpoint
-	}
 	setTarget := func(r *http.Request, u *url.URL, apiKey string) {
 		q := r.URL.Query()
-		target := *u
-		target.RawQuery = q.Encode()
-		r.Host = target.Host
-		r.URL = &target
+		u.RawQuery = q.Encode()
+		r.Host = u.Host
+		r.URL = u
 		r.Header.Set("DD-API-KEY", apiKey)
 	}
-	if len(targets) == 1 {
-		setTarget(req, targets[0], keys[0])
+	if len(m.targets) == 1 {
+		setTarget(req, m.targets[0], m.keys[0])
 		return m.rt.RoundTrip(req)
 	}
 
@@ -137,7 +128,7 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		}
 	}
 	var wg sync.WaitGroup
-	for i, u := range targets {
+	for i, u := range m.targets {
 		if i == 0 {
 			continue
 		}
@@ -145,14 +136,14 @@ func (m *forwardingTransport) RoundTrip(req *http.Request) (*http.Response, erro
 		if body != nil {
 			newreq.Body = io.NopCloser(bytes.NewReader(body))
 		}
-		setTarget(newreq, u, keys[i])
+		setTarget(newreq, u, m.keys[i])
 		wg.Add(1)
 		go func() {
 			defer wg.Done()
 			roundTripAdditional(newreq)
 		}()
 	}
-	setTarget(req, targets[0], keys[0])
+	setTarget(req, m.targets[0], m.keys[0])
 	if body != nil {
 		req.Body = io.NopCloser(bytes.NewReader(body))
 	}
@@ -167,14 +158,12 @@ func newMeasuringForwardingTransport(
 	mainEndpoint *url.URL,
 	mainEndpointKey string,
 	additionalEndpoints map[string][]string,
-	conf *config.AgentConfig,
-	configKey string,
 	maxRequestBytes int64,
 	metricPrefix string,
 	metricTags []string,
 	statsd statsd.ClientInterface,
 ) http.RoundTripper {
-	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, additionalEndpoints, conf, configKey, maxRequestBytes)
+	forwardingTransport := newForwardingTransport(rt, mainEndpoint, mainEndpointKey, additionalEndpoints, maxRequestBytes)
 	return newMeasuringTransport(forwardingTransport, metricPrefix, metricTags, statsd)
 }
 

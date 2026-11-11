@@ -3325,12 +3325,6 @@ func TestAdditionalEndpointCredentialReadsOriginalSlot(t *testing.T) {
 	for _, setting := range []string{
 		"apm_config.additional_endpoints",
 		"apm_config.telemetry.additional_endpoints",
-		"apm_config.profiling_additional_endpoints",
-		"apm_config.debugger_additional_endpoints",
-		"apm_config.debugger_diagnostics_additional_endpoints",
-		"apm_config.symdb_additional_endpoints",
-		"evp_proxy_config.additional_endpoints",
-		"ol_proxy_config.additional_endpoints",
 	} {
 		t.Run(setting, func(t *testing.T) {
 			core := configcomp.NewMock(t)
