@@ -171,7 +171,7 @@ def build(
         rtloader_root=rtloader_root,
         python_home_3=python_home_3,
         include_python="python" in build_tags,
-        platform=target_platform,
+        target_platform=target_platform,
     )
 
     if target_platform == 'win32':
