@@ -88,8 +88,11 @@ managed by **Bazel**.
 `ebpf_program_suite` (see existing targets in
 `pkg/collector/corechecks/ebpf/c/runtime/BUILD.bazel`). Then:
 1. Add the target to `_BAZEL_EBPF_CORE_TARGETS` in `tasks/system_probe.py`
-   (needed for the copy step that stages `.o` files).
-2. Add it to the `all_ebpf_programs` filegroup in `pkg/ebpf/BUILD.bazel`.
+   (needed for the copy step that stages `.o` files), and its `-debug` variant
+   to `_BAZEL_EBPF_CORE_DEBUG_TARGETS` (staged only with `--debug`).
+2. Add it to the `all_ebpf_programs` filegroup in `pkg/ebpf/BUILD.bazel`, and
+   its `-debug` variant to `debug_ebpf_programs` (checked by
+   `//pkg/ebpf:ebpf_test`).
 
 **Add runtime compilation support** by creating a `runtime_compilation_bundle`
 target in `pkg/ebpf/bytecode/BUILD.bazel`:

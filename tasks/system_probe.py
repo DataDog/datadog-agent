@@ -766,19 +766,12 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
 # Prebuilt targets go to build_dir/, CO-RE targets go to build_dir/co-re/.
 _BAZEL_EBPF_PREBUILT_TARGETS = [
     "//pkg/network/ebpf/c/prebuilt:dns",
-    "//pkg/network/ebpf/c/prebuilt:dns-debug",
     "//pkg/network/ebpf/c/prebuilt:offset-guess",
-    "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
     "//pkg/network/ebpf/c/prebuilt:tracer",
-    "//pkg/network/ebpf/c/prebuilt:tracer-debug",
     "//pkg/network/ebpf/c/prebuilt:usm",
-    "//pkg/network/ebpf/c/prebuilt:usm-debug",
     "//pkg/network/ebpf/c/prebuilt:usm_events_test",
-    "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
     "//pkg/network/ebpf/c/prebuilt:shared-libraries",
-    "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
     "//pkg/network/ebpf/c/prebuilt:conntrack",
-    "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
     "//pkg/security/ebpf/c/prebuilt:runtime-security",
     "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
     "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
@@ -790,26 +783,15 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/c:ksyms_iter",
     "//pkg/network/ebpf/c:tracer",
     "//pkg/network/ebpf/c/sk:sk_tracer",
-    "//pkg/network/ebpf/c/sk:sk_tracer-debug",
-    "//pkg/network/ebpf/c:tracer-debug",
     "//pkg/network/ebpf/c/co-re:tracer-fentry",
-    "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
     "//pkg/network/ebpf/c/runtime:usm",
-    "//pkg/network/ebpf/c/runtime:usm-debug",
     "//pkg/network/ebpf/c/runtime:shared-libraries",
-    "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
     "//pkg/network/ebpf/c/runtime:conntrack",
-    "//pkg/network/ebpf/c/runtime:conntrack-debug",
     "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
-    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
     "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
-    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
     "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
-    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
     "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
-    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
     "//pkg/gpu/ebpf/c/runtime:gpu",
-    "//pkg/gpu/ebpf/c/runtime:gpu-debug",
     "//pkg/dyninst/ebpf:dyninst_event",
     "//pkg/dyninst/ebpf:dyninst_event-debug",
     "//pkg/ebpf/testdata/c:logdebug-test",
@@ -819,6 +801,39 @@ _BAZEL_EBPF_CORE_TARGETS = [
     "//pkg/ebpf/testdata/c:uprobe_attacher-test",
     "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
 ]
+
+# DEBUG=1 variants from ebpf_program_suite, staged only when requested.
+_BAZEL_EBPF_PREBUILT_DEBUG_TARGETS = [
+    "//pkg/network/ebpf/c/prebuilt:dns-debug",
+    "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
+    "//pkg/network/ebpf/c/prebuilt:tracer-debug",
+    "//pkg/network/ebpf/c/prebuilt:usm-debug",
+    "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
+    "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
+    "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
+]
+
+_BAZEL_EBPF_CORE_DEBUG_TARGETS = [
+    "//pkg/network/ebpf/c:tracer-debug",
+    "//pkg/network/ebpf/c/sk:sk_tracer-debug",
+    "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
+    "//pkg/network/ebpf/c/runtime:usm-debug",
+    "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
+    "//pkg/network/ebpf/c/runtime:conntrack-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
+    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
+    "//pkg/gpu/ebpf/c/runtime:gpu-debug",
+]
+
+
+def _staged_debug_objects() -> list[str]:
+    """Return the staging paths of the debug variants, relative to the build dir."""
+    return [f"{t.rsplit(':', 1)[1]}.o" for t in _BAZEL_EBPF_PREBUILT_DEBUG_TARGETS] + [
+        f"co-re/{t.rsplit(':', 1)[1]}.o" for t in _BAZEL_EBPF_CORE_DEBUG_TARGETS
+    ]
+
 
 # Targets that go to their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
@@ -881,13 +896,15 @@ def bazel_build_ebpf(
     runtime_dir: str,
     *,
     verify: bool = False,
+    debug: bool = False,
     extra_targets: list[str] | tuple[str, ...] = (),
 ) -> str:
     """Build all eBPF artifacts via a single Bazel invocation.
 
     Builds eBPF .o objects (prebuilt, CO-RE, inplace), runtime flattened .c
     files, and Go integrity hash files, then copies outputs to the
-    appropriate staging directories and source tree.
+    appropriate staging directories and source tree. With debug, the
+    <name>-debug.o variants are built and staged as well.
     """
     import shutil
 
@@ -897,8 +914,13 @@ def bazel_build_ebpf(
     else:
         inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
 
-    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS)
-    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS)
+    prebuilt_targets = list(_BAZEL_EBPF_PREBUILT_TARGETS)
+    core_targets = list(_BAZEL_EBPF_CORE_TARGETS)
+    if debug:
+        prebuilt_targets += _BAZEL_EBPF_PREBUILT_DEBUG_TARGETS
+        core_targets += _BAZEL_EBPF_CORE_DEBUG_TARGETS
+    prebuilt = _ebpf_strip_targets(prebuilt_targets)
+    core = _ebpf_strip_targets(core_targets)
     inplace = {_ebpf_strip_targets([t])[0]: d for t, d in inplace_targets.items()}
 
     ebpf_targets = prebuilt + core + list(inplace.keys())
@@ -1054,10 +1076,14 @@ def _rust_install_targets(output_dir: Path | None = None, packages: list[str] | 
     return targets
 
 
-@task(aliases=["object-files"])
+@task(
+    aliases=["object-files"],
+    help={"debug": "Also build and stage the DEBUG=1 <name>-debug.o variants"},
+)
 def build_object_files(
     ctx,
     arch: str = CURRENT_ARCH,
+    debug: bool = False,
 ) -> None:
     arch_obj = Arch.from_str(arch)
     build_dir = get_ebpf_build_dir(arch_obj)
@@ -1074,7 +1100,12 @@ def build_object_files(
         if not arch_obj.is_cross_compiling():
             extra_targets.extend(t for t, _ in _rust_install_targets())
 
-        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir, verify=True, extra_targets=extra_targets)
+        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir, verify=True, debug=debug, extra_targets=extra_targets)
+        if not debug:
+            for rel in _staged_debug_objects():
+                stale = os.path.join(build_dir, rel)
+                if os.path.exists(stale):
+                    os.remove(stale)
 
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         # Keep Bazel unprivileged: its sandbox needs access to the caller's repository cache.
@@ -1103,6 +1134,9 @@ def build_object_files(
     if not is_windows:
         sudo = "" if is_root() else "sudo"
         ctx.run(f"{sudo} mkdir -p {EMBEDDED_SHARE_DIR}")
+        if not debug:
+            stale = " ".join(os.path.join(EMBEDDED_SHARE_DIR, rel) for rel in _staged_debug_objects())
+            ctx.run(f"{sudo} rm -f {stale}")
 
         if ctx.run("command -v rsync >/dev/null 2>&1", warn=True, hide=True).ok:
             rsync_filter = "--filter='+ */' --filter='+ *.o' --filter='+ *.c' --filter='- *'"
@@ -1657,7 +1691,7 @@ def build_usm_debugger(
     arch: str = CURRENT_ARCH,
     strip_binary=False,
 ):
-    build_object_files(ctx)
+    build_object_files(ctx, debug=True)
 
     build_dir = os.path.join("pkg", "ebpf", "bytecode", "build", arch)
 

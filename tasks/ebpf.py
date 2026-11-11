@@ -161,7 +161,7 @@ def collect_verification_stats(
 ):
     sudo = "sudo -E" if not is_root() else ""
     if not skip_object_files:
-        build_object_files(ctx)
+        build_object_files(ctx, debug=debug_build)
         build_cws_object_files(ctx)
 
     ctx.run("go build -tags bpf pkg/ebpf/verifier/calculator/main.go")

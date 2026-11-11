@@ -1160,6 +1160,9 @@ cover the most common workflows:
 # Build every eBPF .o program and runtime flattened .c file at once
 bazel build //pkg/ebpf:all_ebpf_programs
 
+# Build the DEBUG=1 <name>-debug variants (not part of all_ebpf_programs)
+bazel build //pkg/ebpf:debug_ebpf_programs
+
 # Verify all committed cgo godefs files are up to date.
 # Covers both Linux and Windows targets; incompatible tests are
 # skipped automatically via target_compatible_with.
