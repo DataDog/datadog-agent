@@ -34,7 +34,10 @@ pub fn prepare(_path: &Path) -> Result<()> {
 
 pub fn set_permissions(_path: &Path) {}
 
-pub fn cleanup(_path: &Path) {}
+/// Named pipes leave nothing on disk, so there is no ownership to track.
+pub struct BoundSocket;
+
+pub fn cleanup(_path: &Path, _bound: BoundSocket) {}
 
 #[derive(Clone)]
 pub struct PipeCallerAuth {
