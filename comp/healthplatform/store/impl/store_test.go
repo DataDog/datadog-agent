@@ -35,7 +35,6 @@ import (
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/comp/healthplatform/issueregistry/utils/selfident"
 	storedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/def"
-	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // memPersistence stores state in memory, replacing disk I/O in unit tests.
@@ -162,7 +161,6 @@ func newUnstartedTestStore(t *testing.T) *healthPlatformImpl {
 		ingestWake:       make(chan struct{}, 1),
 		stopCh:           make(chan struct{}),
 		doneCh:           make(chan struct{}),
-		dropLogLimit:     utillog.NewLogLimit(10, time.Minute),
 		metrics: telemetryMetrics{
 			issuesDropped:  tel.NewCounter("health_platform", "issues_dropped", []string{"operation"}, ""),
 			ingestQueueLen: tel.NewGauge("health_platform", "ingest_queue_length", nil, ""),

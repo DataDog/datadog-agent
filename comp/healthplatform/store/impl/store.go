@@ -35,7 +35,6 @@ import (
 	remotedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/remote/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
-	utillog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -104,8 +103,8 @@ type healthPlatformImpl struct {
 	ingestWake   chan struct{}
 	stopCh       chan struct{}
 	doneCh       chan struct{}
-	dirty        bool // Owned by the ingest worker.
-	dropLogLimit *utillog.Limit
+	dirty        bool      // Owned by the ingest worker.
+	lastDropWarn time.Time // Guarded by ingestMu; throttles the queue-full warn.
 
 	// Metrics
 	metrics telemetryMetrics
@@ -315,7 +314,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 		ingestWake:      make(chan struct{}, 1),
 		stopCh:          make(chan struct{}),
 		doneCh:          make(chan struct{}),
-		dropLogLimit:    utillog.NewLogLimit(10, time.Minute),
 	}
 
 	// Register lifecycle hooks for component start/stop
@@ -436,13 +434,21 @@ func (h *healthPlatformImpl) enqueue(cmd ingestCmd) {
 			}
 		}
 	}
+	// Throttle the warn to at most once per minute; issues_dropped is the precise signal.
+	warn := false
+	if droppedLabel != "" {
+		if now := time.Now(); now.Sub(h.lastDropWarn) >= time.Minute {
+			h.lastDropWarn = now
+			warn = true
+		}
+	}
 	h.metrics.ingestQueueLen.Set(float64(len(h.ingestQueue)))
 	h.ingestMu.Unlock()
 	select {
 	case h.ingestWake <- struct{}{}:
 	default:
 	}
-	if droppedLabel != "" && h.dropLogLimit.ShouldLog() {
+	if warn {
 		h.log.Warnf("health platform: ingest queue full, dropping %s operation", droppedLabel)
 	}
 }
