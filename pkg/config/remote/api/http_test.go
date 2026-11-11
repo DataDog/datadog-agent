@@ -69,3 +69,29 @@ func TestUserAgent(t *testing.T) {
 		t.Fatal("timeout waiting for user agent string")
 	}
 }
+
+func TestWithoutRedirectsKeepsAPIKeyAtBackend(t *testing.T) {
+	targetCalls := 0
+	target := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { targetCalls++; w.WriteHeader(200) }))
+	defer target.Close()
+	source := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "collector-secret", r.Header.Get("DD-API-KEY"))
+		w.Header().Set("Location", target.URL)
+		w.WriteHeader(http.StatusTemporaryRedirect)
+	}))
+	defer source.Close()
+	cfg := mock.New(t)
+	cfg.SetInTest("remote_configuration.no_tls", true)
+	u, err := url.Parse(source.URL)
+	if !assert.NoError(t, err) {
+		return
+	}
+	client, err := NewHTTPClient(Auth{APIKey: "collector-secret"}, cfg, u, WithoutRedirects())
+	if !assert.NoError(t, err) {
+		return
+	}
+	defer client.CloseIdleConnections()
+	_, err = client.FetchOrgData(t.Context())
+	assert.Error(t, err)
+	assert.Zero(t, targetCalls)
+}

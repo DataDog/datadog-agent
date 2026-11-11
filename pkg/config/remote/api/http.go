@@ -75,8 +75,21 @@ type HTTPClient struct {
 	header     http.Header
 }
 
+// HTTPClientOption adjusts the backend HTTP client before it is used.
+type HTTPClientOption func(*http.Client)
+
+// WithoutRedirects keeps authentication on the configured backend origin.
+func WithoutRedirects() HTTPClientOption {
+	return func(c *http.Client) {
+		c.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+	}
+}
+
+// CloseIdleConnections releases backend connections owned by the embedding service.
+func (c *HTTPClient) CloseIdleConnections() { c.client.CloseIdleConnections() }
+
 // NewHTTPClient returns a new HTTP configuration client
-func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, error) {
+func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL, options ...HTTPClientOption) (*HTTPClient, error) {
 	header := http.Header{
 		"Content-Type": []string{"application/x-protobuf"},
 	}
@@ -111,6 +124,9 @@ func NewHTTPClient(auth Auth, cfg model.Reader, baseURL *url.URL) (*HTTPClient, 
 	}
 	if transport.TLSClientConfig.InsecureSkipVerify && !cfg.GetBool("remote_configuration.no_tls_validation") {
 		return nil, errors.New("remote Configuration does not allow skipping TLS validation by default (currently skipped because `skip_ssl_validation` is set to true). While it is not advised, the `remote_configuration.no_tls_validation` config option can be set to `true` to disable this protection")
+	}
+	for _, option := range options {
+		option(httpClient)
 	}
 	return &HTTPClient{
 		client:  httpClient,

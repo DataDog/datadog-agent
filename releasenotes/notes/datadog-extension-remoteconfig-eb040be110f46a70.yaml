@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    Add an experimental, opt-in ``remote_config`` capability to the DDOT
+    Datadog extension. SDKs can use the Agent Remote Configuration protocol
+    through a dedicated Collector listener, with Collector-held credentials,
+    shared caching and aggregated backend polling, without a Datadog Agent process.
