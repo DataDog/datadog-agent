@@ -11,6 +11,7 @@ import (
 	"net/http/httptest"
 	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -100,42 +101,45 @@ func TestStopFlushTimeoutBoundsShutdown(t *testing.T) {
 		"Stop must not wait for the full send timeout when the intake does not answer")
 }
 
-func TestStopBoundsInFlightPeriodicSend(t *testing.T) {
-	requestStarted := make(chan struct{}, 1)
-	release := make(chan struct{})
-	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
-		select {
-		case requestStarted <- struct{}{}:
-		default:
-		}
-		select {
-		case <-r.Context().Done():
-		case <-release:
-		}
-	}))
-	t.Cleanup(func() {
-		close(release)
-		server.Close()
-	})
+// blockingTransport stands in for an unreachable intake: it records that a request reached it
+// and holds the request until its context is canceled.
+type blockingTransport struct {
+	entered chan struct{}
+}
 
-	const stopFlushTimeout = 100 * time.Millisecond
-	telem := newTelemetry(server.Client(), "api", "datadoghq.com", "test-service",
-		WithEndpointURL(server.URL), WithStopFlushTimeout(stopFlushTimeout))
-	telem.flushInterval = 10 * time.Millisecond
-	telem.Start()
-	finishTestSpan()
-
+func (b *blockingTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	select {
-	case <-requestStarted:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the periodic flush never reached the intake")
+	case b.entered <- struct{}{}:
+	default:
 	}
+	<-r.Context().Done()
+	return nil, r.Context().Err()
+}
 
-	start := time.Now()
-	telem.Stop()
+func TestStopBoundsInFlightPeriodicSend(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		transport := &blockingTransport{entered: make(chan struct{}, 1)}
+		const stopFlushTimeout = 100 * time.Millisecond
+		telem := newTelemetry(&http.Client{Transport: transport}, "api", "datadoghq.com", "test-service",
+			WithEndpointURL("https://intake.example"), WithStopFlushTimeout(stopFlushTimeout))
+		telem.flushInterval = 10 * time.Millisecond
+		telem.Start()
+		finishTestSpan()
 
-	assert.Less(t, time.Since(start), defaultSendPayloadTimeout/2,
-		"Stop must cancel a periodic send that is already waiting on the intake")
+		time.Sleep(telem.flushInterval)
+		synctest.Wait()
+		select {
+		case <-transport.entered:
+		default:
+			t.Fatal("the periodic flush did not reach the intake")
+		}
+
+		start := time.Now()
+		telem.Stop()
+
+		assert.Equal(t, stopFlushTimeout, time.Since(start),
+			"Stop must cancel the periodic send already waiting on the intake at the stop flush deadline")
+	})
 }
 
 func TestSendPayloadStopsWhenContextCanceled(t *testing.T) {
