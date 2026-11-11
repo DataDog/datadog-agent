@@ -4,9 +4,9 @@ Development prototype for DDOT. Adds an opt-in `remote_config` capability to the
 
 ## Motivation
 
-Customers routing OTLP signals through a Collector also need SDK configuration. A transparent RC forwarder reuses the agentless clients available in Python and Node.js, but every SDK still polls Datadog independently. Java does not have the same supported agentless DI path and cannot reuse libdatadog.
+Customers routing OTLP signals through a Collector also need Remote Configuration (RC). The Datadog Agent already implements backend polling, targeting, client tracking and trusted caching. This component reuses that service directly inside DDOT, so it can run without a companion Datadog Agent process.
 
-This alternative hosts the existing Agent RC engine in the Collector. SDKs use their Agent RC clients; the Collector supplies credentials, tracks clients, caches trusted configuration and aggregates backend polling. It can avoid implementing a new Java agentless RC client. Supported endpoint selection and real backend qualification remain work.
+SDKs use the existing Agent RC protocol. The Collector holds the API key, caches configuration and aggregates backend polling; SDKs decode and apply their configuration. Java can retain its existing RC client without introducing libdatadog or a separate agentless RC implementation. Supported endpoint selection and full backend qualification remain shipping requirements.
 
 ## Architecture
 
@@ -30,7 +30,7 @@ flowchart LR
 
 The SDK listener is separate from the metadata server. With RC disabled, the factory returns the original upstream extension instance. With RC enabled, a wrapper delegates metadata snapshots, pipeline/status notifications and serializer access, and owns the RC listener/service lifecycle. Startup rolls back metadata services if RC cannot start.
 
-The internal service reuses the Agent engine rather than translating each SDK request to an agentless backend request. It retains targeting, trusted caching, signature/expiry handling and rate-limited cold-client refreshes. SDKs continue to decode and apply their configuration.
+The internal service links the Agent RC Go packages directly. It retains targeting, trusted caching, signature/expiry handling and rate-limited cold-client refreshes. No RC algorithms are copied into the extension and no Datadog Agent daemon or IPC connection is required.
 
 ## Configuration
 
@@ -66,28 +66,43 @@ service:
 
 Only top-level `api.key` and `api.site` supply RC credentials; a second `remote_config.api` block is rejected. The wrapper builds an isolated Agent config adapter from those resolved values, so unrelated Agent environment credentials do not override them. Upstream keeps its own adapter private: sharing the actual adapter and live key rotation requires an upstream service hook. This prototype reloads credentials by component restart.
 
-Backend requests use the Agent HTTP transport, system TLS trust and the configured proxy. RC explicitly rejects custom top-level backend TLS/auth/middleware/header settings instead of silently ignoring them. Complete Collector transport integration is pre-GA work. Redirects are disabled for RC, preserving credentials at the configured origin, and idle backend connections are released on shutdown.
+Backend requests use Collector HTTP client settings for verified TLS, custom trust roots, client certificates, proxies and connection limits, while retaining Agent RC request serialization. Redirects are disabled, and the instrumented transport preserves connection-pool cleanup. Custom outgoing auth, headers, middleware and compression are rejected to keep API-key authentication and transport ownership explicit. RC rejects insecure TLS.
 
 Loopback works only in a shared network namespace. Separate pods need a reachable node-local listener, TLS trust and workload access controls. Do not expose the metadata server to SDK workloads. DDOT's separate `ddflare` extension is unchanged.
 
-## SDK and DI boundaries
+## Standalone DDOT
 
-- **Python and Node.js:** existing agentless RC/DI capabilities are the foundation of the separate forwarding design. This component instead serves their Agent RC protocol; selecting that transport while retaining OTLP export needs qualification.
-- **Java:** existing Agent RC can use this listener without a new libdatadog integration. A released Java 1.68.1 protocol smoke test exercises the internal adapter without an SDK key when its jar is supplied. It does not establish real backend application, supported onboarding or complete product support.
-- **DI is separate:** RC delivers probe definitions and configuration acknowledgements. This prototype does not provide snapshot, diagnostic or symbol upload routes. Java DI needs compatible discovery and Agent-facing DI forwarding in addition to RC. Ordinary OTLP log receipt is not DI product recognition.
+Build the normal DDOT binary with `dda inv otel-agent.build`, then run it without a core Agent:
 
-The Agent RC protocol is JSON `/v0.7/config`; the agentless protobuf protocol uses different endpoints. Migration requires explicit SDK transport selection, not changing an agentless URL to this listener.
+```sh
+DD_OTELCOLLECTOR_ENABLED=true DD_OTEL_STANDALONE=true \
+  ./bin/otel-agent/otel-agent run --config=file:/path/to/collector.yaml
+```
+
+The Collector resolves the API key from its own configuration. SDKs do not receive that key. The standalone command owns logging, the RC listener and the local cache; it does not require an Agent configuration-sync connection.
+
+## SDK boundaries
+
+- **Java:** use its existing Agent RC client. The released Java 1.68.1 protocol test exercises the HTTP adapter without an SDK key. Supported endpoint configuration, targeting and application/removal of live backend configuration need end-to-end qualification.
+- **Python and Node.js:** qualify their Agent RC transport alongside OTLP export. Existing agentless clients are not a dependency of this design.
+- **DI is separate:** RC can deliver probe configuration, but this component does not expose snapshot, diagnostic or symbol upload routes. Those product signals need a separate design and qualification.
+
+The listener serves Agent JSON `/v0.7/config`. SDK transport selection must match that protocol.
+
+## Collector integration
+
+The SDK listener uses standard Collector HTTP server TLS/authentication and reports fatal serving errors through component status. Backend HTTP activity uses the Collector tracer/meter providers. The Agent service's cache-bypass rate-limit and timeout counters, together with its subscription instruments, use the Collector meter provider under `datadog.remote_config.*`.
 
 ## Validation and remaining work
 
-Tests cover opt-in behavior, shared resolved credentials, config decoding, listener separation, metadata capability delegation, startup rollback, shutdown, Agent JSON fidelity, client identity normalization, request limits, error redaction and cancellation of a stalled real Agent RC service. A synthetic redirect test verifies that the RC API client does not forward the key to a redirect target.
+Tests cover opt-in behavior, shared resolved credentials, config decoding, listener separation, metadata capability delegation, startup rollback, shutdown, Agent JSON fidelity, client identity normalization, request limits, error redaction and cancellation of a stalled real Agent RC service. Backend tests verify custom CA trust, a single Collector API key, redirect rejection and connection-pool cleanup through OTel instrumentation. Metrics tests verify the Agent service instruments reach the Collector meter provider.
 
-Before promoting this prototype:
+Before shipping:
 
 1. Validate two independently targeted SDK clients and measure shared backend polling, including cold starts and cache bypasses. Existing Agent engine tests exercise the reused engine; adapter tests alone do not establish multi-client load behavior.
 2. Verify Java RC updates/removals against staging without an SDK API key or direct backend egress, while preserving OTLP signal export. Define public endpoint onboarding and Collector backend identity/entitlements.
-3. Complete transport integration, workload authentication, credential rotation, cache ownership, bounded client admission, expiry/outage/restart tests and RC metrics/status. Node-local deployment or stable affinity avoids unnecessary replica churn.
-4. Qualify DI separately with real probes, diagnostics, symbols and a recognized product result. Reuse/extract Agent-compatible DI proxy behavior; do not invent cross-process batching of opaque JSON or multipart bodies.
+3. Complete workload authentication qualification, credential rotation, cache ownership, bounded client admission and expiry/outage/restart tests. Node-local deployment or stable affinity avoids unnecessary replica churn.
+4. Keep DI delivery separate; qualify its probe execution, diagnostics, symbols and product results before advertising DI support.
 5. Update DDOT/OSS onboarding and Kube Stack injection. Start DDOT-first, then seek integration into existing contrib `datadogextension` after GA, with dependency extraction and maintainer review.
 
-Bundling simplifies onboarding. It does not remove the RC implementation and operational work. This draft explores that choice; it does not replace the validated HTTP-forwarder demo.
+This draft retools the Agent RC service for the Collector extension lifecycle. DDOT is the initial delivery target; upstream integration remains subject to dependency extraction and maintainer review.

@@ -27,6 +27,7 @@ type Config struct {
 	Enabled         bool                    `mapstructure:"enabled"`
 	ServerConfig    confighttp.ServerConfig `mapstructure:",squash"`
 	API             APIConfig               `mapstructure:"-"`
+	Backend         confighttp.ClientConfig `mapstructure:"-"`
 	CacheDirectory  string                  `mapstructure:"cache_directory"`
 	RefreshInterval time.Duration           `mapstructure:"refresh_interval"`
 	RequestTimeout  time.Duration           `mapstructure:"request_timeout"`
@@ -41,6 +42,7 @@ func DefaultConfig() *Config {
 	return &Config{
 		ServerConfig:    server,
 		API:             APIConfig{Site: "datadoghq.com"},
+		Backend:         confighttp.NewDefaultClientConfig(),
 		RefreshInterval: time.Minute,
 		RequestTimeout:  5 * time.Second,
 	}

@@ -17,10 +17,10 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
-	rcapi "github.com/DataDog/datadog-agent/pkg/config/remote/api"
 	rcservice "github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/core"
 	"github.com/DataDog/datadog-agent/pkg/version"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/extension"
 )
 
@@ -38,8 +38,12 @@ func New(set extension.Settings, c *Config, cfg model.Reader) (extension.Extensi
 	if cfg == nil {
 		return nil, errors.New("Collector configuration is required")
 	}
+	reporter, err := newServiceReporter(set)
+	if err != nil {
+		return nil, err
+	}
 	e := &remoteConfigExtension{config: c, settings: set}
-	e.newService = func(ctx context.Context) (remoteConfigService, error) {
+	e.newService = func(ctx context.Context, host component.Host) (remoteConfigService, error) {
 		id := sha256.Sum256([]byte(set.ID.String()))
 		cache := filepath.Join(c.CacheDirectory, hex.EncodeToString(id[:]))
 		if err := os.MkdirAll(cache, 0700); err != nil {
@@ -54,14 +58,14 @@ func New(set extension.Settings, c *Config, cfg model.Reader) (extension.Extensi
 		if err != nil {
 			return nil, err
 		}
-		client, err := rcapi.NewHTTPClient(rcapi.Auth{APIKey: string(c.API.Key)}, cfg, backendURL, rcapi.WithoutRedirects())
+		client, err := e.newAPIClient(ctx, host, cfg, backendURL)
 		if err != nil {
 			return nil, err
 		}
 		e.closeBackend = client.CloseIdleConnections
 		return rcservice.NewService(
 			staticConfig{cfg}, "DDOT Remote Config", endpoint,
-			hostname, func() []string { return nil }, serviceReporter{}, version.AgentVersion,
+			hostname, func() []string { return nil }, reporter, version.AgentVersion,
 			rcservice.WithAPIKey(string(c.API.Key)),
 			rcservice.WithAPIClient(boundedAPI{API: client, lifetime: ctx, timeout: 10 * time.Second}),
 			rcservice.WithDatabasePath(cache),
@@ -78,13 +82,3 @@ func New(set extension.Settings, c *Config, cfg model.Reader) (extension.Extensi
 type staticConfig struct{ model.Reader }
 
 func (staticConfig) OnUpdate(model.NotificationReceiver) {}
-
-// The draft exposes HTTP server telemetry; RC-specific metrics are follow-up.
-type serviceReporter struct{}
-
-func (serviceReporter) IncRateLimit()                              {}
-func (serviceReporter) IncTimeout()                                {}
-func (serviceReporter) IncConfigSubscriptionsConnectedCounter()    {}
-func (serviceReporter) IncConfigSubscriptionsDisconnectedCounter() {}
-func (serviceReporter) SetConfigSubscriptionsActive(int)           {}
-func (serviceReporter) SetConfigSubscriptionClientsTracked(int)    {}

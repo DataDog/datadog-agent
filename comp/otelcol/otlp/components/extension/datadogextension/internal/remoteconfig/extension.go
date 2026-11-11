@@ -27,7 +27,7 @@ type remoteConfigExtension struct {
 	closeBackend  func()
 	config        *Config
 	settings      extension.Settings
-	newService    func(context.Context) (remoteConfigService, error)
+	newService    func(context.Context, component.Host) (remoteConfigService, error)
 	cancelBackend context.CancelFunc
 	service       remoteConfigService
 	server        *http.Server
@@ -46,7 +46,7 @@ func (e *remoteConfigExtension) Start(ctx context.Context, host component.Host) 
 		return err
 	}
 	backendContext, cancel := context.WithCancel(context.Background())
-	service, err := e.newService(backendContext)
+	service, err := e.newService(backendContext, host)
 	if err != nil {
 		cancel()
 		if e.closeBackend != nil {

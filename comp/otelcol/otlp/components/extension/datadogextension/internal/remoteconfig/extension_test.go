@@ -67,7 +67,7 @@ func testExtension(t *testing.T, service *fakeService) *remoteConfigExtension {
 	return &remoteConfigExtension{
 		config: cfg, settings: extension.Settings{ID: component.NewID(Type), TelemetrySettings: componenttest.NewNopTelemetrySettings()},
 		service:    service,
-		newService: func(context.Context) (remoteConfigService, error) { return service, nil },
+		newService: func(context.Context, component.Host) (remoteConfigService, error) { return service, nil },
 	}
 }
 
@@ -179,7 +179,9 @@ func TestFailedStartReleasesListener(t *testing.T) {
 	endpoint := l.Addr().String()
 	require.NoError(t, l.Close())
 	e.config.ServerConfig.NetAddr.Endpoint = endpoint
-	e.newService = func(context.Context) (remoteConfigService, error) { return nil, errors.New("cache unavailable") }
+	e.newService = func(context.Context, component.Host) (remoteConfigService, error) {
+		return nil, errors.New("cache unavailable")
+	}
 	require.ErrorContains(t, e.Start(context.Background(), componenttest.NewNopHost()), "cache unavailable")
 	l, err = net.Listen("tcp", endpoint)
 	require.NoError(t, err)
@@ -309,8 +311,10 @@ func TestShutdownCancelsRealServiceBackend(t *testing.T) {
 	api, err := rcapi.NewHTTPClient(rcapi.Auth{APIKey: "collector-secret"}, cfg, u)
 	require.NoError(t, err)
 	e := testExtension(t, &fakeService{})
-	e.newService = func(ctx context.Context) (remoteConfigService, error) {
-		return rcservice.NewService(cfg, "DDOT test", backend.URL, "test-host", func() []string { return nil }, serviceReporter{}, "7.87.0",
+	reporter, err := newServiceReporter(e.settings)
+	require.NoError(t, err)
+	e.newService = func(ctx context.Context, _ component.Host) (remoteConfigService, error) {
+		return rcservice.NewService(cfg, "DDOT test", backend.URL, "test-host", func() []string { return nil }, reporter, "7.87.0",
 			rcservice.WithAPIKey("collector-secret"), rcservice.WithDatabasePath(t.TempDir()),
 			rcservice.WithAPIClient(boundedAPI{API: api, lifetime: ctx, timeout: time.Minute}))
 	}

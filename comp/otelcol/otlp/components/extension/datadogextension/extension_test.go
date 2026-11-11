@@ -19,6 +19,7 @@ import (
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/component/componentstatus"
 	"go.opentelemetry.io/collector/component/componenttest"
+	"go.opentelemetry.io/collector/config/configopaque"
 	"go.opentelemetry.io/collector/confmap"
 	"go.opentelemetry.io/collector/extension"
 	"go.opentelemetry.io/collector/extension/extensioncapabilities"
@@ -132,12 +133,16 @@ func TestRejectSecondCredentialSource(t *testing.T) {
 	require.ErrorContains(t, err, "remote_config.api is not supported")
 }
 
-func TestUnsupportedBackendTLSFailsExplicitly(t *testing.T) {
+func TestBackendTransportConfiguration(t *testing.T) {
 	_, c := testFactory(t, &child{}, &child{})
 	c.Datadog.ClientConfig.TLS.CAFile = "/custom-ca.crt"
-	require.NoError(t, confmap.Validate(c))
+	c.Datadog.ClientConfig.ProxyURL = "http://corporate-proxy:8080"
 	c.RemoteConfig.Enabled = true
-	require.ErrorContains(t, c.Validate(), "custom TLS")
+	require.NoError(t, confmap.Validate(c))
+	require.Equal(t, "/custom-ca.crt", c.rcConfig().Backend.TLS.CAFile)
+	require.Equal(t, "http://corporate-proxy:8080", c.rcConfig().Backend.ProxyURL)
+	c.Datadog.ClientConfig.TLS.InsecureSkipVerify = true
+	require.ErrorContains(t, c.Validate(), "verified backend TLS")
 }
 
 func TestFactoryWrappingIsIdempotent(t *testing.T) {
@@ -154,4 +159,12 @@ func TestCollectorRecursiveValidationWithRCDisabled(t *testing.T) {
 	_, c := testFactory(t, &child{}, &child{})
 	c.RemoteConfig.CacheDirectory = ""
 	require.NoError(t, confmap.Validate(c))
+}
+
+func TestBackendCredentialsCannotBeOverridden(t *testing.T) {
+	_, c := testFactory(t, &child{}, &child{})
+	c.Datadog.ClientConfig.Headers = configopaque.MapList{{Name: "DD-API-KEY", Value: "another-key"}}
+	require.NoError(t, c.Validate())
+	c.RemoteConfig.Enabled = true
+	require.ErrorContains(t, c.Validate(), "api.key for backend authentication")
 }

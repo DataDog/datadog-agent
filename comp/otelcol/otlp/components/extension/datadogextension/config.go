@@ -9,10 +9,8 @@ package datadogextension
 
 import (
 	"errors"
-	"reflect"
 
 	upstream "github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension"
-	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/confmap"
 
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/extension/datadogextension/internal/remoteconfig"
@@ -35,6 +33,7 @@ func (c *Config) Unmarshal(conf *confmap.Conf) error {
 func (c *Config) rcConfig() *remoteconfig.Config {
 	cfg := *c.RemoteConfig
 	cfg.API = remoteconfig.APIConfig{Key: c.Datadog.API.Key, Site: c.Datadog.API.Site}
+	cfg.Backend = c.Datadog.ClientConfig
 	return &cfg
 }
 
@@ -45,10 +44,11 @@ func (c *Config) Validate() error {
 	if c.RemoteConfig == nil || !c.RemoteConfig.Enabled {
 		return nil
 	}
-	// The prototype uses the Agent's transport; reject settings it cannot preserve.
-	if !reflect.DeepEqual(c.Datadog.ClientConfig.TLS, configtls.ClientConfig{}) ||
-		c.Datadog.ClientConfig.Auth.HasValue() || len(c.Datadog.ClientConfig.Middlewares) > 0 || len(c.Datadog.ClientConfig.Headers) > 0 {
-		return errors.New("remote_config prototype supports default backend TLS and proxy_url; custom TLS, auth, middleware and headers require transport integration")
+	if c.Datadog.ClientConfig.TLS.Insecure || c.Datadog.ClientConfig.TLS.InsecureSkipVerify {
+		return errors.New("remote_config requires verified backend TLS")
+	}
+	if c.Datadog.ClientConfig.Auth.HasValue() || len(c.Datadog.ClientConfig.Middlewares) > 0 || len(c.Datadog.ClientConfig.Headers) > 0 || c.Datadog.ClientConfig.Compression.IsCompressed() {
+		return errors.New("remote_config uses api.key for backend authentication; custom auth, middleware, headers and compression are not supported")
 	}
 	return remoteconfig.ValidateConfig(c.rcConfig())
 }
