@@ -23,6 +23,7 @@ import (
 	coreconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	traceconfig "github.com/DataDog/datadog-agent/comp/trace/config/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -48,6 +49,8 @@ type Requires struct {
 	Config coreconfig.Component
 	Tagger tagger.Component
 	IPC    ipc.Component
+	// Lc stops background work of the component. It may be nil when the component is built without fx.
+	Lc compdef.Lifecycle
 }
 
 // Provides defines the output of the trace config component.
@@ -81,6 +84,10 @@ func NewComponent(reqs Requires) (Provides, error) {
 		if !(err == pkgtraceconfig.ErrMissingAPIKey && !reqs.Params.FailIfAPIKeyMissing) {
 			return Provides{}, err
 		}
+	}
+
+	if tracecfg != nil {
+		setupKubeClusterUID(tracecfg, reqs.Lc)
 	}
 
 	c := cfg{

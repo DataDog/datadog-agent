@@ -7,6 +7,10 @@
 
 package configimpl
 
-func kubeClusterUIDFunc() func() string {
-	return nil
-}
+import (
+	compdef "github.com/DataDog/datadog-agent/comp/def"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+)
+
+// setupKubeClusterUID is a no-op: serverless agents do not resolve the cluster UID.
+func setupKubeClusterUID(*config.AgentConfig, compdef.Lifecycle) {}

@@ -20,6 +20,7 @@ func NewMock(reqs Requires) (traceconfig.Component, error) {
 	if err != nil {
 		return nil, err
 	}
+	setupKubeClusterUID(traceCfg, reqs.Lc)
 
 	c := cfg{
 		coreConfig:  reqs.Config,
