@@ -272,7 +272,7 @@ func (a *ClientStatsAggregator) addPeerK8sScope(p *pb.ClientStatsPayload, cTags 
 	if clusterUIDTag == "" {
 		return
 	}
-	scope := peerK8sScope{clusterUIDTag: clusterUIDTag}
+	scope := newPeerK8sScope(clusterUIDTag, "")
 	// the caller namespace is only needed for bare hostnames: avoid resolving it otherwise
 	callerResolved := false
 	for _, b := range p.Stats {
@@ -283,27 +283,30 @@ func (a *ClientStatsAggregator) addPeerK8sScope(p *pb.ClientStatsPayload, cTags 
 			if gs == nil {
 				continue
 			}
-			if !callerResolved && hasBarePeerHostname(gs.PeerTags) {
+			if !callerResolved && scope.needsCallerNamespace(gs.PeerTags) {
 				scope.callerNamespace = a.callerKubeNamespace(p, cTags)
 				callerResolved = true
 			}
-			gs.PeerTags = scope.appendTags(gs.PeerTags)
+			// the payload's slices are not ours to modify
+			gs.PeerTags = scope.appendTagsCopy(gs.PeerTags)
 		}
 	}
 }
 
 // callerKubeNamespace returns the Kubernetes namespace of the container that sent p.
+// It prefers the container tags resolved by the Agent (cTags, or resolved here) over
+// the tags sent with the payload.
 func (a *ClientStatsAggregator) callerKubeNamespace(p *pb.ClientStatsPayload, cTags []string) string {
-	if ns := KubeNamespaceFromTags(p.Tags); ns != "" {
-		return ns
-	}
 	if cTags == nil && p.ContainerID != "" && a.conf.ContainerTags != nil {
 		var err error
 		if cTags, err = a.conf.ContainerTags(p.ContainerID); err != nil {
 			log.Debugf("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
 		}
 	}
-	return KubeNamespaceFromTags(cTags)
+	if ns := KubeNamespaceFromTags(cTags); ns != "" {
+		return ns
+	}
+	return KubeNamespaceFromTags(p.Tags)
 }
 
 // alignAggTs aligns time to the aggregator timestamps.
