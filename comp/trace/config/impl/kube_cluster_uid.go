@@ -8,12 +8,15 @@
 package configimpl
 
 import (
+	"context"
 	"sync"
 	"sync/atomic"
 	"time"
 
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clustername"
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterid"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -22,29 +25,47 @@ const (
 	kubeClusterUIDMaxRetry = 10 * time.Minute
 )
 
-// kubeClusterUIDFunc returns the getter for config.AgentConfig.KubeClusterUID,
-// or nil when the Agent does not run in Kubernetes.
-func kubeClusterUIDFunc() func() string {
-	if !env.IsFeaturePresent(env.Kubernetes) {
-		return nil
+// setupKubeClusterUID sets c.KubeClusterUID when the peer.k8s.* peer tags are
+// enabled and the Agent runs in Kubernetes. The resolution stops with lc, when given.
+func setupKubeClusterUID(c *config.AgentConfig, lc compdef.Lifecycle) {
+	if !c.PeerTagsAggregation || !c.PeerTagsK8sScope || !env.IsFeaturePresent(env.Kubernetes) {
+		return
 	}
-	r := &kubeClusterUIDResolver{
-		getClusterID: clustername.GetClusterID,
-		minRetry:     kubeClusterUIDMinRetry,
-		maxRetry:     kubeClusterUIDMaxRetry,
+	r := newKubeClusterUIDResolver(clusterid.Get, kubeClusterUIDMinRetry, kubeClusterUIDMaxRetry)
+	c.KubeClusterUID = r.get
+	if lc != nil {
+		lc.Append(compdef.Hook{OnStop: func(context.Context) error {
+			r.stop()
+			return nil
+		}})
 	}
-	return r.get
 }
 
 // kubeClusterUIDResolver resolves the cluster UID in the background on first
-// use, retrying with exponential backoff until it succeeds, so that callers on
-// the stats hot path never wait for the Cluster Agent.
+// use, retrying with exponential backoff until it succeeds or is stopped, so
+// that callers on the stats hot path never wait for the Cluster Agent.
 type kubeClusterUIDResolver struct {
 	getClusterID       func() (string, error)
 	minRetry, maxRetry time.Duration
 
-	once sync.Once
-	uid  atomic.Pointer[string]
+	ctx    context.Context
+	stop   context.CancelFunc
+	done   chan struct{}
+	once   sync.Once
+	uid    atomic.Pointer[string]
+	logged bool // whether the first failure was logged, only accessed by resolve
+}
+
+func newKubeClusterUIDResolver(getClusterID func() (string, error), minRetry, maxRetry time.Duration) *kubeClusterUIDResolver {
+	ctx, cancel := context.WithCancel(context.Background())
+	return &kubeClusterUIDResolver{
+		getClusterID: getClusterID,
+		minRetry:     minRetry,
+		maxRetry:     maxRetry,
+		ctx:          ctx,
+		stop:         cancel,
+		done:         make(chan struct{}),
+	}
 }
 
 // get returns the cluster UID, or "" while it is not resolved.
@@ -57,16 +78,27 @@ func (r *kubeClusterUIDResolver) get() string {
 }
 
 func (r *kubeClusterUIDResolver) resolve() {
+	defer close(r.done)
 	retry := r.minRetry
 	for {
 		uid, err := r.getClusterID()
 		if err == nil && uid != "" {
-			log.Infof("Kubernetes cluster UID resolved to %s, adding the Kubernetes scope to peer tags", uid)
+			log.Infof("Kubernetes cluster UID resolved to %s, adding the peer.k8s.* peer tags to trace stats", uid)
 			r.uid.Store(&uid)
 			return
 		}
-		log.Debugf("Unable to get the Kubernetes cluster UID, retrying in %s: %v", retry, err)
-		time.Sleep(retry)
+		if !r.logged {
+			log.Infof("Unable to get the Kubernetes cluster UID, the peer.k8s.* peer tags are not added to trace stats until it is known. "+
+				"They need %s or the Cluster Agent. Retrying in the background: %v", clusterid.EnvVar, err)
+			r.logged = true
+		} else {
+			log.Debugf("Unable to get the Kubernetes cluster UID, retrying in %s: %v", retry, err)
+		}
+		select {
+		case <-time.After(retry):
+		case <-r.ctx.Done():
+			return
+		}
 		retry = min(2*retry, r.maxRetry)
 	}
 }
