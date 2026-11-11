@@ -118,43 +118,18 @@ func sitePackagesDirs() []string {
 }
 
 // depImportable reports whether a python module named dep can be imported
-// from one of the given site-packages directories. A dependency is
-// considered importable when its module package or file exists, or when any
-// installed distribution matches the import name.
+// from one of the given site-packages directories. Only module presence
+// counts: a matching dist-info directory is deliberately not enough, because
+// the installer wires symlinks one entry at a time, so dist-info visibility
+// does not guarantee the module itself is importable yet. Dependencies
+// whose installed dist name differs from their import names need an
+// explicit mapping in the manifest generator instead.
 func depImportable(dirs []string, dep string) bool {
 	for _, dir := range dirs {
 		if _, err := os.Stat(filepath.Join(dir, dep)); err == nil {
 			return true
 		}
 		if _, err := os.Stat(filepath.Join(dir, dep+".py")); err == nil {
-			return true
-		}
-		if distInstalled(dir, dep) {
-			return true
-		}
-	}
-	return false
-}
-
-// distInstalled reports whether a distribution matching the import name dep
-// is installed in dir, comparing case-insensitively and ignoring '-' vs '_'
-// (e.g. pymysql matches PyMySQL-1.1.0.dist-info).
-func distInstalled(dir, dep string) bool {
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, entry := range entries {
-		name := entry.Name()
-		if !strings.HasSuffix(name, ".dist-info") {
-			continue
-		}
-		distName := strings.TrimSuffix(name, ".dist-info")
-		if idx := strings.Index(distName, "-"); idx > 0 {
-			distName = distName[:idx]
-		}
-		distName = strings.ToLower(strings.ReplaceAll(distName, "-", "_"))
-		if distName == dep {
 			return true
 		}
 	}

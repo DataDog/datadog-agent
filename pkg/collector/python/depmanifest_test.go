@@ -64,12 +64,25 @@ func TestDepsPendingForDisabled(t *testing.T) {
 	assert.Empty(t, depsPendingFor("mysql"))
 }
 
-func TestDistInstalledMatchesNormalizedNames(t *testing.T) {
-	sitePackages := t.TempDir()
+func TestDistInfoAloneIsNotImportable(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("on_demand_python_deps.enabled", true, pkgconfigmodel.SourceFile)
+
+	manifestPath := filepath.Join(t.TempDir(), "manifest.json")
+	writeDepsManifest(t, manifestPath)
+	cfg.Set("on_demand_python_deps.manifest_path", manifestPath, pkgconfigmodel.SourceFile)
+
+	root := t.TempDir()
+	sitePackages := filepath.Join(root, "python3.12", "site-packages")
+	// the installer wires the dist-info symlink before the module directory:
+	// a probe landing in that window must keep the check deferred
 	require.NoError(t, os.MkdirAll(filepath.Join(sitePackages, "PyMySQL-1.1.0.dist-info"), 0o755))
 
-	assert.True(t, distInstalled(sitePackages, "pymysql"))
-	assert.False(t, distInstalled(sitePackages, "psutil"))
+	prevPythonPath := PythonPath
+	defer func() { PythonPath = prevPythonPath }()
+	PythonPath = "['" + sitePackages + "']"
+
+	assert.Equal(t, []string{"pymysql"}, depsPendingFor("mysql"))
 }
 
 func TestSitePackagesDirs(t *testing.T) {

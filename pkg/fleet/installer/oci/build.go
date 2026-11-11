@@ -116,10 +116,22 @@ type DistInfo struct {
 type Requirement struct {
 	// Name is the normalized distribution name.
 	Name string
-	// DepsGroup is true when the requirement is guarded by the deps optional
-	// group marker.
-	DepsGroup bool
+	// Kind classifies the requirement marker.
+	Kind requirementKind
 }
+
+type requirementKind int
+
+const (
+	// requireHard is a requirement without any environment marker.
+	requireHard requirementKind = iota
+	// requireDepsGroup is a requirement guarded by the deps optional group
+	// marker.
+	requireDepsGroup
+	// requireOtherExtra is a requirement guarded by any other optional-group
+	// marker (test, dev, docs, ...): never part of the runtime install.
+	requireOtherExtra
+)
 
 // SitePackages describes a python site-packages tree.
 type SitePackages struct {
@@ -183,9 +195,19 @@ func parseMetadata(dist *DistInfo) error {
 		if match == nil {
 			continue
 		}
+		marker := ""
+		if match[3] != "" {
+			marker = match[3]
+		}
+		kind := requireOtherExtra
+		if marker == "" {
+			kind = requireHard
+		} else if strings.Contains(marker, depsGroup) {
+			kind = requireDepsGroup
+		}
 		dist.Requires = append(dist.Requires, Requirement{
-			Name:      NormalizeDistName(match[1]),
-			DepsGroup: match[3] != "" && strings.Contains(match[3], depsGroup),
+			Name: NormalizeDistName(match[1]),
+			Kind: kind,
 		})
 	}
 	return nil
@@ -235,8 +257,9 @@ func (s *SitePackages) dist(name string) *DistInfo {
 }
 
 // walkClosure adds to the set the transitive closure of name following the
-// requirements of installed distributions; followAll selects whether
-// deps-group requirements are followed too.
+// runtime requirements of installed distributions: hard requirements
+// always, deps-group requirements only when followAll is set. Other
+// optional groups (test, dev, ...) are never followed.
 func (s *SitePackages) walkClosure(set map[string]struct{}, name string, followAll bool) {
 	if _, done := set[name]; done {
 		return
@@ -247,7 +270,7 @@ func (s *SitePackages) walkClosure(set map[string]struct{}, name string, followA
 	}
 	set[name] = struct{}{}
 	for _, req := range dist.Requires {
-		if followAll || !req.DepsGroup {
+		if req.Kind == requireHard || (followAll && req.Kind == requireDepsGroup) {
 			s.walkClosure(set, req.Name, followAll)
 		}
 	}
@@ -261,7 +284,7 @@ func (s *SitePackages) DepsManifest() map[string][]string {
 	for _, check := range s.checkDists() {
 		deps := []string{}
 		for _, req := range check.Requires {
-			if req.DepsGroup {
+			if req.Kind == requireDepsGroup {
 				deps = append(deps, req.Name)
 			}
 		}
@@ -287,7 +310,7 @@ func (s *SitePackages) DepsPackageDists() []*DistInfo {
 	deps := map[string]struct{}{}
 	for _, check := range s.checkDists() {
 		for _, req := range check.Requires {
-			if req.DepsGroup {
+			if req.Kind == requireDepsGroup {
 				s.walkClosure(deps, req.Name, true)
 			}
 		}

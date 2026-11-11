@@ -113,6 +113,37 @@ func TestDepsPackageDists(t *testing.T) {
 	assert.Equal(t, []string{"cryptography", "psutil", "pymysql"}, names)
 }
 
+func TestDepsPackageDistsIgnoresOtherExtras(t *testing.T) {
+	root := t.TempDir()
+	sitePackages := filepath.Join(root, "python3.12", "site-packages")
+	require.NoError(t, os.MkdirAll(sitePackages, 0o755))
+
+	writeDist(t, sitePackages, "datadog_gunicorn-4.5.0",
+		"Requires-Dist: datadog-checks-base>=37.0.0\nRequires-Dist: psutil==6.0.0; extra == \"deps\"\n",
+		"datadog_checks/gunicorn")
+	writeDist(t, sitePackages, "datadog_checks_base-37.0.0",
+		"Requires-Dist: requests>=2.0.0\n",
+		"datadog_checks/base")
+	writeDist(t, sitePackages, "psutil-6.0.0",
+		"Requires-Dist: ipaddress; extra == \"test\"\n",
+		"psutil")
+	writeDist(t, sitePackages, "ipaddress-1.0.23",
+		"Requires-Dist: \n",
+		"ipaddress")
+	writeDist(t, sitePackages, "requests-2.32.0",
+		"Requires-Dist: \n",
+		"requests")
+
+	site, err := ParseSitePackages(sitePackages)
+	require.NoError(t, err)
+	dists := site.DepsPackageDists()
+	names := []string{}
+	for _, dist := range dists {
+		names = append(names, dist.Name)
+	}
+	assert.Equal(t, []string{"psutil"}, names, "test-only extras must not ship in the deps package")
+}
+
 func TestBuildDepsPackageLayer(t *testing.T) {
 	site := testSitePackages(t)
 	dists := site.DepsPackageDists()
