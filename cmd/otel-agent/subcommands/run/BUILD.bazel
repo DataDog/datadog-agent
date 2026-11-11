@@ -45,6 +45,7 @@ go_library(
         "//comp/core/workloadmeta/def",
         "//comp/core/workloadmeta/fx",
         "//comp/core/workloadmeta/init",
+        "//comp/def",
         "//comp/dogstatsd/statsd/def",
         "//comp/dogstatsd/statsd/otel",
         "//comp/forwarder/defaultforwarder/def",

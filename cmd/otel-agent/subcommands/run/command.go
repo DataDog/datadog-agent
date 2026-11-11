@@ -48,6 +48,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	workloadmetainit "github.com/DataDog/datadog-agent/comp/core/workloadmeta/init"
+	compdef "github.com/DataDog/datadog-agent/comp/def"
 	statsd "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/def"
 	statsdotel "github.com/DataDog/datadog-agent/comp/dogstatsd/statsd/otel"
 	defaultforwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
@@ -302,11 +303,11 @@ func standaloneAgentFxOptions(params *cliParams) fx.Option {
 		// get it from a core agent.
 		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
 		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(ctx context.Context, params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, h hostnameinterface.Component, _ configsync.Component) (traceconfigdef.Component, error) {
+		fx.Provide(func(ctx context.Context, params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, h hostnameinterface.Component, lc compdef.Lifecycle, _ configsync.Component) (traceconfigdef.Component, error) {
 			if err := setStandaloneTraceHostname(ctx, cfg, h); err != nil {
 				return nil, err
 			}
-			return newTraceConfig(params, cfg, taggerComp, ipcComp)
+			return newTraceConfig(params, cfg, taggerComp, ipcComp, lc)
 		}),
 		// No on-init config sync (no core agent to sync from); periodic sync is also
 		// force-disabled in agent_config.go (agent_ipc.config_refresh_interval=0 via
@@ -331,8 +332,8 @@ func connectedAgentFxOptions(params *cliParams) fx.Option {
 		// Trace config getting its hostname from the core agent
 		// TODO: consider adding configsync.Component as an explicit dependency for traceconfig
 		//       to avoid this sort of dependency tree hack.
-		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, _ configsync.Component) (traceconfigdef.Component, error) {
-			return newTraceConfig(params, cfg, taggerComp, ipcComp)
+		fx.Provide(func(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, lc compdef.Lifecycle, _ configsync.Component) (traceconfigdef.Component, error) {
+			return newTraceConfig(params, cfg, taggerComp, ipcComp, lc)
 		}),
 		// Sync config from core agent on init and periodically
 		configsyncfx.Module(configsync.NewParams(params.SyncTimeout, true, params.SyncOnInitTimeout)),
@@ -344,12 +345,13 @@ func connectedAgentFxOptions(params *cliParams) fx.Option {
 // newTraceConfig creates the trace config component.
 // TODO: this would be much better if we could leverage traceconfig.Module, which
 // needs a new parameter to handle this.
-func newTraceConfig(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component) (traceconfigdef.Component, error) {
+func newTraceConfig(params traceconfigdef.Params, cfg coreconfig.Component, taggerComp tagger.Component, ipcComp ipc.Component, lc compdef.Lifecycle) (traceconfigdef.Component, error) {
 	provides, err := traceconfigimpl.NewComponent(traceconfigimpl.Requires{
 		Params: params,
 		Config: cfg,
 		Tagger: taggerComp,
 		IPC:    ipcComp,
+		Lc:     lc,
 	})
 	return provides.Comp, err
 }
