@@ -10,7 +10,7 @@ enhancements:
   - |
     APM: Add five peer tags for stats aggregation that identify the resource a service calls.
     ``peer.aws.arn`` takes the resource ARN from the request (``aws.sns.topic_arn``, ``aws.topic.arn``,
-    ``aws.stream.arn``, and the OpenTelemetry attributes ``aws.sns.topic.arn`` and
+    ``aws.stream.arn``, ``aws.state_machine.arn``, and the OpenTelemetry attributes ``aws.sns.topic.arn`` and
     ``aws.step_functions.state_machine.arn``). ``peer.aws.sqs.queue.url`` takes the SQS queue URL
     (``aws.queue.url`` and the OpenTelemetry attribute ``aws.sqs.queue.url``). ``peer.aws.region`` takes
     ``aws.region``, ``peer.gcp.project_id`` takes ``gcloud.project_id``, and ``peer.kafka.cluster.id`` takes
