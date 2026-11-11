@@ -1192,6 +1192,27 @@ func TestLoadEnv(t *testing.T) {
 		})
 	}
 
+	// TODO(adp-apm-relay): remove
+	env = "DD_DATA_PLANE_EXPERIMENTAL_APM_TRACE_AGENT_RECEIVER_PORT"
+	t.Run(env, func(t *testing.T) {
+		t.Setenv(env, "8127")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 8127, cfg.ReceiverPort)
+	})
+	t.Run(env+"=0", func(t *testing.T) {
+		t.Setenv(env, "0")
+
+		config := buildConfigComponentFromYAML(t, true, "./testdata/full.yaml")
+		cfg := config.Object()
+
+		assert.NotNil(t, cfg)
+		assert.Equal(t, 18126, cfg.ReceiverPort)
+	})
+
 	env = "DD_DOGSTATSD_PORT"
 	t.Run(env, func(t *testing.T) {
 		t.Setenv(env, "4321")
