@@ -1248,16 +1248,18 @@ func (m *ManagerV2) linkWorkloadToProfile(prof *profile.Profile, workload *tags.
 
 // baseMountNamespaceFromEvent returns the mount namespace to treat as the workload's base,
 // and whether that value is authoritative. It is authoritative when it comes from the
-// process the tree would root the workload on; otherwise it falls back to the event's own
-// namespace, which is only a guess because the event may come from a process that setns'd.
+// process the tree would root the workload on, from the namespace that process had at fork
+// or exec since its MntNS follows its later unshare and setns calls; otherwise it falls back
+// to the event's own namespace, which is only a guess because the event may come from a
+// process that setns'd.
 func baseMountNamespaceFromEvent(event *model.Event) (uint32, bool) {
 	pc := event.ProcessContext
 	if pc == nil {
 		return 0, false
 	}
 
-	if root := activity_tree.FindRootProcess(pc); root != nil && root.Process.MntNS != 0 {
-		return root.Process.MntNS, true
+	if root := activity_tree.FindRootProcess(pc); root != nil && root.Process.GetInitialMntNS() != 0 {
+		return root.Process.GetInitialMntNS(), true
 	}
 
 	if activity_tree.IsContainerRuntime(pc) {
@@ -1305,7 +1307,9 @@ func (m *ManagerV2) seedMountsForWorkload(secprof *profile.Profile, workload *ta
 	baseNsID, authoritative := baseMountNamespaceFromEvent(event)
 	if baseNsID != 0 && secprof.PinBaseMountNamespace(cgroupInode, baseNsID, authoritative) {
 		basePid := pid
-		if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil && root.Process.MntNS != 0 && root.Process.Pid != 0 {
+		// the root may have left the base since, the mounts IterateNamespace syncs are keyed
+		// by the namespace each pid is in, and it falls back to other pids of the base one
+		if root := activity_tree.FindRootProcess(event.ProcessContext); root != nil && root.Process.GetInitialMntNS() != 0 && root.Process.Pid != 0 {
 			basePid = root.Process.Pid
 		}
 		m.seedMountNamespace(secprof, cgroupInode, baseNsID, basePid, liveMountID, imageTag)
