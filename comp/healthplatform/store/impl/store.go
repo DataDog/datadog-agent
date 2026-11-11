@@ -374,6 +374,159 @@ func (h *healthPlatformImpl) stop(ctx context.Context) error {
 	return nil
 }
 
+// ============================================================================
+// Ingest worker
+// ============================================================================
+//
+// ReportIssue/ResolveIssue/ResolveAllIssues enqueue onto ingestQueue and return;
+// a single worker (run) applies them in FIFO order, so per-id ordering is kept.
+// On overflow only the oldest report is evicted (resolutions and sync barriers
+// are never dropped). Persistence is coalesced behind the dirty flag.
+
+const (
+	ingestChanBuf = 1024
+	flushInterval = time.Second
+)
+
+type cmdKind uint8
+
+const (
+	cmdReport cmdKind = iota
+	cmdResolve
+	cmdResolveAll
+	cmdSync
+)
+
+type ingestCmd struct {
+	kind  cmdKind
+	issue *healthplatform.Issue
+	id    string
+	done  chan struct{}
+}
+
+func (cmd ingestCmd) opLabel() string {
+	switch cmd.kind {
+	case cmdReport:
+		return "report"
+	case cmdResolve:
+		return "resolve"
+	case cmdResolveAll:
+		return "resolve_all"
+	default:
+		return "sync"
+	}
+}
+
+// enqueue appends a command without blocking. When the queue is over capacity it
+// evicts the oldest report (reports self-heal on the next tick); resolutions and
+// sync barriers are never dropped, so the queue can briefly exceed its capacity.
+func (h *healthPlatformImpl) enqueue(cmd ingestCmd) {
+	h.ingestMu.Lock()
+	h.ingestQueue = append(h.ingestQueue, cmd)
+	droppedLabel := ""
+	if len(h.ingestQueue) > ingestChanBuf {
+		for i, queued := range h.ingestQueue {
+			if queued.kind == cmdReport {
+				copy(h.ingestQueue[i:], h.ingestQueue[i+1:])
+				h.ingestQueue[len(h.ingestQueue)-1] = ingestCmd{}
+				h.ingestQueue = h.ingestQueue[:len(h.ingestQueue)-1]
+				droppedLabel = queued.opLabel()
+				h.metrics.issuesDropped.Inc(droppedLabel)
+				break
+			}
+		}
+	}
+	h.metrics.ingestQueueLen.Set(float64(len(h.ingestQueue)))
+	h.ingestMu.Unlock()
+	select {
+	case h.ingestWake <- struct{}{}:
+	default:
+	}
+	if droppedLabel != "" && h.dropLogLimit.ShouldLog() {
+		h.log.Warnf("health platform: ingest queue full, dropping %s operation", droppedLabel)
+	}
+}
+
+// run is the single ingest worker. It applies queued commands in FIFO order and
+// coalesces persistence on a ticker. On shutdown it drains without enriching
+// (identity is not needed for persisted state) and does a final flush.
+func (h *healthPlatformImpl) run() {
+	defer close(h.doneCh)
+	ticker := time.NewTicker(flushInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-h.ingestWake:
+			h.drain(true, ticker.C)
+		case <-ticker.C:
+			h.flushIfDirty()
+		case <-h.stopCh:
+			h.drain(false, nil)
+			h.flushIfDirty()
+			return
+		}
+	}
+}
+
+// drain applies queued commands until the queue is empty. During a normal drain
+// it still honors the flush ticker and stop signal so a long drain cannot starve
+// persistence; the shutdown drain (enrich=false) skips those checks.
+func (h *healthPlatformImpl) drain(enrich bool, ticks <-chan time.Time) {
+	for {
+		if enrich {
+			select {
+			case <-h.stopCh:
+				return
+			case <-ticks:
+				h.flushIfDirty()
+			default:
+			}
+		}
+		h.ingestMu.Lock()
+		if len(h.ingestQueue) == 0 {
+			h.ingestMu.Unlock()
+			return
+		}
+		cmd := h.ingestQueue[0]
+		h.ingestQueue[0] = ingestCmd{}
+		h.ingestQueue = h.ingestQueue[1:]
+		if len(h.ingestQueue) == 0 {
+			h.ingestQueue = nil
+		}
+		h.metrics.ingestQueueLen.Set(float64(len(h.ingestQueue)))
+		h.ingestMu.Unlock()
+		h.apply(cmd, enrich)
+	}
+}
+
+func (h *healthPlatformImpl) apply(cmd ingestCmd, enrich bool) {
+	switch cmd.kind {
+	case cmdReport:
+		h.applyReport(cmd.issue, enrich)
+	case cmdResolve:
+		h.applyResolve(cmd.id)
+	case cmdResolveAll:
+		h.applyResolveAll()
+	case cmdSync:
+	}
+	if cmd.done != nil {
+		close(cmd.done)
+	}
+}
+
+// flushIfDirty persists coalesced changes, keeping the dirty flag set on failure
+// so the next tick or shutdown retries.
+func (h *healthPlatformImpl) flushIfDirty() {
+	if !h.dirty {
+		return
+	}
+	if err := h.saveToDisk(); err != nil {
+		h.log.Warn("Failed to persist issues to disk: " + err.Error())
+		return
+	}
+	h.dirty = false
+}
+
 // RegisterIssuesObserver appends an observer. Observers registered after
 // OnStart will miss events that occurred before registration.
 func (h *healthPlatformImpl) RegisterIssuesObserver(obs healthplatformdef.IssuesObserver) {
