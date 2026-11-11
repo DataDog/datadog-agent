@@ -712,15 +712,20 @@ class KMTGoTest(NamedTuple):
 def pick_kmt_go_test_target(pkg: str, tests: Iterable[KMTGoTest], kmt_tags: set[str]) -> str | None:
     """Pick the `{dir}_test` variant whose gotags best cover the tags KMT builds with.
 
-    Variants needing a tag outside kmt_tags, and split go_test rules, are ignored.
+    Variants needing a tag outside kmt_tags, split go_test rules, and variants without `bpf` are
+    ignored: gotags also select the dependencies' sources, so a variant without `bpf` would test
+    different code than KMT builds. Packages left without a variant go through ninja.
     """
     prefix = f"//{pkg}:"
     macro = f"{pkg.rsplit('/', 1)[-1]}_test"
-    candidates = [t for t in tests if t.label.startswith(prefix) and t.macro == macro and t.gotags <= kmt_tags]
+    candidates = [
+        t
+        for t in tests
+        if t.label.startswith(prefix) and t.macro == macro and "bpf" in t.gotags and t.gotags <= kmt_tags
+    ]
     if not candidates:
         return None
-    # Ties (bpf vs npm, where npm only gates Windows code) go to bpf: KMT runs the eBPF paths.
-    return max(candidates, key=lambda t: (len(t.gotags), "bpf" in t.gotags)).label
+    return max(candidates, key=lambda t: len(t.gotags)).label
 
 
 def sysprobe_go_test_query() -> str:

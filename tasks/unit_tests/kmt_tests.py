@@ -146,19 +146,23 @@ class TestKMTGoTestTargetPick(unittest.TestCase):
         ]
         self.assertEqual(self._pick("pkg/gpu", tests), "//pkg/gpu:gpu_test_bpf_nvml")
 
-    def test_ties_go_to_bpf(self):
+    def test_requires_bpf(self):
         tests = [
             self._go_test("//pkg/network/usm:usm_test_npm", "usm_test", "npm", "test"),
             self._go_test("//pkg/network/usm:usm_test_bpf", "usm_test", "bpf", "test"),
         ]
         self.assertEqual(self._pick("pkg/network/usm", tests), "//pkg/network/usm:usm_test_bpf")
 
+    def test_default_variant_without_bpf_is_left_to_ninja(self):
+        tests = [self._go_test("//pkg/foo:foo_test", "foo_test", "test")]
+        self.assertIsNone(self._pick("pkg/foo", tests))
+
     def test_skips_variants_needing_tags_kmt_does_not_build(self):
         tests = [
-            self._go_test("//pkg/foo:foo_test", "foo_test", "test"),
-            self._go_test("//pkg/foo:foo_test_docker", "foo_test", "docker", "test"),
+            self._go_test("//pkg/foo:foo_test_bpf", "foo_test", "bpf", "test"),
+            self._go_test("//pkg/foo:foo_test_bpf_docker", "foo_test", "bpf", "docker", "test"),
         ]
-        self.assertEqual(self._pick("pkg/foo", tests), "//pkg/foo:foo_test")
+        self.assertEqual(self._pick("pkg/foo", tests), "//pkg/foo:foo_test_bpf")
 
     def test_ignores_split_go_test_rules(self):
         tests = [
