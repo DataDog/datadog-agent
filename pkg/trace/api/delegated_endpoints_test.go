@@ -25,6 +25,9 @@ import (
 
 func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 	for _, setting := range []string{
+		"apm_config.debugger_additional_endpoints",
+		"apm_config.debugger_diagnostics_additional_endpoints",
+		"apm_config.symdb_additional_endpoints",
 		"apm_config.additional_endpoints",
 	} {
 		for _, initiallyResolved := range []bool{false, true} {
@@ -53,6 +56,7 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 				conf := newTestReceiverConfigNoPort()
 				conf.Endpoints[0] = &config.Endpoint{Host: "https://main.datadoghq.com", APIKey: "main-key"}
 				conf.Site = "datadoghq.com"
+				conf.DebuggerLogsEnabled = true
 				transport := intake.Client().Transport.(*http.Transport).Clone()
 				transport.TLSClientConfig.ServerName = "example.com"
 				transport.DialContext = func(ctx context.Context, network, _ string) (net.Conn, error) {
@@ -76,9 +80,19 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 					}
 					return keys[index], true
 				}
+				extra := map[string][]string{host: initial}
 				receiver := newTestReceiverFromConfig(conf)
 				var handler http.Handler
 				switch setting {
+				case "apm_config.debugger_additional_endpoints":
+					conf.DebuggerProxy.AdditionalEndpoints = extra
+					handler = receiver.debuggerLogsProxyHandler()
+				case "apm_config.debugger_diagnostics_additional_endpoints":
+					conf.DebuggerIntakeProxy.AdditionalEndpoints = extra
+					handler = receiver.debuggerDiagnosticsProxyHandler()
+				case "apm_config.symdb_additional_endpoints":
+					conf.SymDBProxy.AdditionalEndpoints = extra
+					handler = receiver.symDBProxyHandler()
 				case "apm_config.additional_endpoints":
 					for i, key := range initial {
 						conf.Endpoints = append(conf.Endpoints, conf.AdditionalEndpoint(setting, host, key, i))
