@@ -35,9 +35,6 @@ func TestGetFullSqlText(t *testing.T) {
 func TestFullSQLTextReusesPool(t *testing.T) {
 	c, _ := newDefaultCheck(t, "", "")
 	t.Cleanup(c.Teardown)
-	var err error
-	c.db, err = c.Connect()
-	require.NoError(t, err)
 	c.db.SetMaxOpenConns(1)
 	c.db.SetMaxIdleConns(1)
 
