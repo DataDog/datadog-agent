@@ -287,7 +287,10 @@ dd_agent_go_test(
     ],
     data = glob(["testdata/**"]) + [":debug_ebpf_programs"],
     embed = [":ebpf"],
-    env = {"PRINTK_PATCHER_TEST_ASSETS": "$(rlocationpaths :debug_ebpf_programs)"},
+    env = select({
+        "@platforms//os:linux": {"PRINTK_PATCHER_TEST_ASSETS": "$(rlocationpaths :debug_ebpf_programs)"},
+        "//conditions:default": {},
+    }),
     gotags_sets = [["bpf"]],
     deps = [
         "//pkg/config/mock",
