@@ -43,8 +43,8 @@
     "https://bcr.bazel.build/modules/bazel_features/1.46.0/MODULE.bazel": "3371af60ed64c67aa05401c08005e6b0418433b2a18712994e17300f0a610b2a",
     "https://bcr.bazel.build/modules/bazel_features/1.47.1/MODULE.bazel": "e6be691539341681678a68c2076771f6a73fcdc9823c5b6bf280d2e916d1ad80",
     "https://bcr.bazel.build/modules/bazel_features/1.50.0/MODULE.bazel": "2083ef9c7a469f520890483ccf8e0189d6e71e2117e7752e15e6554433d5ae3e",
-    "https://bcr.bazel.build/modules/bazel_features/1.54.1/MODULE.bazel": "026b77134bd460e2ca0f44c57f4f3a3a8593f27a497b4ee98336e065047834f5",
-    "https://bcr.bazel.build/modules/bazel_features/1.54.1/source.json": "23ba6f9625d32f5f718393ae65f05ac70025448aed23543c238b1cffec08f28a",
+    "https://bcr.bazel.build/modules/bazel_features/1.55.0/MODULE.bazel": "6cd2e9a25e1f28957c87c94ebf7a5a730d2312582d97c24ec1e1e9a5e6aca596",
+    "https://bcr.bazel.build/modules/bazel_features/1.55.0/source.json": "0bc67827e4a293029523788d7c0099a14fd6e55ec44f539731dad00edf9c5ddc",
     "https://bcr.bazel.build/modules/bazel_features/1.9.0/MODULE.bazel": "885151d58d90d8d9c811eb75e3288c11f850e1d6b481a8c9f766adee4712358b",
     "https://bcr.bazel.build/modules/bazel_features/1.9.1/MODULE.bazel": "8f679097876a9b609ad1f60249c49d68bfab783dd9be012faf9d82547b14815a",
     "https://bcr.bazel.build/modules/bazel_lib/3.0.0-rc.0/MODULE.bazel": "d6e00979a98ac14ada5e31c8794708b41434d461e7e7ca39b59b765e6d233b18",
@@ -700,7 +700,7 @@
     },
     "@@rules_rust+//crate_universe/private:internal_extensions.bzl%cu_nr": {
       "general": {
-        "bzlTransitiveDigest": "XrQuzvP8lmGkAgN66DUDvGfyGCqRpqJGUCW/QTBy6pA=",
+        "bzlTransitiveDigest": "K0UsylVmmuBH6kVZi2wCEKlpqsvISlFMQgunTg/Z1C4=",
         "usagesDigest": "tG3p3Nb5XxC7vWY/bcKdb//g0HoAxpxxH3F5/jBVlk4=",
         "recordedInputs": [
           "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",
@@ -907,13 +907,13 @@
       }
     },
     "//deps/pulumi_plugins:extension.bzl%pulumi_plugins": {
-      "https://github.com/pulumi/pulumi-aws/releases/download/v7.52.1/pulumi-aws_7.52.1_checksums.txt": {
-        "pulumi-resource-aws-v7.52.1-darwin-amd64.tar.gz": "sha1-DZnOAwN8o4ySCBsfInxndsbkvMk=",
-        "pulumi-resource-aws-v7.52.1-darwin-arm64.tar.gz": "sha1-iZ5ET3Mh4tMqxOxT8Bno/ighezA=",
-        "pulumi-resource-aws-v7.52.1-linux-amd64.tar.gz": "sha1-SyMHN7knrSwS7mvJEZih+CJIzQ0=",
-        "pulumi-resource-aws-v7.52.1-linux-arm64.tar.gz": "sha1-Ld5Umek/5zcDQTL35//bBfN36hQ=",
-        "pulumi-resource-aws-v7.52.1-windows-amd64.tar.gz": "sha1-lp7qLA49t3yHi/p2nsAA+BLoGi4=",
-        "pulumi-resource-aws-v7.52.1-windows-arm64.tar.gz": "sha1-yqjMo1wAezo+spbKEM7hfIXm4Rs="
+      "https://github.com/pulumi/pulumi-aws/releases/download/v7.53.0/pulumi-aws_7.53.0_checksums.txt": {
+        "pulumi-resource-aws-v7.53.0-darwin-amd64.tar.gz": "sha1-8opY9Mh/S7fX5t0dihDpx6NGslk=",
+        "pulumi-resource-aws-v7.53.0-darwin-arm64.tar.gz": "sha1-50nHnixcsukUefHsTzKgVocAZlg=",
+        "pulumi-resource-aws-v7.53.0-linux-amd64.tar.gz": "sha1-nyRyhjv4UZmI6oyMNy9xd6drkx8=",
+        "pulumi-resource-aws-v7.53.0-linux-arm64.tar.gz": "sha1-kJWTslU4rdwk1HSV8/WTz4+lfUI=",
+        "pulumi-resource-aws-v7.53.0-windows-amd64.tar.gz": "sha1-Y822MmW2UF782nGsjMCSatUXucs=",
+        "pulumi-resource-aws-v7.53.0-windows-arm64.tar.gz": "sha1-ZqyKU2E9QyaxoehfuIslMtkJkl8="
       },
       "https://github.com/pulumi/pulumi-awsx/releases/download/v3.12.0/pulumi-awsx_3.12.0_checksums.txt": {
         "pulumi-resource-awsx-v3.12.0-darwin-amd64.tar.gz": "sha1-jbs7BxW3PCJ3cc15hGQbccrGL+w=",
@@ -986,13 +986,13 @@
         "pulumi-resource-kubernetes-v4.19.0-windows-amd64.tar.gz": "sha256-uOEba1g2v+vcO4AmqnZ/T4qL3JYlewEKMOtPiifM+D4=",
         "pulumi-resource-kubernetes-v4.19.0-windows-arm64.tar.gz": "sha256-vY6sC1QqAqxzVG66wOkFXoaos3ayPqgLqzuzFfTdWBQ="
       },
-      "https://github.com/pulumi/pulumi-kubernetes/releases/download/v4.34.2/pulumi-kubernetes_4.34.2_checksums.txt": {
-        "pulumi-resource-kubernetes-v4.34.2-darwin-amd64.tar.gz": "sha256-Wy9JCl06hRpOKkBLzV5VWLC2POAZ8BXI0RoaKvTWheQ=",
-        "pulumi-resource-kubernetes-v4.34.2-darwin-arm64.tar.gz": "sha256-a8IHInEYtrv/ufWh4PUqkX/WwGKW03TcJw5DVDWNqzM=",
-        "pulumi-resource-kubernetes-v4.34.2-linux-amd64.tar.gz": "sha256-sqNHGol9jUqlxvDqKTPTY9+nK+6O1lGhYkagnj5yi7Y=",
-        "pulumi-resource-kubernetes-v4.34.2-linux-arm64.tar.gz": "sha256-FFbB+WJMTNaMrwOSjUw01oB8vmaP2RfGIg7MCeq3DSY=",
-        "pulumi-resource-kubernetes-v4.34.2-windows-amd64.tar.gz": "sha256-cz8wSyOchdyaASoBkGHbrzL3DPKz9hh8Yet+bPcN9wI=",
-        "pulumi-resource-kubernetes-v4.34.2-windows-arm64.tar.gz": "sha256-E40/ZloSM3S+JaN4iuwHRvxVXh9QAuaCVyVzSXp5QnA="
+      "https://github.com/pulumi/pulumi-kubernetes/releases/download/v4.34.3/pulumi-kubernetes_4.34.3_checksums.txt": {
+        "pulumi-resource-kubernetes-v4.34.3-darwin-amd64.tar.gz": "sha256-Y7PTylxACbJSEXkDhoPdCRj2yq1AH1Yr4Y9AhgXXj/Q=",
+        "pulumi-resource-kubernetes-v4.34.3-darwin-arm64.tar.gz": "sha256-nGPD7KrXx6Jf4Ax8lrUVE60H+QxozaDMA2xz7GFE5Jw=",
+        "pulumi-resource-kubernetes-v4.34.3-linux-amd64.tar.gz": "sha256-hoqn3NaWGplnYS44i2TQ026HCZ8/n/rm1rouC5IKsKo=",
+        "pulumi-resource-kubernetes-v4.34.3-linux-arm64.tar.gz": "sha256-oYnBTztRMhjpLp732+nxnY6RACEr1NG65mh9CjSoF/Y=",
+        "pulumi-resource-kubernetes-v4.34.3-windows-amd64.tar.gz": "sha256-HFxlCd5qQA57Uz3/D33/7XmudrUyDwvucHmigKiHaTQ=",
+        "pulumi-resource-kubernetes-v4.34.3-windows-arm64.tar.gz": "sha256-hR4ccqlJibjZsAo7Fi9ETErHEFcwHLxXnVHZ3kASZ84="
       },
       "https://github.com/pulumi/pulumi-libvirt/releases/download/v0.5.4/pulumi-libvirt_0.5.4_checksums.txt": {
         "pulumi-resource-libvirt-v0.5.4-darwin-amd64.tar.gz": "sha1-LEy5vvERZgIN2G9/uCYbx9QQ3qQ=",
@@ -1009,13 +1009,13 @@
         "pulumi-resource-random-v4.21.6-windows-amd64.tar.gz": "sha1-UA3mITAgyV9fXf7cSczYs6IS8z8=",
         "pulumi-resource-random-v4.21.6-windows-arm64.tar.gz": "sha1-dcRAKo+540ipt7FcMyaUkOPQGE8="
       },
-      "https://github.com/pulumi/pulumi-tls/releases/download/v5.6.2/pulumi-tls_5.6.2_checksums.txt": {
-        "pulumi-resource-tls-v5.6.2-darwin-amd64.tar.gz": "sha1-UPzzXuQqxqd2vVqa1yKj7lFYCPE=",
-        "pulumi-resource-tls-v5.6.2-darwin-arm64.tar.gz": "sha1-HVFO5DbG4WGfhimOQcz6fMzdAms=",
-        "pulumi-resource-tls-v5.6.2-linux-amd64.tar.gz": "sha1-o4zFCPQp+FllZar6uVYNHhf5RhE=",
-        "pulumi-resource-tls-v5.6.2-linux-arm64.tar.gz": "sha1-MbFiOY4rH8IQi6qSnDNnNkMTN2Y=",
-        "pulumi-resource-tls-v5.6.2-windows-amd64.tar.gz": "sha1-AUh10NfcNhIDoRiuvPo5wlldxMA=",
-        "pulumi-resource-tls-v5.6.2-windows-arm64.tar.gz": "sha1-ntIFDyD1ZPAxgxQSCKXajRBkj20="
+      "https://github.com/pulumi/pulumi-tls/releases/download/v5.6.3/pulumi-tls_5.6.3_checksums.txt": {
+        "pulumi-resource-tls-v5.6.3-darwin-amd64.tar.gz": "sha1-NxB+R0jX+3AF+lQhyA71i0pa24s=",
+        "pulumi-resource-tls-v5.6.3-darwin-arm64.tar.gz": "sha1-xO96YcKIE4GWXOVSvFQrbIs2bJE=",
+        "pulumi-resource-tls-v5.6.3-linux-amd64.tar.gz": "sha1-uOBkPAgmbJprjHt0VfIJiRABmPc=",
+        "pulumi-resource-tls-v5.6.3-linux-arm64.tar.gz": "sha1-Yb884nTwFk82Ex2YiJ8QjSuQXkw=",
+        "pulumi-resource-tls-v5.6.3-windows-amd64.tar.gz": "sha1-aec8hWNGjSsAv/tfdTrmSbXFHxI=",
+        "pulumi-resource-tls-v5.6.3-windows-arm64.tar.gz": "sha1-dZy6FIIeRS6ln4coeQFziuM9nMw="
       },
       "https://github.com/pulumiverse/pulumi-time/releases/download/v0.1.0/pulumi-time_0.1.0_checksums.txt": {
         "pulumi-resource-time-v0.1.0-darwin-amd64.tar.gz": "sha256-p/pkRdejbGHoWbfk7m2b6oHEEO5Dx8Jcvp56gmqAqEI=",
@@ -1025,7 +1025,7 @@
         "pulumi-resource-time-v0.1.0-windows-amd64.tar.gz": "sha256-LcZni/wvXQJ4+fc4rPwuKi4y9hUpSc9GhJRykh6/i0c=",
         "pulumi-resource-time-v0.1.0-windows-arm64.tar.gz": "sha256-mjorlphPz5S4mz3/OjAt1iywnrF/WPxh/+2U81tj1Wc="
       },
-      "https://registry.npmjs.org/@pulumi/aws/7.52.1": {
+      "https://registry.npmjs.org/@pulumi/aws/7.53.0": {
         "dependencies": {},
         "name": "aws",
         "url": "https://github.com/pulumi/pulumi-aws"
@@ -1083,7 +1083,7 @@
         "name": "kubernetes",
         "url": "https://github.com/pulumi/pulumi-kubernetes"
       },
-      "https://registry.npmjs.org/@pulumi/kubernetes/4.34.2": {
+      "https://registry.npmjs.org/@pulumi/kubernetes/4.34.3": {
         "dependencies": {},
         "name": "kubernetes",
         "url": "https://github.com/pulumi/pulumi-kubernetes"
@@ -1098,7 +1098,7 @@
         "name": "random",
         "url": "https://github.com/pulumi/pulumi-random"
       },
-      "https://registry.npmjs.org/@pulumi/tls/5.6.2": {
+      "https://registry.npmjs.org/@pulumi/tls/5.6.3": {
         "dependencies": {},
         "name": "tls",
         "url": "https://github.com/pulumi/pulumi-tls"

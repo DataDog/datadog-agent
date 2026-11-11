@@ -50,6 +50,11 @@ type Payload struct {
 	UUID          string                `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeCheck
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -174,11 +179,11 @@ func (ic *inventorychecksImpl) GetInstanceMetadata(instanceID string) map[string
 	return res
 }
 
-func (ic *inventorychecksImpl) getPayloadWithConfigs() marshaler.JSONMarshaler {
+func (ic *inventorychecksImpl) getPayloadWithConfigs() marshaler.TypedJSONMarshaler {
 	return ic.getPayload(true)
 }
 
-func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.JSONMarshaler {
+func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONMarshaler {
 	ic.m.Lock()
 	defer ic.m.Unlock()
 

@@ -227,3 +227,11 @@ class TestGetBuildFlags(unittest.TestCase):
 
         self.assertIn("-Wl,-rpath,/dev/lib", ldflags)
         self.assertIn("-Wl,-rpath,/dev/embedded/lib", ldflags)
+
+    @mock.patch("tasks.libs.common.utils.get_version_ldflags", return_value="")
+    @mock.patch("tasks.libs.common.utils.platform.machine", return_value="aarch64")
+    @mock.patch("tasks.libs.common.utils.platform.architecture", return_value=("32bit", "ELF"))
+    def test_pins_go_env_for_32_bit_arm_userland_on_64_bit_kernel(self, _architecture, _machine, _get_version_ldflags):
+        _, _, env = get_build_flags(mock.Mock())
+
+        self.assertEqual({k: env.get(k) for k in ("CGO_ENABLED", "GOARCH")}, {"CGO_ENABLED": "1", "GOARCH": "arm"})
