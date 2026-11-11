@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    APM : Support DELA directives in Dynamic Instrumentation logs, diagnostics,
+    and symbol database additional endpoints. Pending destinations are skipped,
+    and subsequent requests use resolved and rotated API keys without
+    restarting the trace-agent.

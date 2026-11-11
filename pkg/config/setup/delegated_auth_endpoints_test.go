@@ -608,6 +608,9 @@ func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
 
 func TestTraceProxySettingsRegisterDelegatedCredentials(t *testing.T) {
 	for _, setting := range []string{
+		"apm_config.debugger_additional_endpoints",
+		"apm_config.debugger_diagnostics_additional_endpoints",
+		"apm_config.symdb_additional_endpoints",
 		"apm_config.telemetry.additional_endpoints",
 	} {
 		t.Run(setting, func(t *testing.T) {
