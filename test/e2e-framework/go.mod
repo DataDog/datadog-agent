@@ -69,22 +69,9 @@ require (
 	github.com/Azure/go-ansiterm v0.0.0-20261006220739-8c912ac31dd4 // indirect
 	github.com/BurntSushi/toml v1.6.0 // indirect
 	github.com/DataDog/agent-payload/v5 v5.0.215 // indirect
-	github.com/DataDog/datadog-agent/comp/core/delegatedauth v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/comp/core/secrets/def v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/comp/core/tagger/origindetection v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/comp/netflow/payload v0.56.0-rc.3 // indirect
-	github.com/DataDog/datadog-agent/pkg/config/basic v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/create v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/env v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/helper v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/config/model v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/nodetreemodel v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/constants v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings v0.0.0-20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/structure v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/config/utils v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/fips v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/metrics v0.76.0-rc.4 // indirect
 	github.com/DataDog/datadog-agent/pkg/network/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
 	github.com/DataDog/datadog-agent/pkg/networkpath/payload v0.0.0-20250128160050-7ac9ccd58c07 // indirect
@@ -93,20 +80,12 @@ require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/remoteconfig/state v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/tagger/types v0.76.0-rc.4 // indirect
-	github.com/DataDog/datadog-agent/pkg/template v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/trace v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/log v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/stats v0.82.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace/traceutil v0.82.0 // indirect
-	github.com/DataDog/datadog-agent/pkg/util/defaultpaths v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/executable v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/filesystem v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/log v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/system v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/version v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-go/v5 v5.9.1 // indirect
-	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-libddwaf/v5 v5.0.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
 	github.com/DataDog/go-sqllexer v0.2.6 // indirect
@@ -209,7 +188,6 @@ require (
 	github.com/go-openapi/swag/typeutils v0.29.2 // indirect
 	github.com/go-openapi/swag/yamlutils v0.29.2 // indirect
 	github.com/go-sql-driver/mysql v1.10.1 // indirect
-	github.com/go-viper/mapstructure/v2 v2.5.0 // indirect
 	github.com/gobwas/glob v0.2.3 // indirect
 	github.com/goccy/go-json v0.10.6 // indirect
 	github.com/godbus/dbus/v5 v5.2.4 // indirect
@@ -256,8 +234,6 @@ require (
 	github.com/mattn/go-localereader v0.0.1 // indirect
 	github.com/mattn/go-runewidth v0.0.31 // indirect
 	github.com/mattn/go-sqlite3 v1.14.52 // indirect
-	github.com/mdlayher/socket v0.8.0 // indirect
-	github.com/mdlayher/vsock v1.4.0 // indirect
 	github.com/miekg/dns v1.1.73 // indirect
 	github.com/minio/simdjson-go v0.4.5 // indirect
 	github.com/mitchellh/copystructure v1.2.0 // indirect
@@ -269,7 +245,6 @@ require (
 	github.com/moby/term v0.5.2 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.3-0.20250322232337-35a7c28c31ee // indirect
-	github.com/mohae/deepcopy v0.0.0-20170929034955-c48cc78d4826 // indirect
 	github.com/monochromegane/go-gitignore v0.0.0-20200626010858-205db1a8cc00 // indirect
 	github.com/muesli/ansi v0.0.0-20230316100256-276c6243b2f6 // indirect
 	github.com/muesli/cancelreader v0.2.2 // indirect

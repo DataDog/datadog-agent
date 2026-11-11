@@ -16,10 +16,11 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
-	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
+	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/obfuscate"
 	ddattributes "github.com/DataDog/datadog-agent/pkg/opentelemetry-mapping-go/otlp/attributes"
 	"github.com/DataDog/datadog-agent/pkg/remoteconfig/state"
@@ -69,7 +70,7 @@ func (e *Endpoint) GetAPIKeyIfReady() (string, bool) {
 	if e.apiKeyGetter != nil {
 		return e.apiKeyGetter()
 	}
-	if e.HasPendingDelegatedAuth || configutils.IsDelaDirective(e.APIKey) {
+	if e.HasPendingDelegatedAuth || strings.HasPrefix(strings.TrimSpace(e.APIKey), model.DelaDirectivePrefix) {
 		return "", false
 	}
 	return e.APIKey, true
@@ -78,8 +79,8 @@ func (e *Endpoint) GetAPIKeyIfReady() (string, bool) {
 // AdditionalEndpoint binds a destination to its original config slot. The host may later
 // be rewritten for transport without changing which credential is read.
 func (c *AgentConfig) AdditionalEndpoint(setting, host, key string, index int) *Endpoint {
-	e := &Endpoint{Host: host, APIKey: configutils.SanitizeAPIKey(key), APIKeyConfigIndex: &index}
-	if configutils.IsDelaDirective(key) {
+	e := &Endpoint{Host: host, APIKey: strings.TrimSpace(key), APIKeyConfigIndex: &index}
+	if strings.HasPrefix(e.APIKey, model.DelaDirectivePrefix) {
 		e.APIKey = ""
 		e.HasPendingDelegatedAuth = true
 	}

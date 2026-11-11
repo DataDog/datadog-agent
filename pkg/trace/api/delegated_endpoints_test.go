@@ -135,7 +135,8 @@ func TestTelemetryProxyDelegatedEndpointUpdates(t *testing.T) {
 		return value, value != ""
 	}
 	conf.TelemetryConfig.Endpoints = append(conf.TelemetryConfig.Endpoints,
-		conf.AdditionalEndpoint("apm_config.telemetry.additional_endpoints", intake.URL, "DELA[org-a, aws]", 0))
+		conf.AdditionalEndpoint("apm_config.telemetry.additional_endpoints", intake.URL, "DELA[org-a, aws]", 0),
+		&config.Endpoint{Host: intake.URL, APIKey: "\tDELA[org-b, aws] "})
 	forwarder := NewTelemetryForwarder(conf, NewContainerIDProviderFromConfig(conf), &statsd.NoOpClient{})
 	defer forwarder.Stop()
 	assert.Equal(t, intake.URL, conf.TelemetryConfig.Endpoints[0].Host, "constructor must preserve the shared config URL")

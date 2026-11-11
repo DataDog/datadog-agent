@@ -3230,7 +3230,7 @@ func TestAcquireHostnameFallbackEUDM(t *testing.T) {
 func TestAppendEndpointsHoldsPendingDelegatedAuth(t *testing.T) {
 	cfg := configmock.New(t)
 	cfg.SetInTest("apm_config.additional_endpoints", map[string][]string{
-		"https://trace.agent.second-org.datadoghq.com": {"00000000000000000000000000000001", "DELA[org-uuid-1, aws]"},
+		"https://trace.agent.second-org.datadoghq.com": {" 00000000000000000000000000000001\n", "\tDELA[org-uuid-1, aws] "},
 		"https://trace.agent.third-org.datadoghq.com":  {"DELA[org-uuid-2, aws]", "DELA[org-uuid-3, aws]"},
 	})
 
@@ -3245,6 +3245,7 @@ func TestAppendEndpointsHoldsPendingDelegatedAuth(t *testing.T) {
 			assert.Empty(t, e.APIKey)
 		} else {
 			real++
+			assert.Equal(t, "00000000000000000000000000000001", e.APIKey)
 		}
 	}
 	assert.Equal(t, 1, real, "static key on the mixed domain is kept")
