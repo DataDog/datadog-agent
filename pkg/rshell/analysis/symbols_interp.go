@@ -66,6 +66,7 @@ var interpAllowedSymbols = []string{
 	"path/filepath.ToSlash",       // 🟢 identifies cd parent components using native separators without filesystem access.
 	"regexp.MustCompile",          // 🟢 compiles a regular expression, panicking on invalid syntax; pure function, no I/O. Uses RE2 engine (linear-time, no backtracking). Used by the telemetry command-text scrubber (command_scrub.go) to redact secret-shaped substrings before they reach a telemetry tag.
 	"regexp.Regexp",               // 🟢 compiled regular expression type; no I/O side effects. All matching methods are linear-time (RE2).
+	"runtime.Callers",             // 🟢 returns the calling goroutine's return PCs; read-only, no I/O; bounds parser recursion in ParseScript.
 	"runtime.GOOS",                // 🟢 current OS name constant; pure constant, no I/O.
 	"sort.Strings",                // 🟢 sorts exact systemd grant selectors deterministically in memory; no I/O.
 	"strconv.Itoa",                // 🟢 int-to-string conversion; pure function, no I/O.
@@ -230,6 +231,7 @@ var interpPerModeSymbols = map[string][]string{
 		"path/filepath.ToSlash",       // 🟢 identifies cd parent components using native separators without filesystem access.
 		"regexp.MustCompile",          // 🟢 compiles a regular expression, panicking on invalid syntax; pure function, no I/O. Uses RE2 engine (linear-time, no backtracking). Used by the telemetry command-text scrubber (command_scrub.go) to redact secret-shaped substrings before they reach a telemetry tag.
 		"regexp.Regexp",               // 🟢 compiled regular expression type; no I/O side effects. All matching methods are linear-time (RE2).
+		"runtime.Callers",             // 🟢 returns the calling goroutine's return PCs; read-only, no I/O; bounds parser recursion in ParseScript.
 		"runtime.GOOS",                // 🟢 current OS name constant; pure constant, no I/O.
 		"sort.Strings",                // 🟢 sorts exact systemd grant selectors deterministically in memory; no I/O.
 		"strconv.Itoa",                // 🟢 int-to-string conversion; pure function, no I/O.
