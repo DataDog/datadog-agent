@@ -10,6 +10,7 @@ package integrationtests
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
@@ -32,8 +33,17 @@ const (
 	migDestroyRetries = 30
 )
 
-func configureMIGRequested() bool {
-	return os.Getenv(configureMIGEnv) != ""
+// configureMIGRequested parses configureMIGEnv as a boolean, so that "0" or "false" do not
+// reconfigure the host. An unparsable value fails the test rather than silently picking a side.
+func configureMIGRequested(t *testing.T) bool {
+	t.Helper()
+	value := os.Getenv(configureMIGEnv)
+	if value == "" {
+		return false
+	}
+	requested, err := strconv.ParseBool(value)
+	require.NoError(t, err, "%s must be a boolean, got %q", configureMIGEnv, value)
+	return requested
 }
 
 // migConfigurationState records what configureMIG changed on a GPU, so it can be undone.
@@ -155,8 +165,13 @@ func restoreMIGConfiguration(t *testing.T, states []*migConfigurationState) {
 			continue
 		}
 
-		if state.createdMIGDevices {
-			destroyMIGDevices(t, device, state.uuid)
+		if state.createdMIGDevices && !destroyMIGDevices(t, device, state.uuid) {
+			// MIG mode cannot be disabled while MIG devices remain, so disabling it would only fail after
+			// the retries and hide the error above.
+			if state.enabledMIGMode {
+				t.Errorf("not disabling MIG mode on GPU %s: its MIG devices could not be destroyed", state.uuid)
+			}
+			continue
 		}
 		if state.enabledMIGMode {
 			activation, ret := device.SetMigMode(nvml.DEVICE_MIG_DISABLE)
@@ -178,44 +193,53 @@ func restoreMIGConfiguration(t *testing.T, states []*migConfigurationState) {
 
 // destroyMIGDevices destroys every GPU instance of the smallest profile on the GPU, which are the ones
 // createMIGDevices creates, along with their compute instances. It lists the instances instead of
-// remembering the ones created, so it also removes those left by a partial creation.
-func destroyMIGDevices(t *testing.T, device nvml.Device, uuid string) {
+// remembering the ones created, so it also removes those left by a partial creation. It returns whether
+// every instance was destroyed.
+func destroyMIGDevices(t *testing.T, device nvml.Device, uuid string) bool {
 	t.Helper()
 
 	profile, ret := device.GetGpuInstanceProfileInfo(nvml.GPU_INSTANCE_PROFILE_1_SLICE)
 	if ret != nvml.SUCCESS {
 		t.Errorf("get the 1-slice GPU instance profile of GPU %s: %v", uuid, nvml.ErrorString(ret))
-		return
+		return false
 	}
 	instances, ret := device.GetGpuInstances(&profile)
 	if ret != nvml.SUCCESS {
 		t.Errorf("list the GPU instances of GPU %s: %v", uuid, nvml.ErrorString(ret))
-		return
+		return false
 	}
+	ok := true
 	for _, instance := range instances {
-		destroyGPUInstance(t, uuid, instance)
+		ok = destroyGPUInstance(t, uuid, instance) && ok
 	}
+	return ok
 }
 
-func destroyGPUInstance(t *testing.T, uuid string, instance nvml.GpuInstance) {
+// destroyGPUInstance destroys a GPU instance and its compute instances, and returns whether it succeeded.
+func destroyGPUInstance(t *testing.T, uuid string, instance nvml.GpuInstance) bool {
 	t.Helper()
 
+	ok := true
 	// A GPU instance can only be destroyed once its compute instances are gone.
 	computeProfile, ret := instance.GetComputeInstanceProfileInfo(nvml.COMPUTE_INSTANCE_PROFILE_1_SLICE, nvml.COMPUTE_INSTANCE_ENGINE_PROFILE_SHARED)
 	if ret == nvml.SUCCESS {
 		computeInstances, ret := instance.GetComputeInstances(&computeProfile)
 		if ret != nvml.SUCCESS {
 			t.Errorf("list the compute instances of a GPU instance on GPU %s: %v", uuid, nvml.ErrorString(ret))
+			ok = false
 		}
 		for _, computeInstance := range computeInstances {
 			if ret := retryWhileInUse(computeInstance.Destroy); ret != nvml.SUCCESS {
 				t.Errorf("destroy a compute instance on GPU %s: %v", uuid, nvml.ErrorString(ret))
+				ok = false
 			}
 		}
 	}
 	if ret := retryWhileInUse(instance.Destroy); ret != nvml.SUCCESS {
 		t.Errorf("destroy a GPU instance on GPU %s: %v", uuid, nvml.ErrorString(ret))
+		ok = false
 	}
+	return ok
 }
 
 // retryWhileInUse calls destroy until it stops reporting that a client is still using the instance.

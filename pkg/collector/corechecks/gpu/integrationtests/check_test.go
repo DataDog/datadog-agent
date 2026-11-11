@@ -165,7 +165,7 @@ func TestSpecMIG(t *testing.T) {
 	testutil.RequireGPU(t)
 	env.SetFeatures(t, env.KubernetesDevicePlugins, env.NVML)
 
-	if configureMIGRequested() {
+	if configureMIGRequested(t) {
 		configureMIG(t)
 	}
 
