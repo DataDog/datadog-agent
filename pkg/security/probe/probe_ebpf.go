@@ -1277,6 +1277,7 @@ func (p *EBPFProbe) DispatchEvent(event *model.Event, notifyConsumers bool) {
 	if p.Resolvers.SBOMResolver != nil {
 		if !event.ProcessContext.Process.ContainerContext.IsNull() || p.config.RuntimeSecurity.SBOMResolverHostEnabled {
 			if event.GetEventType() == model.ExecEventType {
+				p.Resolvers.SBOMResolver.OnExec(event.ProcessContext)
 				p.Resolvers.SBOMResolver.ResolvePackage(event.ProcessContext, &event.Exec.Process.FileEvent)
 				// The kernel runs a script through its interpreter, which LinuxBinprm names.
 				if event.Exec.Process.HasInterpreter() {
