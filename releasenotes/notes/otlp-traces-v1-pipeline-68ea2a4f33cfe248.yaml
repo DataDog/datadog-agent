@@ -1,0 +1,28 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: Traces received over OTLP by the trace-agent (including the Datadog
+    exporter of the OpenTelemetry Collector and DDOT) are now converted directly
+    into the string-indexed "v1.0" trace format and processed and sent by the
+    same pipeline as traces from Datadog tracing libraries, instead of the legacy
+    pipeline. Converted spans should look the same in the Datadog UI. A few values
+    are now taken the way they already are for traces from tracing libraries: the
+    trace origin, payload env and app version can be taken from any span of a
+    trace rather than only its root span, and a ``_dd.git.commit.sha`` span
+    attribute now sets the git commit SHA of the APM stats.
+    To send OTLP traces through the legacy pipeline instead, add the feature flag
+    ``disable-convert-traces`` to ``apm_config.features``: it now applies to
+    OTLP traces as well as to traces from tracing libraries.
+deprecations:
+  - |
+    APM: The ``disable_receive_resource_spans_v2`` feature flag of the trace-agent
+    OTLP receiver is deprecated. Traces received with it set are converted into
+    the string-indexed "v1.0" trace format like the others, unless
+    ``disable-convert-traces`` is also set.
