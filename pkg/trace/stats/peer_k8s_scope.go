@@ -31,8 +31,9 @@ const (
 )
 
 // peerK8sScope adds peer.k8s.cluster.uid and peer.k8s.namespace to the peer tags
-// of stats whose peer hostname is a cluster-local name, so that the backend can
-// resolve the peer to a Kubernetes service. It is built once per payload.
+// of stats whose peer hostname has the shape of a cluster-local name: the candidate
+// scope for a best-effort lookup of the Kubernetes service by the backend. It is
+// built once per payload.
 // The zero value is inactive.
 type peerK8sScope struct {
 	// clusterUIDTag is the peer.k8s.cluster.uid tag, empty when inactive.
@@ -150,8 +151,10 @@ func isBareServiceName(host string) bool {
 	return host != "localhost" && !strings.Contains(host, blockedIPAddress) && isDNS1123Label(host)
 }
 
-// peerK8sNamespace returns the Kubernetes namespace that host resolves to
-// following the DNS search path of a pod in callerNamespace:
+// peerK8sNamespace returns the candidate Kubernetes namespace of host: the one it
+// resolves to under standard cluster DNS, following the search path of a pod in
+// callerNamespace. Custom DNS policies or searches, absolute names and host
+// networking can resolve it elsewhere, so it is only a hint for an inventory lookup:
 //   - "a.b.svc.cluster.local" and "a.b.svc" resolve to service a in namespace b,
 //   - "p.a.b.svc.cluster.local" and "p.a.b.svc" resolve to pod p of headless service a in namespace b,
 //   - "a.b" resolves to service a in namespace b,
