@@ -38,6 +38,28 @@ from Vault).
 The `.bazelrc` is managed by `@DataDog/agent-build`. Do not edit it without their review. Per-user options belong in
 `user.bazelrc`, which is `.gitignore`d and auto-imported via `try-import %workspace%/user.bazelrc`.
 
+## ADMS dependency mirror
+
+The workspace `.bazelrc` enables ADMS unconditionally with `common --config=adms`.
+This uses the existing archive mirror for dependencies such as `rules_pkg`,
+including in Bits Code sandboxes where direct GitHub downloads are blocked.
+
+ADMS requires access to the Datadog intranet. If it is unavailable, remove or
+comment out `common --config=adms` in `.bazelrc`. To disable the mirror locally
+without editing the shared configuration, add this to the workspace's gitignored
+`user.bazelrc`, preserving any existing settings:
+
+```text
+common --downloader_config=
+```
+
+GitHub-hosted jobs that run Bazel set this override during setup because those
+runners cannot access the Datadog intranet. It also applies to Bazel calls made
+through `dda inv` and inside the devcontainer.
+
+Go module proxy configuration is separate; this setting only affects Bazel
+archive downloads.
+
 ## Exit codes — CRITICAL
 
 Always check the exit code explicitly. A zero exit means success; anything non-zero is an error. The most commonly

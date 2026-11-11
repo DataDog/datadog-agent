@@ -8,7 +8,7 @@ require (
 	github.com/twmb/murmur3 v1.2.2
 )
 
-require go.yaml.in/yaml/v3 v3.0.5 // indirect
+require go.yaml.in/yaml/v3 v3.0.6 // indirect
 
 // This section was automatically added by 'dda inv modules.add-all-replace' command, do not edit manually
 

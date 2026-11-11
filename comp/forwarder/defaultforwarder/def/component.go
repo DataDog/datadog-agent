@@ -18,10 +18,12 @@ import (
 
 // Response contains the response details of a successfully posted transaction
 type Response struct {
-	Domain     string
-	Body       []byte
-	StatusCode int
-	Err        error
+	Domain string
+	// APIKeyIndex identifies the destination's credential without exposing its value.
+	APIKeyIndex uint
+	Body        []byte
+	StatusCode  int
+	Err         error
 }
 
 // Features is a bitmask to enable specific forwarder features

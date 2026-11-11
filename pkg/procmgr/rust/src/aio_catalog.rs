@@ -3,13 +3,14 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Parse tests for the all-in-one `processes.d/aio` catalog. The checkout test is skipped under Bazel.
+//! Parse tests for the all-in-one `processes.d/aio` catalog.
+//!
+//! Bazel does not keep symlink identity or git file mode, so the test does not check them.
 
 use crate::config::{ProcessConfig, RestartPolicy, load_configs};
 use std::collections::HashMap;
 use std::fs;
-#[cfg(not(bazel))]
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 const PATH_ENV: &str = "/opt/datadog-agent/bin/agent:/opt/datadog-agent/embedded/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin";
 
@@ -22,6 +23,34 @@ const SECURITY_AGENT: &str = "/opt/datadog-agent/embedded/bin/security-agent";
 const OTEL_AGENT: &str = "/opt/datadog-agent/embedded/bin/otel-agent";
 const DATA_PLANE: &str = "/opt/datadog-agent/embedded/bin/agent-data-plane";
 const PAR_CONTROL: &str = "/opt/datadog-agent/embedded/bin/par-control";
+const PRIVATE_ACTION_RUNNER: &str = "/opt/datadog-agent/embedded/bin/privateactionrunner";
+
+const ENTRYPOINT_DEFAULT: &str =
+    include_str!("../../../../Dockerfiles/agent/entrypoint.d/_default");
+const ENTRYPOINT_PRIVATE_ACTION_RUNNER: &str =
+    include_str!("../../../../Dockerfiles/agent/entrypoint.d/privateactionrunner");
+const ENTRYPOINT_PROCMGR_ALL_IN_ONE: &str =
+    include_str!("../../../../Dockerfiles/agent/entrypoint.d/procmgr-all-in-one");
+const AGENT_DOCKERFILE: &str = include_str!("../../../../Dockerfiles/agent/Dockerfile");
+const ENTRYPOINT_LAUNCHER: &str = include_str!("../../../../Dockerfiles/agent/entrypoint.sh");
+
+const TOP_LEVEL_YAMLS: &[&str] = &[
+    "datadog-agent-action-executor.yaml",
+    "datadog-agent-par-control.yaml",
+];
+
+const AIO_YAMLS: &[&str] = &[
+    "datadog-agent-action-executor.yaml",
+    "datadog-agent-data-plane.yaml",
+    "datadog-agent-otel.yaml",
+    "datadog-agent-par-control.yaml",
+    "datadog-agent-par.yaml",
+    "datadog-agent-process.yaml",
+    "datadog-agent-security.yaml",
+    "datadog-agent-sysprobe.yaml",
+    "datadog-agent-trace.yaml",
+    "datadog-agent.yaml",
+];
 
 const CATALOG: &[(&str, &str)] = &[
     (
@@ -58,6 +87,10 @@ const CATALOG: &[(&str, &str)] = &[
             "../../../../Dockerfiles/agent/processes.d/aio/datadog-agent-par-control.yaml"
         ),
     ),
+    (
+        "datadog-agent-par.yaml",
+        include_str!("../../../../Dockerfiles/agent/processes.d/aio/datadog-agent-par.yaml"),
+    ),
 ];
 
 const AUXILIARIES: &[&str] = &[
@@ -67,6 +100,7 @@ const AUXILIARIES: &[&str] = &[
     "datadog-agent-security",
     "datadog-agent-otel",
     "datadog-agent-data-plane",
+    "datadog-agent-par",
 ];
 
 fn load_shipped_catalog() -> HashMap<String, ProcessConfig> {
@@ -194,6 +228,68 @@ fn aio_par_control_skips_when_the_binary_is_absent() {
         par_control.condition_path_exists.as_deref(),
         Some(PAR_CONTROL)
     );
+    assert_eq!(par_control.stop_timeout, Some(180));
+    assert_eq!(
+        par_control
+            .condition_config_any
+            .iter()
+            .flat_map(|file| file.keys.iter().map(String::as_str))
+            .collect::<Vec<_>>(),
+        ["private_action_runner.split_enabled"]
+    );
+    assert_eq!(
+        par_control
+            .condition_config_none
+            .iter()
+            .flat_map(|file| file.keys.iter().map(String::as_str))
+            .collect::<Vec<_>>(),
+        ["fips.enabled"]
+    );
+    assert_eq!(
+        par_control
+            .env
+            .get("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED")
+            .map(String::as_str),
+        Some("true")
+    );
+}
+
+#[test]
+fn aio_private_action_runner_monolith_is_gated_on_enabled() {
+    let configs = load_shipped_catalog();
+    let monolith = configs.get("datadog-agent-par").expect("par monolith");
+
+    assert_eq!(monolith.command, PRIVATE_ACTION_RUNNER);
+    assert_eq!(
+        monolith.args,
+        ["run", "--cfgpath=/etc/datadog-agent/datadog.yaml"]
+    );
+    assert_eq!(
+        monolith.condition_path_exists.as_deref(),
+        Some(PRIVATE_ACTION_RUNNER)
+    );
+    assert_eq!(
+        monolith
+            .condition_config_any
+            .iter()
+            .flat_map(|file| file.keys.iter().map(String::as_str))
+            .collect::<Vec<_>>(),
+        ["private_action_runner.enabled"]
+    );
+    assert!(
+        monolith.condition_config_none.is_empty(),
+        "the monolith starts whenever PAR is enabled and stands down itself in split mode"
+    );
+    assert!(!monolith.exit_with_supervisor);
+    let enabled_gated = monolith.condition_config_any.iter().any(|file| {
+        file.keys
+            .iter()
+            .any(|key| key == "private_action_runner.enabled")
+    });
+    assert!(
+        monolith.auto_start && enabled_gated,
+        "monolith is not auto_start unless private_action_runner.enabled is present"
+    );
 }
 
 #[test]
@@ -290,29 +386,161 @@ fn aio_commands_match_s6_run_scripts() {
     );
 }
 
-#[cfg(not(bazel))]
+fn catalog_yaml_files() -> (Vec<PathBuf>, Vec<PathBuf>) {
+    #[cfg(bazel)]
+    {
+        fn resolve(var: &str) -> Vec<PathBuf> {
+            let raw = std::env::var(var).unwrap_or_else(|err| panic!("{var} must be set: {err}"));
+            let runfiles = runfiles::Runfiles::create()
+                .expect("catalog YAML is a runfile, so this test needs `bazel test`");
+            let repo = option_env!("REPOSITORY_NAME").unwrap_or("");
+            raw.split_whitespace()
+                .map(|marker| {
+                    runfiles
+                        .rlocation_from(marker, repo)
+                        .unwrap_or_else(|| panic!("no runfile for {marker}"))
+                })
+                .collect()
+        }
+        (resolve("DD_AIO_TOP_LEVEL_YAMLS"), resolve("DD_AIO_YAMLS"))
+    }
+    #[cfg(not(bazel))]
+    {
+        // rules_rust rejects CARGO_MANIFEST_DIR under --cfg=bazel, so it stays here.
+        let processes_d = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("../../../Dockerfiles/agent/processes.d");
+        fn yaml_files(dir: &PathBuf) -> Vec<PathBuf> {
+            let mut files = Vec::new();
+            for entry in
+                fs::read_dir(dir).unwrap_or_else(|err| panic!("read {}: {err}", dir.display()))
+            {
+                let entry = entry.expect("dir entry");
+                let path = entry.path();
+                if path.extension().is_some_and(|ext| ext == "yaml") {
+                    files.push(path);
+                }
+            }
+            files
+        }
+        (
+            yaml_files(&processes_d),
+            yaml_files(&processes_d.join("aio")),
+        )
+    }
+}
+
+fn sorted_file_names(files: &[PathBuf]) -> Vec<String> {
+    let mut names: Vec<_> = files
+        .iter()
+        .map(|path| {
+            path.file_name()
+                .unwrap_or_else(|| panic!("{} has no file name", path.display()))
+                .to_string_lossy()
+                .into_owned()
+        })
+        .collect();
+    names.sort();
+    names
+}
+
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .unwrap_or_else(|| panic!("{} has no file name", path.display()))
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn read_by_name(files: &[PathBuf]) -> HashMap<String, Vec<u8>> {
+    files
+        .iter()
+        .map(|path| {
+            let bytes =
+                fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+            (file_name(path), bytes)
+        })
+        .collect()
+}
+
+/// Windows checks a symlink out as a file holding its target path, `aio/<name>`.
+fn symlink_checkout_bytes(
+    bytes: &[u8],
+    name: &str,
+    aio_bytes: &HashMap<String, Vec<u8>>,
+) -> Option<Vec<u8>> {
+    let text = std::str::from_utf8(bytes).ok()?.trim();
+    if text.contains('\n') || text.contains(':') {
+        return None;
+    }
+    let forward = format!("aio/{name}");
+    let backward = format!("aio\\{name}");
+    if text != forward && text != backward {
+        return None;
+    }
+    aio_bytes.get(name).cloned()
+}
+
+fn read_top_level(
+    files: &[PathBuf],
+    aio_bytes: &HashMap<String, Vec<u8>>,
+) -> HashMap<String, Vec<u8>> {
+    files
+        .iter()
+        .map(|path| {
+            let name = file_name(path);
+            let bytes =
+                fs::read(path).unwrap_or_else(|err| panic!("read {}: {err}", path.display()));
+            let bytes = symlink_checkout_bytes(&bytes, &name, aio_bytes).unwrap_or(bytes);
+            (name, bytes)
+        })
+        .collect()
+}
+
+#[test]
+fn symlink_checkout_text_resolves_to_the_aio_file() {
+    let name = "datadog-agent-action-executor.yaml";
+    let aio = HashMap::from([(name.to_string(), b"description: executor\n".to_vec())]);
+    let link = format!("aio/{name}");
+    assert_eq!(
+        symlink_checkout_bytes(link.as_bytes(), name, &aio).as_deref(),
+        Some(b"description: executor\n".as_slice())
+    );
+    let windows = format!("aio\\{name}");
+    assert_eq!(
+        symlink_checkout_bytes(windows.as_bytes(), name, &aio).as_deref(),
+        Some(b"description: executor\n".as_slice())
+    );
+    assert!(symlink_checkout_bytes(b"description: executor\n", name, &aio).is_none());
+    assert!(symlink_checkout_bytes(b"aio/other.yaml", name, &aio).is_none());
+}
+
+fn stage_named_bytes(files: &HashMap<String, Vec<u8>>) -> tempfile::TempDir {
+    let dir = tempfile::tempdir().expect("tempdir");
+    for (name, bytes) in files {
+        fs::write(dir.path().join(name), bytes).unwrap_or_else(|err| panic!("write {name}: {err}"));
+    }
+    dir
+}
+
 #[test]
 fn aio_directory_keeps_par_beside_the_new_catalog() {
-    let processes_d =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../../Dockerfiles/agent/processes.d");
-    let aio = processes_d.join("aio");
+    let (top_files, aio_files) = catalog_yaml_files();
+    assert_eq!(sorted_file_names(&top_files), TOP_LEVEL_YAMLS);
+    assert_eq!(sorted_file_names(&aio_files), AIO_YAMLS);
 
-    for name in [
-        "datadog-agent-par-control.yaml",
-        "datadog-agent-action-executor.yaml",
-    ] {
-        let link = processes_d.join(name);
-        let target = fs::read_link(&link).unwrap_or_else(|err| panic!("read_link {name}: {err}"));
-        assert_eq!(target, Path::new("aio").join(name), "{name} symlink target");
-        assert!(
-            fs::symlink_metadata(aio.join(name))
-                .unwrap_or_else(|err| panic!("stat aio {name}: {err}"))
-                .is_file(),
-            "{name} in aio should be the regular file"
+    let aio_bytes = read_by_name(&aio_files);
+    let top_bytes = read_top_level(&top_files, &aio_bytes);
+    for name in TOP_LEVEL_YAMLS {
+        assert_eq!(
+            top_bytes.get(*name),
+            aio_bytes.get(*name),
+            "{name} must match aio/{name}"
         );
     }
 
-    let top = load_configs(&processes_d).expect("top-level processes.d parses");
+    let top_dir = stage_named_bytes(&top_bytes);
+    let aio_dir = stage_named_bytes(&aio_bytes);
+
+    let top = load_configs(top_dir.path()).expect("top-level processes.d parses");
     assert!(top.invalid.is_empty());
     let mut top_names: Vec<_> = top
         .processes
@@ -335,7 +563,7 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
         "par-control must be skipped when the FIPS image omits the binary"
     );
 
-    let catalog = load_configs(&aio).expect("aio directory parses");
+    let catalog = load_configs(aio_dir.path()).expect("aio directory parses");
     assert!(catalog.invalid.is_empty());
     let mut names: Vec<_> = catalog
         .processes
@@ -350,6 +578,7 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
             "datadog-agent-action-executor",
             "datadog-agent-data-plane",
             "datadog-agent-otel",
+            "datadog-agent-par",
             "datadog-agent-par-control",
             "datadog-agent-process",
             "datadog-agent-security",
@@ -358,20 +587,181 @@ fn aio_directory_keeps_par_beside_the_new_catalog() {
         ]
     );
 
-    let mut top_level = Vec::new();
-    for entry in fs::read_dir(&processes_d).expect("read processes.d") {
-        let entry = entry.expect("processes.d entry");
-        let path = entry.path();
-        if path.extension().is_some_and(|ext| ext == "yaml") {
-            top_level.push(entry.file_name().to_string_lossy().into_owned());
-        }
+    let executor = catalog
+        .processes
+        .iter()
+        .find(|process| process.name == "datadog-agent-action-executor")
+        .expect("action-executor");
+    assert!(
+        !executor.config.auto_start,
+        "action-executor stays on demand"
+    );
+
+    // Both read the cert path from DD_PM_IPC_CERT_FILE_PATH, not the Agent setting.
+    for name in ["datadog-agent-par-control", "datadog-agent-action-executor"] {
+        let process = catalog
+            .processes
+            .iter()
+            .find(|process| process.name == name)
+            .unwrap_or_else(|| panic!("{name}"));
+        let flag = process
+            .config
+            .args
+            .iter()
+            .position(|arg| arg == "--ipc-cert-file")
+            .unwrap_or_else(|| panic!("{name} has no --ipc-cert-file"));
+        assert_eq!(
+            process.config.args.get(flag + 1).map(String::as_str),
+            Some("${DD_PM_IPC_CERT_FILE_PATH}"),
+            "{name} ipc cert argument"
+        );
     }
-    top_level.sort();
+    for (name, body) in &aio_bytes {
+        assert!(
+            !String::from_utf8_lossy(body).contains("${DD_IPC_CERT_FILE_PATH}"),
+            "{name} must not read the Agent setting name"
+        );
+    }
+}
+
+#[test]
+fn procmgr_all_in_one_entrypoint_runs_cont_init_then_dd_procmgrd() {
+    let script = ENTRYPOINT_PROCMGR_ALL_IN_ONE;
+    assert!(script.contains("set -euo pipefail"));
+    // s6 runs every regular file by its shebang. The entrypoint copies each one
+    // onto the /var/run/s6 volume because shipped and customer scripts are mode 0644.
+    assert!(
+        !script.contains("/etc/cont-init.d/*.sh"),
+        "a .sh-only glob skips customer scripts that have another suffix"
+    );
+    let code_lines: Vec<&str> = script
+        .lines()
+        .map(str::trim)
+        .filter(|line| !line.is_empty() && !line.starts_with('#'))
+        .collect();
+    assert!(
+        code_lines
+            .iter()
+            .all(|line| !line.split_whitespace().any(|word| word == "bash")),
+        "run every regular file by its own shebang, not bash"
+    );
+    let pos = |needle: &str| {
+        code_lines
+            .iter()
+            .position(|line| *line == needle)
+            .unwrap_or_else(|| panic!("missing line: {needle}"))
+    };
+    let mapfile_line =
+        r#"mapfile -d '' inits < <(printf '%s\0' /etc/cont-init.d/* | LC_ALL=C sort -z)"#;
+    let lc_all: Vec<_> = code_lines
+        .iter()
+        .copied()
+        .filter(|line| line.contains("LC_ALL"))
+        .collect();
     assert_eq!(
-        top_level,
-        [
-            "datadog-agent-action-executor.yaml".to_string(),
-            "datadog-agent-par-control.yaml".to_string(),
-        ]
+        lc_all,
+        [mapfile_line],
+        "LC_ALL is only the sort prefix, so dd-procmgrd does not inherit it"
+    );
+    // Wipe the copy dir before either loop. The loops themselves are one contiguous slice,
+    // so fi and both done lines stay attached to the bodies they close.
+    let steps = [
+        "copy_dir=/var/run/s6/procmgr-cont-init.d",
+        r#"rm -rf "$copy_dir""#,
+        r#"mkdir -p "$copy_dir""#,
+        mapfile_line,
+        r#"wait "$!""#,
+        "selected=()",
+    ];
+    let positions: Vec<_> = steps.iter().map(|needle| pos(needle)).collect();
+    for (index, pair) in positions.windows(2).enumerate() {
+        assert!(
+            pair[0] < pair[1],
+            "`{}` must come before `{}`",
+            steps[index],
+            steps[index + 1]
+        );
+    }
+    let loops = [
+        r#"for init in "${inits[@]}"; do"#,
+        r#"if [[ -f "$init" ]]; then"#,
+        r#"copy="$copy_dir/${init##*/}""#,
+        r#"cp -L -- "$init" "$copy""#,
+        r#"chmod 0755 "$copy""#,
+        r#"selected+=("$init")"#,
+        "fi",
+        "done",
+        r#"for init in "${selected[@]}"; do"#,
+        r#"printf '===== RUNNING %s =====\n' "$init""#,
+        r#""$copy_dir/${init##*/}""#,
+        "done",
+    ];
+    let stage_at = pos(loops[0]);
+    let loops_end = stage_at + loops.len();
+    assert!(
+        positions.last().copied().unwrap() < stage_at,
+        "wipe the copy dir before either loop"
+    );
+    assert_eq!(
+        &code_lines[stage_at..loops_end],
+        &loops[..],
+        "the copy loop, including fi and done, must finish before the run loop"
+    );
+    assert!(
+        loops_end < pos("exec /opt/datadog-agent/embedded/bin/dd-procmgrd"),
+        "both loops must finish before dd-procmgrd"
+    );
+    assert!(script.contains("DD_PM_CONFIG_DIR=/opt/datadog-agent/processes.d/aio"));
+    assert!(script.contains(
+        r#"DD_PM_SOCKET_PATH="${DD_PM_SOCKET_PATH:-/opt/datadog-agent/run/dd-procmgrd.sock}""#
+    ));
+    assert!(
+        !script.contains("IPC_CERT_FILE_PATH"),
+        "an exported DD_IPC_CERT_FILE_PATH would override ipc_cert_file_path in datadog.yaml, \
+         dd-procmgrd resolves the certificate path itself"
+    );
+    assert!(
+        !script.contains("DD_PM_INHERIT_ENV"),
+        "the entrypoint must not set DD_PM_INHERIT_ENV"
+    );
+}
+
+#[test]
+fn split_entrypoint_leaves_the_ipc_cert_path_to_dd_procmgrd() {
+    let script = ENTRYPOINT_PRIVATE_ACTION_RUNNER;
+    assert!(
+        !script.contains("IPC_CERT_FILE_PATH"),
+        "an exported DD_IPC_CERT_FILE_PATH would override ipc_cert_file_path in datadog.yaml, \
+         dd-procmgrd resolves the certificate path itself"
+    );
+    assert!(script.contains(r#"export DD_PM_CONFIG_DIR="${processes_dir}""#));
+    assert!(script.contains(r#"exec "${procmgrd}""#));
+}
+
+#[test]
+fn default_entrypoint_still_execs_init() {
+    assert!(ENTRYPOINT_DEFAULT.contains("exec /init"));
+    assert!(
+        !ENTRYPOINT_DEFAULT.contains("dd-procmgrd"),
+        "_default must keep exec /init and must not exec dd-procmgrd"
+    );
+}
+
+#[test]
+fn procmgr_all_in_one_entrypoint_is_installed_executable() {
+    assert!(
+        AGENT_DOCKERFILE
+            .lines()
+            .any(|line| { line.trim() == "COPY --chmod=755 entrypoint.d /opt/entrypoints" })
+    );
+    assert!(
+        AGENT_DOCKERFILE.lines().any(|line| {
+            line.trim() == r#"VOLUME ["/var/run/s6", "/opt/datadog-agent/run", "/var/log/datadog"]"#
+        }),
+        "Docker --read-only only writes VOLUME paths, and the all-in-one socket lives in /opt/datadog-agent/run"
+    );
+    assert!(
+        ENTRYPOINT_LAUNCHER.contains(r#"[[ -x "$ENTRYPOINT_PATH/$ENTRYPOINT" ]]"#),
+        "entrypoint.sh must exec only an executable entrypoint"
     );
 }

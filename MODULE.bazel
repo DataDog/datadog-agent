@@ -166,13 +166,15 @@ single_version_override(
     version = "0.2.27",
 )
 
-# Fork of rules_pkg main carrying bazelbuild/rules_pkg#1089 (pkg_rpm
-# rpm_own_tree_dirs). Go back to upstream main once it's merged.
+# Pinned to the datadog-patchset branch of chouquette/rules_pkg, which carries
+# patches pending upstream review. Upstream asked for the pkg_rpm compression
+# change to be tested in datadog-agent before merging it. Go back to upstream
+# once they're all merged.
 archive_override(
     module_name = "rules_pkg",
-    sha256 = "05ba3462560329bf6757b4369c238d6997f418e3eda3db0da41db3c6e939a8fb",
-    strip_prefix = "rules_pkg-a0fea16700948eeefc885f23200e8e52d5e914eb",
-    urls = ["https://github.com/chouquette/rules_pkg/archive/a0fea16700948eeefc885f23200e8e52d5e914eb.tar.gz"],
+    sha256 = "7d46f995e23284ade241c0c9af6131568722a2f279490f1e2fb924d5976a3a2b",
+    strip_prefix = "rules_pkg-12239bd1bd045a17ad6aa84b119be83bae4f3f3b",
+    urls = ["https://github.com/chouquette/rules_pkg/archive/12239bd1bd045a17ad6aa84b119be83bae4f3f3b.tar.gz"],
 )
 
 single_version_override(
