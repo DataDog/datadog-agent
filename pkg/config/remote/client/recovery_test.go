@@ -10,6 +10,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -273,6 +274,116 @@ func TestUpdateTUFStateResetCooldown(t *testing.T) {
 	require.Error(t, client.update())
 	require.NoError(t, client.update())
 	assert.EqualValues(t, 17, lastRequest(t, fetcher).Client.State.RootVersion)
+}
+
+// dcEmptyConfigResponse builds a response for a DC that serves valid TUF
+// metadata but no configurations at all, modeling a new DC without configs
+// for the client's products.
+func dcEmptyConfigResponse(dc *dcRepository, freshJoin bool) *pbgo.ClientGetConfigsResponse {
+	targets := data.NewTargets()
+	targets.Version = 1
+	signedTargets, err := sign.Marshal(targets, dc.targetsKey)
+	if err != nil {
+		panic(err)
+	}
+	targetsBytes, err := json.Marshal(signedTargets)
+	if err != nil {
+		panic(err)
+	}
+	response := &pbgo.ClientGetConfigsResponse{Targets: targetsBytes}
+	if freshJoin {
+		response.Roots = dc.signedRoots
+	}
+	return response
+}
+
+func TestUpdateNotifiesListenersOfConfigsRemovedByReset(t *testing.T) {
+	embeddedRoot, dcA, dcB := newDCRepositories(17, "datadog/2/CWS_DD/id1/config")
+	client, fetcher := newDCClient(t, embeddedRoot)
+
+	var updates []map[string]state.RawConfig
+	client.Subscribe(state.ProductCWSDD, func(update map[string]state.RawConfig, _ func(string, state.ApplyStatus)) {
+		updates = append(updates, update)
+	})
+
+	// The client joins through DC A and receives one config.
+	fetcher.answer = func(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+		return dcResponse(dcA, request.Client.State.RootVersion == 17), nil
+	}
+	require.NoError(t, client.update())
+	require.Len(t, updates, 1)
+	require.Len(t, updates[0], 1)
+
+	// The org moves to DC B, which serves no configs for this product. The
+	// first update fails (no roots against A's latched state) and triggers
+	// the reset; the fresh-join update then succeeds with an empty config
+	// list.
+	fetcher.answer = func(*pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+		return dcEmptyConfigResponse(dcB, false), nil
+	}
+	require.Error(t, client.update())
+
+	// The fresh repository cannot detect the config's removal by diffing
+	// (it starts empty), so the listener must be notified explicitly with
+	// an empty config map.
+	fetcher.answer = func(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+		return dcEmptyConfigResponse(dcB, request.Client.State.RootVersion == 17), nil
+	}
+	require.NoError(t, client.update())
+	require.Len(t, updates, 2)
+	require.NotNil(t, updates[1])
+	assert.Empty(t, updates[1])
+
+	// The pending removals are consumed: a subsequent successful update
+	// does not notify the listener again.
+	require.NoError(t, client.update())
+	require.Len(t, updates, 2)
+}
+
+func TestUpdateApplyStatusConcurrentWithReset(t *testing.T) {
+	embeddedRoot, dcA, dcB := newDCRepositories(17, "datadog/2/CWS_DD/id1/config")
+	client, fetcher := newDCClient(t, embeddedRoot)
+
+	fetcher.answer = func(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+		return dcResponse(dcA, request.Client.State.RootVersion == 17), nil
+	}
+	require.NoError(t, client.update())
+
+	// Hammer UpdateApplyStatus while the poll goroutine resets the TUF
+	// state: the c.state pointer must be read under the client lock.
+	stop := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(1)
+	go func() {
+		defer wg.Done()
+		for {
+			select {
+			case <-stop:
+				return
+			default:
+			}
+			client.UpdateApplyStatus(dcA.targetPath, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+		}
+	}()
+
+	// A DC switch fails the update and drops the state; the fresh join then
+	// re-latches on the old DC. Run several reset cycles, bypassing the
+	// cooldown, to give the race detector a wide window.
+	for i := 1; i <= 3; i++ {
+		cooldownEnd := time.Now().Add(time.Duration(i) * tufStateResetCooldown)
+		client.now = func() time.Time { return cooldownEnd }
+		fetcher.answer = func(*pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+			return dcResponse(dcB, false), nil
+		}
+		require.Error(t, client.update())
+		fetcher.answer = func(request *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
+			return dcResponse(dcA, request.Client.State.RootVersion == 17), nil
+		}
+		require.NoError(t, client.update())
+	}
+
+	close(stop)
+	wg.Wait()
 }
 
 func TestUpdateTransportErrorDoesNotResetTUFState(t *testing.T) {
