@@ -34,3 +34,17 @@ func TestLoadTestbenchLogTimeBuckets(t *testing.T) {
 		})
 	}
 }
+
+func TestLoadTestbenchLogTimeBucketsWithMetricPipeline(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "config.json")
+	config := `{"use_metric_pipeline":true,"anomaly_cutoff":false,"log_time_buckets":{"enabled":true},"components":{}}`
+	require.NoError(t, os.WriteFile(path, []byte(config), 0600))
+	settings, err := LoadTestbenchParams(path)
+	require.NoError(t, err)
+	require.True(t, settings.UseMetricPipeline)
+	require.NotNil(t, settings.MetricPipelineAnomalyCutoff)
+	require.False(t, *settings.MetricPipelineAnomalyCutoff)
+	require.Equal(t, &observerimpl.LogCountBucketConfig{
+		Enabled: true, BucketSeconds: 5, IdleTTLSeconds: 300, RetentionSeconds: 600,
+	}, settings.LogCountBuckets)
+}

@@ -1280,13 +1280,15 @@ func TestAwaitsDelegatedAuthKey(t *testing.T) {
 		model.DelaCWSEndpointsKey,
 		model.DelaComplianceEndpointsKey,
 		model.DelaActivityDumpEndpointsKey,
+		model.DelaAgentTelemetryEndpointsKey,
+		model.DelaNetworkPcapEndpointsKey,
 	} {
 		pending := NewEndpoint(directive, key, "intake", 443, EmptyPathPrefix, true)
 		assert.True(t, pending.AwaitsDelegatedAuthKey(), "pending on the %s write-back setting", key)
 	}
 
-	// agent_telemetry uses the same builder but is not enrolled for delegated-auth write-back.
-	other := NewEndpoint(directive, "agent_telemetry.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
+	// Unregistered settings never receive delegated-auth write-back.
+	other := NewEndpoint(directive, "unregistered.additional_endpoints", "intake", 443, EmptyPathPrefix, true)
 	assert.False(t, other.AwaitsDelegatedAuthKey(), "nothing writes keys back to this setting")
 
 	disabled := NewEndpoint(directive, "logs_config.additional_endpoints", "intake", 443, EmptyPathPrefix, true)

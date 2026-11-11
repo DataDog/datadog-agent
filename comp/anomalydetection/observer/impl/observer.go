@@ -319,6 +319,11 @@ func settingsFromAgentConfig(catalog *componentCatalog, cfg config.Component) Co
 	if cfg == nil {
 		return settings
 	}
+	settings.UseMetricPipeline = cfg.GetBool("anomaly_detection.metric_pipeline.enabled")
+	if cfg.IsConfigured("anomaly_detection.metric_pipeline.anomaly_cutoff") {
+		cutoff := cfg.GetBool("anomaly_detection.metric_pipeline.anomaly_cutoff")
+		settings.MetricPipelineAnomalyCutoff = &cutoff
+	}
 	settings.Enabled = make(map[string]bool, len(catalog.entries))
 	for _, entry := range catalog.Entries() {
 		// The anomaly_scorer has its own dedicated config prefix outside detectors.*.
@@ -427,7 +432,10 @@ func NewComponent(deps Requires) (Provides, error) {
 
 	catalog := defaultCatalog()
 	settings := settingsFromAgentConfig(catalog, cfg)
-	detectors, correlators, rawScorer, extractors, _ := catalog.Instantiate(settings)
+	detectors, correlators, rawScorer, extractors, _, err := catalog.Instantiate(settings)
+	if err != nil {
+		return Provides{}, err
+	}
 
 	storageCfg := storageConfigFromAgentConfig(cfg, detectors)
 
@@ -1149,7 +1157,10 @@ func (o *observerImpl) flushCtx(ctx context.Context) error {
 // Reset clears all engine state and reconfigures with new settings. Implements DebugView.
 func (o *observerImpl) Reset(settings ComponentSettings, storageCfg StorageConfig) error {
 	o.Flush()
-	detectors, correlators, scorer, extractors, _ := o.catalog.Instantiate(settings)
+	detectors, correlators, scorer, extractors, _, err := o.catalog.Instantiate(settings)
+	if err != nil {
+		return err
+	}
 	// Catalog scorers are unwatched standalone instances. Replay needs the same
 	// transition watcher as the live observer so scorer correlation episodes open
 	// and close as severity changes; telemetry gauges are optional here.

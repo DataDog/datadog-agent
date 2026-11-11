@@ -204,13 +204,22 @@ half-window medians so isolated spikes do not dominate it.
 
 ### Metric pipeline
 
-`MetricPipeline` runs registered committed-kind detectors before matching. It is
-programmatic only today. Matching uses the matcher window; detector history
+Legacy detectors remain the default.
+Set `anomaly_detection.metric_pipeline.enabled: true` to run only `MetricPipeline`,
+with its own detector instances and defaults; legacy detector settings do not
+configure the pipeline.
+Baseline and scorer settings apply in both workflows.
+`anomaly_detection.metric_pipeline.anomaly_cutoff` (default true) gates
+post-reactivation anomaly suppression; testbench params use `anomaly_cutoff`.
+
+`MetricPipeline` runs registered committed-kind detectors before matching.
+Matching uses the matcher window; detector history
 requirements stay independent. Transitions clean the previous detector state,
 commit the successor kind, and reuse retained history.
 
 After reactivation to a supported kind, only anomalies after the cutoff are
-emitted. Direct `UNSET` assignments are not gated.
+emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
+not gated. Engine resets clear kinds, and series eviction clears pipeline state.
 
 ### Non-blocking ingestion
 

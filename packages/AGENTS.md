@@ -60,8 +60,8 @@ Use it (don't use environment variables) for conditional content:
 
 ```python
 select({
-    "//packages/agent:linux_default": [...],   # base or recorder flavor on Linux
-    "//packages/agent:linux_fips":    [...],   # fips flavor on Linux
+    "@platforms//os:linux":           [...],   # Linux default
+    "//packages/agent:linux_fips":    [...],   # fips flavor on Linux, a specialization of the above
     "//conditions:default":           [...],
 })
 ```

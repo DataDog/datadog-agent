@@ -171,51 +171,49 @@ func TestResizableSemaphoreCancelConcurrentWithRelease(t *testing.T) {
 }
 
 func TestSaturatedDurationAccumulates(t *testing.T) {
-	s := newResizableSemaphore(2)
-	clock := &fakeClock{t: time.Unix(0, 0)}
-	s.now = clock.now
-	ctx := context.Background()
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(2)
+		ctx := context.Background()
 
-	require.NoError(t, s.Acquire(ctx, 1)) // inFlight 1 < 2: not saturated
-	require.NoError(t, s.Acquire(ctx, 1)) // inFlight 2 == 2: saturation begins
+		require.NoError(t, s.Acquire(ctx, 1)) // inFlight 1 < 2: not saturated
+		require.NoError(t, s.Acquire(ctx, 1)) // inFlight 2 == 2: saturation begins
 
-	clock.advance(3 * time.Second)
-	s.Release(1) // inFlight 1 < 2: saturation ends, 3s banked
+		time.Sleep(3 * time.Second)
+		s.Release(1) // inFlight 1 < 2: saturation ends, 3s banked
 
-	assert.Equal(t, 3*time.Second, s.takeSaturatedDuration())
-	// The accumulator resets after a read.
-	assert.Equal(t, time.Duration(0), s.takeSaturatedDuration())
+		assert.Equal(t, 3*time.Second, s.takeSaturatedDuration())
+		// The accumulator resets after a read.
+		assert.Equal(t, time.Duration(0), s.takeSaturatedDuration())
+	})
 }
 
 func TestSaturatedDurationFoldsOpenInterval(t *testing.T) {
-	s := newResizableSemaphore(1)
-	clock := &fakeClock{t: time.Unix(0, 0)}
-	s.now = clock.now
-	ctx := context.Background()
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(1)
+		require.NoError(t, s.Acquire(context.Background(), 1)) // saturated immediately
 
-	require.NoError(t, s.Acquire(ctx, 1)) // saturated immediately
+		time.Sleep(2 * time.Second)
+		// Still saturated: the open interval is folded in and keeps running.
+		assert.Equal(t, 2*time.Second, s.takeSaturatedDuration())
 
-	clock.advance(2 * time.Second)
-	// Still saturated: the open interval is folded in and keeps running.
-	assert.Equal(t, 2*time.Second, s.takeSaturatedDuration())
-
-	clock.advance(time.Second)
-	assert.Equal(t, time.Second, s.takeSaturatedDuration())
+		time.Sleep(time.Second)
+		assert.Equal(t, time.Second, s.takeSaturatedDuration())
+	})
 }
 
 func TestSaturatedDurationTracksLimitChanges(t *testing.T) {
-	s := newResizableSemaphore(2)
-	clock := &fakeClock{t: time.Unix(0, 0)}
-	s.now = clock.now
-	ctx := context.Background()
+	synctest.Test(t, func(t *testing.T) {
+		s := newResizableSemaphore(2)
 
-	require.NoError(t, s.Acquire(ctx, 1)) // inFlight 1 < 2: not saturated
-	s.SetLimit(1)                         // inFlight 1 >= 1: saturation begins
+		require.NoError(t, s.Acquire(context.Background(), 1)) // inFlight 1 < 2: not saturated
+		s.SetLimit(1)                                          // inFlight 1 >= 1: saturation begins
 
-	clock.advance(5 * time.Second)
-	s.Release(1) // inFlight 0 < 1: saturation ends, 5s banked
+		time.Sleep(5 * time.Second)
+		s.Release(1) // inFlight 0 < 1: saturation ends, 5s banked
 
-	assert.Equal(t, 5*time.Second, s.takeSaturatedDuration())
+		time.Sleep(time.Second)
+		assert.Equal(t, 5*time.Second, s.takeSaturatedDuration())
+	})
 }
 
 // TestResizableSemaphoreScalingUnderLoad proves the limit can be scaled up and

@@ -108,6 +108,8 @@ func persistIdentityToFile(cfg configModel.Reader, result *Result) error {
 		URN:        result.URN,
 		Hostname:   result.Hostname,
 		APIKeyHash: result.APIKeyHash,
+		WIFOrgUUID: result.WIFOrgUUID,
+		WIFSite:    result.WIFSite,
 	})
 	if err != nil {
 		return fmt.Errorf("failed to marshal identity content to JSON: %w", err)
