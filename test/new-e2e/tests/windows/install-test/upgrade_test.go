@@ -43,6 +43,9 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	// install previous version
 	s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackge)
 
+	// customer-edited PAR script config must survive the upgrade (incident 61851)
+	s.customizePARScriptConfig(vm)
+
 	// simulate upgrading from a version that didn't have the runtime-security.d directory
 	// to ensure upgrade places new config files.
 	configRoot, err := windowsAgent.GetConfigRootFromRegistry(vm)
@@ -63,6 +66,8 @@ func (s *testUpgradeSuite) TestUpgrade() {
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
+
+	s.assertPARScriptConfigPreserved(vm)
 
 	// dd-procmgr-service runs as LocalSystem, so it stays enabled even when the upgrade
 	// does not provide DDAGENTUSER_PASSWORD. Local accounts already behaved this way

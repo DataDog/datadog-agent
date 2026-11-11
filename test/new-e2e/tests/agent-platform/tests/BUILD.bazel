@@ -11,6 +11,7 @@ dd_agent_go_test(
         "macos_upgrade_test.go",
         "package_signing_test.go",
         "persisting_integrations_test.go",
+        "persisting_par_script_config_test.go",
         "rpm_test.go",
         "step_by_step_test.go",
         "upgrade_test.go",
