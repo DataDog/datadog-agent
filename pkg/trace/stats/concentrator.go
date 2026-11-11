@@ -232,11 +232,7 @@ func (c *Concentrator) callerKubeNamespace(kubeNamespace string, containerTags [
 
 // peerK8sScope returns the peer.k8s.* scope for spans of a payload with the given infra tags.
 func (c *Concentrator) peerK8sScope(tags infraTags) peerK8sScope {
-	clusterUIDTag := c.peerK8sClusterUIDTag.get(c.conf)
-	if clusterUIDTag == "" {
-		return peerK8sScope{}
-	}
-	return peerK8sScope{clusterUIDTag: clusterUIDTag, callerNamespace: tags.kubeNamespace}
+	return newPeerK8sScope(c.peerK8sClusterUIDTag.get(c.conf), tags.kubeNamespace)
 }
 
 // addNow adds the given input into the concentrator.

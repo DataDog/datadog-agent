@@ -1379,11 +1379,56 @@ func TestAggregationPeerK8sScope(t *testing.T) {
 		peerTags, _ := aggregate(t, nil, payload("", nil, "peer.service:orders", "peer.hostname:orders.shop.svc.cluster.local"))
 		assert.Equal(t, []string{"peer.hostname:orders.shop.svc.cluster.local", uidTag, "peer.k8s.namespace:shop", "peer.service:orders"}, peerTags)
 	})
-	t.Run("bare service with namespace from payload tags", func(t *testing.T) {
+	t.Run("Agent container tags preferred over payload tags", func(t *testing.T) {
 		peerTags, lookups := aggregate(t, nil, payload("cid", []string{"kube_namespace:payload-ns"}, "peer.hostname:orders"))
-		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:payload-ns"}, peerTags)
-		assert.Zero(t, lookups)
+		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:tagger-ns"}, peerTags)
+		assert.Equal(t, 1, lookups)
 	})
+	t.Run("payload tags for unknown container", func(t *testing.T) {
+		peerTags, _ := aggregate(t, nil, payload("other", []string{"kube_namespace:payload-ns"}, "peer.hostname:orders"))
+		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:payload-ns"}, peerTags)
+	})
+	for _, tc := range []struct {
+		name     string
+		peerTags []string
+		expected []string
+	}{
+		{
+			name:     "out.host",
+			peerTags: []string{"out.host:orders.shop"},
+			expected: []string{"out.host:orders.shop", uidTag, "peer.k8s.namespace:shop"},
+		},
+		{
+			name:     "network.destination.name",
+			peerTags: []string{"network.destination.name:orders.shop.svc.cluster.local"},
+			expected: []string{"network.destination.name:orders.shop.svc.cluster.local", uidTag, "peer.k8s.namespace:shop"},
+		},
+		{
+			name:     "server.address",
+			peerTags: []string{"server.address:pod-0.orders.shop.svc"},
+			expected: []string{uidTag, "peer.k8s.namespace:shop", "server.address:pod-0.orders.shop.svc"},
+		},
+		{
+			name:     "grpc.host with port and caller namespace",
+			peerTags: []string{"grpc.host:orders:50051"},
+			expected: []string{"grpc.host:orders:50051", uidTag, "peer.k8s.namespace:tagger-ns"},
+		},
+		{
+			name:     "higher precedence external hostname",
+			peerTags: []string{"out.host:orders.shop", "server.address:api.example.org"},
+			expected: []string{"out.host:orders.shop", "server.address:api.example.org"},
+		},
+		{
+			name:     "scheme",
+			peerTags: []string{"grpc.host:dns:///orders.shop"},
+			expected: []string{"grpc.host:dns:///orders.shop"},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			peerTags, _ := aggregate(t, nil, payload("cid", nil, tc.peerTags...))
+			assert.Equal(t, tc.expected, peerTags)
+		})
+	}
 	t.Run("bare service with namespace from container tags", func(t *testing.T) {
 		peerTags, lookups := aggregate(t, nil, payload("cid", nil, "peer.hostname:orders"))
 		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:tagger-ns"}, peerTags)

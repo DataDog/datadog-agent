@@ -15,7 +15,6 @@ import (
 )
 
 const (
-	peerHostnameTagPrefix      = string(semantics.ConceptPeerHostname) + ":"
 	peerK8sClusterUIDTagPrefix = string(semantics.ConceptPeerK8sClusterUID) + ":"
 	peerK8sNamespaceTagPrefix  = string(semantics.ConceptPeerK8sNamespace) + ":"
 	peerK8sTagPrefix           = "peer.k8s."
@@ -32,7 +31,7 @@ const (
 )
 
 // peerK8sScope adds peer.k8s.cluster.uid and peer.k8s.namespace to the peer tags
-// of stats whose peer.hostname is a cluster-local name, so that the backend can
+// of stats whose peer hostname is a cluster-local name, so that the backend can
 // resolve the peer to a Kubernetes service. It is built once per payload.
 // The zero value is inactive.
 type peerK8sScope struct {
@@ -41,30 +40,92 @@ type peerK8sScope struct {
 	// callerNamespace is the kube_namespace of the container that sent the payload,
 	// used to resolve bare service names. May be empty.
 	callerNamespace string
+	// hostnamePrefixes are the "key:" prefixes of the peer.hostname sources, by precedence.
+	hostnamePrefixes []string
 }
 
-// appendTags returns peerTags with the peer.k8s.* tags added when the
-// peer.hostname tag is a cluster-local name. It returns peerTags unchanged,
-// without allocating, otherwise. The returned slice is a sorted copy: peerTags is
-// never modified.
-func (s peerK8sScope) appendTags(peerTags []string) []string {
-	if s.clusterUIDTag == "" || len(peerTags) == 0 {
-		return peerTags
+// newPeerK8sScope returns an active scope, or an inactive one when clusterUIDTag is empty.
+func newPeerK8sScope(clusterUIDTag, callerNamespace string) peerK8sScope {
+	if clusterUIDTag == "" {
+		return peerK8sScope{}
 	}
-	var host string
-	found := false
-	for _, t := range peerTags {
-		if v, ok := strings.CutPrefix(t, peerHostnameTagPrefix); ok {
-			host, found = v, true
-		} else if strings.HasPrefix(t, peerK8sTagPrefix) {
-			// already scoped, e.g. by apm_config.peer_tags
-			return peerTags
+	return peerK8sScope{clusterUIDTag: clusterUIDTag, callerNamespace: callerNamespace, hostnamePrefixes: peerHostnamePrefixes()}
+}
+
+// peerHostnameSources caches the peer.hostname source prefixes of a registry.
+type peerHostnameSources struct {
+	fingerprint string
+	prefixes    []string
+}
+
+var peerHostnameSourcesCache atomic.Pointer[peerHostnameSources]
+
+// peerHostnamePrefixes returns the "key:" prefixes of the peer tags that are
+// sources of peer.hostname, by precedence. Stats peer tags are keyed by source
+// attribute, so a span may carry out.host, server.address... instead of
+// peer.hostname. The list is rebuilt when the live registry changes.
+func peerHostnamePrefixes() []string {
+	r := semantics.DefaultRegistry()
+	fingerprint := r.Fingerprint()
+	if s := peerHostnameSourcesCache.Load(); s != nil && s.fingerprint == fingerprint {
+		return s.prefixes
+	}
+	infos := r.GetAttributePrecedence(semantics.ConceptPeerHostname)
+	prefixes := make([]string, 0, len(infos))
+	for _, info := range infos {
+		prefixes = append(prefixes, info.Name+":")
+	}
+	peerHostnameSourcesCache.Store(&peerHostnameSources{fingerprint: fingerprint, prefixes: prefixes})
+	return prefixes
+}
+
+// peerHostname returns the value of the highest precedence peer.hostname source in peerTags.
+func peerHostname(peerTags, prefixes []string) (string, bool) {
+	for _, p := range prefixes {
+		for _, t := range peerTags {
+			if v, ok := strings.CutPrefix(t, p); ok {
+				return v, true
+			}
 		}
 	}
-	if !found {
+	return "", false
+}
+
+// namespace returns the namespace for the peer.k8s.namespace tag of peerTags.
+func (s peerK8sScope) namespace(peerTags []string) (string, bool) {
+	if s.clusterUIDTag == "" || len(peerTags) == 0 {
+		return "", false
+	}
+	for _, t := range peerTags {
+		if strings.HasPrefix(t, peerK8sTagPrefix) {
+			// already scoped, e.g. by apm_config.peer_tags
+			return "", false
+		}
+	}
+	host, ok := peerHostname(peerTags, s.hostnamePrefixes)
+	if !ok {
+		return "", false
+	}
+	// A lower precedence source is never used: the peer is the one the backend sees.
+	return peerK8sNamespace(host, s.callerNamespace)
+}
+
+// appendTags returns peerTags with the peer.k8s.* tags added when the peer
+// hostname is a cluster-local name, sorted. It may modify peerTags and reuse
+// its backing array. It returns peerTags unchanged, without allocating, otherwise.
+func (s peerK8sScope) appendTags(peerTags []string) []string {
+	namespace, ok := s.namespace(peerTags)
+	if !ok {
 		return peerTags
 	}
-	namespace, ok := peerK8sNamespace(host, s.callerNamespace)
+	peerTags = append(peerTags, s.clusterUIDTag, peerK8sNamespaceTagPrefix+namespace)
+	sort.Strings(peerTags)
+	return peerTags
+}
+
+// appendTagsCopy is appendTags that leaves peerTags untouched, for slices owned by the caller.
+func (s peerK8sScope) appendTagsCopy(peerTags []string) []string {
+	namespace, ok := s.namespace(peerTags)
 	if !ok {
 		return peerTags
 	}
@@ -75,20 +136,33 @@ func (s peerK8sScope) appendTags(peerTags []string) []string {
 	return scoped
 }
 
+// needsCallerNamespace reports whether the peer hostname of peerTags is a bare
+// name, which resolves in the caller's namespace.
+func (s peerK8sScope) needsCallerNamespace(peerTags []string) bool {
+	host, ok := peerHostname(peerTags, s.hostnamePrefixes)
+	host = stripPort(host)
+	return ok && host != "" && !strings.Contains(host, ".")
+}
+
 // peerK8sNamespace returns the Kubernetes namespace that host resolves to
 // following the DNS search path of a pod in callerNamespace:
 //   - "a.b.svc.cluster.local" and "a.b.svc" resolve to service a in namespace b,
+//   - "p.a.b.svc.cluster.local" and "p.a.b.svc" resolve to pod p of headless service a in namespace b,
 //   - "a.b" resolves to service a in namespace b,
 //   - a bare "a" resolves to service a in callerNamespace.
 //
-// A trailing dot makes host absolute: only "a.b.svc.cluster.local." applies.
-// It returns false for any other name, IP addresses, localhost, and names with
-// labels that are not DNS-1123 labels. It does not check that the service exists.
+// A trailing ":<port>" is ignored. A trailing dot makes host absolute: only the
+// ".svc.cluster.local." forms apply. It returns false for any other name, IP
+// addresses, localhost, and names with labels that are not DNS-1123 labels, which
+// includes names with a scheme. It does not check that the service exists.
 func peerK8sNamespace(host, callerNamespace string) (string, bool) {
-	host = strings.ToLower(host)
+	host = strings.ToLower(stripPort(host))
+	if strings.Contains(host, blockedIPAddress) {
+		return "", false
+	}
 	host, absolute := strings.CutSuffix(host, ".")
 	if rest, ok := strings.CutSuffix(host, svcFQDNSuffix); ok {
-		if ns, ok := serviceNamespace(rest); ok {
+		if ns, ok := svcNamespace(rest); ok {
 			return ns, true
 		}
 	}
@@ -96,7 +170,7 @@ func peerK8sNamespace(host, callerNamespace string) (string, bool) {
 		return "", false
 	}
 	if rest, ok := strings.CutSuffix(host, svcSuffix); ok {
-		if ns, ok := serviceNamespace(rest); ok {
+		if ns, ok := svcNamespace(rest); ok {
 			return ns, true
 		}
 	}
@@ -104,10 +178,7 @@ func peerK8sNamespace(host, callerNamespace string) (string, bool) {
 	// shapes below never match them.
 	switch strings.Count(host, ".") {
 	case 0:
-		if host == "localhost" || strings.Contains(host, blockedIPAddress) || !isDNS1123Label(host) {
-			return "", false
-		}
-		if !isDNS1123Label(callerNamespace) {
+		if host == "localhost" || !isDNS1123Label(host) || !isDNS1123Label(callerNamespace) {
 			return "", false
 		}
 		return callerNamespace, true
@@ -117,10 +188,36 @@ func peerK8sNamespace(host, callerNamespace string) (string, bool) {
 	return "", false
 }
 
+// stripPort removes a trailing ":<digits>" from host.
+func stripPort(host string) string {
+	i := strings.LastIndexByte(host, ':')
+	if i < 0 || i == len(host)-1 {
+		return host
+	}
+	for j := i + 1; j < len(host); j++ {
+		if host[j] < '0' || host[j] > '9' {
+			return host
+		}
+	}
+	return host[:i]
+}
+
+// svcNamespace returns b for the "a.b" and "p.a.b" names in front of ".svc".
+func svcNamespace(name string) (string, bool) {
+	if ns, ok := serviceNamespace(name); ok {
+		return ns, true
+	}
+	pod, service, ok := strings.Cut(name, ".")
+	if !ok || !isDNS1123Label(pod) {
+		return "", false
+	}
+	return serviceNamespace(service)
+}
+
 // serviceNamespace returns b for "a.b" when a and b are DNS-1123 labels.
 func serviceNamespace(name string) (string, bool) {
 	service, namespace, ok := strings.Cut(name, ".")
-	if !ok || !isDNS1123Label(service) || !isDNS1123Label(namespace) || strings.Contains(service, blockedIPAddress) {
+	if !ok || !isDNS1123Label(service) || !isDNS1123Label(namespace) {
 		return "", false
 	}
 	return namespace, true
@@ -142,17 +239,6 @@ func isDNS1123Label(s string) bool {
 		}
 	}
 	return true
-}
-
-// hasBarePeerHostname reports whether peerTags has a peer.hostname without dots,
-// which resolves in the caller's namespace.
-func hasBarePeerHostname(peerTags []string) bool {
-	for _, t := range peerTags {
-		if v, ok := strings.CutPrefix(t, peerHostnameTagPrefix); ok {
-			return v != "" && !strings.Contains(v, ".")
-		}
-	}
-	return false
 }
 
 // KubeNamespaceFromTags returns the kube_namespace tag value from container tags.

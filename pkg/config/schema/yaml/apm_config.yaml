@@ -824,10 +824,12 @@ properties:
         visibility: public
         description: |-
           Adds the `peer.k8s.cluster.uid` and `peer.k8s.namespace` peer tags to trace stats of calls whose
-          `peer.hostname` is a cluster-local service name (`<service>`, `<service>.<namespace>`,
-          `<service>.<namespace>.svc` or `<service>.<namespace>.svc.cluster.local`), so that Datadog can
-          identify the Kubernetes service that was called.
-          Only applies when the Agent runs in Kubernetes and knows the cluster ID, and when `peer_tags_aggregation` is enabled.
+          peer hostname is a cluster-local name (`<service>`, `<service>.<namespace>`,
+          `<service>.<namespace>.svc`, `<service>.<namespace>.svc.cluster.local`, or a headless service pod
+          `<pod>.<service>.<namespace>.svc[.cluster.local]`), so that Datadog can identify the Kubernetes
+          service that was called.
+          Only applies when the Agent runs in Kubernetes and knows the cluster ID, which comes from
+          DD_ORCHESTRATOR_CLUSTER_ID or the Cluster Agent, and when `peer_tags_aggregation` is enabled.
   features:
     node_type: setting
     type: array
