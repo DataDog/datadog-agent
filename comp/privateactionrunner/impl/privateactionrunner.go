@@ -242,10 +242,14 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
+	// Replace a saved runner when its enrollment does not match the configured WIF org/site,
+	// leaving the old identity file untouched until enrollment succeeds.
+	// Cluster Agent replacement needs shared-Secret coordination.
+	if p.wifEnrollmentEnabled() && p.coreConfig.GetBool(par.SelfEnroll) &&
+		flavor.GetFlavor() != flavor.ClusterAgent && persistedIdentity != nil && !persistedIdentity.MatchesWIFConfig(p.coreConfig) {
+		persistedIdentity = nil
+	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
-		if p.wifEnrollmentEnabled() {
-			return nil, errors.New("WIF enrollment cannot replace an existing runner identity; migration must be completed separately")
-		}
 		persistedIdentity = nil
 	}
 	if persistedIdentity != nil {
