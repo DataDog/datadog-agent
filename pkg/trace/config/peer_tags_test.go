@@ -97,6 +97,8 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 			"aws.topic.arn",
 			"aws.stream.arn",
 			"aws.state_machine.arn",
+			"aws.function.arn",
+			"aws.table.arn",
 			"aws.sns.topic.arn",
 			"aws.step_functions.state_machine.arn",
 		}, names)
@@ -130,6 +132,29 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 		// so on Lambda spans they describe the caller, not the peer.
 		assert.NotContains(t, basePeerTags(r), "region")
 		assert.NotContains(t, basePeerTags(r), "aws_account")
+	})
+
+	t.Run("Pub/Sub identities come only from their dedicated full-path attributes", func(t *testing.T) {
+		names := func(concept semantics.Concept) []string {
+			var out []string
+			for _, info := range r.GetAttributePrecedence(concept) {
+				out = append(out, info.Name)
+			}
+			return out
+		}
+		assert.Equal(t, []string{"gcp.pubsub.topic.name"}, names(semantics.ConceptPeerGCPPubSubTopicName))
+		assert.Equal(t, []string{"gcp.pubsub.subscription.name"}, names(semantics.ConceptPeerGCPPubSubSubscriptionName))
+		// Consumers may put the subscription in the generic messaging destination fields,
+		// and pubsub.topic can be a short name or a placeholder.
+		for _, concept := range []semantics.Concept{semantics.ConceptPeerGCPPubSubTopicName, semantics.ConceptPeerGCPPubSubSubscriptionName} {
+			for _, notSource := range []string{"messaging.destination", "messaging.destination.name", "pubsub.topic", "pubsub.subscription"} {
+				assert.NotContains(t, names(concept), notSource, concept)
+			}
+		}
+		assert.NotContains(t, basePeerTags(r), "pubsub.topic")
+		assert.NotContains(t, basePeerTags(r), "pubsub.subscription")
+		assert.Contains(t, basePeerTags(r), "gcp.pubsub.topic.name")
+		assert.Contains(t, basePeerTags(r), "gcp.pubsub.subscription.name")
 	})
 }
 

@@ -504,6 +504,16 @@
           "type": "string"
         },
         {
+          "name": "aws.function.arn",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
+          "name": "aws.table.arn",
+          "provider": "datadog",
+          "type": "string"
+        },
+        {
           "name": "aws.sns.topic.arn",
           "provider": "otel",
           "type": "string"
@@ -672,6 +682,26 @@
       "fallbacks": [
         {
           "name": "gcloud.project_id",
+          "provider": "datadog",
+          "type": "string"
+        }
+      ]
+    },
+    "peer.gcp.pubsub.subscription.name": {
+      "canonical": "peer.gcp.pubsub.subscription.name",
+      "fallbacks": [
+        {
+          "name": "gcp.pubsub.subscription.name",
+          "provider": "datadog",
+          "type": "string"
+        }
+      ]
+    },
+    "peer.gcp.pubsub.topic.name": {
+      "canonical": "peer.gcp.pubsub.topic.name",
+      "fallbacks": [
+        {
+          "name": "gcp.pubsub.topic.name",
           "provider": "datadog",
           "type": "string"
         }
