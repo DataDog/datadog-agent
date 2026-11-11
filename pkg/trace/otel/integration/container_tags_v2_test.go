@@ -72,7 +72,7 @@ func TestContainerTagsV2(t *testing.T) {
 	}
 
 	// Set up pipeline with the Infra Attributes Processor + Trace Agent OTLP Receiver
-	out := make(chan *api.Payload, 1)
+	out := make(chan *api.PayloadV1, 1)
 	rcv := api.NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	factory := infraattributesprocessor.NewFactoryForAgent(tagger, func(_ context.Context) (string, error) {
 		return "test-host", nil
@@ -103,14 +103,20 @@ func TestContainerTagsV2(t *testing.T) {
 		require.Len(t, p.TracerPayload.Chunks, 1)
 		require.Len(t, p.TracerPayload.Chunks[0].Spans, 1)
 		span := p.TracerPayload.Chunks[0].Spans[0]
-		containerTags := strings.Split(p.TracerPayload.Tags["_dd.tags.container"], ",")
+		ctags, _ := p.TracerPayload.GetAttributeAsString("_dd.tags.container")
+		containerTags := strings.Split(ctags, ",")
 		sort.Strings(containerTags)
 		assert.Equal(t, []string{"container_id:testid", "container_name:testname"}, containerTags, "unexpected container tags")
-		assert.Equal(t, "testval", span.Meta["testresattr"], "non-container resource attribute was not passed through")
-		assert.Equal(t, "testval", span.Meta["testspanattr"], "span attribute was not passed through")
-		assert.Equal(t, "testid", span.Meta["container.id"], "OTel-convention container.id was not passed through")
+		spanAttr := func(key string) string {
+			v, _ := span.GetAttributeAsString(key)
+			return v
+		}
+		assert.Equal(t, "testval", spanAttr("testresattr"), "non-container resource attribute was not passed through")
+		assert.Equal(t, "testval", spanAttr("testspanattr"), "span attribute was not passed through")
+		assert.Equal(t, "testid", spanAttr("container.id"), "OTel-convention container.id was not passed through")
 		for _, key := range []string{"container_id", "container_name"} {
-			assert.NotContains(t, span.Meta, key, "pre-mapped container tags are duplicated on span")
+			_, ok := span.GetAttribute(key)
+			assert.False(t, ok, "pre-mapped container tag %s is duplicated on span", key)
 		}
 	default:
 		t.Fatalf("no payload in output channel")

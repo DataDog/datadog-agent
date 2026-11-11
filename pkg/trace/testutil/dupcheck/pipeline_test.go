@@ -427,7 +427,7 @@ type dupcheckPipeline struct {
 	agnt    *agent.Agent
 	intake  *dupcheckIntake
 	otlp    *api.OTLPReceiver
-	otlpOut chan *api.Payload
+	otlpOut chan *api.PayloadV1
 }
 
 func newDupcheckPipeline(t *testing.T, c dupcheckConfig) *dupcheckPipeline {
@@ -455,7 +455,7 @@ func newDupcheckPipeline(t *testing.T, c dupcheckConfig) *dupcheckPipeline {
 	if c.setup != nil {
 		c.setup(a)
 	}
-	otlpOut := make(chan *api.Payload, 1)
+	otlpOut := make(chan *api.PayloadV1, 1)
 	p := &dupcheckPipeline{
 		agnt:    a,
 		intake:  intake,
@@ -484,7 +484,7 @@ type dupcheckTracePairV1 struct {
 
 type dupcheckOTLPPair struct {
 	in  ptrace.ResourceSpans
-	out *pb.TracerPayload
+	out *idx.InternalTracerPayload
 }
 
 // dupcheckOutput holds the inputs and outputs of every stage of a run.
@@ -492,7 +492,7 @@ type dupcheckOutput struct {
 	v04            []dupcheckTracePair
 	v1             []dupcheckTracePairV1
 	otlpConversion []dupcheckOTLPPair
-	otlpProcessing []dupcheckTracePair
+	otlpProcessing []dupcheckTracePairV1
 }
 
 // run pushes the inputs through every stage of the pipeline. newModifier, if
@@ -531,11 +531,11 @@ func (p *dupcheckPipeline) run(t *testing.T, in *dupcheckInputs, newModifier fun
 		_, err := p.otlp.ReceiveResourceSpans(context.Background(), received, http.Header{}, nil)
 		require.NoError(t, err)
 		converted := <-p.otlpOut
-		out.otlpConversion = append(out.otlpConversion, dupcheckOTLPPair{in: rs, out: proto.Clone(converted.TracerPayload).(*pb.TracerPayload)})
-		stageIn := proto.Clone(converted.TracerPayload).(*pb.TracerPayload)
-		a.Process(converted)
-		require.NoError(t, a.TraceWriter.FlushSync())
-		out.otlpProcessing = append(out.otlpProcessing, dupcheckTracePair{in: stageIn, out: p.intake.takeTraces(t)})
+		out.otlpConversion = append(out.otlpConversion, dupcheckOTLPPair{in: rs, out: cloneTracerPayloadV1(converted.TracerPayload)})
+		stageIn := cloneTracerPayloadV1(converted.TracerPayload)
+		a.ProcessV1(converted)
+		require.NoError(t, a.TraceWriterV1.FlushSync())
+		out.otlpProcessing = append(out.otlpProcessing, dupcheckTracePairV1{in: stageIn, out: p.intake.takeTraces(t)})
 	}
 	return out
 }
@@ -554,11 +554,11 @@ func (o *dupcheckOutput) findings() map[string][]dupcheck.Finding {
 		}
 	}
 	for _, pair := range o.otlpConversion {
-		findings[stageOTLPConversion] = append(findings[stageOTLPConversion], dupcheck.CheckOTLPConversion(pair.in, pair.out)...)
+		findings[stageOTLPConversion] = append(findings[stageOTLPConversion], dupcheck.CheckOTLPConversionV1(pair.in, pair.out)...)
 	}
 	for _, pair := range o.otlpProcessing {
 		for _, ap := range pair.out {
-			findings[stageOTLPProcessing] = append(findings[stageOTLPProcessing], dupcheck.CheckTracerPayload(pair.in, ap)...)
+			findings[stageOTLPProcessing] = append(findings[stageOTLPProcessing], dupcheck.CheckTracerPayloadV1(pair.in, ap)...)
 		}
 	}
 	return findings
@@ -595,28 +595,31 @@ func (o *dupcheckOutput) spanViews() map[string]map[uint64]dupcheckSpanView {
 		}
 		return views
 	}
-	viewsV1 := make(map[uint64]dupcheckSpanView)
-	for _, pair := range o.v1 {
-		inSpans := make(map[uint64]*idx.InternalSpan)
-		for _, c := range pair.in.Chunks {
-			for _, s := range c.Spans {
-				inSpans[s.SpanID()] = s
+	viewsV1 := func(pairs []dupcheckTracePairV1) map[uint64]dupcheckSpanView {
+		views := make(map[uint64]dupcheckSpanView)
+		for _, pair := range pairs {
+			inSpans := make(map[uint64]*idx.InternalSpan)
+			for _, c := range pair.in.Chunks {
+				for _, s := range c.Spans {
+					inSpans[s.SpanID()] = s
+				}
 			}
-		}
-		for _, ap := range pair.out {
-			for _, ptp := range ap.IdxTracerPayloads {
-				for _, c := range idx.FromProto(ptp).Chunks {
-					for _, s := range c.Spans {
-						viewsV1[s.SpanID()] = dupcheckSpanView{typ: s.Type(), in: spanValuesV1(inSpans[s.SpanID()]), out: spanValuesV1(s)}
+			for _, ap := range pair.out {
+				for _, ptp := range ap.IdxTracerPayloads {
+					for _, c := range idx.FromProto(ptp).Chunks {
+						for _, s := range c.Spans {
+							views[s.SpanID()] = dupcheckSpanView{typ: s.Type(), in: spanValuesV1(inSpans[s.SpanID()]), out: spanValuesV1(s)}
+						}
 					}
 				}
 			}
 		}
+		return views
 	}
 	return map[string]map[uint64]dupcheckSpanView{
 		stageV04:            viewsV04(o.v04),
-		stageV1:             viewsV1,
-		stageOTLPProcessing: viewsV04(o.otlpProcessing),
+		stageV1:             viewsV1(o.v1),
+		stageOTLPProcessing: viewsV1(o.otlpProcessing),
 	}
 }
 
