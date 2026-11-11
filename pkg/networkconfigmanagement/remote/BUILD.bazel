@@ -9,6 +9,7 @@ go_library(
         "interfaces.go",
         "retry.go",
         "scp.go",
+        "shell.go",
         "ssh.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/remote",
@@ -27,7 +28,9 @@ dd_agent_go_test(
     name = "remote_test",
     srcs = [
         "cmd_test.go",
+        "fake_server_test.go",
         "retry_test.go",
+        "shell_test.go",
         "ssh_test.go",
     ],
     embed = [":remote"],

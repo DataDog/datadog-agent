@@ -32,7 +32,12 @@ properties:
     visibility: public
     description: |-
       Automatically enroll the Private Action Runner on startup.
-      Requires an app_key with Actions API Enable and the following permissions:
+      For node Agents, primary intake WIF configured through delegated_auth.org_uuid
+      selects workload-token enrollment using the mapping's PAR enrollment permission.
+      Failed enrollment stops PAR startup without falling back to API-key enrollment.
+      Saved identities are reused. Otherwise, use the configured API-key enrollment mode.
+      API-key and application-key enrollment (api_key_only_enrollment: false)
+      requires an app_key with Actions API Enable and the following permissions:
         - Connection Write
         - Private Action Write
   task_concurrency:
