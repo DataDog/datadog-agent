@@ -77,6 +77,9 @@ var (
 		string(semconv1_27.AWSECSTaskRevisionKey): "task_version",
 		string(semconv1_27.AWSECSContainerARNKey): "ecs_container_name",
 
+		// EKS conventions
+		string(semconv1_27.AWSEKSClusterARNKey): "eks_cluster_arn",
+
 		// Kubernetes resource name (via semantic conventions)
 		// https://github.com/DataDog/datadog-agent/blob/e081bed/pkg/util/kubernetes/const.go
 		string(semconv1_27.K8SContainerNameKey):   "kube_container_name",
