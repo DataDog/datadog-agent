@@ -83,7 +83,7 @@ The Collector resolves the API key from its own configuration. SDKs do not recei
 
 ## SDK boundaries
 
-- **Java:** use its existing Agent RC client. The released Java 1.68.1 protocol test exercises the HTTP adapter without an SDK key. Supported endpoint configuration, targeting and application/removal of live backend configuration need end-to-end qualification.
+- **Java:** use its existing Agent RC client. Released Java 1.68.1 works against the standalone Collector without an SDK key, including targeted live updates, acknowledgements and removal. The test uses an internal RC URL override; supported endpoint onboarding remains work.
 - **Python and Node.js:** qualify their Agent RC transport alongside OTLP export. Existing agentless clients are not a dependency of this design.
 - **DI is separate:** RC can deliver probe configuration, but this component does not expose snapshot, diagnostic or symbol upload routes. Those product signals need a separate design and qualification.
 
@@ -97,10 +97,12 @@ The SDK listener uses standard Collector HTTP server TLS/authentication and repo
 
 Tests cover opt-in behavior, shared resolved credentials, config decoding, listener separation, metadata capability delegation, startup rollback, shutdown, Agent JSON fidelity, client identity normalization, request limits, error redaction and cancellation of a stalled real Agent RC service. Backend tests verify custom CA trust, a single Collector API key, redirect rejection and connection-pool cleanup through OTel instrumentation. Metrics tests verify the Agent service instruments reach the Collector meter provider.
 
+Manual staging acceptance on November 11, 2026 used an unmodified Java 1.68.1 SDK and standalone DDOT, with no companion Agent or SDK API key. Remote sampling changed from the local 50% rule to 0% (0/80 traces kept), then 100% (80/80 kept). The SDK acknowledged the targeted configuration; deleting it restored the exact local `rule_rate` of 0.5. All 270 kept verification spans reached the Collector and the Datadog backend, and no rejected spans reached the Collector. The internal endpoint override was used; direct application egress was not blocked by the harness.
+
 Before shipping:
 
 1. Validate two independently targeted SDK clients and measure shared backend polling, including cold starts and cache bypasses. Existing Agent engine tests exercise the reused engine; adapter tests alone do not establish multi-client load behavior.
-2. Verify Java RC updates/removals against staging without an SDK API key or direct backend egress, while preserving OTLP signal export. Define public endpoint onboarding and Collector backend identity/entitlements.
+2. Define supported Java endpoint onboarding and Collector backend identity/entitlements. Expand acceptance to Python and Node.js and verify operation with direct SDK backend egress blocked.
 3. Complete workload authentication qualification, credential rotation, cache ownership, bounded client admission and expiry/outage/restart tests. Node-local deployment or stable affinity avoids unnecessary replica churn.
 4. Keep DI delivery separate; qualify its probe execution, diagnostics, symbols and product results before advertising DI support.
 5. Update DDOT/OSS onboarding and Kube Stack injection. Start DDOT-first, then seek integration into existing contrib `datadogextension` after GA, with dependency extraction and maintainer review.
