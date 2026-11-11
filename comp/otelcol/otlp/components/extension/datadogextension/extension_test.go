@@ -145,16 +145,6 @@ func TestBackendTransportConfiguration(t *testing.T) {
 	require.ErrorContains(t, c.Validate(), "verified backend TLS")
 }
 
-func TestFactoryWrappingIsIdempotent(t *testing.T) {
-	base := upstream.NewFactory()
-	factories := map[component.Type]extension.Factory{base.Type(): base}
-	WrapFactory(factories)
-	wrapped := factories[base.Type()]
-	WrapFactory(factories)
-	require.Same(t, wrapped, factories[base.Type()])
-	require.IsType(t, &Config{}, wrapped.CreateDefaultConfig())
-}
-
 func TestCollectorRecursiveValidationWithRCDisabled(t *testing.T) {
 	_, c := testFactory(t, &child{}, &child{})
 	c.RemoteConfig.CacheDirectory = ""

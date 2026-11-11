@@ -29,7 +29,7 @@ func newServiceReporter(set extension.Settings) (*serviceReporter, error) {
 	r := &serviceReporter{attributes: metric.WithAttributes(attribute.String("extension", set.ID.String()))}
 	var errs [6]error
 	r.rateLimited, errs[0] = meter.Int64Counter("datadog.remote_config.cache_bypass.rate_limited", metric.WithDescription("Cache-bypass refreshes rejected by the Agent RC rate limiter"), metric.WithUnit("{refresh}"))
-	r.timedOut, errs[1] = meter.Int64Counter("datadog.remote_config.cache_bypass.timed_out", metric.WithDescription("SDK requests whose cold-client refresh timed out"), metric.WithUnit("{request}"))
+	r.timedOut, errs[1] = meter.Int64Counter("datadog.remote_config.cache_bypass.timed_out", metric.WithDescription("Client requests whose cold-client refresh timed out"), metric.WithUnit("{request}"))
 	r.connected, errs[2] = meter.Int64Counter("datadog.remote_config.subscriptions.connected", metric.WithUnit("{subscription}"))
 	r.disconnected, errs[3] = meter.Int64Counter("datadog.remote_config.subscriptions.disconnected", metric.WithUnit("{subscription}"))
 	r.active, errs[4] = meter.Int64Gauge("datadog.remote_config.subscriptions.active", metric.WithUnit("{subscription}"))

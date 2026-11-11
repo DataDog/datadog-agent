@@ -21,28 +21,15 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 )
 
-type wrappedFactory struct{ extension.Factory }
-
 type factory struct {
 	base  extension.Factory
 	newRC func(extension.Settings, *remoteconfig.Config, model.Reader) (extension.Extension, error)
 }
 
-// WrapFactory replaces an existing factory without adding another component identity.
-func WrapFactory(factories map[component.Type]extension.Factory) {
-	id := component.MustNewType("datadog")
-	if base, ok := factories[id]; ok {
-		if _, wrapped := base.(*wrappedFactory); wrapped {
-			return
-		}
-		factories[id] = NewFactory(base)
-	}
-}
-
 // NewFactory preserves upstream behavior unless remote_config.enabled is true.
 func NewFactory(base extension.Factory) extension.Factory {
 	f := &factory{base: base, newRC: remoteconfig.New}
-	return &wrappedFactory{Factory: extension.NewFactory(base.Type(), f.defaultConfig, f.create, base.Stability())}
+	return extension.NewFactory(base.Type(), f.defaultConfig, f.create, base.Stability())
 }
 
 func (f *factory) defaultConfig() component.Config {

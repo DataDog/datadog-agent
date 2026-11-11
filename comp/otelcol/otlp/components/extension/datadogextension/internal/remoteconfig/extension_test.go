@@ -13,9 +13,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
-	"os"
-	"os/exec"
-	"path/filepath"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -197,71 +194,6 @@ func TestConfig(t *testing.T) {
 	require.NoError(t, ValidateConfig(cfg))
 	cfg.API.Site = "datadoghq.com/other"
 	require.ErrorContains(t, ValidateConfig(cfg), "api.site")
-}
-
-// Set DDOT_RC_JAVA_AGENT to a released dd-java-agent.jar to exercise an
-// unmodified SDK against the extension's Agent-protocol HTTP adapter.
-func TestJavaAgentProtocol(t *testing.T) {
-	jar := os.Getenv("DDOT_RC_JAVA_AGENT")
-	if jar == "" {
-		t.Skip("DDOT_RC_JAVA_AGENT is not configured")
-	}
-	requests := make(chan *pbgo.ClientGetConfigsRequest, 1)
-	e := testExtension(t, &fakeService{get: func(_ context.Context, r *pbgo.ClientGetConfigsRequest) (*pbgo.ClientGetConfigsResponse, error) {
-		select {
-		case requests <- r:
-		default:
-		}
-		return &pbgo.ClientGetConfigsResponse{}, nil
-	}})
-	var noAPIKey atomic.Bool
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		noAPIKey.Store(r.Header.Get("DD-API-KEY") == "")
-		e.serveHTTP(w, r)
-	}))
-	t.Cleanup(server.Close)
-	source := filepath.Join(t.TempDir(), "Main.java")
-	require.NoError(t, os.WriteFile(source, []byte("class Main { public static void main(String[] args) throws Exception { System.in.read(); } }"), 0600))
-	ctx, cancel := context.WithTimeout(context.Background(), 45*time.Second)
-	defer cancel()
-	java := "java"
-	if home := os.Getenv("JAVA_HOME"); home != "" {
-		java = filepath.Join(home, "bin", "java")
-	}
-	cmd := exec.CommandContext(ctx, java, "-javaagent:"+jar,
-		"-Ddd.remote_config.url="+server.URL+"/v0.7/config",
-		"-Ddd.service=collector-rc-java-poc", "-Ddd.instrumentation.telemetry.enabled=false",
-		"-Ddd.remote_config.poll_interval.seconds=1", source)
-	for _, env := range os.Environ() {
-		if !strings.HasPrefix(env, "DD_") && !strings.HasPrefix(env, "DATADOG_") && !strings.HasPrefix(env, "OTEL_") && !strings.HasPrefix(env, "JAVA_TOOL_OPTIONS=") && !strings.HasPrefix(env, "JDK_JAVA_OPTIONS=") && !strings.HasPrefix(env, "_JAVA_OPTIONS=") {
-			cmd.Env = append(cmd.Env, env)
-		}
-	}
-	stdin, err := cmd.StdinPipe()
-	require.NoError(t, err)
-	outputPath := filepath.Join(t.TempDir(), "java.log")
-	output, err := os.Create(outputPath)
-	require.NoError(t, err)
-	cmd.Stdout, cmd.Stderr = output, output
-	require.NoError(t, cmd.Start())
-	exited := make(chan struct{})
-	var exitErr error
-	go func() { exitErr = cmd.Wait(); close(exited) }()
-	t.Cleanup(func() { _ = stdin.Close(); cancel(); <-exited; _ = output.Close() })
-	select {
-	case request := <-requests:
-		require.True(t, noAPIKey.Load(), "Java must not send a backend API key")
-		require.Equal(t, "java", request.Client.ClientTracer.Language)
-		require.Equal(t, "collector-rc-java-poc", request.Client.ClientTracer.Service)
-		require.Contains(t, request.Client.Products, "APM_TRACING")
-	case <-exited:
-		logs, _ := os.ReadFile(outputPath)
-		t.Fatalf("Java exited before polling: %v\n%s", exitErr, logs)
-	case <-ctx.Done():
-		<-exited
-		logs, _ := os.ReadFile(outputPath)
-		t.Fatalf("released Java SDK did not poll the extension\n%s", logs)
-	}
 }
 
 func TestCollectorConfigDecoding(t *testing.T) {

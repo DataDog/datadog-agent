@@ -46,7 +46,6 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/datadogexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/logsagentexporter"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/exporter/serializerexporter"
-	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/extension/datadogextension"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/metricsclient"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
@@ -154,7 +153,6 @@ const tracesToTracesStability = component.StabilityLevel(component.StabilityLeve
 const tracesToMetricsStability = component.StabilityLevel(component.StabilityLevelDevelopment)
 
 func addFactories(reqs Requires, factories otelcol.Factories, gatewayUsage otel.GatewayUsage, byoc bool) {
-	datadogextension.WrapFactory(factories.Extensions)
 	serializerexporter.InitTelemetry(reqs.Telemetry)
 	logsagentexporter.InitTelemetry(reqs.Telemetry)
 	datadogexporter.InitTelemetry(reqs.Telemetry)
@@ -293,7 +291,6 @@ func NewComponentNoAgent(reqs RequiresNoAgent) (Provides, error) {
 		return Provides{}, err
 	}
 	factories.Connectors[datadogConnectorType] = datadogconnector.NewConnectorFactory(datadogConnectorType, tracesToTracesStability, tracesToMetricsStability, reqs.Tagger, reqs.Hostname.Get, nil)
-	datadogextension.WrapFactory(factories.Extensions)
 	factories.Extensions[ddextension.Type] = ddextension.NewFactoryForAgent(&factories, newConfigProviderSettings(reqs.URIs, reqs.Converter, false), option.New(reqs.Ipc), false)
 	factories.Processors[infraattributesprocessor.Type] = infraattributesprocessor.NewFactoryForAgent(reqs.Tagger, reqs.Hostname.Get)
 
