@@ -131,17 +131,20 @@ func startSystemProbeIfRequested(t *testing.T) map[gpuspec.ConfigFeature]bool {
 	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true, Pdeathsig: syscall.SIGKILL}
 	require.NoError(t, cmd.Start(), "start system-probe")
 
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
+	exit := &systemProbeExit{done: make(chan struct{})}
+	go func() {
+		exit.err = cmd.Wait()
+		close(exit.done)
+	}()
 
 	t.Cleanup(func() {
-		stopSystemProbe(t, cmd, done)
+		stopSystemProbe(t, cmd, exit)
 		if t.Failed() {
 			logSystemProbeOutput(t, output.Name())
 		}
 	})
 
-	waitForSystemProbe(t, socketPath, done, output.Name())
+	waitForSystemProbe(t, socketPath, exit, output.Name())
 
 	setSystemProbeConfigInTest(t, map[string]any{
 		"system_probe_config.sysprobe_socket":  socketPath,
@@ -164,7 +167,7 @@ func systemProbeConfigFeatures() map[gpuspec.ConfigFeature]bool {
 func requireSystemProbePrerequisites(t *testing.T, bin string, bpfDir string) {
 	t.Helper()
 
-	require.Zero(t, os.Geteuid(), "%s needs root to load the eBPF probes; build the test with `dda inv test` and run the test binary with sudo", systemProbeBinEnv)
+	require.Zero(t, os.Geteuid(), "%s needs root to load the eBPF probes, run the test binary as root", systemProbeBinEnv)
 
 	info, err := os.Stat(bin)
 	require.NoError(t, err, "%s=%s: build it with `dda inv system-probe.build`", systemProbeBinEnv, bin)
@@ -179,8 +182,15 @@ func requireSystemProbePrerequisites(t *testing.T, bin string, bpfDir string) {
 		"%s must be owned by root:root and not writable by group or others, system-probe refuses to load it otherwise", object)
 }
 
+// systemProbeExit records the exit of the system-probe process. Both the readiness wait and the
+// cleanup watch it, so it is a closed channel rather than a value that only one of them receives.
+type systemProbeExit struct {
+	done chan struct{} // closed once the process has exited
+	err  error         // the error returned by Wait, set before done is closed
+}
+
 // waitForSystemProbe waits until the GPU module of system-probe answers with stats.
-func waitForSystemProbe(t *testing.T, socketPath string, done <-chan error, outputPath string) {
+func waitForSystemProbe(t *testing.T, socketPath string, exit *systemProbeExit, outputPath string) {
 	t.Helper()
 
 	client := &http.Client{
@@ -197,9 +207,9 @@ func waitForSystemProbe(t *testing.T, socketPath string, done <-chan error, outp
 	var lastErr error
 	for time.Now().Before(deadline) {
 		select {
-		case err := <-done:
+		case <-exit.done:
 			logSystemProbeOutput(t, outputPath)
-			t.Fatalf("system-probe exited before the GPU module was ready: %v", err)
+			t.Fatalf("system-probe exited before the GPU module was ready: %v", exit.err)
 		default:
 		}
 
@@ -237,16 +247,16 @@ func getSystemProbeGPUCheck(ctx context.Context, client *http.Client) (int, erro
 }
 
 // stopSystemProbe stops system-probe like its service manager does, and kills it if it does not exit.
-func stopSystemProbe(t *testing.T, cmd *exec.Cmd, done <-chan error) {
+func stopSystemProbe(t *testing.T, cmd *exec.Cmd, exit *systemProbeExit) {
 	t.Helper()
 
 	if err := cmd.Process.Signal(syscall.SIGTERM); err != nil && !errors.Is(err, os.ErrProcessDone) {
 		t.Errorf("stop system-probe: %v", err)
 	}
 	select {
-	case err := <-done:
-		if err != nil {
-			t.Logf("system-probe exited: %v", err)
+	case <-exit.done:
+		if exit.err != nil {
+			t.Logf("system-probe exited: %v", exit.err)
 		}
 		return
 	case <-time.After(systemProbeStopTimeout):
@@ -256,7 +266,7 @@ func stopSystemProbe(t *testing.T, cmd *exec.Cmd, done <-chan error) {
 	if err := syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL); err != nil && !errors.Is(err, syscall.ESRCH) {
 		t.Errorf("kill system-probe: %v", err)
 	}
-	<-done
+	<-exit.done
 }
 
 // setSystemProbeConfigInTest sets system-probe configuration values in this process, where the GPU
