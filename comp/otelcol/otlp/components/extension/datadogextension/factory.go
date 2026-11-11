@@ -16,21 +16,9 @@ import (
 	"go.opentelemetry.io/collector/extension"
 )
 
-type wrappedFactory struct{ extension.Factory }
-
-// WrapFactory adds the capability under the existing datadog component identity.
-func WrapFactory(factories map[component.Type]extension.Factory) {
-	id := component.MustNewType("datadog")
-	if base, ok := factories[id]; ok {
-		if _, wrapped := base.(*wrappedFactory); !wrapped {
-			factories[id] = NewFactory(base)
-		}
-	}
-}
-
 // NewFactory preserves the upstream extension when remote_config is disabled.
 func NewFactory(base extension.Factory) extension.Factory {
-	return &wrappedFactory{Factory: extension.NewFactory(base.Type(), func() component.Config {
+	return extension.NewFactory(base.Type(), func() component.Config {
 		return &Config{Datadog: *base.CreateDefaultConfig().(*upstream.Config), RemoteConfig: remoteconfig.DefaultConfig()}
 	}, func(ctx context.Context, set extension.Settings, config component.Config) (extension.Extension, error) {
 		c := config.(*Config)
@@ -49,5 +37,5 @@ func NewFactory(base extension.Factory) extension.Factory {
 			return nil, err
 		}
 		return &datadogExtension{metadata: metadata, rc: rc}, nil
-	}, base.Stability())}
+	}, base.Stability())
 }

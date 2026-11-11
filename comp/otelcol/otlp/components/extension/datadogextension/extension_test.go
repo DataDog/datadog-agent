@@ -73,11 +73,6 @@ func TestDisabledReturnsOriginalMetadata(t *testing.T) {
 	e, err := f.Create(t.Context(), extension.Settings{ID: component.NewID(f.Type()), TelemetrySettings: componenttest.NewNopTelemetrySettings()}, c)
 	require.NoError(t, err)
 	require.Same(t, metadata, e)
-	factories := map[component.Type]extension.Factory{base.Type(): base}
-	WrapFactory(factories)
-	wrapped := factories[base.Type()]
-	WrapFactory(factories)
-	require.Same(t, wrapped, factories[base.Type()])
 }
 
 func TestLifecycleRollbackAndMetadataDelegation(t *testing.T) {
