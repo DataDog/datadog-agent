@@ -1,0 +1,7 @@
+---
+features:
+  - |
+    APM : Support DELA directives in profiling additional endpoints. Profiling
+    uses resolved and rotated API keys without restarting the trace-agent.
+    When only additional endpoints are enabled, requests return a transport
+    error until at least one credential resolves.

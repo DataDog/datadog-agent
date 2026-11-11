@@ -138,6 +138,7 @@ var mapShapeDelegatedAuthEndpointKeys = []string{
 	// subscription wired by the same package.
 	"apm_config.additional_endpoints",
 	// Trace proxy and telemetry senders read each credential at request time.
+	"apm_config.profiling_additional_endpoints",
 	"apm_config.telemetry.additional_endpoints",
 }
 
