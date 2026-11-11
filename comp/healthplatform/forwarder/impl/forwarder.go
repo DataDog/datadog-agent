@@ -29,6 +29,7 @@ import (
 const (
 	intakeEndpointPrefix = "https://agenthealth-intake."
 	intakeEndpointPath   = "/api/v2/agenthealth"
+	intakeURLOverrideKey = "health_platform.forwarder.dd_url"
 	httpTimeout          = 30 * time.Second
 )
 
@@ -97,9 +98,11 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 	return len(payload), nil
 }
 
+// buildIntakeURL returns the URL health reports are POSTed to: the health platform intake of `site`,
+// unless overridden by `health_platform.forwarder.dd_url`. Like the other dedicated intakes (APM,
+// logs, remote config), it does not follow the main `dd_url`, which only overrides the metrics intake.
 func buildIntakeURL(cfg pkgconfigmodel.Reader) string {
-	baseURL := configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, "dd_url")
-	return baseURL + intakeEndpointPath
+	return configutils.GetMainEndpoint(cfg, intakeEndpointPrefix, intakeURLOverrideKey) + intakeEndpointPath
 }
 
 func buildHTTPClient(cfg pkgconfigmodel.Reader) *http.Client {

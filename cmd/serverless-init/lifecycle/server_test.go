@@ -195,7 +195,7 @@ func (m *mockMetadataReporter) ReportMetadata(id string) {
 func (m *mockMetadataReporter) getIDs() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append([]string{}, m.ids...)
+	return slices.Clone(m.ids)
 }
 
 func TestHandleRun_MetadataReporter_InvokedWithInstanceID(t *testing.T) {

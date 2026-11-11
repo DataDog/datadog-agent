@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 )
 
@@ -80,4 +81,10 @@ func TestNewComponent(t *testing.T) {
 	err := provides.Comp.(*DelegatedAuthNoop).JSON(false, stats)
 	require.NoError(t, err)
 	assert.Equal(t, false, stats["enabled"])
+}
+
+func TestNoopWorkloadToken(t *testing.T) {
+	token, err := NewComponent().Comp.GetWorkloadToken(context.Background(), "api_key", common.WorkloadTokenRequest{Grants: []string{"par_enrollment"}})
+	require.ErrorContains(t, err, "not enabled")
+	require.Empty(t, token)
 }

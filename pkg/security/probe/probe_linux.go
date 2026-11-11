@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf/kernel"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 	"github.com/DataDog/datadog-agent/pkg/security/utils"
 )
@@ -116,4 +117,14 @@ func NewAgentContainerContext() (*events.AgentContainerContext, error) {
 	}
 	acc.ContainerID = cid
 	return acc, nil
+}
+
+// propagateSpanContext persists the span context of a fork or an exec on the
+// process it created.
+func propagateSpanContext(ev *model.Event) {
+	if eventType := ev.GetEventType(); eventType == model.ForkEventType || eventType == model.ExecEventType {
+		if ev.ProcessCacheEntry != nil {
+			ev.ProcessCacheEntry.SetSpanContext(ev.SpanContext)
+		}
+	}
 }

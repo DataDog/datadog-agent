@@ -1815,7 +1815,7 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 		for _, pid := range pids {
 			pce := pr.Get(pid)
 			if pce == nil {
-				seclog.Warnf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
+				seclog.Debugf("couldn't resolve process cache entry for pid %d, this process may have exited", pid)
 				continue
 			}
 

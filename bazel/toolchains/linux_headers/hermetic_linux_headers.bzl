@@ -50,9 +50,9 @@ def _write_stub(rctx):
     rctx.file("BUILD.bazel", _STUB_BUILD)
     rctx.file("defs.bzl", 'KERNEL_HEADER_DIRS = []\nKERNEL_ARCH = ""\n')
 
-def _extract_deb_payload(rctx, url, sha256, output):
+def _extract_deb_payload(rctx, urls, sha256, output):
     rctx.download_and_extract(
-        url = url,
+        url = urls,
         output = output,
         sha256 = sha256,
         type = "deb",
@@ -98,7 +98,7 @@ def _linux_headers_impl(rctx):
 
     _extract_deb_payload(
         rctx,
-        rctx.attr.common_url,
+        rctx.attr.common_urls,
         rctx.attr.common_sha256,
         "_common_deb",
     )
@@ -124,9 +124,9 @@ linux_headers_repo = repository_rule(
     implementation = _linux_headers_impl,
     attrs = {
         "arch_sha256s": attr.string_dict(mandatory = True),
-        "arch_urls": attr.string_dict(mandatory = True),
+        "arch_urls": attr.string_list_dict(mandatory = True),
         "common_sha256": attr.string(mandatory = True),
-        "common_url": attr.string(mandatory = True),
+        "common_urls": attr.string_list(mandatory = True),
         "header_release": attr.string(mandatory = True),
         "target_arch": attr.string(),
     },
@@ -135,9 +135,9 @@ linux_headers_repo = repository_rule(
 _configure = tag_class(
     attrs = {
         "arch_sha256s": attr.string_dict(mandatory = True),
-        "arch_urls": attr.string_dict(mandatory = True),
+        "arch_urls": attr.string_list_dict(mandatory = True),
         "common_sha256": attr.string(mandatory = True),
-        "common_url": attr.string(mandatory = True),
+        "common_urls": attr.string_list(mandatory = True),
         "header_release": attr.string(mandatory = True),
     },
 )
@@ -160,7 +160,7 @@ def _linux_headers_ext_impl(ctx):
         "arch_sha256s": config.arch_sha256s,
         "arch_urls": config.arch_urls,
         "common_sha256": config.common_sha256,
-        "common_url": config.common_url,
+        "common_urls": config.common_urls,
         "header_release": config.header_release,
     }
     linux_headers_repo(

@@ -91,6 +91,29 @@ func TestNewConnectionAPIClient_ValidCredentials(t *testing.T) {
 	assert.Equal(t, "test-app-key", client.appKey)
 }
 
+func TestConnectionsUsePAROverride(t *testing.T) {
+	var requests atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		requests.Add(1)
+		assert.Equal(t, "/prefix"+createConnectionEndpoint, r.URL.Path)
+		assert.Equal(t, "api-key", r.Header.Get("DD-API-KEY"))
+		assert.Equal(t, "app-key", r.Header.Get("DD-APPLICATION-KEY"))
+		w.WriteHeader(http.StatusForbidden)
+	}))
+	defer server.Close()
+	cfg := mock.New(t)
+	cfg.SetInTest("private_action_runner.par_dd_url", server.URL+"/prefix/")
+	cfg.SetInTest("private_action_runner.enabled", true)
+	cfg.SetInTest("remote_configuration.rc_dd_url", "https://rc-proxy.example.com")
+	client, err := NewConnectionsAPIClient(cfg, "datadoghq.eu", "api-key", "app-key")
+	require.NoError(t, err)
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	err = client.CreateConnection(ctx, ConnectionDefinition{IntegrationType: "HTTP", Credentials: CredentialConfig{Type: "HTTPNoAuth"}}, "runner", "runner-name", nil)
+	require.Error(t, err)
+	assert.EqualValues(t, 1, requests.Load())
+}
+
 func TestBuildConnectionRequest_NoAdditionalFields(t *testing.T) {
 	httpDef := ConnectionDefinition{
 		FQNPrefix:       "com.datadoghq.http",

@@ -293,11 +293,10 @@ func (c *Controller) syncPodAutoscaler(ctx context.Context, key, ns, name string
 			return autoscaling.Requeue, err
 		}
 
-		// If the object is owned by remote config and newer, we need to update the spec in Kubernetes
-		// If Kubernetes is newer, we wait for RC to update the object in our internal store.
+		// If the object is owned by remote config and the version differs, we need to update the spec in Kubernetes
 		if podAutoscalerInternal.Spec().RemoteVersion != nil &&
 			podAutoscaler.Spec.RemoteVersion != nil &&
-			*podAutoscalerInternal.Spec().RemoteVersion > *podAutoscaler.Spec.RemoteVersion {
+			*podAutoscalerInternal.Spec().RemoteVersion != *podAutoscaler.Spec.RemoteVersion {
 			updatedGeneration, err := c.updatePodAutoscalerSpec(ctx, podAutoscalerInternal, podAutoscaler)
 			if err != nil {
 				return autoscaling.Requeue, err

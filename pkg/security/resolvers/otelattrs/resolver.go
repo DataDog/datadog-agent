@@ -16,6 +16,7 @@ import (
 
 	manager "github.com/DataDog/ebpf-manager"
 
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 )
 
@@ -54,19 +55,11 @@ type Resolver struct {
 	attrsMap *lib.Map
 }
 
-// Attribute is one raw entry of an attrs_data section: the key index the producer
-// assigned, and the value bytes as-is. Mapping the index to a name needs the
-// process-side key list, so it is left to the caller.
-type Attribute struct {
-	KeyIndex uint8
-	Value    string
-}
-
 // Resolve parses the attributes snapshot the kernel published at attrsID's ring
 // slot. The kernel stamps each snapshot with its id, so a mismatch means the slot
 // was recycled for a later snapshot before this event got drained, and the
 // attributes are gone.
-func (r *Resolver) Resolve(attrsID uint64) ([]Attribute, error) {
+func (r *Resolver) Resolve(attrsID uint64) ([]otelthreadctx.Attribute, error) {
 	key := uint32(attrsID % maxEntries)
 
 	var entry kernelAttrsEntry
@@ -83,27 +76,7 @@ func (r *Resolver) Resolve(attrsID uint64) ([]Attribute, error) {
 		return nil, fmt.Errorf("%w: invalid otel span attributes size for `%d`: %d", ErrMalformed, attrsID, size)
 	}
 
-	return parseAttributes(entry.Data[:size]), nil
-}
-
-// parseAttributes walks the attrs_data encoding: repeated [key index (u8), value
-// length (u8), value bytes]. A trailing entry the kernel truncated is dropped.
-func parseAttributes(attrsData []byte) []Attribute {
-	var attrs []Attribute
-
-	for off := 0; off+2 <= len(attrsData); {
-		keyIndex := attrsData[off]
-		valLen := int(attrsData[off+1])
-		off += 2
-
-		if off+valLen > len(attrsData) {
-			break
-		}
-		attrs = append(attrs, Attribute{KeyIndex: keyIndex, Value: string(attrsData[off : off+valLen])})
-		off += valLen
-	}
-
-	return attrs
+	return otelthreadctx.ParseAttributes(entry.Data[:size]), nil
 }
 
 // Start the otel attributes resolver

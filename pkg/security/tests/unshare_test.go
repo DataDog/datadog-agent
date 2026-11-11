@@ -188,6 +188,16 @@ func TestUnshareEvent(t *testing.T) {
 			var nsErr error
 			childMntNS, nsErr = utils.NewNSPathFromPath(fmt.Sprintf("/proc/%d/ns/mnt", cmd.Process.Pid), utils.MntNsType).GetNSID()
 			if nsErr != nil {
+				entries, readDirErr := os.ReadDir(fmt.Sprintf("/proc/%d/task", cmd.Process.Pid))
+				if readDirErr == nil {
+					for _, entry := range entries {
+						if childMntNS, nsErr = utils.NewNSPathFromPath(fmt.Sprintf("/proc/%d/task/%s/ns/mnt", cmd.Process.Pid, entry.Name()), utils.MntNsType).GetNSID(); nsErr == nil {
+							break
+						}
+					}
+				}
+			}
+			if nsErr != nil {
 				_ = stdinPipe.Close()
 				return nsErr
 			}

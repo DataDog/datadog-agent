@@ -18,6 +18,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 
 	"golang.org/x/sys/windows"
 )
@@ -67,13 +68,20 @@ func (d *Directories) WriteExperiment(ctx context.Context, operations Operations
 		return fmt.Errorf("error writing deployment ID file: %w", err)
 	}
 	operations.FileOperations = append(buildOperationsFromLegacyInstaller(d.StablePath), operations.FileOperations...)
-	err = operations.Apply(ctx, d.StablePath)
-	if err != nil {
-		return fmt.Errorf("error applying operations: %w", err)
+	if err := recordExperimentConfigPaths(d.ExperimentPath, operations); err != nil {
+		return fmt.Errorf("error recording experiment config paths: %w", err)
 	}
 	err = os.WriteFile(filepath.Join(d.ExperimentPath, deploymentIDFile), []byte(operations.DeploymentID), 0640)
 	if err != nil {
 		return fmt.Errorf("error writing deployment ID file: %w", err)
+	}
+	err = operations.Apply(ctx, d.StablePath)
+	if err != nil {
+		// No watchdog runs for a failed write, so restore stable now.
+		if rollbackErr := d.RemoveExperiment(ctx); rollbackErr != nil {
+			return fmt.Errorf("error applying operations: %w (rollback failed: %w)", err, rollbackErr)
+		}
+		return fmt.Errorf("error applying operations: %w", err)
 	}
 	return nil
 }
@@ -92,9 +100,11 @@ func (d *Directories) PromoteExperiment(ctx context.Context) error {
 	if err != nil {
 		return fmt.Errorf("error renaming deployment ID file: %w", err)
 	}
-	err = paths.RemoveAll(ctx, d.ExperimentPath)
-	if err != nil {
-		return fmt.Errorf("error removing experiment directory: %w", err)
+	if err := paths.RemoveAll(ctx, d.ExperimentPath); err != nil {
+		log.Warnf("could not remove config experiment backup after promotion: %v", err)
+		if span, ok := telemetry.SpanFromContext(ctx); ok {
+			span.SetTag("config_experiment.backup_cleanup_error", err.Error())
+		}
 	}
 	return nil
 }
@@ -108,15 +118,24 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 	if os.IsNotExist(err) {
 		return nil
 	}
+	_, err = os.Stat(filepath.Join(d.ExperimentPath, deploymentIDFile))
+	if err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("error checking for experiment deployment ID: %w", err)
+	}
+	if os.IsNotExist(err) {
+		if err := paths.RemoveAll(ctx, d.ExperimentPath); err != nil {
+			return fmt.Errorf("error removing stale experiment directory: %w", err)
+		}
+		return nil
+	}
 	// Skip copying deployment ID during rollback - we want to preserve stable's deployment ID
 	err = backupOrRestoreDirectory(ctx, d.ExperimentPath, d.StablePath)
 	if err != nil {
 		return fmt.Errorf("error restoring stable directory: %w", err)
 	}
-	// robocopy does not carry ACLs, so re-grant Everyone read on application_monitoring.yaml
-	// (the only world-readable config file) after restoring the stable directory.
-	if err := grantApplicationMonitoringReadAccess(d.StablePath); err != nil {
-		return fmt.Errorf("error applying application_monitoring.yaml permissions: %w", err)
+	err = removeConfigFilesMissingFromSource(d.ExperimentPath, d.StablePath)
+	if err != nil {
+		return fmt.Errorf("error removing experiment config files: %w", err)
 	}
 	err = paths.RemoveAll(ctx, d.ExperimentPath)
 	if err != nil {
@@ -127,7 +146,6 @@ func (d *Directories) RemoveExperiment(ctx context.Context) error {
 
 // backupOrRestoreDirectory copies YAML files from source to target.
 // It preserves the directory structure and file permissions.
-// If copyDeploymentID is true, also copies the .deployment-id file.
 func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string) error {
 	_, err := os.Stat(sourcePath)
 	if err != nil && !os.IsNotExist(err) {
@@ -145,22 +163,28 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 		return fmt.Errorf("failed to open target directory: %w", err)
 	}
 
+	if err := reconcileLegacyManagedLinksBeforeCopy(sourcePath, targetPath); err != nil {
+		return fmt.Errorf("error reconciling legacy managed links: %w", err)
+	}
+
 	robocopyPath, err := systemRobocopyPath()
 	if err != nil {
 		return err
 	}
-	// robocopy exit codes 1-7 indicate successful copies with various informational statuses.
-	// Only codes >=8 indicate copy errors.
+	// Exit codes 0-3 are successful; higher codes can leave the destination incomplete.
 	// https://learn.microsoft.com/en-us/troubleshoot/windows-server/backup-and-storage/return-codes-used-robocopy-utility
+	// /SEC is safe because the destination is secured before the copy and stable is never removed.
+	// /E preserves empty directories so rollback can distinguish pre-existing directories.
 	cmd := telemetry.CommandContext(
 		ctx,
 		robocopyPath,
-		"/MIR",
+		"/E",
 		"/SL",
+		"/SEC",
 		sourcePath,
 		targetPath,
 		"*.yaml",
-	).WithExpectedExitCodes(1, 2, 3, 4, 5, 6, 7)
+	).WithExpectedExitCodes(1, 2, 3)
 	var stdout bytes.Buffer
 	var stderr bytes.Buffer
 	cmd.Stdout = &stdout
@@ -170,10 +194,10 @@ func backupOrRestoreDirectory(ctx context.Context, sourcePath, targetPath string
 	if err != nil && !errors.As(err, &exitErr) {
 		return fmt.Errorf("error executing robocopy: %w", err)
 	}
-	if exitErr != nil && exitErr.ExitCode() >= 8 {
+	if exitErr != nil && exitErr.ExitCode() >= 4 {
 		return fmt.Errorf("error executing robocopy: %w\n%s\n%s", err, stdout.String(), stderr.String())
 	}
-	return nil
+	return verifyConfigFilesCopied(sourcePath, targetPath)
 }
 
 // systemRobocopyPath returns the absolute path of the robocopy shipped with Windows.
@@ -212,20 +236,4 @@ func setFileOwnershipAndPermissions(_ context.Context, root *os.Root, path strin
 		return nil
 	}
 	return paths.SetFileReadableByEveryone(filepath.Join(root.Name(), path))
-}
-
-// grantApplicationMonitoringReadAccess re-grants Everyone read on application_monitoring.yaml
-// under stablePath, if it exists. application_monitoring.yaml is the only world-readable config
-// file, and robocopy (used to restore the stable directory during a rollback) does not carry
-// ACLs, so the ACE must be reapplied afterward.
-func grantApplicationMonitoringReadAccess(stablePath string) error {
-	appMonitoringPath := filepath.Join(stablePath, "application_monitoring.yaml")
-	_, err := os.Stat(appMonitoringPath)
-	if os.IsNotExist(err) {
-		return nil
-	}
-	if err != nil {
-		return fmt.Errorf("error checking application_monitoring.yaml: %w", err)
-	}
-	return paths.SetFileReadableByEveryone(appMonitoringPath)
 }

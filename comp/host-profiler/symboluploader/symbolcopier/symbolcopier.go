@@ -11,7 +11,6 @@ package symbolcopier
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"strings"
@@ -20,7 +19,6 @@ import (
 
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/comp/host-profiler/oom"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/pclntab"
 	"github.com/DataDog/datadog-agent/comp/host-profiler/symboluploader/symbol"
 	elf "github.com/DataDog/datadog-agent/pkg/util/safeelf"
@@ -148,11 +146,6 @@ func CopySymbols(ctx context.Context, inputPath, outputPath string, goPCLnTabInf
 
 	if err := cmd.Start(); err != nil {
 		return fmt.Errorf("failed to start copying symbols: %w", err)
-	}
-
-	// Increase probability that objcopy gets killed in case the cgroup is OOM
-	if err := oom.SetOOMScoreAdj(cmd.Process.Pid, 1000); err != nil {
-		slog.Warn("Could not adjust OOM score", slog.String("error", err.Error()))
 	}
 
 	return cmd.Wait()

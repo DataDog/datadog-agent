@@ -53,6 +53,9 @@ var (
 
 	//go:embed workload/fake.yaml
 	workloadFake string
+
+	//go:embed workload/crds.yaml
+	workloadCRDs string
 )
 
 // K8sAppDefinition deploys the churn orchestrator and the workload manifests it
@@ -76,9 +79,8 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 		return nil, err
 	}
 
-	// churn creates the objects of its manifests concurrently and exits on the first error,
-	// e.g. an object created before its namespace, so their namespaces must exist before it
-	// starts.
+	// The workload manifests don't create the namespaces of their objects, which churn waits
+	// for: create them before it starts.
 	workloadResources := make([]pulumi.Resource, 0, 2*len(workloadNamespaces))
 	for _, name := range workloadNamespaces {
 		workloadNamespace, err := corev1.NewNamespace(e.Ctx(), name, &corev1.NamespaceArgs{
@@ -141,6 +143,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 			"kwok-nodes.yaml": pulumi.String(withDockerhubMirror(e, workloadKwokNodes)),
 			"sleepers.yaml":   pulumi.String(withDockerhubMirror(e, workloadSleepers)),
 			"fake.yaml":       pulumi.String(withDockerhubMirror(e, workloadFake)),
+			"crds.yaml":       pulumi.String(workloadCRDs),
 		},
 	}, opts...)
 	if err != nil {
@@ -173,8 +176,8 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 				},
 			},
 			Replicas: pulumi.IntPtr(1),
-			// churn creates its objects from scratch and fails on the ones a previous
-			// instance left behind, so two instances must never overlap during a rollout.
+			// churn deletes and recreates the objects it finds on start, so two instances
+			// must never overlap during a rollout.
 			Strategy: &appsv1.DeploymentStrategyArgs{
 				Type: pulumi.String("Recreate"),
 			},

@@ -35,6 +35,7 @@ static __always_inline void copy_proc_entry(struct process_entry_t *src, struct 
     dst->exec_timestamp = src->exec_timestamp;
     copy_tty_name(src->tty_name, dst->tty_name);
     bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
+    dst->file_capabilities = src->file_capabilities;
 }
 
 static __always_inline void copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {

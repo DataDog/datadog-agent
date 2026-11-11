@@ -1,0 +1,8 @@
+---
+upgrade:
+  - |
+    The Private Action Runner in the Cluster Agent now re-enrolls when the configured ``api_key``
+    differs from the one used to enroll its stored identity, as the node Agent already does.
+    Changing the ``api_key`` therefore creates a new runner. This includes a stored identity that was
+    enrolled with an ``api_key`` other than the one now configured: it is replaced on the first start
+    after upgrading. Only the leader replica re-enrolls; the other replicas wait for the updated identity.

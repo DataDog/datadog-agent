@@ -127,7 +127,7 @@ def _run_command(
         input=input,
         stdin=subprocess.DEVNULL if input is None else None,
         stdout=subprocess.PIPE if capture_stdout else None,
-        stderr=None,
+        stderr=subprocess.PIPE if capture_stderr else None,
         encoding="utf-8",
         errors="backslashreplace",
     )
@@ -216,6 +216,7 @@ def _run_command_with_tee(
 
 def bazel(
     *args: str,
+    allowed_exit_codes: frozenset[int] = frozenset(),
     capture_stderr: bool = False,
     capture_output: bool = False,
     env: dict[str, str] | None = None,
@@ -224,11 +225,17 @@ def bazel(
 ) -> str | subprocess.CompletedProcess[str]:
     """Execute a bazel command.
 
+    allowed_exit_codes: nonzero exit codes to tolerate, keeping the command's live output and
+        returning normally instead of failing fast.  Inert when `ignore_errors` is set, since the
+        caller then decides what to do with the raw `CompletedProcess`.
     env: environment variables when passing them through the corresponding Bazel `--*_env=` flags is not suitable.
     input: text to pass to the Bazel subprocess stdin.
     ignore_errors: do not fail fast, but instead return the raw `CompletedProcess`, whether the Bazel command
         succeeded or not.
     """
+
+    if capture_output and capture_stderr and not ignore_errors:
+        raise ValueError("Capturing both stdout and stderr requires ignore_errors to return both.")
 
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise SystemExit(bazel_not_found_message("red"))
@@ -246,8 +253,12 @@ def bazel(
     )
     if ignore_errors:
         return completed
-    if completed.returncode != 0:
+    if completed.returncode != 0 and completed.returncode not in allowed_exit_codes:
+        if capture_stderr:
+            sys.stderr.write(completed.stderr)
         raise SystemExit(completed.returncode)
+    if capture_stderr:
+        return completed.stderr
     return completed.stdout if capture_output else ""
 
 

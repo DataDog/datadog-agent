@@ -66,6 +66,41 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_FreshSeriesCount(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	updated := s.Add("check", "updated", 1, 10, nil).Ref
+	unchanged := s.Add("check", "unchanged", 1, 10, nil).Ref
+	s.Add(observer.TelemetryNamespace, "internal", 1, 11, nil)
+
+	// Both series are visible at cutoff 10 and newer than the previous cutoff 9.
+	assert.Equal(t, 2, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 9))
+	// Visible, but not newer than the previous cutoff.
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+	// Cutoff below the only visible bucket excludes both.
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 9, 8))
+
+	// A same-second merge is not a new visible bucket.
+	s.Add("check", "updated", 2, 10, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+
+	// A late historical write does not make the series fresh again.
+	s.Add("check", "updated", 3, 9, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+
+	// A bucket beyond the cutoff is not visible yet and must not count.
+	s.Add("check", "future", 1, 100, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 50, 49))
+	// It counts once, on the advance that makes it visible.
+	assert.Equal(t, 1, s.FreshSeriesCount(observer.TelemetryNamespace, 100, 99))
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 101, 100))
+
+	// Re-admission after eviction participates in the next sample.
+	s.RemoveSeriesByRefs([]observer.SeriesRef{updated, unchanged})
+	s.Add("check", "updated", 4, 11, nil)
+	assert.Equal(t, 1, s.FreshSeriesCount(observer.TelemetryNamespace, 11, 10))
+}
+
 func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
 	s := newTimeSeriesStorage()
 	result := s.Add("logs", "log.pattern.count", 1, 1, nil)
@@ -132,7 +167,7 @@ func TestSeriesKeyHashIncludesNamespace(t *testing.T) {
 
 func TestEngineIngestMetricUsesProvidedStorageKey(t *testing.T) {
 	storage := newTimeSeriesStorage()
-	engine := newEngine(engineConfig{storage: storage})
+	engine := mustNewEngine(engineConfig{storage: storage})
 	metric := &metricObs{
 		name:      "metric.a",
 		host:      "host-a",
@@ -1374,4 +1409,49 @@ func TestStorageMetricKindFilters(t *testing.T) {
 	kind, ok := s.SeriesKind(unknown)
 	require.True(t, ok)
 	require.Equal(t, observer.UNSET, kind)
+}
+
+func TestInstrumentedStorageSelectionFilters(t *testing.T) {
+	build := func(order []int) *timeSeriesStorage {
+		s := newTimeSeriesStorage()
+		for _, key := range order {
+			ref := s.AddWithKeyAndHostComposite("work", fmt.Sprintf("metric_%d", key), "", 100, 1,
+				tagset.CompositeTags{}, uint64(key), metrics.GaugeType).Ref
+			s.SetSeriesKind(ref, observer.STABLE)
+		}
+		return s
+	}
+	for _, method := range []string{"ListSeries", "ListSeriesRefsInto"} {
+		t.Run(method, func(t *testing.T) {
+			hash := func(s *timeSeriesStorage, filter observer.SeriesFilter) uint64 {
+				instrumented := newInstrumentedStorage(s)
+				if method == "ListSeries" {
+					instrumented.ListSeries(filter)
+				} else {
+					instrumented.ListSeriesRefsInto(filter, nil)
+				}
+				return instrumented.digest("test", 1).Hash
+			}
+			s, reverse := build([]int{1, 2}), build([]int{2, 1})
+			kind, mt := observer.STABLE, metrics.GaugeType
+			filter := observer.SeriesFilter{MetricKind: &kind, MetricType: &mt}
+			want := hash(s, filter)
+			require.Equal(t, want, hash(reverse, filter), "refs and iteration order must not affect digests")
+			otherKind, otherType := kind, mt
+			require.Equal(t, want, hash(s, observer.SeriesFilter{MetricKind: &otherKind, MetricType: &otherType}))
+			require.NotEqual(t, want, hash(s, observer.SeriesFilter{}), "different restrictions can select the same series")
+			kind = observer.LINEAR
+			require.NotEqual(t, want, hash(s, filter), "digest must reflect the current pointer value")
+
+			empty := newTimeSeriesStorage()
+			unrestricted := hash(empty, observer.SeriesFilter{})
+			kind, mt = observer.UNSET, observer.UnknownType
+			require.NotEqual(t, unrestricted, hash(empty, observer.SeriesFilter{MetricKind: &kind}))
+			require.NotEqual(t, unrestricted, hash(empty, observer.SeriesFilter{MetricType: &mt}))
+			unsetHash, unknownHash := hash(empty, observer.SeriesFilter{MetricKind: &kind}), hash(empty, observer.SeriesFilter{MetricType: &mt})
+			kind, mt = observer.STABLE, metrics.CountType
+			require.NotEqual(t, unsetHash, hash(empty, observer.SeriesFilter{MetricKind: &kind}))
+			require.NotEqual(t, unknownHash, hash(empty, observer.SeriesFilter{MetricType: &mt}))
+		})
+	}
 }

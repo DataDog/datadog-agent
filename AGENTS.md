@@ -56,6 +56,13 @@ This also applies to indirect usage — do not shell out to `go build` or
 `go test` for compilation checks. If you need to verify that code compiles,
 build the relevant component with `dda inv *.build`.
 
+### Bazel dependency downloads
+
+ADMS is enabled by default for Bazel dependency downloads through
+`common --config=adms` in `.bazelrc`. If the Datadog intranet is unavailable,
+remove or comment out that line before invoking Bazel or `dda inv test`.
+See [Bazel's ADMS guidance](bazel/AGENTS.md#adms-dependency-mirror) for a local override.
+
 ### Common Commands
 
 ```bash
@@ -80,6 +87,15 @@ Place the dev config at `dev/dist/datadog.yaml` (e.g. `echo "api_key: 0000001" >
 - Main config: `datadog.yaml`
 - Check configs: `conf.d/<check_name>.d/conf.yaml`
 - Supports environment variable overrides with `DD_` prefix
+- Never edit or commit the schema-generated `pkg/config/example/<build-type>_<os>.yaml.example`
+  files: release automation refreshes them after each release. Change `pkg/config/schema/yaml/`
+  instead, and revert any rewrites left by `dda inv schema.template-all`. See
+  `pkg/config/example/README.md` (the static `security-agent` and `application_monitoring`
+  examples are the exception)
+- Never edit or commit the generated settings code. `pkg/config/setup/generatedsettings/` is a
+  snapshot that release automation refreshes, so don't run `dda inv schema.codegen-snapshot`.
+  The generated `*.go` files in `pkg/config/setup/generatedsettings_local/` are gitignored and
+  rebuilt by every `dda inv` task. See the README in each directory
 
 ### eBPF-based System Checks
 - Checks using eBPF probes require system-probe module running
@@ -181,6 +197,12 @@ Bazel/Gazelle build-tag handling is documented in `bazel/AGENTS.md` ("Go build t
 - `.gitlab-ci.yml` - CI/CD pipeline configuration
 
 ## CI/CD Pipeline
+
+### DDCI
+
+For failed or stuck DDCI requests—including a DDCI request ID, a Mosaic URL, or
+a branch, PR, or commit whose DDCI run failed—use the
+`ddci:fixing-ddci-failure` skill before investigating or acting.
 
 ### GitLab CI
 - Primary CI system

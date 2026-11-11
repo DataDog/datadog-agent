@@ -8,7 +8,6 @@ package phonehome
 import (
 	"net/url"
 	"os"
-	"strings"
 	"time"
 
 	phonehomedef "github.com/DataDog/datadog-agent/comp/privateactionrunner/phonehome/def"
@@ -52,11 +51,14 @@ func (r *rcSource) Read(_ time.Time) Observation {
 	}
 	key := r.cfg.GetString("api_key")
 	rcURL := configutils.GetMainEndpoint(r.cfg, "https://config.", par.RemoteConfigURL)
-	parURL := enrollmentEndpoint(r.cfg)
+	parURL, err := par.APIBaseURL(r.cfg, par.Site(r.cfg))
+	if err != nil {
+		return Observation{Reason: phonehomedef.ReasonInvalidEndpoint}
+	}
 	mockPair := os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && loopbackURL(rcURL) && loopbackURL(parURL)
 	rcKey := r.cfg.GetString("remote_configuration.api_key")
 	if key == "" || key != r.key || rcURL != r.rcURL || parURL != r.parURL || (rcKey != "" && rcKey != key) || r.cfg.GetString("remote_configuration.key") != "" ||
-		(strings.TrimSuffix(rcURL, ".") != "https://config."+par.Site(r.cfg) && !mockPair) || (os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && !mockPair) {
+		(os.Getenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS") == "true" && !mockPair) {
 		return Observation{Reason: phonehomedef.ReasonRCCredentialOrEndpointMismatch}
 	}
 	rc := r.service.GetOrgStatus()
@@ -73,7 +75,12 @@ func (r *rcSource) Read(_ time.Time) Observation {
 }
 
 func enrollmentEndpoint(cfg model.Reader) string {
-	return par.APIBaseURL(cfg, par.Site(cfg))
+	// Read rejects endpoint errors before discovery can dispatch.
+	endpoint, err := par.APIBaseURL(cfg, par.Site(cfg))
+	if err != nil {
+		return ""
+	}
+	return endpoint
 }
 
 func loopbackURL(raw string) bool {

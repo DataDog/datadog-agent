@@ -6,18 +6,21 @@
 package containers
 
 import (
+	"cmp"
 	"context"
 	"errors"
 	"fmt"
 	"maps"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/cenkalti/backoff/v7"
+	"github.com/fatih/color"
 	"github.com/samber/lo"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -215,6 +218,9 @@ type benchmarkEKSSuite struct {
 	readyRestarts map[string]int32
 	// failedTest is the first test that failed.
 	failedTest string
+	// firstPhase is the window of the first measurement phase, once Test10Performance has
+	// computed it.
+	firstPhase benchmark.Window
 }
 
 func TestBenchmarkEKSSuite(t *testing.T) {
@@ -257,6 +263,10 @@ type installationSnapshots map[string][]benchmark.Snapshot
 func (s *benchmarkEKSSuite) SetupSuite() {
 	s.baseSuite.SetupSuite()
 	s.clusterName = s.Env().KubernetesCluster.ClusterName
+	// A cleanup rather than TearDownSuite, which testify doesn't call when SetupSuite fails,
+	// e.g. when the Agents don't become ready: the dashboard helps most when a step fails.
+	t := s.T()
+	t.Cleanup(func() { s.logDashboardURL(t) })
 
 	var err error
 	s.dddev, err = newDDDevClient()
@@ -449,6 +459,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	s.Require().NoError(err)
 
 	first := measurementWindow(s.readyAt, warmup, duration, block)
+	s.firstPhase = first
 	s.T().Logf("Phase 1: measuring the baseline images on installation a and the comparison images on installation b from %s to %s",
 		first.From.UTC().Format(time.RFC3339), first.To.UTC().Format(time.RFC3339))
 	var snapshots [2]map[string]installationSnapshots
@@ -501,6 +512,7 @@ func (s *benchmarkEKSSuite) Test10Performance() {
 	s.Require().True(s.measurementIngested(swapped))
 
 	report.Phases = [2]benchmark.Window{first, swapped}
+	report.DashboardURL = s.dashboardURL(s.readyAt, swapped.To, first)
 	timedChecks := slices.DeleteFunc(stableChecks(), func(stable stableCheck) bool {
 		return slices.Contains(untimedChecks, stable.check)
 	})
@@ -894,8 +906,38 @@ func (s *benchmarkEKSSuite) images(ctx context.Context, variant benchmarkVariant
 	return images, nil
 }
 
+// logDashboardURL logs to t the URL of the dashboard of the benchmark over the run of the
+// suite.
+func (s *benchmarkEKSSuite) logDashboardURL(t *testing.T) {
+	color.NoColor = false
+	c := color.New(color.Bold).SprintfFunc()
+	t.Log(c("The data of the benchmark can be viewed on this dashboard:"))
+	c = color.New(color.Bold, color.FgBlue).SprintfFunc()
+	// TearDownSuite sets the end time. When SetupSuite fails, the cleanup of BaseSuite calls it
+	// after this one, registered later.
+	from, to := s.StartTime(), cmp.Or(s.EndTime(), time.Now())
+	// The profiles of the whole run if the first phase wasn't computed
+	profiles := cmp.Or(s.firstPhase, benchmark.Window{From: from, To: to})
+	t.Log(c("%s", s.dashboardURL(from, to, profiles)))
+}
+
+// dashboardURL returns the URL of the dashboard of the benchmark over [from, to], showing the
+// cluster of the suite and linking to its profiles over the window profiles.
+func (s *benchmarkEKSSuite) dashboardURL(from, to time.Time, profiles benchmark.Window) string {
+	return benchmark.DashboardURL(dddevAppURL, benchmarkDashboardID, map[string]string{
+		"kube_cluster_name": s.kubeClusterName(),
+		"profiles_from":     strconv.FormatInt(profiles.From.UnixMilli(), 10),
+		"profiles_to":       strconv.FormatInt(profiles.To.UnixMilli(), 10),
+	}, from, to)
+}
+
+// kubeClusterName is the value of the kube_cluster_name tag of the cluster of the suite.
+func (s *benchmarkEKSSuite) kubeClusterName() string {
+	return strings.ToLower(s.clusterName)
+}
+
 func (s *benchmarkEKSSuite) clusterTag() string {
-	return "kube_cluster_name:" + strings.ToLower(s.clusterName)
+	return "kube_cluster_name:" + s.kubeClusterName()
 }
 
 // variantScope returns the tags of the containers of the Agent installation of variant.

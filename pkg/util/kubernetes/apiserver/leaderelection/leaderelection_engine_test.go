@@ -164,3 +164,37 @@ func TestCreateLeaderTokenIfNotExists(t *testing.T) {
 		})
 	}
 }
+
+func TestOnStoppedLeading(t *testing.T) {
+	tests := []struct {
+		name             string
+		identityBefore   string
+		expectedIdentity string
+	}{
+		{
+			name:             "still recorded as leader",
+			identityBefore:   "self",
+			expectedIdentity: "",
+		},
+		{
+			name:             "new leader already reported",
+			identityBefore:   "other",
+			expectedIdentity: "other",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			le := &LeaderEngine{
+				HolderIdentity: "self",
+				leaderMetric:   &dummyGauge{},
+			}
+			le.updateLeaderIdentity(tt.identityBefore)
+
+			le.onStoppedLeading()
+
+			assert.Equal(t, tt.expectedIdentity, le.GetLeader())
+			assert.False(t, le.IsLeader())
+		})
+	}
+}

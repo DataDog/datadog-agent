@@ -37,6 +37,7 @@ dd_agent_go_test(
     ],
     embed = [":opms"],
     deps = [
+        "//comp/core/config",
         "//pkg/config/mock",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/modes",
