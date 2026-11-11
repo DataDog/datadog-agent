@@ -9,6 +9,8 @@ import (
 	"encoding/base64"
 	"fmt"
 	"strings"
+
+	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 )
 
 const (
@@ -26,11 +28,14 @@ runPredefinedScript:
 
 // TestPARScriptConfigPersists verifies that a customer-edited Private Action Runner script
 // config survives a native DEB/RPM upgrade from the latest stable Agent to the pipeline build.
-//
-// Regression test for incident 61851: from 7.77.0 until 7.84.3 the packages owned the live
-// script config, so every upgrade replaced customer edits with the packaged example. Packages
-// now ship a `.example` template and only create the live file when it is missing.
+// It guards against reintroducing the package-owned live config behind incident 61851, where
+// upgrades replaced customer edits with the packaged example. Upgrades from affected versions
+// (7.77.0 to 7.84.2) still lose the config by design and are not covered.
 func (is *persistingIntegrationsSuite) TestPARScriptConfigPersists() {
+	if *flavorName != "datadog-agent" && *flavorName != "datadog-fips-agent" {
+		is.T().Skipf("flavor %s does not ship the Private Action Runner", *flavorName)
+	}
+
 	VMclient := is.SetupTestClient()
 	host := VMclient.Host
 
@@ -53,4 +58,29 @@ func (is *persistingIntegrationsSuite) TestPARScriptConfigPersists() {
 	is.Assert().Equal(permsBefore, host.MustExecute("sudo stat -c '%U:%G %a' "+parScriptConfigPath),
 		"PAR script config ownership or mode changed during the upgrade")
 	is.Assert().NotEmpty(host.MustExecute("sudo cat "+parScriptConfigExamplePath), "upgraded package should still ship the PAR script config template")
+
+	// Root cause check: the package must own the template, never the live file. This also
+	// catches a package marking the live file as a conffile/%config, which would keep this
+	// upgrade's edit but drop it on a later upgrade or removal.
+	is.assertNotOwnedByPackage(VMclient, parScriptConfigPath)
+	is.assertOwnedByPackage(VMclient, parScriptConfigExamplePath)
+}
+
+// packageOwnerQuery returns the command that names the package owning a path.
+func (is *persistingIntegrationsSuite) packageOwnerQuery(path string) string {
+	if _, err := is.Env().RemoteHost.Execute("command -v dpkg-query"); err == nil {
+		return "dpkg-query -S " + path
+	}
+	return "rpm -qf " + path
+}
+
+func (is *persistingIntegrationsSuite) assertNotOwnedByPackage(VMclient *common.TestClient, path string) {
+	out, err := VMclient.Host.Execute(is.packageOwnerQuery(path))
+	is.Assert().Error(err, "%s must not be owned by a package, got: %s", path, out)
+}
+
+func (is *persistingIntegrationsSuite) assertOwnedByPackage(VMclient *common.TestClient, path string) {
+	out, err := VMclient.Host.Execute(is.packageOwnerQuery(path))
+	is.Assert().NoError(err, "%s should be owned by the agent package", path)
+	is.Assert().Contains(out, *flavorName, "%s should be owned by the agent package", path)
 }

@@ -13,6 +13,13 @@ import (
 	windowsAgent "github.com/DataDog/datadog-agent/test/new-e2e/tests/windows/common/agent"
 )
 
+// Private Action Runner script config preservation checks.
+//
+// These guard against reintroducing the MSI-owned live config behind incident 61851, where
+// upgrades replaced customer edits with the packaged example. The check is only meaningful when
+// the baseline already ships the config as a template (7.84.3 and later): Agent 6 and early 7
+// have no PAR config, and upgrades from 7.77.0 to 7.84.2 lose it by design.
+
 // parScriptConfigCustom uses a script name that never appears in the packaged example.
 const parScriptConfigCustom = `schemaId: script-credentials-v1
 runPredefinedPowershellScript:
@@ -27,13 +34,11 @@ func parScriptConfigPath(s *baseAgentMSISuite, vm *components.RemoteHost) string
 	return filepath.Join(configRoot, "private-action-runner", "powershell-script-config.yaml")
 }
 
-// customizePARScriptConfig replaces the installed Private Action Runner script config
-// with a customer-style edit, after checking the install created it from the template.
-//
-// Regression coverage for incident 61851: from 7.77.0 until 7.84.3 the MSI owned the live
-// script config, so every upgrade replaced customer edits with the packaged example.
+// customizePARScriptConfig replaces the installed Private Action Runner script config with a
+// customer-style edit, after checking the install created it from the template.
+// Stops the test when it fails, so a later preservation failure is not misattributed.
 func (s *baseAgentMSISuite) customizePARScriptConfig(vm *components.RemoteHost) {
-	s.Run("customize PAR script config", func() {
+	if !s.Run("customize PAR script config", func() {
 		path := parScriptConfigPath(s, vm)
 		live, err := vm.ReadFile(path)
 		s.Require().NoError(err, "install should create the live PAR script config")
@@ -44,19 +49,21 @@ func (s *baseAgentMSISuite) customizePARScriptConfig(vm *components.RemoteHost) 
 
 		_, err = vm.WriteFile(path, []byte(parScriptConfigCustom))
 		s.Require().NoError(err)
-	})
+	}) {
+		s.Require().FailNow("stopping test after a required assertion or subtest failed")
+	}
 }
 
 // assertPARScriptConfigPreserved checks the edit from customizePARScriptConfig survived.
-func (s *baseAgentMSISuite) assertPARScriptConfigPreserved(vm *components.RemoteHost) {
-	s.Run("PAR script config preserved", func() {
+func (s *baseAgentMSISuite) assertPARScriptConfigPreserved(vm *components.RemoteHost, stage string) {
+	s.Run("PAR script config preserved "+stage, func() {
 		path := parScriptConfigPath(s, vm)
 		live, err := vm.ReadFile(path)
 		s.Require().NoError(err)
 		s.Assert().Equal(strings.TrimSpace(parScriptConfigCustom), strings.TrimSpace(string(live)),
-			"PAR script config was modified by the upgrade")
+			"PAR script config was modified %s", stage)
 		example, err := vm.ReadFile(path + ".example")
-		s.Require().NoError(err, "upgraded package should still ship the PAR script config template")
+		s.Require().NoError(err, "PAR script config template should still ship %s", stage)
 		s.Assert().NotEmpty(example)
 	})
 }

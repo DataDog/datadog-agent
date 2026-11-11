@@ -24,15 +24,24 @@ import (
 const parScriptConfigMarker = "e2e-fleet-upgrade-preserved"
 
 // TestPARScriptConfigPreservedOnUpgrade verifies that a customer-edited Private Action Runner
-// script config survives Fleet experiment rollback and promotion.
+// script config survives Fleet experiment rollback and promotion. It guards against
+// reintroducing the package-owned live config behind incident 61851, where upgrades replaced
+// customer edits with the packaged example. Upgrades from affected versions (7.77.0 to 7.84.2)
+// still lose the config by design and are not covered.
 //
-// Regression test for incident 61851: from 7.77.0 until 7.84.3 the packages owned the live
-// script config, so every upgrade replaced customer edits with the packaged example. Packages
-// now ship a `.example` template and only create the live file when it is missing.
+// Linux starts from this pipeline's DEB/RPM, so the package under test lays down the live file
+// and the OCI experiment hooks must leave it alone. Windows starts from the released stable, so
+// rolling back removes the experiment MSI: if that MSI owned the live file, removing it deletes
+// the edit.
 //
 // A single install covers both rollback and promotion to keep the Windows shard cheap.
 func (s *upgradeSuite) TestPARScriptConfigPreservedOnUpgrade() {
-	s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	isLinux := s.Env().RemoteHost.OSFamily == e2eos.LinuxFamily
+	if isLinux {
+		s.Agent.MustInstall(agent.WithRemoteUpdates())
+	} else {
+		s.Agent.MustInstall(agent.WithRemoteUpdates(), agent.WithStablePackages())
+	}
 	defer s.Agent.MustUninstall()
 
 	configPath, examplePath := s.parScriptConfigPaths()
@@ -44,6 +53,7 @@ func (s *upgradeSuite) TestPARScriptConfigPreservedOnUpgrade() {
 	customConfig := s.customPARScriptConfig()
 	s.writePARFile(configPath, customConfig)
 	s.assertPARScriptConfig(configPath, customConfig, "before experiment")
+	permsBefore := s.parFilePermissions(configPath)
 
 	originalVersion, err := s.Agent.Version()
 	s.Require().NoError(err)
@@ -57,6 +67,9 @@ func (s *upgradeSuite) TestPARScriptConfigPreservedOnUpgrade() {
 		version, err := s.Agent.Version()
 		require.NoError(c, err)
 		require.Equal(c, originalVersion, version)
+		status, err := s.Backend.RemoteConfigStatusPackage("datadog-agent")
+		require.NoError(c, err)
+		require.Empty(c, status.ExperimentVersion, "experiment should be fully stopped")
 	}, 300*time.Second, 30*time.Second)
 	s.assertPARScriptConfig(configPath, customConfig, "after experiment rollback")
 
@@ -70,8 +83,13 @@ func (s *upgradeSuite) TestPARScriptConfigPreservedOnUpgrade() {
 		require.Equal(c, targetVersion, packageVersion)
 	}, 300*time.Second, 30*time.Second)
 	s.assertPARScriptConfig(configPath, customConfig, "after promotion")
+	s.Require().Equal(permsBefore, s.parFilePermissions(configPath), "PAR script config ownership or mode changed")
 
-	s.Require().NotEmpty(s.readPARFile(examplePath), "upgraded package should still ship the PAR script config template")
+	if !isLinux {
+		// On Linux the OCI experiment does not lay down /etc files, so this only means something
+		// for the Windows MSI.
+		s.Require().NotEmpty(s.readPARFile(examplePath), "upgraded package should still ship the PAR script config template")
+	}
 }
 
 // parScriptConfigPaths returns the live and template PAR script config paths for the host OS.
@@ -80,6 +98,7 @@ func (s *upgradeSuite) parScriptConfigPaths() (configPath string, examplePath st
 	case e2eos.LinuxFamily:
 		configPath = "/etc/datadog-agent/private-action-runner/script-config.yaml"
 	case e2eos.WindowsFamily:
+		// Fleet tests install with the default config root, see agent.installWindowsInstallExe.
 		configPath = `C:\ProgramData\Datadog\private-action-runner\powershell-script-config.yaml`
 	default:
 		s.T().Fatalf("unsupported OS family: %v", s.Env().RemoteHost.OSFamily)
@@ -126,6 +145,18 @@ func (s *upgradeSuite) writePARFile(path, content string) {
 	encoded := base64.StdEncoding.EncodeToString([]byte(content))
 	_, err := s.Env().RemoteHost.Execute(fmt.Sprintf("echo %s | base64 -d | sudo tee %s > /dev/null", encoded, path))
 	s.Require().NoError(err, "failed to write %s", path)
+}
+
+// parFilePermissions returns owner, group and mode on Linux, and an empty string on Windows,
+// where POSIX permissions do not apply.
+func (s *upgradeSuite) parFilePermissions(path string) string {
+	if s.Env().RemoteHost.OSFamily != e2eos.LinuxFamily {
+		return ""
+	}
+	// sudo: the parent config directory is not traversable by the test user.
+	perms, err := s.Env().RemoteHost.Execute("sudo stat -c '%U:%G %a' " + path)
+	s.Require().NoError(err, "failed to stat %s", path)
+	return strings.TrimSpace(perms)
 }
 
 func (s *upgradeSuite) assertPARScriptConfig(path, expected, stage string) {
