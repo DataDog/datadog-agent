@@ -300,7 +300,7 @@ func TestWorkerStopDoesNotRequeueCompletedHTTPTransaction(t *testing.T) {
 	highPrio := make(chan transaction.Transaction, 1)
 	lowPrio := make(chan transaction.Transaction, 1)
 	requeue := make(chan transaction.Transaction, 1)
-	sender := &PointSuccessfullySentMock{}
+	sender := &PointSuccessfullySentMock{done: make(chan struct{})}
 
 	mockConfig := mock.New(t)
 	log := logmock.New(t)
@@ -314,7 +314,12 @@ func TestWorkerStopDoesNotRequeueCompletedHTTPTransaction(t *testing.T) {
 
 	w.Start()
 	highPrio <- txn
-	assert.Eventually(t, func() bool { return sender.count.Load() == 3 }, time.Second, time.Millisecond)
+	select {
+	case <-sender.done:
+	case <-time.After(time.Second):
+		t.Fatal("timed out waiting for transaction to be reported as successfully sent")
+	}
+	assert.Equal(t, int64(3), sender.count.Load(), "all points must be reported as successfully sent")
 
 	w.Stop(false)
 
@@ -325,6 +330,12 @@ func TestWorkerStopRequeuesMultipleCanceledHTTP2Transactions(t *testing.T) {
 	requestEntered := make(chan struct{}, 2)
 	protocols := make(chan string, 2)
 	releaseHandlers := make(chan struct{})
+	var releaseHandlersOnce sync.Once
+	// releaseAllHandlers is safe to call multiple times and from the success
+	// path or test cleanup, so a handler that is still blocked when the test
+	// fails (e.g. a request never entered the handler) doesn't hang
+	// server.Close() until the suite's global timeout.
+	releaseAllHandlers := func() { releaseHandlersOnce.Do(func() { close(releaseHandlers) }) }
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		protocols <- r.Proto
 		requestEntered <- struct{}{}
@@ -335,7 +346,10 @@ func TestWorkerStopRequeuesMultipleCanceledHTTP2Transactions(t *testing.T) {
 	}))
 	server.EnableHTTP2 = true
 	server.StartTLS()
-	defer server.Close()
+	// Registered before releaseAllHandlers so, per t.Cleanup's LIFO order,
+	// handlers are released first and server.Close() can then complete.
+	t.Cleanup(server.Close)
+	t.Cleanup(releaseAllHandlers)
 
 	highPrio := make(chan transaction.Transaction, 2)
 	lowPrio := make(chan transaction.Transaction, 1)
@@ -365,7 +379,7 @@ func TestWorkerStopRequeuesMultipleCanceledHTTP2Transactions(t *testing.T) {
 	}
 
 	w.Stop(false)
-	close(releaseHandlers)
+	releaseAllHandlers()
 
 	seen := map[transaction.Transaction]bool{}
 	for i := 0; i < 2; i++ {
@@ -564,6 +578,9 @@ func TestWorkerRequeueDropsTracksPointsDropped(t *testing.T) {
 type PointSuccessfullySentMock struct {
 	count   atomic.Int64
 	dropped atomic.Int64
+	// done, if non-nil, is closed the first time OnPointSuccessfullySent is
+	// called, letting tests wait for completion without polling.
+	done chan struct{}
 }
 
 // TestWorkerStopDoesNotCancelInFlight verifies that when forwarder_stop_wait_for_inflight
@@ -874,6 +891,14 @@ func TestWorkerStopCancelsContextRequeuesSemaphoreBlocked(t *testing.T) {
 
 func (m *PointSuccessfullySentMock) OnPointSuccessfullySent(count int) {
 	m.count.Add(int64(count))
+	if m.done != nil {
+		select {
+		case <-m.done:
+			// already closed by a previous call
+		default:
+			close(m.done)
+		}
+	}
 }
 
 func (m *PointSuccessfullySentMock) OnPointDropped(count int) {
