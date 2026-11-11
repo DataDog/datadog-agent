@@ -8,6 +8,7 @@
 package testutil
 
 import (
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -52,9 +53,15 @@ func TestResolveCurDir(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := resolveCurDir(tt.caller, tt.executable, tt.cwd, tt.srcDir, tt.workspace)
+			got, err := resolveCurDir(
+				filepath.FromSlash(tt.caller),
+				filepath.FromSlash(tt.executable),
+				filepath.FromSlash(tt.cwd),
+				filepath.FromSlash(tt.srcDir),
+				tt.workspace,
+			)
 			require.NoError(t, err)
-			require.Equal(t, tt.want, got)
+			require.Equal(t, filepath.FromSlash(tt.want), got)
 		})
 	}
 }
