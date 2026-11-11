@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    On Windows, Fleet Automation Agent upgrades no longer wait about 30 minutes per host when the
+    Agent restart stops the installer before it reports the start or stop of the upgrade. The restart
+    now waits for the installer to record the result.

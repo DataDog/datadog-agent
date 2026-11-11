@@ -1,0 +1,20 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "taskmarker",
+    srcs = ["taskmarker.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/fleet/installer/taskmarker",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/fleet/installer/paths"],
+)
+
+dd_agent_go_test(
+    name = "taskmarker_test",
+    srcs = ["taskmarker_test.go"],
+    embed = [":taskmarker"],
+    deps = [
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

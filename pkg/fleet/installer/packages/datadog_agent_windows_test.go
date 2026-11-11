@@ -16,7 +16,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/taskmarker"
 )
 
 func TestPreStopExperimentRejectsInvalidMSI(t *testing.T) {
@@ -137,4 +139,17 @@ func TestArgsHaveProperty(t *testing.T) {
 			assert.Equal(t, tt.expected, argsHaveProperty(tt.args, tt.property))
 		})
 	}
+}
+
+func TestWaitForDaemonToRecordTaskClearsTaskID(t *testing.T) {
+	paths.SetupTestPaths(t)
+	t.Setenv("DD_INSTALLER_TASK_ID", "task-1")
+	require.NoError(t, taskmarker.Write("task-1"))
+	e := &env.Env{TaskID: "task-1"}
+
+	waitForDaemonToRecordTask(context.Background(), e)
+
+	assert.Empty(t, e.TaskID)
+	_, set := os.LookupEnv("DD_INSTALLER_TASK_ID")
+	assert.False(t, set, "a rollback started after the wait must not inherit the task ID")
 }
