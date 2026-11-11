@@ -1,0 +1,10 @@
+# skip: readonly is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Readonly without arguments is blocked.
+input:
+  script: |+
+    readonly
+expect:
+  stdout: ""
+  stderr: "readonly is not supported\n"
+  exit_code: 2

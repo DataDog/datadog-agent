@@ -133,8 +133,23 @@ const (
 	OffsetNameRtnlLinkOpsKind   = "rtnl_link_ops_kind_offset"
 
 	// nsproxy offsets
-	OffsetNameNsproxyMntNs = "nsproxy_mnt_ns_offset"
-	OffsetNameNsproxyNetNs = "nsproxy_net_ns_offset"
+	OffsetNameNsproxyMntNs            = "nsproxy_mnt_ns_offset"
+	OffsetNameNsproxyNetNs            = "nsproxy_net_ns_offset"
+	OffsetNameNsproxyPidNsForChildren = "nsproxy_pid_ns_for_children_offset"
+	OffsetNameNsproxyUtsNs            = "nsproxy_uts_ns_offset"
+	OffsetNameNsproxyIpcNs            = "nsproxy_ipc_ns_offset"
+	OffsetNameNsproxyCgroupNs         = "nsproxy_cgroup_ns_offset" // kernels >= 4.6, and backports
+	OffsetNameNsproxyTimeNs           = "nsproxy_time_ns_offset"   // kernels >= 5.6, and backports
+
+	// namespace offsets, used to read the namespace IDs of a thread
+	OffsetNameTaskStructNsproxy = "task_struct_nsproxy_offset"
+	OffsetNameCredStructUserNs  = "cred_user_ns_offset"
+	OffsetNamePidNamespaceNs    = "pid_namespace_ns_offset"
+	OffsetNameUtsNamespaceNs    = "uts_namespace_ns_offset"
+	OffsetNameIpcNamespaceNs    = "ipc_namespace_ns_offset"
+	OffsetNameUserNamespaceNs   = "user_namespace_ns_offset"
+	OffsetNameCgroupNamespaceNs = "cgroup_namespace_ns_offset" // kernels >= 4.6, and backports
+	OffsetNameTimeNamespaceNs   = "time_namespace_ns_offset"   // kernels >= 5.6, and backports
 
 	// OTel TLSDESC thread pointer offsets.
 	// Used to read the thread pointer from task_struct for OTel Thread Local Context Record support.
@@ -142,6 +157,10 @@ const (
 	// ARM64:  task_struct->thread.uw.tp_value (tp_value is first member of uw, offset within uw = 0)
 	OffsetNameTaskStructThread = "task_struct_thread_offset"
 	OffsetNameThreadStructTp   = "thread_struct_tp_offset"
+
+	// Executable file capabilities
+	OffsetNameCPUVFSCapDataStructPermitted   = "cpu_vfs_cap_data_permitted_offset"
+	OffsetNameCPUVFSCapDataStructInheritable = "cpu_vfs_cap_data_inheritable_offset"
 
 	// Interpreter constants
 	OffsetNameLinuxBinprmStructFile     = "binprm_file_offset"
@@ -165,3 +184,12 @@ const (
 	// setsockopt event
 	OffsetNameSocketType = "socket_type_offset"
 )
+
+// optionalConstants may be missing from a kernel that lacks the feature. When they are unresolved
+// they are pushed as 0, which the eBPF code reads as unavailable, and no error is logged
+var optionalConstants = map[string]bool{
+	OffsetNameNsproxyCgroupNs:   true,
+	OffsetNameCgroupNamespaceNs: true,
+	OffsetNameNsproxyTimeNs:     true,
+	OffsetNameTimeNamespaceNs:   true,
+}

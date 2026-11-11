@@ -13,44 +13,39 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/hostname/validate"
 )
 
-// formatHostname returns "<name>-<serial>": lowercase ASCII letters, digits and
-// single hyphens, with no leading or trailing hyphen, at most 253 characters,
-// and accepted by validate.ValidHostname (the Agent's RFC 1123 check). Only the
-// name is truncated; the full serial is kept so truncation cannot collide.
-func formatHostname(name, serial string) (string, error) {
-	serial = normalize(serial)
-	switch serial {
-	case "", "unknown", "none", "na", "n-a", "not-applicable", "not-available", "not-specified", "default-string", "system-serial-number", "to-be-filled-by-o-e-m", "to-be-filled-by-oem":
-		return "", errors.New("device serial number is missing or a placeholder")
+// formatHostname validates the device name unchanged and optionally appends a
+// normalized serial suffix. Neither the name nor the serial is truncated.
+func formatHostname(name, serial string, useSerial bool) (string, error) {
+	if err := validate.ValidHostname(name); err != nil {
+		return "", err
 	}
-	if strings.Trim(serial, "0-") == "" || strings.Trim(serial, "f-") == "" {
-		return "", errors.New("device serial number is a placeholder")
+
+	suffix := ""
+	if useSerial {
+		serial = normalizeSerial(serial)
+		switch serial {
+		case "", "unknown", "none", "na", "n-a", "not-applicable", "not-available", "not-specified", "default-string", "system-serial-number", "to-be-filled-by-o-e-m", "to-be-filled-by-oem":
+			return "", errors.New("device serial number is missing or a placeholder")
+		}
+		if strings.Trim(serial, "0-") == "" || strings.Trim(serial, "f-") == "" {
+			return "", errors.New("device serial number is a placeholder")
+		}
+		suffix = "-" + serial
 	}
-	name = normalize(name)
-	if name == "" {
-		return "", errors.New("device name is empty after normalization")
-	}
-	// Keep the full serial suffix. Do not truncate it into a colliding identity.
+	hostname := name + suffix
 	const maxLength = 253
-	available := maxLength - len(serial) - 1
-	if available < 1 {
-		return "", errors.New("device serial number is too long")
+	if len(hostname) > maxLength {
+		return "", errors.New("device hostname is too long")
 	}
-	if len(name) > available {
-		name = strings.TrimRight(name[:available], "-")
-	}
-	if name == "" {
-		return "", errors.New("device name is empty after truncation")
-	}
-	hostname := name + "-" + serial
+
 	if err := validate.ValidHostname(hostname); err != nil {
 		return "", err
 	}
 	return hostname, nil
 }
 
-// normalize produces a lowercase ASCII name, collapsing separators to hyphens.
-func normalize(value string) string {
+// normalizeSerial lowercases ASCII letters and collapses separators to hyphens.
+func normalizeSerial(value string) string {
 	var b strings.Builder
 	separator := false
 	for _, r := range strings.ToLower(strings.TrimSpace(value)) {

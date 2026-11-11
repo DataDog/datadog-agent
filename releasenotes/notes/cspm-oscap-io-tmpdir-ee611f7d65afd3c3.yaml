@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSPM: The Agent removes the temporary files of each ``oscap-io``
+    process once it exits. An ``oscap-io`` process that crashed or was
+    killed left an ``oscap.*`` directory in ``/tmp``, which on FIPS hosts
+    filled ``/tmp``.

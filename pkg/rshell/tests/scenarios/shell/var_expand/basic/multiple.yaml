@@ -1,0 +1,11 @@
+description: Multiple variables can be expanded in the same command.
+input:
+  script: |+
+    A=hello
+    B=world
+    echo $A $B
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

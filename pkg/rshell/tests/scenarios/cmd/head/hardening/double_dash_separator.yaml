@@ -1,0 +1,14 @@
+# Standard POSIX -- end-of-flags behavior
+description: head treats arguments after -- as file names, even if they look like flags.
+setup:
+  files:
+    - path: -n
+      content: "flag-looking-name\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -- -n
+expect:
+  stdout: "flag-looking-name\n"
+  stderr: ""
+  exit_code: 0

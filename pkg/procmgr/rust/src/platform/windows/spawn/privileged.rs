@@ -87,11 +87,19 @@ fn validate_privileged_command_args(
 }
 
 fn validate_privileged_env(process_name: &str, request: &SpawnRequest) -> Result<()> {
-    if request.env().is_empty() {
+    // A privileged child runs as the supervisor (LocalSystem). The copied
+    // supervisor environment is that process's own environment. YAML `env:`
+    // and `environment_file` are still refused.
+    let configured = if request.inherit_supervisor_env() {
+        request.config_env()
+    } else {
+        request.env()
+    };
+    if configured.is_empty() {
         return Ok(());
     }
 
-    let keys: Vec<&str> = request.env().iter().map(|(k, _)| k.as_str()).collect();
+    let keys: Vec<&str> = configured.iter().map(|(k, _)| k.as_str()).collect();
     bail!(
         "[{process_name}] refusing privileged spawn: disallowed env vars for privileged process: {keys:?}"
     );
@@ -197,7 +205,8 @@ mod tests {
         ] {
             let etc = tempfile::tempdir().expect("tempdir");
             let config = load_template(template, name, etc.path());
-            let request = SpawnRequest::from_config(name, &config).expect("request");
+            // Production privileged spawn copies the supervisor environment.
+            let request = SpawnRequest::from_config(name, &config, true).expect("request");
 
             let spec = privileged_process_spec(name, Path::new(INSTALL_DIR), etc.path())
                 .unwrap_or_else(|e| panic!("{name} has no privileged catalog entry: {e}"));
@@ -207,11 +216,8 @@ mod tests {
             validate_privileged_command_args(name, &spec, &request)
                 .unwrap_or_else(|e| panic!("{name}: {e}"));
             validate_privileged_stdio(name, &request).unwrap_or_else(|e| panic!("{name}: {e}"));
+            validate_privileged_env(name, &request).unwrap_or_else(|e| panic!("{name}: {e}"));
 
-            // The template's own contribution to the env, rather than the request's, whose
-            // env also depends on DD_PM_INHERIT_ENV_* in whatever environment the test runs
-            // in. That is the property the template controls, and checking the request here
-            // would let a runner's inheritance settings fail this.
             assert!(
                 config.env.is_empty() && config.environment_file.is_none(),
                 "{name} declares env the privileged validator rejects: {:?} {:?}",
@@ -258,11 +264,47 @@ mod tests {
                 stderr: "inherit".to_string(),
                 ..Default::default()
             },
+            false,
         )
         .expect("request");
 
         validate_privileged_command_args(DATADOG_AGENT_PROCESS, &spec, &request)
             .expect("resolved install root command should match");
+    }
+
+    #[test]
+    fn privileged_env_allows_copied_supervisor_env() {
+        let request =
+            SpawnRequest::from_config(DATADOG_AGENT_PROCESS, &ProcessConfig::default(), true)
+                .expect("request");
+
+        validate_privileged_env(DATADOG_AGENT_PROCESS, &request)
+            .expect("copied supervisor env is the LocalSystem environment");
+    }
+
+    #[test]
+    fn privileged_env_rejects_yaml_env() {
+        // inherit_supervisor_env: true also copies the real test-process
+        // environment (PATH, HOME, ...). The validator must report only
+        // DD_FOO, the entry that came from `env:`, not the copied part.
+        let request = SpawnRequest::from_config(
+            DATADOG_AGENT_PROCESS,
+            &ProcessConfig {
+                env: [("DD_FOO".to_string(), "bar".to_string())]
+                    .into_iter()
+                    .collect(),
+                ..Default::default()
+            },
+            true,
+        )
+        .expect("request");
+
+        let err = validate_privileged_env(DATADOG_AGENT_PROCESS, &request).unwrap_err();
+        assert!(
+            err.to_string()
+                .ends_with("disallowed env vars for privileged process: [\"DD_FOO\"]"),
+            "{err}"
+        );
     }
 
     #[test]
@@ -280,6 +322,7 @@ mod tests {
                 stderr: "inherit".to_string(),
                 ..Default::default()
             },
+            false,
         )
         .expect("request");
 

@@ -166,7 +166,7 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		}
 
 		// TODO(dsec-197): validate data security scan task payload if needed before building the check instance
-		instance, err := c.buildCheckInstance(payload)
+		instance, failed, err := c.buildCheckInstance(payload)
 		if err != nil {
 			// TODO(dsec-214): send sds-results to report task failure
 			log.Warnf("failed to build datasecurity instance for scan task %s: %v", path, err)
@@ -185,7 +185,15 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 		}
 		changes.Schedule = append(changes.Schedule, newCfg)
 		c.scheduledByPath[path] = newCfg
-		applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateAcknowledged})
+
+		status := state.ApplyStatus{State: state.ApplyStateAcknowledged}
+		if len(failed) > 0 {
+			// Scheduled with the sub tasks that built, but not fully applied.
+			// TODO(dsec-214): send sds-results to report sub task failures
+			status = state.ApplyStatus{State: state.ApplyStateError, Error: failed.Error()}
+			log.Warnf("scan task %s scheduled without some sub tasks: %v", path, failed)
+		}
+		applyStateCallback(path, status)
 	}
 
 	if len(changes.Schedule) == 0 && len(changes.Unschedule) == 0 {
@@ -201,8 +209,9 @@ func (c *controller) update(updates map[string]state.RawConfig, applyStateCallba
 }
 
 // buildCheckInstance resolves the local connection for every sub task and marshals the
-// datasecurity check instance.
-func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error) {
+// datasecurity check instance. Sub tasks whose connection cannot be resolved are returned in failed
+// rather than aborting the build; it errors only if no sub task can run.
+func (c *controller) buildCheckInstance(payload scanTaskPayload) (instance []byte, failed failedSubTasks, err error) {
 	inst := checkInstance{
 		// min_collection_interval: 0 runs the check once.
 		MinCollectionInterval: 0,
@@ -214,14 +223,14 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 	for i := range payload.ScanData {
 		st := payload.ScanData[i]
 		if st.Entity.Platform != postgresPlatform {
-			// TODO(dsec-214): send sds-results to report sub task failure
-			return nil, fmt.Errorf("failed to build sub task %q: unsupported platform %q", st.SubTaskID, st.Entity.Platform)
+			failed = append(failed, subTaskFailure{SubTaskID: st.SubTaskID, Err: fmt.Errorf("unsupported platform %q", st.Entity.Platform)})
+			continue
 		}
 
-		conn, err := c.resolvePostgresConnection(st.Entity)
-		if err != nil {
-			// TODO(dsec-214): send sds-results to report sub task failure
-			return nil, fmt.Errorf("failed to build sub task %q: %w", st.SubTaskID, err)
+		conn, connErr := c.resolvePostgresConnection(st.Entity)
+		if connErr != nil {
+			failed = append(failed, subTaskFailure{SubTaskID: st.SubTaskID, Err: connErr})
+			continue
 		}
 
 		inst.ScanData = append(inst.ScanData, checkSubTask{
@@ -230,7 +239,12 @@ func (c *controller) buildCheckInstance(payload scanTaskPayload) ([]byte, error)
 		})
 	}
 
-	return inst.toYAML()
+	if len(inst.ScanData) == 0 && len(failed) > 0 {
+		return nil, failed, failed
+	}
+
+	instance, err = inst.toYAML()
+	return instance, failed, err
 }
 
 // resolvePostgresConnection builds the scan connection from the local postgres instance
@@ -329,4 +343,20 @@ func instancePort(instance map[string]any) (int, bool) {
 		return int(v), true
 	}
 	return 0, false
+}
+
+// failedSubTasks lists the sub tasks that could not be built, in scan task order.
+type failedSubTasks []subTaskFailure
+
+type subTaskFailure struct {
+	SubTaskID string
+	Err       error
+}
+
+func (f failedSubTasks) Error() string {
+	parts := make([]string, 0, len(f))
+	for _, sf := range f {
+		parts = append(parts, fmt.Sprintf("failed to build sub task %q: %v", sf.SubTaskID, sf.Err))
+	}
+	return strings.Join(parts, "; ")
 }

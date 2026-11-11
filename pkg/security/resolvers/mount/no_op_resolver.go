@@ -88,7 +88,7 @@ func (mr *NoOpResolver) Iterate(_ func(*model.Mount)) {
 }
 
 // IterateNamespace iterates over the mounts of a given mount namespace and calls the callback function for each mount
-func (mr *NoOpResolver) IterateNamespace(_ uint32, _ func(*model.Mount)) {
+func (mr *NoOpResolver) IterateNamespace(_ uint32, _ uint32, _ func(*model.Mount)) {
 }
 
 // SetPidMntNs sets the pid mount namespace in the cache

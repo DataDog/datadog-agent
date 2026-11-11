@@ -1,0 +1,15 @@
+description: find -L with dangling symlink as starting path falls back to lstat.
+skip_assert_against_bash: true  # symlink setup differs
+setup:
+  files:
+    - path: dangling
+      symlink: nonexistent_target
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find -L dangling
+expect:
+  stdout: |+
+    dangling
+  stderr: ""
+  exit_code: 0

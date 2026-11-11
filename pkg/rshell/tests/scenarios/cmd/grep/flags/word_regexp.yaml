@@ -1,0 +1,19 @@
+description: grep -w matches only whole words.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        foobar
+        bar foo baz
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -w foo file.txt
+expect:
+  stdout: |+
+    foo
+    bar foo baz
+  stderr: ""
+  exit_code: 0

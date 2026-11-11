@@ -1,0 +1,11 @@
+description: Exit from a pipeline terminates the script with the exit code.
+input:
+  script: |+
+    echo hello | cat
+    exit 3
+    echo not reached
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 3

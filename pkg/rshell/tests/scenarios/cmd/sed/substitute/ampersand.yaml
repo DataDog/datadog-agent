@@ -1,0 +1,13 @@
+description: Ampersand in replacement refers to the matched text.
+setup:
+  files:
+    - path: input.txt
+      content: "foo bar\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/foo/[&]/' input.txt
+expect:
+  stdout: "[foo] bar\n"
+  stderr: ""
+  exit_code: 0

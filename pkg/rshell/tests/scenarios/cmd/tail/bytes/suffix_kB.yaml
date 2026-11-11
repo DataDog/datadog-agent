@@ -1,0 +1,13 @@
+description: tail -c 1kB outputs the last 1000 bytes (kB suffix = 1000).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -c 1kB file.txt
+expect:
+  stdout: "hello\nworld\n"
+  stderr: ""
+  exit_code: 0

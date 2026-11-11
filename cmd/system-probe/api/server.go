@@ -74,6 +74,10 @@ func StartServer(cfg *sysconfigtypes.Config, settings settings.Component, rcclie
 	// Register /coverage endpoint for computing code coverage (e2ecoverage build only).
 	coverage.SetupCoverageHandler(mux)
 
+	if cfg.PacketCaptureSocket != "" {
+		startPacketCaptureServer(cfg.PacketCaptureSocket, mux)
+	}
+
 	go func() {
 		err = http.Serve(conn, mux)
 		if err != nil && !errors.Is(err, http.ErrServerClosed) {

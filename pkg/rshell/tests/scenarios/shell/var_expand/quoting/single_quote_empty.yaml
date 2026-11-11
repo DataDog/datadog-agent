@@ -1,0 +1,8 @@
+description: Single quotes preserve content literally with no escaping.
+input:
+  script: |+
+    echo '' 'a' 'a\\b'
+expect:
+  stdout: " a a\\\\b\n"
+  stderr: ""
+  exit_code: 0

@@ -65,10 +65,10 @@ creates them only when `anomaly_detection.recording.enabled` is true.
 The writers buffer observations until each flush and hold their locks during
 disk writes. Periodic flush errors are logged; failed batches are not retried.
 
-**Testbench** (`internal/qbranch/anomalydetection-testbench/`) wires
+**Testbench** (`internal/anomalydetection/testbench/`) wires
 `observer/fx`, `recorder/fx-noop`, and `reporter/fx-testbench`. It replays
 scenarios from `observer/scenarios/` and has its own parquet tooling under
-`internal/qbranch/anomalydetection-testbench/bench/`.
+`internal/anomalydetection/testbench/bench/`.
 
 ```bash
 # Build the testbench binary
@@ -78,8 +78,13 @@ dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
 ```
 
-See `internal/qbranch/anomalydetection-testbench/README.md` for flags and
+See `internal/anomalydetection/testbench/README.md` for flags and
 headless/eval workflows.
+
+Local evaluation and testbench replay accept LLMObs recording datasets through
+`--dataset NAME_OR_UUID`, using the latest version. Dataset rows provide scenario
+names and recording ZIP references. `--local` replays existing files without
+LLMObs. See the testbench README for commands and the default dataset.
 
 ## Production Safety and Review Invariants
 
@@ -87,7 +92,7 @@ The live Agent is the primary constraint; testbench convenience must not affect
 its behavior or cost.
 
 - Keep replay/UI code and heavyweight dependencies in the testbench module.
-  Live packages must not import `internal/qbranch/anomalydetection-testbench`,
+  Live packages must not import `internal/anomalydetection/testbench`,
   `reporter/impl-testbench`, or `reporter/fx-testbench`.
 - Shared code must use bounded production defaults. Unbounded history or
   retention is allowed only through explicit testbench configuration such as
@@ -128,10 +133,11 @@ Production callers of `observer.GetHandle()` use statically-defined source names
 
 Both paths use shared filtering primitives from `internal/logsfilter/` inside
 the observer. Producer handles perform only cheap `MayAllowSource` and
-`min_severity` gates before copying the log snapshot and enqueueing to the
-observer channel; full `processing_rules` evaluation, priority rate limiting,
-and optional Parquet log recording happen asynchronously on the observer
-dispatch goroutine. The agent-internal logger callback performs only
+`min_severity` gates before snapshotting scalar log fields, retaining immutable
+tags, and enqueueing to the observer channel; full `processing_rules`
+evaluation, priority rate limiting, and optional Parquet log recording happen
+asynchronously on the observer dispatch goroutine. The agent-internal logger
+callback performs only
 self/severity gates and a bounded non-blocking enqueue; tag construction and
 JSON formatting run on the `agent_logs` worker outside `pkg/util/log`'s global
 logger lock.

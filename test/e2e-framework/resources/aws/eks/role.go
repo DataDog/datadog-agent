@@ -20,7 +20,7 @@ func GetNodeRole(e aws.Environment, name string) (*awsIam.Role, error) {
 		return nil, err
 	}
 
-	return awsIam.NewRole(e.Ctx(), e.Namer.ResourceName(name), &awsIam.RoleArgs{
+	role, err := awsIam.NewRole(e.Ctx(), e.Namer.ResourceName(name), &awsIam.RoleArgs{
 		Name:                e.CommonNamer().DisplayName(64, pulumi.String(name)),
 		Description:         pulumi.StringPtr("Node role for EKS Cluster: " + e.Ctx().Stack()),
 		ForceDetachPolicies: pulumi.BoolPtr(true),
@@ -31,7 +31,36 @@ func GetNodeRole(e aws.Environment, name string) (*awsIam.Role, error) {
 		}),
 		AssumeRolePolicy: pulumi.String(assumeRolePolicy.Json),
 	}, e.WithProviders(config.ProviderAWS))
+	if err != nil {
+		return nil, err
+	}
+
+	// The first pull of an image through a pull-through cache imports it into a new repository,
+	// which ReadOnly doesn't allow; without this, nodes can only pull images something else cached.
+	_, err = awsIam.NewRolePolicy(e.Ctx(), e.Namer.ResourceName(name, "pull-through-cache"), &awsIam.RolePolicyArgs{
+		Role:   role.Name,
+		Policy: pulumi.String(pullThroughCachePolicy),
+	}, e.WithProviders(config.ProviderAWS))
+	if err != nil {
+		return nil, err
+	}
+	return role, nil
 }
+
+// pullThroughCachePolicy allows importing into the pull-through cache prefixes behind
+// InternalDockerhubMirror and DatadogPublicRegistry
+const pullThroughCachePolicy = `{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Action": ["ecr:BatchImportUpstreamImage", "ecr:CreateRepository"],
+    "Resource": [
+      "arn:aws:ecr:*:*:repository/dockerhub/*",
+      "arn:aws:ecr:*:*:repository/ecr-public/*",
+      "arn:aws:ecr:*:*:repository/quay/*"
+    ]
+  }]
+}`
 
 func GetClusterRole(e aws.Environment, name string) (*awsIam.Role, error) {
 	assumeRolePolicy, err := iam.GetAWSPrincipalAssumeRole(e, []string{iam.EKSServicePrincipal})

@@ -8,14 +8,17 @@ package mock
 
 import (
 	"context"
+	"errors"
 	"testing"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 )
 
 // Mock is a mock implementation of the delegatedauth.Component interface
 type Mock struct {
-	AddInstanceFunc func(context.Context, delegatedauth.InstanceParams) error
+	GetWorkloadTokenFunc func(context.Context, string, common.WorkloadTokenRequest) (string, error)
+	AddInstanceFunc      func(context.Context, delegatedauth.InstanceParams) error
 }
 
 var _ delegatedauth.Component = (*Mock)(nil)
@@ -36,4 +39,12 @@ func (m *Mock) AddInstance(ctx context.Context, params delegatedauth.InstancePar
 		return m.AddInstanceFunc(ctx, params)
 	}
 	return nil
+}
+
+// GetWorkloadToken calls the mock function if set, otherwise reports unavailable.
+func (m *Mock) GetWorkloadToken(ctx context.Context, key string, request common.WorkloadTokenRequest) (string, error) {
+	if m.GetWorkloadTokenFunc != nil {
+		return m.GetWorkloadTokenFunc(ctx, key, request)
+	}
+	return "", errors.New("workload tokens are unavailable in the delegated auth mock")
 }

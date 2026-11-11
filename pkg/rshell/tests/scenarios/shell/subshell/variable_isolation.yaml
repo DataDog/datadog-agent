@@ -1,0 +1,12 @@
+description: Subshell variable changes do not affect parent.
+input:
+  script: |+
+    x=before
+    (x=inside; echo "$x")
+    echo "$x"
+expect:
+  stdout: |+
+    inside
+    before
+  stderr: ""
+  exit_code: 0

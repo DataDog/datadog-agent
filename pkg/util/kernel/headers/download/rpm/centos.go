@@ -69,44 +69,26 @@ func NewCentOSBackend(target *types.Target, reposDir string, logger types.Logger
 	version, _ := strconv.Atoi(strings.SplitN(release, ".", 2)[0])
 	versionStr := strconv.Itoa(version)
 
+	// CentOS < 8 packages are signed with keys and signature formats we cannot
+	// verify, so we disable kernel header download on those systems.
+	if version < 8 {
+		return nil, fmt.Errorf("kernel header download is not supported on CentOS %s because its packages cannot be authenticated; install the kernel-devel package matching the running kernel on the host instead", release)
+	}
+
 	b, err := dnfv2.NewBackend(versionStr, reposDir)
 	if err != nil {
 		return nil, err
 	}
 
-	if version >= 8 {
-		gpgKey := "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"
-		baseURL := fmt.Sprintf("http://vault.centos.org/%s/BaseOS/$basearch/os/", release)
-		b.AppendRepository(repo.Repo{
-			Name:     fmt.Sprintf("C%s-base", release),
-			BaseURL:  baseURL,
-			Enabled:  true,
-			GpgCheck: true,
-			GpgKeys:  []string{gpgKey},
-		})
-	} else {
-		var baseURL, updatesURL string
-		switch target.Uname.Machine {
-		case "x86_64":
-			baseURL = fmt.Sprintf("http://vault.centos.org/%s/os/$basearch/", release)
-			updatesURL = fmt.Sprintf("http://vault.centos.org/%s/updates/$basearch/", release)
-		default:
-			baseURL = fmt.Sprintf("http://vault.centos.org/altarch/%s/os/$basearch/", release)
-			updatesURL = fmt.Sprintf("http://vault.centos.org/altarch/%s/updates/$basearch/", release)
-		}
-		b.AppendRepository(repo.Repo{
-			Name:     fmt.Sprintf("C%s-base", release),
-			BaseURL:  baseURL,
-			Enabled:  true,
-			GpgCheck: false,
-		})
-		b.AppendRepository(repo.Repo{
-			Name:     fmt.Sprintf("C%s-updates", release),
-			BaseURL:  updatesURL,
-			Enabled:  true,
-			GpgCheck: false,
-		})
-	}
+	gpgKey := "file:///etc/pki/rpm-gpg/RPM-GPG-KEY-centosofficial"
+	baseURL := fmt.Sprintf("http://vault.centos.org/%s/BaseOS/$basearch/os/", release)
+	b.AppendRepository(repo.Repo{
+		Name:     fmt.Sprintf("C%s-base", release),
+		BaseURL:  baseURL,
+		Enabled:  true,
+		GpgCheck: true,
+		GpgKeys:  []string{gpgKey},
+	})
 
 	return &CentOSBackend{
 		target:     target,

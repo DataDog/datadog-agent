@@ -1,0 +1,16 @@
+description: ps accepts repeated custom resource formats and signed multi-key sorting.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -o pid,ppid -o pcpu,pmem,rss,vsz,etime,comm --sort=-rss,+pid
+expect:
+  stdout_contains:
+    - "PID"
+    - "PPID"
+    - "%CPU"
+    - "%MEM"
+    - "RSS"
+    - "VSZ"
+    - "ELAPSED"
+    - "COMMAND"
+  exit_code: 0

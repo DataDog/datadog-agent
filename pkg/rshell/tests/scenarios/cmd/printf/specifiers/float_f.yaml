@@ -1,0 +1,9 @@
+description: Printf %f specifier outputs a floating point number with default precision.
+input:
+  script: |+
+    printf "%f\n" 3.14
+expect:
+  stdout: |+
+    3.140000
+  stderr: ""
+  exit_code: 0

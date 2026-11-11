@@ -54,9 +54,16 @@ type SeccompFilterResult struct {
 	Syscalls      map[string]SyscallRule
 }
 
-// defaultSeccompRoot is the kubelet seccomp root that Localhost profile paths
-// are resolved against.
-const defaultSeccompRoot = "/var/lib/kubelet/seccomp"
+// defaultKubeletRootDir is the kubelet --root-dir default.
+const defaultKubeletRootDir = "/var/lib/kubelet"
+
+// kubeletInfo holds the flags of the running kubelet.
+type kubeletInfo struct {
+	pid            string
+	rootDir        string
+	configPath     string
+	seccompDefault *bool
+}
 
 // ociSeccompProfile mirrors the on-disk Kubernetes/OCI seccomp profile JSON.
 type ociSeccompProfile struct {
@@ -78,14 +85,17 @@ type ociSeccompArg struct {
 
 // readLocalhostSeccompProfile reads and parses the Localhost seccomp profile
 // referenced by localhostPath (relative to the kubelet seccomp root).
-func readLocalhostSeccompProfile(localhostPath string) (*SeccompFilterResult, error) {
+func readLocalhostSeccompProfile(kubelet *kubeletInfo, localhostPath string) (*SeccompFilterResult, error) {
 	if localhostPath == "" {
 		return nil, errors.New("empty localhost profile path")
 	}
-	path := seccompProfilePath(localhostPath)
-	data, err := os.ReadFile(path)
+	rootDir := defaultKubeletRootDir
+	if kubelet != nil {
+		rootDir = kubelet.rootDir
+	}
+	path, data, err := readHostFile(kubelet, filepath.Join(rootDir, "seccomp", localhostPath))
 	if err != nil {
-		return nil, fmt.Errorf("read seccomp profile %s: %w", path, err)
+		return nil, fmt.Errorf("read seccomp profile %s: %w", localhostPath, err)
 	}
 	var prof ociSeccompProfile
 	if err := json.Unmarshal(data, &prof); err != nil {
@@ -94,12 +104,42 @@ func readLocalhostSeccompProfile(localhostPath string) (*SeccompFilterResult, er
 	return ociToFilterResult(&prof), nil
 }
 
-func seccompProfilePath(localhostPath string) string {
-	root := defaultSeccompRoot
-	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
-		root = filepath.Join(hostRoot, root)
+// hostRoots returns the prefixes under which a host path may be reachable,
+// most reliable first. The kubelet's root comes first since it may itself run
+// in a container (e.g. kind nodes).
+func hostRoots(kubelet *kubeletInfo) []string {
+	var roots []string
+	if kubelet != nil && kubelet.pid != "" {
+		roots = append(roots, filepath.Join(procDir(), kubelet.pid, "root"))
 	}
-	return filepath.Join(root, localhostPath)
+	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
+		roots = append(roots, hostRoot)
+	}
+	return append(roots, filepath.Join(procDir(), "1", "root"), "/")
+}
+
+// readHostFile reads hostPath under the first host root where it is readable.
+func readHostFile(kubelet *kubeletInfo, hostPath string) (string, []byte, error) {
+	roots := hostRoots(kubelet)
+	var firstErr error
+	for _, root := range roots {
+		path := filepath.Join(root, hostPath)
+		data, err := os.ReadFile(path)
+		if err == nil {
+			return path, data, nil
+		}
+		if firstErr == nil {
+			firstErr = err
+		}
+	}
+	return "", nil, fmt.Errorf("%s not readable under host roots %v: %w", hostPath, roots, firstErr)
+}
+
+func procDir() string {
+	if v := os.Getenv("HOST_PROC"); v != "" {
+		return v
+	}
+	return "/proc"
 }
 
 func ociToFilterResult(prof *ociSeccompProfile) *SeccompFilterResult {
@@ -181,26 +221,24 @@ func scmpOp(op string) string {
 	}
 }
 
-const kubeletConfigPath = "/var/lib/kubelet/config.yaml"
-
 // kubeletSeccompDefaultEnabled reports whether the node's kubelet applies the
 // RuntimeDefault seccomp profile to workloads that declare none. The kubelet
 // resolves this from the --seccomp-default flag (which wins) or the
 // seccompDefault field in its config file. Returns false when it can't be
 // determined, so callers leave the undeclared case unknown rather than guess.
-func kubeletSeccompDefaultEnabled() bool {
-	if v, found := kubeletFlagSeccompDefault(); found {
-		return v
+func kubeletSeccompDefaultEnabled(kubelet *kubeletInfo) bool {
+	if kubelet != nil && kubelet.seccompDefault != nil {
+		return *kubelet.seccompDefault
 	}
-	return kubeletConfigSeccompDefault()
+	return kubeletConfigSeccompDefault(kubelet)
 }
 
-func kubeletConfigSeccompDefault() bool {
-	path := kubeletConfigPath
-	if hostRoot := os.Getenv("HOST_ROOT"); hostRoot != "" {
-		path = filepath.Join(hostRoot, path)
+func kubeletConfigSeccompDefault(kubelet *kubeletInfo) bool {
+	path := filepath.Join(defaultKubeletRootDir, "config.yaml")
+	if kubelet != nil && kubelet.configPath != "" {
+		path = kubelet.configPath
 	}
-	data, err := os.ReadFile(path)
+	_, data, err := readHostFile(kubelet, path)
 	if err != nil {
 		return false
 	}
@@ -213,16 +251,12 @@ func kubeletConfigSeccompDefault() bool {
 	return cfg.SeccompDefault != nil && *cfg.SeccompDefault
 }
 
-// kubeletFlagSeccompDefault looks for a --seccomp-default flag on the running
-// kubelet process. found is false when no kubelet process is located.
-func kubeletFlagSeccompDefault() (val bool, found bool) {
-	proc := "/proc"
-	if v := os.Getenv("HOST_PROC"); v != "" {
-		proc = v
-	}
+// findKubelet returns the running kubelet's flags, or nil if none is found.
+func findKubelet() *kubeletInfo {
+	proc := procDir()
 	entries, err := os.ReadDir(proc)
 	if err != nil {
-		return false, false
+		return nil
 	}
 	for _, e := range entries {
 		if !e.IsDir() {
@@ -231,23 +265,50 @@ func kubeletFlagSeccompDefault() (val bool, found bool) {
 		if _, err := strconv.Atoi(e.Name()); err != nil {
 			continue
 		}
-		data, err := os.ReadFile(filepath.Join(proc, e.Name(), "cmdline"))
-		if err != nil {
-			continue
+		if args, ok := kubeletArgs(e.Name()); ok {
+			return parseKubeletArgs(e.Name(), args)
 		}
-		args := strings.Split(string(data), "\x00")
-		if len(args) == 0 || filepath.Base(args[0]) != "kubelet" {
-			continue
-		}
-		for _, a := range args {
-			if a == "--seccomp-default" {
-				return true, true
-			}
-			if v, ok := strings.CutPrefix(a, "--seccomp-default="); ok {
-				return v == "true" || v == "1", true
-			}
-		}
-		return false, true // kubelet found, flag not set
 	}
-	return false, false
+	return nil
+}
+
+// kubeletArgs returns the arguments of pid if it is a kubelet process.
+func kubeletArgs(pid string) ([]string, bool) {
+	data, err := os.ReadFile(filepath.Join(procDir(), pid, "cmdline"))
+	if err != nil {
+		return nil, false
+	}
+	args := strings.Split(strings.TrimRight(string(data), "\x00"), "\x00")
+	if filepath.Base(args[0]) != "kubelet" {
+		return nil, false
+	}
+	return args[1:], true
+}
+
+func parseKubeletArgs(pid string, args []string) *kubeletInfo {
+	info := &kubeletInfo{pid: pid, rootDir: defaultKubeletRootDir}
+	for i, a := range args {
+		name, value, hasValue := strings.Cut(a, "=")
+		switch name {
+		case "--seccomp-default":
+			v := !hasValue || value == "true" || value == "1"
+			info.seccompDefault = &v
+		case "--root-dir", "--config":
+			if !hasValue {
+				if i+1 >= len(args) {
+					continue
+				}
+				value = args[i+1]
+			}
+			if value == "" {
+				continue
+			}
+			if name == "--root-dir" {
+				info.rootDir = value
+			} else {
+				info.configPath = value
+			}
+		}
+	}
+	return info
 }

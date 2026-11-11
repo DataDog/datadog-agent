@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix an issue where a cgroup directory disappearing while the Agent was
+    discovering cgroups at startup (for example, a short-lived systemd session
+    scope) could permanently disable container ID resolution for PIDs and inodes.
+    This caused APM traces to be missing container tags.

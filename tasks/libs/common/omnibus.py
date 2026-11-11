@@ -201,9 +201,9 @@ def _hash_paths(hasher, paths: list[str]):
 
 def get_dd_api_key(ctx):
     if sys.platform == 'win32':
-        cmd = f'C:\\devtools\\ci-identities-gitlab-job-client.exe secrets read {os.environ["AGENT_API_KEY_ORG2"]} token'
+        cmd = f'powershell.exe -NoLogo -NoProfile -NonInteractive -File tools\\ci\\read_ci_secret.ps1 {os.environ["AGENT_API_KEY_ORG2"]} token'
     elif sys.platform == 'darwin':
-        cmd = f'ci-identities-gitlab-job-client secrets read {os.environ["AGENT_API_KEY_ORG2"]} token'
+        cmd = f'tools/ci/read_ci_secret.sh {os.environ["AGENT_API_KEY_ORG2"]} token'
     else:
         cmd = f'vault kv get -field=token kv/k8s/{os.environ["POD_NAMESPACE"]}/datadog-agent/{os.environ["AGENT_API_KEY_ORG2"]}'
     return ctx.run(cmd, hide=True).stdout.strip()

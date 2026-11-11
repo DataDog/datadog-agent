@@ -31,7 +31,7 @@ static __always_inline void store_ring_buffer_stats() {
 }
 #endif
 
-static __always_inline void send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
+static __always_inline int send_event_with_size_ptr(void *ctx, u64 event_type, void *kernel_event, u64 kernel_event_size) {
     struct kevent_t *header = kernel_event;
     header->type = event_type;
     header->timestamp = bpf_ktime_get_ns();
@@ -62,6 +62,8 @@ static __always_inline void send_event_with_size_ptr(void *ctx, u64 event_type, 
             }
         }
     }
+
+    return perf_ret;
 }
 
 #define send_event(ctx, event_type, kernel_event) ({                \

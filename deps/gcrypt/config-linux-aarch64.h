@@ -16,7 +16,7 @@
 #define BUILD_COMMITID ""
 
 /* GIT shortened commit id used to build this package */
-#define BUILD_REVISION "efc34643"
+#define BUILD_REVISION "9a53b017"
 
 /* The time this package was configured for a build */
 #define BUILD_TIMESTAMP "<none>"
@@ -163,6 +163,9 @@
 /* Defined if underlying compiler supports RISC-V vector intrinsics with extra
    GCC flags */
 /* #undef HAVE_COMPATIBLE_CC_RISCV_VECTOR_INTRINSICS_WITH_CFLAGS */
+
+/* Defined if underlying compiler has RISC-V Zicclsm extension enabled */
+/* #undef HAVE_COMPATIBLE_CC_RISCV_ZICCLSM_ENABLED */
 
 /* Defined if underlying compiler supports x86/AVX512 intrinsics */
 /* #undef HAVE_COMPATIBLE_CC_X86_AVX512_INTRINSICS */
@@ -352,8 +355,20 @@
 /* Defined if inline assembler supports zSeries vector instructions */
 /* #undef HAVE_GCC_INLINE_ASM_S390X_VX */
 
+/* Defined if inline assembler supports Intel SHA512 instructions */
+/* #undef HAVE_GCC_INLINE_ASM_SHA512 */
+
 /* Defined if inline assembler supports SHA Extensions instructions */
 /* #undef HAVE_GCC_INLINE_ASM_SHAEXT */
+
+/* Defined if inline assembler supports Intel SM3 instructions */
+/* #undef HAVE_GCC_INLINE_ASM_SM3 */
+
+/* Defined if inline assembler supports Intel SM4 instructions */
+/* #undef HAVE_GCC_INLINE_ASM_SM4 */
+
+/* Defined if inline assembler supports AVX512 Intel SM4 instructions */
+/* #undef HAVE_GCC_INLINE_ASM_SM4_AVX512 */
 
 /* Defined if inline assembler supports SSE4.1 instructions */
 /* #undef HAVE_GCC_INLINE_ASM_SSE41 */
@@ -556,7 +571,7 @@
 #define PACKAGE_NAME "libgcrypt"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "libgcrypt 1.12.2"
+#define PACKAGE_STRING "libgcrypt 1.12.4"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "libgcrypt"
@@ -565,7 +580,7 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.12.2"
+#define PACKAGE_VERSION "1.12.4"
 
 /* A human readable text with the name of the OS */
 #define PRINTABLE_OS_NAME "GNU/Linux"
@@ -823,7 +838,7 @@
 #define USE_WHIRLPOOL 1
 
 /* Version number of package */
-#define VERSION "1.12.2"
+#define VERSION "1.12.4"
 
 /* Defined if compiled symbols have a leading underscore */
 /* #undef WITH_SYMBOL_UNDERSCORE */

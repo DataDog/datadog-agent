@@ -1,0 +1,10 @@
+description: '`tail -c bad -n nope` reports the FIRST invalid mode flag in argv order — mirrors head. modeFlag.invalidPos preserves which Set call recorded the failure, so the handler picks the earlier one regardless of check order in code.'
+input:
+  script: |+
+    tail -c bad -n nope; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    tail: invalid number of bytes: 'bad'
+  exit_code: 0

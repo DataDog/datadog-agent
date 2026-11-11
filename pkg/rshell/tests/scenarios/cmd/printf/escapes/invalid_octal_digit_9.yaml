@@ -1,0 +1,7 @@
+description: "\\9 is not valid octal, output as literal backslash-9."
+input:
+  script: |+
+    printf '\9'
+expect:
+  stdout: "\\9"
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: The Q command quits without printing the current line.
+setup:
+  files:
+    - path: input.txt
+      content: "line1\nline2\nline3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed '2Q' input.txt
+expect:
+  stdout: "line1\n"
+  stderr: ""
+  exit_code: 0

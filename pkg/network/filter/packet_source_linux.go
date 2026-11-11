@@ -198,6 +198,12 @@ func visitPackets(p zeroCopyPacketReader, visit AFPacketVisitor) error {
 			return nil
 		}
 
+		// Corrupted packets are skipped, we count them as dropped
+		if errors.Is(err, afpacket.ErrCorruptedPacket) {
+			packetSourceTelemetry.dropped.Add(1)
+			continue
+		}
+
 		if err != nil {
 			return err
 		}

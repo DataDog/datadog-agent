@@ -1,0 +1,7 @@
+description: Negative star width left-aligns the output.
+input:
+  script: |+
+    printf "%*s|\n" -10 hi
+expect:
+  stdout: "hi        |\n"
+  exit_code: 0

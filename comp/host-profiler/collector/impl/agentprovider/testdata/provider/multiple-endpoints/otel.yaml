@@ -21,6 +21,8 @@ processors:
         allow_hostname_override: true
 receivers:
     profiling:
+        filter_min_process_age: 0s
+        reporter_interval: 1m0s
         send_error_frames: false
         symbol_uploader:
             enabled: true

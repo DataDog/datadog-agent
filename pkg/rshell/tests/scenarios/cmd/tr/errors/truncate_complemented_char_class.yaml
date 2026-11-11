@@ -1,0 +1,8 @@
+description: tr rejects -tc with complemented character classes even with single-byte STRING2.
+input:
+  script: |+
+    echo test | tr -tc '[:lower:]' x
+expect:
+  stdout: ""
+  stderr: "tr: when translating with complemented character classes,\nstring2 must map all characters in the domain to one\n"
+  exit_code: 1

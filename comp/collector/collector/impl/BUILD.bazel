@@ -8,7 +8,7 @@ go_library(
         "collector.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/collector/collector/impl",
-    tags = ["manual"],  # keep
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = [
         "//cmd/agent/common",
@@ -39,6 +39,7 @@ go_library(
         "//pkg/collector/sharedlibrary/sharedlibraryimpl",
         "//pkg/jmxfetch",
         "//pkg/serializer",
+        "//pkg/serializer/marshaler",
         "//pkg/status/collector",
         "//pkg/status/jmx",
         "//pkg/util/fxutil",

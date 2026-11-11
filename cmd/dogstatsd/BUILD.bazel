@@ -124,7 +124,6 @@ go_library(
 
 dd_agent_go_binary(
     name = "dogstatsd",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/dogstatsd/windows_resources:rsrc"],
         "//conditions:default": [],

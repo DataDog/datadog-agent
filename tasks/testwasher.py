@@ -254,8 +254,6 @@ def generate_flake_finder_pipeline(ctx, n=3, generate_config=False):
                 job["needs"],
                 deps_to_keep=[
                     "go_e2e_deps",
-                    "tests_windows_sysprobe_x64",
-                    "tests_windows_secagent_x64",
                     "go_e2e_test_binaries",
                     "go_tools_deps",
                 ],

@@ -9,6 +9,8 @@
 ## Unreleased
 <!-- Add entries here for changes not yet in a release. -->
 
+- Refuse to install Agent 7 when the legacy Datadog Unix Agent (fileset `datadog-unix-agent`) is installed, since the two share `/opt/datadog-agent`, the `dd-agent` user, and the `datadog-agent` SRC subsystem and cannot coexist. The install script (`install_aix.sh`) and the BFF's pre-installation script abort fresh installs with a message warning that uninstalling the Unix Agent deletes its configuration under `/etc/datadog-agent` and suggesting to save a backup copy for reference (the Unix Agent and Agent 7 use different configuration formats), then remove it with `installp -u datadog-unix-agent`.
+
 --
 
 ## 7.84.0-devel.git.1552.365acb6-1 (2026-09-29)

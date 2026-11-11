@@ -302,12 +302,10 @@ func (suite *baseSuite[Env]) testLog(args *testLogArgs) {
 				//                            combined (e.g. multiline:auto_multiline, multiline:go_stack).
 				//                            auto_multi_line_detection defaults to true, so any log
 				//                            line may carry this tag depending on its content.
-				//   - auto_multiline_detected:*  added when a multi-line group start is detected.
 				//   - truncated:*            added when a log line is truncated.
 				optionalTags := []*regexp.Regexp{
 					regexp.MustCompile("logsource:.*"),
 					regexp.MustCompile("multiline:.*"),
-					regexp.MustCompile("auto_multiline_detected:.*"),
 					regexp.MustCompile("truncated:.*"),
 				}
 				err := assertTags(logs[len(logs)-1].GetTags(), expectedTags, optionalTags, false)

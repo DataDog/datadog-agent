@@ -38,6 +38,8 @@ datadog:
 	t.Parallel()
 	e2e.Run(t, &spanDerivedPrimaryTagsTestSuite{}, e2e.WithProvisioner(
 		provkindvm.Provisioner(provkindvm.WithRunOptions(
+			// TODO: Mirror Kubernetes component and workload images internally.
+			scenkindvm.WithInternetAccess(),
 			scenkindvm.WithAgentOptions(
 				kubernetesagentparams.WithHelmValues(values),
 				kubernetesagentparams.WithOTelAgent(),

@@ -1,0 +1,14 @@
+description: grep -q produces no output but sets exit code.
+setup:
+  files:
+    - path: input.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -q 'hello' input.txt
+    echo $?
+expect:
+  stdout: "0\n"
+  stderr: ""
+  exit_code: 0

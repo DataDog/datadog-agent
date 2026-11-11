@@ -45,6 +45,7 @@ func (s *eudmSuite) getSuiteOptions() []e2e.SuiteOption {
 	// (checks with ad_identifiers: [_end_user_device] are scheduled)
 	agentOptions := []agentparams.Option{
 		agentparams.WithAgentConfig(`infrastructure_mode: "end_user_device"
+hostname_use_serial: true
 host_aliases: ["eudm-test-alias"]`),
 	}
 

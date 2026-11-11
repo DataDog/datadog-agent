@@ -1,0 +1,13 @@
+description: cd to a directory (non-dash form) writes nothing to stdout on success.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd child
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -40,6 +40,7 @@ dd_agent_go_test(
     srcs = [
         "environment_containers_test.go",
         "environment_detection_test.go",
+        "environment_test.go",
     ],
     embed = [":env"],
     deps = [

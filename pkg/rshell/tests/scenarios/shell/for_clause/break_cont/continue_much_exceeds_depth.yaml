@@ -1,0 +1,11 @@
+description: Continue with much larger than nesting level continues the outermost loop.
+input:
+  script: |+
+    for i in 1; do
+      continue 100
+      echo not reached
+    done
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

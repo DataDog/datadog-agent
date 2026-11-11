@@ -195,6 +195,79 @@ func TestAddCGroup_PodOnlyContextIsNotAContainer(t *testing.T) {
 	assert.NotNil(t, resolver.GetCacheEntryByCgroupID(cacheEntry.GetCGroupID()), "a pod-only entry is tracked as a host cgroup")
 }
 
+var ecsTaskIDTestCases = []struct {
+	name        string
+	cgroupID    containerutils.CGroupID
+	containerID containerutils.ContainerID
+	ecsTaskID   string
+}{
+	{
+		name:        "cgroup v1",
+		cgroupID:    "/ecs/409b8b89ccd746bdb9b5e03418406d96/c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+		containerID: "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+		ecsTaskID:   "409b8b89ccd746bdb9b5e03418406d96",
+	},
+	{
+		name:        "cgroup v2",
+		cgroupID:    "/ecstasks.slice/ecstasks-409b8b89ccd746bdb9b5e03418406d96.slice/docker-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+		containerID: "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+		ecsTaskID:   "409b8b89ccd746bdb9b5e03418406d96",
+	},
+	{
+		name:        "container outside of an ECS task",
+		cgroupID:    "/system.slice/docker-c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad.scope",
+		containerID: "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad",
+	},
+}
+
+func TestAddCGroup_ECSTaskID(t *testing.T) {
+	for i, tc := range ecsTaskIDTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolver, _ := createTestResolver(t)
+
+			cacheEntry := resolver.Add(model.CGroupContext{
+				CGroupID: tc.cgroupID,
+				CGroupPathKey: model.PathKey{
+					MountID: 42,
+					Inode:   uint64(9876 + i),
+				},
+				CGroupSource: model.CGroupSourceEvent,
+			})
+
+			require.NotNil(t, cacheEntry)
+			assert.Equal(t, tc.containerID, cacheEntry.GetContainerID())
+			assert.Equal(t, tc.ecsTaskID, cacheEntry.GetContainerContext().ECSTaskID)
+		})
+	}
+}
+
+func TestResolvePidCgroupFallback_ECSTaskID(t *testing.T) {
+	for i, tc := range ecsTaskIDTestCases {
+		t.Run(tc.name, func(t *testing.T) {
+			resolver, mockFS := createTestResolver(t)
+
+			pid := uint32(1234 + i)
+			mockFS.On("FindCGroupContext", pid, pid).Return(
+				tc.containerID,
+				utils.CGroupContext{
+					CGroupID:          tc.cgroupID,
+					CGroupFileMountID: 42,
+					CGroupFileInode:   uint64(9876 + i),
+				},
+				"/sys/fs/cgroup/test",
+				nil,
+			)
+
+			cacheEntry := resolver.resolveFromFallback(pid)
+			require.NotNil(t, cacheEntry)
+			assert.Equal(t, tc.containerID, cacheEntry.GetContainerID())
+			assert.Equal(t, tc.ecsTaskID, cacheEntry.GetContainerContext().ECSTaskID)
+
+			mockFS.AssertExpectations(t)
+		})
+	}
+}
+
 func TestResolvePidCgroupFallback_CompleteFailure(t *testing.T) {
 	resolver, mockFS := createTestResolver(t)
 

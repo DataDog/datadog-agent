@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Register the pan_firewall metric origin for Agent-side serialization.

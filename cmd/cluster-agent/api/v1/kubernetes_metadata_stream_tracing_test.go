@@ -23,34 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
-	"google.golang.org/grpc/metadata"
 )
-
-// mockStream implements pb.AgentSecure_StreamKubeMetadataServer for testing.
-type mockStream struct {
-	ctx      context.Context
-	sent     []*pb.KubeMetadataStreamResponse
-	sendErr  error
-	sendFunc func(*pb.KubeMetadataStreamResponse) error // optional per-call control
-}
-
-func (m *mockStream) Send(resp *pb.KubeMetadataStreamResponse) error {
-	if m.sendFunc != nil {
-		return m.sendFunc(resp)
-	}
-	if m.sendErr != nil {
-		return m.sendErr
-	}
-	m.sent = append(m.sent, resp)
-	return nil
-}
-
-func (m *mockStream) Context() context.Context     { return m.ctx }
-func (m *mockStream) SetHeader(metadata.MD) error  { return nil }
-func (m *mockStream) SendHeader(metadata.MD) error { return nil }
-func (m *mockStream) SetTrailer(metadata.MD)       {}
-func (m *mockStream) SendMsg(interface{}) error    { return nil }
-func (m *mockStream) RecvMsg(interface{}) error    { return nil }
 
 func newTestWmetaAndStore(t *testing.T) (workloadmetamock.Mock, *controllers.MetaBundleStore) {
 	t.Helper()

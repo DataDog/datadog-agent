@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+other:
+  - |
+    Update ``security-agent-policies`` to v0.86.0, whose CIS frameworks
+    follow the latest CIS Benchmark versions for Ubuntu, Red Hat
+    Enterprise Linux, AlmaLinux, Amazon Linux and Docker.

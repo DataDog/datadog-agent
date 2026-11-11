@@ -1,0 +1,15 @@
+description: Multiple statements in then body all execute.
+input:
+  script: |+
+    if true; then
+      echo one
+      echo two
+      echo three
+    fi
+expect:
+  stdout: |+
+    one
+    two
+    three
+  stderr: ""
+  exit_code: 0

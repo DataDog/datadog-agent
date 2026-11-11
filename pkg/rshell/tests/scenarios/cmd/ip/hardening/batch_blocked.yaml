@@ -1,0 +1,11 @@
+# GTFOBins: ip -batch FILE / ip -B FILE reads and executes ip commands from a file.
+# These flags must be rejected; pflag will reject -b and -B as unknown flags.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip -b (batch mode) is rejected as unknown flag (GTFOBins file-read vector)"
+input:
+  script: |+
+    ip -b /tmp/cmds addr show
+expect:
+  stderr: "ip: invalid option -- 'b'\nTry 'ip --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

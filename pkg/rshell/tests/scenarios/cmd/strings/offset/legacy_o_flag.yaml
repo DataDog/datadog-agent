@@ -1,0 +1,13 @@
+description: strings -o is a legacy alias for -t o (octal offsets).
+setup:
+  files:
+    - path: data.bin
+      content: "hello_here\nworld_too\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -o data.bin
+expect:
+  stdout: "      0 hello_here\n     13 world_too\n"
+  stderr: ""
+  exit_code: 0

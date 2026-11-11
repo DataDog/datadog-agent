@@ -1,0 +1,78 @@
+---
+.rshell:rules:
+  - !reference [.except_disable_unit_tests]
+  - !reference [.except_light_pipeline]
+  - !reference [.on_main_or_release_branch]
+  - if: $RUN_UNIT_TESTS == "on"
+  - changes:
+      paths:
+        - pkg/rshell/**/*
+        - .gitlab/test/rshell.yml
+        - .gitlab/build/bazel/defs.yml
+        - .gitlab-ci.yml
+        - tasks/rshell.py
+        - tasks/fuzz.py
+        - tasks/fuzz_infra.py
+        - tasks/__init__.py
+        - tasks/build_tags.*
+        - tasks/gotest.py
+        - tasks/libs/build/bazel.py
+        - tasks/schema/**/*
+        - pkg/config/schema/**/*
+        - .go-version
+        - go.mod
+        - go.sum
+        - go.work
+        - modules.yml
+        - .bazelrc
+        - .bazelversion
+        - MODULE.bazel*
+        - bazel/**/*
+        - tools/bazel
+      compare_to: $COMPARE_TO_BRANCH
+
+.rshell:base:
+  extends: .bazel:runner:linux-amd64
+  stage: source_test
+  rules: !reference [.rshell:rules]
+
+rshell:checks:
+  extends: .rshell:base
+  timeout: 30m
+  script:
+    - dda inv -- rshell.verify-source-files
+    - make -C pkg/rshell compliance
+
+rshell:bash:
+  extends: .rshell:base
+  # The linux build image has no Docker CLI; docker_x64 has both Docker and Bazel.
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$CI_IMAGE_DOCKER_X64_SUFFIX:$CI_IMAGE_DOCKER_X64
+  tags: ["docker-in-docker:amd64"]
+  timeout: 30m
+  variables:
+    # Pull Debian from our mirror rather than Docker Hub, which rate-limits CI.
+    RSHELL_BASH_IMAGE: registry.ddbuild.io/images/mirror/debian:bookworm-slim
+  script:
+    - docker info
+    - make -C pkg/rshell test_against_bash
+
+rshell:fuzz:
+  extends: .rshell:base
+  timeout: 30m
+  variables:
+    RSHELL_BASH_TEST: "1"
+    # Keep the Go module cache under the path .bazel:defs:cache:progressive caches.
+    GOMODCACHE: $CI_PROJECT_DIR/.cache/go/mod
+  before_script:
+    - GOTOOLCHAIN="go$(cat .go-version)"
+    - export GOTOOLCHAIN
+    - go version
+    - for command in cat head tail wc; do "$command" --version; done
+  script:
+    # Fuzz every target in this one job, 8 at a time (the job gets 8 to 16 CPUs).
+    - dda inv fuzz --targets=pkg/rshell --fuzztime=30s --jobs=8
+  artifacts:
+    when: on_failure
+    paths:
+      - pkg/rshell/**/testdata/fuzz/
+    expire_in: 1 week

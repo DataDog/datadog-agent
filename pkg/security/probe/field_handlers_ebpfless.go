@@ -204,9 +204,16 @@ func (fh *EBPFLessFieldHandlers) ResolveProcessContainerID(ev *model.Event, _ *m
 	return fh.ResolveContainerID(ev, &ev.ProcessContext.Process.ContainerContext)
 }
 
-// ResolveProcessCreatedAt resolves process creation time
+// ResolveProcessCreatedAt resolves the image time, or procfs birth time when no
+// exec was observed. Unknown times must not expose time.Time's zero-year value.
 func (fh *EBPFLessFieldHandlers) ResolveProcessCreatedAt(_ *model.Event, e *model.Process) int {
-	return int(e.ExecTime.UnixNano())
+	if !e.ExecTime.IsZero() {
+		return int(e.ExecTime.UnixNano())
+	}
+	if !e.ForkTime.IsZero() {
+		return int(e.ForkTime.UnixNano())
+	}
+	return 0
 }
 
 // ResolveAsync resolves the async flag
@@ -447,8 +454,10 @@ func (fh *EBPFLessFieldHandlers) ResolveSyscallCtxArgs(_ *model.Event, e *model.
 	e.Resolved = false
 }
 
-// ResolveSpanContext resolves the span context of the event.
+// ResolveSpanContext resolves the span context of the event
 func (fh *EBPFLessFieldHandlers) ResolveSpanContext(ev *model.Event) *model.SpanContext {
+	propagateSpanContext(ev)
+
 	return &ev.SpanContext
 }
 

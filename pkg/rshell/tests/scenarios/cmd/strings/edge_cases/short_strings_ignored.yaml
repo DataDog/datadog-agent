@@ -1,0 +1,13 @@
+description: strings ignores printable sequences shorter than minimum length.
+setup:
+  files:
+    - path: data.dat
+      content: "\x00abc\x00defg\x00hi\x00jklm\x00"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings data.dat
+expect:
+  stdout: "defg\njklm\n"
+  stderr: ""
+  exit_code: 0

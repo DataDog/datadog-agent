@@ -1,0 +1,28 @@
+# With no read grant the filter surface is still parsed and still lists nothing.
+skip_assert_against_bash: true
+description: systemctl list filters never widen an empty read allowlist
+input:
+  mode: remediation
+  script: |+
+    systemctl list-units
+    systemctl --all
+    systemctl list-units --type=service --state=active
+    systemctl list-units --state=loaded,active,running
+    systemctl list-units --state=active --state=failed
+    systemctl -a -t service
+expect:
+  stdout: |+
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+    UNIT LOAD ACTIVE SUB DESCRIPTION
+    0 units listed (restricted to units granted read access).
+  stderr: |+
+  exit_code: 0

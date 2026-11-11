@@ -12,7 +12,7 @@ package(default_package_metadata = [
     ":ship_source_offer",
 ])
 
-_VERSION = "2.5.1"
+_VERSION = "2.6.0"
 
 package_metadata(
     name = "package_metadata",
@@ -76,12 +76,10 @@ cc_library(
         "libattr/attr_copy_fd.c",
         "libattr/attr_copy_file.c",
         "libattr/libattr.c",
-        "libattr/libattr.h",
         "libattr/syscalls.c",
     ],
     hdrs = _PUBLIC_HEADERS,
     copts = [
-        "-include $(execpath libattr/libattr.h)",
         "-O2",
     ],
     implementation_deps = [
@@ -122,7 +120,7 @@ dd_cc_packaged(
     data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":attr",
-    version = "1.1.2501",
+    version = "1.1.2600",
     visibility = ["//visibility:public"],
 )
 

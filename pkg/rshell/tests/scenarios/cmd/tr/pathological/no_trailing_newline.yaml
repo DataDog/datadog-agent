@@ -1,0 +1,14 @@
+description: tr on input with no trailing newline preserves the missing newline in its output.
+setup:
+  files:
+    - path: file.txt
+      content: "abc"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tr 'a' 'z' < file.txt
+expect:
+  stdout: "zbc"
+  stderr: ""
+  exit_code: 0

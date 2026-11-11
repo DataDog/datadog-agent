@@ -1,0 +1,14 @@
+description: Cut extracts first field from each line of a multiline delimited file.
+setup:
+  files:
+    - path: input.txt
+      content: "a:1\nb:2\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f1 input.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

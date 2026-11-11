@@ -21,7 +21,7 @@ import (
 
 // newTestReporter returns a reporter whose output goes to slog.Default.
 func newTestReporter() *uploadReporter {
-	return newUploadReporter()
+	return newUploadReporter(ReportConfig{})
 }
 
 type key struct {

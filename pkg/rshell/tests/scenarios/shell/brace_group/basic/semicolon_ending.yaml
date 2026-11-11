@@ -1,0 +1,9 @@
+description: Brace group ending with semicolon before closing brace.
+input:
+  script: |+
+    { echo foo; }
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

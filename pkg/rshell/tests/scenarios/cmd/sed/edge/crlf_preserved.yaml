@@ -1,0 +1,7 @@
+description: Carriage returns in CRLF line endings are preserved in pattern space.
+input:
+  script: "echo -e 'hello\r\nworld\r' | sed 's/\r$//'"
+expect:
+  stdout: "hello\nworld\n"
+  stderr: ""
+  exit_code: 0

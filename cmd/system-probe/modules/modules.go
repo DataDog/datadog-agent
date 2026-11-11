@@ -36,6 +36,7 @@ var moduleOrder = []types.ModuleName{
 	types.InjectorModule,
 	types.NoisyNeighborModule,
 	types.LogonDurationModule,
+	types.PacketCaptureModule,
 }
 
 //nolint:unused // may be unused with certain build tag combinations

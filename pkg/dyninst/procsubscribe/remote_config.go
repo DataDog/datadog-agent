@@ -12,6 +12,7 @@ package procsubscribe
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -555,7 +556,9 @@ func (s *Subscriber) GetReport() Report {
 }
 
 type parsedRemoteConfigUpdate struct {
-	probes        map[string]ir.ProbeDefinition
+	probes map[string]ir.ProbeDefinition
+	// invalidProbes are the probes that failed to parse, by path.
+	invalidProbes map[string]process.InvalidProbe
 	haveSymdbFile bool
 	symdbEnabled  bool
 }
@@ -566,6 +569,7 @@ func parseRemoteConfigFiles(
 ) parsedRemoteConfigUpdate {
 	r := parsedRemoteConfigUpdate{
 		probes:        make(map[string]ir.ProbeDefinition, len(files)),
+		invalidProbes: make(map[string]process.InvalidProbe),
 		haveSymdbFile: false,
 		symdbEnabled:  false,
 	}
@@ -595,6 +599,12 @@ func parseRemoteConfigFiles(
 					"process subscriber: runtime %s: failed to parse probe from %q: %v",
 					runtimeID, path, err,
 				)
+				// If we can tell which probe this is, pass the failure on so
+				// that it is reported to the user. Otherwise all we can do is
+				// log it.
+				if invalid, ok := makeInvalidProbe(raw, err); ok {
+					r.invalidProbes[path] = invalid
+				}
 				continue
 			}
 			r.probes[path] = probe
@@ -626,6 +636,33 @@ func parseRemoteConfigFiles(
 	}
 
 	return r
+}
+
+// makeInvalidProbe describes a probe whose definition failed to parse with
+// err. It returns false if the definition does not say which probe it is.
+func makeInvalidProbe(raw []byte, err error) (process.InvalidProbe, bool) {
+	// Read only the fields that identify the probe, so that whatever is wrong
+	// with the rest of the definition does not get in the way. Unmarshal fills
+	// in what it can even when some field has an unexpected type, so its error
+	// is not interesting here.
+	var identity struct {
+		ID      string `json:"id"`
+		Version int    `json:"version"`
+	}
+	_ = json.Unmarshal(raw, &identity)
+	if identity.ID == "" {
+		return process.InvalidProbe{}, false
+	}
+	kind := ir.IssueKindInvalidProbeDefinition
+	var unsupported *rcjson.UnsupportedTypeError
+	if errors.As(err, &unsupported) {
+		kind = ir.IssueKindUnsupportedFeature
+	}
+	return process.InvalidProbe{
+		ID:      identity.ID,
+		Version: identity.Version,
+		Issue:   ir.Issue{Kind: kind, Message: err.Error()},
+	}, true
 }
 
 func gitInfoFromTags(tags []string) *process.GitInfo {

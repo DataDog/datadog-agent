@@ -1,0 +1,17 @@
+description: cat concatenates multiple files in order.
+setup:
+  files:
+    - path: a.txt
+      content: "aaa\n"
+    - path: b.txt
+      content: "bbb\n"
+    - path: c.txt
+      content: "ccc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat a.txt b.txt c.txt
+expect:
+  stdout: "aaa\nbbb\nccc\n"
+  stderr: ""
+  exit_code: 0

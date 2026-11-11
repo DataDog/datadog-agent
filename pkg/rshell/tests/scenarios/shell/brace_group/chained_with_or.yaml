@@ -1,0 +1,9 @@
+description: Brace group exit code propagates through || chain.
+input:
+  script: |+
+    { false; } || { echo "recovered"; }
+expect:
+  stdout: |+
+    recovered
+  stderr: ""
+  exit_code: 0

@@ -21,6 +21,7 @@ import (
 	hostnamemock "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/mock"
 	ipcmock "github.com/DataDog/datadog-agent/comp/core/ipc/mock"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 )
 
@@ -67,7 +68,8 @@ func TestExecutorTelemetryLifecycle(t *testing.T) {
 			idle := make(chan struct{}, 1)
 			runner := &PrivateActionRunner{
 				coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), ipc: ipc,
-				rcClient: telemetryTestRCClient{}, keysManager: telemetryTestKeysManager{},
+				identityStorage: enrollment.NewIdentityStorage(cfg, nil),
+				rcClient:        telemetryTestRCClient{}, keysManager: telemetryTestKeysManager{},
 				startChan:  make(chan struct{}),
 				shutdowner: shutdownFunc(func() error { idle <- struct{}{}; return nil }),
 			}

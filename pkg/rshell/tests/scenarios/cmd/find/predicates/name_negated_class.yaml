@@ -1,0 +1,18 @@
+description: -name with [!a]* negated bracket class excludes files starting with a.
+setup:
+  files:
+    - path: dir/apple
+      content: "a"
+    - path: dir/banana
+      content: "b"
+    - path: dir/cherry
+      content: "c"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name '[!a]*' -type f
+expect:
+  stdout_unordered: |+
+    dir/banana
+    dir/cherry
+  exit_code: 0

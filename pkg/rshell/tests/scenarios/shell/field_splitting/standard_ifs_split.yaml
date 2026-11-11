@@ -1,0 +1,12 @@
+description: Field splitting with standard IFS splits on space, tab, and newline.
+input:
+  script: |+
+    a='1 2	3'
+    for x in $a; do echo "$x"; done
+expect:
+  stdout: |+
+    1
+    2
+    3
+  stderr: ""
+  exit_code: 0

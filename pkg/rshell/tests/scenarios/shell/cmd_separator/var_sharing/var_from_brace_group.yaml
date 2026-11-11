@@ -1,0 +1,9 @@
+description: Variables set in brace groups are visible after the group.
+input:
+  script: |+
+    { X=hello; }; echo $X
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

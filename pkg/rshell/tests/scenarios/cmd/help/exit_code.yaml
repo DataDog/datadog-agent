@@ -1,0 +1,10 @@
+description: Help always exits with status 0.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help
+    echo $?
+expect:
+  stdout_contains: ["help", "0"]
+  stderr: ""
+  exit_code: 0

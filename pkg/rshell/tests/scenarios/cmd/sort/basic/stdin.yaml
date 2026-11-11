@@ -1,0 +1,13 @@
+description: sort reads from stdin when no file arguments are given.
+setup:
+  files:
+    - path: src.txt
+      content: "banana\napple\ncherry\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort < src.txt
+expect:
+  stdout: "apple\nbanana\ncherry\n"
+  stderr: ""
+  exit_code: 0

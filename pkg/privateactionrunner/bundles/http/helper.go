@@ -216,12 +216,16 @@ func buildFormData(
 			}
 
 			mime := trimmed[len(DataUriPrefix):mimeEnd]
+			mimeParts := strings.Split(mime, "/")
+			if len(mimeParts) < 2 {
+				return nil, "", errors.New("Invalid mime type in data URI for " + data.Key)
+			}
 			b64Data := trimmed[base64Index+len(DataUriBase64Prefix):]
 			buffer := bytes.NewBufferString(b64Data)
 			formInputs[data.Key] = FormDataEntry{
 				Data: buffer.String(),
 				Opts: &multipart.FileHeader{
-					Filename: data.Key + "." + strings.Split(mime, "/")[1],
+					Filename: data.Key + "." + mimeParts[1],
 				},
 			}
 		} else {

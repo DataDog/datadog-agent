@@ -57,7 +57,7 @@ const (
 // when the usage it carries started being recorded, as a Unix timestamp
 // (seconds). Until the usage window of its workload closes, one refresh period
 // later, an unseen package goes out stripped of its runtime properties.
-const propUsageObservedSince = "UsageObservedSince"
+const propUsageObservedSince = "datadog:usage:ObservedSince"
 
 // usageWindow is how long the usage of a workload is recorded before an unseen
 // package reads "0": the refresh period the suites set for the host and the
@@ -248,6 +248,8 @@ type usageOnlyKubeadmSuite struct {
 func packageInUseProvisioner(helmValues string) provisioners.TypedProvisioner[environments.Kubernetes] {
 	return provkubeadm.Provisioner(
 		provkubeadm.WithRunOptions(
+			// TODO: Mirror kubeadm/runtime packages, Flannel, and their images internally.
+			scenkubeadm.WithInternetAccess(),
 			scenkubeadm.WithVMOptions(
 				scenec2.WithOS(e2eos.RedHat10),
 				scenec2.WithInstanceType("t3.2xlarge"),

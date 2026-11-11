@@ -95,7 +95,7 @@ go_library(
 dd_agent_go_binary(
     name = "iot-agent",
     embed = [":iot-agent_lib"],
-    gotags = IOT_AGENT_TAGS,  # keep
+    gotags = IOT_AGENT_TAGS,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

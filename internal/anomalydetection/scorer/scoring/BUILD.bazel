@@ -1,0 +1,15 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "scoring",
+    srcs = ["no_faults.go"],
+    importpath = "github.com/DataDog/datadog-agent/internal/anomalydetection/scorer/scoring",
+    visibility = ["//:__subpackages__"],
+)
+
+dd_agent_go_test(
+    name = "scoring_test",
+    srcs = ["no_faults_test.go"],
+    embed = [":scoring"],
+)

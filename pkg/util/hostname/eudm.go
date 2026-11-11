@@ -21,7 +21,7 @@ func fromEUDM(_ context.Context, _ string) (string, error) {
 	if pkgconfigsetup.Datadog().GetString("infrastructure_mode") != constants.InfraModeEndUserDevice {
 		return "", errors.New("EUDM hostname resolution only applies in end_user_device infrastructure mode")
 	}
-	name, err := getEUDMHostname()
+	name, err := getEUDMHostname(pkgconfigsetup.Datadog().GetBool("hostname_use_serial"))
 	if err != nil && !errors.Is(err, errors.ErrUnsupported) {
 		log.Warnf("Unable to determine EUDM device hostname; falling back to existing hostname resolution: %v", err)
 	}

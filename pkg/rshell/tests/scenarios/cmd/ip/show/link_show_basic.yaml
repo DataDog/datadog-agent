@@ -1,0 +1,10 @@
+# ip link show - basic: exits 0 and shows interface info.
+# ip is not a standard utility in the bash comparison reference image; scenarios test behavior unique to this builtin.
+description: "ip link show exits 0 and prints link layer information"
+input:
+  script: |+
+    ip link show
+expect:
+  stdout_contains: ["mtu "]
+  exit_code: 0
+skip_assert_against_bash: true

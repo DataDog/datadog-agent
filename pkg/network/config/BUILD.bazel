@@ -51,6 +51,7 @@ dd_agent_go_test(
     tags = ["requires_ebpf"],
     deps = select({
         "@rules_go//go/platform:android": [
+            "//comp/core/schema/noop-impl",
             "//pkg/config/mock",
             "//pkg/eventmonitor",
             "//pkg/eventmonitor/config",
@@ -70,6 +71,7 @@ dd_agent_go_test(
             "@com_github_stretchr_testify//require",
         ],
         "@rules_go//go/platform:linux": [
+            "//comp/core/schema/noop-impl",
             "//pkg/config/mock",
             "//pkg/eventmonitor",
             "//pkg/eventmonitor/config",
@@ -81,6 +83,7 @@ dd_agent_go_test(
             "@com_github_vishvananda_netns//:netns",
         ],
         "@rules_go//go/platform:windows": [
+            "//comp/core/schema/noop-impl",
             "//pkg/config/mock",
             "//pkg/system-probe/config",
             "@com_github_stretchr_testify//assert",

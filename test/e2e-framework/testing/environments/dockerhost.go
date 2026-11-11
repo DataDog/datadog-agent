@@ -206,7 +206,7 @@ func (e *DockerHost) generateAndDownloadCoverageForContainer(outputDir string) (
 }
 
 func (e *DockerHost) generateAndDownloadAgentFlare(outputDir string) (string, error) {
-	if e.Agent == nil || e.Docker == nil {
+	if e.Agent == nil || e.Agent.Client == nil || e.Docker == nil || e.Docker.Client == nil {
 		return "", errors.New("Agent or Docker component is not initialized, cannot generate flare")
 	}
 	// generate a flare, it will fallback to local flare generation if the running agent cannot be reached

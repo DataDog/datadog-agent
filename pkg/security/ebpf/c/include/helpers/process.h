@@ -35,6 +35,7 @@ static __always_inline void copy_proc_entry(struct process_entry_t *src, struct 
     dst->exec_timestamp = src->exec_timestamp;
     copy_tty_name(src->tty_name, dst->tty_name);
     bpf_probe_read(dst->comm, TASK_COMM_LEN, src->comm);
+    dst->file_capabilities = src->file_capabilities;
 }
 
 static __always_inline void copy_pid_cache_except_exit_ts(struct pid_cache_t *src, struct pid_cache_t *dst) {
@@ -111,6 +112,10 @@ static struct proc_cache_t *__attribute__((always_inline)) fill_process_context_
     }
 
     u32 pid = data->pid;
+    u32 *mntns = bpf_map_lookup_elem(&mntns_cache, &pid);
+    if (mntns != NULL) {
+        data->mntns = *mntns;
+    }
     if (IS_KERNEL_THREAD(pid)) {
         data->is_kworker = 1;
     }

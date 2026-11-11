@@ -1,0 +1,9 @@
+description: IFS set to tab splits on tab characters and coalesces multiple tabs.
+input:
+  script: |+
+    IFS='	'
+    A="one		two	three"
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: "[one]\n[two]\n[three]\n"
+  exit_code: 0

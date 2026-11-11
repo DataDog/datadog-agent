@@ -1,0 +1,15 @@
+description: tail --silent is an alias for --quiet and suppresses headers.
+setup:
+  files:
+    - path: a.txt
+      content: "alpha\nbeta\n"
+    - path: b.txt
+      content: "gamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail --silent -n 2 a.txt b.txt
+expect:
+  stdout: "alpha\nbeta\ngamma\n"
+  stderr: ""
+  exit_code: 0

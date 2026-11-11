@@ -1,0 +1,12 @@
+description: Commands before a for loop execute normally.
+input:
+  script: |+
+    echo before
+    for i in a b; do echo $i; done
+expect:
+  stdout: |+
+    before
+    a
+    b
+  stderr: ""
+  exit_code: 0

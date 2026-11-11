@@ -1,0 +1,21 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash.
+skip_assert_against_bash: true
+description: find -exec child commands cannot read files outside allowed paths.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/secret.txt
+      content: "secret\n"
+input:
+  allowed_paths: ["allowed"]
+  allowed_commands:
+    - rshell:find
+    - rshell:cat
+  script: |+
+    find allowed -name ok.txt -exec cat secret/secret.txt \;
+expect:
+  stdout: ""
+  stderr_contains:
+    - "permission denied"
+  exit_code: 0

@@ -163,6 +163,8 @@ func localAgentImagesFromStackParams() []string {
 // kindProvisioner returns an AWS Kind VM provisioner
 func kindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	runOpts := []kindvm.RunOption{
+		// TODO: Mirror Kubernetes component and workload images internally.
+		kindvm.WithInternetAccess(),
 		kindvm.WithFakeintakeOptions(fakeintake.WithMemory(4096)),
 	}
 	if len(opts.AgentOptions) > 0 {
@@ -181,8 +183,8 @@ func kindProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[envi
 func eksProvisioner(opts ProvisionerOptions) provisioners.TypedProvisioner[environments.Kubernetes] {
 	var runOpts []scenarioeks.RunOption
 
-	// Add a Linux node group by default.
-	runOpts = append(runOpts, scenarioeks.WithEKSOptions(scenarioeks.WithLinuxNodeGroup()))
+	// SSI requires public injector, Operator and CSI images; retain internet access until mirrored.
+	runOpts = append(runOpts, scenarioeks.WithEKSOptions(scenarioeks.WithLinuxNodeGroup(), scenarioeks.WithInternetAccess()))
 
 	if len(opts.AgentOptions) > 0 {
 		runOpts = append(runOpts, scenarioeks.WithAgentOptions(opts.AgentOptions...))

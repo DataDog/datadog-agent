@@ -89,9 +89,10 @@ func TestPodParser(t *testing.T) {
 				Namespace: "namespace",
 				Owners: []kubelet.PodOwner{
 					{
-						Kind: "ReplicaSet",
-						Name: "deployment-hashrs",
-						ID:   "ownerUID",
+						APIVersion: "apps/v1",
+						Kind:       "ReplicaSet",
+						Name:       "deployment-hashrs",
+						ID:         "ownerUID",
 					},
 				},
 				Annotations: map[string]string{
@@ -349,9 +350,10 @@ func TestPodParser(t *testing.T) {
 		Phase: "Running",
 		Owners: []workloadmeta.KubernetesPodOwner{
 			{
-				Kind: "ReplicaSet",
-				Name: "deployment-hashrs",
-				ID:   "ownerUID",
+				Group: "apps",
+				Kind:  "ReplicaSet",
+				Name:  "deployment-hashrs",
+				ID:    "ownerUID",
 			},
 		},
 		Containers: []workloadmeta.OrchestratorContainer{

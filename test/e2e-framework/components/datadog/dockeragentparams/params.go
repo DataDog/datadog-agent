@@ -211,6 +211,7 @@ func withIntakeHostname(url pulumi.StringInput, shouldSkipSSLValidation pulumi.B
 			"DD_DD_URL":                                       pulumi.Sprintf("%s", url),
 			"DD_PROCESS_CONFIG_PROCESS_DD_URL":                pulumi.Sprintf("%s", url),
 			"DD_APM_DD_URL":                                   pulumi.Sprintf("%s", url),
+			"DD_HEALTH_PLATFORM_FORWARDER_DD_URL":             pulumi.Sprintf("%s", url),
 			"DD_SKIP_SSL_VALIDATION":                          shouldSkipSSLValidation,
 			"DD_REMOTE_CONFIGURATION_NO_TLS_VALIDATION":       shouldSkipSSLValidation,
 			"DD_LOGS_CONFIG_FORCE_USE_HTTP":                   pulumi.Bool(true), // Force the use of HTTP/HTTPS rather than switching to TCP

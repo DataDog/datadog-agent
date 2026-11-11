@@ -1,0 +1,17 @@
+description: Sed in-place substitutions persist the longest case-insensitive matches.
+setup:
+  files:
+    - path: data.txt
+      content: |+
+        ab Ab
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    sed -i -E 's/a|ab/X/Ig' data.txt
+    cat data.txt
+expect:
+  stdout: |+
+    X X
+  stderr: |+
+  exit_code: 0

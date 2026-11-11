@@ -45,7 +45,6 @@ _GODEBUG_DEFAULT = "tlsmlkem=0"
 
 def dd_agent_go_binary(
         name,
-        gc_linkopts = None,
         gotags = None,
         exact_gotags = None,
         agent_version = None,
@@ -53,18 +52,15 @@ def dd_agent_go_binary(
         **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
-    Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
-    the version/strip definitions; caller-supplied values take
-    precedence over the defaults provided here.
+    Accepts all go_binary attributes.  x_defs are merged with
+    the version definitions; caller-supplied values take precedence over the
+    defaults provided here.
 
     Defaults applied automatically (override by passing the attribute explicitly):
       cgo: True on Windows (required to link .syso resource files), False elsewhere.
 
     Args:
       name: target name
-      gc_linkopts: Base set of link opts. Stripping options are automatically
-                   added to these: on release builds, -s -w (strip symbol
-                   table and DWARF).
       gotags: Base set of gotags for this binary. COMMON tags are added, and
               per-platform adjustments are made.
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
@@ -106,13 +102,6 @@ def dd_agent_go_binary(
             "//conditions:default": False,
         })
 
-    # Strip the symbol table and DWARF debug info in release builds to reduce
-    # binary size.  Dev builds keep symbols for debugger and profiler use.
-    strip_linkopts = select({
-        "//:is_release": ["-s", "-w"],
-        "//conditions:default": [],
-    })
-
     if exact_gotags:
         # this might be select()'ed by platform. It is up to the user to sort it.
         kwargs["gotags"] = exact_gotags
@@ -128,7 +117,6 @@ def dd_agent_go_binary(
 
     go_binary(
         name = name,
-        gc_linkopts = (gc_linkopts or []) + strip_linkopts,
         toolchains = kwargs.pop("toolchains", []) + [
             "//:install_dir",
             "//bazel/rules/variables",

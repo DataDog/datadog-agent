@@ -1,0 +1,8 @@
+description: Exit with code 127 returns the conventional "command not found" code.
+input:
+  script: |+
+    exit 127
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 127

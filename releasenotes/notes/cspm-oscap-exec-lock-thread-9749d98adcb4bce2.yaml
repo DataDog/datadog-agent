@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSPM: ``oscap-io`` starts with the capabilities and the ``no_new_privs``
+    flag that ``compliance oscap-exec`` sets for it. The Go runtime could
+    run the exec on another thread, which kept every capability of the
+    Agent.

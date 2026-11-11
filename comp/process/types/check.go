@@ -16,7 +16,7 @@ import (
 // Payload defines payload from the check
 type Payload struct {
 	CheckName string
-	Message   []model.MessageBody
+	Messages  []model.MessageBody
 }
 
 // CheckComponent defines an interface implemented by checks
@@ -31,5 +31,14 @@ type ProvidesCheck struct {
 	CheckComponent CheckComponent `group:"check"`
 }
 
-//nolint:revive // TODO(PROC) Fix revive linter
-type RTResponse []*model.CollectorStatus
+// RTResponse is the merged realtime status published by the submitter.
+type RTResponse struct {
+	Statuses []*model.CollectorStatus
+	Sequence uint64
+}
+
+// RTNotifier wakes the runner to read the latest merged realtime status.
+type RTNotifier struct {
+	Wake   <-chan struct{}
+	Latest func() RTResponse
+}

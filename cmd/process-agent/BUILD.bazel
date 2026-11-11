@@ -19,7 +19,6 @@ go_library(
 
 dd_agent_go_binary(
     name = "process-agent",
-    # keep
     srcs = select({
         "@platforms//os:windows": ["//cmd/process-agent/windows_resources:rsrc"],
         "//conditions:default": [],
@@ -32,7 +31,6 @@ dd_agent_go_binary(
 dd_agent_go_binary(
     name = "process-agent-heroku",
     embed = [":process-agent_lib"],
-    # keep
     exact_gotags = sorted(COMMON_TAGS | PROCESS_AGENT_HEROKU_TAGS),
     visibility = ["//visibility:public"],
 )

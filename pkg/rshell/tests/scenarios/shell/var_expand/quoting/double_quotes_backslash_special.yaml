@@ -1,0 +1,15 @@
+description: Backslash escapes in double quotes for special chars.
+input:
+  script: |+
+    echo "a\\b"
+    echo "a\\\\b"
+    echo "a\$b"
+    echo "a\"b\"c"
+expect:
+  stdout: |+
+    a\b
+    a\\b
+    a$b
+    a"b"c
+  stderr: ""
+  exit_code: 0

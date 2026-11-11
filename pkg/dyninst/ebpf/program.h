@@ -8,6 +8,7 @@
 
 volatile const uint64_t VARIABLE_runtime_dot_firstmoduledata = 0;
 volatile const uint32_t OFFSET_runtime_dot_moduledata__types = 0;
+volatile const uint32_t OFFSET_runtime_dot_moduledata__etypes = 0;
 volatile const uint32_t OFFSET_runtime_dot_g__goid = 0;
 volatile const uint32_t OFFSET_runtime_dot_g__stack = 0;
 volatile const uint32_t OFFSET_runtime_dot_g__m = 0;

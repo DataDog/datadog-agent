@@ -1,0 +1,15 @@
+description: Passing a directory as a FILE operand fails with "Is a directory"; no -r/-d mode exists.
+setup:
+  files:
+    - path: subdir/placeholder
+      content: ""
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm subdir
+expect:
+  stdout: |+
+  stderr: |+
+    rm: cannot remove 'subdir': Is a directory
+  exit_code: 1

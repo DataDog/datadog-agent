@@ -1,0 +1,10 @@
+description: The r command is blocked for safety.
+# skip: feature is intentionally blocked in rshell for security
+skip_assert_against_bash: true
+input:
+  script: |+
+    echo "test" | sed 'r somefile.txt'
+expect:
+  stdout: ""
+  stderr: "sed: 'r' command is blocked: unsandboxed file reading is not allowed\n"
+  exit_code: 1

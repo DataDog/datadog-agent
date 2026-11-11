@@ -1,0 +1,13 @@
+description: strings prints an error and exits 1 when given a directory.
+setup:
+  files:
+    - path: subdir/placeholder.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings subdir
+expect:
+  stdout: ""
+  stderr: "strings: Warning: 'subdir' is a directory\n"
+  exit_code: 1

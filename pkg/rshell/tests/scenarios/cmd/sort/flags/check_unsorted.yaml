@@ -1,0 +1,13 @@
+description: sort -c exits 1 and prints disorder diagnostic when input is not sorted.
+setup:
+  files:
+    - path: file.txt
+      content: "b\na\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -c file.txt
+expect:
+  stdout: ""
+  stderr: "sort: file.txt:2: disorder: a\n"
+  exit_code: 1

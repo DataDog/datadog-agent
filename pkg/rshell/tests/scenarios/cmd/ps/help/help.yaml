@@ -1,0 +1,13 @@
+description: ps --help prints usage information and exits with code 0.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps --help
+expect:
+  stdout_contains:
+    - "Usage: ps"
+    - "PIDLIST"
+    - "Safe format fields:"
+    - "pcpu"
+    - "Field aliases: %cpu=pcpu, %mem=pmem"
+  exit_code: 0

@@ -144,57 +144,62 @@ func (v *ssiSuite) TestInjectionMode() {
 			kubernetesagentparams.WithHelmValues(injectionModeHelmValues),
 		},
 		AgentDependentWorkloadAppFunc: func(e config.Env, kubeProvider *kubernetes.Provider, dependsOnAgent pulumi.ResourceOption) (*compkube.Workload, error) {
+			apps := []singlestep.App{
+				{
+					Name:                     "injection-mode-app-csi",
+					Image:                    "registry.datadoghq.com/injector-dev/python",
+					Version:                  "16ad9d4b",
+					Port:                     8080,
+					PodSecurityContext:       csiPodSecurityContext,
+					ContainerSecurityContext: csiContainerSecurityContext,
+					PodAnnotations: map[string]string{
+						"admission.datadoghq.com/apm-inject.injection-mode": "csi",
+					},
+				},
+				{
+					Name:    "injection-mode-app-init-container",
+					Image:   "registry.datadoghq.com/injector-dev/python",
+					Version: "16ad9d4b",
+					Port:    8080,
+					PodAnnotations: map[string]string{
+						"admission.datadoghq.com/apm-inject.injection-mode": "init_container",
+					},
+				},
+			}
+			// Deploying the image_volume app where image volumes are unsupported leaves a
+			// Deployment that never becomes Ready, and Pulumi waits on it until the job times out.
+			if supportsImageVolume() {
+				apps = append(apps, singlestep.App{
+					Name:    "injection-mode-app-image-volume",
+					Image:   "registry.datadoghq.com/injector-dev/python",
+					Version: "16ad9d4b",
+					Port:    8080,
+					PodAnnotations: map[string]string{
+						"admission.datadoghq.com/apm-inject.injection-mode": "image_volume",
+					},
+				})
+			}
+			apps = append(apps, singlestep.App{
+				// The Datadog CSI driver is installed in this suite
+				// (see injection_mode.yaml). The AutoProvider must therefore
+				// pick the CSI provider for this "auto" pod. The pod
+				// security context mirrors the csi pod since the resulting
+				// volume is a CSI volume.
+				Name:                     "injection-mode-app-auto",
+				Image:                    "registry.datadoghq.com/injector-dev/python",
+				Version:                  "16ad9d4b",
+				Port:                     8080,
+				PodSecurityContext:       csiPodSecurityContext,
+				ContainerSecurityContext: csiContainerSecurityContext,
+				PodAnnotations: map[string]string{
+					"admission.datadoghq.com/apm-inject.injection-mode": "auto",
+				},
+			})
 			return singlestep.Scenario(e, kubeProvider, "injection-mode", []singlestep.Namespace{
 				{
 					Name:   "injection-mode",
 					Labels: namespaceLabels,
-					Apps: []singlestep.App{
-						{
-							Name:                     "injection-mode-app-csi",
-							Image:                    "registry.datadoghq.com/injector-dev/python",
-							Version:                  "16ad9d4b",
-							Port:                     8080,
-							PodSecurityContext:       csiPodSecurityContext,
-							ContainerSecurityContext: csiContainerSecurityContext,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "csi",
-							},
-						},
-						{
-							Name:    "injection-mode-app-init-container",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "init_container",
-							},
-						},
-						{
-							Name:    "injection-mode-app-image-volume",
-							Image:   "registry.datadoghq.com/injector-dev/python",
-							Version: "16ad9d4b",
-							Port:    8080,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "image_volume",
-							},
-						},
-						{
-							// The Datadog CSI driver is installed in this suite
-							// (see injection_mode.yaml). The AutoProvider must therefore
-							// pick the CSI provider for this "auto" pod. The pod
-							// security context mirrors the csi pod since the resulting
-							// volume is a CSI volume.
-							Name:                     "injection-mode-app-auto",
-							Image:                    "registry.datadoghq.com/injector-dev/python",
-							Version:                  "16ad9d4b",
-							Port:                     8080,
-							PodSecurityContext:       csiPodSecurityContext,
-							ContainerSecurityContext: csiContainerSecurityContext,
-							PodAnnotations: map[string]string{
-								"admission.datadoghq.com/apm-inject.injection-mode": "auto",
-							},
-						},
-					},
+					Apps:   apps,
 				},
 			}, dependsOnAgent)
 		},
@@ -214,7 +219,7 @@ func (v *ssiSuite) TestInjectionMode() {
 		autoMode = testutils.InjectionModeInitContainer
 	}
 
-	testCases := []struct {
+	type testCase struct {
 		name string
 		mode testutils.InjectionMode
 		// effectiveMode is the value the webhook records in the
@@ -222,12 +227,15 @@ func (v *ssiSuite) TestInjectionMode() {
 		// explicit modes it is the bare mode; for "auto" it is the resolved
 		// mode suffixed with " (auto)".
 		effectiveMode string
-	}{
+	}
+	testCases := []testCase{
 		{"injection-mode-app-csi", testutils.InjectionModeCSI, string(testutils.InjectionModeCSI)},
 		{"injection-mode-app-init-container", testutils.InjectionModeInitContainer, string(testutils.InjectionModeInitContainer)},
-		{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume, string(testutils.InjectionModeImageVolume)},
-		{"injection-mode-app-auto", autoMode, testutils.EffectiveAutoMode(autoMode)},
 	}
+	if supportsImageVolume() {
+		testCases = append(testCases, testCase{"injection-mode-app-image-volume", testutils.InjectionModeImageVolume, string(testutils.InjectionModeImageVolume)})
+	}
+	testCases = append(testCases, testCase{"injection-mode-app-auto", autoMode, testutils.EffectiveAutoMode(autoMode)})
 
 	k8s := v.Env().KubernetesCluster.Client()
 	intake := v.Env().FakeIntake.Client()
@@ -690,8 +698,8 @@ func (v *ssiSuite) testDatadogInstrumentation() {
 	validator.RequireInstallType(v.T(), "k8s_single_step", []string{ddiApp})
 	validator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
 	validator.RequireEnvs(v.T(), map[string]string{"DD_SERVICE": ddiAPMService, "DD_TRACE_ENABLED": "true"}, []string{ddiApp})
-	validator.RequireAppliedTargetName(v.T(), "datadoginstrumentation:"+ddiNamespace+"/"+ddiAPMName)
-	validator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedPolicyAnnotation})
+	validator.RequireAppliedConfigName(v.T(), "datadoginstrumentation:"+ddiNamespace+"/"+ddiAPMName)
+	validator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "datadog-instrumentation"})
 	require.Eventually(v.T(), func() bool {
 		return FindTracesForService(v.T(), fi, ddiAPMService) != 0
 	}, time.Minute, 10*time.Second, "did not find traces for DDI-configured service %s", ddiAPMService)
@@ -777,14 +785,15 @@ func (v *ssiSuite) TestRemoteConfig() {
 		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		podValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
 		podValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
-		// Library annotations short-circuit applied-target / applied-policy metadata.
-		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		// Library annotations short-circuit applied-config metadata.
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
+		podValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "annotation"})
 
 		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
-		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
 		v.requireHelmTargetStillSSI(k8s)
 	})
@@ -803,8 +812,9 @@ func (v *ssiSuite) TestRemoteConfig() {
 		podValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		podValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcAnnotatedPodApp})
 		podValidator.RequireEnvs(v.T(), map[string]string{"DD_TRACE_ENABLED": "true"}, []string{rcAnnotatedPodApp})
-		// SSI mode follows the policy match; annotation short-circuit still skips applied-policy JSON.
-		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		// SSI mode follows the policy match; annotation short-circuit still skips applied-config JSON.
+		podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
+		podValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "annotation"})
 
 		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
@@ -812,8 +822,8 @@ func (v *ssiSuite) TestRemoteConfig() {
 		unannotatedValidator.RequireInjection(v.T(), []string{rcUnannotatedPodApp})
 		unannotatedValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcUnannotatedPodApp})
 		unannotatedValidator.RequireEnvs(v.T(), map[string]string{"DD_TRACE_ENABLED": "true"}, []string{rcUnannotatedPodApp})
-		unannotatedValidator.RequireAppliedPolicyName(v.T(), rcNamespaceOtherPolicyName)
-		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation})
+		unannotatedValidator.RequireAppliedConfigName(v.T(), rcNamespaceOtherPolicyName)
+		unannotatedValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "remote-config"})
 
 		v.requireHelmTargetStillSSI(k8s)
 	})
@@ -837,20 +847,19 @@ func (v *ssiSuite) TestRemoteConfig() {
 		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
-		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
 		RestartPod(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotated := FindPodInNamespace(v.T(), k8s, rcOtherNamespace, rcUnannotatedPodApp)
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
-		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
 		helm := RestartUntil(v.T(), k8s, rcHelmTargetNamespace, rcHelmTargetApp, noInjection(rcHelmTargetApp))
 		helmValidator := testutils.NewPodValidator(helm, testutils.InjectionModeAuto)
 		helmValidator.RequireNoInjection(v.T())
 		helmValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusBlocked)
-		helmValidator.RequireAppliedPolicyName(v.T(), rcDenyTargetedNamespacePolicyName)
-		helmValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation})
+		helmValidator.RequireAppliedConfigName(v.T(), rcDenyTargetedNamespacePolicyName)
 	})
 
 	// Two RC policies both match namespace "other": allow then deny. Last TRUE wins,
@@ -871,8 +880,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		unannotatedValidator := testutils.NewPodValidator(unannotated, testutils.InjectionModeAuto)
 		unannotatedValidator.RequireNoInjection(v.T())
 		unannotatedValidator.RequireInjectionStatus(v.T(), testutils.InjectionStatusBlocked)
-		unannotatedValidator.RequireAppliedPolicyName(v.T(), rcLastWinsOtherDenyPolicyName)
-		unannotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation})
+		unannotatedValidator.RequireAppliedConfigName(v.T(), rcLastWinsOtherDenyPolicyName)
 
 		RestartPod(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
 		annotated := WaitForMutatedPodInNamespace(v.T(), k8s, rcOtherNamespace, rcAnnotatedPodApp)
@@ -880,7 +888,7 @@ func (v *ssiSuite) TestRemoteConfig() {
 		annotatedValidator.RequireInjection(v.T(), []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireInstallType(v.T(), "k8s_lib_injection", []string{rcAnnotatedPodApp})
 		annotatedValidator.RequireMissingEnvs(v.T(), []string{"DD_TRACE_ENABLED"}, []string{rcAnnotatedPodApp})
-		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedTargetAnnotation, testutils.AppliedPolicyAnnotation})
+		annotatedValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedConfigAnnotation})
 
 		v.requireHelmTargetStillSSI(k8s)
 	})
@@ -894,8 +902,8 @@ func (v *ssiSuite) requireHelmTargetStillSSI(k8s kubeClient.Interface) {
 	podValidator.RequireInjection(v.T(), []string{rcHelmTargetApp})
 	podValidator.RequireInstallType(v.T(), "k8s_single_step", []string{rcHelmTargetApp})
 	podValidator.RequireLibraryVersions(v.T(), map[string]string{"python": "v3.18.1"})
-	podValidator.RequireAppliedTargetName(v.T(), rcHelmTargetName)
-	podValidator.RequireMissingAnnotations(v.T(), []string{testutils.AppliedPolicyAnnotation})
+	podValidator.RequireAppliedConfigName(v.T(), rcHelmTargetName)
+	podValidator.RequireAnnotations(v.T(), map[string]string{testutils.InjectionSourceAnnotation: "static"})
 }
 
 func (v *ssiSuite) pushAPMPolicy(fi *fakeintake.Client, configID, configName string, payload []byte) func() {
@@ -917,6 +925,17 @@ func isOpenShift() bool {
 
 func isGKEAutopilot() bool {
 	return getProvisionerType() == ProvisionerGKEAutopilot
+}
+
+// supportsImageVolume reports whether the provisioned cluster can run pods using the
+// image_volume injection mode, which needs image volume SubPath support.
+func supportsImageVolume() bool {
+	switch getProvisionerType() {
+	case ProvisionerEKS, ProvisionerAKS, ProvisionerGKE, ProvisionerGKEAutopilot:
+		return false
+	default:
+		return true
+	}
 }
 
 func openShiftInjectionModeNamespaceLabels() map[string]string {

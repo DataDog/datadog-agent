@@ -1,0 +1,14 @@
+description: When `continue` is invoked inside an `until` condition list, it short-circuits the rest of the cond and gives the cond a status of 0. For `until`, status 0 means "exit the loop", so the loop must exit rather than re-evaluate the cond. Matches bash 5.2.
+input:
+  script: |+
+    i=
+    until i=${i}a; [ "$i" != aa ] && continue; do
+      echo body
+      break
+    done
+    echo "i=$i status=$?"
+expect:
+  stdout: |+
+    i=a status=0
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,20 @@
+description: Glob patterns combined with question mark and star work together.
+setup:
+  files:
+    - path: a1.txt
+      content: ""
+    - path: ab2.txt
+      content: ""
+    - path: abc3.txt
+      content: ""
+    - path: b1.log
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo ?*.txt
+expect:
+  stdout: |+
+    a1.txt ab2.txt abc3.txt
+  stderr: ""
+  exit_code: 0

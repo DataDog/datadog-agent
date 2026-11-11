@@ -1,0 +1,11 @@
+# skip: rshell intentionally limits regex size.
+skip_assert_against_bash: true
+description: awk rejects regular expressions larger than 64 KiB.
+input:
+  script: |+
+    awk 'BEGIN { match("", sprintf("%65537s", "")) }'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: regular expression exceeds 65536 bytes
+  exit_code: 1

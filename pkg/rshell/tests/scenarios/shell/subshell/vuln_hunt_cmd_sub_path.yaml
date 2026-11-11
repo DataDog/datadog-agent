@@ -1,0 +1,17 @@
+# vuln-hunt 2026-05-18-initial-audit: a command substitution that *produces*
+# a forbidden path inside a subshell is still subject to AllowedPaths.
+skip_assert_against_bash: true
+description: Command substitution producing a forbidden path inside a subshell is still rejected by AllowedPaths.
+setup:
+  files:
+    - path: secret.txt
+      content: "leak\n"
+input:
+  allowed_paths: []
+  script: |+
+    (cat $(echo secret.txt))
+expect:
+  stdout: ""
+  stderr_contains:
+    - "secret.txt"
+  exit_code: 1

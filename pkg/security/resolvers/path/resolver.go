@@ -46,10 +46,10 @@ func (r *Resolver) ResolveBasename(e *model.FileFields) string {
 func (r *Resolver) ResolveDentryFilePath(e *model.FileFields) (string, error) {
 	pathStr, err := r.dentryResolver.Resolve(e.PathKey, !e.HasHardLinks(), fileCaller(e))
 	if err != nil {
-		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
-			return pathStr, &ErrPathResolutionNotCritical{Err: err}
+		if _, mountErr := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(mountErr, mount.ErrMountKernelID) {
+			return pathStr, &ErrPathResolutionNotCritical{Err: fmt.Errorf("dentry resolution failed (mount_id=%d invalid: %w): %w", e.MountID, mountErr, err)}
 		}
-		return pathStr, &ErrPathResolution{Err: err}
+		return pathStr, &ErrPathResolution{Err: fmt.Errorf("dentry resolution failed: %w", err)}
 	}
 
 	return pathStr, nil
@@ -63,7 +63,7 @@ func (r *Resolver) ResolveMountAttributes(e *model.FileEvent, pidCtx *model.PIDC
 
 	mnt, _, _, err := r.mountResolver.ResolveMount(e.MountID, pidCtx.Pid)
 	if err != nil {
-		return fmt.Errorf("attribute resolution error: %w", err)
+		return fmt.Errorf("mount attribute resolution failed (mount_id=%d, pid=%d): %w", e.MountID, pidCtx.Pid, err)
 	}
 
 	e.MountVisibilityResolved = true
@@ -87,18 +87,18 @@ func (r *Resolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDCon
 
 	mountPath, source, origin, err := r.mountResolver.ResolveMountPath(e.MountID, pidCtx.Pid)
 	if err != nil {
-		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
-			return pathStr, "", origin, source, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		if _, mountErr := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(mountErr, mount.ErrMountKernelID) {
+			return pathStr, "", origin, source, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount path resolution failed for dentry %q (mount_id=%d, pid=%d, mount_check=%w): %w", pathStr, e.MountID, pidCtx.Pid, mountErr, err)}
 		}
-		return pathStr, "", source, origin, &ErrPathResolution{Err: err}
+		return pathStr, "", source, origin, &ErrPathResolution{Err: fmt.Errorf("mount path resolution failed for dentry %q (mount_id=%d, pid=%d): %w", pathStr, e.MountID, pidCtx.Pid, err)}
 	}
 
 	rootPath, source, origin, err := r.mountResolver.ResolveMountRoot(e.MountID, pidCtx.Pid)
 	if err != nil {
-		if _, err := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(err, mount.ErrMountKernelID) {
-			return pathStr, "", source, origin, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount ID(%d) invalid: %w", e.MountID, err)}
+		if _, mountErr := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(mountErr, mount.ErrMountKernelID) {
+			return pathStr, "", source, origin, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount root resolution failed for dentry %q on mount %q (mount_id=%d, pid=%d, mount_check=%w): %w", pathStr, mountPath, e.MountID, pidCtx.Pid, mountErr, err)}
 		}
-		return pathStr, "", source, origin, &ErrPathResolution{Err: err}
+		return pathStr, "", source, origin, &ErrPathResolution{Err: fmt.Errorf("mount root resolution failed for dentry %q on mount %q (mount_id=%d, pid=%d): %w", pathStr, mountPath, e.MountID, pidCtx.Pid, err)}
 	}
 
 	// This aims to handle bind mounts
@@ -123,7 +123,7 @@ func (r *Resolver) SetMountRoot(_ *model.Event, e *model.Mount) error {
 
 	e.RootStr, err = r.dentryResolver.Resolve(e.RootPathKey, true, dentry.CallerMountRoot)
 	if err != nil {
-		return &ErrPathResolutionNotCritical{Err: err}
+		return &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount root dentry resolution failed (mount_id=%d): %w", e.MountID, err)}
 	}
 	return nil
 }
@@ -144,7 +144,7 @@ func (r *Resolver) SetMountPoint(_ *model.Event, e *model.Mount) error {
 
 	e.MountPointStr, err = r.dentryResolver.Resolve(e.ParentPathKey, true, dentry.CallerMountPoint)
 	if err != nil {
-		return &ErrPathResolutionNotCritical{Err: err}
+		return &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount point dentry resolution failed (mount_id=%d, parent_mount_id=%d): %w", e.MountID, e.ParentPathKey.MountID, err)}
 	}
 	return nil
 }

@@ -1,0 +1,13 @@
+description: wc -l counts lines in a file of only newlines.
+setup:
+  files:
+    - path: newlines.txt
+      content: "\n\n\n\n\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -l newlines.txt
+expect:
+  stdout: "5 newlines.txt\n"
+  stderr: ""
+  exit_code: 0

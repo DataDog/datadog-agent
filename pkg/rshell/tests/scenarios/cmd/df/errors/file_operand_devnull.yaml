@@ -1,0 +1,12 @@
+description: df rejects /dev/null as an operand — special files are still positional FILE arguments, which v1 does not accept.
+skip_assert_against_bash: true
+input:
+  script: |+
+    df /dev/null; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:1"
+  stderr_contains:
+    - "df:"
+    - "extra operand"
+  exit_code: 0

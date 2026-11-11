@@ -206,6 +206,7 @@ func handleExecveAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 		Envs:          envs,
 		EnvsTruncated: envsTruncated,
 		TTY:           getPidTTY(process.Pid),
+		PPID:          process.forkPPID,
 	}
 	// special case for execveat: we store ALSO the msg in execve bucket (see cws.go)
 	process.Nr[ExecveNr] = msg
@@ -249,6 +250,7 @@ func handleExecve(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, re
 		Envs:          envs,
 		EnvsTruncated: envsTruncated,
 		TTY:           getPidTTY(process.Pid),
+		PPID:          process.forkPPID,
 	}
 	return fillFileMetadata(tracer, filename, &msg.Exec.File, disableStats)
 }
@@ -500,6 +502,7 @@ func handlePrctl(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, reg
 	msg.Prctl = &ebpfless.PrctlSyscallMsg{
 		Option: int(tracer.ReadArgInt32(regs, 0)),
 	}
+	process.otelProcessCtxNaming = isOTelProcessCtxNaming(tracer, process, regs)
 	if msg.Prctl.Option == unix.PR_SET_NAME {
 		name, err := tracer.ReadArgString(process.Pid, regs, 1)
 		if err != nil {

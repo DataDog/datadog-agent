@@ -1,0 +1,19 @@
+description: find . -exec echo {} \; substitutes {} with ./filename (dot-relative path).
+skip_assert_against_bash: true  # rshell -exec only runs builtins, not external commands
+setup:
+  files:
+    - path: file.txt
+      content: "hello"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find . -name 'file.txt' -exec echo {} \;
+expect:
+  stdout: |+
+    ./file.txt
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: Echo preserves consecutive spaces inside quoted arguments.
+input:
+  script: |+
+    echo "hello   world"
+expect:
+  stdout: |+
+    hello   world
+  stderr: ""
+  exit_code: 0

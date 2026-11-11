@@ -9,6 +9,7 @@ package v1
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -26,7 +27,6 @@ func installClusterCheckEndpoints(r *http.ServeMux, sc clusteragent.ServerContex
 	r.HandleFunc("GET /clusterchecks/configs/{identifier}", api.WithTelemetryWrapper("getCheckConfigs", getCheckConfigs(sc)))
 	r.HandleFunc("POST /clusterchecks/rebalance", api.WithTelemetryWrapper("postRebalanceChecks", postRebalanceChecks(sc)))
 	r.HandleFunc("GET /clusterchecks", api.WithTelemetryWrapper("getState", getState(sc)))
-	r.HandleFunc("POST /clusterchecks/isolate/check/{identifier}", api.WithTelemetryWrapper("postIsolateCheck", postIsolateCheck(sc)))
 }
 
 // RebalancePostPayload struct is for the JSON messages received from a client POST request
@@ -108,29 +108,14 @@ func postRebalanceChecks(sc clusteragent.ServerContext) func(w http.ResponseWrit
 		}
 
 		response, err := sc.ClusterCheckHandler.RebalanceClusterChecks(requestData.Force)
+		if errors.Is(err, cctypes.ErrRebalanceInProgress) {
+			http.Error(w, err.Error(), http.StatusConflict)
+			return
+		}
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return
 		}
-
-		writeJSONResponse(w, response)
-	}
-}
-
-// postIsolateCheck requests that a specified check be isolated in a runner
-func postIsolateCheck(sc clusteragent.ServerContext) func(w http.ResponseWriter, r *http.Request) {
-	if sc.ClusterCheckHandler == nil {
-		return clusterChecksDisabledHandler
-	}
-
-	return func(w http.ResponseWriter, r *http.Request) {
-		if sc.ClusterCheckHandler.RejectOrForwardLeaderQuery(w, r) {
-			return
-		}
-
-		isolateCheckID := r.PathValue("identifier")
-
-		response := sc.ClusterCheckHandler.IsolateCheck(isolateCheckID)
 
 		writeJSONResponse(w, response)
 	}

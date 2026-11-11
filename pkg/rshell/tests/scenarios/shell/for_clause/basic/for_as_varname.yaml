@@ -1,0 +1,10 @@
+description: The word "for" can be used as the loop variable name.
+input:
+  script: |+
+    for for in x y; do echo $for; done
+expect:
+  stdout: |+
+    x
+    y
+  stderr: ""
+  exit_code: 0

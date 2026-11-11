@@ -1,0 +1,10 @@
+description: pwd does not consume stdin; piped input is ignored.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo not-consumed | pwd
+expect:
+  stdout_contains: ["/"]
+  stdout_contains_windows: ["\\"]
+  stderr: ""
+  exit_code: 0

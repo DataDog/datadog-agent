@@ -1,0 +1,14 @@
+description: du --apparent-size on a sub-1024 file rounds up to one 1024-byte block.
+setup:
+  files:
+    - path: small.txt
+      content: "abc"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du --apparent-size small.txt
+expect:
+  stdout: |+
+    1	small.txt
+  stderr: |+
+  exit_code: 0

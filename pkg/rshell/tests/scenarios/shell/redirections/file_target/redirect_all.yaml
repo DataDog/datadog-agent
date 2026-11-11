@@ -1,0 +1,12 @@
+description: In remediation mode, &> redirects both stdout and stderr to a file within AllowedPaths.
+input:
+  script: |+
+    echo both &>out.txt
+    cat out.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+    both
+  stderr: |+
+  exit_code: 0

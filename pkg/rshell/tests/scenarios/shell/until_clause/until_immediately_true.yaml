@@ -1,0 +1,12 @@
+description: until with an immediately-true condition runs the body zero times and exits 0.
+input:
+  script: |+
+    until true; do
+      echo should not print
+    done
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=0
+  stderr: |+
+  exit_code: 0

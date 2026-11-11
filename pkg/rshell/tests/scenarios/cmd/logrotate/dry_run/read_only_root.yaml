@@ -1,0 +1,17 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate --dry-run validates the write target and rejects read-only roots.
+setup:
+  files:
+    - path: app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR"]
+  mode: "remediation"
+  script: |+
+    logrotate --dry-run --force app.log
+expect:
+  stdout: |+
+  stderr: |+
+    logrotate: "app.log": permission denied
+  exit_code: 1

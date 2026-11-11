@@ -1,0 +1,13 @@
+description: tail -n with a value that overflows uint64 is rejected with an error (GNU tail behavior).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 99999999999999999999 file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["invalid"]
+  exit_code: 1

@@ -1290,14 +1290,17 @@ func TestResolvePackageRecordsNoUsageOnDirectory(t *testing.T) {
 }
 
 // TestResolveOpen checks that the open of a host file records usage once it
-// has waited settleDelay, if the file is still at its path then, and leaves
-// the usage as it is when the file is gone or replaced there, as rpm leaves
-// each executable it opens to clear its file capabilities. An overlayfs file
-// counts on an overlayfs host root alone: elsewhere it is the file of a
-// container, seen through /proc/<pid>/root.
+// has waited settleDelay, if the file is still at its path then and starts as
+// an executable or a script does, and leaves the usage as it is when the file
+// is gone or replaced there, as rpm leaves each executable it opens to clear
+// its file capabilities, or holds data with the mode of an executable. On a
+// read error, the mode decides. An overlayfs file counts on an overlayfs host
+// root alone: elsewhere it is the file of a container, seen through
+// /proc/<pid>/root.
 func TestResolveOpen(t *testing.T) {
 	for _, tc := range []struct {
 		name         string
+		content      string // the content of the file, elfHeader if empty
 		after        func(t *testing.T, path string)
 		flags        int32
 		overlayRoot  bool
@@ -1305,12 +1308,15 @@ func TestResolveOpen(t *testing.T) {
 		records      bool
 	}{
 		{name: "open", records: true},
+		{name: "open of a script", content: "#!/bin/sh\n", records: true},
+		{name: "open of a data file with the mode of an executable", content: "Welcome to Amazon Linux 2023\n"},
 		{name: "open of a removed file", after: removeFile},
 		{name: "open of a replaced file", after: replaceFile},
 		{name: "open of an overlayfs file", flags: model.LowerLayer},
 		{name: "open of an overlayfs file on an overlayfs host root", flags: model.LowerLayer, overlayRoot: true, records: true},
 		{name: "open of a replaced overlayfs file on an overlayfs host root", after: replaceFile, flags: model.UpperLayer, overlayRoot: true, records: true},
 		{name: "open of a removed file of unknown inode", after: removeFile, unknownInode: true, records: true},
+		{name: "open of a file of unknown inode that reads with an error", after: replaceWithDirectory, unknownInode: true, records: true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			r := newHostSBOMResolver(t)
@@ -1319,6 +1325,11 @@ func TestResolveOpen(t *testing.T) {
 
 			pc, file := hostAccess()
 			path := createFile(t, r.hostRoot+file.PathnameStr)
+			if tc.content != "" {
+				if err := os.WriteFile(path, []byte(tc.content), 0755); err != nil {
+					t.Fatal(err)
+				}
+			}
 			if !tc.unknownInode {
 				file.Inode = inode(t, path)
 			}
@@ -1438,15 +1449,18 @@ func TestResolveOpenOfContainerFile(t *testing.T) {
 	}
 }
 
-// createFile creates an empty executable file at path and its directories,
-// and returns path.
+// elfHeader starts the executables the tests create.
+const elfHeader = "\x7fELF"
+
+// createFile creates an executable file, an ELF header alone, at path and its
+// directories, and returns path.
 func createFile(t *testing.T, path string) string {
 	t.Helper()
 
 	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.WriteFile(path, nil, 0755); err != nil {
+	if err := os.WriteFile(path, []byte(elfHeader), 0755); err != nil {
 		t.Fatal(err)
 	}
 	return path
@@ -1646,6 +1660,19 @@ func TestResolveOpenLeavesReadsOfCode(t *testing.T) {
 	}
 }
 
+// replaceWithDirectory puts a directory in place of the file at path. The
+// directory opens, and its read returns EISDIR.
+func replaceWithDirectory(t *testing.T, path string) {
+	t.Helper()
+
+	if err := os.Remove(path); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Mkdir(path, 0755); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // removeFile deletes the file at path, as rpm deletes an executable it removes.
 func removeFile(t *testing.T, path string) {
 	t.Helper()
@@ -1655,12 +1682,12 @@ func removeFile(t *testing.T, path string) {
 	}
 }
 
-// replaceFile renames a new file over the file at path, as rpm installs each
-// file of a package it upgrades or reinstalls.
+// replaceFile renames a new executable over the file at path, as rpm installs
+// each file of a package it upgrades or reinstalls.
 func replaceFile(t *testing.T, path string) {
 	t.Helper()
 
-	if err := os.WriteFile(path+".new", nil, 0755); err != nil {
+	if err := os.WriteFile(path+".new", []byte(elfHeader), 0755); err != nil {
 		t.Fatal(err)
 	}
 	if err := os.Rename(path+".new", path); err != nil {

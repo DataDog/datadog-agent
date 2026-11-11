@@ -119,7 +119,7 @@ const (
 {{.Program}}
 {{.Banner}}
 
-  Not running or unreachable on 127.0.0.1:{{.DebugPort}}
+  Not running or unreachable on {{.DebugAddr}}
 
 `
 
@@ -277,7 +277,7 @@ func getProgramBanner(version string) (string, string) {
 // If error is nil, means the program is running.
 // If not, it displays a pretty-printed message anyway (for support)
 func Info(w io.Writer, conf *config.AgentConfig) error {
-	url := fmt.Sprintf("https://127.0.0.1:%d/debug/vars", conf.DebugServerPort)
+	url := fmt.Sprintf("https://%s/debug/vars", conf.DebugServerAddr())
 	tr := &http.Transport{TLSClientConfig: conf.IPCTLSClientConfig}
 	client := http.Client{Timeout: 3 * time.Second, Transport: tr}
 	resp, err := client.Get(url)
@@ -290,11 +290,11 @@ func Info(w io.Writer, conf *config.AgentConfig) error {
 		_ = ift.notRunningTmpl.Execute(w, struct {
 			Banner    string
 			Program   string
-			DebugPort int
+			DebugAddr string
 		}{
 			Banner:    banner,
 			Program:   program,
-			DebugPort: conf.DebugServerPort,
+			DebugAddr: conf.DebugServerAddr(),
 		})
 		return err
 	}

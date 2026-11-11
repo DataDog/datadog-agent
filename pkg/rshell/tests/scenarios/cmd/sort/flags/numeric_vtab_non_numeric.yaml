@@ -1,0 +1,13 @@
+description: "sort -n treats vertical tab prefix as non-numeric (not whitespace)."
+setup:
+  files:
+    - path: data.txt
+      content: "\v2\n1\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -n data.txt
+expect:
+  stdout: "\v2\n1\n"
+  stderr: ""
+  exit_code: 0

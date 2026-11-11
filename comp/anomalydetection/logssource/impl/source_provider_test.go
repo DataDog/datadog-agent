@@ -17,6 +17,7 @@ import (
 	compConfig "github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafxmock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx-mock"
 	workloadmetamock "github.com/DataDog/datadog-agent/comp/core/workloadmeta/mock"
@@ -26,7 +27,7 @@ import (
 
 func newTestSourceProvider() (*sourceProvider, *sources.LogSources) {
 	ls := sources.NewLogSources()
-	sp := newSourceProvider(nil, ls, nil)
+	sp := newSourceProvider(nil, ls, nil, nil)
 	return sp, ls
 }
 
@@ -120,6 +121,29 @@ func TestHandleSet_SkipsAgentImage(t *testing.T) {
 	assert.Empty(t, ls.GetSources(), "agent container must be excluded to prevent self-tail feedback loop")
 }
 
+func TestHandleSet_SkipsLogsExcludeAnnotation(t *testing.T) {
+	wmeta := &podAnnotationWmeta{pod: &workloadmeta.KubernetesPod{
+		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name: "gensim-orchestrator-abc",
+			Annotations: map[string]string{
+				"ad.datadoghq.com/orchestrator.logs_exclude": "true",
+			},
+		},
+	}}
+	logsFilter := &stubFilterBundle{excluded: true}
+
+	ls := sources.NewLogSources()
+	sp := newSourceProvider(wmeta, ls, nil, logsFilter)
+	container := runningContainer("orchestrator-container", "alpine/k8s")
+	container.Name = "orchestrator"
+	sp.handleSet(container)
+
+	assert.Empty(t, ls.GetSources())
+	assert.Equal(t, map[string]string{"ad.datadoghq.com/orchestrator.logs_exclude": "true"}, logsFilter.annotations)
+	assert.Equal(t, "orchestrator", logsFilter.name)
+}
+
 func TestHandleSet_DockerContainerNoPodOwner(t *testing.T) {
 	sp, ls := newTestSourceProvider()
 	sp.handleSet(runningDockerContainer("abc", "nginx"))
@@ -185,6 +209,44 @@ func (s *stubWmeta) Unsubscribe(ch chan workloadmeta.EventBundle) { close(ch) }
 func (s *stubWmeta) GetContainer(_ string) (*workloadmeta.Container, error) {
 	return nil, nil
 }
+func (s *stubWmeta) GetKubernetesPodForContainer(_ string) (*workloadmeta.KubernetesPod, error) {
+	return nil, nil
+}
+
+type podAnnotationWmeta struct {
+	stubWmeta
+	container *workloadmeta.Container
+	pod       *workloadmeta.KubernetesPod
+}
+
+func (w *podAnnotationWmeta) GetContainer(_ string) (*workloadmeta.Container, error) {
+	return w.container, nil
+}
+
+func (w *podAnnotationWmeta) GetKubernetesPodForContainer(_ string) (*workloadmeta.KubernetesPod, error) {
+	return w.pod, nil
+}
+
+type stubFilterBundle struct {
+	excluded    bool
+	name        string
+	annotations map[string]string
+}
+
+func (f *stubFilterBundle) IsExcluded(obj workloadfilter.Filterable) bool {
+	f.name = obj.GetName()
+	f.annotations = obj.GetAnnotations()
+	return f.excluded
+}
+
+func (f *stubFilterBundle) GetResult(obj workloadfilter.Filterable) workloadfilter.Result {
+	if f.IsExcluded(obj) {
+		return workloadfilter.Excluded
+	}
+	return workloadfilter.Unknown
+}
+
+func (f *stubFilterBundle) GetErrors() []error { return nil }
 
 func newWMetaMock(t *testing.T) workloadmetamock.Mock {
 	t.Helper()
@@ -199,7 +261,7 @@ func newWMetaMock(t *testing.T) workloadmetamock.Mock {
 func TestSourceProvider_GoRoutineExitsCleanly(t *testing.T) {
 	defer goleak.VerifyNone(t, goleak.IgnoreCurrent())
 	ls := sources.NewLogSources()
-	sp := newSourceProvider(&stubWmeta{}, ls, nil)
+	sp := newSourceProvider(&stubWmeta{}, ls, nil, nil)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	sp.run(ctx)

@@ -7,8 +7,12 @@
 
 package authoredscripts
 
-import "errors"
+import (
+	"path/filepath"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+)
 
 func defaultArtifactStoreRoot() (string, error) {
-	return "", errors.New("authored-script artifact resolution is not supported on Windows")
+	return filepath.Join(defaultpaths.GetDefaultRunPath(), authoredScriptCacheDirectory), nil
 }

@@ -1,0 +1,13 @@
+description: tail exits 1 with an error when given a directory instead of a file.
+setup:
+  files:
+    - path: subdir/.keep
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail subdir
+expect:
+  stdout: ""
+  stderr_contains: ["tail:"]
+  exit_code: 1

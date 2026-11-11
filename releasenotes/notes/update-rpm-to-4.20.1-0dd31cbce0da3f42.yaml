@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Update ``rpm`` to 4.20.1, with its OpenPGP parser from ``libpgpr`` 1.3.

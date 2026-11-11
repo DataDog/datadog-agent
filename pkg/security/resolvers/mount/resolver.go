@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"path"
 	"slices"
 	"strings"
@@ -21,6 +22,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
 
 	"go.uber.org/atomic"
+	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
 
@@ -70,7 +72,7 @@ func (mr *Resolver) IsMountIDValid(mountID uint32) (bool, error) {
 	}
 
 	if mountID < mr.minMountID {
-		return false, ErrMountKernelID
+		return false, fmt.Errorf("%w (mount_id=%d < min_mount_id=%d)", ErrMountKernelID, mountID, mr.minMountID)
 	}
 
 	return true, nil
@@ -171,22 +173,7 @@ func (mr *Resolver) syncPidListmount(pid uint32) error {
 // syncPidNamespace snapshots the namespace of the pid
 func (mr *Resolver) syncPidNamespace(pid uint32) error {
 	var err error
-	var syncPid func(uint32) error
-	if mr.opts.SnapshotUsingListMount {
-		syncPid = func(p uint32) error {
-			err := mr.syncPidListmount(p)
-
-			// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
-			if err != nil {
-				mr.opts.SnapshotUsingListMount = false
-				err = mr.syncPidProcfs(p)
-			}
-
-			return err
-		}
-	} else {
-		syncPid = mr.syncPidProcfs
-	}
+	syncPid := mr.syncPidFunc()
 
 	err = syncPid(pid)
 	if err == nil {
@@ -214,6 +201,82 @@ func (mr *Resolver) syncPidNamespace(pid uint32) error {
 	}
 
 	return fmt.Errorf("failed to sync PID namespace for pid %d / namespace %d: %w", pid, ns, err)
+}
+
+func (mr *Resolver) syncPidFunc() func(uint32) error {
+	if mr.opts.SnapshotUsingListMount {
+		return func(p uint32) error {
+			err := mr.syncPidListmount(p)
+
+			// TODO: Decide if it makes sense to fully regress to procfs when it fails only once
+			if err != nil {
+				if errors.Is(err, os.ErrNotExist) || errors.Is(err, unix.ENOENT) || errors.Is(err, unix.ESRCH) {
+					return err
+				}
+				mr.opts.SnapshotUsingListMount = false
+				err = mr.syncPidProcfs(p)
+			}
+
+			return err
+		}
+	}
+	return mr.syncPidProcfs
+}
+
+func isPreExistingMount(mnt *model.Mount) bool {
+	switch mnt.Origin {
+	case model.MountOriginEvent, model.MountOriginMoveMount, model.MountOriginFsmount, model.MountOriginOpenTree:
+		return false
+	case model.MountOriginPivotRoot:
+		return !mnt.Detached && (mnt.MountPointStr == "/" || mnt.Path == "/")
+	default:
+		return true
+	}
+}
+
+func (mr *Resolver) hasPreExistingNamespaceMountsLocked(nsInode uint32) bool {
+	for mount := range mr.mounts.ValuesIter() {
+		if mount.NamespaceInode == nsInode && isPreExistingMount(mount) {
+			return true
+		}
+	}
+	return false
+}
+
+const maxFallbackSyncPids = 4
+
+func (mr *Resolver) syncNamespaceLocked(nsInode uint32, pid uint32) bool {
+	if !mr.opts.UseProcFS && !mr.opts.SnapshotUsingListMount {
+		return false
+	}
+
+	syncPid := mr.syncPidFunc()
+	if pid != 0 {
+		if err := syncPid(pid); err == nil && mr.hasPreExistingNamespaceMountsLocked(nsInode) {
+			mr.pidNs.Add(pid, nsInode)
+			return true
+		}
+	}
+
+	tried := 0
+	for k := range mr.pidNs.KeysIter() {
+		if k == pid {
+			continue
+		}
+		v, _ := mr.pidNs.Peek(k)
+		if v != nsInode {
+			continue
+		}
+		if err := syncPid(k); err == nil && mr.hasPreExistingNamespaceMountsLocked(nsInode) {
+			return true
+		}
+		tried++
+		if tried >= maxFallbackSyncPids {
+			break
+		}
+	}
+
+	return false
 }
 
 // SyncCache Snapshots the current mount points of the system by reading through /proc/[pid]/mountinfo.
@@ -475,7 +538,10 @@ func (mr *Resolver) _getMountPath(mountID uint32, pid uint32, depth int) (string
 
 	parentMountPath, parentSource, parentOrigin, err := mr._getMountPath(mount.ParentPathKey.MountID, pid, depth+1)
 	if err != nil {
-		return "", parentSource, parentOrigin, err
+		if errors.Is(err, ErrMountLoop) {
+			return "", parentSource, parentOrigin, err
+		}
+		return "", parentSource, parentOrigin, fmt.Errorf("parent mount resolution failed for mount_id=%d (parent_mount_id=%d, depth=%d): %w", mountID, mount.ParentPathKey.MountID, depth+1, err)
 	}
 
 	// mount points from kernel events are resolved from the root of the parent file system, not from the root of
@@ -537,29 +603,29 @@ func (mr *Resolver) resolveMountPath(mountID uint32, pid uint32) (string, model.
 		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
 	}
 
-	path, source, origin, err := mr.getMountPath(mountID, pid)
-	if err == nil {
+	path, source, origin, cacheErr := mr.getMountPath(mountID, pid)
+	if cacheErr == nil {
 		mr.cacheHitsStats.Inc()
 		return path, source, origin, nil
 	}
 	mr.cacheMissStats.Inc()
 
 	if !mr.opts.UseProcFS {
-		return "", model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, cacheErr
 	}
 
-	if err := mr.syncPidNamespace(pid); err != nil {
-		return "", model.MountSourceUnknown, model.MountOriginUnknown, err
+	if syncErr := mr.syncPidNamespace(pid); syncErr != nil {
+		return "", model.MountSourceUnknown, model.MountOriginUnknown, fmt.Errorf("cache lookup failed (%w) and procfs sync failed: %w", cacheErr, syncErr)
 	}
 
-	path, source, origin, err = mr.getMountPath(mountID, pid)
+	path, source, origin, err := mr.getMountPath(mountID, pid)
 	if err == nil {
 		mr.procHitsStats.Inc()
 		return path, source, origin, nil
 	}
 	mr.procMissStats.Inc()
 
-	return "", model.MountSourceUnknown, model.MountOriginUnknown, err
+	return "", model.MountSourceUnknown, model.MountOriginUnknown, fmt.Errorf("after procfs sync (pid=%d, initial_cache_err=%v): %w", pid, cacheErr, err)
 }
 
 // ResolveMount returns the mount
@@ -583,7 +649,7 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 	mr.cacheMissStats.Inc()
 
 	if err := mr.syncPidNamespace(pid); err != nil {
-		return nil, model.MountSourceUnknown, model.MountOriginUnknown, err
+		return nil, model.MountSourceUnknown, model.MountOriginUnknown, fmt.Errorf("mount %d not in cache and procfs sync failed: %w", mountID, err)
 	}
 
 	if mount, ok := mr.mounts.Get(mountID); mount != nil && ok {
@@ -592,7 +658,7 @@ func (mr *Resolver) resolveMount(mountID uint32, pid uint32) (*model.Mount, mode
 	}
 	mr.procMissStats.Inc()
 
-	return nil, model.MountSourceUnknown, model.MountOriginUnknown, &ErrMountNotFound{MountID: mountID}
+	return nil, model.MountSourceUnknown, model.MountOriginUnknown, fmt.Errorf("after procfs sync (pid=%d): %w", pid, &ErrMountNotFound{MountID: mountID})
 }
 
 // SendStats sends metrics about the current state of the mount resolver
@@ -656,10 +722,32 @@ func (mr *Resolver) Iterate(cb func(*model.Mount)) {
 	}
 }
 
-// IterateNamespace calls cb for every cached mount in the given mount namespace
-func (mr *Resolver) IterateNamespace(nsInode uint32, cb func(*model.Mount)) {
+// IterateNamespace calls cb for every cached mount in the given mount namespace,
+// syncing from pid when no pre-existing mounts for that namespace are cached yet.
+func (mr *Resolver) IterateNamespace(nsInode uint32, pid uint32, cb func(*model.Mount)) {
 	mr.lock.RLock()
-	defer mr.lock.RUnlock()
+	if mr.hasPreExistingNamespaceMountsLocked(nsInode) {
+		for mount := range mr.mounts.ValuesIter() {
+			if mount.NamespaceInode == nsInode {
+				cb(mount)
+			}
+		}
+		mr.lock.RUnlock()
+		return
+	}
+	mr.lock.RUnlock()
+	if pid == 0 || (!mr.opts.UseProcFS && !mr.opts.SnapshotUsingListMount) {
+		return
+	}
+
+	mr.lock.Lock()
+	defer mr.lock.Unlock()
+
+	if !mr.hasPreExistingNamespaceMountsLocked(nsInode) {
+		if !mr.syncNamespaceLocked(nsInode, pid) {
+			return
+		}
+	}
 
 	for mount := range mr.mounts.ValuesIter() {
 		if mount.NamespaceInode == nsInode {

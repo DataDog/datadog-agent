@@ -1,0 +1,19 @@
+description: find -iwholename is a case-insensitive alias for -path.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: DIR/Sub/File.TXT
+      content: "data"
+      chmod: 0644
+    - path: other/readme.md
+      content: "md"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -iwholename '*/dir/sub/*'
+expect:
+  stdout: |+
+    ./DIR/Sub/File.TXT
+  stderr: ""
+  exit_code: 0

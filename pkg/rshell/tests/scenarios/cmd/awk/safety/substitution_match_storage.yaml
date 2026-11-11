@@ -1,0 +1,11 @@
+# skip: rshell intentionally bounds aggregate substitution match metadata.
+skip_assert_against_bash: true
+description: awk rejects substitutions whose retained match indices exceed the aggregate limit.
+input:
+  script: |+
+    awk 'BEGIN { s = sprintf("%16385s", ""); gsub(/./, "", s) }'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: substitution match index storage exceeds 32768 indices
+  exit_code: 1

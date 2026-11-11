@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -27,31 +28,58 @@ const hangTimeout = 10 * time.Second
 
 // TestMain runs the test binary as a fake oscap-io when the evaluator tests
 // start it with GO_WANT_HELPER_OSCAP_IO set to 1, and as a child of the fake
-// that holds its stdout when it is set to sleep.
+// that holds its stdout when it is set to sleep, or its stderr when it is
+// set to linger.
 func TestMain(m *testing.M) {
 	switch os.Getenv("GO_WANT_HELPER_OSCAP_IO") {
 	case "1":
 		fakeOSCAPIO()
 		os.Exit(0)
 	case "sleep":
-		holdStdout()
+		hold(os.Stdout)
+		os.Exit(0)
+	case "linger":
+		hold(os.Stderr)
 		os.Exit(0)
 	}
 	os.Exit(m.Run())
 }
 
-// holdStdout writes an empty line on stdout twice a second, until a write
-// fails once the reader has closed the pipe, or 3*hangTimeout has passed.
-func holdStdout() {
+// hold writes an empty line on f twice a second, until a write fails once
+// the reader has closed the pipe, or 3*hangTimeout has passed.
+func hold(f *os.File) {
 	for end := time.Now().Add(3 * hangTimeout); time.Now().Before(end); time.Sleep(500 * time.Millisecond) {
-		if _, err := os.Stdout.Write([]byte("\n")); err != nil {
+		if _, err := f.Write([]byte("\n")); err != nil {
 			return
 		}
 	}
 }
 
+// loadSession makes the temporary directory of a session, as OpenSCAP does
+// when oscap-io loads its datastream at the first request: oscap.XXXXXX
+// under os.TempDir(), holding the datastream files. It reports whether
+// os.TempDir() was empty before.
+func loadSession() (string, bool) {
+	entries, err := os.ReadDir(os.TempDir())
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	dir, err := os.MkdirTemp("", "oscap.")
+	if err == nil {
+		err = os.WriteFile(filepath.Join(dir, "ds.xml"), nil, 0o600)
+	}
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	return dir, len(entries) == 0
+}
+
 // fakeOSCAPIO speaks the oscap-io protocol on its standard input and output.
-// It answers each request after the suffix of the rule id.
+// It answers each request after the suffix of the rule id. Like oscap-io, it
+// makes a session directory at the first request and removes it only when it
+// reaches the end of its input.
 func fakeOSCAPIO() {
 	codes := map[string]int{
 		"pass":        xccdfPass,
@@ -64,10 +92,32 @@ func fakeOSCAPIO() {
 		"unscored":    xccdfInformational,
 		"fixed":       xccdfFixed,
 	}
+	var session string
+	var fresh bool
 	s := bufio.NewScanner(os.Stdin)
 	for s.Scan() {
+		if session == "" {
+			session, fresh = loadSession()
+		}
 		_, id, _ := strings.Cut(s.Text(), " ")
 		switch suffix := id[strings.LastIndexByte(id, '_')+1:]; suffix {
+		case "fresh":
+			// Passes when the process got an empty TMPDIR of its own.
+			code := xccdfFail
+			if fresh {
+				code = xccdfPass
+			}
+			fmt.Printf("%s %d\n", id, code)
+		case "linger":
+			// The child holds stderr open once the fake has exited.
+			child := exec.Command(os.Args[0])
+			child.Env = append(os.Environ(), "GO_WANT_HELPER_OSCAP_IO=linger")
+			child.Stderr = os.Stderr
+			if err := child.Start(); err != nil {
+				fmt.Fprintln(os.Stderr, err)
+				os.Exit(1)
+			}
+			fmt.Printf("%s %d\n", id, xccdfPass)
 		case "silent":
 			fmt.Fprintf(os.Stderr, "error: xccdf_session_evaluate: %s\n", id)
 		case "garbage":
@@ -100,6 +150,9 @@ func fakeOSCAPIO() {
 	if err := s.Err(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+	if session != "" {
+		os.RemoveAll(session)
 	}
 }
 
@@ -279,17 +332,96 @@ func TestOSCAPIOEvaluateDeadline(t *testing.T) {
 }
 
 // TestOSCAPIOEvaluateStartFailure checks that an oscap-io command that
-// cannot start ends the evaluation at once.
+// cannot start, or cannot get its TMPDIR, ends the evaluation at once and
+// leaves nothing in TMPDIR.
 func TestOSCAPIOEvaluateStartFailure(t *testing.T) {
-	calls := 0
-	newCmd := func(ctx context.Context, _ string) (*exec.Cmd, error) {
-		calls++
-		return exec.CommandContext(ctx, filepath.Join(t.TempDir(), "oscap-io")), nil
+	missing := filepath.Join(t.TempDir(), "oscap-io")
+	tests := []struct {
+		name   string
+		tmpdir string // TMPDIR, below the root of the test
+		newCmd func(ctx context.Context, file string) (*exec.Cmd, error)
+	}{
+		{
+			name: "missing oscap-io",
+			newCmd: func(ctx context.Context, _ string) (*exec.Cmd, error) {
+				return exec.CommandContext(ctx, missing), nil
+			},
+		},
+		{
+			name:   "missing TMPDIR",
+			tmpdir: "missing",
+			newCmd: fakeOSCAPIOCommand,
+		},
 	}
-	ids := []string{"a_pass", "b_pass"}
-	err := evaluateXCCDF(t.Context(), "host", fakeBenchmark(ids), newCmd, 0, time.Minute, func(*Rule, *CheckEvent, time.Duration) {})
-	if !errors.Is(err, errStart) || calls != 1 {
-		t.Errorf("evaluate(%q) = %v after %d starts, want %v after 1", ids, err, calls, errStart)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.tmpdir != "" {
+				skipWithoutTMPDIR(t)
+			}
+			root := t.TempDir()
+			t.Setenv("TMPDIR", filepath.Join(root, tt.tmpdir))
+			calls := 0
+			newCmd := func(ctx context.Context, file string) (*exec.Cmd, error) {
+				calls++
+				return tt.newCmd(ctx, file)
+			}
+			ids := []string{"a_pass", "b_pass"}
+			var got []string
+			err := evaluateXCCDF(t.Context(), "host", fakeBenchmark(ids), newCmd, 0, time.Minute, func(rule *Rule, _ *CheckEvent, _ time.Duration) {
+				got = append(got, rule.ID)
+			})
+			if !errors.Is(err, errStart) || calls != 1 || len(got) > 0 {
+				t.Errorf("evaluate(%q) = %v after %d starts and answers %q, want %v after 1 start and none", ids, err, calls, got, errStart)
+			}
+			if names := dirNames(t, root); len(names) > 0 {
+				t.Errorf("%s holds %q after the evaluation, want nothing", root, names)
+			}
+		})
+	}
+}
+
+// TestOSCAPIOEvaluateTempDir checks that each oscap-io process gets an empty
+// TMPDIR of its own, removed once the process has exited, however it ends: a
+// crash, an exit after an answer, a kill by the watchdog, an exit while a
+// child holds its stderr, or the end of its input.
+func TestOSCAPIOEvaluateTempDir(t *testing.T) {
+	skipWithoutTMPDIR(t)
+	root := t.TempDir()
+	t.Setenv("TMPDIR", root)
+	ids := []string{"a_fresh", "b_crash", "c_fresh", "d_abort", "e_fresh", "f_hang", "g_linger", "h_fresh"}
+	got, err := evaluateFake(t.Context(), ids, 0, hangTimeout)
+	if err != nil {
+		t.Errorf("evaluate(%q) error = %v", ids, err)
+	}
+	want := []string{"a_fresh passed", "c_fresh passed", "d_abort passed", "e_fresh passed", "g_linger passed", "h_fresh passed"}
+	if !slices.Equal(got, want) {
+		t.Errorf("evaluate(%q) = %q, want %q", ids, got, want)
+	}
+	if names := dirNames(t, root); len(names) > 0 {
+		t.Errorf("%s holds %q after the evaluation, want nothing", root, names)
+	}
+}
+
+// dirNames returns the names of the entries of dir.
+func dirNames(t *testing.T, dir string) []string {
+	t.Helper()
+	entries, err := os.ReadDir(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var names []string
+	for _, e := range entries {
+		names = append(names, e.Name())
+	}
+	return names
+}
+
+// skipWithoutTMPDIR skips t on Windows, where os.TempDir reads TMP and TEMP
+// in place of TMPDIR.
+func skipWithoutTMPDIR(t *testing.T) {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("os.TempDir ignores TMPDIR on Windows")
 	}
 }
 

@@ -2308,6 +2308,46 @@ func TestWithoutIPCCert(t *testing.T) {
 	}
 }
 
+func TestDebugServerListensOnConfiguredHost(t *testing.T) {
+	for _, host := range []string{"127.0.0.1", "::1"} {
+		t.Run(host, func(t *testing.T) {
+			ln, err := net.Listen("tcp", net.JoinHostPort(host, "0"))
+			if err != nil {
+				t.Skipf("cannot listen on %s: %s", host, err)
+			}
+			port := ln.Addr().(*net.TCPAddr).Port
+			require.NoError(t, ln.Close())
+
+			c := newTestReceiverConfig()
+			c.DebugServerHost = host
+			c.DebugServerPort = port
+
+			ts := httptest.NewTLSServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+			tlsConfig := ts.TLS.Clone()
+			ts.Close()
+
+			s := NewDebugServer(c)
+			s.SetTLSConfig(tlsConfig)
+			s.Start()
+			t.Cleanup(s.Stop)
+
+			conn, err := net.DialTimeout("tcp", net.JoinHostPort(host, strconv.Itoa(port)), time.Second)
+			require.NoError(t, err)
+			conn.Close()
+
+			other := "::1"
+			if host == "::1" {
+				other = "127.0.0.1"
+			}
+			conn, err = net.DialTimeout("tcp", net.JoinHostPort(other, strconv.Itoa(port)), time.Second)
+			if conn != nil {
+				conn.Close()
+			}
+			require.Error(t, err)
+		})
+	}
+}
+
 func TestNormalizeHTTPHeader(t *testing.T) {
 	tests := []struct {
 		input    string

@@ -1,0 +1,9 @@
+description: xargs -I processes backslash escapes — a backslashed space is included literally as a single token (matches GNU).
+input:
+  script: |+
+    printf 'a\\ b\n' | xargs -I{} echo X{}X
+expect:
+  stdout: |+
+    Xa bX
+  stderr: |+
+  exit_code: 0

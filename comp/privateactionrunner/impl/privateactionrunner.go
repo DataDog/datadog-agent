@@ -12,8 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"os"
-	"runtime"
+	"net/url"
 	"sync"
 	"time"
 
@@ -34,9 +33,9 @@ import (
 	helmactions "github.com/DataDog/datadog-agent/comp/kubeactions/helmactions/def"
 	kubeactions "github.com/DataDog/datadog-agent/comp/kubeactions/kubeactions/def"
 	traceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/def"
+	pcapuploader "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/def"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
-	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	configutils "github.com/DataDog/datadog-agent/pkg/config/utils"
 	"github.com/DataDog/datadog-agent/pkg/fips"
@@ -46,6 +45,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/parversion"
 	pkgrcclient "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/rcclient"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/autoconnections"
+	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/deployment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/enrollment"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/executor"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/encryptioncontext"
@@ -66,20 +66,6 @@ func isEnabled(cfg config.Component) bool {
 	return cfg.GetBool(par.Enabled)
 }
 
-func splitDeploymentEnabled(configEnabled, containerized bool, envValue string) bool {
-	if containerized {
-		return envValue == "true"
-	}
-	return configEnabled
-}
-
-func splitDeploymentSupported(goos string, containerized, fipsEnabled, processManagerEnabled bool) bool {
-	if fipsEnabled {
-		return false
-	}
-	return goos == "linux" || (goos == "windows" && !containerized && processManagerEnabled)
-}
-
 // Requires defines the dependencies for the privateactionrunner component
 type Requires struct {
 	Config        config.Component
@@ -92,6 +78,7 @@ type Requires struct {
 	Tagger        tagger.Component
 	Traceroute    traceroute.Component
 	EventPlatform eventplatform.Component
+	PcapUploader  pcapuploader.Component
 	IPC           ipc.Component
 	Statsd        statsdcomp.Component
 }
@@ -109,6 +96,7 @@ type PrivateActionRunner struct {
 	tagger         tagger.Component
 	traceroute     traceroute.Component
 	eventPlatform  eventplatform.Component
+	pcapUploader   pcapuploader.Component
 	ipc            ipc.Component
 	// metricsClient is the resolved metrics sink: a DogStatsD client built from
 	// config (standalone runner) or an in-process adapter (Cluster Agent).
@@ -116,6 +104,7 @@ type PrivateActionRunner struct {
 	ownsMetricsClient bool
 	ha                helmactions.Component
 	ka                kubeactions.Component
+	identityStorage   enrollment.IdentityStorage
 
 	workflowRunner *runners.WorkflowRunner
 	commonRunner   *runners.CommonRunner
@@ -142,20 +131,16 @@ func NewComponent(reqs Requires) (Provides, error) {
 		reqs.Log.Flush()
 		return Provides{}, privateactionrunner.ErrNotEnabled
 	}
-	if splitDeploymentEnabled(
-		reqs.Config.GetBool(par.SplitEnabled),
-		configenv.IsContainerized(),
-		os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
-	) {
-		fipsEnabled := reqs.Config.GetBool("fips.enabled")
-		if buildFIPSEnabled, err := fips.Enabled(); err == nil {
-			fipsEnabled = fipsEnabled || buildFIPSEnabled
-		}
-		if splitDeploymentSupported(runtime.GOOS, configenv.IsContainerized(), fipsEnabled, reqs.Config.GetBool("process_manager.enabled")) {
-			reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
-			reqs.Log.Flush()
-			return Provides{}, privateactionrunner.ErrSplitDeployment
-		}
+	mode, err := deployment.Resolve(reqs.Config)
+	if err != nil {
+		return Provides{}, err
+	}
+	if mode == deployment.Split {
+		reqs.Log.Info("Split deployment is enabled; the monolithic PAR is standing down")
+		reqs.Log.Flush()
+		return Provides{}, privateactionrunner.ErrSplitDeployment
+	}
+	if deployment.Requested(reqs.Config) {
 		reqs.Log.Warn("Split deployment is not supported in this environment; continuing with the monolithic PAR")
 	}
 
@@ -167,7 +152,7 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil, enrollment.NewIdentityStorage(reqs.Config, nil))
 	if err != nil {
 		return Provides{}, err
 	}
@@ -192,7 +177,7 @@ func NewExecutorComponent(reqs Requires) (Provides, error) {
 	}
 	// The standalone/executor runner has no kubeactions provider (it is
 	// cluster-agent-only, wired via the cluster-agent start command), so pass nil.
-	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.IPC, metricsClient, nil, nil)
+	runner, err := NewPrivateActionRunner(ctx, reqs.Config, reqs.Hostname, pkgrcclient.NewAdapter(reqs.RcClient), reqs.Log, reqs.Tagger, reqs.Traceroute, reqs.EventPlatform, reqs.PcapUploader, reqs.IPC, metricsClient, nil, nil, enrollment.NewIdentityStorage(reqs.Config, nil))
 	if err != nil {
 		return Provides{}, err
 	}
@@ -216,24 +201,28 @@ func NewPrivateActionRunner(
 	taggerComp tagger.Component,
 	tracerouteComp traceroute.Component,
 	eventPlatform eventplatform.Component,
+	pcapUploader pcapuploader.Component,
 	ipcComp ipc.Component,
 	metricsClient statsdclient.ClientInterface,
 	ha helmactions.Component,
 	ka kubeactions.Component,
+	identityStorage enrollment.IdentityStorage,
 ) (*PrivateActionRunner, error) {
 	return &PrivateActionRunner{
-		coreConfig:     coreConfig,
-		hostnameGetter: hostnameGetter,
-		rcClient:       rcClient,
-		logger:         logger,
-		tagger:         taggerComp,
-		traceroute:     tracerouteComp,
-		eventPlatform:  eventPlatform,
-		ipc:            ipcComp,
-		metricsClient:  metricsClient,
-		startChan:      make(chan struct{}),
-		ha:             ha,
-		ka:             ka,
+		coreConfig:      coreConfig,
+		hostnameGetter:  hostnameGetter,
+		rcClient:        rcClient,
+		logger:          logger,
+		tagger:          taggerComp,
+		traceroute:      tracerouteComp,
+		eventPlatform:   eventPlatform,
+		pcapUploader:    pcapUploader,
+		ipc:             ipcComp,
+		metricsClient:   metricsClient,
+		startChan:       make(chan struct{}),
+		ha:              ha,
+		ka:              ka,
+		identityStorage: identityStorage,
 	}, nil
 }
 
@@ -243,7 +232,7 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 		return nil, fmt.Errorf("failed to get agent identifier: %w", err)
 	}
 
-	persistedIdentity, err := enrollment.GetIdentityFromPreviousEnrollment(ctx, p.coreConfig)
+	persistedIdentity, err := p.identityStorage.Load(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get identity: %w", err)
 	}
@@ -377,9 +366,7 @@ func (p *PrivateActionRunner) startExecutor(ctx context.Context) error {
 // configureExecutor resolves identity and returns the context tagged for logging.
 // Disabled mode serves only the configuration/health RPCs, without enrollment or actions.
 func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (context.Context, *parconfig.Config, error) {
-	if !p.coreConfig.GetBool(par.Enabled) || !splitDeploymentEnabled(
-		p.coreConfig.GetBool(par.SplitEnabled), configenv.IsContainerized(), os.Getenv("DD_PRIVATE_ACTION_RUNNER_SPLIT_ENABLED"),
-	) {
+	if !p.coreConfig.GetBool(par.Enabled) || !deployment.Requested(p.coreConfig) {
 		p.executorServer = executor.NewServer(nil, parversion.RunnerVersion)
 		return runCtx, nil, nil
 	}
@@ -410,7 +397,7 @@ func (p *PrivateActionRunner) configureExecutor(ctx, runCtx context.Context) (co
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	p.encryptionStore = encryptioncontext.NewStore()
-	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.coreConfig, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
+	taskExecutor, err := runners.NewWorkflowTaskExecutor(cfg, p.coreConfig, p.rcClient, taskVerifier, p.traceroute, p.eventPlatform, p.pcapUploader, p.hostnameGetter, p.ipc.GetClient(), p.encryptionStore, p.ha, p.ka)
 	if err != nil {
 		return runCtx, nil, err
 	}
@@ -518,14 +505,16 @@ func (p *PrivateActionRunner) start(ctx context.Context) error {
 	p.logger.Info("Private action runner starting")
 	p.logger.Info("==> Version : " + parversion.RunnerVersion)
 	p.logger.Info("==> Site : " + cfg.DatadogSite)
-	p.logger.Info("==> API Host : " + cfg.DDApiHost)
+	if endpoint, err := url.Parse(cfg.APIBaseURL); err == nil {
+		p.logger.Info("==> API Host : " + endpoint.Host)
+	}
 	p.logger.Info("==> URN : " + cfg.Urn)
 
 	keysManager := p.getKeysManager()
 	taskVerifier := taskverifier.NewTaskVerifier(keysManager, cfg)
 	opmsClient := opms.NewClient(p.coreConfig, cfg)
 
-	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.coreConfig, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.ipc.GetClient(), p.ha, p.ka)
+	p.workflowRunner, err = runners.NewWorkflowRunner(cfg, p.coreConfig, p.rcClient, keysManager, taskVerifier, opmsClient, p.traceroute, p.eventPlatform, p.pcapUploader, p.hostnameGetter, p.ipc.GetClient(), p.ha, p.ka)
 	if err != nil {
 		return err
 	}
@@ -639,7 +628,7 @@ func (p *PrivateActionRunner) performSelfEnrollment(ctx context.Context, cfg *pa
 	}
 	p.logger.Info("Self-enrollment successful")
 
-	if err := enrollment.PersistIdentity(ctx, p.coreConfig, enrollmentResult); err != nil {
+	if err := p.identityStorage.Persist(ctx, enrollmentResult); err != nil {
 		return nil, fmt.Errorf("failed to persist enrollment identity: %w", err)
 	}
 

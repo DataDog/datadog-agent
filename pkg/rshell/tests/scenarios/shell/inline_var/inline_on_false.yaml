@@ -1,0 +1,11 @@
+description: Inline variable assignment is temporary even when the command fails.
+input:
+  script: |+
+    VAR=original
+    VAR=temporary false
+    echo $VAR
+expect:
+  stdout: |+
+    original
+  stderr: ""
+  exit_code: 0

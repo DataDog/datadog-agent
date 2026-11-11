@@ -1,0 +1,15 @@
+description: strings -n 1 reports all single-char printable sequences.
+setup:
+  files:
+    - path: data.bin
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -n 1 data.bin
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

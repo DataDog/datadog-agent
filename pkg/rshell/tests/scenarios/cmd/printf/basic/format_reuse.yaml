@@ -1,0 +1,11 @@
+description: Printf reuses the format string for excess arguments.
+input:
+  script: |+
+    printf "%s\n" a b c
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

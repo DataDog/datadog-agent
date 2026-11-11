@@ -176,17 +176,29 @@ static __always_inline u64 get_mount_mount_id_unique(void *mnt) {
     return mount_id;
 }
 
-static __always_inline u32 get_mount_mount_ns_inum(void *mnt) {
-    void* mnt_ns = NULL;
-    u32   inum = 0;
-
-    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
+static __always_inline u32 get_mnt_namespace_inum(void *mnt_ns) {
     if (!mnt_ns) {
         return 0;
     }
 
-    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + get_ns_common_inum_offset());
+    u32 inum = 0;
+    u32 ns_inum_offset = get_ns_common_inum_offset();
+    if (ns_inum_offset == 0) {
+        // Before Linux 3.19 (no struct ns_common), struct mnt_namespace starts with
+        // atomic_t count followed by unsigned int proc_inum at offset 4.
+        bpf_probe_read(&inum, sizeof(inum), mnt_ns + sizeof(atomic_t));
+        return inum;
+    }
+
+    bpf_probe_read(&inum, sizeof(inum), mnt_ns + get_mnt_namespace_ns() + ns_inum_offset);
     return inum;
+}
+
+static __always_inline u32 get_mount_mount_ns_inum(void *mnt) {
+    void* mnt_ns = NULL;
+
+    bpf_probe_read(&mnt_ns, sizeof(mnt_ns), mnt + get_mount_offset_of_mount_ns());
+    return get_mnt_namespace_inum(mnt_ns);
 }
 
 static void * __attribute__((always_inline)) get_vfsmount_mount(struct vfsmount *mnt) {

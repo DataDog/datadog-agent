@@ -1,0 +1,13 @@
+description: When -n and -c are both given, the last flag wins; -n last means line mode.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\ndelta\nepsilon\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -c 5 -n 2 file.txt
+expect:
+  stdout: "delta\nepsilon\n"
+  stderr: ""
+  exit_code: 0

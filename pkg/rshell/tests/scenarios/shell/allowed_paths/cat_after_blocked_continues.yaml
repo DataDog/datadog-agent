@@ -1,0 +1,20 @@
+description: "Execution continues after a blocked file access"
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: "allowed/ok.txt"
+      content: "accessible\n"
+    - path: "secret/hidden.txt"
+      content: "secret\n"
+input:
+  script: |
+    cat secret/hidden.txt
+    echo "still running"
+  allowed_paths:
+    - "allowed"
+expect:
+  stdout: "still running\n"
+  stderr_contains:
+    - "permission denied"
+  exit_code: 0

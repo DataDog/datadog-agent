@@ -1,0 +1,12 @@
+description: Variable assignment inside if body.
+input:
+  script: |+
+    if true; then
+      X=hello
+    fi
+    echo $X
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

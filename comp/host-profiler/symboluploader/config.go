@@ -15,13 +15,27 @@ import (
 
 // Default configuration values
 const (
-	DefaultSymbolQueryInterval  = 5 * time.Second
-	DefaultUploadSymbolsDryRun  = false
-	DefaultUploadSymbolsHTTP2   = false
-	DefaultUploadSymbols        = true
-	DefaultUploadDynamicSymbols = false
-	DefaultUploadGoPCLnTab      = true
+	DefaultSymbolQueryInterval     = 5 * time.Second
+	DefaultUploadSymbolsDryRun     = false
+	DefaultUploadSymbolsHTTP2      = false
+	DefaultUploadSymbols           = true
+	DefaultUploadDynamicSymbols    = false
+	DefaultUploadGoPCLnTab         = true
+	DefaultReportInterval          = 5 * time.Minute
+	DefaultReportIntervalSeconds   = int(DefaultReportInterval / time.Second)
+	DefaultReportMaxPathsPerReport = 100
+	MaxReportInterval              = 24 * time.Hour
+	MaxReportIntervalSeconds       = int(MaxReportInterval / time.Second)
+	MaxReportMaxPathsPerReport     = 100_000
 )
+
+// ReportConfig configures the batched upload report emitted periodically.
+type ReportConfig struct {
+	// Interval, in seconds, at which the report is emitted.
+	Interval int `mapstructure:"interval"`
+	// MaxPathsPerReport is the number of binary paths kept per report. When reached, the report is emitted.
+	MaxPathsPerReport int `mapstructure:"max_paths_per_report"`
+}
 
 type SymbolUploaderOptions struct {
 	// Enabled defines whether the agent should upload debug symbols to the backend.
@@ -29,7 +43,7 @@ type SymbolUploaderOptions struct {
 	// UploadDynamicSymbols defines whether the agent should upload dynamic symbols to the backend.
 	UploadDynamicSymbols bool `mapstructure:"upload_dynamic_symbols"`
 	// UploadGoPCLnTab defines whether the agent should upload GoPCLnTab section for Go binaries to the backend.
-	UploadGoPCLnTab bool `mapstructure:"upload_go_pcln_tab"`
+	UploadGoPCLnTab bool `mapstructure:"upload_gopclntab"`
 	// UseHTTP2 defines whether the agent should use HTTP/2 when uploading symbols.
 	UseHTTP2 bool `mapstructure:"use_http2"`
 	// SymbolQueryInterval defines the interval at which the agent should query the backend for symbols. A value of 0 disables batching.
@@ -38,6 +52,7 @@ type SymbolUploaderOptions struct {
 	DryRun bool `mapstructure:"dry_run"`
 	// Sites to upload symbols to.
 	SymbolEndpoints []SymbolEndpoint `mapstructure:"symbol_endpoints"`
+	Report          ReportConfig     `mapstructure:"report"`
 }
 
 type SymbolUploaderConfig struct {
@@ -62,6 +77,10 @@ func DefaultSymbolUploaderConfig(profilerName string) SymbolUploaderConfig {
 			UseHTTP2:             DefaultUploadSymbolsHTTP2,
 			SymbolQueryInterval:  DefaultSymbolQueryInterval,
 			DryRun:               DefaultUploadSymbolsDryRun,
+			Report: ReportConfig{
+				Interval:          DefaultReportIntervalSeconds,
+				MaxPathsPerReport: DefaultReportMaxPathsPerReport,
+			},
 		},
 		Name:    profilerName,
 		Version: version.ProfilerVersion,

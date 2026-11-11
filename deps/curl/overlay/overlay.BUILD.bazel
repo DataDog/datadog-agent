@@ -79,7 +79,13 @@ LOCAL_DEFINES = [
     "SM4_ASM",
     "VPAES_ASM",
     "VPSM4_ASM",
-]
+] + select({
+    # curl_config.h claims the GNU strerror_r (returns char*). glibc only
+    # declares that when _GNU_SOURCE is set; otherwise the XSI int version is
+    # visible. GCC warns, clang rejects the conversion.
+    "@platforms//os:linux": ["_GNU_SOURCE"],
+    "//conditions:default": [],
+})
 
 copy_file(
     name = "copy_config_h",

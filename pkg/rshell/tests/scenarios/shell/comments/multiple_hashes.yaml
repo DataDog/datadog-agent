@@ -1,0 +1,12 @@
+description: Multiple hash characters in sequence are still a comment.
+input:
+  script: |+
+    echo before
+    ### this is a comment with multiple hashes
+    echo after
+expect:
+  stdout: |+
+    before
+    after
+  stderr: ""
+  exit_code: 0

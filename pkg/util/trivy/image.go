@@ -14,6 +14,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -25,7 +26,10 @@ import (
 	"github.com/moby/moby/client"
 	"github.com/samber/lo"
 
+	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
+	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/sbom/telemetry"
+	"github.com/DataDog/datadog-agent/pkg/util/filesystem"
 )
 
 var mu sync.Mutex
@@ -34,8 +38,16 @@ type opener func() (v1.Image, error)
 
 type imageSave func(context.Context, []string, ...client.ImageSaveOption) (client.ImageSaveResult, error)
 
-func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave) opener {
+// imageOpener returns an opener that saves the image of imgMeta, named ref, to
+// f and reads it from there. With scanOptions.CheckDiskUsage, it first checks
+// that the disk of f holds the image.
+func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSave imageSave, imgMeta *workloadmeta.ContainerImageMetadata, scanOptions sbom.ScanOptions) opener {
 	return func() (v1.Image, error) {
+		if scanOptions.CheckDiskUsage {
+			if err := checkExportSpace(filepath.Dir(f.Name()), imgMeta.SizeBytes); err != nil {
+				return nil, err
+			}
+		}
 		// Store the tarball in local filesystem and return a new reader into the bytes each time we need to access something.
 		rc, err := imageSave(ctx, []string{ref})
 		if err != nil {
@@ -58,6 +70,20 @@ func imageOpener(ctx context.Context, collector, ref string, f *os.File, imageSa
 
 		return img, nil
 	}
+}
+
+// checkExportSpace returns an error when the filesystem of dir holds less than
+// 20% more than size bytes, the size of an image to export there.
+func checkExportSpace(dir string, size int64) error {
+	usage, err := filesystem.NewDisk().GetUsage(dir)
+	if err != nil {
+		return fmt.Errorf("unable to read the disk usage of %s: %w", dir, err)
+	}
+	required := uint64(float64(size) * 1.2)
+	if usage.Available < required {
+		return fmt.Errorf("not enough disk space to export the image, %d available, %d required", usage.Available, required)
+	}
+	return nil
 }
 
 // image wraps github.com/google/go-containerregistry/pkg/v1/daemon.Image,
@@ -122,6 +148,12 @@ func (img *image) ConfigFile() (*v1.ConfigFile, error) {
 		return img.configFile()
 	}
 
+	return img.inspectConfigFile()
+}
+
+// inspectConfigFile returns the config file that the inspect response and the
+// history describe, whose history may disagree with its diff IDs.
+func (img *image) inspectConfigFile() (*v1.ConfigFile, error) {
 	diffIDs, err := img.diffIDs()
 	if err != nil {
 		return nil, fmt.Errorf("unable to get diff IDs: %w", err)

@@ -1,0 +1,8 @@
+description: cat rejects unknown flags with exit code 1.
+input:
+  script: |+
+    cat --follow file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["cat:"]
+  exit_code: 1

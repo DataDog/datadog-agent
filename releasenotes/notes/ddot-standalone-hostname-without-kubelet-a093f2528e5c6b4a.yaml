@@ -1,0 +1,28 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    DDOT (Datadog Distribution of OpenTelemetry Collector): when the
+    OpenTelemetry Agent runs in standalone mode (``DD_OTEL_STANDALONE=true``)
+    on Kubernetes without ``DD_HOSTNAME`` set, it now builds its hostname from
+    the node name read from the environment variables listed in the
+    ``node_from_env_var`` setting of the ``dogtel`` extension
+    (``K8S_NODE_NAME``, ``DD_KUBERNETES_KUBELET_NODENAME`` and
+    ``OTEL_K8S_NODE_NAME`` by default), instead of querying the kubelet. This
+    works with the RBAC and settings an upstream OpenTelemetry Collector
+    deployment already has, without kubelet API access or Datadog-specific
+    kubelet settings. It falls back to the kubelet only when
+    ``use_kubelet_collector`` is ``true``; otherwise, the cluster name lookup
+    and host metadata (Kubernetes distribution tag, node annotation host
+    aliases) no longer contact the kubelet either. When no other
+    source gives a cluster name (``DD_CLUSTER_NAME``, the cloud provider,
+    node labels), the hostname suffix now comes from the ``k8s.cluster.name``
+    attribute of the collector's telemetry resource: from
+    ``service.telemetry.resource`` in the collector configuration, or else from
+    ``OTEL_RESOURCE_ATTRIBUTES``, which the OpenTelemetry Helm charts populate.

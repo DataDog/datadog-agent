@@ -1,0 +1,11 @@
+# ip route show rejects path-like extra operands before reading /proc/net/route.
+description: "ip route show rejects path-like extra operand"
+input:
+  script: |+
+    ip route show /tmp/attacker-route-table
+expect:
+  stdout: |+
+  stderr: |+
+    ip: route show: unsupported argument "/tmp/attacker-route-table"
+  exit_code: 1
+skip_assert_against_bash: true

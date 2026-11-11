@@ -1,0 +1,13 @@
+description: uniq -c prefixes lines with occurrence count.
+setup:
+  files:
+    - path: input.txt
+      content: "a\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq -c input.txt
+expect:
+  stdout: "      1 a\n      1 b\n"
+  stderr: ""
+  exit_code: 0

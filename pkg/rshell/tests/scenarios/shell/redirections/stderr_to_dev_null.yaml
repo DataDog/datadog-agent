@@ -1,0 +1,10 @@
+description: Redirecting stderr to /dev/null suppresses error output.
+input:
+  script: |+
+    echo hello
+    unknowncmd 2>/dev/null
+    echo done
+expect:
+  stdout: "hello\ndone\n"
+  stderr: ""
+  exit_code: 0

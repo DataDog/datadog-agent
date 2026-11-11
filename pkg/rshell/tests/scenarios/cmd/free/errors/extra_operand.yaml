@@ -1,0 +1,14 @@
+# skip: free is not part of GNU coreutils (it ships in procps-ng), which is
+# not installed in the debian:bookworm-slim comparison image, so there is no
+# real `free` binary to compare against.
+description: free rejects extra positional operands
+skip_assert_against_bash: true
+input:
+  script: |+
+    free foo
+expect:
+  stdout: |+
+  stderr: |+
+    free: extra operand 'foo'
+    Try 'free --help' for more information.
+  exit_code: 1

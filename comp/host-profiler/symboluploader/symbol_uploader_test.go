@@ -14,6 +14,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"log/slog"
 	"mime"
 	"mime/multipart"
@@ -26,6 +27,8 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"testing/fstest"
+	"time"
 
 	"github.com/DataDog/jsonapi"
 	"github.com/DataDog/zstd"
@@ -83,12 +86,12 @@ func (d *dummyProcess) CalculateMappingFileID(m *process.RawMapping) (libpf.File
 	return libpf.FileIDFromExecutableFile(m.Path)
 }
 
-func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (process.ReadAtCloser, error) {
+func (d *dummyProcess) OpenMappingFile(m *process.RawMapping) (fs.File, error) {
 	return os.Open(m.Path)
 }
 
-func (d *dummyProcess) OpenELF(name string) (*pfelf.File, error) {
-	return pfelf.Open(name)
+func (d *dummyProcess) Open(name string) (fs.File, error) {
+	return os.Open(name)
 }
 
 func (d *dummyProcess) Close() error {
@@ -103,8 +106,8 @@ func (d *dummyProcess) GetExe() (libpf.String, error) {
 	return libpf.Intern(str), nil
 }
 
-func (d *dummyProcess) GetProcessMeta(_ process.MetaConfig) process.ProcessMeta {
-	return process.ProcessMeta{}
+func (d *dummyProcess) GetProcessMeta(_ []process.MetaEnricher) process.Meta {
+	return process.Meta{}
 }
 
 func newExecutableMetadata(t *testing.T, filePath string) *reporter.ExecutableMetadata {
@@ -684,6 +687,49 @@ func TestSymbolUpload(t *testing.T) {
 	})
 }
 
+// memProcess serves its mappings from memory rather than from files, as
+// systemProcess does for the vdso.
+type memProcess struct {
+	dummyProcess
+	mappings fstest.MapFS
+}
+
+func (p *memProcess) OpenMappingFile(m *process.RawMapping) (fs.File, error) {
+	return p.mappings.Open(m.Path)
+}
+
+func TestElfFromMemoryMapping(t *testing.T) {
+	data, err := os.ReadFile(buildGo(t, t.TempDir(), "test", buildOptions{}))
+	require.NoError(t, err)
+
+	t.Run("vdso", func(t *testing.T) {
+		pr := &memProcess{mappings: fstest.MapFS{process.VdsoPathName: {Data: data}}}
+		m := &process.RawMapping{Path: process.VdsoPathName}
+		e, err := symbol.NewElfFromMapping(m, "", "", libpf.FileID{}, pr)
+		require.NoError(t, err)
+
+		// The vdso has no backing file, so its content is dumped to a temporary file.
+		assert.Empty(t, e.SymbolPathOnDisk())
+		assert.Equal(t, int64(len(data)), e.GetSize())
+		dump, err := e.DumpElfData()
+		require.NoError(t, err)
+		got, err := os.ReadFile(dump)
+		require.NoError(t, err)
+		assert.Equal(t, data, got)
+
+		e.Close()
+		_, err = os.Stat(dump)
+		assert.ErrorIs(t, err, fs.ErrNotExist)
+	})
+
+	t.Run("other mappings need a backing file", func(t *testing.T) {
+		pr := &memProcess{mappings: fstest.MapFS{"helloworld": {Data: data}}}
+		m := &process.RawMapping{Path: "helloworld"}
+		_, err := symbol.NewElfFromMapping(m, "", "", libpf.FileID{}, pr)
+		require.Error(t, err)
+	})
+}
+
 // Verify that the symbol uploader transport has the same exported fields as http.DefaultTransport
 // when HTTP/2 is disabled
 func TestTransport(t *testing.T) {
@@ -745,5 +791,37 @@ func TestTransport(t *testing.T) {
 			assert.Equal(t, defaultFieldValue.Interface(), customFieldValue.Interface(),
 				"Field %s should match default transport", field.Name)
 		}
+	}
+}
+
+func TestNewDatadogSymbolUploaderPropagatesReportConfig(t *testing.T) {
+	tests := []struct {
+		name         string
+		report       ReportConfig
+		wantInterval time.Duration
+		wantMax      int
+	}{
+		{"explicit positive", ReportConfig{Interval: 30, MaxPathsPerReport: 7}, 30 * time.Second, 7},
+		{"zero value", ReportConfig{}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
+		{"negative", ReportConfig{Interval: -1, MaxPathsPerReport: -1}, DefaultReportInterval, DefaultReportMaxPathsPerReport},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := &SymbolUploaderConfig{
+				SymbolUploaderOptions: SymbolUploaderOptions{
+					Enabled:         true,
+					SymbolEndpoints: []SymbolEndpoint{{Site: "test.com", APIKey: "key"}},
+					Report:          tt.report,
+				},
+				Version: "test",
+			}
+
+			uploader, err := NewDatadogSymbolUploader(t.Context(), cfg)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.wantInterval, uploader.reporter.interval)
+			require.Equal(t, tt.wantMax, uploader.reporter.infoRep.maxPaths)
+			require.Equal(t, tt.wantMax, uploader.reporter.errRep.maxPaths)
+		})
 	}
 }

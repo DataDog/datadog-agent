@@ -8,20 +8,7 @@ package replayimpl
 import (
 	"errors"
 	"io"
-
-	"github.com/h2non/filetype"
-	"github.com/h2non/filetype/matchers"
 )
-
-var (
-	datadogType = filetype.NewType("dog", "datadog/capture")
-)
-
-func init() {
-	// Register the new matcher and its type
-	filetype.AddMatcher(datadogType, datadogMatcher)
-	filetype.AddMatcher(matchers.TypeZstd, matchers.Zst)
-}
 
 func datadogMatcher(buf []byte) bool {
 	if len(buf) < len(datadogHeader) {

@@ -1,0 +1,9 @@
+description: ps rejects argv-bearing format fields instead of exposing process arguments.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps -o args
+expect:
+  stderr: |+
+    ps: unknown format specifier "args"
+  exit_code: 1

@@ -44,7 +44,9 @@ type TelemetryUtilizationMonitor struct {
 	started             atomic.Bool
 
 	// EWMA utilization (N=15, α≈0.125); sampler writes, subscribers read.
-	avg atomic.Float64
+	// Allocate separately to keep the 64-bit atomic word aligned on ARM32.
+	// An inline Float64 after started would sit at byte offset 20.
+	avg *atomic.Float64
 
 	name              string
 	instance          string
@@ -71,6 +73,7 @@ func newTelemetryUtilizationMonitorWithSampleRateAndClock(name, instance string,
 		sampleRate: sampleRate,
 		clock:      clock,
 		history:    newRollingHistory(),
+		avg:        atomic.NewFloat64(0),
 		lastSample: clock.Now(),
 		registry:   registry,
 	}

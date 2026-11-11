@@ -22,6 +22,7 @@ import (
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/utils"
+	agentmetrics "github.com/DataDog/datadog-agent/pkg/metrics"
 	"github.com/DataDog/datadog-agent/pkg/serializer/internal/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/compression"
 	implzlib "github.com/DataDog/datadog-agent/pkg/util/compression/impl-zlib"
@@ -312,12 +313,16 @@ func TestBuildPipelinesSketchShadowFires(t *testing.T) {
 
 	config.SetInTest("dd_url", "https://app.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
+	config.SetInTest(utils.MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{"https://app.datadoghq.com": {"kept"}})
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0.5)
+	config.SetInTest("use_v3_api.distributions.enabled", "false")
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	s := NewSerializer(f, nil, compressor, config, logger, "")
+	routing, err := utils.ReadMetricsEndpointRouting(config)
+	require.NoError(t, err)
+	s := NewSerializerWithEndpointRouting(f, nil, compressor, config, logger, "", routing)
 
 	pipelines := s.buildPipelinesRng(metricsKindSketches, fixedRand{v: 0.4})
 
@@ -337,7 +342,7 @@ outer:
 		// v2 (authoritative) pipeline carries the batchID for correlation.
 		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
 			require.False(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+			require.Equal(t, s.endpointMetricFilters["https://app.datadoghq.com"], conf.Filter)
 			require.Len(t, ctx.Destinations, 1)
 			dest := ctx.Destinations[0]
 			require.Equal(t, "https://app.datadoghq.com", dest.Resolver.GetConfigName())
@@ -347,7 +352,7 @@ outer:
 		// v3beta sketches shadow pipeline carries the same batchID.
 		func(t require.TestingT, conf metrics.PipelineConfig, ctx *metrics.PipelineContext) {
 			require.True(t, conf.V3, "V3")
-			require.Equal(t, metrics.AllowAllFilter{}, conf.Filter)
+			require.Equal(t, s.endpointMetricFilters["https://app.datadoghq.com"], conf.Filter)
 			require.Len(t, ctx.Destinations, 1)
 			dest := ctx.Destinations[0]
 			require.Equal(t, "https://app.datadoghq.com", dest.Resolver.GetConfigName())
@@ -367,6 +372,7 @@ func TestBuildPipelinesSketchShadowCustomRoute(t *testing.T) {
 	config.SetInTest("dd_url", "https://app.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 0.5)
+	config.SetInTest("use_v3_api.distributions.enabled", "false")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.beta_route", "/api/intake/metrics/custom/sketches")
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
@@ -430,6 +436,7 @@ func TestBuildPipelinesSketchShadowSitesKnobOptsInNonUS1(t *testing.T) {
 	config.SetInTest("dd_url", "https://app.us3.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
+	config.SetInTest("use_v3_api.distributions.enabled", "false")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sites", []string{"us3.datadoghq.com"})
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
@@ -462,6 +469,7 @@ func TestBuildPipelinesSketchShadowSkippedForNonShadowSite(t *testing.T) {
 	config.SetInTest("dd_url", "https://app.us3.datadoghq.com")
 	config.SetInTest("api_key", "test_key")
 	config.SetInTest("serializer_experimental_use_v3_api.sketches.shadow_sample_rate", 1)
+	config.SetInTest("use_v3_api.distributions.enabled", "false")
 
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
@@ -510,6 +518,30 @@ func TestBuildPipelinesSketchShadowSkippedWhenVectorConfigured(t *testing.T) {
 	}
 }
 
+func TestEndpointMetricRoutingSitePrimaryWithMetricsOverride(t *testing.T) {
+	for _, prefix := range []string{"vector", "observability_pipelines_worker"} {
+		t.Run(prefix, func(t *testing.T) {
+			cfg := configmock.New(t)
+			cfg.SetInTest("site", "us5.datadoghq.com")
+			cfg.SetInTest("api_key", "fake-key")
+			cfg.SetInTest(prefix+".metrics.enabled", true)
+			cfg.SetInTest(prefix+".metrics.url", "http://worker.example")
+			cfg.SetInTest(utils.MetricsEndpointRoutingKey+".metric_allowlist", map[string][]string{utils.GetInfraEndpoint(cfg): {"keep"}})
+			s := newV3Serializer(t, cfg)
+			pipelines := s.buildPipelines(metricsKindSeries)
+			require.Len(t, pipelines, 1)
+			for conf, context := range pipelines {
+				require.Len(t, context.Destinations, 1)
+				destination := context.Destinations[0]
+				require.Equal(t, utils.GetInfraEndpoint(cfg), destination.Resolver.GetConfigName())
+				require.Equal(t, "http://worker.example", destination.Resolver.Resolve(destination.Endpoint))
+				require.True(t, conf.Filter.Filter(&agentmetrics.Serie{Name: "keep"}))
+				require.False(t, conf.Filter.Filter(&agentmetrics.Serie{Name: "drop"}))
+			}
+		})
+	}
+}
+
 // newV3Serializer builds a serializer for the use_v3_api routing tests.
 func newV3Serializer(t *testing.T, config model.BuildableConfig) *Serializer {
 	t.Helper()
@@ -517,7 +549,9 @@ func newV3Serializer(t *testing.T, config model.BuildableConfig) *Serializer {
 	f, err := defaultforwarderimpl.NewTestForwarder(defaultforwarder.Params{}, config, logger, &secretnooptypes.SecretNoop{})
 	require.NoError(t, err)
 	compressor := metricscompressionimpl.NewComponent(metricscompressionimpl.Requires{Cfg: config}).Comp
-	return NewSerializer(f, nil, compressor, config, logger, "")
+	routing, err := utils.ReadMetricsEndpointRouting(config)
+	require.NoError(t, err)
+	return NewSerializerWithEndpointRouting(f, nil, compressor, config, logger, "", routing)
 }
 
 // TestSeriesV3ModeFalse covers the "fully opt out" case: setting enabled=false forces v2
@@ -719,7 +753,12 @@ func TestSketchesV3Mode(t *testing.T) {
 		wantV3 map[string]bool
 	}{
 		{
-			name:   "default is v2",
+			name:   "default is datadog_only",
+			wantV3: map[string]bool{ddURL: true, proxyURL: false},
+		},
+		{
+			name:   "false",
+			config: map[string]any{"use_v3_api.distributions.enabled": "false"},
 			wantV3: map[string]bool{ddURL: false, proxyURL: false},
 		},
 		{
@@ -733,9 +772,20 @@ func TestSketchesV3Mode(t *testing.T) {
 			wantV3: map[string]bool{ddURL: true, proxyURL: false},
 		},
 		{
-			name:   "per-URL opt-in",
-			config: map[string]any{"use_v3_api.distributions.endpoints": map[string]string{proxyURL: "true"}},
+			name: "per-URL opt-in",
+			config: map[string]any{
+				"use_v3_api.distributions.enabled":   "false",
+				"use_v3_api.distributions.endpoints": map[string]string{proxyURL: "true"},
+			},
 			wantV3: map[string]bool{ddURL: false, proxyURL: true},
+		},
+		{
+			name: "per-URL datadog_only",
+			config: map[string]any{"use_v3_api.distributions.endpoints": map[string]string{
+				ddURL:    "datadog_only",
+				proxyURL: "datadog_only",
+			}},
+			wantV3: map[string]bool{ddURL: true, proxyURL: false},
 		},
 		{
 			name: "per-URL opt-out",
@@ -885,7 +935,11 @@ func TestSketchesV2Domains(t *testing.T) {
 		expected []string
 	}{
 		{
-			name:     "sketches on v2 by default",
+			name: "Datadog URL on v3 by default",
+		},
+		{
+			name:     "sketches on v2 when disabled",
+			config:   map[string]any{"use_v3_api.distributions.enabled": "false"},
 			expected: []string{"https://app.datadoghq.com"},
 		},
 		{

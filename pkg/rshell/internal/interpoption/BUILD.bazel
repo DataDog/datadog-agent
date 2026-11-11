@@ -1,0 +1,17 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "interpoption",
+    srcs = ["option.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/internal/interpoption",
+    visibility = [
+        "//pkg/rshell:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_rshell//:__subpackages__",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

@@ -1,0 +1,9 @@
+description: Without -r, a backslash before an ordinary char is dropped (the char is kept).
+input:
+  script: |+
+    printf 'a\\bc\n' | { read X; echo "$X"; }
+expect:
+  stdout: |+
+    abc
+  stderr: ""
+  exit_code: 0

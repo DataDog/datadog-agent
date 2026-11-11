@@ -6,7 +6,7 @@
 struct rate_limiter_ctx {
     /*
         data is representing both the `current_period` start
-        in the first 6 bytes (basically current_period & ~0xff)
+        in the first 6 bytes (basically current_period & ~0xffff)
         and the counter in the last 2 bytes
     */
     u64 data;
@@ -29,7 +29,7 @@ static __always_inline u16 get_counter(struct rate_limiter_ctx *r) {
 static __always_inline void inc_counter(struct rate_limiter_ctx *r, u16 delta) {
     // this is an horrible hack, to keep the atomic property
     // we do an atomic add on the full data, worse case scenario
-    // the current_period is increased by 256 nanoseconds
+    // the current_period is increased by 65536 nanoseconds
     __sync_fetch_and_add(&r->data, delta);
 }
 

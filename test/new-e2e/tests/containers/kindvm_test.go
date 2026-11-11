@@ -7,9 +7,16 @@ package containers
 
 import (
 	"context"
+	_ "embed"
+	"encoding/json"
 	"regexp"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	corev1 "k8s.io/api/core/v1"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/kubernetesagentparams"
 	scenec2 "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
@@ -17,9 +24,16 @@ import (
 	scenkind "github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/kindvm"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	provkind "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
+	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
 	utilversion "k8s.io/apimachinery/pkg/util/version"
+	"k8s.io/client-go/dynamic"
 )
+
+//go:embed fixtures/kubeai-model-crd.json
+var kubeAIModelCRD []byte
 
 type kindSuite struct {
 	k8sSuite
@@ -38,6 +52,8 @@ clusterAgent:
 `
 	e2e.Run(t, &kindSuite{}, e2e.WithProvisioner(provkind.Provisioner(
 		provkind.WithRunOptions(
+			// TODO: Route the Argo Rollouts chart's images through the internal registry.
+			scenkind.WithInternetAccess(),
 			scenkind.WithVMOptions(
 				scenec2.WithInstanceType("t3.xlarge"),
 			),
@@ -71,13 +87,134 @@ func (suite *kindSuite) SetupSuite() {
 }
 
 func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
-	const (
-		deploymentLabel = "nvidia.com/dynamo-graph-deployment-name"
-		deploymentName  = "my-model"
-		componentLabel  = "nvidia.com/dynamo-component-type"
-		subTypeLabel    = "nvidia.com/dynamo-sub-component-type"
-		namespace       = "workload-cpustress"
-	)
+	suite.testInferenceTagsOnContainerMetric(map[string]string{
+		"nvidia.com/dynamo-graph-deployment-name": "my-model",
+		"nvidia.com/dynamo-component-type":        "worker",
+		"nvidia.com/dynamo-sub-component-type":    "decode",
+	}, []string{
+		`^dynamo_graph_deployment:my-model$`,
+		`^inference_workload:my-model$`,
+		`^inference_workload_component:decode$`,
+	})
+}
+
+func (suite *kindSuite) TestKubeAIInferenceTagsOnContainerMetric() {
+	ctx := suite.T().Context()
+	client, err := dynamic.NewForConfig(suite.Env().KubernetesCluster.KubernetesClient.K8sConfig)
+	suite.Require().NoError(err)
+	crds := client.Resource(schema.GroupVersionResource{Group: "apiextensions.k8s.io", Version: "v1", Resource: "customresourcedefinitions"})
+	var crd unstructured.Unstructured
+	suite.Require().NoError(json.Unmarshal(kubeAIModelCRD, &crd))
+	_, err = crds.Create(ctx, &crd, metav1.CreateOptions{})
+	suite.Require().NoError(err)
+	suite.T().Cleanup(func() {
+		ctx := context.Background()
+		suite.Require().NoError(crds.Delete(ctx, crd.GetName(), metav1.DeleteOptions{}))
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			_, err := crds.Get(ctx, crd.GetName(), metav1.GetOptions{})
+			assert.True(c, apierrors.IsNotFound(err), "wait for test CRD deletion: %v", err)
+		}, time.Minute, time.Second)
+	})
+	suite.EventuallyWithT(func(c *assert.CollectT) {
+		current, err := crds.Get(ctx, crd.GetName(), metav1.GetOptions{})
+		require.NoError(c, err)
+		conditions, _, err := unstructured.NestedSlice(current.Object, "status", "conditions")
+		require.NoError(c, err)
+		for _, condition := range conditions {
+			fields, ok := condition.(map[string]interface{})
+			if ok && fields["type"] == "Established" && fields["status"] == "True" {
+				return
+			}
+		}
+		assert.Fail(c, "test Model CRD is not established")
+	}, time.Minute, time.Second)
+
+	models := client.Resource(schema.GroupVersionResource{Group: "kubeai.org", Version: "v1", Resource: "models"}).Namespace("workload-cpustress")
+	model, err := models.Create(ctx, &unstructured.Unstructured{Object: map[string]interface{}{
+		"apiVersion": "kubeai.org/v1",
+		"kind":       "Model",
+		"metadata":   map[string]interface{}{"name": "kubeai-model"},
+	}}, metav1.CreateOptions{})
+	suite.Require().NoError(err)
+	suite.T().Cleanup(func() {
+		suite.Require().NoError(models.Delete(context.Background(), model.GetName(), metav1.DeleteOptions{}))
+	})
+
+	// Kubelet does not refresh owner references on an existing pod. Set the Model
+	// owner at creation, as KubeAI does, and reuse the provisioned stress workload's
+	// image and pod spec without its ReplicaSet labels or owner.
+	k8sClient := suite.Env().KubernetesCluster.Client()
+	deployment, err := k8sClient.AppsV1().Deployments(model.GetNamespace()).Get(ctx, "stress-ng", metav1.GetOptions{})
+	suite.Require().NoError(err)
+	pods := k8sClient.CoreV1().Pods(model.GetNamespace())
+	pod, err := pods.Create(ctx, &corev1.Pod{
+		ObjectMeta: metav1.ObjectMeta{
+			GenerateName: "kubeai-model-",
+			// A conflicting label verifies that the workload name comes from the owner.
+			Labels: map[string]string{"kubeai.org/model": "wrong-label-name"},
+			OwnerReferences: []metav1.OwnerReference{*metav1.NewControllerRef(model, schema.GroupVersionKind{
+				Group: "kubeai.org", Version: "v1", Kind: "Model",
+			})},
+		},
+		Spec: *deployment.Spec.Template.Spec.DeepCopy(),
+	}, metav1.CreateOptions{})
+	suite.Require().NoError(err)
+	suite.T().Cleanup(func() {
+		ctx := context.Background()
+		err := pods.Delete(ctx, pod.Name, metav1.DeleteOptions{})
+		suite.Require().True(err == nil || apierrors.IsNotFound(err), "delete test pod: %v", err)
+		suite.EventuallyWithT(func(c *assert.CollectT) {
+			_, err := pods.Get(ctx, pod.Name, metav1.GetOptions{})
+			assert.True(c, apierrors.IsNotFound(err), "wait for test pod deletion: %v", err)
+		}, time.Minute, time.Second)
+	})
+	suite.EventuallyWithT(func(c *assert.CollectT) {
+		current, err := pods.Get(ctx, pod.Name, metav1.GetOptions{})
+		require.NoError(c, err)
+		for _, condition := range current.Status.Conditions {
+			if condition.Type == corev1.PodReady && condition.Status == corev1.ConditionTrue {
+				return
+			}
+		}
+		assert.Fail(c, "test Model pod is not ready")
+	}, 2*time.Minute, time.Second)
+
+	inferenceTags := []string{
+		`^kube_namespace:` + regexp.QuoteMeta(pod.Namespace) + `$`,
+		`^pod_name:` + regexp.QuoteMeta(pod.Name) + `$`,
+		`^inference_workload:kubeai-model$`,
+		`^inference_workload_component:inference$`,
+		`^kube_ownerref_kind:model$`,
+		`^kube_ownerref_name:kubeai-model$`,
+	}
+	expectedTags := append([]string{
+		`^container_id:`,
+		`^container_name:stress-ng$`,
+		`^display_container_name:stress-ng_` + regexp.QuoteMeta(pod.Name) + `$`,
+		`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+		`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
+		`^image_id:.*/apps-stress-ng@sha256:`,
+		`^image_name:.*/apps-stress-ng$`,
+		`^image_tag:`,
+		`^kube_container_name:stress-ng$`,
+		`^kube_qos:Guaranteed$`,
+		`^pod_phase:running$`,
+		`^runtime:containerd$`,
+		`^short_image:apps-stress-ng$`,
+	}, inferenceTags...)
+	suite.testMetric(&testMetricArgs{
+		Filter: testMetricFilterArgs{
+			Name: "container.cpu.usage",
+			Tags: inferenceTags,
+		},
+		Expect: testMetricExpectArgs{
+			Tags: &expectedTags,
+		},
+	})
+}
+
+func (suite *kindSuite) testInferenceTagsOnContainerMetric(podLabels map[string]string, inferenceTags []string) {
+	const namespace = "workload-cpustress"
 
 	ctx := suite.T().Context()
 	pods := suite.Env().KubernetesCluster.Client().CoreV1().Pods(namespace)
@@ -91,9 +228,9 @@ func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 			break
 		}
 	}
-	suite.Require().NotEmpty(podName, "no stress-ng pod found for Dynamo tag test")
+	suite.Require().NotEmpty(podName, "no stress-ng pod found for inference tag test")
 
-	// Restore all labels so a retry can use the same pod.
+	// Restore pod metadata so a retry can use the same pod.
 	pod, err := pods.Get(ctx, podName, metav1.GetOptions{})
 	suite.Require().NoError(err)
 	originalLabels := pod.Labels
@@ -106,54 +243,50 @@ func (suite *kindSuite) TestDynamoInferenceTagsOnContainerMetric() {
 		_, err = pods.Update(ctx, pod, metav1.UpdateOptions{})
 		return err
 	}
-	labels := make(map[string]string, len(originalLabels)+3)
+	labels := make(map[string]string, len(originalLabels)+len(podLabels))
 	for key, value := range originalLabels {
 		labels[key] = value
 	}
-	labels[deploymentLabel] = deploymentName
-	labels[componentLabel] = "worker"
-	labels[subTypeLabel] = "decode"
+	for key, value := range podLabels {
+		labels[key] = value
+	}
 	suite.Require().NoError(setLabels(ctx, labels))
 	defer func() {
 		suite.Require().NoError(setLabels(context.Background(), originalLabels), "restore stress-ng pod labels")
 	}()
 
+	expectedTags := append([]string{
+		`^container_id:`,
+		`^container_name:stress-ng$`,
+		`^display_container_name:stress-ng`,
+		`^git\.commit\.sha:[[:xdigit:]]{40}$`,
+		`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
+		`^image_id:.*/apps-stress-ng@sha256:`,
+		`^image_name:.*/apps-stress-ng$`,
+		`^image_tag:`,
+		`^kube_container_name:stress-ng$`,
+		`^kube_deployment:stress-ng$`,
+		`^kube_namespace:` + namespace + `$`,
+		`^kube_ownerref_kind:replicaset$`,
+		`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
+		`^kube_qos:Guaranteed$`,
+		`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
+		`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
+		`^pod_phase:running$`,
+		`^runtime:containerd$`,
+		`^short_image:apps-stress-ng$`,
+	}, inferenceTags...)
+
 	suite.testMetric(&testMetricArgs{
 		Filter: testMetricFilterArgs{
 			Name: "container.cpu.usage",
-			Tags: []string{
+			Tags: append([]string{
 				`^kube_namespace:` + namespace + `$`,
 				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
-				`^dynamo_graph_deployment:` + deploymentName + `$`,
-				`^inference_workload:` + deploymentName + `$`,
-				`^inference_workload_component:decode$`,
-			},
+			}, inferenceTags...),
 		},
 		Expect: testMetricExpectArgs{
-			Tags: &[]string{
-				`^container_id:`,
-				`^container_name:stress-ng$`,
-				`^display_container_name:stress-ng`,
-				`^dynamo_graph_deployment:` + deploymentName + `$`,
-				`^inference_workload:` + deploymentName + `$`,
-				`^inference_workload_component:decode$`,
-				`^git\.commit\.sha:[[:xdigit:]]{40}$`,
-				`^git\.repository_url:https://github\.com/DataDog/test-infra-definitions$`,
-				`^image_id:.*/apps-stress-ng@sha256:`,
-				`^image_name:.*/apps-stress-ng$`,
-				`^image_tag:`,
-				`^kube_container_name:stress-ng$`,
-				`^kube_deployment:stress-ng$`,
-				`^kube_namespace:` + namespace + `$`,
-				`^kube_ownerref_kind:replicaset$`,
-				`^kube_ownerref_name:stress-ng-[[:alnum:]]+$`,
-				`^kube_qos:Guaranteed$`,
-				`^kube_replica_set:stress-ng-[[:alnum:]]+$`,
-				`^pod_name:` + regexp.QuoteMeta(podName) + `$`,
-				`^pod_phase:running$`,
-				`^runtime:containerd$`,
-				`^short_image:apps-stress-ng$`,
-			},
+			Tags: &expectedTags,
 		},
 	})
 }

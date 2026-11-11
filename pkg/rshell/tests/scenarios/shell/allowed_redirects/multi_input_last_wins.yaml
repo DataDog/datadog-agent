@@ -1,0 +1,16 @@
+description: With multiple input redirects on the same command, the last one wins (POSIX behavior).
+setup:
+  files:
+    - path: a.txt
+      content: "first\n"
+    - path: b.txt
+      content: "second\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat < a.txt < b.txt
+expect:
+  stdout: |+
+    second
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+# The metrics pipeline sends to the Gateway and to debug: cumulativetodelta is injected
+# and the converter warns that debug now receives delta too.
+processors:
+service:
+  pipelines:
+    metrics:
+      receivers: [otlp]
+      exporters: [otlphttp, debug]

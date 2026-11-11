@@ -24,7 +24,6 @@ alternateConfig:
       endpoint: https://otlp.${env:DD_SITE}
       headers:
         dd-api-key: ${env:DD_API_KEY}
-        dd-otel-metric-config: '{"resource_attributes_as_tags": true}'
 
   service:
     extensions: [health_check]

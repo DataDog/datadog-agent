@@ -43,7 +43,9 @@ type evaluatedPowershellScript struct {
 //
 // Single-quoted strings in PowerShell expand no variables and process no escape
 // sequences; the only special case is that a literal single quote inside the
-// string is written as two consecutive single quotes. This means user-supplied
+// string is written as two consecutive single quotes. PowerShell treats the
+// ASCII apostrophe and the Unicode quotes U+2018, U+2019, U+201A, and U+201B
+// as single quotes, so all five are escaped. This means user-supplied
 // values — regardless of whether they contain $, `, ;, backslashes, newlines,
 // or any other character — can never break out of the assignment and inject
 // arbitrary PowerShell code.
@@ -165,9 +167,10 @@ func transformInlineScript(scriptTemplate string, parameters any) (*evaluatedPow
 // powershellLiteral converts a Go value to a PowerShell literal expression that
 // is safe to embed directly in a script.
 //
-//   - Strings are wrapped in single quotes with ' escaped as ”.
-//     Single-quoted strings have no other special characters, so no further
-//     escaping is needed regardless of the string's content.
+//   - Strings are wrapped in single quotes with every PowerShell single-quote
+//     character doubled (see singleQuote). Single-quoted strings have no other
+//     special characters, so no further escaping is needed regardless of the
+//     string's content.
 //   - Booleans become $true / $false.
 //   - Numbers become unquoted numeric literals (validated by the type switch).
 //   - Objects and arrays are JSON-encoded and then wrapped in single quotes;
@@ -201,11 +204,24 @@ func powershellLiteral(val any) (string, error) {
 	}
 }
 
-// singleQuote wraps s in PowerShell single quotes, escaping any single quotes
-// within s by doubling them.  This is the only escaping required for
-// single-quoted strings in PowerShell.
+// powershellSingleQuoteEscaper doubles every character the PowerShell tokenizer
+// accepts as a single-quote delimiter, mirroring
+// System.Management.Automation.Language.CodeGeneration.EscapeSingleQuotedStringContent.
+// Each quote must be doubled with itself: the tokenizer keeps the second
+// character of a pair, so this preserves the original value.
+var powershellSingleQuoteEscaper = strings.NewReplacer(
+	"'", "''",
+	"\u2018", "\u2018\u2018", // LEFT SINGLE QUOTATION MARK
+	"\u2019", "\u2019\u2019", // RIGHT SINGLE QUOTATION MARK
+	"\u201A", "\u201A\u201A", // SINGLE LOW-9 QUOTATION MARK
+	"\u201B", "\u201B\u201B", // SINGLE HIGH-REVERSED-9 QUOTATION MARK
+)
+
+// singleQuote wraps s in PowerShell single quotes, escaping every PowerShell
+// single-quote character within s by doubling it. This is the only escaping
+// required for single-quoted strings in PowerShell.
 func singleQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", "''") + "'"
+	return "'" + powershellSingleQuoteEscaper.Replace(s) + "'"
 }
 
 // pathToVarName converts a parameter path (rooted at "parameters") to a safe

@@ -1,0 +1,14 @@
+# vuln-hunt 2026-05-19-codex / field_splitting.
+description: Heredoc expansion preserves expanded text without field splitting or re-parsing.
+input:
+  script: |+
+    IFS=:
+    A='x:y;echo bad'
+    cat <<EOF
+    $A
+    EOF
+expect:
+  stdout: |+
+    x:y;echo bad
+  stderr: ""
+  exit_code: 0

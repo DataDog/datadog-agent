@@ -1,0 +1,15 @@
+description: sort rejects unknown flags.
+setup:
+  files:
+    - path: f.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort --no-such-flag f.txt
+expect:
+  stdout: ""
+  stderr_contains: ["sort:"]
+  exit_code: 1
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true  # error message format differs

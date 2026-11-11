@@ -37,6 +37,60 @@ func TestRawDataLenForCheckpoint(t *testing.T) {
 	assert.Equal(t, 42, msg.RawDataLenForCheckpoint())
 }
 
+func TestLogTimestamp(t *testing.T) {
+	const containerTS = "2000-01-01T00:00:00.123456789Z"
+	parsedContainerTS, err := time.Parse(time.RFC3339Nano, containerTS)
+	require.NoError(t, err)
+	ingested := time.Date(2001, 2, 3, 4, 5, 6, 7, time.UTC)
+
+	t.Run("serverless timestamp wins", func(t *testing.T) {
+		fixed := time.Date(2024, 3, 1, 12, 0, 0, 0, time.UTC)
+		msg := NewMessage([]byte("a"), nil, "", ingested.UnixNano())
+		msg.ServerlessExtra.Timestamp = fixed
+		msg.ParsingExtra.Timestamp = containerTS
+		assert.Equal(t, fixed, msg.LogTimestamp(true))
+	})
+
+	t.Run("container timestamp when enabled", func(t *testing.T) {
+		msg := NewMessage([]byte("a"), nil, "", ingested.UnixNano())
+		msg.ParsingExtra.Timestamp = containerTS
+		assert.Equal(t, parsedContainerTS, msg.LogTimestamp(true))
+	})
+
+	t.Run("ingestion timestamp when the container timestamp is disabled or unparseable", func(t *testing.T) {
+		for _, tc := range []struct {
+			name      string
+			ts        string
+			container bool
+		}{
+			{"disabled", containerTS, false},
+			{"unparseable", "not-a-timestamp", true},
+			{"absent", "", true},
+		} {
+			t.Run(tc.name, func(t *testing.T) {
+				msg := NewMessage([]byte("a"), nil, "", ingested.UnixNano())
+				msg.ParsingExtra.Timestamp = tc.ts
+				ts := msg.LogTimestamp(tc.container)
+				assert.Equal(t, ingested, ts)
+				assert.Equal(t, time.UTC, ts.Location())
+			})
+		}
+	})
+
+	t.Run("current time when the ingestion timestamp is not positive", func(t *testing.T) {
+		for _, ingestion := range []int64{0, time.Time{}.UnixNano()} {
+			msg := NewMessage([]byte("a"), nil, "", ingestion)
+			before := time.Now()
+			ts := msg.LogTimestamp(false)
+			after := time.Now()
+
+			assert.Equal(t, time.UTC, ts.Location())
+			assert.False(t, ts.Before(before))
+			assert.False(t, ts.After(after))
+		}
+	})
+}
+
 func TestHasContent(t *testing.T) {
 	t.Run("unstructured with content", func(t *testing.T) {
 		msg := NewMessage([]byte("hello"), nil, "", 0)

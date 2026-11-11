@@ -1,0 +1,4 @@
+---
+other:
+  - |
+    Update ``zlib`` to 1.3.2.

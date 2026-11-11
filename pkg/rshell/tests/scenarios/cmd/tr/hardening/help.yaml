@@ -1,0 +1,11 @@
+# Per RULES.md: help flag must print usage to stdout and exit 0
+description: tr --help prints usage to stdout and exits 0.
+# skip: rshell builtin help output differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    tr --help
+expect:
+  stdout_contains: ["Usage: tr"]
+  stderr: ""
+  exit_code: 0

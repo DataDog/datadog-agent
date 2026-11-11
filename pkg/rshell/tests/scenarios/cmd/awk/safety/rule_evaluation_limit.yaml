@@ -1,0 +1,11 @@
+# skip: rshell intentionally bounds aggregate per-record rule evaluations.
+skip_assert_against_bash: true
+description: awk bounds the rule-by-record evaluation cross-product even when no statements execute.
+input:
+  script: |+
+    awk 'BEGIN { printf "%524288s", ""; printf " " }' | awk -v RS=' ' '0; 0'
+expect:
+  stdout: |+
+  stderr: |+
+    awk: main-input rule evaluation limit exceeded (maximum 1048576)
+  exit_code: 1

@@ -150,7 +150,7 @@ func NewDatadogSymbolUploader(ctx context.Context, cfg *SymbolUploaderConfig) (*
 		symbolQueriers:        symbolQueriers,
 		symbolQueryInterval:   cfg.SymbolQueryInterval,
 		compressDebugSections: compressDebugSections,
-		reporter:              newUploadReporter(),
+		reporter:              newUploadReporter(cfg.Report),
 	}, nil
 }
 

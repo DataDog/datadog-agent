@@ -21,22 +21,18 @@ import (
 
 	"go.yaml.in/yaml/v3"
 
-	cloudauthconfig "github.com/DataDog/datadog-agent/comp/core/delegatedauth/api/cloudauth/config"
-	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/pkg/config/create"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
+	"github.com/DataDog/datadog-agent/pkg/config/setup/generatedsettings"
 	"github.com/DataDog/datadog-agent/pkg/config/structure"
 	pkgfips "github.com/DataDog/datadog-agent/pkg/fips"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 	"github.com/DataDog/datadog-agent/pkg/util/system"
-
-	// imported by the generated code. We duplicate the import here to keep it in go.mod
-	_ "github.com/DataDog/datadog-agent/pkg/config/helper"
 )
 
 const (
@@ -140,9 +136,9 @@ func InitConfigObjects() {
 // (in particular more than just the serverless agent).
 func InitConfig(config pkgconfigmodel.Setup) {
 	// Settings that are shared in common between serverless and the full agent, split up by feature / product
-	initCommonBase(config)
+	generatedsettings.InitCommonBase(config)
 	// Settings just for the full agent in general
-	initCoreAgentFull(config)
+	generatedsettings.InitCoreAgentFull(config)
 
 	processesAddOverrideOnce.Do(func() {
 		pkgconfigmodel.AddOverrideFunc(loadProcessTransforms)
@@ -280,8 +276,9 @@ func checkConflictingOptions(config pkgconfigmodel.Config) error {
 	return nil
 }
 
-// LoadDatadog reads config files and initializes config with decrypted secrets
-func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component) error {
+// LoadDatadog reads config files and initializes config with decrypted secrets. The configuration is validated against
+// its schema with schemaValidator.
+func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component, delegatedAuthComp delegatedauth.Component, schemaValidator pkgconfigmodel.SchemaValidator) error {
 	// Feature detection running in a defer func as it always  need to run (whether config load has been successful or not)
 	// Because some Agents (e.g. trace-agent) will run even if config file does not exist
 	defer func() {
@@ -291,7 +288,7 @@ func LoadDatadog(config pkgconfigmodel.Config, secretResolver secrets.Component,
 		pkgconfigmodel.ApplyOverrideFuncs(config)
 	}()
 
-	err := loadCustom(config)
+	err := loadCustom(config, schemaValidator, config)
 	if err != nil {
 		if errors.Is(err, os.ErrPermission) {
 			return log.Warnf("Error loading config: %v (check config file permissions for dd-agent user)", err)
@@ -356,49 +353,37 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	// during config initialization (see bindDelegatedAuthConfig for examples)
 
 	// Get global provider config from delegated_auth prefix (used for all instances)
-	var providerConfig common.ProviderConfig
-	provider := config.GetString("delegated_auth.provider")
-	switch provider {
-	case "aws":
-		providerConfig = &cloudauthconfig.AWSProviderConfig{
-			Region: config.GetString("delegated_auth.aws.region"),
-		}
-	case "":
-		// Empty provider means auto-detect, so ProviderConfig stays nil even when
-		// delegated_auth.aws.region is set: a non-nil ProviderConfig means "explicitly configured"
-		// downstream and would skip provider detection entirely. The component reads the configured
-		// region itself once detection picks AWS.
-	}
+	providerConfig := defaultProviderConfigForConfig(config)
 
-	startupCtx := ctx
-	cancelStartup := func() {}
-	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
-		startupCtx, cancelStartup = context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
-	}
+	startupCtx, cancelStartup := delegatedAuthStartupContext(ctx, config)
 	defer cancelStartup()
 
 	// Scan all registered prefixes to find which ones have delegated auth enabled
-	for _, section := range delegatedAuthKeys {
+	for _, section := range generatedsettings.DelegatedAuthKeys {
 		// Check if org_uuid is set for this prefix
-		orgUUID := config.GetString(section.delegatedAuthPath + ".org_uuid")
+		orgUUID := config.GetString(section.DelegatedAuthPath + ".org_uuid")
 		if orgUUID == "" {
 			continue
 		}
 
-		log.Infof("Configuring delegated authentication for '%s'", section.description)
+		log.Infof("Configuring delegated authentication for '%s'", section.Description)
 
 		err := delegatedAuthComp.AddInstance(startupCtx, delegatedauth.InstanceParams{
 			Config:            config,
 			ProviderConfig:    providerConfig,
 			OrgUUID:           orgUUID,
-			RefreshInterval:   config.GetInt(section.delegatedAuthPath + ".refresh_interval_mins"),
-			APIKeyConfigKey:   section.apiKeyPath,
-			AllowAsyncStartup: section.apiKeyPath == "api_key",
+			RefreshInterval:   config.GetInt(section.DelegatedAuthPath + ".refresh_interval_mins"),
+			APIKeyConfigKey:   section.APIKeyPath,
+			AllowAsyncStartup: section.APIKeyPath == "api_key",
 		})
 		if err != nil {
-			log.Errorf("Failed to configure delegated auth for '%s': %v", section.description, err)
+			log.Errorf("Failed to configure delegated auth for '%s': %v", section.Description, err)
 		}
 	}
+
+	// Warn before registering: a synchronous resolution replaces the directive with the key,
+	// which would hide it from the direct-send warning.
+	WarnDirectSendDelegatedAuthDirectives(config)
 
 	// Register directives embedded in the supported additional endpoint settings.
 	configureAdditionalEndpointsDelegatedAuth(startupCtx, config, delegatedAuthComp, providerConfig)
@@ -407,19 +392,31 @@ func configureDelegatedAuth(ctx context.Context, config pkgconfigmodel.Config, d
 	return ctx.Err()
 }
 
-// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe
-func LoadSystemProbe(config pkgconfigmodel.Config) error {
-	return loadCustom(config)
+func delegatedAuthStartupContext(ctx context.Context, config pkgconfigmodel.Config) (context.Context, context.CancelFunc) {
+	if timeout := config.GetInt("delegated_auth.startup_timeout_secs"); timeout > 0 {
+		return context.WithTimeout(ctx, time.Duration(timeout)*time.Second)
+	}
+	return ctx, func() {}
 }
 
-// loadCustom reads config into the provided config object
-func loadCustom(config pkgconfigmodel.Config) error {
-	log.Info("Starting to load the configuration")
-	if err := config.ReadInConfig(); err != nil {
+// LoadSystemProbe reads config files and initializes config with decrypted secrets for system-probe. The
+// configuration is validated against its schema with schemaValidator.
+func LoadSystemProbe(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator) error {
+	// schema enforcement is configured in datadog.yaml, which is always loaded before system-probe.yaml
+	if err := loadCustom(config, schemaValidator, Datadog()); err != nil {
 		return err
 	}
-	config.Validate()
+	WarnDirectSendDelegatedAuthDirectives(config)
 	return nil
+}
+
+// loadCustom reads config into the provided config object and validates it with schemaValidator. If 'schema.enforce' is
+// true in datadog.yaml, invalid settings are reverted to their default.
+func loadCustom(config pkgconfigmodel.Config, schemaValidator pkgconfigmodel.SchemaValidator, ddConf pkgconfigmodel.Config) error {
+	log.Info("Starting to load the configuration")
+	err := config.ReadInConfig()
+	config.Validate(schemaValidator, ddConf.GetBool("schema.enforce"))
+	return err
 }
 
 // setupFipsEndpoints overwrites the Agent endpoint for outgoing data to be sent to the local FIPS proxy. The local FIPS
@@ -941,24 +938,4 @@ func setNumWorkers(config pkgconfigmodel.Config) {
 		// update config with the actual effective number of workers
 		config.Set("check_runners", 1, pkgconfigmodel.SourceAgentRuntime)
 	}
-}
-
-func getPlatformDefault(platformValues map[string]interface{}) interface{} {
-	if pkgconfigenv.IsECSFargate() {
-		if val, found := platformValues["fargate"]; found {
-			return val
-		}
-	}
-	if pkgconfigenv.IsContainerized() {
-		if val, found := platformValues["container"]; found {
-			return val
-		}
-	}
-	if val, found := platformValues[runtime.GOOS]; found {
-		return val
-	}
-	if val, found := platformValues["other"]; found {
-		return val
-	}
-	return nil
 }

@@ -1,0 +1,9 @@
+# -i with a negative Go duration literal is rejected with exit 1.
+description: "ping -i with negative Go duration literal exits 1"
+input:
+  script: |+
+    ping -i -1s localhost
+expect:
+  stderr_contains: ["ping: invalid argument"]
+  exit_code: 1
+skip_assert_against_bash: true

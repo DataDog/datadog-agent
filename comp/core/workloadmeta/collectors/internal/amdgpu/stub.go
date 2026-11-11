@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !linux
+//go:build !linux || !nvml
 
 // Package amdgpu implements the workloadmeta collector for AMD GPUs, which
 // reports GPU entities read from the amdgpu driver's sysfs attributes.

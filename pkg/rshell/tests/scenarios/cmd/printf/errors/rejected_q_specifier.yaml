@@ -1,0 +1,10 @@
+description: printf rejects the %q format specifier with a clear error message.
+# skip: feature is intentionally blocked in rshell for security
+skip_assert_against_bash: true
+input:
+  script: |+
+    printf "%q\n" "hello world"
+expect:
+  stdout: "\n"
+  stderr: "printf: %q: not supported\n"
+  exit_code: 1

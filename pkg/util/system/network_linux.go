@@ -11,8 +11,10 @@ import (
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -121,7 +123,7 @@ func GetDefaultGateway(procPath string) (net.IP, error) {
 }
 
 // ParseProcessIPs parses /proc/<pid>/net/fib_trie and returns the /32 IP
-// addresses found. The result does not contain duplicate IPs.
+// addresses found. The result is sorted and does not contain duplicate IPs.
 //
 // Here's an example of /proc/<pid>/net/fib_trie that shows its format:
 //
@@ -203,10 +205,5 @@ func ParseProcessIPs(procPath string, pid int, filterFunc func(string) bool) ([]
 		}
 	}
 
-	var uniqueIPs []string
-	for IP := range IPs {
-		uniqueIPs = append(uniqueIPs, IP)
-	}
-
-	return uniqueIPs, nil
+	return slices.Sorted(maps.Keys(IPs)), nil
 }

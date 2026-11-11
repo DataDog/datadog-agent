@@ -232,7 +232,8 @@ func TestGetMultiNetworkInfo(t *testing.T) {
 				assert.Equal(t, "eth0", ifaces[0].Name)
 				assert.Empty(t, ifaces[0].IPv4)
 				assert.Empty(t, ifaces[0].IPv6)
-				// MacAddress should be an error since there are no addresses
+				// With reportMacWithoutAddress off (forced below), an interface without
+				// addresses has no MacAddress. Windows and macOS report it by default.
 				_, err := ifaces[0].MacAddress.Value()
 				assert.Error(t, err)
 			},
@@ -370,6 +371,7 @@ func TestGetMultiNetworkInfo(t *testing.T) {
 		},
 	}
 
+	setReportMacWithoutAddress(t, false)
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			ifaces := getMultiNetworkInfo(tt.interfaces)
@@ -380,6 +382,44 @@ func TestGetMultiNetworkInfo(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestGetMultiNetworkInfoMacWithoutAddress(t *testing.T) {
+	ifaces := []networkInterface{
+		createMockInterface("en4", net.FlagUp, "42:52:1c:e5:c2:ec", []net.Addr{}),
+		createMockInterface("utun0", net.FlagUp, "", []net.Addr{}),
+	}
+
+	t.Run("reported", func(t *testing.T) {
+		setReportMacWithoutAddress(t, true)
+		result := getMultiNetworkInfo(ifaces)
+		require.Len(t, result, 2)
+
+		mac, err := result[0].MacAddress.Value()
+		require.NoError(t, err)
+		assert.Equal(t, "42:52:1c:e5:c2:ec", mac)
+
+		_, err = result[1].MacAddress.Value()
+		assert.ErrorIs(t, err, ErrAddressNotFound)
+	})
+
+	t.Run("not reported", func(t *testing.T) {
+		setReportMacWithoutAddress(t, false)
+		result := getMultiNetworkInfo(ifaces)
+		require.Len(t, result, 2)
+
+		_, err := result[0].MacAddress.Value()
+		assert.ErrorIs(t, err, ErrAddressNotFound)
+	})
+}
+
+func setReportMacWithoutAddress(t *testing.T, value bool) {
+	t.Helper()
+	original := reportMacWithoutAddress
+	reportMacWithoutAddress = value
+	t.Cleanup(func() {
+		reportMacWithoutAddress = original
+	})
 }
 
 func TestExternalIPAddress(t *testing.T) {
@@ -901,6 +941,47 @@ func TestIfacesToJSON(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestInterfaceMarshalJSON(t *testing.T) {
+	ifaces := []Interface{
+		{
+			Name:        "eth0",
+			IPv4:        []string{"192.168.1.100"},
+			IPv6:        []string{"fe80::1"},
+			IPv4Network: utils.NewValue("192.168.1.0/24"),
+			IPv6Network: utils.NewValue("fe80::/64"),
+			MacAddress:  utils.NewValue("00:11:22:33:44:55"),
+		},
+		{
+			Name:        "en4",
+			IPv4:        []string{},
+			IPv6:        []string{},
+			IPv4Network: utils.NewErrorValue[string](ErrAddressNotFound),
+			IPv6Network: utils.NewErrorValue[string](ErrAddressNotFound),
+			MacAddress:  utils.NewValue("42:52:1c:e5:c2:ec"),
+		},
+		{
+			Name:        "utun0",
+			IPv4:        []string{},
+			IPv6:        []string{"fe80::2"},
+			IPv4Network: utils.NewErrorValue[string](errors.New("ipv4 error")),
+			IPv6Network: utils.NewValue("fe80::/64"),
+		},
+	}
+
+	marshalled, err := json.Marshal(ifaces)
+	require.NoError(t, err)
+	assert.JSONEq(t, `[
+		{"name":"eth0","ipv4":["192.168.1.100"],"ipv6":["fe80::1"],"ipv4-network":"192.168.1.0/24","ipv6-network":"fe80::/64","macaddress":"00:11:22:33:44:55"},
+		{"name":"en4","ipv4":[],"ipv6":[],"macaddress":"42:52:1c:e5:c2:ec"},
+		{"name":"utun0","ipv4":[],"ipv6":["fe80::2"],"ipv6-network":"fe80::/64"}
+	]`, string(marshalled))
+
+	asJSON, _ := ifacesToJSON(ifaces)
+	expected, err := json.Marshal(asJSON)
+	require.NoError(t, err)
+	assert.Equal(t, string(expected), string(marshalled))
 }
 
 func TestResolveFromHostname(t *testing.T) {

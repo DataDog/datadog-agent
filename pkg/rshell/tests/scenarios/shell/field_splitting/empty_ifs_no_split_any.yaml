@@ -1,0 +1,9 @@
+description: "Empty IFS means no splitting happens on any character"
+input:
+  script: |
+    IFS=
+    A="hello world:foo"
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: "[hello world:foo]\n"
+  exit_code: 0

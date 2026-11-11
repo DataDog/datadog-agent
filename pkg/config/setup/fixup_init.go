@@ -84,6 +84,23 @@ func applyKubernetesContainerDefaults(config pkgconfigmodel.Config) {
 	}
 }
 
+// applyKubernetesHealthPlatformDefault disables the Agent Health Platform by default on Kubernetes
+// (incident mitigation: Autodiscovery reports annotation/template errors to the Health Platform
+// synchronously, and each report can wait on the cluster ID, stalling Autodiscovery long enough for
+// workloadmeta to drop event bundles). Other environments keep the schema default (enabled).
+//
+// Like applyKubernetesContainerDefaults, the value is set at SourceDefault and only when the user
+// has not set health_platform.enabled, so an explicit `health_platform.enabled: true` (or
+// DD_HEALTH_PLATFORM_ENABLED=true) still turns it on. Revert once reporting is off AD's critical path.
+func applyKubernetesHealthPlatformDefault(config pkgconfigmodel.Config) {
+	if !pkgconfigenv.IsKubernetes() && os.Getenv("DD_EKS_FARGATE") == "" {
+		return
+	}
+	if config.GetSource("health_platform.enabled") == pkgconfigmodel.SourceDefault {
+		config.Set("health_platform.enabled", false, pkgconfigmodel.SourceDefault)
+	}
+}
+
 func fixupLogsAgent(config pkgconfigmodel.Config) {
 	// Number of logs pipeline instances. Defaults to number of logical CPU cores as defined by GOMAXPROCS or 4, whichever is lower.
 	maxProcs := runtime.GOMAXPROCS(0)
@@ -106,6 +123,7 @@ func fixupInitCommonConfigComponents(config pkgconfigmodel.Config) {
 	fixupLogsAgent(config)
 	fixupLinuxSockets(config)
 	pkgconfigmodel.AddOverrideFunc(applyKubernetesContainerDefaults)
+	pkgconfigmodel.AddOverrideFunc(applyKubernetesHealthPlatformDefault)
 	pkgconfigmodel.AddOverrideFunc(toggleDefaultPayloads)
 	pkgconfigmodel.AddOverrideFunc(applyInfrastructureModeOverrides)
 	pkgconfigmodel.AddOverrideFunc(ApplyUseDogstatsdSuppression)

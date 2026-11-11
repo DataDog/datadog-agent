@@ -36,7 +36,6 @@ const (
 	OpenSamplesMaxEntries    = 20000
 	BindSamplesMaxEntries    = 10000
 	ConnectSamplesMaxEntries = 10000
-	SyscallSamplesMaxEntries = 20000
 	// ExcludedCgroupsMaxEntries sizes the excluded_cgroups LRU: it holds host/systemd cgroup
 	// inodes the v2 syscall sampler skips, so it must cover a host's active non-container cgroups.
 	ExcludedCgroupsMaxEntries = 4096
@@ -133,6 +132,7 @@ func AllProbes(fentry bool, cgroup2MountPoint string) []*manager.Probe {
 	allProbes = append(allProbes, getSocketProbes(fentry, cgroup2MountPoint)...)
 	allProbes = append(allProbes, getMemfdProbes(fentry)...)
 	allProbes = appendSyscallProbes(allProbes, fentry, EntryAndExit, false, "setsid")
+	allProbes = append(allProbes, getSetNSProbes(fentry)...)
 
 	allProbes = append(allProbes,
 		&manager.Probe{
@@ -196,6 +196,7 @@ func AllMaps() []*manager.Map {
 func AllBPFForEachMapElemProgramFunctions() []string {
 	return []string{
 		"network_stats_worker",
+		SyscallUsageTickerFunctionName,
 	}
 }
 
@@ -339,8 +340,8 @@ func AllMapSpecEditors(numCPU int, opts MapSpecEditorOpts, kv *kernel.Version) m
 	}
 
 	if opts.EventSamplingSyscallsEnabled {
-		editors["syscall_samples"] = manager.MapSpecEditor{
-			MaxEntries: SyscallSamplesMaxEntries,
+		editors["syscall_usage"] = manager.MapSpecEditor{
+			MaxEntries: superReducedProcPidCacheSize,
 			EditorFlag: manager.EditMaxEntries,
 		}
 		editors["excluded_cgroups"] = manager.MapSpecEditor{

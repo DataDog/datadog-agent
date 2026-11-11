@@ -8,7 +8,9 @@ package types
 
 import (
 	"context"
+	"errors"
 
+	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 )
 
@@ -20,4 +22,9 @@ var _ delegatedauth.Component = (*DelegatedAuthNoop)(nil)
 // AddInstance does nothing in the noop implementation
 func (r *DelegatedAuthNoop) AddInstance(_ context.Context, _ delegatedauth.InstanceParams) error {
 	return nil
+}
+
+// GetWorkloadToken reports that delegated authentication is disabled.
+func (r *DelegatedAuthNoop) GetWorkloadToken(_ context.Context, _ string, _ common.WorkloadTokenRequest) (string, error) {
+	return "", errors.New("delegated authentication is not enabled")
 }

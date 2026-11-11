@@ -7,8 +7,18 @@
 
 package authoredscripts
 
-import "errors"
+import (
+	"fmt"
+	"os"
+
+	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+)
 
 func newSessionRoot() (string, error) {
-	return "", errors.New("authored-script sessions are not supported on Windows")
+	// Windows does not enforce Unix mode bits, so sessions inherit the Agent run directory's restricted ACLs.
+	runDirectory := defaultpaths.GetDefaultRunPath()
+	if err := os.MkdirAll(runDirectory, sessionDirectoryMode); err != nil {
+		return "", fmt.Errorf("could not prepare Agent run directory %q: %w", runDirectory, err)
+	}
+	return os.MkdirTemp(runDirectory, sessionDirectoryPrefix)
 }

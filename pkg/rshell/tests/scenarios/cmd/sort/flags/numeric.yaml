@@ -1,0 +1,13 @@
+description: sort -n sorts by numerical value.
+setup:
+  files:
+    - path: file.txt
+      content: "10\n2\n1\n20\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -n file.txt
+expect:
+  stdout: "1\n2\n10\n20\n"
+  stderr: ""
+  exit_code: 0

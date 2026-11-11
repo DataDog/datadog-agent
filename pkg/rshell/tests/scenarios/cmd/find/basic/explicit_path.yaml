@@ -1,0 +1,20 @@
+description: find with an explicit path lists the tree rooted at that path.
+setup:
+  files:
+    - path: mydir/file1.txt
+      content: "a"
+      chmod: 0644
+    - path: mydir/file2.txt
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find mydir
+expect:
+  stdout_unordered: |+
+    mydir
+    mydir/file1.txt
+    mydir/file2.txt
+  stderr: ""
+  exit_code: 0

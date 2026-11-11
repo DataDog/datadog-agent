@@ -34,6 +34,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/security/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/otelprocessctx"
+	"github.com/DataDog/datadog-agent/pkg/security/otelthreadctx"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/managerhelper"
 	"github.com/DataDog/datadog-agent/pkg/security/resolvers/cgroup"
@@ -742,6 +743,7 @@ func (p *EBPFResolver) enrichEventFromProcfs(entry *model.ProcessCacheEntry, pro
 		}
 	} else {
 		entry.FileEvent.FileFields = *info
+		entry.FileCapabilities = readFileCapabilitiesFromProcfs(procExecPath, info.Inode)
 	}
 
 	setPathname(&entry.FileEvent, pathnameStr)
@@ -1113,6 +1115,7 @@ func (p *EBPFResolver) setProcessPath(fileEvent *model.FileEvent, pce *model.Pro
 	onError := func(pathnameStr string, err error) (string, error) {
 		fileEvent.SetPathnameStr("")
 		fileEvent.SetBasenameStr("")
+		fileEvent.PathResolutionError = err
 
 		p.pathErrStats.Inc()
 
@@ -1202,12 +1205,12 @@ func (p *EBPFResolver) resolveFromCache(pid, tid uint32, inode uint64) *model.Pr
 // resolveNewProcessCacheEntry resolves the context fields of a new process cache entry parsed from kernel data
 func (p *EBPFResolver) resolveNewProcessCacheEntry(entry *model.ProcessCacheEntry) error {
 	if _, err := p.setProcessPath(&entry.FileEvent, entry); err != nil {
-		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path: %w", err)}
+		return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve exec path (pid=%d, comm=%q): %w", entry.Pid, entry.Comm, err)}
 	}
 
 	if entry.HasInterpreter() {
 		if _, err := p.setProcessPath(&entry.LinuxBinprm.FileEvent, entry); err != nil {
-			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path: %w", err)}
+			return &spath.ErrPathResolution{Err: fmt.Errorf("failed to resolve interpreter path (pid=%d, comm=%q, exe=%q): %w", entry.Pid, entry.Comm, entry.FileEvent.PathnameStr, err)}
 		}
 	} else {
 		// mark it as resolved to avoid abnormal path later in the call flow
@@ -1622,13 +1625,13 @@ func (p *EBPFResolver) ResolveOTelProcessContext(pid uint32) {
 // Not safe for concurrent use.
 type OTelProcessContextSnapshot struct {
 	resolver *EBPFResolver
-	target   otelTargetProcess
+	target   *otelthreadctx.Target
 }
 
 // NewOTelProcessContextSnapshot returns a snapshot to resolve a walk's
 // processes through.
 func (p *EBPFResolver) NewOTelProcessContextSnapshot() *OTelProcessContextSnapshot {
-	return &OTelProcessContextSnapshot{resolver: p}
+	return &OTelProcessContextSnapshot{resolver: p, target: otelthreadctx.NewTarget(kernel.HostProc())}
 }
 
 // Resolve resolves the OTel process context of pid.
@@ -1641,7 +1644,7 @@ func (s *OTelProcessContextSnapshot) Resolve(pid uint32) {
 		return
 	}
 
-	p.resolveAndUpdateOTelTLS(pid, &s.target)
+	p.resolveAndUpdateOTelTLS(pid, s.target)
 }
 
 // resolveOTelProcessContextLoop drains otelProcCtxQueue and resolves each pid's
@@ -1651,7 +1654,7 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 	// resolution's allocations, and this loop runs one for every process that
 	// publishes or updates an OTel process context. Owned by this goroutine,
 	// which is why it needs no synchronization.
-	target := new(otelTargetProcess)
+	target := otelthreadctx.NewTarget(kernel.HostProc())
 
 	for {
 		select {
@@ -1678,56 +1681,63 @@ func (p *EBPFResolver) resolveOTelProcessContextLoop(ctx context.Context) {
 // resolveAndUpdateOTelTLS resolves pid's OTel process context through target,
 // which it rebinds to pid: callers pass a target they own and reuse across
 // calls rather than one per resolution.
-func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelTargetProcess) {
+func (p *EBPFResolver) resolveAndUpdateOTelTLS(pid uint32, target *otelthreadctx.Target) {
 	start := time.Now()
-	target.reset(pid)
+	target.Reset(pid)
 
-	procCtx, err := target.processContext()
-	if err != nil {
-		p.reportSpanCtxError(spanCtxStepProcessCtx, pid, err)
+	res, err := target.Resolve(otelTLSRegistry{resolver: p})
+	var stepErr *otelthreadctx.StepError
+	if err != nil && !errors.As(err, &stepErr) {
+		stepErr = &otelthreadctx.StepError{Step: otelthreadctx.StepLayout, Err: err}
+	}
+	if stepErr != nil && stepErr.Step == otelthreadctx.StepProcessContext {
+		p.reportSpanCtxError(spanCtxStepProcessCtx, pid, stepErr.Err)
 		return
 	}
-	if procCtx == nil {
-		// The process publishes no OTel process context at all.
+	if res.ProcessContext == nil {
 		return
 	}
 	p.countSpanCtx(spanCtxStepProcessCtx, spanCtxOK)
 	seclog.Debugf("read the OTel process context of pid %d", pid)
 
-	p.applyOTelTracerMetadata(pid, procCtx)
+	p.applyOTelTracerMetadata(pid, res.ProcessContext)
 
-	attributeKeys, err := otelAttributeKeys(procCtx)
-	if err != nil {
-		p.reportSpanCtx(spanCtxStepOTelTLS, pid, err)
+	if stepErr != nil && stepErr.Step == otelthreadctx.StepAttributeKeys {
+		p.reportSpanCtx(spanCtxStepOTelTLS, pid, stepErr.Err)
 		return
 	}
-	p.attachOTelAttributeKeys(pid, attributeKeys)
+	p.attachOTelAttributeKeys(pid, res.AttributeKeys)
 
-	value, lookupErr := p.otelTLSMap.LookupBytes(pid)
-	if lookupErr != nil {
-		seclog.Errorf("kernel map lookup error: %v", lookupErr)
+	var layoutErr error
+	if stepErr != nil {
+		layoutErr = stepErr.Err
 	}
-	if value == nil {
-		// Not registered yet: do the expensive ELF parse and register offsets for eBPF to read.
-		res, resolveErr := target.resolveTLSOffsets(procCtx)
-		if resolveErr == nil {
-			resolveErr = p.updateOTelTLS(pid, res)
-			p.reportOTelTLSLatency(start, true)
-		}
-		p.reportSpanCtx(spanCtxStepOTelTLS, pid, resolveErr)
-		return
+	p.reportSpanCtx(spanCtxStepOTelTLS, pid, layoutErr)
+	if layoutErr == nil || res.LayoutResolved {
+		p.reportOTelTLSLatency(start, res.LayoutResolved)
 	}
-
-	p.reportSpanCtx(spanCtxStepOTelTLS, pid, nil)
-	p.reportOTelTLSLatency(start, false)
 }
 
-func (p *EBPFResolver) updateOTelTLS(pid uint32, res otelTLSResolution) error {
-	value := serializeOTelTLSValue(res)
-	if err := p.otelTLSMap.Put(pid, value); err != nil {
+// otelTLSRegistry stores layouts in the otel_tls map.
+type otelTLSRegistry struct {
+	resolver *EBPFResolver
+}
+
+// Registered implements otelthreadctx.Registry.
+func (r otelTLSRegistry) Registered(pid uint32) bool {
+	value, err := r.resolver.otelTLSMap.LookupBytes(pid)
+	if err != nil {
+		seclog.Errorf("kernel map lookup error: %v", err)
+	}
+	return value != nil
+}
+
+// Register implements otelthreadctx.Registry.
+func (r otelTLSRegistry) Register(pid uint32, layout otelthreadctx.Layout, attributeKeys []string) error {
+	r.resolver.attachOTelAttributeKeys(pid, attributeKeys)
+	if err := r.resolver.otelTLSMap.Put(pid, layout.Serialize()); err != nil {
 		return fmt.Errorf("%w: %w", errSpanCtxMapError, err)
 	}
-
 	return nil
 }
 
@@ -1904,7 +1914,7 @@ func (p *EBPFResolver) syncKernelMaps(entry *model.ProcessCacheEntry) {
 	bootTime := p.timeResolver.GetBootTime()
 
 	// insert new entry in kernel maps
-	procCacheEntryB := make([]byte, 176)
+	procCacheEntryB := make([]byte, model.ProcCacheEntrySize)
 	_, err := entry.Process.MarshalProcCache(procCacheEntryB, bootTime)
 	if err != nil {
 		seclog.Errorf("couldn't marshal proc_cache entry: %s", err)
@@ -1952,6 +1962,8 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 			seclog.Debugf("inode mismatch, using inode from pid context %d: %d != %d", pid, entry.FileEvent.Inode, inode)
 
 			entry.FileEvent.Inode = inode
+			// The current executable is not the image observed by the event.
+			entry.FileCapabilities = model.FileCapabilities{}
 			entry.IsParentMissing = true
 			p.inodeErrStats[inodeErrTagProcfsMismatch].Inc()
 		}
@@ -1959,7 +1971,7 @@ func (p *EBPFResolver) newEntryFromProcfs(proc *process.Process, filledProc *uti
 
 	parent := p.entryCache[entry.PPid]
 	if parent != nil {
-		if parent.Equals(entry) {
+		if parent.EqualsForProcfs(entry) {
 			entry.SetForkParent(parent)
 		} else if prev := p.entryCache[pid]; prev != nil { // exec-exec
 			entry.SetExecParent(prev)
@@ -2165,6 +2177,29 @@ func (p *EBPFResolver) UpdateSID(pce *model.ProcessCacheEntry, sid uint32) {
 	defer p.Unlock()
 
 	pce.SID = sid
+}
+
+// UpdateMntNS updates the mount namespace of the given process cache entry
+func (p *EBPFResolver) UpdateMntNS(pce *model.ProcessCacheEntry, mntNS uint32) {
+	p.RLock()
+	currMntNS := pce.MntNS
+	p.RUnlock()
+
+	if currMntNS == mntNS {
+		return
+	}
+
+	p.Lock()
+	defer p.Unlock()
+
+	// keep the namespace from fork or exec, a first resolution of an unknown one isn't a change
+	if pce.InitialMntNS == 0 {
+		pce.InitialMntNS = currMntNS
+	}
+	pce.MntNS = mntNS
+	if p.mountResolver != nil {
+		p.mountResolver.SetPidMntNs(pce.Pid, mntNS)
+	}
 }
 
 const (

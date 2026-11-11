@@ -1,0 +1,33 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sigdanger",
+    srcs = [
+        "sigdanger_aix.go",
+        "sigdanger_other.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/sigdanger",
+    visibility = ["//visibility:public"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/util/log",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "sigdanger_test",
+    srcs = ["sigdanger_aix_test.go"],
+    embed = [":sigdanger"],
+    deps = select({
+        "@rules_go//go/platform:aix": [
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)

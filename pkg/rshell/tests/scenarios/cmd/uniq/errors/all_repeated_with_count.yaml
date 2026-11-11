@@ -1,0 +1,8 @@
+description: uniq -D -c is mutually exclusive and fails.
+input:
+  script: |+
+    uniq -D -c
+expect:
+  stdout: ""
+  stderr: "uniq: printing all duplicated lines and repeat counts is meaningless\nTry 'uniq --help' for more information.\n"
+  exit_code: 1

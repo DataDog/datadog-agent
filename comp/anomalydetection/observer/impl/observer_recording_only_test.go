@@ -102,7 +102,7 @@ anomaly_detection:
 			}
 			obs, ok := provides.Comp.(*observerImpl)
 			require.True(t, ok)
-			t.Cleanup(func() { close(obs.obsCh) })
+			t.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh) })
 
 			h := obs.GetHandle("check")
 			h.ObserveMetric(&metricObs{name: "system.cpu", value: 2.5, timestamp: 1000}, 1)

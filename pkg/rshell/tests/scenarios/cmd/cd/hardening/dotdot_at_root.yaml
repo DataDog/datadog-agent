@@ -1,0 +1,21 @@
+description: cd .. at the AllowedPaths root cannot escape the sandbox; repeated attempts leave pwd unchanged.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: deep/x/y/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd deep/x/y
+    start=$(pwd)
+    # Climb up to the sandbox root and then try to go above it 30 more times.
+    for i in {1..3}; do cd ..; done
+    root=$(pwd)
+    for i in {1..30}; do cd .. 2>/dev/null; done
+    if [ "$(pwd)" = "$root" ]; then echo at_root; else echo escaped; fi
+expect:
+  stdout: |+
+    at_root
+  stderr: ""
+  exit_code: 0

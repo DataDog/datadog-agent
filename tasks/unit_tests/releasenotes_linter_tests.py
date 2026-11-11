@@ -8,8 +8,12 @@ from tasks.libs.linter.releasenotes import (
     ReleasenoteFileResult,
     RSTLintError,
     detect_markdown_patterns,
+    find_reused_uids,
     lint_releasenote_file,
     lint_releasenotes,
+    parse_deleted_release_notes,
+    release_note_tree,
+    release_note_uid,
     validate_reno_structure,
     validate_rst,
 )
@@ -692,6 +696,86 @@ class TestFilenameValidation(unittest.TestCase):
         result = lint_releasenote_file(path)
         filename_errors = [e for e in result.section_errors if e.section == 'filename']
         self.assertEqual(len(filename_errors), 0)
+
+
+class TestReleaseNoteUID(unittest.TestCase):
+    """Tests for release_note_uid and release_note_tree."""
+
+    def test_uid_extracted_and_lowercased(self):
+        self.assertEqual(release_note_uid("releasenotes/notes/fix-D49F7763A48C1ED1.yaml"), "d49f7763a48c1ed1")
+
+    def test_non_hex_suffix_has_no_uid(self):
+        self.assertIsNone(release_note_uid("releasenotes/notes/fix-not-a-uid-at-all.yaml"))
+
+    def test_non_yaml_has_no_uid(self):
+        self.assertIsNone(release_note_uid("releasenotes/notes/fix-d49f7763a48c1ed1.txt"))
+
+    def test_tree(self):
+        self.assertEqual(release_note_tree("releasenotes-dca/notes/fix-d49f7763a48c1ed1.yaml"), "releasenotes-dca")
+        self.assertEqual(release_note_tree("releasenotes\\notes\\fix-d49f7763a48c1ed1.yaml"), "releasenotes")
+
+
+class TestReusedUIDs(unittest.TestCase):
+    """Tests for parse_deleted_release_notes and find_reused_uids."""
+
+    GIT_LOG = """commit:bbbb
+
+releasenotes/notes/apm-convert-traces-by-default-d49f7763a48c1ed1.yaml
+
+commit:aaaa
+
+releasenotes/notes/apm-convert-traces-by-default-d49f7763a48c1ed1.yaml
+releasenotes-dca/notes/dca-fix-0123456789abcdef.yaml
+releasenotes/notes/legacy-name.yaml
+"""
+
+    def test_parse_keeps_most_recent_deletion(self):
+        deleted = parse_deleted_release_notes(self.GIT_LOG)
+        self.assertEqual(
+            deleted[("releasenotes", "d49f7763a48c1ed1")],
+            ("releasenotes/notes/apm-convert-traces-by-default-d49f7763a48c1ed1.yaml", "bbbb"),
+        )
+        self.assertEqual(
+            deleted[("releasenotes-dca", "0123456789abcdef")],
+            ("releasenotes-dca/notes/dca-fix-0123456789abcdef.yaml", "aaaa"),
+        )
+        self.assertEqual(len(deleted), 2)
+
+    def test_restored_note_is_flagged(self):
+        """Re-landing a reverted PR restores the deleted note under the same name."""
+        added = ["releasenotes/notes/apm-convert-traces-by-default-d49f7763a48c1ed1.yaml"]
+        reused = find_reused_uids(added, parse_deleted_release_notes(self.GIT_LOG))
+        self.assertEqual(
+            reused,
+            [
+                (
+                    added[0],
+                    "d49f7763a48c1ed1",
+                    "releasenotes/notes/apm-convert-traces-by-default-d49f7763a48c1ed1.yaml",
+                    "bbbb",
+                )
+            ],
+        )
+
+    def test_same_uid_different_slug_is_flagged(self):
+        reused = find_reused_uids(
+            ["releasenotes/notes/other-slug-d49f7763a48c1ed1.yaml"], parse_deleted_release_notes(self.GIT_LOG)
+        )
+        self.assertEqual(len(reused), 1)
+
+    def test_fresh_uid_not_flagged(self):
+        reused = find_reused_uids(
+            ["releasenotes/notes/apm-convert-traces-by-default-fedcba9876543210.yaml"],
+            parse_deleted_release_notes(self.GIT_LOG),
+        )
+        self.assertEqual(reused, [])
+
+    def test_uid_deleted_in_other_tree_not_flagged(self):
+        """Each releasenotes* directory is a separate reno tree."""
+        reused = find_reused_uids(
+            ["releasenotes/notes/dca-fix-0123456789abcdef.yaml"], parse_deleted_release_notes(self.GIT_LOG)
+        )
+        self.assertEqual(reused, [])
 
 
 if __name__ == '__main__':

@@ -1,0 +1,16 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate --help outside remediation mode is rejected by the same capability gate as --force, since the nil-capability check runs before --help is processed.
+setup:
+  files:
+    - path: app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    logrotate --help
+expect:
+  stdout: |+
+  stderr: |+
+    logrotate: filesystem capability not available (remediation mode required)
+  exit_code: 1

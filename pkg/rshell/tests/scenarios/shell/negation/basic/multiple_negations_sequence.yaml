@@ -1,0 +1,16 @@
+description: Multiple negated commands separated by semicolons track $? independently.
+input:
+  script: |+
+    ! false
+    echo $?
+    ! true
+    echo $?
+    ! false
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+    0
+  stderr: ""
+  exit_code: 0

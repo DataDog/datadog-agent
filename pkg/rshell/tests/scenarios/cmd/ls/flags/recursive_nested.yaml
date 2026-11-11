@@ -1,0 +1,26 @@
+description: ls -R lists deeply nested subdirectories recursively.
+setup:
+  files:
+    - path: top/mid/bottom/deep.txt
+      content: "deep"
+      chmod: 0644
+    - path: top/surface.txt
+      content: "surface"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -R top
+expect:
+  stdout: |+
+    top:
+    mid
+    surface.txt
+
+    top/mid:
+    bottom
+
+    top/mid/bottom:
+    deep.txt
+  stderr: ""
+  exit_code: 0

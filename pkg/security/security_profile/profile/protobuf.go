@@ -386,7 +386,7 @@ func profileToSecurityProfileProto(p *Profile) (*adprotov1.SecurityProfile, erro
 		syscalls := ctx.Syscalls
 		if p.observedRollups {
 			imageTagID := p.ActivityTree.GetImageTagID(key)
-			syscalls = unionSyscalls(syscallsByImageTagID[imageTagID], p.seededSyscalls)
+			syscalls = syscallsByImageTagID[imageTagID]
 		}
 
 		outCtx := &adprotov1.ProfileContext{

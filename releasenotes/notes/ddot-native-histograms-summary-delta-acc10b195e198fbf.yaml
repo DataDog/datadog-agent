@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    With the ``datadog.serializerexporter.NativeOTelHistograms`` feature gate on, DDOT
+    sends the ``.count`` and ``.sum`` metrics of OpenTelemetry summaries as counts of
+    the change since the previous point, as it does without the gate, instead of
+    gauges holding the cumulative value.

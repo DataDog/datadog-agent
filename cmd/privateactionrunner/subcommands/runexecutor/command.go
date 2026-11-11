@@ -27,6 +27,7 @@ import (
 	eventplatformfx "github.com/DataDog/datadog-agent/comp/forwarder/eventplatform/fx"
 	eventplatformreceiverimpl "github.com/DataDog/datadog-agent/comp/forwarder/eventplatformreceiver/impl"
 	remotetraceroute "github.com/DataDog/datadog-agent/comp/networkpath/traceroute/fx-remote"
+	pcapuploaderfx "github.com/DataDog/datadog-agent/comp/networkpcap/uploader/fx"
 	privateactionrunner "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	privateactionrunnerfx "github.com/DataDog/datadog-agent/comp/privateactionrunner/fx"
 	rcclient "github.com/DataDog/datadog-agent/comp/remote-config/rcclient/def"
@@ -90,6 +91,7 @@ func runExecutor(ctx context.Context, params *cliParams) error {
 		logscompressionfx.Module(),
 		eventplatformreceiverimpl.Module(),
 		eventplatformfx.Module(eventplatform.NewDefaultParams()),
+		pcapuploaderfx.Module(),
 		statsdfx.Module(),
 		privateactionrunnerfx.ExecutorModule(),
 	}

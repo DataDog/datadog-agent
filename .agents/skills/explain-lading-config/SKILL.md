@@ -40,14 +40,10 @@ Override the checkout location with `LADING_DIR` if needed.
 
 ## Step 2: Determine target file
 
-Use `.agents/skills/explain-lading-config/scripts/resolve-lading-config.sh` to
-avoid ad-hoc matching. The script enumerates experiments under
-`test/regression/cases/` (active) and `test/regression/x-disabled-cases/`
-(disabled). Each experiment is a `<case>/lading/lading.yaml` addressed by its
-case-directory name; disabled rows are flagged with a trailing `(disabled)`
-column in the listing. `ebpf/cases/` (split-mode) and
-`ebpf/config-only/cases/` are intentionally out of scope; if a user asks about
-one, tell them this skill doesn't cover it yet.
+Use `.agents/skills/explain-lading-config/scripts/resolve-lading-config.sh`.
+The script finds experiments below `test/regression/container/` at any depth.
+
+Each experiment uses its directory name. The separate `test/regression/ebpf/` lane is outside this skill scope.
 
 The script handles path-like inputs, substring case names, and shell
 globs (`*`, `?`).
@@ -66,10 +62,6 @@ globs (`*`, `?`).
   4 options) or as a short list; if not, relay the error and stop.
 - Exit 4 (wrong repo): the script is being run from outside the agent repo.
   Relay the error verbatim and stop — the user needs to `cd` into the repo.
-
-**If the resolved path contains `/x-disabled-cases/`**, flag this explicitly
-in the explanation — the experiment exists on disk but is not currently
-executed by SMP. Otherwise a user may assume it's live.
 
 **Reading very large configs:** multi-sender configs (e.g.
 `uds_dogstatsd_20mb_12k_contexts_20_senders`, ~870 lines) are usually
@@ -90,9 +82,7 @@ check one later block to confirm uniformity.
 **If `$ARGUMENTS` is omitted:** run `resolve-lading-config.sh` with no
 argument. It emits `<experiment>\t<path>` lines for every discovered config.
 
-Print the experiment names as a plain bulleted list to the user (preserving
-the `(disabled)` markers) and ask them to type the name (or re-invoke the
-skill with `/explain-lading-config <name>`).
+Print the experiment names as a plain list. Ask the user to enter a name or run `/explain-lading-config <name>`.
 
 ## Step 3: Read the lading codebase for context
 

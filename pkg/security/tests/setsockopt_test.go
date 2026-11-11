@@ -10,6 +10,7 @@ package tests
 
 import (
 	"fmt"
+	"os"
 	"syscall"
 	"testing"
 	"unsafe"
@@ -339,6 +340,103 @@ func TestSetSockOptReuseaddr(t *testing.T) {
 		}, "test_rule_setsockopt_reuseaddr")
 	})
 
+}
+
+func TestSetSockOptUnfaultedFilter(t *testing.T) {
+	SkipIfNotAvailable(t)
+
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID: "test_rule_setsockopt_unfaulted_filter",
+			Expression: `setsockopt.level == SOL_SOCKET
+			&& setsockopt.optname == SO_ATTACH_FILTER
+			&& setsockopt.socket_type == SOCK_DGRAM
+			&& setsockopt.filter_hash == "627019f67a3853590209488302dd51282834c4f9f9c1cc43274f45c4bfd9869f"
+			&& setsockopt.is_filter_truncated == false
+			&& 12 in setsockopt.used_immediates`,
+		},
+	}
+
+	test, err := newTestModule(t, nil, ruleDefs)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer test.CloseTest()
+
+	t.Run("setsockopt-unfaulted-filter", func(t *testing.T) {
+		test.WaitSignalFromRule(t, func() error {
+			fd, err := syscall.Socket(syscall.AF_INET, syscall.SOCK_DGRAM, 0)
+			if err != nil {
+				return err
+			}
+			defer syscall.Close(fd)
+
+			program := []syscall.SockFilter{
+				{Code: 0x28, Jt: 0, Jf: 0, K: 0x0000000c},
+				{Code: 0x15, Jt: 0, Jf: 8, K: 0x000086dd},
+				{Code: 0x30, Jt: 0, Jf: 0, K: 0x00000014},
+				{Code: 0x15, Jt: 2, Jf: 0, K: 0x00000084},
+				{Code: 0x15, Jt: 1, Jf: 0, K: 0x00000006},
+				{Code: 0x15, Jt: 0, Jf: 17, K: 0x00000011},
+				{Code: 0x28, Jt: 0, Jf: 0, K: 0x00000036},
+				{Code: 0x15, Jt: 14, Jf: 0, K: 0x00000016},
+				{Code: 0x28, Jt: 0, Jf: 0, K: 0x00000038},
+				{Code: 0x15, Jt: 12, Jf: 13, K: 0x00000016},
+				{Code: 0x15, Jt: 0, Jf: 12, K: 0x00000800},
+				{Code: 0x30, Jt: 0, Jf: 0, K: 0x00000017},
+				{Code: 0x15, Jt: 2, Jf: 0, K: 0x00000084},
+				{Code: 0x15, Jt: 1, Jf: 0, K: 0x00000006},
+				{Code: 0x15, Jt: 0, Jf: 8, K: 0x00000011},
+				{Code: 0x28, Jt: 0, Jf: 0, K: 0x00000014},
+				{Code: 0x45, Jt: 6, Jf: 0, K: 0x00001fff},
+				{Code: 0xb1, Jt: 0, Jf: 0, K: 0x0000000e},
+				{Code: 0x48, Jt: 0, Jf: 0, K: 0x0000000e},
+				{Code: 0x15, Jt: 2, Jf: 0, K: 0x00000016},
+				{Code: 0x48, Jt: 0, Jf: 0, K: 0x00000010},
+				{Code: 0x15, Jt: 0, Jf: 1, K: 0x00000016},
+				{Code: 0x06, Jt: 0, Jf: 0, K: 0x0000ffff},
+				{Code: 0x06, Jt: 0, Jf: 0, K: 0x00000000},
+			}
+			size := len(program) * int(unsafe.Sizeof(program[0]))
+
+			// The filter is read from a file-backed mapping that this process never
+			// touches, so its page is only faulted in by the kernel's own copy.
+			f, err := os.CreateTemp(t.TempDir(), "filter")
+			if err != nil {
+				return err
+			}
+			defer f.Close()
+			if _, err := f.Write(unsafe.Slice((*byte)(unsafe.Pointer(&program[0])), size)); err != nil {
+				return err
+			}
+			mem, err := syscall.Mmap(int(f.Fd()), 0, size, syscall.PROT_READ, syscall.MAP_SHARED)
+			if err != nil {
+				return err
+			}
+			defer syscall.Munmap(mem)
+
+			filter := syscall.SockFprog{
+				Len:    uint16(len(program)),
+				Filter: (*syscall.SockFilter)(unsafe.Pointer(&mem[0])),
+			}
+			_, _, errno := syscall.Syscall6(
+				syscall.SYS_SETSOCKOPT,
+				uintptr(fd),
+				uintptr(syscall.SOL_SOCKET),
+				uintptr(syscall.SO_ATTACH_FILTER),
+				uintptr(unsafe.Pointer(&filter)),
+				uintptr(unsafe.Sizeof(filter)),
+				0,
+			)
+			if errno != 0 {
+				return fmt.Errorf("setsockopt failed: %v", errno)
+			}
+
+			return nil
+		}, func(_ *model.Event, rule *rules.Rule) {
+			assertTriggeredRule(t, rule, "test_rule_setsockopt_unfaulted_filter")
+		}, "test_rule_setsockopt_unfaulted_filter")
+	})
 }
 
 func TestSetSockOptTruncatedFilter(t *testing.T) {

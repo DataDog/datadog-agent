@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
 	"syscall"
 
 	"github.com/DataDog/datadog-agent/pkg/util/executable"
@@ -29,6 +30,16 @@ func RunOscapExec(args []string) error {
 	if _, err := os.Stat(binaryPath); err != nil {
 		return fmt.Errorf("oscap-io binary not found at %s: %w", binaryPath, err)
 	}
+	return execWithDroppedCapabilities(binaryPath, args)
+}
+
+// execWithDroppedCapabilities executes binaryPath with args after dropping
+// capabilities and setting PR_SET_NO_NEW_PRIVS. Both change the calling thread
+// alone, and execve takes the credentials of the thread that calls it, so the
+// goroutine stays locked to its thread: the exec replaces the process, and an
+// error ends the command.
+func execWithDroppedCapabilities(binaryPath string, args []string) error {
+	runtime.LockOSThread()
 
 	// Drop capabilities
 	if err := dropCapabilities(); err != nil {

@@ -1,0 +1,22 @@
+description: ls -R does not follow symlinks to directories (matches GNU ls default).
+setup:
+  files:
+    - path: real/file.txt
+      content: "hello"
+      chmod: 0644
+    - path: link
+      symlink: real
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -R
+expect:
+  stdout: |+
+    .:
+    link
+    real
+
+    ./real:
+    file.txt
+  stderr: ""
+  exit_code: 0

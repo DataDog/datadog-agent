@@ -1,0 +1,15 @@
+description: continue inside an until body skips the rest of the iteration and re-evaluates the condition.
+input:
+  script: |+
+    i=
+    until [ "$i" = aaa ]; do
+      i="${i}a"
+      continue
+      echo unreachable
+    done
+    echo "i=$i"
+expect:
+  stdout: |+
+    i=aaa
+  stderr: |+
+  exit_code: 0

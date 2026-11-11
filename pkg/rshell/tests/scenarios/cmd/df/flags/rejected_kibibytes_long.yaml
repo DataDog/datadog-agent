@@ -1,0 +1,11 @@
+description: df rejects --kibibytes (no GNU long form for -k; only the -k short form is recognised). GNU also rejects this; both emit the same "unrecognized option" line after the pflag-error rewriter.
+input:
+  script: |+
+    df --kibibytes; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    df: unrecognized option '--kibibytes'
+    Try 'df --help' for more information.
+  exit_code: 0

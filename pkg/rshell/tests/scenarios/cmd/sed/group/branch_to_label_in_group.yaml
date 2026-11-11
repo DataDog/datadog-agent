@@ -1,0 +1,12 @@
+description: Branch to a label inside a group works correctly.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '{:a;s/a/b/;ta;p}' input.txt
+expect:
+  stdout: "bbb\n"
+  exit_code: 0

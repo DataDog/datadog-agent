@@ -49,6 +49,7 @@ dd_agent_go_test(
     srcs = [
         "agenttelemetry_test.go",
         "errortracking_sender_test.go",
+        "phonehome_test.go",
         "utils_test.go",
     ],
     embed = [":impl"],

@@ -173,6 +173,21 @@ func TestConverterWithoutAgent(t *testing.T) {
 			expected: "no_agent/symbol-up-str-keys/out.yaml",
 		},
 		{
+			name:     "symbol-uploader-report-preserved-unchanged",
+			provided: "no_agent/report-preserved/in.yaml",
+			expected: "no_agent/report-preserved/out.yaml",
+		},
+		{
+			name:     "symbol-uploader-report-invalid-interval-preserved-unchanged",
+			provided: "no_agent/report-bad-interval/in.yaml",
+			expected: "no_agent/report-bad-interval/out.yaml",
+		},
+		{
+			name:     "symbol-uploader-report-zero-max-preserved-unchanged",
+			provided: "no_agent/report-zero-max/in.yaml",
+			expected: "no_agent/report-zero-max/out.yaml",
+		},
+		{
 			name:     "converts-non-string-api-key",
 			provided: "no_agent/conv-nonstr-apikey/in.yaml",
 			expected: "no_agent/conv-nonstr-apikey/out.yaml",

@@ -1,0 +1,15 @@
+# rshell journalctl is a restricted builtin and may not be installed in the Bash image.
+skip_assert_against_bash: true
+description: journalctl help describes the bounded query surface
+input:
+  script: |+
+    journalctl --help
+expect:
+  stdout_contains:
+    - "Usage: journalctl (-u UNIT...|-k) [OPTION]..."
+    - "--unit"
+    - "--dmesg"
+    - "--lines"
+    - "--rotate"
+  stderr: |+
+  exit_code: 0

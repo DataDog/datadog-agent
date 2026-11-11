@@ -1,0 +1,9 @@
+description: jq accepts numeric literals with an empty fractional part.
+input:
+  script: |+
+    jq -nc '[1. == 1, 1.e2 == 100, 1.E+2 == 100, -2. == -2]'
+expect:
+  stdout: |+
+    [true,true,true,true]
+  stderr: |+
+  exit_code: 0

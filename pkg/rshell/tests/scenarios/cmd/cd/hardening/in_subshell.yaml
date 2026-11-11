@@ -1,0 +1,17 @@
+description: cd in a subshell does not affect the parent shell's working directory.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    p1=$(pwd)
+    ( cd child )
+    p2=$(pwd)
+    if [ "$p1" = "$p2" ]; then echo unchanged; else echo changed; fi
+expect:
+  stdout: |+
+    unchanged
+  stderr: ""
+  exit_code: 0

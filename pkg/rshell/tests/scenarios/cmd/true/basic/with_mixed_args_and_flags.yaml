@@ -1,0 +1,10 @@
+description: The true builtin ignores a mix of flags and positional arguments.
+input:
+  script: |+
+    true -v --verbose foo bar
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

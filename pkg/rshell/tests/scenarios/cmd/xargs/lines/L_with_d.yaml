@@ -1,0 +1,11 @@
+description: xargs -L counts each delimited record as a "line" when combined with -d (or -0); -L1 -d, runs the command once per comma-separated record (matches GNU).
+input:
+  script: |+
+    printf 'a,b,c' | xargs -d, -L1 echo
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: |+
+  exit_code: 0

@@ -167,6 +167,7 @@ func TestMutatePod(t *testing.T) {
 		in                          *corev1.Pod
 		namespaces                  []workloadmeta.KubernetesMetadata
 		ddiTargetEntries            mockDDIProvider
+		remotePolicies              []policies.Policy
 		expectedEnv                 map[string]string
 		expectedAnnotations         map[string]string
 		expectedInitContainerImages []string
@@ -194,8 +195,32 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.AppliedTarget: "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.InjectionSource: "static",
+				annotation.AppliedConfig:   "{\"name\":\"Application Namespace\",\"namespaceSelector\":{\"matchNames\":[\"application\"]},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
+		},
+		"inject all records fallback source": {
+			configOverrides: map[string]any{
+				"apm_config.instrumentation.enabled":      true,
+				"apm_config.instrumentation.lib_versions": map[string]string{"python": "v3"},
+			},
+			in:                          mutatecommon.FakePodWithNamespace("foo-service", "application"),
+			expectedInitContainerImages: []string{"registry/apm-inject:0", "registry/dd-lib-python-init:v3"},
+			expectedAnnotations:         map[string]string{annotation.InjectionSource: "inject-all"},
+		},
+		"annotation overrides static selection but keeps SSI mode": {
+			configPath:                  "testdata/filter_simple_namespace.yaml",
+			in:                          annotatedEnabledPod("application", nil),
+			namespaces:                  []workloadmeta.KubernetesMetadata{newTestNamespace("application", nil)},
+			expectedInitContainerImages: []string{"registry/apm-inject:0", "registry/dd-lib-java-init:v1"},
+			expectedAnnotations:         map[string]string{annotation.InjectionSource: "annotation"},
+			expectedEnv:                 map[string]string{"DD_INSTRUMENTATION_INSTALL_TYPE": "k8s_single_step"},
+		},
+		"remote policy records source and configuration": {
+			in:                          mutatecommon.FakePodSpec{NS: "application", Labels: map[string]string{"app": "foo"}}.Create(),
+			remotePolicies:              []policies.Policy{podLabelPolicy("remote-python", "app", "foo", true, map[string]string{"python": "v3"})},
+			expectedInitContainerImages: []string{"registry/apm-inject:0", "registry/dd-lib-python-init:v3"},
+			expectedAnnotations:         map[string]string{annotation.InjectionSource: "remote-config", annotation.AppliedConfig: `{"name":"remote-python","ddTraceVersions":{"python":"v3"}}`},
 		},
 		"no matching rule does not mutate pod": {
 			configPath: "testdata/filter_simple_namespace.yaml",
@@ -275,7 +300,8 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.AppliedTarget: "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
+				annotation.InjectionSource: "static",
+				annotation.AppliedConfig:   "{\"name\":\"Python Apps\",\"podSelector\":{\"matchLabels\":{\"language\":\"python\"}},\"ddTraceVersions\":{\"python\":\"v3\"},\"ddTraceConfigs\":[{\"name\":\"DD_PROFILING_ENABLED\",\"value\":\"true\"},{\"name\":\"DD_DATA_JOBS_ENABLED\",\"value\":\"true\"}]}",
 			},
 		},
 		"service name is applied when set in tracer configs": {
@@ -328,7 +354,8 @@ func TestMutatePod(t *testing.T) {
 				AppliedTargetEnvVar:               "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
 			},
 			expectedAnnotations: map[string]string{
-				annotation.AppliedTarget: "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
+				annotation.InjectionSource: "datadog-instrumentation",
+				annotation.AppliedConfig:   "{\"name\":\"datadoginstrumentation:default/ddi-web\",\"workload\":{\"Kind\":\"Deployment\",\"Namespace\":\"application\",\"Name\":\"web\"},\"ddTraceVersions\":{\"python\":\"v4\"},\"ddTraceConfigs\":[{\"name\":\"DD_SERVICE\",\"value\":\"web\"}]}",
 			},
 		},
 		"CRD target in disabled namespace does not mutate pod": {
@@ -388,6 +415,10 @@ func TestMutatePod(t *testing.T) {
 			f, err := NewTargetMutator(config, wmeta, imageresolver.NewNoOpResolver(), nil, nil, test.ddiTargetEntries)
 			require.NoError(t, err)
 
+			if test.remotePolicies != nil {
+				require.NoError(t, f.SetRemotePolicies(test.remotePolicies))
+			}
+
 			input := test.in.DeepCopy()
 
 			// Mutate the pod.
@@ -425,6 +456,13 @@ func TestMutatePod(t *testing.T) {
 			for k, v := range test.expectedAnnotations {
 				require.Equal(t, v, test.in.Annotations[k])
 			}
+
+			// Reinvocation must preserve both the injected libraries and their provenance.
+			injected := test.in.DeepCopy()
+			mutated, err = f.MutatePod(test.in, test.in.Namespace, nil)
+			require.NoError(t, err)
+			require.False(t, mutated)
+			require.Equal(t, injected, test.in)
 		})
 	}
 }

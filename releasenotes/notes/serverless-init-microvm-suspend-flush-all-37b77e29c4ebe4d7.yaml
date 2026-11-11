@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix ``serverless-init`` on AWS Lambda MicroVMs losing the last 20 to 30
+    seconds of APM trace stats when a suspended MicroVM is terminated, for
+    example when ``suspendedDurationSeconds`` expires. AWS does not call the
+    ``/terminate`` hook in that case, so the ``/suspend`` hook now sends all
+    pending trace stats.

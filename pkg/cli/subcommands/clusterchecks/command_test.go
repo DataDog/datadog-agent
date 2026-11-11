@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/spf13/cobra"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/DataDog/datadog-agent/comp/core"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -45,18 +45,14 @@ func TestRebalance(t *testing.T) {
 		func() {})
 }
 
-func TestIsolate(t *testing.T) {
-	commands := []*cobra.Command{
-		MakeCommand(func() GlobalParams {
-			return GlobalParams{}
-		}),
-	}
+func TestLogLevelIgnoresEnv(t *testing.T) {
+	t.Setenv("DD_LOG_LEVEL", "info")
 
-	fxutil.TestOneShotSubcommand(t,
-		commands,
-		[]string{"clusterchecks", "isolate", "--checkID", "checkID"},
-		isolate,
-		func(cliParams *cliParams, _ core.BundleParams) {
-			require.Equal(t, "checkID", cliParams.checkID)
-		})
+	cmd := MakeCommand(func() GlobalParams { return GlobalParams{} })
+	require.NoError(t, cmd.ParseFlags(nil))
+	logLevel, err := cmd.Flags().GetString("log_level")
+	require.NoError(t, err)
+	assert.Equal(t, "off", bundleParams(GlobalParams{}, logLevel).LogParams.LogLevelFn(nil))
+
+	assert.Equal(t, "debug", bundleParams(GlobalParams{}, "debug").LogParams.LogLevelFn(nil))
 }

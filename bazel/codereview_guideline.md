@@ -19,6 +19,12 @@ any `deps` list that appears to include packages not directly imported by the ta
 No recursive globs: `glob(["**/*.ext"])` skips subdirectories containing BUILD files, defeats remote caching, and
 breaks incremental builds. Flag any `glob` with a `**` pattern. Instead, add a `BUILD.bazel` to each subdirectory.
 
+## Gazelle `# keep` directives
+
+Flag any new `# keep` that Gazelle would not override: on attributes Gazelle does not manage (`target_compatible_with`,
+`tags`, `data`, `env`, `gotags`, `linkmode`, ...), on non-rule statements, or on values identical to what Gazelle
+generates. A needed `# keep` should state its reason inline (`# keep: <reason>`).
+
 ## `print()` statements
 
 `print()` in `.bzl` files is for debugging only. Flag any committed `.bzl` file that contains a `print()` call not

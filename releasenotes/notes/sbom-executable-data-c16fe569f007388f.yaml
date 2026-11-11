@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment of the host SBOM counts the read of a package
+    file with the mode of an executable as usage only when the file starts as
+    an ELF executable or a script. A data file of that mode, such as the login
+    banner of ``system-release`` on Amazon Linux 2023, marked its package as
+    running as root.

@@ -1,0 +1,13 @@
+# skip: case statements are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Case statement with multiple patterns is blocked.
+input:
+  script: |+
+    case "hello" in
+      hi|hello) echo matched;;
+    esac
+expect:
+  stdout: ""
+  stderr: |+
+    case statements are not supported
+  exit_code: 2

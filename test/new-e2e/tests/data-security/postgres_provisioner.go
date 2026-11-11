@@ -8,6 +8,7 @@ package datasecurity
 
 import (
 	_ "embed"
+	"fmt"
 
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
@@ -19,11 +20,24 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/fakeintake"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/utils/common"
 )
 
 //go:embed fixtures/datadog-agent.yaml
 var agentConfig string
+
+var _ common.Diagnosable = (*postgresScanEnv)(nil)
+
+// Diagnose downloads an agent flare (agent.log, status, config-check) into outputDir when a test fails.
+func (e *postgresScanEnv) Diagnose(outputDir string) (string, error) {
+	flarePath, err := environments.GenerateAndDownloadAgentFlare(e.Agent, e.RemoteHost, outputDir)
+	if err != nil {
+		return "", fmt.Errorf("failed to generate and download agent flare: %w", err)
+	}
+	return "Flare archive downloaded to " + flarePath, nil
+}
 
 // postgresScanProvisioner provisions the host Agent and Postgres workload, with extra agent options.
 func postgresScanProvisioner(agentOpts ...agentparams.Option) provisioners.PulumiEnvRunFunc[postgresScanEnv] {

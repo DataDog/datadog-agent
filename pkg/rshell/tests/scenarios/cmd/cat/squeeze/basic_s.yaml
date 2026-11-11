@@ -1,0 +1,13 @@
+description: cat -s squeezes consecutive blank lines into one.
+setup:
+  files:
+    - path: file.txt
+      content: "a\n\n\n\nb\n\n\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -s file.txt
+expect:
+  stdout: "a\n\nb\n\nc\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,16 @@
+description: ls -lp does not append slash to symlink targets (only -F does)
+setup:
+  files:
+    - path: dir/subdir/.keep
+      content: ""
+    - path: dir/dirlink
+      symlink: subdir
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -lp dir/
+expect:
+  stdout_contains:
+    - "dirlink -> subdir"
+    - "subdir/"
+  exit_code: 0

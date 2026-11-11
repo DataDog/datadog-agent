@@ -45,6 +45,21 @@ func (h *fakeHandler) Render(path string, _ json.RawMessage, siblings map[string
 	return h.configs[path], nil
 }
 
+// fakeSnapshotter is a Snapshotter whose every answer the test controls.
+type fakeSnapshotter struct {
+	key  string
+	errs map[string]error // path -> error to report
+
+	snapshots []map[string]json.RawMessage
+}
+
+func (h *fakeSnapshotter) Key() string { return h.key }
+
+func (h *fakeSnapshotter) Snapshot(docs map[string]json.RawMessage) map[string]error {
+	h.snapshots = append(h.snapshots, docs)
+	return h.errs
+}
+
 func newTestProvider(t *testing.T, handlers ...handler.Handler) *Provider {
 	t.Helper()
 	p, err := NewProvider(logmock.New(t), handlers)
@@ -479,4 +494,187 @@ func TestUpdateDropsAMalformedPathsErrorOnceItLeavesTheSnapshot(t *testing.T) {
 	p.Update(map[string]state.RawConfig{}, rec.callback)
 
 	assert.Empty(t, p.GetConfigErrors())
+}
+
+// fakeBoth renders and snapshots the same key.
+type fakeBoth struct {
+	fakeHandler
+	snapshots   []map[string]json.RawMessage
+	snapshotErr error
+}
+
+func (h *fakeBoth) Snapshot(docs map[string]json.RawMessage) map[string]error {
+	h.snapshots = append(h.snapshots, docs)
+	if h.snapshotErr == nil {
+		return nil
+	}
+	errs := make(map[string]error, len(docs))
+	for path := range docs {
+		errs[path] = h.snapshotErr
+	}
+	return errs
+}
+
+func TestUpdateBothRendersAndSnapshotsAHandlerThatDoesEach(t *testing.T) {
+	h := &fakeBoth{fakeHandler: fakeHandler{key: "snmp", configs: map[string][]integration.Config{
+		"path-a": {snmpConfig("10.0.0.1")},
+	}}}
+	p := newTestProvider(t, h)
+	ch := p.Stream(context.Background())
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, newRecorder().callback)
+
+	assert.Equal(t, []string{"path-a"}, h.renderedPaths)
+	require.Len(t, h.snapshots, 1)
+	assert.ElementsMatch(t, []string{"path-a"}, keysOf(h.snapshots[0]))
+	require.Len(t, drain(t, ch), 1)
+}
+
+func TestUpdateKeepsAPathsSnapshotValuesWhenItsReplacementIsMalformed(t *testing.T) {
+	snap := &fakeSnapshotter{key: "discovery"}
+	p := newTestProvider(t, snap)
+	rec := newRecorder()
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"discovery":{"v":1}}`)}, rec.callback)
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`[{"discovery":{}}]`)}, rec.callback)
+
+	require.Len(t, snap.snapshots, 2)
+	assert.Equal(t, snap.snapshots[0], snap.snapshots[1], "the malformed replacement stops nothing")
+	assert.Equal(t, state.ApplyStateError, rec.states["path-a"].State)
+}
+
+func TestUpdateDropsAPathsSnapshotValuesOnceItLeavesTheSnapshot(t *testing.T) {
+	snap := &fakeSnapshotter{key: "discovery"}
+	p := newTestProvider(t, snap)
+	rec := newRecorder()
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"discovery":{"v":1}}`)}, rec.callback)
+	p.Update(map[string]state.RawConfig{}, rec.callback)
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`null`)}, rec.callback)
+
+	require.Len(t, snap.snapshots, 3)
+	assert.Empty(t, snap.snapshots[2], "the path left before it came back malformed, so nothing is retained")
+}
+
+func TestNewProviderRejectsAHandlerThatNeitherRendersNorSnapshots(t *testing.T) {
+	_, err := NewProvider(logmock.New(t), []handler.Handler{keyOnly("snmp")})
+
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "snmp")
+}
+
+// keyOnly is a Handler and nothing more.
+type keyOnly string
+
+func (k keyOnly) Key() string { return string(k) }
+
+func TestUpdateCallsASnapshotterOnceWithEveryPathCarryingItsKey(t *testing.T) {
+	snap := &fakeSnapshotter{key: "discovery"}
+	p := newTestProvider(t, snap, &fakeHandler{key: "snmp"})
+
+	p.Update(map[string]state.RawConfig{
+		"path-a": rawConfig(`{"discovery":{"ranges":[]}}`),
+		"path-b": rawConfig(`{"snmp":{}}`),
+		"path-c": rawConfig(`{"discovery":{"v":2},"snmp":{}}`),
+	}, newRecorder().callback)
+
+	require.Len(t, snap.snapshots, 1, "one call per update, not one per path")
+	assert.ElementsMatch(t, []string{"path-a", "path-c"}, keysOf(snap.snapshots[0]))
+}
+
+func TestUpdateCallsASnapshotterWithNoPathsWhenItsKeyIsGone(t *testing.T) {
+	snap := &fakeSnapshotter{key: "discovery"}
+	p := newTestProvider(t, snap, &fakeHandler{key: "snmp"})
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"discovery":{}}`)}, newRecorder().callback)
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"snmp":{}}`)}, newRecorder().callback)
+
+	require.Len(t, snap.snapshots, 2)
+	assert.Empty(t, snap.snapshots[1], "the key left the document, so nothing is asked for")
+}
+
+func TestUpdateReportsASnapshotFailureAgainstItsPath(t *testing.T) {
+	snap := &fakeSnapshotter{key: "discovery", errs: map[string]error{
+		"path-a": errors.New("range 10.0.0.0/8 is too large"),
+	}}
+	p := newTestProvider(t, snap)
+	rec := newRecorder()
+
+	p.Update(map[string]state.RawConfig{
+		"path-a": rawConfig(`{"discovery":{}}`),
+		"path-b": rawConfig(`{"discovery":{}}`),
+	}, rec.callback)
+
+	assert.Equal(t, state.ApplyStateError, rec.states["path-a"].State)
+	assert.Contains(t, rec.states["path-a"].Error, "too large")
+	assert.Equal(t, state.ApplyStateAcknowledged, rec.states["path-b"].State)
+
+	errsByPath := p.GetConfigErrors()
+	assert.Contains(t, errsByPath, "path-a")
+	assert.NotContains(t, errsByPath, "path-b")
+}
+
+func TestUpdateMergesASnapshotFailureWithARenderFailureOnOnePath(t *testing.T) {
+	snap := &fakeSnapshotter{key: "discovery", errs: map[string]error{
+		"path-a": errors.New("range 10.0.0.0/8 is too large"),
+	}}
+	render := &fakeHandler{key: "snmp", err: errors.New("credential cred-z is missing")}
+	p := newTestProvider(t, snap, render)
+	rec := newRecorder()
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"discovery":{},"snmp":{}}`)}, rec.callback)
+
+	assert.Equal(t, state.ApplyStateError, rec.states["path-a"].State)
+	assert.Contains(t, rec.states["path-a"].Error, "too large")
+	assert.Contains(t, rec.states["path-a"].Error, "cred-z")
+	assert.Len(t, p.GetConfigErrors()["path-a"], 2)
+}
+
+func TestUpdateStillSchedulesARenderedKeyWhenTheSnapshotterFails(t *testing.T) {
+	snap := &fakeSnapshotter{key: "discovery", errs: map[string]error{
+		"path-a": errors.New("range 10.0.0.0/8 is too large"),
+	}}
+	render := &fakeHandler{key: "snmp", configs: map[string][]integration.Config{
+		"path-a": {snmpConfig("10.0.0.1")},
+	}}
+	p := newTestProvider(t, snap, render)
+	ch := p.Stream(context.Background())
+
+	p.Update(map[string]state.RawConfig{"path-a": rawConfig(`{"discovery":{},"snmp":{}}`)}, newRecorder().callback)
+
+	changes := drain(t, ch)
+	require.Len(t, changes, 1)
+	assert.Len(t, changes[0].Schedule, 1)
+}
+
+func keysOf(docs map[string]json.RawMessage) []string {
+	paths := make([]string, 0, len(docs))
+	for path := range docs {
+		paths = append(paths, path)
+	}
+	return paths
+}
+
+func TestUpdateKeepsBothReasonsWhenAHandlerDoingEachFailsAtBoth(t *testing.T) {
+	h := &fakeBoth{
+		fakeHandler: fakeHandler{key: "snmp", err: errors.New("render failed")},
+		snapshotErr: errors.New("snapshot failed"),
+	}
+	p := newTestProvider(t, h)
+	rec := newRecorder()
+
+	p.Update(map[string]state.RawConfig{
+		"path-a": rawConfig(`{"snmp":{}}`),
+	}, rec.callback)
+
+	require.Contains(t, p.GetConfigErrors(), "path-a")
+	for message := range p.GetConfigErrors()["path-a"] {
+		assert.Contains(t, message, "render failed")
+		assert.Contains(t, message, "snapshot failed")
+	}
+
+	require.Len(t, rec.states, 1)
+	assert.Equal(t, state.ApplyStateError, rec.states["path-a"].State)
+	assert.Contains(t, rec.states["path-a"].Error, "render failed")
+	assert.Contains(t, rec.states["path-a"].Error, "snapshot failed")
 }

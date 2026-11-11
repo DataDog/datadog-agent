@@ -324,6 +324,19 @@ func (a *Agent) FlushSync() {
 	}
 }
 
+// ForceFlushSync is FlushSync, but it first writes the open buckets of the
+// concentrator and the ClientStatsAggregator, which FlushSync leaves in memory,
+// to the stats writer. The agent keeps running.
+func (a *Agent) ForceFlushSync() {
+	if c, ok := a.Concentrator.(*stats.Concentrator); ok {
+		c.Writer.Write(c.Flush(true))
+	}
+	if a.ClientStatsAggregator != nil {
+		a.ClientStatsAggregator.ForceFlush()
+	}
+	a.FlushSync()
+}
+
 // WaitForStopped blocks until the agent's Run() method has fully returned,
 // meaning all components have been stopped and the shutdown sequence is complete.
 // It returns nil on clean shutdown, or the context's error if ctx is done first.
@@ -552,7 +565,7 @@ func (a *Agent) Process(p *api.Payload) {
 			continue
 		}
 
-		if filteredByTags(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
+		if filters.FilteredByTags(root, a.conf.RequireTags, a.conf.RejectTags, a.conf.RequireTagsRegex, a.conf.RejectTagsRegex) {
 			log.Debugf("Trace rejected as it fails to meet tag requirements. root: %v", root)
 			ts.TracesFiltered.Inc()
 			ts.SpansFiltered.Add(tracen)
@@ -1404,32 +1417,6 @@ func spanContainsExceptionSpanEventV1(span *idx.InternalSpan) bool {
 func spanContainsExceptionSpanEvent(span *pb.Span) bool {
 	if hasExceptionSpanEvents, ok := span.Meta["_dd.span_events.has_exception"]; ok && hasExceptionSpanEvents == "true" {
 		return true
-	}
-	return false
-}
-
-func filteredByTags(root *pb.Span, require, reject []*config.Tag, requireRegex, rejectRegex []*config.TagRegex) bool {
-	for _, tag := range reject {
-		if v, ok := root.Meta[tag.K]; ok && (tag.V == "" || v == tag.V) {
-			return true
-		}
-	}
-	for _, tag := range rejectRegex {
-		if v, ok := root.Meta[tag.K]; ok && (tag.V == nil || tag.V.MatchString(v)) {
-			return true
-		}
-	}
-	for _, tag := range require {
-		v, ok := root.Meta[tag.K]
-		if !ok || (tag.V != "" && v != tag.V) {
-			return true
-		}
-	}
-	for _, tag := range requireRegex {
-		v, ok := root.Meta[tag.K]
-		if !ok || (tag.V != nil && !tag.V.MatchString(v)) {
-			return true
-		}
 	}
 	return false
 }

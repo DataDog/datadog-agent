@@ -1,0 +1,48 @@
+prelude:
+  |
+  Distribution metrics are now forwarded to the new Datadog v3 API by default
+  (``/api/intake/metrics/v3/sketches``) for Datadog destinations. This covers
+  DogStatsD and check distributions as well as OpenTelemetry histograms. The
+  v3 API payload format is more compact, reducing outbound bandwidth from
+  Agents to Datadog.
+
+  Destinations configured with non-Datadog-looking URLs, such as custom
+  ``additional_endpoints`` and reverse proxies, continue to use the v2 API by
+  default. To enable v3 for such an endpoint, use:
+
+  .. code-block:: yaml
+
+     use_v3_api:
+       distributions:
+         endpoints:
+           "<additional_endpoint>": true
+
+  Example:
+
+  .. code-block:: yaml
+
+     additional_endpoints:
+       "https://my-proxy.example.com":
+         - apikey2
+
+  can opt in with:
+
+  .. code-block:: yaml
+
+     use_v3_api:
+       distributions:
+         endpoints:
+           "https://my-proxy.example.com": true
+
+  To enable v3 for every destination, set
+  ``use_v3_api.distributions.enabled: "true"``.
+
+  Distribution metrics sent to Observability Pipelines Worker continue to use
+  the v2 API.
+
+  To keep using v2 endpoint, set
+  ``use_v3_api.distributions.enabled: "false"`` (global) or
+  ``use_v3_api.distributions.endpoints: { "<url>": "false" }`` (per-endpoint).
+other:
+  - |
+    The v3beta distribution metrics shadow sampling is now disabled by default.

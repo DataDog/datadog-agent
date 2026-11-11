@@ -1,0 +1,12 @@
+description: strings --help prints usage to stdout and exits 0.
+# skip: rshell builtin help output differs from the reference implementation
+skip_assert_against_bash: true
+input:
+  script: |+
+    strings --help
+expect:
+  stdout_contains:
+    - "Usage:"
+    - "strings"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,15 @@
+description: For loop exit code is from the last command in the last iteration.
+input:
+  script: |+
+    for x in 1 2 3; do
+      true
+    done
+    echo $?
+    for x in 1 2 3; do
+      false
+    done
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 1

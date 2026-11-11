@@ -1,0 +1,20 @@
+description: Glob results are sorted alphabetically.
+setup:
+  files:
+    - path: sdir/cherry
+      content: ""
+    - path: sdir/apple
+      content: ""
+    - path: sdir/banana
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo sdir/*
+expect:
+  stdout: |+
+    sdir/apple sdir/banana sdir/cherry
+  stdout_windows: |+
+    sdir\apple sdir\banana sdir\cherry
+  stderr: ""
+  exit_code: 0

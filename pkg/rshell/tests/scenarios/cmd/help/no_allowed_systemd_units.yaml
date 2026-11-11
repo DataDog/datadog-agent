@@ -1,0 +1,11 @@
+description: When no AllowedSystemServices grants are configured, help surfaces the default-deny systemd policy.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help
+expect:
+  stdout_contains:
+    - "Allowed systemd units:"
+    - "(no effective systemd unit grants — all systemd operations are blocked)"
+  stderr: |+
+  exit_code: 0

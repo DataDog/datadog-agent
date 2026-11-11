@@ -168,11 +168,18 @@ func MakeCommand(globalParamsGetter func() GlobalParams, wmCatalog fx.Option) *c
 			eventplatforParams := eventplatform.NewDefaultParams()
 			eventplatforParams.UseNoopEventPlatformForwarder = true
 
-			disableCmdPort()
 			return fxutil.OneShot(run,
 				fx.Supply(cliParams),
 				fx.Supply(core.BundleParams{
-					ConfigParams:         config.NewAgentParams(globalParams.ConfFilePath, config.WithConfigName(globalParams.ConfigName), config.WithExtraConfFiles(globalParams.ExtraConfFilePaths), config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
+					ConfigParams: config.NewAgentParams(globalParams.ConfFilePath,
+						config.WithConfigName(globalParams.ConfigName),
+						config.WithExtraConfFiles(globalParams.ExtraConfFilePaths),
+						config.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath),
+						// avoid binding the same port/socket as a potentially running agent:
+						// cmd_port 0 makes the OS pick an unused port, the IPC server is disabled
+						config.WithCLIOverride("cmd_port", 0),
+						config.WithCLIOverride("agent_ipc.port", 0),
+						config.WithCLIOverride("agent_ipc.use_socket", false)),
 					SysprobeConfigParams: sysprobeconfigimpl.NewParams(sysprobeconfigimpl.WithSysProbeConfFilePath(globalParams.SysProbeConfFilePath), sysprobeconfigimpl.WithFleetPoliciesDirPath(globalParams.FleetPoliciesDirPath)),
 					LogParams:            log.ForOneShot(globalParams.LoggerName, "off", true),
 				}),
@@ -316,7 +323,7 @@ func run(
 	// TODO Ideally we would support RC in the check subcommand,
 	//  but at the moment this is not possible - only one process can access the RC database at a time,
 	//  so the subcommand can't read the RC database if the agent is also running.
-	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component]())
+	commonchecks.RegisterChecks(wmeta, filterStore, tagger, config, telemetry, nil, nil, nil, traceroute, option.None[networkconfigmanagement.Component](), nil)
 
 	if err := ac.LoadAndRun(context.Background()); err != nil {
 		return err
@@ -832,14 +839,4 @@ func getAllCheckConfigs(ac autodiscovery.Component, cliParams cliParams) ([]inte
 	}
 
 	return []integration.Config{customConf}, nil
-}
-
-// disableCmdPort overrrides the `cmd_port` configuration so that when the
-// server starts up, it does not do so on the same port as a running agent.
-//
-// Ideally, the server wouldn't start up at all, but this workaround has been
-// in place for some time.
-func disableCmdPort() {
-	os.Setenv("DD_CMD_PORT", "0")       // 0 indicates the OS should pick an unused port
-	os.Setenv("DD_AGENT_IPC_PORT", "0") // force disable the IPC server
 }

@@ -1,0 +1,8 @@
+description: Printf rejects unknown single-dash flag -h with exit 2.
+input:
+  script: |+
+    printf -h
+expect:
+  stdout: ""
+  stderr_contains: ["invalid option"]
+  exit_code: 2

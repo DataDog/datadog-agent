@@ -1,0 +1,9 @@
+description: When first command fails but last succeeds, exit code is 0.
+input:
+  script: |+
+    false; echo ok
+expect:
+  stdout: |+
+    ok
+  stderr: ""
+  exit_code: 0

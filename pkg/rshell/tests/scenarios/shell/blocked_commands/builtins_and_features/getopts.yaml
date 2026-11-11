@@ -1,0 +1,12 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Getopts builtin is intentionally blocked in the restricted shell.
+input:
+  script: |+
+    getopts abc opt
+expect:
+  stdout: ""
+  stderr: |+
+    rshell: getopts: unknown command
+    Run 'help' to see available commands.
+  exit_code: 127

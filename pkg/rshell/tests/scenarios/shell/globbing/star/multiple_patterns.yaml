@@ -1,0 +1,20 @@
+description: Multiple glob patterns on one command line each expand independently.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+    - path: c.log
+      content: ""
+    - path: d.log
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo *.txt *.log
+expect:
+  stdout: |+
+    a.txt b.txt c.log d.log
+  stderr: ""
+  exit_code: 0
