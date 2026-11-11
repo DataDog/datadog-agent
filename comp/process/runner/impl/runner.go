@@ -38,7 +38,7 @@ type dependencies struct {
 	Log log.Component
 
 	Submitter  submitter.Component
-	RTNotifier <-chan types.RTResponse `optional:"true"`
+	RTNotifier *types.RTNotifier `optional:"true"`
 
 	Checks   []types.CheckComponent `group:"check"`
 	HostInfo hostinfo.Component

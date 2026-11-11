@@ -277,8 +277,8 @@ github.com/google/go-intervals v0.0.2 h1:FGrVEiUnTRKR8yE04qzXYaJMtnIYqobR5QbblK3
 github.com/google/go-intervals v0.0.2/go.mod h1:MkaR3LNRfeKLPmqgJYs4E66z5InYjmCjbbr4TQlcT6Y=
 github.com/google/licensecheck v0.3.1 h1:QoxgoDkaeC4nFrtGN1jV7IPmDCHFNIVh54e5hSt6sPs=
 github.com/google/licensecheck v0.3.1/go.mod h1:ORkR35t/JjW+emNKtfJDII0zlciG9JgbT7SmsohlHmY=
-github.com/google/pprof v0.0.0-20261026192309-dbd0ed30aa88 h1:BnzMe/RUfFezpFwXsOWHmSMNO8qt7755OL25C+AezGQ=
-github.com/google/pprof v0.0.0-20261026192309-dbd0ed30aa88/go.mod h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=
+github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4 h1:UVOT508qxzSJSX3WvW5Wp+OvqqwD3nJfxlm+z9amahk=
+github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4/go.mod h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=
 github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 h1:El6M4kTTCOh6aBiKaUGG7oYTSPP8MxqL4YI3kZKwcP4=
 github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510/go.mod h1:pupxD2MaaD3pAXIBCelhxNneeOaAeabZDe5s4K6zSpQ=
 github.com/gordonklaus/ineffassign v0.2.0 h1:Uths4KnmwxNJNzq87fwQQDDnbNb7De00VOk9Nu0TySs=
@@ -432,8 +432,8 @@ github.com/nishanths/predeclared v0.3.0 h1:W3i3JK/DZS5h7QwsEIyU8ler4Z2vwEwQSxNrZ
 github.com/nishanths/predeclared v0.3.0/go.mod h1:gN4uryPExDME/zmZdqkKIPSAqcfprj316ZDI6UTqz70=
 github.com/nunnatsa/ginkgolinter v0.24.0 h1:Mp0EagluLFP98JatP6nqp/gGEoljNG97uf9AcxcBVy8=
 github.com/nunnatsa/ginkgolinter v0.24.0/go.mod h1:2ZMRuzX6+3XXyY6UZOwb6n+MCocVGbkIsDBC4vuWz5c=
-github.com/onsi/ginkgo/v2 v2.33.1 h1:62XfWJbEIjPSCSDYrsCPP/SHcmH7O0M8ne8zfqQ2iz4=
-github.com/onsi/ginkgo/v2 v2.33.1/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
+github.com/onsi/ginkgo/v2 v2.34.0 h1:aN3Us823mHHTSWMIi8WIQTdYuSPhl2lWY46E/w3SiAk=
+github.com/onsi/ginkgo/v2 v2.34.0/go.mod h1:+aXOY+vzZ5mu2iI2HpTZUPmM//oQfsNFX6gU9kNcA44=
 github.com/onsi/gomega v1.44.0 h1:eAiGl3Pw5jz5GQdDff0BcxYpAX1JxW8xD7mFUuwNfZQ=
 github.com/onsi/gomega v1.44.0/go.mod h1:e/C2HwaZ1DhvjzXXuFhcR7hY7Sh9pl7MmoWKEjzwcdA=
 github.com/otiai10/copy v1.2.0/go.mod h1:rrF5dJ5F0t/EWSYODDu4j9/vEeYHMkc8jt0zJChqQWw=
