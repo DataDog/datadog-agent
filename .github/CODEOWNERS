@@ -154,6 +154,7 @@
 /.gitlab/distribute/trigger_release/*                                     @DataDog/agent-devx @DataDog/agent-delivery
 /.gitlab/build/binary_build/cws_instrumentation.yml                       @DataDog/agent-devx @DataDog/agent-security
 /.gitlab/build/binary_build/linux.yml                                     @DataDog/agent-devx @DataDog/agent-build
+/.gitlab/build/binary_build/nosys_seccomp.yml                             @DataDog/agent-build
 /.gitlab/test/functional_test/static_quality_gate.yml                     @DataDog/agent-build
 /.gitlab/test/functional_test/files_inventory_check.yml                   @DataDog/agent-build
 /.gitlab/test/functional_test/bazel_parity_check.yml                      @DataDog/agent-build
@@ -177,6 +178,7 @@
 /.gitlab/windows/build/binary_build/windows.yml                           @DataDog/agent-build @DataDog/windows-products
 /.gitlab/build/source_test/codeql_scan.yml                                @DataDog/sdlc-security
 /.gitlab/test/benchmarks/                                                 @DataDog/agent-devx @DataDog/apm-ecosystems-performance @DataDog/agent-apm
+/.gitlab/test/logs_tokenizer_benchmark.yml                                @DataDog/agent-log-pipelines
 /.gitlab/distribute/                                                      @DataDog/container-integrations @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/                                          @DataDog/agent-delivery
 /.gitlab/deploy/deploy_packages/oci.yml                                   @DataDog/agent-delivery @DataDog/fleet
