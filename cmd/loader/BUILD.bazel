@@ -22,7 +22,7 @@ exports_files(
 pkg_files(
     name = "trace_loader_all_files",
     srcs = select({
-        "//packages/agent:linux_default": [
+        "@platforms//os:linux": [
             ":loader",
         ],
         "//packages/agent:linux_fips": [

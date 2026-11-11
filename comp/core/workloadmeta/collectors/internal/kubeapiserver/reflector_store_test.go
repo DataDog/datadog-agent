@@ -97,7 +97,7 @@ func Test_AddDelete_Pod(t *testing.T) {
 		err = podStore.Delete(&pod)
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
-			_, err = workloadmetaComponent.GetKubernetesDeployment(string(pod.UID))
+			_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
 			return err != nil
 		}, timeout, interval)
 	})
@@ -133,7 +133,7 @@ func Test_AddDelete_MinimalPod(t *testing.T) {
 	err = podStore.Delete(&pod)
 	require.NoError(t, err)
 	require.Eventually(t, func() bool {
-		_, err = workloadmetaComponent.GetKubernetesDeployment(string(pod.UID))
+		_, err = workloadmetaComponent.GetKubernetesPod(string(pod.UID))
 		return err != nil
 	}, timeout, interval)
 }
