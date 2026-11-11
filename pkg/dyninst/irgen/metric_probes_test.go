@@ -169,7 +169,17 @@ func TestMetricProbesAtReturn(t *testing.T) {
 					prog, err := irgen.GenerateIR(1, obj, []ir.ProbeDefinition{probe}, irgen.WithMetricProbes(true))
 					require.NoError(t, err)
 					require.Empty(t, prog.Issues)
-					for _, inst := range prog.Probes[0].Instances {
+					require.Len(t, prog.Probes, 2)
+					var metric *ir.Probe
+					for _, p := range prog.Probes {
+						if p.GetKind() == ir.ProbeKindMetric {
+							metric = p
+						} else {
+							require.Equal(t, ir.ProbeKindRuntimeRecovery, p.GetKind())
+						}
+					}
+					require.NotNil(t, metric)
+					for _, inst := range metric.Instances {
 						require.Len(t, inst.Events, 2)
 						require.Equal(t, ir.EventKindEntry, inst.Events[0].Kind)
 						require.Empty(t, inst.Events[0].Type.Expressions)
