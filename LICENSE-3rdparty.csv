@@ -1299,6 +1299,8 @@ core,github.com/gogo/protobuf/protoc-gen-gogo/descriptor,BSD-3-Clause,"Copyright
 core,github.com/gogo/protobuf/sortkeys,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/gogo/protobuf/types,BSD-3-Clause,"Copyright (c) 2013, The GoGo Authors. All rights reserved. | Copyright 2010 The Go Authors.  All rights reserved."
 core,github.com/golang-jwt/jwt/v5,MIT,Copyright (c) 2012 Dave Grijalva | Copyright (c) 2021 golang-jwt maintainers
+core,github.com/golang-sql/civil,Apache-2.0,Copyright 2016 Google LLC
+core,github.com/golang-sql/sqlexp,BSD-3-Clause,Copyright (c) 2017 The Go Authors. All rights reserved
 core,github.com/golang/groupcache/lru,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/mock/gomock,Apache-2.0,Copyright (c) 2009 The Go Authors. All rights reserved.
 core,github.com/golang/protobuf/jsonpb,BSD-3-Clause,Copyright (c) 2009 The Go Authors. All rights reserved.
@@ -1529,6 +1531,7 @@ core,github.com/jcmturner/aescts/v2,Apache-2.0,"Copyright 2016, Jonathan Turner 
 core,github.com/jcmturner/dnsutils/v2,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/gofork/encoding/asn1,BSD-3-Clause,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/gofork/x/crypto/pbkdf2,BSD-3-Clause,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
+core,github.com/jcmturner/goidentity/v6,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/gokrb5/v8/asn1tools,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/gokrb5/v8/client,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/gokrb5/v8/config,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
@@ -1558,6 +1561,8 @@ core,github.com/jcmturner/gokrb5/v8/keytab,Apache-2.0,"Copyright 2016, Jonathan 
 core,github.com/jcmturner/gokrb5/v8/krberror,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/gokrb5/v8/messages,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/gokrb5/v8/pac,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
+core,github.com/jcmturner/gokrb5/v8/service,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
+core,github.com/jcmturner/gokrb5/v8/spnego,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/gokrb5/v8/types,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/rpc/v2/mstypes,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
 core,github.com/jcmturner/rpc/v2/ndr,Apache-2.0,"Copyright 2016, Jonathan Turner <jt@jtnet.co.uk>"
@@ -1623,6 +1628,16 @@ core,github.com/leodido/go-syslog/v4/rfc3164,MIT,"Copyright (c) 2018, Leonardo D
 core,github.com/leodido/go-syslog/v4/rfc5424,MIT,"Copyright (c) 2018, Leonardo Di Donato"
 core,github.com/leodido/ragel-machinery,MIT,Copyright (c) 2018 Leonardo Di Donato
 core,github.com/leodido/ragel-machinery/parser,MIT,Copyright (c) 2018 Leonardo Di Donato
+core,github.com/lib/pq,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/internal/pgpass,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/internal/pgservice,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/internal/pqsql,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/internal/pqtime,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/internal/pqutil,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/internal/proto,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/oid,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/pqerror,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
+core,github.com/lib/pq/scram,MIT,"Copyright (c) 2011-2013, 'pq' Contributors. Portions Copyright (c) 2011 Blake Mizerany"
 core,github.com/libp2p/go-reuseport,ISC,Copyright (c) 2013 Conformal Systems LLC
 core,github.com/lightstep/go-expohisto/mapping,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/lightstep/go-expohisto/mapping/exponent,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1666,6 +1681,21 @@ core,github.com/mdlayher/netlink,MIT,Copyright (C) 2016-2026 Matt Layher
 core,github.com/mdlayher/netlink/nlenc,MIT,Copyright (C) 2016-2026 Matt Layher
 core,github.com/mdlayher/socket,MIT,Copyright (C) 2021 Matt Layher
 core,github.com/mdlayher/vsock,MIT,Copyright (C) 2017-2022 Matt Layher
+core,github.com/microsoft/go-mssqldb,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/aecmk,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/integratedauth,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/integratedauth/krb5,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/integratedauth/ntlm,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/integratedauth/winsspi,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/internal/cp,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/internal/decimal,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/internal/github.com/swisscom/mssql-always-encrypted/pkg/algorithms,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2021 Swisscom (Switzerland) Ltd | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/internal/github.com/swisscom/mssql-always-encrypted/pkg/crypto,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2021 Swisscom (Switzerland) Ltd | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/internal/github.com/swisscom/mssql-always-encrypted/pkg/encryption,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2021 Swisscom (Switzerland) Ltd | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/internal/github.com/swisscom/mssql-always-encrypted/pkg/keys,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2021 Swisscom (Switzerland) Ltd | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/internal/github.com/swisscom/mssql-always-encrypted/pkg/utils,MIT,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) 2021 Swisscom (Switzerland) Ltd | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/internal/querytext,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
+core,github.com/microsoft/go-mssqldb/msdsn,BSD-3-Clause,Copyright (c) 2012 The Go Authors. All rights reserved | Copyright (c) Microsoft Corporation
 core,github.com/miekg/dns,BSD-3-Clause,"Alex A. Skinner | Alex Sergeyev | Andrew Tunnell-Jones | Ask Bjørn Hansen | Copyright (c) 2009, The Go Authors. Extensions copyright (c) 2011, Miek Gieben | Copyright 2009 The Go Authors. All rights reserved. Use of this source code | Copyright 2011 Miek Gieben. All rights reserved. Use of this source code is | Copyright 2014 CloudFlare. All rights reserved. Use of this source code is | Dave Cheney | Dusty Wilson | James Hartig | Marek Majkowski | Miek Gieben <miek@miek.nl> | Omri Bahumi | Peter van Dijk | copyright (c) 2011 Miek Gieben"
 core,github.com/minio/sha256-simd,Apache-2.0,"Copyright 2016 Minio, Inc. | Copyright 2018 Kristofer Peterson"
 core,github.com/minio/simdjson-go,Apache-2.0,"MinIO Cloud Storage, (C) 2020 MinIO, Inc."
@@ -1728,6 +1758,7 @@ core,github.com/netsampler/goflow2/transport,BSD-3-Clause,"Copyright (c) 2021, N
 core,github.com/netsampler/goflow2/utils,BSD-3-Clause,"Copyright (c) 2021, NetSampler"
 core,github.com/nexus-rpc/nexus-proto-annotations/go/nexusannotations/v1,MIT,Copyright (c) 2024 Temporal Technologies Inc. All Rights Reserved
 core,github.com/nexus-rpc/sdk-go/nexus,MIT,Copyright (c) 2023 Temporal Technologies Inc. All Rights Reserved
+core,github.com/nginx/nginx-prometheus-exporter/client,Apache-2.0,"Copyright 2018 Nginx, Inc"
 core,github.com/oklog/ulid/v2,Apache-2.0,- Peter Bourgon (@peterbourgon) | - Tomás Senart (@tsenart)
 core,github.com/oliveagle/jsonpath,MIT,"Copyright (c) 2021, 2015; DoltHub Authors, oliver"
 core,github.com/onsi/ginkgo/v2/config,MIT,Copyright (c) 2013-2014 Onsi Fakhouri
@@ -1819,6 +1850,7 @@ core,github.com/open-telemetry/opamp-go/client/types,Apache-2.0,Copyright The Op
 core,github.com/open-telemetry/opamp-go/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opamp-go/internal/testhelpers,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opamp-go/protobufs,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/config/configdbauth,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/countconnector/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1839,6 +1871,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadog
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension/internal/payload,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/dbauth,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension/internal/healthcheck,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1866,6 +1899,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsu
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/aws/ecsutil/endpoints,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/docker,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/maps,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/priorityqueue,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/sanitize,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/testutil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/common/ttlmap,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -1937,6 +1971,7 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadata
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/metadataproviders/upcloud,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/pdatautil,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sharedcomponent,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/internal/sqlquery,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/batchpersignal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/core/xidutils,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2175,6 +2210,11 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transfo
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/metrics,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/profiles,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/processor/transformprocessor/internal/traces,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachereceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachereceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachesparkreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachesparkreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/apachesparkreceiver/internal/models,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/dockerstatsreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2182,6 +2222,8 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/filelogr
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/fluentforwardreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/haproxyreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/haproxyreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2212,6 +2254,8 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetr
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/hostmetricsreceiver/internal/scraper/systemscraper/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/httpcheckreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/iisreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/iisreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/jaegerreceiver/internal/udpserver,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2243,14 +2287,22 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sevent
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8seventsreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/k8sobjectsreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkametricsreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkametricsreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kafkareceiver/internal/unmarshaler,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver/internal/kubelet,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/kubeletstatsreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mysqlreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/mysqlreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nginxreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/nginxreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/podmanreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/postgresqlreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/postgresqlreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/apiserver,Apache-2.0,Copyright The OpenTelemetry Authors
@@ -2259,6 +2311,8 @@ core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/promethe
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/prometheusreceiver/internal/targetallocator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/receivercreator/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlserverreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
+core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/sqlserverreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/open-telemetry/opentelemetry-collector-contrib/receiver/zipkinreceiver/internal/metadata,Apache-2.0,Copyright The OpenTelemetry Authors
 core,github.com/opencontainers/go-digest,Apache-2.0,"Copyright 2016 Docker, Inc | Copyright 2019, 2020 OCI Contributors | Copyright © 2016 Docker, Inc | Copyright © 2019, 2020 OCI Contributors"
