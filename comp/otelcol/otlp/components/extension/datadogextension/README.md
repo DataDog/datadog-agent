@@ -1,6 +1,6 @@
 # Datadog extension: Remote Configuration
 
-Prototype factory that adds optional Remote Configuration (RC) to the existing Datadog extension by directly reusing the Agent RC service. No separate Datadog Agent process is required.
+This prototype adds optional Remote Configuration (RC) to the DDOT Datadog extension by directly reusing the Agent RC service. No separate Datadog Agent process is required.
 
 ## Design
 
@@ -20,7 +20,7 @@ The shared Agent HTTP API only provides client injection. Redirect policy and co
 
 ## Configuration
 
-Requires a custom Collector build using `NewFactory(upstream.NewFactory())`. This factory is **not registered in default DDOT distributions**; distribution integration is deferred.
+The RC-capable factory is registered in DDOT builds from this branch. Enable it through the existing `datadog` extension; RC stays disabled unless `remote_config.enabled` is true.
 
 ```yaml
 extensions:
@@ -43,7 +43,16 @@ service:
 
 RC defaults to disabled. The cache directory must be absolute and writable. Keep the metadata listener private; use listener TLS/authentication for access beyond the local host. Backend TLS verification is required, redirects are disabled, and credentials currently reload by component restart.
 
+## Build and run for testing
+
+```sh
+dda inv otel-agent.build
+DD_OTEL_STANDALONE=true DD_OTELCOLLECTOR_ENABLED=true ./bin/otel-agent/otel-agent run --config=file:/absolute/path/otel-config.yaml
+```
+
+Use an existing Collector configuration with the extension block above and a writable absolute cache directory. The normal DDOT binary and its packaging build include the factory; no custom factory registration is needed. Custom distributions can still use `NewFactory(upstream.NewFactory())`.
+
 ## Remaining work
 
-- Add distribution registration, packaging and onboarding documentation in a follow-up PR.
-- Qualify multi-client polling, cache recovery, load and credential rotation.
+- Preserve backend-controlled polling when no refresh interval is configured.
+- Complete deployment, larger-scale and credential-rotation qualification.

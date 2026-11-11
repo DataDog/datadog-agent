@@ -67,6 +67,22 @@ func testFactory(t *testing.T, metadata, rc *child) (*factory, *Config) {
 	return f, c
 }
 
+func TestFactoryWrappingPreservesSelectionAndIsIdempotent(t *testing.T) {
+	WrapFactory(nil)
+	factories := map[component.Type]extension.Factory{}
+	WrapFactory(factories)
+	require.Empty(t, factories)
+	base := upstream.NewFactory()
+	factories[base.Type()] = base
+	WrapFactory(factories)
+	wrapped := factories[base.Type()]
+	WrapFactory(factories)
+	require.Len(t, factories, 1)
+	require.Same(t, wrapped, factories[base.Type()])
+	cfg := wrapped.CreateDefaultConfig().(*Config)
+	require.False(t, cfg.RemoteConfig.Enabled)
+}
+
 func TestOptInAndSharedCredentials(t *testing.T) {
 	t.Setenv("DD_API_KEY", "unrelated-agent-key")
 	t.Setenv("DD_SITE", "datadoghq.com")
