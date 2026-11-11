@@ -286,7 +286,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// (We have to manually recurse in the case of Format B because otherwise matching the top-level
 	//  additional-endpoints key would cause the YAML parser to skip all subnodes).
 	additionalEndpointsYaml := Replacer{
-		YAMLKeyRegex: regexp.MustCompile(`^additional_endpoints$`),
+		YAMLKeyRegex: regexp.MustCompile(`^(orchestrator_)?additional_endpoints$`),
 		ProcessValue: func(data any) any {
 			switch data.(type) {
 			case map[string]interface{}, map[interface{}]interface{}:
@@ -298,7 +298,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 			}
 			return data
 		},
-		LastUpdated: parseVersion("7.78.5"),
+		LastUpdated: parseVersion("7.86.0"),
 	}
 
 	privateActionRunnerYaml := Replacer{

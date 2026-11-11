@@ -1,0 +1,17 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+features:
+  - |
+    Added network device discovery, which sweeps the IP ranges it is given and
+    reports the devices it finds to Network Device Monitoring. The ranges are
+    delivered over Remote Configuration, so no Agent configuration change is
+    needed, and each range names the protocols to scan it with. Discovery is
+    report-only: it never schedules a check, so discovered devices are surfaced
+    for review rather than monitored automatically. It is disabled by default
+    and turned on with ``network_devices.discovery.enabled``.

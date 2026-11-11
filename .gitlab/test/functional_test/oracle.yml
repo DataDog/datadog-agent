@@ -35,6 +35,8 @@ oracle:
     FF_KUBERNETES_HONOR_ENTRYPOINT: "false"
     ORACLE_TEST_READY_TIMEOUT: "3m"
     DD_HOSTNAME: "oracle-test"
+    # Fixed resources: static CPUs and explicit limits are part of the test setup
+    DD_DISABLE_VPA: true
     # Configure static CPUs
     KUBERNETES_POD_ANNOTATIONS_1: "ci.ddbuild.io/enforce-static-cpus=true"
     KUBERNETES_CPU_LIMIT: "3"
