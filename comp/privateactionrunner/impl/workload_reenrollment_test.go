@@ -98,6 +98,7 @@ func TestWIFReenrollment(t *testing.T) {
 				overrides["site"] = " DatadogHQ.COM. "
 			}
 			cfg := coreconfig.NewMockWithOverrides(t, overrides)
+			storage := enrollment.NewIdentityStorage(cfg, nil)
 			key, _, err := util.GenerateKeys()
 			require.NoError(t, err)
 			old := &enrollment.Result{PrivateKey: key.Key.(*ecdsa.PrivateKey),
@@ -106,7 +107,7 @@ func TestWIFReenrollment(t *testing.T) {
 			if scenario == "legacy identity without hash" || tc.savedOrg != "" || tc.savedSite != "" {
 				old.APIKeyHash = ""
 			}
-			require.NoError(t, enrollment.PersistIdentity(context.Background(), cfg, old))
+			require.NoError(t, storage.Persist(context.Background(), old))
 			before, err = os.ReadFile(identityPath)
 			require.NoError(t, err)
 			tokenCalls := 0
@@ -124,7 +125,7 @@ func TestWIFReenrollment(t *testing.T) {
 				host = "new-host"
 			}
 			hostname, _ := hostnamemock.NewMock(hostnamemock.MockHostname(host))
-			runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
+			runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
 			result, err := runner.getRunnerConfig(context.Background())
 			after, readErr := os.ReadFile(identityPath)
 			require.NoError(t, readErr)
@@ -149,7 +150,7 @@ func TestWIFReenrollment(t *testing.T) {
 				require.NoError(t, err)
 				require.Equal(t, util.MakeRunnerURN("us1", 42, "runner-new"), result.Urn)
 				require.False(t, old.PrivateKey.Equal(result.PrivateKey))
-				saved, err := enrollment.GetIdentityFromPreviousEnrollment(context.Background(), cfg)
+				saved, err := storage.Load(context.Background())
 				require.NoError(t, err)
 				require.Equal(t, "test-org", saved.WIFOrgUUID)
 				require.Equal(t, "datadoghq.com", saved.WIFSite)
@@ -157,7 +158,9 @@ func TestWIFReenrollment(t *testing.T) {
 				for _, primaryOrg := range []string{"test-org", ""} {
 					overrides["api_key"] = "rotated-intake-key"
 					overrides["delegated_auth.org_uuid"] = primaryOrg
-					restart := &PrivateActionRunner{coreConfig: coreconfig.NewMockWithOverrides(t, overrides), delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
+					restartConfig := coreconfig.NewMockWithOverrides(t, overrides)
+					restartStorage := enrollment.NewIdentityStorage(restartConfig, nil)
+					restart := &PrivateActionRunner{coreConfig: restartConfig, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: restartStorage}
 					reused, err := restart.getRunnerConfig(context.Background())
 					require.NoError(t, err)
 					require.Equal(t, result.Urn, reused.Urn)
