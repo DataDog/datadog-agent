@@ -188,16 +188,35 @@ func GetCertsPaths() (string, string, error) {
 	return filepath.Join(curDir, "testdata/cert.pem.0"), filepath.Join(curDir, "testdata/server.key"), nil
 }
 
-// CurDir returns the current directory of the caller.
+// CurDir returns the directory of the caller's package.
 func CurDir() (string, error) {
 	_, file, _, ok := runtime.Caller(1)
 	if !ok {
 		return "", errors.New("unable to get current file build path")
 	}
+	exe, _ := os.Executable()
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", err
+	}
+	return resolveCurDir(file, exe, cwd, os.Getenv("TEST_SRCDIR"), os.Getenv("TEST_WORKSPACE"))
+}
 
-	buildDir := filepath.Dir(file)
+// resolveCurDir locates the caller's package directory.
+//
+// rules_go -trimpath records only the source basename, so the caller path has
+// no `pkg` segment and cannot be relocated onto the KMT tree. The staged test
+// binary is <staging>/<package>/testsuite; a `go test` binary under a temp dir
+// still carries the full caller path and uses that instead.
+func resolveCurDir(callerFile, executable, cwd, testSrcDir, testWorkspace string) (string, error) {
+	buildDir := filepath.Dir(callerFile)
+	if rootDir(buildDir) == buildDir && executable != "" {
+		exeDir := filepath.Dir(executable)
+		if rootDir(exeDir) != exeDir {
+			return exeDir, nil
+		}
+	}
 
-	// build relative path from base of repo
 	buildRoot := rootDir(buildDir)
 	relPath, err := filepath.Rel(buildRoot, buildDir)
 	if err != nil {
@@ -208,17 +227,10 @@ func CurDir() (string, error) {
 	// dependencies live in the runfiles tree, not next to the package sources.
 	// Resolve the package directory relative to the runfiles root so that
 	// `data`-declared testdata is found.
-	if srcDir := os.Getenv("TEST_SRCDIR"); srcDir != "" {
-		return filepath.Join(srcDir, os.Getenv("TEST_WORKSPACE"), relPath), nil
+	if testSrcDir != "" {
+		return filepath.Join(testSrcDir, testWorkspace, relPath), nil
 	}
-
-	cwd, err := os.Getwd()
-	if err != nil {
-		return "", err
-	}
-	curRoot := rootDir(cwd)
-
-	return filepath.Join(curRoot, relPath), nil
+	return filepath.Join(rootDir(cwd), relPath), nil
 }
 
 // rootDir returns the base repository directory, just before `pkg`.
