@@ -127,10 +127,7 @@ func (e *WorkflowTaskExecutor) RunPrepared(
 	preparedTask *PreparedWorkflowTask,
 ) (interface{}, error) {
 	logger := log.FromContext(ctx)
-	timeoutSeconds := preparedTask.Task.TimeoutSeconds()
-	if timeoutSeconds == nil {
-		timeoutSeconds = e.config.TaskTimeoutSeconds
-	}
+	timeoutSeconds := e.config.TaskTimeoutSeconds
 
 	timeoutCtx, timeoutCancel := util.CreateTimeoutContext(ctx, timeoutSeconds)
 	defer timeoutCancel()

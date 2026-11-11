@@ -8,6 +8,8 @@ package observerimpl
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 )
 
@@ -207,7 +209,7 @@ func TestTrackCorrelationHistory_Gating(t *testing.T) {
 		WindowSeconds:    120,
 	}
 	tc := NewTimeClusterCorrelator(cfg)
-	e := newEngine(engineConfig{storage: newTimeSeriesStorage()})
+	e := mustNewEngine(engineConfig{storage: newTimeSeriesStorage()})
 	e.SetCorrelators([]observer.Correlator{tc})
 
 	// Without TrackCorrelationHistory, AccumulatedCorrelations stays empty.
@@ -222,7 +224,7 @@ func TestTrackCorrelationHistory_Gating(t *testing.T) {
 	// Enable via ResetForReplay with TrackCorrelationHistory=true.
 	storageCfg := DefaultStorageConfig()
 	storageCfg.TrackCorrelationHistory = true
-	e.ResetForReplay(nil, []observer.Correlator{tc}, nil, nil, storageCfg, BaselineConfig{})
+	require.NoError(t, e.ResetForReplay(nil, []observer.Correlator{tc}, nil, nil, storageCfg, BaselineConfig{}))
 
 	tc.ProcessAnomaly(makeTestAnomaly("src_a", 2000))
 	_ = e.Advance(2000)

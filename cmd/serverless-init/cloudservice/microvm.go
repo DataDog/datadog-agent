@@ -11,6 +11,7 @@ import (
 	"os"
 	"runtime"
 	"strings"
+	"sync/atomic"
 	"time"
 
 	"log"
@@ -18,6 +19,7 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	serverlessenv "github.com/DataDog/datadog-agent/pkg/serverless/env"
 	serverlessMetrics "github.com/DataDog/datadog-agent/pkg/serverless/metrics"
@@ -38,6 +40,8 @@ const (
 
 	// MicroVm usage metric name suffix
 	MicroVMUsageMetricSuffix = "instance"
+
+	workloadTypeAWSMicroVM = "aws_lambda_microvm"
 )
 
 // LifecycleContext carries the telemetry dependencies needed by MicroVM.Init to
@@ -56,6 +60,7 @@ type LifecycleContext struct {
 	BaseTraceTags       map[string]string         // startup trace tag snapshot passed alongside TraceTagSetter
 	MetricTagSetter     lifecycle.MetricTagSetter // nil-safe; applied via server.SetMetricTagSetter after /run
 	BaseUsageMetricTags []string                  // startup enhanced usage metric tag snapshot passed alongside MetricTagSetter
+	Metadata            serverlessdef.Component   // nil-safe; ReportNow runs on /run and /resume once the instance ID is known
 }
 
 // MicroVM implements CloudService for AWS Lambda MicroVMs.
@@ -63,6 +68,8 @@ type MicroVM struct {
 	server       *lifecycle.Server
 	child        *lifecycle.Child
 	flushTimeout time.Duration
+	// instanceID is the MicroVM instance ID delivered by the /run lifecycle hook.
+	instanceID atomic.Pointer[string]
 
 	// startLifecycleServer is nil in production and injectable in package tests
 	// so Init can be exercised without binding a process-wide TCP port. It is a
@@ -91,12 +98,38 @@ func (m *MicroVM) GetTags() map[string]string {
 	}
 
 	region, accountID, imageName := parseMicroVMARN(arn)
-	tags["region"] = region
-	tags["account_id"] = accountID
-	tags["image_name"] = imageName
+	tags["region"] = tagValueOrUnknown(region)
+	tags["account_id"] = tagValueOrUnknown(accountID)
+	tags["image_name"] = tagValueOrUnknown(imageName)
 	tags["resource_id"] = arn
 
 	return tags
+}
+
+func (m *MicroVM) CanCollectMetadata() bool { return true }
+
+// GetMetadata derives the parent, region, account, and name from the image
+// ARN, only when it is a complete MicroVM image ARN. ResourceID is empty until
+// MetadataReporter stores an instance ID.
+func (m *MicroVM) GetMetadata() serverlessdef.CloudServiceMetadata {
+	metadata := serverlessdef.CloudServiceMetadata{WorkloadType: workloadTypeAWSMicroVM}
+	if arn := os.Getenv(serverlessenv.MicroVMImageARNEnvVar); isMicroVMImageARN(arn) {
+		metadata.ParentResourceID = arn
+		metadata.Region, metadata.AWSAccountID, metadata.ResourceName = parseMicroVMARN(arn)
+	}
+	if instanceID := m.instanceID.Load(); instanceID != nil {
+		metadata.ResourceID = *instanceID
+	}
+	return metadata
+}
+
+// MetadataReporter returns a reporter that stores the instance ID, then calls
+// metadata.ReportNow in a new goroutine so the caller does not wait for it.
+func (m *MicroVM) MetadataReporter(metadata serverlessdef.Component) lifecycle.MetadataReporter {
+	return lifecycle.MetadataReporterFunc(func(instanceID string) {
+		m.instanceID.Store(&instanceID)
+		go metadata.ReportNow()
+	})
 }
 
 // GetEnhancedMetricTags returns base (low-cardinality) and usage tags.
@@ -203,6 +236,9 @@ func (m *MicroVM) initWithServerStarter(ctx *TracingContext, startServer lifecyc
 	if lc.MetricTagSetter != nil {
 		m.server.SetMetricTagSetter(lc.MetricTagSetter, lc.BaseUsageMetricTags)
 	}
+	if lc.Metadata != nil {
+		m.server.SetMetadataReporter(m.MetadataReporter(lc.Metadata))
+	}
 	if err := startServer(m.server, func(err error) {
 		log.Fatalf("MicroVM lifecycle server error: %v", err)
 	}); err != nil {
@@ -254,22 +290,23 @@ func isMicroVM() bool {
 	return exists
 }
 
+// isMicroVMImageARN reports whether arn has the form
+// arn:<partition>:lambda:<region>:<account>:microvm-image:<name> with every
+// field present.
+func isMicroVMImageARN(arn string) bool {
+	parts := strings.Split(arn, ":")
+	return len(parts) >= 7 && parts[0] == "arn" && parts[1] != "" && parts[2] == "lambda" &&
+		parts[3] != "" && parts[4] != "" && parts[5] == "microvm-image" && parts[6] != ""
+}
+
 // parseMicroVMARN extracts region, accountID, and imageName from an ARN of the
 // form arn:aws:lambda:<region>:<account>:microvm-image:<name>.
-// Returns "unknown" for any field that cannot be parsed.
+// Returns "" for any field that cannot be parsed.
 func parseMicroVMARN(arn string) (region, accountID, imageName string) {
 	parts := strings.Split(arn, ":")
-	region = "unknown"
-	accountID = "unknown"
-	imageName = "unknown"
-	// ARN format: arn:aws:lambda:region:account:microvm-image:name
 	if len(parts) >= 5 {
-		if parts[3] != "" {
-			region = parts[3]
-		}
-		if parts[4] != "" {
-			accountID = parts[4]
-		}
+		region = parts[3]
+		accountID = parts[4]
 	}
 	if len(parts) >= 7 && parts[6] != "" {
 		imageName = strings.Join(parts[6:], ":")

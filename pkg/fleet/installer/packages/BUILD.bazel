@@ -117,6 +117,7 @@ dd_agent_go_test(
     ] + select({
         "@rules_go//go/platform:android": [
             "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/packages/service",
         ],
         "@rules_go//go/platform:darwin": [
             "//pkg/fleet/installer/packages/launchd",
@@ -126,6 +127,7 @@ dd_agent_go_test(
         ],
         "@rules_go//go/platform:linux": [
             "//pkg/fleet/installer/packages/file",
+            "//pkg/fleet/installer/packages/service",
         ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/env",

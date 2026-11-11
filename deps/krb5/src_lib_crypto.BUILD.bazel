@@ -1,0 +1,108 @@
+load("@@//deps/krb5:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
+load("@@//deps/krb5:krb5_library.bzl", "krb5_shared_library")
+load("@@//deps/krb5:krb5_tests.bzl", "krb5_c_tests")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = [
+        "//:__subpackages__",
+        "@@//deps/krb5:__pkg__",
+    ],
+)
+
+cc_library(
+    name = "k5crypto_private_h",
+    hdrs = glob([
+        "builtin/aes/*.h",
+        "builtin/camellia/*.h",
+        "builtin/des/*.h",
+        "builtin/md4/*.h",
+        "builtin/md5/*.h",
+        "builtin/sha1/*.h",
+        "builtin/sha2/*.h",
+        "krb/*.h",
+    ]),
+    includes = [
+        "builtin",
+        "builtin/aes",
+        "builtin/camellia",
+        "builtin/des",
+        "builtin/md4",
+        "builtin/md5",
+        "builtin/sha1",
+        "builtin/sha2",
+        "krb",
+    ],
+)
+
+# libk5crypto (lib/crypto): Kerberos crypto, using the OpenSSL backend.
+krb5_shared_library(
+    name = "k5crypto",
+    srcs = glob([
+        "builtin/*.c",
+        "builtin/enc_provider/*.c",
+        "builtin/hash_provider/*.c",
+        "builtin/md4/*.c",
+        "builtin/md5/*.c",
+        "builtin/sha2/*.c",
+        "krb/*.c",
+        "openssl/*.c",
+        "openssl/des/*.c",
+        "openssl/enc_provider/*.c",
+        "openssl/hash_provider/*.c",
+    ]) + [
+        "builtin/aes/aescrypt.c",
+        "builtin/aes/aeskey.c",
+        "builtin/aes/aestab.c",
+        "builtin/camellia/camellia.c",
+        "builtin/des/d3_aead.c",
+        "builtin/des/d3_kysched.c",
+        "builtin/des/des_keys.c",
+        "builtin/des/f_aead.c",
+        "builtin/des/f_cksum.c",
+        "builtin/des/f_parity.c",
+        "builtin/des/f_sched.c",
+        "builtin/des/f_tables.c",
+        "builtin/des/key_sched.c",
+        "builtin/des/weak_key.c",
+        "builtin/sha1/shs.c",
+    ],
+    dynamic_deps = [
+        "//src/util:krb5support_pkg",
+        "@openssl//:libcrypto_shared_pkg",
+    ],
+    implementation_deps = [":k5crypto_private_h"],
+    version = "3.1",
+    exports = "libk5crypto.exports",
+    deps = [
+        "//:include",
+        "//src/util:krb5support_lib",
+        "@openssl//:libcrypto_shared",
+    ],
+)
+
+krb5_c_tests(
+    name = "crypto_tests",
+    srcs = [
+        "crypto_tests/t_cksums.c",
+        "crypto_tests/t_cmac.c",
+        "crypto_tests/t_cts.c",
+        "crypto_tests/t_decrypt.c",
+        "crypto_tests/t_derive.c",
+        "crypto_tests/t_encrypt.c",
+        "crypto_tests/t_fork.c",
+        "crypto_tests/t_hmac.c",
+        "crypto_tests/t_nfold.c",
+        "crypto_tests/t_prf.c",
+        "crypto_tests/t_sha2.c",
+        "crypto_tests/t_short.c",
+        "crypto_tests/t_str2key.c",
+    ],
+    copts = KRB5_COPTS,
+    local_defines = KRB5_LOCAL_DEFINES,
+    deps = [
+        ":k5crypto_private_h",
+        "//src/lib/krb5:krb5_lib",
+    ],
+)

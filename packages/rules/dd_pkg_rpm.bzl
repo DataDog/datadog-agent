@@ -24,6 +24,10 @@ def _dd_pkg_rpm_impl(name, visibility, description, srcs, **kwargs):
     pkg_rpm_impl(
         name = name,
         srcs = srcs + [":" + owned_dirs],
+        binary_payload_compression = select({
+            "//:is_release": "w9T8.xzdio",
+            "//conditions:default": "w5T8.xzdio",
+        }),
         defines = _DEFAULT_DEFINES,
         description = rpm_description(description),
         visibility = visibility,
@@ -35,6 +39,7 @@ dd_pkg_rpm = macro(
     inherit_attrs = pkg_rpm_impl,
     implementation = _dd_pkg_rpm_impl,
     attrs = {
+        "binary_payload_compression": None,
         "defines": None,
         "description": attr.string(configurable = False),
         "private_stamp_detect": None,

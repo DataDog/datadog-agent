@@ -6,6 +6,7 @@
 package sampler
 
 import (
+	"math"
 	"math/rand"
 	"strconv"
 	"testing"
@@ -15,6 +16,7 @@ import (
 	"go.uber.org/atomic"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 	"github.com/DataDog/datadog-agent/pkg/trace/config"
 )
 
@@ -159,5 +161,39 @@ func BenchmarkSampler(b *testing.B) {
 			&pb.Span{TraceID: 1, SpanID: 5, ParentID: 1, Start: 700000000, Duration: 700000, Service: "mcnulty", Type: ""},
 		}
 		s.Sample(ts, trace, trace[0], defaultEnv)
+	}
+}
+
+func TestWeightRootRejectsNaNAndInfiniteWeights(t *testing.T) {
+	for _, tc := range []struct {
+		name       string
+		client     float64
+		preSampler float64
+		want       float32
+	}{
+		{"valid rates", 0.5, 0.25, 8},
+		{"NaN client rate", math.NaN(), 0.5, 2},
+		{"NaN pre-sampler rate", 0.5, math.NaN(), 2},
+		{"both NaN", math.NaN(), math.NaN(), 1},
+		{"subnormal client rate", math.SmallestNonzeroFloat64, 1, 1},
+		{"weight overflows float32", 1e-39, 1, 1},
+		{"rate product underflows to zero", 1e-200, 1e-200, 1},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			span := &pb.Span{Metrics: map[string]float64{
+				KeySamplingRateGlobal:     tc.client,
+				KeySamplingRatePreSampler: tc.preSampler,
+			}}
+			assert.Equal(t, tc.want, weightRoot(span))
+
+			strings := idx.NewStringTable()
+			spanV1 := idx.NewInternalSpan(strings, &idx.Span{
+				Attributes: map[uint32]*idx.AnyValue{
+					strings.Add(KeySamplingRateGlobal):     {Value: &idx.AnyValue_DoubleValue{DoubleValue: tc.client}},
+					strings.Add(KeySamplingRatePreSampler): {Value: &idx.AnyValue_DoubleValue{DoubleValue: tc.preSampler}},
+				},
+			})
+			assert.Equal(t, tc.want, weightRootV1(spanV1))
+		})
 	}
 }

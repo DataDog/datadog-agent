@@ -32,6 +32,12 @@ func TestExtractSimpleGPUName(t *testing.T) {
 			expected: "nvidia",
 		},
 		{
+			name:     "known amd dra gpu resource",
+			gpuName:  GpuAMDDRA,
+			found:    true,
+			expected: "amd",
+		},
+		{
 			name:     "unknown gpu resource",
 			gpuName:  ResourceGPU("cpu"),
 			found:    false,

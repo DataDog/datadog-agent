@@ -24,15 +24,12 @@ http_archive(
     build_file = "//deps:cpython.BUILD.bazel",
     files = {
         "build_python.bat": "//deps/cpython:build_python.bat",
-        "redacted_compat.h": "//deps/cpython:redacted_compat.h",
     },
     patch_strip = 1,
     patches = [
         "//deps/cpython:0001-customize-windows-build-script.patch",
-        "//deps/cpython:0002-Set-the-install-name-to-use-rpath-instead-of-absolut.patch",
         "//deps/cpython:0003-propagate-pgo-test-exit-code.patch",
         "//deps/cpython:0004-Skip-bytecode-compilation-during-install.patch",
-        "//deps/cpython:0005-Honor-explicit-libffi-flags-on-Darwin.patch",
         "//deps/cpython:0006-gh-160040-Distrust-compromised-eMudhra-intermediate-CA-keys.patch",
         "//deps/cpython:0007-Stop-waiting-on-an-initializing-parent-package.patch",
     ],

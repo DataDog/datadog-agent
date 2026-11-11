@@ -83,7 +83,7 @@ dd_collect_dependencies(
             "@curl//:curl_bin_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
-            "@krb5//:installed_libs",
+            "@krb5//:kinit_pkg",
         ],
         "//packages/agent:linux_fips": [
             "//cmd/agent",
@@ -95,7 +95,7 @@ dd_collect_dependencies(
             "@curl//:curl_bin_pkg",
             "@freetds//:tdsodbc_pkg",
             "@jemalloc//:jemalloc_pkg",
-            "@krb5//:installed_libs",
+            "@krb5//:kinit_pkg",
         ],
         "@platforms//os:macos": [
             "//cmd/agent",

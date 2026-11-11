@@ -12,6 +12,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,8 +35,9 @@ func TestReadLocalhostSeccompProfile(t *testing.T) {
 	require.NoError(t, os.MkdirAll(dir, 0o755))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "audit.json"), []byte(testSeccompProfileJSON), 0o600))
 	t.Setenv("HOST_ROOT", root)
+	t.Setenv("HOST_PROC", t.TempDir())
 
-	res, err := readLocalhostSeccompProfile("profiles/audit.json")
+	res, err := readLocalhostSeccompProfile(nil, "profiles/audit.json")
 	require.NoError(t, err)
 	require.NotNil(t, res)
 
@@ -60,20 +62,102 @@ func TestReadLocalhostSeccompProfile(t *testing.T) {
 }
 
 func TestReadLocalhostSeccompProfileErrors(t *testing.T) {
-	_, err := readLocalhostSeccompProfile("")
+	_, err := readLocalhostSeccompProfile(nil, "")
 	assert.Error(t, err)
 
 	t.Setenv("HOST_ROOT", t.TempDir())
-	_, err = readLocalhostSeccompProfile("does-not-exist.json")
+	t.Setenv("HOST_PROC", t.TempDir())
+	_, err = readLocalhostSeccompProfile(nil, "does-not-exist.json")
 	assert.Error(t, err)
 }
 
-func TestSeccompProfilePathHostRoot(t *testing.T) {
+func TestReadLocalhostSeccompProfileFromKubeletRoot(t *testing.T) {
+	proc := t.TempDir()
+	dir := filepath.Join(proc, "4242", "root", "data/kubelet/seccomp")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "p.json"), []byte(testSeccompProfileJSON), 0o600))
+	t.Setenv("HOST_PROC", proc)
+	t.Setenv("HOST_ROOT", "")
+
+	res, err := readLocalhostSeccompProfile(&kubeletInfo{pid: "4242", rootDir: "/data/kubelet"}, "p.json")
+	require.NoError(t, err)
+	assert.Equal(t, ActionErrno, res.DefaultAction)
+}
+
+func TestResolveSeccompFilterAfterKubeletRestart(t *testing.T) {
+	proc := t.TempDir()
+	writeKubelet := func(pid string) {
+		dir := filepath.Join(proc, pid, "root", "var/lib/kubelet/seccomp")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "p.json"), []byte(testSeccompProfileJSON), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(proc, pid, "cmdline"), []byte("kubelet\x00"), 0o600))
+	}
+	t.Setenv("HOST_PROC", proc)
+	t.Setenv("HOST_ROOT", "")
+
+	writeKubelet("100")
+	r := &WorkloadmetaResolver{kubelet: findKubelet()}
+	require.NotNil(t, r.kubelet)
+
+	require.NoError(t, os.RemoveAll(filepath.Join(proc, "100")))
+	writeKubelet("200")
+
+	res, err := r.ResolveSeccompFilter(&SeccompProfile{Type: SeccompLocalhost, LocalhostProfile: "p.json"})
+	require.NoError(t, err)
+	assert.Equal(t, ActionErrno, res.DefaultAction)
+	assert.Equal(t, "200", r.kubelet.pid)
+}
+
+func TestResolveSeccompFilterIgnoresReusedKubeletPID(t *testing.T) {
+	proc := t.TempDir()
+	hostRoot := t.TempDir()
+	writeProfile := func(root, body string) {
+		dir := filepath.Join(root, "data/kubelet/seccomp")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "p.json"), []byte(body), 0o600))
+	}
+	writeProcess := func(cmdline string) {
+		require.NoError(t, os.MkdirAll(filepath.Join(proc, "100"), 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(proc, "100", "cmdline"), []byte(cmdline), 0o600))
+	}
+	t.Setenv("HOST_PROC", proc)
+	t.Setenv("HOST_ROOT", hostRoot)
+	writeProfile(hostRoot, testSeccompProfileJSON)
+
+	writeProcess("kubelet\x00--root-dir=/data/kubelet\x00")
+	r := &WorkloadmetaResolver{kubelet: findKubelet(), kubeletLookupTime: time.Now()}
+	require.NotNil(t, r.kubelet)
+
+	writeProcess("other\x00")
+	writeProfile(filepath.Join(proc, "100", "root"), `{"defaultAction": "SCMP_ACT_ALLOW"}`)
+
+	res, err := r.ResolveSeccompFilter(&SeccompProfile{Type: SeccompLocalhost, LocalhostProfile: "p.json"})
+	require.NoError(t, err)
+	assert.Equal(t, ActionErrno, res.DefaultAction)
+	assert.Empty(t, r.kubelet.pid)
+	assert.Equal(t, "/data/kubelet", r.kubelet.rootDir)
+}
+
+func TestReadLocalhostSeccompProfileFromInitRoot(t *testing.T) {
+	proc := t.TempDir()
+	dir := filepath.Join(proc, "1", "root", "var/lib/kubelet/seccomp")
+	require.NoError(t, os.MkdirAll(dir, 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(dir, "p.json"), []byte(testSeccompProfileJSON), 0o600))
+	t.Setenv("HOST_PROC", proc)
+	t.Setenv("HOST_ROOT", "")
+
+	_, err := readLocalhostSeccompProfile(nil, "p.json")
+	require.NoError(t, err)
+}
+
+func TestHostRoots(t *testing.T) {
+	t.Setenv("HOST_PROC", "/hp")
 	t.Setenv("HOST_ROOT", "/host")
-	assert.Equal(t, "/host/var/lib/kubelet/seccomp/p.json", seccompProfilePath("p.json"))
+	assert.Equal(t, []string{"/hp/7/root", "/host", "/hp/1/root", "/"}, hostRoots(&kubeletInfo{pid: "7"}))
+	assert.Equal(t, []string{"/host", "/hp/1/root", "/"}, hostRoots(&kubeletInfo{rootDir: "/data/kubelet"}))
 
 	t.Setenv("HOST_ROOT", "")
-	assert.Equal(t, "/var/lib/kubelet/seccomp/p.json", seccompProfilePath("p.json"))
+	assert.Equal(t, []string{"/hp/1/root", "/"}, hostRoots(nil))
 }
 
 func TestScmpActionToSeccompAction(t *testing.T) {
@@ -118,100 +202,96 @@ func TestKubeletConfigSeccompDefault(t *testing.T) {
 		require.NoError(t, os.MkdirAll(dir, 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.yaml"), []byte(body), 0o600))
 		t.Setenv("HOST_ROOT", root)
+		t.Setenv("HOST_PROC", t.TempDir())
 	}
 
 	t.Run("enabled", func(t *testing.T) {
 		writeConfig(t, "seccompDefault: true\n")
-		assert.True(t, kubeletConfigSeccompDefault())
+		assert.True(t, kubeletConfigSeccompDefault(nil))
 	})
 
 	t.Run("disabled", func(t *testing.T) {
 		writeConfig(t, "seccompDefault: false\n")
-		assert.False(t, kubeletConfigSeccompDefault())
+		assert.False(t, kubeletConfigSeccompDefault(nil))
 	})
 
 	t.Run("unset", func(t *testing.T) {
 		writeConfig(t, "kind: KubeletConfiguration\n")
-		assert.False(t, kubeletConfigSeccompDefault())
+		assert.False(t, kubeletConfigSeccompDefault(nil))
 	})
 
 	t.Run("missing file", func(t *testing.T) {
 		t.Setenv("HOST_ROOT", t.TempDir())
-		assert.False(t, kubeletConfigSeccompDefault())
+		t.Setenv("HOST_PROC", t.TempDir())
+		assert.False(t, kubeletConfigSeccompDefault(nil))
+	})
+
+	t.Run("config flag path under kubelet root", func(t *testing.T) {
+		proc := t.TempDir()
+		dir := filepath.Join(proc, "9", "root", "etc/kubernetes")
+		require.NoError(t, os.MkdirAll(dir, 0o755))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "kubelet.yaml"), []byte("seccompDefault: true\n"), 0o600))
+		t.Setenv("HOST_PROC", proc)
+		t.Setenv("HOST_ROOT", "")
+		assert.True(t, kubeletConfigSeccompDefault(&kubeletInfo{pid: "9", configPath: "/etc/kubernetes/kubelet.yaml"}))
 	})
 }
 
-func TestKubeletFlagSeccompDefault(t *testing.T) {
-	writeCmdline := func(t *testing.T, args ...string) string {
+func TestFindKubelet(t *testing.T) {
+	writeCmdline := func(t *testing.T, args ...string) {
 		proc := t.TempDir()
 		require.NoError(t, os.MkdirAll(filepath.Join(proc, "1234"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(proc, "1234", "cmdline"), []byte(strings.Join(args, "\x00")), 0o600))
+		require.NoError(t, os.WriteFile(filepath.Join(proc, "1234", "cmdline"), []byte(strings.Join(args, "\x00")+"\x00"), 0o600))
 		// A non-numeric entry must be ignored.
 		require.NoError(t, os.MkdirAll(filepath.Join(proc, "notapid"), 0o755))
 		t.Setenv("HOST_PROC", proc)
-		return proc
 	}
+	boolPtr := func(b bool) *bool { return &b }
 
-	t.Run("bare flag", func(t *testing.T) {
-		writeCmdline(t, "/usr/bin/kubelet", "--seccomp-default")
-		val, found := kubeletFlagSeccompDefault()
-		assert.True(t, found)
-		assert.True(t, val)
-	})
-
-	t.Run("flag true", func(t *testing.T) {
-		writeCmdline(t, "kubelet", "--seccomp-default=true")
-		val, found := kubeletFlagSeccompDefault()
-		assert.True(t, found)
-		assert.True(t, val)
-	})
-
-	t.Run("flag false", func(t *testing.T) {
-		writeCmdline(t, "kubelet", "--seccomp-default=false")
-		val, found := kubeletFlagSeccompDefault()
-		assert.True(t, found)
-		assert.False(t, val)
-	})
-
-	t.Run("kubelet without flag", func(t *testing.T) {
-		writeCmdline(t, "kubelet", "--v=2")
-		val, found := kubeletFlagSeccompDefault()
-		assert.True(t, found)
-		assert.False(t, val)
-	})
-
-	t.Run("no kubelet process", func(t *testing.T) {
-		writeCmdline(t, "/usr/bin/kube-proxy")
-		_, found := kubeletFlagSeccompDefault()
-		assert.False(t, found)
-	})
+	cases := []struct {
+		name string
+		args []string
+		want *kubeletInfo
+	}{
+		{"bare seccomp flag", []string{"/usr/bin/kubelet", "--seccomp-default"},
+			&kubeletInfo{pid: "1234", rootDir: defaultKubeletRootDir, seccompDefault: boolPtr(true)}},
+		{"seccomp flag true", []string{"kubelet", "--seccomp-default=true"},
+			&kubeletInfo{pid: "1234", rootDir: defaultKubeletRootDir, seccompDefault: boolPtr(true)}},
+		{"seccomp flag false", []string{"kubelet", "--seccomp-default=false"},
+			&kubeletInfo{pid: "1234", rootDir: defaultKubeletRootDir, seccompDefault: boolPtr(false)}},
+		{"no flags", []string{"kubelet", "--v=2"},
+			&kubeletInfo{pid: "1234", rootDir: defaultKubeletRootDir}},
+		{"root-dir and config, both forms", []string{"kubelet", "--root-dir=/data/kubelet", "--config", "/etc/kubelet.yaml"},
+			&kubeletInfo{pid: "1234", rootDir: "/data/kubelet", configPath: "/etc/kubelet.yaml"}},
+		{"no kubelet process", []string{"/usr/bin/kube-proxy"}, nil},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			writeCmdline(t, tc.args...)
+			assert.Equal(t, tc.want, findKubelet())
+		})
+	}
 }
 
 func TestKubeletSeccompDefaultEnabled(t *testing.T) {
-	// No kubelet process: value comes from the config file.
-	t.Run("config drives when no flag", func(t *testing.T) {
-		t.Setenv("HOST_PROC", t.TempDir())
+	writeConfig := func(t *testing.T) {
 		root := t.TempDir()
 		dir := filepath.Join(root, "var/lib/kubelet")
 		require.NoError(t, os.MkdirAll(dir, 0o755))
 		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("seccompDefault: true\n"), 0o600))
 		t.Setenv("HOST_ROOT", root)
-		assert.True(t, kubeletSeccompDefaultEnabled())
+		t.Setenv("HOST_PROC", t.TempDir())
+	}
+
+	t.Run("config drives when no flag", func(t *testing.T) {
+		writeConfig(t)
+		assert.True(t, kubeletSeccompDefaultEnabled(nil))
 	})
 
 	// The flag wins over a conflicting config file.
 	t.Run("flag overrides config", func(t *testing.T) {
-		proc := t.TempDir()
-		require.NoError(t, os.MkdirAll(filepath.Join(proc, "1"), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(proc, "1", "cmdline"), []byte("kubelet\x00--seccomp-default=false"), 0o600))
-		t.Setenv("HOST_PROC", proc)
-
-		root := t.TempDir()
-		dir := filepath.Join(root, "var/lib/kubelet")
-		require.NoError(t, os.MkdirAll(dir, 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(dir, "config.yaml"), []byte("seccompDefault: true\n"), 0o600))
-		t.Setenv("HOST_ROOT", root)
-
-		assert.False(t, kubeletSeccompDefaultEnabled())
+		writeConfig(t)
+		off := false
+		assert.False(t, kubeletSeccompDefaultEnabled(&kubeletInfo{pid: "1", rootDir: defaultKubeletRootDir, seccompDefault: &off}))
 	})
 }

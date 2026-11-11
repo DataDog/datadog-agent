@@ -1110,6 +1110,10 @@ func (values HelmValues) configureFakeintake(e config.Env, fi *fakeintake.Fakein
 				"value": pulumi.Sprintf("%s", fi.URL),
 			},
 			pulumi.StringMap{
+				"name":  pulumi.String("DD_HEALTH_PLATFORM_FORWARDER_DD_URL"),
+				"value": pulumi.Sprintf("%s", fi.URL),
+			},
+			pulumi.StringMap{
 				"name":  pulumi.String("DD_LOGS_CONFIG_LOGS_DD_URL"),
 				"value": pulumi.Sprintf("%s", fi.URL),
 			},

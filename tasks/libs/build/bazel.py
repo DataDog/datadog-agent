@@ -127,7 +127,7 @@ def _run_command(
         input=input,
         stdin=subprocess.DEVNULL if input is None else None,
         stdout=subprocess.PIPE if capture_stdout else None,
-        stderr=None,
+        stderr=subprocess.PIPE if capture_stderr else None,
         encoding="utf-8",
         errors="backslashreplace",
     )
@@ -230,6 +230,9 @@ def bazel(
         succeeded or not.
     """
 
+    if capture_output and capture_stderr and not ignore_errors:
+        raise ValueError("Capturing both stdout and stderr requires ignore_errors to return both.")
+
     if not (bazelisk := shutil.which("bazelisk")):  # `/usr/bin/bazel` may otherwise take precedence in DD Workspaces
         raise SystemExit(bazel_not_found_message("red"))
     cmd = (bazelisk, *_insert_omnibazel_flags(args))
@@ -247,7 +250,11 @@ def bazel(
     if ignore_errors:
         return completed
     if completed.returncode != 0:
+        if capture_stderr:
+            sys.stderr.write(completed.stderr)
         raise SystemExit(completed.returncode)
+    if capture_stderr:
+        return completed.stderr
     return completed.stdout if capture_output else ""
 
 

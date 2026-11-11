@@ -56,6 +56,7 @@ from tasks import (
     kmt,
     linter,
     loader,
+    logs_tokenizer,
     macos,
     modules,
     msi,
@@ -160,11 +161,9 @@ Task.__call__ = custom__call__
 ns = Collection()
 
 # add single tasks to the root
-# AIX gets routed to the legacy task because it doesn't support bazel.
-# windows will be onboarded to bazel-by-default when ready
-if sys.platform in ("win32", "aix"):
+# AIX gets routed to the legacy test task because it doesn't support bazel.
+if sys.platform == "aix":
     ns.add_task(test_legacy, name="test")
-    ns.add_task(test, name="test-new")
 else:
     ns.add_task(test)
     ns.add_task(test_legacy)
@@ -246,6 +245,7 @@ ns.add_collection(github_tasks, "github")
 ns.add_collection(gitlab_helpers, "gitlab")
 ns.add_collection(issue)
 ns.add_collection(loader)
+ns.add_collection(logs_tokenizer)
 ns.add_collection(gpu)
 ns.add_collection(package)
 ns.add_collection(pipeline)

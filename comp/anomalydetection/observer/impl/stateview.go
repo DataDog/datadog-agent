@@ -83,7 +83,7 @@ func (sv *stateView) ListDetectors() []ComponentStateInfo {
 	result := make([]ComponentStateInfo, len(sv.engine.detectors))
 	for i, d := range sv.engine.detectors {
 		result[i] = ComponentStateInfo{
-			Name:    d.Name(),
+			Name:    d.detector.Name(),
 			Enabled: true, // detectors in the engine are always enabled
 		}
 	}

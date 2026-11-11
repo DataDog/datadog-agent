@@ -11,7 +11,6 @@
     - !reference [.needs_new_e2e_template]
   before_script:
     - !reference [.retrieve_linux_go_e2e_deps]
-    - !reference [.retrieve_linux_pulumi_plugins]
     # Setup AWS Credentials
     - mkdir -p ~/.aws
     - |
@@ -102,7 +101,7 @@
     - export IS_DEV_BRANCH="$(dda inv -- -e pipeline.is-dev-branch)"
     - DYNAMIC_TESTS_BREAKGLASS=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $DYNAMIC_TESTS_BREAKGLASS value) || exit $?; export DYNAMIC_TESTS_BREAKGLASS
     - |
-      if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "on" ]; then
+      if [ "$DYNAMIC_TESTS_BREAKGLASS" == "true" ] || [ "$IS_DEV_BRANCH" == "false" ] || [ "$RUN_E2E_TESTS" == "on" ] || [ "$ADP_VERSION_BUMP" == "true" ]; then
         export DYNAMIC_TESTS_FLAG=""
       fi
     # E2E_IMAGE_PULL_PASSWORD is a comma-separated list of passwords for the different registries

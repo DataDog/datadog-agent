@@ -76,7 +76,7 @@ func (r *StdoutReporter) reportNewAnomalies(anomalies []observer.Anomaly) {
 		key := anomaly.Source.String() + "|" + anomaly.DetectorName
 		if !r.seenRawAnomalies[key] {
 			_, description := observer.FormatAnomaly(anomaly)
-			fmt.Printf("[observer] [%s] ANOMALY: %s\n", anomaly.DetectorName, anomaly.Source.String())
+			fmt.Printf("[anomalydetection] [%s] ANOMALY: %s\n", anomaly.DetectorName, anomaly.Source.String())
 			fmt.Printf("           %s\n", description)
 			r.seenRawAnomalies[key] = true
 		}
@@ -95,7 +95,7 @@ func (r *StdoutReporter) reportCorrelationChanges(activeCorrelations []observer.
 
 	for _, ac := range activeCorrelations {
 		if _, seen := r.seenCorrelations[ac.Pattern]; !seen {
-			fmt.Printf("[observer] NEW: %s\n", ac.Title)
+			fmt.Printf("[anomalydetection] NEW: %s\n", ac.Title)
 			for _, anomaly := range ac.Anomalies {
 				_, description := observer.FormatAnomaly(anomaly)
 				fmt.Printf("  - %s\n", description)
@@ -106,7 +106,7 @@ func (r *StdoutReporter) reportCorrelationChanges(activeCorrelations []observer.
 
 	for pattern, title := range r.seenCorrelations {
 		if _, ok := currentlyActive[pattern]; !ok {
-			fmt.Printf("[observer] CLEARED: %s\n", title)
+			fmt.Printf("[anomalydetection] CLEARED: %s\n", title)
 			delete(r.seenCorrelations, pattern)
 		}
 	}
@@ -115,10 +115,10 @@ func (r *StdoutReporter) reportCorrelationChanges(activeCorrelations []observer.
 // PrintFinalState prints the current state of all correlations.
 func (r *StdoutReporter) PrintFinalState() {
 	if len(r.lastCorrelations) == 0 {
-		fmt.Println("[observer] Final state: no active correlations")
+		fmt.Println("[anomalydetection] Final state: no active correlations")
 		return
 	}
-	fmt.Println("[observer] Correlation Summary:")
+	fmt.Println("[anomalydetection] Correlation Summary:")
 	for _, ac := range r.lastCorrelations {
 		fmt.Printf("  Cluster: %d anomalies\n", len(ac.Anomalies))
 		for _, anomaly := range ac.Anomalies {

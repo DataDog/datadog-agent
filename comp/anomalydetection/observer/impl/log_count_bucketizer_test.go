@@ -191,7 +191,7 @@ func TestMergeLogCountBucketIntervalHandlesOutOfOrderActivity(t *testing.T) {
 
 func TestEngineMaterializesLogCountBucketsBeforeDetection(t *testing.T) {
 	storage := newTimeSeriesStorageWith(StorageConfig{})
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{&fixedLogCountExtractor{}},
 		logCountBuckets: LogCountBucketConfig{
@@ -221,7 +221,7 @@ func TestEngineCapacityEvictionDropsIdleBucketizerState(t *testing.T) {
 		MaxSeries:          1,
 		PointRetentionSecs: 60,
 	})
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    storage,
 		extractors: []observerdef.LogMetricsExtractor{&fixedLogCountExtractor{}},
 		logCountBuckets: LogCountBucketConfig{
@@ -287,7 +287,7 @@ func TestLogDerivedMetricTypesReachStorage(t *testing.T) {
 			pattern := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 			pattern.config.MinClusterSizeBeforeEmit = 1
 			storage := newTimeSeriesStorageWith(StorageConfig{})
-			e := newEngine(engineConfig{
+			e := mustNewEngine(engineConfig{
 				storage:         storage,
 				extractors:      []observerdef.LogMetricsExtractor{NewLogMetricsExtractor(DefaultLogMetricsExtractorConfig()), pattern, &ConnectionErrorExtractor{}},
 				logCountBuckets: LogCountBucketConfig{Enabled: bucketed, BucketSeconds: 5, IdleTTLSeconds: 10},
@@ -315,9 +315,9 @@ func TestEngineCapacityEvictionDuringLogFlushPreservesRealObservations(t *testin
 	for range 64 {
 		storage := newTimeSeriesStorageWith(StorageConfig{MaxSeries: 1})
 		detector := &inactiveEvictionDetector{}
-		e := newEngine(engineConfig{
+		e := mustNewEngine(engineConfig{
 			storage:         storage,
-			detectors:       []observerdef.Detector{detector},
+			detectors:       []detectorRegistration{{detector: detector}},
 			extractors:      []observerdef.LogMetricsExtractor{&fixedLogCountExtractor{}},
 			logCountBuckets: LogCountBucketConfig{Enabled: true, BucketSeconds: 5, IdleTTLSeconds: 20},
 		})

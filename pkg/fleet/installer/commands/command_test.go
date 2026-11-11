@@ -7,15 +7,19 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
@@ -284,4 +288,73 @@ func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
 	cmd := setupCommand()
 	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
 		"setup command should have human-readable-errors annotation")
+}
+
+func TestInstallConfigExperimentArgs(t *testing.T) {
+	cmd := installConfigExperimentCommand()
+	assert.Error(t, cmd.ValidateArgs([]string{}))
+	assert.NoError(t, cmd.ValidateArgs([]string{"datadog-agent"}))
+	assert.Error(t, cmd.ValidateArgs([]string{"datadog-agent", "{}"}))
+}
+
+func TestReadConfigExperimentInput(t *testing.T) {
+	operations := config.Operations{
+		DeploymentID: "deployment-1",
+		FileOperations: []config.FileOperation{{
+			FileOperationType: config.FileOperationMergePatch,
+			FilePath:          "/datadog.yaml",
+			Patch:             json.RawMessage(`{"log_level":"debug"}`),
+		}},
+	}
+	operationsJSON, err := json.Marshal(operations)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		stdin       string
+		wantSecrets map[string]string
+		wantErr     string
+	}{
+		{
+			name:        "operations then secrets",
+			stdin:       string(operationsJSON) + "\n" + `{"ENC[secret]":"value"}`,
+			wantSecrets: map[string]string{"ENC[secret]": "value"},
+		},
+		{
+			name:        "operations then empty secrets",
+			stdin:       string(operationsJSON) + "\n{}",
+			wantSecrets: map[string]string{},
+		},
+		{
+			name:    "empty stdin",
+			wantErr: "could not decode operations from stdin",
+		},
+		{
+			name:    "invalid operations",
+			stdin:   "not json",
+			wantErr: "could not decode operations from stdin",
+		},
+		{
+			name:    "missing secrets",
+			stdin:   string(operationsJSON),
+			wantErr: "could not decode secrets from stdin",
+		},
+		{
+			name:    "invalid secrets",
+			stdin:   string(operationsJSON) + "\nnot json",
+			wantErr: "could not decode secrets from stdin",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotOperations, gotSecrets, err := readConfigExperimentInput(strings.NewReader(tt.stdin))
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, operations, gotOperations)
+			assert.Equal(t, tt.wantSecrets, gotSecrets)
+		})
+	}
 }

@@ -6,6 +6,7 @@
 package agentplatform
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"testing"
@@ -23,6 +24,9 @@ const (
 	// macosInstallerBinary is the installer the .dmg postinstall script runs to install the
 	// Agent's LaunchDaemons.
 	macosInstallerBinary = "/opt/datadog-agent/embedded/bin/installer"
+	// macosProcmgrCLI talks to dd-procmgrd over its socket. It runs as root because the socket
+	// is mode 0660 and owned by root:daemon.
+	macosProcmgrCLI = "/opt/datadog-agent/embedded/bin/dd-procmgr"
 	// macosShippedLaunchDaemonsDir holds the root-owned copies of the LaunchDaemon definitions
 	// the postinstall script falls back to when the installer cannot install them.
 	macosShippedLaunchDaemonsDir = "/opt/datadog-agent/embedded/share/launchd"
@@ -95,6 +99,8 @@ func macosLogLaunchDaemonDiagnostics(t *testing.T, client *common.MacOSTestClien
 		out, _ = client.Execute("sudo launchctl print system/" + label + " 2>&1 | head -n 40")
 		t.Logf("launchctl print system/%s:\n%s", label, out)
 	}
+	out, _ = client.Execute("sudo " + macosProcmgrCLI + " status --json 2>&1")
+	t.Logf("dd-procmgr status:\n%s", out)
 }
 
 // macosLogDiagnosticsOnFailure registers a cleanup that logs LaunchDaemon diagnostics if the test
@@ -119,7 +125,8 @@ func assertMacosInstallerPostinstSucceeded(t *testing.T, client *common.MacOSTes
 
 // assertMacosStableLaunchDaemons checks each stable LaunchDaemon is installed from the definition
 // the package ships, owned by root:wheel with mode 644, and loaded, and that the shipped definitions
-// are root-owned, since launchd runs whatever is copied from them as root.
+// are root-owned, since launchd runs whatever is copied from them as root. It also checks that
+// dd-procmgrd answers on its socket and is supervising nothing.
 func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient) {
 	owner, err := client.Execute("sudo stat -f '%Su:%Sg' " + macosShippedLaunchDaemonsDir)
 	require.NoError(t, err)
@@ -147,6 +154,30 @@ func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient
 			_, err := client.Execute("sudo launchctl print system/" + label)
 			assert.NoError(c, err, "%s is not loaded", label)
 		}
+	}, 60*time.Second, 2*time.Second)
+
+	assertMacosProcmgrAnswers(t, client)
+}
+
+// assertMacosProcmgrAnswers checks dd-procmgrd is up and its catalog is empty.
+//
+// status is the call that proves the socket works. describe needs a process name, and no
+// processes.d entry is shipped on macOS yet, so there is nothing to describe.
+func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient) {
+	assert.EventuallyWithT(t, func(c *assert.CollectT) {
+		out, err := client.Execute("sudo " + macosProcmgrCLI + " status --json")
+		if !assert.NoError(c, err, "dd-procmgr status failed:\n%s", out) {
+			return
+		}
+		var status struct {
+			Ready          bool `json:"ready"`
+			TotalProcesses int  `json:"total_processes"`
+		}
+		if !assert.NoError(c, json.Unmarshal([]byte(strings.TrimSpace(out)), &status), "dd-procmgr status output:\n%s", out) {
+			return
+		}
+		assert.True(c, status.Ready, "dd-procmgrd is not ready:\n%s", out)
+		assert.Equal(c, 0, status.TotalProcesses, "dd-procmgrd should be supervising nothing yet:\n%s", out)
 	}, 60*time.Second, 2*time.Second)
 }
 

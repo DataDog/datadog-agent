@@ -21,7 +21,7 @@ from invoke.tasks import task
 
 from tasks.bazel import bazel_build_with_bindir
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
@@ -188,7 +188,7 @@ def build(
     bundle_ebpf=False,
     strip_binary=False,
     static=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     glibc=True,
 ):
     """
@@ -206,7 +206,7 @@ def build(
         strip_binary=strip_binary,
         arch=arch,
         static=static,
-        fips_mode=fips_mode,
+        fips_backend=fips_backend,
         glibc=glibc,
     )
 
@@ -232,7 +232,7 @@ def build_sysprobe_binary(
     install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     static=False,
     glibc=True,
 ) -> None:
@@ -245,9 +245,7 @@ def build_sysprobe_binary(
         static=static,
     )
 
-    build_tags = get_default_build_tags(
-        build="system-probe", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
-    )
+    build_tags = get_default_build_tags(build="system-probe", flavor=fips_backend.agent_flavor())
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
@@ -286,6 +284,7 @@ def build_sysprobe_binary(
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
+        fips_backend=fips_backend,
     )
 
 

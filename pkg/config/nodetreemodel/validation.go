@@ -15,6 +15,7 @@ import (
 	"unicode/utf8"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 var (
@@ -87,11 +88,50 @@ var (
 	}
 )
 
-// Validate checks the configuration for unexpected unicode and unknown DD_* environment variables. Every resulting
+// Validate checks the configuration for unexpected unicode and unknown DD_* environment variables, and validates it
+// against its schema. When enforceSchema is true, invalid settings are reverted to their default. Every resulting
 // warning is added to the config warnings.
-func (c *ntmConfig) Validate() {
+func (c *ntmConfig) Validate(validator model.SchemaValidator, enforceSchema bool) {
 	c.findUnexpectedUnicode()
 	c.findUnknownEnvVars(os.Environ())
+
+	// the validator reads the config through its public (locking) methods, so it must run before validateSchema
+	// takes the lock
+	violations, err := validator.ValidateConfig(c)
+	if err != nil {
+		log.Errorf("could not validate config against schema: %s", err)
+		return
+	}
+	c.validateSchema(violations, enforceSchema)
+}
+
+// validateSchema adds a warning for every schema violation. When enforceSchema is true, the setting of every violation
+// is reverted to its default and the violation is marked as reverted.
+func (c *ntmConfig) validateSchema(violations []*model.Violation, enforceSchema bool) {
+	c.Lock()
+	defer c.Unlock()
+	for _, violation := range violations {
+		// settings that can't be identified can't be reverted
+		if enforceSchema && violation.SettingKey != "" && c.revertToDefault(violation.SettingKey) {
+			violation.MarkAsReverted()
+		}
+		c.warnings = append(c.warnings, violation.Warning())
+	}
+}
+
+// revertToDefault reverts a setting to its default and returns whether it succeeded. The caller must hold the lock.
+func (c *ntmConfig) revertToDefault(key string) bool {
+	defaultValue := c.leafAtPathFromNode(key, c.defaults).Get()
+	newTree, err := c.insertValueIntoTree(key, defaultValue, model.SourceConfigPostInit)
+	if err != nil {
+		_ = log.ErrorfStackDepth(3, "could not insert value: %s", err)
+		return false
+	}
+	if newTree != nil {
+		// a new node was allocated, merge it into root
+		c.root, _ = c.root.Merge(newTree)
+	}
+	return true
 }
 
 // registerKnownEnvVars registers environment variables bound to a setting, so they are not reported as unknown

@@ -38,8 +38,10 @@ const (
 )
 
 // IsManagedByDatadog reports whether labels identify an AppSec injection resource created by the Datadog Cluster Agent.
+// Resources created before the managed-by label was introduced only carry the component label.
 func IsManagedByDatadog(labels map[string]string) bool {
-	return labels[kubernetes.KubeAppManagedByLabelKey] == ManagedByLabelValue
+	return labels[kubernetes.KubeAppManagedByLabelKey] == ManagedByLabelValue ||
+		labels[kubernetes.KubeAppComponentLabelKey] == "datadog-appsec-injector"
 }
 
 // ProxyType represents the type of proxy supported by the AppSec Injection Proxy feature
