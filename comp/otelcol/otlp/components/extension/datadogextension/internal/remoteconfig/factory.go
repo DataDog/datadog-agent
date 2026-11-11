@@ -58,11 +58,11 @@ func New(set extension.Settings, c *Config, cfg model.Reader) (extension.Extensi
 		if err != nil {
 			return nil, err
 		}
-		client, err := e.newAPIClient(ctx, host, cfg, backendURL)
+		client, closeBackend, err := e.newAPIClient(ctx, host, cfg, backendURL)
 		if err != nil {
 			return nil, err
 		}
-		e.closeBackend = client.CloseIdleConnections
+		e.closeBackend = closeBackend
 		return rcservice.NewService(
 			staticConfig{cfg}, "DDOT Remote Config", endpoint,
 			hostname, func() []string { return nil }, reporter, version.AgentVersion,

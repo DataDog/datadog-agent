@@ -47,18 +47,18 @@ func TestCollectorBackendTrustAndRedirectPolicy(t *testing.T) {
 	e := testExtension(t, &fakeService{})
 	u, err := url.Parse(backend.URL)
 	require.NoError(t, err)
-	client, err := e.newAPIClient(t.Context(), componenttest.NewNopHost(), configmock.New(t), u)
+	client, closeClient, err := e.newAPIClient(t.Context(), componenttest.NewNopHost(), configmock.New(t), u)
 	require.NoError(t, err)
 	_, err = client.FetchOrgData(t.Context())
 	require.Error(t, err, "the backend's private CA must not be trusted implicitly")
-	client.CloseIdleConnections()
+	closeClient()
 
 	ca := filepath.Join(t.TempDir(), "backend-ca.pem")
 	require.NoError(t, os.WriteFile(ca, pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: backend.Certificate().Raw}), 0600))
 	e.config.Backend.TLS.CAFile = ca
-	client, err = e.newAPIClient(t.Context(), componenttest.NewNopHost(), configmock.New(t), u)
+	client, closeClient, err = e.newAPIClient(t.Context(), componenttest.NewNopHost(), configmock.New(t), u)
 	require.NoError(t, err)
-	t.Cleanup(client.CloseIdleConnections)
+	t.Cleanup(closeClient)
 	got, err := client.FetchOrgData(t.Context())
 	require.NoError(t, err)
 	require.True(t, proto.Equal(want, got))
@@ -93,9 +93,9 @@ func TestCollectorBackendReleasesIdleConnection(t *testing.T) {
 	e.config.Backend.TLS.CAFile = ca
 	u, err := url.Parse(backend.URL)
 	require.NoError(t, err)
-	client, err := e.newAPIClient(t.Context(), componenttest.NewNopHost(), configmock.New(t), u)
+	client, closeClient, err := e.newAPIClient(t.Context(), componenttest.NewNopHost(), configmock.New(t), u)
 	require.NoError(t, err)
-	t.Cleanup(client.CloseIdleConnections)
+	t.Cleanup(closeClient)
 	_, err = client.FetchOrgData(t.Context())
 	require.NoError(t, err)
 	ctx, cancel := context.WithTimeout(t.Context(), 5*time.Second)
@@ -111,7 +111,7 @@ func TestCollectorBackendReleasesIdleConnection(t *testing.T) {
 		t.Fatal("connection closed before cleanup was invoked")
 	default:
 	}
-	client.CloseIdleConnections()
+	closeClient()
 	select {
 	case got := <-closed:
 		require.Same(t, connection, got)
