@@ -8,7 +8,6 @@ package clustername
 
 import (
 	"context"
-	"fmt"
 	"net/url"
 	"os"
 	"regexp"
@@ -18,20 +17,18 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/config/helper"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
-	"github.com/DataDog/datadog-agent/pkg/config/setup/constants"
-	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
-	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
 	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/clusterid"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 const (
-	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
+	clusterIDEnv = clusterid.EnvVar
 
 	otelResourceAttributesEnv = "OTEL_RESOURCE_ATTRIBUTES"
 	otelClusterNameAttribute  = "k8s.cluster.name"
@@ -275,40 +272,15 @@ func ResetClusterName() {
 // The Cluster Agent gets it from Kubernetes. Other agents use the
 // DD_ORCHESTRATOR_CLUSTER_ID env variable when it is set, otherwise the Cluster Agent API.
 func GetClusterID() (string, error) {
-	cacheClusterIDKey := cache.BuildAgentKey(constants.ClusterIDCacheKey)
-	if cachedClusterID, found := cache.Cache.Get(cacheClusterIDKey); found {
-		return cachedClusterID.(string), nil
-	}
-
 	// Do not call the Cluster Agent service from a Cluster Agent: a follower can
 	// call itself or another replica that is not ready.
 	if flavor.GetFlavor() == flavor.ClusterAgent {
+		if cachedClusterID, found := clusterid.Cached(); found {
+			return cachedClusterID, nil
+		}
 		return getClusterAgentClusterID()
 	}
-
-	// in older setups the cluster ID was exposed as an env var from a configmap created by the cluster agent
-	clusterID, found := os.LookupEnv(clusterIDEnv)
-	if !found {
-		log.Debugf("Cluster ID env variable %s is missing, calling the Cluster Agent", clusterIDEnv)
-
-		dcaClient, err := clusteragent.GetClusterAgentClient()
-		if err != nil {
-			return "", err
-		}
-		clusterID, err = dcaClient.GetKubernetesClusterID()
-		if err != nil {
-			return "", err
-		}
-		log.Debugf("Cluster ID retrieved from the Cluster Agent, set to %s", clusterID)
-	}
-
-	if len(clusterID) != 36 {
-		err := fmt.Errorf("Unexpected value for Cluster ID: %s, ignoring it", clusterID)
-		return "", err
-	}
-
-	cache.Cache.Set(cacheClusterIDKey, clusterID, cache.NoExpiration)
-	return clusterID, nil
+	return clusterid.Get()
 }
 
 // MakeClusterNameRFC1123Compliant returns the RFC-1123 compliant cluster name.
