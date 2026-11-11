@@ -324,3 +324,9 @@ tests), if you notice a gap or inaccuracy in an `AGENTS.md` or skill file, fix
 it — either in the same PR or as a follow-up. Small, incremental improvements
 are preferred over large rewrites. This creates a feedback loop where every
 session leaves the context more accurate for the next one.
+
+<!-- agent-notes:start -->
+- Before a public, bulk or hard-to-undo action in this repo (a push to a shared branch, a comment, a deploy, a data change), say what you'll do and wait for an OK.
+- Before saying a change in this repo works, run the checks CI runs for the files you changed and quote their result.
+- When a tool fails with a sign-in, auth or key-signing error, stop calling it and ask the user to sign in or unlock; don't retry it or work around it.
+<!-- agent-notes:end -->
