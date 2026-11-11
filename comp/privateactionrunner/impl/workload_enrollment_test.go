@@ -67,6 +67,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 		par.SelfEnroll:            true, par.IdentityFilePath: identityPath,
 	}
 	cfg := coreconfig.NewMockWithOverrides(t, overrides)
+	storage := enrollment.NewIdentityStorage(cfg, nil)
 	hostname, _ := hostnamemock.NewMock("test-host")
 	var signedRequest common.WorkloadTokenRequest
 	tokenCalls := 0
@@ -77,7 +78,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 		signedRequest = request
 		return "workload-token", nil
 	}}
-	runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
+	runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
 	enrolled, err := runner.getRunnerConfig(context.Background())
 	require.NoError(t, err)
 	got := <-received
@@ -98,7 +99,7 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, jwk.KeyID, signedRequest.JWKThumbprint)
 	require.True(t, enrolled.PrivateKey.PublicKey.Equal(publicKey))
-	saved, err := enrollment.GetIdentityFromPreviousEnrollment(context.Background(), cfg)
+	saved, err := storage.Load(context.Background())
 	require.NoError(t, err)
 	require.NotNil(t, saved)
 	require.Equal(t, enrolled.Urn, saved.URN)
@@ -113,7 +114,8 @@ func TestWIFEnrollmentPersistsIdentityAcrossIntakeRotation(t *testing.T) {
 		overrides["api_key"] = "rotated-intake-key"
 		overrides["delegated_auth.org_uuid"] = primaryOrg
 		restartConfig := coreconfig.NewMockWithOverrides(t, overrides)
-		restarted := &PrivateActionRunner{coreConfig: restartConfig, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
+		restartStorage := enrollment.NewIdentityStorage(restartConfig, nil)
+		restarted := &PrivateActionRunner{coreConfig: restartConfig, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: restartStorage}
 		recovered, err := restarted.getRunnerConfig(context.Background())
 		require.NoError(t, err)
 		require.Equal(t, enrolled.Urn, recovered.Urn)
@@ -145,6 +147,7 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 				"delegated_auth.org_uuid": "test-org",
 				par.SelfEnroll:            true, par.IdentityFilePath: identityPath,
 			})
+			storage := enrollment.NewIdentityStorage(cfg, nil)
 			tokenCalls := 0
 			auth := &delegatedauthmock.Mock{GetWorkloadTokenFunc: func(context.Context, string, common.WorkloadTokenRequest) (string, error) {
 				tokenCalls++
@@ -154,7 +157,7 @@ func TestWIFEnrollmentFailuresDoNotFallBackOrPersist(t *testing.T) {
 				return "workload-token", nil
 			}}
 			hostname, _ := hostnamemock.NewMock("test-host")
-			runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
+			runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
 			switch scenario {
 			case "component unavailable":
 				runner.delegatedAuth = nil
@@ -201,11 +204,12 @@ func TestPrimaryWIFDoesNotReplaceExistingAPIKeyRunner(t *testing.T) {
 	// Seed the identity using the same storage used by API-key enrollment.
 	identity := &enrollment.Result{URN: util.MakeRunnerURN("us1", 42, "existing-runner"), Hostname: "test-host", APIKeyHash: enrollment.HashAPIKey("original-key")}
 	identity.PrivateKey = key.Key.(*ecdsa.PrivateKey)
-	require.NoError(t, enrollment.PersistIdentity(context.Background(), cfg, identity))
+	storage := enrollment.NewIdentityStorage(cfg, nil)
+	require.NoError(t, storage.Persist(context.Background(), identity))
 	before, err := os.ReadFile(enrollment.GetIdentityFilePath(cfg))
 	require.NoError(t, err)
 	hostname, _ := hostnamemock.NewMock("test-host")
-	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t)}
+	runner := &PrivateActionRunner{coreConfig: cfg, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
 	reused, err := runner.getRunnerConfig(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, identity.URN, reused.Urn)
@@ -237,12 +241,13 @@ func TestPrimaryWIFKeepsExplicitRunnerIdentity(t *testing.T) {
 		par.URN: urn, par.PrivateKey: base64.RawURLEncoding.EncodeToString(encoded),
 		par.IdentityFilePath: filepath.Join(t.TempDir(), "identity.json"),
 	})
+	storage := enrollment.NewIdentityStorage(cfg, nil)
 	hostname, _ := hostnamemock.NewMock("test-host")
 	auth := &delegatedauthmock.Mock{GetWorkloadTokenFunc: func(context.Context, string, common.WorkloadTokenRequest) (string, error) {
 		t.Fatal("explicit identities do not self-enroll")
 		return "", nil
 	}}
-	runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t)}
+	runner := &PrivateActionRunner{coreConfig: cfg, delegatedAuth: auth, hostnameGetter: hostname, logger: logmock.New(t), identityStorage: storage}
 	resolved, err := runner.getRunnerConfig(context.Background())
 	require.NoError(t, err)
 	require.Equal(t, urn, resolved.Urn)
