@@ -855,7 +855,7 @@ func TestStartPodStoreOnGate(t *testing.T) {
 
 	done := make(chan struct{})
 	go func() {
-		testCollector.startPodStoreOnGate(ctx, wmeta, client, newPodStoreWithTypedClient)
+		testCollector.startPodStoreOnGate(ctx, wmeta, client)
 		close(done)
 	}()
 

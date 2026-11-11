@@ -23,19 +23,17 @@ type podParser struct {
 	annotationsFilter []*regexp.Regexp
 }
 
-// NewPodParser creates and returns a pod parser based on annotations exclusion list
+// NewPodParser creates and returns a pod parser based on annotations exclusion
+// list. When some exclusions aren't valid regexes, it returns an error along
+// with a parser that applies the valid ones.
 func NewPodParser(annotationsExclude []string) (ObjectParser, error) {
-	filters, err := ParseFilters(annotationsExclude)
-	if err != nil {
-		return nil, err
-	}
-
-	return podParser{annotationsFilter: filters}, nil
+	filters, err := parseFilters(annotationsExclude)
+	return podParser{annotationsFilter: filters}, err
 }
 
-// ResizePolicyFromContainerResizePolicy converts a container's resize policy rules to the
+// resizePolicyFromContainerResizePolicy converts a container's resize policy rules to the
 // workloadmeta representation.
-func ResizePolicyFromContainerResizePolicy(rules []corev1.ContainerResizePolicy) workloadmeta.ContainerResizePolicy {
+func resizePolicyFromContainerResizePolicy(rules []corev1.ContainerResizePolicy) workloadmeta.ContainerResizePolicy {
 	policy := workloadmeta.ContainerResizePolicy{}
 	for _, rule := range rules {
 		switch rule.ResourceName {
@@ -48,11 +46,11 @@ func ResizePolicyFromContainerResizePolicy(rules []corev1.ContainerResizePolicy)
 	return policy
 }
 
-// ResizeConditionsFromPodConditions converts the in-place resize conditions
+// resizeConditionsFromPodConditions converts the in-place resize conditions
 // (PodResizePending, PodResizeInProgress) of a pod to the workloadmeta representation.
 // Other conditions are dropped to keep pod entities small in the cluster-agent.
 // Returns nil when the pod has no resize condition.
-func ResizeConditionsFromPodConditions(conditions []corev1.PodCondition) []workloadmeta.KubernetesPodCondition {
+func resizeConditionsFromPodConditions(conditions []corev1.PodCondition) []workloadmeta.KubernetesPodCondition {
 	var result []workloadmeta.KubernetesPodCondition
 	for _, c := range conditions {
 		switch c.Type {
@@ -151,11 +149,11 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		if memoryLimit, found := container.Resources.Limits[corev1.ResourceMemory]; found {
 			c.Resources.MemoryLimit = kubernetes.FormatMemoryRequests(memoryLimit)
 		}
-		c.ResizePolicy = ResizePolicyFromContainerResizePolicy(container.ResizePolicy)
+		c.ResizePolicy = resizePolicyFromContainerResizePolicy(container.ResizePolicy)
 		containersList = append(containersList, c)
 	}
 
-	conditions := ResizeConditionsFromPodConditions(pod.Status.Conditions)
+	conditions := resizeConditionsFromPodConditions(pod.Status.Conditions)
 
 	return &workloadmeta.KubernetesPod{
 		EntityID: workloadmeta.EntityID{
@@ -165,7 +163,7 @@ func (p podParser) Parse(obj interface{}) workloadmeta.Entity {
 		EntityMeta: workloadmeta.EntityMeta{
 			Name:        pod.Name,
 			Namespace:   pod.Namespace,
-			Annotations: FilterMapStringKey(pod.Annotations, p.annotationsFilter),
+			Annotations: filterMapStringKey(pod.Annotations, p.annotationsFilter),
 			Labels:      pod.Labels,
 		},
 		Phase:                      string(pod.Status.Phase),

@@ -4183,8 +4183,9 @@ properties:
     default: false
     visibility: public
     description: |-
-      By default, communication with the apiserver is in json format. Setting the following
-      option to true allows communication in the binary protobuf format.
+      Set to true to make the Agent request the binary protobuf format from the apiserver
+      instead of json. Even when this option is false, the Kubernetes client library requests
+      protobuf, with a fallback to json, for built-in resources such as pods, nodes and deployments.
     tags:
     - template_section:KubeApiServer
   kubernetes_collect_metadata_tags:

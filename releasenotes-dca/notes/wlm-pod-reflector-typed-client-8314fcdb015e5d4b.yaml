@@ -1,0 +1,15 @@
+---
+enhancements:
+  - |
+    Reduced the Cluster Agent CPU usage when it watches pods for tagging or
+    autoscaling. The Cluster Agent now requests these pods from the Kubernetes
+    API server in the protobuf format, which is cheaper to decode than JSON.
+    Before, it requested them in JSON unless
+    ``kubernetes_apiserver_use_protobuf`` was enabled. The gain is largest in
+    clusters with many pods or frequent pod changes.
+fixes:
+  - |
+    Fix the Cluster Agent ignoring every expression of
+    ``cluster_agent.kubernetes_resources_collection.pod_annotations_exclude``
+    when ``kubernetes_apiserver_use_protobuf`` is enabled and one of them is an
+    invalid regular expression. The valid expressions are now applied.
