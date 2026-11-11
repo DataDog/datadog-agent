@@ -489,3 +489,22 @@ func TestKubernetesPodAutoscalerTarget(t *testing.T) {
 		})
 	}
 }
+
+func TestGPUSlicingMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		gpu      GPU
+		expected string
+	}{
+		{"physical", GPU{DeviceType: GPUDeviceTypePhysical}, "none"},
+		{"MIG device", GPU{DeviceType: GPUDeviceTypeMIG, ParentGPUUUID: "gpu-1"}, "mig"},
+		{"MIG parent with children", GPU{DeviceType: GPUDeviceTypePhysical, MIGModeEnabled: true, ChildrenGPUUUIDs: []string{"mig-1"}}, "mig-parent"},
+		{"children only", GPU{DeviceType: GPUDeviceTypePhysical, ChildrenGPUUUIDs: []string{"mig-1"}}, "mig-parent"},
+		{"MIG mode enabled without children", GPU{DeviceType: GPUDeviceTypePhysical, MIGModeEnabled: true}, "mig-parent"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.gpu.SlicingMode())
+		})
+	}
+}

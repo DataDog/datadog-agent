@@ -376,7 +376,7 @@ func slicingModeTag(device ddnvml.Device) string {
 	case *ddnvml.MIGDevice:
 		return "mig"
 	case *ddnvml.PhysicalDevice:
-		if len(device.MIGChildren) > 0 {
+		if device.HasMIGFeatureEnabled || len(device.MIGChildren) > 0 {
 			return "mig-parent"
 		}
 	}
