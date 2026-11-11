@@ -1,7 +1,7 @@
 ---
 fixes:
   - |
-    Agent Health Platform: issue reporting is now fully asynchronous, so a slow
-    cluster-identity lookup or issue persistence can no longer delay Autodiscovery
-    configuration processing. Reports and resolutions are queued and applied by a
-    background worker, and persistence writes are coalesced.
+    Agent Health Platform: the issue store now applies reports and resolutions on a
+    background worker and coalesces persistence writes. A slow cluster-identity lookup
+    or issue persistence no longer blocks callers, and the store no longer
+    re-serializes every issue on each update.
