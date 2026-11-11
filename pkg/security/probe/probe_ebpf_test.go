@@ -596,9 +596,11 @@ func TestApplyPostDispatchProcessUpdates(t *testing.T) {
 			},
 		},
 		{
-			name:   "imds",
+			name:   "imds received response",
 			evType: model.IMDSEventType,
 			setup: func(_ *model.ProcessCacheEntry, e *model.Event) {
+				e.IMDS.Type = model.IMDSResponseType
+				e.NetworkContext.NetworkDirection = uint32(model.Ingress)
 				e.IMDS.AWS.SecurityCredentials.AccessKeyID = accessKeyID
 			},
 			before: func(t *testing.T, pce *model.ProcessCacheEntry) { assert.Empty(t, pce.AWSSecurityCredentials) },
@@ -606,6 +608,17 @@ func TestApplyPostDispatchProcessUpdates(t *testing.T) {
 				require.Len(t, pce.AWSSecurityCredentials, 1)
 				assert.Equal(t, accessKeyID, pce.AWSSecurityCredentials[0].AccessKeyID)
 			},
+		},
+		{
+			name:   "imds sent response",
+			evType: model.IMDSEventType,
+			setup: func(_ *model.ProcessCacheEntry, e *model.Event) {
+				e.IMDS.Type = model.IMDSResponseType
+				e.NetworkContext.NetworkDirection = uint32(model.Egress)
+				e.IMDS.AWS.SecurityCredentials.AccessKeyID = accessKeyID
+			},
+			before: func(t *testing.T, pce *model.ProcessCacheEntry) { assert.Empty(t, pce.AWSSecurityCredentials) },
+			after:  func(t *testing.T, pce *model.ProcessCacheEntry) { assert.Empty(t, pce.AWSSecurityCredentials) },
 		},
 	}
 

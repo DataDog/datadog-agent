@@ -9,15 +9,22 @@
 package tests
 
 import (
+	"bufio"
+	"context"
+	"encoding/json"
 	"fmt"
+	"net"
 	"net/http"
 	"os"
+	"os/exec"
 	"path"
 	"strconv"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -740,6 +747,173 @@ func TestIMDSProcessContext(t *testing.T) {
 			test.validateOpenSchema(t, event)
 		}, "test_imds_process_context")
 	}))
+}
+
+var _ = declare(TestIMDSCredentialAttribution, testOpts{networkIngressEnabled: true})
+
+// TestIMDSCredentialAttribution keeps the broker and both clients in distinct
+// processes. A same-process HTTP fixture cannot detect broker self-attribution.
+func TestIMDSCredentialAttribution(t *testing.T) {
+	SkipIfNotAvailable(t)
+	checkNetworkCompatibility(t)
+	if testEnvironment == DockerEnvironment {
+		t.Skip("socket ownership uses host pids, unlike child process pids in Docker")
+	}
+	if !env.IsContainerized() {
+		if out, err := loadModule("veth"); err != nil {
+			t.Fatalf("couldn't load veth: %s, %v", out, err)
+		}
+	}
+
+	keySeed := uint64(time.Now().UnixNano())
+	keys := []string{
+		fmt.Sprintf("ASIA%016X", keySeed),
+		fmt.Sprintf("ASIA%016X", keySeed+1),
+	}
+	ruleDefs := []*rules.RuleDefinition{
+		{
+			ID:         "test_credential_attribution_response",
+			Expression: fmt.Sprintf(`imds.type == "response" && imds.aws.security_credentials.access_key_id in ["%s", "%s"]`, keys[0], keys[1]),
+		},
+		{
+			ID:         "test_credential_attribution_open",
+			Expression: `open.file.path in ["{{.Root}}/credential-client-0", "{{.Root}}/credential-client-1", "{{.Root}}/credential-broker"] && open.flags & O_CREAT != 0`,
+		},
+	}
+	dummy, err := testutils.CreateDummyInterface(testutils.CSMPodIdentityDummyInterface, testutils.EKSPodIdentityTestServerCIDR)
+	require.NoError(t, err)
+	t.Cleanup(func() { assert.NoError(t, testutils.RemoveDummyInterface(dummy)) })
+	test, err := newTestModule(t, nil, ruleDefs)
+	require.NoError(t, err)
+	t.Cleanup(test.CloseTest)
+
+	// Create sockets after starting the probe so their owners are recorded.
+	listener, err := net.Listen("tcp", net.JoinHostPort(testutils.EKSPodIdentityTestServerIP, "0"))
+	require.NoError(t, err)
+	server := &http.Server{
+		ReadHeaderTimeout: 10 * time.Second,
+		Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			index, err := strconv.Atoi(r.URL.Query().Get("client"))
+			if err != nil || index < 0 || index >= len(keys) {
+				http.Error(w, "unknown client", http.StatusBadRequest)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			if err := json.NewEncoder(w).Encode(map[string]string{
+				"AccessKeyId": keys[index],
+				"Expiration":  testutils.AWSSecurityCredentialsExpirationTestValue,
+			}); err != nil {
+				t.Errorf("failed to write credentials: %v", err)
+			}
+		}),
+	}
+	serverDone := make(chan error, 1)
+	go func() { serverDone <- server.Serve(listener) }()
+	t.Cleanup(func() {
+		assert.NoError(t, testutils.StopIMDSserver(server))
+		assert.ErrorIs(t, <-serverDone, http.ErrServerClosed)
+	})
+	syscallTester, err := loadSyscallTester(t, test, "syscall_go_tester")
+	require.NoError(t, err)
+	brokerPID := uint32(os.Getpid())
+	type clientProcess struct {
+		pid  uint32
+		open func() error
+	}
+	var clients []clientProcess
+	for i, key := range keys {
+		marker, _, err := test.Path(fmt.Sprintf("credential-client-%d", i))
+		require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		t.Cleanup(cancel)
+		cmd := exec.CommandContext(ctx, syscallTester,
+			"-credentials-url", fmt.Sprintf("http://%s%s?client=%d", listener.Addr(), testutils.EKSPodIdentityCredentialsURL, i),
+			"-credentials-open-path", marker)
+		cmd.Stderr = os.Stderr
+		stdin, err := cmd.StdinPipe()
+		require.NoError(t, err)
+		stdout, err := cmd.StdoutPipe()
+		require.NoError(t, err)
+		scanner := bufio.NewScanner(stdout)
+		readLine := func(want string) error {
+			if !scanner.Scan() || scanner.Text() != want {
+				return fmt.Errorf("expected helper output %q, got %q (scan error: %v)", want, scanner.Text(), scanner.Err())
+			}
+			return nil
+		}
+		var clientPID uint32
+		var sent, received bool
+		test.WaitSignals(t, func() error {
+			if err := cmd.Start(); err != nil {
+				cancel()
+				return err
+			}
+			t.Cleanup(func() {
+				_ = stdin.Close()
+				cancel()
+				_ = cmd.Wait()
+			})
+			clientPID = uint32(cmd.Process.Pid)
+			return readLine("ready")
+		}, func(event *model.Event, rule *rules.Rule) error {
+			if rule.ID != "test_credential_attribution_response" || event.IMDS.AWS.SecurityCredentials.AccessKeyID != key {
+				return errSkipEvent
+			}
+			assert.Equal(t, uint32(model.CredentialSourceEKSPodIdentity), event.IMDS.CredentialSource)
+			switch model.NetworkDirection(event.NetworkContext.NetworkDirection) {
+			case model.Egress:
+				assert.Equal(t, brokerPID, event.PIDContext.Pid)
+				sent = true
+			case model.Ingress:
+				assert.Equal(t, clientPID, event.PIDContext.Pid)
+				received = true
+			}
+			test.validateIMDSSchema(t, event)
+			if sent && received {
+				return nil
+			}
+			return errSkipEvent
+		})
+		clients = append(clients, clientProcess{
+			pid: clientPID,
+			open: func() error {
+				if _, err := fmt.Fprintln(stdin, "open"); err != nil {
+					return err
+				}
+				return readLine("opened")
+			},
+		})
+	}
+
+	// Inspect subsequent events only after both responses have been dispatched.
+	// Waiting for cache mutation inside a response callback would deadlock it.
+	for i, client := range clients {
+		test.WaitSignalFromRule(t, client.open, func(event *model.Event, _ *rules.Rule) {
+			assert.Equal(t, client.pid, event.PIDContext.Pid)
+			var receivedKeys []string
+			for _, credentials := range event.ProcessCacheEntry.AWSSecurityCredentials {
+				receivedKeys = append(receivedKeys, credentials.AccessKeyID)
+			}
+			assert.ElementsMatch(t, []string{keys[i]}, receivedKeys)
+			test.validateOpenSchema(t, event)
+		}, "test_credential_attribution_open")
+	}
+
+	marker, _, err := test.Path("credential-broker")
+	require.NoError(t, err)
+	test.WaitSignalFromRule(t, func() error {
+		file, err := os.OpenFile(marker, os.O_CREATE|os.O_WRONLY, 0600)
+		if err != nil {
+			return err
+		}
+		return file.Close()
+	}, func(event *model.Event, _ *rules.Rule) {
+		assert.Equal(t, brokerPID, event.PIDContext.Pid)
+		for _, credentials := range event.ProcessCacheEntry.AWSSecurityCredentials {
+			assert.NotContains(t, keys, credentials.AccessKeyID, "broker must not accumulate served keys")
+		}
+		test.validateOpenSchema(t, event)
+	}, "test_credential_attribution_open")
 }
 
 var _ = declare(TestEKSPodIdentityResponse, testOpts{networkIngressEnabled: true})

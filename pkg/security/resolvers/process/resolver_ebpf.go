@@ -68,9 +68,6 @@ const (
 	otelProcCtxQueueSize     = 10000
 	tryReparentMaxForkDepth  = 3  // max ancestor fork levels to check in TryReparentFromProcfs (execs not counted)
 	tryReparentMaxIterations = 64 // hard cap on total loop iterations in tryReparentFromProcfs to prevent hangs on ancestor cycles or long exec chains
-
-	// eksPodIdentityAgentBinary is the well-known binary name of the EKS Pod Identity Agent
-	eksPodIdentityAgentBinary = "eks-pod-identity-agent"
 )
 
 // EBPFResolver resolved process context
@@ -1765,9 +1762,14 @@ func (p *EBPFResolver) attachOTelAttributeKeys(pid uint32, attributeKeys []strin
 	p.Unlock()
 }
 
-// UpdateAWSSecurityCredentials updates the list of AWS Security Credentials
+// UpdateAWSSecurityCredentials records credentials received by the local requesting process.
 func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) {
-	if len(e.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
+	// An egress response belongs to its sender (potentially a local credential
+	// broker), not to the process receiving the credentials. Unknown recipients
+	// and directions must not enrich a process either.
+	if pid == 0 || e.IMDS.Type != model.IMDSResponseType ||
+		e.NetworkContext.NetworkDirection != uint32(model.Ingress) ||
+		len(e.IMDS.AWS.SecurityCredentials.AccessKeyID) == 0 {
 		return
 	}
 
@@ -1776,11 +1778,6 @@ func (p *EBPFResolver) UpdateAWSSecurityCredentials(pid uint32, e *model.Event) 
 
 	entry := p.entryCache[pid]
 	if entry == nil {
-		return
-	}
-
-	// skip the agent itself: attribute the key to the requester, not the broker
-	if e.IMDS.CredentialSource == uint32(model.CredentialSourceEKSPodIdentity) && path.Base(entry.FileEvent.PathnameStr) == eksPodIdentityAgentBinary {
 		return
 	}
 

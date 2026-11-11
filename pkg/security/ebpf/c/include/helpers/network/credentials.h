@@ -18,13 +18,32 @@ static __always_inline u32 lookup_credential_source(u64 *addr) {
     return *source;
 }
 
-// credential source of a packet's src or dst address
+// credential source of a packet's observed or conntrack-restored src or dst address
 static __always_inline u32 get_credential_source(struct packet_t *pkt) {
     u32 source = lookup_credential_source(pkt->ns_flow.flow.daddr);
     if (source != CREDENTIAL_SOURCE_UNKNOWN) {
         return source;
     }
-    return lookup_credential_source(pkt->ns_flow.flow.saddr);
+    source = lookup_credential_source(pkt->ns_flow.flow.saddr);
+    if (source != CREDENTIAL_SOURCE_UNKNOWN) {
+        return source;
+    }
+
+    // DNAT can hide the credential endpoint at the TC hook. Fall back to the
+    // original addresses restored by conntrack, without repeating lookups for
+    // addresses that were not translated.
+    if (pkt->translated_ns_flow.flow.daddr[0] != pkt->ns_flow.flow.daddr[0] ||
+        pkt->translated_ns_flow.flow.daddr[1] != pkt->ns_flow.flow.daddr[1]) {
+        source = lookup_credential_source(pkt->translated_ns_flow.flow.daddr);
+        if (source != CREDENTIAL_SOURCE_UNKNOWN) {
+            return source;
+        }
+    }
+    if (pkt->translated_ns_flow.flow.saddr[0] != pkt->ns_flow.flow.saddr[0] ||
+        pkt->translated_ns_flow.flow.saddr[1] != pkt->ns_flow.flow.saddr[1]) {
+        return lookup_credential_source(pkt->translated_ns_flow.flow.saddr);
+    }
+    return CREDENTIAL_SOURCE_UNKNOWN;
 }
 
 #endif

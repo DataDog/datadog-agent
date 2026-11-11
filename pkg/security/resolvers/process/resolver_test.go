@@ -1556,6 +1556,8 @@ func TestAWSSecurityCredentialsScopedToProcess(t *testing.T) {
 	assert.Equal(t, parent.ProcessCacheEntry, child.ProcessCacheEntry.Ancestor)
 
 	// the child receives credentials from an IMDS v2 response
+	child.IMDS.Type = model.IMDSResponseType
+	child.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	child.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		Code:        "Success",
 		Type:        "AWS-HMAC",
@@ -1577,9 +1579,9 @@ func TestAWSSecurityCredentialsScopedToProcess(t *testing.T) {
 	assert.Empty(t, parentCreds, "ancestors must not report the requesting process's credentials")
 }
 
-// TestAWSSecurityCredentialsSkipsPodIdentityAgent ensures the EKS Pod Identity
-// Agent's own process never gets attributed the credentials it serves.
-func TestAWSSecurityCredentialsSkipsPodIdentityAgent(t *testing.T) {
+// TestAWSSecurityCredentialsSkipsPodIdentityBroker ensures the EKS Pod Identity
+// Agent's own process never gets attributed the credentials it sends.
+func TestAWSSecurityCredentialsSkipsPodIdentityBroker(t *testing.T) {
 	resolver, err := newResolver()
 	if err != nil {
 		t.Fatal(err)
@@ -1590,6 +1592,8 @@ func TestAWSSecurityCredentialsSkipsPodIdentityAgent(t *testing.T) {
 	resolver.AddForkEntry(agent, model.CGroupContext{}, nil)
 
 	agent.IMDS.CredentialSource = uint32(model.CredentialSourceEKSPodIdentity)
+	agent.IMDS.Type = model.IMDSResponseType
+	agent.NetworkContext.NetworkDirection = uint32(model.Egress)
 	agent.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
 		Expiration:  time.Now().Add(time.Hour),
@@ -1613,6 +1617,8 @@ func TestAWSSecurityCredentialsPodIdentityRequester(t *testing.T) {
 	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
 
 	proc.IMDS.CredentialSource = uint32(model.CredentialSourceEKSPodIdentity)
+	proc.IMDS.Type = model.IMDSResponseType
+	proc.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		AccessKeyID: "AKIAIOSFODNN7EXAMPLE",
 		Expiration:  time.Now().Add(time.Hour),
@@ -1634,6 +1640,8 @@ func TestAWSSecurityCredentialsExpiration(t *testing.T) {
 	proc := newFakeForkEvent(0, 3, 123, resolver)
 	resolver.AddForkEntry(proc, model.CGroupContext{}, nil)
 
+	proc.IMDS.Type = model.IMDSResponseType
+	proc.NetworkContext.NetworkDirection = uint32(model.Ingress)
 	proc.IMDS.AWS.SecurityCredentials = model.AWSSecurityCredentials{
 		Code:        "Success",
 		Type:        "AWS-HMAC",
@@ -1644,6 +1652,88 @@ func TestAWSSecurityCredentialsExpiration(t *testing.T) {
 
 	creds := resolver.FetchAWSSecurityCredentials(proc, &proc.ProcessCacheEntry.Process)
 	assert.Empty(t, creds, "expired credentials should be pruned on fetch")
+}
+
+func TestAWSSecurityCredentialsAttribution(t *testing.T) {
+	sources := []struct {
+		name   string
+		source uint32
+	}{
+		{"imds", uint32(model.CredentialSourceIMDS)},
+		{"eks", uint32(model.CredentialSourceEKSPodIdentity)},
+		{"ecs", uint32(model.CredentialSourceECS)},
+	}
+	tests := []struct {
+		name      string
+		filename  string
+		eventType string
+		direction model.NetworkDirection
+		pid       uint32
+		emptyKey  bool
+		want      bool
+	}{
+		{name: "requester", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "requester named agent", filename: "agent", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "requester named eks agent", filename: "eks-pod-identity-agent", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, want: true},
+		{name: "broker", filename: "agent", eventType: model.IMDSResponseType, direction: model.Egress, pid: 3},
+		{name: "unknown direction", filename: "my-app", eventType: model.IMDSResponseType, pid: 3},
+		{name: "request", filename: "my-app", eventType: model.IMDSRequestType, direction: model.Ingress, pid: 3},
+		{name: "unknown recipient", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress},
+		{name: "uncached recipient", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 4},
+		{name: "empty key", filename: "my-app", eventType: model.IMDSResponseType, direction: model.Ingress, pid: 3, emptyKey: true},
+	}
+	for _, source := range sources {
+		for _, tc := range tests {
+			t.Run(source.name+"/"+tc.name, func(t *testing.T) {
+				resolver, err := newResolver()
+				require.NoError(t, err)
+				proc := newFakeForkEvent(0, 3, 123, resolver)
+				proc.ProcessCacheEntry.FileEvent.SetPathnameStr("/usr/bin/" + tc.filename)
+				require.NoError(t, resolver.AddForkEntry(proc, model.CGroupContext{}, nil))
+				proc.IMDS.CredentialSource = source.source
+				proc.IMDS.Type = tc.eventType
+				proc.NetworkContext.NetworkDirection = uint32(tc.direction)
+				if !tc.emptyKey {
+					proc.IMDS.AWS.SecurityCredentials.AccessKeyID = "ASIAIOSFODNN7EXAMPLE"
+				}
+				// Repeated observations must not duplicate a received key.
+				resolver.UpdateAWSSecurityCredentials(tc.pid, proc)
+				resolver.UpdateAWSSecurityCredentials(tc.pid, proc)
+				if tc.want {
+					require.Len(t, proc.ProcessCacheEntry.AWSSecurityCredentials, 1)
+					assert.Equal(t, proc.IMDS.AWS.SecurityCredentials.AccessKeyID, proc.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID)
+				} else {
+					assert.Empty(t, proc.ProcessCacheEntry.AWSSecurityCredentials)
+				}
+			})
+		}
+	}
+}
+
+func TestAWSSecurityCredentialsBrokerAndRequesters(t *testing.T) {
+	resolver, err := newResolver()
+	require.NoError(t, err)
+	broker := newFakeForkEvent(0, 3, 123, resolver)
+	first := newFakeForkEvent(0, 4, 124, resolver)
+	second := newFakeForkEvent(0, 5, 125, resolver)
+	for _, proc := range []*model.Event{broker, first, second} {
+		require.NoError(t, resolver.AddForkEntry(proc, model.CGroupContext{}, nil))
+		proc.IMDS.Type = model.IMDSResponseType
+		proc.IMDS.CredentialSource = uint32(model.CredentialSourceECS)
+	}
+	broker.NetworkContext.NetworkDirection = uint32(model.Egress)
+	for i, requester := range []*model.Event{first, second} {
+		key := fmt.Sprintf("ASIAREQUESTER%07d", i)
+		broker.IMDS.AWS.SecurityCredentials.AccessKeyID = key
+		resolver.UpdateAWSSecurityCredentials(broker.PIDContext.Pid, broker)
+		requester.IMDS.AWS.SecurityCredentials.AccessKeyID = key
+		requester.NetworkContext.NetworkDirection = uint32(model.Ingress)
+		resolver.UpdateAWSSecurityCredentials(requester.PIDContext.Pid, requester)
+	}
+	assert.Empty(t, broker.ProcessCacheEntry.AWSSecurityCredentials)
+	require.Len(t, first.ProcessCacheEntry.AWSSecurityCredentials, 1)
+	require.Len(t, second.ProcessCacheEntry.AWSSecurityCredentials, 1)
+	assert.NotEqual(t, first.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID, second.ProcessCacheEntry.AWSSecurityCredentials[0].AccessKeyID)
 }
 
 func TestUpdateProcessContextsReplacesPair(t *testing.T) {
