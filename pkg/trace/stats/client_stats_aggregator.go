@@ -306,6 +306,7 @@ func (a *ClientStatsAggregator) callerKubeNamespace(p *pb.ClientStatsPayload, cT
 	if ns := KubeNamespaceFromTags(cTags); ns != "" {
 		return ns
 	}
+	// fall back to the container tags sent with the payload, e.g. when the tagger does not know the container yet
 	return KubeNamespaceFromTags(p.Tags)
 }
 

@@ -142,6 +142,10 @@ func TestPeerK8sScopeAppendTags(t *testing.T) {
 			{in: []string{"peer.hostname:api.example.org", "out.host:orders.shop"}},
 			{in: []string{"out.host:orders.shop", "dns.hostname:api.example.org"}, namespace: "shop"},
 			{in: []string{"peer.hostname:orders.shop", "out.host:other.ns"}, namespace: "shop"},
+			// empty values are skipped, like the backend does
+			{in: []string{"peer.hostname:", "out.host:svc"}, namespace: "caller"},
+			{in: []string{"peer.hostname:", "out.host:orders.shop"}, namespace: "shop"},
+			{in: []string{"peer.hostname:"}},
 		} {
 			out := scope.appendTagsCopy(tc.in)
 			if tc.namespace == "" {
@@ -193,6 +197,15 @@ func TestPeerK8sScopeNeedsCallerNamespace(t *testing.T) {
 	assert.False(t, scope.needsCallerNamespace([]string{"out.host:orders.shop"}))
 	assert.False(t, scope.needsCallerNamespace([]string{"server.address:api.example.org", "out.host:orders"}))
 	assert.False(t, scope.needsCallerNamespace([]string{"peer.hostname:"}))
+	assert.True(t, scope.needsCallerNamespace([]string{"peer.hostname:", "out.host:svc"}))
+	assert.True(t, scope.needsCallerNamespace([]string{"peer.hostname:ORDERS"}))
+	assert.False(t, scope.needsCallerNamespace([]string{"peer.hostname:localhost"}))
+	assert.False(t, scope.needsCallerNamespace([]string{"peer.hostname:blocked-ip-address"}))
+	assert.False(t, scope.needsCallerNamespace([]string{"peer.hostname:blocked-ip-address:5432"}))
+	assert.False(t, scope.needsCallerNamespace([]string{"peer.hostname:orders_v2"}))
+	assert.False(t, scope.needsCallerNamespace([]string{"peer.hostname:::1"}))
+	assert.False(t, scope.needsCallerNamespace([]string{"peer.hostname:xds://orders"}))
+	assert.False(t, scope.needsCallerNamespace([]string{"peer.hostname:orders."}))
 	assert.False(t, scope.needsCallerNamespace([]string{"peer.service:orders"}))
 	assert.False(t, scope.needsCallerNamespace(nil))
 }

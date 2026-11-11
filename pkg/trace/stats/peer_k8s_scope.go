@@ -79,11 +79,12 @@ func peerHostnamePrefixes() []string {
 	return prefixes
 }
 
-// peerHostname returns the value of the highest precedence peer.hostname source in peerTags.
+// peerHostname returns the first non-empty value of the peer.hostname sources in
+// peerTags, by precedence, like the backend.
 func peerHostname(peerTags, prefixes []string) (string, bool) {
 	for _, p := range prefixes {
 		for _, t := range peerTags {
-			if v, ok := strings.CutPrefix(t, p); ok {
+			if v, ok := strings.CutPrefix(t, p); ok && v != "" {
 				return v, true
 			}
 		}
@@ -140,8 +141,13 @@ func (s peerK8sScope) appendTagsCopy(peerTags []string) []string {
 // name, which resolves in the caller's namespace.
 func (s peerK8sScope) needsCallerNamespace(peerTags []string) bool {
 	host, ok := peerHostname(peerTags, s.hostnamePrefixes)
-	host = stripPort(host)
-	return ok && host != "" && !strings.Contains(host, ".")
+	return ok && isBareServiceName(strings.ToLower(stripPort(host)))
+}
+
+// isBareServiceName reports whether the lowercase, port-less host is a service
+// name without namespace, which resolves in the caller's namespace.
+func isBareServiceName(host string) bool {
+	return host != "localhost" && !strings.Contains(host, blockedIPAddress) && isDNS1123Label(host)
 }
 
 // peerK8sNamespace returns the Kubernetes namespace that host resolves to
@@ -178,7 +184,7 @@ func peerK8sNamespace(host, callerNamespace string) (string, bool) {
 	// shapes below never match them.
 	switch strings.Count(host, ".") {
 	case 0:
-		if host == "localhost" || !isDNS1123Label(host) || !isDNS1123Label(callerNamespace) {
+		if !isBareServiceName(host) || !isDNS1123Label(callerNamespace) {
 			return "", false
 		}
 		return callerNamespace, true

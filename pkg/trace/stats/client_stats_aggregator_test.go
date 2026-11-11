@@ -1419,6 +1419,16 @@ func TestAggregationPeerK8sScope(t *testing.T) {
 			expected: []string{"out.host:orders.shop", "server.address:api.example.org"},
 		},
 		{
+			name:     "empty peer.hostname",
+			peerTags: []string{"peer.hostname:", "out.host:svc"},
+			expected: []string{"out.host:svc", "peer.hostname:", uidTag, "peer.k8s.namespace:tagger-ns"},
+		},
+		{
+			name:     "localhost does not resolve the caller namespace",
+			peerTags: []string{"peer.hostname:localhost"},
+			expected: []string{"peer.hostname:localhost"},
+		},
+		{
 			name:     "scheme",
 			peerTags: []string{"grpc.host:dns:///orders.shop"},
 			expected: []string{"grpc.host:dns:///orders.shop"},
