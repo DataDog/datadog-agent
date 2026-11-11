@@ -23,6 +23,8 @@ type datadogExtension struct {
 	rc              extension.Extension
 	metadataStarted bool
 	rcStarted       bool
+	di              *diSender
+	startDI         func(context.Context, component.Host) error
 }
 
 var (
@@ -36,6 +38,15 @@ func (e *datadogExtension) Start(ctx context.Context, host component.Host) error
 		return err
 	}
 	e.metadataStarted = true
+	if e.startDI != nil {
+		if err := e.startDI(ctx, host); err != nil {
+			e.metadataStarted = false
+			return errors.Join(err, e.metadata.Shutdown(ctx))
+		}
+	}
+	if e.rc == nil {
+		return nil
+	}
 	if err := e.rc.Start(ctx, host); err != nil {
 		e.metadataStarted = false
 		return errors.Join(err, e.metadata.Shutdown(ctx))

@@ -430,7 +430,11 @@ func (f *factory) createLogsExporter(
 			Enabled:  orchestratorEnabled,
 		},
 	}
-	return lf.CreateLogs(ctx, set, lc)
+	logs, err := lf.CreateLogs(ctx, set, lc)
+	if err != nil {
+		return nil, err
+	}
+	return &diRoutingExporter{Logs: logs}, nil
 }
 
 const (

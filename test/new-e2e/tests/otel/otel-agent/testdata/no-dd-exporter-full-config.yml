@@ -75,6 +75,8 @@ extensions:
       key: "[REDACTED]"
       site: datadoghq.com
     deployment_type: daemonset
+    dynamic_instrumentation:
+      enabled: false
     force_attempt_http2: true
     gateway_destination: ""
     gateway_service: ""

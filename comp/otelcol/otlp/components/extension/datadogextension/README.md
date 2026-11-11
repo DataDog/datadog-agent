@@ -56,3 +56,36 @@ Use an existing Collector configuration with the extension block above and a wri
 
 - Preserve backend-controlled polling when no refresh interval is configured.
 - Complete deployment, larger-scale and credential-rotation qualification.
+
+## Experimental DI events
+
+This draft also prototypes DI output over standard OTLP. SDK probe definitions
+continue through RC; metric probes and dynamic spans use the normal metrics and
+traces pipelines. Snapshots, probe messages, diagnostics and symbols use named
+OTel events carried over OTLP Logs.
+
+Enable `dynamic_instrumentation.enabled: true` in the extension and route the
+OTLP logs pipeline through this branch's `datadog` exporter. The flag defaults
+to false. The exporter separates DI events before ordinary log mapping and
+calls the extension, which owns credentials and sends to debugger intake.
+Ordinary application logs may arrive through `file_log` in the same pipeline.
+Do not fan the DI pipeline out to an ordinary logs or debug exporter.
+
+The POC scope is `com.datadoghq.dynamic_instrumentation`; event names are
+`dd.debugger.snapshot`, `dd.debugger.log`, `dd.debugger.diagnostic` and
+`dd.debugger.symbols`. Each carries integer `datadog.di.schema_version: 1`, a
+lossless JSON string in `datadog.di.payload`, and `datadog.di.tags`. The extension
+reconstructs the existing intake payloads, including diagnostic multipart and
+compressed symbol attachments. Unknown DI names/versions and disabled delivery
+return errors without falling back to ordinary log indexing.
+
+The live POC delivered a real RC probe and captured output. A capture also
+appeared through the Logs search API; that visibility is acceptable for this
+POC and does not require a debugger-only storage or query path. Symbol UI
+discovery and an end-to-end run with a source-built SDK remain to be qualified.
+
+The initial scope is single-process HTTP/protobuf with Python. Backpressure,
+partial-batch retries, batching performance, resource limits, endpoint/platform
+qualification and full product onboarding remain follow-ups. Retrying a mixed
+batch can duplicate records already accepted by one destination. The adapter
+does not own a persistent retry queue.

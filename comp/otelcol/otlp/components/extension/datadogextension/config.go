@@ -16,10 +16,16 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/extension/datadogextension/internal/remoteconfig"
 )
 
-// Config keeps the upstream configuration and adds an opt-in RC capability.
+// Config keeps the upstream configuration and adds opt-in RC and DI capabilities.
 type Config struct {
-	Datadog      upstream.Config      `mapstructure:",squash"`
-	RemoteConfig *remoteconfig.Config `mapstructure:"remote_config"`
+	Datadog                upstream.Config      `mapstructure:",squash"`
+	RemoteConfig           *remoteconfig.Config `mapstructure:"remote_config"`
+	DynamicInstrumentation DIConfig             `mapstructure:"dynamic_instrumentation"`
+}
+
+// DIConfig opts into routing named OTLP events to debugger intake.
+type DIConfig struct {
+	Enabled bool `mapstructure:"enabled"`
 }
 
 // Unmarshal rejects an independent RC credential source before decoding settings.
@@ -40,6 +46,11 @@ func (c *Config) rcConfig() *remoteconfig.Config {
 func (c *Config) Validate() error {
 	if err := c.Datadog.Validate(); err != nil {
 		return err
+	}
+	if c.DynamicInstrumentation.Enabled {
+		if err := validateDIConfig(c); err != nil {
+			return err
+		}
 	}
 	if c.RemoteConfig == nil || !c.RemoteConfig.Enabled {
 		return nil
