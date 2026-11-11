@@ -35,6 +35,8 @@ var peerTagConcepts = []semantics.Concept{
 	semantics.ConceptPeerAWSRegion,
 	semantics.ConceptPeerGCPProjectID,
 	semantics.ConceptPeerKafkaClusterID,
+	semantics.ConceptPeerGCPPubSubTopicName,
+	semantics.ConceptPeerGCPPubSubSubscriptionName,
 }
 
 // PeerTagsCache is a snapshot of the peer-tag attribute key set together with

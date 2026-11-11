@@ -1670,3 +1670,39 @@ func TestLangInStatsV1(t *testing.T) {
 	// This assertion fails: stats.Stats[0].Lang will be "" instead of "python".
 	assert.Equal(t, "python", stats.Stats[0].Lang)
 }
+
+// TestPubSubIdentityPeerTags checks that Agent-computed stats keep the Pub/Sub topic and
+// subscription identities of each observation, as separate groups, including cross-project pairs.
+func TestPubSubIdentityPeerTags(t *testing.T) {
+	now := time.Now()
+	const (
+		topic        = "projects/commerce/topics/orders"
+		subscription = "projects/analytics/subscriptions/warehouse-orders"
+	)
+	conf := &config.AgentConfig{BucketInterval: time.Duration(testBucketInterval), PeerTagsAggregation: true}
+	c := NewTestConcentratorWithCfg(now, conf)
+	span := func(id uint64, kind string, meta map[string]string) *pb.Span {
+		meta["span.kind"] = kind
+		return &pb.Span{SpanID: id, Service: "svc", Name: "pubsub.request", Resource: "r", Duration: 100, Meta: meta, Metrics: map[string]float64{"_dd.measured": 1}}
+	}
+	spans := []*pb.Span{
+		span(1, "producer", map[string]string{"gcp.pubsub.topic.name": topic}),
+		span(2, "consumer", map[string]string{"gcp.pubsub.subscription.name": subscription, "messaging.destination.name": "warehouse-orders", "pubsub.topic": "orders"}),
+		span(3, "consumer", map[string]string{"gcp.pubsub.subscription.name": subscription, "gcp.pubsub.topic.name": topic}),
+	}
+	for _, sp := range spans {
+		c.addNow(toProcessedTrace([]*pb.Span{sp}, "none", "", "", "", "", ""), infraTags{})
+	}
+	stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+	require.Len(t, stats.Stats, 1)
+	var got [][]string
+	for _, g := range stats.Stats[0].Stats[0].Stats {
+		got = append(got, g.PeerTags)
+	}
+	assert.ElementsMatch(t, [][]string{
+		{"gcp.pubsub.topic.name:" + topic},
+		// the existing destination peer tag is kept as is; pubsub.topic is not a peer tag
+		{"gcp.pubsub.subscription.name:" + subscription, "messaging.destination.name:warehouse-orders"},
+		{"gcp.pubsub.subscription.name:" + subscription, "gcp.pubsub.topic.name:" + topic},
+	}, got)
+}

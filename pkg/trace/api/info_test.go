@@ -464,6 +464,26 @@ func TestInfoHandler_OPMAbsent(t *testing.T) {
 	assert.Nil(t, obfuscation["tag_replace_rules"])
 }
 
+func TestInfoHandlerPeerTags(t *testing.T) {
+	conf := config.New()
+	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}
+	rcv := newTestReceiverFromConfig(conf)
+
+	_, h := rcv.makeInfoHandler()
+	rec := httptest.NewRecorder()
+	h.ServeHTTP(rec, httptest.NewRequest("GET", "/info", nil))
+
+	var m struct {
+		PeerTags []string `json:"peer_tags"`
+	}
+	require.NoError(t, json.NewDecoder(rec.Body).Decode(&m))
+	// tracers that compute stats copy these span attributes into their stats peer tags
+	for _, key := range []string{"gcp.pubsub.topic.name", "gcp.pubsub.subscription.name", "aws.function.arn", "aws.table.arn"} {
+		assert.Contains(t, m.PeerTags, key)
+	}
+	assert.NotContains(t, m.PeerTags, "pubsub.topic")
+}
+
 func TestInfoHandler_OPMPresent(t *testing.T) {
 	conf := config.New()
 	conf.Endpoints = []*config.Endpoint{{Host: "http://localhost:8126", APIKey: "test"}}

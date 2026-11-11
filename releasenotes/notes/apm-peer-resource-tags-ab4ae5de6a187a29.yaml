@@ -8,11 +8,16 @@
 ---
 enhancements:
   - |
-    APM: Add five peer tags for stats aggregation that identify the resource a service calls.
+    APM: Add seven peer tags for stats aggregation that identify the resource a service calls.
     ``peer.aws.arn`` takes the resource ARN from the request (``aws.sns.topic_arn``, ``aws.topic.arn``,
-    ``aws.stream.arn``, ``aws.state_machine.arn``, and the OpenTelemetry attributes ``aws.sns.topic.arn`` and
-    ``aws.step_functions.state_machine.arn``). ``peer.aws.sqs.queue.url`` takes the SQS queue URL
-    (``aws.queue.url`` and the OpenTelemetry attribute ``aws.sqs.queue.url``). ``peer.aws.region`` takes
-    ``aws.region``, ``peer.gcp.project_id`` takes ``gcloud.project_id``, and ``peer.kafka.cluster.id`` takes
-    ``messaging.kafka.cluster_id``, ``kafka.cluster_id`` and ``messaging.kafka.cluster.id``. Resource names
-    repeat across accounts, regions, projects and clusters, so these tags tell same-named resources apart.
+    ``aws.stream.arn``, ``aws.state_machine.arn``, ``aws.function.arn``, ``aws.table.arn``, and the
+    OpenTelemetry attributes ``aws.sns.topic.arn`` and ``aws.step_functions.state_machine.arn``).
+    ``peer.aws.sqs.queue.url`` takes the SQS queue URL (``aws.queue.url`` and the OpenTelemetry attribute
+    ``aws.sqs.queue.url``). ``peer.aws.region`` takes ``aws.region``, ``peer.gcp.project_id`` takes
+    ``gcloud.project_id``, and ``peer.kafka.cluster.id`` takes ``messaging.kafka.cluster_id``,
+    ``kafka.cluster_id`` and ``messaging.kafka.cluster.id``. ``peer.gcp.pubsub.topic.name`` and
+    ``peer.gcp.pubsub.subscription.name`` take the full Pub/Sub topic and subscription paths from
+    ``gcp.pubsub.topic.name`` and ``gcp.pubsub.subscription.name``. Resource names repeat across accounts,
+    regions, projects and clusters, so these tags tell same-named resources apart. The new source
+    attributes are also listed in the ``peer_tags`` of the ``/info`` endpoint, so tracers that compute
+    stats keep them too.
