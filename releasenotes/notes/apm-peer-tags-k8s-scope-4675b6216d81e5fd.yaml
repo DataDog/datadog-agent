@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: When it runs in Kubernetes, the trace-agent adds the ``peer.k8s.cluster.uid`` and
+    ``peer.k8s.namespace`` peer tags to trace stats of calls whose ``peer.hostname`` is a
+    cluster-local service name (``<service>``, ``<service>.<namespace>``, ``<service>.<namespace>.svc``
+    or ``<service>.<namespace>.svc.cluster.local``). This applies to stats computed by the Agent and
+    by tracers. The namespace of a bare ``<service>`` name is the namespace of the calling
+    container. The cluster UID comes from ``DD_ORCHESTRATOR_CLUSTER_ID`` or the Cluster Agent;
+    until it is known, no tags are added. To opt out, set ``apm_config.peer_tags_k8s_scope.enabled``
+    (``DD_APM_PEER_TAGS_K8S_SCOPE_ENABLED``) to ``false``. Disabling ``apm_config.peer_tags_aggregation``
+    also disables these tags.

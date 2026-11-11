@@ -2278,6 +2278,44 @@ func TestSetMaxMemCPU(t *testing.T) {
 	})
 }
 
+func TestPeerTagsK8sScope(t *testing.T) {
+	t.Run("default outside Kubernetes", func(t *testing.T) {
+		env.SetFeatures(t)
+		cfg := buildConfigComponent(t, true).Object()
+		assert.True(t, cfg.PeerTagsK8sScope)
+		assert.Nil(t, cfg.KubeClusterUID)
+	})
+	t.Run("default in Kubernetes", func(t *testing.T) {
+		env.SetFeatures(t, env.Kubernetes)
+		cfg := buildConfigComponent(t, true).Object()
+		assert.True(t, cfg.PeerTagsK8sScope)
+		assert.NotNil(t, cfg.KubeClusterUID)
+	})
+	t.Run("disabled", func(t *testing.T) {
+		env.SetFeatures(t, env.Kubernetes)
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"apm_config.peer_tags_k8s_scope.enabled": false,
+		}).Object()
+		assert.False(t, cfg.PeerTagsK8sScope)
+		assert.Nil(t, cfg.KubeClusterUID)
+	})
+	t.Run("DD_APM_PEER_TAGS_K8S_SCOPE_ENABLED", func(t *testing.T) {
+		env.SetFeatures(t, env.Kubernetes)
+		t.Setenv("DD_APM_PEER_TAGS_K8S_SCOPE_ENABLED", "false")
+		cfg := buildConfigComponent(t, true).Object()
+		assert.False(t, cfg.PeerTagsK8sScope)
+		assert.Nil(t, cfg.KubeClusterUID)
+	})
+	t.Run("peer tags aggregation disabled", func(t *testing.T) {
+		env.SetFeatures(t, env.Kubernetes)
+		cfg := buildConfigComponentFromOverrides(t, true, map[string]interface{}{
+			"apm_config.peer_tags_aggregation": false,
+		}).Object()
+		assert.True(t, cfg.PeerTagsK8sScope)
+		assert.Nil(t, cfg.KubeClusterUID)
+	})
+}
+
 func TestPeerTagsAggregation(t *testing.T) {
 
 	t.Run("default-enabled", func(t *testing.T) {
