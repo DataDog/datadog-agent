@@ -31,12 +31,7 @@ provides are not validated. With GPU_TEST_SYSTEM_PROBE_BIN set to a system-probe
 TestSpecMIG start it with the GPU module and its eBPF probes, as it runs in production, point the
 check at it, and also validate the metrics that need it. That needs root, and the eBPF objects
 installed root-owned in /opt/datadog-agent/embedded/share/system-probe/ebpf (or in the directory
-named by GPU_TEST_SYSTEM_PROBE_BPF_DIR). `dda inv system-probe.build` builds both:
-
-	dda inv system-probe.build
-	bazel build //pkg/collector/corechecks/gpu/integrationtests:integrationtests_test_nvml
-	sudo env GPU_TEST_SYSTEM_PROBE_BIN=$PWD/bin/system-probe/system-probe GPU_BURNER_BIN=... \
-		bazel-bin/pkg/collector/corechecks/gpu/integrationtests/integrationtests_test_nvml_/integrationtests_test_nvml -test.run '^TestSpec'
+named by GPU_TEST_SYSTEM_PROBE_BPF_DIR). `dda inv system-probe.build` builds both.
 
 When a test fails, the system-probe output and logs are kept in a gpu-spec-system-probe-* directory
 under /tmp, and the test log names it.
