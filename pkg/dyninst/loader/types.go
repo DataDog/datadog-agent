@@ -167,6 +167,8 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return C.SM_OP_EMIT_FILTER_MAP_ELEMENT
 	case compiler.OpcodeFilterMapAdvance:
 		return C.SM_OP_FILTER_MAP_ADVANCE
+	case compiler.OpcodeConditionEnter:
+		return C.SM_OP_CONDITION_ENTER
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

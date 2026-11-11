@@ -106,7 +106,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "contains(xs, 42)",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },
@@ -164,7 +170,13 @@
           "location": {
             "method": "main.anyAllIntSlice"
           }
-        }
+        },
+        "evaluationErrors": [
+          {
+            "expr": "contains(xs, 42)",
+            "message": "error evaluating condition"
+          }
+        ]
       },
       "type": "snapshot"
     },

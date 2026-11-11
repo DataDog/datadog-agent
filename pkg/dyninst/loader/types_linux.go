@@ -198,6 +198,8 @@ func opcodeByte(opcode compiler.Opcode) uint8 {
 		return 0x42
 	case compiler.OpcodeFilterMapAdvance:
 		return 0x43
+	case compiler.OpcodeConditionEnter:
+		return 0x44
 	default:
 		panic(fmt.Sprintf("unknown opcode: %s", opcode))
 	}

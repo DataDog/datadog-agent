@@ -408,6 +408,12 @@ func makeInstruction(functionID FunctionID, op Op) codeFragment {
 			bytes:  []byte{},
 		}
 
+	case ConditionEnterOp:
+		return staticInstruction{
+			opcode: OpcodeConditionEnter,
+			bytes:  []byte{},
+		}
+
 	case ExprAdvanceOffsetOp:
 		return staticInstruction{
 			opcode: OpcodeExprAdvanceOffset,
