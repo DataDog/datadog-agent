@@ -16,7 +16,7 @@ msgo.from_file(
     go_work = "//:go.work",
     msgo_revision = 1,
 )
-use_repo(msgo, "msgo", "msgo_toolchains")
+use_repo(msgo, "msgo_toolchains")
 
 inject_repo(
     msgo,
