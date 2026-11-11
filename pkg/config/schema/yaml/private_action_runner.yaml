@@ -32,7 +32,7 @@ properties:
     visibility: public
     description: |-
       Automatically enroll the Private Action Runner on startup.
-      For node Agents, primary intake WIF configured through delegated_auth.org_uuid
+      Primary intake WIF configured through delegated_auth.org_uuid
       selects workload-token enrollment using the mapping's PAR enrollment permission.
       A saved node identity is replaced when its WIF organization or site differs
       or is missing. The replacement gets a new runner ID and private key.
