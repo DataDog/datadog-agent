@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -284,6 +285,11 @@ func buildComponent(t *testing.T) (Provides, *compdef.TestLifecycle, config.Comp
 }
 
 func buildComponentWithConfig(t *testing.T, config configmodel.Config) (Provides, *compdef.TestLifecycle, telemetry.Component, ipc.Component) {
+	// Take the baseline scrape of new remote agents quickly.
+	previousDelay := telemetryBaselineInitialDelay
+	telemetryBaselineInitialDelay = 10 * time.Millisecond
+	t.Cleanup(func() { telemetryBaselineInitialDelay = previousDelay })
+
 	lc := compdef.NewTestLifecycle(t)
 	telemetry := telemetryimpl.NewMock(t)
 	ipc := ipcmock.New(t)
@@ -507,9 +513,35 @@ func buildRemoteAgentOnListener(t *testing.T, ipcComp ipc.Component, listener ne
 
 func buildAndRegisterRemoteAgent(t *testing.T, ipcComp ipc.Component, registryComp remoteagent.Component, agentFlavor string, agentName string, agentPID string, mockProviders ...mockProvider) *testRemoteAgentServer {
 	testServer := buildRemoteAgent(t, ipcComp, agentFlavor, agentName, agentPID, mockProviders...)
+
+	// The registry takes the first telemetry scrape of a process as its baseline, so what the process reported
+	// before is not counted. Most tests want the telemetry they configured to count in full, which is what happens
+	// to series that show up after the baseline: register with empty telemetry and serve the real one afterwards.
+	telemetryText := testServer.promText
+	hasTelemetry := slices.Contains(testServer.RegistrationData.Services, TelemetryServiceName)
+	if hasTelemetry {
+		testServer.promText = ""
+	}
+
 	sessionID, _, err := registryComp.RegisterRemoteAgent(&testServer.RegistrationData)
 	require.NoError(t, err)
 
 	testServer.registeredSessionID = sessionID
+	if hasTelemetry {
+		waitForTelemetryBaseline(t, registryComp, sessionID)
+		testServer.promText = telemetryText
+	}
 	return testServer
+}
+
+// waitForTelemetryBaseline waits until the registry has taken the first telemetry scrape of the session's process.
+func waitForTelemetryBaseline(t *testing.T, registryComp remoteagent.Component, sessionID string) {
+	t.Helper()
+	registry := registryComp.(*remoteAgentRegistry)
+	registry.agentMapMu.Lock()
+	agent, found := registry.agentMap[sessionID]
+	registry.agentMapMu.Unlock()
+	require.True(t, found, "session %s is not registered", sessionID)
+	identity := remoteAgentIdentity(agent.RegisteredAgent)
+	require.Eventually(t, func() bool { return registry.telemetryRebaser.isBaselined(identity) }, 10*time.Second, 5*time.Millisecond)
 }

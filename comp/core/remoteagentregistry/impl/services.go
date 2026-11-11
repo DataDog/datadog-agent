@@ -9,12 +9,9 @@ package remoteagentregistryimpl
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"github.com/prometheus/client_golang/prometheus"
 	dto "github.com/prometheus/client_model/go"
-	"github.com/prometheus/common/expfmt"
-	"github.com/prometheus/common/model"
 	"google.golang.org/grpc"
 
 	flarebuilder "github.com/DataDog/datadog-agent/comp/core/flare/builder"
@@ -128,98 +125,9 @@ func (c *registryCollector) Collect(ch chan<- prometheus.Metric) {
 }
 
 func (c *registryCollector) GetRegisteredAgentsTelemetry(ch chan<- prometheus.Metric) {
-	client := func(ctx context.Context, remoteAgent *remoteAgentClient, opts ...grpc.CallOption) (*pb.GetTelemetryResponse, error) {
-		return remoteAgent.GetTelemetry(ctx, &pb.GetTelemetryRequest{}, opts...)
-	}
-	processor := func(details remoteagentregistry.RegisteredAgent, resp *pb.GetTelemetryResponse, err error) struct{} {
-		if err != nil {
-			log.Warnf("Failed to collect telemetry metrics from remoteAgent %v: %v", details.SanitizedDisplayName, err)
-			return struct{}{}
-		}
-		if promText, ok := resp.Payload.(*pb.GetTelemetryResponse_PromText); ok {
-			collectFromPromText(ch, promText.PromText, details.SanitizedDisplayName, c.registry.telemetry.CanonicalMetricHelp)
-		}
-		return struct{}{}
-	}
-
-	// We don't need to collect any value since everything is sent through the provided channel
-	callAgentsForService(c.registry, TelemetryServiceName, client, processor)
-}
-
-// Retrieve the telemetry data in exposition format from the remote agent
-func collectFromPromText(ch chan<- prometheus.Metric, promText string, remoteAgentName string, canonicalMetricHelp func(string) (string, bool)) {
-	parser := expfmt.NewTextParser(model.LegacyValidation)
-	metricFamilies, err := parser.TextToMetricFamilies(strings.NewReader(promText))
-	if err != nil {
-		log.Warnf("Failed to parse prometheus text: %v", err)
-		return
-	}
-
-	for _, mf := range metricFamilies {
-		help := ""
-		if mf.Help != nil {
-			help = *mf.Help
-		}
-		// Prometheus requires one HELP string per metric family, so same-name local and remote
-		// metrics with divergent HELP make the combined gather fail. The injected emitter label
-		// separates samples but does not affect family metadata.
-		if canonicalHelp, found := canonicalMetricHelp(mf.GetName()); found {
-			help = canonicalHelp
-		}
-
-		for _, metric := range mf.Metric {
-			if metric == nil {
-				continue
-			}
-
-			labelNames, labelValues := canonicalMetricLabels(metric.Label, remoteAgentName)
-
-			desc := prometheus.NewDesc(*mf.Name, help, labelNames, nil)
-
-			switch *mf.Type {
-			case dto.MetricType_COUNTER:
-				value := *metric.Counter.Value
-
-				metric, err := prometheus.NewConstMetric(desc, prometheus.CounterValue, value, labelValues...)
-				if err != nil {
-					log.Warnf("Failed to collect telemetry counter metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
-					continue
-				}
-				ch <- metric
-			case dto.MetricType_GAUGE:
-				value := *metric.Gauge.Value
-
-				metric, err := prometheus.NewConstMetric(desc, prometheus.GaugeValue, value, labelValues...)
-				if err != nil {
-					log.Warnf("Failed to collect telemetry gauge metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
-					continue
-				}
-				ch <- metric
-
-			case dto.MetricType_SUMMARY:
-				log.Warnf("Dropping metrics %v from remoteAgent %v: unimplemented summary aggregation logic", mf.GetName(), remoteAgentName)
-				continue
-
-			case dto.MetricType_HISTOGRAM:
-				count := metric.Histogram.GetSampleCount()
-				sum := metric.Histogram.GetSampleSum()
-				buckets := make(map[float64]uint64)
-				for _, bucket := range metric.Histogram.GetBucket() {
-					buckets[bucket.GetUpperBound()] = bucket.GetCumulativeCount()
-				}
-
-				metric, err := prometheus.NewConstHistogram(desc, count, sum, buckets, labelValues...)
-				if err != nil {
-					log.Warnf("Failed to collect telemetry histogram metric %v for remoteAgent %v: %v", mf.GetName(), remoteAgentName, err)
-					continue
-				}
-				ch <- metric
-
-			default:
-				log.Warnf("Dropping metrics %v from remoteAgent %v: unknown metric type %s", mf.GetName(), remoteAgentName, mf.GetType())
-			}
-		}
-	}
+	// Counters and histograms are exposed as the increases observed since the Core Agent first saw each remote process
+	// (see telemetry_rebase.go), not as the running totals of the remote process.
+	c.registry.collectTelemetry(c.registry.newestSessionFilter(), func(m prometheus.Metric) { ch <- m })
 }
 
 func canonicalMetricLabels(incoming []*dto.LabelPair, registeredEmitter string) ([]string, []string) {

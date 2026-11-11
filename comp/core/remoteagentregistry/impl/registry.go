@@ -73,6 +73,7 @@ func NewComponent(reqs Requires) Provides {
 
 func newRegistry(reqs Requires) *remoteAgentRegistry {
 	shutdownChan := make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
 	eventSubscribers := append([]*remoteagentregistry.EventSubscriber{}, reqs.EventSubscribers...)
 	eventSubscribers = append(eventSubscribers, newSecretsRefreshEventSubscriber(reqs.Secrets))
 	registry := &remoteAgentRegistry{
@@ -83,6 +84,11 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 		telemetry:        reqs.Telemetry,
 		telemetryStore:   newTelemetryStore(reqs.Telemetry),
 		eventSubscribers: eventSubscribers,
+		telemetryRebaser: newRemoteTelemetryRebaser(),
+		ctx:              ctx,
+		cancel:           cancel,
+
+		telemetryBaselineDelay: telemetryBaselineInitialDelay,
 	}
 
 	reqs.Lifecycle.Append(compdef.Hook{
@@ -91,6 +97,7 @@ func newRegistry(reqs Requires) *remoteAgentRegistry {
 			return nil
 		},
 		OnStop: func(context.Context) error {
+			cancel()
 			shutdownChan <- struct{}{}
 			return nil
 		},
@@ -206,6 +213,14 @@ type remoteAgentRegistry struct {
 	telemetry         telemetry.Component
 	telemetryStore    *telemetryStore
 	expvarCache       remoteExpvarCache
+	// telemetryRebaser turns the running totals reported by remote agents into totals since this Core Agent first
+	// saw each remote process.
+	telemetryRebaser *remoteTelemetryRebaser
+	// telemetryBaselineDelay is the wait before the first baseline scrape of a new remote agent.
+	telemetryBaselineDelay time.Duration
+	// ctx is canceled when the registry stops, to end background work.
+	ctx    context.Context
+	cancel context.CancelFunc
 
 	// eventSubscribers receive Remote Agent events reported via ReportRemoteAgentEvent. The slice is
 	// set once at construction and is immutable afterwards, so it needs no lock.
@@ -235,6 +250,11 @@ func (ra *remoteAgentRegistry) RegisterRemoteAgent(registration *remoteagentregi
 	// indexing remoteAgent client by its sessionID
 	ra.agentMap[remoteAgentClient.RegisteredAgent.SessionID] = remoteAgentClient
 	ra.telemetryStore.remoteAgentRegistered.Inc(remoteAgentClient.RegisteredAgent.SanitizedDisplayName)
+
+	// Record what the remote agent has counted so far as its baseline, before this Core Agent reports any of it.
+	if slices.Contains(remoteAgentClient.services, TelemetryServiceName) {
+		go ra.primeTelemetryBaseline(remoteAgentClient.RegisteredAgent.SessionID)
+	}
 
 	return remoteAgentClient.RegisteredAgent.SessionID, recommendedRefreshInterval, nil
 }

@@ -8,6 +8,7 @@ go_library(
         "expvar.go",
         "registry.go",
         "services.go",
+        "telemetry_rebase.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/impl",
     visibility = ["//visibility:public"],
@@ -48,6 +49,7 @@ dd_agent_go_test(
         "expvar_test.go",
         "registry_test.go",
         "services_test.go",
+        "telemetry_rebase_test.go",
     ],
     embed = [":impl"],
     deps = [
