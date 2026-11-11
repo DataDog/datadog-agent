@@ -166,7 +166,6 @@ variables:
     # Copy the baseline SHA to SMP for debugging purposes later
     - echo -n "${BASELINE_SHA}" > "${CI_COMMIT_SHA}-baseline_sha"
     - aws s3 cp --profile single-machine-performance --only-show-errors "${CI_COMMIT_SHA}-baseline_sha" "s3://${SMP_TEAM_ID}-smp-artifacts/information/"
-    # All SMP client teams can read images in the global `agent` repository of SMP.
     - BASELINE_IMAGE=${SMP_ECR_URL}/agent:${BASELINE_SHA}-7-full-amd64
     - echo "${BASELINE_SHA} | ${BASELINE_IMAGE}"
     - COMPARISON_IMAGE=${SMP_ECR_URL}/agent:${CI_COMMIT_SHA}-7-full-amd64
