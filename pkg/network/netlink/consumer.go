@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/mdlayher/netlink"
@@ -61,7 +62,13 @@ func init() {
 // Consumer is responsible for encapsulating all the logic of hooking into Conntrack via a Netlink socket
 // and streaming new connection events.
 type Consumer struct {
-	conn     *netlink.Conn
+	// connMu guards conn, samplingRate and stopped. The streaming socket is re-created on
+	// the receive goroutine when the circuit breaker trips, while Stop is called from
+	// another goroutine.
+	connMu  sync.Mutex
+	conn    *netlink.Conn
+	stopped bool
+
 	socket   *Socket
 	pool     *ddsync.TypedPool[[]byte]
 	procRoot string
@@ -152,9 +159,17 @@ func NewConsumer(cfg *config.Config, _ telemetryComp.Component) (*Consumer, erro
 // Events returns a channel of Event objects (wrapping netlink messages) which receives
 // all new connections added to the Conntrack table.
 func (c *Consumer) Events() (<-chan Event, error) {
+	c.connMu.Lock()
+	if c.stopped {
+		c.connMu.Unlock()
+		return nil, errStopped
+	}
 	if err := c.initNetlinkSocket(1.0); err != nil {
+		c.connMu.Unlock()
 		return nil, fmt.Errorf("could not initialize conntrack netlink socket: %w", err)
 	}
+	conn := c.conn
+	c.connMu.Unlock()
 
 	output := make(chan Event, outputBuffer)
 
@@ -165,7 +180,7 @@ func (c *Consumer) Events() (<-chan Event, error) {
 		}()
 
 		c.streaming = true
-		_ = c.conn.JoinGroup(netlinkCtNew)
+		_ = conn.JoinGroup(netlinkCtNew)
 		c.receive(output, 0)
 	}()
 
@@ -481,13 +496,21 @@ func (c *Consumer) dumpAndDiscardTable(family uint8, ns netns.NsHandle) error {
 
 // Stop the consumer
 func (c *Consumer) Stop() {
+	// Holding connMu means throttle is not halfway through replacing the socket: either the
+	// socket closed here is the current one, or throttle sees stopped and does not create
+	// a new one. Either way the receive loop exits.
+	c.connMu.Lock()
+	c.stopped = true
 	if c.conn != nil {
 		c.conn.Close()
 	}
+	c.connMu.Unlock()
+
 	c.breaker.Stop()
 	c.rootNetNs.Close()
 }
 
+// initNetlinkSocket creates the streaming socket. c.connMu must be held.
 func (c *Consumer) initNetlinkSocket(samplingRate float64) error {
 	var err error
 	c.socket, err = NewSocket(c.rootNetNs)
@@ -571,7 +594,9 @@ ReadLoop:
 		}
 
 		if err := c.throttle(len(msgs)); err != nil {
-			log.Errorf("exiting conntrack netlink consumer loop due to throttling error: %s", err)
+			if !errors.Is(err, errStopped) {
+				log.Errorf("exiting conntrack netlink consumer loop due to throttling error: %s", err)
+			}
 			return
 		}
 
@@ -644,6 +669,14 @@ func (c *Consumer) throttle(numMessages int) error {
 	}
 	consumerTelemetry.throttles.Inc()
 
+	c.connMu.Lock()
+	defer c.connMu.Unlock()
+
+	// Stop already closed the socket; don't create a new one that nothing would close.
+	if c.stopped {
+		return errStopped
+	}
+
 	// Close current socket
 	c.conn.Close()
 	c.conn = nil
@@ -677,8 +710,9 @@ func newBufferPool() *ddsync.TypedPool[[]byte] {
 }
 
 var (
-	errEOF    = errors.New("EOF")
-	errENOBUF = errors.New("ENOBUF")
+	errEOF     = errors.New("EOF")
+	errENOBUF  = errors.New("ENOBUF")
+	errStopped = errors.New("conntrack netlink consumer stopped")
 )
 
 // TODO: There is probably a more idiomatic way to do this
