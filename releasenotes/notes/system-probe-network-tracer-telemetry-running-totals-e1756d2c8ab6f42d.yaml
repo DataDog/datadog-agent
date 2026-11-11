@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Fix 13 Cloud Network Monitoring network tracer counters on system-probe's
+    ``/telemetry`` endpoint, such as ``network_tracer__ebpf__tcp_done_missing_pid``
+    and ``network_tracer__ebpf_conntracker__registers_total``, which reported
+    the change since the previous read instead of a running total. Any other
+    read of the telemetry, including the Agent's own periodic collection and
+    flares, took part of the counts, so scrapers saw too little. They now
+    report totals since system-probe started, like other counters.
