@@ -36,6 +36,19 @@ func TestParseRejectsMalformedJSON(t *testing.T) {
 	}
 }
 
+func TestParseLatest(t *testing.T) {
+	catalog, err := Parse([]byte(`{"packages":[{
+		"package":"com.datadoghq.authoredscripts.echopy3",
+		"version":"0.0.2",
+		"url":"oci://install.datadoghq.com/com.datadoghq.authoredscripts.echopy3-package@sha256:28591686da5d8c890a1c4dece5811f0be484816a177ec32a2637d421e40e7228",
+		"sha256":"28591686da5d8c890a1c4dece5811f0be484816a177ec32a2637d421e40e7228",
+		"latest":true
+	}]}`))
+	require.NoError(t, err)
+	require.Len(t, catalog.Packages, 1)
+	require.True(t, catalog.Packages[0].Latest)
+}
+
 func TestMergePreservesCatalogAndPackageOrder(t *testing.T) {
 	first := Package{Name: "first"}
 	second := Package{Name: "second"}
@@ -106,10 +119,10 @@ func TestPackageMatchesTarget(t *testing.T) {
 func TestGetPackage(t *testing.T) {
 	portable := Package{Name: "package", Version: "1.0.0", URL: "https://example.com/portable"}
 	linuxAMD64 := Package{Name: "package", Version: "1.0.0", URL: "https://example.com/linux-amd64", Platform: "linux", Arch: "amd64"}
-	duplicate := Package{Name: "package", Version: "1.0.0", URL: "https://example.com/duplicate"}
+	duplicate := Package{Name: "package", Version: "1.0.0", URL: "https://example.com/duplicate", Latest: true}
 	catalog := Catalog{Packages: []Package{
 		{Name: "other", Version: "1.0.0", URL: "https://example.com/other"},
-		{Name: "package", Version: "2.0.0", URL: "https://example.com/other-version"},
+		{Name: "package", Version: "2.0.0", URL: "https://example.com/other-version", Latest: true},
 		linuxAMD64,
 		portable,
 		duplicate,
