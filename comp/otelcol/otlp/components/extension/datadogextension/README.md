@@ -79,13 +79,10 @@ reconstructs the existing intake payloads, including diagnostic multipart and
 compressed symbol attachments. Unknown DI names/versions and disabled delivery
 return errors without falling back to ordinary log indexing.
 
-**Product isolation is still blocked.** The live POC delivered a real RC probe
-and captured output, but a capture also appeared through the Logs search API.
-The existing debugger backend can forward snapshots into the logs track;
-Collector routing alone cannot prevent it. This draft is transport feasibility
-work, not a solution to debugger-only storage and querying. That backend
-contract must be resolved before this mode can satisfy the requirement that DI
-events never appear in Datadog Logs.
+The live POC delivered a real RC probe and captured output. A capture also
+appeared through the Logs search API; that visibility is acceptable for this
+POC and does not require a debugger-only storage or query path. Symbol UI
+discovery and an end-to-end run with a source-built SDK remain to be qualified.
 
 The initial scope is single-process HTTP/protobuf with Python. Backpressure,
 partial-batch retries, batching performance, resource limits, endpoint/platform
