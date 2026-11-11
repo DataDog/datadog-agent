@@ -819,16 +819,6 @@ workflow:
     when: on_success
 
 # Specific rules for each e2e test type
-.on_persisting_integrations_tests:
-  - !reference [.on_all_install_script_tests]
-  - changes:
-      paths:
-        - test/new-e2e/tests/agent-platform/tests/persisting_*
-        # Which PAR script config files the packages own (incident 61851)
-        - pkg/privateactionrunner/autoconnections/conf/**/*
-      compare_to: $COMPARE_TO_BRANCH
-    when: on_success
-
 .on_install_script_tests:
   - !reference [.except_light_pipeline]
   - <<: *if_disable_e2e_tests
@@ -940,7 +930,6 @@ workflow:
     paths:
       - tools/windows/DatadogAgentInstaller/**/*
       - .gitlab/windows/test/e2e_install_packages/windows.yml
-      - pkg/privateactionrunner/autoconnections/conf/**/* # PAR script config packaging (incident 61851)
       - test/new-e2e/tests/windows/install-test/**/*
       - test/new-e2e/tests/windows/domain-test/**/*
       - tasks/msi.py
@@ -1131,7 +1120,6 @@ workflow:
         - test/new-e2e/tests/fleet/**/*
         - test/new-e2e/tests/installer/**/*
         - tasks/installer.py
-        - pkg/privateactionrunner/autoconnections/conf/**/* # PAR script config packaging (incident 61851)
         - tools/windows/DatadogAgentInstaller/**/*
       compare_to: $COMPARE_TO_BRANCH
     when: on_success

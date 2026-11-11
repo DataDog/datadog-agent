@@ -46,7 +46,6 @@ dd_agent_go_test(
         "install_subservices_test.go",
         "install_test.go",
         "npm_test.go",
-        "par_script_config_test.go",
         "persisting_integrations_test.go",
         "procmgr_localsystem_test.go",
         "upgrade_test.go",

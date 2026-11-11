@@ -72,7 +72,6 @@ new-e2e-platform-integrations-upgrade7-persisting-integrations-amazonlinux-x64:
     - .new-e2e_script_upgrade_persisting_integrations
     - .new-e2e_amazonlinux_a7_x86_64
     - .new-e2e_agent_a7
-  rules: !reference [.on_persisting_integrations_tests]
   variables:
     FLAVOR: datadog-agent
 
