@@ -24,8 +24,8 @@ import (
 // one identifier, upload_id, and no per-session upload token, so the integration
 // request cannot carry one. The integration
 // uploads bounded JSON page files directly to its-agent-intake over HTTP; only
-// metadata/final/error events come back through the stream, and the only result
-// accounting that crosses the AgentSecure boundary is the compact run receipt.
+// metadata/final/error events come back through the stream. The worker reads result
+// accounting from intake's completion record, not from the AgentSecure answer.
 //
 // These tests drive ExecuteStream with a fake stream runner that captures the
 // requestJSON the integration receives and replays deterministic events through emit.
@@ -39,7 +39,7 @@ import (
 //  2. The requestJSON does NOT carry the org API key or POC application key and carries
 //     no CSV/COPY-era fields: there is no format, no copyLimits, and no inline path.
 //  3. The Agent passes emit straight through: the events the integration emits surface
-//     downstream byte-for-byte, including the final compact run receipt.
+//     downstream byte-for-byte, including the final status.
 //
 // The 243021 reference (task contract id) is carried through the run/task/upload ids
 // so the forwarded handle is stable end-to-end.
@@ -82,7 +82,7 @@ func syntheticForwardDelivery() *RemoteQueryResultDelivery {
 func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
 		{Type: "metadata", MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages","includeSchema":true}`},
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":3,"totalRows":123456,"totalBytes":987654}}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 	})
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest(
@@ -149,11 +149,11 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 	// anywhere in the forwarded request.
 	assert.NotContains(t, runner.streamSeen, "token")
 
-	// The integration's metadata and final receipt surface downstream unmodified.
+	// The integration's metadata and final status surface downstream unmodified.
 	require.Len(t, seen, 2)
 	assert.Equal(t, "metadata", seen[0].Type)
 	assert.Equal(t, "final", seen[1].Type)
-	assert.JSONEq(t, `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":3,"totalRows":123456,"totalBytes":987654}}`, seen[1].MetadataJSON)
+	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, seen[1].MetadataJSON)
 }
 
 // TestExecuteStreamForwardsOmittedSchemaExplicitly proves the includeSchema flag is
@@ -161,7 +161,7 @@ func TestExecuteStreamForwardsPagedJSONContractToIntegration(t *testing.T) {
 // explicit false on the integration request so the schema switch is never implicit.
 func TestExecuteStreamForwardsOmittedSchemaExplicitly(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":0,"totalRows":0,"totalBytes":0}}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 	})
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest(
@@ -217,7 +217,7 @@ func TestExecuteStreamOmittedResultDeliveryIsRejected(t *testing.T) {
 // request changes.
 func TestExecuteStreamForwardsTraceContextToIntegration(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":1,"totalRows":1,"totalBytes":9}}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 	})
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest(
@@ -260,7 +260,7 @@ func TestExecuteStreamDropsNonKeepTraceContext(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
-				{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":1,"totalRows":1,"totalBytes":9}}`},
+				{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 			})
 			service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 			req, err := NewRemoteQueryExecuteRequest(
@@ -287,7 +287,7 @@ func TestExecuteStreamDropsNonKeepTraceContext(t *testing.T) {
 // JSON with no traceContext key at all, byte-identical to the old bridge output.
 func TestExecuteStreamForwardsNoTraceContextWhenAbsent(t *testing.T) {
 	runner := newSyntheticForwardRunner([]check.RemoteQueryStreamEvent{
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-243021","pageCount":1,"totalRows":1,"totalBytes":9}}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 	})
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest(

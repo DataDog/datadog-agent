@@ -21,7 +21,7 @@ func singleMatchCollector(instance string) fakeCollector {
 	return fakeCollector{checks: []check.Check{
 		fakeWrappedCheck{Check: &fakeStreamRunnerCheck{
 			fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: instance}},
-			events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
+			events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
 		}},
 	}}
 }
@@ -33,6 +33,24 @@ func executeTestRequest(t *testing.T) RemoteQueryExecuteRequest {
 		"SELECT * FROM arbitrary_table", false, pagedTestDelivery())
 	require.NoError(t, err)
 	return req
+}
+
+// Agent OUT-04: success is accepted without an upload receipt.
+func TestExecuteStreamAcceptsSuccessWithoutReceipt(t *testing.T) {
+	collector := singleMatchCollector("host: localhost\nport: 5432\ndbname: postgres\n")
+	service := NewRemoteQueryExecuteService(collector, true, remoteQueryTestConfig(t))
+	var events []check.RemoteQueryStreamEvent
+
+	result := service.ExecuteStream(context.Background(), executeTestRequest(t), func(event check.RemoteQueryStreamEvent) error {
+		events = append(events, event)
+		return nil
+	})
+
+	require.Nil(t, result.Error)
+	assert.Equal(t, "SUCCEEDED", result.Status)
+	require.Len(t, events, 1)
+	assert.Equal(t, "final", events[0].Type)
+	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, events[0].MetadataJSON)
 }
 
 // TestExecuteStreamAnswersPlainMatchOutcomes proves execute resolves the target

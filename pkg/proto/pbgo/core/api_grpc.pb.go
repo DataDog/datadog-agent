@@ -191,8 +191,8 @@ type AgentSecureClient interface {
 	WorkloadFilterEvaluate(ctx context.Context, in *WorkloadFilterEvaluateRequest, opts ...grpc.CallOption) (*WorkloadFilterEvaluateResponse, error)
 	// Executes an Agent-local Remote Queries request through a matched integration check.
 	// The result contract is fixed: bounded JSON page files uploaded directly by the
-	// integration to its-agent-intake. The stream carries only progress metadata, the
-	// compact run receipt, and errors; bulk result bytes never traverse AgentSecure.
+	// integration to its-agent-intake. The stream carries only progress metadata,
+	// final status, and errors; bulk result bytes never traverse AgentSecure.
 	RemoteQueryExecuteStream(ctx context.Context, in *RemoteQueryExecuteRequest, opts ...grpc.CallOption) (grpc.ServerStreamingClient[RemoteQueryExecuteChunk], error)
 	// Resolves an Agent-local Remote Queries target through the shared integration
 	// matcher without executing SQL: exactly one loaded match returns matched with an
@@ -549,8 +549,8 @@ type AgentSecureServer interface {
 	WorkloadFilterEvaluate(context.Context, *WorkloadFilterEvaluateRequest) (*WorkloadFilterEvaluateResponse, error)
 	// Executes an Agent-local Remote Queries request through a matched integration check.
 	// The result contract is fixed: bounded JSON page files uploaded directly by the
-	// integration to its-agent-intake. The stream carries only progress metadata, the
-	// compact run receipt, and errors; bulk result bytes never traverse AgentSecure.
+	// integration to its-agent-intake. The stream carries only progress metadata,
+	// final status, and errors; bulk result bytes never traverse AgentSecure.
 	RemoteQueryExecuteStream(*RemoteQueryExecuteRequest, grpc.ServerStreamingServer[RemoteQueryExecuteChunk]) error
 	// Resolves an Agent-local Remote Queries target through the shared integration
 	// matcher without executing SQL: exactly one loaded match returns matched with an

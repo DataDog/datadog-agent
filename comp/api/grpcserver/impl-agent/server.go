@@ -401,7 +401,7 @@ func (s *serverSecure) WorkloadFilterEvaluate(ctx context.Context, req *pb.Workl
 // RemoteQueryExecuteStream executes an Agent-local Remote Queries request through a
 // matched integration check. The Agent is a control-plane forwarder: the integration
 // uploads bounded JSON page files directly to its-agent-intake, so the stream carries
-// only progress metadata, the final compact run receipt, and errors — never bulk
+// only progress metadata, final status, and errors — never bulk
 // result bytes.
 func (s *serverSecure) RemoteQueryExecuteStream(req *pb.RemoteQueryExecuteRequest, stream pb.AgentSecure_RemoteQueryExecuteStreamServer) error {
 	if s.remoteQueries == nil {
@@ -626,16 +626,11 @@ func remoteQueryStreamEventFromCheckEvent(event check.RemoteQueryStreamEvent, in
 			Attributes:  stringAttributes(metadata, "operation", "sequence"),
 		}}
 	case "final":
-		receipt, err := uploadReceiptFromMetadata(metadata)
-		if err != nil {
-			return nil, err
-		}
 		out.Event = &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
-			Status:        stringFromMetadata(metadata, "status"),
-			UploadReceipt: receipt,
+			Status: stringFromMetadata(metadata, "status"),
 			// executionDiagnostics stays excluded so an older integration's legacy
 			// top-level diagnostics metadata never leaks into the flattened attributes.
-			Attributes: progressAttributes(metadata, "status", "sequence", "upload_receipt", "executionDiagnostics"),
+			Attributes: progressAttributes(metadata, "status", "sequence", "executionDiagnostics"),
 		}}
 	case "error":
 		errorMetadata := mapFromMetadata(metadata, "error")
@@ -713,51 +708,6 @@ func uint64FromMetadata(metadata map[string]interface{}, keys ...string) uint64 
 		}
 	}
 	return 0
-}
-
-func int64FromMetadata(metadata map[string]interface{}, keys ...string) int64 {
-	for _, key := range keys {
-		switch v := metadata[key].(type) {
-		case float64:
-			return int64(v)
-		case int:
-			return int64(v)
-		case json.Number:
-			if n, err := strconv.ParseInt(string(v), 10, 64); err == nil {
-				return n
-			}
-		case string:
-			if n, err := strconv.ParseInt(v, 10, 64); err == nil {
-				return n
-			}
-		}
-	}
-	return 0
-}
-
-// uploadReceiptFromMetadata parses the compact run receipt carried in the final event
-// metadata into the typed proto receipt: exactly uploadId, pageCount, totalRows,
-// totalBytes. Returns nil when no receipt is present.
-func uploadReceiptFromMetadata(metadata map[string]interface{}) (*pb.RemoteQueryUploadReceipt, error) {
-	value, present := metadata["upload_receipt"]
-	if !present {
-		return nil, nil
-	}
-	raw, ok := value.(map[string]interface{})
-	if !ok || len(raw) != 4 || stringFromMetadata(raw, "uploadId") == "" {
-		return nil, errors.New("invalid session-backed upload receipt")
-	}
-	for _, key := range []string{"uploadId", "pageCount", "totalRows", "totalBytes"} {
-		if _, ok := raw[key]; !ok {
-			return nil, errors.New("invalid session-backed upload receipt")
-		}
-	}
-	return &pb.RemoteQueryUploadReceipt{
-		UploadId:   stringFromMetadata(raw, "uploadId"),
-		PageCount:  int64FromMetadata(raw, "pageCount"),
-		TotalRows:  int64FromMetadata(raw, "totalRows"),
-		TotalBytes: int64FromMetadata(raw, "totalBytes"),
-	}, nil
 }
 
 // stringAttributes maps scalar metadata values into string attributes, skipping the

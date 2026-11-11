@@ -661,7 +661,7 @@ func (s *RemoteQueryExecuteService) Execute(_ RemoteQueryExecuteRequest) RemoteQ
 // Agent is a control-plane forwarder: it carries the backend-injected upload instructions
 // through to the integration request JSON and passes the emit callback straight through.
 // The integration uploads bounded JSON page files itself; only progress metadata, the
-// final compact run receipt, and errors come back through the stream.
+// final status, and errors come back through the stream.
 func (s *RemoteQueryExecuteService) ExecuteStream(ctx context.Context, req RemoteQueryExecuteRequest, emit func(check.RemoteQueryStreamEvent) error) RemoteQueryExecuteResult {
 	if emit == nil {
 		return remoteQueryExecuteErrorResult(http.StatusFailedDependency, statusExecutorUnavailable, "remote query stream emitter is unavailable")

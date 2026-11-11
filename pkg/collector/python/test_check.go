@@ -115,7 +115,7 @@ int run_remote_query_stream(rtloader_t *s, rtloader_pyobject_t *check, const cha
 	run_remote_query_stream_instance = check;
 	run_remote_query_stream_request_json = strdup(request_json);
 	run_remote_query_stream_calls++;
-	run_remote_query_stream_event_json = "{\"status\":\"SUCCEEDED\",\"upload_receipt\":{\"uploadId\":\"upload-proof\",\"pageCount\":1,\"totalRows\":2,\"totalBytes\":18}}";
+	run_remote_query_stream_event_json = "{\"status\":\"SUCCEEDED\"}";
 	uint8_t payload[] = {0x00, 0xff, 0x80};
 	if (run_remote_query_stream_return && emit != NULL) {
 		if (emit("metadata", "{\"status\":\"STARTED\",\"operation\":\"produce_json_pages\"}", run_remote_query_stream_emit_payload ? payload : NULL, run_remote_query_stream_emit_payload ? sizeof(payload) : 0, userdata) != 0) {
@@ -717,7 +717,7 @@ func testRunRemoteQueryStream(t *testing.T) {
 	assert.Equal(t, "metadata", events[0].Type)
 	assert.JSONEq(t, `{"status":"STARTED","operation":"produce_json_pages"}`, events[0].MetadataJSON)
 	assert.Equal(t, "final", events[1].Type)
-	assert.JSONEq(t, `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}}`, events[1].MetadataJSON)
+	assert.JSONEq(t, `{"status":"SUCCEEDED"}`, events[1].MetadataJSON)
 	assert.Equal(t, C.int(1), C.gil_locked_calls)
 	assert.Equal(t, C.int(1), C.gil_unlocked_calls)
 	assert.Equal(t, C.int(1), C.run_remote_query_stream_calls)

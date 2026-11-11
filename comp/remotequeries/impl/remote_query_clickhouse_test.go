@@ -371,7 +371,7 @@ func newClickHouseStreamRunner(events []check.RemoteQueryStreamEvent) *fakeStrea
 
 func TestRemoteQueryExecuteServiceClickHouseDatabaseInstanceTarget(t *testing.T) {
 	runner := newClickHouseStreamRunner([]check.RemoteQueryStreamEvent{
-		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`},
+		{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 	})
 	runner.instance = "server: localhost\ndatabase_identifier:\n  template: $rq_database_instance\ntags:\n  - rq_database_instance:rq-ch-a1\npassword: secret-value\n"
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))

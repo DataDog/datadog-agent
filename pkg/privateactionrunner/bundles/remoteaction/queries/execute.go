@@ -497,7 +497,7 @@ func dispatchRemoteQueryExecute(ctx context.Context, client BridgeClient, inputs
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC failed")
 	}
-	output, err := remoteQueryExecuteOutputFromStream(stream, inputs.ResultDelivery.UploadID)
+	output, err := remoteQueryExecuteOutputFromStream(stream)
 	if err != nil {
 		return nil, util.DefaultActionErrorWithDisplayError(err, "remote query AgentSecure streaming RPC response was invalid")
 	}
@@ -597,13 +597,11 @@ func remoteQueryTraceContextFromContext(ctx context.Context) *pb.RemoteQueryTrac
 
 // remoteQueryExecuteOutputFromStream consumes the AgentSecure stream and builds the
 // AP action output. The output matches the strict AP metadata schema exactly:
-// {status, uploadReceipt} on success and {status, error{code, message}} on terminal
+// {status} on success and {status, error{code, message}} on terminal
 // error — no other key, because the AP output validation rejects unknown fields.
 // Progress metadata and agent timing stay on the internal AgentSecure stream events;
 // bulk result bytes never appear because the integration uploads page files directly.
-// A successful final must carry the compact receipt, and its uploadId must match the
-// injected upload session.
-func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk], requestedUploadID string) (map[string]interface{}, error) {
+func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.RemoteQueryExecuteChunk]) (map[string]interface{}, error) {
 	if stream == nil {
 		return nil, errors.New("remote query response stream missing")
 	}
@@ -652,8 +650,7 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 	}
 
 	if finalEvent == nil {
-		// Terminal-error propagation: an error event replaces the final event and the
-		// run reports no receipt.
+		// Terminal-error propagation: an error event replaces the final event.
 		if errorEvent != nil {
 			return remoteQueryErrorOutput(errorEvent), nil
 		}
@@ -666,30 +663,10 @@ func remoteQueryExecuteOutputFromStream(stream grpc.ServerStreamingClient[pb.Rem
 		return nil, errors.New("remote query response stream final event missing status")
 	}
 
-	receipt := finalEvent.GetUploadReceipt()
-	if receipt == nil {
-		return nil, errors.New("remote query response stream final event missing upload receipt")
-	}
-	if receipt.GetUploadId() == "" {
-		return nil, errors.New("remote query upload receipt missing uploadId")
-	}
-	if requestedUploadID != "" && receipt.GetUploadId() != requestedUploadID {
-		return nil, errors.New("remote query upload receipt uploadId does not match the requested upload session")
-	}
-
-	output := map[string]interface{}{
-		"status": finalEvent.GetStatus(),
-		"uploadReceipt": map[string]interface{}{
-			"uploadId":   receipt.GetUploadId(),
-			"pageCount":  receipt.GetPageCount(),
-			"totalRows":  receipt.GetTotalRows(),
-			"totalBytes": receipt.GetTotalBytes(),
-		},
-	}
-	return output, nil
+	return map[string]interface{}{"status": finalEvent.GetStatus()}, nil
 }
 
-// remoteQueryErrorOutput propagates a terminal error event without a receipt. The error
+// remoteQueryErrorOutput propagates a terminal error event. The error
 // object carries exactly code and message: the AP metadata ExecutionError schema is
 // strict and the worker reads only those two fields.
 func remoteQueryErrorOutput(errEvent *pb.RemoteQueryStreamError) map[string]interface{} {

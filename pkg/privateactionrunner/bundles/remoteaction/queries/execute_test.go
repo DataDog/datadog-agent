@@ -82,13 +82,12 @@ func metadataEvent(sequence uint64) *pb.RemoteQueryExecuteChunk {
 	}
 }
 
-func finalEvent(sequence uint64, receipt *pb.RemoteQueryUploadReceipt, attributes map[string]string) *pb.RemoteQueryExecuteChunk {
+func finalEvent(sequence uint64, attributes map[string]string) *pb.RemoteQueryExecuteChunk {
 	return &pb.RemoteQueryExecuteChunk{
 		ChunkIndex: int32(sequence),
 		Event: &pb.RemoteQueryExecuteStreamEvent{Sequence: sequence, Event: &pb.RemoteQueryExecuteStreamEvent_Final{Final: &pb.RemoteQueryStreamFinal{
-			Status:        "SUCCEEDED",
-			UploadReceipt: receipt,
-			Attributes:    attributes,
+			Status:     "SUCCEEDED",
+			Attributes: attributes,
 		}}},
 	}
 }
@@ -126,15 +125,6 @@ func TestExecuteActionRejectsRetiredDeliveryVariantsBeforeRPC(t *testing.T) {
 	}
 }
 
-func validReceipt() *pb.RemoteQueryUploadReceipt {
-	return &pb.RemoteQueryUploadReceipt{
-		UploadId:   testUploadID,
-		PageCount:  3,
-		TotalRows:  123456,
-		TotalBytes: 987654,
-	}
-}
-
 func finalMarker(sequence uint64) *pb.RemoteQueryExecuteChunk {
 	return &pb.RemoteQueryExecuteChunk{ChunkIndex: int32(sequence), Final: true}
 }
@@ -142,7 +132,7 @@ func finalMarker(sequence uint64) *pb.RemoteQueryExecuteChunk {
 func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
 		metadataEvent(0),
-		finalEvent(1, validReceipt(), map[string]string{"agent_total_stream_ms": "12.345", "stats.rowsEmitted": "123456"}),
+		finalEvent(1, map[string]string{"agent_total_stream_ms": "12.345", "stats.rowsEmitted": "123456"}),
 		finalMarker(2),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) {
@@ -196,16 +186,10 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 	out, ok := output.(map[string]interface{})
 	require.True(t, ok)
 	// The AP action output matches the strict AP metadata schema exactly:
-	// status and uploadReceipt and nothing else. Progress metadata and agent
+	// status and nothing else (Agent OUT-02). Progress metadata and agent
 	// timing stay on the internal AgentSecure stream events.
 	assert.Equal(t, map[string]interface{}{
 		"status": "SUCCEEDED",
-		"uploadReceipt": map[string]interface{}{
-			"uploadId":   testUploadID,
-			"pageCount":  int64(3),
-			"totalRows":  int64(123456),
-			"totalBytes": int64(987654),
-		},
 	}, out)
 	assertNoBulkDataFields(t, out)
 
@@ -220,7 +204,7 @@ func TestExecuteActionUsesCredentialFreeAgentSecureRequestShape(t *testing.T) {
 // The restored typed session contract has no upload token or compatibility alias.
 func TestExecuteActionRejectsStaleUploadTokenFromInputs(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
+		finalEvent(0, nil),
 		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -241,7 +225,7 @@ func TestExecuteActionRejectsStaleUploadTokenFromInputs(t *testing.T) {
 
 func TestExecuteActionAcceptsDatabaseInstanceTarget(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
+		finalEvent(0, nil),
 		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -375,48 +359,23 @@ func TestExecuteActionRejectsMissingResultDeliveryBeforeRPC(t *testing.T) {
 	}
 }
 
-func TestExecuteActionFailsClosedWhenFinalReceiptIsMissingOrMismatched(t *testing.T) {
-	t.Run("missing receipt", func(t *testing.T) {
-		client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-			finalEvent(0, nil, nil),
-			finalMarker(1),
-		}}
-		action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
+// Agent OUT-02, OUT-04: success has only status; no upload receipt is required.
+func TestExecuteActionAcceptsSuccessWithoutReceipt(t *testing.T) {
+	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
+		finalEvent(0, nil),
+		finalMarker(1),
+	}}
+	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
 
-		_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-			"integration":    "postgres",
-			"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-			"query":          "SELECT city, country FROM cities ORDER BY city",
-			"resultDelivery": resultDeliveryInputs(),
-		}), nil)
+	output, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
+		"integration":    "postgres",
+		"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
+		"query":          "SELECT city, country FROM cities ORDER BY city",
+		"resultDelivery": resultDeliveryInputs(),
+	}), nil)
 
-		require.Error(t, err)
-		var parErr util.PARError
-		require.ErrorAs(t, err, &parErr)
-		assert.Contains(t, parErr.Message, "missing upload receipt")
-	})
-
-	t.Run("receipt uploadId mismatch", func(t *testing.T) {
-		mismatched := validReceipt()
-		mismatched.UploadId = "upload-other"
-		client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-			finalEvent(0, mismatched, nil),
-			finalMarker(1),
-		}}
-		action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
-
-		_, err := action.Run(context.Background(), taskWithInputs(map[string]interface{}{
-			"integration":    "postgres",
-			"target":         map[string]interface{}{"host": "localhost", "port": 5432, "dbname": "postgres"},
-			"query":          "SELECT city, country FROM cities ORDER BY city",
-			"resultDelivery": resultDeliveryInputs(),
-		}), nil)
-
-		require.Error(t, err)
-		var parErr util.PARError
-		require.ErrorAs(t, err, &parErr)
-		assert.Contains(t, parErr.Message, "uploadId does not match")
-	})
+	require.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"status": "SUCCEEDED"}, output)
 }
 
 func TestExecuteActionRejectsStreamProtocolViolations(t *testing.T) {
@@ -435,7 +394,7 @@ func TestExecuteActionRejectsStreamProtocolViolations(t *testing.T) {
 		{
 			name: "chunk after final",
 			chunks: []*pb.RemoteQueryExecuteChunk{
-				finalEvent(0, validReceipt(), nil),
+				finalEvent(0, nil),
 				finalMarker(1),
 				metadataEvent(2),
 			},
@@ -493,7 +452,7 @@ func TestExecuteActionPreservesSanitizedBridgeErrorBody(t *testing.T) {
 		"resultDelivery": resultDeliveryInputs(),
 	}), nil)
 
-	// Terminal errors propagate through the AP output envelope without a receipt.
+	// Terminal errors propagate through the AP status and error output envelope.
 	// The error object carries exactly code and message: the AP metadata
 	// ExecutionError schema is strict, and progress metadata stays on the
 	// internal stream.
@@ -605,7 +564,7 @@ func TestExecuteActionResolveOnlyAcceptsDatabaseInstanceTarget(t *testing.T) {
 // full execute input.
 func TestExecuteActionExplicitFalseResolveOnlyRunsExecute(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
+		finalEvent(0, nil),
 		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -943,7 +902,7 @@ func TestExecuteActionResolveOnlySanitizesInputExtractionErrors(t *testing.T) {
 	assert.NotContains(t, err.Error(), "secret-db")
 }
 
-// TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit proves the receipt-only
+// TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit proves the status-only
 // output is bounded by construction: with no inline result-byte path the AP
 // artifact stays tiny even for multi-page runs at the maximum limits, so the
 // pinned ceiling covers the output shape.
@@ -951,19 +910,14 @@ func TestRemoteQueryExecuteOutputStaysUnderActionPlatformLimit(t *testing.T) {
 	const actionPlatformOutputLimitBytes = 15 * 1024 * 1024
 	stream := &captureRemoteQueryExecuteStream{chunks: []*pb.RemoteQueryExecuteChunk{
 		metadataEvent(0),
-		finalEvent(1, &pb.RemoteQueryUploadReceipt{
-			UploadId:   "upload-01k",
-			PageCount:  128,
-			TotalRows:  1099511627776,
-			TotalBytes: 10737418240,
-		}, map[string]string{"stats.rowsEmitted": "1099511627776", "agent_total_stream_ms": "12.345"}),
+		finalEvent(1, map[string]string{"stats.rowsEmitted": "1099511627776", "agent_total_stream_ms": "12.345"}),
 		finalMarker(2),
 	}}
 
-	output, err := remoteQueryExecuteOutputFromStream(stream, testUploadID)
+	output, err := remoteQueryExecuteOutputFromStream(stream)
 	require.NoError(t, err)
 	assert.Equal(t, "SUCCEEDED", output["status"])
-	assert.Len(t, output, 2, "output keys are exactly status and uploadReceipt")
+	assert.Equal(t, map[string]interface{}{"status": "SUCCEEDED"}, output)
 	assertNoBulkDataFields(t, output)
 
 	encoded, err := json.Marshal(output)
@@ -982,7 +936,7 @@ func assertNoBulkDataFields(t *testing.T, out map[string]interface{}) {
 	assert.NotContains(t, out, "columns")
 	assert.NotContains(t, out, "rows")
 	// The AP metadata ExecuteOutputs schema is additionalProperties:false with
-	// exactly status, error, and uploadReceipt.
+	// exactly status and error.
 	assert.NotContains(t, out, "attributes")
 	assert.NotContains(t, out, "stream_timing")
 }
@@ -1108,7 +1062,7 @@ func TestExecuteActionAttachesActiveActionRunTraceContext(t *testing.T) {
 	defer setDevelopmentTracing(t, false)()
 
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
+		finalEvent(0, nil),
 		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -1154,7 +1108,7 @@ func TestExecuteActionOmitsTraceContextWithoutActiveTrace(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-				finalEvent(0, validReceipt(), nil),
+				finalEvent(0, nil),
 				finalMarker(1),
 			}}
 			action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -1201,7 +1155,7 @@ func TestExecuteActionResolveOnlyIsUnchangedByTraceContext(t *testing.T) {
 // action has no active trace.
 func TestExecuteActionIgnoresTaskSuppliedTraceContext(t *testing.T) {
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
+		finalEvent(0, nil),
 		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -1239,7 +1193,7 @@ func TestExecuteActionDevelopmentSpanWrapsExecution(t *testing.T) {
 	ctx, activeTraceID, activeParentID := activeActionRunContext(t, taskTraceID, taskParentSpanID)
 
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
+		finalEvent(0, nil),
 		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -1296,7 +1250,7 @@ func TestExecuteActionDevelopmentSpanContinuesPropagatedSamplingPriority(t *test
 	t.Cleanup(func() { span.Finish(nil) })
 
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
+		finalEvent(0, nil),
 		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })
@@ -1326,7 +1280,7 @@ func TestExecuteActionDevelopmentTracingDisabledCreatesNoSpan(t *testing.T) {
 	ctx, activeTraceID, activeParentID := activeActionRunContext(t, taskTraceID, 200)
 
 	client := &captureBridgeClient{chunks: []*pb.RemoteQueryExecuteChunk{
-		finalEvent(0, validReceipt(), nil),
+		finalEvent(0, nil),
 		finalMarker(1),
 	}}
 	action := NewExecuteAction(func() (BridgeClient, error) { return client, nil })

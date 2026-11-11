@@ -488,10 +488,9 @@ func (x *RemoteQueryStreamMetadata) GetAttributes() map[string]string {
 }
 
 type RemoteQueryStreamFinal struct {
-	state         protoimpl.MessageState    `protogen:"open.v1"`
-	Status        string                    `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
-	UploadReceipt *RemoteQueryUploadReceipt `protobuf:"bytes,6,opt,name=upload_receipt,json=uploadReceipt,proto3" json:"upload_receipt,omitempty"`
-	Attributes    map[string]string         `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	Status        string                 `protobuf:"bytes,1,opt,name=status,proto3" json:"status,omitempty"`
+	Attributes    map[string]string      `protobuf:"bytes,3,rep,name=attributes,proto3" json:"attributes,omitempty" protobuf_key:"bytes,1,opt,name=key" protobuf_val:"bytes,2,opt,name=value"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
 }
@@ -533,89 +532,11 @@ func (x *RemoteQueryStreamFinal) GetStatus() string {
 	return ""
 }
 
-func (x *RemoteQueryStreamFinal) GetUploadReceipt() *RemoteQueryUploadReceipt {
-	if x != nil {
-		return x.UploadReceipt
-	}
-	return nil
-}
-
 func (x *RemoteQueryStreamFinal) GetAttributes() map[string]string {
 	if x != nil {
 		return x.Attributes
 	}
 	return nil
-}
-
-// RemoteQueryUploadReceipt is the compact run receipt: exactly uploadId,
-// pageCount, totalRows, totalBytes. Bucket names, object paths, and checksums
-// are owned by the intake control plane.
-type RemoteQueryUploadReceipt struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	UploadId      string                 `protobuf:"bytes,1,opt,name=upload_id,json=uploadId,proto3" json:"upload_id,omitempty"`
-	PageCount     int64                  `protobuf:"varint,2,opt,name=page_count,json=pageCount,proto3" json:"page_count,omitempty"`
-	TotalRows     int64                  `protobuf:"varint,3,opt,name=total_rows,json=totalRows,proto3" json:"total_rows,omitempty"`
-	TotalBytes    int64                  `protobuf:"varint,4,opt,name=total_bytes,json=totalBytes,proto3" json:"total_bytes,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
-}
-
-func (x *RemoteQueryUploadReceipt) Reset() {
-	*x = RemoteQueryUploadReceipt{}
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[7]
-	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-	ms.StoreMessageInfo(mi)
-}
-
-func (x *RemoteQueryUploadReceipt) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*RemoteQueryUploadReceipt) ProtoMessage() {}
-
-func (x *RemoteQueryUploadReceipt) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[7]
-	if x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use RemoteQueryUploadReceipt.ProtoReflect.Descriptor instead.
-func (*RemoteQueryUploadReceipt) Descriptor() ([]byte, []int) {
-	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{7}
-}
-
-func (x *RemoteQueryUploadReceipt) GetUploadId() string {
-	if x != nil {
-		return x.UploadId
-	}
-	return ""
-}
-
-func (x *RemoteQueryUploadReceipt) GetPageCount() int64 {
-	if x != nil {
-		return x.PageCount
-	}
-	return 0
-}
-
-func (x *RemoteQueryUploadReceipt) GetTotalRows() int64 {
-	if x != nil {
-		return x.TotalRows
-	}
-	return 0
-}
-
-func (x *RemoteQueryUploadReceipt) GetTotalBytes() int64 {
-	if x != nil {
-		return x.TotalBytes
-	}
-	return 0
 }
 
 type RemoteQueryStreamError struct {
@@ -630,7 +551,7 @@ type RemoteQueryStreamError struct {
 
 func (x *RemoteQueryStreamError) Reset() {
 	*x = RemoteQueryStreamError{}
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[8]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -642,7 +563,7 @@ func (x *RemoteQueryStreamError) String() string {
 func (*RemoteQueryStreamError) ProtoMessage() {}
 
 func (x *RemoteQueryStreamError) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[8]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -655,7 +576,7 @@ func (x *RemoteQueryStreamError) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoteQueryStreamError.ProtoReflect.Descriptor instead.
 func (*RemoteQueryStreamError) Descriptor() ([]byte, []int) {
-	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{8}
+	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *RemoteQueryStreamError) GetCode() string {
@@ -701,7 +622,7 @@ type RemoteQueryExecuteStreamEvent struct {
 
 func (x *RemoteQueryExecuteStreamEvent) Reset() {
 	*x = RemoteQueryExecuteStreamEvent{}
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[9]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -713,7 +634,7 @@ func (x *RemoteQueryExecuteStreamEvent) String() string {
 func (*RemoteQueryExecuteStreamEvent) ProtoMessage() {}
 
 func (x *RemoteQueryExecuteStreamEvent) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[9]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -726,7 +647,7 @@ func (x *RemoteQueryExecuteStreamEvent) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoteQueryExecuteStreamEvent.ProtoReflect.Descriptor instead.
 func (*RemoteQueryExecuteStreamEvent) Descriptor() ([]byte, []int) {
-	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{9}
+	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *RemoteQueryExecuteStreamEvent) GetSequence() uint64 {
@@ -803,7 +724,7 @@ type RemoteQueryExecuteChunk struct {
 
 func (x *RemoteQueryExecuteChunk) Reset() {
 	*x = RemoteQueryExecuteChunk{}
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[10]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -815,7 +736,7 @@ func (x *RemoteQueryExecuteChunk) String() string {
 func (*RemoteQueryExecuteChunk) ProtoMessage() {}
 
 func (x *RemoteQueryExecuteChunk) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[10]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -828,7 +749,7 @@ func (x *RemoteQueryExecuteChunk) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoteQueryExecuteChunk.ProtoReflect.Descriptor instead.
 func (*RemoteQueryExecuteChunk) Descriptor() ([]byte, []int) {
-	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{10}
+	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{9}
 }
 
 func (x *RemoteQueryExecuteChunk) GetChunkIndex() int32 {
@@ -867,7 +788,7 @@ type RemoteQueryResolveRequest struct {
 
 func (x *RemoteQueryResolveRequest) Reset() {
 	*x = RemoteQueryResolveRequest{}
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[11]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -879,7 +800,7 @@ func (x *RemoteQueryResolveRequest) String() string {
 func (*RemoteQueryResolveRequest) ProtoMessage() {}
 
 func (x *RemoteQueryResolveRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[11]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -892,7 +813,7 @@ func (x *RemoteQueryResolveRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoteQueryResolveRequest.ProtoReflect.Descriptor instead.
 func (*RemoteQueryResolveRequest) Descriptor() ([]byte, []int) {
-	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{11}
+	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *RemoteQueryResolveRequest) GetIntegration() string {
@@ -925,7 +846,7 @@ type RemoteQueryResolveResponse struct {
 
 func (x *RemoteQueryResolveResponse) Reset() {
 	*x = RemoteQueryResolveResponse{}
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[12]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -937,7 +858,7 @@ func (x *RemoteQueryResolveResponse) String() string {
 func (*RemoteQueryResolveResponse) ProtoMessage() {}
 
 func (x *RemoteQueryResolveResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[12]
+	mi := &file_datadog_remotequeries_remotequeries_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -950,7 +871,7 @@ func (x *RemoteQueryResolveResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RemoteQueryResolveResponse.ProtoReflect.Descriptor instead.
 func (*RemoteQueryResolveResponse) Descriptor() ([]byte, []int) {
-	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{12}
+	return file_datadog_remotequeries_remotequeries_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RemoteQueryResolveResponse) GetStatus() string {
@@ -1021,25 +942,15 @@ const file_datadog_remotequeries_remotequeries_proto_rawDesc = "" +
 	"attributes\x1a=\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xe4\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01\"\xa2\x02\n" +
 	"\x16RemoteQueryStreamFinal\x12\x16\n" +
-	"\x06status\x18\x01 \x01(\tR\x06status\x12V\n" +
-	"\x0eupload_receipt\x18\x06 \x01(\v2/.datadog.remotequeries.RemoteQueryUploadReceiptR\ruploadReceipt\x12]\n" +
+	"\x06status\x18\x01 \x01(\tR\x06status\x12]\n" +
 	"\n" +
 	"attributes\x18\x03 \x03(\v2=.datadog.remotequeries.RemoteQueryStreamFinal.AttributesEntryR\n" +
 	"attributes\x1a=\n" +
 	"\x0fAttributesEntry\x12\x10\n" +
 	"\x03key\x18\x01 \x01(\tR\x03key\x12\x14\n" +
-	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x05\x10\x06J\x04\b\x04\x10\x05R\x13upload_receipt_jsonR\x15execution_diagnostics\"\xb8\x01\n" +
-	"\x18RemoteQueryUploadReceipt\x12\x1b\n" +
-	"\tupload_id\x18\x01 \x01(\tR\buploadId\x12\x1d\n" +
-	"\n" +
-	"page_count\x18\x02 \x01(\x03R\tpageCount\x12\x1d\n" +
-	"\n" +
-	"total_rows\x18\x03 \x01(\x03R\ttotalRows\x12\x1f\n" +
-	"\vtotal_bytes\x18\x04 \x01(\x03R\n" +
-	"totalBytesJ\x04\b\x05\x10\x06J\x04\b\x06\x10\aR\bprotocolR\n" +
-	"object_ids\"\x9f\x02\n" +
+	"\x05value\x18\x02 \x01(\tR\x05value:\x028\x01J\x04\b\x02\x10\x03J\x04\b\x05\x10\x06J\x04\b\x06\x10\aJ\x04\b\x04\x10\x05R\x13upload_receipt_jsonR\x0eupload_receiptR\x15execution_diagnostics\"\x9f\x02\n" +
 	"\x16RemoteQueryStreamError\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\x12\x18\n" +
 	"\amessage\x18\x02 \x01(\tR\amessage\x12\x1c\n" +
@@ -1082,7 +993,7 @@ func file_datadog_remotequeries_remotequeries_proto_rawDescGZIP() []byte {
 	return file_datadog_remotequeries_remotequeries_proto_rawDescData
 }
 
-var file_datadog_remotequeries_remotequeries_proto_msgTypes = make([]protoimpl.MessageInfo, 16)
+var file_datadog_remotequeries_remotequeries_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_datadog_remotequeries_remotequeries_proto_goTypes = []any{
 	(*RemoteQueryTarget)(nil),             // 0: datadog.remotequeries.RemoteQueryTarget
 	(*RemoteQueryUploadLimits)(nil),       // 1: datadog.remotequeries.RemoteQueryUploadLimits
@@ -1091,35 +1002,33 @@ var file_datadog_remotequeries_remotequeries_proto_goTypes = []any{
 	(*RemoteQueryExecuteRequest)(nil),     // 4: datadog.remotequeries.RemoteQueryExecuteRequest
 	(*RemoteQueryStreamMetadata)(nil),     // 5: datadog.remotequeries.RemoteQueryStreamMetadata
 	(*RemoteQueryStreamFinal)(nil),        // 6: datadog.remotequeries.RemoteQueryStreamFinal
-	(*RemoteQueryUploadReceipt)(nil),      // 7: datadog.remotequeries.RemoteQueryUploadReceipt
-	(*RemoteQueryStreamError)(nil),        // 8: datadog.remotequeries.RemoteQueryStreamError
-	(*RemoteQueryExecuteStreamEvent)(nil), // 9: datadog.remotequeries.RemoteQueryExecuteStreamEvent
-	(*RemoteQueryExecuteChunk)(nil),       // 10: datadog.remotequeries.RemoteQueryExecuteChunk
-	(*RemoteQueryResolveRequest)(nil),     // 11: datadog.remotequeries.RemoteQueryResolveRequest
-	(*RemoteQueryResolveResponse)(nil),    // 12: datadog.remotequeries.RemoteQueryResolveResponse
-	nil,                                   // 13: datadog.remotequeries.RemoteQueryStreamMetadata.AttributesEntry
-	nil,                                   // 14: datadog.remotequeries.RemoteQueryStreamFinal.AttributesEntry
-	nil,                                   // 15: datadog.remotequeries.RemoteQueryStreamError.AttributesEntry
+	(*RemoteQueryStreamError)(nil),        // 7: datadog.remotequeries.RemoteQueryStreamError
+	(*RemoteQueryExecuteStreamEvent)(nil), // 8: datadog.remotequeries.RemoteQueryExecuteStreamEvent
+	(*RemoteQueryExecuteChunk)(nil),       // 9: datadog.remotequeries.RemoteQueryExecuteChunk
+	(*RemoteQueryResolveRequest)(nil),     // 10: datadog.remotequeries.RemoteQueryResolveRequest
+	(*RemoteQueryResolveResponse)(nil),    // 11: datadog.remotequeries.RemoteQueryResolveResponse
+	nil,                                   // 12: datadog.remotequeries.RemoteQueryStreamMetadata.AttributesEntry
+	nil,                                   // 13: datadog.remotequeries.RemoteQueryStreamFinal.AttributesEntry
+	nil,                                   // 14: datadog.remotequeries.RemoteQueryStreamError.AttributesEntry
 }
 var file_datadog_remotequeries_remotequeries_proto_depIdxs = []int32{
 	1,  // 0: datadog.remotequeries.RemoteQueryResultDelivery.limits:type_name -> datadog.remotequeries.RemoteQueryUploadLimits
 	0,  // 1: datadog.remotequeries.RemoteQueryExecuteRequest.target:type_name -> datadog.remotequeries.RemoteQueryTarget
 	2,  // 2: datadog.remotequeries.RemoteQueryExecuteRequest.result_delivery:type_name -> datadog.remotequeries.RemoteQueryResultDelivery
 	3,  // 3: datadog.remotequeries.RemoteQueryExecuteRequest.trace_context:type_name -> datadog.remotequeries.RemoteQueryTraceContext
-	13, // 4: datadog.remotequeries.RemoteQueryStreamMetadata.attributes:type_name -> datadog.remotequeries.RemoteQueryStreamMetadata.AttributesEntry
-	7,  // 5: datadog.remotequeries.RemoteQueryStreamFinal.upload_receipt:type_name -> datadog.remotequeries.RemoteQueryUploadReceipt
-	14, // 6: datadog.remotequeries.RemoteQueryStreamFinal.attributes:type_name -> datadog.remotequeries.RemoteQueryStreamFinal.AttributesEntry
-	15, // 7: datadog.remotequeries.RemoteQueryStreamError.attributes:type_name -> datadog.remotequeries.RemoteQueryStreamError.AttributesEntry
-	5,  // 8: datadog.remotequeries.RemoteQueryExecuteStreamEvent.metadata:type_name -> datadog.remotequeries.RemoteQueryStreamMetadata
-	6,  // 9: datadog.remotequeries.RemoteQueryExecuteStreamEvent.final:type_name -> datadog.remotequeries.RemoteQueryStreamFinal
-	8,  // 10: datadog.remotequeries.RemoteQueryExecuteStreamEvent.error:type_name -> datadog.remotequeries.RemoteQueryStreamError
-	9,  // 11: datadog.remotequeries.RemoteQueryExecuteChunk.event:type_name -> datadog.remotequeries.RemoteQueryExecuteStreamEvent
-	0,  // 12: datadog.remotequeries.RemoteQueryResolveRequest.target:type_name -> datadog.remotequeries.RemoteQueryTarget
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	12, // 4: datadog.remotequeries.RemoteQueryStreamMetadata.attributes:type_name -> datadog.remotequeries.RemoteQueryStreamMetadata.AttributesEntry
+	13, // 5: datadog.remotequeries.RemoteQueryStreamFinal.attributes:type_name -> datadog.remotequeries.RemoteQueryStreamFinal.AttributesEntry
+	14, // 6: datadog.remotequeries.RemoteQueryStreamError.attributes:type_name -> datadog.remotequeries.RemoteQueryStreamError.AttributesEntry
+	5,  // 7: datadog.remotequeries.RemoteQueryExecuteStreamEvent.metadata:type_name -> datadog.remotequeries.RemoteQueryStreamMetadata
+	6,  // 8: datadog.remotequeries.RemoteQueryExecuteStreamEvent.final:type_name -> datadog.remotequeries.RemoteQueryStreamFinal
+	7,  // 9: datadog.remotequeries.RemoteQueryExecuteStreamEvent.error:type_name -> datadog.remotequeries.RemoteQueryStreamError
+	8,  // 10: datadog.remotequeries.RemoteQueryExecuteChunk.event:type_name -> datadog.remotequeries.RemoteQueryExecuteStreamEvent
+	0,  // 11: datadog.remotequeries.RemoteQueryResolveRequest.target:type_name -> datadog.remotequeries.RemoteQueryTarget
+	12, // [12:12] is the sub-list for method output_type
+	12, // [12:12] is the sub-list for method input_type
+	12, // [12:12] is the sub-list for extension type_name
+	12, // [12:12] is the sub-list for extension extendee
+	0,  // [0:12] is the sub-list for field type_name
 }
 
 func init() { file_datadog_remotequeries_remotequeries_proto_init() }
@@ -1127,7 +1036,7 @@ func file_datadog_remotequeries_remotequeries_proto_init() {
 	if File_datadog_remotequeries_remotequeries_proto != nil {
 		return
 	}
-	file_datadog_remotequeries_remotequeries_proto_msgTypes[9].OneofWrappers = []any{
+	file_datadog_remotequeries_remotequeries_proto_msgTypes[8].OneofWrappers = []any{
 		(*RemoteQueryExecuteStreamEvent_Metadata)(nil),
 		(*RemoteQueryExecuteStreamEvent_Final)(nil),
 		(*RemoteQueryExecuteStreamEvent_Error)(nil),
@@ -1138,7 +1047,7 @@ func file_datadog_remotequeries_remotequeries_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_datadog_remotequeries_remotequeries_proto_rawDesc), len(file_datadog_remotequeries_remotequeries_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   16,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

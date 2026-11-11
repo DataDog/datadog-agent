@@ -1129,7 +1129,7 @@ func TestRemoteQueryExecuteServiceDispatchesPagedJSONRequest(t *testing.T) {
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\npassword: secret-value\n"}},
 		events: []check.RemoteQueryStreamEvent{
 			{Type: "metadata", MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages","includeSchema":true}`},
-			{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}}`},
+			{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`},
 		},
 	}
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
@@ -1209,7 +1209,7 @@ func TestRemoteQueryExecuteStreamRunsConcurrently(t *testing.T) {
 func TestRemoteQueryExecuteServiceDispatchesDatabaseInstanceTarget(t *testing.T) {
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres\ntags:\n  - rq_database_instance:rq-proof-a1-db1\ndatabase_identifier:\n  template: $rq_database_instance\npassword: secret-value\n"}},
-		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
+		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
 	}
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{DatabaseInstance: "rq-proof-a1-db1"}, "SELECT * FROM arbitrary_table", false, pagedTestDelivery())
@@ -1235,7 +1235,7 @@ func TestRemoteQueryExecuteServiceDispatchesDatabaseInstanceTarget(t *testing.T)
 func TestRemoteQueryExecuteServiceForwardsArbitraryQuery(t *testing.T) {
 	runner := &fakeStreamRunnerCheck{
 		fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},
-		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
+		events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
 	}
 	service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{fakeWrappedCheck{Check: runner}}}, true, remoteQueryTestConfig(t))
 	req, err := NewRemoteQueryExecuteRequest("postgres", RemoteQueryExecuteTarget{Host: "localhost", Port: 5432, DBName: "postgres"}, "SELECT 'hello world' AS message", false, pagedTestDelivery())
@@ -1260,7 +1260,7 @@ func TestRemoteQueryExecuteServicePostgresResolverSweep(t *testing.T) {
 		return &fakeStreamRunnerCheck{
 			fakeRunnerCheck: fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: provider, instance: "host: db.example.com\nport: 5432\ndbname: whatever\npassword: secret-" + provider + "\n"}},
 			resolveEvents:   resolveEvents,
-			events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":1,"totalBytes":9}}`}},
+			events:          []check.RemoteQueryStreamEvent{{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}},
 		}
 	}
 
@@ -1421,7 +1421,7 @@ func TestRemoteQueryExecuteServiceUnsupportedAndRunnerErrorAreSanitized(t *testi
 	})
 }
 
-func TestRemoteQueryExecuteServiceMissingReceiptAndMalformedFinalAreExecutorErrors(t *testing.T) {
+func TestRemoteQueryExecuteServiceUnavailableEmitterIsExecutorError(t *testing.T) {
 	t.Run("emit callback unavailable", func(t *testing.T) {
 		service := NewRemoteQueryExecuteService(fakeCollector{checks: []check.Check{
 			&fakeRunnerCheck{fakeCheck: fakeCheck{name: "postgres", loader: "python", provider: "file", instance: "host: localhost\nport: 5432\ndbname: postgres"}},

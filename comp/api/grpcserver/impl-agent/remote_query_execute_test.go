@@ -166,39 +166,48 @@ func TestRemoteQueryStreamEventFromCheckEventMapsMetadata(t *testing.T) {
 	assert.Equal(t, map[string]string{"status": "STARTED", "includeSchema": "true"}, event.GetMetadata().GetAttributes())
 }
 
-func TestRemoteQueryStreamEventRejectsRetiredReceiptVariants(t *testing.T) {
-	for _, receipt := range []string{
-		`{"protocol":"sessionless-v1","objectIds":["object"],"pageCount":1,"totalRows":1,"totalBytes":10}`,
-		`{"uploadId":"upload-proof","protocol":"sessionless-v1","pageCount":1,"totalRows":1,"totalBytes":10}`,
-		`{"arbitrary":{"blob":true}}`,
-		`null`,
-	} {
-		_, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
-			Type:         "final",
-			MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":` + receipt + `}`,
-		}, "postgres")
-		require.ErrorContains(t, err, "invalid session-backed upload receipt")
-	}
-}
-
-func TestRemoteQueryStreamEventFromCheckEventSurfacesCompactReceipt(t *testing.T) {
+// Agent OUT-04: a successful integration answer needs no receipt.
+func TestRemoteQueryStreamEventAcceptsSuccessWithoutReceipt(t *testing.T) {
 	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
 		Type:         "final",
-		MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654},"stats":{"rowsEmitted":123456,"pagesEmitted":3,"bytesEmitted":987654,"elapsedMs":4321}}`,
+		MetadataJSON: `{"status":"SUCCEEDED"}`,
 	}, "postgres")
 
 	require.NoError(t, err)
 	require.NotNil(t, event.GetFinal())
 	assert.Equal(t, "SUCCEEDED", event.GetFinal().GetStatus())
-	receipt := event.GetFinal().GetUploadReceipt()
-	require.NotNil(t, receipt)
-	assert.Equal(t, "upload-proof", receipt.GetUploadId())
-	assert.Equal(t, int64(3), receipt.GetPageCount())
-	assert.Equal(t, int64(123456), receipt.GetTotalRows())
-	assert.Equal(t, int64(987654), receipt.GetTotalBytes())
+	assert.Empty(t, event.GetFinal().GetAttributes())
+}
+
+// A stale receipt object is undocumented metadata: generic attribute conversion
+// skips nested objects, just as it does for any other undocumented object.
+func TestRemoteQueryStreamEventIgnoresUndocumentedObjects(t *testing.T) {
+	for _, field := range []string{"upload_receipt", "undocumented"} {
+		t.Run(field, func(t *testing.T) {
+			event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+				Type:         "final",
+				MetadataJSON: `{"status":"SUCCEEDED","` + field + `":{"uploadId":"stale-upload","pageCount":3,"totalRows":123456,"totalBytes":987654}}`,
+			}, "postgres")
+			require.NoError(t, err)
+			require.NotNil(t, event.GetFinal())
+			assert.Equal(t, "SUCCEEDED", event.GetFinal().GetStatus())
+			assert.Empty(t, event.GetFinal().GetAttributes())
+		})
+	}
+}
+
+func TestRemoteQueryStreamEventFromCheckEventSurfacesProgressStats(t *testing.T) {
+	event, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
+		Type:         "final",
+		MetadataJSON: `{"status":"SUCCEEDED","stats":{"rowsEmitted":123456,"pagesEmitted":3,"bytesEmitted":987654,"elapsedMs":4321}}`,
+	}, "postgres")
+
+	require.NoError(t, err)
+	require.NotNil(t, event.GetFinal())
+	assert.Equal(t, "SUCCEEDED", event.GetFinal().GetStatus())
 
 	// The run progress stats surface as compact string attributes, never as bulk
-	// result bytes, and the receipt fields stay exactly the four contract fields.
+	// result bytes.
 	attrs := event.GetFinal().GetAttributes()
 	assert.Equal(t, "123456", attrs["stats.rowsEmitted"])
 	assert.Equal(t, "3", attrs["stats.pagesEmitted"])
@@ -229,26 +238,19 @@ var legacyExecutionDiagnosticsCases = []struct {
 // proves the mixed-version behavior after the typed execution-diagnostics
 // transport was retired: an older integration still emits its top-level
 // executionDiagnostics metadata — valid-shaped, null, malformed, or oversized —
-// and the Agent simply ignores it. The receipt conversion and the sanitized
-// error conversion are untouched, and the legacy object never leaks into the
+// and the Agent simply ignores it. Final status and sanitized error conversion
+// are untouched, and the legacy object never leaks into the
 // flattened generic progress/final/error attributes.
 func TestRemoteQueryStreamEventFromCheckEventIgnoresLegacyExecutionDiagnostics(t *testing.T) {
-	receiptJSON := `"upload_receipt":{"uploadId":"upload-proof","pageCount":3,"totalRows":123456,"totalBytes":987654}`
 	for _, tt := range legacyExecutionDiagnosticsCases {
 		t.Run(tt.name, func(t *testing.T) {
 			finalEvent, err := remoteQueryStreamEventFromCheckEvent(check.RemoteQueryStreamEvent{
 				Type:         "final",
-				MetadataJSON: `{"status":"SUCCEEDED",` + receiptJSON + `,"stats":{"elapsedMs":4321},"executionDiagnostics":` + tt.diagnosticsJSON + `}`,
+				MetadataJSON: `{"status":"SUCCEEDED","stats":{"elapsedMs":4321},"executionDiagnostics":` + tt.diagnosticsJSON + `}`,
 			}, "postgres")
 
 			require.NoError(t, err)
 			require.NotNil(t, finalEvent.GetFinal())
-			receipt := finalEvent.GetFinal().GetUploadReceipt()
-			require.NotNil(t, receipt, "legacy diagnostics must never affect the receipt")
-			assert.Equal(t, "upload-proof", receipt.GetUploadId())
-			assert.Equal(t, int64(3), receipt.GetPageCount())
-			assert.Equal(t, int64(123456), receipt.GetTotalRows())
-			assert.Equal(t, int64(987654), receipt.GetTotalBytes())
 			assert.Equal(t, "SUCCEEDED", finalEvent.GetFinal().GetStatus())
 			attrs := finalEvent.GetFinal().GetAttributes()
 			assert.NotContains(t, attrs, "executionDiagnostics", "legacy diagnostics must not leak into the flattened attributes")
@@ -303,7 +305,7 @@ func TestRemoteQueryIPCStreamForwarderIndexesAndTimesChunks(t *testing.T) {
 	forwarder := newRemoteQueryIPCStreamForwarder(stream, "postgres")
 
 	require.NoError(t, forwarder.Send(check.RemoteQueryStreamEvent{Type: "metadata", MetadataJSON: `{"status":"STARTED","operation":"produce_json_pages"}`}))
-	require.NoError(t, forwarder.Send(check.RemoteQueryStreamEvent{Type: "final", MetadataJSON: `{"status":"SUCCEEDED","upload_receipt":{"uploadId":"upload-proof","pageCount":1,"totalRows":2,"totalBytes":18}}`}))
+	require.NoError(t, forwarder.Send(check.RemoteQueryStreamEvent{Type: "final", MetadataJSON: `{"status":"SUCCEEDED"}`}))
 
 	require.Len(t, stream.chunks, 2)
 	assert.Equal(t, int32(0), stream.chunks[0].GetChunkIndex())
@@ -312,9 +314,6 @@ func TestRemoteQueryIPCStreamForwarderIndexesAndTimesChunks(t *testing.T) {
 	final := stream.chunks[1].GetEvent().GetFinal()
 	require.NotNil(t, final)
 	assert.Equal(t, "SUCCEEDED", final.GetStatus())
-	require.NotNil(t, final.GetUploadReceipt())
-	assert.Equal(t, "upload-proof", final.GetUploadReceipt().GetUploadId())
-	assert.Equal(t, int64(18), final.GetUploadReceipt().GetTotalBytes())
 
 	// The agent-side timing attributes are compact progress metadata on the final event.
 	assert.Equal(t, "2", final.GetAttributes()["agent_ipc_send_calls"])
