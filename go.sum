@@ -96,8 +96,8 @@ github.com/DataDog/datadog-traceroute v1.0.22 h1:PRxZvKRlq/WsOfVOVSagvGb7P83/rmX
 github.com/DataDog/datadog-traceroute v1.0.22/go.mod h1:fnzf/ys0XIpqaeQiief5KKFhaq0Cb13p+brZ76mOgsw=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d h1:W6b2wcIaW6NXauhcA/ZoH012oRVEiqu8dBEd0gAMsgU=
 github.com/DataDog/dd-policy-engine/go v0.0.0-20260730181922-c5e419a4ec7d/go.mod h1:PaK5t+qpa/zU7wdM4SDjRhSlBNb6crYrXsEz2aHRqIY=
-github.com/DataDog/dd-trace-go/v2 v2.11.2 h1:HbANttl9UJGen/tRb+pX3nPNa4IQy2vXvUDlhZaQHeI=
-github.com/DataDog/dd-trace-go/v2 v2.11.2/go.mod h1:V/CeQWG3+2fzAgZReAYfDRNjUXjHKOOW4KtEnV/yk2g=
+github.com/DataDog/dd-trace-go/v2 v2.12.0 h1:YOxX+szin45JumOECU6kUNdCPHJFtNvl9CYUgAJf53k=
+github.com/DataDog/dd-trace-go/v2 v2.12.0/go.mod h1:rOLOFJ8rlhVsJv7f53jlotY/56xvb0OBLahN+dAOdjA=
 github.com/DataDog/ddtrivy v0.0.0-20261029172516-a3ae59cc6791 h1:m79i6ZV2KfOULyO87yznQTkgxk1YixN5LDVQY5wZwq8=
 github.com/DataDog/ddtrivy v0.0.0-20261029172516-a3ae59cc6791/go.mod h1:iF+gkvyZJQ9lmKp9MTMDk4fCiyscpXSZkBOVO7Qaxo8=
 github.com/DataDog/ebpf-manager v0.8.7 h1:qCORDJ3Q+zXudUDPnd8mHDzYaBAIHlKxD7loyBFs/g4=
