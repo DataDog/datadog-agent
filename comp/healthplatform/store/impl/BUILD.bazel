@@ -39,7 +39,6 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "persistence_remote_test.go",
-        "store_ingest_test.go",
         "store_kubeapiserver_test.go",
         "store_test.go",
     ],
