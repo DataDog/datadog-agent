@@ -5,6 +5,7 @@
 
 //go:build aix || freebsd || solaris
 
+// Package datadogextension preserves upstream factories on unsupported platforms.
 package datadogextension
 
 import (
