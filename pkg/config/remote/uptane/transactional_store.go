@@ -75,34 +75,38 @@ func recreateTransactionalStore(metadata *Metadata) (*transactionalStore, error)
 	return s, nil
 }
 
-// reopenTransactionalStore reopens a store on the DB file currently on disk,
-// after a failed wipe. The metadata must be the one read from the previous
-// DB (getTSMetadata): its APIKey field holds the stored API key HASH, which
-// is what recreate expects, unlike newTransactionalStore whose openCacheDB
-// hashes the key again.
+// wipeAllData removes every bucket of the DB except the metadata one: all
+// the TUF state, targets and org data are deleted in place, while the DB file
+// and its metadata (agent version, API key, URL) are kept.
 //
-// When the file is missing (the wipe removed it but could not create the new
-// DB), bbolt creates an empty one; the metadata check catches that and the
-// DB is recreated fresh with its metadata.
-func reopenTransactionalStore(metadata *Metadata) (*transactionalStore, error) {
-	db, err := bbolt.Open(metadata.Path, 0600, &bbolt.Options{
-		Timeout: databaseLockTimeout,
-	})
-	if err != nil {
-		return nil, err
-	}
-	if _, err := getMetadata(db); err != nil {
-		_ = db.Close()
-		db, err = recreate(metadata.Path, metadata.AgentVersion, metadata.APIKey, metadata.URL)
-		if err != nil {
-			return nil, err
+// Deleting the buckets instead of removing and recreating the file cannot
+// hit a file-removal failure and never leaves the client with a closed DB: if
+// the bolt transaction fails, nothing is deleted at all and the previous
+// state is intact.
+func (ts *transactionalStore) wipeAllData() error {
+	ts.lock.Lock()
+	defer ts.lock.Unlock()
+
+	return ts.db.Update(func(tx *bbolt.Tx) error {
+		// The name slice must be collected first: deleting buckets while
+		// iterating them is not safe, and the name buffer is only valid
+		// during the callback.
+		var bucketNames []string
+		if err := tx.ForEach(func(name []byte, _ *bbolt.Bucket) error {
+			if string(name) != metaBucket {
+				bucketNames = append(bucketNames, string(name))
+			}
+			return nil
+		}); err != nil {
+			return err
 		}
-	}
-	s := &transactionalStore{
-		db:         db,
-		cachedData: make(map[string]dbBucket),
-	}
-	return s, nil
+		for _, name := range bucketNames {
+			if err := tx.DeleteBucket([]byte(name)); err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }
 
 // getTSMetadata gets metadata from existing transactional db and then closes the existing underlying boltDB

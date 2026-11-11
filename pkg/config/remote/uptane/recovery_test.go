@@ -6,7 +6,6 @@
 package uptane
 
 import (
-	"errors"
 	"testing"
 
 	"github.com/DataDog/go-tuf/data"
@@ -264,13 +263,12 @@ func TestTryRecoverFromEmbeddedRootUntrustedPayloadRejected(t *testing.T) {
 	assert.Equal(t, dcA.directorRoot, directorRoot18)
 }
 
-// TestTryRecoverFromEmbeddedRootWipeFailureIsRetried covers a transient DB
-// wipe failure: the DB file cannot be removed, for example when an antivirus
-// scanner holds it open without sharing deletes. The recovery must fail
-// without replaying the new DC's payload on the current state, the client
-// must stay usable on the old DC (no closed DB left behind), and the next
-// recovery attempt must succeed once the wipe works again.
-func TestTryRecoverFromEmbeddedRootWipeFailureIsRetried(t *testing.T) {
+// TestTryRecoverFromEmbeddedRootWipeKeepsDBFileAndMetadata covers the DB
+// wipe itself: the DB is emptied in place, by deleting its buckets, instead
+// of removing and recreating the file. After the recovery the DB file is the
+// same and its metadata (agent version, API key, URL) is intact, so a
+// restart opens the same DB; none of the old DC's data is left behind.
+func TestTryRecoverFromEmbeddedRootWipeKeepsDBFileAndMetadata(t *testing.T) {
 	configTargets, directorTargets, targetFiles := dcTestTargets()
 	embedded, dcA, dcB := newDCTestTopology(configTargets, directorTargets, targetFiles)
 
@@ -280,28 +278,25 @@ func TestTryRecoverFromEmbeddedRootWipeFailureIsRetried(t *testing.T) {
 	require.NoError(t, err)
 	assertClientLatchedToDC(t, client, dcA)
 
-	// Simulate a transient wipe failure on the first recovery attempt.
-	client.recreateStore = func(_ *Metadata) (*transactionalStore, error) {
-		client.recreateStore = recreateTransactionalStore
-		return nil, errors.New("could not remove existing rc db")
-	}
-
-	err = client.TryRecoverFromEmbeddedRoot(dcB.toUpdate())
-	require.Error(t, err)
-
-	// The client was rebuilt on the reopened store and still serves the old
-	// DC's state: no wipe, no replay, and no closed DB.
-	assertClientLatchedToDC(t, client, dcA)
-
-	// The normal update path works again for the old DC (the client is live,
-	// not wedged until restart).
-	dcA2 := dcA.incrementalChange(configTargets, directorTargets, targetFiles, nil, dcA.directorSnapshotVersion+1)
-	err = client.Update(dcA2.toUpdate())
+	dbPath := client.transactionalStore.db.Path()
+	metadataBefore, err := getMetadata(client.transactionalStore.db)
 	require.NoError(t, err)
-	assertClientLatchedToDC(t, client, dcA2)
 
-	// The recovery can be retried and succeeds once the wipe works.
 	err = client.TryRecoverFromEmbeddedRoot(dcB.toUpdate())
 	require.NoError(t, err)
 	assertClientLatchedToDC(t, client, dcB)
+
+	// The DB file was kept, not deleted and recreated.
+	assert.Equal(t, dbPath, client.transactionalStore.db.Path())
+
+	// The DB metadata is intact, so a restart opens the same DB.
+	metadataAfter, err := getMetadata(client.transactionalStore.db)
+	require.NoError(t, err)
+	assert.Equal(t, metadataBefore, metadataAfter)
+
+	// None of the old DC's data is left: the latched root is the new DC's
+	// rotation, not the old one.
+	directorRoot18, err := client.DirectorRoot(18)
+	require.NoError(t, err)
+	assert.Equal(t, dcB.directorRoot, directorRoot18)
 }

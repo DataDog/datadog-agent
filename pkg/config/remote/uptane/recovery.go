@@ -223,64 +223,43 @@ func (c *CoreAgentClient) verifyFromEmbeddedRoot(response *pbgo.LatestConfigsRes
 	}, nil
 }
 
-// recreateTransactionalStoreInPlace wipes the underlying bolt DB and rebuilds
-// all the client internals on the fresh DB (local stores reinitialized with
-// the embedded roots, empty remote stores, empty target and org stores). The
-// metadata (path, agent version, API key, URL) of the previous DB is reused.
+// wipeDatabase wipes all the RC state stored in the bolt DB and rebuilds
+// the client internals on the emptied DB (local stores reinitialized with
+// the embedded roots, empty remote stores, empty target and org stores).
 //
-// Wiping the DB means removing its file and creating a new one. The removal
-// can fail transiently, for example when an antivirus scanner or a backup
-// tool holds the file open without sharing deletes (common on Windows). In
-// that case the client falls back to reopening a store on whatever is on
-// disk, so it stays usable on its current state instead of being left with a
-// closed DB until restart; the recovery can then be retried later. The
-// returned error distinguishes the two outcomes: a nil return means the wipe
-// happened, the store now starts from the embedded root.
-func (c *CoreAgentClient) recreateTransactionalStoreInPlace() error {
-	metadata, err := c.transactionalStore.getTSMetadata()
-	if err != nil {
-		return fmt.Errorf("could not read the transactional store metadata before the wipe: %w", err)
+// The DB is wiped in place, by deleting its buckets in a single bolt
+// transaction, instead of removing and recreating the file: the wipe cannot
+// hit a transient file-removal failure (an antivirus scanner or a backup
+// tool holding the file open without sharing deletes), the client never
+// ends up with a closed DB, and on failure the bolt transaction rolls back
+// so the previous state is intact and the recovery can be retried. The DB
+// metadata (agent version, API key, URL) belongs to the same agent and org,
+// so it is kept.
+func (c *CoreAgentClient) wipeDatabase() error {
+	// Drop any pending in-memory change before wiping the DB.
+	c.transactionalStore.rollback()
+
+	if err := c.transactionalStore.wipeAllData(); err != nil {
+		return fmt.Errorf("could not wipe the RC database: %w", err)
 	}
 
-	transactionalStore, err := c.recreateStore(metadata)
-	wipeDone := err == nil
-	if err != nil {
-		// The wipe failed: the DB file could not be removed, or the new DB
-		// could not be created. Reopen a store on whatever is on disk: if the
-		// file is still there the client keeps its current state, if it was
-		// removed a fresh DB is created and the state restarts from the
-		// embedded root. Either way the client stays usable and the recovery
-		// can be retried.
-		transactionalStore, err = reopenTransactionalStore(metadata)
-		if err != nil {
-			return fmt.Errorf("could not recreate the transactional store: %w", err)
-		}
-	}
-
-	targetStore := newTargetStore(transactionalStore)
-
+	targetStore := newTargetStore(c.transactionalStore)
 	c.configRemoteStore = newRemoteStoreConfig(targetStore)
 	c.directorRemoteStore = newRemoteStoreDirector(targetStore)
 	c.Client.targetStore = targetStore
-	c.Client.orgStore = newOrgStore(transactionalStore)
-	c.Client.transactionalStore = transactionalStore
+	c.Client.orgStore = newOrgStore(c.transactionalStore)
 
-	if c.configLocalStore, err = newLocalStoreConfig(transactionalStore, c.site, c.configRootOverride); err != nil {
+	var err error
+	if c.configLocalStore, err = newLocalStoreConfig(c.transactionalStore, c.site, c.configRootOverride); err != nil {
 		return err
 	}
-	if c.directorLocalStore, err = newLocalStoreDirector(transactionalStore, c.site, c.directorRootOverride); err != nil {
+	if c.directorLocalStore, err = newLocalStoreDirector(c.transactionalStore, c.site, c.directorRootOverride); err != nil {
 		return err
 	}
 
 	c.configTUFClient = client.NewClient(c.configLocalStore, c.configRemoteStore)
 	c.directorTUFClient = client.NewClient(c.directorLocalStore, c.directorRemoteStore)
 
-	if !wipeDone {
-		// The internals were rebuilt on the reopened store, but the DB wipe
-		// did not happen: the caller must not replay the recovery payload on
-		// the current (old) state.
-		return errors.New("the DB wipe failed: the transactional store was reopened on the existing DB, keeping the current state; the recovery can be retried")
-	}
 	return nil
 }
 
@@ -310,10 +289,11 @@ func (c *CoreAgentClient) recreateTransactionalStoreInPlace() error {
 // counters, so accepting such a payload would disable TUF rollback
 // protection; it is rejected without touching the state.
 //
-// A failure before the wipe leaves the current state untouched. A failure
-// after the wipe (the update replay or the commit) leaves the client on the
-// freshly created DB, latched at the embedded root like a brand new agent: the
-// old DC's state is gone, and the next successful update rebuilds the state
+// A failure before or during the wipe leaves the current state untouched
+// (the wipe itself is a single rolled-back bolt transaction). A failure after
+// the wipe (the update replay or the commit) leaves the client on the
+// emptied DB, latched at the embedded root like a brand new agent: the old
+// DC's state is gone, and the next successful update rebuilds the state
 // from scratch.
 func (c *CoreAgentClient) TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfigsResponse) error {
 	c.Lock()
@@ -377,7 +357,7 @@ func (c *CoreAgentClient) TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfig
 
 	// The payload is proven valid from the embedded root and belongs to the
 	// same org: wipe the DB and rebuild the client from scratch.
-	if err := c.recreateTransactionalStoreInPlace(); err != nil {
+	if err := c.wipeDatabase(); err != nil {
 		return err
 	}
 
