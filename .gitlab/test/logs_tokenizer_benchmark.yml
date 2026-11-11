@@ -1,6 +1,8 @@
 ---
-# Tells you whether this change made the shared log tokenizer (pkg/logs/tokenizer) slower. It runs
-# `dda inv logs-tokenizer.bench-compare` on the merge base and on this commit, alternating on the same runner.
+# Tells you whether this change made the shared log tokenizer (pkg/logs/tokenizer) allocate more or
+# use more bytes per call. It runs `dda inv logs-tokenizer.bench-compare` on the merge base and on this
+# commit, alternating on the same runner. Time is not judged: A/A runs on these runners have ± bands of
+# 11% to 60%, too wide to see a 5-10% change. The nightly run still sends the timings to Datadog.
 # This job only writes the verdict to verdict.json; logs_tokenizer_benchmark_check decides whether
 # a regression blocks.
 #
