@@ -4,19 +4,18 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 
-# -mtls-dialect picks the general-dynamic dialect on x86_64. aarch64 leaves
-# it unset: GCC defaults to TLSDESC, and clang rejects the flag. On aarch64
-# _gnu duplicates the default flavor and _ld matches _ld_desc. Exported: the
-# Node.js tester in BUILD.bazel needs it too, and it is the only access model
-# that one ever builds.
+# -mtls-dialect is x86_64 only. Other CPUs leave it unset. On aarch64 that is
+# TLSDESC, so _gnu duplicates the default flavor and _ld matches _ld_desc.
+# Exported: the Node.js tester in BUILD.bazel needs it too, and it is the only
+# access model that one ever builds.
 TLS_DIALECT = select({
-    "@platforms//cpu:aarch64": [],
     "@platforms//cpu:x86_64": ["-mtls-dialect=gnu2"],
+    "//conditions:default": [],
 })
 
 _TLS_ALT_DIALECT = select({
-    "@platforms//cpu:aarch64": [],
     "@platforms//cpu:x86_64": ["-mtls-dialect=gnu"],
+    "//conditions:default": [],
 })
 
 # The access models, mirroring the matrix the upstream profiler builds for its
