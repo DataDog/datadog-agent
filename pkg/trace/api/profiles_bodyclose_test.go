@@ -43,7 +43,7 @@ func TestSingleTargetClosesBodyOnError(t *testing.T) {
 	mt := &multiTransport{
 		rt:      errorRoundTripper{},
 		targets: []*url.URL{u},
-		keys:    []string{"dummy"},
+		keys:    staticAPIKeys("dummy"),
 	}
 
 	// Request with a tracking body.

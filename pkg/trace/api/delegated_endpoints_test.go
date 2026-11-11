@@ -25,6 +25,7 @@ import (
 
 func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 	for _, setting := range []string{
+		"apm_config.profiling_additional_endpoints",
 		"apm_config.additional_endpoints",
 	} {
 		for _, initiallyResolved := range []bool{false, true} {
@@ -76,9 +77,13 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 					}
 					return keys[index], true
 				}
+				extra := map[string][]string{host: initial}
 				receiver := newTestReceiverFromConfig(conf)
 				var handler http.Handler
 				switch setting {
+				case "apm_config.profiling_additional_endpoints":
+					conf.ProfilingProxy.AdditionalEndpoints = extra
+					handler = receiver.profileProxyHandler()
 				case "apm_config.additional_endpoints":
 					for i, key := range initial {
 						conf.Endpoints = append(conf.Endpoints, conf.AdditionalEndpoint(setting, host, key, i))
@@ -112,6 +117,31 @@ func TestProxyDelegatedEndpointUpdates(t *testing.T) {
 			})
 		}
 	}
+}
+
+func TestProfilingOnlyPendingEndpointResolves(t *testing.T) {
+	var calls atomic.Int32
+	intake := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
+		assert.Equal(t, "resolved-key", req.Header.Get("DD-API-KEY"))
+		calls.Add(1)
+		w.WriteHeader(http.StatusAccepted)
+	}))
+	defer intake.Close()
+	conf := newTestReceiverConfigNoPort()
+	conf.ProfilingProxy.MainEndpointMode = config.ProfilingMainEndpointSkip
+	conf.ProfilingProxy.AdditionalEndpoints = map[string][]string{intake.URL: {"DELA[org-a, aws]"}}
+	var ready atomic.Bool
+	conf.ReadAdditionalEndpointKey = func(_, _ string, _ int) (string, bool) { return "resolved-key", ready.Load() }
+	handler := newTestReceiverFromConfig(conf).profileProxyHandler()
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/profiling/v1/input", strings.NewReader("payload")))
+	assert.GreaterOrEqual(t, rec.Code, 500)
+	assert.Zero(t, calls.Load())
+	ready.Store(true)
+	rec = httptest.NewRecorder()
+	handler.ServeHTTP(rec, httptest.NewRequest(http.MethodPost, "/profiling/v1/input", strings.NewReader("payload")))
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.EqualValues(t, 1, calls.Load())
 }
 
 func TestTelemetryProxyDelegatedEndpointUpdates(t *testing.T) {
