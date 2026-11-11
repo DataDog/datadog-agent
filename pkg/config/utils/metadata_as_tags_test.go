@@ -152,7 +152,7 @@ func TestGetMetadataAsTagsGPUJobs(t *testing.T) {
 			groupType:  "annotation",
 		},
 		{
-			name:       "no keys configured",
+			name:       "empty keys disable tagging",
 			gpuEnabled: true,
 			runType:    "label",
 			groupType:  "label",
@@ -217,6 +217,62 @@ func TestGetMetadataAsTagsGPUJobs(t *testing.T) {
 
 			// Calling again must not accumulate tags
 			assertTagsEqual(tt, test.expectedPodLabelsAsTags, GetMetadataAsTags(mockConfig).GetPodLabelsAsTags())
+		})
+	}
+}
+
+func TestGetMetadataAsTagsGPUJobDefaults(t *testing.T) {
+	tests := []struct {
+		name        string
+		config      string
+		labels      map[string]string
+		annotations map[string]string
+	}{
+		{name: "gpu disabled"},
+		{
+			name:   "gpu enabled without job configuration",
+			config: "gpu:\n  enabled: true\n",
+			annotations: map[string]string{
+				"training.datadoghq.com/run-id":   "training_run_id",
+				"training.datadoghq.com/group-id": "training_group_id",
+			},
+		},
+		{
+			name:   "custom run label replaces default annotation",
+			config: "gpu:\n  enabled: true\n  jobs:\n    run:\n      key: existing-run-id\n      type: label\n",
+			labels: map[string]string{"existing-run-id": "training_run_id"},
+			annotations: map[string]string{
+				"training.datadoghq.com/group-id": "training_group_id",
+			},
+		},
+		{
+			name:   "empty run key disables only run tagging",
+			config: "gpu:\n  enabled: true\n  jobs:\n    run:\n      key: ''\n",
+			annotations: map[string]string{
+				"training.datadoghq.com/group-id": "training_group_id",
+			},
+		},
+		{
+			name: "explicit annotation mapping takes precedence",
+			config: `
+gpu:
+  enabled: true
+kubernetes_resources_annotations_as_tags: '{"pods":{"training.datadoghq.com/run-id":"custom_run_id"}}'
+`,
+			annotations: map[string]string{
+				"training.datadoghq.com/run-id":   "custom_run_id",
+				"training.datadoghq.com/group-id": "training_group_id",
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			cfg := configmock.NewFromYAML(t, test.config)
+
+			got := GetMetadataAsTags(cfg)
+
+			assertTagsEqual(t, test.labels, got.GetPodLabelsAsTags())
+			assertTagsEqual(t, test.annotations, got.GetPodAnnotationsAsTags())
 		})
 	}
 }

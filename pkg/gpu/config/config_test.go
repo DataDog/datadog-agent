@@ -68,10 +68,41 @@ func TestNewJobsConfigDefaults(t *testing.T) {
 
 	got := New()
 
-	assert.Equal(t, IdentifierConfig{Type: IdentifierTypeLabel}, got.JobsConfig.Run)
-	assert.Equal(t, IdentifierConfig{Type: IdentifierTypeLabel}, got.JobsConfig.Group)
-	assert.False(t, got.JobsConfig.Run.Configured())
-	assert.False(t, got.JobsConfig.Group.Configured())
+	assert.Equal(t, IdentifierConfig{Key: "training.datadoghq.com/run-id", Type: IdentifierTypeAnnotation}, got.JobsConfig.Run)
+	assert.Equal(t, IdentifierConfig{Key: "training.datadoghq.com/group-id", Type: IdentifierTypeAnnotation}, got.JobsConfig.Group)
+	assert.True(t, got.JobsConfig.Run.Configured())
+	assert.True(t, got.JobsConfig.Group.Configured())
+}
+
+func TestNewJobsConfigLabelOverride(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+gpu:
+  jobs:
+    run:
+      key: existing-run-id
+      type: label
+`)
+
+	got := NewJobsConfig(cfg)
+
+	assert.Equal(t, IdentifierConfig{Key: "existing-run-id", Type: IdentifierTypeLabel}, got.Run)
+	assert.Equal(t, IdentifierConfig{Key: "training.datadoghq.com/group-id", Type: IdentifierTypeAnnotation}, got.Group)
+}
+
+func TestNewJobsConfigDisabledIdentifiers(t *testing.T) {
+	cfg := configmock.NewFromYAML(t, `
+gpu:
+  jobs:
+    run:
+      key: ""
+    group:
+      key: ""
+`)
+
+	got := NewJobsConfig(cfg)
+
+	assert.False(t, got.Run.Configured())
+	assert.False(t, got.Group.Configured())
 }
 
 func TestNewTracingConfig(t *testing.T) {
