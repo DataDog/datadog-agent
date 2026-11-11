@@ -46,6 +46,11 @@ var (
 	// PendingEventBundles tracks the current number of event bundles pending to
 	// be handled by workloadmeta.
 	PendingEventBundles telemetry.Gauge
+	// EventsDropped tracks the number of events dropped because a subscriber did
+	// not read its channel before the send timeout elapsed. Unlike the error
+	// status on NotificationsSent, this counts only real drops (events lost), not
+	// acknowledgement timeouts where events were still delivered downstream.
+	EventsDropped telemetry.Counter
 )
 
 func init() {
@@ -114,6 +119,13 @@ func init() {
 		"pending_event_bundles",
 		[]string{},
 		"Number of event bundles pending to be handled by workloadmeta",
+		opts,
+	)
+	EventsDropped = comp.NewCounterWithOpts(
+		subsystem,
+		"events_dropped",
+		[]string{"subscriber_name"},
+		"Number of events dropped because the subscriber did not read its channel before the send timeout",
 		opts,
 	)
 }
