@@ -29,16 +29,12 @@ func TestUpgrade(t *testing.T) {
 	previousAgentPackage, err := windowsAgent.GetLastStablePackageFromEnv()
 	require.NoError(t, err, "should get last stable agent package from env")
 	s.previousAgentPackge = previousAgentPackage
-	// last stable ships the PAR script config as a template
-	s.checkPARScriptConfig = true
 	Run(t, s)
 }
 
 type testUpgradeSuite struct {
 	baseAgentMSISuite
 	previousAgentPackge *windowsAgent.Package
-	// checkPARScriptConfig is set only when the baseline ships the PAR script config template
-	checkPARScriptConfig bool
 }
 
 func (s *testUpgradeSuite) TestUpgrade() {
@@ -46,10 +42,6 @@ func (s *testUpgradeSuite) TestUpgrade() {
 
 	// install previous version
 	s.installAndTestPreviousAgentVersion(vm, s.previousAgentPackge)
-
-	if s.checkPARScriptConfig {
-		s.customizePARScriptConfig(vm)
-	}
 
 	// simulate upgrading from a version that didn't have the runtime-security.d directory
 	// to ensure upgrade places new config files.
@@ -70,10 +62,6 @@ func (s *testUpgradeSuite) TestUpgrade() {
 		s.Require().NoError(err, "should upgrade to agent %s", s.AgentPackage.AgentVersion())
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
-	}
-
-	if s.checkPARScriptConfig {
-		s.assertPARScriptConfigPreserved(vm, "after upgrade")
 	}
 
 	// dd-procmgr-service runs as LocalSystem, so it stays enabled even when the upgrade
@@ -124,9 +112,6 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
 
-	// the pipeline MSI is the old product here, so this fails if it owns the live PAR config
-	s.customizePARScriptConfig(vm)
-
 	productVersionPre, err := windowsAgent.GetDatadogProductVersion(vm)
 	s.Require().NoError(err, "should get product version")
 
@@ -141,8 +126,6 @@ func (s *testUpgradeFromLatestSuite) TestUpgradeFromLatest() {
 	}) {
 		s.Require().FailNow("stopping test after a required assertion or subtest failed")
 	}
-
-	s.assertPARScriptConfigPreserved(vm, "after upgrade")
 
 	// run tests
 	testerOptions := []TesterOption{
@@ -180,7 +163,6 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 
 	// install previous version
 	previousAgentPackage := s.installAndTestLastStable(vm)
-	s.customizePARScriptConfig(vm)
 
 	// upgrade to the new version, but intentionally fail
 	if !s.Run(fmt.Sprintf("upgrade to %s with rollback", s.AgentPackage.AgentVersion()), func() {
@@ -206,8 +188,6 @@ func (s *testUpgradeRollbackSuite) TestUpgradeRollback() {
 	// NOTE: will need to update this if we add or remove services
 	_, err = windowsCommon.GetServiceConfigMap(vm, servicetest.ExpectedInstalledServices())
 	s.Assert().NoError(err, "services should still be installed")
-
-	s.assertPARScriptConfigPreserved(vm, "after upgrade rollback")
 
 	s.uninstallAgent()
 }

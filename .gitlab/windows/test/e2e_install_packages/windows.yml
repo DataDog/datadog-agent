@@ -45,6 +45,7 @@
       - E2E_MSI_TEST: TestRepair
       - E2E_MSI_TEST: TestUpgrade
       - E2E_MSI_TEST: TestUpgradeFromLatest
+      - E2E_MSI_TEST: TestPARScriptConfig
       - E2E_MSI_TEST: TestPersistingIntegrations
       - E2E_MSI_TEST: TestPersistingIntegrationsDuringUninstall
       - E2E_MSI_TEST: TestDisablePersistingIntegrations
