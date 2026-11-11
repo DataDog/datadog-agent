@@ -1,0 +1,190 @@
+// Unless explicitly stated otherwise all files in this repository are licensed
+// under the Apache License Version 2.0.
+// This product includes software developed at Datadog (https://www.datadoghq.com/).
+// Copyright 2016-present Datadog, Inc.
+
+package stats
+
+import (
+	"sort"
+	"strings"
+	"sync/atomic"
+
+	"github.com/DataDog/datadog-agent/pkg/trace/config"
+	"github.com/DataDog/datadog-agent/pkg/trace/semantics"
+)
+
+const (
+	peerHostnameTagPrefix      = string(semantics.ConceptPeerHostname) + ":"
+	peerK8sClusterUIDTagPrefix = string(semantics.ConceptPeerK8sClusterUID) + ":"
+	peerK8sNamespaceTagPrefix  = string(semantics.ConceptPeerK8sNamespace) + ":"
+	peerK8sTagPrefix           = "peer.k8s."
+	kubeNamespaceTagPrefix     = "kube_namespace:"
+
+	// defaultClusterDomain is the Kubernetes DNS domain. The Agent does not know
+	// the cluster's domain, so fully qualified names under another domain get no tags.
+	defaultClusterDomain = "cluster.local"
+	svcSuffix            = ".svc"
+	svcFQDNSuffix        = svcSuffix + "." + defaultClusterDomain
+
+	// blockedIPAddress is what obfuscate.QuantizePeerIPAddresses replaces IP addresses with.
+	blockedIPAddress = "blocked-ip-address"
+)
+
+// peerK8sScope adds peer.k8s.cluster.uid and peer.k8s.namespace to the peer tags
+// of stats whose peer.hostname is a cluster-local name, so that the backend can
+// resolve the peer to a Kubernetes service. It is built once per payload.
+// The zero value is inactive.
+type peerK8sScope struct {
+	// clusterUIDTag is the peer.k8s.cluster.uid tag, empty when inactive.
+	clusterUIDTag string
+	// callerNamespace is the kube_namespace of the container that sent the payload,
+	// used to resolve bare service names. May be empty.
+	callerNamespace string
+}
+
+// appendTags returns peerTags with the peer.k8s.* tags added when the
+// peer.hostname tag is a cluster-local name. It returns peerTags unchanged,
+// without allocating, otherwise. The returned slice is a sorted copy: peerTags is
+// never modified.
+func (s peerK8sScope) appendTags(peerTags []string) []string {
+	if s.clusterUIDTag == "" || len(peerTags) == 0 {
+		return peerTags
+	}
+	var host string
+	found := false
+	for _, t := range peerTags {
+		if v, ok := strings.CutPrefix(t, peerHostnameTagPrefix); ok {
+			host, found = v, true
+		} else if strings.HasPrefix(t, peerK8sTagPrefix) {
+			// already scoped, e.g. by apm_config.peer_tags
+			return peerTags
+		}
+	}
+	if !found {
+		return peerTags
+	}
+	namespace, ok := peerK8sNamespace(host, s.callerNamespace)
+	if !ok {
+		return peerTags
+	}
+	scoped := make([]string, len(peerTags), len(peerTags)+2)
+	copy(scoped, peerTags)
+	scoped = append(scoped, s.clusterUIDTag, peerK8sNamespaceTagPrefix+namespace)
+	sort.Strings(scoped)
+	return scoped
+}
+
+// peerK8sNamespace returns the Kubernetes namespace that host resolves to
+// following the DNS search path of a pod in callerNamespace:
+//   - "a.b.svc.cluster.local" and "a.b.svc" resolve to service a in namespace b,
+//   - "a.b" resolves to service a in namespace b,
+//   - a bare "a" resolves to service a in callerNamespace.
+//
+// A trailing dot makes host absolute: only "a.b.svc.cluster.local." applies.
+// It returns false for any other name, IP addresses, localhost, and names with
+// labels that are not DNS-1123 labels. It does not check that the service exists.
+func peerK8sNamespace(host, callerNamespace string) (string, bool) {
+	host = strings.ToLower(host)
+	host, absolute := strings.CutSuffix(host, ".")
+	if rest, ok := strings.CutSuffix(host, svcFQDNSuffix); ok {
+		if ns, ok := serviceNamespace(rest); ok {
+			return ns, true
+		}
+	}
+	if absolute {
+		return "", false
+	}
+	if rest, ok := strings.CutSuffix(host, svcSuffix); ok {
+		if ns, ok := serviceNamespace(rest); ok {
+			return ns, true
+		}
+	}
+	// IPv4 addresses have three dots and IPv6 addresses contain colons, so the
+	// shapes below never match them.
+	switch strings.Count(host, ".") {
+	case 0:
+		if host == "localhost" || strings.Contains(host, blockedIPAddress) || !isDNS1123Label(host) {
+			return "", false
+		}
+		if !isDNS1123Label(callerNamespace) {
+			return "", false
+		}
+		return callerNamespace, true
+	case 1:
+		return serviceNamespace(host)
+	}
+	return "", false
+}
+
+// serviceNamespace returns b for "a.b" when a and b are DNS-1123 labels.
+func serviceNamespace(name string) (string, bool) {
+	service, namespace, ok := strings.Cut(name, ".")
+	if !ok || !isDNS1123Label(service) || !isDNS1123Label(namespace) || strings.Contains(service, blockedIPAddress) {
+		return "", false
+	}
+	return namespace, true
+}
+
+// isDNS1123Label reports whether s is a lowercase RFC 1123 label, the format of
+// Kubernetes namespace names.
+func isDNS1123Label(s string) bool {
+	if len(s) == 0 || len(s) > 63 {
+		return false
+	}
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		switch {
+		case c >= 'a' && c <= 'z', c >= '0' && c <= '9':
+		case c == '-' && i > 0 && i < len(s)-1:
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+// hasBarePeerHostname reports whether peerTags has a peer.hostname without dots,
+// which resolves in the caller's namespace.
+func hasBarePeerHostname(peerTags []string) bool {
+	for _, t := range peerTags {
+		if v, ok := strings.CutPrefix(t, peerHostnameTagPrefix); ok {
+			return v != "" && !strings.Contains(v, ".")
+		}
+	}
+	return false
+}
+
+// KubeNamespaceFromTags returns the kube_namespace tag value from container tags.
+func KubeNamespaceFromTags(tags []string) string {
+	for _, t := range tags {
+		if v, ok := strings.CutPrefix(t, kubeNamespaceTagPrefix); ok {
+			return v
+		}
+	}
+	return ""
+}
+
+// peerK8sClusterUIDTag caches the peer.k8s.cluster.uid tag built from the last
+// cluster UID, so building a peerK8sScope does not allocate per payload.
+type peerK8sClusterUIDTag struct {
+	last atomic.Pointer[[2]string] // {uid, tag}
+}
+
+// get returns the peer.k8s.cluster.uid tag, or "" when the k8s scope is disabled
+// or the cluster UID is not known (yet).
+func (c *peerK8sClusterUIDTag) get(conf *config.AgentConfig) string {
+	if !conf.PeerTagsAggregation || !conf.PeerTagsK8sScope || conf.KubeClusterUID == nil {
+		return ""
+	}
+	uid := conf.KubeClusterUID()
+	if uid == "" {
+		return ""
+	}
+	if last := c.last.Load(); last != nil && last[0] == uid {
+		return last[1]
+	}
+	tag := peerK8sClusterUIDTagPrefix + uid
+	c.last.Store(&[2]string{uid, tag})
+	return tag
+}

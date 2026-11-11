@@ -69,6 +69,8 @@ type ClientStatsAggregator struct {
 	mu     sync.Mutex
 
 	statsd statsd.ClientInterface
+
+	peerK8sClusterUIDTag peerK8sClusterUIDTag
 }
 
 // NewClientStatsAggregator initializes a new aggregator ready to be started
@@ -194,7 +196,8 @@ func (a *ClientStatsAggregator) add(now time.Time, p *pb.ClientStatsPayload) {
 	}()
 
 	// populate container tags data on the payload
-	a.setVersionDataFromContainerTags(p)
+	cTags := a.setVersionDataFromContainerTags(p)
+	a.addPeerK8sScope(p, cTags)
 	p.ProcessTagsHash = processTagsHash(p.ProcessTags)
 	// compute the PayloadAggregationKey, common for all buckets within the payload
 	payloadAggKey := newPayloadAggregationKey(p.Env, p.Hostname, p.Version, p.ContainerID, p.GitCommitSha, p.ImageTag, p.Lang, p.ProcessTagsHash, p.Service)
@@ -234,10 +237,11 @@ func (a *ClientStatsAggregator) flushPayloads(p []*pb.ClientStatsPayload) {
 	})
 }
 
-func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) {
+// setVersionDataFromContainerTags returns the container tags it resolved, if any.
+func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStatsPayload) []string {
 	// No need to go any further if we already have the information in the payload.
 	if p.ImageTag != "" && p.GitCommitSha != "" && p.Version != "" {
-		return
+		return nil
 	}
 	if p.ContainerID != "" {
 		cTags, err := a.conf.ContainerTags(p.ContainerID)
@@ -255,8 +259,51 @@ func (a *ClientStatsAggregator) setVersionDataFromContainerTags(p *pb.ClientStat
 			if p.Version == "" {
 				p.Version = appVersion
 			}
+			return cTags
 		}
 	}
+	return nil
+}
+
+// addPeerK8sScope adds the peer.k8s.* tags to the peer tags of the payload's grouped stats.
+// cTags are the container tags already resolved for the payload, if any.
+func (a *ClientStatsAggregator) addPeerK8sScope(p *pb.ClientStatsPayload, cTags []string) {
+	clusterUIDTag := a.peerK8sClusterUIDTag.get(a.conf)
+	if clusterUIDTag == "" {
+		return
+	}
+	scope := peerK8sScope{clusterUIDTag: clusterUIDTag}
+	// the caller namespace is only needed for bare hostnames: avoid resolving it otherwise
+	callerResolved := false
+	for _, b := range p.Stats {
+		if b == nil {
+			continue
+		}
+		for _, gs := range b.Stats {
+			if gs == nil {
+				continue
+			}
+			if !callerResolved && hasBarePeerHostname(gs.PeerTags) {
+				scope.callerNamespace = a.callerKubeNamespace(p, cTags)
+				callerResolved = true
+			}
+			gs.PeerTags = scope.appendTags(gs.PeerTags)
+		}
+	}
+}
+
+// callerKubeNamespace returns the Kubernetes namespace of the container that sent p.
+func (a *ClientStatsAggregator) callerKubeNamespace(p *pb.ClientStatsPayload, cTags []string) string {
+	if ns := KubeNamespaceFromTags(p.Tags); ns != "" {
+		return ns
+	}
+	if cTags == nil && p.ContainerID != "" && a.conf.ContainerTags != nil {
+		var err error
+		if cTags, err = a.conf.ContainerTags(p.ContainerID); err != nil {
+			log.Debugf("Client stats aggregator is unable to resolve container ID (%s) to container tags: %v", p.ContainerID, err)
+		}
+	}
+	return KubeNamespaceFromTags(cTags)
 }
 
 // alignAggTs aligns time to the aggregator timestamps.

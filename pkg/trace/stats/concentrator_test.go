@@ -1706,3 +1706,150 @@ func TestPubSubIdentityPeerTags(t *testing.T) {
 		{"gcp.pubsub.subscription.name:" + subscription, "gcp.pubsub.topic.name:" + topic},
 	}, got)
 }
+
+func TestPeerK8sScopeTags(t *testing.T) {
+	now := time.Now()
+	newConf := func() *config.AgentConfig {
+		return &config.AgentConfig{
+			BucketInterval:      time.Duration(testBucketInterval),
+			PeerTagsAggregation: true,
+			PeerTagsK8sScope:    true,
+			KubeClusterUID:      func() string { return testClusterUID },
+		}
+	}
+	clientSpanMeta := func(host string) map[string]string {
+		return map[string]string{"span.kind": "client", "peer.hostname": host}
+	}
+	// peerTagsOf returns the peer tags of the client span's stats.
+	peerTagsOf := func(t *testing.T, c *Concentrator, in Input) []string {
+		sp := &pb.Span{SpanID: 1, Service: "caller", Name: "http.request", Resource: "GET /", Duration: 100, Meta: in.Traces[0].Root.Meta, Metrics: map[string]float64{"_dd.measured": 1}}
+		in.Traces[0] = *toProcessedTrace([]*pb.Span{sp}, "none", "", "", "", "", "")
+		c.Add(in)
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		require.Len(t, stats.Stats[0].Stats[0].Stats, 1)
+		return stats.Stats[0].Stats[0].Stats[0].PeerTags
+	}
+	input := func(meta map[string]string, containerTags ...string) Input {
+		return Input{
+			Traces:        []traceutil.ProcessedTrace{{Root: &pb.Span{Meta: meta}}},
+			ContainerID:   "cid",
+			ContainerTags: containerTags,
+		}
+	}
+	uidTag := "peer.k8s.cluster.uid:" + testClusterUID
+
+	for _, tc := range []struct {
+		name     string
+		conf     func(*config.AgentConfig)
+		in       Input
+		expected []string
+	}{
+		{
+			name:     "service FQDN",
+			in:       input(clientSpanMeta("orders.shop.svc.cluster.local")),
+			expected: []string{"peer.hostname:orders.shop.svc.cluster.local", uidTag, "peer.k8s.namespace:shop"},
+		},
+		{
+			name:     "bare service with namespace from container tags",
+			in:       input(clientSpanMeta("orders"), "kube_namespace:caller-ns", "pod_name:caller-0"),
+			expected: []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:caller-ns"},
+		},
+		{
+			name: "bare service with namespace from the payload",
+			in: func() Input {
+				in := input(clientSpanMeta("orders"), "kube_namespace:ignored")
+				in.KubeNamespace = "caller-ns"
+				return in
+			}(),
+			expected: []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:caller-ns"},
+		},
+		{
+			name:     "bare service without caller namespace",
+			in:       input(clientSpanMeta("orders")),
+			expected: []string{"peer.hostname:orders"},
+		},
+		{
+			name:     "quantized IP address",
+			in:       input(clientSpanMeta("10.1.2.3"), "kube_namespace:caller-ns"),
+			expected: []string{"peer.hostname:blocked-ip-address"},
+		},
+		{
+			name:     "external hostname",
+			in:       input(clientSpanMeta("api.example.org"), "kube_namespace:caller-ns"),
+			expected: []string{"peer.hostname:api.example.org"},
+		},
+		{
+			name:     "no peer.hostname",
+			in:       input(map[string]string{"span.kind": "client", "peer.service": "orders"}, "kube_namespace:caller-ns"),
+			expected: []string{"peer.service:orders"},
+		},
+		{
+			name:     "cluster UID unknown",
+			conf:     func(c *config.AgentConfig) { c.KubeClusterUID = func() string { return "" } },
+			in:       input(clientSpanMeta("orders.shop")),
+			expected: []string{"peer.hostname:orders.shop"},
+		},
+		{
+			name:     "not in Kubernetes",
+			conf:     func(c *config.AgentConfig) { c.KubeClusterUID = nil },
+			in:       input(clientSpanMeta("orders.shop")),
+			expected: []string{"peer.hostname:orders.shop"},
+		},
+		{
+			name:     "opted out",
+			conf:     func(c *config.AgentConfig) { c.PeerTagsK8sScope = false },
+			in:       input(clientSpanMeta("orders.shop")),
+			expected: []string{"peer.hostname:orders.shop"},
+		},
+		{
+			name:     "peer tags aggregation disabled",
+			conf:     func(c *config.AgentConfig) { c.PeerTagsAggregation = false },
+			in:       input(clientSpanMeta("orders.shop")),
+			expected: nil,
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			conf := newConf()
+			if tc.conf != nil {
+				tc.conf(conf)
+			}
+			c := NewTestConcentratorWithCfg(now, conf)
+			assert.Equal(t, tc.expected, peerTagsOf(t, c, tc.in))
+		})
+	}
+
+	t.Run("server span", func(t *testing.T) {
+		c := NewTestConcentratorWithCfg(now, newConf())
+		in := input(map[string]string{"span.kind": "server", "peer.hostname": "orders.shop"}, "kube_namespace:caller-ns")
+		assert.Nil(t, peerTagsOf(t, c, in))
+	})
+
+	t.Run("v1", func(t *testing.T) {
+		c := NewTestConcentratorWithCfg(now, newConf())
+		strings := idx.NewStringTable()
+		span := idx.NewInternalSpan(strings, &idx.Span{
+			SpanID:      1,
+			ServiceRef:  strings.Add("caller"),
+			NameRef:     strings.Add("http.request"),
+			ResourceRef: strings.Add("GET /"),
+			Start:       uint64(now.UnixNano() - 100),
+			Duration:    100,
+			Kind:        idx.SpanKind_SPAN_KIND_CLIENT,
+			Attributes: map[uint32]*idx.AnyValue{
+				strings.Add("_dd.measured"):  {Value: &idx.AnyValue_DoubleValue{DoubleValue: 1}},
+				strings.Add("peer.hostname"): {Value: &idx.AnyValue_StringValueRef{StringValueRef: strings.Add("orders")}},
+			},
+		})
+		chunk := idx.NewInternalTraceChunk(strings, 0, "", nil, []*idx.InternalSpan{span}, false, nil, 0)
+		c.AddV1(InputV1{
+			Traces:        []traceutil.ProcessedTraceV1{{TraceChunk: chunk, Root: span, TracerEnv: "none"}},
+			ContainerID:   "cid",
+			ContainerTags: []string{"kube_namespace:caller-ns"},
+		})
+		stats := c.flushNow(now.UnixNano()+int64(c.spanConcentrator.bufferLen)*testBucketInterval, false)
+		require.Len(t, stats.Stats, 1)
+		require.Len(t, stats.Stats[0].Stats[0].Stats, 1)
+		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:caller-ns"}, stats.Stats[0].Stats[0].Stats[0].PeerTags)
+	})
+}

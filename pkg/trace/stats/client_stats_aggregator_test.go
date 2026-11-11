@@ -6,6 +6,7 @@
 package stats
 
 import (
+	"errors"
 	"math"
 	"math/rand"
 	"sync"
@@ -1331,4 +1332,116 @@ func TestAggregationPubSubIdentityPeerTags(t *testing.T) {
 		got = append(got, g.PeerTags)
 	}
 	assert.ElementsMatch(t, [][]string{{topic}, {subscription}, {subscription, topic}}, got)
+}
+
+func TestAggregationPeerK8sScope(t *testing.T) {
+	uidTag := "peer.k8s.cluster.uid:" + testClusterUID
+	// aggregate sends p through a new aggregator and returns the peer tags of
+	// the flushed grouped stats, along with the number of container tags lookups.
+	aggregate := func(t *testing.T, configure func(*config.AgentConfig), p *pb.ClientStatsPayload) ([]string, int) {
+		lookups := 0
+		conf := &config.AgentConfig{
+			PeerTagsAggregation: true,
+			PeerTagsK8sScope:    true,
+			KubeClusterUID:      func() string { return testClusterUID },
+			ContainerTags: func(cid string) ([]string, error) {
+				lookups++
+				if cid != "cid" {
+					return nil, errors.New("unknown container")
+				}
+				return []string{"kube_namespace:tagger-ns", "image_tag:1"}, nil
+			},
+		}
+		if configure != nil {
+			configure(conf)
+		}
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		a.conf = conf
+		testTime := time.Unix(time.Now().Unix(), 0)
+		p.Stats[0].Start = uint64(testTime.UnixNano())
+		a.add(testTime, p)
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+		require.Len(t, msw.payloads[0].Stats, 1)
+		require.Len(t, msw.payloads[0].Stats[0].Stats[0].Stats, 1)
+		return msw.payloads[0].Stats[0].Stats[0].Stats[0].PeerTags, lookups
+	}
+	payload := func(containerID string, tags []string, peerTags ...string) *pb.ClientStatsPayload {
+		p := payloadWithCounts(time.Now(), BucketsAggregationKey{Service: "caller", Name: "http.request", SpanKind: "client"}, containerID, "v1", "img", "sha", "go", 1, 0, 10)
+		p.Tags = tags
+		p.Stats[0].Stats[0].PeerTags = peerTags
+		return p
+	}
+
+	t.Run("service FQDN without container", func(t *testing.T) {
+		peerTags, _ := aggregate(t, nil, payload("", nil, "peer.service:orders", "peer.hostname:orders.shop.svc.cluster.local"))
+		assert.Equal(t, []string{"peer.hostname:orders.shop.svc.cluster.local", uidTag, "peer.k8s.namespace:shop", "peer.service:orders"}, peerTags)
+	})
+	t.Run("bare service with namespace from payload tags", func(t *testing.T) {
+		peerTags, lookups := aggregate(t, nil, payload("cid", []string{"kube_namespace:payload-ns"}, "peer.hostname:orders"))
+		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:payload-ns"}, peerTags)
+		assert.Zero(t, lookups)
+	})
+	t.Run("bare service with namespace from container tags", func(t *testing.T) {
+		peerTags, lookups := aggregate(t, nil, payload("cid", nil, "peer.hostname:orders"))
+		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:tagger-ns"}, peerTags)
+		assert.Equal(t, 1, lookups)
+	})
+	t.Run("container tags resolved once", func(t *testing.T) {
+		p := payload("cid", nil, "peer.hostname:orders")
+		p.Version = ""
+		peerTags, lookups := aggregate(t, nil, p)
+		assert.Equal(t, []string{"peer.hostname:orders", uidTag, "peer.k8s.namespace:tagger-ns"}, peerTags)
+		assert.Equal(t, 1, lookups)
+	})
+	t.Run("bare service with unknown container", func(t *testing.T) {
+		peerTags, _ := aggregate(t, nil, payload("other", nil, "peer.hostname:orders"))
+		assert.Equal(t, []string{"peer.hostname:orders"}, peerTags)
+	})
+	t.Run("bare service without container", func(t *testing.T) {
+		peerTags, _ := aggregate(t, nil, payload("", nil, "peer.hostname:orders"))
+		assert.Equal(t, []string{"peer.hostname:orders"}, peerTags)
+	})
+	t.Run("no peer tags", func(t *testing.T) {
+		peerTags, lookups := aggregate(t, nil, payload("cid", nil))
+		assert.Nil(t, peerTags)
+		assert.Zero(t, lookups)
+	})
+	t.Run("caller namespace not needed", func(t *testing.T) {
+		peerTags, lookups := aggregate(t, nil, payload("cid", nil, "peer.hostname:orders.shop"))
+		assert.Equal(t, []string{"peer.hostname:orders.shop", uidTag, "peer.k8s.namespace:shop"}, peerTags)
+		assert.Zero(t, lookups)
+	})
+	for name, configure := range map[string]func(*config.AgentConfig){
+		"cluster UID unknown":            func(c *config.AgentConfig) { c.KubeClusterUID = func() string { return "" } },
+		"not in Kubernetes":              func(c *config.AgentConfig) { c.KubeClusterUID = nil },
+		"opted out":                      func(c *config.AgentConfig) { c.PeerTagsK8sScope = false },
+		"peer tags aggregation disabled": func(c *config.AgentConfig) { c.PeerTagsAggregation = false },
+	} {
+		t.Run(name, func(t *testing.T) {
+			peerTags, lookups := aggregate(t, configure, payload("cid", nil, "peer.hostname:orders.shop"))
+			assert.Equal(t, []string{"peer.hostname:orders.shop"}, peerTags)
+			assert.Zero(t, lookups)
+		})
+	}
+	t.Run("scoped payloads aggregate together", func(t *testing.T) {
+		a := newTestAggregator()
+		msw := &mockStatsWriter{}
+		a.writer = msw
+		a.conf = &config.AgentConfig{PeerTagsAggregation: true, PeerTagsK8sScope: true, KubeClusterUID: func() string { return testClusterUID }}
+		testTime := time.Unix(time.Now().Unix(), 0)
+		for range 2 {
+			p := payload("", nil, "peer.hostname:orders.shop")
+			p.Stats[0].Start = uint64(testTime.UnixNano())
+			a.add(testTime, p)
+		}
+		a.flushOnTime(testTime.Add(oldestBucketStart + time.Nanosecond))
+		require.Len(t, msw.payloads, 1)
+		groups := msw.payloads[0].Stats[0].Stats[0].Stats
+		require.Len(t, groups, 1)
+		assert.Equal(t, uint64(2), groups[0].Hits)
+		assert.Equal(t, []string{"peer.hostname:orders.shop", uidTag, "peer.k8s.namespace:shop"}, groups[0].PeerTags)
+	})
 }
