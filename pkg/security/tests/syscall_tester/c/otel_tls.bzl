@@ -4,17 +4,18 @@ load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
 load("@rules_cc//cc:cc_library.bzl", "cc_library")
 load("@rules_cc//cc:cc_shared_library.bzl", "cc_shared_library")
 
-# -mtls-dialect spells the two general-dynamic dialects differently per
-# architecture; the rest of the flags are the same everywhere. Exported: the
+# -mtls-dialect picks the general-dynamic dialect on x86_64. aarch64 leaves
+# it unset: GCC defaults to TLSDESC, and clang rejects the flag. On aarch64
+# _gnu duplicates the default flavor and _ld matches _ld_desc. Exported: the
 # Node.js tester in BUILD.bazel needs it too, and it is the only access model
 # that one ever builds.
 TLS_DIALECT = select({
-    "@platforms//cpu:aarch64": ["-mtls-dialect=desc"],
+    "@platforms//cpu:aarch64": [],
     "@platforms//cpu:x86_64": ["-mtls-dialect=gnu2"],
 })
 
 _TLS_ALT_DIALECT = select({
-    "@platforms//cpu:aarch64": ["-mtls-dialect=trad"],
+    "@platforms//cpu:aarch64": [],
     "@platforms//cpu:x86_64": ["-mtls-dialect=gnu"],
 })
 
