@@ -126,7 +126,7 @@ func (s *dogtelTagParityTestSuite) TestTraceTagParity() {
 		traces, err := s.Env().FakeIntake.Client().GetTraces()
 		require.NoError(c, err)
 		for _, trace := range traces {
-			for _, tp := range trace.TracerPayloads {
+			for _, tp := range fakeintake.LegacyTracerPayloads(trace.AgentPayload) {
 				var containerTags []string
 				if ctags, ok := tp.Tags["_dd.tags.container"]; ok {
 					containerTags = strings.Split(ctags, ",")
