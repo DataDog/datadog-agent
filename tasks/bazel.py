@@ -10,6 +10,7 @@ from typing import TypedDict
 
 from invoke import task
 
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.libs.common.gomodules import AGENT_MODULE_PATH_PREFIX
 
@@ -89,12 +90,12 @@ class _BepContext:
         return Path(self.local_exec_root) / bindir if bindir else None
 
 
-def bazel_build_with_bindir(subcommand: str, *args: str) -> str:
+def bazel_build_with_bindir(subcommand: str, *args: str, fips_backend: FipsBackend) -> str:
     ctx = _BepContext()
     with tempfile.NamedTemporaryFile(prefix="bazel-bep-", suffix=".json", delete=False) as tmp:
         bep_path = Path(tmp.name)
     try:
-        bazel(subcommand, f"--build_event_json_file={bep_path}", *args)
+        bazel(subcommand, f"--build_event_json_file={bep_path}", *args, fips_backend=fips_backend)
         with bep_path.open(encoding="utf-8") as f:
             for line in f:
                 line = line.strip()
@@ -107,7 +108,7 @@ def bazel_build_with_bindir(subcommand: str, *args: str) -> str:
                 ctx.observe(event.get("id", {}), event)
         if bazel_bin := ctx.bazel_bin():
             return str(bazel_bin)
-        return bazel("info", "bazel-bin", capture_output=True).strip()
+        return bazel("info", "bazel-bin", capture_output=True, fips_backend=fips_backend).strip()
     finally:
         bep_path.unlink(missing_ok=True)
 
