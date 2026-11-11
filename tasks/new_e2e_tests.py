@@ -1022,6 +1022,34 @@ def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baselin
     print(f"Written to {output_file}")
 
 
+@task(help={"output_file": "Markdown file to write the pull request comment to"})
+def benchmarkeks_instructions(_, output_file: str = "benchmarkeks_instructions.md"):
+    """
+    Write the pull request comment explaining how to start the benchmarkeks suite (TestBenchmarkEKSSuite), which only
+    runs manually: a button linking to its manual job in the current pipeline, or a link to the pipeline if the job
+    can't be found.
+    """
+    from tasks.libs.testing.benchmarkeks import BASELINE_JOB_NAME, instructions_comment
+
+    try:
+        # At the start of the pipeline, the job is still manual
+        jobs = (
+            get_gitlab_repo()
+            .pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True)
+            .jobs.list(scope="manual", iterator=True, per_page=100)
+        )
+        job_url = next((job.web_url for job in jobs if job.name == BASELINE_JOB_NAME), None)
+        if job_url is None:
+            print(color_message(f"Job {BASELINE_JOB_NAME} not found, linking to the pipeline", Color.ORANGE))
+    except Exception as e:
+        print(color_message(f"Could not look up job {BASELINE_JOB_NAME}, linking to the pipeline: {e}", Color.ORANGE))
+        job_url = None
+
+    with open(output_file, "w") as f:
+        f.write(instructions_comment(job_url, os.environ["CI_PIPELINE_URL"]))
+    print(f"Written to {output_file}")
+
+
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:
     """
     Post process the test results to add the test run name

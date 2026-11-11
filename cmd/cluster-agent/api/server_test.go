@@ -66,8 +66,23 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			http.StatusForbidden,
 		},
 		{
-			// /api/v1/info/node/<name> itself stays internal
+			// node agents read the system info of their node with the cluster agent token
 			"/api/v1/info/node/node-1",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/api/v1/info/node/node-1?filter=kubeletVersion&filter=kernelVersion",
+			"abc123",
+			http.StatusOK,
+		},
+		{
+			"/api/v1/info/node/node-1",
+			"imposter",
+			http.StatusForbidden,
+		},
+		{
+			"/api/v1/info/node/",
 			"abc123",
 			http.StatusForbidden,
 		},
@@ -77,10 +92,9 @@ func TestValidateTokenMiddleware(t *testing.T) {
 			http.StatusForbidden,
 		},
 		{
-			// a query string must not make the internal /api/v1/info/node/<name> external
 			"/api/v1/info/node/node-1?x=/status",
 			"abc123",
-			http.StatusForbidden,
+			http.StatusOK,
 		},
 		{
 			"/api/v1/info/node/node-1/status?x=1",

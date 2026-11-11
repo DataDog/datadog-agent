@@ -7,6 +7,7 @@ package aggregator
 
 import (
 	"math"
+	"slices"
 	"time"
 
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
@@ -43,6 +44,11 @@ type CheckSampler struct {
 	logThrottling          util.SimpleThrottler
 	allowSketchBucketReset bool
 	observerHandle         observer.Handle
+	// periodicFlush enables committing decomposable metrics on every aggregator flush,
+	// without waiting for the check run to end.
+	periodicFlush bool
+	// lastCommitSecond is the latest second that commit or commitDecomposable stamped series at.
+	lastCommitSecond int64
 }
 
 // newCheckSampler returns a newly initialized CheckSampler
@@ -214,8 +220,11 @@ func (cs *CheckSampler) addBucket(bucket *metrics.HistogramBucket, tagFilterList
 }
 
 func (cs *CheckSampler) commitSeries(timestamp float64, filterList *metricname.Matcher) {
-
 	series, errors := cs.metrics.Flush(timestamp)
+	cs.appendSeries(series, errors, filterList)
+}
+
+func (cs *CheckSampler) appendSeries(series []*metrics.Serie, errors map[ckey.ContextKey]error, filterList *metricname.Matcher) {
 	for ckey, err := range errors {
 		context, ok := cs.contextResolver.get(ckey)
 		if !ok {
@@ -273,6 +282,7 @@ func (cs *CheckSampler) commitSketches(timestamp float64, filterList *metricname
 }
 
 func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher) {
+	cs.lastCommitSecond = max(cs.lastCommitSecond, int64(timestamp))
 	cs.commitSeries(timestamp, filterList)
 	cs.commitSketches(timestamp, filterList)
 
@@ -287,6 +297,38 @@ func (cs *CheckSampler) commit(timestamp float64, filterList *metricname.Matcher
 	}
 
 	cs.metrics.Expire(expiredContextKeys, timestamp)
+}
+
+// commitDecomposable commits the decomposable metrics (see metrics.Metric.isDecomposable)
+// and releases their contexts. Unlike commit, it doesn't
+// mark the end of a check run, so it leaves sketches and context expiry alone.
+//
+// Its series are stamped one second in the past, so that no point of a series shares a
+// second with another: a later check commit can't be stamped before timestamp, and if an
+// earlier commit already took that second, the metrics are left for the next commit. This
+// relies on commit timestamps being taken in the order the commits run.
+func (cs *CheckSampler) commitDecomposable(timestamp float64, filterList *metricname.Matcher) {
+	seriesTimestamp := timestamp - 1
+	if int64(seriesTimestamp) <= cs.lastCommitSecond {
+		return
+	}
+	cs.lastCommitSecond = int64(seriesTimestamp)
+	series, errors, keys := cs.metrics.FlushDecomposable(seriesTimestamp)
+	cs.appendSeries(series, errors, filterList)
+	// A new sample recreates the context under the same key, and stateful metrics keep their
+	// state through Expire.
+	cs.metrics.Expire(keys, timestamp)
+	// Contexts shared with sketch state are left to regular expiry, which also cleans up
+	// bucket baselines.
+	cs.contextResolver.remove(slices.DeleteFunc(keys, cs.hasState))
+}
+
+// hasState reports whether a distribution or a histogram bucket also uses the context:
+// they can share it with a decomposable metric of the same name and tags.
+func (cs *CheckSampler) hasState(key ckey.ContextKey) bool {
+	_, bucket := cs.lastBucketValue[key]
+	_, byBound := cs.lastBucketValueByBound[key]
+	return bucket || byBound || cs.sketchMap.contains(key)
 }
 
 func (cs *CheckSampler) flush() (metrics.Series, metrics.SketchSeriesList) {

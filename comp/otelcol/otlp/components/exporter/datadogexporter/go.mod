@@ -142,7 +142,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dustin/go-humanize v1.1.0 // indirect
-	github.com/ebitengine/purego v0.11.1 // indirect
+	github.com/ebitengine/purego v0.11.2 // indirect
 	github.com/fatih/color v1.19.0 // indirect
 	github.com/felixge/httpsnoop v1.1.0 // indirect
 	github.com/foxboron/go-tpm-keyfiles v0.0.0-20251226215517-609e4778396f // indirect
@@ -157,7 +157,6 @@ require (
 	github.com/golang/snappy v1.0.0 // indirect
 	github.com/google/go-tpm v0.9.8 // indirect
 	github.com/google/uuid v1.6.0 // indirect
-	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/go-version v1.9.0 // indirect
 	github.com/hashicorp/golang-lru/v2 v2.0.7 // indirect
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
@@ -181,7 +180,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/resourcetotelemetry v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/sampling v0.164.1 // indirect
 	github.com/outcaste-io/ristretto v0.2.3 // indirect
-	github.com/pandatix/go-abnf v0.5.1 // indirect
+	github.com/pandatix/go-abnf v0.5.3 // indirect
 	github.com/patrickmn/go-cache v2.1.0+incompatible // indirect
 	github.com/philhofer/fwd v1.2.0 // indirect
 	github.com/pierrec/lz4/v4 v4.1.33 // indirect
@@ -190,12 +189,12 @@ require (
 	github.com/power-devops/perfstat v0.0.0-20260805114148-88456608a4f6 // indirect
 	github.com/prometheus/client_golang v1.25.0 // indirect
 	github.com/prometheus/client_model v0.6.3 // indirect
-	github.com/prometheus/common v0.73.0 // indirect
+	github.com/prometheus/common v0.73.1 // indirect
 	github.com/prometheus/procfs v0.23.0 // indirect
 	github.com/richardartoul/molecule v1.0.1-0.20240531184615-7ca0df43c0b3 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/secure-systems-lab/go-securesystemslib v0.11.1 // indirect
-	github.com/shirou/gopsutil/v4 v4.26.9 // indirect
+	github.com/shirou/gopsutil/v4 v4.26.10 // indirect
 	github.com/spf13/cast v1.10.0 // indirect
 	github.com/spf13/cobra v1.10.2 // indirect
 	github.com/spf13/pflag v1.0.10 // indirect
@@ -239,7 +238,7 @@ require (
 	go.uber.org/mock v0.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.5 // indirect
-	go.yaml.in/yaml/v3 v3.0.5 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/crypto v0.58.0 // indirect
 	golang.org/x/net v0.62.0 // indirect
 	golang.org/x/oauth2 v0.37.0 // indirect
