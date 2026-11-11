@@ -96,13 +96,14 @@ func TestPeerTagConceptKeysInOrder(t *testing.T) {
 			"aws.sns.topic_arn",
 			"aws.topic.arn",
 			"aws.stream.arn",
-			"statemachinearn",
 			"aws.sns.topic.arn",
 			"aws.step_functions.state_machine.arn",
 		}, names)
 		// cloud.resource_id is an OTel resource attribute naming the caller's own resource,
 		// and OTLP spans carry resource attributes in Meta.
 		assert.NotContains(t, basePeerTags(r), "cloud.resource_id")
+		// Lambda functions run by Step Functions carry statemachinearn for their own state machine.
+		assert.NotContains(t, basePeerTags(r), "statemachinearn")
 	})
 
 	t.Run("peer.aws.sqs.queue.url contains queue URLs", func(t *testing.T) {

@@ -499,11 +499,6 @@
           "type": "string"
         },
         {
-          "name": "statemachinearn",
-          "provider": "datadog",
-          "type": "string"
-        },
-        {
           "name": "aws.sns.topic.arn",
           "provider": "otel",
           "type": "string"
