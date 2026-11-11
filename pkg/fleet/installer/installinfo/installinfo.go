@@ -92,7 +92,7 @@ func writeInstallInfo(ctx context.Context, installInfoFile string, installSigFil
 	if err != nil {
 		return fmt.Errorf("failed to marshal install signature: %v", err)
 	}
-	if err := os.WriteFile(installSigFile, jsonData, 0644); err != nil {
+	if err := os.WriteFile(installSigFile, jsonData, 0640); err != nil {
 		return fmt.Errorf("failed to write install signature file: %v", err)
 	}
 	return nil
