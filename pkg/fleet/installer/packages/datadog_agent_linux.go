@@ -520,6 +520,9 @@ func postStartExperimentDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx); err != nil {
 		return err
 	}
+	if err := rewireIntegrationDeps(ctx); err != nil {
+		log.Warnf("failed to rewire integration dependencies: %s", err)
+	}
 	if err := integrations.RestoreCustomIntegrations(ctx, ctx.PackagePath); err != nil {
 		log.Errorf("failed to restore custom integrations: %s", err)
 	}
@@ -585,6 +588,9 @@ func prePromoteExperimentDatadogAgent(ctx HookContext) error {
 func postPromoteExperimentDatadogAgent(ctx HookContext) error {
 	if err := installFilesystem(ctx); err != nil {
 		return err
+	}
+	if err := rewireIntegrationDeps(ctx); err != nil {
+		log.Warnf("failed to rewire integration dependencies: %s", err)
 	}
 	detachedCtx := context.WithoutCancel(ctx.Context)
 	ctx.Context = detachedCtx

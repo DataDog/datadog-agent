@@ -90,19 +90,32 @@ func (s *CheckScheduler) deferredLoop() {
 }
 
 // retryDeferred re-attempts to load every deferred config, runs the checks
-// that became loadable, and gives up on configs that exhausted their attempts.
+// that became loadable, and gives up on configs that exhausted their
+// attempts. The load happens under the scheduler mutex so an Unschedule
+// racing with the retry cannot resurrect a removed config.
 func (s *CheckScheduler) retryDeferred() {
-	s.m.RLock()
-	configs := make([]integration.Config, 0, len(s.deferredConfigs))
-	for _, d := range s.deferredConfigs {
-		configs = append(configs, d.config)
+	maxAttempts := deferredMaxAttempts()
+	retryConfigs := make([]integration.Config, 0, len(s.deferredConfigs))
+
+	s.m.Lock()
+	for digest, d := range s.deferredConfigs {
+		d.attempts++
+		if d.attempts >= maxAttempts {
+			delete(s.deferredConfigs, digest)
+			log.Errorf("Check %s still cannot load, dependencies %v missing after %d attempts, giving up", d.config.Name, d.deps, d.attempts)
+			errorStats.setLoaderError(d.config.Name, "python", "deferred dependencies never became importable")
+			continue
+		}
+		s.deferredConfigs[digest] = d
+		retryConfigs = append(retryConfigs, d.config)
 	}
-	s.m.RUnlock()
-	if len(configs) == 0 {
+	if len(retryConfigs) == 0 {
+		s.m.Unlock()
 		return
 	}
+	checks := s.getChecksFromConfigsLocked(retryConfigs, true)
+	s.m.Unlock()
 
-	checks := s.GetChecksFromConfigs(configs, true)
 	if coll, ok := s.collector.Get(); ok {
 		for _, c := range checks {
 			if !IsCheckAllowed(c.String(), pkgconfigsetup.Datadog()) {
@@ -114,34 +127,14 @@ func (s *CheckScheduler) retryDeferred() {
 			}
 		}
 	}
-
-	maxAttempts := deferredMaxAttempts()
-	s.m.Lock()
-	for digest, d := range s.deferredConfigs {
-		d.attempts++
-		if d.attempts >= maxAttempts {
-			delete(s.deferredConfigs, digest)
-			log.Errorf("Check %s still cannot load, dependencies %v missing after %d attempts, giving up", d.config.Name, d.deps, d.attempts)
-			errorStats.setLoaderError(d.config.Name, "python", "deferred dependencies never became importable")
-		} else {
-			s.deferredConfigs[digest] = d
-		}
-	}
-	s.m.Unlock()
 }
 
 // triggerDepInstall fires one deduplicated install request for the
-// dependency package. The request is fire-and-forget: completion is noticed
-// by the retry loop re-probing the deferred configs.
+// dependency package when a check is first deferred (not on every retry).
+// The request is fire-and-forget: completion is noticed by the retry loop
+// re-probing the deferred configs.
 func (s *CheckScheduler) triggerDepInstall(deps []string) {
 	if s.depInstaller == nil || len(deps) == 0 {
-		return
-	}
-	s.depInstallMu.Lock()
-	triggered := s.depInstallTriggered
-	s.depInstallTriggered = true
-	s.depInstallMu.Unlock()
-	if triggered {
 		return
 	}
 	go func() {
@@ -149,15 +142,12 @@ func (s *CheckScheduler) triggerDepInstall(deps []string) {
 		if err := s.depInstaller.InstallDepPackage(pkg, version.AgentPackageVersion); err != nil {
 			log.Errorf("Could not request installation of dependency package %s: %v", pkg, err)
 		}
-		s.depInstallMu.Lock()
-		s.depInstallTriggered = false
-		s.depInstallMu.Unlock()
 	}()
 }
 
 // removeOrphanDeps removes the dependency package when no scheduled or
-// deferred config still declares a dependency on it. The removal itself is
-// async; callers do not need to hold the scheduler mutex.
+// deferred config still declares a dependency on it. Callers must hold the
+// scheduler mutex; the removal request itself is async.
 func (s *CheckScheduler) removeOrphanDeps(removedDeps []string) {
 	if s.depInstaller == nil || len(removedDeps) == 0 {
 		return
@@ -173,8 +163,9 @@ func (s *CheckScheduler) removeOrphanDeps(removedDeps []string) {
 		}
 	}
 	pkg := pkgconfigsetup.Datadog().GetString("on_demand_python_deps.dep_package_name")
+	installer := s.depInstaller
 	go func() {
-		if err := s.depInstaller.RemoveDepPackage(pkg); err != nil {
+		if err := installer.RemoveDepPackage(pkg); err != nil {
 			log.Errorf("Could not request removal of dependency package %s: %v", pkg, err)
 		}
 	}()

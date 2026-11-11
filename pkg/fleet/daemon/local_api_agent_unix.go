@@ -42,8 +42,12 @@ type restrictedLocalAPIImpl struct {
 
 // NewRestrictedLocalAPI returns a LocalAPI exposing the restricted dependency
 // install/remove endpoint, served from a unix socket in the installer run
-// path with permissions allowing the dd-agent user.
+// path with permissions allowing the dd-agent user. It returns a no-op
+// implementation when on_demand_python_deps is not enabled.
 func NewRestrictedLocalAPI(daemon Daemon, config agentconfig.Reader) (LocalAPI, error) {
+	if !config.GetBool("on_demand_python_deps.enabled") {
+		return nil, nil
+	}
 	socketPath := filepath.Join(paths.RunPath, restrictedSocketName)
 	if err := os.RemoveAll(socketPath); err != nil {
 		return nil, fmt.Errorf("could not remove socket: %w", err)
@@ -137,11 +141,15 @@ func (l *restrictedLocalAPIImpl) install(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	log.Infof("Received restricted local request to install package %s version %s", pkg, request.Version)
-	if err := l.daemon.Install(r.Context(), catalogPkg.URL, request.InstallArgs); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		response.Error = &APIError{Message: err.Error()}
-		return
-	}
+	// The install runs detached from the request: the collector notices
+	// completion by re-probing its deferred checks, and a long download must
+	// not be cancelled by a client disconnect.
+	url := catalogPkg.URL
+	go func() {
+		if err := l.daemon.Install(context.WithoutCancel(r.Context()), url, nil); err != nil {
+			log.Errorf("Restricted install of package %s failed: %v", pkg, err)
+		}
+	}()
 }
 
 func (l *restrictedLocalAPIImpl) remove(w http.ResponseWriter, r *http.Request) {

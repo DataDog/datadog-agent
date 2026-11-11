@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -44,6 +45,9 @@ func TestRestrictedLocalAPIHandler(t *testing.T) {
 	}
 
 	assert.Equal(t, http.StatusOK, post("/datadog-agent-integration-deps/install"))
+	// the install itself runs detached from the request
+	require.Eventually(t, func() bool { return len(d.Calls) >= 2 }, 5*time.Second, 10*time.Millisecond)
+
 	assert.Equal(t, http.StatusOK, post("/datadog-agent-integration-deps/remove"))
 
 	assert.Equal(t, http.StatusForbidden, post("/datadog-agent/remove"))

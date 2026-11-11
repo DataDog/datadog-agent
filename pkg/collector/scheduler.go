@@ -78,8 +78,6 @@ type CheckScheduler struct {
 	deferredConfigs     map[string]deferredConfig
 	configDeps          map[string][]string
 	depInstaller        DepInstaller
-	depInstallTriggered bool
-	depInstallMu        sync.Mutex
 	deferredStop        chan struct{}
 	deferredWg          sync.WaitGroup
 	loaders             []check.Loader
@@ -155,8 +153,8 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	s.m.Lock()
 	removedDeps := []string{}
 	defer func() {
-		s.m.Unlock()
 		s.removeOrphanDeps(removedDeps)
+		s.m.Unlock()
 	}()
 
 	for _, config := range configs {
@@ -210,6 +208,7 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 func (s *CheckScheduler) Stop() {
 	if s.deferredStop != nil {
 		close(s.deferredStop)
+		s.deferredStop = nil
 	}
 	s.deferredWg.Wait()
 }
@@ -392,7 +391,12 @@ func GetChecksByNameForConfigs(checkName string, configs []integration.Config) [
 func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, populateCache bool) []check.Check {
 	s.m.Lock()
 	defer s.m.Unlock()
+	return s.getChecksFromConfigsLocked(configs, populateCache)
+}
 
+// getChecksFromConfigsLocked implements GetChecksFromConfigs and expects the
+// scheduler mutex to be held.
+func (s *CheckScheduler) getChecksFromConfigsLocked(configs []integration.Config, populateCache bool) []check.Check {
 	var allChecks []check.Check
 	for _, config := range configs {
 		if !config.IsCheckConfig() {
@@ -432,13 +436,16 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			}
 		} else if len(depsPending) > 0 {
 			d := deferredConfig{config: config, deps: depsPending, deferredAt: time.Now()}
+			_, existed := s.deferredConfigs[configDigest]
 			if existing, ok := s.deferredConfigs[configDigest]; ok {
 				d.attempts = existing.attempts
 				d.deferredAt = existing.deferredAt
 			}
 			s.deferredConfigs[configDigest] = d
-			log.Infof("Deferring check %s, waiting for dependencies %v to be installed", config.Name, depsPending)
-			s.triggerDepInstall(depsPending)
+			if !existed {
+				log.Infof("Deferring check %s, waiting for dependencies %v to be installed", config.Name, depsPending)
+				s.triggerDepInstall(depsPending)
+			}
 		}
 	}
 
