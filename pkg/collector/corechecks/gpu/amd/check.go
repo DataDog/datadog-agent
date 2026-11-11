@@ -534,10 +534,15 @@ func (c *Check) gpuToContainers() map[string][]*workloadmeta.Container {
 		}
 		matched := make(map[string]struct{})
 		for _, resource := range container.ResolvedAllocatedResources {
-			if !strings.HasPrefix(resource.Name, amdgpu.ResourcePrefix) {
+			var dev *amdgpu.Device
+			switch {
+			case strings.HasPrefix(resource.Name, amdgpu.ResourcePrefix):
+				dev = amdgpu.MatchDevicePluginID(c.sysRoot, c.devices, resource.ID)
+			case resource.Name == amdgpu.DRADriverName:
+				dev = amdgpu.MatchDRADevice(c.sysRoot, c.devices, resource.ID, resource.CdiDevices, containers.CDISpecDirs)
+			default:
 				continue
 			}
-			dev := amdgpu.MatchDevicePluginID(c.sysRoot, c.devices, resource.ID)
 			if dev == nil {
 				c.telemetry.missingContainerGpuMapping.Inc(container.Name)
 				continue
@@ -556,7 +561,7 @@ func (c *Check) gpuToContainers() map[string][]*workloadmeta.Container {
 // resource to the container.
 func hasAMDGPUResource(container *workloadmeta.Container) bool {
 	for _, resource := range container.ResolvedAllocatedResources {
-		if strings.HasPrefix(resource.Name, amdgpu.ResourcePrefix) {
+		if strings.HasPrefix(resource.Name, amdgpu.ResourcePrefix) || resource.Name == amdgpu.DRADriverName {
 			return true
 		}
 	}

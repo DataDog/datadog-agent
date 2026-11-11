@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import os.path
 import platform
+import shutil
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -11,7 +12,6 @@ from time import sleep
 
 from invoke.context import Context, MockContext
 from invoke.exceptions import Exit
-from invoke.runners import Local
 
 from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
@@ -135,8 +135,9 @@ def go_build(
     fips_backend: FipsBackend = FipsBackend.none,
 ) -> None:
     env = env or {}
-    if check_deadcode and sys.platform == "aix":
-        print(color_message("Ignoring check_deadcode on AIX", "orange"), file=sys.stderr)
+    with_bazel = fips_backend == FipsBackend.msgo or shutil.which("bazelisk") is not None
+    if check_deadcode and not with_bazel:
+        print(color_message("Ignoring check_deadcode without Bazel", "orange"), file=sys.stderr)
         check_deadcode = False
 
     # TODO: remove once Bazel is used to build the Agent
@@ -191,15 +192,19 @@ def go_build(
     elif fips_backend == FipsBackend.msgo and target_os == "linux":
         env = env | {"GOEXPERIMENT": "ms_nocgo_opensslcrypto"}
 
-    if fips_backend == FipsBackend.msgo:
-        stderr = bazel("run", "//:msgo", "--", "-C", os.getcwd(), *args, capture_stderr=check_deadcode, env=env)
-    else:
-        runner = Local(ctx)
-        runner.read_chunk_size = 1024 * 1024 * 10  # see https://github.com/pyinvoke/invoke/issues/774
-        _ = runner.read_chunk_size  # please linters
-        runner.input_sleep = 0
-        _ = runner.input_sleep  # please linters
-        stderr = runner.run(join_command(["go", *args]), env=env, hide="stderr" if check_deadcode else None).stderr
+    if with_bazel:
+        stderr = bazel(
+            "run",
+            "//:msgo" if fips_backend == FipsBackend.msgo else "@rules_go//go",
+            "--",
+            "-C",
+            os.getcwd(),
+            *args,
+            capture_stderr=check_deadcode,
+            env=env,
+        )
+    else:  # AIX and the Docker images building the OTel agent
+        ctx.run(join_command(["go", *args]), env=env)
 
     # whydeadcode --ignore-unrecognized-input prints dead code call stack on stdout
     # it returns 0, even if dead code elimination is disabled

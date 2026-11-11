@@ -586,11 +586,12 @@ func handleRenameAt(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, 
 	return fillFileMetadata(tracer, oldFilename, &msg.Rename.OldFile, disableStats)
 }
 
-func handleFcntl(tracer *Tracer, _ *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
+func handleFcntl(tracer *Tracer, process *Process, msg *ebpfless.SyscallMsg, regs syscall.PtraceRegs, _ bool) error {
 	msg.Fcntl = &ebpfless.FcntlSyscallMsg{
 		Fd:  tracer.ReadArgUint32(regs, 0),
 		Cmd: tracer.ReadArgUint32(regs, 1),
 	}
+	process.tracerMemfdSealing = isTracerMemfdSealing(tracer, process, regs)
 	return nil
 }
 

@@ -50,6 +50,11 @@ type Payload struct {
 	UUID        string                 `json:"uuid"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeClusterAgent
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -111,7 +116,7 @@ func NewComponent(deps Requires) Provides {
 	}
 }
 
-func (dca *datadogclusteragent) getPayload() marshaler.JSONMarshaler {
+func (dca *datadogclusteragent) getPayload() marshaler.TypedJSONMarshaler {
 
 	return &Payload{
 		Clustername: dca.clustername,

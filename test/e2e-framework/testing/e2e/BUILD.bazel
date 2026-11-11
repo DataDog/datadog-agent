@@ -1,4 +1,5 @@
-load("@rules_go//go:def.bzl", "go_library", "go_test")
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "e2e",
@@ -29,12 +30,10 @@ go_library(
     ],
 )
 
-go_test(
+dd_agent_go_test(
     name = "e2e_test",
     srcs = ["suite_test.go"],
     embed = [":e2e"],
-    gotags = ["e2eunit"],
-    tags = ["manual"],
     deps = [
         "//test/e2e-framework/components",
         "//test/e2e-framework/testing/environments",

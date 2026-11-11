@@ -1,0 +1,126 @@
+load("@@//bazel/rules:foreign_cc_shared_wrapper.bzl", "foreign_cc_shared_wrapper")
+load("@@//bazel/rules/dd_packaging:dd_cc_packaged.bzl", "dd_cc_packaged")
+load("@@//compliance/rules:purl.bzl", "purl_for_generic")
+load("@package_metadata//rules:package_metadata.bzl", "package_metadata")
+load("@rules_cc//cc:defs.bzl", "cc_import")
+load("@rules_license//rules:license.bzl", "license")
+load("@rules_license//rules:license_kind.bzl", "license_kind")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_filegroup", "pkg_files", "pkg_mklink")
+
+package(
+    default_package_metadata = [":package_metadata"],
+    default_visibility = ["//visibility:public"],
+)
+
+VERSION = "18.3.3.1-1"
+
+SO_VERSION = "18.3"
+
+SO_FULL_VERSION = "3.1"
+
+SO_FILENAME = "libmsodbcsql-%s.so.%s" % (SO_VERSION, SO_FULL_VERSION)
+
+SO_LINK_NAME = "libmsodbcsql-%s.so" % SO_VERSION
+
+SO_PATH = "opt/microsoft/msodbcsql18/lib64/" + SO_FILENAME
+
+RLL_PATH = "opt/microsoft/msodbcsql18/share/resources/en_US/msodbcsqlr18.rll"
+
+LICENSE_PATH = "usr/share/doc/msodbcsql18/LICENSE.txt"
+
+package_metadata(
+    name = "package_metadata",
+    attributes = [
+        ":license",
+    ],
+    purl = purl_for_generic(
+        # The architecture is a wildcard because this BUILD file is shared by
+        # both architecture repositories. Making it precise needs one BUILD
+        # file per repository.
+        download_url = "https://packages.microsoft.com/debian/11/prod/pool/main/m/msodbcsql18/msodbcsql18_{version}_*.deb",
+        package = "msodbcsql18",
+        version = VERSION,
+    ),
+)
+
+# I couldn't find a license kind in sdpx
+# so had to create a new kind.
+# Also, this license agreement isn't available
+# under any URL.
+license_kind(
+    name = "msodbcsql18_eula_license",
+    conditions = [],
+)
+
+license(
+    name = "license",
+    license_kinds = [":msodbcsql18_eula_license"],
+    license_text = LICENSE_PATH,
+    visibility = ["//visibility:public"],
+)
+
+# Wrap the prebuilt .so as a CcInfo so it can flow through dd_cc_packaged.
+cc_import(
+    name = "msodbcsql_import",
+    shared_library = SO_PATH,
+    target_compatible_with = select({
+        "@platforms//os:linux": [],
+        "//conditions:default": ["@platforms//:incompatible"],
+    }),
+)
+
+# cc_import exposes the .so plus an auto-generated interface symlink in
+# DefaultInfo; rewrite_rpath would patch both. foreign_cc_shared_wrapper
+# filters down to just the dynamic library via CcInfo's linker_inputs.
+foreign_cc_shared_wrapper(
+    name = "msodbcsql_shared",
+    input = ":msodbcsql_import",
+    lib_filter = "libmsodbcsql-%s" % SO_VERSION,
+)
+
+pkg_files(
+    name = "resource_files",
+    srcs = [RLL_PATH],
+    prefix = "embedded/msodbcsql/share/resources/en_US",
+)
+
+pkg_files(
+    name = "license_files",
+    srcs = [LICENSE_PATH],
+    # TODO(ABLD-351): Review location
+    prefix = "embedded/msodbcsql/share/doc/msodbcsql18",
+)
+
+# The unversioned linker-name symlink lives in a sibling directory of the
+# real .so so it cannot be expressed through so_symlink's same-dir chain.
+# Emit it manually and pass it through data so it flows through
+# dd_collect_dependencies alongside the rpath-patched library.
+pkg_mklink(
+    name = "_lib_symlink",
+    attributes = pkg_attributes(mode = "0755"),
+    link_name = "embedded/msodbcsql/lib/%s" % SO_LINK_NAME,
+    target = "../lib64/%s" % SO_FILENAME,
+)
+
+pkg_filegroup(
+    name = "lib_symlink",
+    srcs = [":_lib_symlink"],
+)
+
+# version="" skips so_symlink's symlink chain (real + soname + linker-name in
+# the same dir): msodbcsql ships only the real .so under lib64/ plus a
+# separate cross-directory linker-name symlink under lib/.
+dd_cc_packaged(
+    name = "msodbcsql_pkg",
+    data = [
+        ":lib_symlink",
+        ":license_files",
+        ":resource_files",
+        # libodbcinst.so.2 is a runtime dependency of libmsodbcsql that cc_import
+        # doesn't expose as dynamic_deps for dd_collect_dependencies to discover.
+        "@unixodbc//:odbcinst_pkg",
+    ],
+    dest_dir = "embedded/msodbcsql/lib64",
+    input = ":msodbcsql_shared",
+    visibility = ["//visibility:public"],
+)

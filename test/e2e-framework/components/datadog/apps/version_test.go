@@ -28,12 +28,12 @@ func TestImage(t *testing.T) {
 		repo             string
 		want             string
 	}{
-		{"aws", "669783387624.dkr.ecr.us-east-1.amazonaws.com", "apps-dogstatsd", "669783387624.dkr.ecr.us-east-1.amazonaws.com/apps-dogstatsd:v0.0.9"},
-		{"gcp", "us-central1-docker.pkg.dev/datadog-agent-qa/agent-qa", "apps-dogstatsd", "us-central1-docker.pkg.dev/datadog-agent-qa/agent-qa/apps-dogstatsd:v0.0.9"},
-		{"azure", "agentqa.azurecr.io", "apps-dogstatsd", "agentqa.azurecr.io/apps-dogstatsd:v0.0.9"},
-		{"local", "none", "apps-dogstatsd", "ghcr.io/datadog/apps-dogstatsd:v0.0.9"},
-		{"no registry", "", "apps-dogstatsd", "ghcr.io/datadog/apps-dogstatsd:v0.0.9"},
-		{"redis", "669783387624.dkr.ecr.us-east-1.amazonaws.com", "redis", "669783387624.dkr.ecr.us-east-1.amazonaws.com/redis:v0.0.9"},
+		{"aws", "669783387624.dkr.ecr.us-east-1.amazonaws.com", "apps-dogstatsd", "669783387624.dkr.ecr.us-east-1.amazonaws.com/apps-dogstatsd:v0.0.10"},
+		{"gcp", "us-central1-docker.pkg.dev/datadog-agent-qa/agent-qa", "apps-dogstatsd", "us-central1-docker.pkg.dev/datadog-agent-qa/agent-qa/apps-dogstatsd:v0.0.10"},
+		{"azure", "agentqa.azurecr.io", "apps-dogstatsd", "agentqa.azurecr.io/apps-dogstatsd:v0.0.10"},
+		{"local", "none", "apps-dogstatsd", "ghcr.io/datadog/apps-dogstatsd:v0.0.10"},
+		{"no registry", "", "apps-dogstatsd", "ghcr.io/datadog/apps-dogstatsd:v0.0.10"},
+		{"redis", "669783387624.dkr.ecr.us-east-1.amazonaws.com", "redis", "669783387624.dkr.ecr.us-east-1.amazonaws.com/redis:v0.0.10"},
 	}
 
 	for _, tt := range tests {

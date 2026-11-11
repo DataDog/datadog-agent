@@ -8,6 +8,8 @@ commit with images.
 
 The images of the agent-qa ECR repositories e2e tests pull from only live for a day, so the baseline images are looked
 up in the registry the container build jobs push to, which keeps them for months, to be published to agent-qa again.
+
+The benchmark only runs manually: this module also writes the pull request comment explaining how to start it.
 """
 
 from __future__ import annotations
@@ -43,6 +45,11 @@ MAX_CANDIDATES = 1000
 _MISSING_IMAGE_ERRORS = ("MANIFEST_UNKNOWN", "NAME_UNKNOWN", "404 Not Found")
 # The cluster-agent amd64 build tags, from which the pipelines that built a commit are found
 _CLUSTER_AGENT_BUILD_TAG_RE = re.compile(rf"^v(\d+)-([0-9a-f]{{{SHORT_SHA_LENGTH}}})-amd64$")
+
+# The manual CI job starting the benchmark: the other jobs of the benchmark need it
+BASELINE_JOB_NAME = "new-e2e-containers-benchmarkeks-baseline"
+# The button of the pull request comment linking to BASELINE_JOB_NAME
+RUN_BADGE_URL = "https://img.shields.io/badge/%E2%96%B6%20Run%20the%20benchmark-632CA6?style=for-the-badge"
 
 
 @dataclass(frozen=True)
@@ -273,3 +280,20 @@ def resolve_baseline(ctx, base_branch: str, branch: str, fetch: bool = True) -> 
             )
         raise BaselineLookupError(message) from e
     return baseline
+
+
+def instructions_comment(baseline_job_url: str | None, pipeline_url: str) -> str:
+    """
+    Returns the pull request comment explaining how to start the benchmark: a button linking to the manual job
+    BASELINE_JOB_NAME, whose page has a button running it, or a link to the pipeline if the job's URL is unknown.
+    """
+    if baseline_job_url is None:
+        action, button = f"play the manual job `{BASELINE_JOB_NAME}` of [the pipeline]({pipeline_url})", ""
+    else:
+        action = f"open the manual job `{BASELINE_JOB_NAME}` with the button below, then click **Run job**"
+        button = f"\n[![Run the benchmark]({RUN_BADGE_URL})]({baseline_job_url})\n"
+    return (
+        "This pull request changes the `benchmarkeks` performance benchmark or the code it measures, and the "
+        "benchmark only runs manually. To compare the resource usage of its Agent with the one of its base branch, "
+        f"{action}: the other jobs of the benchmark run after it, on an EKS cluster.\n{button}"
+    )
