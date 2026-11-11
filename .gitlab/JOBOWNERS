@@ -51,6 +51,7 @@ agenttelemetry_metric_vm_reminder*   @DataDog/fleet-remediation
 # Binary build
 build_system-probe*                  @DataDog/ebpf-platform
 cluster_agent_cloudfoundry-build*    @Datadog/agent-integrations
+nosys_seccomp-*                      @DataDog/agent-build @DataDog/container-integrations
 cluster_agent-build*                 @DataDog/container-integrations
 cluster_agent_fips-build*            @DataDog/container-integrations
 cws_instrumentation-build*           @DataDog/agent-security
@@ -207,6 +208,10 @@ manual_gate_threshold_update                   @DataDog/agent-build
 files_inventory_check                          @DataDog/agent-build
 
 oracle*                                        @DataDog/database-monitoring
+
+# Benchmarks
+logs_tokenizer_benchmark                       @DataDog/agent-log-pipelines
+logs_tokenizer_benchmark_check                 @DataDog/agent-log-pipelines
 
 # E2E
 k8s-e2e-*                         @DataDog/container-integrations

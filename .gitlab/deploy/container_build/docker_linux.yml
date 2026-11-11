@@ -171,6 +171,9 @@
   rules:
     - !reference [.except_light_pipeline]
     - when: on_success
+  before_script:
+    - !reference [.docker_build_artifact, before_script]
+    - mv -vf Dockerfiles/nosys-seccomp/nosys.so ${ARTIFACTS_BUILD_CONTEXT}/
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent
     BUILD_CONTEXT: Dockerfiles/agent
@@ -183,6 +186,8 @@ docker_build_agent7:
     - when: on_success
   needs:
     - job: datadog-agent-7-x64
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
@@ -221,6 +226,8 @@ docker_build_agent7_arm64:
     - when: on_success
   needs:
     - job: datadog-agent-7-arm64
+    - job: nosys_seccomp-build_arm64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
@@ -231,6 +238,8 @@ docker_build_fips_agent7:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-x64-fips
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-fips
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
@@ -239,6 +248,8 @@ docker_build_fips_agent7_arm64:
   extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-arm64-fips
+    - job: nosys_seccomp-build_arm64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-fips
     BUILD_ARG: --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
@@ -250,6 +261,8 @@ docker_build_agent7_jmx:
     - when: on_success
   needs:
     - job: datadog-agent-7-x64
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-amd64.tar.xz
@@ -261,6 +274,8 @@ docker_build_agent7_jmx_arm64:
     - when: on_success
   needs:
     - job: datadog-agent-7-arm64
+    - job: nosys_seccomp-build_arm64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-agent-7*-arm64.tar.xz
@@ -270,6 +285,8 @@ docker_build_fips_agent7_jmx:
   extends: [.docker_build_amd64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-x64-fips
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-amd64.tar.xz
@@ -278,6 +295,8 @@ docker_build_fips_agent7_arm64_jmx:
   extends: [.docker_build_arm64, .docker_build_agent7]
   needs:
     - job: datadog-agent-7-arm64-fips
+    - job: nosys_seccomp-build_arm64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-fips-jmx
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-fips-agent-7*-arm64.tar.xz
@@ -287,18 +306,27 @@ docker_build_fips_agent7_arm64_jmx:
   extends: .docker_build_job_definition
   rules:
     - when: on_success
-  needs: []
   variables:
     IMAGE: registry.ddbuild.io/ci/datadog-agent/agent-base-image
     BUILD_CONTEXT: Dockerfiles/base-image
     TARGET_ARG: --target release
     CACHE_TARGET: release
+    ARTIFACTS_BUILD_CONTEXT: /tmp/build_artifacts
+  before_script:
+    - mkdir -p ${ARTIFACTS_BUILD_CONTEXT}
+    - mv -vf Dockerfiles/nosys-seccomp/nosys.so $ARTIFACTS_BUILD_CONTEXT/
 
 docker_build_base_image_amd64:
   extends: [.docker_build_base_image, .docker_build_amd64]
+  needs:
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
 
 docker_build_base_image_arm64:
   extends: [.docker_build_base_image, .docker_build_arm64]
+  needs:
+    - job: nosys_seccomp-build_arm64
+      artifacts: true
 
 .docker_build_host_profiler_standalone:
   extends: .docker_build_job_definition
@@ -407,6 +435,8 @@ docker_build_agent7_full:
   needs:
     - job: datadog-agent-7-x64
     - job: datadog-otel-agent-x64
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
@@ -416,6 +446,8 @@ docker_build_agent7_full_arm64:
   needs:
     - job: datadog-agent-7-arm64
     - job: datadog-otel-agent-arm64
+    - job: nosys_seccomp-build_arm64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
@@ -433,6 +465,8 @@ docker_build_agent7_recorder_full:
     - job: datadog-agent-7-x64-recorder
     - job: datadog-otel-agent-x64
       optional: true
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-recorder-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-recorder-agent-7*-amd64.tar.xz
@@ -444,6 +478,8 @@ docker_build_agent7_recorder_full_arm64:
     - job: datadog-agent-7-arm64-recorder
     - job: datadog-otel-agent-arm64
       optional: true
+    - job: nosys_seccomp-build_arm64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-recorder-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg DD_AGENT_ARTIFACT=datadog-recorder-agent-7*-arm64.tar.xz
@@ -453,6 +489,8 @@ docker_build_agent7_fips_full:
   needs:
     - job: datadog-agent-7-x64-fips
     - job: datadog-otel-agent-x64-fips
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-fips-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-amd64.tar.xz
@@ -462,6 +500,8 @@ docker_build_agent7_fips_full_arm64:
   needs:
     - job: datadog-agent-7-arm64-fips
     - job: datadog-otel-agent-arm64-fips
+    - job: nosys_seccomp-build_arm64
+      artifacts: true
   variables:
     TAG_SUFFIX: -7-fips-full
     BUILD_ARG: --build-arg WITH_JMX=true --build-arg WITH_JMX_FIPS=true --build-arg DD_AGENT_ARTIFACT=datadog-*-7*-arm64.tar.xz
@@ -482,7 +522,7 @@ docker_build_agent7_fips_full_arm64:
     - mv -vf $CLUSTER_AGENT_BINARIES_DIR/datadog-cluster-agent $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf $SECRET_GENERIC_CONNECTOR_BINARIES_DIR/secret-generic-connector $ARTIFACTS_BUILD_CONTEXT/
     - mv -vf $CWS_INSTRUMENTATION_BINARIES_DIR $ARTIFACTS_BUILD_CONTEXT/
-    - mv -vf Dockerfiles/agent/nosys-seccomp $BUILD_CONTEXT/
+    - mv -vf Dockerfiles/nosys-seccomp/nosys.so $ARTIFACTS_BUILD_CONTEXT/
     - mkdir -p ${BUILD_CONTEXT}/private-action-runner
     - cp -v pkg/privateactionrunner/autoconnections/conf/script-config.yaml ${BUILD_CONTEXT}/private-action-runner/
 
@@ -497,6 +537,8 @@ docker_build_cluster_agent_amd64:
       artifacts: true
     - job: cws_instrumentation-build_injector_arm64
       artifacts: true
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_amd64"
 
@@ -510,6 +552,8 @@ docker_build_cluster_agent_arm64:
     - job: cws_instrumentation-build_injector_amd64
       artifacts: true
     - job: cws_instrumentation-build_injector_arm64
+      artifacts: true
+    - job: nosys_seccomp-build_arm64
       artifacts: true
   variables:
     STATIC_QUALITY_GATE_NAME: "static_quality_gate_docker_cluster_agent_arm64"
@@ -531,6 +575,8 @@ docker_build_cluster_agent_fips_amd64:
       artifacts: true
     - job: cws_instrumentation-build_injector_arm64
       artifacts: true
+    - job: nosys_seccomp-build_amd64
+      artifacts: true
 
 docker_build_cluster_agent_fips_arm64:
   extends: [.docker_build_arm64, .docker_build_cluster_agent_fips]
@@ -540,6 +586,8 @@ docker_build_cluster_agent_fips_arm64:
     - job: cws_instrumentation-build_injector_amd64
       artifacts: true
     - job: cws_instrumentation-build_injector_arm64
+      artifacts: true
+    - job: nosys_seccomp-build_arm64
       artifacts: true
 
 # build the cws-instrumentation image

@@ -64,6 +64,11 @@ func (t DebugConntrackTuple) Compare(o DebugConntrackTuple) int {
 
 // DumpCachedTable dumps the cached conntrack NAT entries grouped by network namespace
 func (ctr *realConntracker) DumpCachedTable(ctx context.Context) (map[uint32][]DebugConntrackEntry, error) {
+	// The event loop and compaction goroutines write to the cache concurrently. Keys() and
+	// Peek() don't modify the LRU, so a read lock is enough.
+	ctr.RLock()
+	defer ctr.RUnlock()
+
 	table := make(map[uint32][]DebugConntrackEntry)
 	keys := ctr.cache.cache.Keys()
 	if len(keys) == 0 {

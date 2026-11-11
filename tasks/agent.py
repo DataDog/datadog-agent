@@ -27,6 +27,7 @@ from tasks.gointegrationtest import (
     containerized_integration_tests,
 )
 from tasks.libs.build.bazel import bazel, build_binary_with_bazel
+from tasks.libs.build.nosys_seccomp import build_nosys_so
 from tasks.libs.common.constants import CONTAINER_PLATFORM_MAPPING
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
@@ -466,10 +467,12 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
     latest_file = max(list_of_files, key=os.path.getctime)
     shutil.copy2(latest_file, build_context)
 
+    nosys_so_dest = build_nosys_so(arch, build_context)
+
     if tag is None:
         tag = AGENT_TAG
 
-    common_build_opts = f"-t {tag} -f {dockerfile_path}"
+    common_build_opts = f"-t {tag} -f {dockerfile_path} --build-context artifacts={build_context}"
 
     # Build with the testing target
     if not skip_tests:
@@ -481,6 +484,7 @@ def image_build(ctx, arch='amd64', base_dir="omnibus", skip_tests=False, tag=Non
         ctx.run(f"docker push {tag}")
 
     ctx.run(f"rm {build_context}/{deb_glob}")
+    ctx.run(f"rm -f {nosys_so_dest}")
 
 
 @task(
