@@ -608,11 +608,16 @@ func TestAPMAdditionalEndpointsAreWithinScope(t *testing.T) {
 
 func TestTraceProxySettingsRegisterDelegatedCredentials(t *testing.T) {
 	for _, setting := range []string{
+		"evp_proxy_config.additional_endpoints",
+		"ol_proxy_config.additional_endpoints",
 		"apm_config.telemetry.additional_endpoints",
 	} {
 		t.Run(setting, func(t *testing.T) {
 			config := confFromYAML(t, "{}")
 			host := "https://intake.datadoghq.eu/path"
+			if setting == "evp_proxy_config.additional_endpoints" || setting == "ol_proxy_config.additional_endpoints" {
+				host = "datadoghq.eu"
+			}
 			config.SetInTest(setting, map[string][]string{host: {"static-key", "DELA[org-a, aws]", "DELA[org-b, aws]"}})
 			rec := newRecordingComponent()
 			ConfigureDelegatedAuthEndpoints(context.Background(), config, rec)
