@@ -80,7 +80,7 @@ type Probe struct {
 }
 
 // NewProbe creates a [Probe]
-func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
+func NewProbe(_ *ddebpf.Config) (*Probe, error) {
 	kv, err := kernel.HostVersion()
 	if err != nil {
 		return nil, fmt.Errorf("kernel version: %s", err)
@@ -90,11 +90,7 @@ func NewProbe(cfg *ddebpf.Config) (*Probe, error) {
 	}
 
 	var probe *Probe
-	filename := "ebpf.o"
-	if cfg.BPFDebug {
-		filename = "ebpf-debug.o"
-	}
-	err = ddebpf.LoadCOREAsset(filename, func(buf bytecode.AssetReader, opts manager.Options) error {
+	err = ddebpf.LoadCOREAsset("ebpf.o", func(buf bytecode.AssetReader, opts manager.Options) error {
 		var err error
 		probe, err = startEBPFCheck(buf, opts)
 		return err
