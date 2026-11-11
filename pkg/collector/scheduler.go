@@ -78,6 +78,8 @@ type CheckScheduler struct {
 	deferredConfigs     map[string]deferredConfig
 	configDeps          map[string][]string
 	depInstaller        DepInstaller
+	depInstallInFlight  bool
+	depInstallMu        sync.Mutex
 	deferredStop        chan struct{}
 	deferredWg          sync.WaitGroup
 	loaders             []check.Loader
@@ -164,7 +166,10 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 		}
 		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
-		delete(s.deferredConfigs, digest)
+		if d, ok := s.deferredConfigs[digest]; ok {
+			removedDeps = append(removedDeps, d.deps...)
+			delete(s.deferredConfigs, digest)
+		}
 		if deps, ok := s.configDeps[digest]; ok {
 			removedDeps = append(removedDeps, deps...)
 			delete(s.configDeps, digest)
@@ -436,16 +441,13 @@ func (s *CheckScheduler) getChecksFromConfigsLocked(configs []integration.Config
 			}
 		} else if len(depsPending) > 0 {
 			d := deferredConfig{config: config, deps: depsPending, deferredAt: time.Now()}
-			_, existed := s.deferredConfigs[configDigest]
 			if existing, ok := s.deferredConfigs[configDigest]; ok {
 				d.attempts = existing.attempts
 				d.deferredAt = existing.deferredAt
 			}
 			s.deferredConfigs[configDigest] = d
-			if !existed {
-				log.Infof("Deferring check %s, waiting for dependencies %v to be installed", config.Name, depsPending)
-				s.triggerDepInstall(depsPending)
-			}
+			log.Debugf("Check %s deferred, waiting for dependencies %v (attempt %d)", config.Name, depsPending, d.attempts)
+			s.triggerDepInstall(depsPending, d.attempts)
 		}
 	}
 

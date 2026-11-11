@@ -88,11 +88,18 @@ func sitePackagesDirsIn(packagePath string) ([]string, error) {
 }
 
 // agentSitePackagesDirs returns the site-packages directories of every
-// datadog-agent tree (stable and experiment) installed under packagesRoot.
+// datadog-agent tree the dependency package can wire into: the fleet
+// installer trees (stable and experiment) under packagesRoot, and a
+// package-manager install under /opt/datadog-agent.
 func agentSitePackagesDirs(packagesRoot string) []string {
 	dirs := []string{}
-	for _, link := range []string{"stable", "experiment"} {
-		agentRoot, err := filepath.EvalSymlinks(filepath.Join(packagesRoot, "datadog-agent", link))
+	candidates := []string{
+		filepath.Join(packagesRoot, "datadog-agent", "stable"),
+		filepath.Join(packagesRoot, "datadog-agent", "experiment"),
+		"/opt/datadog-agent",
+	}
+	for _, root := range candidates {
+		agentRoot, err := filepath.EvalSymlinks(root)
 		if err != nil {
 			continue
 		}

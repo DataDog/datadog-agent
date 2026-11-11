@@ -136,7 +136,7 @@ func TestDeferredCheckGivesUpAfterMaxAttempts(t *testing.T) {
 	s := newDeferredTestScheduler(installer, loader)
 
 	s.GetChecksFromConfigs([]integration.Config{mysqlConfig()}, true)
-	for i := 0; i < deferredMaxAttempts(); i++ {
+	for i := 0; i <= deferredMaxAttempts(); i++ {
 		s.retryDeferred()
 	}
 	assert.Empty(t, s.deferredConfigs)
@@ -144,6 +144,9 @@ func TestDeferredCheckGivesUpAfterMaxAttempts(t *testing.T) {
 }
 
 func TestUnscheduleRemovesDeferredAndTriggersOrphanRemoval(t *testing.T) {
+	prevGrace := depRemovalGrace
+	depRemovalGrace = time.Millisecond
+	defer func() { depRemovalGrace = prevGrace }()
 	configmock.New(t)
 	installer := &fakeDepInstaller{}
 	loader := &pendingLoader{deps: []string{"pymysql"}}
@@ -163,6 +166,9 @@ func TestUnscheduleRemovesDeferredAndTriggersOrphanRemoval(t *testing.T) {
 }
 
 func TestUnscheduleKeepsDepsWhileAnotherCheckUsesThem(t *testing.T) {
+	prevGrace := depRemovalGrace
+	depRemovalGrace = time.Millisecond
+	defer func() { depRemovalGrace = prevGrace }()
 	configmock.New(t)
 	installer := &fakeDepInstaller{}
 	loader := &pendingLoader{deps: []string{"pymysql"}}

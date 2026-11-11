@@ -350,7 +350,10 @@ func writeTarTree(tw *tar.Writer, source, name string) error {
 		if err != nil {
 			return err
 		}
-		if rel == "." {
+		if rel == "." && !d.IsDir() {
+			// the source is a single top-level file (e.g. six.py), include it
+			rel = ""
+		} else if rel == "." {
 			return nil
 		}
 		headerName := filepath.ToSlash(filepath.Join(name, rel))

@@ -100,7 +100,7 @@ func (s *CheckScheduler) retryDeferred() {
 	s.m.Lock()
 	for digest, d := range s.deferredConfigs {
 		d.attempts++
-		if d.attempts >= maxAttempts {
+		if d.attempts > maxAttempts {
 			delete(s.deferredConfigs, digest)
 			log.Errorf("Check %s still cannot load, dependencies %v missing after %d attempts, giving up", d.config.Name, d.deps, d.attempts)
 			errorStats.setLoaderError(d.config.Name, "python", "deferred dependencies never became importable")
@@ -129,12 +129,49 @@ func (s *CheckScheduler) retryDeferred() {
 	}
 }
 
-// triggerDepInstall fires one deduplicated install request for the
-// dependency package when a check is first deferred (not on every retry).
-// The request is fire-and-forget: completion is noticed by the retry loop
+// depInstallRetriggerCadence is the number of retry attempts after which a
+// failed install request is sent again, so an install that failed (e.g. the
+// installer socket was not up yet) is eventually retried.
+const depInstallRetriggerCadence = 12
+
+// depRemovalGrace delays an orphan dependency removal request so that a
+// config being swapped (unschedule + schedule) does not remove the package
+// its replacement is about to use. Var for tests.
+var depRemovalGrace = 30 * time.Second
+
+// depsStillInUse reports whether any loaded or deferred config still
+// declares dependencies. Callers must hold the scheduler mutex.
+func (s *CheckScheduler) depsStillInUse() bool {
+	for _, deps := range s.configDeps {
+		if len(deps) > 0 {
+			return true
+		}
+	}
+	for _, d := range s.deferredConfigs {
+		if len(d.deps) > 0 {
+			return true
+		}
+	}
+	return false
+}
+
+// triggerDepInstall fires a deduplicated install request for the dependency
+// package when a check is first deferred, and again every
+// depInstallRetriggerCadence attempts so failed installs are retried. The
+// request is fire-and-forget: completion is noticed by the retry loop
 // re-probing the deferred configs.
-func (s *CheckScheduler) triggerDepInstall(deps []string) {
+func (s *CheckScheduler) triggerDepInstall(deps []string, attempts int) {
 	if s.depInstaller == nil || len(deps) == 0 {
+		return
+	}
+	if attempts > 0 && attempts%depInstallRetriggerCadence != 0 {
+		return
+	}
+	s.depInstallMu.Lock()
+	inFlight := s.depInstallInFlight
+	s.depInstallInFlight = true
+	s.depInstallMu.Unlock()
+	if inFlight {
 		return
 	}
 	go func() {
@@ -142,29 +179,31 @@ func (s *CheckScheduler) triggerDepInstall(deps []string) {
 		if err := s.depInstaller.InstallDepPackage(pkg, version.AgentPackageVersion); err != nil {
 			log.Errorf("Could not request installation of dependency package %s: %v", pkg, err)
 		}
+		s.depInstallMu.Lock()
+		s.depInstallInFlight = false
+		s.depInstallMu.Unlock()
 	}()
 }
 
 // removeOrphanDeps removes the dependency package when no scheduled or
 // deferred config still declares a dependency on it. Callers must hold the
-// scheduler mutex; the removal request itself is async.
+// scheduler mutex; the removal request itself waits for depRemovalGrace and
+// re-checks the condition before removing, so a config swap does not pull
+// the package out from under its replacement.
 func (s *CheckScheduler) removeOrphanDeps(removedDeps []string) {
-	if s.depInstaller == nil || len(removedDeps) == 0 {
+	if s.depInstaller == nil || len(removedDeps) == 0 || s.depsStillInUse() {
 		return
-	}
-	for _, deps := range s.configDeps {
-		if len(deps) > 0 {
-			return
-		}
-	}
-	for _, d := range s.deferredConfigs {
-		if len(d.deps) > 0 {
-			return
-		}
 	}
 	pkg := pkgconfigsetup.Datadog().GetString("on_demand_python_deps.dep_package_name")
 	installer := s.depInstaller
 	go func() {
+		time.Sleep(depRemovalGrace)
+		s.m.Lock()
+		inUse := s.depsStillInUse()
+		s.m.Unlock()
+		if inUse {
+			return
+		}
 		if err := installer.RemoveDepPackage(pkg); err != nil {
 			log.Errorf("Could not request removal of dependency package %s: %v", pkg, err)
 		}

@@ -25,13 +25,28 @@ func writeDist(t *testing.T, sitePackages, rawName, metadata string, topLevelPat
 	require.NoError(t, os.WriteFile(filepath.Join(distDir, "METADATA"), []byte(metadata), 0o644))
 	record := &strings.Builder{}
 	for _, path := range topLevelPaths {
-		record.WriteString(path + "/__init__.py,,\n")
+		switch {
+		case strings.Contains(path, "/"):
+			record.WriteString(path + "/__init__.py,,\n")
+		case strings.HasSuffix(path, ".py"):
+			record.WriteString(path + ",,\n")
+		default:
+			record.WriteString(path + "/__init__.py,,\n")
+		}
 	}
 	record.WriteString(rawName + ".dist-info/METADATA,,\n")
 	require.NoError(t, os.WriteFile(filepath.Join(distDir, "RECORD"), []byte(record.String()), 0o644))
 	for _, path := range topLevelPaths {
-		require.NoError(t, os.MkdirAll(filepath.Join(sitePackages, path), 0o755))
-		require.NoError(t, os.WriteFile(filepath.Join(sitePackages, path, "__init__.py"), []byte("# "+path), 0o644))
+		switch {
+		case strings.Contains(path, "/"):
+			require.NoError(t, os.MkdirAll(filepath.Join(sitePackages, path), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(sitePackages, path, "__init__.py"), []byte("# "+path), 0o644))
+		case strings.HasSuffix(path, ".py"):
+			require.NoError(t, os.WriteFile(filepath.Join(sitePackages, path), []byte("# "+path), 0o644))
+		default:
+			require.NoError(t, os.MkdirAll(filepath.Join(sitePackages, path), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(sitePackages, path, "__init__.py"), []byte("# "+path), 0o644))
+		}
 	}
 }
 
@@ -118,6 +133,37 @@ func TestBuildDepsPackageLayer(t *testing.T) {
 	assert.True(t, entries["embedded/lib/python3.12/site-packages/psutil/__init__.py"])
 	assert.True(t, entries["embedded/lib/python3.12/site-packages/PyMySQL-1.1.0.dist-info/METADATA"])
 	assert.False(t, entries["embedded/lib/python3.12/site-packages/requests/__init__.py"])
+}
+
+func TestBuildDepsPackageLayerIncludesTopLevelFiles(t *testing.T) {
+	root := t.TempDir()
+	sitePackages := filepath.Join(root, "python3.12", "site-packages")
+	require.NoError(t, os.MkdirAll(sitePackages, 0o755))
+	writeDist(t, sitePackages, "datadog_mysql-7.5.1",
+		"Requires-Dist: six==1.16.0; extra == \"deps\"\n",
+		"datadog_checks/mysql")
+	writeDist(t, sitePackages, "six-1.16.0",
+		"Requires-Dist: \n",
+		"six.py")
+
+	site, err := ParseSitePackages(sitePackages)
+	require.NoError(t, err)
+	tarBytes, err := site.BuildDepsPackageLayer(site.DepsPackageDists())
+	require.NoError(t, err)
+
+	found := false
+	reader := tar.NewReader(bytes.NewReader(tarBytes))
+	for {
+		header, err := reader.Next()
+		if err == io.EOF {
+			break
+		}
+		require.NoError(t, err)
+		if header.Name == "embedded/lib/python3.12/site-packages/six.py" {
+			found = true
+		}
+	}
+	assert.True(t, found, "top-level .py files must be included in the package layer")
 }
 
 func TestBuildDepsPackage(t *testing.T) {
