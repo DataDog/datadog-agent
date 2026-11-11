@@ -8,6 +8,7 @@ package nodetreemodel
 import (
 	"maps"
 	"slices"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -37,6 +38,30 @@ func (c *ntmConfig) GetEnvVars() []string {
 	// Example: "site" and "system_probe_config.internal_profiling.site" both use "DD_SITE".
 	slices.Sort(vars)
 	vars = slices.Compact(vars)
+	return vars
+}
+
+// FilterSensitiveEnvVars returns envVars without the env vars bound to sensitive settings
+func (c *ntmConfig) FilterSensitiveEnvVars(envVars []string) []string {
+	c.RLock()
+	defer c.RUnlock()
+	var filtered []string
+	for _, envVar := range envVars {
+		if _, found := c.sensitiveEnvVars[strings.ToUpper(envVar)]; !found {
+			filtered = append(filtered, envVar)
+		}
+	}
+	return filtered
+}
+
+// computeSensitiveEnvVars must be called with the lock held
+func (c *ntmConfig) computeSensitiveEnvVars() map[string]struct{} {
+	vars := map[string]struct{}{}
+	for key := range c.sensitiveKeys {
+		for _, envVar := range c.configEnvVars[key] {
+			vars[strings.ToUpper(envVar)] = struct{}{}
+		}
+	}
 	return vars
 }
 

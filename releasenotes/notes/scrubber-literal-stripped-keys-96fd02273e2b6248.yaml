@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Keys added to the scrubber through ``scrubber.additional_keys``, ``flare_stripped_keys``, or
+    configuration values resolved from secrets are now matched regardless of case when scrubbing
+    structured YAML and JSON data.

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Fix ``infrastructure_mode: end_user_device`` not enabling the system-probe
+    software inventory module (Windows and macOS) and notable events module
+    (macOS) unless ``software_inventory.enabled`` or ``notable_events.enabled``
+    was set explicitly in ``datadog.yaml``.

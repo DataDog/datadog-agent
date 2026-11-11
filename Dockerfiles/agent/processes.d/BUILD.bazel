@@ -4,6 +4,7 @@ exports_files(
     [
         "aio/datadog-agent-data-plane.yaml",
         "aio/datadog-agent-otel.yaml",
+        "aio/datadog-agent-par.yaml",
         "aio/datadog-agent-par-control.yaml",
         "aio/datadog-agent-process.yaml",
         "aio/datadog-agent-security.yaml",
@@ -11,5 +12,18 @@ exports_files(
         "aio/datadog-agent-trace.yaml",
         "aio/datadog-agent.yaml",
     ],
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
+# Non-recursive glob: aio/ must stay out of the top-level set.
+filegroup(
+    name = "top_level_yaml",
+    srcs = glob(["*.yaml"]),
+    visibility = ["//pkg/procmgr/rust:__pkg__"],
+)
+
+filegroup(
+    name = "aio_yaml",
+    srcs = glob(["aio/*.yaml"]),
     visibility = ["//pkg/procmgr/rust:__pkg__"],
 )
