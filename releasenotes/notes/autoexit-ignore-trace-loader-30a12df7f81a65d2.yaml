@@ -1,0 +1,4 @@
+---
+fixes:
+  - |
+    Autoexit now treats ``trace-loader`` as an excluded process, so a container with no traces can still exit when ``auto_exit.noprocess.enabled`` is set.

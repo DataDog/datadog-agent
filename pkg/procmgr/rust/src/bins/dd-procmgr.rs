@@ -7,14 +7,15 @@ use clap::{Parser, Subcommand};
 use dd_procmgr_client::proto;
 use dd_procmgr_client::proto::process_manager_client::ProcessManagerClient;
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use tonic::transport::Channel;
 
 #[derive(Parser)]
 #[command(name = "dd-procmgr", about = "CLI for dd-procmgrd process manager")]
 struct Cli {
-    /// Override the daemon socket path (default: DD_PM_SOCKET_PATH or /var/run/datadog/dd-procmgrd.sock)
+    /// Override the daemon socket path (default: DD_PM_SOCKET_PATH, else the first existing of
+    /// /var/run/datadog-procmgrd/dd-procmgrd.sock and /opt/datadog-agent/run/dd-procmgrd.sock)
     #[arg(long, global = true)]
     socket: Option<String>,
 
@@ -111,14 +112,52 @@ async fn main() -> ExitCode {
     }
 }
 
+/// The all-in-one entrypoint exports DD_PM_SOCKET_PATH with this path, which `docker exec`
+/// does not inherit.
+#[cfg(unix)]
+const AIO_SOCKET_PATH: &str = "/opt/datadog-agent/run/dd-procmgrd.sock";
+
+fn socket_candidates(socket_override: Option<&str>, env_socket: Option<String>) -> Vec<PathBuf> {
+    if let Some(path) = socket_override.map(str::to_owned).or(env_socket) {
+        return vec![PathBuf::from(path)];
+    }
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut candidates = vec![dd_procmgr_client::default_ipc_path()];
+    #[cfg(unix)]
+    candidates.push(PathBuf::from(AIO_SOCKET_PATH));
+    candidates
+}
+
+/// A single candidate is not probed, because probing a Windows named pipe opens it.
+fn select_socket_path(candidates: &[PathBuf]) -> &Path {
+    let first = &candidates[0];
+    if candidates.len() == 1 {
+        return first;
+    }
+    candidates
+        .iter()
+        .find(|path| path.exists())
+        .unwrap_or(first)
+}
+
+fn connect_error(path: &Path, candidates: &[PathBuf], err: impl std::fmt::Display) -> String {
+    let mut msg = format!("failed to connect to {}: {err}", path.display());
+    if candidates.len() > 1 {
+        let tried: Vec<String> = candidates.iter().map(|p| p.display().to_string()).collect();
+        msg.push_str(&format!(
+            " (looked for {}, pass --socket or set DD_PM_SOCKET_PATH to choose)",
+            tried.join(" and ")
+        ));
+    }
+    msg
+}
+
 async fn connect(socket_override: Option<&str>) -> Result<ProcessManagerClient<Channel>, String> {
-    let path: PathBuf = match socket_override {
-        Some(s) => PathBuf::from(s),
-        None => dd_procmgr_client::ipc_path(),
-    };
-    let channel = dd_procmgr_client::connect(&path)
+    let candidates = socket_candidates(socket_override, std::env::var("DD_PM_SOCKET_PATH").ok());
+    let path = select_socket_path(&candidates);
+    let channel = dd_procmgr_client::connect(path)
         .await
-        .map_err(|e| format!("failed to connect to {}: {e}", path.display()))?;
+        .map_err(|e| connect_error(path, &candidates, e))?;
     Ok(ProcessManagerClient::new(channel))
 }
 
@@ -832,6 +871,71 @@ mod tests {
         let args: Vec<String> = vec![];
         let map = parse_env_args(&args).unwrap();
         assert!(map.is_empty());
+    }
+
+    #[test]
+    fn test_socket_candidates_explicit_path_wins() {
+        assert_eq!(
+            socket_candidates(Some("/flag.sock"), Some("/env.sock".to_string())),
+            [PathBuf::from("/flag.sock")]
+        );
+        assert_eq!(
+            socket_candidates(None, Some("/env.sock".to_string())),
+            [PathBuf::from("/env.sock")]
+        );
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn test_socket_candidates_default_then_aio() {
+        assert_eq!(
+            socket_candidates(None, None),
+            [
+                dd_procmgr_client::default_ipc_path(),
+                PathBuf::from(AIO_SOCKET_PATH)
+            ]
+        );
+    }
+
+    #[test]
+    fn test_select_socket_path_prefers_first_existing() {
+        let dir = tempfile::tempdir().unwrap();
+        let primary = dir.path().join("primary.sock");
+        let fallback = dir.path().join("fallback.sock");
+        let candidates = [primary.clone(), fallback.clone()];
+
+        assert_eq!(select_socket_path(&candidates), primary, "neither exists");
+
+        std::fs::write(&fallback, b"").unwrap();
+        assert_eq!(select_socket_path(&candidates), fallback, "only fallback");
+
+        std::fs::write(&primary, b"").unwrap();
+        assert_eq!(select_socket_path(&candidates), primary, "both exist");
+
+        std::fs::remove_file(&fallback).unwrap();
+        assert_eq!(select_socket_path(&candidates), primary, "only primary");
+    }
+
+    #[test]
+    fn test_select_socket_path_single_candidate_is_not_probed() {
+        let dir = tempfile::tempdir().unwrap();
+        let missing = dir.path().join("missing.sock");
+        assert_eq!(select_socket_path(std::slice::from_ref(&missing)), missing);
+    }
+
+    #[test]
+    fn test_connect_error_names_every_candidate() {
+        let primary = PathBuf::from("/a/dd-procmgrd.sock");
+        let fallback = PathBuf::from("/b/dd-procmgrd.sock");
+        let msg = connect_error(&fallback, &[primary.clone(), fallback.clone()], "refused");
+        assert!(msg.starts_with("failed to connect to /b/dd-procmgrd.sock: refused"));
+        assert!(msg.contains("/a/dd-procmgrd.sock and /b/dd-procmgrd.sock"));
+
+        let explicit = connect_error(&primary, std::slice::from_ref(&primary), "refused");
+        assert_eq!(
+            explicit,
+            "failed to connect to /a/dd-procmgrd.sock: refused"
+        );
     }
 
     #[test]
