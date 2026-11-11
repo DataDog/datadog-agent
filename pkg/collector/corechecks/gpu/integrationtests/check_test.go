@@ -26,7 +26,7 @@ import (
 type specDevices struct {
 	// physical are the GPUs without MIG mode.
 	physical []safenvml.Device
-	// migParents are the GPUs in MIG mode that have MIG devices.
+	// migParents are the GPUs in MIG mode. They usually have MIG devices, but may have none yet.
 	migParents []safenvml.Device
 	// migChildren are the MIG devices of migParents.
 	migChildren []safenvml.Device
@@ -49,16 +49,15 @@ func discoverSpecDevices(t *testing.T) specDevices {
 		physicalDevice, ok := device.(*safenvml.PhysicalDevice)
 		require.True(t, ok, "device %s should be a PhysicalDevice", device.GetDeviceInfo().UUID)
 
-		switch {
-		case physicalDevice.HasMIGFeatureEnabled && len(physicalDevice.MIGChildren) > 0:
-			grouped.migParents = append(grouped.migParents, device)
-			for _, child := range physicalDevice.MIGChildren {
-				grouped.migChildren = append(grouped.migChildren, child)
-			}
-		case physicalDevice.HasMIGFeatureEnabled:
-			t.Logf("GPU %s has MIG mode enabled but no MIG devices, it is not validated", device.GetDeviceInfo().UUID)
-		default:
+		if !physicalDevice.HasMIGFeatureEnabled {
 			grouped.physical = append(grouped.physical, device)
+			continue
+		}
+		// A GPU in MIG mode is validated as a MIG parent even if it has no MIG device: NVML supports the same
+		// APIs on it either way.
+		grouped.migParents = append(grouped.migParents, device)
+		for _, child := range physicalDevice.MIGChildren {
+			grouped.migChildren = append(grouped.migChildren, child)
 		}
 	}
 	return grouped
@@ -173,8 +172,8 @@ func TestSpecMIG(t *testing.T) {
 	specs, err := gpuspec.LoadSpecs()
 	require.NoError(t, err)
 	grouped := discoverSpecDevices(t)
-	if len(grouped.migChildren) == 0 {
-		t.Skipf("no MIG devices, create them or set %s to let the test create them", configureMIGEnv)
+	if len(grouped.migParents) == 0 {
+		t.Skipf("no GPU in MIG mode, enable it or set %s to let the test configure one", configureMIGEnv)
 	}
 
 	devices := slices.Concat(grouped.migParents, grouped.migChildren)
