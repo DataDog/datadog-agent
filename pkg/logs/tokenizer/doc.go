@@ -79,11 +79,14 @@
 //	dda inv logs-tokenizer.bench-compare --targets=pkg/logs/tokenizer --bench='^BenchmarkConsumer' --bench-files=consumer_benchmark_test.go
 //
 // It benchmarks each consumer's real per-line calls at its real window,
-// against the merge base, in about 2 minutes. It checks CPU and memory: it
-// fails if one benchmark, or the geomean, is more than 5% slower, if one
-// allocates more often, or if one's bytes per call grow by more than 5%. The
-// last one catches an allocation that keeps its count but gets bigger, which
-// the allocation tests can't see.
+// against the merge base, in about 2 minutes. It fails if one allocates more
+// often, or if one's bytes per call grow by more than 5%. The last one catches
+// an allocation that keeps its count but gets bigger, which the allocation
+// tests can't see. It shows the timings but doesn't judge them: run it on a
+// quiet machine, and trust a change in the code you touched. Changing one
+// function can move the timing of others by 10% or more through code layout
+// (go.dev/issue/8717). CI runs it on every change to this package and posts
+// only the memory checks: its runners are too noisy to time a change.
 //
 // Adding a consumer: the Bazel visibility in BUILD.bazel lists every package
 // that may import this one, so a new importer doesn't build until it is

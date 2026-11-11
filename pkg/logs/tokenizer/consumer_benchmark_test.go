@@ -81,7 +81,8 @@ var benchSink int
 
 // BenchmarkConsumer runs each consumer's per-line calls at its window, on each
 // of the 8 lines: 24 benchmarks. dda inv logs-tokenizer.bench-compare fails a
-// change that makes one of them more than 5% slower (p < 0.05).
+// change that makes one of them allocate more, and shows how their timings
+// moved.
 func BenchmarkConsumer(b *testing.B) {
 	for _, c := range consumers {
 		for _, l := range perfLines {

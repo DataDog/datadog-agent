@@ -15,9 +15,10 @@ from tasks.libs.logs_tokenizer.runner import run_check_verdict, run_compare
         "base": "Revision to compare against. Defaults to the merge base of HEAD and origin/main.",
         "rounds": "Rounds per side, alternating between the sides. At least 4: fewer cannot reach p < 0.05.",
         "benchtime": "The -benchtime of each run.",
-        "max_slowdown": "Slowdown, or growth in bytes per call, in percent, above which a benchmark (or the geomean, for time) fails the comparison.",
+        "max_growth": "Growth in bytes per call, in percent, above which a benchmark fails the comparison. Also the median ± band above which the report calls the timings inconclusive.",
         "report": "Also write the result as Markdown to this file, for a PR comment.",
         "verdict_file": "Also write the verdict as JSON to this file, for logs-tokenizer.bench-check-verdict.",
+        "show_time": "Show the timings in the report. CI passes --no-show-time: its runners are too noisy to time a change.",
         "send_metrics": "Also send each benchmark's result to Datadog (needs DD_API_KEY). Failing to send does not change the result.",
     }
 )
@@ -29,24 +30,40 @@ def bench_compare(
     base=None,
     rounds=10,
     benchtime="200ms",
-    max_slowdown="5",
+    max_growth="5",
     report=None,
     verdict_file=None,
     send_metrics=False,
+    show_time=True,
 ):
     """
-    Tells you whether your change made a package's benchmarks slower or use more memory, by running
-    them on this machine at a base revision (the merge base by default) and in your working tree.
+    Tells you whether your change made a package's benchmarks allocate more or use more memory, by
+    running them on this machine at a base revision (the merge base by default) and in your working
+    tree, and shows how their timings moved.
 
-    Exits 0 on a pass, and 1 if a benchmark is more than max_slowdown percent slower (p < 0.05), the
-    geomean is, a benchmark allocates more, or its bytes per call grow by more than max_slowdown
-    percent. Exits 2 if it couldn't compare. Each side builds as a throwaway module with the
-    package's sources and this tree's benchmark files, so the benchmark code is identical and only
-    the package differs. The runs alternate between the sides, so background noise on the machine
-    hits both equally.
+    Exits 0 on a pass, and 1 if a benchmark allocates more, or its bytes per call grow by more than
+    max_growth percent (both p < 0.05). Exits 2 if it couldn't compare. Time never fails the run: one
+    machine can't time a 5-10% change reliably when it's shared, and changing one function can move
+    the timings of others through code layout. On a quiet machine the report shows each timing's
+    ± band; trust a change in the code you touched, or one you see on two machines.
+
+    Each side builds as a throwaway module with the package's sources and this tree's benchmark
+    files, so the benchmark code is identical and only the package differs. The runs alternate
+    between the sides in a random order, so background noise on the machine hits both equally.
     """
     run_compare(
-        ctx, targets, bench, bench_files, base, rounds, benchtime, max_slowdown, report, verdict_file, send_metrics
+        ctx,
+        targets,
+        bench,
+        bench_files,
+        base,
+        rounds,
+        benchtime,
+        max_growth,
+        report,
+        verdict_file,
+        send_metrics,
+        show_time,
     )
 
 
