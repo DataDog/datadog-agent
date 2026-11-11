@@ -300,7 +300,6 @@ variables:
   S3_OMNIBUS_GIT_CACHE_BUCKET: dd-ci-datadog-agent-omnibus-git-cache-build-stable
   S3_DD_AGENT_OMNIBUS_LLVM_URI: s3://dd-agent-omnibus/llvm
   S3_DD_AGENT_OMNIBUS_BTFS_URI: s3://dd-agent-omnibus/btfs
-  S3_DD_AGENT_OMNIBUS_JAVA_URI: s3://dd-agent-omnibus/openjdk
   BTFHUB_ARCHIVE_BRANCH: main
   COMPARE_TO_BRANCH: main
   GENERAL_ARTIFACTS_CACHE_BUCKET_URL: https://dd-agent-omnibus.s3.amazonaws.com
