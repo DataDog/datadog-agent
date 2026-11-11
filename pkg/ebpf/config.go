@@ -55,7 +55,7 @@ const (
 
 // Config stores all common flags used by system-probe
 type Config struct {
-	// BPFDebug enables bpf debug logs
+	// BPFDebug enables bpf debug logs in runtime-compiled programs
 	BPFDebug bool
 
 	// BPFDir is the directory to load the eBPF program from
