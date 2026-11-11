@@ -86,6 +86,8 @@ func TestAPMHandlerSupportsTarget(t *testing.T) {
 		{name: "job", kind: "Job", want: true},
 		{name: "cronjob", kind: "CronJob", want: true},
 		{name: "rollout", kind: "Rollout", want: true},
+		{name: "workflow", kind: "Workflow", want: false},
+		{name: "cronworkflow", kind: "CronWorkflow", want: false},
 		{name: "service", kind: "Service", want: false},
 		{name: "pod", kind: "Pod", want: false},
 		{name: "empty kind", kind: "", want: false},
