@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    APM : Support DELA directives in EVP and OpenLineage additional endpoints.
+    Pending destinations are skipped, and subsequent requests use resolved
+    and rotated API keys without restarting the trace-agent.
