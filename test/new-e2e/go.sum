@@ -358,8 +358,8 @@ github.com/google/go-tpm-tools v0.4.8/go.mod h1:4DfiOtiS1KppJjwf1+tqtW4K3PrCJjAA
 github.com/google/gofuzz v1.0.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
 github.com/google/gofuzz v1.2.0 h1:xRy4A+RhZaiKjJ1bPfwQ8sedCA+YS2YcCHW6ec7JMi0=
 github.com/google/gofuzz v1.2.0/go.mod h1:dBl0BpW6vV/+mYPU4Po3pmUjxk6FQPldtuIdl/M65Eg=
-github.com/google/pprof v0.0.0-20261102214848-0031fcd306b0 h1:86rNkgYeJezkpuaJQidi1uAb467frc71yU2PIRDf2FA=
-github.com/google/pprof v0.0.0-20261102214848-0031fcd306b0/go.mod h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=
+github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4 h1:UVOT508qxzSJSX3WvW5Wp+OvqqwD3nJfxlm+z9amahk=
+github.com/google/pprof v0.0.0-20261103193413-97e8293de3c4/go.mod h1:yUo1AMMpsPIDFGuwDK8nLcf8+vvAd5l2O6JDZ6hpwrM=
 github.com/google/s2a-go v0.1.11 h1:7v1V1TraNGP63WptsAkNqr2w8jgm4vM6A6qx6Lsw9iM=
 github.com/google/s2a-go v0.1.11/go.mod h1:pz4tyvwXvJLLbyrkh6FW1eS2zPUXMaTmyNhYtyP2tNw=
 github.com/google/shlex v0.0.0-20191202100458-e7afc7fbc510 h1:El6M4kTTCOh6aBiKaUGG7oYTSPP8MxqL4YI3kZKwcP4=
