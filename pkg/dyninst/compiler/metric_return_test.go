@@ -36,10 +36,15 @@ func TestGenerateReturnMetricProbeHandlers(t *testing.T) {
 			require.NoError(t, err)
 			compiled, err := GenerateProgram(prog)
 			require.NoError(t, err)
-			var entry, exit int
+			var entry, exit, recovery int
 			for _, f := range compiled.Functions {
 				pe, ok := f.ID.(ProcessEvent)
 				if !ok {
+					continue
+				}
+				if prog.Probes[pe.ProbeID].GetKind() == ir.ProbeKindRuntimeRecovery {
+					require.False(t, pe.IsMetric)
+					recovery++
 					continue
 				}
 				require.True(t, pe.IsMetric)
@@ -62,6 +67,7 @@ func TestGenerateReturnMetricProbeHandlers(t *testing.T) {
 			}
 			require.Positive(t, entry)
 			require.Positive(t, exit)
+			require.Positive(t, recovery)
 		})
 	}
 }

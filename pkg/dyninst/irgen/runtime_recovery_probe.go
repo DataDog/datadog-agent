@@ -128,16 +128,12 @@ func (runtimeRecoveryThrottleConfig) GetThrottlePeriodMs() uint32 { return 0 }
 func (runtimeRecoveryThrottleConfig) GetThrottleBudget() int64    { return 0 }
 
 // maybeAddRuntimeRecoveryProbe appends the synthetic recovery probe
-// definition to defs when at least one input probe targets a function
-// (FunctionWhere). Line probes and metric probes alone don't trigger the
-// recovery probe: they don't establish in_progress_calls state, so they
-// cannot leak across a panic-recover boundary.
+// definition to defs when a function probe needs call-pairing cleanup.
+// Line probes and entry-only metric probes don't establish in_progress_calls state.
 func maybeAddRuntimeRecoveryProbe(defs []ir.ProbeDefinition) []ir.ProbeDefinition {
 	hasFunctionProbe := false
 	for _, d := range defs {
-		// Metric probes never have return events, so they don't leave
-		// in_progress_calls slots behind for the recovery probe to clean up.
-		if d.GetKind() == ir.ProbeKindMetric {
+		if d.GetKind() == ir.ProbeKindMetric && !metricEvaluatesAtReturn(d) {
 			continue
 		}
 		if _, ok := d.GetWhere().(ir.FunctionWhere); ok {

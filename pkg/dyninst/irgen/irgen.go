@@ -134,7 +134,9 @@ func generateIR(
 		if retErr != nil {
 			return
 		}
-		if len(ret.Probes) == 0 {
+		if !slices.ContainsFunc(ret.Probes, func(p *ir.Probe) bool {
+			return p.GetKind() != ir.ProbeKindRuntimeRecovery
+		}) {
 			retErr = &ir.NoSuccessfulProbesError{Issues: ret.Issues}
 		}
 	}()
