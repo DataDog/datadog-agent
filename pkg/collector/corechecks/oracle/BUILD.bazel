@@ -66,13 +66,16 @@ dd_agent_go_test(
     name = "oracle_test",
     srcs = [
         "custom_query_schedule_test.go",
+        "oracle_dictionary_unit_test.go",
         "testsetup_helpers_test.go",
         "testsetup_test.go",
     ],
     embed = [":oracle"],
     gotags_sets = [["oracle"]],
     deps = [
+        "//pkg/collector/corechecks/oracle/common",
         "@com_github_data_dog_go_sqlmock//:go-sqlmock",
+        "@com_github_jmoiron_sqlx//:sqlx",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
