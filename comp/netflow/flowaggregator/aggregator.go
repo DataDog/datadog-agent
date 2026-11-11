@@ -125,15 +125,19 @@ func NewFlowAggregator(sender sender.Sender, epForwarder eventplatform.Forwarder
 	}
 
 	var entropyAcc *entropy.Accumulator
-	if config.Entropy.Enabled {
+	e := config.Entropy
+	if e.Enabled && min(e.MaxExporters, e.MaxInterfacesPerExporter, e.MaxPeersPerInterface, e.MaxTotalEntries) <= 0 {
+		logger.Warnf("NetFlow interface entropy is disabled: its max_* limits must be positive (got %d, %d, %d, %d)",
+			e.MaxExporters, e.MaxInterfacesPerExporter, e.MaxPeersPerInterface, e.MaxTotalEntries)
+	} else if e.Enabled {
 		entropyAcc = entropy.NewAccumulator(entropy.Config{
 			Interval:                 flushConfig.FlowCollectionDuration,
-			MinRecords:               config.Entropy.MinRecords,
-			MinBytes:                 config.Entropy.MinBytes,
-			MaxExporters:             config.Entropy.MaxExporters,
-			MaxInterfacesPerExporter: config.Entropy.MaxInterfacesPerExporter,
-			MaxPeersPerInterface:     config.Entropy.MaxPeersPerInterface,
-			MaxTotalEntries:          config.Entropy.MaxTotalEntries,
+			MinRecords:               e.MinRecords,
+			MinBytes:                 e.MinBytes,
+			MaxExporters:             e.MaxExporters,
+			MaxInterfacesPerExporter: e.MaxInterfacesPerExporter,
+			MaxPeersPerInterface:     e.MaxPeersPerInterface,
+			MaxTotalEntries:          e.MaxTotalEntries,
 		}, timeNow())
 	}
 

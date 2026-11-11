@@ -17,54 +17,45 @@ import (
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
 )
 
-// MetricVersion changes when the meaning of the values changes, not when thresholds do.
-const MetricVersion = 1
+// metricVersion changes when the meaning of the values changes, not when thresholds do.
+const metricVersion = 1
 
-// ObservationPoint is the interface side a distribution describes.
-type ObservationPoint string
-
-const (
-	// Ingress is keyed by source IP on the input interface.
-	Ingress ObservationPoint = "ingress"
-	// Egress is keyed by destination IP on the output interface.
-	Egress ObservationPoint = "egress"
-)
-
-// QualityStatus is whether a window's values can be used.
-type QualityStatus string
+type observationPoint string
 
 const (
-	// StatusValid passed every gate.
-	StatusValid QualityStatus = "valid"
-	// StatusInsufficientData is below MinRecords or MinBytes.
-	StatusInsufficientData QualityStatus = "insufficient_data"
-	// StatusStateLimit hit a state limit.
-	StatusStateLimit QualityStatus = "state_limit"
-	// StatusProcessRestart started before the accumulator, so it's partial.
-	StatusProcessRestart QualityStatus = "process_restart"
+	ingress observationPoint = "ingress" // source IPs on the input interface
+	egress  observationPoint = "egress"  // destination IPs on the output interface
 )
 
-// DropReason is why one side of a record wasn't counted.
-type DropReason string
+// qualityStatus is whether a window's values can be used.
+type qualityStatus string
 
 const (
-	// DropNoInputInterface is an ingress side whose record has no input interface.
-	DropNoInputInterface DropReason = "no_input_interface"
-	// DropNoOutputInterface is an egress side whose record has no output interface.
-	DropNoOutputInterface DropReason = "no_output_interface"
-	// DropInvalidIP is a missing or unparseable exporter or peer IP.
-	DropInvalidIP DropReason = "invalid_ip"
-	// DropLate is for an already closed window, when the Agent's clock goes back.
-	DropLate DropReason = "late"
-	// DropStateLimit is for a new exporter or interface past its limit.
-	DropStateLimit DropReason = "state_limit"
+	statusValid            qualityStatus = "valid"
+	statusInsufficientData qualityStatus = "insufficient_data"
+	statusStateLimit       qualityStatus = "state_limit"
+	// started before the accumulator, so it's partial
+	statusProcessRestart qualityStatus = "process_restart"
 )
 
-// DropKey is the exporter a drop came from (Exporter is zero when its IP was invalid) and why.
-type DropKey struct {
+// dropReason is why one side (ingress or egress) of a record wasn't counted.
+type dropReason string
+
+const (
+	dropNoInputInterface  dropReason = "no_input_interface"
+	dropNoOutputInterface dropReason = "no_output_interface"
+	dropInvalidIP         dropReason = "invalid_ip" // exporter or peer IP
+	// the window already closed, which happens when the Agent's clock goes back
+	dropLate dropReason = "late"
+	// a new exporter or interface past its limit, or an interface already suppressed
+	dropStateLimit dropReason = "state_limit"
+)
+
+// dropKey is the exporter a drop came from (Exporter is zero when its IP was invalid) and why.
+type dropKey struct {
 	Namespace string
 	Exporter  netip.Addr
-	Reason    DropReason
+	Reason    dropReason
 }
 
 // Config holds window and limit settings.
@@ -89,7 +80,7 @@ type exporterKey struct {
 type ifaceKey struct {
 	exporterKey
 	ifIndex uint32
-	point   ObservationPoint
+	point   observationPoint
 }
 
 type counts struct {
@@ -121,7 +112,7 @@ type Accumulator struct {
 	closedBefore int64             // windows starting earlier are closed
 	firstWindow  int64             // windows starting here or earlier are partial
 	totalEntries int
-	dropped      map[DropKey]uint64
+	dropped      map[dropKey]uint64
 }
 
 // NewAccumulator treats the window containing now as partial.
@@ -131,7 +122,7 @@ func NewAccumulator(cfg Config, now time.Time) *Accumulator {
 		cfg:         cfg,
 		intervalSec: intervalSec,
 		windows:     make(map[int64]*window),
-		dropped:     make(map[DropKey]uint64),
+		dropped:     make(map[dropKey]uint64),
 	}
 	a.firstWindow = a.windowStart(now.Unix())
 	a.closedBefore = a.firstWindow
@@ -160,40 +151,42 @@ func (a *Accumulator) Add(flow *common.Flow, now time.Time) {
 	defer a.mu.Unlock()
 
 	if !exporterOK {
-		a.dropped[DropKey{Namespace: flow.Namespace, Reason: DropInvalidIP}] += 2
+		a.dropped[dropKey{Namespace: flow.Namespace, Reason: dropInvalidIP}] += 2
 		return
 	}
 	if start < a.closedBefore {
-		a.dropped[DropKey{flow.Namespace, exporter, DropLate}] += 2
+		a.dropped[dropKey{flow.Namespace, exporter, dropLate}] += 2
 		return
 	}
 
 	exp := exporterKey{namespace: flow.Namespace, exporter: exporter}
 	sides := [2]struct {
 		ifIndex  uint32
-		point    ObservationPoint
+		point    observationPoint
 		peer     netip.Addr
 		ok       bool
-		noIfDrop DropReason
+		noIfDrop dropReason
 	}{
-		{flow.InputInterface, Ingress, src, srcOK, DropNoInputInterface},
-		{flow.OutputInterface, Egress, dst, dstOK, DropNoOutputInterface},
+		{flow.InputInterface, ingress, src, srcOK, dropNoInputInterface},
+		{flow.OutputInterface, egress, dst, dstOK, dropNoOutputInterface},
 	}
 	for _, side := range sides {
 		if side.ifIndex == 0 {
-			a.dropped[DropKey{flow.Namespace, exporter, side.noIfDrop}]++
+			a.dropped[dropKey{flow.Namespace, exporter, side.noIfDrop}]++
 			continue
 		}
 		if !side.ok {
-			a.dropped[DropKey{flow.Namespace, exporter, DropInvalidIP}]++
+			a.dropped[dropKey{flow.Namespace, exporter, dropInvalidIP}]++
 			continue
 		}
 		state := a.iface(start, ifaceKey{exporterKey: exp, ifIndex: side.ifIndex, point: side.point})
 		if state == nil {
-			a.dropped[DropKey{flow.Namespace, exporter, DropStateLimit}]++
+			a.dropped[dropKey{flow.Namespace, exporter, dropStateLimit}]++
 			continue
 		}
-		a.addToIface(state, side.peer, weight, packets)
+		if !a.addToIface(state, side.peer, weight, packets) {
+			a.dropped[dropKey{flow.Namespace, exporter, dropStateLimit}]++
+		}
 	}
 }
 
@@ -220,9 +213,10 @@ func (a *Accumulator) iface(start int64, key ifaceKey) *ifaceState {
 	return state
 }
 
-func (a *Accumulator) addToIface(state *ifaceState, peer netip.Addr, weight, packets uint64) {
+// addToIface returns false when the interface's window is suppressed by a state limit.
+func (a *Accumulator) addToIface(state *ifaceState, peer netip.Addr, weight, packets uint64) bool {
 	if state.limitHit {
-		return
+		return false
 	}
 	c, known := state.peers[peer]
 	if !known && (len(state.peers) >= a.cfg.MaxPeersPerInterface || a.totalEntries >= a.cfg.MaxTotalEntries) {
@@ -230,7 +224,7 @@ func (a *Accumulator) addToIface(state *ifaceState, peer netip.Addr, weight, pac
 		state.limitHit = true
 		a.totalEntries -= len(state.peers)
 		state.peers = nil
-		return
+		return false
 	}
 	if !known {
 		a.totalEntries++
@@ -242,25 +236,23 @@ func (a *Accumulator) addToIface(state *ifaceState, peer netip.Addr, weight, pac
 	state.bytes += weight
 	state.packets += packets
 	state.records++
+	return true
 }
 
-// WindowResult is one closed interface window.
-type WindowResult struct {
+// windowResult is one closed interface window.
+type windowResult struct {
 	Namespace        string
 	Exporter         netip.Addr
 	InterfaceIndex   uint32
-	ObservationPoint ObservationPoint
+	observationPoint observationPoint
 	Start            time.Time
 	End              time.Time
-	Status           QualityStatus
+	Status           qualityStatus
 
 	// in bits, set only when valid
 	ByteEntropy   float64
 	PacketEntropy float64
 	RecordEntropy float64
-	// ByteEntropy / log2(DistinctCount), set only when DistinctCount >= 2
-	NormalizedByteEntropy    float64
-	HasNormalizedByteEntropy bool
 
 	TotalWeight   uint64
 	TotalPackets  uint64
@@ -270,8 +262,8 @@ type WindowResult struct {
 
 // Report holds closed windows, drops since the last call, and peer entries still held.
 type Report struct {
-	Windows      []WindowResult
-	Dropped      map[DropKey]uint64
+	Windows      []windowResult
+	Dropped      map[dropKey]uint64
 	StateEntries int
 }
 
@@ -280,9 +272,13 @@ func (a *Accumulator) CloseWindows(now time.Time) Report {
 	a.mu.Lock()
 	a.closedBefore = max(a.closedBefore, a.windowStart(now.Unix()))
 
-	closed := make(map[int64]*window)
+	// runs every flush tick, so only allocate when a window closed or something was dropped
+	var closed map[int64]*window
 	for start, w := range a.windows {
 		if start < a.closedBefore {
+			if closed == nil {
+				closed = make(map[int64]*window)
+			}
 			closed[start] = w
 			delete(a.windows, start)
 			for _, state := range w.ifaces {
@@ -290,9 +286,11 @@ func (a *Accumulator) CloseWindows(now time.Time) Report {
 			}
 		}
 	}
-	dropped := a.dropped
-	a.dropped = make(map[DropKey]uint64)
-	report := Report{Dropped: dropped, StateEntries: a.totalEntries}
+	report := Report{StateEntries: a.totalEntries}
+	if len(a.dropped) > 0 {
+		report.Dropped = a.dropped
+		a.dropped = make(map[dropKey]uint64)
+	}
 	firstWindow := a.firstWindow
 	a.mu.Unlock()
 
@@ -304,12 +302,12 @@ func (a *Accumulator) CloseWindows(now time.Time) Report {
 	return report
 }
 
-func (a *Accumulator) result(start int64, partial bool, key ifaceKey, state *ifaceState) WindowResult {
-	r := WindowResult{
+func (a *Accumulator) result(start int64, partial bool, key ifaceKey, state *ifaceState) windowResult {
+	r := windowResult{
 		Namespace:        key.namespace,
 		Exporter:         key.exporter,
 		InterfaceIndex:   key.ifIndex,
-		ObservationPoint: key.point,
+		observationPoint: key.point,
 		Start:            time.Unix(start, 0),
 		End:              time.Unix(start+a.intervalSec, 0),
 		TotalWeight:      state.bytes,
@@ -319,23 +317,19 @@ func (a *Accumulator) result(start int64, partial bool, key ifaceKey, state *ifa
 	}
 	switch {
 	case state.limitHit:
-		r.Status = StatusStateLimit
+		r.Status = statusStateLimit
 	case partial:
-		r.Status = StatusProcessRestart
+		r.Status = statusProcessRestart
 	case state.records < a.cfg.MinRecords || state.bytes < a.cfg.MinBytes:
-		r.Status = StatusInsufficientData
+		r.Status = statusInsufficientData
 	default:
-		r.Status = StatusValid
+		r.Status = statusValid
 	}
-	if r.Status != StatusValid {
+	if r.Status != statusValid {
 		return r
 	}
 
 	r.ByteEntropy, r.PacketEntropy, r.RecordEntropy = shannonEntropies(state)
-	if r.DistinctCount >= 2 {
-		r.NormalizedByteEntropy = r.ByteEntropy / math.Log2(float64(r.DistinctCount))
-		r.HasNormalizedByteEntropy = true
-	}
 	return r
 }
 

@@ -1698,7 +1698,7 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 		AggregatorFlushInterval:       300,
 		AggregatorPortRollupThreshold: 10,
 	}
-	assert.Nil(t, NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil).entropy, "off by default")
+	assert.Nil(t, NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil).entropy, "off when disabled")
 
 	// created just before windowStart, so that window isn't partial
 	windowStart := int64(1_800_000_000)
@@ -1711,9 +1711,14 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 		MaxExporters:             10,
 		MaxInterfacesPerExporter: 10,
 		MaxPeersPerInterface:     10,
-		MaxTotalEntries:          100,
+		MaxTotalEntries:          0,
 	}
-	agg := NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil)
+	assert.Nil(t, NewFlowAggregator(sender, nil, conf, "test-host", logger, rdnsQuerier, false, nil).entropy, "off when a limit isn't positive")
+
+	conf.Entropy.MaxTotalEntries = 100
+	epForwarder := eventplatformimpl.NewMockEventPlatformForwarder(gomock.NewController(t))
+	epForwarder.EXPECT().SendEventPlatformEventBlocking(gomock.Any(), gomock.Any()).Return(nil).AnyTimes()
+	agg := NewFlowAggregator(sender, epForwarder, conf, "test-host", logger, rdnsQuerier, false, nil)
 	require.NotNil(t, agg.entropy)
 
 	// received in that window; the exporter's end time isn't used
@@ -1721,22 +1726,17 @@ func TestFlowAggregator_Entropy(t *testing.T) {
 	go agg.run()
 	agg.flowIn <- &common.Flow{
 		Namespace:       "ns",
-		FlowType:        common.TypeNetFlow9,
 		ExporterAddr:    []byte{127, 0, 0, 1},
 		SrcAddr:         []byte{10, 0, 0, 1},
 		DstAddr:         []byte{10, 0, 0, 2},
 		InputInterface:  1,
 		OutputInterface: 2,
 		Bytes:           100,
-		Packets:         1,
-		SamplingRate:    1,
 	}
 	close(agg.stopChan)
 	<-agg.runDone
 
-	report := agg.entropy.CloseWindows(time.Unix(windowStart+300, 0))
-	// one window for the ingress side and one for the egress side
-	require.Len(t, report.Windows, 2)
-	report.Submit(sender, logger)
+	// the flush after the window ends closes it: one window for the ingress side and one for the egress side
+	agg.flush(common.FlushContext{FlushTime: time.Unix(windowStart+300, 0)})
 	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.windows", 2, "", []string{"quality_status:valid"})
 }

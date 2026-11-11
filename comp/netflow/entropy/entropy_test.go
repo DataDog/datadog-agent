@@ -73,14 +73,12 @@ func TestComputeEntropy(t *testing.T) {
 		eightEqual = append(eightEqual, ingressFlow(byte(i+1), 100, 1, 1))
 	}
 	tests := []struct {
-		name           string
-		flows          []*common.Flow
-		wantBytes      float64
-		wantPackets    float64
-		wantRecords    float64
-		wantNormalized float64
-		wantHasNorm    bool
-		wantDistinct   int
+		name         string
+		flows        []*common.Flow
+		wantBytes    float64
+		wantPackets  float64
+		wantRecords  float64
+		wantDistinct int
 	}{
 		{
 			name:         "one peer",
@@ -88,35 +86,29 @@ func TestComputeEntropy(t *testing.T) {
 			wantDistinct: 1,
 		},
 		{
-			name:           "8 equal peers",
-			flows:          eightEqual,
-			wantBytes:      3,
-			wantPackets:    3,
-			wantRecords:    3,
-			wantNormalized: 1,
-			wantHasNorm:    true,
-			wantDistinct:   8,
+			name:         "8 equal peers",
+			flows:        eightEqual,
+			wantBytes:    3,
+			wantPackets:  3,
+			wantRecords:  3,
+			wantDistinct: 8,
 		},
 		{
 			// 100 bytes at 1:1 and 10 bytes at 1:10 are the same traffic once sampling is applied
-			name:           "mixed sampling rates",
-			flows:          []*common.Flow{ingressFlow(1, 100, 1, 1), ingressFlow(2, 10, 1, 10)},
-			wantBytes:      1,
-			wantPackets:    -(1.0/11*math.Log2(1.0/11) + 10.0/11*math.Log2(10.0/11)),
-			wantRecords:    1,
-			wantNormalized: 1,
-			wantHasNorm:    true,
-			wantDistinct:   2,
+			name:         "mixed sampling rates",
+			flows:        []*common.Flow{ingressFlow(1, 100, 1, 1), ingressFlow(2, 10, 1, 10)},
+			wantBytes:    1,
+			wantPackets:  -(1.0/11*math.Log2(1.0/11) + 10.0/11*math.Log2(10.0/11)),
+			wantRecords:  1,
+			wantDistinct: 2,
 		},
 		{
-			name:           "no sampling rate counts as 1:1",
-			flows:          []*common.Flow{ingressFlow(1, 100, 1, 1), ingressFlow(2, 100, 1, 0)},
-			wantBytes:      1,
-			wantPackets:    1,
-			wantRecords:    1,
-			wantNormalized: 1,
-			wantHasNorm:    true,
-			wantDistinct:   2,
+			name:         "no sampling rate counts as 1:1",
+			flows:        []*common.Flow{ingressFlow(1, 100, 1, 1), ingressFlow(2, 100, 1, 0)},
+			wantBytes:    1,
+			wantPackets:  1,
+			wantRecords:  1,
+			wantDistinct: 2,
 		},
 	}
 	for _, tt := range tests {
@@ -124,16 +116,12 @@ func TestComputeEntropy(t *testing.T) {
 			report := closeWindowW(t, testConfig(), w-1, tt.flows)
 			require.Len(t, report.Windows, 1)
 			r := report.Windows[0]
-			assert.Equal(t, StatusValid, r.Status)
+			assert.Equal(t, statusValid, r.Status)
 			assert.InDelta(t, tt.wantBytes, r.ByteEntropy, 1e-9)
 			assert.InDelta(t, tt.wantPackets, r.PacketEntropy, 1e-9)
 			assert.InDelta(t, tt.wantRecords, r.RecordEntropy, 1e-9)
-			assert.Equal(t, tt.wantHasNorm, r.HasNormalizedByteEntropy)
-			assert.InDelta(t, tt.wantNormalized, r.NormalizedByteEntropy, 1e-9)
 			assert.Equal(t, tt.wantDistinct, r.DistinctCount)
-			assert.Equal(t, Ingress, r.ObservationPoint)
-			// the missing output interface is dropped, not counted as a peer
-			assert.Equal(t, uint64(len(tt.flows)), report.Dropped[DropKey{"ns", exporter, DropNoOutputInterface}])
+			assert.Equal(t, ingress, r.observationPoint)
 		})
 	}
 }
@@ -164,7 +152,7 @@ func TestAccumulator_Windows(t *testing.T) {
 	assert.Equal(t, time.Unix(w+300, 0), report.Windows[0].Start)
 	assert.Equal(t, uint64(3), report.Windows[0].RecordCount)
 	// both sides of a dropped record are counted
-	assert.Equal(t, uint64(2), report.Dropped[DropKey{"ns", exporter, DropLate}])
+	assert.Equal(t, uint64(2), report.Dropped[dropKey{"ns", exporter, dropLate}])
 	assert.Equal(t, 0, report.StateEntries)
 }
 
@@ -175,46 +163,40 @@ func TestAccumulator_QualityStatus(t *testing.T) {
 		configure    func(*Config)
 		createdAt    int64
 		flows        []*common.Flow
-		wantStatus   QualityStatus
+		wantStatus   qualityStatus
 		wantDistinct int
 	}{
-		{
-			name:         "valid",
-			flows:        twoPeers,
-			wantStatus:   StatusValid,
-			wantDistinct: 2,
-		},
 		{
 			name:         "below min records",
 			configure:    func(c *Config) { c.MinRecords = 3 },
 			flows:        twoPeers,
-			wantStatus:   StatusInsufficientData,
+			wantStatus:   statusInsufficientData,
 			wantDistinct: 2,
 		},
 		{
 			name:         "below min bytes",
 			configure:    func(c *Config) { c.MinBytes = 1000 },
 			flows:        twoPeers,
-			wantStatus:   StatusInsufficientData,
+			wantStatus:   statusInsufficientData,
 			wantDistinct: 2,
 		},
 		{
 			name:       "peer limit suppresses instead of truncating",
 			configure:  func(c *Config) { c.MaxPeersPerInterface = 1 },
 			flows:      twoPeers,
-			wantStatus: StatusStateLimit,
+			wantStatus: statusStateLimit,
 		},
 		{
 			name:       "total entries limit",
 			configure:  func(c *Config) { c.MaxTotalEntries = 1 },
 			flows:      twoPeers,
-			wantStatus: StatusStateLimit,
+			wantStatus: statusStateLimit,
 		},
 		{
 			name:         "accumulator started mid-window",
 			createdAt:    w + 5,
 			flows:        twoPeers,
-			wantStatus:   StatusProcessRestart,
+			wantStatus:   statusProcessRestart,
 			wantDistinct: 2,
 		},
 	}
@@ -233,9 +215,8 @@ func TestAccumulator_QualityStatus(t *testing.T) {
 			r := report.Windows[0]
 			assert.Equal(t, tt.wantStatus, r.Status)
 			assert.Equal(t, tt.wantDistinct, r.DistinctCount)
-			if tt.wantStatus != StatusValid {
+			if tt.wantStatus != statusValid {
 				assert.Zero(t, r.ByteEntropy)
-				assert.False(t, r.HasNormalizedByteEntropy)
 			}
 		})
 	}
@@ -247,7 +228,7 @@ func TestAccumulator_QualityStatus(t *testing.T) {
 		other.ExporterAddr = []byte{127, 0, 0, 2}
 		report := closeWindowW(t, cfg, w-1, []*common.Flow{ingressFlow(1, 100, 1, 1), other})
 		require.Len(t, report.Windows, 1)
-		assert.Equal(t, uint64(1), report.Dropped[DropKey{"ns", netip.MustParseAddr("127.0.0.2"), DropStateLimit}])
+		assert.Equal(t, uint64(1), report.Dropped[dropKey{"ns", netip.MustParseAddr("127.0.0.2"), dropStateLimit}])
 	})
 
 	t.Run("peer limit on one interface leaves its neighbor valid", func(t *testing.T) {
@@ -256,11 +237,12 @@ func TestAccumulator_QualityStatus(t *testing.T) {
 		neighbor := ingressFlow(3, 100, 1, 1)
 		neighbor.InputInterface = 2
 		report := closeWindowW(t, cfg, w-1, []*common.Flow{ingressFlow(1, 100, 1, 1), ingressFlow(2, 100, 1, 1), neighbor})
-		statuses := make(map[uint32]QualityStatus)
+		statuses := make(map[uint32]qualityStatus)
 		for _, r := range report.Windows {
 			statuses[r.InterfaceIndex] = r.Status
 		}
-		assert.Equal(t, map[uint32]QualityStatus{1: StatusStateLimit, 2: StatusValid}, statuses)
+		assert.Equal(t, map[uint32]qualityStatus{1: statusStateLimit, 2: statusValid}, statuses)
+		assert.Equal(t, uint64(1), report.Dropped[dropKey{"ns", exporter, dropStateLimit}], "the peer past the limit is counted")
 	})
 }
 
@@ -273,19 +255,19 @@ func TestAccumulator_DropReasons(t *testing.T) {
 	badExporter.ExporterAddr = nil
 
 	report := closeWindowW(t, testConfig(), w-1, []*common.Flow{noInterfaces, badPeer, badExporter})
-	assert.Equal(t, map[DropKey]uint64{
-		{"ns", exporter, DropNoInputInterface}:  1,
-		{"ns", exporter, DropNoOutputInterface}: 2,
-		{"ns", exporter, DropInvalidIP}:         1,
-		{"ns", netip.Addr{}, DropInvalidIP}:     2,
+	assert.Equal(t, map[dropKey]uint64{
+		{"ns", exporter, dropNoInputInterface}:  1,
+		{"ns", exporter, dropNoOutputInterface}: 2,
+		{"ns", exporter, dropInvalidIP}:         1,
+		{"ns", netip.Addr{}, dropInvalidIP}:     2,
 	}, report.Dropped)
 
 	sender := mocksender.NewMockSender(t, "")
 	sender.SetupAcceptAll()
 	report.Submit(sender, logmock.New(t))
-	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.records_dropped", 2, "",
+	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.interface_records_dropped", 2, "",
 		[]string{"reason:no_output_interface", "device_namespace:ns", "exporter_ip:127.0.0.1"})
-	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.records_dropped", 2, "",
+	sender.AssertMetric(t, "Count", "datadog.netflow.entropy.interface_records_dropped", 2, "",
 		[]string{"reason:invalid_ip", "device_namespace:ns"})
 }
 
