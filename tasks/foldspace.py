@@ -13,7 +13,7 @@ from tasks.libs.common.utils import join_command
 # DataDog/foldspace ryan.hall/churn-admission, the top of stack #126.
 # Keep in sync with comp/logs-library/sender/foldspace/nativelib/README.md.
 FOLDSPACE_GIT_REMOTE = "https://github.com/DataDog/foldspace.git"
-FOLDSPACE_GIT_COMMIT = "59f1bd8baf9beac438f9af3ed0e9ebd945a7364d"
+FOLDSPACE_GIT_COMMIT = "a8ff8fd3755ad5e095fbbb9c08097a837ed18746"
 FOLDSPACE_PACKAGE = "foldspace-go-ffi"
 
 
