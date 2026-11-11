@@ -349,6 +349,7 @@ require (
 	github.com/netsampler/goflow2 v1.3.8
 	github.com/oliveagle/jsonpath v0.1.4
 	github.com/open-policy-agent/opa v1.22.0
+	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/healthcheckextension v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog v0.164.1
 	github.com/open-telemetry/opentelemetry-collector-contrib/processor/attributesprocessor v0.164.1
@@ -421,7 +422,6 @@ require (
 	go.opentelemetry.io/collector/component/componenttest v0.164.0
 	go.opentelemetry.io/collector/config/confighttp v0.164.0
 	go.opentelemetry.io/collector/config/confignet v1.70.0
-	go.opentelemetry.io/collector/config/configopaque v1.70.0
 	go.opentelemetry.io/collector/config/configtelemetry v0.164.0
 	go.opentelemetry.io/collector/confmap v1.70.0
 	go.opentelemetry.io/collector/confmap/provider/envprovider v1.70.0
@@ -812,7 +812,6 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/routingconnector v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/connector/spanmetricsconnector v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/exporter/loadbalancingexporter v0.164.1 // indirect
-	github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/k8sleaderelector v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer v0.164.1 // indirect
 	github.com/open-telemetry/opentelemetry-collector-contrib/extension/observer/dockerobserver v0.164.1 // indirect
@@ -967,6 +966,7 @@ require (
 	go.opentelemetry.io/collector/config/configcompression v1.70.0 // indirect
 	go.opentelemetry.io/collector/config/configgrpc v1.70.0 // indirect
 	go.opentelemetry.io/collector/config/configmiddleware v1.70.0 // indirect
+	go.opentelemetry.io/collector/config/configopaque v1.70.0 // indirect
 	go.opentelemetry.io/collector/config/configoptional v1.70.0 // indirect
 	go.opentelemetry.io/collector/config/configretry v1.70.0 // indirect
 	go.opentelemetry.io/collector/config/configtls v1.70.0 // indirect

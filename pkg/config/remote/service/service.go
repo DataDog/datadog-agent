@@ -381,7 +381,6 @@ func init() {
 }
 
 type options struct {
-	apiClient                      api.API
 	site                           string
 	rcKey                          string
 	apiKey                         string
@@ -592,12 +591,6 @@ func withUptaneFactory(f func(md *uptane.Metadata) (coreAgentUptaneClient, error
 	return func(o *options) { o.uptaneFactory = f }
 }
 
-// WithAPIClient lets an embedding process own backend request deadlines and cancellation.
-// When unset, NewService creates the standard Agent HTTP client.
-func WithAPIClient(client api.API) Option {
-	return func(o *options) { o.apiClient = client }
-}
-
 // NewService instantiates a new remote configuration management service
 func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGetter func() []string, telemetryReporter RcTelemetryReporter, agentVersion string, opts ...Option) (*CoreAgentService, error) {
 	options := defaultOptions
@@ -631,12 +624,9 @@ func NewService(cfg model.Reader, rcType, baseRawURL, hostname string, tagsGette
 	if err != nil {
 		return nil, err
 	}
-	http := options.apiClient
-	if http == nil {
-		http, err = api.NewHTTPClient(authKeys.apiAuth(), cfg, baseURL)
-		if err != nil {
-			return nil, err
-		}
+	http, err := api.NewHTTPClient(authKeys.apiAuth(), cfg, baseURL)
+	if err != nil {
+		return nil, err
 	}
 
 	databaseFilePath := cfg.GetString("run_path")

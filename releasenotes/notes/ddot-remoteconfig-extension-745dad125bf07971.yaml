@@ -1,7 +1,7 @@
 ---
 features:
   - |
-    Add the experimental ``datadog_remoteconfig`` extension to DDOT. When
-    explicitly configured, it serves the Datadog Agent Remote Configuration
-    protocol for SDKs using Collector-held credentials and the Agent RC cache,
-    without a separate Datadog Agent process.
+    Add an experimental, opt-in agentless Remote Configuration forwarding
+    capability to the DDOT Datadog extension. The Collector supplies API-key
+    authentication and site routing for SDK RC requests without a Datadog Agent
+    process. Configuration caching and backend polling aggregation are not included.

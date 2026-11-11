@@ -1,0 +1,31 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "remoteconfig",
+    srcs = [
+        "config.go",
+        "extension.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/extension/datadogextension/internal/remoteconfig",
+    visibility = ["//comp/otelcol/otlp/components/extension/datadogextension:__subpackages__"],
+    deps = [
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_component_componentstatus//:componentstatus",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
+        "@io_opentelemetry_go_collector_extension//:extension",
+    ],
+)
+
+dd_agent_go_test(
+    name = "remoteconfig_test",
+    srcs = ["extension_test.go"],
+    embed = [":remoteconfig"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component//:component",
+        "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
+        "@io_opentelemetry_go_collector_config_confighttp//:confighttp",
+        "@io_opentelemetry_go_collector_extension//:extension",
+    ],
+)

@@ -1,9 +1,0 @@
-type: datadog_remoteconfig
-display_name: Datadog Remote Configuration Extension
-
-status:
-  class: extension
-  stability:
-    development: [extension]
-  codeowners:
-    active: [DataDog/opentelemetry]
