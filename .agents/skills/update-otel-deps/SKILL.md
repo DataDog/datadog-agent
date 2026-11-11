@@ -120,7 +120,7 @@ This is the **most common failure**. The DD flare extension tests compare OTel r
 Run the test locally to get the actual diff:
 
 ```bash
-dda inv test --targets=./comp/otelcol/ddflareextension/impl/... --build-include=test,otlp -- -run TestGetConfDump
+dda inv test --targets=./comp/otelcol/ddflareextension/impl/... --test-args=-test.run=TestGetConfDump
 ```
 
 > **The `test` tag is required.** `--build-include` *replaces* the default build-tag set rather than adding to it. With only `otlp`, the files gated behind `//go:build test` (`configstore_test.go`, `extension_test.go`, `factory_test.go`) never compile, so `-run TestGetConfDump` matches nothing — the run still reports "ALL TESTS PASSED" from the handful of untagged tests. Confirm the test really ran by checking `test_output.json` for `"Test":"TestGetConfDump"`.
