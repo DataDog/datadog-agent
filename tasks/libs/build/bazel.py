@@ -216,6 +216,7 @@ def _run_command_with_tee(
 
 def bazel(
     *args: str,
+    allowed_exit_codes: frozenset[int] = frozenset(),
     capture_stderr: bool = False,
     capture_output: bool = False,
     env: dict[str, str] | None = None,
@@ -224,6 +225,9 @@ def bazel(
 ) -> str | subprocess.CompletedProcess[str]:
     """Execute a bazel command.
 
+    allowed_exit_codes: nonzero exit codes to tolerate, keeping the command's live output and
+        returning normally instead of failing fast.  Inert when `ignore_errors` is set, since the
+        caller then decides what to do with the raw `CompletedProcess`.
     env: environment variables when passing them through the corresponding Bazel `--*_env=` flags is not suitable.
     input: text to pass to the Bazel subprocess stdin.
     ignore_errors: do not fail fast, but instead return the raw `CompletedProcess`, whether the Bazel command
@@ -249,7 +253,7 @@ def bazel(
     )
     if ignore_errors:
         return completed
-    if completed.returncode != 0:
+    if completed.returncode != 0 and completed.returncode not in allowed_exit_codes:
         if capture_stderr:
             sys.stderr.write(completed.stderr)
         raise SystemExit(completed.returncode)

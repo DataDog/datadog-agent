@@ -45,7 +45,7 @@ require (
 	github.com/pulumi/pulumi-aws/sdk/v7 v7.53.0
 	github.com/pulumi/pulumi-awsx/sdk/v3 v3.12.0
 	github.com/pulumi/pulumi-kubernetes/sdk/v4 v4.34.3
-	github.com/pulumi/pulumi/sdk/v3 v3.273.0
+	github.com/pulumi/pulumi/sdk/v3 v3.274.0
 	github.com/samber/lo v1.53.0
 	github.com/spf13/cobra v1.10.2
 	github.com/stretchr/testify v1.12.1
@@ -105,7 +105,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/util/system v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
 	github.com/DataDog/datadog-agent/pkg/util/winutil v0.84.0-devel.0.20261028224924-1c255663adbd // indirect
-	github.com/DataDog/dd-trace-go/v2 v2.11.2 // indirect
+	github.com/DataDog/dd-trace-go/v2 v2.12.0 // indirect
 	github.com/DataDog/go-acl v1.0.1 // indirect
 	github.com/DataDog/go-libddwaf/v5 v5.0.0 // indirect
 	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20260217080614-b0f4edc38a6d // indirect
@@ -171,7 +171,7 @@ require (
 	github.com/deckarep/golang-set/v2 v2.9.0 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
-	github.com/docker/cli v29.9.2+incompatible // indirect
+	github.com/docker/cli v29.9.3+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.8.2 // indirect
 	github.com/docker/go-metrics v0.1.0 // indirect
@@ -305,7 +305,7 @@ require (
 	github.com/pulumi/pulumi-azure-native-sdk/managedidentity/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/network/v3 v3.29.0 // indirect
 	github.com/pulumi/pulumi-azure-native-sdk/v3 v3.29.0 // indirect
-	github.com/pulumi/pulumi-cloud-sdk/go v1.20260918.0 // indirect
+	github.com/pulumi/pulumi-cloud-sdk/go v1.20261027.1310 // indirect
 	github.com/pulumi/pulumi-command/sdk v1.3.0 // indirect
 	github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 // indirect
 	github.com/pulumi/pulumi-docker/sdk/v4 v4.11.2 // indirect
