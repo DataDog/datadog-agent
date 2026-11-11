@@ -7,6 +7,7 @@ go_library(
         "check.go",
         "containers.go",
         "datadog_agent.go",
+        "depmanifest.go",
         "discovery.go",
         "discovery_nopy.go",
         "embed_nopy.go",
@@ -187,6 +188,7 @@ dd_agent_go_test(
         "check_test.go",
         "containers_test.go",
         "datadog_agent_test.go",
+        "depmanifest_test.go",
         "discovery_test.go",
         "kubeutil_test.go",
         "loader_test.go",
@@ -205,7 +207,10 @@ dd_agent_go_test(
     ]],
     include_default = False,
     deps = [
+        "//pkg/config/mock",
+        "//pkg/config/model",
         "//pkg/util/cache",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )

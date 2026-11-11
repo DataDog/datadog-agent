@@ -9255,6 +9255,51 @@ properties:
     comment: |-
       If enabled, all origin detection mechanisms will be unified to use the same logic.
       Will override all other origin detection settings in favor of the unified one.
+  on_demand_python_deps:
+    node_type: section
+    type: object
+    comment: |-
+      POC for installing the third-party python dependencies of integrations on
+      demand through the fleet installer. Experimental, do not document.
+    properties:
+      dep_package_name:
+        node_type: setting
+        type: string
+        default: datadog-agent-integration-deps
+        comment: Name of the OCI package providing the third-party python
+          dependencies. Also used as the allowlist of the restricted installer
+          endpoint.
+      enabled:
+        node_type: setting
+        type: boolean
+        default: false
+        comment: Defer python checks whose declared dependencies are missing and
+          trigger a background install of the dependency package through the
+          fleet installer instead of failing to load them.
+      installer_socket_path:
+        node_type: setting
+        type: string
+        default: ''
+        comment: Path of the unix socket exposing the restricted install/remove
+          endpoint of the installer daemon. Empty uses the default location.
+      manifest_path:
+        node_type: setting
+        type: string
+        default: ''
+        comment: Path to the per-check dependency manifest mapping check names to
+          the python import names they require. Empty disables dependency probing.
+      max_attempts:
+        node_type: setting
+        type: integer
+        default: 60
+        comment: Maximum number of deferral retries before a deferred check is
+          reported as failed.
+      retry_interval:
+        node_type: setting
+        type: integer
+        default: 5
+        comment: Seconds between retries of checks deferred while waiting for
+          dependencies.
   otel_standalone:
     node_type: setting
     type: boolean

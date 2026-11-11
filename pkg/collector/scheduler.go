@@ -7,11 +7,13 @@
 package collector
 
 import (
+	"errors"
 	"expvar"
 	"fmt"
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	yaml "go.yaml.in/yaml/v3"
 	"golang.org/x/text/cases"
@@ -51,6 +53,7 @@ type loadInstanceResult struct {
 	check        check.Check
 	loader       check.Loader
 	loaderErrors map[string]error
+	depsPending  []string
 }
 
 func init() {
@@ -61,11 +64,24 @@ func init() {
 	schedulerErrs.Set("RunErrors", expvar.Func(func() interface{} {
 		return errorStats.getRunErrors()
 	}))
+	schedulerErrs.Set("DeferredChecks", expvar.Func(func() interface{} {
+		if checkScheduler == nil {
+			return []map[string]interface{}{}
+		}
+		return checkScheduler.deferredStatus()
+	}))
 }
 
 // CheckScheduler is the check scheduler
 type CheckScheduler struct {
 	configToChecks      map[string][]checkid.ID // cache the ID of checks we load for each config
+	deferredConfigs     map[string]deferredConfig
+	configDeps          map[string][]string
+	depInstaller        DepInstaller
+	depInstallTriggered bool
+	depInstallMu        sync.Mutex
+	deferredStop        chan struct{}
+	deferredWg          sync.WaitGroup
 	loaders             []check.Loader
 	collector           option.Option[collectorcomp.Component]
 	senderManager       sender.SenderManager
@@ -78,16 +94,24 @@ type CheckScheduler struct {
 // InitCheckScheduler creates and returns a check scheduler
 func InitCheckScheduler(collector option.Option[collectorcomp.Component], senderManager sender.SenderManager, logReceiver option.Option[integrations.Component], tagger tagger.Component, filterStore filter.Component) *CheckScheduler {
 	checkScheduler = &CheckScheduler{
-		collector:      collector,
-		senderManager:  senderManager,
-		configToChecks: make(map[string][]checkid.ID),
-		loaders:        make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
-		infraTagger:    infratags.NewMetricTagger(setup.Datadog()),
+		collector:       collector,
+		senderManager:   senderManager,
+		configToChecks:  make(map[string][]checkid.ID),
+		deferredConfigs: make(map[string]deferredConfig),
+		configDeps:      make(map[string][]string),
+		loaders:         make([]check.Loader, 0, len(loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore))),
+		infraTagger:     infratags.NewMetricTagger(setup.Datadog()),
 	}
 	// add the check loaders
 	for _, loader := range loaders.LoaderCatalog(senderManager, logReceiver, tagger, filterStore) {
 		checkScheduler.addLoader(loader)
 		log.Debugf("Added %s to Check Scheduler", loader)
+	}
+
+	if onDemandDepsEnabled() {
+		checkScheduler.depInstaller = newDepInstallerClient()
+		log.Infof("On-demand python dependencies enabled: deferred checks will be retried every %s", deferredRetryInterval())
+		checkScheduler.startDeferredLoop()
 	}
 
 	return checkScheduler
@@ -129,7 +153,11 @@ func (s *CheckScheduler) Schedule(configs []integration.Config) {
 // Unschedule unschedules checks matching configs
 func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 	s.m.Lock()
-	defer s.m.Unlock()
+	removedDeps := []string{}
+	defer func() {
+		s.m.Unlock()
+		s.removeOrphanDeps(removedDeps)
+	}()
 
 	for _, config := range configs {
 		if !config.IsCheckConfig() {
@@ -138,6 +166,11 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 		}
 		// unschedule all the possible checks corresponding to this config
 		digest := config.Digest()
+		delete(s.deferredConfigs, digest)
+		if deps, ok := s.configDeps[digest]; ok {
+			removedDeps = append(removedDeps, deps...)
+			delete(s.configDeps, digest)
+		}
 		ids := s.configToChecks[digest]
 		stopped := map[checkid.ID]struct{}{}
 		for _, id := range ids {
@@ -174,7 +207,12 @@ func (s *CheckScheduler) Unschedule(configs []integration.Config) {
 }
 
 // Stop satisfies the autodiscovery scheduler interface.
-func (s *CheckScheduler) Stop() {}
+func (s *CheckScheduler) Stop() {
+	if s.deferredStop != nil {
+		close(s.deferredStop)
+	}
+	s.deferredWg.Wait()
+}
 
 // addLoader adds a new Loader that AutoConfig can use to load a check.
 func (s *CheckScheduler) addLoader(loader check.Loader) {
@@ -185,10 +223,12 @@ func (s *CheckScheduler) addLoader(loader check.Loader) {
 	s.loaders = append(s.loaders, loader)
 }
 
-// getChecks takes a check configuration and returns a slice of Check instances
-// along with any error it might happen during the process
-func (s *CheckScheduler) getChecks(config integration.Config, includeShadowChecks bool) ([]check.Check, error) {
+// getChecks takes a check configuration and returns a slice of Check
+// instances, the python dependencies the check is waiting on (if any), and
+// any error it might happen during the process
+func (s *CheckScheduler) getChecks(config integration.Config, includeShadowChecks bool) ([]check.Check, []string, error) {
 	checks := []check.Check{}
+	depsPending := []string{}
 	numLoaders := len(s.loaders)
 	var shadowCandidates map[int]shadowCandidate
 	if includeShadowChecks {
@@ -198,7 +238,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 	initConfig := commonInitConfig{}
 	err := yaml.Unmarshal(config.InitConfig, &initConfig)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	selectedLoader := initConfig.LoaderName
 
@@ -228,6 +268,10 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 
 		result := s.loadCheckInstance(s.senderManager, config, instance, instanceIndex, selectedInstanceLoader)
 
+		if result.check == nil && result.depsPending != nil {
+			depsPending = append(depsPending, result.depsPending...)
+		}
+
 		if result.check != nil {
 			log.Debugf("%v: successfully loaded check '%s'", result.loader, config.Name)
 			s.applyInfraTagger(s.senderManager, config.Name, result.check.ID())
@@ -249,7 +293,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 			}
 		}
 
-		if len(result.loaderErrors) == numLoaders {
+		if len(result.loaderErrors) == numLoaders && result.check == nil && result.depsPending == nil {
 			var concatErr strings.Builder
 			for loaderName, err := range result.loaderErrors {
 				errMsg := err.Error()
@@ -266,7 +310,7 @@ func (s *CheckScheduler) getChecks(config integration.Config, includeShadowCheck
 		}
 	}
 
-	return checks, nil
+	return checks, depsPending, nil
 }
 
 func (s *CheckScheduler) shadowLoaderFor(loader check.Loader) (check.Loader, bool) {
@@ -302,6 +346,10 @@ func (s *CheckScheduler) loadCheckInstance(senderManager sender.SenderManager, c
 			result.check = c
 			result.loader = loader
 			return result
+		}
+		var pending *loaders.DepsPendingError
+		if errors.As(err, &pending) {
+			result.depsPending = pending.Deps
 		}
 		result.loaderErrors[fmt.Sprintf("%v", loader)] = err
 	}
@@ -356,7 +404,7 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 			continue
 		}
 		configDigest := config.Digest()
-		checks, err := s.getChecks(config, populateCache)
+		checks, depsPending, err := s.getChecks(config, populateCache)
 		if err != nil {
 			log.Errorf("Unable to load the check: %v", err)
 			continue
@@ -367,6 +415,30 @@ func (s *CheckScheduler) GetChecksFromConfigs(configs []integration.Config, popu
 				// store the checks we schedule for this config locally
 				s.configToChecks[configDigest] = append(s.configToChecks[configDigest], c.ID())
 			}
+		}
+		if !populateCache {
+			if len(depsPending) > 0 {
+				log.Warnf("Check %s cannot load yet, dependencies %v are missing; they are installed on demand when the agent is running", config.Name, depsPending)
+			}
+			continue
+		}
+		if len(checks) > 0 {
+			if deps := s.declaredDeps(config); len(deps) > 0 {
+				s.configDeps[configDigest] = deps
+			}
+			if _, deferred := s.deferredConfigs[configDigest]; deferred {
+				log.Infof("Deferred check %s now loads, scheduling it", config.Name)
+				delete(s.deferredConfigs, configDigest)
+			}
+		} else if len(depsPending) > 0 {
+			d := deferredConfig{config: config, deps: depsPending, deferredAt: time.Now()}
+			if existing, ok := s.deferredConfigs[configDigest]; ok {
+				d.attempts = existing.attempts
+				d.deferredAt = existing.deferredAt
+			}
+			s.deferredConfigs[configDigest] = d
+			log.Infof("Deferring check %s, waiting for dependencies %v to be installed", config.Name, depsPending)
+			s.triggerDepInstall(depsPending)
 		}
 	}
 

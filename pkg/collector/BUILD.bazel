@@ -4,6 +4,9 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "collector",
     srcs = [
+        "deferred.go",
+        "depinstaller_unix.go",
+        "depinstaller_windows.go",
         "infra_mode.go",
         "scheduler.go",
         "scheduler_metriclookback.go",
@@ -30,6 +33,7 @@ go_library(
         "//pkg/util/infratags",
         "//pkg/util/log",
         "//pkg/util/option",
+        "//pkg/version",
         "@in_yaml_go_yaml_v3//:yaml",
         "@org_golang_x_text//cases",
         "@org_golang_x_text//language",
@@ -39,6 +43,7 @@ go_library(
 dd_agent_go_test(
     name = "collector_test",
     srcs = [
+        "deferred_test.go",
         "infra_mode_test.go",
         "scheduler_test.go",
         "stats_test.go",
@@ -55,6 +60,7 @@ dd_agent_go_test(
         "//pkg/collector/check",
         "//pkg/collector/check/id",
         "//pkg/collector/corechecks",
+        "//pkg/collector/loaders",
         "//pkg/config/mock",
         "//pkg/config/model",
         "//pkg/util/infratags",

@@ -38,5 +38,12 @@ func NewComponent(reqs Requires) (Provides, error) {
 		return Provides{}, fmt.Errorf("could not create local API: %w", err)
 	}
 	reqs.Lifecycle.Append(compdef.Hook{OnStart: localAPI.Start, OnStop: localAPI.Stop})
+	restrictedAPI, err := daemon.NewRestrictedLocalAPI(reqs.Updater, reqs.Config)
+	if err != nil {
+		return Provides{}, fmt.Errorf("could not create restricted local API: %w", err)
+	}
+	if restrictedAPI != nil {
+		reqs.Lifecycle.Append(compdef.Hook{OnStart: restrictedAPI.Start, OnStop: restrictedAPI.Stop})
+	}
 	return Provides{Comp: localAPI}, nil
 }

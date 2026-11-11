@@ -128,6 +128,10 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 		return nil, err
 	}
 
+	if pending := depsPendingFor(config.Name); len(pending) > 0 {
+		return nil, loaders.NewDepsPendingError(pending)
+	}
+
 	moduleName := config.Name
 	// FastDigest is used as check id calculation does not account for tags order
 	configDigest := config.FastDigest()
@@ -228,6 +232,12 @@ func (cl *PythonCheckLoader) Load(senderManager sender.SenderManager, config int
 
 func (cl *PythonCheckLoader) String() string {
 	return "Python Check Loader"
+}
+
+// DeclaredDeps returns the third-party python dependencies declared for a
+// check in the dependency manifest, or nil when the manifest is not loaded.
+func (*PythonCheckLoader) DeclaredDeps(config integration.Config) []string {
+	return declaredDeps(config.Name)
 }
 
 func expvarConfigureErrors() interface{} {
