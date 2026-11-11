@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    On macOS, the Fleet installer daemon runs when ``remote_updates`` (default ``true``) and remote
+    configuration are enabled. To turn it off, set ``remote_updates: false`` in ``datadog.yaml``
+    and restart the ``com.datadoghq.installer`` LaunchDaemon.

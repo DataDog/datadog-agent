@@ -34,7 +34,7 @@ bazel:query-missing-manual-tags:
   extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
   script:
     - |-
-      locations="$(bazel query 'kind("go_test", rdeps(//test/new-e2e/..., //test/e2e-framework/testing/e2e)) except attr(tags, manual, //test/new-e2e/...)' --output=location)"
+      locations="$(bazel query 'kind("go_test", rdeps(//test/new-e2e/..., //test/e2e-framework/testing/e2e, 1)) except attr(tags, manual, //test/new-e2e/...)' --output=location)"
       if [ -n "$locations" ]; then
         echo >&2 'Found missing "manual" tags in e2e test targets:'
         echo >&2 "$locations"
@@ -63,3 +63,11 @@ bazel:run-go-mod-tidy:
     - bazel run //:go_mod_tidy_all -- -diff
   variables:
     REMEDIATION: "bazel run //:go_mod_tidy_all"
+
+bazel:write-test-binaries-bzl:
+  extends: [ .bazel:lint, .bazel:runner:linux-amd64 ]
+  script:
+    - dda inv -- -e new-e2e-tests.write-test-binaries-bzl
+    - git diff --exit-code -- test/new-e2e/tests/test_binaries.bzl
+  variables:
+    REMEDIATION: "dda inv new-e2e-tests.write-test-binaries-bzl"

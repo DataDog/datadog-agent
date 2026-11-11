@@ -26,7 +26,10 @@ go_library(
 
 dd_agent_go_test(
     name = "http_test",
-    srcs = ["basic_runner_credential_smoke_test.go"],
+    srcs = [
+        "basic_runner_credential_smoke_test.go",
+        "helper_test.go",
+    ],
     embed = [":http"],
     deps = [
         "//pkg/config/mock",
@@ -35,6 +38,7 @@ dd_agent_go_test(
         "//pkg/privateactionrunner/libs/privateconnection",
         "//pkg/privateactionrunner/types",
         "//pkg/proto/pbgo/privateactionrunner/privateactions",
+        "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
     ],
 )

@@ -25,7 +25,7 @@ func TestOTelRegistrationOnlyDroppedBySuccessfulExec(t *testing.T) {
 		ctx.handlePostHooks(nr, 0, syscall.PtraceRegs{}, process, syscallHandler{})
 		assert.NotNil(t, ctx.processCache.getOTel(process.Tgid))
 
-		ctx.unsetOTelOnExec(process.Pid)
+		ctx.unsetSpanContextOnExec(process.Pid)
 		assert.Nil(t, ctx.processCache.getOTel(process.Tgid))
 	}
 }

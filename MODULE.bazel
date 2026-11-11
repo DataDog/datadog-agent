@@ -76,7 +76,7 @@ archive_override(
 )
 
 bazel_dep(name = "apple_support", version = "2.12.0")  # provides --platforms=@apple_support//platforms:macos_x86_64
-bazel_dep(name = "bazel_features", version = "1.54.1")
+bazel_dep(name = "bazel_features", version = "1.55.0")
 bazel_dep(name = "bazel_lib", version = "3.7.2")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.4.0.bcr.4")
@@ -102,7 +102,7 @@ bazel_dep(name = "rules_shell", version = "0.8.0")
 bazel_dep(name = "rules_wine", version = "0.1.3")
 bazel_dep(name = "toml.bzl", version = "0.5.0")
 bazel_dep(name = "toolchains_msvc", version = "0.1.0")
-bazel_dep(name = "with_cfg.bzl", version = "1.0.2")
+bazel_dep(name = "with_cfg.bzl", version = "1.1.0")
 
 bazel_dep(name = "rules_testing", version = "0.9.0", dev_dependency = True)
 
@@ -113,6 +113,16 @@ single_version_override(
         "//bazel/patches:protobuf-crate-universe-extensions.patch",  # protocolbuffers/protobuf#28230
     ],
     version = "35.1",
+)
+
+single_version_override(
+    module_name = "llvm",
+    patch_strip = 1,
+    patches = [
+        # Additional -L directory so -static links find real glibc archives; upstream proposal pending
+        "//bazel/patches:llvm/0001-glibc-additional-library-search-directory.patch",
+    ],
+    version = "0.8.26",
 )
 
 single_version_override(
@@ -154,13 +164,15 @@ single_version_override(
     version = "0.2.27",
 )
 
-# Fork of rules_pkg main carrying bazelbuild/rules_pkg#1089 (pkg_rpm
-# rpm_own_tree_dirs). Go back to upstream main once it's merged.
+# Pinned to the datadog-patchset branch of chouquette/rules_pkg, which carries
+# patches pending upstream review. Upstream asked for the pkg_rpm compression
+# change to be tested in datadog-agent before merging it. Go back to upstream
+# once they're all merged.
 archive_override(
     module_name = "rules_pkg",
-    sha256 = "05ba3462560329bf6757b4369c238d6997f418e3eda3db0da41db3c6e939a8fb",
-    strip_prefix = "rules_pkg-a0fea16700948eeefc885f23200e8e52d5e914eb",
-    urls = ["https://github.com/chouquette/rules_pkg/archive/a0fea16700948eeefc885f23200e8e52d5e914eb.tar.gz"],
+    sha256 = "7d46f995e23284ade241c0c9af6131568722a2f279490f1e2fb924d5976a3a2b",
+    strip_prefix = "rules_pkg-12239bd1bd045a17ad6aa84b119be83bae4f3f3b",
+    urls = ["https://github.com/chouquette/rules_pkg/archive/12239bd1bd045a17ad6aa84b119be83bae4f3f3b.tar.gz"],
 )
 
 single_version_override(
