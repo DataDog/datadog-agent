@@ -137,10 +137,13 @@ type ebpfTracer struct {
 
 	ch *cookieHasher
 
-	lastTCPFailureTelemetry map[int32]uint64
-	socketDumpIter          *manager.Probe
-	initialSocketIter       *manager.Probe
-	initialPortBindingIter  *manager.Probe
+	// lastTCPFailureTelemetryMu guards lastTCPFailureTelemetry: Collect runs on
+	// every Gather of the telemetry registry, and gathers can overlap.
+	lastTCPFailureTelemetryMu sync.Mutex
+	lastTCPFailureTelemetry   map[int32]uint64
+	socketDumpIter            *manager.Probe
+	initialSocketIter         *manager.Probe
+	initialPortBindingIter    *manager.Probe
 }
 
 // loadFentryOrKprobeTracer attempts to load the fentry tracer, falling back to the kprobe
@@ -750,6 +753,9 @@ func (t *ebpfTracer) getTCPFailureTelemetry() map[int32]uint64 {
 		return nil
 	}
 
+	t.lastTCPFailureTelemetryMu.Lock()
+	defer t.lastTCPFailureTelemetryMu.Unlock()
+
 	it := t.tcpFailuresTelemetryMap.IterateWithBatchSize(100)
 	var key int32
 	var val uint64
@@ -785,9 +791,11 @@ func (t *ebpfTracer) Describe(ch chan<- *prometheus.Desc) {
 
 // Collect returns the current state of all metrics of the collector.
 //
-// The eBPF telemetry values are running totals since the tracer loaded, and are
-// published as-is: Collect must not change any state, because every Gather of
-// the telemetry registry calls it, not only scrapes of /telemetry.
+// Every Gather of the telemetry registry calls Collect, not only scrapes of
+// /telemetry, and gathers can overlap. So the eBPF telemetry values, which are
+// running totals since the tracer loaded, are published as-is, and the TCP
+// failure counts are added to a counter, so that no reader takes counts from
+// another.
 func (t *ebpfTracer) Collect(ch chan<- prometheus.Metric) {
 	ebpfTelemetry := t.getEBPFTelemetry()
 	if ebpfTelemetry == nil {
