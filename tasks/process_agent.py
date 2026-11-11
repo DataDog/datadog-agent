@@ -48,7 +48,8 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --build-include/--build-exclude.")
         if install_path is not None:
             raise NotImplementedError("--enable-bazel does not support --install-path.")
-
+        if flavor.is_fips():
+            raise NotImplementedError(f"--enable-bazel does not support flavor={flavor.name}.")
         build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
         return
 
@@ -95,6 +96,7 @@ def build(
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        fips_backend=flavor.fips_backend(),
     )
 
 

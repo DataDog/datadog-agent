@@ -5,6 +5,7 @@ go_library(
     name = "runners",
     srcs = [
         "common_runner.go",
+        "task_ledger.go",
         "workflow_runner.go",
         "workflow_task_executor.go",
     ],
@@ -42,9 +43,17 @@ dd_agent_go_test(
     name = "runners_test",
     srcs = [
         "common_runner_test.go",
+        "task_ledger_test.go",
+        "workflow_task_executor_kubeapiserver_test.go",
         "workflow_task_executor_test.go",
     ],
     embed = [":runners"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",

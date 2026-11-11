@@ -1,0 +1,20 @@
+# -e's attached value must not be scanned for -i's suffix syntax at all,
+# even when the value happens to contain the letter 'i' (a naive scan for
+# an attached -i suffix could otherwise mistake this for an in-place edit
+# attempt). Verified against real GNU sed 4.9: `sed -es/input/output/ file`
+# applies the substitution normally.
+description: sed -e with an attached expression value containing 'i' is not mistaken for an attached -i suffix.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        input
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -es/input/output/ file.txt
+expect:
+  stdout: |+
+    output
+  stderr: |+
+  exit_code: 0

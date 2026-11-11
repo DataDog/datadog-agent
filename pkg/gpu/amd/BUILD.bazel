@@ -16,9 +16,11 @@ go_library(
     deps = select({
         "@rules_go//go/platform:android": [
             "@com_github_stretchr_testify//require",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "@rules_go//go/platform:linux": [
             "@com_github_stretchr_testify//require",
+            "@in_yaml_go_yaml_v3//:yaml",
         ],
         "//conditions:default": [],
     }),

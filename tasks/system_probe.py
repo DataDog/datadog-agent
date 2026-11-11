@@ -6,7 +6,6 @@ import json
 import os
 import platform
 import re
-import shlex
 import shutil
 import string
 import sys
@@ -22,7 +21,7 @@ from invoke.tasks import task
 
 from tasks.bazel import bazel_build_with_bindir
 from tasks.build_tags import UNIT_TEST_TAGS, get_default_build_tags
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.libs.build.bazel import bazel
 from tasks.libs.build.ninja import NinjaWriter
 from tasks.libs.ciproviders.gitlab_api import ReferenceTag
@@ -34,6 +33,7 @@ from tasks.libs.common.utils import (
     get_build_flags,
     get_common_test_args,
     get_embedded_path,
+    join_command,
     parse_kernel_version,
 )
 from tasks.libs.types.arch import ALL_ARCHS, Arch
@@ -188,7 +188,7 @@ def build(
     bundle_ebpf=False,
     strip_binary=False,
     static=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     glibc=True,
 ):
     """
@@ -206,7 +206,7 @@ def build(
         strip_binary=strip_binary,
         arch=arch,
         static=static,
-        fips_mode=fips_mode,
+        fips_backend=fips_backend,
         glibc=glibc,
     )
 
@@ -232,7 +232,7 @@ def build_sysprobe_binary(
     install_path=None,
     bundle_ebpf=False,
     strip_binary=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     static=False,
     glibc=True,
 ) -> None:
@@ -245,9 +245,7 @@ def build_sysprobe_binary(
         static=static,
     )
 
-    build_tags = get_default_build_tags(
-        build="system-probe", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
-    )
+    build_tags = get_default_build_tags(build="system-probe", flavor=fips_backend.agent_flavor())
     if bundle_ebpf:
         build_tags.append(BUNDLE_TAG)
     if strip_binary:
@@ -286,6 +284,7 @@ def build_sysprobe_binary(
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
         env=env,
+        fips_backend=fips_backend,
     )
 
 
@@ -763,81 +762,17 @@ def validate_object_file_metadata(ctx: Context, build_dir: str | Path = "pkg/ebp
         print(f"All {total_metadata_files} object files have valid metadata")
 
 
-# All Bazel eBPF targets, grouped by output directory.
-# Prebuilt targets go to build_dir/, CO-RE targets go to build_dir/co-re/.
-_BAZEL_EBPF_PREBUILT_TARGETS = [
-    "//pkg/network/ebpf/c/prebuilt:dns",
-    "//pkg/network/ebpf/c/prebuilt:dns-debug",
-    "//pkg/network/ebpf/c/prebuilt:offset-guess",
-    "//pkg/network/ebpf/c/prebuilt:offset-guess-debug",
-    "//pkg/network/ebpf/c/prebuilt:tracer",
-    "//pkg/network/ebpf/c/prebuilt:tracer-debug",
-    "//pkg/network/ebpf/c/prebuilt:usm",
-    "//pkg/network/ebpf/c/prebuilt:usm-debug",
-    "//pkg/network/ebpf/c/prebuilt:usm_events_test",
-    "//pkg/network/ebpf/c/prebuilt:usm_events_test-debug",
-    "//pkg/network/ebpf/c/prebuilt:shared-libraries",
-    "//pkg/network/ebpf/c/prebuilt:shared-libraries-debug",
-    "//pkg/network/ebpf/c/prebuilt:conntrack",
-    "//pkg/network/ebpf/c/prebuilt:conntrack-debug",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-offset-guesser",
-]
+# Installs eBPF objects into get_ebpf_build_dir(), runtime bundles into get_ebpf_runtime_dir(),
+# and the targets below into the source tree.
+_EBPF_INSTALL_TARGET = "//pkg/ebpf:install_object_files"
+# Same, with the CWS objects built for Baloum unit tests.
+_EBPF_BALOUM_INSTALL_TARGET = "//pkg/ebpf:install_object_files_baloum"
 
-_BAZEL_EBPF_CORE_TARGETS = [
-    "//pkg/ebpf/c:lock_contention",
-    "//pkg/ebpf/c:ksyms_iter",
-    "//pkg/network/ebpf/c:tracer",
-    "//pkg/network/ebpf/c/sk:sk_tracer",
-    "//pkg/network/ebpf/c/sk:sk_tracer-debug",
-    "//pkg/network/ebpf/c:tracer-debug",
-    "//pkg/network/ebpf/c/co-re:tracer-fentry",
-    "//pkg/network/ebpf/c/co-re:tracer-fentry-debug",
-    "//pkg/network/ebpf/c/runtime:usm",
-    "//pkg/network/ebpf/c/runtime:usm-debug",
-    "//pkg/network/ebpf/c/runtime:shared-libraries",
-    "//pkg/network/ebpf/c/runtime:shared-libraries-debug",
-    "//pkg/network/ebpf/c/runtime:conntrack",
-    "//pkg/network/ebpf/c/runtime:conntrack-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill",
-    "//pkg/collector/corechecks/ebpf/c/runtime:oom-kill-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length",
-    "//pkg/collector/corechecks/ebpf/c/runtime:tcp-queue-length-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf",
-    "//pkg/collector/corechecks/ebpf/c/runtime:ebpf-debug",
-    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor",
-    "//pkg/collector/corechecks/ebpf/c/runtime:noisy-neighbor-debug",
-    "//pkg/gpu/ebpf/c/runtime:gpu",
-    "//pkg/gpu/ebpf/c/runtime:gpu-debug",
-    "//pkg/dyninst/ebpf:dyninst_event",
-    "//pkg/dyninst/ebpf:dyninst_event-debug",
-    "//pkg/ebpf/testdata/c:logdebug-test",
-    "//pkg/ebpf/testdata/c:error_telemetry",
-    "//pkg/ebpf/testdata/c:sleepable",
-    "//pkg/ebpf/testdata/c:preempt_test",
-    "//pkg/ebpf/testdata/c:uprobe_attacher-test",
-    "//cmd/system-probe/subcommands/ebpf/testdata:btf_test",
-]
-
-# Targets that go to their own source directory, not build_dir/co-re/
+# Targets installed into their own source directory, not build_dir/co-re/
 _BAZEL_EBPF_INPLACE_TARGETS = {
     "//pkg/ebpf/kernelbugs:uprobe-trigger": "pkg/ebpf/kernelbugs/c",
     "//pkg/ebpf/kernelbugs:detect-seccomp-bug": "pkg/ebpf/kernelbugs/c",
 }
-
-_BAZEL_RUNTIME_FLAT_TARGETS = [
-    "//pkg/ebpf/bytecode:oom-kill_flat",
-    "//pkg/ebpf/bytecode:tcp-queue-length_flat",
-    "//pkg/ebpf/bytecode:usm_flat",
-    "//pkg/ebpf/bytecode:shared-libraries_flat",
-    "//pkg/ebpf/bytecode:conntrack_flat",
-    "//pkg/ebpf/bytecode:tracer_flat",
-    "//pkg/ebpf/bytecode:offsetguess-test_flat",
-    "//pkg/ebpf/bytecode:runtime-security_flat",
-    "//pkg/ebpf/bytecode:gpu_flat",
-]
 
 # _gen targets produce the Go integrity hash files (pkg/ebpf/bytecode/runtime/<name>.go).
 _BAZEL_RUNTIME_GEN_TARGETS = [
@@ -852,21 +787,6 @@ _BAZEL_RUNTIME_GEN_TARGETS = [
     "//pkg/ebpf/bytecode:gpu_gen",
 ]
 
-_NON_EBPF_TARGETS = frozenset(
-    [
-        "//pkg/ebpf/kernelbugs:detect-seccomp-bug",
-    ]
-)
-
-
-def _ebpf_strip_targets(targets):
-    """Append .stripped suffix to eBPF targets.
-
-    Non-eBPF targets (e.g. cc_binary) are returned unchanged since they
-    don't have Bazel-side stripped variants.
-    """
-    return [t + ".stripped" if t not in _NON_EBPF_TARGETS else t for t in targets]
-
 
 def ebpf_bazel_flags(arch: Arch) -> list[str]:
     """Return extra Bazel flags needed for eBPF cross-compilation."""
@@ -875,128 +795,35 @@ def ebpf_bazel_flags(arch: Arch) -> list[str]:
     return []
 
 
+def _bazel_install(ctx: Context, target: str, destdir: str, *flags: str, sudo: bool = False) -> None:
+    """Run a pkg_install target's installer outside Bazel, so only the installer needs sudo."""
+    with tempfile.NamedTemporaryFile(prefix="bazel-install-", suffix=".sh", delete=False) as tmp:
+        script = tmp.name
+    try:
+        bazel("run", f"--script_path={script}", *flags, target)
+        # Keep the Python launcher from creating root-owned bytecode in Bazel's user-owned runfiles.
+        prefix = ["sudo", "env", "PYTHONDONTWRITEBYTECODE=1"] if sudo else ["env"]
+        ctx.run(join_command([*prefix, script, f"--destdir={destdir}"]))
+    finally:
+        if os.path.exists(script):
+            os.unlink(script)
+
+
 def bazel_build_ebpf(
     ctx: Context,
     arch: Arch,
-    build_dir: str,
-    runtime_dir: str,
     *,
     verify: bool = False,
     extra_targets: list[str] | tuple[str, ...] = (),
-) -> str:
-    """Build all eBPF artifacts via a single Bazel invocation.
-
-    Builds eBPF .o objects (prebuilt, CO-RE, inplace), runtime flattened .c
-    files, and Go integrity hash files, then copies outputs to the
-    appropriate staging directories and source tree.
-    """
-    import shutil
-
-    # detect-seccomp-bug is x86-only (has target_compatible_with in Bazel)
-    if arch == Arch.from_str("arm64"):
-        inplace_targets = {t: d for t, d in _BAZEL_EBPF_INPLACE_TARGETS.items() if "detect-seccomp-bug" not in t}
-    else:
-        inplace_targets = _BAZEL_EBPF_INPLACE_TARGETS
-
-    prebuilt = _ebpf_strip_targets(_BAZEL_EBPF_PREBUILT_TARGETS)
-    core = _ebpf_strip_targets(_BAZEL_EBPF_CORE_TARGETS)
-    inplace = {_ebpf_strip_targets([t])[0]: d for t, d in inplace_targets.items()}
-
-    ebpf_targets = prebuilt + core + list(inplace.keys())
-    all_build_targets = (
-        ebpf_targets + list(_BAZEL_RUNTIME_FLAT_TARGETS) + list(_BAZEL_RUNTIME_GEN_TARGETS) + list(extra_targets)
-    )
+    install_target: str = _EBPF_INSTALL_TARGET,
+) -> None:
+    """Build all eBPF artifacts in one Bazel invocation, then install them into the repository."""
+    targets = [install_target, *extra_targets]
     if verify:
-        all_build_targets.append("//pkg/ebpf:verify_generated_files")
-
+        targets.append("//pkg/ebpf:verify_generated_files")
     extra_flags = ebpf_bazel_flags(arch)
-    subcommand = "test" if verify else "build"
-
-    print(f"Building {len(all_build_targets)} eBPF + runtime targets via Bazel...")
-    bazel_bin = bazel_build_with_bindir(subcommand, *extra_flags, *all_build_targets)
-
-    co_re_dir = os.path.join(build_dir, "co-re")
-    os.makedirs(build_dir, exist_ok=True)
-    os.makedirs(co_re_dir, exist_ok=True)
-    os.makedirs(runtime_dir, exist_ok=True)
-
-    def _copy_output(target: str, dest_dir: str):
-        label_path, name = target.lstrip("/").rsplit(":", 1)
-        dest_name = name.removesuffix(".stripped")
-
-        src_o = os.path.join(bazel_bin, label_path, f"{name}.o")
-        src_bin = os.path.join(bazel_bin, label_path, name)
-
-        # Only use mtime fast-path when strip mode hasn't changed.
-        same_mode = name == dest_name
-
-        if os.path.exists(src_o):
-            dst = os.path.join(dest_dir, f"{dest_name}.o")
-            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_o):
-                return
-            if os.path.exists(dst):
-                os.chmod(dst, 0o644)
-            shutil.copy2(src_o, dst)
-            os.chmod(dst, 0o644)
-        elif os.path.exists(src_bin):
-            dst = os.path.join(dest_dir, dest_name)
-            if same_mode and os.path.exists(dst) and os.path.getmtime(dst) >= os.path.getmtime(src_bin):
-                return
-            if os.path.exists(dst):
-                os.chmod(dst, 0o755)
-            shutil.copy2(src_bin, dst)
-            os.chmod(dst, 0o755)
-        else:
-            print(f"Warning: expected output {src_o} or {src_bin} not found")
-
-    for target in prebuilt:
-        _copy_output(target, build_dir)
-
-    for target in core:
-        _copy_output(target, co_re_dir)
-
-    for target, dest in inplace.items():
-        os.makedirs(dest, exist_ok=True)
-        _copy_output(target, dest)
-
-    print(f"Copied eBPF objects to {build_dir}")
-
-    # Copy runtime flattened .c files to staging directory.
-    for target in _BAZEL_RUNTIME_FLAT_TARGETS:
-        label_path, name = target.lstrip("/").rsplit(":", 1)
-        # run_binary output is under <name>/<out_name>.c; the directory
-        # name matches the macro name which equals out_name for all bundles.
-        bundle_name = name.removesuffix("_flat")
-        src = os.path.join(bazel_bin, label_path, bundle_name, f"{bundle_name}.c")
-        dst = os.path.join(runtime_dir, f"{bundle_name}.c")
-        if os.path.exists(src):
-            if os.path.exists(dst):
-                os.chmod(dst, 0o644)
-            shutil.copy2(src, dst)
-            os.chmod(dst, 0o644)
-        else:
-            print(f"Warning: expected runtime bundle output {src} not found")
-
-    print(f"Copied runtime bundles to {runtime_dir}")
-
-    # Copy generated Go integrity hash files to source tree.
-    go_dest = os.path.join("pkg", "ebpf", "bytecode", "runtime")
-    os.makedirs(go_dest, exist_ok=True)
-    for target in _BAZEL_RUNTIME_GEN_TARGETS:
-        label_path, name = target.lstrip("/").rsplit(":", 1)
-        bundle_name = name.removesuffix("_gen")
-        src = os.path.join(bazel_bin, label_path, bundle_name, f"{bundle_name}.go")
-        dst = os.path.join(go_dest, f"{bundle_name}.go")
-        if os.path.exists(src):
-            if os.path.exists(dst):
-                os.chmod(dst, 0o644)
-            shutil.copy2(src, dst)
-            os.chmod(dst, 0o644)
-        else:
-            print(f"Warning: expected runtime hash output {src} not found")
-
-    print(f"Copied runtime hash files to {go_dest}")
-    return bazel_bin
+    bazel("test" if verify else "build", *extra_flags, *targets)
+    _bazel_install(ctx, install_target, os.getcwd(), *extra_flags)
 
 
 # Paths under bazel-bin -> repo-relative destinations (also removed by clean_object_files).
@@ -1075,24 +902,14 @@ def build_object_files(
         if not arch_obj.is_cross_compiling():
             extra_targets.extend(t for t, _ in _rust_install_targets())
 
-        bazel_build_ebpf(ctx, arch_obj, build_dir, runtime_dir, verify=True, extra_targets=extra_targets)
+        bazel_build_ebpf(ctx, arch_obj, verify=True, extra_targets=extra_targets)
 
         # Install Bazel-managed LLVM BPF tools (needed for stripping and runtime compilation).
         # Keep Bazel unprivileged: its sandbox needs access to the caller's repository cache.
-        # Only the installer needs elevated permissions to write under /opt. Prevent its
-        # Python launcher from creating root-owned bytecode in Bazel's user-owned runfiles.
         needs_sudo = not is_root()
         sudo = "sudo" if needs_sudo else ""
         ctx.run(f"{sudo} mkdir -p /opt/datadog-agent/embedded/bin")
-        with tempfile.NamedTemporaryFile(prefix="llvm-bpf-install-", suffix=".sh", delete=False) as tmp:
-            script = tmp.name
-        try:
-            bazel("run", f"--script_path={script}", *arch_flags, "@llvm_bpf//:install")
-            prefix = "sudo env PYTHONDONTWRITEBYTECODE=1" if needs_sudo else "env"
-            ctx.run(f"{prefix} {shlex.quote(script)} --destdir=/opt/datadog-agent")
-        finally:
-            if os.path.exists(script):
-                os.unlink(script)
+        _bazel_install(ctx, "@llvm_bpf//:install", "/opt/datadog-agent", *arch_flags, sudo=needs_sudo)
 
     if is_windows:
         bazel_build_windows_resources(ctx, verify=True, extra_flags=arch_flags)
@@ -1153,35 +970,13 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
         bazel("run", *platform_flags, "--", f"@{target}", f"--destdir={dest}")
 
 
-_BAZEL_CWS_BALOUM_TARGETS = {
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-baloum": "runtime-security.o",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-syscall-wrapper-baloum": "runtime-security-syscall-wrapper.o",
-    "//pkg/security/ebpf/c/prebuilt:runtime-security-fentry-baloum": "runtime-security-fentry.o",
-}
-
-
 def build_cws_object_files(
     ctx,
     arch: str | Arch = CURRENT_ARCH,
     with_unit_test=False,
 ):
-    import shutil
-
-    arch_obj = Arch.from_str(arch)
-    build_dir = get_ebpf_build_dir(arch_obj)
-    runtime_dir = get_ebpf_runtime_dir()
-    extra_targets = list(_BAZEL_CWS_BALOUM_TARGETS.keys()) if with_unit_test else []
-    bazel_bin = bazel_build_ebpf(
-        ctx, arch_obj, str(build_dir), str(runtime_dir), verify=True, extra_targets=extra_targets
-    )
-
-    if with_unit_test:
-        for target, dest_name in _BAZEL_CWS_BALOUM_TARGETS.items():
-            label_path, name = target.lstrip("/").rsplit(":", 1)
-            src = os.path.join(bazel_bin, label_path, f"{name}.o")
-            dst = os.path.join(str(build_dir), dest_name)
-            shutil.copy2(src, dst)
-            os.chmod(dst, 0o444)
+    install_target = _EBPF_BALOUM_INSTALL_TARGET if with_unit_test else _EBPF_INSTALL_TARGET
+    bazel_build_ebpf(ctx, Arch.from_str(arch), verify=True, install_target=install_target)
 
 
 def clean_object_files(ctx):
@@ -1725,7 +1520,15 @@ def collect_gpu_events(ctx, output_dir: str, pod_name: str, event_count: int = 1
 
 
 @task
-def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bool = False, ci: bool = False):
+def build_dyninst_test_programs(
+    ctx: Context,
+    output_root: Path = ".",
+    debug: bool = False,
+    ci: bool = False,
+    toolchains: str = "",
+    programs: str = "",
+):
+    """Build fixtures, optionally filtering comma-separated toolchains and programs."""
     nf_path = os.path.join(output_root, "system-probe-dyninst-test-programs.ninja")
     with open(nf_path, "w") as nf:
         nw = NinjaWriter(nf)
@@ -1735,7 +1538,7 @@ def build_dyninst_test_programs(ctx: Context, output_root: Path = ".", debug: bo
             name="gobin",
             command="$chdir && $env $go build -o $out $extra_arguments $tags $ldflags $in $tool",
         )
-        ninja_add_dyninst_test_programs(ctx, nw, output_root, "go")
+        ninja_add_dyninst_test_programs(ctx, nw, output_root, "go", toolchains=toolchains, programs=programs)
 
     # TODO: remove once Bazel is used to build the Agent
     schema_codegen(ctx)
@@ -1748,6 +1551,9 @@ def ninja_add_dyninst_test_programs(
     nw: NinjaWriter,
     output_root: Path,
     go_path: str,
+    *,
+    toolchains: str = "",
+    programs: str = "",
 ):
     """
     This function is used to add the dyninst test programs to the ninja file.
@@ -1786,7 +1592,15 @@ def ninja_add_dyninst_test_programs(
             deps = (d for d in deps.split(" ") if d.startswith(progs_prefix))
             pkg_deps[pkg] = {d.removeprefix(progs_prefix) for d in deps}
 
-    go_versions = ["go1.23.11", "go1.24.3", "go1.25.0", "go1.26rc1"]
+    go_versions = (
+        toolchains.split(",") if toolchains else ["go1.23.11", "go1.24.3", "go1.25.0", "go1.26rc1", "go1.27.3"]
+    )
+    if programs:
+        selected = programs.split(",")
+        unknown = set(selected) - pkg_deps.keys()
+        if unknown:
+            raise Exit(message=f"Unknown dyninst test programs: {sorted(unknown)}")
+        pkg_deps = {pkg: pkg_deps[pkg] for pkg in selected}
     archs = ["amd64", "arm64"]
 
     # Avoiding cgo aids in reproducing the build environment. It's less good in
@@ -1845,6 +1659,10 @@ def ninja_add_dyninst_test_programs(
                 ),
             },
         )
+
+    # Filtered builds must not remove fixtures from other configurations.
+    if toolchains or programs:
+        return
 
     # Remove any previously built binaries that are no longer needed.
     for path in glob.glob(f"{output_base}/*/*"):

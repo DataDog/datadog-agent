@@ -1,0 +1,11 @@
+# skip: variable expansion feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Default value expansion ${var:-default} is not supported.
+input:
+  script: |+
+    echo ${UNSET:-fallback}
+expect:
+  stdout: ""
+  stderr: |+
+    ${var} operations (defaults, pattern removal, case conversion) are not supported
+  exit_code: 2

@@ -154,7 +154,7 @@ def write_test_binaries_bzl(_):
     """
     query_output = bazel(
         "query",
-        "kind(go_test, rdeps(//test/new-e2e/tests/..., //test/e2e-framework/testing/e2e))",
+        r"attr(tags, '\bmanual\b', kind(go_test, rdeps(//test/new-e2e/tests/..., //test/e2e-framework/testing/e2e)))",
         "--output=label",
         capture_output=True,
     )
@@ -604,6 +604,7 @@ def run(
             use_bazel_built_binaries = False
 
     _install_windows_testsuites(module_name, targets)
+    tool.install_pulumi_plugins()
 
     if use_bazel_built_binaries:
         bazel("run", "//:go", "--", "build", "-o", "./gotest-custom", "./internal/tools/gotest-custom")
@@ -735,7 +736,7 @@ def run(
             with open(partial_file) as f:
                 merged_file.writelines(line.strip() + "\n" for line in f.readlines())
 
-    success, _ = process_test_result(
+    success = process_test_result(
         ctx, test_res, junit_tar, result_junits, AgentFlavor.base, test_washer, test_system="e2e"
     )
 
@@ -987,6 +988,66 @@ def cleanup_job_stacks(ctx):
             print(f"Stack {stack}: {stdout} {stderr}")
             if exit_code != 0:
                 print(color_message(f"Failed to request the cleanup of stack {stack}", Color.RED))
+
+
+@task(
+    help={
+        "output_file": "Dotenv file to write the baseline to",
+        "fetch": "Fetch the base branch from origin before computing the merge base",
+    }
+)
+def benchmarkeks_baseline(ctx: Context, output_file: str = "benchmarkeks_baseline.env", fetch: bool = True):
+    """
+    Find the baseline images of the benchmarkeks suite (TestBenchmarkEKSSuite) and write them to a dotenv file.
+
+    Like the SMP regression detector, the baseline commit is the merge base with the base branch of release.json, or the
+    parent commit on the base branch, walking first parents back to the first commit whose Agent and Cluster Agent
+    images exist in registry.ddbuild.io, up to 4 days old. The dotenv file has the images to publish to agent-qa and
+    the E2E_BENCHMARKEKS_BASELINE_* variables read by the suite.
+    """
+    from tasks.libs.releasing.json import _get_release_json_value
+    from tasks.libs.testing.benchmarkeks import BaselineLookupError, format_dotenv, resolve_baseline
+
+    branch = os.environ.get("CI_COMMIT_BRANCH") or get_current_branch(ctx)
+    try:
+        baseline = resolve_baseline(ctx, _get_release_json_value("base_branch"), branch, fetch)
+    except BaselineLookupError as e:
+        raise Exit(color_message(str(e), Color.RED), code=1) from e
+    variables = baseline.dotenv_variables()
+    with open(output_file, "w") as f:
+        f.write(format_dotenv(variables))
+    print(color_message(f"Baseline: commit {baseline.sha}, pipeline {baseline.pipeline_id}", Color.GREEN))
+    for name, value in variables.items():
+        print(f"  {name}={value}")
+    print(f"Written to {output_file}")
+
+
+@task(help={"output_file": "Markdown file to write the pull request comment to"})
+def benchmarkeks_instructions(_, output_file: str = "benchmarkeks_instructions.md"):
+    """
+    Write the pull request comment explaining how to start the benchmarkeks suite (TestBenchmarkEKSSuite), which only
+    runs manually: a button linking to its manual job in the current pipeline, or a link to the pipeline if the job
+    can't be found.
+    """
+    from tasks.libs.testing.benchmarkeks import BASELINE_JOB_NAME, instructions_comment
+
+    try:
+        # At the start of the pipeline, the job is still manual
+        jobs = (
+            get_gitlab_repo()
+            .pipelines.get(os.environ["CI_PIPELINE_ID"], lazy=True)
+            .jobs.list(scope="manual", iterator=True, per_page=100)
+        )
+        job_url = next((job.web_url for job in jobs if job.name == BASELINE_JOB_NAME), None)
+        if job_url is None:
+            print(color_message(f"Job {BASELINE_JOB_NAME} not found, linking to the pipeline", Color.ORANGE))
+    except Exception as e:
+        print(color_message(f"Could not look up job {BASELINE_JOB_NAME}, linking to the pipeline: {e}", Color.ORANGE))
+        job_url = None
+
+    with open(output_file, "w") as f:
+        f.write(instructions_comment(job_url, os.environ["CI_PIPELINE_URL"]))
+    print(f"Written to {output_file}")
 
 
 def post_process_output(path: str, test_depth: int = 1) -> list[tuple[str, str, list[str]]]:

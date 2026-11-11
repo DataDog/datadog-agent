@@ -1,0 +1,19 @@
+description: Multiple elif branches where the third condition is true.
+input:
+  script: |+
+    if false; then
+      echo a
+    elif false; then
+      echo b
+    elif false; then
+      echo c
+    elif true; then
+      echo d
+    else
+      echo e
+    fi
+expect:
+  stdout: |+
+    d
+  stderr: ""
+  exit_code: 0

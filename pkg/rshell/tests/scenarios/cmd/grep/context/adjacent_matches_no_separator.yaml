@@ -1,0 +1,13 @@
+description: grep -C 0 with non-adjacent matches shows group separator between groups.
+setup:
+  files:
+    - path: input.txt
+      content: "match1\nmatch2\nno\nmatch3\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -C 0 'match' input.txt
+expect:
+  stdout: "match1\nmatch2\n--\nmatch3\n"
+  stderr: ""
+  exit_code: 0

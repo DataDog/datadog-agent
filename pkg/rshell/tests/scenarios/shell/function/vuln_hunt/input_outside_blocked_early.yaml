@@ -1,0 +1,19 @@
+# skip: function declarations and allowed_paths sandbox restrictions are rshell-specific
+skip_assert_against_bash: true
+description: A function declaration with an outside input redirect is rejected before redirect evaluation.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/data.txt
+      content: "secret\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    f() { echo body; } < secret/data.txt
+    echo after
+expect:
+  stdout: ""
+  stderr: |+
+    function declarations are not supported
+  exit_code: 2

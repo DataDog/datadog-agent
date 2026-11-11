@@ -23,4 +23,3 @@ bazel_parity_check:
     - bazel build //bazel/tools:readelf
     - READELF="$(bazel info execution_root)/$(bazel cquery --output=files //bazel/tools:readelf)"
     - dda inv -- bazel-parity.check --omnibus-dir "$OMNIBUS_PACKAGE_DIR" --bazel-dir bazel-packages --readelf "$READELF"
-  allow_failure: true

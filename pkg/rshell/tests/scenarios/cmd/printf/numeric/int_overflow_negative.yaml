@@ -1,0 +1,8 @@
+description: Negative integer overflow clamps to MinInt64 with warning and exit 0.
+input:
+  script: |+
+    printf "%d\n" -9999999999999999999
+expect:
+  stdout: "-9223372036854775808\n"
+  stderr_contains: ["Numerical result out of range"]
+  exit_code: 0

@@ -1,0 +1,16 @@
+# vuln-hunt 2026-05-19-codex / heredoc.
+description: Comments and command separators inside heredoc content remain data.
+input:
+  script: |+
+    cat <<EOF
+    # not a comment
+    ; echo bad
+    EOF
+    echo after
+expect:
+  stdout: |+
+    # not a comment
+    ; echo bad
+    after
+  stderr: ""
+  exit_code: 0

@@ -7,6 +7,7 @@ export type MetricName = string & { readonly __metricNameBrand: unique symbol };
 
 export interface ServerConfig {
   components: Record<string, boolean>;
+  useMetricPipeline?: boolean;
   /** When true, scenarios load log rows only (no parquet metrics / trace stats). */
   logsOnly?: boolean;
 }
@@ -22,8 +23,20 @@ export interface EpisodeScenario {
   long_description: string;
 }
 
+export interface NoFaultEvaluation {
+  mode: 'no_faults';
+  false_positives: number;
+  evaluation_window: EpisodePhase;
+  episodes: { pattern: string; period_start: number; period_end: number }[];
+}
+
 export interface EpisodeInfo {
+  mode?: string;
+  expectation?: string;
+  evaluation_window?: EpisodePhase;
   episode: string;
+  name?: string;
+  status?: string;
   cycle: number;
   scenario: EpisodeScenario;
   environment: string;
@@ -39,6 +52,8 @@ export interface EpisodeInfo {
 
 export interface StatusResponse {
   ready: boolean;
+  noFaultEvaluation?: NoFaultEvaluation;
+  evaluationError?: string;
   scenario: string | null;
   seriesCount: number;
   anomalyCount: number;

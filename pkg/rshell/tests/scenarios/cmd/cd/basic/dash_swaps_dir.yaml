@@ -1,0 +1,20 @@
+description: cd - swaps to OLDPWD and prints the new directory; running it again returns to the original.
+setup:
+  files:
+    - path: x/y
+      content: ""
+  # Two cd's so OLDPWD is meaningful, then verify cd - toggles between them.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd x
+    cd ..
+    cd - >/dev/null
+    pwd
+    cd - >/dev/null
+    pwd
+expect:
+  stdout_contains: ["/x"]
+  stdout_contains_windows: ["\\x"]
+  stderr: ""
+  exit_code: 0

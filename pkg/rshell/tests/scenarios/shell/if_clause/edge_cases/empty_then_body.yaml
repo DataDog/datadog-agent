@@ -1,0 +1,10 @@
+description: If with true (noop) as then body.
+input:
+  script: |+
+    if true; then true; fi
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

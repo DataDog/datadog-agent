@@ -1,0 +1,9 @@
+description: Printf %u specifier outputs an unsigned decimal integer.
+input:
+  script: |+
+    printf "%u\n" 42
+expect:
+  stdout: |+
+    42
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,23 @@
+description: Output redirects accept single-match globs and quoted filenames containing spaces.
+setup:
+  files:
+    - path: only.txt
+      content: |+
+        original
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    echo replaced > *.txt
+    target=' *.txt '
+    echo appended >> $target
+    target='spaced file'
+    echo quoted > "$target"
+    cat only.txt "$target"
+expect:
+  stdout: |+
+    replaced
+    appended
+    quoted
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,12 @@
+description: "\\0 in replacement refers to the entire match (equivalent to &)."
+setup:
+  files:
+    - path: input.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/hello/[\0]/' input.txt
+expect:
+  stdout: "[hello]\n"
+  exit_code: 0

@@ -43,6 +43,13 @@ func TestCollectCommand(t *testing.T) {
 				require.Equal(t, "", cliParams.logFile)
 				require.Equal(t, "", coreParams.LogFileFn(nil))
 				require.Equal(t, "CORE", coreParams.LoggerName())
+				// the one-shot command must never bind the running agent's cmd_port,
+				// agent_ipc port or unix socket
+				expectedConfigParams := configComponent.NewAgentParams(globalParams.ConfFilePath,
+					configComponent.WithCLIOverride("cmd_port", 0),
+					configComponent.WithCLIOverride("agent_ipc.port", 0),
+					configComponent.WithCLIOverride("agent_ipc.use_socket", false))
+				require.Equal(t, expectedConfigParams, coreParams.ConfigParams)
 			})
 	})
 

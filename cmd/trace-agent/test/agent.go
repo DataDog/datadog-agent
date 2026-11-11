@@ -17,6 +17,7 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/hex"
+	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -408,7 +409,11 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 	v.Set("ipc_cert_file_path", filepath.Join(s.bindir, "ipc_cert.pem"), pkgconfigmodel.SourceFile)
 
 	settings := v.AllSettings()
-	s.coreAgent.setSettings(configSettings(settings))
+	streamed, err := configSettings(settings)
+	if err != nil {
+		return "", err
+	}
+	s.coreAgent.setSettings(streamed)
 
 	out, err := yaml.Marshal(settings)
 	if err != nil {
@@ -443,7 +448,7 @@ func (s *agentRunner) createConfigFile(conf []byte) (string, error) {
 
 // configSettings is the generated config overlaid with the DD_* environment. A remote agent
 // ignores its own env layer, so a test's t.Setenv only reaches it through the stream.
-func configSettings(settings map[string]interface{}) []*pb.ConfigSetting {
+func configSettings(settings map[string]interface{}) ([]*pb.ConfigSetting, error) {
 	flat := map[string]interface{}{}
 	flattenConfigSettings("", settings, flat)
 	for key, value := range envConfigSettings() {
@@ -452,13 +457,56 @@ func configSettings(settings map[string]interface{}) []*pb.ConfigSetting {
 
 	out := make([]*pb.ConfigSetting, 0, len(flat))
 	for key, raw := range flat {
-		value, err := structpb.NewValue(raw)
+		value, err := streamValue(raw)
 		if err != nil {
-			continue
+			return nil, fmt.Errorf("config setting %q can't be streamed: %w", key, err)
 		}
 		out = append(out, &pb.ConfigSetting{Key: key, Value: value, Source: "file"})
 	}
-	return out
+	return out, nil
+}
+
+// streamValue converts a config value for the config stream as the core agent does
+// (sanitizeValue in comp/core/configstream/impl): structpb.NewValue rejects the
+// map[interface{}]interface{} values YAML decodes into, e.g. the rules of
+// apm_config.replace_tags, so maps get string keys and the value is round-tripped
+// through JSON first.
+func streamValue(raw interface{}) (*structpb.Value, error) {
+	data, err := json.Marshal(stringKeys(raw))
+	if err != nil {
+		return nil, err
+	}
+	var sanitized interface{}
+	if err := json.Unmarshal(data, &sanitized); err != nil {
+		return nil, err
+	}
+	return structpb.NewValue(sanitized)
+}
+
+// stringKeys recursively converts the map[interface{}]interface{} values in v to
+// map[string]interface{}.
+func stringKeys(v interface{}) interface{} {
+	switch v := v.(type) {
+	case map[interface{}]interface{}:
+		m := make(map[string]interface{}, len(v))
+		for key, value := range v {
+			m[fmt.Sprint(key)] = stringKeys(value)
+		}
+		return m
+	case map[string]interface{}:
+		m := make(map[string]interface{}, len(v))
+		for key, value := range v {
+			m[key] = stringKeys(value)
+		}
+		return m
+	case []interface{}:
+		s := make([]interface{}, len(v))
+		for i, value := range v {
+			s[i] = stringKeys(value)
+		}
+		return s
+	}
+	return v
 }
 
 func flattenConfigSettings(prefix string, settings map[string]interface{}, out map[string]interface{}) {

@@ -1,0 +1,8 @@
+description: Continue --help displays usage information.
+input:
+  script: |+
+    for i in 1; do continue --help; done
+expect:
+  stdout: "continue: continue [n]\n    Resume for, while, or until loops.\n    \n    Resumes the next iteration of the enclosing FOR, WHILE or UNTIL loop.\n    If N is specified, resumes the Nth enclosing loop.\n    \n    Exit Status:\n    The exit status is 0 unless N is not greater than or equal to 1.\n"
+  stderr: ""
+  exit_code: 2

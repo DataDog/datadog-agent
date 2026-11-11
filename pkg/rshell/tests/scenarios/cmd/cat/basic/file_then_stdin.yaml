@@ -1,0 +1,14 @@
+description: Cat reads a file then stdin via dash in the same invocation.
+setup:
+  files:
+    - path: greeting.txt
+      content: "hello\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo "world" | cat greeting.txt -
+expect:
+  stdout: "hello\nworld\n"
+  stderr: ""
+  exit_code: 0

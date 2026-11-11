@@ -1,0 +1,20 @@
+description: Break 3 in three-level nested loop breaks all loops.
+input:
+  script: |+
+    for i in a b; do
+      for j in 1 2; do
+        for k in x y; do
+          echo "$i$j$k"
+          break 3
+        done
+        echo "inner-done"
+      done
+      echo "mid-done"
+    done
+    echo done
+expect:
+  stdout: |+
+    a1x
+    done
+  stderr: ""
+  exit_code: 0

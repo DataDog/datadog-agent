@@ -61,8 +61,7 @@ func NewComponent(deps Requires) orchestrator.Component {
 		if err := orchestratorCfg.Load(); err != nil {
 			deps.Log.Errorf("Error loading the orchestrator config: %s", err)
 		}
-		keysPerDomain := apicfg.KeysPerDomains(orchestratorCfg.OrchestratorEndpoints)
-		resolver, err := resolver.NewSingleDomainResolvers(keysPerDomain)
+		resolver, err := resolver.NewSingleDomainResolvers2(apicfg.EndpointDescriptors(orchestratorCfg.OrchestratorEndpoints))
 		if err != nil {
 			deps.Log.Errorf("Error creating domain resolver: %s", err)
 		}

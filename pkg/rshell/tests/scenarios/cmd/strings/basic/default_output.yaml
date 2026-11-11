@@ -1,0 +1,21 @@
+description: strings outputs printable sequences of 4+ chars; newlines act as separators.
+setup:
+  files:
+    - path: data.bin
+      content: |+
+        hello
+        world
+        foo
+        ab
+        testing
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings data.bin
+expect:
+  stdout: |+
+    hello
+    world
+    testing
+  stderr: ""
+  exit_code: 0

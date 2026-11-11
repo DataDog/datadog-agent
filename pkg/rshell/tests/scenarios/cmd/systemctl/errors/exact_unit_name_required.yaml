@@ -1,0 +1,19 @@
+# "api" and "api.service" are different selectors; a grant never covers both.
+skip_assert_against_bash: true
+description: a grant for api.service does not match the suffix-less operand api
+input:
+  mode: remediation
+  allowed_system_services:
+    - service: api.service
+      actions: [read, start]
+  script: |+
+    systemctl status api
+    systemctl start api
+    systemctl status api.socket
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: invalid exact unit name "api"
+    systemctl: invalid exact unit name "api"
+    systemctl: system service "api.socket" is not allowed for action "read"
+  exit_code: 1

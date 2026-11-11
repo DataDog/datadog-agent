@@ -119,12 +119,16 @@ typedef enum {
     CLASSIFICATION_QUEUES_PROG,
     CLASSIFICATION_DBS_PROG,
     __PROG_API,
-    // API classification programs go here
+    // API classification programs go here. The application-layer programs skip this layer
+    // (see application_layer_next_program), which is only correct while gRPC is the sole entry.
     CLASSIFICATION_GRPC_PROG,
     __PROG_ENCRYPTION,
     // Encryption classification programs go here
     CLASSIFICATION_PROG_MAX,
 } classification_prog_t;
+
+_Static_assert(__PROG_ENCRYPTION - __PROG_API == 2,
+               "application_layer_next_program skips the API layer, which is only correct while gRPC is its sole program");
 
 typedef enum {
     CLASSIFICATION_TLS_CLIENT_PROG,

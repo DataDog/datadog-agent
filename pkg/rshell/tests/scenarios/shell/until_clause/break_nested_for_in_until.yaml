@@ -1,0 +1,19 @@
+description: break inside a for nested in an until exits only the for; the until keeps iterating.
+input:
+  script: |+
+    i=
+    until [ "$i" = aa ]; do
+      i="${i}a"
+      for j in 1 2; do
+        echo "$i $j"
+        break
+      done
+    done
+    echo done
+expect:
+  stdout: |+
+    a 1
+    aa 1
+    done
+  stderr: |+
+  exit_code: 0

@@ -4,6 +4,8 @@
 // Copyright 2026-present Datadog, Inc.
 
 pub mod agent_yaml;
+#[cfg(test)]
+mod aio_catalog;
 pub mod command;
 pub mod config;
 pub mod config_gate;

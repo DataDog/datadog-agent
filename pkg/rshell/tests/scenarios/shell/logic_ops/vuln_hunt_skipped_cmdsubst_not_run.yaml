@@ -1,0 +1,11 @@
+description: Command substitutions in short-circuited branches are not evaluated.
+input:
+  script: |+
+    false && echo "$(echo and-ran >&2)"
+    true || echo "$(echo or-ran >&2)"
+    echo after
+expect:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0

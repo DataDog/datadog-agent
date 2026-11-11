@@ -1,0 +1,17 @@
+description: |
+  vuln-hunt 2026-05-18-initial-audit: setting IFS to a backslash is treated
+  as a literal field separator; the split tokens are not re-processed for
+  escape sequences.
+input:
+  script: |+
+    IFS='\'
+    s='a\b\c'
+    for x in $s; do
+      echo "$x"
+    done
+expect:
+  stdout: |+
+    a
+    b
+    c
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: uniq --group=separate inserts blank lines between groups.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq --group=separate input.txt
+expect:
+  stdout: "a\na\n\nb\n"
+  stderr: ""
+  exit_code: 0

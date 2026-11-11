@@ -1,0 +1,13 @@
+description: The $? variable holds the exit status of the last command.
+input:
+  script: |+
+    true
+    echo $?
+    false
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+  stderr: ""
+  exit_code: 0

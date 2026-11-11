@@ -1,0 +1,16 @@
+description: An escaped dollar in the replacement is a literal dollar, not a capture reference.
+setup:
+  files:
+    - path: input.txt
+      content: "abcd\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -E 's/(.*)/\$1\$1/g' input.txt
+    sed 's/\(b\)/[\$1\${1}]/' input.txt
+expect:
+  stdout: |+
+    $1$1
+    a[$1${1}]cd
+  stderr: |+
+  exit_code: 0

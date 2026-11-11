@@ -1,0 +1,13 @@
+description: Backreference followed by a literal digit (e.g. \10 means \1 then '0').
+setup:
+  files:
+    - path: input.txt
+      content: "a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -E 's/(a)/\10/' input.txt
+expect:
+  stdout: "a0\n"
+  stderr: ""
+  exit_code: 0

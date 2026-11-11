@@ -6,8 +6,8 @@
 #   - tags: list of tag names declared under root tags
 tags:
   gpu_uuid:
-    # NVIDIA: NVML UUIDs. AMD: "amd-" + nonzero uint64 unique_id (hex), or + the PCI address if unavailable, invalid, or shared by distinct PCI devices.
-    regex: "^((gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|amd-[0-9a-f]+(-[0-9a-f]+)*)$"
+    # NVIDIA: NVML UUIDs. AMD: the amd-smi UUID, derived from the unique_id serial, or "amd-" + the PCI address if the serial is unavailable, invalid, or shared by distinct PCI devices.
+    regex: "^((gpu-|mig-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|amd-[0-9a-f]+(-[0-9a-f]+)*)$"
   gpu_device:
     regex: "^[a-z0-9_.-]+$"
   gpu_vendor:
@@ -31,7 +31,7 @@ tags:
   gpu_type:
     regex: "^[a-z0-9_-]+$"
   gpu_parent_uuid:
-    regex: "^((gpu|mig)-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|amd-[0-9a-f]+(-[0-9a-f]+)*)$"
+    regex: "^((gpu-|mig-)?[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|amd-[0-9a-f]+(-[0-9a-f]+)*)$"
   gpu_pci_bus_id:
     regex: "^[0-9a-f]{4,8}:[0-9a-f]{2}:[0-9a-f]{2}\\.[0-7]$"
   gpu_nvlink_version:

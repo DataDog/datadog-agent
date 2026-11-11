@@ -1,0 +1,82 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "landlock",
+    srcs = [
+        "enforce_pre_tsync_linux.go",
+        "policy.go",
+        "restrict_linux.go",
+        "restrict_nonlinux.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/internal/sandbox/landlock",
+    visibility = [
+        "//pkg/rshell:__subpackages__",
+        "@com_github_datadog_datadog_agent_pkg_rshell//:__subpackages__",
+    ],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_landlock_lsm_go_landlock//landlock/syscall",
+            "@org_golang_x_sys//unix",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_landlock_lsm_go_landlock//landlock/syscall",
+            "@org_golang_x_sys//unix",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "landlock_test",
+    srcs = [
+        "enforcement_purego_linux_test.go",
+        "policy_test.go",
+        "restrict_linux_test.go",
+    ],
+    embed = [":landlock"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_landlock_lsm_go_landlock//landlock/syscall",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_landlock_lsm_go_landlock//landlock/syscall",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+# The rshell binary is built without cgo (pure = "on"), so run the sandbox tests
+# that way too: the *_purego_linux_test.go enforcement tests only build without cgo.
+dd_agent_go_test(
+    # keep
+    name = "landlock_pure_test",
+    srcs = [
+        "enforcement_purego_linux_test.go",
+        "policy_test.go",
+        "restrict_linux_test.go",
+    ],
+    embed = [":landlock"],
+    pure = "on",
+    race = "off",
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = [
+        "@com_github_stretchr_testify//require",
+    ] + select({
+        "@rules_go//go/platform:android": [
+            "@com_github_landlock_lsm_go_landlock//landlock/syscall",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_landlock_lsm_go_landlock//landlock/syscall",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

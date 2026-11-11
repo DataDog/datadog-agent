@@ -1,0 +1,13 @@
+description: cd . is a no-op, leaving pwd unchanged.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    p1=$(pwd)
+    cd .
+    p2=$(pwd)
+    if [ "$p1" = "$p2" ]; then echo same; else echo different; fi
+expect:
+  stdout: |+
+    same
+  stderr: ""
+  exit_code: 0

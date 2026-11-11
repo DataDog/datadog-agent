@@ -1,0 +1,14 @@
+description: du with path traversal segments resolves and reports the path verbatim.
+setup:
+  files:
+    - path: outer/inner/file.txt
+      content: "12345"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du -b outer/../outer/inner/file.txt
+expect:
+  stdout: |+
+    5	outer/../outer/inner/file.txt
+  stderr: |+
+  exit_code: 0

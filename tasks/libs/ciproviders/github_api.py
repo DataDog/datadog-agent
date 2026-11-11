@@ -370,6 +370,18 @@ class GithubAPI:
 
         return [label.name for label in pr.get_labels()]
 
+    def get_pr_label_author(self, pr_id: int, label: str) -> str | None:
+        """
+        Returns the login of the last actor who added the label to the pull request
+        """
+        pr = self.get_pr(pr_id)
+        author = None
+        for event in pr.as_issue().get_events():
+            if event.event == "labeled" and event.label and event.label.name == label:
+                author = event.actor.login if event.actor else None
+
+        return author
+
     def update_review_complexity_labels(self, pr_id: int, new_label: str) -> None:
         """
         Updates the review complexity label of a pull request
@@ -394,6 +406,19 @@ class GithubAPI:
 
         return [f.filename for f in pr.get_files()]
 
+    def get_pr_files_with_previous_names(self, pr_id: int) -> list[str]:
+        """
+        Returns the files involved in the PR, including the previous path of renamed files
+        """
+        pr = self.get_pr(pr_id)
+        files = []
+        for f in pr.get_files():
+            files.append(f.filename)
+            if f.previous_filename:
+                files.append(f.previous_filename)
+
+        return files
+
     def get_team_members(self, team_slug: str) -> Iterable[NamedUser]:
         """
         Get the members of a team.
@@ -415,6 +440,23 @@ class GithubAPI:
         By default this is not scoped to the repository, it is a global Github search.
         """
         return self._github.search_issues(query)
+
+    def create_branch(self, branch_name: str, sha: str, reset: bool = False):
+        """
+        Create a branch pointing at the given commit.
+        With reset, an existing branch without an open PR is moved to the commit instead, for
+        example a branch left by a failed run or by a PR closed without merge.
+        """
+        try:
+            return self._repository.create_git_ref(ref=f"refs/heads/{branch_name}", sha=sha)
+        except GithubException as e:
+            if not reset or e.status != 422:
+                raise
+        if self.get_pr_for_branch(branch_name).totalCount > 0:
+            raise Exit(f"Branch {branch_name} already exists with an open PR", code=1)
+        ref = self._repository.get_git_ref(f"heads/{branch_name}")
+        ref.edit(sha=sha, force=True)
+        return ref
 
     def commit_and_push_signed(self, branch_name: str, commit_message: str, tree: dict[str, dict[str, str]]):
         # Create a commit from the given tree, see details in https://github.com/orgs/community/discussions/50055
@@ -565,10 +607,12 @@ class GithubAPI:
         return None
 
 
-def create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, other_labels=None, body=""):
+def create_datadog_agent_pr(
+    title, base_branch, target_branch, milestone_name, other_labels=None, body="", repository=GITHUB_REPO_NAME
+):
     print(color_message("Creating PR", "bold"))
 
-    github = GithubAPI(repository=GITHUB_REPO_NAME)
+    github = GithubAPI(repository=repository)
 
     milestone = github.get_milestone_by_name(milestone_name)
 
@@ -623,7 +667,9 @@ Make sure that milestone is open before trying again.""",
     return updated_pr.html_url
 
 
-def create_release_pr(title, base_branch, target_branch, version, changelog_pr=False, milestone=None):
+def create_release_pr(
+    title, base_branch, target_branch, version, changelog_pr=False, milestone=None, repository=GITHUB_REPO_NAME
+):
     if milestone:
         milestone_name = milestone
     else:
@@ -637,7 +683,7 @@ def create_release_pr(title, base_branch, target_branch, version, changelog_pr=F
     if changelog_pr:
         labels.append(f"backport/{get_default_branch()}")
 
-    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels)
+    return create_datadog_agent_pr(title, base_branch, target_branch, milestone_name, labels, repository=repository)
 
 
 def generate_local_github_token(ctx):

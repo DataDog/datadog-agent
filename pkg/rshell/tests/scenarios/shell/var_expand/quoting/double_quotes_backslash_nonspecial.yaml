@@ -1,0 +1,9 @@
+description: Backslash before non-special chars in double quotes is literal.
+input:
+  script: |+
+    echo "\!\#\%\&\'\(\)\*\+\,\-\.\/"
+expect:
+  stdout: |+
+    \!\#\%\&\'\(\)\*\+\,\-\.\/
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,19 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate -- treats a flag-like filename as a literal operand, not a flag.
+setup:
+  files:
+    - path: -f
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --verbose --force -- -f
+    wc -c < ./-f
+expect:
+  stdout: |+
+    logrotate: -f: truncated 5 bytes
+    0
+  stderr: |+
+  exit_code: 0

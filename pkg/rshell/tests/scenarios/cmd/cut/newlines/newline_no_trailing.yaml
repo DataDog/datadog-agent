@@ -1,0 +1,14 @@
+description: Cut adds trailing newline to last line even when input lacks one.
+setup:
+  files:
+    - path: input.txt
+      content: "a:1\nb:2"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d: -f1 input.txt
+expect:
+  stdout: "a\nb\n"
+  stderr: ""
+  exit_code: 0

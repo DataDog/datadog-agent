@@ -1,0 +1,12 @@
+description: The n command at EOF does not duplicate the last line.
+setup:
+  files:
+    - path: input.txt
+      content: "a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 'n' input.txt
+expect:
+  stdout: "a\n"
+  exit_code: 0

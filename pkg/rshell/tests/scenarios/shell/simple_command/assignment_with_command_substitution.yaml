@@ -1,0 +1,10 @@
+description: Variable assignment using command substitution captures output.
+input:
+  script: |+
+    a=$(echo hello)
+    echo "$a"
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

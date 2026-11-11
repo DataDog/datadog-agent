@@ -1,0 +1,15 @@
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+description: Tilde inside heredoc body is allowed (heredocs do not undergo tilde expansion).
+input:
+  script: |+
+    cat <<EOF
+    ~root
+    ~/path
+    EOF
+expect:
+  stdout: |+
+    ~root
+    ~/path
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Inline variable with special characters does not affect current shell echo expansion.
+input:
+  script: |+
+    X="hello world" echo "$X"
+expect:
+  stdout: "\n"
+  stderr: ""
+  exit_code: 0

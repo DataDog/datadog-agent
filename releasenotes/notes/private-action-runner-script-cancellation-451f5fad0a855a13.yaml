@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix improper killing of subprocesses started by script and PowerShell
+    actions in the Private Action Runner. When an action finishes, times out,
+    or is canceled, all of its child processes are now terminated on Unix and
+    Windows, and an action no longer gets stuck when a script leaves
+    background processes running.

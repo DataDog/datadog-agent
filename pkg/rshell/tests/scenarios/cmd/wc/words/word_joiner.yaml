@@ -1,0 +1,30 @@
+description: wc treats WORD JOINER as a zero-width word separator, matching GNU wc.
+setup:
+  files:
+    - path: input.txt
+      content: "0\u20600"
+    - path: separators.txt
+      content: "\u2060\u2060"
+    - path: boundaries.txt
+      content: "\u2060a\u2060\u2060b\u2060"
+    - path: zero_width_space.txt
+      content: "0\u200b0"
+input:
+  envs:
+    LC_ALL: C.UTF-8
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -w input.txt
+    wc -w separators.txt
+    wc -w boundaries.txt
+    wc -w zero_width_space.txt
+    wc -m -c -L input.txt
+expect:
+  stdout: |+
+    2 input.txt
+    0 separators.txt
+    2 boundaries.txt
+    1 zero_width_space.txt
+    3 5 2 input.txt
+  stderr: |+
+  exit_code: 0

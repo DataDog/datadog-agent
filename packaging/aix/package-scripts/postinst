@@ -17,6 +17,30 @@ fi
 # Add dd-agent to adm group (required for sar — used by the CPU check)
 chuser groups=dd-agent,adm dd-agent 2>/dev/null || true
 
+# Raise dd-agent's data-segment limit to 512MiB (1048576 blocks of 512 bytes) when
+# it is unset or lower: the AIX default soft RLIMIT_DATA is 128MiB, which
+# agent-data-plane's malloc'd heap can exceed on busy hosts, causing malloc
+# failures and SIGABRTs. Only ever raise — an unlimited or higher
+# customer-configured limit is left untouched.
+_dd_data=$(awk '
+    function data_value(line) {
+        sub(/^[[:space:]]*data[[:space:]]*=[[:space:]]*/, "", line)
+        sub(/[[:space:]]+$/, "", line)
+        return line
+    }
+    BEGIN { stanza = ""; udata = ""; ddata = "" }
+    /^[A-Za-z_][A-Za-z0-9_.-]*:/ { stanza = $1; sub(":$", "", stanza) }
+    stanza == "dd-agent" && /^[[:space:]]*data[[:space:]]*=/ { udata = data_value($0) }
+    stanza == "default"  && /^[[:space:]]*data[[:space:]]*=/ { ddata = data_value($0) }
+    END { if (udata != "") print udata; else print ddata }
+' /etc/security/limits 2>/dev/null)
+if [ -z "$_dd_data" ] \
+        || { [ "$_dd_data" -gt 0 ] 2>/dev/null && [ "$_dd_data" -lt 1048576 ] 2>/dev/null; }; then
+    chuser data=1048576 dd-agent 2>/dev/null \
+        || echo "datadog-agent: failed to raise the dd-agent data limit to 512MiB (check data_hard in /etc/security/limits)" >&2
+fi
+unset _dd_data
+
 # Set ownership of runtime directories so the agent can write to them.
 # The BFF installs these directories as root:root (build-time default); fix
 # them here after the dd-agent user is guaranteed to exist.

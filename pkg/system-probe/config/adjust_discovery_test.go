@@ -6,6 +6,7 @@
 package config
 
 import (
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -282,7 +283,7 @@ func TestAdjustDiscovery_EnablesNetworkTracerModule(t *testing.T) {
 	_ = mock.NewSystemProbe(t)
 	t.Setenv("DD_DISCOVERY_SERVICE_MAP_ENABLED", "true")
 
-	cfg, err := New("", "")
+	cfg, err := New("", "", &schemanoopimpl.SchemaNoop{})
 	require.NoError(t, err)
 	assert.True(t, cfg.ModuleIsEnabled(types.NetworkTracerModule))
 }

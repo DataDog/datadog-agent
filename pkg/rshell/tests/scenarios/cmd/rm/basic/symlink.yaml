@@ -1,0 +1,20 @@
+description: rm on a symlink removes the link itself; the target file is left untouched.
+setup:
+  files:
+    - path: target.txt
+      content: "keep me\n"
+    - path: link.txt
+      symlink: target.txt
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm link.txt
+    [ -f link.txt ] || echo link_gone
+    [ -f target.txt ] && echo target_kept
+expect:
+  stdout: |+
+    link_gone
+    target_kept
+  stderr: |+
+  exit_code: 0

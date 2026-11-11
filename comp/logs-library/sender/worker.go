@@ -40,7 +40,7 @@ type worker struct {
 	finished       chan struct{}
 	bufferSize     int
 	senderDoneChan chan *sync.WaitGroup
-	flushWg        *sync.WaitGroup
+	serverlessMeta ServerlessMeta // nil unless serverless mode is enabled
 	sink           Sink
 	workerID       string
 
@@ -59,11 +59,11 @@ func newWorker(
 	workerID string,
 ) *worker {
 	var senderDoneChan chan *sync.WaitGroup
-	var flushWg *sync.WaitGroup
+	var enabledServerlessMeta ServerlessMeta
 
 	if serverlessMeta.IsEnabled() {
 		senderDoneChan = serverlessMeta.SenderDoneChan()
-		flushWg = serverlessMeta.WaitGroup()
+		enabledServerlessMeta = serverlessMeta
 	}
 	return &worker{
 		config:         config,
@@ -72,7 +72,7 @@ func newWorker(
 		destinations:   destinationFactory(workerID),
 		bufferSize:     bufferSize,
 		senderDoneChan: senderDoneChan,
-		flushWg:        flushWg,
+		serverlessMeta: enabledServerlessMeta,
 		done:           make(chan struct{}),
 		finished:       make(chan struct{}),
 		workerID:       workerID,
@@ -185,11 +185,11 @@ func (s *worker) run() {
 			tlmSendWaitTime.Add(inUse)
 			s.utilization.Stop()
 
-			if s.senderDoneChan != nil && s.flushWg != nil {
+			if s.senderDoneChan != nil && s.serverlessMeta != nil {
 				// Wait for all destinations to finish sending the payload
 				senderDoneWg.Wait()
-				// Decrement the wait group when this payload has been sent
-				s.flushWg.Done()
+				// Record that this payload has been sent
+				s.serverlessMeta.PendingSendDone()
 			}
 			s.pipelineMonitor.ReportComponentEgress(payload, metrics.WorkerTlmName, s.workerID)
 		case <-s.done:

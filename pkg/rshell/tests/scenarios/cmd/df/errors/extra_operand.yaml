@@ -1,0 +1,12 @@
+description: df with a positional file operand fails with "extra operand"
+# v1 does not support positional FILE arguments; pipe through grep instead.
+skip_assert_against_bash: true
+input:
+  script: |+
+    df /tmp
+expect:
+  stdout: ""
+  stderr_contains:
+    - "df:"
+    - "extra operand"
+  exit_code: 1

@@ -1,0 +1,11 @@
+description: Variable names are case-sensitive.
+input:
+  script: |+
+    foo=lower
+    FOO=upper
+    echo $foo $FOO
+expect:
+  stdout: |+
+    lower upper
+  stderr: ""
+  exit_code: 0

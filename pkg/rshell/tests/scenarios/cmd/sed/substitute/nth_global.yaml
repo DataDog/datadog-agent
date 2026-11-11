@@ -1,0 +1,8 @@
+description: "Combined Nth + global flag replaces from the Nth match onward."
+input:
+  script: |+
+    echo 'aXaXaXa' | sed 's/a/b/2g'
+expect:
+  stdout: "aXbXbXb\n"
+  stderr: ""
+  exit_code: 0

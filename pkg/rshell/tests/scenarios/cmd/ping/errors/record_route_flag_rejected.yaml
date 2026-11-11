@@ -1,0 +1,10 @@
+# -R (record route) is rejected as an unknown flag.
+description: "ping -R (record route) is rejected with exit 1"
+input:
+  script: |+
+    ping -R localhost
+expect:
+  stdout: ""
+  stderr: "ping: invalid option -- 'R'\nTry 'ping --help' for more information.\n"
+  exit_code: 1
+skip_assert_against_bash: true

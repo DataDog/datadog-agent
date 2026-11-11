@@ -1,0 +1,9 @@
+description: Adjacent single-quoted strings are concatenated.
+input:
+  script: |+
+    echo 'hel''lo'
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

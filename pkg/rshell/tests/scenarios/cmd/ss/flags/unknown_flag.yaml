@@ -1,0 +1,9 @@
+description: ss exits 1 with an error when given an unknown flag.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ss --no-such-flag
+expect:
+  stdout: ""
+  stderr_contains: ["ss:"]
+  exit_code: 1

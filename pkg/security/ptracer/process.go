@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/pkg/security/golabels"
 	"github.com/DataDog/datadog-agent/pkg/security/proto/ebpfless"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"golang.org/x/sys/unix"
@@ -72,6 +73,8 @@ type Process struct {
 	FdRes                    *FdResources
 	FsRes                    *FSResources
 	FdToSocket               map[int32]SocketInfo
+	otelProcessCtxNaming     bool
+	tracerMemfdSealing       bool
 }
 
 // NewProcess returns a new process
@@ -143,6 +146,8 @@ func (p *Process) getFilenameFromFdRaw(fd int32) (string, error) {
 type ProcessCache struct {
 	pid2Process map[int]*Process
 	tgid2Pid    map[int][]int
+	tgid2OTel   map[int]*otelState
+	tgid2Go     map[int]*golabels.Layout
 }
 
 // NewProcessCache returns a new thread cache
@@ -150,6 +155,8 @@ func NewProcessCache() *ProcessCache {
 	return &ProcessCache{
 		pid2Process: make(map[int]*Process),
 		tgid2Pid:    make(map[int][]int),
+		tgid2OTel:   make(map[int]*otelState),
+		tgid2Go:     make(map[int]*golabels.Layout),
 	}
 }
 
@@ -211,6 +218,9 @@ func (tc *ProcessCache) Remove(process *Process) {
 	delete(tc.pid2Process, process.Pid)
 
 	if process.Pid == process.Tgid {
+		delete(tc.tgid2OTel, process.Pid)
+		delete(tc.tgid2Go, process.Pid)
+
 		pids, ok := tc.tgid2Pid[process.Pid]
 		if !ok {
 			return
@@ -233,4 +243,50 @@ func (tc *ProcessCache) Remove(process *Process) {
 // Get return the process entry for the given pid
 func (tc *ProcessCache) Get(pid int) *Process {
 	return tc.pid2Process[pid]
+}
+
+// getOTel returns the OTel thread context registration of the given tgid
+func (tc *ProcessCache) getOTel(tgid int) *otelState {
+	return tc.tgid2OTel[tgid]
+}
+
+// setOTel sets the OTel thread context registration of the given tgid
+func (tc *ProcessCache) setOTel(tgid int, state *otelState) {
+	tc.tgid2OTel[tgid] = state
+}
+
+// unsetOTel unsets the OTel thread context registration of the given tgid
+func (tc *ProcessCache) unsetOTel(tgid int) {
+	delete(tc.tgid2OTel, tgid)
+}
+
+// inheritOTel copies the OTel thread context registration to a forked child
+func (tc *ProcessCache) inheritOTel(ptgid, tgid int) {
+	if state := tc.tgid2OTel[ptgid]; state != nil {
+		inherited := *state
+		tc.tgid2OTel[tgid] = &inherited
+	}
+}
+
+// getGoLabels returns the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) getGoLabels(tgid int) *golabels.Layout {
+	return tc.tgid2Go[tgid]
+}
+
+// setGoLabels sets the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) setGoLabels(tgid int, layout *golabels.Layout) {
+	tc.tgid2Go[tgid] = layout
+}
+
+// unsetGoLabels unsets the Go pprof labels layout of the given tgid
+func (tc *ProcessCache) unsetGoLabels(tgid int) {
+	delete(tc.tgid2Go, tgid)
+}
+
+// inheritGoLabels copies the Go pprof labels layout to a forked child: it
+// describes the executable, which a fork does not replace
+func (tc *ProcessCache) inheritGoLabels(ptgid, tgid int) {
+	if layout := tc.tgid2Go[ptgid]; layout != nil {
+		tc.tgid2Go[tgid] = layout
+	}
 }

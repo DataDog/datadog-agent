@@ -1,0 +1,16 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: Unknown command error goes to stderr while stdout remains clean.
+input:
+  script: |+
+    echo before
+    nonexistent_cmd
+    echo after
+expect:
+  stdout: |+
+    before
+    after
+  stderr_contains:
+    - "nonexistent_cmd"
+    - "unknown command"
+  exit_code: 0

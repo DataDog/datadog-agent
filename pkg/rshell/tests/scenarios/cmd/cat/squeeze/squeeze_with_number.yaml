@@ -1,0 +1,13 @@
+description: cat -sn squeezes blank lines before numbering.
+setup:
+  files:
+    - path: file.txt
+      content: "a\n\n\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -sn file.txt
+expect:
+  stdout: "     1\ta\n     2\t\n     3\tb\n"
+  stderr: ""
+  exit_code: 0

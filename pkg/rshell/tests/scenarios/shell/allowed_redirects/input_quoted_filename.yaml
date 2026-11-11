@@ -1,0 +1,13 @@
+description: Input redirection with a quoted filename containing spaces.
+setup:
+  files:
+    - path: "my file.txt"
+      content: "spaces in name"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat < "my file.txt"
+expect:
+  stdout: "spaces in name"
+  stderr: ""
+  exit_code: 0

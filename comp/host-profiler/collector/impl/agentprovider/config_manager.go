@@ -121,8 +121,12 @@ func newConfigManager(config config.Component) configManager {
 		symbolUploaderOptions["enabled"] = config.Get("hostprofiler.symbol_uploader.enabled")
 	}
 
-	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled") &&
-		(config.GetString("infrastructure_mode") == "basic" || config.GetString("infrastructure_mode") == "full")
+	healthMetricsEnabled := config.GetBool("hostprofiler.health_metrics.enabled")
+	infraMode := config.GetString("infrastructure_mode")
+	if healthMetricsEnabled && infraMode != "basic" && infraMode != "full" {
+		log.Warnf("hostprofiler.health_metrics.enabled is set but ignored because infrastructure_mode=%q; health metrics require infrastructure_mode to be \"basic\" or \"full\"", infraMode)
+		healthMetricsEnabled = false
+	}
 	hostProfilerConfig := hostProfilerConfig{
 		ReporterInterval:      config.GetString("hostprofiler.reporter_interval"),
 		EBPFDebugLogs:         config.GetBool("hostprofiler.debug.ebpf_logs"),

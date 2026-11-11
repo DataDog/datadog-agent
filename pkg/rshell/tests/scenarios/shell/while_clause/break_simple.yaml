@@ -1,0 +1,12 @@
+description: break exits a while-true loop without entering the next iteration.
+input:
+  script: |+
+    while true; do
+      break
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: |+
+  exit_code: 0

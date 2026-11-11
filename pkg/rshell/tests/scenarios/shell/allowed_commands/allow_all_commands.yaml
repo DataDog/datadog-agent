@@ -1,0 +1,12 @@
+# skip: allow_all_commands is rshell-specific sandbox configuration with no bash equivalent.
+description: allow_all_commands permits any command to run.
+skip_assert_against_bash: true
+input:
+  allow_all_commands: true
+  script: |+
+    echo hello
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

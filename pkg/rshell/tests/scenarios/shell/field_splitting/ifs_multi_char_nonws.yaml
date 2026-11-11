@@ -1,0 +1,9 @@
+description: IFS with multiple non-whitespace characters splits on each independently.
+input:
+  script: |+
+    IFS=",:"
+    A="a,b:c"
+    for w in $A; do echo "[$w]"; done
+expect:
+  stdout: "[a]\n[b]\n[c]\n"
+  exit_code: 0

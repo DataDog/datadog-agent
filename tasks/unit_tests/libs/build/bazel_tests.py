@@ -1,3 +1,4 @@
+import io
 import os
 import subprocess
 import unittest
@@ -36,6 +37,39 @@ class TestBazel(unittest.TestCase):
         self.assertEqual(res.returncode, 1)
         self.assertEqual(res.stdout, "out\n")
         self.assertEqual(res.stderr, "err\n")
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_capture_stderr(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 0, "", "err\n")
+        self.assertEqual(bazel("info", capture_stderr=True), "err\n")
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_capture_stderr_printed_on_failure(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 2, "", "err\n")
+        with patch("sys.stderr", new_callable=io.StringIO) as stderr, self.assertRaises(SystemExit) as cm:
+            bazel("info", capture_stderr=True)
+        self.assertEqual(cm.exception.code, 2)
+        self.assertTrue(stderr.getvalue().endswith("err\n"))
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_allowed_exit_codes_tolerated(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 4, "out\n", "")
+        self.assertEqual(bazel("info", capture_output=True, allowed_exit_codes=frozenset({4})), "out\n")
+
+    @patch("tasks.libs.build.bazel._run_command")
+    @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")
+    def test_disallowed_exit_code_still_fails(self, _, run_command):
+        run_command.return_value = subprocess.CompletedProcess("/bzlx info", 2, "", "err\n")
+        with self.assertRaises(SystemExit) as cm:
+            bazel("info", allowed_exit_codes=frozenset({4}))
+        self.assertEqual(cm.exception.code, 2)
+
+    def test_capture_both_requires_ignore_errors(self):
+        with self.assertRaises(ValueError):
+            bazel("info", capture_output=True, capture_stderr=True)
 
     @patch("tasks.libs.build.bazel._run_command")
     @patch("tasks.libs.build.bazel.shutil.which", return_value="/bzlx")

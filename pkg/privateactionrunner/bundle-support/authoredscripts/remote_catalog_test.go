@@ -18,7 +18,7 @@ import (
 
 const (
 	testCatalogProduct = "UPDATER_CATALOG_DD"
-	testCatalogFQN     = "com.datadoghq.authoredscripts.helm.addRepo"
+	testExecutionFQN   = "com.datadoghq.authoredscripts.helm.addRepo"
 	testCatalogPackage = "com.datadoghq.authoredscripts.helm.addrepo"
 	testCatalogDigest  = "ea7829a6ebdaa464eb4fbfff4c72e6e63176df58a430a4b0b8dfb66f0e57149c"
 )
@@ -52,7 +52,7 @@ func TestNewRemoteCatalogSubscribesAndFailsClosed(t *testing.T) {
 	cancel()
 	require.ErrorIs(t, catalog.WaitForReady(ctx), context.Canceled)
 
-	_, err = catalog.Lookup(testCatalogFQN)
+	_, err = catalog.Lookup(testExecutionFQN)
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 }
 
@@ -90,16 +90,37 @@ func TestRemoteCatalogAppliesAndReplacesSnapshot(t *testing.T) {
 	requireCatalogReady(t, catalog)
 	require.NoError(t, catalog.WaitForReady(context.Background()))
 
-	descriptor, err := catalog.Lookup(testCatalogFQN)
+	descriptor, err := catalog.Lookup(testExecutionFQN)
 	require.NoError(t, err)
-	want := Descriptor{FQN: testCatalogFQN, Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
+	want := Descriptor{FQN: testExecutionFQN, Package: pkg.Name, Version: pkg.Version, URL: pkg.URL, SHA256: pkg.SHA256}
 	require.Equal(t, want, descriptor)
 	_, err = catalog.Lookup("com.datadoghq.authoredscripts.otherAction")
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 
 	status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{})
 	require.Equal(t, state.ApplyStateAcknowledged, status.State)
-	_, err = catalog.Lookup(testCatalogFQN)
+	_, err = catalog.Lookup(testExecutionFQN)
+	require.ErrorIs(t, err, ErrPackageNotConfigured)
+}
+
+func TestRemoteCatalogLooksUpExecutionFQNOnly(t *testing.T) {
+	const publicFQN = "com.datadoghq.helm.addRepo"
+	client := &testCatalogRCClient{}
+	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
+	require.NoError(t, err)
+
+	publicPackage := validRemotePackage()
+	publicPackage.Name = "com.datadoghq.helm.addrepo"
+	executionPackage := validRemotePackage()
+	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{publicPackage, executionPackage}})
+	require.Equal(t, state.ApplyStateAcknowledged, status.State)
+
+	descriptor, err := catalog.Lookup(testExecutionFQN)
+	require.NoError(t, err)
+	require.Equal(t, testExecutionFQN, descriptor.FQN)
+	require.Equal(t, executionPackage.Name, descriptor.Package)
+
+	_, err = catalog.Lookup(publicFQN)
 	require.ErrorIs(t, err, ErrPackageNotConfigured)
 }
 
@@ -124,30 +145,158 @@ func TestRemoteCatalogRejectsInvalidSnapshotWithoutReplacing(t *testing.T) {
 	require.Equal(t, state.ApplyStateError, status.State)
 	require.NotEmpty(t, status.Error)
 
-	descriptor, err := catalog.Lookup(testCatalogFQN)
+	descriptor, err := catalog.Lookup(testExecutionFQN)
 	require.NoError(t, err)
 	require.Equal(t, valid.Version, descriptor.Version)
 }
 
-func TestRemoteCatalogRejectsMultipleCompatiblePackages(t *testing.T) {
-	client := &testCatalogRCClient{}
-	_, err := NewRemoteCatalog(client, testCatalogProduct)
-	require.NoError(t, err)
-	pkg := validRemotePackage()
-	duplicate := pkg
-	duplicate.Version = "2.0.0"
+func TestRemoteCatalogSelectsLatestCompatiblePackage(t *testing.T) {
+	older := remotePackageVersion("0.0.1", testCatalogDigest)
+	latest := remotePackageVersion("0.0.2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	latest.Latest = true
+	newer := remotePackageVersion("0.0.3", "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc")
+	rollback := older
+	rollback.Latest = true
+	incompatibleOS := latest
+	incompatibleOS.Platform = "not-" + runtime.GOOS
+	incompatibleArch := latest
+	incompatibleArch.Arch = "not-" + runtime.GOARCH
+	portable := latest
+	portable.Platform = ""
+	portable.Arch = ""
 
-	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{pkg, duplicate}})
-	require.Equal(t, state.ApplyStateError, status.State)
-	require.NotEmpty(t, status.Error)
+	tests := []struct {
+		name     string
+		packages []fleetcatalog.Package
+		want     fleetcatalog.Package
+	}{
+		{"single unmarked entry", []fleetcatalog.Package{older}, older},
+		{"single latest entry", []fleetcatalog.Package{latest}, latest},
+		{"latest after older", []fleetcatalog.Package{older, latest}, latest},
+		{"latest before older", []fleetcatalog.Package{latest, older}, latest},
+		{"several unmarked entries before latest", []fleetcatalog.Package{older, newer, latest}, latest},
+		{"several unmarked entries after latest", []fleetcatalog.Package{latest, newer, older}, latest},
+		{"rollback", []fleetcatalog.Package{newer, rollback}, rollback},
+		{"incompatible latest entries", []fleetcatalog.Package{incompatibleOS, older, incompatibleArch}, older},
+		{"compatible latest among incompatible latest entries", []fleetcatalog.Package{incompatibleOS, latest, older, incompatibleArch}, latest},
+		{"portable latest entry", []fleetcatalog.Package{older, portable}, portable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &testCatalogRCClient{}
+			catalog, err := NewRemoteCatalog(client, testCatalogProduct)
+			require.NoError(t, err)
+
+			status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: tt.packages})
+			require.Equal(t, state.ApplyStateAcknowledged, status.State, status.Error)
+			requireCatalogReady(t, catalog)
+
+			descriptor, err := catalog.Lookup(testExecutionFQN)
+			require.NoError(t, err)
+			require.Equal(t, Descriptor{
+				FQN:     testExecutionFQN,
+				Package: tt.want.Name,
+				Version: tt.want.Version,
+				URL:     tt.want.URL,
+				SHA256:  tt.want.SHA256,
+			}, descriptor)
+		})
+	}
+}
+
+func TestRemoteCatalogSelectsLatestIndependentlyForEachPackage(t *testing.T) {
+	client := &testCatalogRCClient{}
+	catalog, err := NewRemoteCatalog(client, testCatalogProduct)
+	require.NoError(t, err)
+
+	firstOlder := remotePackageVersion("0.0.1", testCatalogDigest)
+	firstLatest := remotePackageVersion("0.0.2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	firstLatest.Latest = true
+	secondLatest := firstOlder
+	secondLatest.Name = "com.datadoghq.authoredscripts.echopy3"
+	secondLatest.Latest = true
+	secondNewer := firstLatest
+	secondNewer.Name = secondLatest.Name
+	secondNewer.Latest = false
+	third := firstOlder
+	third.Name = "com.datadoghq.authoredscripts.otheraction"
+
+	status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{
+		firstOlder, secondLatest, third, firstLatest, secondNewer,
+	}})
+	require.Equal(t, state.ApplyStateAcknowledged, status.State, status.Error)
+	for _, want := range []fleetcatalog.Package{firstLatest, secondLatest, third} {
+		descriptor, err := catalog.Lookup(want.Name)
+		require.NoError(t, err)
+		require.Equal(t, Descriptor{
+			FQN: want.Name, Package: want.Name, Version: want.Version, URL: want.URL, SHA256: want.SHA256,
+		}, descriptor)
+	}
+}
+
+func TestRemoteCatalogRejectsAmbiguousSnapshotWithoutReplacing(t *testing.T) {
+	older := remotePackageVersion("0.0.1", testCatalogDigest)
+	newer := remotePackageVersion("0.0.2", "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb")
+	olderLatest := older
+	olderLatest.Latest = true
+	newerLatest := newer
+	newerLatest.Latest = true
+	invalidUnselected := older
+	invalidUnselected.URL = newer.URL
+	mutableLatest := newerLatest
+	mutableLatest.URL = "oci://registry.example.test/authored-script:latest"
+	other := newerLatest
+	other.Name = "com.datadoghq.authoredscripts.otheraction"
+
+	tests := []struct {
+		name     string
+		packages []fleetcatalog.Package
+	}{
+		{"no latest marker", []fleetcatalog.Package{older, newer}},
+		{"multiple latest markers", []fleetcatalog.Package{olderLatest, newerLatest}},
+		{"invalid unselected descriptor", []fleetcatalog.Package{invalidUnselected, newerLatest}},
+		{"mutable latest URL", []fleetcatalog.Package{older, mutableLatest}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			client := &testCatalogRCClient{}
+			catalog, err := NewRemoteCatalog(client, testCatalogProduct)
+			require.NoError(t, err)
+
+			status := applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: tt.packages})
+			require.Equal(t, state.ApplyStateError, status.State)
+			require.NotEmpty(t, status.Error)
+			requireCatalogNotReady(t, catalog)
+
+			status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: []fleetcatalog.Package{olderLatest}})
+			require.Equal(t, state.ApplyStateAcknowledged, status.State, status.Error)
+			before, err := catalog.Lookup(testExecutionFQN)
+			require.NoError(t, err)
+
+			// An otherwise valid package must not be added by a rejected snapshot.
+			packages := append([]fleetcatalog.Package{other}, tt.packages...)
+			status = applyRemoteCatalog(t, client, fleetcatalog.Catalog{Packages: packages})
+			require.Equal(t, state.ApplyStateError, status.State)
+			require.NotEmpty(t, status.Error)
+			after, err := catalog.Lookup(testExecutionFQN)
+			require.NoError(t, err)
+			require.Equal(t, before, after)
+			_, err = catalog.Lookup(other.Name)
+			require.ErrorIs(t, err, ErrPackageNotConfigured)
+		})
+	}
 }
 
 func validRemotePackage() fleetcatalog.Package {
+	return remotePackageVersion("1.2.3", testCatalogDigest)
+}
+
+func remotePackageVersion(version, digest string) fleetcatalog.Package {
 	return fleetcatalog.Package{
 		Name:     testCatalogPackage,
-		Version:  "1.2.3",
-		SHA256:   testCatalogDigest,
-		URL:      "oci://registry.example.test/authored-script@sha256:" + testCatalogDigest,
+		Version:  version,
+		SHA256:   digest,
+		URL:      "oci://registry.example.test/authored-script@sha256:" + digest,
 		Platform: runtime.GOOS,
 		Arch:     runtime.GOARCH,
 	}

@@ -1,0 +1,11 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: declare is not supported.
+input:
+  script: |+
+    declare -i X=42
+expect:
+  stdout: ""
+  stderr: |+
+    declare is not supported
+  exit_code: 2

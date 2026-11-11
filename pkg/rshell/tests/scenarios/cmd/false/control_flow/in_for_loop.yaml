@@ -1,0 +1,13 @@
+description: The false builtin does not stop a for loop from iterating.
+input:
+  script: |+
+    for x in a b; do
+      false
+      echo $x
+    done
+expect:
+  stdout: |+
+    a
+    b
+  stderr: ""
+  exit_code: 0

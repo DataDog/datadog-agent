@@ -1,0 +1,13 @@
+description: When -v and -q are both given, the last flag wins; here -q comes last so headers are suppressed.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -v -q file.txt
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

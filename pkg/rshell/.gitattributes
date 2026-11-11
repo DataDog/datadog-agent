@@ -1,0 +1,4 @@
+# Set go source line endings to LF on all platforms so gofmt can be used
+*.go text=auto eol=lf
+go.mod text eol=lf
+go.sum -diff -merge linguist-generated=true

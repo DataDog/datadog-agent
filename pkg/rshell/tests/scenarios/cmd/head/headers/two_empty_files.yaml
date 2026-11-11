@@ -1,0 +1,15 @@
+description: Two empty files still get headers and a blank-line separator between them.
+setup:
+  files:
+    - path: a.txt
+      content: ""
+    - path: b.txt
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head a.txt b.txt
+expect:
+  stdout: "==> a.txt <==\n\n==> b.txt <==\n"
+  stderr: ""
+  exit_code: 0

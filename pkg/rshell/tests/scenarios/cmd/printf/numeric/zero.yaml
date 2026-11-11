@@ -1,0 +1,9 @@
+description: Printf handles zero as an integer argument.
+input:
+  script: |+
+    printf "%d\n" 0
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

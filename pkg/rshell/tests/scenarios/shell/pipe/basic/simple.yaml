@@ -1,0 +1,9 @@
+description: Pipe connects stdout of one command to stdin of another.
+input:
+  script: |+
+    echo abc | cat
+expect:
+  stdout: |+
+    abc
+  stderr: ""
+  exit_code: 0

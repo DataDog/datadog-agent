@@ -1,0 +1,16 @@
+# vuln-hunt 2026-05-19-codex / field_splitting.
+description: IFS changes inside a subshell do not leak into parent field splitting.
+input:
+  script: |+
+    IFS=:
+    ( IFS=' '; A='a b'; for w in $A; do echo "sub[$w]"; done )
+    A='a:b'
+    for w in $A; do echo "parent[$w]"; done
+expect:
+  stdout: |+
+    sub[a]
+    sub[b]
+    parent[a]
+    parent[b]
+  stderr: ""
+  exit_code: 0

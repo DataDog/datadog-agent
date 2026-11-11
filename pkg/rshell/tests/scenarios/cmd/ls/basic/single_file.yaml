@@ -1,0 +1,15 @@
+description: ls on a single file lists that file.
+setup:
+  files:
+    - path: hello.txt
+      content: "hello world"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls hello.txt
+expect:
+  stdout: |+
+    hello.txt
+  stderr: ""
+  exit_code: 0

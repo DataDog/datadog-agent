@@ -1,0 +1,10 @@
+description: du rejects --exclude (deferred until a safe glob implementation lands).
+skip_assert_against_bash: true  # intentionally not implemented in rshell v1
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du --exclude=*.o .
+expect:
+  stdout: |+
+  stderr_contains: ["du:"]
+  exit_code: 1

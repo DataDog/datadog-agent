@@ -1,0 +1,8 @@
+description: Echo -e with \E (uppercase) escape character.
+input:
+  script: |+
+    echo -e '\E'
+expect:
+  stdout: "\x1b\n"
+  stderr: ""
+  exit_code: 0

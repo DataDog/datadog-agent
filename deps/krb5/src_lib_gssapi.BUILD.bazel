@@ -1,0 +1,251 @@
+load("@@//deps/krb5:krb5_codegen.bzl", "krb5_compile_et", "krb5_concat", "krb5_perl_gen")
+load("@@//deps/krb5:krb5_defs.bzl", "KRB5_COPTS", "KRB5_LOCAL_DEFINES")
+load("@@//deps/krb5:krb5_library.bzl", "krb5_shared_library")
+load("@@//deps/krb5:krb5_tests.bzl", "krb5_c_tests")
+load("@rules_cc//cc:defs.bzl", "cc_library")
+load("@rules_pkg//pkg:mappings.bzl", "pkg_files")
+
+package(
+    default_package_metadata = ["//:package_metadata"],
+    default_visibility = [
+        "//:__subpackages__",
+        "@@//deps/krb5:__pkg__",
+    ],
+)
+
+krb5_compile_et(
+    name = "gssapi_err_generic",
+    src = "generic/gssapi_err_generic.et",
+    out_c = "generic/gssapi_err_generic.c",
+    out_h = "generic/gssapi_err_generic.h",
+)
+
+krb5_compile_et(
+    name = "gssapi_err_krb5",
+    src = "krb5/gssapi_err_krb5.et",
+    out_c = "krb5/gssapi_err_krb5.c",
+    out_h = "krb5/gssapi_err_krb5.h",
+)
+
+krb5_concat(
+    name = "gssapi_h",
+    out = "generic/gssapi.h",
+    inputs = ["generic/gssapi.hin"],
+    prologue = "/* This is the gssapi.h prologue. */\\n/* no xom.h */\\n/* End of gssapi.h prologue. */",
+)
+
+# Generated maps used by the mechglue and krb5 mechanism, as in their Makefile.in.
+krb5_perl_gen(
+    name = "errmap_h",
+    out = "generic/errmap.h",
+    modules = ["//src/util:perl_modules"],
+    perl_args = ["-w"],
+    script = "//src/util:gen.pl",
+    script_args = [
+        "bimap",
+        "{out}",
+        "NAME=mecherrmap",
+        "LEFT=OM_uint32",
+        "RIGHT=struct mecherror",
+        "LEFTPRINT=print_OM_uint32",
+        "RIGHTPRINT=mecherror_print",
+        "LEFTCMP=cmp_OM_uint32",
+        "RIGHTCMP=mecherror_cmp",
+    ],
+)
+
+krb5_perl_gen(
+    name = "error_map_h",
+    out = "krb5/error_map.h",
+    modules = ["//src/util:perl_modules"],
+    script = "//src/util:gen-map.pl",
+    script_args = [
+        "-o{out}",
+        "NAME=gsserrmap",
+        "KEY=OM_uint32",
+        "VALUE=char *",
+        "COMPARE=compare_OM_uint32",
+        "FREEVALUE=free_string",
+    ],
+)
+
+cc_library(
+    name = "gssapi_generic_h",
+    hdrs = [
+        "generic/gssapi_alloc.h",
+        "generic/gssapi_ext.h",
+        "generic/gssapi_generic.h",
+        ":gssapi_h",
+    ],
+    include_prefix = "gssapi",
+    strip_include_prefix = "generic",
+)
+
+cc_library(
+    name = "gssapi_krb5_h",
+    hdrs = ["krb5/gssapi_krb5.h"],
+    include_prefix = "gssapi",
+    strip_include_prefix = "krb5",
+    deps = [":gssapi_generic_h"],
+)
+
+cc_library(
+    name = "gssapi_mechglue_h",
+    hdrs = ["mechglue/mechglue.h"],
+    include_prefix = "gssapi",
+    strip_include_prefix = "mechglue",
+    deps = [":gssapi_generic_h"],
+)
+
+cc_library(
+    name = "gssapi_private_h",
+    hdrs = glob([
+        "generic/*.h",
+        "krb5/*.h",
+        "mechglue/*.h",
+        "spnego/*.h",
+    ]) + [
+        "generic/gssapi_err_generic.h",
+        "krb5/gssapi_err_krb5.h",
+        ":errmap_h",
+        ":error_map_h",
+        ":gssapi_h",
+    ],
+    includes = [
+        ".",
+        "generic",
+        "krb5",
+        "mechglue",
+        "spnego",
+    ],
+)
+
+# libgssapi_krb5 (lib/gssapi): GSS-API with the krb5 and SPNEGO mechanisms.
+krb5_shared_library(
+    name = "gssapi_krb5",
+    srcs = glob(["krb5/*.c"]) + [
+        "generic/disp_com_err_status.c",
+        "generic/disp_major_status.c",
+        "generic/gssapi_generic.c",
+        "generic/oid_ops.c",
+        "generic/rel_buffer.c",
+        "generic/rel_oid_set.c",
+        "generic/util_buffer.c",
+        "generic/util_buffer_set.c",
+        "generic/util_errmap.c",
+        "generic/util_seqstate.c",
+        "generic/util_token.c",
+        "mechglue/g_accept_sec_context.c",
+        "mechglue/g_acquire_cred.c",
+        "mechglue/g_acquire_cred_imp_name.c",
+        "mechglue/g_acquire_cred_with_pw.c",
+        "mechglue/g_authorize_localname.c",
+        "mechglue/g_buffer_set.c",
+        "mechglue/g_canon_name.c",
+        "mechglue/g_compare_name.c",
+        "mechglue/g_complete_auth_token.c",
+        "mechglue/g_context_time.c",
+        "mechglue/g_decapsulate_token.c",
+        "mechglue/g_del_name_attr.c",
+        "mechglue/g_delete_sec_context.c",
+        "mechglue/g_dsp_name.c",
+        "mechglue/g_dsp_name_ext.c",
+        "mechglue/g_dsp_status.c",
+        "mechglue/g_dup_name.c",
+        "mechglue/g_encapsulate_token.c",
+        "mechglue/g_exp_sec_context.c",
+        "mechglue/g_export_cred.c",
+        "mechglue/g_export_name.c",
+        "mechglue/g_export_name_comp.c",
+        "mechglue/g_get_name_attr.c",
+        "mechglue/g_glue.c",
+        "mechglue/g_imp_cred.c",
+        "mechglue/g_imp_name.c",
+        "mechglue/g_imp_sec_context.c",
+        "mechglue/g_init_sec_context.c",
+        "mechglue/g_initialize.c",
+        "mechglue/g_inq_context.c",
+        "mechglue/g_inq_context_oid.c",
+        "mechglue/g_inq_cred.c",
+        "mechglue/g_inq_cred_oid.c",
+        "mechglue/g_inq_name.c",
+        "mechglue/g_inq_names.c",
+        "mechglue/g_map_name_to_any.c",
+        "mechglue/g_mech_invoke.c",
+        "mechglue/g_mechattr.c",
+        "mechglue/g_negoex.c",
+        "mechglue/g_oid_ops.c",
+        "mechglue/g_prf.c",
+        "mechglue/g_process_context.c",
+        "mechglue/g_rel_buffer.c",
+        "mechglue/g_rel_cred.c",
+        "mechglue/g_rel_name.c",
+        "mechglue/g_rel_name_mapping.c",
+        "mechglue/g_rel_oid_set.c",
+        "mechglue/g_saslname.c",
+        "mechglue/g_seal.c",
+        "mechglue/g_set_context_option.c",
+        "mechglue/g_set_cred_option.c",
+        "mechglue/g_set_name_attr.c",
+        "mechglue/g_set_neg_mechs.c",
+        "mechglue/g_sign.c",
+        "mechglue/g_store_cred.c",
+        "mechglue/g_unseal.c",
+        "mechglue/g_unwrap_aead.c",
+        "mechglue/g_unwrap_iov.c",
+        "mechglue/g_verify.c",
+        "mechglue/g_wrap_aead.c",
+        "mechglue/g_wrap_iov.c",
+        "mechglue/gssd_pname_to_uid.c",
+        "spnego/negoex_ctx.c",
+        "spnego/negoex_util.c",
+        "spnego/spnego_mech.c",
+        ":gssapi_err_generic",
+        ":gssapi_err_krb5",
+    ],
+    dynamic_deps = [
+        "//src/lib/crypto:k5crypto_pkg",
+        "//src/lib/krb5:krb5_pkg",
+        "//src/util:com_err_pkg",
+        "//src/util:krb5support_pkg",
+    ],
+    implementation_deps = [":gssapi_private_h"],
+    linkopts = ["-ldl"],
+    local_defines = ["_GSS_STATIC_LINK=1"],
+    version = "2.2",
+    exports = "libgssapi_krb5.exports",
+    deps = [
+        ":gssapi_generic_h",
+        ":gssapi_krb5_h",
+        ":gssapi_mechglue_h",
+        "//:include",
+        "//src/lib/crypto:k5crypto_lib",
+        "//src/lib/krb5:krb5_lib",
+        "//src/util:com_err_lib",
+        "//src/util:krb5support_lib",
+    ],
+)
+
+pkg_files(
+    name = "hdr_files",
+    srcs = [
+        "generic/gssapi_alloc.h",
+        "generic/gssapi_ext.h",
+        "generic/gssapi_generic.h",
+        "krb5/gssapi_krb5.h",
+        "mechglue/mechglue.h",
+        ":gssapi_h",
+    ],
+    prefix = "embedded/include/gssapi",
+)
+
+krb5_c_tests(
+    name = "gssapi_tests",
+    srcs = ["generic/t_seqstate.c"],
+    copts = KRB5_COPTS,
+    local_defines = KRB5_LOCAL_DEFINES + ["_GSS_STATIC_LINK=1"],
+    deps = [
+        ":gssapi_krb5_lib",
+        ":gssapi_private_h",
+    ],
+)

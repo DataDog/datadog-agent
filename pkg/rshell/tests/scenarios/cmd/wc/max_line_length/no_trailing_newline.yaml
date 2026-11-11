@@ -1,0 +1,13 @@
+description: wc -L counts a final line with no trailing newline.
+setup:
+  files:
+    - path: file.txt
+      content: "\n123456"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -L file.txt
+expect:
+  stdout: "6 file.txt\n"
+  stderr: ""
+  exit_code: 0

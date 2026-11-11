@@ -1,0 +1,13 @@
+description: The b command branches to a named label defined with colon.
+setup:
+  files:
+    - path: input.txt
+      content: "aaa\nbbb\nccc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n '/bbb/b skip; p; :skip' input.txt
+expect:
+  stdout: "aaa\nccc\n"
+  stderr: ""
+  exit_code: 0

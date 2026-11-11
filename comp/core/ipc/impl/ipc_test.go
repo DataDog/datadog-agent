@@ -26,6 +26,8 @@ import (
 )
 
 func TestSuccessfulCreateAndSetAuthToken(t *testing.T) {
+	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
 	// Create a new config
 	mockConfig := configmock.New(t)
 	tmpDir, err := os.MkdirTemp("", "")
@@ -62,6 +64,8 @@ func TestSuccessfulCreateAndSetAuthToken(t *testing.T) {
 }
 
 func TestSuccessfulLoadAuthToken(t *testing.T) {
+	defer pkgapiutil.TestOnlyResetCrossNodeClientTLSConfig()
+
 	// Create a new config
 	mockConfig := configmock.New(t)
 	tmpDir, err := os.MkdirTemp("", "")

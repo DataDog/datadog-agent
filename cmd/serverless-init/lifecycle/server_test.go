@@ -19,6 +19,7 @@ import (
 	"sync"
 	"syscall"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -195,7 +196,7 @@ func (m *mockMetadataReporter) ReportMetadata(id string) {
 func (m *mockMetadataReporter) getIDs() []string {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	return append([]string{}, m.ids...)
+	return slices.Clone(m.ids)
 }
 
 func TestHandleRun_MetadataReporter_InvokedWithInstanceID(t *testing.T) {
@@ -260,6 +261,35 @@ func TestHandleRun_NilMetadataReporter_NoPanic(t *testing.T) {
 		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, body))
 		srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
 	})
+}
+
+func TestMetadataReporterPanic_ReleasesLock(t *testing.T) {
+	srv, _, _, _, _, _ := newTestServer()
+	reporter := &mockMetadataReporter{}
+	panicked := false
+	srv.SetMetadataReporter(MetadataReporterFunc(func(id string) {
+		if !panicked {
+			panicked = true
+			panic("reporter failure")
+		}
+		reporter.ReportMetadata(id)
+	}))
+
+	assert.Panics(t, func() {
+		srv.handleRun(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathRun, strings.NewReader(`{"microvmId":"vm-abc123"}`)))
+	})
+
+	resumed := make(chan struct{})
+	go func() {
+		defer close(resumed)
+		srv.handleResume(httptest.NewRecorder(), httptest.NewRequest(http.MethodPost, pathResume, nil))
+	}()
+	select {
+	case <-resumed:
+	case <-time.After(5 * time.Second):
+		t.Fatal("resume blocked on the metadata lock after a reporter panic")
+	}
+	assert.Equal(t, []string{"vm-abc123"}, reporter.getIDs())
 }
 
 // TestHandleRun_BodyReadError_Returns500 verifies that a body read failure
@@ -557,6 +587,10 @@ func TestHandleTerminate_ForceFlushesTraceFlusherWithoutStop(t *testing.T) {
 // outlasts the flush budget (e.g. the trace receiver waiting on an in-flight
 // request) doesn't hold up the /terminate response.
 func TestHandleTerminate_BlockedTraceStopReturnsWithinBudget(t *testing.T) {
+	synctest.Test(t, syncTestHandleTerminateBlockedTraceStopReturnsWithinBudget)
+}
+
+func syncTestHandleTerminateBlockedTraceStopReturnsWithinBudget(t *testing.T) {
 	trace := &mockTraceStopper{stopBlock: make(chan struct{})}
 	defer close(trace.stopBlock)
 	const flushTimeout = 100 * time.Millisecond
@@ -566,7 +600,7 @@ func TestHandleTerminate_BlockedTraceStopReturnsWithinBudget(t *testing.T) {
 	start := time.Now()
 	srv.handleTerminate(rec, httptest.NewRequest(http.MethodPost, pathTerminate, nil))
 
-	assert.Less(t, time.Since(start), 10*flushTimeout, "/terminate must return within the flush budget")
+	assert.Equal(t, flushTimeout, time.Since(start), "/terminate must return as soon as the flush budget expires")
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Equal(t, int32(1), trace.stopCount.Load(), "/terminate must call Stop")
 }

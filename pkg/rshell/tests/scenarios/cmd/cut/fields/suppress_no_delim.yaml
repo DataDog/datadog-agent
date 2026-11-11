@@ -1,0 +1,14 @@
+description: Cut with -s suppresses lines without the delimiter and selects field range.
+setup:
+  files:
+    - path: input.txt
+      content: "a:b:c\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -s -d: -f3- input.txt
+expect:
+  stdout: "c\n"
+  stderr: ""
+  exit_code: 0

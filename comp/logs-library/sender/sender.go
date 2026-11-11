@@ -6,6 +6,7 @@
 package sender
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -65,32 +66,78 @@ type Sender struct {
 // ServerlessMeta is a struct that contains essential control structures for serverless mode.
 // Do not access any methods on this interface without checking IsEnabled first.
 type ServerlessMeta interface {
-	Lock()
-	Unlock()
-	WaitGroup() *sync.WaitGroup
+	// AddPendingSend records a payload queued for sending, so a flush waits until it is sent.
+	AddPendingSend()
+	// PendingSendDone records that a queued payload has been sent to all destinations.
+	PendingSendDone()
+	// WaitPendingSends returns once no payloads are pending, or ctx is done.
+	WaitPendingSends(ctx context.Context)
 	SenderDoneChan() chan *sync.WaitGroup
 	IsEnabled() bool
 }
 
 // NewServerlessMeta creates a new ServerlessMeta instance.
 func NewServerlessMeta(isEnabled bool) ServerlessMeta {
+	// The counter is created even when disabled, so its methods are harmless if called without checking IsEnabled.
 	if isEnabled {
-		return &serverlessMetaImpl{sync.Mutex{}, sync.WaitGroup{}, make(chan *sync.WaitGroup), isEnabled}
+		return &serverlessMetaImpl{pendingSends: newPendingSends(), senderDoneChan: make(chan *sync.WaitGroup), enabled: isEnabled}
 	}
-	return &serverlessMetaImpl{}
+	return &serverlessMetaImpl{pendingSends: newPendingSends()}
 }
 
 // serverlessMetaImpl is a struct that contains essential control structures for serverless mode.
 type serverlessMetaImpl struct {
-	sync.Mutex
-	wg             sync.WaitGroup
+	*pendingSends
 	senderDoneChan chan *sync.WaitGroup
 	enabled        bool
 }
 
-// WaitGroup returns the wait group for the serverless mode, used to block the pipeline flush until all payloads are sent.
-func (s *serverlessMetaImpl) WaitGroup() *sync.WaitGroup {
-	return &s.wg
+// pendingSends counts payloads queued for sending that have not been sent to all destinations yet.
+// Unlike waiting on a sync.WaitGroup under a lock, a wait that ends early does not block payloads queued afterwards.
+type pendingSends struct {
+	mu    sync.Mutex
+	count int
+	idle  chan struct{} // closed while count is zero
+}
+
+func newPendingSends() *pendingSends {
+	idle := make(chan struct{})
+	close(idle)
+	return &pendingSends{idle: idle}
+}
+
+// AddPendingSend records a payload queued for sending, so a flush waits until it is sent.
+func (p *pendingSends) AddPendingSend() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.count == 0 {
+		p.idle = make(chan struct{})
+	}
+	p.count++
+}
+
+// PendingSendDone records that a queued payload has been sent to all destinations.
+func (p *pendingSends) PendingSendDone() {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if p.count == 0 {
+		panic("sender: PendingSendDone called with no pending sends")
+	}
+	p.count--
+	if p.count == 0 {
+		close(p.idle)
+	}
+}
+
+// WaitPendingSends returns once no payloads are pending, or ctx is done.
+func (p *pendingSends) WaitPendingSends(ctx context.Context) {
+	p.mu.Lock()
+	idle := p.idle
+	p.mu.Unlock()
+	select {
+	case <-idle:
+	case <-ctx.Done():
+	}
 }
 
 // SenderDoneChan returns the channel is used to transfer wait groups from the sync_destination to the sender.

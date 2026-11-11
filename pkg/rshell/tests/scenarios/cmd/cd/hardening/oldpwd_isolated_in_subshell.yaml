@@ -1,0 +1,19 @@
+description: cd in a subshell does not pollute the parent's $OLDPWD.
+setup:
+  files:
+    - path: a/leaf
+      content: ""
+    - path: b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a
+    parent_oldpwd=$OLDPWD
+    ( cd ../b )
+    if [ "$OLDPWD" = "$parent_oldpwd" ]; then echo unchanged; else echo leaked; fi
+expect:
+  stdout: |+
+    unchanged
+  stderr: ""
+  exit_code: 0

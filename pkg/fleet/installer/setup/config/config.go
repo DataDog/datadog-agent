@@ -231,6 +231,12 @@ type SystemProbeConfig struct {
 	GPUMonitoringConfig   GPUMonitoringConfig   `yaml:"gpu_monitoring,omitempty"`
 	PrivilegedLogsConfig  PrivilegedLogsConfig  `yaml:"privileged_logs,omitempty"`
 	WindowsCrashDetection WindowsCrashDetection `yaml:"windows_crash_detection,omitempty"`
+	NetworkConfig         NetworkConfig         `yaml:"network_config,omitempty"`
+}
+
+// NetworkConfig represents the configuration for Cloud Network Monitoring
+type NetworkConfig struct {
+	Enabled *bool `yaml:"enabled,omitempty"`
 }
 
 // WindowsCrashDetection represents the configuration for Windows crash detection

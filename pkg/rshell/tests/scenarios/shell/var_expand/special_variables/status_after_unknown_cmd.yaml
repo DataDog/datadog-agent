@@ -1,0 +1,13 @@
+# skip: error message format differs from bash
+skip_assert_against_bash: true
+description: The $? variable is 127 after an unknown command.
+input:
+  script: |+
+    nonexistent_cmd
+    echo $?
+expect:
+  stdout: |+
+    127
+  stderr_contains:
+    - "unknown command"
+  exit_code: 0

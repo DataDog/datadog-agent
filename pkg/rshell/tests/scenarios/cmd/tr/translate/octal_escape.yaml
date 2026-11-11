@@ -1,0 +1,8 @@
+description: tr translates using octal escape sequences.
+input:
+  script: |+
+    printf 'hello\n' | tr '\150' X
+expect:
+  stdout: "Xello\n"
+  stderr: ""
+  exit_code: 0

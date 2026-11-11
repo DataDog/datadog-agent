@@ -1,0 +1,9 @@
+description: In a || chain the middle command succeeds so the rest are skipped.
+input:
+  script: |+
+    false || echo middle || echo skipped
+expect:
+  stdout: |+
+    middle
+  stderr: ""
+  exit_code: 0

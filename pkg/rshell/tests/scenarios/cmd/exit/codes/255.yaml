@@ -1,0 +1,8 @@
+description: Exit with code 255, the maximum single-byte value.
+input:
+  script: |+
+    exit 255
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 255

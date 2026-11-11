@@ -300,9 +300,9 @@ func (ia *inventoryagent) fetchSystemProbeMetadata() {
 	ia.data.Set("feature_discovery_enabled", sysProbeConf.GetBool("discovery.enabled"))
 	ia.data.Set("feature_discovery_service_map_enabled", sysProbeConf.GetBool("discovery.service_map.enabled"))
 
-	// GPU monitoring / system-probe
-
-	ia.data.Set("feature_gpu_monitoring_enabled", sysProbeConf.GetBool("gpu_monitoring.enabled"))
+	// GPU monitoring is on when the core check (datadog.yaml gpu.enabled) or the
+	// system-probe module (system-probe.yaml gpu_monitoring.enabled) is enabled.
+	ia.data.Set("feature_gpu_monitoring_enabled", ia.conf.GetBool("gpu.enabled") || sysProbeConf.GetBool("gpu_monitoring.enabled"))
 
 	// miscellaneous / system-probe
 
@@ -547,7 +547,7 @@ func (ia *inventoryagent) readAndScrubConfig(path string) ([]byte, bool) {
 	return scrubbedConfig, true
 }
 
-func (ia *inventoryagent) getPayload() marshaler.JSONMarshaler {
+func (ia *inventoryagent) getPayload() marshaler.TypedJSONMarshaler {
 	ia.refreshMetadata()
 	payload := ia.data.GetPayload(nil, uuid.GetUUID())
 	payload.FilesMetadata = ia.getRawFiles()

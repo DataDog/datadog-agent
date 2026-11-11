@@ -1,0 +1,11 @@
+description: A && chain stops at the fourth command when it fails.
+input:
+  script: |+
+    echo one && echo two && echo three && false && echo five
+expect:
+  stdout: |+
+    one
+    two
+    three
+  stderr: ""
+  exit_code: 1

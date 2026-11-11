@@ -15,13 +15,6 @@ import (
 )
 
 func TestIsEnabled(t *testing.T) {
-	t.Run("defaults to enabled when env and yaml are empty", func(t *testing.T) {
-		t.Setenv(enabledEnvVar, "")
-		os.Unsetenv(enabledEnvVar)
-		path := writeYAML(t, "")
-		require.True(t, isEnabled(path))
-	})
-
 	t.Run("yaml disables the consumer", func(t *testing.T) {
 		os.Unsetenv(enabledEnvVar)
 		path := writeYAML(t, `
@@ -63,6 +56,6 @@ remote_agent:
 
 	t.Run("missing yaml falls back to the default", func(t *testing.T) {
 		os.Unsetenv(enabledEnvVar)
-		require.True(t, isEnabled("/does/not/exist/datadog.yaml"))
+		require.Equal(t, defaultEnabled, isEnabled("/does/not/exist/datadog.yaml"))
 	})
 }

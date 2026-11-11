@@ -1,0 +1,19 @@
+description: When an if condition contains multiple commands, only the last command's exit status determines which branch runs.
+input:
+  script: |+
+    if false; true; then
+      echo then-taken
+    else
+      echo else-taken
+    fi
+    if true; false; then
+      echo second-then
+    else
+      echo second-else
+    fi
+expect:
+  stdout: |+
+    then-taken
+    second-else
+  stderr: ""
+  exit_code: 0

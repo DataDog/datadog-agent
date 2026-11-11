@@ -1,0 +1,15 @@
+description: xargs -a FILE reads input items from the named file.
+setup:
+  files:
+    - path: items.txt
+      content: |+
+        x y z
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    xargs -a items.txt echo
+expect:
+  stdout: |+
+    x y z
+  stderr: |+
+  exit_code: 0

@@ -130,6 +130,7 @@ sudo launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
 sudo launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
+sudo launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
 for logged_uid in $(who | awk '{print $1}' | sort -u | xargs -I{} id -u {} 2>/dev/null); do
 	sudo launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
 	sudo launchctl bootout "gui/$logged_uid/com.datadoghq.ai-usage-agent.desktop-monitor" 2>/dev/null || true
@@ -142,12 +143,15 @@ sudo rm -f /Library/LaunchDaemons/com.datadoghq.procmgr.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
 sudo rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
+sudo rm -f /Library/LaunchDaemons/com.datadoghq.installer.plist
 sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 sudo rm -f /Library/LaunchAgents/com.datadoghq.ai-usage-agent.desktop-monitor.plist
 sudo rm -f /Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist
 sudo rm -rf "/Applications/Datadog Agent.app"
 sudo rm -rf /opt/datadog-agent
+sudo rm -rf /opt/datadog-packages
 sudo rm -f /usr/local/bin/datadog-agent
+sudo rm -f /usr/local/bin/datadog-installer
 sudo rm -f /var/log/datadog
 sudo rm -rf /private/var/root/datadog-install
 `
@@ -327,8 +331,8 @@ func (m *macosInstallSuite) TestInstallAgent() {
 }
 
 // TestLaunchDaemonsInstalledByInstaller checks that the .dmg postinstall script had the installer
-// write and load the Agent's stable LaunchDaemons, from the same definitions the package ships as a
-// fallback, and that nothing else was loaded.
+// write and load the Agent's stable LaunchDaemons and its own daemon's, and that nothing else was
+// loaded.
 func (m *macosInstallSuite) TestLaunchDaemonsInstalledByInstaller() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	macosLogDiagnosticsOnFailure(m.T(), macosTestClient)
@@ -344,7 +348,7 @@ func (m *macosInstallSuite) TestLaunchDaemonsInstalledByInstaller() {
 	require.NoError(m.T(), err)
 	assert.Empty(m.T(), strings.TrimSpace(examples))
 
-	// The installer is only used to install the Agent's LaunchDaemons: it does not run as a daemon.
+	assertMacosInstallerLaunchDaemon(m.T(), macosTestClient)
 	assertNoMacosUnexpectedLaunchDaemons(m.T(), macosTestClient)
 }
 
@@ -780,7 +784,7 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 	// `launchctl bootout` returns as soon as it has requested the unload; launchd removes the
 	// job from its job table asynchronously, so a `launchctl print` run immediately afterwards
 	// can still report the service as registered. Poll instead of asserting on the first try.
-	for _, service := range macosStableLaunchDaemons {
+	for _, service := range append(append([]string{}, macosStableLaunchDaemons...), macosInstallerLaunchDaemon) {
 		m.EventuallyWithT(func(c *assert.CollectT) {
 			_, err := macosTestClient.Execute("sudo launchctl print system/" + service)
 			assert.Error(c, err, "service %s should no longer be registered with launchd", service)
@@ -793,11 +797,13 @@ func (m *macosInstallSuite) TestZZUninstallAgent() {
 		"/Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist",
 		"/Applications/Datadog Agent.app",
 		"/opt/datadog-agent",
+		"/opt/datadog-packages",
 		"/usr/local/bin/datadog-agent",
+		"/usr/local/bin/datadog-installer",
 		"/var/log/datadog",
 		"/private/var/root/datadog-install",
 	}
-	for _, label := range macosStableLaunchDaemons {
+	for _, label := range append(append([]string{}, macosStableLaunchDaemons...), macosInstallerLaunchDaemon) {
 		removedPaths = append(removedPaths, macosLaunchDaemonPath(label))
 	}
 	for _, path := range removedPaths {

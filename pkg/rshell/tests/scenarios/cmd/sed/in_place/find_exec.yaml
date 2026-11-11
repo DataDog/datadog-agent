@@ -1,0 +1,21 @@
+# Tests the child CallContext dispatch path (find -exec), which is a separate
+# CallContext construction from the main dispatch in runner_exec.go. sed's
+# own -i gate reads callCtx.RemediationMode, which is wired on the find -exec
+# child context the same way as the top-level one (see runner_exec.go).
+description: sed -i invoked via find -exec works in remediation mode.
+setup:
+  files:
+    - path: big.log
+      content: "error: bad\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    find . -name "*.log" -exec sed -i 's/bad/good/' {} \;
+    cat big.log
+expect:
+  stdout: |+
+    error: good
+  stderr: |+
+  exit_code: 0
+skip_assert_against_bash: true

@@ -1,0 +1,20 @@
+# skip: allowed_paths sandbox restriction is an rshell-specific feature not present in bash
+skip_assert_against_bash: true
+description: The false builtin cannot hide an input redirect outside allowed paths.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/data.txt
+      content: "secret\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    false < secret/data.txt || echo blocked
+    echo after
+expect:
+  stdout: |+
+    blocked
+    after
+  stderr_contains: ["permission denied"]
+  exit_code: 0

@@ -1,0 +1,9 @@
+description: Printf formats and prints a simple string with %s specifier.
+input:
+  script: |+
+    printf "%s\n" hello
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

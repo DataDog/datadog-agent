@@ -64,9 +64,9 @@ description 'Datadog dogstatsd agent
  Dogstatsd is a lightweight process that will receive dogstatsd packet, aggregate
  them and forward them to Datadog backend. Its main purpose is to handle custom
  metrics from external processes.
- .
+
  This package installs and runs Dogstatsd.
- .
+
  See http://www.datadoghq.com/ for more information
 '
 

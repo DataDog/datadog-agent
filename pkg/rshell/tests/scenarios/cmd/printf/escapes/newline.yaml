@@ -1,0 +1,10 @@
+description: Printf interprets backslash-n as a newline in the format string.
+input:
+  script: |+
+    printf "a\nb\n"
+expect:
+  stdout: |+
+    a
+    b
+  stderr: ""
+  exit_code: 0

@@ -45,6 +45,7 @@ ALL_TAGS = set([
     "kvstore",
     "bpf",
     "ncm",
+    "ndm",  # Network Device Monitoring: the connectivity check and discovery components
     "netcgo",  # Force the use of the CGO resolver. This will also have the effect of making the binary non-static
     "netgo",
     "no_gogo",  # drops the gogo/protobuf compatibility shim in containerd/typeurl
@@ -109,6 +110,7 @@ AGENT_TAGS = set([
     "kubelet",
     "kvstore",
     "ncm",
+    "ndm",
     "netcgo",
     "nvml",
     "oracle",

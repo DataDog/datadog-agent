@@ -1,0 +1,12 @@
+description: help in read-only mode shows the mode and remediation-only commands as disabled.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help
+expect:
+  stdout_contains:
+    - "read-only mode"
+    - "truncate"
+    - "systemctl"
+  stderr: |+
+  exit_code: 0

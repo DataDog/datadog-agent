@@ -1,0 +1,11 @@
+description: Hash character inside quotes is not treated as a comment.
+input:
+  script: |+
+    echo "not a # comment"
+    echo 'also not a # comment'
+expect:
+  stdout: |+
+    not a # comment
+    also not a # comment
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Basic if statement with false condition does not execute then branch.
+input:
+  script: |+
+    if false; then echo yes; fi
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -6,9 +6,7 @@
 use anyhow::{Context, Result, bail};
 #[cfg(not(test))]
 use log::info;
-#[cfg(not(test))]
 use std::ptr;
-#[cfg(not(test))]
 use windows_sys::Win32::System::Services::{
     CloseServiceHandle, OpenSCManagerW, OpenServiceW, QUERY_SERVICE_CONFIGW, QueryServiceConfigW,
     SC_HANDLE, SC_MANAGER_CONNECT, SERVICE_QUERY_CONFIG,
@@ -16,10 +14,8 @@ use windows_sys::Win32::System::Services::{
 
 use super::sid::lookup_account_sid;
 use super::sid::sid_to_string;
-#[cfg(not(test))]
 use super::wide;
 
-#[cfg(not(test))]
 pub(crate) const DATADOG_AGENT_SERVICE: &str = "datadogagent";
 
 #[cfg(not(test))]
@@ -46,16 +42,55 @@ pub(crate) fn service_runs_as_agent_user(
 }
 
 pub(crate) fn lookup_installed_user_sid(domain: &str, user: &str) -> Result<Vec<u8>> {
+    lookup_installed_user_sid_with(domain, user, lookup_account_sid, || {
+        let service_user = service_start_name(DATADOG_AGENT_SERVICE)?;
+        let computer = super::local_account::computer_name()?;
+        Ok(local_service_account_domain(&service_user, user, &computer))
+    })
+}
+
+fn lookup_installed_user_sid_with(
+    domain: &str,
+    user: &str,
+    mut lookup: impl FnMut(&str, &str) -> Result<Vec<u8>>,
+    local_service_domain: impl FnOnce() -> Result<Option<String>>,
+) -> Result<Vec<u8>> {
     let mut last_err = None;
     for (candidate_domain, candidate_user) in installed_user_lookup_candidates(domain, user) {
-        match lookup_account_sid(&candidate_domain, &candidate_user) {
+        match lookup(&candidate_domain, &candidate_user) {
             Ok(sid) => return Ok(sid),
             Err(err) => last_err = Some(err),
         }
     }
-    Err(last_err.unwrap_or_else(|| {
-        anyhow::anyhow!("no lookup candidates for installed agent user {domain}\\{user}")
-    }))
+    let lookup_error = last_err.expect("installed user always has a lookup candidate");
+
+    // Cloning or renaming a Windows host can leave installedDomain pointing at
+    // the original computer. Only recover when SCM independently identifies the
+    // same user as an explicitly local Agent service account. Never retry a bare
+    // username: it could select an unrelated account for a domain installation.
+    match local_service_domain() {
+        Ok(Some(local_domain)) => lookup(&local_domain, user)
+            .with_context(|| format!("resolve local Agent service account after {lookup_error:#}")),
+        Ok(None) => Err(lookup_error),
+        Err(error) => Err(lookup_error).context(format!(
+            "could not verify local Agent service account: {error:#}"
+        )),
+    }
+}
+
+fn local_service_account_domain(
+    service_user: &str,
+    installed_user: &str,
+    computer: &str,
+) -> Option<String> {
+    let (domain, user) = service_user.split_once('\\')?;
+    if user.eq_ignore_ascii_case(installed_user)
+        && (domain == "." || domain.eq_ignore_ascii_case(computer))
+    {
+        Some(computer.to_string())
+    } else {
+        None
+    }
 }
 
 pub(crate) fn installed_agent_user_sid_bytes() -> Result<Vec<u8>> {
@@ -88,7 +123,6 @@ fn installed_user_lookup_candidates(domain: &str, user: &str) -> Vec<(String, St
     candidates
 }
 
-#[cfg(not(test))]
 fn service_start_name(service_name: &str) -> Result<String> {
     let manager = unsafe { OpenSCManagerW(ptr::null(), ptr::null(), SC_MANAGER_CONNECT) };
     if manager.is_null() {
@@ -171,10 +205,8 @@ fn service_user_for_sid_lookup(user: &str) -> String {
     }
 }
 
-#[cfg(not(test))]
 struct ServiceHandle(SC_HANDLE);
 
-#[cfg(not(test))]
 impl Drop for ServiceHandle {
     fn drop(&mut self) {
         if !self.0.is_null() {
@@ -188,6 +220,121 @@ impl Drop for ServiceHandle {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn stale_machine_domain_recovers_using_local_service_identity() {
+        let mut calls = Vec::new();
+        let sid = lookup_installed_user_sid_with(
+            "OLD-HOST",
+            "ddagentuser",
+            |domain, user| {
+                calls.push((domain.to_string(), user.to_string()));
+                if domain == "NEW-HOST" {
+                    Ok(vec![42])
+                } else {
+                    bail!("account not found")
+                }
+            },
+            || {
+                Ok(local_service_account_domain(
+                    r".\ddagentuser",
+                    "ddagentuser",
+                    "NEW-HOST",
+                ))
+            },
+        )
+        .unwrap();
+        assert_eq!(sid, vec![42]);
+        assert_eq!(
+            calls,
+            vec![
+                ("OLD-HOST".to_string(), "ddagentuser".to_string()),
+                (String::new(), "ddagentuser@OLD-HOST".to_string()),
+                ("NEW-HOST".to_string(), "ddagentuser".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn successful_registry_lookup_does_not_consult_service() {
+        let sid = lookup_installed_user_sid_with(
+            "CORP",
+            "ddagentuser",
+            |_, _| Ok(vec![42]),
+            || panic!("successful lookup must not use fallback"),
+        )
+        .unwrap();
+        assert_eq!(sid, vec![42]);
+    }
+
+    #[test]
+    fn domain_service_never_falls_back_to_local_namesake() {
+        let mut calls = 0;
+        let result = lookup_installed_user_sid_with(
+            "CORP",
+            "ddagentuser",
+            |_, _| {
+                calls += 1;
+                bail!("domain unavailable")
+            },
+            || {
+                Ok(local_service_account_domain(
+                    r"CORP\ddagentuser",
+                    "ddagentuser",
+                    "NEW-HOST",
+                ))
+            },
+        );
+        assert!(result.is_err());
+        assert_eq!(calls, 2);
+    }
+
+    #[test]
+    fn missing_service_configuration_does_not_guess_a_local_user() {
+        let mut calls = 0;
+        let result = lookup_installed_user_sid_with(
+            "OLD-HOST",
+            "ddagentuser",
+            |_, _| {
+                calls += 1;
+                bail!("account not found")
+            },
+            || bail!("service not found"),
+        );
+        assert!(result.is_err());
+        assert_eq!(calls, 2);
+    }
+
+    #[test]
+    fn missing_local_service_account_remains_an_error() {
+        let result = lookup_installed_user_sid_with(
+            "OLD-HOST",
+            "ddagentuser",
+            |_, _| bail!("account not found"),
+            || Ok(Some("NEW-HOST".to_string())),
+        );
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn local_service_identity_requires_matching_user_and_explicit_local_domain() {
+        for service in [
+            r"CORP\ddagentuser",
+            r".\otheruser",
+            "ddagentuser",
+            "LocalSystem",
+            r"OLD-HOST\ddagentuser",
+        ] {
+            assert_eq!(
+                local_service_account_domain(service, "ddagentuser", "NEW-HOST"),
+                None
+            );
+        }
+        assert_eq!(
+            local_service_account_domain(r"new-host\DDAgentUser", "ddagentuser", "NEW-HOST"),
+            Some("NEW-HOST".to_string())
+        );
+    }
 
     #[test]
     fn service_user_for_sid_lookup_matches_winutil() {

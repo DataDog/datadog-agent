@@ -1,0 +1,16 @@
+description: Complex script mixing assignments, control flow, and separators.
+input:
+  script: |+
+    A=1; B=2
+    for i in $A $B; do echo "loop:$i"; done
+    { echo "brace:$A"; echo "brace:$B"; }
+    true && echo "and:ok" || echo "or:skip"
+expect:
+  stdout: |+
+    loop:1
+    loop:2
+    brace:1
+    brace:2
+    and:ok
+  stderr: ""
+  exit_code: 0

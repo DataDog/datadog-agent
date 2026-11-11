@@ -1,0 +1,14 @@
+description: Cut merges overlapping byte ranges and inserts output delimiter at gaps.
+setup:
+  files:
+    - path: input.txt
+      content: "abcdefg\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -c1-3,2,5- --output-delimiter=: input.txt
+expect:
+  stdout: "abc:efg\n"
+  stderr: ""
+  exit_code: 0

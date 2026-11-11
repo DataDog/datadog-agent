@@ -1,0 +1,9 @@
+description: '`--help` wins in argv order over a later unknown flag, matching GNU coreutils. Without the args-trim in builtins/builtins.go, pflag would reject --no-such-flag before reaching --help and df would exit 1; instead we print usage and exit 0. Asserted via stdout_contains "Usage:" so both rshell''s and bash''s help text match.'
+input:
+  script: |+
+    df --help --no-such-flag
+expect:
+  stdout_contains:
+    - "Usage:"
+  stderr: ""
+  exit_code: 0

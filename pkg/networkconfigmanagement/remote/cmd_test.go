@@ -100,7 +100,7 @@ func TestSCPCommand(t *testing.T) {
 		expectErr string
 	}{{
 		name: "unchecked_command",
-		op: func(shell *ShellContext) uint32 {
+		op: func(_ string, shell *ShellContext) uint32 {
 			shell.stdout.Write([]byte{0, 0})
 			// wait for the other end to *finish* writing so we don't close stdin early
 			io.Copy(io.Discard, shell.stdin)
@@ -109,7 +109,7 @@ func TestSCPCommand(t *testing.T) {
 		expected: "",
 	}, {
 		name: "failing_from_stdout",
-		op: func(shell *ShellContext) uint32 {
+		op: func(_ string, shell *ShellContext) uint32 {
 			io.WriteString(shell.stdout, "\x01permission denied")
 			shell.stdin.ReadByte()
 			return 1
@@ -117,20 +117,20 @@ func TestSCPCommand(t *testing.T) {
 		expectErr: "permission denied",
 	}, {
 		name: "failing_from_stderr",
-		op: func(shell *ShellContext) uint32 {
+		op: func(_ string, shell *ShellContext) uint32 {
 			io.WriteString(shell.stderr, "Unknown command: scp")
 			return 0
 		},
 		expectErr: "Unknown command: scp",
 	}, {
 		name: "failing_without_feedback",
-		op: func(_ *ShellContext) uint32 {
+		op: func(_ string, _ *ShellContext) uint32 {
 			return 0
 		},
 		expectErr: "unexpected EOF",
 	}, {
 		name: "validate_response",
-		op: func(shell *ShellContext) uint32 {
+		op: func(_ string, shell *ShellContext) uint32 {
 			io.WriteString(shell.stdout, "\x00\x00returning feedback")
 			// wait for the other end to *finish* writing so we don't close shell.stdin early
 			io.Copy(io.Discard, shell.stdin)
@@ -144,7 +144,7 @@ func TestSCPCommand(t *testing.T) {
 		expected: "returning feedback",
 	}, {
 		name: "invalid_response",
-		op: func(shell *ShellContext) uint32 {
+		op: func(_ string, shell *ShellContext) uint32 {
 			io.WriteString(shell.stdout, "\x00\x00incorrect response")
 			// wait for the other end to *finish* writing so we don't close shell.stdin early
 			io.Copy(io.Discard, shell.stdin)
@@ -177,7 +177,7 @@ func TestSCPCommand(t *testing.T) {
 }
 
 func TestSCPCommand_Timeout(t *testing.T) {
-	srv := StartFakeSSHServerWithFunc(t, func(sc *ShellContext) uint32 {
+	srv := StartFakeSSHServerWithFunc(t, func(_ string, sc *ShellContext) uint32 {
 		io.WriteString(sc.stdout, "\x01some random data but it never closes")
 		time.Sleep(time.Second * 10)
 		return 0

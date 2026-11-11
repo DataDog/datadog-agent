@@ -1,0 +1,13 @@
+description: wc with explicit - reads stdin and shows filename -.
+setup:
+  files:
+    - path: file.txt
+      content: "a b\nc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat file.txt | wc -
+expect:
+  stdout: "      2       3       6 -\n"
+  stderr: ""
+  exit_code: 0

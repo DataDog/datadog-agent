@@ -1,0 +1,13 @@
+# skip: rshell builtin error format differs from the reference implementation (includes Go "openat" prefix, lowercase)
+skip_assert_against_bash: true
+description: Cat on a nonexistent file prints an error to stderr and exits with code 1.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat nonexistent.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "cat: nonexistent.txt:"
+    - "no such file or directory"
+  exit_code: 1

@@ -1,0 +1,10 @@
+description: A backslash at the end of a comment does not continue the line.
+input:
+  script: |+
+    # \
+    echo foo
+expect:
+  stdout: |+
+    foo
+  stderr: ""
+  exit_code: 0

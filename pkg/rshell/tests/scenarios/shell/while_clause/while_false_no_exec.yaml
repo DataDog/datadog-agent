@@ -1,0 +1,12 @@
+description: while with a false condition runs the body zero times and exits 0.
+input:
+  script: |+
+    while false; do
+      echo should not print
+    done
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=0
+  stderr: |+
+  exit_code: 0

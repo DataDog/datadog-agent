@@ -1,0 +1,49 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ntfsmft",
+    srcs = [
+        "du_windows.go",
+        "matcher.go",
+        "parser.go",
+        "topn.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/internal/ntfsmft",
+    visibility = ["//pkg/rshell/builtins:__subpackages__"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "ntfsmft_test",
+    srcs = [
+        "abi_guard_windows_test.go",
+        "counts_windows_test.go",
+        "du_windows_test.go",
+        "parser_extents_fuzz_test.go",
+        "parser_extents_test.go",
+        "parser_fuzz_test.go",
+        "parser_test.go",
+        "resolve_bench_test.go",
+        "scan_bench_test.go",
+        "topn_test.go",
+    ],
+    embed = [":ntfsmft"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

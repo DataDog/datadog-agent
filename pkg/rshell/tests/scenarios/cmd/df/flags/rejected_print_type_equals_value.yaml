@@ -1,0 +1,11 @@
+description: df rejects --print-type=ext4 — non-bool-looking values are equally invalid for a no-argument flag, so the NUL-byte sentinel guard rejects them with the same "doesn't allow an argument" error.
+input:
+  script: |+
+    df --print-type=ext4; echo "code:$?"
+expect:
+  stdout: |+
+    code:1
+  stderr: |+
+    df: option '--print-type' doesn't allow an argument
+    Try 'df --help' for more information.
+  exit_code: 0

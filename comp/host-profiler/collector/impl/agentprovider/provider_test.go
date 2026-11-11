@@ -242,6 +242,11 @@ func TestProvider(t *testing.T) {
 			expectedOTel: "provider/health-metrics-dis/otel.yaml",
 		},
 		{
+			name:         "health-metrics-enabled",
+			agentConfig:  "provider/health-metrics-ena/agent.yaml",
+			expectedOTel: "provider/health-metrics-ena/otel.yaml",
+		},
+		{
 			name:         "health-metrics-custom",
 			agentConfig:  "provider/health-metrics-cust/agent.yaml",
 			expectedOTel: "provider/health-metrics-cust/otel.yaml",

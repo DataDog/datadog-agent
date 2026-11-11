@@ -1,0 +1,10 @@
+description: Piping false into true yields exit code 0 (last command wins).
+input:
+  script: |+
+    false | true
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

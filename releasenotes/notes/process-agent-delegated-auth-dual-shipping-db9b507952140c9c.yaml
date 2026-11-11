@@ -1,0 +1,18 @@
+---
+features:
+  - |
+    Add delegated authentication (Workload Identity Federation) support for
+    process-agent dual shipping. A ``DELA[...]`` directive can now be used in
+    ``process_config.additional_endpoints`` in place of a static API key; the
+    process-agent resolves it to an auto-refreshed intake key and sends process
+    data to the second destination once the credential is available. System-probe
+    sends that use the same setting fail fast at startup when a directive cannot
+    be resolved by that process.
+fixes:
+  - |
+    API key updates, such as a rotated secret or a resolved delegated-auth key, now reach the
+    process, connections, network and orchestrator forwarders when the
+    ``process_config.additional_endpoints`` or ``orchestrator_additional_endpoints`` entry has a
+    path or trailing slash, or is relative to ``orchestrator_dd_url``. If two entries send to the
+    same host, an update only keeps the keys of the entry written exactly as the host until the
+    agent restarts, and the agent logs a warning about it.

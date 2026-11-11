@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
@@ -270,6 +271,30 @@ func (p *streamingProvider) handleDCAStreamUpdate(update streamUpdate, seenPods 
 				reenrichedPods[uid] = struct{}{}
 			}
 		}
+
+		// Autoscaler updates change the autoscaler kinds of the pods of the
+		// workloads they target (before and after the update)
+		if len(update.updatedAutoscalerTargets) > 0 {
+			for _, uid := range seenPods {
+				// this pod is already being re-enriched for a previous reason, so skip
+				if _, seen := reenrichedPods[uid]; seen {
+					continue
+				}
+				pod, err := p.wmeta.GetKubernetesPod(uid)
+				if err != nil {
+					continue
+				}
+				target, ok := pod.AutoscalerTarget()
+				if !ok {
+					continue
+				}
+				if _, updated := update.updatedAutoscalerTargets[target]; !updated {
+					continue
+				}
+				events = append(events, p.buildPodEvent(pod))
+				reenrichedPods[uid] = struct{}{}
+			}
+		}
 	}
 
 	if len(events) > 0 {
@@ -287,6 +312,11 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 
 	nsLabels, nsAnnotations := p.getNamespaceMetadata(pod.Namespace)
 
+	var autoscalerKinds []workloadmeta.AutoscalerKind
+	if target, ok := pod.AutoscalerTarget(); ok {
+		autoscalerKinds = p.dcaStream.getAutoscalerKinds(target)
+	}
+
 	return workloadmeta.CollectorEvent{
 		Source: workloadmeta.SourceClusterOrchestrator,
 		Type:   workloadmeta.EventTypeSet,
@@ -301,6 +331,7 @@ func (p *streamingProvider) buildPodEvent(pod *workloadmeta.KubernetesPod) workl
 			KubeServices:         services,
 			NamespaceLabels:      nsLabels,
 			NamespaceAnnotations: nsAnnotations,
+			AutoscalerKinds:      autoscalerKinds,
 		},
 	}
 }
@@ -489,6 +520,7 @@ type streamUpdate struct {
 	updatedKueueResourceFlavors map[string]struct{} // keys are workloadmeta entity IDs
 	updatedKueueWorkloads       map[string]struct{} // keys are workloadmeta entity IDs
 	updatedKAIPodGroups         map[string]struct{} // keys are workloadmeta entity IDs
+	updatedAutoscalerTargets    map[workloadmeta.AutoscalerTarget]struct{}
 }
 
 // dcaStreamClient manages a gRPC streaming connection to the DCA for
@@ -504,6 +536,8 @@ type dcaStreamClient struct {
 	kueueResourceFlavors map[string]*workloadmeta.KubernetesKueueResourceFlavor
 	kueueWorkloads       map[string]*workloadmeta.KubernetesKueueWorkload
 	kaiPodGroups         map[string]*workloadmeta.KubernetesKAIPodGroup
+	autoscalers          map[string]streamedAutoscaler // autoscaler ID (same format as the DCA's workloadmeta entity IDs) -> autoscaler
+	autoscalersByTarget  map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind
 	initialized          bool
 	unimplemented        bool
 	pendingUpdate        streamUpdate
@@ -526,6 +560,8 @@ func newDCAStreamClient(nodeName string, cfg configmodel.Reader) *dcaStreamClien
 		kueueResourceFlavors: make(map[string]*workloadmeta.KubernetesKueueResourceFlavor),
 		kueueWorkloads:       make(map[string]*workloadmeta.KubernetesKueueWorkload),
 		kaiPodGroups:         make(map[string]*workloadmeta.KubernetesKAIPodGroup),
+		autoscalers:          make(map[string]streamedAutoscaler),
+		autoscalersByTarget:  make(map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind),
 		readyCh:              make(chan struct{}),
 		updateCh:             make(chan struct{}, 1),
 	}
@@ -642,6 +678,20 @@ func (sc *dcaStreamClient) getKAIPodGroup(podGroupID string) (*workloadmeta.Kube
 		return nil, false
 	}
 	return podGroup.DeepCopy().(*workloadmeta.KubernetesKAIPodGroup), true
+}
+
+func (sc *dcaStreamClient) getAutoscalerKinds(target workloadmeta.AutoscalerTarget) []workloadmeta.AutoscalerKind {
+	sc.mu.RLock()
+	defer sc.mu.RUnlock()
+
+	var kinds []workloadmeta.AutoscalerKind
+	for _, kind := range sc.autoscalersByTarget[target] {
+		if !slices.Contains(kinds, kind) {
+			kinds = append(kinds, kind)
+		}
+	}
+	slices.Sort(kinds)
+	return kinds
 }
 
 func (sc *dcaStreamClient) isUnimplemented() bool {
@@ -833,6 +883,14 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		}
 		sc.kaiPodGroups = newKAIPodGroups
 
+		sc.autoscalers = make(map[string]streamedAutoscaler, len(resp.KubernetesAutoscalers))
+		sc.autoscalersByTarget = make(map[workloadmeta.AutoscalerTarget]map[string]workloadmeta.AutoscalerKind)
+		for _, autoscalerMetadata := range resp.KubernetesAutoscalers {
+			if autoscaler, ok := newStreamedAutoscaler(autoscalerMetadata); ok {
+				sc.setAutoscaler(kubernetesAutoscalerID(autoscalerMetadata), autoscaler)
+			}
+		}
+
 		sc.initialized = true
 		sc.pendingUpdate.updateIsFullState = true
 		sc.pendingUpdate.updatedKueueQueues = updatedKueueQueues
@@ -844,7 +902,7 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		return
 	}
 
-	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.KaiPodGroups) > 0) {
+	if !sc.initialized && (len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.KaiPodGroups) > 0 || len(resp.KubernetesAutoscalers) > 0) {
 		log.Errorf("Received incremental kube metadata update before full state, ignoring")
 		return
 	}
@@ -972,7 +1030,31 @@ func (sc *dcaStreamClient) applyResponse(resp *pb.KubeMetadataStreamResponse) {
 		sc.pendingUpdate.updatedKAIPodGroups[podGroupID] = struct{}{}
 	}
 
-	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.KaiPodGroups) > 0 {
+	for _, autoscalerMetadata := range resp.KubernetesAutoscalers {
+		autoscalerID := kubernetesAutoscalerID(autoscalerMetadata)
+		// The previous target needs to be tracked too, because its pods lose
+		// the autoscaler on an unset or a retarget
+		previous, hadPrevious := sc.autoscalers[autoscalerID]
+		switch autoscalerMetadata.Type {
+		case pb.KubeMetadataEventType_SET:
+			autoscaler, ok := newStreamedAutoscaler(autoscalerMetadata)
+			if !ok {
+				continue
+			}
+			sc.setAutoscaler(autoscalerID, autoscaler)
+			sc.addUpdatedAutoscalerTarget(autoscaler.target)
+		case pb.KubeMetadataEventType_UNSET:
+			sc.deleteAutoscaler(autoscalerID)
+		default:
+			log.Errorf("Unknown event type %d for autoscaler %s", autoscalerMetadata.Type, autoscalerID)
+			continue
+		}
+		if hadPrevious {
+			sc.addUpdatedAutoscalerTarget(previous.target)
+		}
+	}
+
+	if len(resp.Mappings) > 0 || len(resp.NamespaceMetadata) > 0 || len(resp.KueueQueues) > 0 || len(resp.KueueResourceFlavors) > 0 || len(resp.KueueWorkloads) > 0 || len(resp.KaiPodGroups) > 0 || len(resp.KubernetesAutoscalers) > 0 {
 		sc.notifyUpdate()
 	}
 }
@@ -1118,6 +1200,69 @@ func newKAIPodGroup(podGroupMetadata *pb.KAIPodGroup) *workloadmeta.KubernetesKA
 
 func kaiPodGroupID(podGroupMetadata *pb.KAIPodGroup) string {
 	return workloadmeta.GenerateKAIPodGroupEntityID(podGroupMetadata.Namespace, podGroupMetadata.Name)
+}
+
+// streamedAutoscaler is an autoscaler received from the DCA.
+type streamedAutoscaler struct {
+	kind   workloadmeta.AutoscalerKind
+	target workloadmeta.AutoscalerTarget
+}
+
+func newStreamedAutoscaler(autoscalerMetadata *pb.KubernetesAutoscaler) (streamedAutoscaler, bool) {
+	if autoscalerMetadata == nil || autoscalerMetadata.Name == "" || autoscalerMetadata.Namespace == "" || autoscalerMetadata.AutoscalerKind == "" {
+		return streamedAutoscaler{}, false
+	}
+
+	return streamedAutoscaler{
+		kind: workloadmeta.AutoscalerKind(autoscalerMetadata.AutoscalerKind),
+		target: workloadmeta.AutoscalerTarget{
+			Kind:      workloadmeta.AutoscalerTargetKind(autoscalerMetadata.TargetKind),
+			Namespace: autoscalerMetadata.Namespace, // Autoscalers can only target workloads in their namespace
+			Name:      autoscalerMetadata.TargetName,
+		},
+	}, true
+}
+
+// setAutoscaler adds or replaces an autoscaler in the cache. Must be called
+// with sc.mu held.
+func (sc *dcaStreamClient) setAutoscaler(autoscalerID string, autoscaler streamedAutoscaler) {
+	sc.deleteAutoscaler(autoscalerID)
+	sc.autoscalers[autoscalerID] = autoscaler
+	if sc.autoscalersByTarget[autoscaler.target] == nil {
+		sc.autoscalersByTarget[autoscaler.target] = make(map[string]workloadmeta.AutoscalerKind)
+	}
+	sc.autoscalersByTarget[autoscaler.target][autoscalerID] = autoscaler.kind
+}
+
+// deleteAutoscaler removes an autoscaler from the cache. Must be called with
+// sc.mu held.
+func (sc *dcaStreamClient) deleteAutoscaler(autoscalerID string) {
+	autoscaler, found := sc.autoscalers[autoscalerID]
+	if !found {
+		return
+	}
+	delete(sc.autoscalers, autoscalerID)
+	delete(sc.autoscalersByTarget[autoscaler.target], autoscalerID)
+	if len(sc.autoscalersByTarget[autoscaler.target]) == 0 {
+		delete(sc.autoscalersByTarget, autoscaler.target)
+	}
+}
+
+// addUpdatedAutoscalerTarget records that the autoscalers of a workload
+// changed. Must be called with sc.mu held.
+func (sc *dcaStreamClient) addUpdatedAutoscalerTarget(target workloadmeta.AutoscalerTarget) {
+	if sc.pendingUpdate.updatedAutoscalerTargets == nil {
+		sc.pendingUpdate.updatedAutoscalerTargets = make(map[workloadmeta.AutoscalerTarget]struct{})
+	}
+	sc.pendingUpdate.updatedAutoscalerTargets[target] = struct{}{}
+}
+
+func kubernetesAutoscalerID(autoscalerMetadata *pb.KubernetesAutoscaler) string {
+	if autoscalerMetadata == nil {
+		return ""
+	}
+
+	return workloadmeta.GenerateKubernetesAutoscalerEntityID(workloadmeta.AutoscalerKind(autoscalerMetadata.AutoscalerKind), autoscalerMetadata.Namespace, autoscalerMetadata.Name).ID
 }
 
 // notifyUpdate sends signal on updateCh. Must be called with sc.mu held.

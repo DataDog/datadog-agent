@@ -1,0 +1,14 @@
+description: In remediation mode, &>> appends both stdout and stderr to a file within AllowedPaths.
+input:
+  script: |+
+    echo first &>out.txt
+    echo second &>>out.txt
+    cat out.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+    first
+    second
+  stderr: |+
+  exit_code: 0

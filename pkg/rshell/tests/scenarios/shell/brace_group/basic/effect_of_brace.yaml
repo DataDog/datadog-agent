@@ -1,0 +1,12 @@
+description: Brace group executes commands and variable assignments persist.
+input:
+  script: |+
+    a=1
+    { a=2; echo $a; }
+    echo $a
+expect:
+  stdout: |+
+    2
+    2
+  stderr: ""
+  exit_code: 0

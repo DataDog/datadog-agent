@@ -1,0 +1,12 @@
+# vuln-hunt: uptime -- -p should treat -p as an extra operand (after -- end-of-flags),
+# not as the pretty flag. If -p were processed despite --, that would indicate pflag's
+# end-of-flags separator is being bypassed.
+description: uptime respects -- end-of-flags separator
+skip_assert_against_bash: true
+input:
+  script: |+
+    uptime -- -p
+expect:
+  stdout: ""
+  stderr_contains: ["uptime: extra operand '-p'"]
+  exit_code: 1

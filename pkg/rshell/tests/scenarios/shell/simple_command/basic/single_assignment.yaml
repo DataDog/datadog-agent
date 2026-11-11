@@ -1,0 +1,10 @@
+description: Simple variable assignment and expansion.
+input:
+  script: |+
+    a=hello
+    echo $a
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

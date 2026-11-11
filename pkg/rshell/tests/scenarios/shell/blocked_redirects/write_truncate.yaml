@@ -1,0 +1,11 @@
+# skip: redirect type is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Output redirection (>) is not supported.
+input:
+  script: |+
+    echo hello > output.txt
+expect:
+  stdout: ""
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

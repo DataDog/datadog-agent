@@ -1,0 +1,17 @@
+description: If with all integer comparison operators from test builtin.
+input:
+  script: |+
+    if [ 3 -lt 5 ]; then echo lt; fi
+    if [ 5 -ge 5 ]; then echo ge; fi
+    if [ 5 -le 5 ]; then echo le; fi
+    if [ 7 -gt 5 ]; then echo gt; fi
+    if [ 3 -ne 5 ]; then echo ne; fi
+expect:
+  stdout: |+
+    lt
+    ge
+    le
+    gt
+    ne
+  stderr: ""
+  exit_code: 0

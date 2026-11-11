@@ -1,0 +1,12 @@
+# skip: feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: String length parameter expansion is intentionally blocked.
+input:
+  script: |+
+    a=hello
+    echo ${#a}
+expect:
+  stdout: ""
+  stderr: |+
+    ${#var} is not supported
+  exit_code: 2

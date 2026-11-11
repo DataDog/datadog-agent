@@ -1,0 +1,18 @@
+description: find dir -execdir cat {} \; resolves files relative to the named directory.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/file.txt
+      content: "data"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:cat
+  script: |+
+    find dir -name 'file.txt' -execdir cat {} \;
+expect:
+  stdout: "data"
+  stderr: ""
+  exit_code: 0

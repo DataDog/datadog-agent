@@ -62,13 +62,8 @@ func runGoTypeSnapshot(t *testing.T, cfg testprogs.Config, prog string) {
 		require.NoError(t, err)
 	}()
 
-	tlSection := mef.Section(".typelink")
-	require.NotNil(t, tlSection)
-	tlMap, err := mef.SectionData(tlSection)
+	tl, err := gotype.ReadTypeLinks(mef)
 	require.NoError(t, err)
-	defer func() { err = errors.Join(err, tlMap.Close()); require.NoError(t, err) }()
-
-	tl := gotype.ParseTypeLinks(tlMap.Data())
 	// Make sure we can walk all the types.
 	entries, errs := gotypeprinter.WalkTypes(table, slices.Collect(tl.TypeIDs()))
 	require.Empty(t, errs)

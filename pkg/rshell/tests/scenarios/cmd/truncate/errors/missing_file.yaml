@@ -1,0 +1,12 @@
+# Without -c, truncate creates missing files; with -c it silently skips them.
+description: truncate -c silently skips missing files and exits 0.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -c -s 5 nonexistent.txt
+expect:
+  stdout: |+
+  stderr: |+
+  exit_code: 0
+skip_assert_against_bash: true

@@ -1,0 +1,15 @@
+description: tail -n 0 with two files produces no output and no headers.
+setup:
+  files:
+    - path: a.txt
+      content: "alpha\nbeta\n"
+    - path: b.txt
+      content: "gamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n 0 a.txt b.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

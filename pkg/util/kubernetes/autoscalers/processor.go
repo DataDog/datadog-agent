@@ -24,6 +24,7 @@ import (
 	datadogclientcomp "github.com/DataDog/datadog-agent/comp/autoscaling/datadogclient/def"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/autoscaling/custommetrics"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
+	le "github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/leaderelection/metrics"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
@@ -58,6 +59,7 @@ func NewProcessor(datadogCl datadogclientcomp.Component) *Processor {
 	if parallelQueries > maxParallelQueries || parallelQueries <= 0 {
 		parallelQueries = maxParallelQueries
 	}
+	ddRequestsParallelLimit.Set(float64(parallelQueries), le.JoinLeaderValue)
 
 	return &Processor{
 		externalMaxAge:  time.Duration(externalMaxAge) * time.Second,

@@ -1,0 +1,19 @@
+description: Container symlink with host-absolute target is readable after /host prefix
+# skip: container host-prefix symlink resolution is an rshell-specific feature
+skip_assert_against_bash: true
+containerized: true
+setup:
+  files:
+    - path: host/var/log/pods/app.log
+      content: "container log\n"
+    - path: host/var/log/containers/app.log
+      symlink: /var/log/pods/app.log
+input:
+  allowed_paths: ["host/var/log"]
+  script: |+
+    cat host/var/log/containers/app.log
+expect:
+  stdout: |+
+    container log
+  stderr: |+
+  exit_code: 0

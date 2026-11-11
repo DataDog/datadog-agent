@@ -14,6 +14,7 @@ import (
 	"embed"
 	"encoding/json"
 	"fmt"
+	goversion "go/version"
 	"io"
 	"maps"
 	"math"
@@ -62,6 +63,15 @@ var testdataFS embed.FS
 // binary is loaded (and this var initialized) well before the testprog
 // is launched, so any time.Now() inside the testprog is strictly later.
 var beforeTests = time.Now()
+
+func TestToolchainVersionOrdering(t *testing.T) {
+	versions := []string{"go1.27.10", "go1.26.10", "go1.27.3", "go1.26rc1", "go1.27.2"}
+	slices.SortFunc(versions, goversion.Compare)
+	require.Equal(t, []string{"go1.26rc1", "go1.26.10", "go1.27.2", "go1.27.3", "go1.27.10"}, versions)
+	require.Positive(t, goversion.Compare("go1.26.10", "go1.26rc1"))
+	require.Positive(t, goversion.Compare("go1.27.10", "go1.27.3"))
+	require.Positive(t, goversion.Compare("go1.27.3", ""))
+}
 
 func TestDyninst(t *testing.T) {
 	dyninsttest.SkipIfKernelNotSupported(t)
@@ -420,7 +430,7 @@ func runIntegrationTestSuite(
 				// Find the largest version diff tag that applies to the
 				// version we are running with. Save other variants to
 				// recognize unexpected outputs.
-				slices.Sort(versions)
+				slices.SortFunc(versions, goversion.Compare)
 				slices.Reverse(versions)
 				versions = append(versions, "")
 				found := false
@@ -431,7 +441,7 @@ func runIntegrationTestSuite(
 					} else {
 						resultName = p.GetID() + "_geq_" + version
 					}
-					if !skipped && !found && cfg.GOTOOLCHAIN >= version {
+					if !skipped && !found && goversion.Compare(cfg.GOTOOLCHAIN, version) >= 0 {
 						resultNames[p.GetID()] = resultName
 						found = true
 					} else {

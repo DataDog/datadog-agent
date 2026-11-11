@@ -1,0 +1,11 @@
+description: xargs -n 2 batches input items two at a time.
+input:
+  script: |+
+    echo 'a b c d e' | xargs -n 2 echo
+expect:
+  stdout: |+
+    a b
+    c d
+    e
+  stderr: |+
+  exit_code: 0

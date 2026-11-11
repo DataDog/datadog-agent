@@ -531,8 +531,7 @@ go_runtime_type_from_ptr(target_ptr_t type_ptr) {
   // Detect if the moduledata is up-to-date by checking if the address is
   // correct. If it is not, then we need to update the typebounds.
   if (moduledata->addr != VARIABLE_runtime_dot_firstmoduledata) {
-    moduledata->addr = VARIABLE_runtime_dot_firstmoduledata;
-    if (bpf_probe_read_user(&moduledata->types, sizeof(typebounds_t),
+    if (bpf_probe_read_user(&moduledata->types.types, sizeof(uint64_t),
                             (void*)(VARIABLE_runtime_dot_firstmoduledata +
                                     OFFSET_runtime_dot_moduledata__types))) {
       LOG(1, "go_runtime_type_from_ptr: failed to read moduledata types %llx + %d",
@@ -540,6 +539,13 @@ go_runtime_type_from_ptr(target_ptr_t type_ptr) {
           OFFSET_runtime_dot_moduledata__types);
       return -1;
     }
+    if (bpf_probe_read_user(&moduledata->types.etypes, sizeof(uint64_t),
+                            (void*)(VARIABLE_runtime_dot_firstmoduledata +
+                                    OFFSET_runtime_dot_moduledata__etypes))) {
+      LOG(1, "go_runtime_type_from_ptr: failed to read moduledata etypes");
+      return -1;
+    }
+    moduledata->addr = VARIABLE_runtime_dot_firstmoduledata;
   }
 
   typebounds_t* typebounds = &moduledata->types;
@@ -2196,7 +2202,8 @@ sm_swiss_map_hash_finish(scratch_buf_t* buf, stack_machine_t* sm) {
     buf_offset_t gs_off = sm->buf_offset_0 + global_shift_offset;
     if (!scratch_buf_bounds_check(&gs_off, 1)) return -1;
     uint8_t global_shift = (*buf)[gs_off];
-    uint64_t table_idx = hash >> global_shift;
+    // Go sets globalShift to 64 for a one-table directory; BPF would mask that shift to 0.
+    uint64_t table_idx = dir_len == 1 ? 0 : hash >> (global_shift & 63);
     target_ptr_t table_ptr;
     if (bpf_probe_read_user(&table_ptr, 8,
                              (void*)(dir_ptr + table_idx * 8)) != 0) {
@@ -3164,7 +3171,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     uint8_t regnum = sm_read_program_uint8(sm);
     uint8_t byte_size = sm_read_program_uint8(sm);
     buf_offset_t output_offset = sm->offset + sm_read_program_uint32(sm);
-    struct pt_regs* regs = ctx->regs;
+    bpf_user_pt_regs_t* regs = ctx->regs;
     if (!regs) {
       LOG(2, "enqueue: missing regs");
       // Zero the data and move along. In the future when we track availability
@@ -3617,7 +3624,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
       dict_ptr = sm->saved_dict_ptr;
     } else {
       // Entry probe: read from the register value saved in PT_REGS.
-      struct pt_regs* regs = ctx->regs;
+      bpf_user_pt_regs_t* regs = ctx->regs;
       if (regs) {
         switch (dict_register) {
         case 0: dict_ptr = regs->DWARF_REGISTER(0); break;
@@ -4920,7 +4927,7 @@ static long sm_loop(__maybe_unused unsigned long i, void* _ctx) {
     // verifier accepts sm_loop -> sm_run -> probe_run's worst-case
     // call chain. The helper takes gp by value (rather than the full
     // pt_regs*) so its signature uses verifier-friendly scalar types.
-    struct pt_regs* regs = ctx->regs;
+    bpf_user_pt_regs_t* regs = ctx->regs;
     uint64_t gp = regs ? regs->DWARF_REGISTER(0) : 0;
     if (!sm_panic_unwind_prepare(gp, buf)) {
       sm->condition_failed = true;

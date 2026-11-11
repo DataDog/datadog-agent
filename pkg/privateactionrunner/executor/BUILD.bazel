@@ -15,7 +15,6 @@ go_library(
         "//pkg/config/model",
         "//pkg/privateactionrunner/adapters/config",
         "//pkg/privateactionrunner/adapters/logging",
-        "//pkg/privateactionrunner/opms",
         "//pkg/privateactionrunner/runners",
         "//pkg/privateactionrunner/types",
         "//pkg/privateactionrunner/util",

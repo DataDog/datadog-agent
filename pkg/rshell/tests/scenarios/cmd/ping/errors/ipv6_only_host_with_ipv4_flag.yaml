@@ -1,0 +1,10 @@
+# Requesting IPv4 for an IPv6-literal address must report no ip4 address found.
+description: "ping -4 with IPv6 literal address exits 1"
+input:
+  script: |+
+    ping -4 -c 1 -W 100ms ::1
+expect:
+  stdout: ""
+  stderr: "ping: no ip4 address for host \"::1\"\n"
+  exit_code: 1
+skip_assert_against_bash: true

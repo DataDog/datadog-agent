@@ -1,0 +1,26 @@
+# vuln-hunt 2026-05-19-codex / allowed_paths.
+# skip: allowed_paths sandbox restriction is rshell-specific.
+skip_assert_against_bash: true
+description: Assigning PWD does not change the runner directory used for AllowedPaths checks.
+setup:
+  files:
+    - path: allowed/data.txt
+      content: |+
+        allowed
+    - path: secret/data.txt
+      content: |+
+        SECRET
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cd allowed
+    PWD=../secret
+    cat data.txt
+    cat ../secret/data.txt
+    echo after
+expect:
+  stdout: |+
+    allowed
+    after
+  stderr_contains: ["permission denied"]
+  exit_code: 0

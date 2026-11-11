@@ -1,0 +1,11 @@
+# skip: variable expansion feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Array assignment is not supported.
+input:
+  script: |+
+    ARR=(a b c)
+expect:
+  stdout: ""
+  stderr: |+
+    array assignment is not supported
+  exit_code: 2

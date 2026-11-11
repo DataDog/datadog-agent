@@ -1,0 +1,14 @@
+# Security: RemediationOnly builtins must refuse --help itself in read-only
+# mode, exactly like any other invocation (see docs/RULES.md, "Help Flag" and
+# "Remediation-Only Commands").
+description: tee --help is refused outside remediation mode, same as any other invocation.
+input:
+  allowed_paths: ["$DIR:rw"]
+  script: |+
+    tee --help
+expect:
+  stdout: |+
+  stderr: |+
+    tee: filesystem capability not available (remediation mode required)
+  exit_code: 1
+skip_assert_against_bash: true

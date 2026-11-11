@@ -16,6 +16,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
+	"google.golang.org/grpc/metadata"
 	"google.golang.org/protobuf/proto"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/apimachinery/pkg/util/sets"
@@ -29,6 +30,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver/controllers"
 )
 
 func TestStart(t *testing.T) {
@@ -1009,6 +1011,198 @@ func TestComputeKAIPodGroupsDiff(t *testing.T) {
 	assert.Empty(t, computeKAIPodGroupsDiff(current, current))
 }
 
+func TestStreamKubeMetadata_KAIPodGroupsPerNode(t *testing.T) {
+	srv := newKAIStreamTestServer()
+	next := startTestStream(t, srv, "node1", nil)
+
+	initial := next()
+	assert.True(t, initial.IsFullState)
+	require.Len(t, initial.KaiPodGroups, 1, "the full state only has the node's PodGroups")
+	assert.Equal(t, "local", initial.KaiPodGroups[0].Name)
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "local", "queue-b")})
+	update := next()
+	assert.False(t, update.IsFullState)
+	require.Len(t, update.KaiPodGroups, 1)
+	assert.Equal(t, "queue-b", update.KaiPodGroups[0].Queue)
+	assert.Equal(t, pb.KubeMetadataEventType_SET, update.KaiPodGroups[0].Type)
+
+	// Another node's PodGroup is not sent: the next response is the UNSET of
+	// the pod moving to another node.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "remote", "queue-b")})
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodEvent(workloadmeta.EventTypeSet, "p1", "team-a", "node2", "local")})
+	update = next()
+	require.Len(t, update.KaiPodGroups, 1)
+	assert.Equal(t, "local", update.KaiPodGroups[0].Name)
+	assert.Equal(t, pb.KubeMetadataEventType_UNSET, update.KaiPodGroups[0].Type)
+}
+
+func TestStreamKubeMetadata_KAIPodGroupsOnHistoryResync(t *testing.T) {
+	srv := newKAIStreamTestServer()
+	blocked := make(chan struct{})
+	unblock := make(chan struct{})
+	next := startTestStream(t, srv, "node1", func(send int) {
+		if send == 2 {
+			// Hold the first incremental update so the stream falls behind
+			// the retained history.
+			close(blocked)
+			<-unblock
+		}
+	})
+
+	require.True(t, next().IsFullState)
+
+	srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent("0", workloadmeta.EventTypeSet)})
+	select {
+	case <-blocked:
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for the stream to send version 1")
+	}
+	// Overflow the history while the stream is blocked sending version 1.
+	for i := 1; i <= metadataHistorySize+1; i++ {
+		srv.processWmetaEvents([]workloadmeta.Event{testKueueWorkloadEvent(strconv.Itoa(i), workloadmeta.EventTypeSet)})
+	}
+	// The PodGroup changes while the stream is behind.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "local", "queue-b")})
+	close(unblock)
+
+	assert.False(t, next().IsFullState)
+	resync := next()
+	require.True(t, resync.IsFullState)
+	require.Len(t, resync.KaiPodGroups, 1, "the resync only has the node's PodGroups")
+	assert.Equal(t, "local", resync.KaiPodGroups[0].Name)
+	assert.Equal(t, "queue-b", resync.KaiPodGroups[0].Queue)
+
+	// The resync is the new baseline: the next change is incremental.
+	srv.processWmetaEvents([]workloadmeta.Event{testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "local", "queue-c")})
+	update := next()
+	assert.False(t, update.IsFullState)
+	require.Len(t, update.KaiPodGroups, 1)
+	assert.Equal(t, "queue-c", update.KaiPodGroups[0].Queue)
+}
+
+// TestStartAutoscalers checks that the workloadmeta subscription includes
+// autoscalers. Event processing is covered by TestProcessAutoscalerEvents.
+func TestStartAutoscalers(t *testing.T) {
+	wmetaMock := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
+		core.MockBundle(),
+		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
+	))
+
+	srv := NewKubeMetadataStreamServer(nil, wmetaMock)
+
+	ctx, cancel := context.WithCancel(context.TODO())
+	defer cancel()
+
+	ch := srv.subscribeToNamespaceEvents("node1")
+	srv.Start(ctx)
+
+	wmetaMock.Set(newTestAutoscaler("app-a"))
+	assertNotified(t, "node1", ch)
+	assert.Contains(t, srv.buildAutoscalersSnapshot(), "horizontalpodautoscaler/ns1/my-hpa")
+}
+
+func TestProcessAutoscalerEvents(t *testing.T) {
+	srv := NewKubeMetadataStreamServer(nil, nil)
+	ch := srv.subscribeToNamespaceEvents("node1")
+
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-a")}})
+	assertNotified(t, "node1", ch)
+	assert.Equal(t, autoscalerEntry{
+		namespace:      "ns1",
+		name:           "my-hpa",
+		autoscalerKind: workloadmeta.AutoscalerKindHPA,
+		targetKind:     workloadmeta.AutoscalerTargetDeployment,
+		targetName:     "app-a",
+	}, srv.buildAutoscalersSnapshot()["horizontalpodautoscaler/ns1/my-hpa"])
+
+	// Setting the same autoscaler again doesn't produce a diff
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-a")}})
+	assertNotNotified(t, "node1", ch)
+
+	// Target change
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeSet, Entity: newTestAutoscaler("app-b")}})
+	assertNotified(t, "node1", ch)
+	assert.Equal(t, "app-b", srv.buildAutoscalersSnapshot()["horizontalpodautoscaler/ns1/my-hpa"].targetName)
+
+	srv.processWmetaEvents([]workloadmeta.Event{{Type: workloadmeta.EventTypeUnset, Entity: newTestAutoscaler("app-b")}})
+	assertNotified(t, "node1", ch)
+	assert.Empty(t, srv.buildAutoscalersSnapshot())
+}
+
+func TestComputeAutoscalerDiff(t *testing.T) {
+	old := map[string]autoscalerEntry{
+		"horizontalpodautoscaler/ns1/hpa-a": {
+			namespace:      "ns1",
+			name:           "hpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindHPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-a",
+		},
+		"verticalpodautoscaler/ns1/vpa-a": {
+			namespace:      "ns1",
+			name:           "vpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindVPA,
+			targetKind:     workloadmeta.AutoscalerTargetStatefulSet,
+			targetName:     "sts-a",
+		},
+		"watermarkpodautoscaler/ns1/wpa-a": {
+			namespace:      "ns1",
+			name:           "wpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindWPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-a",
+		},
+	}
+	current := map[string]autoscalerEntry{
+		"horizontalpodautoscaler/ns1/hpa-a": { // Changed
+			namespace:      "ns1",
+			name:           "hpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindHPA,
+			targetKind:     workloadmeta.AutoscalerTargetArgoRollout,
+			targetName:     "rollout-a",
+		},
+		"watermarkpodautoscaler/ns1/wpa-a": old["watermarkpodautoscaler/ns1/wpa-a"], // Same as before
+		"datadogpodautoscaler/ns1/dpa-a": { // New
+			namespace:      "ns1",
+			name:           "dpa-a",
+			autoscalerKind: workloadmeta.AutoscalerKindDPA,
+			targetKind:     workloadmeta.AutoscalerTargetDeployment,
+			targetName:     "app-b",
+		},
+		// verticalpodautoscaler/ns1/vpa-a no longer exists
+	}
+
+	diff := computeAutoscalerDiff(old, current)
+
+	assert.ElementsMatch(t, []*pb.KubernetesAutoscaler{
+		{
+			Namespace:      "ns1",
+			Name:           "hpa-a",
+			AutoscalerKind: "horizontalpodautoscaler",
+			TargetKind:     "argo_rollout",
+			TargetName:     "rollout-a",
+			Type:           pb.KubeMetadataEventType_SET,
+		},
+		{
+			Namespace:      "ns1",
+			Name:           "dpa-a",
+			AutoscalerKind: "datadogpodautoscaler",
+			TargetKind:     "deployment",
+			TargetName:     "app-b",
+			Type:           pb.KubeMetadataEventType_SET,
+		},
+		{
+			Namespace:      "ns1",
+			Name:           "vpa-a",
+			AutoscalerKind: "verticalpodautoscaler",
+			TargetKind:     "statefulset",
+			TargetName:     "sts-a",
+			Type:           pb.KubeMetadataEventType_UNSET,
+		},
+	}, diff)
+}
+
 func TestFullStateResponse(t *testing.T) {
 	pods := map[string]podServiceEntry{
 		"ns1/pod1": {
@@ -1042,6 +1236,13 @@ func TestFullStateResponse(t *testing.T) {
 			name:      "pg",
 			queueName: "queue-a",
 		},
+	}
+	metadata.autoscalers["horizontalpodautoscaler/ns1/my-hpa"] = autoscalerEntry{
+		namespace:      "ns1",
+		name:           "my-hpa",
+		autoscalerKind: workloadmeta.AutoscalerKindHPA,
+		targetKind:     workloadmeta.AutoscalerTargetDeployment,
+		targetName:     "app-a",
 	}
 
 	resp := fullStateResponse(pods, metadata, kaiPodGroups)
@@ -1090,6 +1291,16 @@ func TestFullStateResponse(t *testing.T) {
 				Name:      "pg",
 				Queue:     "queue-a",
 				Type:      pb.KubeMetadataEventType_SET,
+			},
+		},
+		KubernetesAutoscalers: []*pb.KubernetesAutoscaler{
+			{
+				Namespace:      "ns1",
+				Name:           "my-hpa",
+				AutoscalerKind: "horizontalpodautoscaler",
+				TargetKind:     "deployment",
+				TargetName:     "app-a",
+				Type:           pb.KubeMetadataEventType_SET,
 			},
 		},
 	}
@@ -1204,6 +1415,22 @@ func testNamespaceSetEvents() []workloadmeta.Event {
 	}
 }
 
+func newTestAutoscaler(targetName string) *workloadmeta.KubernetesAutoscaler {
+	return &workloadmeta.KubernetesAutoscaler{
+		EntityID: workloadmeta.EntityID{
+			Kind: workloadmeta.KindKubernetesAutoscaler,
+			ID:   "horizontalpodautoscaler/ns1/my-hpa",
+		},
+		EntityMeta: workloadmeta.EntityMeta{
+			Name:      "my-hpa",
+			Namespace: "ns1",
+		},
+		AutoscalerKind: workloadmeta.AutoscalerKindHPA,
+		TargetKind:     workloadmeta.AutoscalerTargetDeployment,
+		TargetName:     targetName,
+	}
+}
+
 func assertNotified(t *testing.T, name string, ch <-chan struct{}) {
 	t.Helper()
 	select {
@@ -1219,5 +1446,84 @@ func assertNotNotified(t *testing.T, name string, ch <-chan struct{}) {
 	case <-ch:
 		t.Fatalf("%s subscriber was notified but should not have been", name)
 	case <-time.After(50 * time.Millisecond):
+	}
+}
+
+// mockStream implements pb.AgentSecure_StreamKubeMetadataServer for testing.
+type mockStream struct {
+	ctx      context.Context
+	sent     []*pb.KubeMetadataStreamResponse
+	sendErr  error
+	sendFunc func(*pb.KubeMetadataStreamResponse) error // optional per-call control
+}
+
+func (m *mockStream) Send(resp *pb.KubeMetadataStreamResponse) error {
+	if m.sendFunc != nil {
+		return m.sendFunc(resp)
+	}
+	if m.sendErr != nil {
+		return m.sendErr
+	}
+	m.sent = append(m.sent, resp)
+	return nil
+}
+
+func (m *mockStream) Context() context.Context     { return m.ctx }
+func (m *mockStream) SetHeader(metadata.MD) error  { return nil }
+func (m *mockStream) SendHeader(metadata.MD) error { return nil }
+func (m *mockStream) SetTrailer(metadata.MD)       {}
+func (m *mockStream) SendMsg(interface{}) error    { return nil }
+func (m *mockStream) RecvMsg(interface{}) error    { return nil }
+
+// newKAIStreamTestServer returns a server with the "local" PodGroup on node1
+// and the "remote" PodGroup on node2.
+func newKAIStreamTestServer() *KubeMetadataStreamServer {
+	srv := NewKubeMetadataStreamServer(controllers.GetGlobalMetaBundleStore(), nil)
+	srv.processWmetaEvents([]workloadmeta.Event{
+		testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "local", "queue-a"),
+		testKAIPodGroupEvent(workloadmeta.EventTypeSet, "team-a", "remote", "queue-a"),
+		testKAIPodEvent(workloadmeta.EventTypeSet, "p1", "team-a", "node1", "local"),
+		testKAIPodEvent(workloadmeta.EventTypeSet, "p2", "team-a", "node2", "remote"),
+	})
+	return srv
+}
+
+// startTestStream streams to nodeName until the test ends and returns a
+// function that waits for the next response. beforeSend, if set, is called
+// with the number of the send before each one.
+func startTestStream(t *testing.T, srv *KubeMetadataStreamServer, nodeName string, beforeSend func(send int)) func() *pb.KubeMetadataStreamResponse {
+	t.Helper()
+	ctx, cancel := context.WithCancel(context.Background())
+	sent := make(chan *pb.KubeMetadataStreamResponse, 16)
+	sends := 0
+	stream := &mockStream{
+		ctx: ctx,
+		sendFunc: func(resp *pb.KubeMetadataStreamResponse) error {
+			sends++
+			if beforeSend != nil {
+				beforeSend(sends)
+			}
+			sent <- resp
+			return nil
+		},
+	}
+	done := make(chan error)
+	go func() {
+		done <- srv.StreamKubeMetadata(&pb.KubeMetadataStreamRequest{NodeName: nodeName}, stream)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		require.NoError(t, <-done)
+	})
+
+	return func() *pb.KubeMetadataStreamResponse {
+		t.Helper()
+		select {
+		case resp := <-sent:
+			return resp
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for a stream response")
+			return nil
+		}
 	}
 }

@@ -1,0 +1,9 @@
+description: strings prints an error and exits 1 when a file does not exist.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings nosuchfile.bin
+expect:
+  stdout: ""
+  stderr: "strings: 'nosuchfile.bin': No such file\n"
+  exit_code: 1

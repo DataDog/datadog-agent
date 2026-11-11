@@ -1,0 +1,19 @@
+description: Absolute glob expansion works inside allowed paths.
+setup:
+  files:
+    - path: data/test-s-2-o
+      content: |+
+        2
+    - path: data/test-s-1-o
+      content: |+
+        1
+input:
+  allowed_paths: ["data"]
+  script: |+
+    cat "$PWD"/data/test-s-*-o
+expect:
+  stdout: |+
+    1
+    2
+  stderr: |+
+  exit_code: 0

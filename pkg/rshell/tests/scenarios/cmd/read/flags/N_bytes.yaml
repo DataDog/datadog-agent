@@ -1,0 +1,10 @@
+description: read -N N reads exactly N characters, ignoring delimiters.
+input:
+  script: |+
+    printf 'abc\ndef' | { read -N 5 X; echo "[$X]"; }
+expect:
+  stdout: |+
+    [abc
+    d]
+  stderr: ""
+  exit_code: 0

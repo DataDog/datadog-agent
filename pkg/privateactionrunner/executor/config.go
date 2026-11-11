@@ -13,7 +13,6 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
-	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/opms"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/executor"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
@@ -37,7 +36,7 @@ func ControlPlaneConfig(config model.Reader, runner *parconfig.Config) (*pb.GetC
 	if err != nil {
 		return nil, err
 	}
-	endpoint := opms.EndpointURL(runner, "")
+	endpoint := runner.APIBaseURL
 	request, err := http.NewRequest(http.MethodPost, endpoint, nil)
 	if err != nil {
 		return nil, errors.New("invalid OPMS endpoint")

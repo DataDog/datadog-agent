@@ -19,7 +19,7 @@ go_library(
         "//conditions:default": [],
     }),
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/system/wincrashdetect/probe",
-    tags = ["manual"],  # keep
+    tags = ["manual"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [

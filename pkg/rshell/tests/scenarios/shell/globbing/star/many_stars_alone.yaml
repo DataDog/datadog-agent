@@ -1,0 +1,16 @@
+description: Many consecutive stars without other characters behave like a single star.
+setup:
+  files:
+    - path: foo
+      content: ""
+    - path: bar
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo **********
+expect:
+  stdout: |+
+    bar foo
+  stderr: ""
+  exit_code: 0

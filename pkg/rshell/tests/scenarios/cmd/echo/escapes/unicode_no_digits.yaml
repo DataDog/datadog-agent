@@ -1,0 +1,9 @@
+description: Echo -e with \u and \U followed by no valid hex digits outputs literal text.
+input:
+  script: |+
+    echo -e '\uZZZZ'
+    echo -e '\UZZZZZZZZ'
+expect:
+  stdout: "\\uZZZZ\n\\UZZZZZZZZ\n"
+  stderr: ""
+  exit_code: 0

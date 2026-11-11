@@ -1,0 +1,16 @@
+description: Nested for loops can use pipes to pass output between stages.
+input:
+  script: |+
+    for i in a b; do
+      for j in 1 2; do
+        echo "$i$j"
+      done
+    done | cat
+expect:
+  stdout: |+
+    a1
+    a2
+    b1
+    b2
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: wc accepts -- to end flag parsing.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -- file.txt
+expect:
+  stdout: "1 1 6 file.txt\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,14 @@
+description: Reading $? itself resets $? to 0 because echo succeeds.
+input:
+  script: |+
+    false
+    echo $?
+    echo $?
+    echo $?
+expect:
+  stdout: |+
+    1
+    0
+    0
+  stderr: ""
+  exit_code: 0

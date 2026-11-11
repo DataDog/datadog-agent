@@ -1,0 +1,10 @@
+description: Line continuation across assignment and semicolon with echo.
+input:
+  script: |+
+    A=he\
+    llo; echo $A
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

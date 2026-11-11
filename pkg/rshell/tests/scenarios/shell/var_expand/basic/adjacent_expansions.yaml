@@ -1,0 +1,14 @@
+description: Adjacent variable expansions without spaces are concatenated.
+input:
+  script: |+
+    A=one
+    B=two
+    C=three
+    echo "$A$B$C"
+    echo $A$B$C
+expect:
+  stdout: |+
+    onetwothree
+    onetwothree
+  stderr: ""
+  exit_code: 0

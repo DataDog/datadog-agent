@@ -1,0 +1,10 @@
+description: A long alternating chain of six operators evaluates left to right.
+input:
+  script: |+
+    true && false || true && echo step4 || echo step5 && echo step6
+expect:
+  stdout: |+
+    step4
+    step6
+  stderr: ""
+  exit_code: 0

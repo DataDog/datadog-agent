@@ -16,6 +16,10 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/hashicorp/golang-lru/v2/simplelru"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 type mockAttacher struct {
@@ -167,4 +171,62 @@ func TestRunAttacherCallback(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestBlockedPathIDsAggregateMatchingRegistries(t *testing.T) {
+	const (
+		moduleName  = "test-module"
+		programType = "test-program"
+	)
+
+	newRegistry := func() *FileRegistry {
+		blocklist, err := simplelru.NewLRU[PathIdentifier, BlockListEntry](10, nil)
+		require.NoError(t, err)
+		return &FileRegistry{
+			blocklistByID: blocklist,
+			telemetry:     registryTelemetry{programName: programType},
+		}
+	}
+
+	emptyRegistry := newRegistry()
+	firstBlockedRegistry := newRegistry()
+	secondBlockedRegistry := newRegistry()
+
+	sharedPathID := PathIdentifier{Dev: 1, Inode: 1}
+	firstPathID := PathIdentifier{Dev: 1, Inode: 2}
+	secondPathID := PathIdentifier{Dev: 1, Inode: 3}
+	sharedEntry := BlockListEntry{Path: "/blocked/shared.so", Reason: "first registry reason"}
+	firstEntry := BlockListEntry{Path: "/blocked/first.so", Reason: "architecture mismatch"}
+	secondEntry := BlockListEntry{Path: "/blocked/second.so", Reason: "unsupported binary"}
+
+	firstBlockedRegistry.blocklistByID.Add(sharedPathID, sharedEntry)
+	firstBlockedRegistry.blocklistByID.Add(firstPathID, firstEntry)
+	secondBlockedRegistry.blocklistByID.Add(sharedPathID, BlockListEntry{
+		Path:   "/blocked/shared-from-second-registry.so",
+		Reason: "second registry reason",
+	})
+	secondBlockedRegistry.blocklistByID.Add(secondPathID, secondEntry)
+
+	d := &tlsDebugger{
+		registries: map[string][]*FileRegistry{
+			moduleName: {emptyRegistry, firstBlockedRegistry, secondBlockedRegistry},
+		},
+	}
+
+	assert.ElementsMatch(t,
+		[]PathIdentifier{sharedPathID, firstPathID, secondPathID},
+		d.GetBlockedPathIDs(moduleName, programType),
+	)
+
+	expectedDetails := []PathIdentifierWithSamplePath{
+		{PathIdentifier: sharedPathID, SamplePath: sharedEntry.Path, Reason: sharedEntry.Reason},
+		{PathIdentifier: firstPathID, SamplePath: firstEntry.Path, Reason: firstEntry.Reason},
+		{PathIdentifier: secondPathID, SamplePath: secondEntry.Path, Reason: secondEntry.Reason},
+	}
+	assert.ElementsMatch(t, expectedDetails, d.GetBlockedPathIDsWithSamplePath(moduleName, programType))
+
+	allBlocked := d.GetAllBlockedPathIDs(moduleName)
+	require.Len(t, allBlocked, 1)
+	assert.Equal(t, programType, allBlocked[0].ProgramType)
+	assert.ElementsMatch(t, expectedDetails, allBlocked[0].PathIdentifiers)
 }
