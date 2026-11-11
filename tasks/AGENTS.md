@@ -43,10 +43,12 @@ Key patterns:
   that do not depend on `@task`.
 - `linter.go` runs golangci-lint, whose `go list -export` compiles every dependency into
   GOCACHE and keeps a second copy in its `/tmp/go-build*` directory until it exits.
-  `run_golangci_lint` appends `-gcflags=all=-linkobj=<os.devnull>` to `GOFLAGS` so the
-  compiler discards the linker object, which golangci-lint never reads. Without it, a cold
-  lint of an E2E package needs ~11 GB of free disk for the Pulumi SDKs alone instead of
-  ~0.4 GB, and fails with `no space left on device` reported as `typecheck` errors.
+  `run_golangci_lint` appends `-gcflags=all=-linkobj=<temp file>` to `GOFLAGS` so the
+  compiler writes the linker object, which golangci-lint never reads, to a single file that
+  every compile overwrites. Without it, a cold lint of an E2E package needs ~11 GB of free
+  disk for the Pulumi SDKs alone instead of ~0.5 GB, and fails with `no space left on device`
+  reported as `typecheck` errors. Don't point it at `os.devnull`: the compiler seeks back in
+  that file, which fails in `NUL` on Windows.
 
 ### CI / Pipeline
 

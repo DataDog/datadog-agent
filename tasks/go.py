@@ -77,12 +77,6 @@ def run_golangci_lint(
         headless_mode=headless_mode,
         include_python="python" in tags,
     )
-    # golangci-lint only reads the export data of the archives `go list -export` compiles, not their linker object,
-    # which is ~97% of their size (5.3 of 5.5 GB for an E2E package and its Pulumi SDKs). `go list` stores each archive
-    # in GOCACHE and also keeps it in its work directory until it exits, so discarding that object is what lets a cold
-    # run fit in a sandbox's disk. The flag is part of the build cache key, so builds never use these archives.
-    env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} -gcflags=all=-linkobj={os.devnull}".lstrip()
-
     tags_arg = ",".join(sorted(set(tags)))
     timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
     # Compose the targets string for the command
@@ -97,18 +91,28 @@ def run_golangci_lint(
     cmd += ["--build-tags", tags_arg, "--path-prefix", base_path] + golangci_lint_kwargs.split() + target_patterns
     if not headless_mode:
         print(f"running golangci-lint on: {targets_str}")
-    result, time_result = TimedOperationResult.run(
-        lambda: bazel(
-            "run",
-            *(f"--run_env={k}={v}" for k, v in env.items()),
-            "//internal/tools:golangci-lint",
-            "--",
-            *cmd,
-            ignore_errors=True,
-        ),
-        "golangci-lint",
-        f"Lint {targets_str}",
-    )
+    # golangci-lint only reads the export data of the archives `go list -export` compiles, not their linker object,
+    # which is ~97% of their size (5.3 of 5.5 GB for an E2E package and its Pulumi SDKs). `go list` stores each archive
+    # in GOCACHE and also keeps it in its work directory until it exits, so discarding that object is what lets a cold
+    # run fit in a sandbox's disk. The flag is part of the build cache key, so builds never use these archives.
+    # Every compile overwrites the same file, so it is only as large as the largest package. It can't be os.devnull:
+    # the compiler seeks back in it to write the archive headers, which fails in NUL on Windows.
+    with tempfile.TemporaryDirectory(prefix="golangci-lint-", ignore_cleanup_errors=True) as linkobj_dir:
+        linkobj = os.path.join(linkobj_dir, "discard.o")
+        # Quoted twice, for GOFLAGS and for -gcflags, in case the path contains spaces.
+        env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} \"-gcflags=all='-linkobj={linkobj}'\"".lstrip()
+        result, time_result = TimedOperationResult.run(
+            lambda: bazel(
+                "run",
+                *(f"--run_env={k}={v}" for k, v in env.items()),
+                "//internal/tools:golangci-lint",
+                "--",
+                *cmd,
+                ignore_errors=True,
+            ),
+            "golangci-lint",
+            f"Lint {targets_str}",
+        )
     return [result], [time_result]
 
 
