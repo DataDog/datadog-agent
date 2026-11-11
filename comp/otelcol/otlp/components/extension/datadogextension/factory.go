@@ -5,11 +5,12 @@
 
 //go:build !aix && !freebsd && !solaris
 
-// Package datadogextension adds optional Agent-protocol RC to the contrib Datadog extension.
+// Package datadogextension adds optional RC and DI delivery to the contrib Datadog extension.
 package datadogextension
 
 import (
 	"context"
+	"net/http"
 
 	upstream "github.com/open-telemetry/opentelemetry-collector-contrib/extension/datadogextension"
 	"github.com/open-telemetry/opentelemetry-collector-contrib/pkg/datadog/agentcomponents"
@@ -39,7 +40,7 @@ func WrapFactory(factories map[component.Type]extension.Factory) {
 	}
 }
 
-// NewFactory preserves upstream behavior unless remote_config.enabled is true.
+// NewFactory preserves upstream behavior unless RC or DI delivery is enabled.
 func NewFactory(base extension.Factory) extension.Factory {
 	f := &factory{base: base, newRC: remoteconfig.New}
 	return &wrappedFactory{Factory: extension.NewFactory(base.Type(), f.defaultConfig, f.create, base.Stability())}
@@ -58,15 +59,34 @@ func (f *factory) create(ctx context.Context, set extension.Settings, config com
 	if err != nil {
 		return nil, err
 	}
-	if c.RemoteConfig == nil || !c.RemoteConfig.Enabled {
+	if (c.RemoteConfig == nil || !c.RemoteConfig.Enabled) && !c.DynamicInstrumentation.Enabled {
 		return metadata, nil
 	}
 	// Upstream keeps its Agent config private; both adapters use the same resolved credentials.
 	cfg := &datadogconfig.Config{API: c.Datadog.API, ClientConfig: c.Datadog.ClientConfig}
 	reader := agentcomponents.NewConfigComponent(agentcomponents.WithAPIConfig(cfg), agentcomponents.WithProxy(cfg), agentcomponents.WithTLSSetting(cfg))
-	rc, err := f.newRC(set, c.rcConfig(), reader)
-	if err != nil {
-		return nil, err
+	var rc extension.Extension
+	if c.RemoteConfig != nil && c.RemoteConfig.Enabled {
+		rc, err = f.newRC(set, c.rcConfig(), reader)
+		if err != nil {
+			return nil, err
+		}
 	}
-	return &datadogExtension{metadata: metadata, rc: rc}, nil
+	e := &datadogExtension{metadata: metadata, rc: rc}
+	if c.DynamicInstrumentation.Enabled {
+		if err := validateDIConfig(c); err != nil {
+			return nil, err
+		}
+		e.di = &diSender{key: string(c.Datadog.API.Key), endpoint: "https://debugger-intake." + c.Datadog.API.Site + "/api/v2/debugger"}
+		e.startDI = func(ctx context.Context, host component.Host) error {
+			client, err := c.Datadog.ClientConfig.ToClient(ctx, host.GetExtensions(), set.TelemetrySettings)
+			if err != nil {
+				return err
+			}
+			client.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
+			e.di.client = client
+			return nil
+		}
+	}
+	return e, nil
 }

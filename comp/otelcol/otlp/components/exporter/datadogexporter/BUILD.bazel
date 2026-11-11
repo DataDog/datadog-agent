@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "datadogexporter",
     srcs = [
+        "di_events.go",
         "factory.go",
         "hostname.go",
         "metadata.go",
@@ -34,9 +35,11 @@ go_library(
         "@io_opentelemetry_go_collector_config_configoptional//:configoptional",
         "@io_opentelemetry_go_collector_config_configretry//:configretry",
         "@io_opentelemetry_go_collector_consumer//:consumer",
+        "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",
         "@io_opentelemetry_go_collector_exporter//:exporter",
         "@io_opentelemetry_go_collector_exporter_exporterhelper//:exporterhelper",
         "@io_opentelemetry_go_collector_featuregate//:featuregate",
+        "@io_opentelemetry_go_collector_pdata//plog",
         "@io_opentelemetry_go_collector_pdata//ptrace",
         "@io_opentelemetry_go_otel_metric//:metric",
         "@io_opentelemetry_go_otel_trace//:trace",
@@ -48,6 +51,7 @@ go_library(
 dd_agent_go_test(
     name = "datadogexporter_test",
     srcs = [
+        "di_events_test.go",
         "factory_test.go",
         "host_metadata_test.go",
         "hostname_test.go",
@@ -89,11 +93,13 @@ dd_agent_go_test(
         "@com_github_datadog_datadog_go_v5//statsd",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
+        "@io_opentelemetry_go_collector_component//:component",
         "@io_opentelemetry_go_collector_component_componenttest//:componenttest",
         "@io_opentelemetry_go_collector_config_confignet//:confignet",
         "@io_opentelemetry_go_collector_config_configoptional//:configoptional",
         "@io_opentelemetry_go_collector_config_configretry//:configretry",
         "@io_opentelemetry_go_collector_consumer_consumererror//:consumererror",
+        "@io_opentelemetry_go_collector_consumer_consumertest//:consumertest",
         "@io_opentelemetry_go_collector_exporter//:exporter",
         "@io_opentelemetry_go_collector_exporter_exporterhelper//:exporterhelper",
         "@io_opentelemetry_go_collector_exporter_exportertest//:exportertest",
