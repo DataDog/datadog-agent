@@ -2571,18 +2571,9 @@ func (b *filterPolicyBlock) apply(m *manager.Manager) error {
 
 // setApprovers applies approvers and removes the unused ones
 func (p *EBPFProbe) setApprovers(eventType eval.EventType, approvers rules.Approvers) error {
-	kfiltersGetter, exists := kfilters.KFilterGetters[eventType]
-	if !exists {
-		return nil
-	}
-
-	newKFilters, fieldHandled, err := kfiltersGetter(approvers)
+	newKFilters, err := kfilters.NewKFilters(eventType, approvers)
 	if err != nil {
 		return err
-	}
-
-	if len(approvers) != len(fieldHandled) {
-		return fmt.Errorf("all the approvers should be handled : %v vs %v", approvers, fieldHandled)
 	}
 
 	type tag struct {
