@@ -1,0 +1,9 @@
+description: xargs -I with a long REPLSTR marker checks size after substitution; the resolved command line may be much shorter than the raw template + item.
+input:
+  script: |+
+    printf 'x\n' | xargs -s 20 -I MARKER_THAT_IS_LONGER_THAN_S echo MARKER_THAT_IS_LONGER_THAN_S
+expect:
+  stdout: |+
+    x
+  stderr: |+
+  exit_code: 0

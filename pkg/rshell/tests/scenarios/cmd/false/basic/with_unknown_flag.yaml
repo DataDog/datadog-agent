@@ -1,0 +1,16 @@
+description: The false builtin ignores unknown flags and still exits 1.
+input:
+  script: |+
+    false -x
+    echo $?
+    false --help
+    echo $?
+    false --unknown-flag
+    echo $?
+expect:
+  stdout: |+
+    1
+    1
+    1
+  stderr: ""
+  exit_code: 0

@@ -8,8 +8,6 @@ INSTALL_DIR=/opt/datadog-agent
 # macOS deletes /var/log on OS upgrades, so the real log folder is
 # /opt/datadog-agent/logs with a symlink from /var/log/datadog.
 LOG_DIR=/opt/datadog-agent/logs
-SYSTEM_LOG_DIR=/var/log/datadog
-SYSTEM_LOG_BASE_DIR=/var/log
 
 CONF_DIR="$INSTALL_DIR/etc"
 AI_USAGE_DESKTOP_MONITOR_LABEL="com.datadoghq.ai-usage-agent.desktop-monitor"
@@ -20,82 +18,6 @@ chmod 750 $LOG_DIR
 
 LOG_FILE="$LOG_DIR/preinstall.log"
 exec > $LOG_FILE 2>&1
-
-DDAGENT_USER="_dd-agent"
-
-harden_ddagent_user() {
-    # Enforce least-privilege properties regardless of how the account was
-    # originally created (previous install, MDM pre-provisioning, manual
-    # creation). This runs on every install/upgrade — every upgrade is a
-    # hardening pass.
-
-    # Core identity: no shell, no home, hidden, daemon group
-    dscl . -create /Users/$DDAGENT_USER UserShell /usr/bin/false
-    dscl . -create /Users/$DDAGENT_USER NFSHomeDirectory /var/empty
-    dscl . -create /Users/$DDAGENT_USER IsHidden 1
-    dscl . -create /Users/$DDAGENT_USER PrimaryGroupID 1
-
-    # Lock the account password. The '*' marker is the standard Unix convention
-    # for "no valid password" (same as /etc/shadow on Linux). This prevents
-    # authentication via PAM-based services that might not check the login shell
-    # (e.g., screen sharing, VPN agents, custom PAM modules).
-    dscl . -create /Users/$DDAGENT_USER Password '*'
-
-    # Remove all authentication mechanisms (password hashes, Kerberos
-    # principals, smart card bindings). This is what Apple does for its own
-    # daemon accounts (_www, _sshd, _spotlight). It means there is no
-    # credential to brute-force or extract from Directory Services.
-    dscl . -delete /Users/$DDAGENT_USER AuthenticationAuthority 2>/dev/null || true
-
-    # Strip privileged supplementary group memberships. PrimaryGroupID=1
-    # (daemon) only sets the primary group — it does not remove supplementary
-    # memberships. If someone pre-created _dd-agent in the admin group (which
-    # grants sudo on macOS), that's a privilege escalation path.
-    for group in admin wheel staff; do
-        if dseditgroup -o checkmember -m "$DDAGENT_USER" "$group" >/dev/null 2>&1; then
-            echo "Removing $DDAGENT_USER from group $group"
-            dseditgroup -o edit -d "$DDAGENT_USER" "$group"
-        fi
-    done
-
-    # UID sanity check: warn if outside the system range but don't change it
-    # (changing UID would orphan all files owned by the old UID).
-    local existing_uid
-    existing_uid=$(id -u "$DDAGENT_USER")
-    if [ "$existing_uid" -ge 500 ]; then
-        echo "WARNING: $DDAGENT_USER has UID $existing_uid (interactive range >=500). UID is preserved to avoid breaking file ownership, but this is non-standard for a daemon account."
-    fi
-
-    # Secure Token check: daemon accounts should never have Secure Token
-    # (affects FileVault recovery and bootstrap token flows). We can't revoke
-    # it programmatically without MDM, but we log a warning so admins can
-    # investigate.
-    if sysadminctl -secureTokenStatus "$DDAGENT_USER" 2>&1 | grep -q "ENABLED"; then
-        echo "WARNING: $DDAGENT_USER has Secure Token enabled. Daemon accounts should not hold Secure Token. This may have been granted by MDM bootstrap token flows. Contact your MDM administrator to revoke it."
-    fi
-}
-
-create_ddagent_user() {
-    if id -u "$DDAGENT_USER" >/dev/null 2>&1; then
-        echo "User $DDAGENT_USER already exists, enforcing security properties"
-        harden_ddagent_user
-        return 0
-    fi
-    echo "Creating $DDAGENT_USER system user..."
-    local uid=450
-    while dscl . -list /Users UniqueID | awk '{print $2}' | grep -qx "$uid"; do
-        uid=$((uid + 1))
-    done
-    if [ "$uid" -ge 500 ]; then
-        echo "No free UID available in range 450-499 for $DDAGENT_USER"
-        exit 1
-    fi
-    dscl . -create /Users/$DDAGENT_USER
-    dscl . -create /Users/$DDAGENT_USER RealName "Datadog Agent"
-    dscl . -create /Users/$DDAGENT_USER UniqueID "$uid"
-    harden_ddagent_user
-    echo "Created $DDAGENT_USER (UID $uid)"
-}
 
 cleanup_per_user_installations() {
     echo '# Checking for legacy per-user installations'
@@ -163,32 +85,90 @@ cleanup_per_user_installations() {
 }
 
 cleanup_per_user_installations
-create_ddagent_user
-
-# Log folder migration
-if [ -d $SYSTEM_LOG_DIR ]; then
-    if [ -L $SYSTEM_LOG_DIR ]; then
-        echo "Log symlink already in place."
-    else
-        echo "Migrating old log folder to new location."
-        cp -Rf $SYSTEM_LOG_DIR/* $LOG_DIR
-        rm -rf $SYSTEM_LOG_DIR
-        ln -s $LOG_DIR $SYSTEM_LOG_DIR
-    fi
-else
-    mkdir -p $SYSTEM_LOG_BASE_DIR
-    ln -s $LOG_DIR $SYSTEM_LOG_DIR
-fi
 
 # Stop running services and save config if an existing installation is present
 if [ -e "$CONF_DIR/datadog.yaml" ]; then
     echo "# Existing installation detected"
     datadog-agent version || true
 
+    # The installer daemon goes first and is waited for: while it runs it can start installer
+    # commands, and, in builds that ran configuration experiments, the detached processes killed
+    # below.
+    stop_installer_daemons() {
+        launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
+        launchctl bootout system/com.datadoghq.installer-exp 2>/dev/null || true
+        attempts=0
+        while [ $attempts -lt 30 ] && { launchctl print system/com.datadoghq.installer >/dev/null 2>&1 || launchctl print system/com.datadoghq.installer-exp >/dev/null 2>&1; }; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
+    }
+    stop_installer_daemons
+
+    # The detached processes a configuration experiment runs outside of any launchd job: the
+    # watcher and the installer daemon hand-back. Either could otherwise swap jobs back in while
+    # this upgrade replaces the binaries they run. Killed outright: whatever they leave half done is
+    # undone by the bootouts below and by the postinstall script.
+    pkill -9 -f "$INSTALL_DIR/embedded/bin/installer package-command datadog-agent (watchConfigExperiment|handBackInstaller)" 2>/dev/null || true
+
+    # A detached process killed above may have loaded an installer daemon back while we waited for
+    # the first bootout; nothing can load one now, so unload them again. As with the other jobs,
+    # one that still won't leave is reported and doesn't fail the upgrade.
+    stop_installer_daemons
+    if launchctl print system/com.datadoghq.installer >/dev/null 2>&1 || launchctl print system/com.datadoghq.installer-exp >/dev/null 2>&1; then
+        echo "WARNING: The installer daemon is still loaded after bootout."
+    fi
+
+    # Hand the teardown to the installed version, as the rpm preinst does: only it knows the jobs
+    # it installed, including any this version no longer does. Its payload is still in place, since
+    # this script runs before the new one is laid down. Bounded, because Installer.app shows no
+    # progress while it waits; each job's bootout is itself bounded at 30 seconds.
+    # See preRemoveDatadogAgent in pkg/fleet/installer/packages/datadog_agent_darwin.go
+    OLD_INSTALLER_BIN="$INSTALL_DIR/embedded/bin/installer"
+    if [ -x "$OLD_INSTALLER_BIN" ] && "$OLD_INSTALLER_BIN" is-prerm-supported >/dev/null 2>&1; then
+        echo "# Running the installed version's pre-remove"
+        "$OLD_INSTALLER_BIN" prerm --upgrade datadog-agent dmg 2>&1 &
+        prerm_pid=$!
+        attempts=0
+        while [ $attempts -lt 180 ] && kill -0 $prerm_pid 2>/dev/null; do
+            sleep 1
+            attempts=$((attempts + 1))
+        done
+        if kill -0 $prerm_pid 2>/dev/null; then
+            echo "WARNING: The installed version's pre-remove did not finish within 180s; stopping it."
+            kill -9 $prerm_pid 2>/dev/null || true
+            # Reaped quietly: the shell would otherwise log its own "Killed: 9" for it, and the
+            # warning above already says what happened.
+            wait $prerm_pid 2>/dev/null || true
+        else
+            wait $prerm_pid
+            prerm_status=$?
+            if [ $prerm_status -ne 0 ]; then
+                echo "WARNING: The installed version's pre-remove failed (exit status $prerm_status)."
+            fi
+        fi
+    fi
+
+    # The jobs this version knows the Agent has run. They are booted out whether or not the
+    # installed version's pre-remove ran: versions before the installer have none, and one that
+    # failed may have left jobs behind. A job already gone is a no-op.
     echo '# Stopping running services'
+    launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
     launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
     launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
     launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
+
+    # The experiment variants of the jobs only exist while a configuration experiment is running;
+    # booting them out here is what keeps an upgrade from leaving an Agent behind that reads
+    # etc-exp.
+    launchctl bootout system/com.datadoghq.agent-exp 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.sysprobe-exp 2>/dev/null || true
+    launchctl bootout system/com.datadoghq.data-plane-exp 2>/dev/null || true
+    rm -vf /Library/LaunchDaemons/com.datadoghq.installer.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.installer-exp.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
+    rm -vf /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist
 
     # Stop GUI for all logged-in users
     for logged_user in $(who | awk '{print $1}' | sort -u); do
@@ -216,12 +196,7 @@ if [ -e "$CONF_DIR/datadog.yaml" ]; then
     cp -vfR $CONF_DIR/checks.d/* "$SAVED_CONF_DIR/checks.d" 2>/dev/null || true
 fi
 
-echo '# Deleting old datadog-agent link'
-rm -vf /usr/local/bin/datadog-agent
-
-echo '# Deleting old datadog-agent files'
-rm -rf $INSTALL_DIR/agent || true
-rm -rf $INSTALL_DIR/checks.d || true
-rm -f "$INSTALL_DIR/embedded/bin/ai-prompt-logger-native-host" || true
-
+# The account, the log link, the old files and the links are set up by the new version's installer,
+# from the postinstall script: `installer postinst datadog-agent dmg`. See
+# pkg/fleet/installer/packages/datadog_agent_darwin_dmg.go
 exit 0

@@ -1,0 +1,20 @@
+description: find -true matches everything.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.txt
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -true
+expect:
+  stdout_unordered: |+
+    dir
+    dir/a.txt
+    dir/b.txt
+  stderr: ""
+  exit_code: 0

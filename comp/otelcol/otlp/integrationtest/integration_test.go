@@ -222,6 +222,10 @@ func TestIntegration(t *testing.T) {
 	)
 	defer server.Close()
 	t.Setenv("SERVER_URL", server.URL)
+	// TestSpan0 and TestSpan1 are sampled trace roots: both the trace-agent and the datadog connector must drop them,
+	// through ignore_resources and filter_tags respectively.
+	t.Setenv("DD_APM_IGNORE_RESOURCES", "^TestSpan0$")
+	t.Setenv("DD_APM_FILTER_TAGS_REJECT", "filter.me:true")
 
 	// 2. Start in-process collector
 	params := &subcommands.GlobalParams{
@@ -248,14 +252,14 @@ func TestIntegration(t *testing.T) {
 	var spans []*pb.Span
 	var stats []*pb.ClientGroupedStats
 
-	// 5 sampled spans + APM stats on 10 spans are sent to datadog exporter.
+	// 3 sampled spans + APM stats on 8 spans are sent to datadog exporter (TestSpan0 and TestSpan1 are dropped).
 	// Bail out rather than block forever: without a deadline a missing payload
 	// turns a test failure into a CI job timeout.
 	deadline := time.After(3 * time.Minute)
-	for len(spans) < 5 || len(stats) < 10 {
+	for len(spans) < 3 || len(stats) < 8 {
 		select {
 		case <-deadline:
-			t.Fatalf("timed out waiting for payloads: got %d/5 spans and %d/10 stats", len(spans), len(stats))
+			t.Fatalf("timed out waiting for payloads: got %d/3 spans and %d/8 stats", len(spans), len(stats))
 		case tracesBytes := <-tracesRec.ReqChan:
 			// Traces are compressed with zstd (DDOT wires comp/trace/compression/fx-zstd).
 			zr := getZstdReader(tracesBytes)
@@ -269,6 +273,10 @@ func TestIntegration(t *testing.T) {
 			for _, tps := range traces.TracerPayloads {
 				for _, chunks := range tps.Chunks {
 					spans = append(spans, chunks.Spans...)
+					for _, span := range chunks.Spans {
+						assert.NotEqual(t, "TestSpan0", span.Resource)
+						assert.NotEqual(t, "TestSpan1", span.Resource)
+					}
 				}
 			}
 
@@ -281,6 +289,8 @@ func TestIntegration(t *testing.T) {
 					stats = append(stats, csbs.Stats...)
 					for _, stat := range csbs.Stats {
 						assert.True(t, strings.HasPrefix(stat.Resource, "TestSpan"))
+						assert.NotEqual(t, "TestSpan0", stat.Resource)
+						assert.NotEqual(t, "TestSpan1", stat.Resource)
 						assert.Equal(t, uint64(1), stat.Hits)
 						assert.Equal(t, uint64(1), stat.TopLevelHits)
 						assert.Equal(t, "client", stat.SpanKind)
@@ -292,8 +302,8 @@ func TestIntegration(t *testing.T) {
 	}
 
 	// Verify we don't receive more than the expected numbers
-	assert.Len(t, spans, 5)
-	assert.Len(t, stats, 10)
+	assert.Len(t, spans, 3)
+	assert.Len(t, stats, 8)
 
 	// Validate metrics ship zstd on the wire too. The datadog/connector turns the
 	// received spans into metrics that flow through the serializer's config-driven
@@ -375,6 +385,9 @@ func sendTraces(t *testing.T) {
 		// Only sample 5 out of the 10 spans
 		if i < 5 {
 			span.SetAttributes(attribute.Bool("sampled", true))
+		}
+		if i == 1 {
+			span.SetAttributes(attribute.Bool("filter.me", true))
 		}
 		span.SetAttributes(attribute.String("peer.service", "svc"))
 		span.SetAttributes(attribute.String("extra_peer_tag", "tag_val"))

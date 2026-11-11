@@ -352,7 +352,8 @@ func NewCheckConfig(rawInstance integration.Data, rawInitConfig integration.Data
 	}
 
 	if shouldPropagateAgentTags(instance.PropagateAgentTags, initCfg.PropagateAgentTags) {
-		agentTags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog())
+		// Instance tags become metric tags: omit infra_mode.
+		agentTags := hosttags.Get(context.Background(), true, pkgconfigsetup.Datadog(), false)
 		instance.Tags = append(instance.Tags, agentTags.System...)
 		instance.Tags = append(instance.Tags, agentTags.GoogleCloudPlatform...)
 	}

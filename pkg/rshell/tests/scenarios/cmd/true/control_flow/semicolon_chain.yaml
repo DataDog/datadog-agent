@@ -1,0 +1,9 @@
+description: The true builtin works correctly in semicolon-separated chains.
+input:
+  script: |+
+    true; echo after
+expect:
+  stdout: |+
+    after
+  stderr: ""
+  exit_code: 0

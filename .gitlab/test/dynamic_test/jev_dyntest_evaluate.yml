@@ -1,0 +1,60 @@
+# Evaluate the accuracy of the Jev-based e2e test skipping with the same
+# evaluate-index task and DynTestEvaluator harness as the coverage-based
+# selection: Jev is plugged in as an alternative DynTestExecutor implementation
+# (tasks/libs/dynamic_test/jev_selection.py), judged over every e2e job that
+# ran in this pipeline, using its configured TARGETS/EXTRA_PARAMS (no coverage
+# restriction). not_executed_failing_count is the miss count; stats are tagged
+# index_kind:jev. Skipped tests are not counted as executed.
+#
+# Evaluation only: Jev is NOT used to select the tests that run in this
+# pipeline, it only measures what it would have skipped.
+jev-dyntest-evaluate:
+  extends: .dd_octo_sts
+  stage: dynamic_test
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64"]
+  dependencies: [jev-pr-summary] # the LLM PR summary, if generated
+  rules:
+    # dev branch pipelines only (after the e2e tests ran); 'when: always' so the
+    # evaluation also runs when tests failed - that is exactly what it measures
+    - !reference [.on_dev_branches]
+    - when: always
+  allow_failure: true # evaluation only, must not impact the CI
+  variables:
+    GIT_DEPTH: 0 # get_modified_files uses git merge-base
+    GIT_STRATEGY: clone
+  before_script:
+    - !reference [.setup_github_token_read]
+  script:
+    # CI Visibility access (executed tests) - same secrets as the original
+    # dynamic-test evaluation job
+    - DD_API_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_API_KEY_ORG2 token) || exit $?; export DD_API_KEY
+    - DD_APP_KEY=$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $AGENT_APP_KEY_ORG2 token) || exit $?; export DD_APP_KEY
+    - dda inv -- -e dyntest.evaluate-index --selector jev --commit-sha $CI_COMMIT_SHA --pipeline-id $CI_PIPELINE_ID --pr-summary-file $CI_PROJECT_DIR/jev-pr-summary.txt
+
+# The LLM summary of the PR changes, generated ONCE per pipeline (one AI
+# Gateway call) and shared as an artifact with the jobs passing it to Jev
+# instead of the raw diff. Gated by the 'datadog-agent-jev-llm-summary'
+# feature flag: disabled (or failed), no file is produced and the consumers
+# pass the raw diff.
+jev-pr-summary:
+  extends: .dd_octo_sts
+  stage: setup
+  image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
+  tags: ["arch:arm64"]
+  needs: []
+  rules:
+    - !reference [.on_dev_branches]
+    - when: on_success
+  allow_failure: true # consumers fall back to the raw diff
+  variables:
+    GIT_DEPTH: 0 # the PR diff uses git merge-base
+    GIT_STRATEGY: clone
+  before_script:
+    - !reference [.setup_github_token_read]
+  script:
+    - dda inv -- -e dyntest.generate-jev-pr-summary --output $CI_PROJECT_DIR/jev-pr-summary.txt
+  artifacts:
+    paths:
+      - jev-pr-summary.txt
+    expire_in: 2 weeks

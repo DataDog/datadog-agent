@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
 
 // Run locally with `go test -fuzz=FuzzParseEventWithEnrich -run=FuzzParseEventWithEnrich -tags=test`

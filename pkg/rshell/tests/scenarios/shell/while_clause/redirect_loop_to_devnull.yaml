@@ -1,0 +1,14 @@
+description: while loop with stdout redirected to /dev/null suppresses the body's output.
+input:
+  script: |+
+    i=
+    while [ "$i" != aa ]; do
+      i="${i}a"
+      echo body
+    done > /dev/null
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: |+
+  exit_code: 0

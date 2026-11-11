@@ -9,6 +9,8 @@ go_library(
         "api_v2.go",
         "auditor.go",
         "registry_writer.go",
+        "registry_writer_other.go",
+        "registry_writer_windows.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/logs/auditor/impl",
     visibility = ["//visibility:public"],
@@ -20,7 +22,12 @@ go_library(
         "//pkg/logs/message",
         "//pkg/logs/types",
         "//pkg/status/health",
-    ],
+    ] + select({
+        "@rules_go//go/platform:windows": [
+            "@org_golang_x_sys//windows",
+        ],
+        "//conditions:default": [],
+    }),
 )
 
 dd_agent_go_test(

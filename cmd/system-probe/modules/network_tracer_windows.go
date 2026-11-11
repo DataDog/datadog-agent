@@ -17,8 +17,10 @@ import (
 	"time"
 
 	httpprotocol "github.com/DataDog/datadog-agent/pkg/network/protocols/http"
+	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/winutil"
@@ -29,7 +31,7 @@ func init() { registerModule(NetworkTracer) }
 
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = &module.Factory{
-	Name: config.NetworkTracerModule,
+	Name: sysconfigtypes.NetworkTracerModule,
 	Fn:   createNetworkTracerModule,
 }
 
@@ -73,5 +75,9 @@ func (nt *networkTracer) platformRegister(httpMux *module.Router) error {
 		utils.WriteAsJSON(req, w, tags, utils.CompactOutput)
 	})
 
+	return nil
+}
+
+func enableNetNSContainerAttribution(_ context.Context, _ *tracer.Tracer, _ module.FactoryDependencies) error {
 	return nil
 }

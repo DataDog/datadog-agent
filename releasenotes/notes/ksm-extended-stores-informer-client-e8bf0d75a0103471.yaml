@@ -1,0 +1,20 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The ``kubernetes_state_core`` check now uses
+    ``kubernetes_apiserver_informer_client_timeout`` instead of
+    ``kubernetes_apiserver_client_timeout`` to list and watch all its
+    resources, including its extended resources, the resources of older
+    Kubernetes API versions, its ``custom_resource`` resources, and the
+    CustomResourceDefinitions used to discover them. The shorter timeout
+    closed every watch after 10 seconds by default, which increased the
+    Kubernetes API server load and audit log volume. On large clusters, it
+    could also stop the initial list from ever completing, so the metrics of
+    these resources were missing.

@@ -10,6 +10,7 @@ import (
 	"errors"
 	"fmt"
 	"runtime"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -17,6 +18,7 @@ import (
 	"github.com/gosnmp/gosnmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 
 	agentconfig "github.com/DataDog/datadog-agent/comp/core/config"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/mocksender"
@@ -1213,6 +1215,78 @@ collect_topology: false
 
 	// THEN
 	assert.Equal(t, []string{"tag1:value1"}, externalTags)
+}
+
+type columnTimeoutSession struct {
+	*session.FakeSession
+	timedOutColumn string
+}
+
+func (s *columnTimeoutSession) GetBulk(oids []string, count uint32) (*gosnmp.SnmpPacket, error) {
+	if slices.Contains(oids, s.timedOutColumn) {
+		return nil, errors.New("request timeout (after 3 retries)")
+	}
+	return s.FakeSession.GetBulk(oids, count)
+}
+
+func (s *columnTimeoutSession) GetNext(oids []string) (*gosnmp.SnmpPacket, error) {
+	if slices.Contains(oids, s.timedOutColumn) {
+		return nil, errors.New("request timeout (after 3 retries)")
+	}
+	return s.FakeSession.GetNext(oids)
+}
+
+func TestRun_columnTimeoutStillReportsScalarMetrics(t *testing.T) {
+	profile.SetConfdPathAndCleanProfiles()
+	sess := &columnTimeoutSession{
+		FakeSession:    session.CreateFakeSession(),
+		timedOutColumn: "1.3.6.1.2.1.33.1.3.3.1.3",
+	}
+	sess.
+		SetInt("1.3.6.1.2.1.33.1.2.4.0", 100).
+		SetInt("1.3.6.1.2.1.33.1.3.3.1.3.1", 230)
+	sessionFactory := func(*checkconfig.CheckConfig) (session.Session, error) {
+		return sess, nil
+	}
+
+	// language=yaml
+	rawInstanceConfig := []byte(`
+collect_device_metadata: false
+ip_address: 1.2.3.4
+community_string: public
+metrics:
+- symbol:
+    OID: 1.3.6.1.2.1.33.1.2.4.0
+    name: upsEstimatedChargeRemaining
+- table:
+    OID: 1.3.6.1.2.1.33.1.3.3
+    name: upsInputTable
+  symbols:
+  - OID: 1.3.6.1.2.1.33.1.3.3.1.3
+    name: upsInputVoltage
+  metric_tags:
+  - index: 1
+    tag: ups_input_line
+`)
+
+	config, err := checkconfig.NewCheckConfig(rawInstanceConfig, []byte(``), nil)
+	require.NoError(t, err)
+
+	connMgr := NewConnectionManager(config, sessionFactory)
+	deviceCk, err := NewDeviceCheck(config, connMgr, agentconfig.NewMock(t))
+	require.NoError(t, err)
+
+	sender := mocksender.NewMockSender(t, "123")
+	sender.SetupAcceptAll()
+	deviceCk.SetSender(report.NewMetricSender(sender, "", nil, report.MakeInterfaceBandwidthState()))
+
+	err = deviceCk.Run(time.Now())
+
+	assert.ErrorContains(t, err, "failed getting oids `[1.3.6.1.2.1.33.1.3.3.1.3]` using GetNext: request timeout (after 3 retries)")
+	sender.AssertMetric(t, "Gauge", "snmp.upsEstimatedChargeRemaining", 100, "", nil)
+	sender.Mock.AssertNotCalled(t, "Gauge", "snmp.upsInputVoltage", mock.Anything, mock.Anything, mock.Anything)
+	sender.Mock.AssertCalled(t, "ServiceCheck", "snmp.can_check", servicecheck.ServiceCheckCritical, "", mock.Anything, mock.Anything)
+	assert.Contains(t, deviceCk.profileCache.columnOIDs, "1.3.6.1.2.1.33.1.3.3.1.3")
 }
 
 func TestMissingOIDsAreRemoved(t *testing.T) {

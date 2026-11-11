@@ -7,6 +7,7 @@ go_library(
         "info.go",
         "processing_info.go",
         "status.go",
+        "tag_filter_info.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/logs/status/utils",
     visibility = ["//visibility:public"],
@@ -19,6 +20,7 @@ dd_agent_go_test(
         "info_test.go",
         "processing_info_test.go",
         "status_test.go",
+        "tag_filter_info_test.go",
     ],
     embed = [":utils"],
     deps = [

@@ -32,7 +32,7 @@ var descJobLabelsDefaultLabels = []string{"namespace", "job_name"}
 // NewExtendedJobFactory returns a new Job metric family generator factory.
 func NewExtendedJobFactory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &extendedJobFactory{
-		client: client.Cl,
+		client: client.InformerCl,
 	}
 }
 

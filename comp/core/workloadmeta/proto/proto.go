@@ -210,6 +210,7 @@ func protoContainerFromWorkloadmetaContainer(container *workloadmeta.Container) 
 		Resources:                  toProtoContainerResources(container.Resources),
 		Owner:                      ownerEntityID,
 		SecurityContext:            toProtoContainerSecurityContext(container.SecurityContext),
+		GpuDeviceIDs:               container.GPUDeviceIDs,
 	}, nil
 }
 
@@ -1024,6 +1025,7 @@ func toWorkloadmetaContainer(protoContainer *pb.Container) (*workloadmeta.Contai
 		Resources:                  toWorkloadmetaContainerResources(protoContainer.Resources),
 		Owner:                      owner,
 		SecurityContext:            toWorkloadmetaContainerSecurityContext(protoContainer.SecurityContext),
+		GPUDeviceIDs:               protoContainer.GpuDeviceIDs,
 	}, nil
 }
 

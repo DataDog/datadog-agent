@@ -13,7 +13,7 @@ import (
 	filterlist "github.com/DataDog/datadog-agent/comp/filterlist/def"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/internal/tags"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
-	"github.com/DataDog/datadog-agent/pkg/util/metricname"
+	"github.com/DataDog/datadog-agent/pkg/metrics/metricname"
 )
 
 // The timeSamplerWorker runs the process loop for a TimeSampler:

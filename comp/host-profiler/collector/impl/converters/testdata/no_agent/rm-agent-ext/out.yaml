@@ -68,6 +68,9 @@ service:
         - ddprofiling
         - custom
         - other
+    telemetry:
+        metrics:
+            level: normal
     pipelines:
         metrics/profiler-internal-health:
             exporters:

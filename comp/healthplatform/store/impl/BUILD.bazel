@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "persistence.go",
         "persistence_noop.go",
+        "persistence_remote.go",
         "store.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/store/impl",
@@ -23,6 +24,7 @@ go_library(
         "//comp/healthplatform/issues",
         "//comp/healthplatform/store/def",
         "//comp/healthplatform/store/noop-impl",
+        "//comp/healthplatform/store/remote/def",
         "//pkg/config/env",
         "//pkg/util/flavor",
         "//pkg/version",
@@ -35,6 +37,7 @@ go_library(
 dd_agent_go_test(
     name = "impl_test",
     srcs = [
+        "persistence_remote_test.go",
         "store_kubeapiserver_test.go",
         "store_test.go",
     ],
@@ -44,7 +47,6 @@ dd_agent_go_test(
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     deps = [
         "//comp/core/config",
@@ -57,6 +59,7 @@ dd_agent_go_test(
         "//comp/def",
         "//comp/healthplatform/issueregistry/utils/selfident",
         "//comp/healthplatform/store/def",
+        "//comp/healthplatform/store/remote/def",
         "//pkg/config/env",
         "//pkg/util/flavor",
         "//pkg/util/kubernetes/apiserver/common/namespace",

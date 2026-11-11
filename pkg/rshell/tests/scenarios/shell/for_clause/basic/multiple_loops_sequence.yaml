@@ -1,0 +1,15 @@
+description: Multiple for loops in sequence execute one after another.
+input:
+  script: |+
+    for i in a b; do echo "first:$i"; done
+    for j in 1 2; do echo "second:$j"; done
+    for k in x; do echo "third:$k"; done
+expect:
+  stdout: |+
+    first:a
+    first:b
+    second:1
+    second:2
+    third:x
+  stderr: ""
+  exit_code: 0

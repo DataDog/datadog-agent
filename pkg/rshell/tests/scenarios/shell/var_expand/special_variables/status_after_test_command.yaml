@@ -1,0 +1,19 @@
+description: The $? variable reflects the test command's success or failure.
+input:
+  script: |+
+    [ 1 -eq 1 ]
+    echo $?
+    [ 1 -eq 2 ]
+    echo $?
+    [ "hello" = "hello" ]
+    echo $?
+    [ "hello" = "world" ]
+    echo $?
+expect:
+  stdout: |+
+    0
+    1
+    0
+    1
+  stderr: ""
+  exit_code: 0

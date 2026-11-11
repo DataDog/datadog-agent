@@ -223,7 +223,7 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 		}
 
 	case "BITFIELD":
-		// Obfuscate 3rd argument to SET sub-command:
+		// Obfuscate 3rd argument to every SET sub-command:
 		// • BITFIELD key [GET type offset] [SET type offset value] [INCRBY type offset increment] [OVERFLOW WRAP|SAT|FAIL]
 		var n int
 		for i, arg := range args {
@@ -232,21 +232,21 @@ func obfuscateRedisCmd(out *strings.Builder, cmd string, args ...string) {
 			}
 			if n > 0 && i-n == 3 {
 				args[i] = "?"
-				break
+				n = 0
 			}
 		}
 
 	case "ZADD":
 		// Obfuscate every 2nd argument after potential optional ones.
-		// • ZADD key [NX|XX] [CH] [INCR] score member [score member ...]
+		// • ZADD key [NX|XX] [GT|LT] [CH] [INCR] score member [score member ...]
 		var i int
 	loop:
 		for i = range args {
 			if i == 0 {
 				continue // key
 			}
-			switch args[i] {
-			case "NX", "XX", "CH", "INCR":
+			switch strings.ToUpper(args[i]) {
+			case "NX", "XX", "GT", "LT", "CH", "INCR":
 				// continue
 			default:
 				break loop

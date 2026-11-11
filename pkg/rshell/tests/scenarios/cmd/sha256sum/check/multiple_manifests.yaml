@@ -1,0 +1,21 @@
+description: sha256sum --check reports malformed-line warnings per manifest.
+setup:
+  files:
+    - path: config
+      content: ""
+    - path: first
+      content: "malformed first line\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  config\n"
+    - path: second
+      content: "malformed second line\ne3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  config\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sha256sum --check first second
+expect:
+  stdout: |+
+    config: OK
+    config: OK
+  stderr: |+
+    sha256sum: WARNING: 1 line is improperly formatted
+    sha256sum: WARNING: 1 line is improperly formatted
+  exit_code: 0

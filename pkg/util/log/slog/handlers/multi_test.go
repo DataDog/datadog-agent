@@ -14,6 +14,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 )
 
 func TestNewMultiHandler(t *testing.T) {
@@ -194,8 +196,8 @@ func TestMultiHandlerThreeHandlers(t *testing.T) {
 }
 
 func TestMultiHandlerMixedLevels(t *testing.T) {
-	inner1 := NewLevel(slog.LevelInfo, newMockInnerHandler())
-	inner2 := NewLevel(slog.LevelError, newMockInnerHandler())
+	inner1 := NewLevel(types.NewRulesSyncFromLevel(types.InfoLvl), newMockInnerHandler())
+	inner2 := NewLevel(types.NewRulesSyncFromLevel(types.ErrorLvl), newMockInnerHandler())
 
 	handler := NewMulti(inner1, inner2)
 

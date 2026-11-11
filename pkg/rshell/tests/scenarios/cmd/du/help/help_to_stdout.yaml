@@ -1,0 +1,13 @@
+description: du --help prints usage to stdout (not stderr) and exits 0.
+skip_assert_against_bash: true  # bash help wording differs
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    du --help
+expect:
+  stdout_contains:
+    - "Usage: du"
+    - "Summarize device usage"
+    - "--max-depth"
+  stderr: |+
+  exit_code: 0

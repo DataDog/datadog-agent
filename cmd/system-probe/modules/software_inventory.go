@@ -13,7 +13,6 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/inventory/software"
 
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -23,7 +22,7 @@ func init() { registerModule(SoftwareInventory) }
 
 // SoftwareInventory Factory
 var SoftwareInventory = &module.Factory{
-	Name: config.SoftwareInventoryModule,
+	Name: sysconfigtypes.SoftwareInventoryModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &softwareInventoryModule{}, nil
 	},

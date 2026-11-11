@@ -3,7 +3,7 @@
 
 #include "maps.h"
 
-__attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
+static __always_inline s64 get_flow_pid(struct pid_route_t *key) {
     struct pid_route_entry_t *value = bpf_map_lookup_elem(&flow_pid, key);
     if (!value) {
         // Try with IP set to 0.0.0.0
@@ -21,7 +21,7 @@ __attribute__((always_inline)) s64 get_flow_pid(struct pid_route_t *key) {
 // resolve_pid_from_flow_pid resolves the pid from the flow_pid map. The same {address, port, netns} key
 // can be used in different network namespaces so this function can return the wrong pid in this case.
 // Thus it is only a fallback for kernels without bpf_sk_lookup / sk-local storage / the cgroup hook.
-__attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *pkt) {
+static __always_inline void resolve_pid_from_flow_pid(struct packet_t *pkt) {
     struct pid_route_t pid_route = {};
 
     // resolve pid
@@ -54,7 +54,7 @@ __attribute__((always_inline)) void resolve_pid_from_flow_pid(struct packet_t *p
 
 // resolve_pid_from_sk_lookup resolves the pid by looking the owning socket up in the device's
 // network namespace and reading the pid recorded in sk-local storage..
-__attribute__((always_inline)) void resolve_pid_from_sk_lookup(struct __sk_buff *skb, struct packet_t *pkt) {
+static __always_inline void resolve_pid_from_sk_lookup(struct __sk_buff *skb, struct packet_t *pkt) {
     struct namespaced_flow_t *nsf = &pkt->translated_ns_flow;
     u16 l4_protocol = nsf->flow.l4_protocol;
     if (l4_protocol != IPPROTO_TCP && l4_protocol != IPPROTO_UDP) {
@@ -117,11 +117,11 @@ __attribute__((always_inline)) void resolve_pid_from_sk_lookup(struct __sk_buff 
 // forwarded. The kernel attaches the originating socket to locally generated packets,
 // so a NULL skb->sk on egress means the packet is only transiting the current interface.
 // Must only be used where __sk_buff.sk is available, i.e. on kernels with sk_lookup pid support.
-__attribute__((always_inline)) int is_packet_locally_originated(struct __sk_buff *skb) {
+static __always_inline int is_packet_locally_originated(struct __sk_buff *skb) {
     return skb->sk != NULL;
 }
 
-__attribute__((always_inline)) void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {
+static __always_inline void resolve_pid(struct __sk_buff *skb, struct packet_t *pkt) {
     pkt->pid = 0;
     pkt->cgroup_id = 0;
 

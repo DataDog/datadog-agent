@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    Added ``data_security.enforce_ssl``. When set to ``true``, Data Security
+    PostgreSQL scans elevate the ``ssl`` mode of the matching ``postgres``
+    integration instance to ``require`` if it is unset, ``disable``, ``allow``
+    or ``prefer``. Stricter modes (``require``, ``verify-ca``, ``verify-full``)
+    are left unchanged, and scans of Unix socket hosts are rejected as they
+    cannot be encrypted.

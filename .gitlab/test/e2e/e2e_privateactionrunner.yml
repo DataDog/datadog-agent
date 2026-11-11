@@ -9,19 +9,35 @@
         - cmd/privateactionrunner/**/*
         - comp/privateactionrunner/**/*
         - Dockerfiles/agent/Dockerfile
+        - Dockerfiles/agent/entrypoint.sh
+        - Dockerfiles/agent/cont-init.d/**/*
         - Dockerfiles/agent/entrypoint.d/privateactionrunner
+        - Dockerfiles/agent/entrypoint.d/procmgr-all-in-one
         - Dockerfiles/agent/par-probe.sh
         - Dockerfiles/agent/processes.d/datadog-agent-action-executor.yaml
         - Dockerfiles/agent/processes.d/datadog-agent-par-control.yaml
+        - Dockerfiles/agent/processes.d/aio/datadog-agent.yaml
+        - Dockerfiles/agent/processes.d/aio/datadog-agent-action-executor.yaml
+        - Dockerfiles/agent/processes.d/aio/datadog-agent-par-control.yaml
+        - Dockerfiles/agent/processes.d/aio/datadog-agent-par.yaml
         - Dockerfiles/agent/s6-services/privateactionrunner/**/*
         - pkg/privateactionrunner/**/*
+        - pkg/rshell/**/*
+        - pkg/config/**/*
+        - .go-version
+        - go.mod
+        - go.sum
+        - go.work
+        - MODULE.bazel*
+        - .bazelrc
+        - bazel/configs/**/*
+        - bazel/rules/go/**/*
         # The runner's control plane and executor are dd-procmgrd processes: procmgr
         # spawns them, and par-control drives the executor over the procmgr socket.
         - pkg/procmgr/**/*
         - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-action-executor*.yaml.tmpl
         - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-par-control*.yaml.tmpl
         - pkg/fleet/installer/packages/processmanager/par_procmgr_config_windows.go
-        - pkg/config/setup/privateactionrunner.go
         - pkg/fleet/installer/packages/datadog_agent_linux.go
         - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.service.tmpl
         - pkg/fleet/installer/packages/embedded/tmpl/datadog-agent-rshell-privileged.socket.tmpl

@@ -1,0 +1,16 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    Fix a memory leak in the process-agent connections check, introduced in
+    7.80.0, where intra-host connection entries were added to a cached
+    listening-port map on every check run and never removed. Process-agent
+    memory grew continuously on hosts with intra-host TCP traffic when Cloud
+    Network Monitoring was enabled with ``network_config.direct_send`` set
+    to ``false``.

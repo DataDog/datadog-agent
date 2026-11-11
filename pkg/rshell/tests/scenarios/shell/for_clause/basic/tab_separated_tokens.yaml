@@ -1,0 +1,9 @@
+description: For loop tokens can be separated by tabs instead of spaces.
+input:
+  script: "for\ti\tin\ta\tb; do echo $i; done\n"
+expect:
+  stdout: |+
+    a
+    b
+  stderr: ""
+  exit_code: 0

@@ -4,15 +4,40 @@
 package oomkill
 
 type oomStats struct {
-	Victim_pid   uint32
-	Trigger_pid  uint32
-	Victim_comm  [16]byte
-	Trigger_comm [16]byte
-	Score        int64
-	Pages        uint64
-	Memcg_oom    uint32
-	Score_adj    int16
-	Pad          int16
-	Cgroup_name  [129]byte
-	Pad_cgo_0    [7]byte
+	Oom_stats_version oomStatsV2
+	Mem               cgroupMemoryStats
+	Victim_pid        uint32
+	Trigger_pid       uint32
+	Victim_comm       [16]byte
+	Trigger_comm      [16]byte
+	Score             int64
+	Pages             uint64
+	Memcg_oom         uint32
+	Score_adj         int16
+	Pad               int16
+	Cgroup_name       [129]byte
+	Pad_cgo_0         [7]byte
+}
+
+type oomStatsV2 struct {
+}
+
+type cgroupMemoryStats struct {
+	Usage         uint64
+	Active_anon   uint64
+	Inactive_anon uint64
+	Active_file   uint64
+	Inactive_file uint64
+	Unevictable   uint64
+	Kernel        uint64
+	Flags         uint64
+}
+
+const cgroupMemStatsUnstable = 0x1
+
+type statsKey struct {
+	Ts   uint64
+	Tgid uint64
+	Cpu  uint32
+	Pad  uint32
 }

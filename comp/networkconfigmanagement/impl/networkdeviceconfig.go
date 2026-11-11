@@ -26,12 +26,25 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkconfigmanagement/types"
 )
 
-func newNetworkDeviceConfigImpl(log log.Component, store ncmstore.ConfigStore, sender sender.Sender, hostname string, profiles ncmprofile.Map, connectFn func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error), clock clock.Clock) *networkDeviceConfigImpl {
+// connFn is a function that gets a connection to a device; it is an argument
+// instead of a baked-in method so that A) it is easier to test, and B) it will
+// be easy to swap out for non-ssh connections if we ever need to.
+type connFn = func(device *ncmconfig.DeviceInstance) (ncmremote.Connection, error)
+
+func newNetworkDeviceConfigImpl(
+	log log.Component,
+	store ncmstore.ConfigStore,
+	sender sender.Sender,
+	hostname string,
+	profiles ncmprofile.Map,
+	connectFn connFn,
+	clock clock.Clock,
+) *networkDeviceConfigImpl {
 	return &networkDeviceConfigImpl{
 		log:      log,
 		store:    store,
 		sender:   sender,
-		devices:  NewDeviceMap(deviceTimeout),
+		devices:  NewDeviceMap(),
 		hostname: hostname,
 		profiles: profiles,
 		connect:  connectFn,
@@ -59,7 +72,7 @@ type networkDeviceConfigImpl struct {
 	hostname              string
 	profiles              ncmprofile.Map
 
-	connect func(*ncmconfig.DeviceInstance) (ncmremote.Connection, error)
+	connect connFn
 }
 
 // RegisterDevice tells the component how to connect to a device.
@@ -180,7 +193,7 @@ func (n *networkDeviceConfigImpl) reportConfig(ctx context.Context, dc *DeviceCo
 	}
 	errTypes := make([]types.ErrorType, 0, len(nonBlockingErrors))
 	for _, nbErr := range nonBlockingErrors {
-		errTypes = append(errTypes, types.AsRollbackError(nbErr).Type())
+		errTypes = append(errTypes, types.AsTypedError(nbErr).Type())
 	}
 	sender.SendNCMCheckFailure(errTypes...)
 	sender.SendNCMCheckMetrics(startTime, dc.lastReportTime, false)
@@ -207,7 +220,7 @@ func (n *networkDeviceConfigImpl) buildInventoryReport() ([]ncmreport.InventoryE
 }
 
 // connectAndEnsureProfile connects to dc.device and sets the profile on the connection, calling findMatchingProfile if dc.profile is not yet set.
-func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, types.RollbackError) {
+func (n *networkDeviceConfigImpl) connectAndEnsureProfile(ctx context.Context, dc *DeviceContext) (ncmremote.Connection, types.TypedError) {
 	log := LoggerFromContext(ctx)
 	conn, err := n.connect(dc.device)
 	if err != nil {

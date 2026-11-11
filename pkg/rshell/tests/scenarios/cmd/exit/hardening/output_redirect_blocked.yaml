@@ -1,0 +1,16 @@
+# skip: blocked output redirection is an rshell-specific safety restriction
+skip_assert_against_bash: true
+description: exit output redirection is blocked before the builtin can choose the exit status.
+setup:
+  files:
+    - path: allowed/existing.txt
+      content: "keep\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    exit 7 > allowed/new.txt
+    echo after
+expect:
+  stdout: ""
+  stderr_contains: ["> file redirection is not supported"]
+  exit_code: 2

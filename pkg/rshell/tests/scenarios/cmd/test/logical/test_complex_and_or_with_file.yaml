@@ -1,0 +1,23 @@
+description: "test combines file tests with -a and -o operators"
+setup:
+  files:
+    - path: exists.txt
+      content: "data"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    test -f exists.txt -a -s exists.txt
+    echo "file-and-size: $?"
+    test -f nonexistent -o -f exists.txt
+    echo "missing-or-exists: $?"
+    test -f nonexistent -a -f exists.txt
+    echo "missing-and-exists: $?"
+expect:
+  stdout: |
+    file-and-size: 0
+    missing-or-exists: 0
+    missing-and-exists: 1
+  stderr: ""
+  exit_code: 0
+# skip: uses allowed_paths which the bash harness does not support
+skip_assert_against_bash: true

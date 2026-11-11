@@ -12,6 +12,16 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestNDMConfigProductIsRegistered(t *testing.T) {
+	_, ok := validProducts[ProductNDMConfig]
+	require.True(t, ok, "the NDM_CONFIG product must be registered")
+
+	raw := []byte(`{"snmp":{}}`)
+	cfg, err := parseConfig(ProductNDMConfig, raw, Metadata{})
+	require.NoError(t, err)
+	require.Equal(t, RawConfig{Config: raw}, cfg)
+}
+
 func TestASMData(t *testing.T) {
 	for _, tc := range []struct {
 		name string

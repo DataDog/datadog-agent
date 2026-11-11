@@ -29,7 +29,7 @@ const (
 	k8sHostnamePrefix = "cws-e2e-kind-node"
 	osPlatform        = "ubuntu"
 	osArch            = "x86_64"
-	osVersion         = "24-04-e2e-kind"
+	osVersion         = "24-04-kind"
 )
 
 // Depending on the pulumi version used to run these tests, the following values may not be properly merged with the default values defined in the test-infra-definitions repository.
@@ -76,6 +76,8 @@ func TestKindSuite(t *testing.T) {
 		e2e.WithProvisioner(
 			awskubernetes.Provisioner(
 				awskubernetes.WithRunOptions(
+					// No fakeintake: the agent reports to the real Datadog backend and receives policies through Remote Config.
+					scenkind.WithInternetAccess(),
 					scenkind.WithVMOptions(
 						ec2.WithOS(osDesc),
 					),

@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    Add the ``inference_workload`` and ``inference_workload_component`` tags to
+    Ray Kubernetes pods and containers when the image repository basename of
+    the first container in the pod spec contains ``ray-llm`` or ``vllm``
+    and the pod has the ``ray.io/serve`` label set by KubeRay, regardless of its
+    traffic-readiness value. No custom
+    labels or annotations are required. Use the
+    ``ray.io/cluster`` label without its generated five-character suffix for
+    the workload name. Use the worker group for
+    worker components, with the node type as a fallback. Head pods use ``head``.

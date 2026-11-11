@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"testing"
 	"time"
 
@@ -18,9 +19,11 @@ import (
 	"github.com/containerd/containerd/api/types"
 	containerd "github.com/containerd/containerd/v2/client"
 	"github.com/containerd/containerd/v2/core/containers"
+	"github.com/containerd/containerd/v2/defaults"
 	"github.com/containerd/containerd/v2/pkg/cio"
 	"github.com/containerd/containerd/v2/pkg/namespaces"
 	"github.com/containerd/containerd/v2/pkg/oci"
+	"github.com/containerd/errdefs"
 	"github.com/containerd/typeurl/v2"
 	prototypes "github.com/gogo/protobuf/types"
 	"github.com/opencontainers/runtime-spec/specs-go"
@@ -362,4 +365,75 @@ func TestCleanupContextOutlivesCaller(t *testing.T) {
 	deadline, ok := releaseCtx.Deadline()
 	require.True(t, ok)
 	require.WithinDuration(t, time.Now().Add(cleanupTimeout), deadline, time.Minute)
+}
+
+type unpackedImage struct {
+	containerd.Image
+	unpacked map[string]bool
+	errs     map[string]error
+}
+
+func (i *unpackedImage) Name() string {
+	return "docker.io/library/busybox:latest"
+}
+
+func (i *unpackedImage) IsUnpacked(_ context.Context, snapshotter string) (bool, error) {
+	return i.unpacked[snapshotter], i.errs[snapshotter]
+}
+
+func TestUnpackedSnapshotter(t *testing.T) {
+	notLoaded := errors.New("snapshotter not loaded: nydus")
+	tests := []struct {
+		name            string
+		unpacked        map[string]bool
+		errs            map[string]error
+		want            string
+		wantErr         bool
+		wantNotUnpacked bool
+	}{
+		{
+			name:     "unpacked by nydus",
+			unpacked: map[string]bool{"nydus": true},
+			want:     "nydus",
+		},
+		{
+			name:     "unpacked by the default snapshotter beside nydus",
+			unpacked: map[string]bool{defaults.DefaultSnapshotter: true},
+			want:     defaults.DefaultSnapshotter,
+		},
+		{
+			name:     "unpacked by the default snapshotter without nydus",
+			unpacked: map[string]bool{defaults.DefaultSnapshotter: true},
+			errs:     map[string]error{"nydus": notLoaded},
+			want:     defaults.DefaultSnapshotter,
+		},
+		{
+			name:            "unpacked by neither",
+			wantErr:         true,
+			wantNotUnpacked: true,
+		},
+		{
+			name:            "default snapshotter not loaded",
+			errs:            map[string]error{"nydus": notLoaded, defaults.DefaultSnapshotter: fmt.Errorf("snapshotter not loaded: %s: %w", defaults.DefaultSnapshotter, errdefs.ErrInvalidArgument)},
+			wantErr:         true,
+			wantNotUnpacked: true,
+		},
+		{
+			name:    "default snapshotter fails",
+			errs:    map[string]error{"nydus": notLoaded, defaults.DefaultSnapshotter: errors.New("unavailable")},
+			wantErr: true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := unpackedSnapshotter(context.Background(), &unpackedImage{unpacked: tt.unpacked, errs: tt.errs})
+			if tt.wantErr {
+				require.Error(t, err)
+				require.Equal(t, tt.wantNotUnpacked, errors.Is(err, ErrNotUnpacked), "errors.Is(%v, ErrNotUnpacked)", err)
+				return
+			}
+			require.NoError(t, err)
+			require.Equal(t, tt.want, got)
+		})
+	}
 }

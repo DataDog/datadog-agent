@@ -74,7 +74,7 @@ type CheckContainerMeta struct {
 // evaluation.
 type CheckEvent struct {
 	AgentVersion string                 `json:"agent_version,omitempty"`
-	HostCCRID    string                 `json:"host_ccrid,omitempty"`
+	CCRID        string                 `json:"ccrid,omitempty"`
 	RuleID       string                 `json:"agent_rule_id,omitempty"`
 	RuleVersion  int                    `json:"agent_rule_version,omitempty"`
 	FrameworkID  string                 `json:"agent_framework_id,omitempty"`
@@ -94,7 +94,7 @@ type CheckEvent struct {
 // ResourceLog is the data structure holding a resource configuration data.
 type ResourceLog struct {
 	AgentVersion string              `json:"agent_version,omitempty"`
-	HostCCRID    string              `json:"host_ccrid,omitempty"`
+	CCRID        string              `json:"ccrid,omitempty"`
 	ExpireAt     *time.Time          `json:"expire_at,omitempty"`
 	ResourceType types.ResourceType  `json:"resource_type,omitempty"`
 	ResourceID   string              `json:"resource_id,omitempty"`
@@ -114,6 +114,22 @@ func (e *CheckEvent) String() string {
 		s += fmt.Sprintf(" data=%v", e.Data)
 	}
 	return s
+}
+
+// CCRIDForResource returns the CCRID to report for a resource of the given
+// type, given the CCRID of the host running the agent. The host CCRID only
+// identifies host level resources: containers, databases and Kubernetes
+// clusters have a CCRID of their own, which the agent does not resolve, so
+// the field is left empty for them rather than pointing at the host.
+func CCRIDForResource(hostCCRID, resourceType string) string {
+	switch types.ResourceType(resourceType) {
+	case types.ResourceTypeDockerContainer, types.ResourceTypeKubernetesCluster:
+		return ""
+	}
+	if strings.HasPrefix(resourceType, "db_") {
+		return ""
+	}
+	return hostCCRID
 }
 
 // NewCheckError returns a CheckEvent with error status and associated error

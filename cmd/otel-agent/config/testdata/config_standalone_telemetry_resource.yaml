@@ -1,0 +1,17 @@
+receivers:
+  otlp:
+    protocols:
+      grpc:
+exporters:
+  datadog:
+    api:
+      key: STANDALONE_API_KEY
+service:
+  telemetry:
+    resource:
+      k8s.node.name: "${env:OTEL_K8S_NODE_NAME}"
+      k8s.cluster.name: "${env:TEST_CLUSTER_NAME}"
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [datadog]

@@ -185,6 +185,43 @@ func TestScenarios(t *testing.T) {
 		expectWorkloadKindMetrics(t, m, workloadKindMetricsValues{deployments: 1})
 	})
 
+	run("Admission that never becomes a pod does not skew placement", func(t *testing.T) {
+		// Given
+		cluster := newFakeCluster(t)
+		cluster.AddOnDemandNode("on-demand")
+		cluster.AddSpotNode("spot")
+
+		s, _, _ := runTestScheduler(t.Context(), cluster)
+
+		// 6 replicas at 60%: 3 spot, 3 on-demand
+		d := cluster.CreateDeployment("default", "nginx", spotEnabledLabels(), spotAnnotations(60, 2), 6)
+		rs := d.ReplicaSet()
+
+		waitABit()
+		pods := cluster.ListOwnerPods(kubernetes.ReplicaSetKind, "default", rs)
+		expectRunningSpot(t, pods, 3)
+		expectRunningOnDemand(t, pods, 3)
+
+		// When: the next pod is admitted as spot (60% of 7 pods is 4 spot pods and there are 3)
+		// but the create is rejected afterwards, e.g. with AlreadyExists. No pod ever appears for the admission.
+		d.CreateRejectedPod()
+
+		// and the workload scales up to 10 replicas
+		d.ScaleUp(10)
+		waitABit()
+
+		// Then: the ratio is eventually repaired by rebalancing, 6 spot and 4 on-demand pods.
+		// The ReplicaSet recreates the pods evicted by the rebalancer.
+		require.EventuallyWithT(t, func(c *assert.CollectT) {
+			d.Reconcile()
+			waitABit()
+
+			pods := cluster.ListOwnerPods(kubernetes.ReplicaSetKind, "default", rs)
+			expectRunningOnDemand(c, pods, 4)
+			expectRunningSpot(c, pods, 6)
+		}, s.Config().RebalanceStabilizationPeriod+2*spot.SchedulerTick, time.Second)
+	})
+
 	run("Changing spot percentage updates ratio", func(t *testing.T) {
 		// Given
 		cluster := newFakeCluster(t)
@@ -800,14 +837,18 @@ func groupPods(pods []*workloadmeta.KubernetesPod) map[string]map[corev1.PodPhas
 	return g
 }
 
-func expectRunningSpot(t *testing.T, pods []*workloadmeta.KubernetesPod, count int) {
-	t.Helper()
+func expectRunningSpot(t require.TestingT, pods []*workloadmeta.KubernetesPod, count int) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	g := groupPods(pods)
 	require.Equal(t, count, len(g["spot"][corev1.PodRunning]), "expected %d running spot pods; pod breakdown: %v", count, g)
 }
 
-func expectRunningOnDemand(t *testing.T, pods []*workloadmeta.KubernetesPod, count int) {
-	t.Helper()
+func expectRunningOnDemand(t require.TestingT, pods []*workloadmeta.KubernetesPod, count int) {
+	if h, ok := t.(interface{ Helper() }); ok {
+		h.Helper()
+	}
 	g := groupPods(pods)
 	require.Equal(t, count, len(g["on-demand"][corev1.PodRunning]), "expected %d running on-demand pods; pod breakdown: %v", count, g)
 }

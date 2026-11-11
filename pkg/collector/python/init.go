@@ -130,11 +130,12 @@ void initDatadogAgentModule(rtloader_t *rtloader) {
 // addresses are received here as opaque pointers and registered with rtloader.
 // Referencing those exported symbols directly would fail this package's cgo
 // link on the MinGW/Windows linker.
-void initAggregatorModule(rtloader_t *rtloader, void *m, void *sc, void *e, void *h, void *ep) {
+void initAggregatorModule(rtloader_t *rtloader, void *m, void *sc, void *e, void *h, void *hm, void *ep) {
 	set_submit_metric_cb(rtloader, (cb_submit_metric_t)m);
 	set_submit_service_check_cb(rtloader, (cb_submit_service_check_t)sc);
 	set_submit_event_cb(rtloader, (cb_submit_event_t)e);
 	set_submit_histogram_bucket_cb(rtloader, (cb_submit_histogram_bucket_t)h);
+	set_submit_histogram_bucket_multi_cb(rtloader, (cb_submit_histogram_bucket_multi_t)hm);
 	set_submit_event_platform_event_cb(rtloader, (cb_submit_event_platform_event_t)ep);
 }
 
@@ -436,8 +437,9 @@ func Initialize(paths ...string) error {
 
 	// Set the PYTHONPATH if needed.
 	for _, p := range paths {
-		// bounded but never released allocations with CString
-		C.add_python_path(rtloader, TrackedCString(p))
+		path := TrackedCString(p)
+		C.add_python_path(rtloader, path)
+		C.call_free(unsafe.Pointer(path))
 	}
 
 	// Setup custom builtin before RtLoader initialization
@@ -445,7 +447,7 @@ func Initialize(paths ...string) error {
 	C.initLogger(rtloader)
 	C.initDatadogAgentModule(rtloader)
 	aggCb := coreaggregator.GetCallbacks()
-	C.initAggregatorModule(rtloader, aggCb.Metric, aggCb.ServiceCheck, aggCb.Event, aggCb.HistogramBucket, aggCb.EventPlatformEvent)
+	C.initAggregatorModule(rtloader, aggCb.Metric, aggCb.ServiceCheck, aggCb.Event, aggCb.HistogramBucket, aggCb.HistogramBucketMulti, aggCb.EventPlatformEvent)
 	C.initUtilModule(rtloader)
 	C.initTaggerModule(rtloader)
 	C.initContainersModule(rtloader)

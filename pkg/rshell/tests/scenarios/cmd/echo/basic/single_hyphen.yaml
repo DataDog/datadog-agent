@@ -1,0 +1,9 @@
+description: Echo treats a single hyphen as a regular argument, not as an option.
+input:
+  script: |+
+    echo -
+expect:
+  stdout: |+
+    -
+  stderr: ""
+  exit_code: 0

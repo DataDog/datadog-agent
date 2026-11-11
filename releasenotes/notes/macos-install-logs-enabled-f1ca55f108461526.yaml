@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    The macOS install script now accepts ``DD_LOGS_ENABLED=true`` or
+    ``DD_LOGS_ENABLED=false`` to persist ``logs_enabled`` in ``datadog.yaml``.
+    When unset, the existing configuration is preserved.

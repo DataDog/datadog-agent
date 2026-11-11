@@ -65,6 +65,7 @@ rust_test(
     name = "datasecurity_test",
     crate = ":datasecurity",
     crate_features = _FEATURES,
+    data = glob(["testdata/**"]),
     edition = "2024",
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX,

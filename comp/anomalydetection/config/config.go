@@ -11,6 +11,7 @@ import pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 
 const (
 	AnomalyDetectionRecordingEnabledConfigKey = "anomaly_detection.recording.enabled"
+	AnomalyDetectionRecordingOnlyConfigKey    = "anomaly_detection.recording.only"
 	AnomalyScorerDryRunEnabledConfigKey       = "anomaly_detection.anomaly_scorer.dry_run.enabled"
 	ReportingEventsEnabledConfigKey           = "anomaly_detection.reporting.events.enabled"
 	SmartSeverityProfilesEnabledConfigKey     = "logs_config.experimental_adaptive_sampling.smart_severity_profiles.enabled"
@@ -35,6 +36,11 @@ func AnomalyScorerDryRunEnabled(cfg pkgconfigmodel.Reader) bool {
 // RecordingEnabled returns whether anomaly-detection raw signal recording is enabled.
 func RecordingEnabled(cfg pkgconfigmodel.Reader) bool {
 	return cfg.GetBool(AnomalyDetectionRecordingEnabledConfigKey)
+}
+
+// RecordingOnly returns whether active recorder handles should bypass analysis.
+func RecordingOnly(cfg pkgconfigmodel.Reader) bool {
+	return cfg.GetBool(AnomalyDetectionRecordingOnlyConfigKey)
 }
 
 // ObserverRequired returns whether the observer pipeline should start.

@@ -1,0 +1,10 @@
+---
+features:
+  - |
+    Workload Protection now exposes executable file capabilities in Linux
+    execution events and process contexts. The permitted and inheritable sets
+    and the file effective bit are reported separately from capabilities used
+    by the process, helping identify binaries that can be affected by dropping
+    container capabilities. Kernel-side collection is best effort on kernels
+    4.14 and later. Processes already running at startup, or resolved through
+    the procfs fallback, report the executable's current file capabilities.

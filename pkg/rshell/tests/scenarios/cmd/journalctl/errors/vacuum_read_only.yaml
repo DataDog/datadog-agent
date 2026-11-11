@@ -1,0 +1,11 @@
+# Cleanup is intentionally unavailable outside remediation mode, even in dry-run mode.
+skip_assert_against_bash: true
+description: journalctl vacuum requires remediation mode
+input:
+  script: |+
+    journalctl --vacuum-time=168h --dry-run
+expect:
+  stdout: |+
+  stderr: |+
+    journalctl: systemd action "clean" requires remediation mode
+  exit_code: 1

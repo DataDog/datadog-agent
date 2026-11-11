@@ -313,6 +313,54 @@ else
     log "INFO: pyport.h __GNUC__ pattern not found — TLS patch not needed (already patched?)."
 fi
 
+# Patch: stop waiting on an initializing parent package in importlib
+#
+# Not AIX-specific: the same change the Bazel build applies on the other
+# platforms (DataDog/datadog-agent#58597). The 3.13 backport of gh-130094
+# (python/cpython#155915, first released in 3.13.16) makes
+# _find_and_load_unlocked() re-import a still-initializing parent package while
+# holding the submodule's module lock. When checks load concurrently, one thread
+# runs pkg/__init__.py (holding pkg's lock) while another imports pkg.sub, and
+# importlib raises _DeadlockError (python/cpython#160045). Removing the block
+# restores the 3.13.15 behavior. The frozen importlib is regenerated from Lib/
+# during make, so patching the .py file is enough.
+if grep -q "getattr(parent_spec, '_initializing', False)" Lib/importlib/_bootstrap.py 2>/dev/null; then
+
+if python3.12 << 'PATCH_EOF'
+import sys
+
+with open('Lib/importlib/_bootstrap.py', 'r') as f:
+    src = f.read()
+
+OLD = (
+    "        parent_spec = parent_module.__spec__\n"
+    "        if getattr(parent_spec, '_initializing', False):\n"
+    "            _call_with_frames_removed(import_, parent)\n"
+    "        # Crazy side-effects (again)!\n"
+    "        module = sys.modules.get(name)\n"
+    "        if module is not None:\n"
+    "            return module\n"
+)
+NEW = "        parent_spec = parent_module.__spec__\n"
+if OLD not in src:
+    print('_bootstrap.py: _initializing block changed upstream — update this patch', file=sys.stderr)
+    sys.exit(1)
+src = src.replace(OLD, NEW, 1)
+
+with open('Lib/importlib/_bootstrap.py', 'w') as f:
+    f.write(src)
+print('_bootstrap.py: removed _initializing parent re-import')
+PATCH_EOF
+then
+    log "Applied: removed initializing-parent re-import from Lib/importlib/_bootstrap.py"
+else
+    log "ERROR: importlib deadlock patch script failed"
+    exit 1
+fi
+else
+    log "INFO: _initializing parent re-import not found in Lib/importlib/_bootstrap.py — patch not needed."
+fi
+
 log "AIX patching complete."
 
 # ─── Step 4: Configure ───────────────────────────────────────────────────────

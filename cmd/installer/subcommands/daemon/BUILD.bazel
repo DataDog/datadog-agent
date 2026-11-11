@@ -10,6 +10,8 @@ go_library(
         "command.go",
         "memory_linux.go",
         "memory_nix_nolinux.go",
+        "platform_darwin.go",
+        "platform_others.go",
         "run.go",
         "run_nix.go",
         "run_windows.go",
@@ -33,12 +35,14 @@ go_library(
         "//comp/updater/localapiclient/def",
         "//comp/updater/localapiclient/fx",
         "//comp/updater/telemetry/fx",
+        "//comp/updater/updater/def",
         "//comp/updater/updater/fx",
         "//pkg/config/remote/service",
         "//pkg/util/defaultpaths",
         "//pkg/util/fxutil",
         "//pkg/util/option",
         "@com_github_spf13_cobra//:cobra",
+        "@org_uber_go_dig//:dig",
         "@org_uber_go_fx//:fx",
     ] + select({
         "@rules_go//go/platform:aix": [
@@ -57,6 +61,8 @@ go_library(
             "//comp/core/pid/def",
             "//comp/updater/localapi/def",
             "//comp/updater/telemetry/def",
+            "//pkg/config/model",
+            "//pkg/config/utils",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:dragonfly": [
@@ -81,6 +87,8 @@ go_library(
             "//comp/core/pid/def",
             "//comp/updater/localapi/def",
             "//comp/updater/telemetry/def",
+            "//pkg/config/model",
+            "//pkg/config/utils",
             "//pkg/util/log",
         ],
         "@rules_go//go/platform:js": [
@@ -146,6 +154,7 @@ dd_agent_go_test(
     name = "daemon_test",
     srcs = [
         "api_test.go",
+        "platform_darwin_test.go",
         "run_nix_test.go",
         "run_windows_test.go",
     ],
@@ -154,6 +163,16 @@ dd_agent_go_test(
         "//cmd/installer/command",
         "//pkg/util/fxutil",
     ] + select({
+        "@rules_go//go/platform:darwin": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/config/mock",
+            "@com_github_stretchr_testify//assert",
+            "@com_github_stretchr_testify//require",
+        ],
         "@rules_go//go/platform:windows": [
             "//pkg/fleet/installer/commands",
             "//pkg/fleet/installer/paths",

@@ -11,13 +11,13 @@ sh_binary(
         ],
         "@platforms//os:macos": [
             "--install-name-tool",
-            "$(rootpath @llvm_toolchain_llvm//:install-name-tool)",
+            "$(rootpath @llvm//tools:llvm-install-name-tool)",
         ],
         "//conditions:default": [],
     }),
     data = select({
         "@platforms//os:linux": ["@patchelf"],
-        "@platforms//os:macos": ["@llvm_toolchain_llvm//:install-name-tool"],
+        "@platforms//os:macos": ["@llvm//tools:llvm-install-name-tool"],
         "//conditions:default": [],
     }),
     tags = ["manual"],

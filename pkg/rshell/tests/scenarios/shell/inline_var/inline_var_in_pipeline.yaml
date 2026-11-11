@@ -1,0 +1,11 @@
+description: Inline variable assignment in a pipeline is scoped to the command.
+input:
+  script: |+
+    VAR=piped echo hello | cat
+    echo "[$VAR]"
+expect:
+  stdout: |+
+    hello
+    []
+  stderr: ""
+  exit_code: 0

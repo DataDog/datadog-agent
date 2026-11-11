@@ -15,6 +15,7 @@ go_library(
         "collector_linux.go",
         "collector_other.go",
         "collector_windows.go",
+        "daemon_service_state.go",
         "paths_notwindows.go",
         "paths_windows.go",
         "process_state.go",
@@ -125,6 +126,7 @@ dd_agent_go_test(
     srcs = [
         "catalog_drift_test.go",
         "collector_test.go",
+        "daemon_service_state_test.go",
         "process_state_test.go",
         "report_test.go",
     ],

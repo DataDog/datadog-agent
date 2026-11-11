@@ -1,0 +1,22 @@
+description: find with parentheses for grouping.
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.go
+      content: "b"
+      chmod: 0644
+    - path: dir/c.md
+      content: "c"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f '(' -name '*.txt' -o -name '*.go' ')'
+expect:
+  stdout_unordered: |+
+    dir/a.txt
+    dir/b.go
+  stderr: ""
+  exit_code: 0

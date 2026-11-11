@@ -129,8 +129,7 @@ The better alternative is to:
 - Use a Docker image containing that tool that you can then pull the [ECR pull-through cache](#ecr-pull-through-cache).
 - "Bake" the dependency into the VM machine image (AMI).
 
-We already provide `-e2e` AMI variants for most OSes for this purpose, that contain some common dependencies: docker itself, `jq`, `python3` etc.
-These `-e2e` variants are already the default for tests running on AWS.
+Every AMI pinned in `platforms.json` is already prebaked for this purpose (built from ami-builder's `-e2e` entries) and contains some common dependencies: docker itself, `jq`, `python3` etc.
 
 See [Custom AMIs](custom-amis.md) for more details on how to do this.
 
@@ -163,5 +162,5 @@ Uploading is **not self-service**: write access is held by `agent-qa` admins, be
 None of the three mechanisms above exist on Azure or GCP:
 
 - **Container images**: no pull-through cache (`InternalDockerhubMirror()` falls back to plain `registry-1.docker.io`). Use the most reliable mirror available instead — `mirror.gcr.io` on GCP; Azure has no blessed equivalent, ask #agent-devx-help.
-- **Prebaked images**: no `-e2e` AMI equivalent. `docker.InstallDocker` / `docker.InstallCompose` (`test/e2e-framework/components/docker/install.go`) install Docker at provision time as the accepted exception for these clouds.
+- **Prebaked images**: no `-e2e` AMI equivalent. `PackageManager.RuntimeInstallDocker` (`test/e2e-framework/components/os/`) installs Docker and a pinned docker-compose at provision time as the accepted exception for these clouds. It fails on AWS.
 - **S3 artifact bucket**: `HostArtifactClient` returns `not implemented` (see above), with no fallback.

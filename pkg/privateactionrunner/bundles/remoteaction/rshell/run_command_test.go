@@ -14,19 +14,20 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/structpb"
 
-	"github.com/DataDog/datadog-agent/pkg/config/setup"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	parconfig "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/config"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/types"
 	privateactionspb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/privateactionrunner/privateactions"
+	"github.com/DataDog/datadog-agent/pkg/rshell/interp"
+	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
-	"github.com/DataDog/rshell/interp"
-	"github.com/DataDog/rshell/privilegedhelper"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -71,7 +72,7 @@ func systemServiceActions(actions ...string) *structpb.ListValue {
 
 func defaultRunCommandHandlerConfig() RunCommandHandlerConfig {
 	return RunCommandHandlerConfig{
-		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
 	}
 }
@@ -186,7 +187,7 @@ func TestFilterAllowedCommandsIntersectsAgentAllowlist(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewRunCommandHandler(RunCommandHandlerConfig{
-				OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+				OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 				OperatorAllowedCommands: tc.agent,
 			})
 
@@ -387,7 +388,7 @@ func TestFilterAllowedPathsUsesBackendPayload(t *testing.T) {
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			handler := NewRunCommandHandler(RunCommandHandlerConfig{
-				OperatorAllowedPaths: []string{setup.RShellPathAllowAll},
+				OperatorAllowedPaths: []string{par.RShellPathAllowAll},
 			})
 
 			got := handler.filterAllowedPaths(tc.backend)
@@ -611,6 +612,48 @@ func TestRunCommandEmptyCommandReturnsError(t *testing.T) {
 	assert.ErrorContains(t, err, "command is required")
 }
 
+func TestRunCommandScriptSizeLimit(t *testing.T) {
+	for _, action := range []struct {
+		name       string
+		newHandler func() *RunCommandHandler
+	}{
+		{name: "read-only", newHandler: newDefaultRunCommandHandler},
+		{name: "remediation", newHandler: newDefaultRunRemediationCommandHandler},
+	} {
+		t.Run(action.name, func(t *testing.T) {
+			for _, tc := range []struct {
+				name string
+				size int
+			}{
+				{name: "below limit", size: interp.MaxScriptBytes - 1},
+				{name: "at limit", size: interp.MaxScriptBytes},
+				{name: "above limit", size: interp.MaxScriptBytes + 1},
+			} {
+				t.Run(tc.name, func(t *testing.T) {
+					// Pad with a comment so script length does not affect its output.
+					const command = "echo script-size-ok\n#"
+					script := command + strings.Repeat("x", tc.size-len(command))
+					handler := action.newHandler()
+
+					out, err := handler.Run(context.Background(), makeTask(script, []string{"rshell:echo"}), nil)
+
+					if tc.size > interp.MaxScriptBytes {
+						require.ErrorContains(t, err, "failed to parse command: script size")
+						assert.ErrorContains(t, err, "exceeds maximum")
+						assert.Nil(t, out)
+						return
+					}
+					require.NoError(t, err)
+					result := out.(*RunCommandOutputs)
+					assert.Zero(t, result.ExitCode)
+					assert.Equal(t, "script-size-ok\n", result.Stdout)
+					assert.Empty(t, result.Stderr)
+				})
+			}
+		})
+	}
+}
+
 func TestRunCommandNoAllowedCommandsBlocksExecution(t *testing.T) {
 	// Backend nil → empty effective list → rshell rejects.
 	handler := newDefaultRunCommandHandler()
@@ -760,7 +803,7 @@ func TestRunPrivilegedLogsAgentPolicyWhenOperatorSettingsConfigured(t *testing.T
 	log.SetupLogger(logger, "info")
 
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:              []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:           []string{"rshell:cat"},
 		OperatorAllowedCommandsConfigured: true,
 		OperatorElevatableCommands:        []string{"rshell:cat"},
@@ -788,7 +831,7 @@ func TestBuildAgentPolicyNoOperatorNarrowingIsNil(t *testing.T) {
 
 func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:              []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:              []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:           []string{"rshell:truncate"},
 		OperatorAllowedCommandsConfigured: true,
 	})
@@ -804,7 +847,7 @@ func TestBuildAgentPolicyOnlyAllowedCommandsConfiguredLeavesOtherAxesNil(t *test
 
 func TestBuildAgentPolicyOnlyElevatableCommandsConfiguredLeavesOtherAxesNil(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:       []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:       []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:    []string{rShellCommandAllowAllWildcard},
 		OperatorElevatableCommands: []string{"rshell:journalctl", "rshell:systemctl"},
 	})
@@ -851,7 +894,7 @@ func TestBuildAgentPolicyAllAxesConfigured(t *testing.T) {
 
 func TestBuildAgentPolicyExplicitlyEmptyAllowedSystemServicesConfiguredIsKillSwitch(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:          []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:          []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:       []string{rShellCommandAllowAllWildcard},
 		OperatorAllowedSystemServices: map[string][]string{},
 	})
@@ -996,7 +1039,7 @@ func TestRunCommandLogsBackendAndEffectiveSystemServicePolicies(t *testing.T) {
 	log.SetupLogger(logger, "debug")
 
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{rShellCommandAllowAllWildcard},
 		OperatorAllowedSystemServices: map[string][]string{
 			"mysql.service": {"read"},
@@ -1024,7 +1067,7 @@ func TestRunCommandLogsSettingsAtInfoLevel(t *testing.T) {
 	log.SetupLogger(logger, "info")
 
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:     []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:     []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands:  []string{rShellCommandAllowAllWildcard},
 		DisableDetailedTelemetry: true,
 	})
@@ -1059,7 +1102,7 @@ func TestRunCommandDisallowedCommandBlocked(t *testing.T) {
 
 func TestRunCommandAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{"rshell:cat"},
 	})
 
@@ -1074,7 +1117,7 @@ func TestRunCommandAgentCommandAllowlistNarrowsBackendPayload(t *testing.T) {
 
 func TestRunCommandExplicitEmptyAgentCommandAllowlistBlocksExecution(t *testing.T) {
 	handler := NewRunCommandHandler(RunCommandHandlerConfig{
-		OperatorAllowedPaths:    []string{setup.RShellPathAllowAll},
+		OperatorAllowedPaths:    []string{par.RShellPathAllowAll},
 		OperatorAllowedCommands: []string{},
 	})
 

@@ -1,0 +1,16 @@
+# vuln-hunt 2026-05-19-codex / pipe.
+skip_assert_against_bash: true
+description: Right pipeline stage input redirect must use AllowedPaths and not read outside the sandbox.
+setup:
+  files:
+    - path: allowed.txt
+      content: |+
+        allowed
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    printf 'pipe-data\n' | cat </etc/passwd
+expect:
+  stdout: ""
+  stderr_contains: ["passwd"]
+  exit_code: 1

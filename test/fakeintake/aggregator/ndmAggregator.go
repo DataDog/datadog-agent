@@ -53,6 +53,7 @@ type DeviceMetadata struct {
 	OsHostname     string   `json:"os_hostname,omitempty"`
 	Integration    string   `json:"integration,omitempty"`
 	DeviceType     string   `json:"device_type,omitempty"`
+	AgentHostname  string   `json:"agent_hostname,omitempty"`
 }
 
 // InterfaceMetadata contains interface metadata

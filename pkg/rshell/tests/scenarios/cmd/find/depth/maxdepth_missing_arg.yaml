@@ -1,0 +1,14 @@
+description: find -maxdepth with no value produces error.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -maxdepth
+expect:
+  stderr_contains: ["missing argument to '-maxdepth'"]
+  exit_code: 1

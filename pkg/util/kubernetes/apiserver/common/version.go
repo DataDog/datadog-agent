@@ -10,12 +10,14 @@ package common
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/util/cache"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 
+	"golang.org/x/mod/semver"
 	"k8s.io/apimachinery/pkg/version"
 	"k8s.io/client-go/discovery"
 )
@@ -82,4 +84,47 @@ func KubeServerVersion(discoveryCl discovery.DiscoveryInterface, retryTimeout ti
 			}
 		}
 	}
+}
+
+// NormalizeKubeSemver returns the server version as a valid semver string.
+// It strips build metadata like "+k3s1" and falls back to Major/Minor
+// (e.g. "1" and "22+") when GitVersion is not valid semver.
+func NormalizeKubeSemver(v *version.Info) (string, bool) {
+	if v == nil {
+		return "", false
+	}
+
+	// Prefer GitVersion (returned by v.String()) and strip build metadata like "+k3s1".
+	s := v.String()
+	if idx := strings.IndexByte(s, '+'); idx >= 0 {
+		s = s[:idx]
+	}
+	if semver.IsValid(s) {
+		return s, true
+	}
+
+	// Fallback to major/minor parsing.
+	major := strings.TrimPrefix(v.Major, "v")
+	minorDigits := digitsPrefix(v.Minor)
+	if major == "" || minorDigits == "" {
+		return "", false
+	}
+
+	s = fmt.Sprintf("v%s.%s.0", major, minorDigits)
+	if semver.IsValid(s) {
+		return s, true
+	}
+
+	return "", false
+}
+
+func digitsPrefix(s string) string {
+	var b strings.Builder
+	for _, r := range s {
+		if r < '0' || r > '9' {
+			break
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
 }

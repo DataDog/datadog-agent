@@ -484,6 +484,16 @@ func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesK
 	return entity.(*wmdef.KubernetesKueueWorkload), nil
 }
 
+// GetKubernetesKAIPodGroup implements Store#GetKubernetesKAIPodGroup
+func (w *workloadmeta) GetKubernetesKAIPodGroup(id string) (*wmdef.KubernetesKAIPodGroup, error) {
+	entity, err := w.getEntityByKind(wmdef.KindKubernetesKAIPodGroup, id)
+	if err != nil {
+		return nil, err
+	}
+
+	return entity.(*wmdef.KubernetesKAIPodGroup), nil
+}
+
 // ListECSTasks implements Store#ListECSTasks
 func (w *workloadmeta) ListECSTasks() []*wmdef.ECSTask {
 	entities := w.listEntitiesByKind(wmdef.KindECSTask)
@@ -1078,6 +1088,7 @@ func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, eve
 	// There are two timeouts here:
 	// 1. closeEventBundleChTimeout: time to wait to send the bundle to the subscriber channel.
 	// 2. eventBundleChTimeout: time to wait for the subscriber to acknowledge the bundle.
+	bundle.EnqueuedAt = time.Now()
 	select {
 	case ch <- bundle:
 		// Successfully sent

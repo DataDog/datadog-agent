@@ -17,7 +17,7 @@ import (
 )
 
 // installGPUKind installs kind at runtime, mirroring what the e2e AMIs ship
-// preinstalled (see the "24-04-e2e-kind" AMI and the kindvm scenario).
+// preinstalled (see the "24-04-kind" AMI and the kindvm scenario).
 // nvkind drives kind under the hood, so the GPU VM needs it on PATH. Wire its
 // returned Command as a Pulumi dependency on nvidia.NewKindCluster.
 //

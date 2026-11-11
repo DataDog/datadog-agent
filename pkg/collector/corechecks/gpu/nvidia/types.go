@@ -53,6 +53,9 @@ type Sample interface {
 	// AssociatedWorkloads returns the workloads that are associated with the sample.
 	AssociatedWorkloads() []workloadmeta.EntityID
 
+	// NoWorkloadTags reports whether the emitter must not add the device's workload tags.
+	NoWorkloadTags() bool
+
 	// Tags returns a copy of the sample-specific tags.
 	Tags() []string
 
@@ -70,6 +73,7 @@ type baseSample struct {
 	priority            MetricPriority
 	associatedWorkloads []workloadmeta.EntityID
 	tags                []string
+	noWorkloadTags      bool // noWorkloadTags keeps the series on device tags only
 }
 
 func (s *baseSample) Priority() MetricPriority {
@@ -78,6 +82,10 @@ func (s *baseSample) Priority() MetricPriority {
 
 func (s *baseSample) AssociatedWorkloads() []workloadmeta.EntityID {
 	return slices.Clone(s.associatedWorkloads)
+}
+
+func (s *baseSample) NoWorkloadTags() bool {
+	return s.noWorkloadTags
 }
 
 func (s *baseSample) Tags() []string {
@@ -95,7 +103,7 @@ func (s *baseSample) AppendTags(tags []string) {
 	s.tags = append(s.tags, tags...)
 }
 
-// Metric represents a single metric collected from the NVML library.
+// Metric represents a single GPU metric.
 type Metric struct {
 	baseSample
 	Name                string               // Name holds the name of the metric.

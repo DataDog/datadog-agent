@@ -1,0 +1,164 @@
+diff --git a/MODULE.bazel b/MODULE.bazel
+index 6b54ee9..194fa36 100644
+--- a/MODULE.bazel
++++ b/MODULE.bazel
+@@ -95,6 +95,7 @@ crate.from_cargo(
+         "x86_64-unknown-linux-gnu",
+         "x86_64-unknown-linux-musl",
+         "x86_64-apple-darwin",
++        "x86_64-pc-windows-gnu",
+         "x86_64-pc-windows-gnullvm",
+         "x86_64-pc-windows-msvc",
+     ],
+diff --git a/rs/platforms/triples.bzl b/rs/platforms/triples.bzl
+index c4f41ce..6a8cdec 100644
+--- a/rs/platforms/triples.bzl
++++ b/rs/platforms/triples.bzl
+@@ -64,6 +64,7 @@ def triple_to_constraint_set(target_triple):
+ SUPPORTED_EXEC_TRIPLES = [
+     "x86_64-unknown-linux-gnu",
+     "aarch64-unknown-linux-gnu",
++    "x86_64-pc-windows-gnu",
+     "x86_64-pc-windows-msvc",
+     "aarch64-pc-windows-msvc",
+     "x86_64-apple-darwin",
+diff --git a/rs/private/annotations.bzl b/rs/private/annotations.bzl
+index 495cd9b..2894b3d 100644
+--- a/rs/private/annotations.bzl
++++ b/rs/private/annotations.bzl
+@@ -99,6 +99,7 @@ _WINDOWS_GNULLVM_CRATES = [
+     # These crates publish the needed import library in their package archive.
+     # Apply the annotation by default so users do not need to add it.
+     "windows_aarch64_gnullvm",
++    "windows_x86_64_gnu",
+     "windows_x86_64_gnullvm",
+ ]
+ 
+diff --git a/rs/toolchains/declare_rust_analyzer_toolchains.bzl b/rs/toolchains/declare_rust_analyzer_toolchains.bzl
+index 90338d8..8161d17 100644
+--- a/rs/toolchains/declare_rust_analyzer_toolchains.bzl
++++ b/rs/toolchains/declare_rust_analyzer_toolchains.bzl
+@@ -28,15 +28,14 @@ def declare_rust_analyzer_toolchains(
+ 
+     for triple in execs:
+         exec_triple = _parse_triple(triple)
+-        triple_suffix = exec_triple.system + "_" + exec_triple.arch
++        triple_suffix = exec_triple.system + "_" + exec_triple.arch + ("_" + exec_triple.abi if exec_triple.system == "windows" and exec_triple.abi != "msvc" else "")
+ 
+         rustc_repo_label = "@rustc_{}_{}//:".format(triple_suffix, rust_analyzer_version_key)
+         rust_analyzer_repo_label = "@rust_analyzer_{}_{}//:".format(triple_suffix, rust_analyzer_version_key)
+         rust_src_repo_label = "@rust_src_{}//lib/rustlib/src:rustc_srcs".format(rust_analyzer_version_key)
+ 
+-        rust_analyzer_toolchain_name = "{}_{}_{}_rust_analyzer_toolchain".format(
+-            exec_triple.system,
+-            exec_triple.arch,
++        rust_analyzer_toolchain_name = "{}_{}_rust_analyzer_toolchain".format(
++            triple_suffix,
+             version_key,
+         )
+ 
+@@ -54,7 +53,7 @@ def declare_rust_analyzer_toolchains(
+         rust_analyzer_toolchain(**rust_analyzer_toolchain_kwargs)
+ 
+         native.toolchain(
+-            name = "{}_{}_rust_analyzer_{}".format(exec_triple.system, exec_triple.arch, version_key),
++            name = "{}_rust_analyzer_{}".format(triple_suffix, version_key),
+             exec_compatible_with = [
+                 "@platforms//os:" + exec_triple.system,
+                 "@platforms//cpu:" + exec_triple.arch,
+diff --git a/rs/toolchains/declare_rustc_toolchains.bzl b/rs/toolchains/declare_rustc_toolchains.bzl
+index 3724b53..1845ab7 100644
+--- a/rs/toolchains/declare_rustc_toolchains.bzl
++++ b/rs/toolchains/declare_rustc_toolchains.bzl
+@@ -132,7 +132,7 @@ def declare_rustc_toolchains(
+ 
+     for triple in exec_triples:
+         exec_triple = _parse_triple(triple)
+-        triple_suffix = exec_triple.system + "_" + exec_triple.arch
++        triple_suffix = exec_triple.system + "_" + exec_triple.arch + ("_" + exec_triple.abi if exec_triple.system == "windows" and exec_triple.abi != "msvc" else "")
+ 
+         rustc_repo_label = "@rustc_{}_{}//:".format(triple_suffix, version_key)
+         cargo_repo_label = "@cargo_{}_{}//:".format(triple_suffix, version_key)
+@@ -261,9 +261,8 @@ def declare_rustc_toolchains(
+             bootstrap_setting = "@rules_rust//rust/private:" + ("bootstrapping" if bootstrapping else "bootstrapped")
+             toolchain_suffix = "_bpf" if is_bpf else bootstrap_suffix
+             native.toolchain(
+-                name = name + "_{}_{}_to_{}_targets_{}{}".format(
+-                    exec_triple.system,
+-                    exec_triple.arch,
++                name = name + "_{}_to_{}_targets_{}{}".format(
++                    triple_suffix,
+                     target_kind,
+                     version_key,
+                     bootstrap_suffix,
+@@ -271,7 +270,7 @@ def declare_rustc_toolchains(
+                 exec_compatible_with = [
+                     "@platforms//os:" + exec_triple.system,
+                     "@platforms//cpu:" + exec_triple.arch,
+-                ],
++                ] + (["@llvm//constraints/windows/abi:" + exec_triple.abi] if exec_triple.system == "windows" and exec_triple.abi != "msvc" else []),
+                 target_settings = [
+                     target_triples_label,
+                     "@rules_rs//rs/toolchains:bpf_targets" if is_bpf else "@rules_rs//rs/toolchains:non_bpf_targets",
+diff --git a/rs/toolchains/declare_rustfmt_toolchains.bzl b/rs/toolchains/declare_rustfmt_toolchains.bzl
+index 0b112e5..6c3dae6 100644
+--- a/rs/toolchains/declare_rustfmt_toolchains.bzl
++++ b/rs/toolchains/declare_rustfmt_toolchains.bzl
+@@ -22,14 +22,13 @@ def declare_rustfmt_toolchains(
+ 
+     for triple in execs:
+         exec_triple = _parse_triple(triple)
+-        triple_suffix = exec_triple.system + "_" + exec_triple.arch
++        triple_suffix = exec_triple.system + "_" + exec_triple.arch + ("_" + exec_triple.abi if exec_triple.system == "windows" and exec_triple.abi != "msvc" else "")
+ 
+         rustc_repo_label = "@rustc_{}_{}//:".format(triple_suffix, version_key)
+         rustfmt_repo_label = "@rustfmt_{}_{}//:".format(triple_suffix, rustfmt_version_key)
+ 
+-        rustfmt_toolchain_name = "{}_{}_{}_rustfmt_toolchain".format(
+-            exec_triple.system,
+-            exec_triple.arch,
++        rustfmt_toolchain_name = "{}_{}_rustfmt_toolchain".format(
++            triple_suffix,
+             version_key,
+         )
+ 
+@@ -43,7 +42,7 @@ def declare_rustfmt_toolchains(
+         )
+ 
+         native.toolchain(
+-            name = "{}_{}_rustfmt_{}".format(exec_triple.system, exec_triple.arch, version_key),
++            name = "{}_rustfmt_{}".format(triple_suffix, version_key),
+             exec_compatible_with = [
+                 "@platforms//os:" + exec_triple.system,
+                 "@platforms//cpu:" + exec_triple.arch,
+diff --git a/rs/toolchains/module_extension.bzl b/rs/toolchains/module_extension.bzl
+index d110add..1ada113 100644
+--- a/rs/toolchains/module_extension.bzl
++++ b/rs/toolchains/module_extension.bzl
+@@ -387,7 +387,7 @@ def _toolchains_impl(mctx):
+         for triple in SUPPORTED_EXEC_TRIPLES:
+             exec_triple = _parse_triple(triple)
+ 
+-            triple_suffix = exec_triple.system + "_" + exec_triple.arch
++            triple_suffix = exec_triple.system + "_" + exec_triple.arch + ("_" + exec_triple.abi if exec_triple.system == "windows" and exec_triple.abi != "msvc" else "")
+             rustc_name = "rustc_{}_{}".format(triple_suffix, version_key)
+ 
+             rustc_repository(
+@@ -454,7 +454,7 @@ def _toolchains_impl(mctx):
+ 
+         for triple in SUPPORTED_EXEC_TRIPLES:
+             exec_triple = _parse_triple(triple)
+-            triple_suffix = exec_triple.system + "_" + exec_triple.arch
++            triple_suffix = exec_triple.system + "_" + exec_triple.arch + ("_" + exec_triple.abi if exec_triple.system == "windows" and exec_triple.abi != "msvc" else "")
+ 
+             rustfmt_repository(
+                 name = "rustfmt_{}_{}".format(triple_suffix, version_key),
+@@ -481,7 +481,7 @@ def _toolchains_impl(mctx):
+ 
+         for triple in SUPPORTED_EXEC_TRIPLES:
+             exec_triple = _parse_triple(triple)
+-            triple_suffix = exec_triple.system + "_" + exec_triple.arch
++            triple_suffix = exec_triple.system + "_" + exec_triple.arch + ("_" + exec_triple.abi if exec_triple.system == "windows" and exec_triple.abi != "msvc" else "")
+ 
+             rust_analyzer_repository(
+                 name = "rust_analyzer_{}_{}".format(triple_suffix, version_key),

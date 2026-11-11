@@ -1,0 +1,13 @@
+# Security: tee mutates file content, so — like truncate, logrotate, rm, and
+# systemctl — it must be refused entirely in read-only mode.
+description: tee is refused entirely outside remediation mode; no file is created.
+input:
+  allowed_paths: ["$DIR:rw"]
+  script: |+
+    printf "hi\n" | tee out.txt
+expect:
+  stdout: |+
+  stderr: |+
+    tee: filesystem capability not available (remediation mode required)
+  exit_code: 1
+skip_assert_against_bash: true

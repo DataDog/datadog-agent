@@ -17,7 +17,7 @@ go_library(
         "smi.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/gpu/testutil",
-    target_compatible_with = ["@platforms//os:linux"],  # keep
+    target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:android": [

@@ -1,0 +1,10 @@
+---
+enhancements:
+  - |
+    The ``datadog-cluster-agent flare --profile`` command now also collects
+    an execution trace, matching the node Agent's flare.
+fixes:
+  - |
+    Fix ``datadog-cluster-agent flare --profile`` with ``--profile-mutex`` or
+    ``--profile-blocking``, which failed with a 404 when setting the runtime
+    profiling rates.

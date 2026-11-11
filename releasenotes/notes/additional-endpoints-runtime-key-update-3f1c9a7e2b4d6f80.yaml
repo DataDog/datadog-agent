@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Runtime updates to ``additional_endpoints`` API keys, such as secret
+    refreshes, are now applied for Datadog site endpoints (for example
+    ``https://app.datadoghq.com``). Previously the forwarder discarded them
+    and logged that the domain had changed at runtime.

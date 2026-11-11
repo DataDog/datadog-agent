@@ -1,0 +1,10 @@
+description: The $? variable from a previous command is available inside a pipeline.
+input:
+  script: |+
+    false
+    echo $? | cat
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

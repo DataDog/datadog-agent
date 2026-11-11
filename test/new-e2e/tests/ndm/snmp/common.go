@@ -43,7 +43,7 @@ func checkLastNDMPayload(c *assert.CollectT, fakeIntake *components.FakeIntake, 
 	return ndmPayload
 }
 
-func checkCiscoNexusDeviceMetadata(c *assert.CollectT, deviceMetadata aggregator.DeviceMetadata) {
+func checkCiscoNexusDeviceMetadata(c *assert.CollectT, deviceMetadata aggregator.DeviceMetadata, agentHostname string) {
 	assert.Equal(c, "default:127.0.0.1", deviceMetadata.ID)
 	assert.Contains(c, deviceMetadata.IDTags, "snmp_device:127.0.0.1")
 	assert.Contains(c, deviceMetadata.IDTags, "device_namespace:default")
@@ -60,4 +60,5 @@ func checkCiscoNexusDeviceMetadata(c *assert.CollectT, deviceMetadata aggregator
 	assert.Equal(c, "cisco-nexus", deviceMetadata.Profile)
 	assert.Equal(c, "cisco", deviceMetadata.Vendor)
 	assert.Equal(c, "switch", deviceMetadata.DeviceType)
+	assert.Equal(c, agentHostname, deviceMetadata.AgentHostname)
 }

@@ -7,9 +7,11 @@ package writer
 
 import (
 	"bytes"
+	"fmt"
 	"io"
 	"net/url"
 	"runtime"
+	"strings"
 	"testing"
 
 	compression "github.com/DataDog/datadog-agent/comp/trace/compression/def"
@@ -101,38 +103,38 @@ func TestTraceWriterV1PayloadSplitting(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 
-	// Create a tracer payload with 4 chunks (matching the 4-way split logic)
-	strings := idx.NewStringTable()
+	// Create a tracer payload with 4 chunks
+	st := idx.NewStringTable()
 	chunk1 := &idx.InternalTraceChunk{
-		Strings:  strings,
+		Strings:  st,
 		Priority: 1,
 		TraceID:  []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(strings)},
+		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(st)},
 	}
 	chunk1.SetStringAttribute("chunk1", "value1")
 	chunk2 := &idx.InternalTraceChunk{
-		Strings:  strings,
+		Strings:  st,
 		Priority: 1,
 		TraceID:  []byte{2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
-		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(strings)},
+		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(st)},
 	}
 	chunk2.SetStringAttribute("chunk2", "value2")
 	chunk3 := &idx.InternalTraceChunk{
-		Strings:  strings,
+		Strings:  st,
 		Priority: 1,
 		TraceID:  []byte{3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18},
-		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(strings)},
+		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(st)},
 	}
 	chunk3.SetStringAttribute("chunk3", "value3")
 	chunk4 := &idx.InternalTraceChunk{
-		Strings:  strings,
+		Strings:  st,
 		Priority: 1,
 		TraceID:  []byte{4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19},
-		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(strings)},
+		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(st)},
 	}
 	chunk4.SetStringAttribute("chunk4", "value4")
 	payload := &idx.InternalTracerPayload{
-		Strings: strings,
+		Strings: st,
 		Chunks:  []*idx.InternalTraceChunk{chunk1, chunk2, chunk3, chunk4},
 	}
 
@@ -141,7 +143,7 @@ func TestTraceWriterV1PayloadSplitting(t *testing.T) {
 	totalSize := proto.Size(protoPayload)
 
 	// Set threshold to 1 so any payload triggers a split
-	// This ensures our 4-chunk payload gets split into 4 separate payloads
+	// No two chunks fit together, so each chunk is sent in its own payload
 	defer useFlushThreshold(1)()
 
 	ss := &SampledChunksV1{
@@ -153,9 +155,9 @@ func TestTraceWriterV1PayloadSplitting(t *testing.T) {
 	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, compressor)
 	tw.WriteChunksV1(ss)
 
-	// After WriteChunksV1, the payload should be split into 4 separate payloads
+	// After WriteChunksV1, with a threshold of 1, the payload should be split into 4 separate payloads
 	// Each payload contains 1 chunk from the original 4-chunk payload
-	assert.Equal(t, 4, srv.Accepted(), "Expected 4 payloads (one per chunk) due to 4-way split, got payloads with total size %d", totalSize)
+	assert.Equal(t, 4, srv.Accepted(), "Expected 4 payloads (one per chunk) with a threshold of 1, got payloads with total size %d", totalSize)
 
 	tw.Stop()
 
@@ -187,9 +189,9 @@ func TestTraceWriterV1PayloadSplitting(t *testing.T) {
 	}
 }
 
-// TestTraceWriterV1PayloadSplittingFewerThan4Chunks verifies that when a payload
-// has fewer than 4 chunks but is too large, each chunk is sent separately.
-func TestTraceWriterV1PayloadSplittingFewerThan4Chunks(t *testing.T) {
+// TestTraceWriterV1PayloadSplittingTwoChunks verifies that when a payload with two chunks
+// is too large and no two chunks fit together, each chunk is sent separately.
+func TestTraceWriterV1PayloadSplittingTwoChunks(t *testing.T) {
 	compressor := zstd.NewComponent()
 	srv := newTestServer()
 	defer srv.Close()
@@ -204,22 +206,22 @@ func TestTraceWriterV1PayloadSplittingFewerThan4Chunks(t *testing.T) {
 		SynchronousFlushing: true,
 	}
 
-	// Create a tracer payload with only 2 chunks (fewer than 4)
-	strings := idx.NewStringTable()
+	// Create a tracer payload with only 2 chunks
+	st := idx.NewStringTable()
 	chunk1 := &idx.InternalTraceChunk{
-		Strings:  strings,
+		Strings:  st,
 		Priority: 1,
 		TraceID:  []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16},
-		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(strings)},
+		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(st)},
 	}
 	chunk2 := &idx.InternalTraceChunk{
-		Strings:  strings,
+		Strings:  st,
 		Priority: 1,
 		TraceID:  []byte{2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17},
-		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(strings)},
+		Spans:    []*idx.InternalSpan{testutil.GetTestSpanV1(st)},
 	}
 	payload := &idx.InternalTracerPayload{
-		Strings: strings,
+		Strings: st,
 		Chunks:  []*idx.InternalTraceChunk{chunk1, chunk2},
 	}
 
@@ -235,9 +237,9 @@ func TestTraceWriterV1PayloadSplittingFewerThan4Chunks(t *testing.T) {
 	tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, compressor)
 	tw.WriteChunksV1(ss)
 
-	// With fewer than 4 chunks, each chunk should be sent separately
+	// With a threshold of 1, each chunk should be sent separately
 	// So we expect 2 payloads (one per chunk)
-	assert.Equal(t, 2, srv.Accepted(), "Expected 2 payloads (one per chunk) when splitting payload with fewer than 4 chunks")
+	assert.Equal(t, 2, srv.Accepted(), "Expected 2 payloads (one per chunk) with a threshold of 1")
 
 	tw.Stop()
 
@@ -256,6 +258,122 @@ func TestTraceWriterV1PayloadSplittingFewerThan4Chunks(t *testing.T) {
 			totalChunks += len(tp.Chunks)
 		}
 		assert.Equal(t, 1, totalChunks, "Payload %d should contain exactly 1 chunk", i)
+	}
+}
+
+// sizedPayloadV1 returns a tracer payload with one single-span chunk per entry in sizes, each carrying
+// about sizes[i] bytes of unique data. Chunks are identified by their trace ID: {id, i}.
+func sizedPayloadV1(id byte, sizes ...int) *SampledChunksV1 {
+	st := idx.NewStringTable()
+	tp := &idx.InternalTracerPayload{Strings: st}
+	for i, s := range sizes {
+		span := testutil.GetTestSpanV1(st)
+		span.SetStringAttribute("data", fmt.Sprintf("%d-%d-", id, i)+strings.Repeat("x", s))
+		tp.Chunks = append(tp.Chunks, &idx.InternalTraceChunk{
+			Strings:  st,
+			Priority: 1,
+			TraceID:  []byte{id, byte(i), 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			Spans:    []*idx.InternalSpan{span},
+		})
+	}
+	return &SampledChunksV1{TracerPayload: tp, SpanCount: int64(len(sizes))}
+}
+
+// sentRequestV1 describes one request received by the test server.
+type sentRequestV1 struct {
+	chunks      []string // "<payload id>-<chunk index>"
+	tracerBytes int      // serialized size of the tracer payloads it carries
+}
+
+func sentRequestsV1(t *testing.T, srv *testServer, compressor compression.Component) []sentRequestV1 {
+	t.Helper()
+	var out []sentRequestV1
+	for _, p := range srv.Payloads() {
+		ap, err := deserializePayload(*p, compressor)
+		require.NoError(t, err)
+		var r sentRequestV1
+		for _, tp := range ap.IdxTracerPayloads {
+			r.tracerBytes += proto.Size(tp)
+			for _, c := range tp.Chunks {
+				r.chunks = append(r.chunks, fmt.Sprintf("%d-%d", c.TraceID[0], c.TraceID[1]))
+			}
+		}
+		out = append(out, r)
+	}
+	return out
+}
+
+// TestTraceWriterV1PayloadSplittingBySize verifies that the writer never sends the held buffer together
+// with a payload that does not fit next to it, and that oversized payloads are split by bytes: every
+// request either fits in MaxPayloadSize or carries a single chunk.
+func TestTraceWriterV1PayloadSplittingBySize(t *testing.T) {
+	const limit = 10_000
+	defer useFlushThreshold(limit)()
+
+	for _, tc := range []struct {
+		name     string
+		buffered [][]int // payloads written first, each fitting in the buffer
+		incoming []int   // chunk sizes of the payload that overflows the buffer
+		want     [][]string
+	}{
+		{
+			name:     "held buffer is not sent with a large single chunk",
+			buffered: [][]int{{2_500}, {2_500}, {2_500}},
+			incoming: []int{20_000},
+			want:     [][]string{{"1-0", "2-0", "3-0"}, {"9-0"}},
+		},
+		{
+			name:     "held buffer is not sent with the first group of a split payload",
+			buffered: [][]int{{2_500}, {2_500}, {2_500}},
+			incoming: []int{20_000, 500, 500, 500},
+			want:     [][]string{{"1-0", "2-0", "3-0"}, {"9-0"}, {"9-1"}, {"9-2", "9-3"}},
+		},
+		{
+			name:     "large chunks are not grouped by count",
+			incoming: []int{100, 100, 100, 100, 100, 100, 8_000, 8_000},
+			// The grouping of the small chunks follows the halving done by the writer; the
+			// contract checked below is that the two large chunks are sent separately.
+			want: [][]string{{"9-0", "9-1", "9-2", "9-3"}, {"9-4", "9-5"}, {"9-6"}, {"9-7"}},
+		},
+		{
+			name:     "payload that fits once the buffer is flushed is held, not split",
+			buffered: [][]int{{8_000}},
+			incoming: []int{1_000, 1_000, 1_000, 1_000},
+			want:     [][]string{{"1-0"}, {"9-0", "9-1", "9-2", "9-3"}},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			compressor := zstd.NewComponent()
+			srv := newTestServer()
+			defer srv.Close()
+			cfg := &config.AgentConfig{
+				Hostname:            testHostname,
+				DefaultEnv:          testEnv,
+				Endpoints:           []*config.Endpoint{{APIKey: "123", Host: srv.URL}},
+				TraceWriter:         &config.WriterConfig{ConnectionLimit: 200, QueueSize: 40, FlushPeriodSeconds: 1_000},
+				SynchronousFlushing: true,
+			}
+			tw := NewTraceWriterV1(cfg, mockSampler, mockSampler, mockSampler, telemetry.NewNoopCollector(), &statsd.NoOpClient{}, &timing.NoopReporter{}, compressor)
+			bufferedSize := 0
+			for i, sizes := range tc.buffered {
+				ss := sizedPayloadV1(byte(i+1), sizes...)
+				bufferedSize += pb.PrepareTracerPayload(ss.TracerPayload.ToProto()).Size
+				tw.WriteChunksV1(ss)
+			}
+			require.LessOrEqual(t, bufferedSize, limit, "buffered payloads must fit in the buffer")
+			tw.WriteChunksV1(sizedPayloadV1(9, tc.incoming...))
+			require.NoError(t, tw.FlushSync())
+			tw.Stop()
+
+			var got [][]string
+			for _, r := range sentRequestsV1(t, srv, compressor) {
+				if len(r.chunks) > 1 {
+					assert.LessOrEqual(t, r.tracerBytes, limit, "request with chunks %v is above the limit", r.chunks)
+				}
+				got = append(got, r.chunks)
+			}
+			assert.Equal(t, tc.want, got)
+		})
 	}
 }
 

@@ -1,0 +1,16 @@
+description: truncate -s N extends a smaller file with zero bytes.
+setup:
+  files:
+    - path: small.bin
+      content: "abc"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -s 1024 small.bin
+    wc -c < small.bin
+expect:
+  stdout: |+
+    1024
+  stderr: |+
+  exit_code: 0

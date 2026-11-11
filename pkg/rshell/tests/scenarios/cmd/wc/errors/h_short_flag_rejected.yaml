@@ -1,0 +1,9 @@
+description: wc rejects -h flag (GNU wc does not support -h).
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -h
+expect:
+  stdout: ""
+  stderr_contains: ["wc:"]
+  exit_code: 1

@@ -73,14 +73,20 @@ func ParamsFromEnvironment(e aws.Environment) *Params {
 		if e.InfraOSDescriptor() != "" {
 			p.instanceOptions = append(p.instanceOptions, WithOS(osDesc))
 		}
-		if e.InfraOSImageIDUseLatest() {
-			p.instanceOptions = append(p.instanceOptions, WithLatestAMI())
-		}
 	}
 
 	// Agent installation toggle
 	if !e.AgentDeploy() {
 		p.agentOptions = nil
+	} else if e.AgentConfigPath() != "" {
+		// Read lazily so a bad path fails the deployment instead of panicking here.
+		p.agentOptions = append(p.agentOptions, func(ap *agentparams.Params) error {
+			config, err := e.CustomAgentConfig()
+			if err != nil {
+				return fmt.Errorf("reading agent config %q: %w", e.AgentConfigPath(), err)
+			}
+			return agentparams.WithAgentConfig(config)(ap)
+		})
 	}
 
 	// Updater toggle

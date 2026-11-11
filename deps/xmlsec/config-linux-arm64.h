@@ -1,17 +1,41 @@
 /* config.h.  Generated from config.h.in by configure.  */
 /* config.h.in.  Generated from configure.ac by autoheader.  */
 
-/* Define to 1 if you have the <dirent.h> header file, and it defines `DIR'.
+/* Define to 1 if you have the declaration of 'explicit_bzero', and to 0 if
+   you don't. */
+#define HAVE_DECL_EXPLICIT_BZERO 0
+
+/* Define to 1 if you have the declaration of 'memset_explicit', and to 0 if
+   you don't. */
+#define HAVE_DECL_MEMSET_EXPLICIT 0
+
+/* Define to 1 if you have the declaration of 'memset_s', and to 0 if you
+   don't. */
+#define HAVE_DECL_MEMSET_S 0
+
+/* Define to 1 if you have the <dirent.h> header file, and it defines 'DIR'.
    */
 #define HAVE_DIRENT_H 1
 
 /* Define to 1 if you have the <dlfcn.h> header file. */
 #define HAVE_DLFCN_H 1
 
+/* Define to 1 if you have the explicit_bzero function. */
+/* #undef HAVE_EXPLICIT_BZERO */
+
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
 
-/* Define to 1 if you have the <ndir.h> header file, and it defines `DIR'. */
+/* Define to 1 if you have the <ltdl.h> header file. */
+/* #undef HAVE_LTDL_H */
+
+/* Define to 1 if you have the memset_explicit function. */
+/* #undef HAVE_MEMSET_EXPLICIT */
+
+/* Define to 1 if you have the memset_s function. */
+/* #undef HAVE_MEMSET_S */
+
+/* Define to 1 if you have the <ndir.h> header file, and it defines 'DIR'. */
 /* #undef HAVE_NDIR_H */
 
 /* Define to 1 if you have the <stdint.h> header file. */
@@ -29,11 +53,11 @@
 /* Define to 1 if you have the <string.h> header file. */
 #define HAVE_STRING_H 1
 
-/* Define to 1 if you have the <sys/dir.h> header file, and it defines `DIR'.
+/* Define to 1 if you have the <sys/dir.h> header file, and it defines 'DIR'.
    */
 /* #undef HAVE_SYS_DIR_H */
 
-/* Define to 1 if you have the <sys/ndir.h> header file, and it defines `DIR'.
+/* Define to 1 if you have the <sys/ndir.h> header file, and it defines 'DIR'.
    */
 /* #undef HAVE_SYS_NDIR_H */
 
@@ -59,7 +83,7 @@
 #define PACKAGE_NAME "xmlsec1"
 
 /* Define to the full name and version of this package. */
-#define PACKAGE_STRING "xmlsec1 1.3.7"
+#define PACKAGE_STRING "xmlsec1 1.3.13"
 
 /* Define to the one symbol short name of this package. */
 #define PACKAGE_TARNAME "xmlsec1"
@@ -68,12 +92,12 @@
 #define PACKAGE_URL ""
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "1.3.7"
+#define PACKAGE_VERSION "1.3.13"
 
-/* Define to 1 if all of the C90 standard headers exist (not just the ones
+/* Define to 1 if all of the C89 standard headers exist (not just the ones
    required in a freestanding environment). This macro is provided for
    backward compatibility; new code need not use it. */
 #define STDC_HEADERS 1
 
 /* Version number of package */
-#define VERSION "1.3.7"
+#define VERSION "1.3.13"

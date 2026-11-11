@@ -1,0 +1,22 @@
+description: Three levels of nested for loops iterate all combinations.
+input:
+  script: |+
+    for x in a b; do
+      for y in 1 2; do
+        for z in X Y; do
+          echo "$x$y$z"
+        done
+      done
+    done
+expect:
+  stdout: |+
+    a1X
+    a1Y
+    a2X
+    a2Y
+    b1X
+    b1Y
+    b2X
+    b2Y
+  stderr: ""
+  exit_code: 0

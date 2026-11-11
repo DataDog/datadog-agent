@@ -22,6 +22,7 @@ type version int
 const (
 	version125 version = iota
 	version126
+	version127
 )
 
 // Module data offsets
@@ -34,9 +35,17 @@ const (
 	moduledataGofuncOffset = moduledataTypesOffset + 24
 )
 
+func moduledataGofuncOffsetForVersion(v version) int {
+	if v == version127 {
+		// Go 1.27 adds typedesclen, itaboffset, and itabsize.
+		return moduledataGofuncOffset + 24
+	}
+	return moduledataGofuncOffset
+}
+
 func moduledataTextsectMapOffset(v version) int {
-	if v == version126 {
-		return moduledataGofuncOffset + 16
+	if v >= version126 {
+		return moduledataGofuncOffsetForVersion(v) + 16
 	}
 	return moduledataGofuncOffset + 8
 }
@@ -61,6 +70,8 @@ type ModuleData struct {
 	Types uint64
 	// The address of the end of the types blob
 	ETypes uint64
+	// Length of the packed typelink descriptor prefix (Go 1.27 and later).
+	TypeDescLen uint64
 	// The address of the go:func.* blob
 	GoFunc uint64
 	// The address of the runtime.gcdata symbol
@@ -132,7 +143,7 @@ func (m *ModuleData) GoDebugSections(mef File) (_ *GoDebugSections, retErr error
 		}
 	} else if m.GoFunc != 0 && m.GcData != 0 {
 		rodataSection := mef.Section(".rodata")
-		if rodataSection.Addr > m.GoFunc || m.GcData > rodataSection.Addr+rodataSection.Size {
+		if rodataSection == nil || m.GoFunc < rodataSection.Addr || m.GcData < m.GoFunc || m.GcData-rodataSection.Addr > rodataSection.Size {
 			return nil, errors.New("gofunc outside rodata section")
 		}
 		offset := m.GoFunc - rodataSection.Addr
@@ -199,9 +210,19 @@ func parseModuleData(obj SectionLoader) (*ModuleData, error) {
 			return nil, fmt.Errorf("failed to load go.module: %w", err)
 		}
 		defer goModuleSectionData.Close()
+		v := version126
+		typesRange := rodataRange
+		// Go 1.27 splits types out of rodata and changes moduledata.
+		if section := obj.Section(".go.type"); section != nil {
+			v = version127
+			typesRange = [2]uint64{section.Addr, section.Addr + section.Size}
+			if typesRange[1] < typesRange[0] {
+				return nil, errors.New("invalid go.type section range")
+			}
+		}
 		return tryParseModuleDataAt(
-			version126,
-			goModuleSectionData.Data(), rodataData, 0, textRange, rodataRange, noptrdataSection, rodataSection, textSection)
+			v,
+			goModuleSectionData.Data(), rodataData, 0, textRange, typesRange, goModuleSection, rodataSection, textSection)
 	}
 
 	// Search for the moduledata structure
@@ -227,30 +248,39 @@ func parseModuleData(obj SectionLoader) (*ModuleData, error) {
 
 func tryParseModuleDataAt(
 	version version,
-	noptrdataData, rodataData []byte,
+	moduledataData, rodataData []byte,
 	offset int,
-	textRange, rodataRange [2]uint64,
-	noptrdataSection, rodataSection, textSection *safeelf.SectionHeader,
+	textRange, typesRange [2]uint64,
+	moduledataSection, rodataSection, textSection *safeelf.SectionHeader,
 ) (*ModuleData, error) {
 
+	if offset < 0 || offset > len(moduledataData) {
+		return nil, errors.New("moduledata offset out of bounds")
+	}
+	moduledataData = moduledataData[offset:]
+
 	// Parse types range
-	typesStart := offset + moduledataTypesOffset
-	if typesStart+16 > len(noptrdataData) {
+	typesStart := moduledataTypesOffset
+	etypesStart := typesStart + 8
+	if version == version127 {
+		etypesStart += 8
+	}
+	if etypesStart+8 > len(moduledataData) {
 		return nil, errors.New("types data out of bounds")
 	}
-	types := binary.LittleEndian.Uint64(noptrdataData[typesStart:])
-	etypes := binary.LittleEndian.Uint64(noptrdataData[typesStart+8:])
+	types := binary.LittleEndian.Uint64(moduledataData[typesStart:])
+	etypes := binary.LittleEndian.Uint64(moduledataData[etypesStart:])
 
 	// Parse text range
-	textStart := offset + moduledataTextOffset
-	if textStart+16 > len(noptrdataData) {
+	textStart := moduledataTextOffset
+	if textStart+16 > len(moduledataData) {
 		return nil, errors.New("text data out of bounds")
 	}
-	text := binary.LittleEndian.Uint64(noptrdataData[textStart:])
-	etext := binary.LittleEndian.Uint64(noptrdataData[textStart+8:])
+	text := binary.LittleEndian.Uint64(moduledataData[textStart:])
+	etext := binary.LittleEndian.Uint64(moduledataData[textStart+8:])
 
 	// Validate ranges
-	if types > etypes || types < rodataRange[0] || etypes > rodataRange[1] {
+	if types > etypes || types < typesRange[0] || etypes > typesRange[1] {
 		return nil, errors.New("invalid types range")
 	}
 	if text > etext || text < textRange[0] || etext > textRange[1] {
@@ -258,25 +288,25 @@ func tryParseModuleDataAt(
 	}
 
 	// Parse textsect map
-	textsectMapOffset := offset + moduledataTextsectMapOffset(version)
-	if textsectMapOffset+16 > len(noptrdataData) {
+	textsectMapOffset := moduledataTextsectMapOffset(version)
+	if textsectMapOffset+16 > len(moduledataData) {
 		return nil, errors.New("A textsect map data out of bounds")
 	}
-	textsectMapPtr := binary.LittleEndian.Uint64(noptrdataData[textsectMapOffset:])
-	textsectMapLen := binary.LittleEndian.Uint64(noptrdataData[textsectMapOffset+8:])
+	textsectMapPtr := binary.LittleEndian.Uint64(moduledataData[textsectMapOffset:])
+	textsectMapLen := binary.LittleEndian.Uint64(moduledataData[textsectMapOffset+8:])
 
 	if textsectMapPtr < rodataSection.Addr {
 		return nil, errors.New("textsect map pointer out of range")
 	}
 
 	textsectSize := uint64(unsafe.Sizeof(TextSect{}))
-	textsectMapDataOffset := int(textsectMapPtr - rodataSection.Addr)
-	textsectMapDataLen := int(textsectMapLen * textsectSize)
-
-	if textsectMapDataOffset < 0 || textsectMapDataOffset+textsectMapDataLen > len(rodataData) {
+	textsectMapDataOffset := textsectMapPtr - rodataSection.Addr
+	if textsectMapDataOffset > uint64(len(rodataData)) ||
+		textsectMapLen > (uint64(len(rodataData))-textsectMapDataOffset)/textsectSize {
 		return nil, errors.New("B textsect map data out of bounds")
 	}
 
+	textsectMapDataLen := textsectMapLen * textsectSize
 	textsectMapData := rodataData[textsectMapDataOffset : textsectMapDataOffset+textsectMapDataLen]
 	var textsectMap []TextSect
 	for i := 0; i < len(textsectMapData); i += int(textsectSize) {
@@ -291,37 +321,41 @@ func tryParseModuleDataAt(
 	}
 
 	// Parse BSS range
-	bssOffset := offset + moduledataBssOffset
-	if bssOffset+16 > len(noptrdataData) {
+	bssOffset := moduledataBssOffset
+	if bssOffset+16 > len(moduledataData) {
 		return nil, errors.New("bss data out of bounds")
 	}
-	bss := binary.LittleEndian.Uint64(noptrdataData[bssOffset:])
-	ebss := binary.LittleEndian.Uint64(noptrdataData[bssOffset+8:])
+	bss := binary.LittleEndian.Uint64(moduledataData[bssOffset:])
+	ebss := binary.LittleEndian.Uint64(moduledataData[bssOffset+8:])
 
 	// Parse gofunc offset
-	gofuncOffset := offset + moduledataGofuncOffset
-	if gofuncOffset+8 > len(noptrdataData) {
+	gofuncOffset := moduledataGofuncOffsetForVersion(version)
+	if gofuncOffset+8 > len(moduledataData) {
 		return nil, errors.New("gofunc data out of bounds")
 	}
-	gofunc := binary.LittleEndian.Uint64(noptrdataData[gofuncOffset:])
+	gofunc := binary.LittleEndian.Uint64(moduledataData[gofuncOffset:])
 
 	// Parse gcdata offset
-	gcdataOffset := offset + moduledataGcdataOffset
-	if gcdataOffset+8 > len(noptrdataData) {
+	gcdataOffset := moduledataGcdataOffset
+	if gcdataOffset+8 > len(moduledataData) {
 		return nil, errors.New("gcdata data out of bounds")
 	}
-	gcdata := binary.LittleEndian.Uint64(noptrdataData[gcdataOffset:])
+	gcdata := binary.LittleEndian.Uint64(moduledataData[gcdataOffset:])
 
 	// Parse min/max PC
-	minPCOffset := offset + moduledataMinPCOffset
-	if minPCOffset+16 > len(noptrdataData) {
+	minPCOffset := moduledataMinPCOffset
+	if minPCOffset+16 > len(moduledataData) {
 		return nil, errors.New("minPC data out of bounds")
 	}
-	minPC := binary.LittleEndian.Uint64(noptrdataData[minPCOffset:])
-	maxPC := binary.LittleEndian.Uint64(noptrdataData[minPCOffset+8:])
+	minPC := binary.LittleEndian.Uint64(moduledataData[minPCOffset:])
+	maxPC := binary.LittleEndian.Uint64(moduledataData[minPCOffset+8:])
 
+	var typeDescLen uint64
+	if version == version127 {
+		typeDescLen = binary.LittleEndian.Uint64(moduledataData[typesStart+8:])
+	}
 	return &ModuleData{
-		FirstModuleData: uint64(noptrdataSection.Addr) + uint64(offset),
+		FirstModuleData: moduledataSection.Addr + uint64(offset),
 		MinPC:           minPC,
 		MaxPC:           maxPC,
 		Text:            text,
@@ -330,6 +364,7 @@ func tryParseModuleDataAt(
 		EBSS:            ebss,
 		Types:           types,
 		ETypes:          etypes,
+		TypeDescLen:     typeDescLen,
 		GoFunc:          gofunc,
 		GcData:          gcdata,
 		TextSectMap:     textsectMap,

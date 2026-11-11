@@ -1,0 +1,10 @@
+description: Script with comments and whitespace but no commands exits successfully.
+input:
+  script: |+
+    # comment one
+      # indented comment
+    # comment two
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

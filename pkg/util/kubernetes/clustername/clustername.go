@@ -9,6 +9,7 @@ package clustername
 import (
 	"context"
 	"fmt"
+	"net/url"
 	"os"
 	"regexp"
 	"strings"
@@ -22,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/azure"
 	"github.com/DataDog/datadog-agent/pkg/util/cloudproviders/gce"
 	"github.com/DataDog/datadog-agent/pkg/util/clusteragent"
+	"github.com/DataDog/datadog-agent/pkg/util/ddot"
 	ec2tags "github.com/DataDog/datadog-agent/pkg/util/ec2/tags"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/hostinfo"
@@ -30,6 +32,9 @@ import (
 
 const (
 	clusterIDEnv = "DD_ORCHESTRATOR_CLUSTER_ID"
+
+	otelResourceAttributesEnv = "OTEL_RESOURCE_ATTRIBUTES"
+	otelClusterNameAttribute  = "k8s.cluster.name"
 )
 
 // The cluster name can be up to 40 characters with the following restrictions:
@@ -57,6 +62,17 @@ func newClusterNameData() *clusterNameData {
 
 var defaultClusterNameData *clusterNameData
 
+// nodeClusterNameLabel returns the cluster name read from the local node's
+// labels, which may or may not override clusterName, the one found so far, or
+// clusterName itself when no label applies. Tests replace it.
+var nodeClusterNameLabel = func(ctx context.Context, clusterName string) (string, error) {
+	nodeInfo, err := hostinfo.NewNodeInfo()
+	if err != nil {
+		return "", err
+	}
+	return nodeInfo.GetNodeClusterNameLabel(ctx, clusterName)
+}
+
 func init() {
 	defaultClusterNameData = newClusterNameData()
 	ProviderCatalog = map[string]Provider{
@@ -78,22 +94,7 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 		data.clusterName = pkgconfigsetup.Datadog().GetString("cluster_name")
 		if data.clusterName != "" {
 			log.Infof("Got cluster name %s from config", data.clusterName)
-			// the host alias "hostname-clustername" must not exceed 255 chars
-			hostAlias := hostname + "-" + data.clusterName
-			if !validClusterName.MatchString(data.clusterName) || len(hostAlias) > 255 {
-				log.Errorf("\"%s\" isn't a valid cluster name. The cluster name can be up to 40 characters with the following restrictions:\n"+
-					"\t- must contain only lowercase letters, numbers, dots, hyphens and underscores, \n"+
-					"\t- must start with an alphanumeric character, \n"+
-					"\t- must end with an alphanumeric character, \n"+
-					"\t- must be FQDN-like, without a trailing period, \n"+
-					"and \"%s\" must not exceed 255 chars", data.clusterName, hostAlias)
-				log.Errorf("As a consequence, the cluster name provided by the config will be ignored")
-				data.clusterName = ""
-			} else if !IsRFC1123CompliantClusterName(data.clusterName) {
-				RFC1123CompliantClusterName := MakeClusterNameRFC1123Compliant(data.clusterName)
-				log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted to \"%s\"", data.clusterName, RFC1123CompliantClusterName)
-				data.clusterName = RFC1123CompliantClusterName
-			}
+			data.clusterName = validateClusterName(data.clusterName, hostname, "the config")
 		}
 
 		// autodiscover clustername through k8s providers' API
@@ -121,17 +122,15 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 
 		// Cluster check runners aren't scheduled on a specific node and don't have a
 		// reachable local kubelet, so skip the node-label based auto discovery to avoid
-		// noisy "Impossible to reach Kubelet" warnings.
+		// noisy "Impossible to reach Kubelet" warnings. Neither does otel-agent when its
+		// configuration leaves it without kubelet access, where that discovery could
+		// only fail, possibly after waiting on connection timeouts.
 		var clusterName string
-		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) {
-			nodeInfo, err := hostinfo.NewNodeInfo()
+		if !helper.IsCLCRunner(pkgconfigsetup.Datadog()) && !ddot.KubeletDisabled(pkgconfigsetup.Datadog()) {
+			var err error
+			clusterName, err = nodeClusterNameLabel(ctx, data.clusterName)
 			if err != nil {
 				log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-			} else {
-				clusterName, err = nodeInfo.GetNodeClusterNameLabel(ctx, data.clusterName)
-				if err != nil {
-					log.Debugf("Unable to auto discover the cluster name from node label : %s", err)
-				}
 			}
 		}
 		if len(clusterName) > 0 {
@@ -140,6 +139,23 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 			}
 			data.clusterName = MakeClusterNameRFC1123Compliant(clusterName)
 			log.Infof("Using cluster name %s from the node label", data.clusterName)
+		}
+
+		// otel-agent in DDOT standalone mode: OTel deployment tools (the OTel
+		// Helm charts) and users give the collector its cluster's name in the
+		// k8s.cluster.name resource attribute, in the collector config
+		// (service.telemetry.resource) or in OTEL_RESOURCE_ATTRIBUTES. It comes
+		// last, after the cloud providers' APIs and the node labels, because
+		// charts fill it with a placeholder by default (unknown_k8s_cluster),
+		// which the EKS and AKS node labels wouldn't override. Unlike
+		// cluster_name, it is free-form, so it is lowercased before being
+		// validated. In connected mode, the core Agent owns the cluster name.
+		if data.clusterName == "" && ddot.IsStandalone(pkgconfigsetup.Datadog()) {
+			if resourceClusterName, source := otelResourceClusterName(); resourceClusterName != "" {
+				resourceClusterName = strings.ToLower(resourceClusterName)
+				log.Infof("Got cluster name %s from the %s resource attribute in %s", resourceClusterName, otelClusterNameAttribute, source)
+				data.clusterName = validateClusterName(resourceClusterName, hostname, source)
+			}
 		}
 
 		if data.clusterName != "" {
@@ -153,6 +169,66 @@ func getClusterName(ctx context.Context, data *clusterNameData, hostname string)
 	}
 
 	return data.clusterName
+}
+
+// validateClusterName returns clusterName, converted to be RFC 1123 compliant,
+// or an empty string, after logging an error, when it isn't a valid cluster
+// name. source names where it was read from, for that error.
+func validateClusterName(clusterName, hostname, source string) string {
+	// the host alias "hostname-clustername" must not exceed 255 chars
+	hostAlias := hostname + "-" + clusterName
+	if !validClusterName.MatchString(clusterName) || len(hostAlias) > 255 {
+		log.Errorf("\"%s\" isn't a valid cluster name. The cluster name can be up to 40 characters with the following restrictions:\n"+
+			"\t- must contain only lowercase letters, numbers, dots, hyphens and underscores, \n"+
+			"\t- must start with an alphanumeric character, \n"+
+			"\t- must end with an alphanumeric character, \n"+
+			"\t- must be FQDN-like, without a trailing period, \n"+
+			"and \"%s\" must not exceed 255 chars", clusterName, hostAlias)
+		log.Errorf("As a consequence, the cluster name provided by %s will be ignored", source)
+		return ""
+	}
+	if !IsRFC1123CompliantClusterName(clusterName) {
+		RFC1123CompliantClusterName := MakeClusterNameRFC1123Compliant(clusterName)
+		log.Warnf("Cluster name \"%s\" is not RFC 1123 compliant, it will be converted to \"%s\"", clusterName, RFC1123CompliantClusterName)
+		return RFC1123CompliantClusterName
+	}
+	return clusterName
+}
+
+// otelResourceClusterName returns the k8s.cluster.name resource attribute and
+// where it was read from. service.telemetry.resource in the collector config,
+// which otel-agent copies to otelcollector.standalone.telemetry_resource_cluster_name,
+// takes precedence over OTEL_RESOURCE_ATTRIBUTES: it is this collector's own
+// configuration, while charts fill the variable with a placeholder by default.
+func otelResourceClusterName() (clusterName, source string) {
+	if clusterName = pkgconfigsetup.Datadog().GetString("otelcollector.standalone.telemetry_resource_cluster_name"); clusterName != "" {
+		return clusterName, "service.telemetry.resource in the collector config"
+	}
+	if clusterName = otelResourceAttribute(otelClusterNameAttribute); clusterName != "" {
+		return clusterName, "the " + otelResourceAttributesEnv + " environment variable"
+	}
+	return "", ""
+}
+
+// otelResourceAttribute returns the value of the key resource attribute in the
+// OTEL_RESOURCE_ATTRIBUTES environment variable, or an empty string when it
+// isn't set. It parses the variable as the OTel SDK does (sdk/resource env.go):
+// comma-separated key=value pairs, with whitespace trimmed, percent-encoded
+// values, and the last pair winning when a key repeats.
+func otelResourceAttribute(key string) string {
+	var value string
+	for _, pair := range strings.Split(os.Getenv(otelResourceAttributesEnv), ",") {
+		k, v, found := strings.Cut(pair, "=")
+		if !found || strings.TrimSpace(k) != key {
+			continue
+		}
+		v = strings.TrimSpace(v)
+		if decoded, err := url.PathUnescape(v); err == nil {
+			v = decoded
+		}
+		value = v
+	}
+	return value
 }
 
 // GetClusterName returns a k8s cluster name if it exists, either directly specified or autodiscovered

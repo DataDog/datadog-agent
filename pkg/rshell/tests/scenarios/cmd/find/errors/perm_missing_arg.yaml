@@ -1,0 +1,16 @@
+description: find -perm without an argument reports a missing argument error.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -perm
+expect:
+  stdout: ""
+  stderr_contains:
+    - "missing argument"
+  exit_code: 1

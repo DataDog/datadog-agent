@@ -18,8 +18,11 @@ import (
 	delegatedauth "github.com/DataDog/datadog-agent/comp/core/delegatedauth/def"
 	delegatedauthnooptypes "github.com/DataDog/datadog-agent/comp/core/delegatedauth/noop-impl/types"
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
+	"github.com/DataDog/datadog-agent/comp/core/status"
 	pkgconfigenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -45,6 +48,8 @@ type dependencies struct {
 	Params        Params
 	Secret        secrets.Component
 	DelegatedAuth delegatedauth.Component
+	// Schema validates the configuration against its schema once loaded
+	Schema schema.Component
 	// When active, the snapshot has populated the global builder and we skip loading datadog.yaml.
 	Cfgstream configstreamconsumer.Component `optional:"true"`
 }
@@ -52,8 +57,9 @@ type dependencies struct {
 type provides struct {
 	fx.Out
 
-	Comp          Component
-	FlareProvider flaretypes.Provider
+	Comp           Component
+	FlareProvider  flaretypes.Provider
+	StatusProvider status.InformationProvider
 }
 
 // NewServerlessConfig initializes a config component from the given config file
@@ -70,6 +76,7 @@ func NewServerlessConfig(path string) (Component, error) {
 		Params:        NewParams(path, options...),
 		Secret:        &secretnooptypes.SecretNoop{},
 		DelegatedAuth: &delegatedauthnooptypes.DelegatedAuthNoop{},
+		Schema:        &schemanoopimpl.SchemaNoop{},
 	}
 	return newConfig(d)
 }
@@ -77,8 +84,9 @@ func NewServerlessConfig(path string) (Component, error) {
 func newComponent(deps dependencies) (provides, error) {
 	c, err := newConfig(deps)
 	return provides{
-		Comp:          c,
-		FlareProvider: flaretypes.NewProvider(c.fillFlare),
+		Comp:           c,
+		FlareProvider:  flaretypes.NewProvider(c.fillFlare),
+		StatusProvider: status.NewInformationProvider(statusProvider{config: c}),
 	}, err
 }
 
@@ -98,12 +106,15 @@ func newConfig(deps dependencies) (*cfg, error) {
 			if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
 				return &cfg{Config: config}, err
 			}
+			// The delegated-auth endpoint scan never ran on this path (LoadDatadog is
+			// skipped), so cover values from the merge.
+			pkgconfigsetup.ConfigureDelegatedAuthEndpoints(context.Background(), config, deps.DelegatedAuth)
 		}
 
 		return &cfg{Config: config}, nil
 	}
 
-	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Params)
+	err := setupConfig(config, deps.Secret, deps.DelegatedAuth, deps.Schema, deps.Params)
 	returnErrFct := func(e error) (*cfg, error) {
 		if e != nil && deps.Params.ignoreErrors {
 			loadError = e.Error()
@@ -120,6 +131,9 @@ func newConfig(deps dependencies) (*cfg, error) {
 		if err := pkgconfigsetup.Merge(deps.Params.securityAgentConfigFilePaths, config); err != nil {
 			return returnErrFct(err)
 		}
+		// Directives in security-agent.yaml were invisible to the delegated-auth endpoint
+		// scan that ran inside LoadDatadog; re-run it over the merged values.
+		pkgconfigsetup.ConfigureDelegatedAuthEndpoints(context.Background(), config, deps.DelegatedAuth)
 	}
 
 	return &cfg{Config: config}, nil

@@ -65,7 +65,7 @@ fi
 log "Agent source found at $AGENT_SRC"
 log "  go.mod: $(head -1 "$AGENT_SRC"/go.mod)"
 
-# ─── Step 2: Read dependency versions from release.json and MODULE.bazel ───────
+# ─── Step 2: Read dependency versions from release.json ──────────────────────
 
 RELEASE_JSON="$AGENT_SRC/release.json"
 if [ ! -f "$RELEASE_JSON" ]; then
@@ -83,19 +83,6 @@ if [ -z "$INTEGRATIONS_CORE_VERSION" ]; then
 fi
 
 log "INTEGRATIONS_CORE_VERSION = $INTEGRATIONS_CORE_VERSION"
-
-ADP_MODULE="$AGENT_SRC/deps/agent_data_plane/agent_data_plane.MODULE.bazel"
-if [ -z "${AGENT_DATA_PLANE_VERSION:-}" ]; then
-    if [ ! -f "$ADP_MODULE" ]; then
-        log "ERROR: $ADP_MODULE not found — is the source tree complete?"
-        exit 1
-    fi
-    AGENT_DATA_PLANE_VERSION=$(sed -n 's/^VERSION = "\(.*\)".*/\1/p' "$ADP_MODULE" | head -1)
-fi
-if [ -z "$AGENT_DATA_PLANE_VERSION" ]; then
-    log "ERROR: Could not read AGENT_DATA_PLANE_VERSION from $ADP_MODULE"
-    exit 1
-fi
 log "AGENT_DATA_PLANE_VERSION = $AGENT_DATA_PLANE_VERSION"
 
 # ─── Step 3: Clone or fetch integrations-core ─────────────────────────────────
@@ -105,22 +92,21 @@ log "Checking out DataDog/integrations-core at $INTEGRATIONS_CORE_VERSION into $
 mkdir -p "$(dirname "$INTEGRATIONS_CORE")"
 
 if [ -d "$INTEGRATIONS_CORE/.git" ]; then
-    log "integrations-core repository already exists — resetting to a clean state and fetching latest refs"
+    log "integrations-core repository already exists — resetting to a clean state"
     git -C "$INTEGRATIONS_CORE" reset --quiet --hard
     git -C "$INTEGRATIONS_CORE" clean --quiet -fd
-    git -C "$INTEGRATIONS_CORE" fetch --quiet
 else
     log "Cloning https://github.com/DataDog/integrations-core.git (shallow --depth=1)"
     PARTIAL_INTEGRATIONS_CORE="$INTEGRATIONS_CORE"
-    # --depth=1 cuts clone time from ~3 min to ~30 sec. If the pinned SHA is not
-    # the current HEAD of the default branch, fetch it specifically afterwards.
-    # GitHub supports fetching public commits by SHA (git protocol v2).
+    # --depth=1 cuts clone time from ~3 min to ~30 sec.
     git clone --depth=1 --quiet https://github.com/DataDog/integrations-core.git "$INTEGRATIONS_CORE"
-    if ! git -C "$INTEGRATIONS_CORE" cat-file -e "${INTEGRATIONS_CORE_VERSION}^{commit}" 2>/dev/null; then
-        log "  Pinned commit not at clone HEAD; fetching $INTEGRATIONS_CORE_VERSION"
-        git -C "$INTEGRATIONS_CORE" fetch --quiet --depth=1 origin "$INTEGRATIONS_CORE_VERSION"
-    fi
     PARTIAL_INTEGRATIONS_CORE=
+fi
+
+# Fetch the commit explicitly when absent
+if ! git -C "$INTEGRATIONS_CORE" cat-file -e "${INTEGRATIONS_CORE_VERSION}^{commit}" 2>/dev/null; then
+    log "  Pinned commit not present; fetching $INTEGRATIONS_CORE_VERSION"
+    git -C "$INTEGRATIONS_CORE" fetch --quiet --depth=1 origin "$INTEGRATIONS_CORE_VERSION"
 fi
 
 git -C "$INTEGRATIONS_CORE" checkout --quiet "$INTEGRATIONS_CORE_VERSION"

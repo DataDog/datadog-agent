@@ -1,0 +1,9 @@
+description: xargs treats -0 and -d as mutually exclusive with last-wins semantics (matches GNU); when both appear, the last one specified determines the tokenizer mode.
+input:
+  script: |+
+    printf 'a,b' | xargs -0 -d , echo
+expect:
+  stdout: |+
+    a b
+  stderr: |+
+  exit_code: 0

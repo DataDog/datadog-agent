@@ -1,0 +1,11 @@
+# Pinging :: (IPv6 unspecified address) must be rejected.
+# ip.IsUnspecified() covers both 0.0.0.0 (IPv4) and :: (IPv6).
+description: "ping :: (IPv6 unspecified address) exits 1"
+input:
+  script: |+
+    ping -c 1 -W 100ms ::
+expect:
+  stdout: ""
+  stderr: "ping: unspecified destination not allowed: ::\n"
+  exit_code: 1
+skip_assert_against_bash: true

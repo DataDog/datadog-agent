@@ -518,6 +518,59 @@ func TestProcessEvents(t *testing.T) {
 				},
 			},
 		},
+		{
+			// Tools built on go-containerregistry record an unset created as the
+			// zero time, as on the base layers of the Kubernetes control plane
+			// images.
+			name: "layer created at the zero time",
+			inputEvents: []workloadmeta.Event{
+				{
+					Type: workloadmeta.EventTypeSet,
+					Entity: &workloadmeta.ContainerImageMetadata{
+						EntityID: workloadmeta.EntityID{
+							Kind: workloadmeta.KindContainerImageMetadata,
+							ID:   "sha256:c3994bc6961024917ec0aeee02e62828108c21a52d87648e30f3080d9cbadc97",
+						},
+						RepoDigests: []string{
+							"registry.k8s.io/kube-apiserver@sha256:b9d7c117f8ac52bed4b13aeed973dc5198f9d93a926e6fe9e0b384f155baa902",
+						},
+						OS:           "linux",
+						Architecture: "amd64",
+						Layers: []workloadmeta.ContainerImageLayer{
+							{
+								DiffID:  "sha256:f464af4b9b251ebe8a7c2f186aff656f0892f6cb159837a6ce8fd63842e83e35",
+								History: &v1.History{Created: &time.Time{}},
+							},
+						},
+					},
+				},
+			},
+			expectedImages: []*model.ContainerImage{
+				{
+					Id: "registry.k8s.io/kube-apiserver@sha256:c3994bc6961024917ec0aeee02e62828108c21a52d87648e30f3080d9cbadc97",
+					DdTags: []string{
+						"image_id:registry.k8s.io/kube-apiserver@sha256:c3994bc6961024917ec0aeee02e62828108c21a52d87648e30f3080d9cbadc97",
+						"image_name:registry.k8s.io/kube-apiserver",
+						"short_image:kube-apiserver",
+					},
+					Name:        "registry.k8s.io/kube-apiserver",
+					Registry:    "registry.k8s.io",
+					ShortName:   "kube-apiserver",
+					Digest:      "sha256:c3994bc6961024917ec0aeee02e62828108c21a52d87648e30f3080d9cbadc97",
+					RepoDigests: []string{"registry.k8s.io/kube-apiserver@sha256:b9d7c117f8ac52bed4b13aeed973dc5198f9d93a926e6fe9e0b384f155baa902"},
+					Os: &model.ContainerImage_OperatingSystem{
+						Name:         "linux",
+						Architecture: "amd64",
+					},
+					Layers: []*model.ContainerImage_ContainerImageLayer{
+						{
+							Digest:  "sha256:f464af4b9b251ebe8a7c2f186aff656f0892f6cb159837a6ce8fd63842e83e35",
+							History: &model.ContainerImage_ContainerImageLayer_History{},
+						},
+					},
+				},
+			},
+		},
 	}
 
 	for _, test := range tests {

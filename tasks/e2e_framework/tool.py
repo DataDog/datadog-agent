@@ -7,6 +7,7 @@ import platform
 import shlex
 import shutil
 import subprocess
+import sys
 import tempfile
 from io import StringIO
 from typing import Any
@@ -14,6 +15,8 @@ from typing import Any
 from invoke.context import Context
 from invoke.exceptions import Exit
 from invoke.runners import Result
+
+from tasks.libs.build.bazel import bazel
 
 try:
     from termcolor import colored
@@ -296,7 +299,8 @@ def run_pulumi(
         env=pulumi_env(config_path=config_path, ci=ci, skip_update_check=skip_update_check, overrides=env),
         # A pty is only ever useful for the commands whose progress the user watches, and
         # invoke can't allocate one on Windows.
-        pty=pty and not is_windows(),
+        # It is also not useful when output is redirected to a file or a pipe.
+        pty=pty and not is_windows() and sys.stdout.isatty(),
         hide=hide,
         warn=warn,
     )
@@ -483,6 +487,12 @@ def _get_root_path() -> str:
 
 def get_pulumi_run_folder() -> str:
     return os.path.join(_get_root_path(), "test", "e2e-framework", "run")
+
+
+def install_pulumi_plugins() -> None:
+    """Install the Pulumi plugins where Pulumi looks for them."""
+    pulumi_home = os.environ.get("PULUMI_HOME") or os.path.expanduser("~/.pulumi")
+    bazel("run", "@pulumi_plugins//:install", "--", f"--destdir={os.path.join(pulumi_home, 'plugins')}")
 
 
 class RemoteHost:

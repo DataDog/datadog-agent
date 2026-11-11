@@ -9,5 +9,5 @@ import (
 )
 
 func TestCgoAlignment_ebpfCgroupAggStats(t *testing.T) {
-	ebpftest.TestCgoAlignment[ebpfCgroupAggStats](t)
+	ebpftest.AssertCgoAlignment[ebpfCgroupAggStats](t)
 }

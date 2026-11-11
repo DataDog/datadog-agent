@@ -24,16 +24,7 @@ type discoveryState struct {
 	// discoveryWorker is the workqueue-backed driver that probes integrations
 	// to fill in instance configs for Discovery templates.
 	discoveryWorker *discoverer.Worker
-
-	// discoveredCh carries ConfigChanges produced by the discoveryWorker
-	// back to AutoConfig.
-	discoveredCh chan integration.ConfigChanges
 }
-
-// discoveredChangesBuffer is the buffer size for the channel that delivers
-// asynchronously-discovered configs to AutoConfig. Sized to absorb a burst
-// of completions without blocking the worker goroutine on a busy scheduler.
-const discoveredChangesBuffer = 128
 
 // configDiscoveryTag is added to every instance of a check scheduled via
 // configuration discovery. Configuration discovery has no way of knowing
@@ -54,7 +45,6 @@ const configDiscoveryTag = "dd_config_discovery:true"
 
 // initDiscoveryWorker wires the workqueue-backed discovery worker into cm.
 func initDiscoveryWorker(cm *reconcilingConfigManager, disco discoverer.ConfigDiscoverer) {
-	cm.discoveredCh = make(chan integration.ConfigChanges, discoveredChangesBuffer)
 	cm.discoveryWorker = discoverer.NewWorker(disco, cmServiceLookup{cm}, cm.onDiscoveryResult, discoverer.Config{}, cm.telemetryStore)
 }
 
@@ -68,10 +58,6 @@ func (cm *reconcilingConfigManager) start() {
 
 func (cm *reconcilingConfigManager) stop() {
 	cm.discoveryWorker.Stop()
-}
-
-func (cm *reconcilingConfigManager) discoveredChanges() <-chan integration.ConfigChanges {
-	return cm.discoveredCh
 }
 
 // cmServiceLookup adapts *reconcilingConfigManager to the
@@ -96,16 +82,9 @@ func (l cmServiceLookup) LookupService(svcID string) (discoverer.ServiceInfo, bo
 // returns a usable config. It runs in the worker goroutine.
 func (cm *reconcilingConfigManager) onDiscoveryResult(svcID, tplDigest string, configs []integration.Config) {
 	cm.m.Lock()
+	defer cm.m.Unlock()
 	changes := cm.applyDiscoveredConfigsLocked(svcID, tplDigest, configs)
-	cm.m.Unlock()
-	if len(changes.Schedule) == 0 && len(changes.Unschedule) == 0 {
-		return
-	}
-	select {
-	case cm.discoveredCh <- changes:
-	default:
-		log.Warnf("dropping discovered changes for service %s (channel full)", svcID)
-	}
+	cm.publish(changes, nil)
 }
 
 // applyDiscoveredConfigsLocked merges a discovered config into a copy of the

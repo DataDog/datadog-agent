@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CSPM: Host benchmark rules that walk local file systems now check the
+    scanned root when it is an overlay mount, as on Kind, k3d and minikube
+    nodes or composefs hosts, where the bundled OpenSCAP walked no file.

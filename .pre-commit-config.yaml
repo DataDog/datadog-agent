@@ -171,6 +171,14 @@ repos:
       language: system
       pass_filenames: false
       files: (^test/new-e2e/tests/.*/scenario\.go$|^test/new-e2e/run/scenarios_import_gen\.go$)
+    - id: e2e-internet-access
+      name: e2e-internet-access
+      description: Check that E2E WithInternetAccess() usages are listed in test/new-e2e/internet-access.yaml
+      entry: bash -c 'args=(); for f in "$@"; do args+=(--path "$f"); done; dda inv linter.e2e-internet-access "${args[@]}"' --
+      language: system
+      files: ^test/(new-e2e|e2e-framework)/.*\.go$|^test/new-e2e/internet-access\.yaml$
+      pass_filenames: true
+      require_serial: true
     - id: rst-releasenotes
       name: rst-releasenotes
       description: Check release notes for RST formatting issues (Markdown syntax detected)
@@ -182,6 +190,13 @@ repos:
       name: releasenote-unique-ids
       description: Check that release note UIDs are unique (prevents MQ collisions)
       entry: bash -c 'dda inv linter.releasenote-unique-ids --files="$(echo "$@" | tr " " ",")"' --
+      language: system
+      files: ^releasenotes(-dca)?/notes/.*\.yaml$
+      pass_filenames: true
+    - id: releasenote-reused-uids
+      name: releasenote-reused-uids
+      description: Check that added release notes don't reuse a deleted note's UID (e.g. re-landed reverts)
+      entry: bash -c 'dda inv linter.releasenote-reused-uids --files="$(echo "$@" | tr " " ",")"' --
       language: system
       files: ^releasenotes(-dca)?/notes/.*\.yaml$
       pass_filenames: true

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CSPM: Host benchmark rules that walk local file systems now check the
+    scanned files in containers without ``/etc/mtab``, as under containerd
+    and podman 1.6, where the bundled OpenSCAP walked no file.

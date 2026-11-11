@@ -1,0 +1,10 @@
+# Per RULES.md: error paths must be tested
+skip_assert_against_bash: true
+description: tr with one operand in translate mode fails.
+input:
+  script: |+
+    tr foo
+expect:
+  stdout: ""
+  stderr: "tr: missing operand after 'foo'\n"
+  exit_code: 1

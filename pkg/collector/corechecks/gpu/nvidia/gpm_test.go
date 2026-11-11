@@ -11,10 +11,12 @@ import (
 	"testing"
 
 	"github.com/NVIDIA/go-nvml/pkg/nvml"
+	nvmlmock "github.com/NVIDIA/go-nvml/pkg/nvml/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	gpuconfig "github.com/DataDog/datadog-agent/pkg/gpu/config"
+	ddnvml "github.com/DataDog/datadog-agent/pkg/gpu/safenvml"
 	nvmltestutil "github.com/DataDog/datadog-agent/pkg/gpu/safenvml/testutil"
 	"github.com/DataDog/datadog-agent/pkg/gpu/testutil"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
@@ -53,6 +55,75 @@ func TestGPMCollectorSampleAllocFailure(t *testing.T) {
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to allocate GPM sample")
 	assert.Equal(t, 1, mockLib.GpmSampleFreeCount(), "allocated sample should be freed on error")
+}
+
+func TestGPMCollectorUnsupportedWhenDriverLacksGPM(t *testing.T) {
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithCustomLibHook(func(lib *nvmlmock.Interface) {
+			lib.GpmSampleAllocFunc = func() (nvml.GpmSample, nvml.Return) {
+				return nil, nvml.ERROR_NOT_SUPPORTED
+			}
+		}),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
+
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
+	assert.Nil(t, collector)
+	assert.ErrorIs(t, err, errUnsupportedDevice)
+}
+
+func TestGPMCollectorAllMetricsDeniedIsNotUnsupported(t *testing.T) {
+	oldAllGpmMetrics := allGpmMetrics
+	allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
+		1: {name: "metric1"},
+		2: {name: "metric2"},
+	}
+	t.Cleanup(func() { allGpmMetrics = oldAllGpmMetrics })
+
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
+			1: {Return: nvml.ERROR_NO_PERMISSION},
+			2: {Return: nvml.ERROR_NO_PERMISSION},
+		}),
+	)
+	collector, err := newGPMCollector(nvmltestutil.PhysicalDevice(t, mockLib, 0), &CollectorDependencies{})
+	require.Nil(t, collector)
+	require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+	require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
+}
+
+func TestGPMCollectorMixedPermissionAndUnsupportedMetricsIsNotUnsupported(t *testing.T) {
+	// GPM metrics are queried one by one, so the error of removeUnsupportedMetrics can be a join
+	// of per-metric failures. A permission error must not be hidden by an unsupported error that
+	// comes first in the joined error: permissions can be recovered, so the collector is retried.
+	oldAllGpmMetrics := allGpmMetrics
+	allGpmMetrics = map[nvml.GpmMetricId]gpmMetric{
+		1: {name: "metric1"},
+		2: {name: "metric2"},
+	}
+	t.Cleanup(func() { allGpmMetrics = oldAllGpmMetrics })
+
+	// the first metric queried fails with unsupported, the second one with no permission
+	getCalls := 0
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithGpmSupport(true),
+		testutil.WithGpmMetricsGetCallback(func(_ *nvml.GpmMetricsGetType) nvml.Return {
+			getCalls++
+			if getCalls == 1 {
+				return nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.ERROR_NO_PERMISSION
+		}),
+	)
+	collector, err := newGPMCollector(nvmltestutil.PhysicalDevice(t, mockLib, 0), &CollectorDependencies{})
+	require.Nil(t, collector)
+	require.ErrorContains(t, err, "failed to remove unsupported metrics")
+	require.True(t, ddnvml.IsNoPermission(err), "unexpected error: %v", err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+	require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
 }
 
 func TestGPMCollectorAllMetricsUnsupported(t *testing.T) {
@@ -184,7 +255,8 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	)
 	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{})
+	// LegacySMActive disables the GR engine sm_active source, so only the GPM metrics are emitted here.
+	collector, err := newGPMCollector(mockDevice, &CollectorDependencies{Config: gpuconfig.Config{LegacySMActive: true}})
 	require.NoError(t, err)
 	gpmCol := collector.(*gpmCollector)
 
@@ -211,61 +283,47 @@ func TestGPMCollectorCollectReturnsMetrics(t *testing.T) {
 	assert.Equal(t, 2, mockLib.GpmSampleAllocCount())
 }
 
-func TestGPMCollectorLegacySMActive(t *testing.T) {
-	const smUtilValue = 42.0
+func TestGPMCollectorSMActiveSources(t *testing.T) {
+	const grEngineValue, smUtilValue = 61.0, 59.0
 
 	for _, tc := range []struct {
-		name                string
-		legacySMActive      bool
-		expectedMetricNames []string
+		name             string
+		config           gpuconfig.Config
+		expectedPriority MetricPriority
+		expectedValue    float64
 	}{
-		{
-			name:                "disabled",
-			legacySMActive:      false,
-			expectedMetricNames: []string{"sm_utilization"},
-		},
-		{
-			name:                "enabled",
-			legacySMActive:      true,
-			expectedMetricNames: []string{"sm_utilization", "sm_active"},
-		},
+		{name: "default", config: gpuconfig.Config{}, expectedPriority: Low, expectedValue: grEngineValue},
+		{name: "preferred", config: gpuconfig.Config{PreferGrEngineSMActive: true}, expectedPriority: High, expectedValue: grEngineValue},
+		{name: "legacy", config: gpuconfig.Config{LegacySMActive: true}, expectedPriority: High, expectedValue: smUtilValue},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mockLib := nvmltestutil.SetupMockNVML(t,
 				testutil.WithGpmSupport(true),
 				testutil.WithGpmMetricValues(map[nvml.GpmMetricId]testutil.MockGpmMetricValue{
-					nvml.GPM_METRIC_SM_UTIL: {Value: smUtilValue, Return: nvml.SUCCESS},
+					nvml.GPM_METRIC_GRAPHICS_UTIL: {Value: grEngineValue, Return: nvml.SUCCESS},
+					nvml.GPM_METRIC_SM_UTIL:       {Value: smUtilValue, Return: nvml.SUCCESS},
 				}),
 			)
 			mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
 
-			collector, err := newGPMCollectorWithMetrics(
-				mockDevice,
-				map[nvml.GpmMetricId]gpmMetric{
-					nvml.GPM_METRIC_SM_UTIL: {
-						name:       "sm_utilization",
-						metricType: metrics.GaugeType,
-					},
-				},
-				&CollectorDependencies{Config: gpuconfig.Config{LegacySMActive: tc.legacySMActive}},
-			)
+			collector, err := newGPMCollectorWithMetrics(mockDevice, map[nvml.GpmMetricId]gpmMetric{
+				nvml.GPM_METRIC_GRAPHICS_UTIL: {name: "gr_engine_active", metricType: metrics.GaugeType},
+				nvml.GPM_METRIC_SM_UTIL:       {name: "sm_utilization", metricType: metrics.GaugeType},
+			}, &CollectorDependencies{Config: tc.config})
 			require.NoError(t, err)
 
-			collectedMetrics, err := collector.Collect()
+			samples, err := collector.Collect()
 			require.NoError(t, err)
-			require.Len(t, collectedMetrics, len(tc.expectedMetricNames))
-
-			metricsByName := make(map[string]*Metric, len(collectedMetrics))
-			for _, metric := range requireMetrics(t, collectedMetrics) {
-				metricsByName[metric.Name] = metric
+			var smActive []*Metric
+			for _, metric := range requireMetrics(t, samples) {
+				if metric.Name == "sm_active" {
+					smActive = append(smActive, metric)
+				}
 			}
 
-			for _, name := range tc.expectedMetricNames {
-				metric := metricsByName[name]
-				require.NotNil(t, metric)
-				assert.Equal(t, smUtilValue, metric.Value)
-				assert.Equal(t, High, metric.Priority())
-			}
+			require.Len(t, smActive, 1)
+			assert.Equal(t, tc.expectedPriority, smActive[0].Priority())
+			assert.Equal(t, tc.expectedValue, smActive[0].Value)
 		})
 	}
 }

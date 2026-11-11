@@ -1,0 +1,30 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    DDOT: Added the OpenTelemetry ``opamp`` extension to the set of components
+    bundled in the Datadog distribution of the OpenTelemetry Collector. The
+    extension can be configured under ``extensions.opamp``, allowing the
+    collector to report its status and effective configuration to an OpAMP
+    server.
+  - |
+    DDOT: In standalone mode (``otel_standalone: true``), the converter now
+    autoconfigures the ``opamp`` extension and no longer autoconfigures the
+    ``datadog`` extension; the two are mutually exclusive. In connected mode
+    the behavior is unchanged. The injected extension points at
+    ``https://opamp.<site>/v1/opamp`` and sets ``reports_raw_config: true``, so
+    configuration references such as ``${env:FOO}`` are reported unexpanded
+    rather than resolved. Fields typed as ``configopaque`` remain redacted.
+    Injection requires an ``api_key`` and can be disabled by removing ``opamp``
+    from ``otelcollector.converter.features``.
+  - |
+    DDOT: Added the ``otelcollector.opamp.endpoint`` and
+    ``otelcollector.opamp.reports_raw_config`` settings, which override the
+    endpoint and the raw-configuration reporting of the autoconfigured
+    ``opamp`` extension.

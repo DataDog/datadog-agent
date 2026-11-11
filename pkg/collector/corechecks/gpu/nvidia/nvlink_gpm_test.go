@@ -223,3 +223,61 @@ func TestNVLinkGPMCollectorCollectReturnsPartialMetricsAndErrors(t *testing.T) {
 	metric := collectedMetrics[0]
 	require.Equal(t, "nvlink.throughput.data.rx", metric.Name)
 }
+
+func TestNVLinkGPMCollectorFreesSamplesWhenCreationFails(t *testing.T) {
+	port2RxMetricID := uint32(int(baseNvlinkRxGpm) + 2)
+	port2TxMetricID := uint32(int(baseNvlinkTxGpm) + 2)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkLinkCount: 2}),
+		testutil.WithGpmMetricsGetCallback(func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+			// the first port works, while the second one fails with a permission error
+			for i := range metrics.Metrics[:metrics.NumMetrics] {
+				if metrics.Metrics[i].MetricId == port2RxMetricID || metrics.Metrics[i].MetricId == port2TxMetricID {
+					return nvml.ERROR_NO_PERMISSION
+				}
+				metrics.Metrics[i].NvmlReturn = uint32(nvml.SUCCESS)
+			}
+			return nvml.SUCCESS
+		}),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
+
+	collector, err := newNVLinkGPMCollector(mockDevice, nil)
+	require.Nil(t, collector)
+	require.Error(t, err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+
+	// the samples allocated for the first port must be freed
+	require.Positive(t, mockLib.GpmSampleAllocCount())
+	require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
+}
+
+func TestNVLinkGPMCollectorMixedPermissionAndUnsupportedMetricsIsNotUnsupported(t *testing.T) {
+	// The GPM metrics of a port are queried one by one, so the port's discovery error
+	// can be a join of per-metric failures mixing unsupported and permission errors.
+	// The permission failure must not be hidden by the unsupported one, or the collector
+	// would be marked as unsupported and never retried, even though permissions can be
+	// recovered.
+	port1RxMetricID := uint32(baseNvlinkRxGpm)
+	mockLib := nvmltestutil.SetupMockNVML(t,
+		testutil.WithCapabilities(testutil.Capabilities{GPM: true, NvLinkLinkCount: 1}),
+		testutil.WithGpmMetricsGetCallback(func(metrics *nvml.GpmMetricsGetType) nvml.Return {
+			// the RX metric of the only port is unsupported, while the TX one is denied
+			if metrics.Metrics[0].MetricId == port1RxMetricID {
+				return nvml.ERROR_NOT_SUPPORTED
+			}
+			return nvml.ERROR_NO_PERMISSION
+		}),
+	)
+	mockDevice := nvmltestutil.PhysicalDevice(t, mockLib, 0)
+
+	collector, err := newNVLinkGPMCollector(mockDevice, nil)
+	require.Nil(t, collector)
+	require.Error(t, err)
+	require.True(t, safenvml.IsNoPermission(err), "unexpected error: %v", err)
+	require.NotErrorIs(t, err, errUnsupportedDevice)
+
+	// the samples allocated before the failure must be freed
+	require.Positive(t, mockLib.GpmSampleAllocCount())
+	require.Equal(t, mockLib.GpmSampleAllocCount(), mockLib.GpmSampleFreeCount())
+}

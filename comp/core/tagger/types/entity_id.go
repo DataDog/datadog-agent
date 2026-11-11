@@ -16,6 +16,8 @@ const separatorLength = len(separator)
 
 var globalEntityID = NewEntityID(InternalID, "global-entity-id")
 
+var infraTagsEntityID = NewEntityID(InternalID, "infra-tags-entity-id")
+
 // GetSeparatorLength returns the length of the entityID separator
 func GetSeparatorLength() int {
 	return separatorLength
@@ -81,6 +83,8 @@ const (
 	KueueResourceFlavor EntityIDPrefix = "kueue_resource_flavor"
 	// KueueWorkload is the prefix `kueue_workload`
 	KueueWorkload EntityIDPrefix = "kueue_workload"
+	// KubernetesAutoscaledWorkload is the prefix `kubernetes_autoscaled_workload`
+	KubernetesAutoscaledWorkload EntityIDPrefix = "kubernetes_autoscaled_workload"
 	// KubernetesCapabilities is the prefix `kubernetes_capabilities`
 	KubernetesCapabilities EntityIDPrefix = "kubernetes_capabilities"
 	// KubernetesPodUID is the prefix `kubernetes_pod_uid`
@@ -100,29 +104,48 @@ const (
 // AllPrefixesSet returns a set of all possible entity id prefixes that can be used in the tagger
 func AllPrefixesSet() map[EntityIDPrefix]struct{} {
 	return map[EntityIDPrefix]struct{}{
-		ContainerID:            {},
-		ContainerImageMetadata: {},
-		ECSTask:                {},
-		Host:                   {},
-		KubernetesDeployment:   {},
-		KubernetesMetadata:     {},
-		KubernetesNode:         {},
-		KubernetesKueueQueue:   {},
-		KueueResourceFlavor:    {},
-		KueueWorkload:          {},
-		KubernetesPodUID:       {},
-		Process:                {},
-		InternalID:             {},
-		GPU:                    {},
-		Kubelet:                {},
-		Crd:                    {},
-		KubernetesCapabilities: {},
+		ContainerID:                  {},
+		ContainerImageMetadata:       {},
+		ECSTask:                      {},
+		Host:                         {},
+		KubernetesDeployment:         {},
+		KubernetesMetadata:           {},
+		KubernetesNode:               {},
+		KubernetesKueueQueue:         {},
+		KueueResourceFlavor:          {},
+		KueueWorkload:                {},
+		KubernetesPodUID:             {},
+		Process:                      {},
+		InternalID:                   {},
+		GPU:                          {},
+		Kubelet:                      {},
+		Crd:                          {},
+		KubernetesCapabilities:       {},
+		KubernetesAutoscaledWorkload: {},
 	}
+}
+
+// NewKubernetesAutoscaledWorkloadEntityID returns the entity ID of a workload
+// targeted by autoscalers. kind is deployment, statefulset or argo_rollout.
+func NewKubernetesAutoscaledWorkloadEntityID(kind, namespace, name string) EntityID {
+	return NewEntityID(KubernetesAutoscaledWorkload, kind+"/"+namespace+"/"+name)
 }
 
 // GetGlobalEntityID returns the entity ID that holds global tags
 func GetGlobalEntityID() EntityID {
 	return globalEntityID
+}
+
+// GetInfraTagsEntityID returns the entity ID that holds the infrastructure mode
+// mark of the Agent.
+//
+// It is deliberately separate from the global entity. GlobalTags and EnrichTags
+// read only GetGlobalEntityID and both reach metric samples, where the metrics
+// intake renames series tagged `infra_mode:cloud_cost_only` into the
+// `dd.cloud_cost` namespace. Keeping the mark on its own entity means no caller
+// can pick it up without naming this entity.
+func GetInfraTagsEntityID() EntityID {
+	return infraTagsEntityID
 }
 
 // ExtractPrefixAndID extracts prefix and id from tagger entity id and returns an error if the received entityID is not valid

@@ -10,6 +10,7 @@ package nvidia
 import (
 	"testing"
 
+	"github.com/NVIDIA/go-nvml/pkg/nvml"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -80,6 +81,10 @@ func TestEbpfCollectorCollect(t *testing.T) {
 		{
 			name:     "collect_with_single_active_process",
 			testFunc: testCollectWithSingleActiveProcess,
+		},
+		{
+			name:     "collect_skips_unknown_memory_limit",
+			testFunc: testCollectSkipsUnknownMemoryLimit,
 		},
 		{
 			name:     "collect_with_multiple_active_processes",
@@ -189,6 +194,22 @@ func testCollectWithSingleActiveProcess(t *testing.T) {
 	require.Len(t, memoryLimit.AssociatedWorkloads(), 1)
 	assert.Equal(t, "process", string(memoryLimit.AssociatedWorkloads()[0].Kind))
 	assert.Equal(t, "123", memoryLimit.AssociatedWorkloads()[0].ID)
+}
+
+func testCollectSkipsUnknownMemoryLimit(t *testing.T) {
+	device := setupMockDevice(t, testutil.WithCustomHook(func(device *testutil.MockDevice) {
+		device.GetMemoryInfoFunc = func() (nvml.Memory, nvml.Return) {
+			return nvml.Memory{}, nvml.ERROR_UNKNOWN
+		}
+	}))
+	cache := createMockCacheWithStats(nil)
+
+	collector, err := newEbpfCollector(device, &CollectorDependencies{SystemProbeCache: cache})
+	require.NoError(t, err)
+
+	metrics, err := collector.Collect()
+	require.NoError(t, err)
+	require.Nil(t, findMetric(metrics, "memory.limit"))
 }
 
 func testCollectWithMultipleActiveProcesses(t *testing.T) {
@@ -563,7 +584,7 @@ func testCollectEmitsDeviceSmActiveMetric(t *testing.T) {
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
 	assert.Equal(t, 85.0, deviceSmActive.Value)
-	assert.Equal(t, Low, deviceSmActive.Priority(), "sm_active should have Low priority")
+	assert.Equal(t, MediumLow, deviceSmActive.Priority(), "sm_active should have MediumLow priority")
 	assert.Empty(t, deviceSmActive.AssociatedWorkloads(), "device-level sm_active should not have associated workloads")
 
 	// Verify device-level gr_engine_active metric
@@ -607,7 +628,7 @@ func testCollectEmitsZeroDeviceActivityWhenIdle(t *testing.T) {
 	deviceSmActive := findMetric(metrics, "sm_active")
 	require.NotNil(t, deviceSmActive, "sm_active metric not found")
 	assert.Equal(t, 0.0, deviceSmActive.Value)
-	assert.Equal(t, Low, deviceSmActive.Priority(), "sm_active should have Low priority")
+	assert.Equal(t, MediumLow, deviceSmActive.Priority(), "sm_active should have MediumLow priority")
 	assert.Empty(t, deviceSmActive.AssociatedWorkloads(), "device-level sm_active should not have associated workloads")
 
 	deviceGrEngineActive := findMetric(metrics, "gr_engine_active")

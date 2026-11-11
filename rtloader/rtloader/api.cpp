@@ -4,7 +4,7 @@
 // (https://www.datadoghq.com/).
 // Copyright 2019-present Datadog, Inc.
 #ifdef _WIN32
-#    include <Windows.h>
+#    include <windows.h>
 #else
 #    include <dlfcn.h>
 #endif
@@ -491,6 +491,11 @@ void set_submit_event_cb(rtloader_t *rtloader, cb_submit_event_t cb)
 void set_submit_histogram_bucket_cb(rtloader_t *rtloader, cb_submit_histogram_bucket_t cb)
 {
     AS_TYPE(RtLoader, rtloader)->setSubmitHistogramBucketCb(cb);
+}
+
+void set_submit_histogram_bucket_multi_cb(rtloader_t *rtloader, cb_submit_histogram_bucket_multi_t cb)
+{
+    AS_TYPE(RtLoader, rtloader)->setSubmitHistogramBucketMultiCb(cb);
 }
 
 void set_submit_event_platform_event_cb(rtloader_t *rtloader, cb_submit_event_platform_event_t cb)

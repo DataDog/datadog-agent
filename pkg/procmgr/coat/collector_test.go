@@ -176,6 +176,27 @@ func TestCollectServiceProcmgrRunning(t *testing.T) {
 	assert.True(t, snapshot.Daemon.Ready)
 }
 
+func TestCollectServiceProcmgrSkippedStaysManaged(t *testing.T) {
+	root := setupDDOTInstallFixture(t)
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-ddot": {
+				Name:        "datadog-agent-ddot",
+				State:       ProcessStateSkipped,
+				SkipReasons: []string{"auto_start_false"},
+			},
+		},
+	})
+
+	snapshot := collector.Collect(context.Background())
+
+	service := serviceSnapshotByID(t, snapshot, "ddot")
+	assert.Equal(t, ProcessStateSkipped, service.ProcmgrState)
+	assert.Equal(t, ManagementModeProcmgr, service.ManagementMode)
+}
+
 func TestCollectADPProcmgrRunning(t *testing.T) {
 	adp, ok := serviceByID("agent-data-plane")
 	require.True(t, ok)
@@ -501,4 +522,23 @@ func TestCollectDaemonReachableListFails(t *testing.T) {
 	service := serviceSnapshotByID(t, snapshot, "ddot")
 	assert.Equal(t, ManagementModeNone, service.ManagementMode)
 	assert.Equal(t, ProcessStateUnknown, service.ProcmgrState)
+}
+
+func TestCollectInvalidConfigDoesNotSetProcmgrManagement(t *testing.T) {
+	root := setupDDOTInstallFixture(t)
+
+	collector := NewCollectorWithClient(root, &mockClient{
+		daemon: DaemonSnapshot{Reachable: true, Ready: true},
+		processes: map[string]ProcessSnapshot{
+			"datadog-agent-ddot": {Name: "datadog-agent-ddot", State: ProcessStateInvalidConfig},
+		},
+	})
+
+	snapshot := collector.Collect(context.Background())
+	service := serviceSnapshotByID(t, snapshot, "ddot")
+	assert.True(t, service.ProcmgrConfigured)
+	assert.Equal(t, ProcessStateInvalidConfig, service.ProcmgrState)
+	assert.NotEqual(t, ManagementModeProcmgr, service.ManagementMode)
+	assert.Equal(t, ProcessStateInvalidConfig, snapshot.ServiceProcessState("ddot"))
+	assert.True(t, procmgrStateIsActive(service, ProcessStateInvalidConfig))
 }

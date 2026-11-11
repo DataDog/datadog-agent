@@ -1,0 +1,51 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+# gazelle:go_canonical_test_tag_set anomalydetection_recorder
+
+go_library(
+    name = "parquet",
+    srcs = [
+        "factory.go",
+        "parquet_log_writer.go",
+        "parquet_metric_writer.go",
+        "parquet_writer_base.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/impl/parquet",
+    tags = ["manual"],
+    visibility = ["//visibility:public"],
+    deps = [
+        "//comp/anomalydetection/internal/logging",
+        "//comp/anomalydetection/recorder/def",
+        "@com_github_apache_arrow_go_v18//arrow",
+        "@com_github_apache_arrow_go_v18//arrow/array",
+        "@com_github_apache_arrow_go_v18//arrow/memory",
+        "@com_github_apache_arrow_go_v18//parquet",
+        "@com_github_apache_arrow_go_v18//parquet/compress",
+        "@com_github_apache_arrow_go_v18//parquet/pqarrow",
+    ],
+)
+
+dd_agent_go_test(
+    name = "parquet_test",
+    srcs = [
+        "parquet_format_test.go",
+        "parquet_writer_collision_test.go",
+        "parquet_writer_lifecycle_test.go",
+        "parquet_writer_retention_test.go",
+    ],
+    embed = [":parquet"],
+    gotags_sets = [["anomalydetection_recorder"]],
+    include_default = False,
+    tags = ["manual"],
+    deps = [
+        "//comp/anomalydetection/recorder/def",
+        "@com_github_apache_arrow_go_v18//arrow",
+        "@com_github_apache_arrow_go_v18//arrow/array",
+        "@com_github_apache_arrow_go_v18//arrow/memory",
+        "@com_github_apache_arrow_go_v18//parquet/compress",
+        "@com_github_apache_arrow_go_v18//parquet/file",
+        "@com_github_apache_arrow_go_v18//parquet/pqarrow",
+        "@com_github_stretchr_testify//require",
+    ],
+)

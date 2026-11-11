@@ -14,7 +14,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/pkg/network/tracer"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/ec2"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
@@ -26,7 +26,7 @@ func init() { registerModule(NetworkTracer) }
 
 // NetworkTracer is a factory for NPM's tracer
 var NetworkTracer = &module.Factory{
-	Name:      config.NetworkTracerModule,
+	Name:      sysconfigtypes.NetworkTracerModule,
 	Fn:        createNetworkTracerModule,
 	NeedsEBPF: tracer.NeedsEBPF,
 }
@@ -56,4 +56,8 @@ func getNetworkID(ctx context.Context) (string, error) {
 		return "", err
 	}
 	return id, nil
+}
+
+func enableNetNSContainerAttribution(ctx context.Context, t *tracer.Tracer, deps module.FactoryDependencies) error {
+	return t.EnableNetNSContainerAttribution(ctx, deps.WMeta)
 }

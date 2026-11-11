@@ -20,9 +20,10 @@ import (
 	"github.com/DataDog/datadog-agent/cmd/privateactionrunner/command"
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	delegatedauthnoop "github.com/DataDog/datadog-agent/comp/core/delegatedauth/fx-noop"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secretsnoop "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
-	par "github.com/DataDog/datadog-agent/comp/privateactionrunner/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	"github.com/DataDog/datadog-agent/pkg/util/fxutil"
 )
 
@@ -65,12 +66,12 @@ private_action_runner:
 		ipcCertFile:    filepath.Join(dir, "launch.pem"),
 	}
 	cfg := fxutil.Test[config.Component](t,
-		config.Module(), secretsnoop.Module(), delegatedauthnoop.Module(),
+		config.Module(), schemanoopfx.Module(), secretsnoop.Module(), delegatedauthnoop.Module(),
 		fx.Supply(params.configParams()),
 	)
-	require.Equal(t, params.executorSocket, cfg.GetString(par.PARExecutorSocketPath))
+	require.Equal(t, params.executorSocket, cfg.GetString(par.ExecutorSocketPath))
 	require.Equal(t, params.ipcCertFile, cfg.GetString("ipc_cert_file_path"))
-	require.Equal(t, model.SourceCLI, cfg.GetSource(par.PARExecutorSocketPath))
+	require.Equal(t, model.SourceCLI, cfg.GetSource(par.ExecutorSocketPath))
 	require.Equal(t, model.SourceCLI, cfg.GetSource("ipc_cert_file_path"))
 	require.Equal(t, 9, cfg.GetInt("private_action_runner.task_concurrency"))
 }

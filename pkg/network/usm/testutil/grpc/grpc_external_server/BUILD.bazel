@@ -4,7 +4,7 @@ go_library(
     name = "grpc_external_server_lib",
     srcs = ["grpc_external_server.go"],
     importpath = "github.com/DataDog/datadog-agent/pkg/network/usm/testutil/grpc/grpc_external_server",
-    tags = ["manual"],  # keep
+    tags = ["manual"],
     visibility = ["//visibility:private"],
     deps = ["//pkg/network/usm/testutil/grpc"],
 )
@@ -12,6 +12,6 @@ go_library(
 go_binary(
     name = "grpc_external_server",
     embed = [":grpc_external_server_lib"],
-    gotags = ["test"],  # keep
+    gotags = ["test"],
     visibility = ["//visibility:public"],
 )

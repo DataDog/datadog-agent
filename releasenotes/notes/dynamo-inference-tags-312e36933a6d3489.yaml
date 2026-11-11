@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    Add the ``inference_workload`` tag to Dynamo Kubernetes pods and containers
+    with the same value as ``dynamo_graph_deployment``. Add the
+    ``inference_workload_component`` tag from the Dynamo component type label.
+    When a sub-component type label is present, use its value instead, so
+    workers can be identified as ``decode`` or ``prefill``.

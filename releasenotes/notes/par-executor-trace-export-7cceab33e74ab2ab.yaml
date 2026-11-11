@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix missing action execution traces in split-mode Private Action Runner by
+    starting the executor's telemetry sender and flushing completed spans on
+    shutdown, including idle shutdown.

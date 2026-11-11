@@ -17,7 +17,6 @@ import (
 	"fmt"
 	"html"
 	"net/http"
-	"strings"
 
 	"go.yaml.in/yaml/v3"
 
@@ -38,6 +37,7 @@ import (
 
 const (
 	apiKeyConfigKey          = "api_key"
+	appKeyConfigKey          = "app_key"
 	apmConfigAPIKeyConfigKey = "apm_config.api_key" // deprecated setting
 )
 
@@ -92,6 +92,15 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	c.coreConfig.OnUpdate(func(setting string, _ model.Source, oldValue, newValue any, _ uint64, _ model.Source) {
 		log.Debugf("OnUpdate: %s", setting)
+		if setting == appKeyConfigKey {
+			// The AI Guard proxy reads this key per request, so a rotated application key takes
+			// effect without a restart. Whether the route is registered at all is still decided
+			// at startup, so a key added to a running Agent needs one.
+			if newAppKey, ok := newValue.(string); ok {
+				c.UpdateApplicationKey(pkgconfigutils.SanitizeAPIKey(newAppKey))
+			}
+			return
+		}
 		if setting != apiKeyConfigKey {
 			return
 		}
@@ -151,15 +160,11 @@ func (c *cfg) SetHandler() http.Handler {
 				value := html.UnescapeString(values[len(values)-1])
 				switch key {
 				case "log_level":
-					lvl := strings.ToLower(value)
-					if lvl == "warning" {
-						lvl = "warn"
-					}
-					if err := pkgconfigutils.SetLogLevel(lvl, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
+					if err := pkgconfigutils.SetLogLevel(value, pkgconfigsetup.Datadog(), model.SourceAgentRuntime); err != nil {
 						httpError(w, http.StatusInternalServerError, err)
 						return
 					}
-					log.Infof("Switched log level to %s", lvl)
+					log.Infof("Switched log level to %s", value)
 				default:
 					log.Infof("Unsupported config change requested (key: %q).", key)
 				}

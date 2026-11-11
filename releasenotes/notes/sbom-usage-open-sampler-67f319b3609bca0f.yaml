@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment (``sbom.enrichment.usage.enabled``) samples file
+    opens again when security profile v2 is disabled or its event types leave
+    out ``open``. The packages of the libraries and files a workload opened
+    appeared unused there.

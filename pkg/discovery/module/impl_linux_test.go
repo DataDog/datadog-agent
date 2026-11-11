@@ -38,7 +38,7 @@ import (
 	usmtestutil "github.com/DataDog/datadog-agent/pkg/network/usm/testutil"
 	spclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 )
 
@@ -66,7 +66,7 @@ func setupRustLibraryDiscoveryModule(t *testing.T) *testDiscoveryModule {
 	require.NoError(t, err)
 	discovery := mod.(*discovery)
 
-	discovery.Register(module.NewRouter(string(config.DiscoveryModule), mux))
+	discovery.Register(module.NewRouter(string(sysconfigtypes.DiscoveryModule), mux))
 	t.Cleanup(discovery.Close)
 
 	srv := httptest.NewServer(mux)
@@ -150,7 +150,7 @@ func (s *discoveryTestSuite) SetupTest() {
 func (s *discoveryTestSuite) TestState() {
 	t := s.T()
 
-	url := s.discovery.url + "/" + string(config.DiscoveryModule) + "/state"
+	url := s.discovery.url + "/" + string(sysconfigtypes.DiscoveryModule) + "/state"
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	require.NoError(t, err)
 

@@ -12,12 +12,12 @@ integration_source_packages = use_repo_rule(
 
 integration_source_packages(name = "integration_source_packages")
 
-PIP_VERSION = "26.2.1"
+PIP_VERSION = "26.2.2"
 
 http_file(
     name = "pip",
     downloaded_file_path = "pip-{version}-py3-none-any.whl".format(version = PIP_VERSION),
-    integrity = "sha256-cROK3x9MqQDNt9KJwht0lDKfIzK22F8OHEIQjAOE7T4=",
+    integrity = "sha256-/X9N+oGQ4BQBO58I8+lz9OTCb/0XmiBIlVM6clSBOnA=",
     urls = ["https://files.pythonhosted.org/packages/py3/p/pip/pip-{version}-py3-none-any.whl".format(version = PIP_VERSION)],
 )
 

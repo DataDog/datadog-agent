@@ -10,6 +10,7 @@ import (
 
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
+	"github.com/DataDog/datadog-agent/comp/core/tagger/collectors"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
 	taggermock "github.com/DataDog/datadog-agent/comp/core/tagger/mock"
 	"github.com/DataDog/datadog-agent/comp/core/tagger/origindetection"
@@ -48,6 +49,10 @@ func NewMock(req MockRequires) MockProvides {
 	if err != nil {
 		log.Errorf("Failed to create local tagger: %v", err)
 	}
+
+	// The mock runs no collector, so seed the entities a running collector would
+	// publish at construction.
+	tagStore.ProcessTagInfo([]*types.TagInfo{collectors.InfraTagInfo(req.Config)})
 
 	return MockProvides{
 		Comp: &fakeTagger{
@@ -152,6 +157,11 @@ func (f *fakeTagger) AgentTags(cardinality types.TagCardinality) ([]string, erro
 // GlobalTags calls tagger.GlobalTags().
 func (f *fakeTagger) GlobalTags(cardinality types.TagCardinality) ([]string, error) {
 	return f.tagger.GlobalTags(cardinality)
+}
+
+// GetInfraTags calls tagger.GetInfraTags().
+func (f *fakeTagger) GetInfraTags() []string {
+	return f.tagger.GetInfraTags()
 }
 
 // EnrichTags calls tagger.EnrichTags().

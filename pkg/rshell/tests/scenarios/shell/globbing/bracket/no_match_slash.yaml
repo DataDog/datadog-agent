@@ -1,0 +1,14 @@
+description: Bracket expression does not match slash.
+setup:
+  files:
+    - path: foo/dir/file
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo foo[/]dir[/]file
+expect:
+  stdout: |+
+    foo[/]dir[/]file
+  stderr: ""
+  exit_code: 0

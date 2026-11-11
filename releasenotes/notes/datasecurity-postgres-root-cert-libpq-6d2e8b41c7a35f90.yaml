@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Data Security PostgreSQL scans now use ``~/.postgresql/root.crt`` when
+    ``ssl_root_cert`` is unset, like libpq, instead of the system CA store.
+    ``verify-ca`` and ``verify-full`` fail if the file doesn't exist.
+    ``ssl_root_cert: system`` selects the system CA store and requires
+    ``ssl: verify-full``.

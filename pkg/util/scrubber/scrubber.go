@@ -17,7 +17,9 @@ import (
 	"io"
 	"os"
 	"regexp"
+	"slices"
 	"strings"
+	"sync"
 
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
@@ -95,6 +97,10 @@ type Scrubber struct {
 	// When true, matches containing ENC[] patterns will not be scrubbed.
 	// This is primarily used by the flare to preserve ENC value in yaml files.
 	preserveENC bool
+
+	// strippedKeys records the keys whose values were scrubbed by ScrubDataObj
+	strippedKeys      map[string]struct{}
+	strippedKeysMutex sync.Mutex
 }
 
 // New creates a new scrubber with no replacers installed.
@@ -133,6 +139,40 @@ func (c *Scrubber) SetShouldApply(shouldApply func(repl Replacer) bool) {
 // Multiline replacers always scrub regardless of this setting to prevent security leaks.
 func (c *Scrubber) SetPreserveENC(preserve bool) {
 	c.preserveENC = preserve
+}
+
+// GetStrippedKeys returns the sorted keys whose values were scrubbed by ScrubDataObj (and so ScrubYaml and ScrubJSON).
+// This includes keys known to hold sensitive data (ex: "password", "authKey", or any key added through AddStrippedKeys)
+// as well as keys whose value was detected to be a credential (ex: a raw API key, a bearer token or a password in a
+// URL). Elements of a list are reported under the key holding the list.
+func (c *Scrubber) GetStrippedKeys() []string {
+	c.strippedKeysMutex.Lock()
+	defer c.strippedKeysMutex.Unlock()
+	res := make([]string, 0, len(c.strippedKeys))
+	for key := range c.strippedKeys {
+		res = append(res, key)
+	}
+	slices.Sort(res)
+	return res
+}
+
+// ClearStrippedKeys forgets the keys recorded by ScrubDataObj
+func (c *Scrubber) ClearStrippedKeys() {
+	c.strippedKeysMutex.Lock()
+	defer c.strippedKeysMutex.Unlock()
+	c.strippedKeys = nil
+}
+
+func (c *Scrubber) addStrippedKey(key string) {
+	if key == "" {
+		return
+	}
+	c.strippedKeysMutex.Lock()
+	defer c.strippedKeysMutex.Unlock()
+	if c.strippedKeys == nil {
+		c.strippedKeys = map[string]struct{}{}
+	}
+	c.strippedKeys[key] = struct{}{}
 }
 
 // ScrubFile scrubs credentials from file given by pathname

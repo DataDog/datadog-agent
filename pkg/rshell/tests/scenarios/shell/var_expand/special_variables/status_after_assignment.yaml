@@ -1,0 +1,13 @@
+description: A simple variable assignment resets $? to 0.
+input:
+  script: |+
+    false
+    echo $?
+    a=1
+    echo $?
+expect:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0

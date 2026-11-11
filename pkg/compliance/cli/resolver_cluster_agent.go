@@ -30,26 +30,3 @@ func complianceKubernetesProvider(ctx context.Context) (dynamic.Interface, compl
 	}
 	return apiCl.DynamicCl, apiCl.Cl.Discovery().ServerGroupsAndResources, nil
 }
-
-func startComplianceReflectorStore(ctx context.Context) *compliance.ReflectorStore {
-	apiCl, err := getAPIClient(ctx)
-	if err != nil {
-		return nil
-	}
-
-	store := compliance.NewReflectorStore(apiCl.Cl)
-	store.Run(ctx.Done())
-
-	// Wait for the reflector to sync with a timeout
-	syncCtx, syncCancel := context.WithTimeout(ctx, 30*time.Second)
-	defer syncCancel()
-	for !store.HasSynced() {
-		select {
-		case <-syncCtx.Done():
-			return nil
-		case <-time.After(100 * time.Millisecond):
-		}
-	}
-
-	return store
-}

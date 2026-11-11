@@ -115,6 +115,8 @@
 
 # Windows-specific e2e tests
 .windows_path_3: &windows_path_3
+  - pkg/rshell/**/*
+  - test/new-e2e/tests/privateactionrunner/**/*
   - test/new-e2e/tests/fleet/**/* # cross platform tests
   - test/new-e2e/tests/installer/windows/**/*
   - test/new-e2e/tests/windows/**/*
@@ -307,25 +309,25 @@ variables:
   # Build images versions
   # To use images from datadog-agent-buildimages dev branches, set the corresponding
   # SUFFIX variable to
-  CI_IMAGE_BTF_GEN: v141311605-333887d1
+  CI_IMAGE_BTF_GEN: v151778377-1bcca9ae
   CI_IMAGE_BTF_GEN_SUFFIX: ""
-  CI_IMAGE_DOCKER_X64: v141311605-333887d1
+  CI_IMAGE_DOCKER_X64: v151778377-1bcca9ae
   CI_IMAGE_DOCKER_X64_SUFFIX: ""
-  CI_IMAGE_DOCKER_ARM64: v141311605-333887d1
+  CI_IMAGE_DOCKER_ARM64: v151778377-1bcca9ae
   CI_IMAGE_DOCKER_ARM64_SUFFIX: ""
-  CI_IMAGE_GITLAB_AGENT_DEPLOY: v141311605-333887d1
+  CI_IMAGE_GITLAB_AGENT_DEPLOY: v151778377-1bcca9ae
   CI_IMAGE_GITLAB_AGENT_DEPLOY_SUFFIX: ""
-  CI_IMAGE_LINUX: v141311605-333887d1
+  CI_IMAGE_LINUX: v151778377-1bcca9ae
   CI_IMAGE_LINUX_SUFFIX: ""
-  CI_IMAGE_RPM_X64: v141311605-333887d1
+  CI_IMAGE_RPM_X64: v151778377-1bcca9ae
   CI_IMAGE_RPM_X64_SUFFIX: ""
-  CI_IMAGE_RPM_ARM64: v141311605-333887d1
+  CI_IMAGE_RPM_ARM64: v151778377-1bcca9ae
   CI_IMAGE_RPM_ARM64_SUFFIX: ""
-  CI_IMAGE_RPM_ARMHF: v141311605-333887d1
+  CI_IMAGE_RPM_ARMHF: v151778377-1bcca9ae
   CI_IMAGE_RPM_ARMHF_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2022_X64: v141311605-333887d1
+  CI_IMAGE_WIN_LTSC2022_X64: v151778377-1bcca9ae
   CI_IMAGE_WIN_LTSC2022_X64_SUFFIX: ""
-  CI_IMAGE_WIN_LTSC2025_X64: v141311605-333887d1
+  CI_IMAGE_WIN_LTSC2025_X64: v151778377-1bcca9ae
   CI_IMAGE_WIN_LTSC2025_X64_SUFFIX: ""
 
   DATADOG_AGENT_EMBEDDED_PATH: /opt/datadog-agent/embedded
@@ -340,7 +342,7 @@ variables:
   DOCKER_REGISTRY_URL: docker.io
   KITCHEN_INFRASTRUCTURE_FLAKES_RETRY: 2
   CLANG_LLVM_VER: 12.0.1
-  CLANG_BUILD_VERSION: "v60409452-ee70de70"
+  CLANG_BUILD_VERSION: "v150220922-61ce1181"
   KERNEL_MATRIX_TESTING_X86_AMI_ID: "ami-05b3973acf5422348"
   KERNEL_MATRIX_TESTING_ARM_AMI_ID: "ami-0b5f838a19d37fc61"
   RUN_E2E_TESTS: "auto" # Should be "off", "auto" or "on" it will change the trigger condition for new-e2e tests on branch != main
@@ -377,7 +379,7 @@ variables:
   # End vault variables
 
   # POSIX only (Linux and macOS): Windows jobs override this in .windows_docker_default
-  DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: ci-identities-gitlab-job-client secrets read feature-flags-client token
+  DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: tools/ci/read_ci_secret.sh feature-flags-client token
 
   DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
@@ -402,6 +404,7 @@ variables:
   CACHE_COMPRESSION_LEVEL: slowest
   # Force python to print to stdout immediately, otherwise gitlab sections might not be displayed properly and we can miss some logs
   PYTHONUNBUFFERED: 1
+  PYTHONDONTWRITEBYTECODE: 1 # Avoid __pycache__ races when uv removes packages daemons use (e.g. dda.telemetry.daemon)
 
   SKIP_WINDOWS: "false"
 
@@ -557,18 +560,16 @@ workflow:
     - <<: *if_run_all_e2e_tests
     - !reference [.if_deploy_installer]
     - <<: *if_light_pipeline
-    # ADP is shipped in every Agent package and exercised across several test suites.
-    # Treat an ADP version bump like a full pipeline so platform-specific regressions
-    # (notably in new-e2e-agent-runtimes-windows) are caught before merge.
+    # An ADP version bump swaps the prebuilt ADP binary shipped in every Agent package. Keep
+    # Windows enabled so the Windows suites that start ADP run; the suites themselves opt in
+    # through .on_adp_version_bump. ADP_VERSION_BUMP disables --impacted test selection in
+    # .new_e2e_template: the coverage index can't map a binary bump to the tests that run it.
     - changes:
         paths:
           - deps/agent_data_plane/agent_data_plane.MODULE.bazel
         compare_to: $COMPARE_TO_BRANCH
       variables:
-        RUN_ALL_BUILDS: "true"
-        RUN_E2E_TESTS: "on"
-        RUN_KMT_TESTS: "on"
-        RUN_UNIT_TESTS: "on"
+        ADP_VERSION_BUMP: "true"
         SKIP_WINDOWS: "false"
     - changes:
         paths: *windows_path
@@ -807,6 +808,16 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
 
+# An ADP version bump only swaps the prebuilt ADP binary, so it runs the e2e suites that start
+# ADP instead of every e2e suite. Append this after a job's own rules: it has no
+# disable-e2e/light-pipeline guards of its own and relies on the rules before it for those.
+.on_adp_version_bump:
+  - changes:
+      paths:
+        - deps/agent_data_plane/agent_data_plane.MODULE.bazel
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+
 # Specific rules for each e2e test type
 .on_install_script_tests:
   - !reference [.except_light_pipeline]
@@ -926,8 +937,8 @@ workflow:
       - omnibus/lib/**/*
       - omnibus/config/projects/agent.rb
       - omnibus/config/software/**/*
-      - omnibus/config/templates/**/*
       - release.json
+      - packages/installer/README.md.in
       # dd-procmgr supervises Agent processes on Windows: the MSI writes their processes.d
       # entries, and the core Agent skips the legacy SCM service each one replaces.
       - pkg/procmgr/**/*
@@ -1066,6 +1077,7 @@ workflow:
       paths:
         - test/new-e2e/tests/process/**/*
         - cmd/process-agent/**/*
+        - comp/core/tagger/**/*
         - comp/core/workloadmeta/collectors/internal/process/**/*
         - comp/core/workloadmeta/collectors/internal/remote/processcollector/**/*
         - comp/process/**/*
@@ -1166,6 +1178,7 @@ workflow:
         - cmd/security-agent/**/*
         - cmd/system-probe/**/*
         - cmd/trace-agent/**/*
+        - pkg/procmgr/**/*
         - pkg/util/winutil/servicemain/**/*
         - pkg/util/winutil/messagestrings/**/*
         - tasks/windows_resources.py
@@ -1210,6 +1223,19 @@ workflow:
       paths:
         - pkg/trace/**/*
         - .gitlab/test/benchmarks/*
+      compare_to: $COMPARE_TO_BRANCH
+    when: on_success
+  - when: manual
+    allow_failure: true
+
+.on_logs_tokenizer_changes_or_manual:
+  - !reference [.except_light_pipeline]
+  - changes:
+      paths:
+        - pkg/logs/tokenizer/**/*
+        - tasks/logs_tokenizer.py
+        - tasks/libs/logs_tokenizer/**/*
+        - .gitlab/test/logs_tokenizer_benchmark.yml
       compare_to: $COMPARE_TO_BRANCH
     when: on_success
   - when: manual
@@ -1383,6 +1409,7 @@ workflow:
       compare_to: $COMPARE_TO_BRANCH
 
 .on_gpu_integration_tests:
+  - !reference [.except_mergequeue]
   - !reference [.on_scheduled_main]
   # Run on GPU-related changes
   - changes:
@@ -1402,17 +1429,6 @@ workflow:
   - changes:
       paths:
         - pkg/fleet/installer/packages/embedded/tmpl/**/*.service
-      compare_to: $COMPARE_TO_BRANCH
-  - when: manual
-    allow_failure: true
-
-.on_rtloader_changes:
-  - <<: *if_main_branch
-  - !reference [.except_light_pipeline]
-  - changes:
-      paths:
-        - rtloader/**
-        - tasks/rtloader.py
       compare_to: $COMPARE_TO_BRANCH
   - when: manual
     allow_failure: true

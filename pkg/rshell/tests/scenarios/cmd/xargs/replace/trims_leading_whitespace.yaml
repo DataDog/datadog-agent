@@ -1,0 +1,10 @@
+description: xargs -I trims leading whitespace from each line; trailing and internal whitespace is preserved (matches GNU).
+input:
+  script: |+
+    printf '  a\n\ta b  \n' | xargs -I{} echo X{}X
+expect:
+  stdout: |+
+    XaX
+    Xa b  X
+  stderr: |+
+  exit_code: 0

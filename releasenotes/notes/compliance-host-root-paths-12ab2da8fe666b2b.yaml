@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CSPM: The containerized agent now resolves the symbolic links of the host
+    files that compliance rules read inside the host root mounted at
+    ``HOST_ROOT``. An absolute link such as ``/var/run -> /run`` on Ubuntu
+    sent the rules on ``/var/run/docker.sock`` to the agent container's own
+    ``/run``.

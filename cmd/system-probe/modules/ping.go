@@ -16,7 +16,6 @@ import (
 
 	pingcheck "github.com/DataDog/datadog-agent/pkg/networkdevice/pinger"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
 	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/utils"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
@@ -34,7 +33,7 @@ type pinger struct{}
 
 // Pinger is a factory for NDMs Ping module
 var Pinger = &module.Factory{
-	Name: config.PingModule,
+	Name: sysconfigtypes.PingModule,
 	Fn: func(_ *sysconfigtypes.Config, _ module.FactoryDependencies) (module.Module, error) {
 		return &pinger{}, nil
 	},

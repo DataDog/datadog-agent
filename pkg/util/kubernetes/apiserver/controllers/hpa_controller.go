@@ -8,6 +8,7 @@
 package controllers
 
 import (
+	"fmt"
 	"maps"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/util/wait"
+	"k8s.io/client-go/dynamic/dynamicinformer"
 	"k8s.io/client-go/informers"
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/tools/cache"
@@ -90,18 +92,17 @@ func (h *autoscalersController) runHPA(stopCh <-chan struct{}) {
 	wait.Until(h.worker, time.Second, stopCh)
 }
 
-// enableHPA adds the handlers to the autoscalersController to support HPAs
-func (h *autoscalersController) enableHPA(client kubernetes.Interface, informerFactory informers.SharedInformerFactory) {
+// enableHPA adds the handlers to the autoscalersController to support HPAs.
+// The dynamic informer factory is only used on clusters that don't serve autoscaling/v2.
+func (h *autoscalersController) enableHPA(client kubernetes.Interface, informerFactory informers.SharedInformerFactory, dynamicInformerFactory dynamicinformer.DynamicSharedInformerFactory) error {
 	hpaGVR, err := autoscalers.DiscoverHPAGroupVersionResource(client)
 	if err != nil {
-		log.Errorf("unable to discover HPA GroupVersionResource: %s", err)
-		return
+		return fmt.Errorf("unable to discover HPA GroupVersionResource: %w", err)
 	}
 
-	genericInformerFactory, err := informerFactory.ForResource(hpaGVR)
+	genericInformerFactory, err := autoscalers.HPAInformer(hpaGVR, informerFactory, dynamicInformerFactory)
 	if err != nil {
-		log.Errorf("error creating generic informer: %s", err)
-		return
+		return fmt.Errorf("error creating generic informer: %w", err)
 	}
 
 	informer := genericInformerFactory.Informer()
@@ -112,12 +113,12 @@ func (h *autoscalersController) enableHPA(client kubernetes.Interface, informerF
 			DeleteFunc: h.deleteAutoscaler,
 		},
 	); err != nil {
-		log.Errorf("error adding event handler to hpa informer: %s", err)
-		return
+		return fmt.Errorf("error adding event handler to hpa informer: %w", err)
 	}
 
 	h.autoscalersLister = genericInformerFactory.Lister()
 	h.autoscalersListerSynced = informer.HasSynced
+	return nil
 }
 
 func (h *autoscalersController) worker() {

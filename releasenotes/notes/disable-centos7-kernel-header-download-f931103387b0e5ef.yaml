@@ -1,0 +1,6 @@
+---
+upgrade:
+  - |
+    System-probe no longer downloads kernel headers on CentOS versions older than 8,
+    because the signatures of their packages cannot be verified. On these hosts,
+    install the ``kernel-devel`` package matching the running kernel instead.

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator
+//go:build kubeapiserver
 
 package k8s
 
@@ -19,6 +19,7 @@ import (
 // GenericResource is a generic resource that can be used to collect data from a Kubernetes API.
 // It collects data as regular manifests, not CR manifests.
 type GenericResource struct {
+	Kind     string
 	Name     string
 	Group    string
 	Version  string
@@ -46,6 +47,7 @@ func (r GenericResource) NewGenericCollector() *CRCollector {
 			IsMetadataProducer:                   false,
 			SupportsManifestBuffering:            true,
 			Name:                                 r.Name,
+			Kind:                                 r.Kind,
 			NodeType:                             r.NodeType,
 			Group:                                r.Group,
 			Version:                              r.Version,

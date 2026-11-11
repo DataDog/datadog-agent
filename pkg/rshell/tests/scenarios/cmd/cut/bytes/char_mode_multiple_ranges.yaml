@@ -1,0 +1,8 @@
+description: Cut -c with multiple comma-separated ranges extracts disjoint positions.
+input:
+  script: |+
+    printf "abcdefghij\n" | cut -c1,3,5-7
+expect:
+  stdout: "acefg\n"
+  stderr: ""
+  exit_code: 0

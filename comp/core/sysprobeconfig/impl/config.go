@@ -9,6 +9,7 @@ package sysprobeconfigimpl
 
 import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
+	schema "github.com/DataDog/datadog-agent/comp/core/schema/def"
 	sysprobeconfigdef "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
@@ -33,6 +34,8 @@ type Requires struct {
 	Params Params
 	// Enforce loading order between core agent config and system-probe config
 	CoreConfig config.Component
+	// Schema validates the configuration against its schema once loaded
+	Schema schema.Component
 }
 
 // Provides defines the outputs of the sysprobeconfig component.
@@ -51,12 +54,12 @@ func NewComponent(deps Requires) (Provides, error) {
 	return Provides{Comp: c}, nil
 }
 
-func setupConfig(sysProbeConfFilePath string, fleetPoliciesDirPath string) (*sysconfigtypes.Config, error) {
-	return sysconfig.New(sysProbeConfFilePath, fleetPoliciesDirPath)
+func setupConfig(sysProbeConfFilePath string, fleetPoliciesDirPath string, schemaComp schema.Component) (*sysconfigtypes.Config, error) {
+	return sysconfig.New(sysProbeConfFilePath, fleetPoliciesDirPath, schemaComp)
 }
 
 func newConfig(deps Requires) (sysprobeconfigdef.Component, error) {
-	syscfg, err := setupConfig(deps.Params.sysProbeConfFilePath, deps.Params.fleetPoliciesDirPath)
+	syscfg, err := setupConfig(deps.Params.sysProbeConfFilePath, deps.Params.fleetPoliciesDirPath, deps.Schema)
 	if err != nil {
 		return nil, err
 	}

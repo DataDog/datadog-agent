@@ -1,0 +1,16 @@
+# vuln-hunt 2026-05-19-codex / cut.
+description: cut treats a dash-prefixed filename after -- as a file operand.
+setup:
+  files:
+    - path: allowed/-secret-looking.txt
+      content: |+
+        safe
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    cut -c1- -- allowed/-secret-looking.txt
+expect:
+  stdout: |+
+    safe
+  stderr: |+
+  exit_code: 0

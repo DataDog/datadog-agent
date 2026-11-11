@@ -6,6 +6,8 @@
 package stats
 
 import (
+	"math"
+
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
 	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
@@ -14,11 +16,18 @@ import (
 const keySamplingRateGlobal = "_sample_rate"
 
 // This is a helper function to avoid duplicating the logic for calculating the weight.
+// Rates outside (0, 1], NaN, and rates too small for 1/rate to be finite
+// all yield the default weight of 1.
 func calculateWeight(sampleRate float64, ok bool) float64 {
-	if !ok || sampleRate <= 0.0 || sampleRate > 1.0 {
+	// Negated form so NaN, for which every comparison is false, is rejected.
+	if !ok || !(sampleRate > 0.0 && sampleRate <= 1.0) {
 		return 1
 	}
-	return 1.0 / sampleRate
+	w := 1.0 / sampleRate
+	if math.IsInf(w, 0) {
+		return 1
+	}
+	return w
 }
 
 // weight returns the weight of the span as defined for sampling, i.e. the

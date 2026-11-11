@@ -12,11 +12,13 @@ run_codeql_scan:
   stage: source_test
   rules:
   - !reference [.on_scheduled_main]
-  needs: ["go_deps", "go_tools_deps"]
+  needs: ["setup_agent_version", "go_deps", "go_tools_deps"]
   allow_failure: true # This job should not impact the overall status of the pipeline
   variables:
     ARCH: arm64
     BASE_REF: main
+    # Fixed resources: GOMAXPROCS is tied to the CPU settings below
+    DD_DISABLE_VPA: true
     GOMAXPROCS: 10
     KUBERNETES_CPU_REQUEST: 10
     KUBERNETES_CPU_LIMIT: 10

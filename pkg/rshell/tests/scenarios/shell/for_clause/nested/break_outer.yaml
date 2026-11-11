@@ -1,0 +1,16 @@
+description: Break 2 in inner loop breaks both inner and outer loops.
+input:
+  script: |+
+    for i in a b c; do
+      for j in 1 2 3; do
+        echo "$i$j"
+        break 2
+      done
+    done
+    echo done
+expect:
+  stdout: |+
+    a1
+    done
+  stderr: ""
+  exit_code: 0

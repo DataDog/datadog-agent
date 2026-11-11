@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe credits the import of a Python module to
+    the package of its source file. Debian compiles the bytecode under
+    ``__pycache__`` at install, outside any package, and Alpine ships it in
+    ``-pyc`` packages, so imports went unseen or credited the ``-pyc`` package.

@@ -68,15 +68,13 @@ if not exist "!more_than_260_chars!" (
   )
 )
 
-:: Check 8.3 short names are enabled, or fail with instructions
-:: TODO(agent-build): remove once https://github.com/bazelbuild/bazel/pull/29921 (or equivalent) is in effect
+:: Check 8.3 short names are enabled, or warn with instructions
 set "more_than_8dot3_chars=%TEMP%\123456789.1234"
 2>nul del /f /q "!more_than_8dot3_chars!"
 >"!more_than_8dot3_chars!" type nul
 for %%i in ("!more_than_8dot3_chars!") do if "%%~nxi"=="%%~snxi" (
-  >&2 echo 🔴 For `bazel` to work properly, please enable 8.3 short names on %%~di:
+  >&2 echo 🟡 For `bazel` to spawn processes from long paths, please enable 8.3 short names on %%~di:
   >&2 echo     fsutil 8dot3name set %%~di 0
-  exit /b 2
 )
 
 :: Check symlink creation privilege (required by rules_python bootstrap on Windows)
@@ -163,15 +161,27 @@ set "_have_token="
 if defined BUILDBARN_ID_TOKEN set "_have_token=1"
 if defined DOTNET_RUNNING_IN_CONTAINER (
   if not defined _have_token (
-    >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token in this container. Mint one on the host and inject it, e.g.:
-    >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
-    exit /b 1
+    call :buildbarn_token_readable || (
+      >&2 echo 💡 Bazel remote cache skipped: no Buildbarn token or Vault session in this container. Mint a token on the host and inject it, e.g.:
+      >&2 echo     docker.exe run --env=BUILDBARN_ID_TOKEN=^<token^> ...
+      exit /b 1
+    )
   )
 ) else (
   if not defined _have_token where vault >nul 2>&1 || exit /b 1
 )
 call :remote_cache_reachable
 exit /b !errorlevel!
+
+:: True when Vault can mint a Buildbarn token. token lookup is not enough: a valid
+:: token may lack this path, and the credential helper would then try an interactive login.
+:buildbarn_token_readable
+setlocal
+where vault >nul 2>&1 || exit /b 1
+if not defined VAULT_ADDR set "VAULT_ADDR=https://vault.us1.ddbuild.io"
+set "VAULT_CLIENT_TIMEOUT=5"
+vault read -address=%VAULT_ADDR% -field=token identity/oidc/token/buildbarn >nul 2>&1
+exit /b %errorlevel%
 
 :: Reachability probe with asymmetric caching (mirrors remote-cache-select.sh).
 :: Any HTTPS response (incl. gRPC's 415) counts as reachable; only a

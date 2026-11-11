@@ -1,0 +1,18 @@
+description: grep -F treats pattern as a literal string.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        a.b
+        a*b
+        axb
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -F 'a.b' file.txt
+expect:
+  stdout: |+
+    a.b
+  stderr: ""
+  exit_code: 0

@@ -7,7 +7,7 @@
 #include "helpers/span_fill.h"
 #include "hooks/network/flow.h"
 
-int __attribute__((always_inline)) sys_connect(void *ctx, u64 pid_tgid) {
+static __always_inline int sys_connect(void *ctx, u64 pid_tgid) {
     struct policy_t policy = fetch_policy(EVENT_CONNECT);
     struct syscall_cache_t syscall = {
         .policy = policy,
@@ -29,19 +29,20 @@ HOOK_SYSCALL_ENTRY3(connect, int, socket, struct sockaddr *, addr, unsigned int,
     return sys_connect(ctx, 0);
 }
 
-int __attribute__((always_inline)) sys_connect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_connect_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_CONNECT);
     if (!syscall) {
         return 0;
     }
 
-    // Bail out on failed connects before the approvers, otherwise a dropped event would still
-    // pollute connect_samples and suppress later successful connects to the same endpoint.
+    // Handled errors (EACCES, EPERM, or any error when capture_all_errors is enabled) are kept for
+    // rule evaluation, while connect_approvers only samples connects with retval 0, -EINPROGRESS, or -EAGAIN.
     // EAGAIN may be returned on Fedora 37 (kernel 6.0.7-301.fc37.x86_64).
     if (IS_UNHANDLED_ERROR(retval) && retval != -EINPROGRESS && retval != -EAGAIN) {
         goto pop_and_exit;
     }
 
+    syscall->retval = retval;
     approve_syscall(syscall, connect_approvers);
 
     register_connecting_flow(syscall->connect.sk, syscall->connect.pid_tgid ? syscall->connect.pid_tgid : bpf_get_current_pid_tgid());
@@ -101,7 +102,7 @@ pop_and_exit:
     return 0;
 }
 
-int __attribute__((always_inline)) sys_connect_ret(void *ctx, int retval) {
+static __always_inline int sys_connect_ret(void *ctx, int retval) {
     return sys_connect_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

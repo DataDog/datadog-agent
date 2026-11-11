@@ -1,0 +1,21 @@
+{{- if .configFile }}
+  Configuration file: {{ .configFile }}
+{{- else }}
+  No configuration file used
+{{- end }}
+{{- if .extraConfigFiles }}
+
+  Extra configuration files:
+  {{- range .extraConfigFiles }}
+    - {{ . }}
+  {{- end }}
+{{- end }}
+{{- if .configWarnings }}
+
+  Configuration warnings:
+  {{- range .configWarnings }}
+    - {{ . }}
+  {{- end }}
+{{- else }}
+  No configuration warnings
+{{- end }}

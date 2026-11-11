@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The CWS SBOM resolver reads the host packages through the root of the
+    host's init process, as it reads those of a container through one of its
+    processes. A containerized system-probe without ``HOST_ROOT`` indexed its
+    own image as the packages of the host.

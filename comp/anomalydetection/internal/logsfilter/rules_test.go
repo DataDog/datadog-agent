@@ -109,42 +109,73 @@ func TestIsAllowed_AllTagsMustPresent(t *testing.T) {
 		Name: "r", Type: "exclude_at_match",
 		Tags: []string{"env:dev", "team:foo"},
 	})
-	assert.False(t, r.IsAllowed("x", []string{"env:dev", "team:foo"}))
+	assert.False(t, r.IsAllowed("x", []string{"team:foo", "env:dev"}))
 	assert.True(t, r.IsAllowed("x", []string{"env:dev"})) // missing team:foo
 }
 
-// --- containsAllTagsSorted ---
+// --- containsAllTags ---
 
-func TestContainsAllTagsSorted_EmptyRuleTags(t *testing.T) {
-	assert.True(t, containsAllTagsSorted(nil, nil))
-	assert.True(t, containsAllTagsSorted([]string{"env:prod"}, nil))
+func TestContainsAllTags_EmptyRuleTags(t *testing.T) {
+	assert.True(t, containsAllTags(nil, nil))
+	assert.True(t, containsAllTags([]string{"env:prod"}, nil))
 }
 
-func TestContainsAllTagsSorted_EmptySampleTags(t *testing.T) {
-	assert.False(t, containsAllTagsSorted(nil, []string{"env:prod"}))
+func TestContainsAllTags_EmptySampleTags(t *testing.T) {
+	assert.False(t, containsAllTags(nil, []string{"env:prod"}))
 }
 
-func TestContainsAllTagsSorted_AllMatch(t *testing.T) {
-	sample := []string{"env:prod", "service:web", "team:foo"}
+func TestContainsAllTags_AllMatchUnsortedAndDuplicate(t *testing.T) {
+	sample := []string{"team:foo", "service:web", "env:prod", "service:web"}
 	rule := []string{"env:prod", "service:web"}
-	assert.True(t, containsAllTagsSorted(sample, rule))
+	assert.True(t, containsAllTags(sample, rule))
 }
 
-func TestContainsAllTagsSorted_PartialMatch(t *testing.T) {
+func TestContainsAllTags_PartialMatch(t *testing.T) {
 	sample := []string{"env:prod", "service:web"}
 	rule := []string{"env:prod", "team:foo"}
-	assert.False(t, containsAllTagsSorted(sample, rule))
+	assert.False(t, containsAllTags(sample, rule))
 }
 
-func TestContainsAllTagsSorted_SampleExhaustedBeforeAllRuleTags(t *testing.T) {
+func TestContainsAllTags_SampleExhaustedBeforeAllRuleTags(t *testing.T) {
 	sample := []string{"a:1"}
 	rule := []string{"a:1", "z:9"}
-	assert.False(t, containsAllTagsSorted(sample, rule))
+	assert.False(t, containsAllTags(sample, rule))
 }
 
-func TestContainsAllTagsSorted_ExactMatch(t *testing.T) {
-	tags := []string{"env:dev", "service:api"}
-	assert.True(t, containsAllTagsSorted(tags, tags))
+func TestContainsAllTags_ExactMatch(t *testing.T) {
+	tags := []string{"service:api", "env:dev"}
+	assert.True(t, containsAllTags(tags, tags))
+}
+
+// --- MayAllowSource ---
+
+func TestMayAllowSource(t *testing.T) {
+	var nilRules *Rules
+	assert.True(t, nilRules.MayAllowSource("containerd"))
+
+	emptyRules := rules(t)
+	assert.True(t, emptyRules.MayAllowSource("containerd"))
+
+	sourceExclude := rules(t,
+		ProcessingRule{Name: "drop_containerd", Type: "exclude_at_match", Source: "containerd"},
+	)
+	assert.False(t, sourceExclude.MayAllowSource("containerd"))
+	assert.True(t, sourceExclude.MayAllowSource("docker"))
+
+	// Earlier tag-based include must prevent later source-only exclude from rejecting early.
+	tagIncludeBeforeSourceExclude := rules(t,
+		ProcessingRule{Name: "keep_prod", Type: "include_at_match", Tags: []string{"env:prod"}},
+		ProcessingRule{Name: "drop_containerd", Type: "exclude_at_match", Source: "containerd"},
+	)
+	assert.True(t, tagIncludeBeforeSourceExclude.MayAllowSource("containerd"))
+
+	// Tag rule with non-matching source is skipped; later source-only exclude still rejects.
+	otherSourceTagBeforeExclude := rules(t,
+		ProcessingRule{Name: "keep_docker_prod", Type: "include_at_match", Source: "docker", Tags: []string{"env:prod"}},
+		ProcessingRule{Name: "drop_containerd", Type: "exclude_at_match", Source: "containerd"},
+	)
+	assert.False(t, otherSourceTagBeforeExclude.MayAllowSource("containerd"))
+	assert.True(t, otherSourceTagBeforeExclude.MayAllowSource("docker"))
 }
 
 // --- compileRuleTags deduplication ---

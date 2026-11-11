@@ -15,7 +15,7 @@ package_metadata(
         ":license",
     ],
     purl = purl_for_generic(
-        download_url = "https://ftp.osuosl.org/pub/rpm/popt/releases/popt-1.x/popt-{version}.tar.gz",
+        download_url = "https://src.fedoraproject.org/repo/pkgs/rpms/popt/popt-1.19.tar.gz/sha512/5d1b6a15337e4cd5991817c1957f97fc4ed98659870017c08f26f754e34add31d639d55ee77ca31f29bb631c0b53368c1893bd96cf76422d257f7997a11f6466/popt-1.19.tar.gz",
         package = "popt",
         version = VERSION,
     ),
@@ -98,9 +98,9 @@ pkg_files(
 
 dd_cc_packaged(
     name = "popt_pkg",
+    data = [":hdr_files"],
     dest_dir = "embedded/lib",
     input = ":popt",
-    installed_files = [":hdr_files"],
     version = "0.0.2",
     visibility = ["//visibility:public"],
 )

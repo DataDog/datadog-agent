@@ -477,7 +477,7 @@ func TestReadTCPListeningPorts_EstablishedNotPresent(t *testing.T) {
 // not filtered by the ephemeral range because the XSO_TCB LISTEN-state check
 // already guarantees the socket is a genuine server socket.
 func TestReadPortsDarwin_EphemeralTCPListenerIncluded(t *testing.T) {
-	ephFirst, ephLast := ephemeralPortRange()
+	ephFirst, ephLast := EphemeralPortRange()
 	t.Logf("system ephemeral port range: %d-%d", ephFirst, ephLast)
 
 	ln, err := net.Listen("tcp", "127.0.0.1:0")

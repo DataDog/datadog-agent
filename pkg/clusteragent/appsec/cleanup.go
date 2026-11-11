@@ -76,6 +76,7 @@ func cleanupPattern(ctx context.Context, logger log.Component, client dynamic.In
 		logger.Debugf("Cleaning up appsec injections %d objects from resource pattern: %v", len(objs.Items), pattern.Resource())
 	}
 
+	ctx = appsecconfig.WithCleanup(ctx)
 	var errs []error
 	for _, obj := range objs.Items {
 		errs = append(errs, pattern.Deleted(ctx, &obj))

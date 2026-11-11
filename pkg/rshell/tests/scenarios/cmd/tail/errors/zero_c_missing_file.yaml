@@ -1,0 +1,9 @@
+description: tail -c 0 with a missing file exits 0 with no output (GNU tail skips file open in zero-count mode).
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -c 0 missing.txt
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

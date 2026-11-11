@@ -7,7 +7,6 @@ package packets
 
 import (
 	"sync"
-	"unsafe"
 
 	"go.uber.org/atomic"
 )
@@ -21,95 +20,72 @@ type genericPool[K managedPoolTypes] interface {
 	Put(x *K)
 }
 
-// PoolManager helps manage sync pools so multiple references to the same pool objects may be held.
+// PoolManager returns objects to their pool after all owners release them.
+// Objects have one owner by default; Retain explicitly adds another owner.
 type PoolManager[K managedPoolTypes] struct {
 	pool genericPool[K]
-	refs sync.Map
 
-	passthru *atomic.Bool
-
-	sync.RWMutex
+	mu       sync.Mutex
+	refs     map[*K]int32 // retained objects -> outstanding references
+	retained atomic.Int64 // len(refs), so Put skips the lock when nothing is retained
 }
 
 // NewPoolManager creates a PoolManager to manage the underlying genericPool.
 func NewPoolManager[K managedPoolTypes](gp genericPool[K]) *PoolManager[K] {
-	return &PoolManager[K]{
-		pool:     gp,
-		passthru: atomic.NewBool(true),
-	}
+	return &PoolManager[K]{pool: gp, refs: make(map[*K]int32)}
 }
 
-// Get gets an object from the pool.
+// Get gets an object with one reference from the pool.
 func (p *PoolManager[K]) Get() *K {
 	return p.pool.Get()
 }
 
-// Put declares intent to return an object to the pool. In passthru mode the object is immediately
-// returned to the pool, otherwise we wait until the object is put by all (only 2 currently supported)
-// reference holders before actually returning it to the object pool.
-func (p *PoolManager[K]) Put(x *K) {
-
-	if p.IsPassthru() {
-		p.pool.Put(x)
+// Retain adds a reference. The caller must hold one for the whole call.
+func (p *PoolManager[K]) Retain(x *K) {
+	if x == nil {
 		return
 	}
-
-	ref := unsafe.Pointer(x)
-
-	// This lock is not to guard the map, it's here to
-	// avoid adding items to the map while flushing.
-	p.RLock()
-
-	_, loaded := p.refs.LoadAndDelete(ref)
-	if loaded {
-		p.pool.Put(x)
-	} else {
-		// reference does not exist, account.
-		p.refs.Store(ref, x)
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n, ok := p.refs[x]
+	if !ok {
+		n = 1 // the caller's reference
 	}
-
-	// relatively hot path so not deferred
-	p.RUnlock()
+	p.refs[x] = n + 1
+	p.retained.Store(int64(len(p.refs)))
 }
 
-// IsPassthru returns a boolean telling us if the PoolManager is in passthru mode or not.
-func (p *PoolManager[K]) IsPassthru() bool {
-	return p.passthru.Load()
-}
-
-// SetPassthru sets the passthru mode to the specified value. It will flush the sccounting before
-// enabling passthru mode.
-func (p *PoolManager[K]) SetPassthru(b bool) {
-	if b {
-		p.passthru.Store(true)
-		p.Flush()
-	} else {
-		p.passthru.Store(false)
+// Put releases a reference, returning the object only after its final owner.
+func (p *PoolManager[K]) Put(x *K) {
+	if x == nil {
+		return
 	}
+	// The unlocked hint is safe: every Put of x that must see an entry is ordered
+	// after the Retain that created it.
+	if p.retained.Load() != 0 && p.release(x) {
+		return
+	}
+	p.pool.Put(x)
 }
 
-// Count returns the number of elements accounted by the PoolManager.
+// release drops a reference to a retained object, reporting whether others remain.
+func (p *PoolManager[K]) release(x *K) bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	n, ok := p.refs[x]
+	if !ok {
+		return false
+	}
+	if n > 1 {
+		p.refs[x] = n - 1
+		return true
+	}
+	delete(p.refs, x)
+	p.retained.Store(int64(len(p.refs)))
+	return false
+}
+
+// Count returns the number of retained objects not yet returned to the pool.
 func (p *PoolManager[K]) Count() int {
-	p.RLock()
-	defer p.RUnlock()
-
-	size := 0
-	p.refs.Range(func(_, _ interface{}) bool {
-		size++
-		return true
-	})
-
-	return size
-}
-
-// Flush flushes all objects back to the object pool, and stops tracking any pending objects.
-func (p *PoolManager[K]) Flush() {
-	p.Lock()
-	defer p.Unlock()
-
-	p.refs.Range(func(k, v any) bool {
-		p.pool.Put(v.(*K))
-		p.refs.Delete(k)
-		return true
-	})
+	return int(p.retained.Load())
 }

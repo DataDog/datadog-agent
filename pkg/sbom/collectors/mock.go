@@ -34,12 +34,6 @@ func (m *MockCollector) Type() ScanType {
 	return args.Get(0).(ScanType)
 }
 
-// CleanCache cleans the collector cache
-func (m *MockCollector) CleanCache() error {
-	args := m.Called()
-	return args.Error(0)
-}
-
 // Init initializes the collector
 func (m *MockCollector) Init(cfg config.Component, opt option.Option[workloadmeta.Component]) error {
 	args := m.Called(cfg, opt)

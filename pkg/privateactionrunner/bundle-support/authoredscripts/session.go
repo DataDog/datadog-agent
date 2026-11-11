@@ -3,8 +3,6 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//go:build !windows
-
 package authoredscripts
 
 import (
@@ -34,7 +32,7 @@ type Session struct {
 }
 
 func NewSession() (*Session, error) {
-	rootDirectory, err := os.MkdirTemp("", sessionDirectoryPrefix)
+	rootDirectory, err := newSessionRoot()
 	if err != nil {
 		return nil, fmt.Errorf("could not create authored-script session directory: %w", err)
 	}

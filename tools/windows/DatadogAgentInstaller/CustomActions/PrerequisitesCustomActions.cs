@@ -14,8 +14,11 @@ namespace Datadog.CustomActions
 
         /// <summary>
         /// Set by <see cref="EnsureSecureConfigRootUI"/> to tell the UI whether it can continue.
+        /// True when the root is rejected or its ownership could not be verified. False allows
+        /// the UI to continue, including when the root is absent and will be securely created later.
+        /// An unset result must not allow the UI to continue.
         /// </summary>
-        public const string ConfigRootValidProperty = "DDConfigRoot_Valid";
+        public const string ConfigRootUntrustedProperty = "DDConfigRoot_Untrusted";
 
         public static ActionResult EnsureAdminCaller(Session session)
         {
@@ -61,17 +64,17 @@ namespace Datadog.CustomActions
         /// partial installation behind. DDCreateFolders applies the same check when it creates the
         /// directory.
         ///
-        /// When calledFromUIControl is true the outcome is reported through ConfigRootValidProperty and
+        /// When calledFromUIControl is true the outcome is reported through ConfigRootUntrustedProperty and
         /// ErrorModal_ErrorMessage instead, and the action returns success: a custom action run from a
         /// dialog cannot send a message to the user, and returning failure exits the installer.
         /// https://learn.microsoft.com/en-us/windows/win32/msi/sending-messages-to-windows-installer-using-msiprocessmessage
         /// </remarks>
-        private static ActionResult EnsureSecureConfigRoot(ISession session, bool calledFromUIControl = false)
+        internal static ActionResult EnsureSecureConfigRoot(ISession session, bool calledFromUIControl = false)
         {
+            session[ConfigRootUntrustedProperty] = "True";
             if (calledFromUIControl)
             {
                 // reset output properties, the user can go back and forth in the UI
-                session[ConfigRootValidProperty] = "False";
                 session["ErrorModal_ErrorMessage"] = "";
             }
 
@@ -87,7 +90,7 @@ namespace Datadog.CustomActions
                     throw new InvalidOperationException("APPLICATIONDATADIRECTORY is not set");
                 }
 
-                SecureDirectory.AssertSecureOwner(session, configRoot);
+                SecureDirectory.AssertSecureOwner(session, configRoot, out _);
             }
             catch (SecureDirectoryException e)
             {
@@ -117,10 +120,7 @@ namespace Datadog.CustomActions
                 return ActionResult.Failure;
             }
 
-            if (calledFromUIControl)
-            {
-                session[ConfigRootValidProperty] = "True";
-            }
+            session[ConfigRootUntrustedProperty] = "False";
 
             return ActionResult.Success;
         }

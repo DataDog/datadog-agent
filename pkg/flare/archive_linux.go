@@ -18,7 +18,7 @@ import (
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/flare/priviledged"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 )
 
@@ -68,13 +68,13 @@ func addSystemProbePlatformSpecificEntries(fb flaretypes.FlareBuilder) {
 
 func getSystemProbeConntrackCached() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/cached")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.NetworkTracerModule, "/debug/conntrack/cached")
 	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 
 func getSystemProbeConntrackHost() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
-	url := sysprobeclient.ModuleURL(sysconfig.NetworkTracerModule, "/debug/conntrack/host")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.NetworkTracerModule, "/debug/conntrack/host")
 	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 
@@ -98,7 +98,7 @@ func getSystemProbeSelinuxSemoduleList() ([]byte, error) {
 
 func getSystemProbeDiscoveryState() ([]byte, error) {
 	sysProbeClient := sysprobeclient.Get(priviledged.GetSystemProbeSocketPath())
-	url := sysprobeclient.ModuleURL(sysconfig.DiscoveryModule, "/state")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.DiscoveryModule, "/state")
 	return priviledged.GetHTTPData(sysProbeClient, url)
 }
 

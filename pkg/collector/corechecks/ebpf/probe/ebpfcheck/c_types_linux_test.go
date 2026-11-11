@@ -9,29 +9,29 @@ import (
 )
 
 func TestCgoAlignment_perfBufferKey(t *testing.T) {
-	ebpftest.TestCgoAlignment[perfBufferKey](t)
+	ebpftest.AssertCgoAlignment[perfBufferKey](t)
 }
 
 func TestCgoAlignment_mmapRegion(t *testing.T) {
-	ebpftest.TestCgoAlignment[mmapRegion](t)
+	ebpftest.AssertCgoAlignment[mmapRegion](t)
 }
 
 func TestCgoAlignment_ringMmap(t *testing.T) {
-	ebpftest.TestCgoAlignment[ringMmap](t)
+	ebpftest.AssertCgoAlignment[ringMmap](t)
 }
 
 func TestCgoAlignment_cookie(t *testing.T) {
-	ebpftest.TestCgoAlignment[cookie](t)
+	ebpftest.AssertCgoAlignment[cookie](t)
 }
 
 func TestCgoAlignment_kStatsError(t *testing.T) {
-	ebpftest.TestCgoAlignment[kStatsError](t)
+	ebpftest.AssertCgoAlignment[kStatsError](t)
 }
 
 func TestCgoAlignment_kprobeKernelStats(t *testing.T) {
-	ebpftest.TestCgoAlignment[kprobeKernelStats](t)
+	ebpftest.AssertCgoAlignment[kprobeKernelStats](t)
 }
 
 func TestCgoAlignment_kprobeStatsErrors(t *testing.T) {
-	ebpftest.TestCgoAlignment[kprobeStatsErrors](t)
+	ebpftest.AssertCgoAlignment[kprobeStatsErrors](t)
 }

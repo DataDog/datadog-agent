@@ -9,13 +9,13 @@ import (
 )
 
 func TestCgoAlignment_EventHeader(t *testing.T) {
-	ebpftest.TestCgoAlignment[EventHeader](t)
+	ebpftest.AssertCgoAlignment[EventHeader](t)
 }
 
 func TestCgoAlignment_DataItemHeader(t *testing.T) {
-	ebpftest.TestCgoAlignment[DataItemHeader](t)
+	ebpftest.AssertCgoAlignment[DataItemHeader](t)
 }
 
 func TestCgoAlignment_DropNotification(t *testing.T) {
-	ebpftest.TestCgoAlignment[DropNotification](t)
+	ebpftest.AssertCgoAlignment[DropNotification](t)
 }

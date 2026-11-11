@@ -37,13 +37,7 @@ if [ -n "${XDG_CACHE_HOME-}" ]; then
       >&2 echo "🔴 BUILDBARN_ID_TOKEN must be populated in CI!"
       exit 2
     fi
-    extra_args+=(--config=ci)
-    # Edge cache is only reachable from inside the k8s cluster (Linux CI runners).
-    if [ "$(uname -s)" = Linux ]; then
-      extra_args+=(--config=cache:edge)
-    else
-      extra_args+=(--config=cache:frontend)
-    fi
+    extra_args+=(--config=ci --config=cache:frontend)
   fi
 else
   # Without `XDG_CACHE_HOME`, fall back Go caches to official defaults so Go repo rules work under strict repo_env

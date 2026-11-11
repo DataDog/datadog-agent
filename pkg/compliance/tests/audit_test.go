@@ -10,6 +10,8 @@ package tests
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"testing"
 
 	"github.com/DataDog/datadog-agent/pkg/compliance"
@@ -46,6 +48,49 @@ findings[f] {
 		"my_resource_type",
 		"my_resource_id",
 		{ "foo": input.context.hostname }
+	)
+}
+`).
+		AssertPassedEvent(nil)
+}
+
+type fakeAuditClient []*compliance.FileWatchRule
+
+func (c fakeAuditClient) GetFileWatchRules() ([]*compliance.FileWatchRule, error) {
+	return c, nil
+}
+
+func (c fakeAuditClient) Close() error {
+	return nil
+}
+
+func TestAuditHostRoot(t *testing.T) {
+	root := makeHostRoot(t)
+	if err := os.WriteFile(filepath.Join(root, "run/cmp.sock"), nil, 0o660); err != nil {
+		t.Fatal(err)
+	}
+	cl := fakeAuditClient{{Path: "/var/run/cmp.sock"}}
+	b := newTestBench(t).WithHostRoot(root).WithAuditClient(cl)
+	defer b.Run()
+
+	b.AddRule("AbsoluteLink").
+		WithInput(`
+- audit:
+		path: /var/run/cmp.sock
+	type: array
+	tag: watch
+`).
+		WithRego(`
+package datadog
+import data.datadog as dd
+
+findings[f] {
+	count(input.watch) == 1
+	input.watch[0].path == "/var/run/cmp.sock"
+	f := dd.passed_finding(
+		"foo",
+		"bar",
+		{}
 	)
 }
 `).

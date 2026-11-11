@@ -32,6 +32,7 @@ dd_agent_go_test(
         "//pkg/trace/config",
         "//pkg/trace/semantics",
         "//pkg/util/log",
+        "//pkg/util/log/types",
         "//pkg/util/pointer",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",

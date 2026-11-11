@@ -1,0 +1,13 @@
+# skip: case statements are intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Case with glob pattern matching is blocked.
+input:
+  script: |+
+    case "document.txt" in
+      *.txt) echo "text file";;
+      *) echo "other";;
+    esac
+expect:
+  stdout: ""
+  stderr: "case statements are not supported\n"
+  exit_code: 2

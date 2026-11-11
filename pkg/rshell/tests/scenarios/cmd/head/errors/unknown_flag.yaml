@@ -1,0 +1,14 @@
+# Per RULES.md: every dangerous/unsupported flag must have a test verifying rejection
+description: head exits 1 with an error when given an unknown flag.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head --follow file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["head:"]
+  exit_code: 1

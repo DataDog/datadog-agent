@@ -1,0 +1,13 @@
+# skip: pmap is not part of GNU coreutils (it ships in procps-ng), which is
+# not installed in the debian:bookworm-slim comparison image, so there is no
+# real `pmap` binary to compare against.
+description: pmap rejects a negative PID argument
+skip_assert_against_bash: true
+input:
+  script: |+
+    pmap -- -1
+expect:
+  stdout: |+
+  stderr: |+
+    pmap: invalid PID: -1
+  exit_code: 1

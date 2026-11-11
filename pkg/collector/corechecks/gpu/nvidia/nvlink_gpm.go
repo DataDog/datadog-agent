@@ -37,6 +37,10 @@ func newNVLinkGPMCollector(device ddnvml.Device, deps *CollectorDependencies) (C
 	// no need to store the ports, they get added automatically to the perPortCollector map
 	_, err := getSupportedNvlinkPorts(device, collector.getPortMetrics)
 	if err != nil {
+		// free the GPM samples of the ports set up before the failure
+		for _, portCollector := range collector.perPortCollector {
+			portCollector.freeSamples()
+		}
 		return nil, err
 	}
 

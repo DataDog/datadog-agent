@@ -10,11 +10,25 @@ package cloudproviders
 import (
 	"context"
 	"testing"
+
+	"github.com/DataDog/datadog-agent/pkg/util/dmi"
 )
 
 // Mock setup mocks for the function 'DetectCloudProvider', 'GetSource' and 'GetHostID'
 func Mock(t *testing.T, cloudProviderName string, accountIDCallback string, source string, hostID string) {
+	// DetectCloudProvider checks DMI before consulting the detector maps below. Neutralize the
+	// EC2/GCE/Azure DMI signals here so the mocked provider is actually used, regardless of the
+	// real board vendor/product UUID/product name/chassis tag on the machine running the test
+	// (e.g. a CI runner that is itself an EC2 instance); dmi.SetupMock* restores the original
+	// values via t.Cleanup. Callers that need specific DMI values for their own fixtures (e.g.
+	// display fields in a payload) must call dmi.SetupMock*/SetupMockProductName/
+	// SetupMockChassisAssetTag again after Mock(), so their values win.
+	dmi.SetupMock(t, "", "", "", "")
+	dmi.SetupMockProductName(t, "")
+	dmi.SetupMockChassisAssetTag(t, "")
+
 	origDetectors := cloudProviderDetectors
+	origResolutionOrder := cloudProviderDetectorResolutionOrder
 	origGetSource := sourceDetectors
 	orighostIDDetectors := hostIDDetectors
 	origHostCCRIDDecectors := hostCCRIDDetectors
@@ -22,19 +36,21 @@ func Mock(t *testing.T, cloudProviderName string, accountIDCallback string, sour
 
 	t.Cleanup(func() {
 		cloudProviderDetectors = origDetectors
+		cloudProviderDetectorResolutionOrder = origResolutionOrder
 		sourceDetectors = origGetSource
 		hostIDDetectors = orighostIDDetectors
 		hostCCRIDDetectors = origHostCCRIDDecectors
 		hostInstanceTypeDetectors = origInstanceTypeDetectors
 	})
 
-	cloudProviderDetectors = []cloudProviderDetector{
-		{
+	cloudProviderDetectors = map[string]cloudProviderDetector{
+		cloudProviderName: {
 			name:              cloudProviderName,
 			callback:          func(context.Context) bool { return true },
 			accountIDCallback: func(context.Context) (string, error) { return accountIDCallback, nil },
 		},
 	}
+	cloudProviderDetectorResolutionOrder = []string{cloudProviderName}
 	sourceDetectors = map[string]func() string{
 		cloudProviderName: func() string { return source },
 	}

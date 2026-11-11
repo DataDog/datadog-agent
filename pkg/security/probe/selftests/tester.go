@@ -171,11 +171,11 @@ func (t *SelfTester) WaitForResult(cb func(success []eval.RuleID, fails []eval.R
 			}
 		}
 		t.success, t.fails, t.lastTimestamp = success, fails, time.Now()
+		// end before the callback, which may start the next run
+		t.endSelfTests()
 		t.Unlock()
 
 		cb(success, fails)
-
-		t.endSelfTests()
 	}
 }
 

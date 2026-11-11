@@ -1,0 +1,12 @@
+---
+upgrade:
+  - |
+    The Cluster Agent no longer needs ``list`` or ``watch`` on
+    ``rolebindings`` and ``clusterrolebindings``, or ``list`` on
+    ``serviceaccounts``. Those permissions were added for
+    ``cis-kubernetes-1.5.1-5.1.5``.
+enhancements:
+  - |
+    Removed the RoleBinding and ClusterRoleBinding reflector caches from the
+    Cluster Agent. They existed only to keep ``cis-kubernetes-1.5.1-5.1.5``
+    from listing every binding in the cluster, and that rule is gone.

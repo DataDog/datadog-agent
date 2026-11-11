@@ -1,0 +1,8 @@
+description: Printf interprets backslash-t as a tab in the format string.
+input:
+  script: |+
+    printf "a\tb\n"
+expect:
+  stdout: "a\tb\n"
+  stderr: ""
+  exit_code: 0

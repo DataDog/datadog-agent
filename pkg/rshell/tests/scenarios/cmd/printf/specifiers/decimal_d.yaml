@@ -1,0 +1,9 @@
+description: Printf %d specifier outputs a decimal integer.
+input:
+  script: |+
+    printf "%d\n" 42
+expect:
+  stdout: |+
+    42
+  stderr: ""
+  exit_code: 0

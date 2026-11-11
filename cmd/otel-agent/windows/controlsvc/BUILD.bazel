@@ -4,7 +4,7 @@ go_library(
     name = "controlsvc",
     srcs = ["controlsvc.go"],
     importpath = "github.com/DataDog/datadog-agent/cmd/otel-agent/windows/controlsvc",
-    target_compatible_with = ["@platforms//os:windows"],  # keep
+    target_compatible_with = ["@platforms//os:windows"],
     visibility = ["//visibility:public"],
     deps = select({
         "@rules_go//go/platform:windows": [

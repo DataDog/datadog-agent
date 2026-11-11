@@ -1,0 +1,10 @@
+description: A short option that requires a value but is given none emits GNU's "option requires an argument -- 'X'" wording (note the inverted order vs. the long-flag form). pflag uses payload `'X' in -Y` for shorthand missing-arg, which `rewritePflagError` in builtins/builtins.go translates to GNU's getopt-style message. Without that translation `head -n` would print `option ''n' in -n' requires an argument`, breaking byte-for-byte agreement with GNU.
+input:
+  script: |+
+    head -n
+expect:
+  stdout: ""
+  stderr: |+
+    head: option requires an argument -- 'n'
+    Try 'head --help' for more information.
+  exit_code: 1

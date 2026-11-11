@@ -1,0 +1,10 @@
+description: Single-line until loop with an immediately-true condition does not run the body.
+input:
+  script: |+
+    until true; do echo loop; done
+    echo "exit=$?"
+expect:
+  stdout: |+
+    exit=0
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,16 @@
+---
+enhancements:
+  - |
+    Add support for Cisco NBAR2 application metadata on NetFlow v9 records, in addition to IPFIX.
+    To enable this feature, set ``enable_dpi: true`` on the relevant NetFlow v9 listener under the netflow configuration, for example::
+
+      network_devices:
+        netflow:
+          listeners:
+            - flow_type: netflow9
+              ...
+              enable_dpi: true
+
+    Application names and descriptions are read from the ``option application-table`` records sent by the exporter.
+    When the exporter also sends ``option application-attributes`` records, flows are enriched with the application category,
+    sub-category, group, traffic class, business relevance, set, family, and P2P, tunnel and encrypted technology.

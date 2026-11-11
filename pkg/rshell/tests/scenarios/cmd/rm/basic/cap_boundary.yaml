@@ -1,0 +1,36 @@
+# Boundary test: exactly MaxRemoveFiles (10) operands is allowed.
+description: rm succeeds when given exactly the 10-file limit.
+setup:
+  files:
+    - path: f1
+      content: "1"
+    - path: f2
+      content: "2"
+    - path: f3
+      content: "3"
+    - path: f4
+      content: "4"
+    - path: f5
+      content: "5"
+    - path: f6
+      content: "6"
+    - path: f7
+      content: "7"
+    - path: f8
+      content: "8"
+    - path: f9
+      content: "9"
+    - path: f10
+      content: "10"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm f1 f2 f3 f4 f5 f6 f7 f8 f9 f10
+    [ -f f1 ] || [ -f f10 ] || echo all_removed
+expect:
+  stdout: |+
+    all_removed
+  stderr: |+
+  exit_code: 0
+skip_assert_against_bash: true

@@ -1,4 +1,5 @@
 import os
+from enum import Enum
 
 from invoke import Context
 
@@ -23,8 +24,14 @@ def destroy_remote_stack_local(stack: str, ctx: Context | None = None):
     return res.exited, res.stdout, res.stderr, stack
 
 
-def destroy_remote_stack_api(stack: str, ctx: Context | None = None):
+def destroy_remote_stack_api(stack: str, ctx: Context | None = None, cancel_first: bool = False):
+    """Requests stackcleaner to destroy the stack. With cancel_first, the stack's ongoing operation is canceled
+    first, which releases the lock left behind by an interrupted Pulumi process."""
+
     ctx = ctx or Context()
+    attrs = f"stack_name={stack},job_name={os.environ['CI_JOB_NAME']},job_id={os.environ['CI_JOB_ID']},pipeline_id={os.environ['CI_PIPELINE_ID']},ref={os.environ['CI_COMMIT_REF_NAME']},ignore_lock=bool:true,ignore_not_found=bool:true"
+    if cancel_first:
+        attrs += ",cancel_first=bool:true"
 
     # There is no real command here, the exit code is 1 on error and stderr the error message
     exit_code = 0
@@ -36,7 +43,7 @@ def destroy_remote_stack_api(stack: str, ctx: Context | None = None):
             "stackcleaner/stack",
             env="prod",
             ty="stackcleaner_workflow_request",
-            attrs=f"stack_name={stack},job_name={os.environ['CI_JOB_NAME']},job_id={os.environ['CI_JOB_ID']},pipeline_id={os.environ['CI_PIPELINE_ID']},ref={os.environ['CI_COMMIT_REF_NAME']},ignore_lock=bool:true,ignore_not_found=bool:true",
+            attrs=attrs,
             timeout=10,
             ignore_timeout_error=True,
         )
@@ -45,3 +52,53 @@ def destroy_remote_stack_api(stack: str, ctx: Context | None = None):
         stderr = str(e)
 
     return exit_code, "Stack cleanup request submitted to stackcleaner" if exit_code == 0 else "", stderr, stack
+
+
+# Written by the e2e framework stack manager in the E2E output directory, one stack name per line
+RECORDED_STACKS_FILE = "pulumi-stacks.txt"
+# Pulumi stacks of the e2e CI profile live under this organization/project
+CI_STACK_PREFIX = "organization/e2eci/"
+# Gitlab statuses of jobs that will never use a stack
+FINAL_UNUSED_JOB_STATUSES = {"canceled", "canceling", "skipped"}
+
+
+def read_recorded_stacks(output_dir: str) -> list[str]:
+    """Returns the deduplicated stacks recorded by the e2e framework in output_dir."""
+
+    path = os.path.join(output_dir, RECORDED_STACKS_FILE)
+    if not os.path.isfile(path):
+        return []
+    with open(path) as f:
+        return list(dict.fromkeys(line.strip() for line in f if line.strip()))
+
+
+def init_job_consumers(init_job_name: str, jobs: list) -> list:
+    """Returns the jobs using the stacks of an init job, named after it without the `-init` suffix."""
+
+    if not init_job_name.endswith("-init"):
+        return []
+    consumer_name = init_job_name.removesuffix("-init")
+    # Parallel and matrix jobs are named `<name> 1/2` or `<name>: [...]`
+    return [
+        job
+        for job in jobs
+        if job.name == consumer_name or job.name.startswith((consumer_name + " ", consumer_name + ":"))
+    ]
+
+
+class StacksCleanupReason(Enum):
+    """Why the stacks of a job are cleaned up from its after_script."""
+
+    JOB_CANCELED = "the job was canceled"
+    JOB_OVER = "the job is over"
+    NO_ACTIVE_CONSUMER = "no job will consume the stacks"
+
+
+def stacks_cleanup_reason(job_status: str, init_only: bool) -> StacksCleanupReason:
+    """Returns why the stacks of a job are cleaned up, init jobs with active consumers keep them instead."""
+
+    if job_status == "canceled":
+        return StacksCleanupReason.JOB_CANCELED
+    if init_only:
+        return StacksCleanupReason.NO_ACTIVE_CONSUMER
+    return StacksCleanupReason.JOB_OVER

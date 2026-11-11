@@ -16,5 +16,6 @@ datadog:
     instrumentation:
       enabled: false
       enabledNamespaces: []
+      onDemand: true
       injector:
         imageTag: "0.52.0"

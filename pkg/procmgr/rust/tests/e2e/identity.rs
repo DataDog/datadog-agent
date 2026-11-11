@@ -27,7 +27,7 @@ fn mixed_catalog_agent_and_process_name_profiles() {
     let list = procmgr.require_list();
     list.assert_len(2);
     list.assert_process_state("sleeper", ProcessExpect::Running);
-    list.assert_process_state(PROCESS_AGENT_NAME, ProcessExpect::Created);
+    list.assert_process_state(PROCESS_AGENT_NAME, ProcessExpect::Skipped);
 
     assert_eq!(list.require_process("sleeper").profile, "agent");
     assert_eq!(
@@ -59,7 +59,7 @@ fn describe_datadog_agent_process_profile_matches_platform() {
         PROCESS_AGENT_NAME,
         DescribeExpect {
             name: Some(PROCESS_AGENT_NAME.into()),
-            state: Some("Created".into()),
+            state: Some("Skipped".into()),
             profile: Some(expected_process_agent_profile().into()),
             user: Some(expected_spawn_user_for_process(PROCESS_AGENT_NAME)),
             command: Some(list_snap.command),

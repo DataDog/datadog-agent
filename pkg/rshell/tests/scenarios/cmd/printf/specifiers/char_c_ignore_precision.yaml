@@ -1,0 +1,8 @@
+description: "%c ignores precision — bash always prints one byte regardless of precision."
+input:
+  script: |+
+    printf '%.0c\n' A
+    printf '%5.0c\n' A
+expect:
+  stdout: "A\n    A\n"
+  exit_code: 0

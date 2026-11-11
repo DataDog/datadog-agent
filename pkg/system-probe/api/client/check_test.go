@@ -145,6 +145,9 @@ func TestGetCheck(t *testing.T) {
 	//test responseError counter
 	resp, err = GetCheck[testData](client, "foo")
 	require.Error(t, err)
+	var statusErr *StatusCodeError
+	require.ErrorAs(t, err, &statusErr)
+	assert.Equal(t, http.StatusNotFound, statusErr.StatusCode)
 	validateTelemetry(t, "foo", expectedTelemetryValues{1, 0, 0, 1, 0})
 
 	//test malformedResponses counter

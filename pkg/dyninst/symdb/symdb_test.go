@@ -10,6 +10,8 @@ package symdb_test
 import (
 	"compress/gzip"
 	"context"
+	"debug/buildinfo"
+	"debug/dwarf"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -31,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/DataDog/datadog-agent/pkg/dyninst/dyninsttest"
+	"github.com/DataDog/datadog-agent/pkg/dyninst/gotype"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/object"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb"
 	"github.com/DataDog/datadog-agent/pkg/dyninst/symdb/symdbprinter"
@@ -69,6 +72,108 @@ func TestSymDB(t *testing.T) {
 			require.NotZero(t, v.DeclLine)
 			require.NotEmpty(t, v.AvailableLineRanges)
 		})
+	}
+}
+
+// Additional patch versions can be built with:
+// dda inv system-probe.build-dyninst-test-programs --programs=simple --toolchains=go1.23.11,go1.26.10,go1.27.2,go1.27.3
+// Run with dda inv test --targets=./pkg/dyninst/symdb --build-include=bpf,test --test-run-name=TestModuleMetadataCompatibility
+func TestModuleMetadataCompatibility(t *testing.T) {
+	for _, toolchain := range []string{"go1.23.11", "go1.26.10", "go1.27.2", "go1.27.3"} {
+		for _, arch := range []string{testprogs.Amd64, testprogs.Arm64} {
+			cfg := testprogs.Config{GOARCH: arch, GOTOOLCHAIN: toolchain}
+			t.Run(cfg.String(), func(t *testing.T) {
+				binaryPath := testprogs.MustGetBinary(t, "simple", cfg)
+				if toolchain == "go1.27.3" {
+					require.NotEmpty(t, binaryPath, "Go 1.27.3 is required in the default fixture matrix")
+				}
+				if binaryPath == "" {
+					t.Skip("build optional fixtures with dda inv system-probe.build-dyninst-test-programs --programs=simple --toolchains=go1.23.11,go1.26.10,go1.27.2,go1.27.3")
+				}
+				info, err := buildinfo.ReadFile(binaryPath)
+				require.NoError(t, err)
+				t.Logf("fixture compiler: %s", info.GoVersion)
+				obj, err := object.OpenElfFileWithDwarf(binaryPath)
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, obj.Close()) })
+				md, err := object.ParseModuleData(obj)
+				require.NoError(t, err)
+				bad := *md
+				bad.GoFunc = obj.Section(".rodata").Addr + 16
+				bad.GcData = bad.GoFunc - 8
+				_, err = bad.GoDebugSections(obj)
+				require.ErrorContains(t, err, "gofunc outside rodata section")
+				syms, err := obj.Symbols()
+				require.NoError(t, err)
+				foundModule := false
+				for _, sym := range syms {
+					if sym.Name == "runtime.firstmoduledata" {
+						require.Equal(t, sym.Value, md.FirstModuleData)
+						foundModule = true
+					}
+				}
+				require.True(t, foundModule)
+				table, err := gotype.NewTable(obj)
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, table.Close()) })
+				foundType := false
+				r := obj.DwarfData().Reader()
+				for {
+					e, err := r.Next()
+					require.NoError(t, err)
+					if e == nil {
+						break
+					}
+					if e.Tag == dwarf.TagStructType && e.Val(dwarf.AttrName) == "main.condFields" {
+						const dwAtGoRuntimeType = 0x2904
+						id, ok := e.Val(dwAtGoRuntimeType).(uint64)
+						require.True(t, ok)
+						ty, err := table.ParseGoType(uint32(id))
+						require.NoError(t, err)
+						require.Equal(t, "main.condFields", ty.Name().Name())
+						st, ok := ty.Struct()
+						require.True(t, ok)
+						fields, err := st.Fields()
+						require.NoError(t, err)
+						require.Len(t, fields, 13)
+						require.Equal(t, "I8", fields[0].Name.Resolve(table).Name())
+						fieldType, err := table.ParseGoType(fields[0].Typ)
+						require.NoError(t, err)
+						require.Equal(t, "int8", fieldType.Name().Name())
+						foundType = true
+						break
+					}
+				}
+				require.True(t, foundType)
+				gst, err := object.ParseGoSymbolTable(obj)
+				require.NoError(t, err)
+				t.Cleanup(func() { require.NoError(t, gst.Close()) })
+				foundFunction := false
+				for fn := range gst.Functions() {
+					if fn.Name() == "main.stringArg" {
+						lines, err := gst.FunctionLines(fn.Entry)
+						require.NoError(t, err)
+						require.NotEmpty(t, lines)
+						foundFunction = true
+					}
+				}
+				require.True(t, foundFunction)
+				symbols, err := symdb.ExtractSymbols(binaryPath, object.NewInMemoryLoader(), symdb.ExtractOptions{
+					Scope: symdb.ExtractScopeMainModuleOnly,
+				})
+				require.NoError(t, err)
+				pkg, ok := findPackage(symbols, "main")
+				require.True(t, ok)
+				fn, ok := findFunction(pkg, "stringArg")
+				require.True(t, ok)
+				require.NotZero(t, fn.StartLine)
+				v, ok := findVariable(fn.Scope, "s")
+				require.True(t, ok)
+				require.True(t, v.FunctionArgument)
+				require.NotEmpty(t, v.AvailableLineRanges)
+				t.Logf("parsed module %#x, types [%#x,%#x), gofunc %#x; extracted main.stringArg and parameter s", md.FirstModuleData, md.Types, md.ETypes, md.GoFunc)
+			})
+		}
 	}
 }
 

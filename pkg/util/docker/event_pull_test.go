@@ -41,9 +41,7 @@ container_exclude: name:excluded_name image:excluded_image
 	mockFilterStore := workloadfilterfxmock.SetupMockFilter(t)
 	filter := mockFilterStore.GetContainerSharedMetricFilters()
 
-	dockerUtil := &DockerUtil{
-		cfg: &Config{},
-	}
+	dockerUtil := &DockerUtil{}
 
 	for nb, tc := range []struct {
 		source events.Message

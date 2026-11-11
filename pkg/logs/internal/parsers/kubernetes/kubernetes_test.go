@@ -79,6 +79,15 @@ func TestKubernetesParserShouldFailWithInvalidInput(t *testing.T) {
 	assert.Equal(t, "invalid timestamp format", err.Error())
 }
 
+func TestKubernetesParserKeepsIngestionTimestampOfUnparseableLine(t *testing.T) {
+	logMessage := message.NewMessage([]byte("2018-09-20T11:54:11.753589172Z foo"), nil, "", 1234)
+	logMessage.ParsingExtra.IsTruncated = true
+	msg, err := New().Parse(logMessage)
+	assert.Error(t, err)
+	assert.Equal(t, int64(1234), msg.IngestionTimestamp)
+	assert.True(t, msg.ParsingExtra.IsTruncated)
+}
+
 func TestKubernetesParserPreservesStderrStream(t *testing.T) {
 	logMessage := message.NewMessage([]byte("2018-09-20T11:54:11.753589172Z stderr P anything"), nil, "", 0)
 	msg, err := New().Parse(logMessage)

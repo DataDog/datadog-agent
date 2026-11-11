@@ -1,0 +1,29 @@
+description: Absolute glob expansion supports mixed metacharacters across nested allowed paths.
+setup:
+  files:
+    - path: data/pkg-alpha/release-1/artifact-aa.txt
+      content: |+
+        alpha-1
+    - path: data/pkg-alpha/release-2/artifact-ab.txt
+      content: |+
+        alpha-2
+    - path: data/pkg-beta/release-1/artifact-ba.txt
+      content: |+
+        beta-1
+    - path: data/pkg-beta/release-3/artifact-bc.txt
+      content: |+
+        beta-3
+    - path: data/pkg-gamma/release-1/artifact-long.txt
+      content: |+
+        gamma-long
+input:
+  allowed_paths: ["data"]
+  script: |+
+    cat "$PWD"/data/pkg-*/release-[12]/artifact-??.txt
+expect:
+  stdout: |+
+    alpha-1
+    alpha-2
+    beta-1
+  stderr: |+
+  exit_code: 0

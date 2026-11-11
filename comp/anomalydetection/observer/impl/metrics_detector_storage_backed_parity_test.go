@@ -69,16 +69,18 @@ func TestStorageBackedScanDetectors_OneShotMatchesIncremental(t *testing.T) {
 		{
 			name: "scanmw",
 			newDetector: func() observer.Detector {
-				d := testScanMWDetector()
-				d.MinPoints, d.MinSegment, d.MaxPoints = 12, 6, 24
-				return d
+				cfg := DefaultScanMWConfig()
+				cfg.MinPoints, cfg.MinSegment, cfg.MaxPoints = 12, 6, 24
+
+				return NewScanMWDetector(cfg)
 			},
 		},
 		{
 			name: "scanwelch",
 			newDetector: func() observer.Detector {
-				d := testScanWelchDetector()
-				d.MinPoints, d.MinSegment, d.MaxPoints = 12, 6, 24
+				dCfg := DefaultScanWelchConfig()
+				dCfg.MinPoints, dCfg.MinSegment, dCfg.MaxPoints = 12, 6, 24
+				d := NewScanWelchDetector(dCfg)
 				return d
 			},
 		},
@@ -99,14 +101,14 @@ func TestStorageBackedScanDetectors_OneShotMatchesIncremental(t *testing.T) {
 			for index, value := range values {
 				batchStorage.Add("ns", tt.name, value, int64(index+1), nil)
 			}
-			batch := tt.newDetector().Detect(batchStorage, int64(len(values)))
+			batch := tt.newDetector().Detect(batchStorage, int64(len(values)), observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 
 			incrementalDetector := tt.newDetector()
 			var incremental []observer.Anomaly
 			for index, value := range values {
 				timestamp := int64(index + 1)
 				incrementalStorage.Add("ns", tt.name, value, timestamp, nil)
-				incremental = append(incremental, incrementalDetector.Detect(incrementalStorage, timestamp).Anomalies...)
+				incremental = append(incremental, incrementalDetector.Detect(incrementalStorage, timestamp, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}}).Anomalies...)
 			}
 			assert.Equal(t, anomalyTimestamps(batch.Anomalies), anomalyTimestamps(incremental))
 		})
@@ -128,19 +130,59 @@ func TestHoltResidual_WarmupSeedsFromScalarHalves(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			d := testHoltResidualDetector()
-			d.WarmupPoints, d.ResidualWindow = tt.warmup, 1
+			dCfg := DefaultHoltResidualConfig()
+			dCfg.WarmupPoints, dCfg.ResidualWindow = tt.warmup, 1
+			d := NewHoltResidualDetector(dCfg)
 			storage := newDetectorTestStorage()
 			for index, value := range tt.values {
 				storage.Add("ns", "metric", value, int64(index+1), nil)
 			}
-			d.Detect(storage, int64(len(tt.values)))
+			d.Detect(storage, int64(len(tt.values)), observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}})
 			state := d.series[holtStateKey{ref: 0, agg: observer.AggregateAverage}]
 			require.NotNil(t, state)
 			require.True(t, state.warmedUp)
 			assert.InDelta(t, tt.wantLevel, state.level, math.SmallestNonzeroFloat64)
 			assert.InDelta(t, tt.wantTrend, state.trend, math.SmallestNonzeroFloat64)
 			assert.Equal(t, tt.warmup, state.warmupCount)
+		})
+	}
+}
+
+// Compare every simulated timestamp, including long after bounded storage starts
+// evicting points. Preloading future points must not change scan cadence.
+func TestScanReplayMatchesBoundedStream(t *testing.T) {
+	for _, name := range []string{"scanmw", "scanwelch"} {
+		t.Run(name, func(t *testing.T) {
+			makeDetector := func() observer.Detector {
+				if name == "scanmw" {
+					return testScanMWDetector()
+				}
+				return testScanWelchDetector()
+			}
+			preloaded := newDetectorTestStorage()
+			cfg := DefaultStorageConfig()
+			cfg.PointRetentionSecs = 0
+			cfg.MaxPointsPerSeries = 120
+			stream := newTimeSeriesStorageWith(cfg)
+			batchDetector, streamDetector := makeDetector(), makeDetector()
+			value := func(i int) float64 { return float64(100 + (i/53)%3*200 + i%3) }
+			for i := 1; i <= 500; i++ {
+				preloaded.Add("ns", "metric", value(i), int64(i*30), nil)
+			}
+			found := 0
+			for i := 1; i <= 500; i++ {
+				ts := int64(i * 30)
+				stream.Add("ns", "metric", value(i), ts, nil)
+				want := batchDetector.Detect(preloaded, ts, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}}).Anomalies
+				got := streamDetector.Detect(stream, ts, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}}).Anomalies
+				require.Equal(t, want, got, "at observation %d", i)
+				found += len(got)
+				// Repeated ticks without newly visible points must not rescan.
+				require.Empty(t, batchDetector.Detect(preloaded, ts, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}}).Anomalies)
+				require.Empty(t, streamDetector.Detect(stream, ts, observer.DetectionFilter{Aggregations: []observer.Aggregate{observer.AggregateAverage}}).Anomalies)
+			}
+			require.Positive(t, found)
+			require.LessOrEqual(t, stream.TotalSampleCount(""), int64(121))
 		})
 	}
 }

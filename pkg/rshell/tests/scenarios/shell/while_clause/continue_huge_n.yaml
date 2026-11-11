@@ -1,0 +1,17 @@
+description: |
+  vuln-hunt 2026-05-18-initial-audit: `continue N` clamps N to the loop
+  nesting depth, so `continue 999999` in a single-level loop is equivalent
+  to `continue 1` — it just resumes the same loop normally without DoS or
+  any out-of-bounds behavior.
+input:
+  script: |+
+    n=
+    while [ -z "$n" ]; do
+      n=done
+      continue 999999
+    done
+    echo "$n"
+expect:
+  stdout: |+
+    done
+  exit_code: 0

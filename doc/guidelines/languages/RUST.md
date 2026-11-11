@@ -4,7 +4,7 @@ This document describes how Rust components are built and integrated in the Data
 
 ## Overview
 
-The Datadog Agent uses [rules_rust](https://github.com/bazelbuild/rules_rust) for building Rust code with Bazel and [rules_rs](https://github.com/dzbarsky/rules_rs) to manage Cargo crates. This enables seamless integration with the existing Go and Python codebase, consistent toolchain management, and reproducible builds across the repository.
+The Datadog Agent uses [rules_rs](https://github.com/hermeticbuild/rules_rs) to build Rust code with Bazel and manage Cargo crates, `@rules_rust` and `@rules_rust_prost` resolving to its vendored fork of [rules_rust](https://github.com/bazelbuild/rules_rust). This enables seamless integration with the existing Go and Python codebase, consistent toolchain management, and reproducible builds across the repository.
 
 > **Important:** We strongly encourage using Bazel directly for all Rust operations (building, testing, except Cargo.toml management) rather than Cargo. While Cargo may work for some local development tasks, Bazel is the source of truth for builds and ensures consistency with CI. All instructions in this document use Bazel commands.
 
@@ -15,16 +15,17 @@ The Datadog Agent uses [rules_rust](https://github.com/bazelbuild/rules_rust) fo
 The Rust toolchain is configured in <<<repo("MODULE.bazel")>>>:
 
 ```starlark
-bazel_dep(name = "rules_rust", version = "0.68.1")
+bazel_dep(name = "rules_rs", version = "0.1.3")
 
-rust = use_extension("@rules_rust//rust:extensions.bzl", "rust")
-rust.toolchain(
+toolchains = use_extension("@rules_rs//rs/toolchains:module_extension.bzl", "toolchains")
+toolchains.toolchain(
     edition = "2024",
-    versions = ["1.94.0"],
+    use_rust_redist = False,
+    version = "1.94.0",
 )
-use_repo(rust, "rust_toolchains")
+use_repo(toolchains, "default_rust_toolchains")
 
-register_toolchains("@rust_toolchains//:all")
+register_toolchains("@default_rust_toolchains//...")
 ```
 
 This configuration:
@@ -414,5 +415,5 @@ ERROR: Cargo.lock out of sync: system-probe-lite requires clap ^4.5.58 but Cargo
 
 ## Further Reading
 
-- [rules_rust documentation](https://bazelbuild.github.io/rules_rust/) - Rust toolchain and build rules
-- [rules_rs documentation](https://github.com/dzbarsky/rules_rs) - Crate management
+- [rules_rust documentation](https://bazelbuild.github.io/rules_rust/) - Rust build rules
+- [rules_rs documentation](https://github.com/hermeticbuild/rules_rs) - Rust toolchains and crate management

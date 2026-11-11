@@ -1,0 +1,8 @@
+---
+features:
+  - |
+    The ``kubernetes_state_core`` check now emits ``kubernetes_state.node.taint``,
+    mapped from the kube-state-metrics ``kube_node_spec_taint`` metric and tagged
+    ``node``, ``key``, ``value``, and ``effect``. Node taints were previously
+    invisible to the check, so tainted nodes were indistinguishable from nodes
+    that accept workloads.

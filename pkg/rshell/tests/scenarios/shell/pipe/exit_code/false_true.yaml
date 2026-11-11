@@ -1,0 +1,8 @@
+description: Right side true overrides left side false exit code.
+input:
+  script: |+
+    false | true
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

@@ -54,9 +54,12 @@ type kubeletClientConfig struct {
 }
 
 type kubeletClient struct {
-	client     http.Client
-	kubeletURL string
-	config     *kubeletClientConfig
+	client http.Client
+	// streamClient serves follow=true log streams. It has no overall Timeout,
+	// which would also cut the response body.
+	streamClient http.Client
+	kubeletURL   string
+	config       *kubeletClientConfig
 }
 
 func newForConfig(config *kubeletClientConfig, timeout time.Duration) (*kubeletClient, error) {
@@ -93,8 +96,19 @@ func newForConfig(config *kubeletClientConfig, timeout time.Duration) (*kubeletC
 	}
 
 	customTransport.TLSClientConfig = tlsConfig
+
+	// Defaulting timeout
+	if timeout == 0 {
+		timeout = 30 * time.Second
+	}
+
+	// Bounds the header wait for streams. Other requests are unaffected, as
+	// their Timeout starts earlier and fires first.
+	customTransport.ResponseHeaderTimeout = timeout
+
 	httpClient := http.Client{
 		Transport: customTransport,
+		Timeout:   timeout,
 	}
 
 	if config.scheme == "https" && config.token != "" {
@@ -107,16 +121,14 @@ func newForConfig(config *kubeletClientConfig, timeout time.Duration) (*kubeletC
 		}
 	}
 
-	// Defaulting timeout
-	if timeout == 0 {
-		timeout = 30 * time.Second
-	}
-	httpClient.Timeout = timeout
+	streamClient := httpClient
+	streamClient.Timeout = 0
 
 	return &kubeletClient{
-		client:     httpClient,
-		kubeletURL: fmt.Sprintf("%s://%s", config.scheme, config.baseURL),
-		config:     config,
+		client:       httpClient,
+		streamClient: streamClient,
+		kubeletURL:   fmt.Sprintf("%s://%s", config.scheme, config.baseURL),
+		config:       config,
 	}, nil
 }
 
@@ -135,8 +147,10 @@ func (kc *kubeletClient) checkConnection(ctx context.Context) error {
 	return nil
 }
 
+// queryWithResp opens a streaming request. The caller must close the body or
+// cancel ctx.
 func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.ReadCloser, error) {
-	_, response, err := kc.rawQuery(ctx, kc.kubeletURL, path)
+	_, response, err := kc.rawQueryWithClient(ctx, &kc.streamClient, kc.kubeletURL, path)
 
 	if err != nil {
 		return nil, err
@@ -146,13 +160,17 @@ func (kc *kubeletClient) queryWithResp(ctx context.Context, path string) (io.Rea
 }
 
 func (kc *kubeletClient) rawQuery(ctx context.Context, baseURL string, path string) (*http.Request, *http.Response, error) {
+	return kc.rawQueryWithClient(ctx, &kc.client, baseURL, path)
+}
+
+func (kc *kubeletClient) rawQueryWithClient(ctx context.Context, client *http.Client, baseURL string, path string) (*http.Request, *http.Response, error) {
 	req, err := http.NewRequestWithContext(ctx, "GET",
 		fmt.Sprintf("%s%s", baseURL, path), nil)
 	if err != nil {
 		return nil, nil, fmt.Errorf("Failed to create new request: %w", err)
 	}
 
-	response, err := kc.client.Do(req)
+	response, err := client.Do(req)
 	kubeletExpVar.Add(1)
 
 	// telemetry

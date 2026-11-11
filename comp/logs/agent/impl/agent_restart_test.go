@@ -179,6 +179,9 @@ func createTestAgent(suite *RestartTestSuite, endpoints *config.Endpoints) (*log
 
 func (suite *RestartTestSuite) TestAgentStartRestart() {
 	env.SetFeatures(suite.T(), env.Docker, env.Kubernetes)
+	suite.configOverrides["logs_config.tag_filters"] = map[string]interface{}{
+		"exclude": []string{"team:*"},
+	}
 
 	// start on tcp
 	l := mock.NewMockLogsIntake(suite.T())
@@ -204,6 +207,7 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	originalSources := agent.sources
 	originalAuditor := agent.auditor
 	originalSchedulers := agent.schedulers
+	originalTagFilters := agent.tagFilters
 
 	agent.startPipeline()
 	sources.AddSource(suite.source)
@@ -225,6 +229,8 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsProcessed.Value())
 	assert.Equal(suite.T(), suite.fakeLogs, metrics.LogsSent.Value())
 	assert.Equal(suite.T(), zero, metrics.DestinationErrors.Value())
+	originalSourceFilter, resolved := suite.source.TagFilter()
+	suite.True(resolved)
 
 	// Set up HTTP test server for restart
 	cfg := configmock.New(suite.T())
@@ -260,6 +266,10 @@ func (suite *RestartTestSuite) TestAgentStartRestart() {
 	suite.Same(originalSources, agent.sources)
 	suite.Same(originalAuditor, agent.auditor)
 	suite.Same(originalSchedulers, agent.schedulers)
+	suite.Same(originalTagFilters, agent.tagFilters, "transport restarts must reuse the compiled global tag filter")
+	restartedSourceFilter, resolved := suite.source.TagFilter()
+	suite.True(resolved)
+	suite.Same(originalSourceFilter, restartedSourceFilter, "transport restarts must preserve source filter caches")
 
 	// Verify transient components were recreated
 	suite.NotNil(agent.destinationsCtx)
@@ -489,7 +499,7 @@ func (suite *RestartTestSuite) TestRebuildTransientComponents_PreservesPersisten
 	suite.NoError(err)
 
 	// Execute rebuild - use the agent's existing wmeta and integrationsLogs
-	agent.rebuildTransientComponents(processingRules, agent.wmeta, agent.integrationsLogs, *fingerprintConfig)
+	agent.rebuildTransientComponents(processingRules, nil, agent.wmeta, agent.integrationsLogs, *fingerprintConfig)
 
 	// Persistent components preserved
 	suite.Same(originalSources, agent.sources)

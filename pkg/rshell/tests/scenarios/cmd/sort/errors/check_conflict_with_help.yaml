@@ -1,0 +1,10 @@
+description: '`sort -c -C --help` exits 2 with `''-cC'' are incompatible` rather than printing help. Cross-flag conflict check runs before `--help` in builtins/sort/sort.go, matching GNU sort.'
+input:
+  script: |+
+    echo hi | sort -c -C --help; echo "code:$?"
+expect:
+  stdout: |+
+    code:2
+  stderr: |+
+    sort: options '-cC' are incompatible
+  exit_code: 0

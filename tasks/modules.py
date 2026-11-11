@@ -168,13 +168,16 @@ def validate(ctx: Context, base_dir='.', fix_format=False):
             errors.append((module.path, e))
 
     # Backward check for go.mod (ensure there is a module for each go.mod)
+    workspace_paths = {module.workspace_path for module in config.modules.values() if module.workspace_path}
     for go_mod in glob(str(base_dir / '**/go.mod'), recursive=True):
         # Ignore bazel generated symlinks
         if go_mod.startswith(str(base_dir / 'bazel')):
             continue
 
         path = Path(go_mod).parent.relative_to(base_dir).as_posix()
-        assert path in config.modules or path in config.ignored_modules, f"Configuration is missing a module for {path}"
+        assert (
+            path in config.modules or path in config.ignored_modules or path in workspace_paths
+        ), f"Configuration is missing a module for {path}"
 
     if errors:
         print(f'{color_message("ERROR", Color.RED)}: Some modules have invalid configurations:')
@@ -287,7 +290,13 @@ def remove_replace_rules(data: str) -> str:
     return data
 
 
-def update_go_mod(gomod_list, root):
+def update_go_mod(gomod_list, root, workspace_dirs=None):
+    """
+    Rewrite the replace block of root/go.mod to replace every module of gomod_list.
+
+    workspace_dirs maps a module path to the directory its replace points to when that differs from the module path.
+    """
+    workspace_dirs = workspace_dirs or {}
     file = "go.mod"
     repo_name = "github.com/DataDog/datadog-agent/"
     replace_comment = (
@@ -311,10 +320,11 @@ def update_go_mod(gomod_list, root):
     gomod += "replace (\n"
 
     for mod in gomod_list:
-        if root.endswith(mod):
+        target = workspace_dirs.get(mod, mod)
+        if root.endswith(target):
             # don't add a replace for the current module
             continue
-        gomod += f"\t{repo_name}{mod} => {prefix}/{mod}\n"
+        gomod += f"\t{repo_name}{mod} => {prefix}/{target}\n"
 
     gomod += ")\n"
 
@@ -360,10 +370,14 @@ def add_all_replace(ctx: Context):
     mod_to_replace = sorted([mod.path for mod in gomods])
     mod_to_replace.remove(".")
 
+    # Modules with a workspace_path are replaced by, and have their go.mod maintained in, that directory: their own
+    # path only holds a snapshot for external consumers
+    workspace_dirs = {mod.path: mod.workspace_path for mod in gomods if mod.workspace_path}
+
     # Second we iterate over all go.mod and update them
     for mod in gomods:
         if mod.should_replace_internal_modules:
-            update_go_mod(mod_to_replace, mod.path)
+            update_go_mod(mod_to_replace, mod.workspace_dir(), workspace_dirs)
 
     # Add extra replaces
     check_go_mod_replaces(ctx, fix=True)

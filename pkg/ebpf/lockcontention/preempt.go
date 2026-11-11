@@ -11,8 +11,8 @@ import (
 	"errors"
 	"fmt"
 
-	ddebpf "github.com/DataDog/datadog-agent/pkg/ebpf"
 	"github.com/DataDog/datadog-agent/pkg/ebpf/features"
+	"github.com/DataDog/datadog-agent/pkg/ebpf/ksyms"
 	"github.com/DataDog/datadog-agent/pkg/util/kernel"
 	"github.com/cilium/ebpf/asm"
 	"github.com/cilium/ebpf/btf"
@@ -43,7 +43,7 @@ func PreemptCountConstants(cache *btf.Cache) (map[string]uint64, error) {
 }
 
 func preemptCountAMD64(cache *btf.Cache) (map[string]uint64, error) {
-	preemptCountMissing, err := ddebpf.VerifyKernelFuncs("__preempt_count")
+	preemptCountMissing, err := ksyms.VerifyKernelFuncs("__preempt_count")
 	if err != nil {
 		return nil, fmt.Errorf("error verifying kernel symbol: %w", err)
 	}

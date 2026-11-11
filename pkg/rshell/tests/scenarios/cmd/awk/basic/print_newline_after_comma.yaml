@@ -1,0 +1,26 @@
+description: awk print accepts newlines only after argument commas.
+setup:
+  files:
+    - path: input.txt
+      content: |+
+        a b
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '{ print $1,
+    $2 }' input.txt
+    awk 'BEGIN { print 1,; 2 }' 2>/dev/null || printf 'print semicolon rejected\n'
+    awk 'BEGIN { print (1,
+    2) }'
+    awk 'BEGIN { print (1,2
+    ) }' 2>/dev/null || printf 'composite newline rejected\n'
+    awk 'BEGIN { print (1,2;) }' 2>/dev/null || printf 'composite semicolon rejected\n'
+expect:
+  stdout: |+
+    a b
+    print semicolon rejected
+    1 2
+    composite newline rejected
+    composite semicolon rejected
+  stderr: |+
+  exit_code: 0

@@ -319,6 +319,10 @@
           "type": "string",
           "description": "Kubernetes pod UID"
         },
+        "ecs_task_id": {
+          "type": "string",
+          "description": "ECS task ID"
+        },
         "source": {
           "type": "string",
           "description": "Source of the container entry (event or procfs)"
@@ -634,6 +638,10 @@
         },
         "metadata": {
           "$ref": "#/$defs/FileMetadata"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/FileCapabilities",
+          "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
         }
       },
       "additionalProperties": false,
@@ -643,6 +651,41 @@
         "gid"
       ],
       "description": "FileSerializer serializes a file to JSON"
+    },
+    "FileCapabilities": {
+      "properties": {
+        "permitted": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Permitted capabilities attached to the executable, before the bounding-set check."
+        },
+        "inheritable": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Inheritable capabilities attached to the executable."
+        },
+        "effective": {
+          "type": "boolean",
+          "description": "File effective capability bit, not a capability set."
+        },
+        "available": {
+          "type": "boolean",
+          "description": "Whether valid file capabilities were collected during exec or procfs resolution."
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "required": [
+        "permitted",
+        "inheritable",
+        "effective",
+        "available"
+      ],
+      "description": "FileCapabilitiesSerializer serializes the executable's file capabilities."
     },
     "FileEvent": {
       "properties": {
@@ -789,6 +832,10 @@
         },
         "metadata": {
           "$ref": "#/$defs/FileMetadata"
+        },
+        "capabilities": {
+          "$ref": "#/$defs/FileCapabilities",
+          "description": "Capability sets attached to an executable, collected during exec or procfs resolution, not observed usage."
         },
         "destination": {
           "$ref": "#/$defs/File",
@@ -1182,7 +1229,14 @@
         },
         "visible": {
           "type": "boolean",
-          "description": "Mount is not visible in the VFS tree"
+          "description": "Mount is visible in the VFS tree"
+        },
+        "flags": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Per-mount attribute flags expressed as MOUNT_ATTR_* names"
         }
       },
       "additionalProperties": false,
@@ -1194,6 +1248,45 @@
         "device"
       ],
       "description": "MountEventSerializer serializes a mount event to JSON"
+    },
+    "NamespaceIDs": {
+      "properties": {
+        "mntns": {
+          "type": "integer",
+          "description": "Mount namespace ID"
+        },
+        "netns": {
+          "type": "integer",
+          "description": "Network namespace ID"
+        },
+        "pidns": {
+          "type": "integer",
+          "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+          "type": "integer",
+          "description": "User namespace ID"
+        },
+        "utsns": {
+          "type": "integer",
+          "description": "UTS namespace ID"
+        },
+        "ipcns": {
+          "type": "integer",
+          "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+          "type": "integer",
+          "description": "Cgroup namespace ID"
+        },
+        "timens": {
+          "type": "integer",
+          "description": "Time namespace ID"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "NamespaceIDsSerializer serializes the namespace IDs of a thread, an ID is omitted if it couldn't be resolved"
     },
     "NetworkContext": {
       "properties": {
@@ -2011,6 +2104,64 @@
       ],
       "description": "SecurityProfileContextSerializer serializes the security profile context in an event"
     },
+    "SetNSEvent": {
+      "properties": {
+        "nstype": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array",
+          "description": "Namespace types requested by the caller, or resolved from the file descriptor when the caller passed 0"
+        },
+        "mntns": {
+          "type": "integer",
+          "description": "Mount namespace ID"
+        },
+        "netns": {
+          "type": "integer",
+          "description": "Network namespace ID"
+        },
+        "pidns": {
+          "type": "integer",
+          "description": "ID of the PID namespace future children are created in (pid_for_children)"
+        },
+        "userns": {
+          "type": "integer",
+          "description": "User namespace ID"
+        },
+        "utsns": {
+          "type": "integer",
+          "description": "UTS namespace ID"
+        },
+        "ipcns": {
+          "type": "integer",
+          "description": "IPC namespace ID"
+        },
+        "cgroupns": {
+          "type": "integer",
+          "description": "Cgroup namespace ID"
+        },
+        "timens": {
+          "type": "integer",
+          "description": "Time namespace ID"
+        },
+        "previous": {
+          "$ref": "#/$defs/NamespaceIDs",
+          "description": "Namespace IDs of the thread before the syscall"
+        },
+        "mntns_host": {
+          "type": "boolean",
+          "description": "Indicates that the mount namespace of the thread after the syscall is the host's initial one"
+        },
+        "mntns_outside_base": {
+          "type": "boolean",
+          "description": "Indicates that the thread is in a container and its mount namespace after the syscall isn't the container's base one"
+        }
+      },
+      "additionalProperties": false,
+      "type": "object",
+      "description": "SetNSEventSerializer serializes a setns event"
+    },
     "SetSockOptEvent": {
       "properties": {
         "socket_type": {
@@ -2626,6 +2777,9 @@
     },
     "setrlimit": {
       "$ref": "#/$defs/SetrlimitEvent"
+    },
+    "setns": {
+      "$ref": "#/$defs/SetNSEvent"
     },
     "socket": {
       "$ref": "#/$defs/SocketEvent"

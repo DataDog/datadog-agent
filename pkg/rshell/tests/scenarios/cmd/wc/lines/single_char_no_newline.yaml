@@ -1,0 +1,13 @@
+description: wc -l reports 0 lines for a file with no newline.
+setup:
+  files:
+    - path: nolf.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -l nolf.txt
+expect:
+  stdout: "0 nolf.txt\n"
+  stderr: ""
+  exit_code: 0

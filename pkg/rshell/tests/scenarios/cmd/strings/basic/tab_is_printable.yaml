@@ -1,0 +1,13 @@
+description: strings treats horizontal tab as a printable character within a sequence.
+setup:
+  files:
+    - path: data.bin
+      content: "col1\tcol2\nother\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings data.bin
+expect:
+  stdout: "col1\tcol2\nother\n"
+  stderr: ""
+  exit_code: 0

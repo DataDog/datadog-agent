@@ -1,0 +1,13 @@
+description: cat -b numbers only non-blank output lines.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\n\nbeta\n\ngamma\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -b file.txt
+expect:
+  stdout: "     1\talpha\n\n     2\tbeta\n\n     3\tgamma\n"
+  stderr: ""
+  exit_code: 0

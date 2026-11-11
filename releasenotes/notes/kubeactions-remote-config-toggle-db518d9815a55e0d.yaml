@@ -1,0 +1,13 @@
+---
+features:
+  - |
+    Cluster Agent: add the ``kubeactions.remote_config.enabled``
+    (``DD_KUBEACTIONS_REMOTE_CONFIG_ENABLED``) and
+    ``kubeactions.private_action_runner.enabled``
+    (``DD_KUBEACTIONS_PRIVATE_ACTION_RUNNER_ENABLED``) settings, both default
+    ``true``, to choose how the Cluster Agent receives Kubernetes actions when
+    ``kubeactions.enabled`` is set. Setting ``remote_config.enabled`` to
+    ``false`` stops the Cluster Agent from subscribing to the Remote
+    Configuration Kubernetes Actions product. Setting
+    ``private_action_runner.enabled`` to ``false`` stops the Kubernetes actions
+    from being added automatically to the Private Action Runner allowlist.

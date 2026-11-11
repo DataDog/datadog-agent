@@ -1,7 +1,5 @@
 # comp/anomalydetection/observer — AI Agent Guide
 
-Subsystem overview, wiring, and config: see `../AGENTS.md`.
-
 ## What This Component Does
 
 The observer watches data flowing through the agent and runs anomaly detection
@@ -15,8 +13,10 @@ Data enters through lightweight **Handles** (non-blocking scalar snapshot on
 send). Metric handles reject name/source/host-only processing rules before
 enqueueing, retain immutable resolved-tag views, and defer tag-dependent
 filtering, muting, and context-key generation when needed to the dispatch
-goroutine; log handles still copy caller-owned content and tags before
-enqueueing.
+goroutine; log handles reject conclusive source-only rules and below-threshold
+severities before snapshotting scalar fields and retaining immutable tags,
+then defer tag-based `processing_rules`, per-source priority rate limiting,
+and log recording to the dispatch goroutine.
 The **engine** stores metrics, runs detectors and correlators, and emits
 events to reporters injected via the `anomalydetection_reporters` Fx group.
 
@@ -36,7 +36,7 @@ and the testbench use the same engine.
 
 | File | Purpose |
 |------|---------|
-| `def/component.go` | Component interface (GetHandle, RecordSamplerDropped, DumpMetrics) |
+| `def/component.go` | Component interface (GetHandle, DumpMetrics, SubscribeSeverityEvents) |
 | `def/types.go` | Handle, View types, Detector, Correlator, StorageReader, Anomaly, CorrelatorEvent, etc. |
 | `impl/engine.go` | Pipeline orchestration: ingest, advance, detect, correlate, replay |
 | `impl/storage.go` | In-memory bucketed time-series storage (1s buckets, read-time aggregation) |
@@ -66,6 +66,20 @@ Registered in `impl/component_catalog.go`. Enabled by default unless noted:
 | Correlator | `anomaly_scorer` | off |
 
 Toggle detectors/correlators/extractors via `anomaly_detection.detectors.<name>.enabled` in datadog.yaml.
+
+Construct detectors with statistical config values; normalize once and reset only
+runtime state.
+
+`Detector.Detect` takes a per-call `DetectionFilter`: independent kind/type
+restrictions and authoritative aggregation selection. Empty aggregations select
+average then count; explicit selections keep order, skipping duplicates and invalid
+values. Kind/type values and nil presence must stay constant per instance,
+including resets; equal-valued
+replacement pointers are allowed. Aggregations may vary per call. Empty means
+unrestricted workload detection; telemetry is always excluded. Filtering neither
+advances excluded state nor removes it; callers own reset/transition cleanup.
+Catalog registrations bind one filter per detector instance; no configuration
+populates it yet.
 
 `anomaly_detection.detectors.log_pattern_extractor.max_patterns` limits live
 patterns across all tag groups (default 3,000). This includes patterns below
@@ -122,7 +136,13 @@ current level is already known, bootstrap emits `Low -> current level` for
 ### Data-driven scheduling ("complete seconds" rule)
 
 Detection is NOT on a timer. When data at time T arrives, the engine advances
-analysis to T-1. This ensures deterministic replay: same data → same anomalies.
+analysis to T-1. Replay must expose the same completed buckets at each step.
+Scan scheduling must use newly visible observations, not storage-write generations
+(which already include future points in preloaded replay) or retained point counts
+(which stop growing under eviction). Retained replay must feed raw metrics and
+logs chronologically through the same scheduler as streaming. Pre-extracting all
+logs can evict earlier patterns before detection; analyzing metrics separately
+can make baseline qualification remove data before the actual replay.
 
 ### Read-time aggregation
 
@@ -130,11 +150,73 @@ Storage keeps sum/count summary stats per 1-second bucket.
 Aggregation kind (avg, sum, count) is chosen when reading, not when
 writing. Detectors can pick any aggregation without re-ingesting data.
 
+### Bounded series admission
+
+Storage never admits a new non-telemetry series above `MaxSeries`. At capacity,
+the incoming identity wins admission: storage evicts the least-recently-active
+existing series to the configured floor before allocating it, then synchronously
+clears evicted detector and auxiliary state before the next detection pass.
+During materialized log-count flushing, remove evicted bucketizer entries before
+visiting another series so scheduled zero buckets cannot resurrect them.
+
+### Metric types
+
+Input metric types flow through both live handles and synchronous replay into
+`SeriesMeta.MetricType`; storage retains one type per series, never per point.
+The first known type wins. An unknown type can become known later without
+changing the series identity. This promotion invalidates filtered selections
+through `SeriesGeneration`. Type changes do not create new series.
+Log pattern frequencies and connection-error totals use `metrics.CountType`;
+numeric JSON fields use `metrics.GaugeType`. `metrics.CounterType` is the
+DogStatsD counter normalized to a rate, not the type for log event totals.
+Only `metrics.CountType` outputs enter fixed-width log count buckets.
+
+Storage also supports committed `MetricKind` metadata and optional kind/type
+filters. Kinds start as `UNSET`.
+`SeriesGeneration` changes on admission/removal and actual filterable metadata
+changes, not ordinary point writes. Kind set/reset preserves observations and
+per-series write generations.
+
+### Metric kind matcher
+
+`NewMetricKindMatcher` returns transitions; the caller owns and commits storage
+kinds. It tracks pending predictions and freshness, never borrowed point buffers.
+Call `RemoveSeries` on eviction and `Reset` on analysis restart.
+
+Defaults: exactly the latest 30 visible points; immediate initial assignment;
+three consecutive fresh-data predictions for replacements, including `UNKNOWN`
+recovery. Matching the committed kind cancels pending evidence. Each batch counts at most once;
+future points and unchanged-data advances provide no evidence. Classification
+uses constant/OLS linear fits with robust residual checks; plateau drift uses
+half-window medians so isolated spikes do not dominate it.
+
+### Metric pipeline
+
+Legacy detectors remain the default.
+Set `anomaly_detection.metric_pipeline.enabled: true` to run only `MetricPipeline`,
+with its own detector instances and defaults; legacy detector settings do not
+configure the pipeline.
+Baseline and scorer settings apply in both workflows.
+`anomaly_detection.metric_pipeline.anomaly_cutoff` (default true) gates
+post-reactivation anomaly suppression; testbench params use `anomaly_cutoff`.
+
+`MetricPipeline` runs registered committed-kind detectors before matching.
+Matching uses the matcher window; detector history
+requirements stay independent. Transitions clean the previous detector state,
+commit the successor kind, and reuse retained history.
+
+After reactivation to a supported kind, only anomalies after the cutoff are
+emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
+not gated. Engine resets clear kinds, and series eviction clears pipeline state.
+
 ### Non-blocking ingestion
 
-Handles do non-blocking sends to a buffered channel. If the channel is full,
-observations are dropped and counted in Observer telemetry. Analysis never
-back-pressures data ingestion.
+Handles do non-blocking sends to separate metric and log queues, each buffered
+with 1,000 observations (2,000 slots total). If a queue is full, only that
+telemetry kind is dropped and counted in Observer telemetry. One dispatch goroutine consumes both queues
+and owns engine processing; FIFO order is preserved within each queue, but there
+is no shared ordering across metrics and logs. Flush waits for both queues.
+Analysis never back-pressures data ingestion.
 The agent-internal log tap likewise uses a bounded non-blocking handoff before
 performing processing rules, rate limiting, allocation, and `ObserveLog` work,
 so it does not run those operations under the global Agent logger lock.
@@ -159,9 +241,9 @@ insertion only. It fingerprints tags as unordered, duplicate-insensitive sets
 and collision-checks views without flattening them. Existing-series writes must
 not hash or inspect tags; eviction releases the interner reference.
 
-Raw `LogView.Tags()` remains a `[]string` because the upstream log can be
-reused. Copy it once at raw-log ingestion; all derived metric paths should then
-use a composite view.
+Raw `LogView.Tags()` remains a `[]string`. Its backing storage must stay
+immutable, so raw-log ingestion retains it directly and derived metric paths
+wrap it in a composite view.
 
 ### Correlator-owned deduplication (`correlationEmitter`)
 
@@ -246,7 +328,7 @@ scoring, or deduplication.
 
 ```bash
 dda inv test --targets=./comp/anomalydetection/observer/...
-dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
+dda inv test --targets=./comp/anomalydetection/observer/impl/ --test-args="-test.run=^$ -test.bench=."
 ```
 
 **Testbench** (algorithm iteration + scenario replay):
@@ -255,9 +337,9 @@ dda inv test --targets=./comp/anomalydetection/observer/impl/ -- -bench=.
 dda inv anomalydetection.build-testbench
 dda inv anomalydetection.launch-testbench
 
-# The testbench reporter requires its own build tag, passed through extra args
-# because it is not part of the Agent's selectable build-tag set.
-dda inv test --module=internal/qbranch/anomalydetection-testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
+# The testbench has no Bazel targets yet; use the legacy task and include
+# the testbench reporter build tag through extra args.
+dda inv test-legacy --module=internal/anomalydetection/testbench --targets=./bench --extra-args='-tags=python,anomalydetectiontestbench,test'
 
 # Headless logs-only smoke test for one detector. The testbench-only
 # passthrough adapter serializes raw anomalies as anomaly_periods.
@@ -270,4 +352,4 @@ bin/anomalydetection-testbench \
 ```
 
 Reads scenarios from `observer/scenarios/`. See
-`internal/qbranch/anomalydetection-testbench/README.md`.
+`internal/anomalydetection/testbench/README.md`.

@@ -14,6 +14,7 @@ type Package struct {
 	Version        string
 	Epoch          int
 	Release        string
+	Arch           string // set for rpm, which installs builds of several architectures side by side
 	SrcVersion     string
 	SrcEpoch       int
 	SrcRelease     string

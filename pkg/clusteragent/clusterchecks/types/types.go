@@ -8,8 +8,14 @@
 package types
 
 import (
+	"errors"
+
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 )
+
+// ErrRebalanceInProgress is returned when a rebalance is requested while
+// another one is running.
+var ErrRebalanceInProgress = errors.New("a cluster checks rebalance is already in progress, try again later")
 
 const (
 	// ExtraHeartbeatLastChangeValue is used to instruct the Cluster Agent that we're still alive
@@ -34,6 +40,7 @@ const (
 type NodeStatus struct {
 	LastChange int64    `json:"last_change"`
 	NodeType   NodeType `json:"node_type,omitempty"`
+	Group      string   `json:"group,omitempty"`
 }
 
 // StatusResponse holds the DCA response for a status report
@@ -43,23 +50,10 @@ type StatusResponse struct {
 
 // RebalanceResponse holds the DCA response for a rebalancing request
 type RebalanceResponse struct {
-	Digest      string `json:"digest"`
-	CheckName   string `json:"check_name"`
-	CheckWeight int    `json:"check_weight"`
-
+	Digest         string `json:"digest"`
+	CheckName      string `json:"check_name"`
 	SourceNodeName string `json:"source_node_name"`
-	SourceDiff     int    `json:"source_diff"`
-
-	DestNodeName string `json:"dest_node_name"`
-	DestDiff     int    `json:"dest_diff"`
-}
-
-// IsolateResponse holds the DCA response for an isolate request
-type IsolateResponse struct {
-	CheckID    string `json:"check_id"`
-	CheckNode  string `json:"check_node"`
-	IsIsolated bool   `json:"is_isolated"`
-	Reason     string `json:"reason"`
+	DestNodeName   string `json:"dest_node_name"`
 }
 
 // ConfigResponse holds the DCA response for a config query
@@ -83,17 +77,45 @@ type InstrumentationStatusResponse struct {
 
 // StateResponse holds the DCA response for a dispatching state query
 type StateResponse struct {
-	NotRunning string               `json:"not_running"` // Reason why not running, empty if leading
-	Warmup     bool                 `json:"warmup"`
-	Nodes      []StateNodeResponse  `json:"nodes"`
-	Dangling   []integration.Config `json:"dangling"`
+	NotRunning  string               `json:"not_running"` // Reason why not running, empty if leading
+	Warmup      bool                 `json:"warmup"`
+	Nodes       []StateNodeResponse  `json:"nodes"`
+	Dangling    []integration.Config `json:"dangling"`
+	Dispatching *DispatchingState    `json:"dispatching,omitempty"`
+	// UnassignedReasons explains, per check name, why its dangling configs aren't dispatched.
+	UnassignedReasons map[string]string `json:"unassigned_reasons,omitempty"`
+}
+
+// DispatchingState describes how the Cluster Agent dispatches cluster checks
+type DispatchingState struct {
+	AdvancedDispatching bool `json:"advanced_dispatching"`
+	// AdvancedDispatchingReason explains why advanced dispatching is disabled.
+	AdvancedDispatchingReason     string             `json:"advanced_dispatching_reason,omitempty"`
+	RebalancePeriod               string             `json:"rebalance_period,omitempty"`
+	NodeExpirationSeconds         int64              `json:"node_expiration_seconds,omitempty"`
+	ExcludedChecks                []string           `json:"excluded_checks,omitempty"`
+	ExcludedChecksFromDispatching []string           `json:"excluded_checks_from_dispatching,omitempty"`
+	RunnerGroups                  []RunnerGroupState `json:"runner_groups,omitempty"`
+}
+
+// RunnerGroupState is a runner group declared in cluster_checks.runner_groups
+type RunnerGroupState struct {
+	Name   string   `json:"name"`
+	Checks []string `json:"checks"`
 }
 
 // StateNodeResponse is a chunk of StateResponse
 type StateNodeResponse struct {
-	Name    string                  `json:"name"`
-	Configs []ConfigWithInstanceIDs `json:"configs"`
-	Stats   CLCRunnersStats         `json:"stats,omitempty"`
+	Name     string                  `json:"name"`
+	Configs  []ConfigWithInstanceIDs `json:"configs"`
+	Stats    CLCRunnersStats         `json:"stats,omitempty"`
+	NodeType NodeType                `json:"node_type,omitempty"`
+	Group    string                  `json:"group,omitempty"`
+	Workers  int                     `json:"workers,omitempty"`
+	// Utilization is the share of the runner's workers used by its cluster
+	// checks, only known with advanced dispatching.
+	Utilization   *float64 `json:"utilization,omitempty"`
+	LastHeartbeat int64    `json:"last_heartbeat,omitempty"` // Unix seconds
 }
 
 // ConfigWithInstanceIDs pairs a config with its precomputed instance IDs.

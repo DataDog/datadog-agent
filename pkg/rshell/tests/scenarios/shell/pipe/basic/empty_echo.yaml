@@ -1,0 +1,9 @@
+description: Piping empty echo output to cat produces a newline.
+input:
+  script: |+
+    echo "" | cat
+expect:
+  stdout: |+
+
+  stderr: ""
+  exit_code: 0

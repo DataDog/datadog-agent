@@ -161,6 +161,7 @@ func setupBTFServer(t *testing.T) (string, string) {
 }
 
 func TestRemoteConfigBTFFoundEntry(t *testing.T) {
+	requireCacheRoot(t)
 	skipIfUnsupported(t)
 	serverURL, shasum := setupBTFServer(t)
 	catalog := getCatalog(t, shasum)

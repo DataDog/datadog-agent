@@ -42,7 +42,7 @@ rust_library(
     crate_name = "par_control",
     edition = "2024",
     link_deps = [":cpp_stdlib"],
-    rustc_env = {"DD_AGENT_VERSION": _BUILD_VARIABLES["agent_version"]},
+    rustc_env = {"DD_AGENT_VERSION": _BUILD_VARIABLES["agent_version"].split("+")[0]},
     rustc_flags = ["--cfg=bazel"],
     target_compatible_with = _LINUX_OR_WINDOWS,
     visibility = ["//visibility:public"],

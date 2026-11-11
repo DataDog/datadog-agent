@@ -1,0 +1,10 @@
+description: awk regex separators use POSIX leftmost-longest matching.
+input:
+  script: |+
+    printf 'aaa\n' | awk -F 'a|aa' '{ print NF, "[" $1 "]", "[" $2 "]", "[" $3 "]"; n = split("aaa", parts, /a|aa/); print n, "[" parts[1] "]", "[" parts[2] "]", "[" parts[3] "]" }'
+expect:
+  stdout: |+
+    3 [] [] []
+    3 [] [] []
+  stderr: |+
+  exit_code: 0

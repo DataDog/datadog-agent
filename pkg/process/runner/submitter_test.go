@@ -8,14 +8,18 @@
 package runner
 
 import (
+	"net/http"
 	"strconv"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
-	"github.com/benbjohnson/clock"
 	"github.com/golang/mock/gomock" //nolint:depguard // required by datadog-go/v5 statsd mocks compiled against golang/mock
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/fx"
 
 	model "github.com/DataDog/agent-payload/v5/process"
@@ -28,8 +32,11 @@ import (
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	sysprobeconfigmock "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/mock"
 	connectionsforwarderfx "github.com/DataDog/datadog-agent/comp/forwarder/connectionsforwarder/fx"
+	forwarder "github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/def"
+	"github.com/DataDog/datadog-agent/comp/forwarder/defaultforwarder/transaction"
 	forwarders "github.com/DataDog/datadog-agent/comp/process/forwarders/def"
 	forwardersimpl "github.com/DataDog/datadog-agent/comp/process/forwarders/fx"
+	"github.com/DataDog/datadog-agent/comp/process/types"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/process/checks"
 	"github.com/DataDog/datadog-agent/pkg/process/util/api/headers"
@@ -185,6 +192,324 @@ func TestNewCollectorProcessQueueBytes(t *testing.T) {
 			assert.Equal(t, tc.expectedQueueSize, s.forwarderRetryMaxQueueBytes)
 		})
 	}
+}
+
+// TestSubmitterDoesNotBlockHealthyDomainOnSlowDomain is a regression test for CXP-3920.
+// A healthy endpoint's realtime feedback and the next process payload must not
+// wait for another endpoint's response channel to close.
+func TestSubmitterDoesNotBlockHealthyDomainOnSlowDomain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+
+		var calls atomic.Int32
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(func() {
+			releaseOnce()
+			s.Stop()
+		})
+		healthyBody := encodeCollectorResponse(t, 1, 2)
+
+		s.submitFuncs[checks.ProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
+			calls.Add(1)
+			responses := make(chan forwarder.Response, 1)
+			responses <- forwarder.Response{
+				Domain:     "https://healthy.example.com",
+				StatusCode: http.StatusAccepted,
+				Body:       healthyBody,
+			}
+			go func() {
+				<-release // The additional endpoint has not replied yet.
+				close(responses)
+			}()
+			return responses, nil
+		}
+		require.NoError(t, s.Start())
+
+		submitProcessPayload := func() {
+			s.Submit(time.Now(), checks.ProcessCheckName, &types.Payload{
+				CheckName: checks.ProcessCheckName,
+				Messages:  []model.MessageBody{&model.CollectorProc{HostName: testHostName}},
+			})
+		}
+		submitProcessPayload()
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load())
+		notifier := s.GetRTNotifier()
+		select {
+		case <-notifier.Wake:
+			response := notifier.Latest()
+			require.Len(t, response.Statuses, 1, "healthy response should enable realtime before the slow endpoint is released")
+			assert.EqualValues(t, 1, response.Statuses[0].ActiveClients)
+		default:
+			t.Fatal("healthy endpoint's realtime status waited for the slow endpoint")
+		}
+
+		submitProcessPayload()
+		synctest.Wait()
+		require.EqualValues(t, 2, calls.Load(), "second payload waited for the slow endpoint")
+	})
+}
+
+func TestSubmitterConnectionsRemainOrderedOnSlowDomain(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+
+		var calls atomic.Int32
+		release := make(chan struct{})
+		releaseOnce := sync.OnceFunc(func() { close(release) })
+		t.Cleanup(func() {
+			releaseOnce()
+			s.Stop()
+		})
+		s.submitFuncs[checks.ConnectionsCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
+			if calls.Add(1) == 1 {
+				responses := make(chan forwarder.Response, 1)
+				responses <- forwarder.Response{Domain: "https://healthy.example.com", StatusCode: http.StatusAccepted}
+				go func() {
+					<-release // The first submission's additional endpoint is still pending.
+					close(responses)
+				}()
+				return responses, nil
+			}
+			responses := make(chan forwarder.Response)
+			close(responses)
+			return responses, nil
+		}
+		require.NoError(t, s.Start())
+
+		submitConnections := func() {
+			s.Submit(time.Now(), checks.ConnectionsCheckName, &types.Payload{
+				CheckName: checks.ConnectionsCheckName,
+				Messages:  []model.MessageBody{&model.CollectorConnections{HostName: testHostName}},
+			})
+		}
+		submitConnections()
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load())
+		submitConnections()
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load(), "connections must wait for every endpoint of the first payload")
+		releaseOnce()
+		synctest.Wait()
+		require.EqualValues(t, 2, calls.Load(), "second connections payload was not submitted after the first completed")
+	})
+}
+
+func TestSubmitterIgnoresLateSameDomainResponse(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+
+		first := make(chan forwarder.Response, 1)
+		firstClose := sync.OnceFunc(func() { close(first) })
+		t.Cleanup(func() {
+			firstClose()
+			s.Stop()
+		})
+		var calls atomic.Int32
+		s.submitFuncs[checks.ProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
+			calls.Add(1)
+			return first, nil
+		}
+		s.submitFuncs[checks.RTProcessCheckName] = func(_ transaction.BytesPayloads, _ http.Header) (chan forwarder.Response, error) {
+			calls.Add(1)
+			second := make(chan forwarder.Response, 1)
+			second <- forwarder.Response{Domain: "https://same.example.com", StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 2, 5)}
+			close(second)
+			return second, nil
+		}
+		require.NoError(t, s.Start())
+		submit := func() {
+			s.Submit(time.Now(), checks.ProcessCheckName, &types.Payload{
+				CheckName: checks.ProcessCheckName,
+				Messages:  []model.MessageBody{&model.CollectorProc{HostName: testHostName}},
+			})
+		}
+		submit()
+		synctest.Wait()
+		require.EqualValues(t, 1, calls.Load())
+		s.Submit(time.Now(), checks.RTProcessCheckName, &types.Payload{
+			CheckName: checks.RTProcessCheckName,
+			Messages:  []model.MessageBody{&model.CollectorRealTime{HostName: testHostName}},
+		})
+		synctest.Wait()
+		require.EqualValues(t, 2, calls.Load())
+		notifier := s.GetRTNotifier()
+		var newest types.RTResponse
+		select {
+		case <-notifier.Wake:
+			newest = notifier.Latest()
+		default:
+			t.Fatal("newer response was not published")
+		}
+		require.Len(t, newest.Statuses, 1)
+		assert.EqualValues(t, 2, newest.Statuses[0].ActiveClients)
+
+		first <- forwarder.Response{Domain: "https://same.example.com", StatusCode: http.StatusAccepted, Body: encodeCollectorResponse(t, 0, 2)}
+		firstClose()
+		synctest.Wait()
+		select {
+		case <-notifier.Wake:
+			t.Fatalf("older response replaced newer status: %+v", notifier.Latest())
+		default:
+		}
+	})
+}
+
+func TestSubmitterMergesLatestStatusAcrossDomains(t *testing.T) {
+	deps := getSubmitterDeps(t, nil, nil)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+	require.NoError(t, err)
+	runner, err := NewRunnerWithChecks(deps.Config, nil, &checks.HostInfo{}, nil, true, nil)
+	require.NoError(t, err)
+	notifier := s.GetRTNotifier()
+	response := func() types.RTResponse {
+		t.Helper()
+		select {
+		case <-notifier.Wake:
+			return notifier.Latest()
+		default:
+			t.Fatal("expected immediate realtime publication")
+			return types.RTResponse{}
+		}
+	}
+
+	s.updateRTStatus(rtDestination{domain: "https://active.example.com"}, 1, &model.CollectorStatus{ActiveClients: 1, Interval: 3})
+	first := response()
+	require.Len(t, first.Statuses, 1)
+	assert.EqualValues(t, 1, first.Statuses[0].ActiveClients)
+	runner.UpdateRTStatus(first.Statuses)
+	assert.True(t, runner.IsRealTimeEnabled())
+
+	s.updateRTStatus(rtDestination{domain: "https://inactive.example.com"}, 2, &model.CollectorStatus{ActiveClients: 0, Interval: 8})
+	second := response()
+	assert.Greater(t, second.Sequence, first.Sequence)
+	require.Len(t, second.Statuses, 2)
+	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 1, Interval: 3}, {ActiveClients: 0, Interval: 8}}, second.Statuses)
+	runner.UpdateRTStatus(second.Statuses)
+	assert.True(t, runner.IsRealTimeEnabled(), "inactive endpoint must not turn off another endpoint's realtime clients")
+	assert.Equal(t, 8*time.Second, runner.realTimeInterval)
+
+	// The active endpoint still counts while only the other endpoint replies again.
+	s.updateRTStatus(rtDestination{domain: "https://inactive.example.com"}, 3, &model.CollectorStatus{ActiveClients: 0, Interval: 9})
+	third := response()
+	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 1, Interval: 3}, {ActiveClients: 0, Interval: 9}}, third.Statuses)
+	runner.UpdateRTStatus(third.Statuses)
+	assert.True(t, runner.IsRealTimeEnabled(), "an unanswered endpoint retains its last status")
+	assert.Equal(t, 9*time.Second, runner.realTimeInterval)
+
+	s.updateRTStatus(rtDestination{domain: "https://active.example.com"}, 4, &model.CollectorStatus{ActiveClients: 0, Interval: 4})
+	last := response()
+	assert.Greater(t, last.Sequence, third.Sequence)
+	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 0, Interval: 4}, {ActiveClients: 0, Interval: 9}}, last.Statuses)
+	runner.UpdateRTStatus(last.Statuses)
+	assert.False(t, runner.IsRealTimeEnabled(), "realtime turns off only when every endpoint reports no clients")
+}
+
+func TestSubmitterKeepsStatusesForDistinctAPIKeys(t *testing.T) {
+	deps := getSubmitterDeps(t, nil, nil)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+	require.NoError(t, err)
+	notifier := s.GetRTNotifier()
+
+	active := rtDestination{domain: "https://same.example.com", apiKeyIndex: 0}
+	inactive := rtDestination{domain: "https://same.example.com", apiKeyIndex: 1}
+	s.updateRTStatus(active, 1, &model.CollectorStatus{ActiveClients: 1, Interval: 3})
+	<-notifier.Wake
+	s.updateRTStatus(inactive, 1, &model.CollectorStatus{ActiveClients: 0, Interval: 5})
+	<-notifier.Wake
+	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 1, Interval: 3}, {ActiveClients: 0, Interval: 5}}, notifier.Latest().Statuses)
+
+	// Older feedback for one key must not replace it, but must not block the other key.
+	s.updateRTStatus(active, 2, &model.CollectorStatus{ActiveClients: 2})
+	<-notifier.Wake
+	s.updateRTStatus(active, 1, &model.CollectorStatus{ActiveClients: 0})
+	assert.ElementsMatch(t, []*model.CollectorStatus{{ActiveClients: 2}, {ActiveClients: 0, Interval: 5}}, notifier.Latest().Statuses)
+}
+
+func TestSubmitterPublishesExpirationWithoutFurtherResponses(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		deps := getSubmitterDeps(t, nil, nil)
+		s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+		require.NoError(t, err)
+		require.NoError(t, s.Start())
+		defer s.Stop()
+
+		notifier := s.GetRTNotifier()
+		s.updateRTStatus(rtDestination{domain: "https://unreachable.example.com"}, 1, &model.CollectorStatus{ActiveClients: 1})
+		<-notifier.Wake
+		time.Sleep(time.Minute + 10*time.Second)
+		synctest.Wait()
+		select {
+		case <-notifier.Wake:
+			assert.Empty(t, notifier.Latest().Statuses)
+		default:
+			t.Fatal("stale feedback was not removed without another response")
+		}
+	})
+}
+
+func TestSubmitterExpiresStaleStatusAndRejectsOlderFeedback(t *testing.T) {
+	deps := getSubmitterDeps(t, nil, nil)
+	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, deps.Statsd, testHostName, deps.SysProbeConfig)
+	require.NoError(t, err)
+	notifier := s.GetRTNotifier()
+	active := rtDestination{domain: "https://unreachable.example.com"}
+	inactive := rtDestination{domain: "https://healthy.example.com"}
+
+	s.updateRTStatus(active, 2, &model.CollectorStatus{ActiveClients: 1})
+	<-notifier.Wake
+	s.updateRTStatus(inactive, 3, &model.CollectorStatus{ActiveClients: 0})
+	<-notifier.Wake
+	activeUpdatedAt := s.endpointRTStatuses[active].updatedAt
+	// Windows can assign the same timestamp to consecutive responses. Keep
+	// the healthy status fresh when the unreachable status reaches its TTL.
+	inactiveStatus := s.endpointRTStatuses[inactive]
+	inactiveStatus.updatedAt = activeUpdatedAt.Add(time.Second)
+	s.endpointRTStatuses[inactive] = inactiveStatus
+
+	s.expireRTStatuses(activeUpdatedAt.Add(time.Minute - time.Nanosecond))
+	assert.Len(t, notifier.Latest().Statuses, 2)
+	s.expireRTStatuses(activeUpdatedAt.Add(time.Minute))
+	<-notifier.Wake
+	require.Equal(t, []*model.CollectorStatus{{ActiveClients: 0}}, notifier.Latest().Statuses)
+
+	// An expired entry retains its generation guard until fresh feedback arrives.
+	s.updateRTStatus(active, 1, &model.CollectorStatus{ActiveClients: 1})
+	require.Len(t, notifier.Latest().Statuses, 1)
+	s.updateRTStatus(active, 4, &model.CollectorStatus{ActiveClients: 1})
+	<-notifier.Wake
+	require.Len(t, notifier.Latest().Statuses, 2)
+}
+
+// encodeCollectorResponse builds a decodable collector response body.
+func encodeCollectorResponse(t *testing.T, activeClients, interval int32) []byte {
+	t.Helper()
+	out, err := model.EncodeMessage(model.Message{
+		Header: model.MessageHeader{
+			Version:   model.MessageV3,
+			Encoding:  model.MessageEncodingProtobuf,
+			Type:      model.MessageType(model.TypeResCollector),
+			Timestamp: time.Now().Unix(),
+		},
+		Body: &model.ResCollector{
+			Header: &model.ResCollector_Header{
+				Type: model.TypeResCollector,
+			},
+			Status: &model.CollectorStatus{
+				ActiveClients: activeClients,
+				Interval:      interval,
+			},
+		},
+	})
+	require.NoError(t, err)
+	return out
 }
 
 func TestCollectorMessagesToCheckResult(t *testing.T) {
@@ -354,6 +679,10 @@ func Test_getRequestID(t *testing.T) {
 }
 
 func TestSubmitterHeartbeatProcess(t *testing.T) {
+	synctest.Test(t, syncTestSubmitterHeartbeatProcess)
+}
+
+func syncTestSubmitterHeartbeatProcess(t *testing.T) {
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor(flavor.ProcessAgent)
@@ -365,14 +694,17 @@ func TestSubmitterHeartbeatProcess(t *testing.T) {
 	deps := getSubmitterDeps(t, nil, nil)
 	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
-	mockedClock := clock.NewMock()
-	s.clock = mockedClock
 	s.Start()
-	mockedClock.Add(15 * time.Second)
+	time.Sleep(15 * time.Second)
+	synctest.Wait()
 	s.Stop()
 }
 
 func TestSubmitterHeartbeatCore(t *testing.T) {
+	synctest.Test(t, syncTestSubmitterHeartbeatCore)
+}
+
+func syncTestSubmitterHeartbeatCore(t *testing.T) {
 	originalFlavor := flavor.GetFlavor()
 	defer flavor.SetFlavor(originalFlavor)
 	flavor.SetFlavor(flavor.DefaultAgent)
@@ -384,10 +716,9 @@ func TestSubmitterHeartbeatCore(t *testing.T) {
 	deps := getSubmitterDeps(t, nil, nil)
 	s, err := NewSubmitter(deps.Config, deps.Log, deps.Forwarders, statsdClient, testHostName, deps.SysProbeConfig)
 	assert.NoError(t, err)
-	mockedClock := clock.NewMock()
-	s.clock = mockedClock
 	s.Start()
-	mockedClock.Add(15 * time.Second)
+	time.Sleep(15 * time.Second)
+	synctest.Wait()
 	s.Stop()
 }
 

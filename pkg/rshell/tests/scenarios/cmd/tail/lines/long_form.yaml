@@ -1,0 +1,13 @@
+description: tail --lines=N long form is equivalent to tail -n N.
+setup:
+  files:
+    - path: file.txt
+      content: "alpha\nbeta\ngamma\ndelta\nepsilon\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail --lines=3 file.txt
+expect:
+  stdout: "gamma\ndelta\nepsilon\n"
+  stderr: ""
+  exit_code: 0

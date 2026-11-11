@@ -196,7 +196,7 @@ func (fb *builder) Save() (string, error) {
 
 		jsonData, err := json.MarshalIndent(result, "", "  ")
 		if err != nil {
-			return nil, fmt.Errorf("error marshaling non-scrubbed files to JSON: %v", err)
+			return nil, fmt.Errorf("error marshaling non-scrubbed files to JSON: %w", err)
 		}
 
 		return jsonData, nil

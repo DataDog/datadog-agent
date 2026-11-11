@@ -22,6 +22,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordObservationDropped("logs", "containers")
 	tel.setLogPatternCount(1)
 	tel.recordLogAccepted("internal", 256)
+	tel.recordFilteredLog()
 	tel.recordMetricAccepted("dogstatsd")
 	tel.recordFilteredMetric("dogstatsd")
 	tel.incrementLogsInFlight("internal")
@@ -35,6 +36,7 @@ func TestObserverTelemetry_NoopsDoNotPanic(_ *testing.T) {
 	tel.recordAdvanceSkipped("input")
 	tel.recordInputRateLimiterDropped("internal", "high")
 	tel.recordDetectorEmission("bocpd", "medium")
+	tel.recordFreshSeries(3)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 }
 
@@ -43,6 +45,7 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 
 	tel := newObserverTelemetry(telComp)
 	tel.recordLogAccepted("kubelet", 128)
+	tel.recordFilteredLog()
 	tel.recordMetricAccepted("dogstatsd")
 	tel.recordObservationDropped("logs", "containers")
 	tel.recordInputRateLimiterDropped("internal", "high")
@@ -52,18 +55,21 @@ func TestObserverTelemetry_EmitsNewMetrics(t *testing.T) {
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonSeries, 4)
 	tel.recordAnomalyDedupEvicted(anomalyDedupEvictionReasonRetention, 5)
 	tel.setLogPatternCount(3)
+	tel.recordFreshSeries(2)
 	tel.scorerSeverity.Set(2, "anomaly_scorer")
 
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "logs", "source": "kubelet"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsAccepted, map[string]string{"kind": "metrics", "source": "dogstatsd"}).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryObservationsDropped, map[string]string{"kind": "logs", "source": "containers"}).GetCounter().GetValue())
 	assert.Equal(t, 128.0, observerMetric(t, telComp, telemetryLogsAcceptedBytes, map[string]string{"source": "kubelet"}).GetCounter().GetValue())
+	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryFilteredLogs, nil).GetCounter().GetValue())
 	assert.Equal(t, 1.0, observerMetric(t, telComp, telemetryLogsInputRateLimiterDropped, map[string]string{"source": "internal", "priority": "high"}).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryDetectorEmissions, map[string]string{"detector": "bocpd", "severity": "medium"}).GetCounter().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonCapacity}).GetCounter().GetValue())
 	assert.Equal(t, 4.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonSeries}).GetCounter().GetValue())
 	assert.Equal(t, 5.0, observerMetric(t, telComp, telemetryAnomalyDedupEvicted, map[string]string{"reason": anomalyDedupEvictionReasonRetention}).GetCounter().GetValue())
 	assert.Equal(t, 3.0, observerMetric(t, telComp, telemetryLogPatternExtractorPatternCount, nil).GetGauge().GetValue())
+	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetrySeriesFresh, nil).GetCounter().GetValue())
 	assert.Equal(t, 2.0, observerMetric(t, telComp, telemetryScorerSeverity, map[string]string{"scorer": "anomaly_scorer"}).GetGauge().GetValue())
 }
 

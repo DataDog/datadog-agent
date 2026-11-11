@@ -8,6 +8,7 @@
 package client
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -147,7 +148,7 @@ func TestGetDevices(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetDevices()
+	devices, err := client.GetDevices(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.1", devices[0].DeviceID)
@@ -173,7 +174,7 @@ func TestGetDevicesCounters(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetDevicesCounters()
+	devices, err := client.GetDevicesCounters(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.12", devices[0].SystemIP)
@@ -211,7 +212,7 @@ func TestGetVEdgeInterfaces(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetVEdgeInterfaces()
+	devices, err := client.GetVEdgeInterfaces(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.5", devices[0].VmanageSystemIP)
@@ -247,7 +248,7 @@ func TestGetCEdgeInterfaces(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetCEdgeInterfaces()
+	devices, err := client.GetCEdgeInterfaces(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.17", devices[0].VmanageSystemIP)
@@ -290,7 +291,7 @@ func TestGetInterfacesMetrics(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetInterfacesMetrics()
+	devices, err := client.GetInterfacesMetrics(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.22", devices[0].VmanageSystemIP)
@@ -340,7 +341,7 @@ func TestGetDeviceHardwareMetrics(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetDeviceHardwareMetrics()
+	devices, err := client.GetDeviceHardwareMetrics(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.5", devices[0].VmanageSystemIP)
@@ -383,7 +384,7 @@ func TestGetApplicationAwareRoutingMetrics(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetApplicationAwareRoutingMetrics()
+	devices, err := client.GetApplicationAwareRoutingMetrics(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.13", devices[0].VmanageSystemIP)
@@ -422,7 +423,7 @@ func TestGetControlConnectionsState(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetControlConnectionsState()
+	devices, err := client.GetControlConnectionsState(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.1", devices[0].VmanageSystemIP)
@@ -458,7 +459,7 @@ func TestGetOMPPeersState(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetOMPPeersState()
+	devices, err := client.GetOMPPeersState(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.5", devices[0].VmanageSystemIP)
@@ -493,7 +494,7 @@ func TestGetBFDSessionsState(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetBFDSessionsState()
+	devices, err := client.GetBFDSessionsState(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.11", devices[0].VmanageSystemIP)
@@ -528,7 +529,7 @@ func TestGetHardwareStates(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetHardwareStates()
+	devices, err := client.GetHardwareStates(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.11", devices[0].VmanageSystemIP)
@@ -570,7 +571,7 @@ func TestGetCloudExpressMetrics(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetCloudExpressMetrics()
+	devices, err := client.GetCloudExpressMetrics(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.13", devices[0].VmanageSystemIP)
@@ -612,7 +613,7 @@ func TestGetBGPNeighbors(t *testing.T) {
 	client, err := testClient(server)
 	require.NoError(t, err)
 
-	devices, err := client.GetBGPNeighbors()
+	devices, err := client.GetBGPNeighbors(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, "10.10.1.11", devices[0].VmanageSystemIP)

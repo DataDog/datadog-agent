@@ -24,3 +24,10 @@ func TestMetricSourceAWSMicroVMString(t *testing.T) {
 		assert.Equal(t, tc.expected, tc.source.String())
 	}
 }
+
+// Both GPU checks report GPU metrics, whose origin GPU billing relies on.
+func TestCheckNameToMetricSourceGPUChecks(t *testing.T) {
+	for _, name := range []string{"gpu", "amd_gpu"} {
+		assert.Equal(t, MetricSourceGPU, CheckNameToMetricSource(name), name)
+	}
+}

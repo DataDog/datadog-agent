@@ -19,6 +19,7 @@ import (
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
+	"github.com/DataDog/datadog-agent/pkg/util/log/types"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -451,7 +452,36 @@ func (suite *ConfigTestSuite) TestEnvUpperCaseLogLevel() {
 		t.Errorf("Failed to load agent config: %v", err)
 	}
 
-	// log_level will be mapped to lowercase by code and set accordingly
+	lvl, err := types.ValidateLogLevel(c.GetString("log_level"))
+	require.NoError(t, err)
+	assert.Equal(t, types.InfoLvl, lvl)
+}
+
+func (suite *ConfigTestSuite) TestLogLevelSpec() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_log_level_spec.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// a specification whose default level is at least as verbose as the
+	// collector telemetry level is kept as configured
+	assert.Equal(t, "debug,./pkg/...=error", c.Get("log_level"))
+}
+
+func (suite *ConfigTestSuite) TestLogLevelSpecReplacedByTelemetryLevel() {
+	t := suite.T()
+	fileName := "testdata/config_default.yaml"
+	ddFileName := "testdata/datadog_log_level_spec_low_default.yaml"
+	c, err := NewConfigComponent(context.Background(), ddFileName, []string{fileName})
+	if err != nil {
+		t.Errorf("Failed to load agent config: %v", err)
+	}
+
+	// a specification whose default level is less verbose than the
+	// collector telemetry level is replaced by it, like a plain level would
 	assert.Equal(t, "info", c.Get("log_level"))
 }
 
@@ -848,6 +878,33 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_FullStandaloneConfig() {
 	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
+	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
+}
+
+// TestStandaloneTelemetryResourceClusterName verifies that, in standalone mode,
+// the k8s.cluster.name attribute of service.telemetry.resource, with its
+// ${env:...} references resolved, reaches the cluster name resolution even
+// without a dogtel extension.
+func (suite *ConfigTestSuite) TestStandaloneTelemetryResourceClusterName() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "my-cluster", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
+}
+
+// TestConnectedTelemetryResourceClusterName verifies that service.telemetry.resource
+// is ignored outside standalone mode, where the core Agent provides the cluster name.
+func (suite *ConfigTestSuite) TestConnectedTelemetryResourceClusterName() {
+	t := suite.T()
+	t.Setenv("TEST_CLUSTER_NAME", "my-cluster")
+	c, err := NewConfigComponent(context.Background(), "", []string{"testdata/config_standalone_telemetry_resource.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, "", c.GetString("otelcollector.standalone.telemetry_resource_cluster_name"))
 }
 
 // TestDogtelExtensionConfig_PartialConfig verifies that only the dogtelextension
@@ -863,6 +920,35 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_PartialConfig() {
 	// Fields not set in dogtelextension must not override DD agent defaults.
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	// node_from_env_var not set in dogtelextension config: DD agent schema
+	// default (K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME)
+	// must remain intact.
+	assert.Equal(t, "K8S_NODE_NAME,DD_KUBERNETES_KUBELET_NODENAME,OTEL_K8S_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
+}
+
+// TestDogtelExtensionConfig_UseKubeletCollectorFromDatadogConfig verifies that
+// a dogtelextension config leaving use_kubelet_collector unset doesn't clobber
+// the value set in datadog.yaml.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorFromDatadogConfig() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	c, err := NewConfigComponent(context.Background(), "testdata/datadog_no_kubelet_collector.yaml", []string{"testdata/config_standalone_partial.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+}
+
+// TestDogtelExtensionConfig_UseKubeletCollectorExplicitTrue verifies that an
+// explicit use_kubelet_collector: true in the dogtelextension config still
+// overrides the value set in datadog.yaml.
+func (suite *ConfigTestSuite) TestDogtelExtensionConfig_UseKubeletCollectorExplicitTrue() {
+	t := suite.T()
+	t.Setenv("DD_OTEL_STANDALONE", "true")
+	c, err := NewConfigComponent(context.Background(), "testdata/datadog_no_kubelet_collector.yaml", []string{"testdata/config_standalone_use_kubelet_collector.yaml"})
+	require.NoError(t, err)
+
+	assert.Equal(t, true, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
 }
 
 // TestDogtelExtensionConfig_MetadataDisabled verifies that setting
@@ -966,6 +1052,8 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_StandaloneNoDDExporter()
 	assert.Equal(t, false, c.GetBool("kubelet_tls_verify"))
 	assert.Equal(t, 10255, c.GetInt("kubernetes_http_kubelet_port"))
 	assert.Equal(t, 10250, c.GetInt("kubernetes_https_kubelet_port"))
+	assert.Equal(t, false, c.GetBool("otelcollector.standalone.use_kubelet_collector"))
+	assert.Equal(t, "MY_NODE_NAME", c.GetString("otelcollector.standalone.node_from_env_var"))
 
 	providers := c.Get("metadata_providers")
 	require.NotNil(t, providers)
@@ -987,6 +1075,70 @@ func (suite *ConfigTestSuite) TestDogtelExtensionConfig_ConnectedModeIgnored() {
 	assert.Equal(t, "", c.GetString("hostname"))
 	assert.Equal(t, "", c.GetString("secret_backend_command"))
 	assert.Equal(t, "", c.GetString("kubernetes_kubelet_host"))
+}
+
+func TestTelemetryResourceAttribute(t *testing.T) {
+	tests := []struct {
+		name      string
+		telemetry any
+		want      string
+	}{
+		{
+			name:      "inline map",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": "inline", "k8s.node.name": "node"}},
+			want:      "inline",
+		},
+		{
+			name: "attributes list",
+			telemetry: map[string]any{"resource": map[string]any{
+				"schema_url": "https://opentelemetry.io/schemas/1.27.0",
+				"attributes": []any{
+					map[string]any{"name": "k8s.node.name", "value": "node"},
+					map[string]any{"name": "k8s.cluster.name", "value": "listed"},
+				},
+			}},
+			want: "listed",
+		},
+		{
+			name: "the attributes list wins over the inline map",
+			telemetry: map[string]any{"resource": map[string]any{
+				"k8s.cluster.name": "inline",
+				"attributes":       []any{map[string]any{"name": "k8s.cluster.name", "value": "listed"}},
+			}},
+			want: "listed",
+		},
+		{
+			name:      "a null inline value leaves it unset",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": nil}},
+			want:      "",
+		},
+		{
+			name:      "whitespace is trimmed",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.cluster.name": " spaced \n"}},
+			want:      "spaced",
+		},
+		{
+			name:      "not set",
+			telemetry: map[string]any{"resource": map[string]any{"k8s.node.name": "node"}},
+			want:      "",
+		},
+		{
+			name:      "no resource",
+			telemetry: map[string]any{"logs": map[string]any{"level": "debug"}},
+			want:      "",
+		},
+		{
+			name:      "no telemetry section",
+			telemetry: nil,
+			want:      "",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, telemetryResourceAttribute(tt.telemetry, "k8s.cluster.name"))
+		})
+	}
 }
 
 // TestGetDogtelExtensionConfig_NilExtensionSection verifies that getDogtelExtensionConfig
@@ -1014,7 +1166,9 @@ func TestGetDogtelExtensionConfig_EmptyDogtelSection(t *testing.T) {
 	assert.Equal(t, "", extcfg.Hostname)
 	assert.Nil(t, extcfg.KubeletTLSVerify)
 	assert.Nil(t, extcfg.EnableMetadataCollection)
+	assert.Nil(t, extcfg.UseKubeletCollector)
 	assert.Equal(t, 0, extcfg.MetadataInterval)
+	assert.Equal(t, "", extcfg.NodeFromEnvVar)
 }
 
 // TestGetDogtelExtensionConfig_EnableMetadataCollectionFalse verifies that
@@ -1052,6 +1206,41 @@ func TestGetDogtelExtensionConfig_KubeletTLSVerify(t *testing.T) {
 	require.NotNil(t, extcfg)
 	require.NotNil(t, extcfg.KubeletTLSVerify)
 	assert.False(t, *extcfg.KubeletTLSVerify)
+}
+
+// TestGetDogtelExtensionConfig_UseKubeletCollector verifies that
+// use_kubelet_collector can be explicitly set to false (distinguishable from
+// the unset/nil state, which defaults to the kubelet collector).
+func TestGetDogtelExtensionConfig_UseKubeletCollector(t *testing.T) {
+	falseVal := false
+	cfg := confmap.NewFromStringMap(map[string]any{
+		"extensions": map[string]any{
+			"dogtel": map[string]any{
+				"use_kubelet_collector": falseVal,
+			},
+		},
+	})
+	extcfg, err := getDogtelExtensionConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, extcfg)
+	require.NotNil(t, extcfg.UseKubeletCollector)
+	assert.False(t, *extcfg.UseKubeletCollector)
+}
+
+// TestGetDogtelExtensionConfig_NodeFromEnvVar verifies that node_from_env_var
+// is parsed from the dogtelextension config.
+func TestGetDogtelExtensionConfig_NodeFromEnvVar(t *testing.T) {
+	cfg := confmap.NewFromStringMap(map[string]any{
+		"extensions": map[string]any{
+			"dogtel": map[string]any{
+				"node_from_env_var": "MY_NODE_NAME",
+			},
+		},
+	})
+	extcfg, err := getDogtelExtensionConfig(cfg)
+	require.NoError(t, err)
+	require.NotNil(t, extcfg)
+	assert.Equal(t, "MY_NODE_NAME", extcfg.NodeFromEnvVar)
 }
 
 // TestGetDogtelExtensionConfig_InvalidExtensions verifies that a malformed

@@ -226,6 +226,7 @@ func TestProcessorRunRetainsAgentCPUUsageBaselineWhenListedContainerHasNoCPUStat
 	assert.Equal(t, 0.125, metrics[0].Value())
 	assert.Equal(t, "agent", metrics[0].Tags()["kind"])
 	assert.Equal(t, "node-agent-pod", metrics[0].Tags()[tags.KubePod])
+	assert.Equal(t, container.Name, metrics[0].Tags()[tags.ContainerName])
 }
 
 func TestProcessorRunPartialStats(t *testing.T) {

@@ -235,6 +235,11 @@ func (c *NetworkCheck) submitInterfaceSysMetrics(sender sender.Sender) {
 		return
 	}
 	for _, iface := range ifaces {
+		// Interfaces are symlinks to their device directory. Regular files such as
+		// bonding_masters (created by the bonding driver) are not interfaces.
+		if iface.Mode().IsRegular() {
+			continue
+		}
 		if c.isInterfaceExcluded(iface.Name()) {
 			continue
 		}
@@ -248,6 +253,7 @@ func (c *NetworkCheck) submitInterfaceSysMetrics(sender sender.Sender) {
 			val, err := readIntFile(metricFilepath, filesystem)
 			if err != nil {
 				log.Debugf("Unable to read %s, skipping: %s.", metricFilepath, err)
+				continue
 			}
 			sender.Gauge("system.net.iface."+metricName, float64(val), "", ifaceTag)
 		}

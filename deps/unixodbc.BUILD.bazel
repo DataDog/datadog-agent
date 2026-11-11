@@ -271,14 +271,14 @@ dd_cc_packaged(
 
 dd_cc_packaged(
     name = "odbc_pkg",
-    dest_dir = "embedded/lib",
-    input = ":odbc",
-    installed_files = [
-        ":unixodbc_hdr_files",
-        ":unixodbc_conf_hdr_files",
+    data = [
         ":libltdl_hdr_files",
         ":odbccr_pkg_packaged",
+        ":unixodbc_conf_hdr_files",
+        ":unixodbc_hdr_files",
     ],
+    dest_dir = "embedded/lib",
+    input = ":odbc",
     version = SOVERSION,
     visibility = ["//visibility:public"],
 )

@@ -1,0 +1,8 @@
+description: jq -e exits 4 when the filter produces no results.
+input:
+  script: |+
+    jq -ne 'empty'
+expect:
+  stdout: |+
+  stderr: |+
+  exit_code: 4

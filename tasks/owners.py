@@ -78,3 +78,46 @@ def channel_owners(channel: str) -> list[str]:
     Returns the teams that own the slack channel
     """
     return [team for team, chan in GITHUB_SLACK_MAP.items() if chan == channel]
+
+
+def _team_slugs(owners) -> list[str]:
+    """Change CODEOWNERS team names to lowercase team slugs."""
+    slugs = set()
+    for owner in owners:
+        low = owner.casefold()
+        if low.startswith('@datadog/'):
+            slugs.add(low.replace('@datadog/', '', 1))
+    return sorted(slugs)
+
+
+def smp_pr_context_impl(branch: str, repository: str, owners_file: str):
+    """Return comma-separated PR labels and involved CODEOWNERS teams."""
+    from tasks.libs.ciproviders.github_api import GithubAPI
+
+    gh = GithubAPI(repository)
+    prs = list(gh.get_pr_for_branch(head_branch_name=branch))
+    if not prs:
+        return "", ""
+    pr = prs[0]
+    labels = ",".join(gh.get_pr_labels(pr.number))
+    files = gh.get_pr_files(pr.number)
+    involved = _team_slugs(make_partition(files, owners_file).keys()) if files else []
+    return labels, ",".join(involved)
+
+
+@task
+def smp_pr_context(
+    _,
+    branch,
+    labels_out='pr_labels.txt',
+    involved_teams_out='involved_teams.txt',
+    repository='DataDog/datadog-agent',
+    owners_file='.github/CODEOWNERS',
+):
+    """Write PR labels and involved teams for SMP manifest selection."""
+    labels, involved = smp_pr_context_impl(branch, repository, owners_file)
+    with open(labels_out, 'w') as f:
+        f.write(labels)
+    with open(involved_teams_out, 'w') as f:
+        f.write(involved)
+    print(f"labels=[{labels}] involved_teams=[{involved}]")

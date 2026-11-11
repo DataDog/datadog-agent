@@ -8,6 +8,7 @@
 
 volatile const uint64_t VARIABLE_runtime_dot_firstmoduledata = 0;
 volatile const uint32_t OFFSET_runtime_dot_moduledata__types = 0;
+volatile const uint32_t OFFSET_runtime_dot_moduledata__etypes = 0;
 volatile const uint32_t OFFSET_runtime_dot_g__goid = 0;
 volatile const uint32_t OFFSET_runtime_dot_g__stack = 0;
 volatile const uint32_t OFFSET_runtime_dot_g__m = 0;
@@ -130,5 +131,8 @@ volatile const uint64_t VARIABLE_runtime_dot_aeskeysched = 0;
 // Target binary architecture. Determines which AES instruction semantics
 // (x86 AESENC vs arm64 AESE+AESMC) the BPF hash emulation uses.
 volatile const uint32_t is_arm64 = 0;
+
+// Throttler index used by coordinated sampling for the per-trace decision.
+volatile const uint32_t session_throttler_idx = 0;
 
 #endif // __PROGRAM_H__

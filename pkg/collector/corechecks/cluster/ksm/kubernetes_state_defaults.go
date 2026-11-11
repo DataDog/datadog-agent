@@ -55,6 +55,7 @@ func defaultMetricNamesMapper() map[string]string {
 		"kube_pod_spec_volumes_persistentvolumeclaims_readonly":                                    "pod.volumes.persistentvolumeclaims_readonly",
 		"kube_pod_status_unschedulable":                                                            "pod.unschedulable",
 		"kube_pod_tolerations":                                                                     "pod.tolerations",
+		"kube_node_spec_taint":                                                                     "node.taint",
 		"kube_poddisruptionbudget_status_current_healthy":                                          "pdb.pods_healthy",
 		"kube_poddisruptionbudget_status_desired_healthy":                                          "pdb.pods_desired",
 		"kube_poddisruptionbudget_status_pod_disruptions_allowed":                                  "pdb.disruptions_allowed",
@@ -167,6 +168,8 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 	}
 	defaultPodLabels := append([]string{}, defaultStandardLabels...)
 	defaultPodLabels = append(defaultPodLabels, argoRolloutLabelName)
+	defaultReplicaSetLabels := append([]string{}, defaultStandardLabels...)
+	defaultReplicaSetLabels = append(defaultReplicaSetLabels, argoRolloutLabelName)
 
 	return map[string]*JoinsConfigWithoutLabelsMapping{
 		"kube_pod_status_phase": {
@@ -203,7 +206,7 @@ func defaultLabelJoins() map[string]*JoinsConfigWithoutLabelsMapping {
 		},
 		"kube_replicaset_labels": {
 			LabelsToMatch: getLabelToMatchForKind("replicaset"),
-			LabelsToGet:   defaultStandardLabels,
+			LabelsToGet:   defaultReplicaSetLabels,
 		},
 		"kube_daemonset_labels": {
 			LabelsToMatch: getLabelToMatchForKind("daemonset"),

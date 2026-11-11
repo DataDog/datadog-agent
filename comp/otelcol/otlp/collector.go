@@ -38,6 +38,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/components/processor/infraattributesprocessor"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/datatype"
 	"github.com/DataDog/datadog-agent/comp/otelcol/otlp/internal/configutils"
+	"github.com/DataDog/datadog-agent/pkg/hosttags"
 	"github.com/DataDog/datadog-agent/pkg/logs/message"
 	"github.com/DataDog/datadog-agent/pkg/serializer"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
@@ -87,7 +88,7 @@ func getComponents(
 	}
 	exporterFactories := []exporter.Factory{
 		otlpexporter.NewFactory(),
-		serializerexporter.NewFactoryForAgent(s, hostname.Get, store),
+		serializerexporter.NewFactoryForAgent(s, hostname.Get, hosttags.NewHostTagProvider().GetHostTags, store),
 		debugexporter.NewFactory(),
 	}
 

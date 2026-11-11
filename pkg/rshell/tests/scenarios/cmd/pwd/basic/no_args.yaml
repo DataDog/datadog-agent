@@ -1,0 +1,10 @@
+description: pwd with no arguments writes one absolute path followed by a newline.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    pwd
+expect:
+  stdout_contains: ["/"]
+  stdout_contains_windows: ["\\"]
+  stderr: ""
+  exit_code: 0

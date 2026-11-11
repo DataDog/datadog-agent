@@ -21,6 +21,7 @@ import (
 
 	"github.com/davecgh/go-spew/spew"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -549,4 +550,56 @@ func testAPMMode(c *assert.CollectT, intake *components.FakeIntake, service stri
 		assert.Equal(c, expectedAPMMode, p.Tags["_dd.apm_mode"])
 	}
 	assert.True(c, found, "no trace payload found for service %s", service)
+}
+
+// testSQLDBStatement checks the spans sent by sendSQLTraces: the trace-agent
+// obfuscates the resource and the query tags the client sent, never adds
+// sql.query, and the db.statement the intake derives from each span (emulated by
+// fakeintake.IdxSpanEffectiveDBStatement) is the obfuscated query.
+func testSQLDBStatement(c *assert.CollectT, intake *components.FakeIntake, service string) {
+	traces, err := intake.Client().GetTraces()
+	require.NoError(c, err)
+
+	// Span name -> (query tag -> expected value) and expected effective db.statement.
+	expected := map[string]struct {
+		tags        map[string]string
+		dbStatement string
+	}{
+		"sql.no_query_tags":       {dbStatement: sqlObfuscatedQuery},
+		"cassandra.no_query_tags": {dbStatement: sqlObfuscatedQuery},
+		"sql.sql_query":           {tags: map[string]string{"sql.query": sqlObfuscatedQuery}, dbStatement: sqlObfuscatedQuery},
+		"sql.db_statement":        {tags: map[string]string{"db.statement": sqlOtherObfuscatedQuery}, dbStatement: sqlOtherObfuscatedQuery},
+	}
+	seen := map[string]bool{}
+	for _, p := range traces {
+		for _, tp := range p.IdxTracerPayloads {
+			strs := tp.Strings
+			for _, chunk := range tp.Chunks {
+				for _, sp := range chunk.Spans {
+					if fakeintake.IdxStr(strs, sp.ServiceRef) != service {
+						continue
+					}
+					name := fakeintake.IdxStr(strs, sp.NameRef)
+					want, ok := expected[name]
+					if !assert.True(c, ok, "unexpected span %q", name) {
+						continue
+					}
+					seen[name] = true
+					assert.Equal(c, sqlObfuscatedQuery, fakeintake.IdxStr(strs, sp.ResourceRef), "resource of span %q", name)
+					for _, key := range []string{"sql.query", "db.statement"} {
+						v, found := fakeintake.IdxStrAttr(strs, sp.Attributes, key)
+						wantV, wantFound := want.tags[key]
+						assert.Equal(c, wantFound, found, "presence of %s on span %q", key, name)
+						assert.Equal(c, wantV, v, "%s of span %q", key, name)
+					}
+					dbStatement, found := fakeintake.IdxSpanEffectiveDBStatement(tp, sp, p.AgentVersion)
+					assert.True(c, found, "no effective db.statement for span %q", name)
+					assert.Equal(c, want.dbStatement, dbStatement, "effective db.statement of span %q", name)
+				}
+			}
+		}
+	}
+	for name := range expected {
+		assert.True(c, seen[name], "span %q of service %s not received", name, service)
+	}
 }

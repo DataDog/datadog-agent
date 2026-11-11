@@ -24,6 +24,10 @@ struct event_sample_stats_t {
     u64 events_total;
     u64 events_sampled;
     u64 max_pressure;
+    u64 sent_below_threshold;
+    u64 allowed_between;
+    u64 dropped_between;
+    u64 dropped_above_critical;
 };
 
 struct basename_t {

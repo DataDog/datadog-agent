@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    With runtime usage enrichment (``sbom.enrichment.usage.enabled``), the SBOM
+    of a container image lists the repo tags and digests the image has. It kept
+    those of the first usage report, so a later tag, untag or new repo digest
+    of the image stayed out of the SBOM.

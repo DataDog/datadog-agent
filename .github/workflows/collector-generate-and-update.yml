@@ -63,7 +63,6 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ steps.octo-sts.outputs.token }}
         run: |
-          dda inv -- -e install-tools
           dda inv -- -e collector.update
           OCB_VERSION=$(grep -m1 'OCB_VERSION = ' tasks/collector.py | grep -oP '"\K[^"]+')
           echo "OCB_VERSION=$OCB_VERSION" >> $GITHUB_OUTPUT

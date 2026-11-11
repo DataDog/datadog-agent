@@ -1,0 +1,19 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: the --size threshold is inclusive, so a file exactly one byte below it is skipped (guards the >= vs > off-by-one against threshold/equal.yaml).
+setup:
+  files:
+    - path: app.log
+      content: "abcd"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --verbose --size 5 app.log
+    wc -c < app.log
+expect:
+  stdout: |+
+    logrotate: app.log: 4 bytes below threshold 5, skipping
+    4
+  stderr: |+
+  exit_code: 0

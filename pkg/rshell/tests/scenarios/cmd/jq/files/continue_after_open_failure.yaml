@@ -1,0 +1,19 @@
+description: jq continues to later file operands after an open failure.
+setup:
+  files:
+    - path: data/before.json
+      content: |+
+        {"id":1}
+    - path: data/after.json
+      content: |+
+        {"id":2}
+input:
+  allowed_paths: ["data"]
+  script: |+
+    jq -ec '.id' data/before.json data/missing.json data/after.json
+expect:
+  stdout: |+
+    1
+    2
+  stderr_contains: ["data/missing.json"]
+  exit_code: 2

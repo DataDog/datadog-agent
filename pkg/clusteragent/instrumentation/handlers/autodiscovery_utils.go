@@ -8,8 +8,9 @@
 package handlers
 
 import (
+	"crypto/sha256"
+	"encoding/binary"
 	"fmt"
-	"hash/fnv"
 	"sync"
 
 	datadoghq "github.com/DataDog/datadog-operator/api/datadoghq/v1alpha1"
@@ -202,12 +203,10 @@ func (c *CheckStore) deleteConfigs(key string) {
 // commutative, so the result is independent of the order entries are applied and identical across
 // cluster agent replicas with the same CR state.
 func entryHash(key, state string) uint64 {
-	h := fnv.New64a()
-	_, _ = h.Write([]byte(key))
-	// The 0 separator keeps ("ab", "c") distinct from ("a", "bc").
-	_, _ = h.Write([]byte{0})
-	_, _ = h.Write([]byte(state))
-	return h.Sum64()
+	// Kubernetes resource keys cannot contain NUL, so the separator makes the
+	// key/state boundary unambiguous.
+	digest := sha256.Sum256([]byte(key + "\x00" + state))
+	return binary.BigEndian.Uint64(digest[:8])
 }
 
 func isService(cr *datadoghq.DatadogInstrumentation) bool {

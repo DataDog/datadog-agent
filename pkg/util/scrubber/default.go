@@ -46,6 +46,12 @@ func init() {
 // DefaultScrubber, but can be used to initialize other, custom scrubbers with
 // the default replacers.
 func AddDefaultReplacers(scrubber *Scrubber) {
+	delaFallbackReplacer := Replacer{
+		Regex:       regexp.MustCompile(`(?i)(\bfallback\s*=\s*)[^,\]]*`),
+		Hints:       []string{"DELA["},
+		Repl:        []byte(`${1}********`),
+		LastUpdated: parseVersion("7.84.0"),
+	}
 	hintedAPIKeyReplacer := Replacer{
 		// If hinted, mask the value regardless if it doesn't match 32-char hexadecimal string
 		Regex: regexp.MustCompile(`(api_?key=)\b[a-zA-Z0-9]+([a-zA-Z0-9]{4})\b`),
@@ -197,7 +203,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 
 	// Scoped to scanning_rules: every rule key is scrubbed unless explicitly allowed.
 	scanningRulesYaml := matchYAMLOnly(`^scanning_rules$`, func(data any) any {
-		walk(&data, func(key string, _ any) (bool, any) {
+		walk(&data, func(key string, _ string, _ any) (bool, any) {
 			switch key {
 			// ADD rule info that can be shown
 			case "id", "license":
@@ -239,6 +245,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 				if apiKey == "" {
 					return ""
 				}
+				apiKey = scrubber.ScrubLine(apiKey)
 				return HideKeyExceptLastChars(apiKey)
 			}
 			return defaultReplacement
@@ -279,7 +286,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	// (We have to manually recurse in the case of Format B because otherwise matching the top-level
 	//  additional-endpoints key would cause the YAML parser to skip all subnodes).
 	additionalEndpointsYaml := Replacer{
-		YAMLKeyRegex: regexp.MustCompile(`^additional_endpoints$`),
+		YAMLKeyRegex: regexp.MustCompile(`^(orchestrator_)?additional_endpoints$`),
 		ProcessValue: func(data any) any {
 			switch data.(type) {
 			case map[string]interface{}, map[interface{}]interface{}:
@@ -291,7 +298,18 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 			}
 			return data
 		},
-		LastUpdated: parseVersion("7.78.5"),
+		LastUpdated: parseVersion("7.86.0"),
+	}
+
+	privateActionRunnerYaml := Replacer{
+		YAMLKeyRegex: regexp.MustCompile(`^private_action_runner$`),
+		ProcessValue: func(data any) any {
+			wrapped := data
+			scrubber.ScrubDataObj(&wrapped)
+			scrubPrivateActionRunnerCredentialValues(wrapped)
+			return wrapped
+		},
+		LastUpdated: parseVersion("7.85.0"),
 	}
 
 	// HTTP header-style API keys with "key" suffix
@@ -346,6 +364,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	)
 	privateKeyReplacer.LastUpdated = parseVersion("7.76.0")
 
+	scrubber.AddReplacer(SingleLine, delaFallbackReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPIKeyReplacer)
 	scrubber.AddReplacer(SingleLine, hintedAPPKeyReplacer)
 	scrubber.AddReplacer(SingleLine, prefixedAPPKeyReplacer)
@@ -376,6 +395,7 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 	scrubber.AddReplacer(SingleLine, apiKeyYaml)
 	scrubber.AddReplacer(SingleLine, appKeyYaml)
 	scrubber.AddReplacer(SingleLine, additionalEndpointsYaml)
+	scrubber.AddReplacer(SingleLine, privateActionRunnerYaml)
 
 	scrubber.AddReplacer(MultiLine, snmpMultilineReplacer)
 	scrubber.AddReplacer(MultiLine, certReplacer)
@@ -390,10 +410,16 @@ func AddDefaultReplacers(scrubber *Scrubber) {
 // Yaml helpers produce replacers that work on both a yaml object (aka map[interface{}]interface{}) and on a serialized
 // YAML string.
 
+// compileYAMLKeyRegex lowercases pattern because data-object scrubbing matches YAMLKeyRegex against strings.ToLower(key).
+// Patterns must not rely on uppercase regexp syntax such as \S or \W.
+func compileYAMLKeyRegex(pattern string) *regexp.Regexp {
+	return regexp.MustCompile(strings.ToLower(pattern))
+}
+
 func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 	return Replacer{
 		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*(\w|_|-)*%s(\w|_|-)*\s*:)\s+.+`, part)),
-		YAMLKeyRegex: regexp.MustCompile(part),
+		YAMLKeyRegex: compileYAMLKeyRegex(part),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -402,7 +428,7 @@ func matchYAMLKeyPart(part string, hints []string, repl []byte) Replacer {
 func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 	return Replacer{
 		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s\s*:)\s+.+`, key)),
-		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s$`, key)),
+		YAMLKeyRegex: compileYAMLKeyRegex(fmt.Sprintf(`^%s$`, key)),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -411,7 +437,7 @@ func matchYAMLKey(key string, hints []string, repl []byte) Replacer {
 func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 	return Replacer{
 		Regex:        regexp.MustCompile(fmt.Sprintf(`(^\s*(\w|_|-)*%s\s*:)\s+.+`, ending)),
-		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^.*%s$`, ending)),
+		YAMLKeyRegex: compileYAMLKeyRegex(fmt.Sprintf(`^.*%s$`, ending)),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -420,7 +446,7 @@ func matchYAMLKeyEnding(ending string, hints []string, repl []byte) Replacer {
 func matchYAMLKeyPrefixSuffix(prefix, suffix string, hints []string, repl []byte) Replacer {
 	return Replacer{
 		Regex:        regexp.MustCompile(fmt.Sprintf(`(\s*%s(\w|_|-)*%s\s*:)\s+.+`, prefix, suffix)),
-		YAMLKeyRegex: regexp.MustCompile(fmt.Sprintf(`^%s.*%s$`, prefix, suffix)),
+		YAMLKeyRegex: compileYAMLKeyRegex(fmt.Sprintf(`^%s.*%s$`, prefix, suffix)),
 		Hints:        hints,
 		Repl:         repl,
 	}
@@ -429,7 +455,7 @@ func matchYAMLKeyPrefixSuffix(prefix, suffix string, hints []string, repl []byte
 // This only works on a YAML object not on serialized YAML data
 func matchYAMLOnly(key string, cb func(interface{}) interface{}) Replacer {
 	return Replacer{
-		YAMLKeyRegex: regexp.MustCompile(key),
+		YAMLKeyRegex: compileYAMLKeyRegex(key),
 		ProcessValue: cb,
 	}
 }
@@ -471,7 +497,7 @@ func matchYAMLKeyWithListValue(key string, hints string, repl []byte) Replacer {
 		                                                        lines starting   enclosed between `[` and `]`
 		                                                        with `-`
 		*/
-		YAMLKeyRegex: regexp.MustCompile(key),
+		YAMLKeyRegex: compileYAMLKeyRegex(key),
 		Hints:        []string{hints},
 		Repl:         repl,
 	}
@@ -493,6 +519,15 @@ func ScrubBytes(file []byte) ([]byte, error) {
 // serialized string, using the default scrubber.
 func ScrubYaml(data []byte) ([]byte, error) {
 	return DefaultScrubber.ScrubYaml(data)
+}
+
+// ScrubYamlPreserveStructure scrubs credentials from YAML while preserving
+// key order and scalar styles, using the default scrubber.
+// Some fields such as `additional_endpoints` may lose order. This is acceptable behavior,
+// since this setting isn't really used too often, and already has some strange edge-cases
+// we handle specially.
+func ScrubYamlPreserveStructure(data []byte) ([]byte, error) {
+	return DefaultScrubber.ScrubYamlPreserveStructure(data)
 }
 
 // ScrubYamlString scrubs credentials from the given YAML string by loading the data and scrubbing the object instead of
@@ -579,6 +614,32 @@ func scrubAllLeafValues(data interface{}) interface{} {
 	}
 }
 
+func scrubPrivateActionRunnerCredentialValues(data interface{}) {
+	updateMapValuesCaseInsensitive(data, "credentials", func(credentials interface{}) interface{} {
+		updateMapValuesCaseInsensitive(credentials, "values", scrubAllLeafValues)
+		return credentials
+	})
+}
+
+// Update every matching key in place, preserving its spelling. Multiple case
+// variants may coexist in the original config, and all must be scrubbed.
+func updateMapValuesCaseInsensitive(data interface{}, key string, update func(interface{}) interface{}) {
+	switch target := data.(type) {
+	case map[string]interface{}:
+		for k, value := range target {
+			if strings.EqualFold(k, key) {
+				target[k] = update(value)
+			}
+		}
+	case map[interface{}]interface{}:
+		for k, value := range target {
+			if name, ok := k.(string); ok && strings.EqualFold(name, key) {
+				target[k] = update(value)
+			}
+		}
+	}
+}
+
 // HideKeyExceptLastChars replaces all characters in the key with "*", except
 // for the last N characters, where N scales logarithmically with key length:
 //   - ≤ 4 chars: fully replaced with defaultReplacement
@@ -618,8 +679,13 @@ func AddStrippedKeys(strippedKeys []string) {
 	})
 
 	if len(strippedKeys) > 0 {
+		quotedKeys := make([]string, len(strippedKeys))
+		for i, key := range strippedKeys {
+			// regexp rejects patterns that are not valid UTF-8.
+			quotedKeys[i] = regexp.QuoteMeta(strings.ToValidUTF8(key, "\uFFFD"))
+		}
 		replacer := matchYAMLKey(
-			fmt.Sprintf("(%s)", strings.Join(strippedKeys, "|")),
+			fmt.Sprintf("(%s)", strings.Join(quotedKeys, "|")),
 			strippedKeys,
 			[]byte(`$1 "********"`),
 		)
@@ -630,4 +696,15 @@ func AddStrippedKeys(strippedKeys []string) {
 		dynamicReplacers = append(dynamicReplacers, replacer)
 		dynamicReplacersMutex.Unlock()
 	}
+}
+
+// GetStrippedKeys returns the keys whose values were scrubbed by ScrubDataObj (and so ScrubYaml and ScrubJSON) on the
+// default scrubber.
+func GetStrippedKeys() []string {
+	return DefaultScrubber.GetStrippedKeys()
+}
+
+// ClearStrippedKeys forgets the keys recorded by the default scrubber.
+func ClearStrippedKeys() {
+	DefaultScrubber.ClearStrippedKeys()
 }

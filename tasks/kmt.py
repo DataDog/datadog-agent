@@ -60,7 +60,6 @@ from tasks.libs.ciproviders.gitlab_api import (
     post_process_gitlab_ci_configuration,
     resolve_gitlab_ci_configuration,
 )
-from tasks.libs.common.bazel_query import bazel_query
 from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import get_current_branch
 from tasks.libs.common.go import go_build
@@ -81,7 +80,6 @@ from tasks.system_probe import (
     build_rust_binaries,
     check_for_ninja,
     compute_go_parallelism,
-    ebpf_bazel_flags,
     get_ebpf_build_dir,
     get_ebpf_runtime_dir,
     get_sysprobe_test_buildtags,
@@ -737,8 +735,15 @@ def sysprobe_go_test_query() -> str:
 
 
 def query_kmt_go_tests() -> list[KMTGoTest]:
+    raw = bazel("query", "--output=streamed_jsonproto", sysprobe_go_test_query(), capture_output=True)
     tests = []
-    for obj in bazel_query(sysprobe_go_test_query(), lambda o: o.get("type") == "RULE"):
+    for line in raw.splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        obj = json.loads(line)
+        if obj.get("type") != "RULE":
+            continue
         rule = obj["rule"]
         attrs = {a["name"]: a for a in rule.get("attribute", [])}
         label = canonical_go_test_label(rule["name"])
@@ -943,6 +948,7 @@ def _prepare(
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-secagent-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
+                buildbarn_token=True,
             )
     elif component == "system-probe":
         if ci:
@@ -951,6 +957,7 @@ def _prepare(
             cc.exec(
                 f"git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} kmt.kmt-sysprobe-prepare --stack={stack} {pkgs} --arch={arch_obj.name}",
                 run_dir=CONTAINER_AGENT_PATH,
+                buildbarn_token=True,
             )
     else:
         raise Exit(f"Component can only be 'system-probe' or 'security-agent'. {component} not supported.")
@@ -1062,10 +1069,7 @@ def build_target_packages(filter_packages: list[str], build_tags: list[str]):
 
 def build_object_files(ctx, arch: Arch):
     info("[+] Building eBPF object files via Bazel...")
-    build_dir = get_ebpf_build_dir(arch)
-    runtime_dir = get_ebpf_runtime_dir()
-    bazel_build_ebpf(ctx, arch, str(build_dir), str(runtime_dir), strip=False)
-    bazel("test", *ebpf_bazel_flags(arch), "--build_tests_only", "//pkg/ebpf:verify_generated_files")
+    bazel_build_ebpf(ctx, arch, verify=True)
 
 
 def compute_package_dependencies(ctx: Context, packages: list[str], build_tags: list[str]) -> dict[str, set[str]]:
@@ -1447,6 +1451,7 @@ def build(
     inv_echo = "-e" if ctx.config.run["echo"] else ""
     cc.exec(
         f"cd {CONTAINER_AGENT_PATH} && git config --global --add safe.directory {CONTAINER_AGENT_PATH} && dda inv -- {inv_echo} {component}.build --arch={arch_obj.name}",
+        buildbarn_token=True,
     )
 
     cc.exec(f"tar cf {CONTAINER_AGENT_PATH}/kmt-deps/{stack}/build-embedded-dir.tar {EMBEDDED_SHARE_DIR}")
@@ -2575,33 +2580,30 @@ def start_microvms(
     run_agent=False,
     agent_version=None,
 ):
-    stacks.build_start_microvms_binary(ctx)
     print(
         color_message(
             "[+] Creating and provisioning microVMs.\n[+] If you want to see the pulumi progress, set configParams.pulumi.verboseProgressStreams: true in ~/.test_infra_config.yaml",
             "green",
         )
     )
-    ctx.run(
-        stacks.start_microvms_cmd(
-            infra_env=infra_env,
-            instance_type_x86=instance_type_x86,
-            instance_type_arm=instance_type_arm,
-            x86_ami_id=x86_ami_id,
-            arm_ami_id=arm_ami_id,
-            destroy=destroy,
-            ssh_key_name=ssh_key_name,
-            ssh_key_path=ssh_key_path,
-            dependencies_dir=dependencies_dir,
-            shutdown_period=shutdown_period,
-            stack_name=stack_name,
-            vmconfig=vmconfig,
-            local=local,
-            provision_instance=provision_instance,
-            provision_microvms=provision_microvms,
-            run_agent=run_agent,
-            agent_version=agent_version,
-        )
+    stacks.start_microvms(
+        infra_env=infra_env,
+        instance_type_x86=instance_type_x86,
+        instance_type_arm=instance_type_arm,
+        x86_ami_id=x86_ami_id,
+        arm_ami_id=arm_ami_id,
+        destroy=destroy,
+        ssh_key_name=ssh_key_name,
+        ssh_key_path=ssh_key_path,
+        dependencies_dir=dependencies_dir,
+        shutdown_period=shutdown_period,
+        stack_name=stack_name,
+        vmconfig=vmconfig,
+        local=local,
+        provision_instance=provision_instance,
+        provision_microvms=provision_microvms,
+        run_agent=run_agent,
+        agent_version=agent_version,
     )
 
 

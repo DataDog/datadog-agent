@@ -1,0 +1,4 @@
+fixes:
+  - |
+    The forwarder's ``transactions.dropped`` telemetry metric now counts every transaction dropped
+    because the retry queue is full, and is tagged with the endpoint of the dropped transaction.

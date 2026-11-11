@@ -1,0 +1,10 @@
+description: "Custom IFS=: splits on colons; non-whitespace separators do not coalesce."
+input:
+  script: |+
+    IFS=:
+    echo "a::b" | { read X Y Z; echo "[$X][$Y][$Z]"; }
+expect:
+  stdout: |+
+    [a][][b]
+  stderr: ""
+  exit_code: 0

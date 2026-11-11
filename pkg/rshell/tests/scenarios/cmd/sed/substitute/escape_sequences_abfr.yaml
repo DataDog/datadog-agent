@@ -1,0 +1,13 @@
+description: Replacement strings support \a, \b, \f, \r escape sequences like GNU sed.
+setup:
+  files:
+    - path: input.txt
+      content: "abcd\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/b/\a/' input.txt
+expect:
+  stdout: "a\x07cd\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,18 @@
+description: Negated bracket expression matches non-matching characters.
+setup:
+  files:
+    - path: nd/afile
+      content: ""
+    - path: nd/bfile
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo nd/[!a]file
+expect:
+  stdout: |+
+    nd/bfile
+  stdout_windows: |+
+    nd\bfile
+  stderr: ""
+  exit_code: 0

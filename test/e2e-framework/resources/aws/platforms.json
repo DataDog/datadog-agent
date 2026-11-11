@@ -1,34 +1,34 @@
 {
     "alma-linux": {
         "arm64": {
-            "9": "ami-0e45a8ceb7f9316a7"
+            "9": "ami-037ef2280e1b7b0e7"
         },
         "x86_64": {
-            "9": "ami-00a43ffa1aad6a150"
+            "9": "ami-0cb232923ff75e140"
         }
     },
     "amazon-linux": {
         "arm64": {
-            "2": "ami-014a2929b68fa9931",
+            "2": "ami-0bdf5d7509b7cdbbb",
             "2-5-10": "ami-09e51988f56677f44",
             "2022-5-15": "ami-0acc51c3357f26240",
-            "2023": "ami-0c05ccd149ae86dc8"
+            "2023": "ami-0122a45ad80ae5020"
         },
         "x86_64": {
-            "2": "ami-0292d86aa2d7a88d7",
+            "2": "ami-0b1910727891364e5",
             "2-5-10": "ami-06a0cd9728546d178",
             "2022-5-15": "ami-0f0f00c2d082c52ae",
-            "2023": "ami-01febdf9eab418504"
+            "2023": "ami-03e766b287082f850"
         }
     },
     "amazon-linux-ecs": {
         "arm64": {
-            "2": "ami-07b8e9e55e2d0a039",
-            "2023": "ami-045129875aae24033"
+            "2": "ami-0bfa6dd324b657213",
+            "2023": "ami-0001c385932c103eb"
         },
         "x86_64": {
-            "2": "ami-0181d648112c3e7f0",
-            "2023": "ami-0b9135597bf2782b5"
+            "2": "ami-05d8b3145c6bdda2f",
+            "2023": "ami-0131e122e0e7cc99b"
         }
     },
     "centos": {
@@ -37,78 +37,73 @@
         },
         "x86_64": {
             "610": "ami-0506f01ccb6dddeda",
-            "79": "ami-0a5755e5aa21778a5"
+            "610-e2e": "ami-0abc3268e71b5fa09",
+            "79": "ami-046679f90e6c3d0d7"
         }
     },
     "debian": {
         "arm64": {
-            "10": "ami-078a42aba8bce7215",
-            "12": "ami-0e7ef94b9787e1b2c"
+            "10": "ami-00841a70c9a948269",
+            "12": "ami-01075d77fdffc744b"
         },
         "x86_64": {
-            "9": "ami-0a8378c7228eec1d4",
-            "10": "ami-010a1b0677e40fda7",
-            "11": "ami-0064e71807631721a",
-            "12": "ami-01c8cab3a6008d78b"
+            "10": "ami-0df537116a3ecb711",
+            "11": "ami-01543dc686842f8c3",
+            "12": "ami-0205fbf6d4f04662b",
+            "9": "ami-0f63451e15a8ada36"
         }
     },
     "macos": {
         "arm64": {
-            "sonoma": "ami-0108b3d2537cb6ef9"
+            "sonoma": "ami-0a5dd2a9a1e7c1d37"
         },
         "x86_64": {
-            "sonoma": "ami-00efe5135d1fbb9be"
+            "sonoma": "ami-0902c25d4cb4cd7f3"
         }
     },
     "redhat": {
         "x86_64": {
+            "10": "ami-0fbcad1ae9cb8314c",
             "8": "ami-0fbdded980e0521d5",
-            "86": "ami-031eff1ae75bb87e4",
+            "86": "ami-0f58fb8c804de5f4b",
             "86-fips": "ami-0d0fb96b595c56e03",
-            "9": "ami-00d31312eb07f3f99",
-            "9-selinux-npm": "ami-0800c0a6449bf381b",
-            "10": "ami-0203774689199737e"
+            "9": "ami-07c36966cbd20539f",
+            "9-selinux-npm": "ami-0800c0a6449bf381b"
         }
     },
     "suse": {
         "arm64": {
-            "15-4": "ami-0d4afd2f545696595"
+            "15-4": "ami-0054b731243232980"
         },
         "x86_64": {
-            "12": "ami-073614fc408ea4c0e",
-            "15-4": "ami-011fc7361d5dd06d1"
+            "12": "ami-0c4b5c7fbb74669c4",
+            "15-4": "ami-0f35ad99166eb42c8"
         }
     },
     "ubuntu": {
         "arm64": {
-            "18-04": "ami-030c578ba48699e2d",
-            "20-04": "ami-0ddd19814e441dbda",
-            "24-04": "ami-09bc641dcce47f5d9"
+            "18-04": "ami-00a87b97aa1259bbe",
+            "20-04": "ami-045b53e67b67fcd4c",
+            "24-04": "ami-0d4a1b77a6b748029"
         },
         "x86_64": {
-            "16-04": "ami-01e8392f42693ed85",
-            "18-04": "ami-016df41acf36b4cc7",
-            "18-04-gpu-driver-430": "ami-0ae1e734d6994d00b",
-            "18-04-gpu-driver-510": "ami-0cfe6ff12b2f5e333",
-            "20-04": "ami-08b7b6b1a33c2c5c4",
-            "22-04": "ami-0c75be60114191340",
-            "22-04-e2e": "ami-02c30d29c56aabc9f",
-            "22-04-gpu": "ami-07bfc17326c424764",
-            "24-04": "ami-0b958b92f3311629a",
-            "24-04-e2e": "ami-0b958b92f3311629a",
-            "24-04-e2e-kind": "ami-00fb0108a23f0e93b"
+            "16-04": "ami-04bbb3181523aa803",
+            "18-04": "ami-0bd6817dfb6593880",
+            "18-04-gpu-driver-430": "ami-02ddee1dc3505dfa9",
+            "18-04-gpu-driver-510": "ami-075f2ce1422457321",
+            "20-04": "ami-0586b812b85343589",
+            "22-04": "ami-048e686e06e27ec6f",
+            "22-04-gpu": "ami-0fb8a7b589551f3fc",
+            "24-04": "ami-0c50c3d0a7e476e88",
+            "24-04-kind": "ami-0fe8eb678583ac672"
         }
     },
     "windows-server": {
         "x86_64": {
-            "2016": "ami-02d12824a464a28ae",
-            "2016-e2e": "ami-04cb7ca66cb9a78bc",
-            "2019": "ami-0cd77a1bbde0488e2",
-            "2019-e2e": "ami-0697e82efa16f6507",
-            "2022": "ami-0fcc930391c87ec7b",
-            "2022-e2e": "ami-0b38e245cce236298",
-            "2025": "ami-0d03f0a2f81ced53e",
-            "2025-e2e": "ami-0cacaf1f741b4ba78"
+            "2016": "ami-0716ab7c2f167671b",
+            "2019": "ami-0a208b5a0488ed107",
+            "2022": "ami-043794ea67c7fecaa",
+            "2025": "ami-05b1a0ac49d1327f5"
         }
     }
 }

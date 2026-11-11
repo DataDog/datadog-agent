@@ -23,7 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/process/runner/endpoint"
 	"github.com/DataDog/datadog-agent/pkg/process/status"
 	"github.com/DataDog/datadog-agent/pkg/process/util"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 var _ expvars.Component = (*expvarServer)(nil)
@@ -105,7 +105,7 @@ func InitProcessStatus(
 	status.UpdateDockerSocket(dockerSock)
 
 	// If the sysprobe module is enabled, the process check can call out to the sysprobe for privileged stats
-	_, processModuleEnabled := SysProbeConfig.SysProbeObject().EnabledModules[sysconfig.ProcessModule]
+	_, processModuleEnabled := SysProbeConfig.SysProbeObject().EnabledModules[sysconfigtypes.ProcessModule]
 	eps, err := endpoint.GetAPIEndpoints(Config)
 	if err != nil {
 		_ = Log.Criticalf("Failed to initialize Api Endpoints: %s", err.Error())

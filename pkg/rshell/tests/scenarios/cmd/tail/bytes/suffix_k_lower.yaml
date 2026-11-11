@@ -1,0 +1,13 @@
+description: tail -c 1k outputs the last 1024 bytes (lowercase k is a GNU alias for K).
+setup:
+  files:
+    - path: file.txt
+      content: "hello\nworld\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -c 1k file.txt
+expect:
+  stdout: "hello\nworld\n"
+  stderr: ""
+  exit_code: 0

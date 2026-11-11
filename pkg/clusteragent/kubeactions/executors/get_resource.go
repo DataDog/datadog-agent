@@ -20,6 +20,7 @@ import (
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/util/validation"
 	"k8s.io/client-go/dynamic"
 
 	kubeactions "github.com/DataDog/agent-payload/v5/kubeactions"
@@ -72,6 +73,36 @@ func NewGetResourceExecutor(dynamicClient dynamic.Interface) *GetResourceExecuto
 	}
 }
 
+// ParseGetResourceGVR parses apiVersion and kind into a GroupVersionResource and
+// validates that each component is a single, well-formed path segment.
+// The dynamic client joins these components into the request URL with path.Join
+// without validating them, so a value containing "/" or ".." would otherwise let
+// the caller reach an arbitrary API path (e.g. kind "configmaps/../secrets").
+func ParseGetResourceGVR(apiVersion, kind string) (schema.GroupVersionResource, error) {
+	apiVersion = strings.ToLower(apiVersion)
+	kind = strings.ToLower(kind)
+
+	// core resources have no group (e.g. "v1"), others use "group/version" (e.g. "apps/v1").
+	var group, version string
+	if parts := strings.SplitN(apiVersion, "/", 2); len(parts) == 2 {
+		group, version = parts[0], parts[1]
+		if errs := validation.IsDNS1123Subdomain(group); len(errs) != 0 {
+			return schema.GroupVersionResource{}, fmt.Errorf("invalid api group %q: %s", group, strings.Join(errs, "; "))
+		}
+	} else {
+		version = apiVersion
+	}
+
+	if errs := validation.IsDNS1035Label(version); len(errs) != 0 {
+		return schema.GroupVersionResource{}, fmt.Errorf("invalid api version %q: %s", version, strings.Join(errs, "; "))
+	}
+	if errs := validation.IsDNS1123Label(kind); len(errs) != 0 {
+		return schema.GroupVersionResource{}, fmt.Errorf("invalid resource kind %q: %s", kind, strings.Join(errs, "; "))
+	}
+
+	return schema.GroupVersionResource{Group: group, Version: version, Resource: kind}, nil
+}
+
 func getResourceName(kind, namespace, name string) string {
 	return path.Join(kind, namespace, name)
 }
@@ -79,8 +110,11 @@ func getResourceName(kind, namespace, name string) string {
 // Execute retrieves the specified Kubernetes resource and returns it as JSON string in the message field of ExecutionResult
 func (e *GetResourceExecutor) Execute(ctx context.Context, action *kubeactions.KubeAction) ExecutionResult {
 	resource := action.Resource
-	namespace := strings.ToLower(resource.GetNamespace())
-	name := strings.ToLower(resource.GetName())
+	// namespace and name are used as-is: lowercasing them would let a value like
+	// "Kube-System" pass the validator's protected-namespace check and still
+	// resolve to "kube-system".
+	namespace := resource.GetNamespace()
+	name := resource.GetName()
 	apiVersion := strings.ToLower(resource.GetApiVersion())
 	kind := strings.ToLower(resource.GetKind())
 
@@ -99,18 +133,15 @@ func (e *GetResourceExecutor) Execute(ctx context.Context, action *kubeactions.K
 		}
 	}
 
-	// parse apiVersion into group and version for the dynamic client.
-	// core resources have no group (e.g. "v1"), others use "group/version" (e.g. "apps/v1").
-	var group, version string
-	if parts := strings.SplitN(apiVersion, "/", 2); len(parts) == 2 {
-		group, version = parts[0], parts[1]
-	} else {
-		version = apiVersion
+	gvr, err := ParseGetResourceGVR(apiVersion, kind)
+	if err != nil {
+		return ExecutionResult{
+			Status:  StatusFailed,
+			Message: err.Error(),
+		}
 	}
 
 	resourceName := getResourceName(kind, namespace, name)
-
-	gvr := schema.GroupVersionResource{Group: group, Version: version, Resource: kind}
 
 	ctx, cancel := context.WithTimeout(ctx, defaultExecutorTimeout)
 	defer cancel()

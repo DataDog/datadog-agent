@@ -8,13 +8,13 @@ package modules
 import (
 	"github.com/DataDog/datadog-agent/pkg/network/driver"
 	"github.com/DataDog/datadog-agent/pkg/system-probe/api/module"
-	"github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // Traceroute is a factory for NDMs Traceroute module
 var Traceroute = &module.Factory{
-	Name: config.TracerouteModule,
+	Name: sysconfigtypes.TracerouteModule,
 	Fn:   createTracerouteModule,
 }
 

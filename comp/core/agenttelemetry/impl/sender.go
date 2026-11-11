@@ -15,6 +15,7 @@ import (
 	"net"
 	"net/http"
 	"net/url"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
@@ -26,6 +27,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/config"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logconfig "github.com/DataDog/datadog-agent/comp/logs/agent/config"
+	"github.com/DataDog/datadog-agent/pkg/config/env"
 	hostinfoutils "github.com/DataDog/datadog-agent/pkg/util/hostinfo"
 	httputils "github.com/DataDog/datadog-agent/pkg/util/http"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
@@ -101,6 +103,10 @@ type AgentMetadataPayload struct {
 	Hostname string `json:"hostname"`
 	OS       string `json:"os"`
 	OSVer    string `json:"osver"`
+	// Features are the environment features autodetected by the Agent (docker, kubernetes,
+	// ecsfargate...). They are copied into every metrics and event payload, so telemetry can be
+	// split by environment without correlating payloads.
+	Features []string `json:"features"`
 }
 
 // Payload defines the top level object in the payload
@@ -209,6 +215,15 @@ func getEndpoints(cfgComp config.Component) (*logconfig.Endpoints, error) {
 		telemetryHostnameEndpointPrefix, telemetryIntakeTrackType, logconfig.DefaultIntakeProtocol, logconfig.DefaultIntakeOrigin)
 }
 
+func detectedFeatures() []string {
+	features := make([]string, 0)
+	for f := range env.GetDetectedFeatures() {
+		features = append(features, string(f))
+	}
+	slices.Sort(features)
+	return features
+}
+
 func newSenderImpl(
 	cfgComp config.Component,
 	logComp log.Component,
@@ -259,6 +274,7 @@ func newSenderImpl(
 			Hostname: info.Hostname,
 			OS:       info.OS,
 			OSVer:    info.PlatformVersion,
+			Features: detectedFeatures(),
 		},
 		agentMetricsPayloadTemplate: AgentMetricsPayload{
 			Message: "Agent metrics",

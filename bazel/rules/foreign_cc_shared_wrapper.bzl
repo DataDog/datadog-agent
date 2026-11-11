@@ -57,6 +57,7 @@ def _foreign_cc_shared_wrapper_impl(ctx):
 
 foreign_cc_shared_wrapper = rule(
     implementation = _foreign_cc_shared_wrapper_impl,
+    provides = [CcInfo, CcSharedLibraryInfo],
     attrs = {
         "input": attr.label(
             mandatory = True,

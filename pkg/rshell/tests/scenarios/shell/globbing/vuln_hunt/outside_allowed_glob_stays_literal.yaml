@@ -1,0 +1,20 @@
+# skip: AllowedPaths sandbox restrictions are rshell-specific.
+skip_assert_against_bash: true
+description: Glob patterns outside AllowedPaths stay literal instead of disclosing matching names.
+setup:
+  files:
+    - path: allowed/ok.txt
+      content: "ok\n"
+    - path: secret/a.txt
+      content: "secret-a\n"
+    - path: secret/b.txt
+      content: "secret-b\n"
+input:
+  allowed_paths: ["allowed"]
+  script: |+
+    echo secret/*.txt
+expect:
+  stdout: |+
+    secret/*.txt
+  stderr: ""
+  exit_code: 0

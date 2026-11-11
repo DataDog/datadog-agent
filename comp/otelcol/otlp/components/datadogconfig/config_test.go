@@ -34,31 +34,24 @@ func TestValidate(t *testing.T) {
 	someAuth := configoptional.Some(configauth.Config{AuthenticatorID: component.NewID(ty)})
 
 	tlsClientConfig := confighttp.NewDefaultClientConfig()
-	// TODO: See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/49316.
-	tlsClientConfig.MaxIdleConns = 0
-	tlsClientConfig.IdleConnTimeout = 0
 	tlsClientConfig.ForceAttemptHTTP2 = false
 	tlsClientConfig.TLS = configtls.ClientConfig{
 		InsecureSkipVerify: true,
 	}
 
 	httpClientConfig := confighttp.NewDefaultClientConfig()
-	// TODO: See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/49316.
 	httpClientConfig.ForceAttemptHTTP2 = false
 	httpClientConfig.ReadBufferSize = 100
 	httpClientConfig.WriteBufferSize = 200
 	httpClientConfig.Timeout = 10 * time.Second
-	httpClientConfig.IdleConnTimeout = idleConnTimeout
-	httpClientConfig.MaxIdleConns = maxIdleConn
-	httpClientConfig.MaxIdleConnsPerHost = maxIdleConnPerHost
+	httpClientConfig.IdleConnTimeout = idleConnTimeout        //nolint:staticcheck // SA1019: IdleConnTimeout is deprecated in favor of Keepalive.IdleConnTimeout.
+	httpClientConfig.MaxIdleConns = maxIdleConn               //nolint:staticcheck // SA1019: MaxIdleConns is deprecated in favor of Keepalive.MaxIdleConns.
+	httpClientConfig.MaxIdleConnsPerHost = maxIdleConnPerHost //nolint:staticcheck // SA1019: MaxIdleConnsPerHost is deprecated in favor of Keepalive.MaxIdleConnsPerHost.
 	httpClientConfig.MaxConnsPerHost = maxConnPerHost
-	httpClientConfig.DisableKeepAlives = true
+	httpClientConfig.DisableKeepAlives = true //nolint:staticcheck // SA1019: DisableKeepAlives is deprecated, set Keepalive.Enabled to false instead.
 	httpClientConfig.TLS = configtls.ClientConfig{InsecureSkipVerify: true}
 
 	unsupportedClientConfig := confighttp.NewDefaultClientConfig()
-	// TODO: See https://github.com/open-telemetry/opentelemetry-collector-contrib/issues/49316.
-	unsupportedClientConfig.MaxIdleConns = 0
-	unsupportedClientConfig.IdleConnTimeout = 0
 	unsupportedClientConfig.ForceAttemptHTTP2 = false
 	unsupportedClientConfig.Endpoint = "endpoint"
 	unsupportedClientConfig.Compression = "gzip"
@@ -294,20 +287,20 @@ func TestValidateConnectorComponentConfig(t *testing.T) {
 }
 
 func TestUnmarshal(t *testing.T) {
+	httpConfigs := map[string]any{
+		"read_buffer_size":        100,
+		"write_buffer_size":       200,
+		"timeout":                 "10s",
+		"max_idle_conns":          300,
+		"max_idle_conns_per_host": 150,
+		"max_conns_per_host":      250,
+		"disable_keep_alives":     true,
+		"idle_conn_timeout":       "30s",
+		"tls":                     map[string]any{"insecure_skip_verify": true},
+	}
+	// Create confighttp.ClientConfig via unmarshaling to preserve internal state.
 	cfgWithHTTPConfigs := CreateDefaultConfig().(*Config)
-	idleConnTimeout := 30 * time.Second
-	maxIdleConn := 300
-	maxIdleConnPerHost := 150
-	maxConnPerHost := 250
-	cfgWithHTTPConfigs.ReadBufferSize = 100
-	cfgWithHTTPConfigs.WriteBufferSize = 200
-	cfgWithHTTPConfigs.Timeout = 10 * time.Second
-	cfgWithHTTPConfigs.MaxIdleConns = maxIdleConn
-	cfgWithHTTPConfigs.MaxIdleConnsPerHost = maxIdleConnPerHost
-	cfgWithHTTPConfigs.MaxConnsPerHost = maxConnPerHost
-	cfgWithHTTPConfigs.IdleConnTimeout = idleConnTimeout
-	cfgWithHTTPConfigs.DisableKeepAlives = true
-	cfgWithHTTPConfigs.TLS.InsecureSkipVerify = true
+	require.NoError(t, confmap.NewFromStringMap(httpConfigs).Unmarshal(&cfgWithHTTPConfigs.ClientConfig))
 	cfgWithHTTPConfigs.warnings = nil
 
 	tests := []struct {
@@ -451,19 +444,9 @@ func TestUnmarshal(t *testing.T) {
 			err: "\"metrics::sums::initial_cumulative_monotonic_value\" can only be configured when \"metrics::sums::cumulative_monotonic_mode\" is set to \"to_delta\"",
 		},
 		{
-			name: "unmarshall confighttp client configs",
-			configMap: confmap.NewFromStringMap(map[string]any{
-				"read_buffer_size":        100,
-				"write_buffer_size":       200,
-				"timeout":                 "10s",
-				"max_idle_conns":          300,
-				"max_idle_conns_per_host": 150,
-				"max_conns_per_host":      250,
-				"disable_keep_alives":     true,
-				"idle_conn_timeout":       "30s",
-				"tls":                     map[string]any{"insecure_skip_verify": true},
-			}),
-			cfg: cfgWithHTTPConfigs,
+			name:      "unmarshall confighttp client configs",
+			configMap: confmap.NewFromStringMap(httpConfigs),
+			cfg:       cfgWithHTTPConfigs,
 		},
 	}
 
@@ -479,6 +462,37 @@ func TestUnmarshal(t *testing.T) {
 			} else {
 				assert.Equal(t, testInstance.cfg, cfg)
 			}
+		})
+	}
+}
+
+func TestUnmarshalRecordsExplicitQueueNumConsumers(t *testing.T) {
+	tests := []struct {
+		name      string
+		configMap map[string]any
+		want      bool
+	}{
+		{
+			name:      "sending_queue not set",
+			configMap: map[string]any{},
+			want:      false,
+		},
+		{
+			name:      "sending_queue without num_consumers",
+			configMap: map[string]any{"sending_queue": map[string]any{"batch": nil}},
+			want:      false,
+		},
+		{
+			name:      "num_consumers set to the exporterhelper default",
+			configMap: map[string]any{"sending_queue": map[string]any{"num_consumers": exporterhelper.NewDefaultQueueConfig().NumConsumers}},
+			want:      true,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			cfg := CreateDefaultConfig().(*Config)
+			require.NoError(t, cfg.Unmarshal(confmap.NewFromStringMap(tt.configMap)))
+			assert.Equal(t, tt.want, cfg.IsQueueNumConsumersSet())
 		})
 	}
 }

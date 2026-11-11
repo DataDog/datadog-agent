@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment counts the open of a package file only when the
+    file can hold code: an executable, a shared library, a kernel module or
+    a module of an interpreter, outside of ``/etc``. Reads of data, such as
+    time zones, certificates or os-release, and the shell snippets of
+    ``/etc/profile.d`` marked their packages as running as root.

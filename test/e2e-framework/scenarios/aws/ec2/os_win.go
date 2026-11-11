@@ -10,7 +10,18 @@ import (
 	"os"
 	"strings"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/common/utils"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/command"
 	componentsos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/remote"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/resources/aws"
+
+	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
+)
+
+const (
+	windowsTrackSSHActivityScriptPath         = "C:/ProgramData/dd-e2e/track-ssh-activity.ps1"
+	windowsRegisterTrackSSHActivityScriptPath = "C:/ProgramData/dd-e2e/register-track-ssh-activity.ps1"
 )
 
 func getWindowsOpenSSHUserData(publicKeyPath string) (string, error) {
@@ -51,4 +62,43 @@ func buildAWSPowerShellUserData(scriptContent string, arguments ...windowsPowerS
 	userDataLines = append(userDataLines, "<persist>true</persist>")
 
 	return strings.Join(userDataLines, "\n")
+}
+
+// installWindowsSSHActivityTracking copies track-ssh-activity.ps1 to the host and schedules it with
+// register-track-ssh-activity.ps1, so that the "last-activity" tag is kept up to date while the VM is
+// used over SSH. Unlike on Linux, it is not installed through the user data, which is already close to
+// EC2's 16 KB limit on Windows.
+func installWindowsSSHActivityTracking(e aws.Environment, host *remote.Host, opts []pulumi.ResourceOption) error {
+	dirCmd, err := host.OS.FileManager().CreateDirectoryForFile(windowsTrackSSHActivityScriptPath, false, opts...)
+	if err != nil {
+		return err
+	}
+
+	copyTrackCmd, err := host.OS.FileManager().CopyInlineFile(
+		pulumi.String(componentsos.WindowsTrackSSHActivityScriptContent),
+		windowsTrackSSHActivityScriptPath,
+		utils.MergeOptions(opts, utils.PulumiDependsOn(dirCmd))...)
+	if err != nil {
+		return err
+	}
+
+	copyRegisterCmd, err := host.OS.FileManager().CopyInlineFile(
+		pulumi.String(componentsos.WindowsRegisterTrackSSHActivityScriptContent),
+		windowsRegisterTrackSSHActivityScriptPath,
+		utils.MergeOptions(opts, utils.PulumiDependsOn(dirCmd))...)
+	if err != nil {
+		return err
+	}
+
+	_, err = host.OS.Runner().Command(
+		e.CommonNamer().ResourceName("track-ssh-activity"),
+		&command.Args{
+			Create: pulumi.String(fmt.Sprintf("powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File %s -ScriptPath %s",
+				windowsRegisterTrackSSHActivityScriptPath, windowsTrackSSHActivityScriptPath)),
+			// The command line does not change with the registration script, so register the task
+			// again when the script content changes
+			Triggers: pulumi.Array{pulumi.String(utils.StrHash(componentsos.WindowsRegisterTrackSSHActivityScriptContent))},
+		},
+		utils.MergeOptions(opts, utils.PulumiDependsOn(copyTrackCmd, copyRegisterCmd))...)
+	return err
 }

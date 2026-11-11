@@ -1,0 +1,8 @@
+description: Incomplete specifier with width produces an error.
+input:
+  script: |+
+    printf "%10"
+expect:
+  stdout: ""
+  stderr_contains: ["printf: `%10': missing format character"]
+  exit_code: 1

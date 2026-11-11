@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe keeps the SBOM of a container whose
+    package database changes while the container waits for its scan, as when
+    its entrypoint installs packages. Such a container lost its package usage
+    for its life.

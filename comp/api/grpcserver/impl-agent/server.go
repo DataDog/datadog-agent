@@ -282,11 +282,12 @@ func registerRemoteAgent(registry remoteagentregistry.Component, in *pb.Register
 	}
 
 	registration := &remoteagentregistry.RegistrationData{
-		AgentPID:         in.Pid,
-		AgentFlavor:      in.Flavor,
-		AgentDisplayName: in.DisplayName,
-		APIEndpointURI:   in.ApiEndpointUri,
-		Services:         in.Services,
+		AgentPID:          in.Pid,
+		ProcessInstanceID: in.ProcessInstanceId,
+		AgentFlavor:       in.Flavor,
+		AgentDisplayName:  in.DisplayName,
+		APIEndpointURI:    in.ApiEndpointUri,
+		Services:          in.Services,
 	}
 	sessionID, recommendedRefreshIntervalSecs, err := registry.RegisterRemoteAgent(registration)
 	if err != nil {
@@ -365,7 +366,7 @@ func (s *serverSecure) AutodiscoveryStreamConfig(_ *emptypb.Empty, out pb.AgentS
 }
 
 func (s *serverSecure) GetHostTags(ctx context.Context, _ *pb.HostTagRequest) (*pb.HostTagReply, error) {
-	tags := hosttags.Get(ctx, true, s.configComp)
+	tags := hosttags.Get(ctx, true, s.configComp, true)
 	return &pb.HostTagReply{System: tags.System, GoogleCloudPlatform: tags.GoogleCloudPlatform}, nil
 }
 

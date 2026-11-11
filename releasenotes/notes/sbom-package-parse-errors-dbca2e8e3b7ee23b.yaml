@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    The SBOM resolver of system-probe skips only the dpkg or apk database
+    record that fails to parse. A malformed line in an md5sums file dropped
+    every file of its package, and an unreadable status.d file or an
+    overlong record dropped every package of the database, so their runtime
+    usage went unreported.

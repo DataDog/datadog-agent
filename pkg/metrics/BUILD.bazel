@@ -71,6 +71,7 @@ dd_agent_go_test(
     ],
     embed = [":metrics"],
     deps = [
+        "//comp/core/telemetry/impl",
         "//pkg/aggregator/ckey",
         "//pkg/config/mock",
         "//pkg/config/model",

@@ -1,0 +1,15 @@
+description: awk treats numeric ENVIRON values as numeric strings.
+input:
+  envs:
+    NUMERIC_ENV: "10"
+  interpreter_env:
+    NUMERIC_ENV: "10"
+  script: |+
+    awk 'BEGIN { print ENVIRON["NUMERIC_ENV"] < 2, ENVIRON["NUMERIC_ENV"] + 0, ENVIRON["NUMERIC_ENV"] == 10 }'
+    awk 'BEGIN { print (length(ENVIRON) > 0), ("NUMERIC_ENV" in ENVIRON) }'
+expect:
+  stdout: |+
+    0 10 1
+    1 1
+  stderr: |+
+  exit_code: 0

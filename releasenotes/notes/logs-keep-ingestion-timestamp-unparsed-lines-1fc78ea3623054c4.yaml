@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Fix container log lines that could not be parsed as Kubernetes logs, and
+    empty Docker log lines, losing the time the Agent read them. This also
+    applied to any multi-line log ending in such a line. These logs skewed
+    the reported logs latency, and their position in the file was not saved,
+    so they could be sent again after an Agent restart.

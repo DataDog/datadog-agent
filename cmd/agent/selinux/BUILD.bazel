@@ -1,3 +1,4 @@
+load("@bazel_lib//lib:write_source_files.bzl", "write_source_file")
 load("//bazel/rules/selinux:selinux.bzl", "compile_selinux_policy")
 
 # Compiles the system-probe policy source (.te) into a packaged module (.pp)
@@ -11,4 +12,14 @@ compile_selinux_policy(
     policy_version = 19,
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
+)
+
+# bazel run //cmd/agent/selinux:write_system_probe_policy
+# The .pp is not checked in, so there is nothing to diff against.
+write_source_file(
+    name = "write_system_probe_policy",
+    diff_test = False,
+    in_file = ":system_probe_policy",
+    out_file = "system_probe_policy.pp",
+    target_compatible_with = ["@platforms//os:linux"],
 )

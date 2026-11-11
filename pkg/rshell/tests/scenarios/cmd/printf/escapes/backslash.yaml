@@ -1,0 +1,8 @@
+description: Printf interprets double backslash as a literal backslash.
+input:
+  script: |+
+    printf "a\\\\b\n"
+expect:
+  stdout: "a\\b\n"
+  stderr: ""
+  exit_code: 0

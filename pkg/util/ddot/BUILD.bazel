@@ -1,0 +1,24 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "ddot",
+    srcs = ["ddot.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/ddot",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/util/flavor",
+    ],
+)
+
+dd_agent_go_test(
+    name = "ddot_test",
+    srcs = ["ddot_test.go"],
+    embed = [":ddot"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/util/flavor",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

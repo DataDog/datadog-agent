@@ -21,7 +21,7 @@ type FlareProvider struct {
 }
 
 // ProvideFlare generates a host SBOM and adds it to the flare.
-func (p *FlareProvider) ProvideFlare(_ context.Context, fb flaretypes.FlareBuilder) error {
+func (p *FlareProvider) ProvideFlare(ctx context.Context, fb flaretypes.FlareBuilder) error {
 	if !p.Config.GetBool("sbom.host.enabled") {
 		return nil
 	}
@@ -31,7 +31,7 @@ func (p *FlareProvider) ProvideFlare(_ context.Context, fb flaretypes.FlareBuild
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second*10)
+	ctx, cancel := context.WithTimeout(ctx, time.Second*10)
 	defer cancel()
 
 	scanRequest := NewHostScanRequest()

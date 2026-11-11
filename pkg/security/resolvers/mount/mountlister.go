@@ -144,6 +144,7 @@ func newMountFromStatmount(sm *Statmount) *model.Mount {
 		Origin:        model.MountOriginListmount,
 		Visible:       true,
 		Detached:      false,
+		MountFlags:    model.NormalizeMountFlagsFromAttr(sm.MntAttr),
 	}
 }
 
@@ -221,15 +222,37 @@ func collectUniqueMountNSFDs(procfs string) ([]int, error) {
 
 // GetPidListmount does a listmount for the mount namespace of a specific pid and calls cb() for each entry found
 func GetPidListmount(procfs string, pid uint32, cb func(*model.Mount)) error {
-	path := filepath.Join(procfs, strconv.Itoa(int(pid)), "ns", "mnt")
-	fd, err := unix.Open(path, unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	pidStr := strconv.Itoa(int(pid))
+	pidDir := filepath.Join(procfs, pidStr)
+	fd, err := unix.Open(filepath.Join(pidDir, "ns", "mnt"), unix.O_RDONLY|unix.O_CLOEXEC, 0)
+	if err != nil {
+		entries, readDirErr := os.ReadDir(filepath.Join(pidDir, "task"))
+		if readDirErr == nil {
+			for _, entry := range entries {
+				tidStr := entry.Name()
+				if tidStr == pidStr {
+					continue
+				}
+				if taskFD, taskErr := unix.Open(filepath.Join(pidDir, "task", tidStr, "ns", "mnt"), unix.O_RDONLY|unix.O_CLOEXEC, 0); taskErr == nil {
+					fd, err = taskFD, nil
+					break
+				}
+			}
+		}
+	}
 	if err != nil {
 		return fmt.Errorf("error opening mount namespace: %w", err)
 	}
 	return getAllFromList([]int{fd}, cb)
 }
 
-func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
+func getFdListmount(nsfd int, cb func(*model.Mount)) error {
+	var nsStat unix.Stat_t
+	if err := unix.Fstat(nsfd, &nsStat); err != nil {
+		return fmt.Errorf("failed to stat mount namespace: %w", err)
+	}
+	nsInode := uint32(nsStat.Ino)
+
 	ids := make([]uint64, 2048)
 	buf := make([]byte, 4096)
 	firstIteration := true
@@ -280,7 +303,7 @@ func getFdListmount(nsfd int, ino uint64, cb func(*model.Mount)) error {
 			}
 			sm := parseStatmount(buf)
 			mnt := newMountFromStatmount(&sm)
-			mnt.NamespaceInode = uint32(ino)
+			mnt.NamespaceInode = nsInode
 			mounts = append(mounts, mnt)
 			lastMountID = req2.MntID
 		}
@@ -323,7 +346,7 @@ func getAllFromList(lst []int, cb func(*model.Mount)) error {
 		}
 
 		for _, fd := range lst {
-			err := getFdListmount(fd, 0, cb)
+			err := getFdListmount(fd, cb)
 			if err != nil {
 				done <- err
 				return

@@ -1,0 +1,13 @@
+description: strings -o -t d uses last flag wins; -t d appears last so output is decimal.
+setup:
+  files:
+    - path: data.bin
+      content: "hello_here\nworld_too\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -o -t d data.bin
+expect:
+  stdout: "      0 hello_here\n     11 world_too\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,17 @@
+description: HOME='' (set but empty) makes `cd` a no-op success, matching bash.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd child
+    saved=$(pwd)
+    HOME= cd
+    if [ "$(pwd)" = "$saved" ]; then echo unchanged; else echo "moved: $(pwd)"; fi
+expect:
+  stdout: |+
+    unchanged
+  stderr: ""
+  exit_code: 0

@@ -1,4 +1,5 @@
 load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "crashreport",
@@ -9,10 +10,28 @@ go_library(
         "@rules_go//go/platform:windows": [
             "//pkg/collector/corechecks/system/wincrashdetect/probe",
             "//pkg/config/setup",
+            "//pkg/persistentcache",
             "//pkg/system-probe/api/client",
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "//pkg/util/log",
             "//pkg/util/retry",
+            "@org_golang_x_sys//windows/registry",
+        ],
+        "//conditions:default": [],
+    }),
+)
+
+dd_agent_go_test(
+    name = "crashreport_test",
+    srcs = ["crashreport_windows_test.go"],
+    embed = [":crashreport"],
+    target_compatible_with = ["@platforms//os:windows"],
+    deps = select({
+        "@rules_go//go/platform:windows": [
+            "//pkg/collector/corechecks/system/wincrashdetect/probe",
+            "//pkg/config/mock",
+            "//pkg/persistentcache",
+            "@com_github_stretchr_testify//require",
             "@org_golang_x_sys//windows/registry",
         ],
         "//conditions:default": [],

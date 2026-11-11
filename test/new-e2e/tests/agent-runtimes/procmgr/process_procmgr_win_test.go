@@ -15,6 +15,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/test/e2e-framework/components/datadog/agentparams"
 	e2eos "github.com/DataDog/datadog-agent/test/e2e-framework/components/os"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/scenarios/aws/ec2"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
@@ -31,6 +32,13 @@ const (
 	legacySCMLogLevel = "warn"
 
 	staleFleetPoliciesMarker = "procmgr-e2e-stale-fleet-dir"
+
+	// Config that enables configstream, so we don't need to depend on default state
+	processProcmgrAgentConfig = `remote_agent:
+  configstream:
+    consumer:
+      enabled: true
+`
 )
 
 type processProcmgrWindowsSuite struct {
@@ -52,7 +60,7 @@ func TestProcessAgentManagedByProcmgrWindows(t *testing.T) {
 		awshost.ProvisionerNoFakeIntake(
 			awshost.WithRunOptions(
 				ec2.WithEC2InstanceOptions(ec2.WithOS(e2eos.WindowsServerDefault)),
-				ec2.WithAgentOptions(),
+				ec2.WithAgentOptions(agentparams.WithAgentConfig(processProcmgrAgentConfig)),
 			),
 		),
 	))
@@ -217,7 +225,7 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentInheritsFilteredLegacyScmEn
 	mergeLinesBefore, err := mergeLines()
 	require.NoError(s.T(), err)
 
-	// With config streaming, the default, process-agent drops its own env-var config layer
+	// With config streaming, which this suite enables, process-agent drops its own env-var config layer
 	// so the core Agent's values win, and names every setting a DD_* var tried to set in a
 	// one-time warning. That warning is the only view of the child's environment the
 	// process gives, so it is what shows which merged keys reached it.
@@ -295,8 +303,8 @@ func (s *processProcmgrWindowsSuite) TestProcessAgentPrivilegedSpawnRejectsYamlM
 
 	// A rejected privileged spawn leaves the process not running, so restoring the file is
 	// not enough on its own: reload restarts only processes that were running when their
-	// config changed, and auto-starts only ones still in Created. Neither covers a process
-	// that failed to spawn, so the restore has to start it explicitly.
+	// config changed, and auto-starts only ones still in Created or Skipped. Neither covers
+	// a process that failed to spawn, so the restore has to start it explicitly.
 	//
 	// Only the file write is required to succeed. start reports an error when the process
 	// is already running, which is the usual case for the deferred pass, and a dd-procmgr

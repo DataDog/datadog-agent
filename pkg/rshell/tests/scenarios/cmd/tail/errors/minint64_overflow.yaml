@@ -1,0 +1,13 @@
+description: tail -n -9223372036854775808 is treated as a very large count (clamped), matching GNU tail which prints the file rather than erroring.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    tail -n -9223372036854775808 file.txt
+expect:
+  stdout: "hello\n"
+  stderr: ""
+  exit_code: 0

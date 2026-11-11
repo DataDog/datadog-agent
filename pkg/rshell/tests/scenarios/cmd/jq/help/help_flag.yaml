@@ -1,0 +1,10 @@
+description: jq --help describes the bounded builtin surface.
+# rshell builtin help output intentionally differs from upstream jq.
+skip_assert_against_bash: true
+input:
+  script: |+
+    jq --help
+expect:
+  stdout_contains: ["Usage: jq", "--arg", "--argjson"]
+  stderr: |+
+  exit_code: 0

@@ -45,16 +45,18 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
                     }
                 ),
             )
+        # 50 MiB headroom (> 10 MiB): bank 70% → new max = 65_000_000 (~61.99 MiB)
         self.assertEqual(
             new_config["static_quality_gate_agent_suse_amd64"]["max_on_wire_size"],
-            "48.64 MiB",
-            f"Expected 48.64 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_wire_size']}",
+            "61.99 MiB",
+            f"Expected 61.99 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_wire_size']}",
         )
         self.assertEqual(
             new_config["static_quality_gate_agent_suse_amd64"]["max_on_disk_size"],
-            "48.64 MiB",
-            f"Expected 48.64 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_disk_size']}",
+            "61.99 MiB",
+            f"Expected 61.99 MiB got {new_config['static_quality_gate_agent_suse_amd64']['max_on_disk_size']}",
         )
+        # 1 MiB headroom (<= 10 MiB): leave thresholds unchanged
         self.assertEqual(
             new_config["static_quality_gate_agent_deb_amd64"]["max_on_wire_size"],
             "4.77 MiB",
@@ -65,6 +67,8 @@ class TestQualityGatesConfigUpdate(unittest.TestCase):
             "4.77 MiB",
             f"Expected 4.77 MiB got {new_config['static_quality_gate_agent_deb_amd64']['max_on_disk_size']}",
         )
+        # suse + docker each bank 35M on wire and disk; deb unchanged
+        self.assertEqual(saved_amount, 4 * 35_000_000)
 
 
 class TestIdentifyFailingGates(unittest.TestCase):

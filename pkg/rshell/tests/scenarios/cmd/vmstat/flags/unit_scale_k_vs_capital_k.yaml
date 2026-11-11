@@ -1,0 +1,21 @@
+description: vmstat -s -S k (1000) and -S K (1024) scale "total memory" differently — the k/K cases were previously only checked for exit code, never for actually differing output (unlike the already-checked m/M case).
+# skip: vmstat is not present in debian:bookworm-slim, and output reflects
+# live host state.
+skip_assert_against_bash: true
+# skip: vmstat is not supported on Windows (see AGENTS.md); this scenario
+# requires real output, which only exists on Linux/macOS.
+skip_windows: true
+input:
+  script: |+
+    k_val=$(vmstat -s -S k | grep "total memory" | tr -s ' ' | cut -d' ' -f2)
+    K_val=$(vmstat -s -S K | grep "total memory" | tr -s ' ' | cut -d' ' -f2)
+    if [ "$k_val" -gt "$K_val" ]; then
+      echo "distinguished"
+    else
+      echo "not distinguished: k=$k_val K=$K_val"
+    fi
+expect:
+  stdout: |+
+    distinguished
+  stderr: |+
+  exit_code: 0

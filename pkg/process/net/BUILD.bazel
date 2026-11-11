@@ -19,7 +19,7 @@ go_library(
             "//pkg/process/encoding/request",
             "//pkg/proto/pbgo/process",
             "//pkg/system-probe/api/client",
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "@com_github_datadog_agent_payload_v5//process",
         ],
         "@rules_go//go/platform:darwin": [
@@ -45,7 +45,7 @@ go_library(
             "//pkg/process/encoding/request",
             "//pkg/proto/pbgo/process",
             "//pkg/system-probe/api/client",
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "@com_github_datadog_agent_payload_v5//process",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -71,7 +71,7 @@ go_library(
             "//pkg/process/encoding/request",
             "//pkg/proto/pbgo/process",
             "//pkg/system-probe/api/client",
-            "//pkg/system-probe/config",
+            "//pkg/system-probe/config/types",
             "@com_github_datadog_agent_payload_v5//process",
         ],
         "//conditions:default": [],

@@ -44,7 +44,7 @@ import (
 	proccontainers "github.com/DataDog/datadog-agent/pkg/process/util/containers"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/trace/traceutil/normalize"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -420,7 +420,7 @@ func (c *collector) getDiscoveryServices(newPids []int32, heartbeatPids []int32)
 		HeartbeatPids: heartbeatPids,
 	}
 
-	response, err := sysprobeclient.Post[model.ServicesResponse](c.sysProbeClient, "/services", params, sysconfig.DiscoveryModule)
+	response, err := sysprobeclient.Post[model.ServicesResponse](c.sysProbeClient, "/services", params, sysconfigtypes.DiscoveryModule)
 	if err != nil {
 		return nil, err
 	}

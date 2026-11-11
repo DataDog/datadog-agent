@@ -27,7 +27,7 @@ import (
 )
 
 var (
-	advapi32                        = syscall.NewLazyDLL("advapi32.dll")
+	advapi32                        = windows.NewLazySystemDLL("advapi32.dll")
 	procTreeResetNamedSecurityInfoW = advapi32.NewProc("TreeResetNamedSecurityInfoW")
 )
 
@@ -269,6 +269,31 @@ func EnsureInstallerDataDir() error {
 	}
 
 	return nil
+}
+
+// ConfigDirIsTrustedForRead reports whether an existing configuration directory has a trusted
+// owner. A missing directory returns false, nil: callers must skip configuration reads, not
+// discover a directory that appears after this check. This never creates or modifies the directory.
+// Unlike EnsureInstallerDataDir, it is suitable for read-only commands: checking configuration
+// must not create installer directories, reset permissions, or require setup privileges.
+func ConfigDirIsTrustedForRead(dir string) (bool, error) {
+	if dir == "" {
+		return false, errors.New("configuration directory is not set")
+	}
+	info, err := os.Stat(dir)
+	if errors.Is(err, fs.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("failed to check configuration directory %s: %w", dir, err)
+	}
+	if !info.IsDir() {
+		return false, fmt.Errorf("configuration path %s is not a directory", dir)
+	}
+	if err := IsDirSecure(dir); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // ensureDatadogDataDir creates the Agent configuration directory (C:\ProgramData\Datadog) if it

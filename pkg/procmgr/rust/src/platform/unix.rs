@@ -3,6 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
+mod reaper;
 mod spawn;
 
 use anyhow::{Context, Result};
@@ -10,6 +11,9 @@ use nix::sys::signal::{self, Signal};
 use nix::unistd::Pid;
 use std::os::unix::process::ExitStatusExt;
 use std::path::PathBuf;
+
+pub use reaper::{Reaper, start as start_reaper};
+pub(crate) use reaper::{SupervisedPid, spawn_registered};
 
 /// Place the child in its own process group so signals don't propagate
 /// to the daemon itself and SIGTERM can target all descendants.

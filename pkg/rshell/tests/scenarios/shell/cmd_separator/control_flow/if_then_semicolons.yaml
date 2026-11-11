@@ -1,0 +1,10 @@
+description: Semicolons used as separators in if/then/fi constructs.
+input:
+  script: |+
+    if true; then echo yes; fi; echo after
+expect:
+  stdout: |+
+    yes
+    after
+  stderr: ""
+  exit_code: 0

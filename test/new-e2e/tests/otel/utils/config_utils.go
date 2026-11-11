@@ -181,7 +181,7 @@ func TestDatadogExtensionPayload(s OTelTestSuite, fullCfg string) {
 	var payload Payload
 	err = json.Unmarshal([]byte(rawPayload), &payload)
 	if err != nil {
-		s.T().Fatal(err)
+		require.NoError(s.T(), err)
 	}
 	s.T().Log("Got metadata payload")
 

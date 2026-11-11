@@ -120,16 +120,16 @@ class MacVirtlogdService(Requirement):
 
             try:
                 # Allow writing the file without superuser permissions
-                ctx.run(f"sudo touch {virtlogd_plist_path}")
-                ctx.run(f"sudo chmod 666 {virtlogd_plist_path}")
+                ctx.run(f"sudo -n touch {virtlogd_plist_path}")
+                ctx.run(f"sudo -n chmod 666 {virtlogd_plist_path}")
 
                 # Write the plist data to the file
                 with open(virtlogd_plist_path, "wb") as f:
                     plistlib.dump(plist_data, f)
 
                 # Set the correct permissions and load the service
-                ctx.run(f"sudo chmod 644 {virtlogd_plist_path}")
-                ctx.run(f"sudo launchctl load -w {virtlogd_plist_path}")
+                ctx.run(f"sudo -n chmod 644 {virtlogd_plist_path}")
+                ctx.run(f"sudo -n launchctl load -w {virtlogd_plist_path}")
             except Exception as e:
                 return RequirementState(Status.FAIL, f"Failed to create virtlogd plist: {e}")
 
@@ -139,7 +139,7 @@ class MacVirtlogdService(Requirement):
 class MacLibvirtService(Requirement):
     def check(self, ctx: Context, fix: bool) -> RequirementState:
         service_name = "libvirt"
-        res = ctx.run(f"sudo brew services info {service_name} --json", warn=True)
+        res = ctx.run(f"sudo -n brew services info {service_name} --json", warn=True)
         if res is None or not res.ok:
             return RequirementState(Status.FAIL, f"Failed to check libvirt service: {res}")
 
@@ -152,7 +152,7 @@ class MacLibvirtService(Requirement):
             if not fix:
                 return RequirementState(Status.FAIL, "Libvirt service is not running.", fixable=True)
 
-            ctx.run(f"sudo brew services start {service_name}")
+            ctx.run(f"sudo -n brew services start {service_name}")
 
         return RequirementState(Status.OK, "Libvirt service is running.")
 
@@ -171,7 +171,7 @@ class BootPService(Requirement):
 class MacNFSService(Requirement):
     def check(self, ctx: Context, fix: bool) -> list[RequirementState]:
         res = ctx.run(
-            "sudo nfsd status", warn=True
+            "sudo -n nfsd status", warn=True
         )  # This command can return a non-zero exit code if the service is not enabled/running
         if res is None:
             return [RequirementState(Status.FAIL, f"Failed to check NFS service: {res}")]
@@ -183,7 +183,7 @@ class MacNFSService(Requirement):
             if not fix:
                 states.append(RequirementState(Status.FAIL, "NFS service is not enabled.", fixable=True))
             else:
-                ctx.run("sudo nfsd enable")
+                ctx.run("sudo -n nfsd enable")
                 states.append(RequirementState(Status.OK, "NFS service enabled."))
 
         if "nfsd is running" in res.stdout:
@@ -192,8 +192,8 @@ class MacNFSService(Requirement):
             if not fix:
                 states.append(RequirementState(Status.FAIL, "NFS service is not running.", fixable=True))
             else:
-                ctx.run("sudo touch /etc/exports")  # File must exist for nfsd to start
-                ctx.run("sudo nfsd start")
+                ctx.run("sudo -n touch /etc/exports")  # File must exist for nfsd to start
+                ctx.run("sudo -n nfsd start")
                 states.append(RequirementState(Status.OK, "NFS service updated."))
 
         return states
@@ -214,8 +214,8 @@ class MacNFSExport(Requirement):
             return RequirementState(Status.FAIL, "NFS export missing.", fixable=True)
 
         try:
-            ctx.run(f"echo '{export_line}' | sudo tee -a {exports_file}")
-            ctx.run("sudo nfsd update")
+            ctx.run(f"echo '{export_line}' | sudo -n tee -a {exports_file}")
+            ctx.run("sudo -n nfsd update")
         except Exception as e:
             return RequirementState(Status.FAIL, f"Failed to add NFS export: {e}")
 
@@ -224,7 +224,7 @@ class MacNFSExport(Requirement):
 
 class MacIPForwarding(Requirement):
     def check(self, ctx: Context, fix: bool) -> RequirementState:
-        res = ctx.run("sudo sysctl net.inet.ip.forwarding", warn=True)
+        res = ctx.run("sudo -n sysctl net.inet.ip.forwarding", warn=True)
         if res is None or not res.ok:
             return RequirementState(Status.FAIL, "Failed to check IP forwarding")
 
@@ -235,7 +235,7 @@ class MacIPForwarding(Requirement):
             return RequirementState(Status.FAIL, "IP forwarding is not enabled.", fixable=True)
 
         try:
-            ctx.run("sudo sysctl -w net.inet.ip.forwarding=1")
+            ctx.run("sudo -n sysctl -w net.inet.ip.forwarding=1")
         except Exception as e:
             return RequirementState(Status.FAIL, f"Failed to enable IP forwarding: {e}")
 

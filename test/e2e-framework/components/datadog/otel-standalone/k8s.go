@@ -31,14 +31,11 @@ import (
 )
 
 const (
-	appLabel   = "standalone-otel-agent"
-	saName     = "standalone-otel-agent"
-	crName     = "standalone-otel-agent"
-	crbName    = "standalone-otel-agent"
-	configKey  = "otel-config.yaml"
-	configDir  = "/etc/datadog-agent"
-	configPath = configDir + "/" + configKey
-	binaryPath = "/opt/datadog-agent/embedded/bin/otel-agent"
+	defaultName = "standalone-otel-agent"
+	configKey   = "otel-config.yaml"
+	configDir   = "/etc/datadog-agent"
+	configPath  = configDir + "/" + configKey
+	binaryPath  = "/opt/datadog-agent/embedded/bin/otel-agent"
 )
 
 // AppOption is a functional option for K8sAppDefinition that controls
@@ -47,6 +44,8 @@ type AppOption func(*appConfig)
 
 // appConfig holds the accumulated application-level options.
 type appConfig struct {
+	name                string
+	clusterRoleRules    rbacv1.PolicyRuleArray
 	extraEnvVars        corev1.EnvVarArray
 	extraVolumes        corev1.VolumeArray
 	extraVolumeMounts   corev1.VolumeMountArray
@@ -58,6 +57,27 @@ type appConfig struct {
 type appSecretSpec struct {
 	name string
 	data map[string]string
+}
+
+// WithName sets the name shared by the deployment's DaemonSet, Service,
+// ServiceAccount, ClusterRole, ClusterRoleBinding and ConfigMap (with a
+// "-config" suffix), and the value of the pods' "app" label. It defaults to
+// "standalone-otel-agent". Pass a distinct name to deploy a second instance in
+// the same cluster: its cluster-scoped RBAC objects and Pulumi resource names
+// would otherwise collide with the first one's.
+func WithName(name string) AppOption {
+	return func(o *appConfig) { o.name = name }
+}
+
+// WithClusterRoleRules replaces the default ClusterRole rules, which grant read
+// access to everything the kubelet and nodefilter workloadmeta collectors and
+// the k8sobjects receiver may need (including the kubelet API via
+// nodes/proxy). Use it to run the otel-agent with only the permissions a given
+// mode documents. The last call wins, and a call with no rules grants none.
+func WithClusterRoleRules(rules ...rbacv1.PolicyRuleInput) AppOption {
+	// Copy into a non-nil array: K8sAppDefinition only falls back to the
+	// defaults on nil, so an empty rule set must stay empty.
+	return func(o *appConfig) { o.clusterRoleRules = append(rbacv1.PolicyRuleArray{}, rules...) }
 }
 
 // WithExtraEnvVars appends env vars to the otel-agent container.
@@ -100,19 +120,21 @@ func WithoutDefaultHostname() AppOption {
 // is captured by the fakeintake during E2E tests.
 //
 // The returned *agent.KubernetesAgent has LinuxNodeAgent.LabelSelectors["app"]
-// set to "standalone-otel-agent", which is what test utilities such as
-// getAgentPod use to locate the pod.
+// set to the deployment name ("standalone-otel-agent" unless WithName is
+// passed), which is what test utilities such as getAgentPod use to locate the
+// pod, and the name of the Service workloads send OTLP to.
 //
 // Pass AppOption values to customise the deployment (extra env vars, volumes,
 // K8s Secrets, etc.).  Pulumi resource options are always added internally.
 func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace string, otelConfig string, fakeIntake *fakeintake.Fakeintake, appOpts ...AppOption) (*agent.KubernetesAgent, error) {
 	// Apply functional options.
-	acfg := &appConfig{}
+	acfg := &appConfig{name: defaultName}
 	for _, opt := range appOpts {
 		opt(acfg)
 	}
+	name := acfg.name
 
-	return components.NewComponent(e, "standalone-otel-agent", func(comp *agent.KubernetesAgent) error {
+	return components.NewComponent(e, name, func(comp *agent.KubernetesAgent) error {
 		opts := []pulumi.ResourceOption{
 			pulumi.Provider(kubeProvider),
 			pulumi.Parent(kubeProvider),
@@ -169,9 +191,9 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 
 		// ConfigMap carrying the merged OTel config YAML
-		cm, err := corev1.NewConfigMap(e.Ctx(), "standalone-otel-agent-config", &corev1.ConfigMapArgs{
+		cm, err := corev1.NewConfigMap(e.Ctx(), name+"-config", &corev1.ConfigMapArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name:      pulumi.String("standalone-otel-agent-config"),
+				Name:      pulumi.String(name + "-config"),
 				Namespace: pulumi.String(namespace),
 			},
 			Data: configMapData,
@@ -181,15 +203,15 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 
 		// Service — exposes OTLP gRPC (4317) and HTTP (4318) endpoints so that
-		// workloads in the cluster can resolve "standalone-otel-agent" via DNS.
-		_, err = corev1.NewService(e.Ctx(), appLabel, &corev1.ServiceArgs{
+		// workloads in the cluster can resolve the deployment name via DNS.
+		_, err = corev1.NewService(e.Ctx(), name, &corev1.ServiceArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name:      pulumi.String(appLabel),
+				Name:      pulumi.String(name),
 				Namespace: pulumi.String(namespace),
 			},
 			Spec: &corev1.ServiceSpecArgs{
 				Selector: pulumi.StringMap{
-					"app": pulumi.String(appLabel),
+					"app": pulumi.String(name),
 				},
 				Ports: corev1.ServicePortArray{
 					&corev1.ServicePortArgs{
@@ -210,9 +232,9 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 
 		// ServiceAccount
-		sa, err := corev1.NewServiceAccount(e.Ctx(), saName, &corev1.ServiceAccountArgs{
+		sa, err := corev1.NewServiceAccount(e.Ctx(), name, &corev1.ServiceAccountArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name:      pulumi.String(saName),
+				Name:      pulumi.String(name),
 				Namespace: pulumi.String(namespace),
 			},
 		}, nsOpts...)
@@ -221,79 +243,36 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		}
 
 		// ClusterRole: permissions needed by workloadmeta (pods, nodes, namespaces,
-		// deployments, replicasets, statefulsets, daemonsets) plus kubelet API access.
-		cr, err := rbacv1.NewClusterRole(e.Ctx(), crName, &rbacv1.ClusterRoleArgs{
+		// deployments, replicasets, statefulsets, daemonsets) plus kubelet API
+		// access, unless WithClusterRoleRules narrows them.
+		rules := acfg.clusterRoleRules
+		if rules == nil {
+			rules = defaultClusterRoleRules()
+		}
+		cr, err := rbacv1.NewClusterRole(e.Ctx(), name, &rbacv1.ClusterRoleArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name: pulumi.String(crName),
+				Name: pulumi.String(name),
 			},
-			Rules: rbacv1.PolicyRuleArray{
-				&rbacv1.PolicyRuleArgs{
-					ApiGroups: pulumi.StringArray{pulumi.String("")},
-					Resources: pulumi.StringArray{
-						pulumi.String("pods"),
-						pulumi.String("nodes"),
-						pulumi.String("namespaces"),
-						pulumi.String("services"),
-						pulumi.String("endpoints"),
-						pulumi.String("events"),
-						pulumi.String("componentstatuses"),
-						pulumi.String("nodes/metrics"),
-						pulumi.String("nodes/spec"),
-						pulumi.String("nodes/proxy"),
-						pulumi.String("nodes/stats"),
-					},
-					Verbs: pulumi.StringArray{
-						pulumi.String("get"),
-						pulumi.String("list"),
-						pulumi.String("watch"),
-					},
-				},
-				&rbacv1.PolicyRuleArgs{
-					ApiGroups: pulumi.StringArray{pulumi.String("apps")},
-					Resources: pulumi.StringArray{
-						pulumi.String("deployments"),
-						pulumi.String("replicasets"),
-						pulumi.String("statefulsets"),
-						pulumi.String("daemonsets"),
-					},
-					Verbs: pulumi.StringArray{
-						pulumi.String("get"),
-						pulumi.String("list"),
-						pulumi.String("watch"),
-					},
-				},
-				&rbacv1.PolicyRuleArgs{
-					ApiGroups: pulumi.StringArray{pulumi.String("batch")},
-					Resources: pulumi.StringArray{
-						pulumi.String("jobs"),
-						pulumi.String("cronjobs"),
-					},
-					Verbs: pulumi.StringArray{
-						pulumi.String("get"),
-						pulumi.String("list"),
-						pulumi.String("watch"),
-					},
-				},
-			},
+			Rules: rules,
 		}, opts...) // cluster-scoped: no namespace dep
 		if err != nil {
 			return err
 		}
 
 		// ClusterRoleBinding
-		_, err = rbacv1.NewClusterRoleBinding(e.Ctx(), crbName, &rbacv1.ClusterRoleBindingArgs{
+		_, err = rbacv1.NewClusterRoleBinding(e.Ctx(), name, &rbacv1.ClusterRoleBindingArgs{
 			Metadata: metav1.ObjectMetaArgs{
-				Name: pulumi.String(crbName),
+				Name: pulumi.String(name),
 			},
 			RoleRef: rbacv1.RoleRefArgs{
 				ApiGroup: pulumi.String("rbac.authorization.k8s.io"),
 				Kind:     pulumi.String("ClusterRole"),
-				Name:     pulumi.String(crName),
+				Name:     pulumi.String(name),
 			},
 			Subjects: rbacv1.SubjectArray{
 				&rbacv1.SubjectArgs{
 					Kind:      pulumi.String("ServiceAccount"),
-					Name:      pulumi.String(saName),
+					Name:      pulumi.String(name),
 					Namespace: pulumi.String(namespace),
 				},
 			},
@@ -335,6 +314,18 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 					},
 				},
 			},
+			&corev1.EnvVarArgs{
+				// Scopes the nodefilter workloadmeta collector's API-server pod
+				// watch to this node (spec.nodeName field selector). K8S_NODE_NAME
+				// is the first of nodefilter's default node_from_env_var list;
+				// see comp/otelcol/dogtelextension/README.md.
+				Name: pulumi.String("K8S_NODE_NAME"),
+				ValueFrom: &corev1.EnvVarSourceArgs{
+					FieldRef: &corev1.ObjectFieldSelectorArgs{
+						FieldPath: pulumi.String("spec.nodeName"),
+					},
+				},
+			},
 		)
 		if !acfg.skipDefaultHostname {
 			// Provide an explicit hostname so standalone mode does not have to
@@ -361,25 +352,25 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 			})
 		}
 
-		_, err = appsv1.NewDaemonSet(e.Ctx(), "standalone-otel-agent", &appsv1.DaemonSetArgs{
+		_, err = appsv1.NewDaemonSet(e.Ctx(), name, &appsv1.DaemonSetArgs{
 			Metadata: &metav1.ObjectMetaArgs{
-				Name:      pulumi.String("standalone-otel-agent"),
+				Name:      pulumi.String(name),
 				Namespace: pulumi.String(namespace),
 			},
 			Spec: &appsv1.DaemonSetSpecArgs{
 				Selector: &metav1.LabelSelectorArgs{
 					MatchLabels: pulumi.StringMap{
-						"app": pulumi.String(appLabel),
+						"app": pulumi.String(name),
 					},
 				},
 				Template: &corev1.PodTemplateSpecArgs{
 					Metadata: &metav1.ObjectMetaArgs{
 						Labels: pulumi.StringMap{
-							"app": pulumi.String(appLabel),
+							"app": pulumi.String(name),
 						},
 					},
 					Spec: &corev1.PodSpecArgs{
-						ServiceAccountName: pulumi.String(saName),
+						ServiceAccountName: pulumi.String(name),
 						ImagePullSecrets:   imagePullSecrets,
 						Containers: corev1.ContainerArray{
 							&corev1.ContainerArgs{
@@ -429,17 +420,71 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, namespace
 		// Wire up the KubernetesAgent output so test utilities can find the pod.
 		comp.LinuxNodeAgent, err = componentskube.NewKubernetesObjRef(
 			e,
-			"standalone-otel-agent-nodeAgent",
+			name+"-nodeAgent",
 			namespace,
 			"Pod",
 			pulumi.String("").ToStringOutput(), // appVersion — not applicable for raw DaemonSet
 			pulumi.String("").ToStringOutput(), // version   — not applicable for raw DaemonSet
 			map[string]string{
-				"app": appLabel,
+				"app": name,
 			},
 		)
 		return err
 	})
+}
+
+// defaultClusterRoleRules returns the ClusterRole rules used unless
+// WithClusterRoleRules replaces them.
+func defaultClusterRoleRules() rbacv1.PolicyRuleArray {
+	return rbacv1.PolicyRuleArray{
+		&rbacv1.PolicyRuleArgs{
+			ApiGroups: pulumi.StringArray{pulumi.String("")},
+			Resources: pulumi.StringArray{
+				pulumi.String("pods"),
+				pulumi.String("nodes"),
+				pulumi.String("namespaces"),
+				pulumi.String("services"),
+				pulumi.String("endpoints"),
+				pulumi.String("events"),
+				pulumi.String("componentstatuses"),
+				pulumi.String("nodes/metrics"),
+				pulumi.String("nodes/spec"),
+				pulumi.String("nodes/proxy"),
+				pulumi.String("nodes/stats"),
+			},
+			Verbs: pulumi.StringArray{
+				pulumi.String("get"),
+				pulumi.String("list"),
+				pulumi.String("watch"),
+			},
+		},
+		&rbacv1.PolicyRuleArgs{
+			ApiGroups: pulumi.StringArray{pulumi.String("apps")},
+			Resources: pulumi.StringArray{
+				pulumi.String("deployments"),
+				pulumi.String("replicasets"),
+				pulumi.String("statefulsets"),
+				pulumi.String("daemonsets"),
+			},
+			Verbs: pulumi.StringArray{
+				pulumi.String("get"),
+				pulumi.String("list"),
+				pulumi.String("watch"),
+			},
+		},
+		&rbacv1.PolicyRuleArgs{
+			ApiGroups: pulumi.StringArray{pulumi.String("batch")},
+			Resources: pulumi.StringArray{
+				pulumi.String("jobs"),
+				pulumi.String("cronjobs"),
+			},
+			Verbs: pulumi.StringArray{
+				pulumi.String("get"),
+				pulumi.String("list"),
+				pulumi.String("watch"),
+			},
+		},
+	}
 }
 
 // buildConfigMapData returns a Pulumi map whose single key is the OTel config

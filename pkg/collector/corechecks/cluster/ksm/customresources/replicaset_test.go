@@ -24,7 +24,7 @@ import (
 
 func TestReplicaSetRolloutFactory_Name(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewReplicaSetRolloutFactory(client, tracker)
@@ -34,7 +34,7 @@ func TestReplicaSetRolloutFactory_Name(t *testing.T) {
 
 func TestReplicaSetRolloutFactory_ExpectedType(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewReplicaSetRolloutFactory(client, tracker)
@@ -46,7 +46,7 @@ func TestReplicaSetRolloutFactory_ExpectedType(t *testing.T) {
 
 func TestReplicaSetRolloutFactory_MetricFamilyGenerators(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewReplicaSetRolloutFactory(client, tracker)
@@ -62,7 +62,7 @@ func TestReplicaSetRolloutFactory_MetricFamilyGenerators(t *testing.T) {
 
 func TestReplicaSetTracking(t *testing.T) {
 	client := &apiserver.APIClient{
-		Cl: fake.NewSimpleClientset(),
+		InformerCl: fake.NewSimpleClientset(),
 	}
 	tracker := NewRolloutTracker()
 	factory := NewReplicaSetRolloutFactory(client, tracker).(*replicaSetRolloutFactory)

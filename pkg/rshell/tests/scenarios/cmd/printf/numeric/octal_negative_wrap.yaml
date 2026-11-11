@@ -1,0 +1,7 @@
+description: Octal format wraps negative -1 to max uint64 in octal.
+input:
+  script: |+
+    printf "%o\n" -1
+expect:
+  stdout: "1777777777777777777777\n"
+  exit_code: 0

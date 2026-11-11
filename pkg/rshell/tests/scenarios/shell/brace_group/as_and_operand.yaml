@@ -1,0 +1,9 @@
+description: Brace group can be used as the right operand of an && operator.
+input:
+  script: |+
+    true && { echo "inside"; }
+expect:
+  stdout: |+
+    inside
+  stderr: ""
+  exit_code: 0

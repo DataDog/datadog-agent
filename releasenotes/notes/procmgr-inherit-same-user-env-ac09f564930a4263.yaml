@@ -1,0 +1,10 @@
+---
+fixes:
+  - |
+    Processes started by the process manager now receive the environment of
+    the process manager when they run as the same user. ``DD_PM_SOCKET_PATH``
+    is included, so those processes can reach the process manager when it
+    listens on a non-default path. Other variables whose names start with
+    ``DD_PM_`` are not copied. A process that runs as a different account
+    still receives only the variables named by
+    ``DD_PM_INHERIT_ENV_PREFIXES`` and ``DD_PM_INHERIT_ENV_NAMES``.

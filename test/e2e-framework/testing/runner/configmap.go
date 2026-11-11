@@ -59,6 +59,8 @@ const (
 	AWSPrivateKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPath
 	// AWSPrivateKeyPassword pulumi config parameter name
 	AWSPrivateKeyPassword = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraDefaultPrivateKeyPassword
+	// AWSTrackSSHActivity pulumi config parameter name
+	AWSTrackSSHActivity = commonconfig.DDInfraConfigNamespace + ":" + infraaws.DDInfraTrackSSHActivity
 
 	// AzurePublicKeyPath pulumi config paramater name
 	AzurePublicKeyPath = commonconfig.DDInfraConfigNamespace + ":" + infraazure.DDInfraDefaultPublicKeyPath

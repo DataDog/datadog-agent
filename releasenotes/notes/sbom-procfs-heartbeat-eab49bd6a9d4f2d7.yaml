@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fixed the Agent deployed as a sidecar (ECS Fargate, EKS Fargate, ECS
+    sidecar mode) sending a heartbeat in place of the SBOM of a container that
+    lists the same packages as the host SBOM.

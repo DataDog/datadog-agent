@@ -1,0 +1,15 @@
+description: find --help prints usage to stdout and exits 0.
+skip_assert_against_bash: true
+input:
+  script: |+
+    find --help
+expect:
+  stdout_contains:
+    - "Usage:"
+    - "find"
+    - "-name"
+    - "-type"
+    - "-print"
+    - "Blocked predicates"
+  stderr: ""
+  exit_code: 0

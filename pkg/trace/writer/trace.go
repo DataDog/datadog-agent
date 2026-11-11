@@ -385,7 +385,7 @@ func (w *TraceWriter) recordEvent(t eventType, data *eventData) {
 		}
 
 	case eventTypeRejected:
-		log.Warnf("Trace writer payload rejected by edge: %v", data.err)
+		log.Warnf("Trace writer payload rejected by edge: %v (%d bytes, %d bytes uncompressed)", data.err, data.bytes, data.uncompressedBytes)
 		w.stats.Errors.Inc()
 
 	case eventTypeDropped:

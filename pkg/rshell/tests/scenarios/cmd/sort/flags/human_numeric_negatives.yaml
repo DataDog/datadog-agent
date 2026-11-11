@@ -1,0 +1,23 @@
+description: sort -h orders negatives below zero/positives, with magnitude reversed within negatives.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        1K
+        -2K
+        0
+        -1M
+        500
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -h file.txt
+expect:
+  stdout: |+
+    -1M
+    -2K
+    0
+    500
+    1K
+  stderr: |+
+  exit_code: 0

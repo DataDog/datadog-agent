@@ -1,0 +1,19 @@
+description: ls on a directory lists its contents.
+setup:
+  files:
+    - path: mydir/alpha.txt
+      content: "a"
+      chmod: 0644
+    - path: mydir/beta.txt
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls mydir
+expect:
+  stdout: |+
+    alpha.txt
+    beta.txt
+  stderr: ""
+  exit_code: 0

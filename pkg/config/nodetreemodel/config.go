@@ -119,6 +119,7 @@ type ntmConfig struct {
 	configName string
 	configFile string
 	configType string
+
 	// configPaths is the set of path to look for the configuration file
 	configPaths []string
 
@@ -132,6 +133,11 @@ type ntmConfig struct {
 	// known keys are the set of valid keys to get either leaf or inner node values
 	// the map value represents `isLeaf` for each key
 	knownKeys map[string]bool
+
+	// sensitiveKeys are the settings that hold credentials
+	sensitiveKeys map[string]struct{}
+	// sensitiveEnvVars are the env vars bound to sensitiveKeys, computed when the schema is built
+	sensitiveEnvVars map[string]struct{}
 
 	// keys that are unknown, but are used by either the file or SetInTest
 	// used to warn (a single time) on use.
@@ -161,6 +167,8 @@ type ntmConfig struct {
 	deprecatedNames map[string]string
 
 	startTime time.Time
+
+	schemaID model.SchemaID
 }
 
 // NodeTreeConfig is an interface that gives access to nodes
@@ -227,27 +235,60 @@ func (c *ntmConfig) RevertFinishedBackToBuilder() model.BuildableConfig {
 
 // Set assigns the newValue to the given key and marks it as originating from the given source
 func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
+	c.set(key, newValue, source, nil)
+}
+
+// SetWithLock computes and writes a setting while holding the config write lock.
+func (c *ntmConfig) SetWithLock(key string, source model.Source, update func(interface{}, model.Source) (interface{}, bool)) bool {
+	if update == nil {
+		panicInTest("SetWithLock callback must not be nil")
+		return false
+	}
+	return c.set(key, nil, source, update)
+}
+
+func (c *ntmConfig) set(key string, newValue interface{}, source model.Source, update func(interface{}, model.Source) (interface{}, bool)) bool {
 	if source == model.SourceEnvVar {
 		panicInTest("Writing to env var layers is not allowed, use SourceAgentRuntime instead.")
 	}
 	c.maybeRebuild()
 
 	c.Lock()
+	locked := true
+	defer func() {
+		if locked {
+			c.Unlock()
+		}
+	}()
 
 	if !c.isKnownKey(key) {
 		if c.allowDynamicSchema.Load() {
 			_ = log.ErrorfStackDepth(2, "set value for unknown key '%s'", key)
 		} else {
 			_ = log.ErrorfStackDepth(2, "could not set '%s' unknown key", key)
-			c.Unlock()
-			return
+			return false
 		}
 	}
 	declaredNode := c.nodeAtPathFromNode(key, c.defaults)
 	if declaredNode.IsInnerNode() {
 		panicInTest("Key '%s' is partial path of a setting. 'Set' does not allow configuring multiple settings at once using maps", key)
-		c.Unlock()
-		return
+		return false
+	}
+	previousValue := c.leafAtPathFromNode(strings.ToLower(key), c.root).Get()
+	if update != nil {
+		// Walk down from source to the first layer holding the key, so the callback never
+		// receives a value from a higher-priority layer.
+		lookupSource := source
+		current, inLayer := c.valueInSource(strings.ToLower(key), lookupSource)
+		for !inLayer && lookupSource.IsGreaterThan(model.SourceDefault) {
+			lookupSource = lookupSource.PreviousSource()
+			current, inLayer = c.valueInSource(strings.ToLower(key), lookupSource)
+		}
+		var apply bool
+		newValue, apply = update(copyIfNeeded(current), lookupSource)
+		if !apply {
+			return false
+		}
 	}
 
 	// convert the value to the type of the default
@@ -273,13 +314,10 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// convert the key to lower case for the logs line and the notification
 	key = strings.ToLower(key)
 
-	previousValue := c.leafAtPathFromNode(key, c.root).Get()
-
 	newTree, err := c.insertValueIntoTree(key, newValue, source)
 	if err != nil {
 		_ = log.ErrorfStackDepth(2, "could not insert value: %s", err)
-		c.Unlock()
-		return
+		return false
 	} else if newTree != nil {
 		// a new node was allocated, merge it into root
 		c.root, _ = c.root.Merge(newTree)
@@ -292,11 +330,11 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	resolved := c.leafAtPathFromNode(key, c.root)
 	resolvedValue := resolved.Get()
 	resolvedSource := resolved.Source()
+	updateApplied := resolvedSource == source
 
 	// if no value has changed we don't notify
 	if reflect.DeepEqual(previousValue, resolvedValue) {
-		c.Unlock()
-		return
+		return updateApplied
 	}
 
 	c.sequenceID++
@@ -304,11 +342,13 @@ func (c *ntmConfig) Set(key string, newValue interface{}, source model.Source) {
 	// after unlocking.
 	sequenceID := c.sequenceID
 	c.Unlock()
+	locked = false
 
 	// notifying all receiver about the updated setting
 	for _, receiver := range receivers {
 		receiver(key, resolvedSource, previousValue, resolvedValue, sequenceID, "")
 	}
+	return updateApplied
 }
 
 func (c *ntmConfig) insertValueIntoTree(key string, value interface{}, source model.Source) (*nodeImpl, error) {
@@ -453,6 +493,21 @@ func (c *ntmConfig) findPreviousSourceNode(key string, source model.Source) (*no
 	return nil, ErrNotFound
 }
 
+// valueInSource returns source's own value for key and whether that layer sets it. Must be called
+// with the lock held.
+func (c *ntmConfig) valueInSource(key string, source model.Source) (interface{}, bool) {
+	tree, err := c.getTreeBySource(source)
+	if err != nil {
+		// Not a writable layer (e.g. SourceSchema); the write fails later anyway.
+		return nil, false
+	}
+	leaf := c.leafAtPathFromNode(key, tree)
+	if leaf == missingLeaf {
+		return nil, false
+	}
+	return leaf.Get(), true
+}
+
 // UnsetForSource unsets a config entry for a given source
 func (c *ntmConfig) UnsetForSource(key string, source model.Source) {
 	c.maybeRebuild()
@@ -576,6 +631,25 @@ func (c *ntmConfig) IsKnown(key string) bool {
 	return c.isKnownKey(key)
 }
 
+// SetSensitive marks a setting as holding a credential
+func (c *ntmConfig) SetSensitive(key string) {
+	c.Lock()
+	defer c.Unlock()
+
+	if c.isReady() && !c.allowDynamicSchema.Load() {
+		panic("cannot SetSensitive() once the config has been marked as ready for use")
+	}
+	c.sensitiveKeys[strings.ToLower(key)] = struct{}{}
+}
+
+// IsSensitive returns whether the setting holds a credential
+func (c *ntmConfig) IsSensitive(key string) bool {
+	c.RLock()
+	defer c.RUnlock()
+	_, found := c.sensitiveKeys[strings.ToLower(key)]
+	return found
+}
+
 // IsSetting returns true for leaf nodes
 func (c *ntmConfig) IsSetting(key string) bool {
 	n, err := c.GetNode(key)
@@ -635,7 +709,7 @@ func (c *ntmConfig) maybeRebuild() {
 //
 // Must be called with the lock read-locked.
 func (c *ntmConfig) checkKnownKey(key string) {
-	if c.isKnownKey(key) {
+	if c.isKnownKey(key) || c.allowDynamicSchema.Load() {
 		return
 	}
 
@@ -650,6 +724,7 @@ func (c *ntmConfig) layerList() []*nodeImpl {
 	return []*nodeImpl{
 		c.defaults,
 		c.unknown,
+		c.infraMode,
 		c.file,
 		c.envs,
 		c.fleetPolicies,
@@ -711,6 +786,7 @@ func (c *ntmConfig) buildSchema() {
 	}
 
 	c.buildEnvVars()
+	c.sensitiveEnvVars = c.computeSensitiveEnvVars()
 	c.ready.Store(true)
 	if err := c.mergeAllLayers(); err != nil {
 		c.warnings = append(c.warnings, err.Error())
@@ -782,7 +858,9 @@ func (c *ntmConfig) insertNodeFromString(curr *nodeImpl, key string, envvar stri
 	if transformer, found := c.envTransform[key]; found {
 		actualValue = transformer(envvar)
 	} else if defaultNode := c.leafAtPathFromNode(key, c.defaults); defaultNode != missingLeaf {
-		if converted, err := basic.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
+		if decoded, ok := decodeJSONEnv(envvar, defaultNode.Get()); ok {
+			actualValue = decoded
+		} else if converted, err := basic.ConvertToDefaultType(actualValue, defaultNode.Get(), false); err == nil {
 			actualValue = converted
 		}
 	}
@@ -1019,6 +1097,7 @@ func (c *ntmConfig) bindEnv(key string, envvars []string) {
 		envvars = []string{c.mergeWithEnvPrefix(key)}
 	}
 	c.configEnvVars[key] = append(c.configEnvVars[key], envvars...)
+	registerKnownEnvVars(envvars...)
 }
 
 // MergeConfig merges in another config
@@ -1328,13 +1407,14 @@ func (c *ntmConfig) Object() model.Reader {
 }
 
 // NewNodeTreeConfig returns a new Config object.
-func NewNodeTreeConfig(name string, envPrefix string, _ *strings.Replacer) model.BuildableConfig {
-	config := ntmConfig{
+func NewNodeTreeConfig(name string, schemaType model.SchemaID) model.BuildableConfig {
+	return &ntmConfig{
 		ready:              atomic.NewBool(false),
 		allowDynamicSchema: atomic.NewBool(false),
 		sequenceID:         0,
 		configEnvVars:      map[string][]string{},
 		knownKeys:          map[string]bool{},
+		sensitiveKeys:      map[string]struct{}{},
 		setWarnings:        map[string]bool{},
 		setTypeWarnings:    map[string]bool{},
 		defaults:           newInnerNode(nil),
@@ -1353,14 +1433,11 @@ func NewNodeTreeConfig(name string, envPrefix string, _ *strings.Replacer) model
 		deprecations:       map[string]deprecation{},
 		deprecatedNames:    map[string]string{},
 		envTransform:       make(map[string]func(string) interface{}),
-		configName:         "datadog",
+		envPrefix:          "DD",
+		configName:         name,
 		startTime:          time.Now(),
+		schemaID:           schemaType,
 	}
-
-	config.SetConfigName(name)
-	config.SetEnvPrefix(envPrefix)
-
-	return &config
 }
 
 // ExtraConfigFilesUsed returns the additional config files used
@@ -1376,4 +1453,34 @@ func (c *ntmConfig) GetSequenceID() uint64 {
 	c.RLock()
 	defer c.RUnlock()
 	return c.sequenceID
+}
+
+// GetSchemaID returns the ID of the schema the config follows. It is set at creation and never changes, so it
+// doesn't need the lock.
+func (c *ntmConfig) GetSchemaID() model.SchemaID {
+	return c.schemaID
+}
+
+// decodeJSONEnv decodes a JSON env value for a map- or list-of-maps-typed setting, so it is stored in the
+// same shape as when read from a config file; ok is false when the value isn't JSON of that shape.
+func decodeJSONEnv(envvar string, defaultValue interface{}) (interface{}, bool) {
+	switch defaultValue.(type) {
+	case map[string]interface{}, map[string]string, map[string][]string:
+		var decoded map[string]interface{}
+		if err := json.Unmarshal([]byte(envvar), &decoded); err != nil {
+			return nil, false
+		}
+		converted, err := basic.ConvertToDefaultType(decoded, defaultValue, true)
+		if err != nil {
+			return nil, false
+		}
+		return converted, true
+	case []map[string]interface{}, []map[string]string, []interface{}:
+		var decoded []interface{}
+		if err := json.Unmarshal([]byte(envvar), &decoded); err != nil {
+			return nil, false
+		}
+		return decoded, true
+	}
+	return nil, false
 }

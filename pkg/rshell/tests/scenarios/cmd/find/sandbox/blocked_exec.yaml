@@ -1,0 +1,19 @@
+description: find -exec runs allowed commands with full path.
+skip_assert_against_bash: true  # rshell -exec only runs builtins, not external commands
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find . -name 'dummy.txt' -exec echo {} \;
+expect:
+  stdout: |+
+    ./dummy.txt
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,14 @@
+description: find -mindepth with non-numeric value produces error.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -mindepth xyz
+expect:
+  stderr_contains: ["invalid argument 'xyz' to -mindepth"]
+  exit_code: 1

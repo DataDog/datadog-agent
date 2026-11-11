@@ -1,0 +1,23 @@
+description: sort -h orders mixed SI suffixes by magnitude.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        1.2G
+        500M
+        20K
+        5
+        2G
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -h file.txt
+expect:
+  stdout: |+
+    5
+    20K
+    500M
+    1.2G
+    2G
+  stderr: |+
+  exit_code: 0

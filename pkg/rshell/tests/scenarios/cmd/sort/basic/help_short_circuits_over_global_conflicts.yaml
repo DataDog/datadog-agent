@@ -1,0 +1,9 @@
+description: '`sort -d -n --help` prints help and exits 0. GNU sort defers the `-dn`/`-dh`/`-hn` global incompatibility checks until after the `--help` short-circuit, so they MUST NOT run before `--help`. Asserted via stdout_contains "Usage:" so both rshell''s minimal help and GNU''s longer help match.'
+input:
+  script: |+
+    echo hi | sort -d -n --help
+expect:
+  stdout_contains:
+    - "Usage:"
+  stderr: ""
+  exit_code: 0

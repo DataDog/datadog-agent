@@ -1,0 +1,14 @@
+description: find reports error for unknown predicate.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -bogus
+expect:
+  stderr_contains: ["find: unknown predicate"]
+  exit_code: 1

@@ -1,0 +1,28 @@
+description: Line continuation in for loop reserved words.
+input:
+  script: |+
+    \
+    f\
+    o\
+    r\
+     \
+    i\
+     \
+    i\
+    n\
+     1 2
+    \
+    d\
+    o\
+     echo $i
+    \
+    d\
+    o\
+    n\
+    e
+expect:
+  stdout: |+
+    1
+    2
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,20 @@
+description: Cat concatenates an empty file between two non-empty files seamlessly.
+setup:
+  files:
+    - path: a.txt
+      content: "first\n"
+      chmod: 0644
+    - path: empty.txt
+      content: ""
+      chmod: 0644
+    - path: b.txt
+      content: "second\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat a.txt empty.txt b.txt
+expect:
+  stdout: "first\nsecond\n"
+  stderr: ""
+  exit_code: 0

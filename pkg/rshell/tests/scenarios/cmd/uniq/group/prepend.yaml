@@ -1,0 +1,13 @@
+description: uniq --group=prepend adds blank line before first group too.
+setup:
+  files:
+    - path: input.txt
+      content: "a\na\nb\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    uniq --group=prepend input.txt
+expect:
+  stdout: "\na\na\n\nb\n"
+  stderr: ""
+  exit_code: 0

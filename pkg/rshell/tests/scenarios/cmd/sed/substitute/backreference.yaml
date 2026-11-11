@@ -1,0 +1,13 @@
+description: Backreference in replacement using capture groups with -E flag.
+setup:
+  files:
+    - path: input.txt
+      content: "hello world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -E 's/(hello) (world)/\2 \1/' input.txt
+expect:
+  stdout: "world hello\n"
+  stderr: ""
+  exit_code: 0

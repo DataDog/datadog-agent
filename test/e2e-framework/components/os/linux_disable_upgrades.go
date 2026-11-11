@@ -15,5 +15,8 @@ var APTDisableUnattendedUpgradesScriptContent string
 //go:embed scripts/ssh-allow-sftp-root.sh
 var SSHAllowSFTPRootScriptContent string
 
+//go:embed scripts/track-ssh-activity.sh
+var TrackSSHActivityScriptContent string
+
 //go:embed scripts/zypper-disable-unattended-upgrades.sh
 var ZypperDisableUnattendedUpgradesScriptContent string

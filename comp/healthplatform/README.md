@@ -56,6 +56,13 @@ The state machine in the store (`store/impl/store.go`):
 
 On-disk state uses human-readable strings (`"active"`, `"resolved"`). The store accepts `"new"` and `"ongoing"` as legacy aliases for `"active"` when reading persistence files written by older agent versions (schema v2).
 
+Persistence depends on the process and environment:
+
+- Non-Kubernetes Agents use the local `issues.json` file. Kubernetes Agents can opt in with `health_platform.persist_on_kubernetes: true` and a durable `run_path` volume.
+- With `health_platform.persist_remotely_on_kubernetes: true`, Kubernetes node Agents and Cluster Agents restore active issues from `https://api.<site>` using `api_key`. Requests use the DaemonSet UID (`agent_type=node`) or cluster UUID (`agent_type=cluster`); returned issue IDs match Agent issue IDs directly. Standard proxy settings apply; `dd_url` does not. Existing Health Platform egress continues to send updates.
+- Remote restoration takes precedence over local persistence. It is disabled for Cluster Check Runners, one-shot commands, missing API keys, the local FIPS proxy, and disabled TLS certificate verification.
+- Kubernetes persistence is disabled by default.
+
 ## Cluster-wide issue collapse (`deployment_id`)
 
 The backend dedups issues by `id` alone, ignoring hostname. By default this means every issue module

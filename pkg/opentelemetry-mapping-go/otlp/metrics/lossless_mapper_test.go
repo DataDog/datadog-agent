@@ -7,10 +7,12 @@ package metrics
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/pdata/pcommon"
 	"go.opentelemetry.io/collector/pdata/pmetric"
 	"go.uber.org/zap"
@@ -184,6 +186,179 @@ func TestLossLessMapperMapNumberMetrics(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+func TestMapNumberMetricsGaugeInterval(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			testMapNumberMetricsGaugeInterval(t, enabled)
+		})
+	}
+}
+
+func testMapNumberMetricsGaugeInterval(t *testing.T, enabled bool) {
+	const intervalKey = "datadog.gauge.interval"
+	tests := []struct {
+		name     string
+		declared any
+		interval int64
+	}{
+		{name: "missing"},
+		{name: "ten seconds", declared: int64(10), interval: 10},
+		{name: "fifteen seconds", declared: int64(15), interval: 15},
+		{name: "zero", declared: int64(0)},
+		{name: "negative", declared: int64(-10)},
+		{name: "string", declared: "10"},
+		{name: "double", declared: float64(10)},
+		{name: "fractional", declared: 0.5},
+		{name: "boolean", declared: true},
+	}
+	for _, lossless := range []bool{false, true} {
+		for _, inferInterval := range []bool{false, true} {
+			for _, tt := range tests {
+				t.Run(fmt.Sprintf("lossless=%t/infer=%t/%s", lossless, inferInterval, tt.name), func(t *testing.T) {
+					cfg := translatorConfig{InferDeltaInterval: inferInterval}
+					if enabled {
+						require.NoError(t, WithGaugeInterval()(&cfg))
+					}
+					m := newDefaultMapper(nil, zap.NewNop(), cfg)
+					if lossless {
+						m = newLossLessMapper(cfg, zap.NewNop())
+					}
+					slice := pmetric.NewNumberDataPointSlice()
+					for i, value := range []float64{-12.5, 42} {
+						dp := slice.AppendEmpty()
+						dp.SetStartTimestamp(pcommon.Timestamp(1e9))
+						dp.SetTimestamp(pcommon.Timestamp(11e9))
+						if i == 0 {
+							dp.SetDoubleValue(value)
+						} else {
+							dp.SetIntValue(int64(value))
+						}
+						attrs := map[string]any{"env": "test"}
+						if tt.declared != nil {
+							attrs[intervalKey] = tt.declared
+						}
+						require.NoError(t, dp.Attributes().FromRaw(attrs))
+					}
+					before := pmetric.NewNumberDataPointSlice()
+					slice.CopyTo(before)
+					consumer := newTestConsumer()
+					m.MapNumberMetrics(context.Background(), &consumer, &Dimensions{name: "test.gauge"}, Gauge, slice)
+					require.Len(t, consumer.data.Metrics.TimeSeries, 2)
+					for i, actual := range consumer.data.Metrics.TimeSeries {
+						assert.Equal(t, Gauge, actual.Type)
+						assert.Equal(t, "test.gauge", actual.Name)
+						wantInterval := int64(0)
+						if enabled {
+							wantInterval = tt.interval
+						}
+						assert.Equal(t, wantInterval, actual.Interval)
+						assert.Equal(t, uint64(11e9), actual.Timestamp)
+						assert.Equal(t, []float64{-12.5, 42}[i], actual.Value)
+						wantTags := []string{"env:test"}
+						if tt.declared != nil {
+							wantTags = append(wantTags, fmt.Sprintf("%s:%v", intervalKey, tt.declared))
+						}
+						assert.ElementsMatch(t, wantTags, actual.Tags)
+					}
+					assert.Equal(t, before, slice, "mapping must not mutate the input")
+				})
+			}
+		}
+	}
+}
+
+func TestMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		t.Run(fmt.Sprintf("enabled=%t", enabled), func(t *testing.T) {
+			testMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t, enabled)
+		})
+	}
+}
+
+func testMapNumberMetricsGaugeIntervalDoesNotOverrideCount(t *testing.T, enabled bool) {
+	for _, lossless := range []bool{false, true} {
+		for _, asRate := range []bool{false, true} {
+			t.Run(fmt.Sprintf("lossless=%t/rate=%t", lossless, asRate), func(t *testing.T) {
+				cfg := translatorConfig{InferDeltaInterval: true}
+				if enabled {
+					require.NoError(t, WithGaugeInterval()(&cfg))
+				}
+				m := newDefaultMapper(nil, zap.NewNop(), cfg)
+				if lossless {
+					m = newLossLessMapper(cfg, zap.NewNop())
+				}
+				slice := pmetric.NewNumberDataPointSlice()
+				dp := slice.AppendEmpty()
+				dp.SetStartTimestamp(pcommon.Timestamp(1e9))
+				dp.SetTimestamp(pcommon.Timestamp(11e9))
+				dp.SetDoubleValue(50)
+				dp.Attributes().PutInt("datadog.gauge.interval", 15)
+				expectedType, expectedValue := Count, float64(50)
+				if asRate {
+					dp.Attributes().PutStr(deltaSumRateAttributeKey, "rate")
+					expectedType, expectedValue = Rate, 5
+				}
+				consumer := newTestConsumer()
+				m.MapNumberMetrics(context.Background(), &consumer, &Dimensions{name: "test.count"}, Count, slice)
+				require.Len(t, consumer.data.Metrics.TimeSeries, 1)
+				actual := consumer.data.Metrics.TimeSeries[0]
+				assert.Equal(t, expectedType, actual.Type)
+				assert.Equal(t, expectedValue, actual.Value)
+				assert.Equal(t, int64(10), actual.Interval)
+				assert.Equal(t, uint64(11e9), actual.Timestamp)
+				assert.Contains(t, actual.Tags, "datadog.gauge.interval:15")
+			})
+		}
+	}
+}
+
+func TestGaugeIntervalCumulativeUpDownCounter(t *testing.T) {
+	for _, enabled := range []bool{false, true} {
+		for _, lossless := range []bool{false, true} {
+			t.Run(fmt.Sprintf("enabled=%t/lossless=%t", enabled, lossless), func(t *testing.T) {
+				defaultTr := newTranslator(t, zap.NewNop())
+				options := []TranslatorOption{WithFallbackSourceProvider(testProvider(fallbackHostname))}
+				if enabled {
+					options = append(options, WithGaugeInterval())
+				}
+				var tr Provider
+				var err error
+				if lossless {
+					tr, err = NewMinimalTranslator(zap.NewNop(), defaultTr.attributesTranslator, options...)
+				} else {
+					tr, err = NewDefaultTranslator(componenttest.NewNopTelemetrySettings(), defaultTr.attributesTranslator, options...)
+				}
+				require.NoError(t, err)
+				md := pmetric.NewMetrics()
+				metric := md.ResourceMetrics().AppendEmpty().ScopeMetrics().AppendEmpty().Metrics().AppendEmpty()
+				metric.SetName("test.updown")
+				sum := metric.SetEmptySum()
+				sum.SetAggregationTemporality(pmetric.AggregationTemporalityCumulative)
+				sum.SetIsMonotonic(false)
+				dp := sum.DataPoints().AppendEmpty()
+				dp.SetStartTimestamp(pcommon.Timestamp(1e9))
+				dp.SetTimestamp(pcommon.Timestamp(121e9))
+				dp.SetIntValue(42)
+				dp.Attributes().PutInt(gaugeIntervalAttributeKey, 15)
+				consumer := newTestConsumer()
+				_, err = tr.MapMetrics(context.Background(), md, &consumer, nil)
+				require.NoError(t, err)
+				require.Len(t, consumer.data.Metrics.TimeSeries, 1)
+				actual := consumer.data.Metrics.TimeSeries[0]
+				wantInterval := int64(0)
+				if enabled {
+					wantInterval = 15
+				}
+				assert.Equal(t, Gauge, actual.Type)
+				assert.Equal(t, wantInterval, actual.Interval)
+				assert.Equal(t, float64(42), actual.Value)
+				assert.Equal(t, uint64(121e9), actual.Timestamp)
+				assert.Contains(t, actual.Tags, "datadog.gauge.interval:15")
+			})
+		}
 	}
 }
 

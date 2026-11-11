@@ -1,0 +1,5 @@
+---
+features:
+  - |
+    Private Action Runner: add experimental Windows support for executing
+    Datadog-authored script actions under ``com.datadoghq.authoredscripts``.

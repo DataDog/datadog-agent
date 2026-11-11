@@ -1,0 +1,15 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The Go network check no longer submits ``system.net.iface.*`` metrics for
+    regular files under ``/sys/class/net``. Previously, on hosts with the
+    bonding driver loaded, ``bonding_masters`` was reported as an interface,
+    with ``system.net.iface.up``, ``system.net.iface.mtu`` and
+    ``system.net.iface.tx_queue_len`` always set to 0.

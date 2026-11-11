@@ -6,9 +6,13 @@
 package providers
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"path"
+	"path/filepath"
+	"sync"
 	"testing"
 	"time"
 
@@ -21,6 +25,46 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
 )
+
+func TestConfigReaderConcurrentInitialization(t *testing.T) {
+	configmock.New(t)
+	paths := []string{"testdata"}
+	ResetReader(paths)
+	expected, expectedErrors, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	expectedFormats := ReadConfigFormats()
+
+	readerMu.Lock()
+	reader = nil
+	doOnce = sync.Once{}
+	readerMu.Unlock()
+
+	var wg sync.WaitGroup
+	for range 10 {
+		wg.Go(func() { InitConfigFilesReader(paths) })
+		wg.Go(func() {
+			// A caller arriving before initialization can see an empty reader;
+			// callers arriving during the initial fill must not race its publication.
+			ReadConfigFormats()
+			_, _, _ = ReadConfigFiles(GetAll)
+		})
+	}
+	wg.Wait()
+	actual, actualErrors, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	require.Equal(t, expected, actual)
+	require.Equal(t, expectedErrors, actualErrors)
+	require.Equal(t, expectedFormats, ReadConfigFormats())
+
+	// Metadata and provider reads must also serialize cache-miss refreshes.
+	reader.cache.Flush()
+	for range 10 {
+		wg.Go(func() { ReadConfigFormats() })
+		wg.Go(func() { _, _, _ = ReadConfigFiles(GetAll) })
+	}
+	wg.Wait()
+	require.Equal(t, expectedFormats, ReadConfigFormats())
+}
 
 func TestGetIntegrationConfig(t *testing.T) {
 	// file does not exist
@@ -324,6 +368,54 @@ func TestReadConfigFilesConcurrentMatchesSequential(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestReadConfigFormats(t *testing.T) {
+	testFileContent := `
+init_config:
+
+instances:
+  - host: localhost
+    password: hunter2`
+
+	tempDir := t.TempDir()
+	testFilePath := filepath.Join(tempDir, "foo.yaml")
+	require.NoError(t, os.WriteFile(testFilePath, []byte(testFileContent), 0o660))
+
+	configmock.New(t)
+	// The initial scan at startup does not build the formats
+	ResetReader([]string{tempDir})
+	configs, _, err := ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	require.Len(t, configs, 1)
+	_, found := reader.cache.Get("configFormats")
+	assert.False(t, found)
+
+	// ReadConfigFormats builds and caches them
+	formats := ReadConfigFormats()
+	require.Len(t, formats, 1)
+	format := formats[0]
+	assert.Equal(t, testFilePath, format.Filename)
+	assert.False(t, format.IsDiscovery)
+	assert.Contains(t, format.ConfigFormat, "host: localhost")
+	assert.NotContains(t, format.ConfigFormat, "hunter2")
+	hash := sha256.Sum256([]byte(format.ConfigFormat))
+	assert.Equal(t, hex.EncodeToString(hash[:]), format.Hash)
+	_, found = reader.cache.Get("configFormats")
+	assert.True(t, found)
+
+	// They match the ones built by GetIntegrationConfigFromFile
+	_, expectedFormat, err := GetIntegrationConfigFromFile("foo", testFilePath)
+	require.NoError(t, err)
+	assert.Equal(t, expectedFormat, format)
+
+	// Scans after the initial one, like the ones triggered by ReadConfigFiles on a cache miss, build the formats
+	reader.cache.Flush()
+	_, _, err = ReadConfigFiles(GetAll)
+	require.NoError(t, err)
+	cachedFormats, found := reader.cache.Get("configFormats")
+	require.True(t, found)
+	assert.Equal(t, formats, cachedFormats)
 }
 
 func TestReadConfigFilesCache(t *testing.T) {

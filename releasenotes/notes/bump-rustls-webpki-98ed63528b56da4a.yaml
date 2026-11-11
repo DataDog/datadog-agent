@@ -1,0 +1,5 @@
+---
+security:
+  - |
+    Update ``rustls-webpki`` to 0.103.16, which rejects certificate chains that
+    include a small set of distrusted intermediate CA public keys.

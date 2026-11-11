@@ -1,0 +1,13 @@
+description: Case-insensitive flag on empty regexp reuse is rejected.
+setup:
+  files:
+    - path: input.txt
+      content: "abc\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed 's/a/x/; s//y/I' input.txt
+expect:
+  stdout: ""
+  stderr_contains: ["cannot specify modifiers on empty regexp"]
+  exit_code: 1

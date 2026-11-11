@@ -10,6 +10,10 @@ package versa
 import (
 	"fmt"
 	"testing"
+	"time"
+
+	"github.com/stretchr/testify/require"
+	yaml "go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/pkg/networkdevice/metadata"
 
@@ -195,4 +199,30 @@ func TestGenerateDeviceNameToIDMap(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestParseEndpointOverrides(t *testing.T) {
+	rawInstance := []byte(`
+max_count: 2000
+client_timeout: 10
+endpoint_overrides:
+  sla_metrics:
+    max_count: 500
+    max_pages: 20
+    timeout: 60
+  tunnel_metrics:
+    timeout: 30
+`)
+	var config checkCfg
+	require.NoError(t, yaml.Unmarshal(rawInstance, &config))
+
+	overrides, err := parseEndpointOverrides(config.EndpointOverrides)
+	require.NoError(t, err)
+	require.Equal(t, map[client.Endpoint]client.EndpointConfig{
+		client.EndpointSLAMetrics:    {MaxCount: 500, MaxPages: 20, Timeout: 60 * time.Second},
+		client.EndpointTunnelMetrics: {Timeout: 30 * time.Second},
+	}, overrides)
+
+	_, err = parseEndpointOverrides(map[string]endpointOverrideCfg{"sla": {Timeout: 60}})
+	require.ErrorContains(t, err, `invalid endpoint_overrides: unknown endpoint "sla"`)
 }

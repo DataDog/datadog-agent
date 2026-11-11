@@ -29,7 +29,6 @@ import (
 	workloadfilter "github.com/DataDog/datadog-agent/comp/core/workloadfilter/def"
 	compression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	sbomapi "github.com/DataDog/datadog-agent/pkg/proto/pbgo/sbom"
-	"github.com/DataDog/datadog-agent/pkg/sbom"
 	"github.com/DataDog/datadog-agent/pkg/security/common"
 	"github.com/DataDog/datadog-agent/pkg/security/config"
 	"github.com/DataDog/datadog-agent/pkg/security/events"
@@ -79,9 +78,6 @@ func (p *pendingMsg) getMaxRetry() int {
 	maxRetry := defaultMaxRetry
 	for _, report := range p.actionReports {
 		maxRetry = max(maxRetry, report.MaxRetry())
-	}
-	if p.sshSessionPatcher != nil {
-		maxRetry = max(maxRetry, p.sshSessionPatcher.MaxRetry())
 	}
 	return maxRetry
 }
@@ -142,13 +138,21 @@ func (p *pendingMsg) isResolved() bool {
 		}
 	}
 
-	// TODO: for now skip the retry mechanism and always send the event
-	// if p.sshSessionPatcher != nil {
-	// 	if err := p.sshSessionPatcher.IsResolved(); err != nil {
-	// 		seclog.Tracef("ssh session not resolved: %v", err)
-	// 		return false
-	// 	}
-	// }
+	// The SSH session patcher has its own, much smaller, retry budget: the auth log line of a
+	// session is expected within a few hundreds of milliseconds, and the retry queue is ordered so
+	// waiting longer would delay all the following events.
+	if p.sshSessionPatcher != nil {
+		if err := p.sshSessionPatcher.IsResolved(); err != nil {
+			if p.retry < p.sshSessionPatcher.MaxRetry() {
+				seclog.Tracef("ssh session not resolved: %v", err)
+				return false
+			}
+			// give up on this session, the auth log line will most likely never show up. Flag it
+			// so that its next events are sent right away instead of being delayed too.
+			seclog.Debugf("giving up on ssh session resolution: %v", err)
+			p.sshSessionPatcher.MarkUnresolved()
+		}
+	}
 	return true
 }
 
@@ -200,7 +204,7 @@ func mergeJSON(j1, j2 []byte) ([]byte, error) {
 type SBOMAPIServer struct {
 	sbomapi.UnimplementedSBOMCollectorServer
 
-	sboms    chan *sbom.ScanResult
+	sboms    *sbomQueue
 	probe    *sprobe.Probe
 	stopChan chan struct{}
 }
@@ -355,6 +359,21 @@ func slicesDeleteUntilFalse(s []*pendingMsg, f func(*pendingMsg) bool) []*pendin
 	return nil
 }
 
+// newSecurityEventMessage builds the message for a rule or custom event. It always carries this
+// system-probe's hostname: when the message is relayed through another process (for instance a
+// host system-probe receiving events from a micro VM over vsock), the relay only falls back to its
+// own hostname for messages that have none, which would attribute this host's events to the relay.
+func (a *APIServer) newSecurityEventMessage(ruleID string, data []byte, service string, tags []string, timestamp time.Time) *api.SecurityEventMessage {
+	return &api.SecurityEventMessage{
+		RuleID:    ruleID,
+		Data:      data,
+		Service:   service,
+		Tags:      tags,
+		Timestamp: timestamppb.New(timestamp),
+		Hostname:  a.hostname,
+	}
+}
+
 func (a *APIServer) updateMsgService(msg *api.SecurityEventMessage) {
 	// look for the service tag if we don't have one yet
 	if len(msg.Service) == 0 {
@@ -441,14 +460,7 @@ func (a *APIServer) start(ctx context.Context) {
 
 				seclog.Tracef("Sending event message for rule `%s` to security-agent `%s`", msg.ruleID, string(data))
 
-				m := &api.SecurityEventMessage{
-					RuleID:    msg.ruleID,
-					Data:      data,
-					Service:   msg.service,
-					Tags:      msg.tags,
-					Timestamp: timestamppb.New(msg.timestamp),
-					Hostname:  a.hostname,
-				}
+				m := a.newSecurityEventMessage(msg.ruleID, data, msg.service, msg.tags, msg.timestamp)
 				a.updateMsgService(m)
 
 				if err := a.statsdClient.Distribution(metrics.MetricEventServerRetriesBeforeSend, float64(msg.retry), []string{}, 1.0); err != nil {
@@ -607,14 +619,8 @@ func (a *APIServer) SendEvent(rule *rules.Rule, event events.Event, extTagsCb fu
 		// for custom events, we can use the current time as timestamp
 		timestamp := time.Now()
 
-		m := &api.SecurityEventMessage{
-			RuleID:         groupRuleID,
-			OriginalRuleID: originalRuleID,
-			Data:           data,
-			Service:        service,
-			Tags:           tags,
-			Timestamp:      timestamppb.New(timestamp),
-		}
+		m := a.newSecurityEventMessage(groupRuleID, data, service, tags, timestamp)
+		m.OriginalRuleID = originalRuleID
 		a.updateCustomEventTags(m)
 		a.updateMsgService(m)
 		a.updateMsgTrack(m)
@@ -987,7 +993,7 @@ func NewAPIServer(cfg *config.RuntimeSecurityConfig, probe *sprobe.Probe, msgSen
 func NewSBOMAPIServer(probe *sprobe.Probe, stopChan chan struct{}) *SBOMAPIServer {
 	as := &SBOMAPIServer{
 		probe:    probe,
-		sboms:    make(chan *sbom.ScanResult, 100),
+		sboms:    newSBOMQueue(100),
 		stopChan: stopChan,
 	}
 

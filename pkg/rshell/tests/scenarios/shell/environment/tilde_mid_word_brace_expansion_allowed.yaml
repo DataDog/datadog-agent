@@ -1,0 +1,9 @@
+description: Brace expansion that keeps a tilde in the middle of every field is still allowed.
+input:
+  script: |+
+    echo {a,b}~root x{~root,}
+expect:
+  stdout: |+
+    a~root b~root x~root x
+  stderr: ""
+  exit_code: 0

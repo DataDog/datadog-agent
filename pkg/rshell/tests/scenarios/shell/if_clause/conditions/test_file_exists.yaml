@@ -1,0 +1,16 @@
+description: If with test builtin checking file existence.
+setup:
+  files:
+    - path: testfile.txt
+      content: "hello"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    if [ -f testfile.txt ]; then echo exists; else echo missing; fi
+    if [ -f nosuchfile.txt ]; then echo exists; else echo missing; fi
+expect:
+  stdout: |+
+    exists
+    missing
+  stderr: ""
+  exit_code: 0

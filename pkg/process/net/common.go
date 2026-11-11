@@ -18,7 +18,7 @@ import (
 	reqEncoding "github.com/DataDog/datadog-agent/pkg/process/encoding/request"
 	pbgo "github.com/DataDog/datadog-agent/pkg/proto/pbgo/process"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 )
 
 // GetProcStats returns a set of process stats by querying system-probe
@@ -32,7 +32,7 @@ func GetProcStats(client *http.Client, pids []int32) (*model.ProcStatsWithPermBy
 		return nil, err
 	}
 
-	url := sysprobeclient.ModuleURL(sysconfig.ProcessModule, "/stats")
+	url := sysprobeclient.ModuleURL(sysconfigtypes.ProcessModule, "/stats")
 	req, err := http.NewRequest("POST", url, bytes.NewReader(reqBody))
 	if err != nil {
 		return nil, err

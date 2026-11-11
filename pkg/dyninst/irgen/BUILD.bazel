@@ -58,7 +58,9 @@ go_library(
 dd_agent_go_test(
     name = "irgen_test",
     srcs = [
+        "abstract_subprogram_test.go",
         "contains_equivalence_test.go",
+        "generic_closure_test.go",
         "go_context_test.go",
         "implementors_test.go",
         "irgen_all_symbols_test.go",
@@ -67,9 +69,11 @@ dd_agent_go_test(
         "irgen_test.go",
         "issues_test.go",
         "main_test.go",
+        "moduledata_test.go",
         "redaction_test.go",
         "return_names_test.go",
         "snapshot_test.go",
+        "variable_name_test.go",
     ],
     data = glob(["testdata/**"]),
     embed = [":irgen"],

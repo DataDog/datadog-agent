@@ -44,7 +44,7 @@ def ensure_options_in_config(
     """
     if read_with_sudo:
         buffer = io.StringIO()
-        res = ctx.run(f"sudo cat {config_file}", warn=True, out_stream=buffer)
+        res = ctx.run(f"sudo -n cat {config_file}", warn=True, out_stream=buffer)
         if res is None:
             raise RuntimeError(f"Failed to read config file {config_file}, unknown error")
         elif not res.ok:
@@ -62,7 +62,7 @@ def ensure_options_in_config(
             temp_file.write("\n".join(updated_lines).encode("utf-8"))
             temp_file.close()
 
-            sudo = "sudo " if write_with_sudo else ""
+            sudo = "sudo -n " if write_with_sudo else ""
             ctx.run(f"{sudo}mv {temp_file.name} {config_file}")
 
     return incorrect_options
@@ -133,7 +133,7 @@ def check_launchctl_service(
     Returns:
         RequirementState: status of the service
     """
-    launchctl_data = ctx.run(f"sudo launchctl print {service_name}", warn=True)
+    launchctl_data = ctx.run(f"sudo -n launchctl print {service_name}", warn=True)
     tried_to_load = False
 
     # If the service is not loaded, try to load it once (if we can)
@@ -147,11 +147,11 @@ def check_launchctl_service(
 
         try:
             tried_to_load = True
-            ctx.run(f"sudo launchctl load -w {service_install_file}")
+            ctx.run(f"sudo -n launchctl load -w {service_install_file}")
         except Exception as e:
             return RequirementState(Status.FAIL, f"Failed to load launchctl service: {e}")
 
-        launchctl_data = ctx.run(f"sudo launchctl print {service_name}", warn=True)
+        launchctl_data = ctx.run(f"sudo -n launchctl print {service_name}", warn=True)
 
     service_info = launchctl_data.stdout
 
@@ -162,7 +162,7 @@ def check_launchctl_service(
             )
 
         try:
-            ctx.run(f"sudo launchctl enable {service_name}")
+            ctx.run(f"sudo -n launchctl enable {service_name}")
         except Exception as e:
             return RequirementState(Status.FAIL, f"Failed to enable launchctl service: {e}")
 
@@ -171,7 +171,7 @@ def check_launchctl_service(
             return RequirementState(Status.FAIL, f"launchctl service {service_name} not running", fixable=True)
 
         try:
-            ctx.run(f"sudo launchctl start {service_name}")
+            ctx.run(f"sudo -n launchctl start {service_name}")
         except Exception as e:
             return RequirementState(Status.FAIL, f"Failed to start launchctl service: {e}")
 
@@ -197,7 +197,7 @@ def check_directories(
     """
     states: list[RequirementState] = []
 
-    sudo = "sudo " if not is_root() else ""
+    sudo = "sudo -n " if not is_root() else ""
     user_id = pwd.getpwnam(user).pw_uid
     group_id = grp.getgrnam(group).gr_gid
     mode_str = "0" + oct(mode)[2:]  # Remove the 0o prefix, keep "0" instead
@@ -286,7 +286,7 @@ class UbuntuPackageManager(_BasePackageManager):
         return cast(Result, self.ctx.run(f"dpkg -s {package}", warn=True)).ok
 
     def _install_packages(self, packages: list[str]) -> None:
-        sudo = "sudo " if not is_root() else ""
+        sudo = "sudo -n " if not is_root() else ""
         self.ctx.run(f"{sudo}apt update")
         self.ctx.run(f"{sudo}apt install -y {' '.join(packages)}")
 
@@ -309,7 +309,7 @@ class UbuntuSnapPackageManager(_BasePackageManager):
         return cast(Result, self.ctx.run(f"snap list {package}", warn=True)).ok
 
     def _install_packages(self, packages: list[str]) -> None:
-        sudo = "sudo " if not is_root() else ""
+        sudo = "sudo -n " if not is_root() else ""
         cmd = f"{sudo}snap install {' '.join(packages)}"
         if self.classic:
             cmd += " --classic"
@@ -358,7 +358,7 @@ def check_user_in_group(ctx: Context, group: str, fix=False) -> RequirementState
     if not fix:
         return RequirementState(Status.FAIL, f"User is not in group {group}.", fixable=fix)
 
-    sudo = "sudo " if not is_root() else ""
+    sudo = "sudo -n " if not is_root() else ""
     ctx.run(f"{sudo}usermod -aG {group} {getpass.getuser()}")
 
     return RequirementState(

@@ -56,7 +56,7 @@ func connectKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, e
 			connectAddrFamilyValues = connectAddrFamilyValues.Merge(values...)
 			fieldHandled = append(fieldHandled, field)
 		case "connect.addr.port", "connect.addr.ip", "connect.addr.is_public", "connect.addr.hostname":
-			connectAddrFamilyValues = connectAddrFamilyValues.Merge(implicitAfInetFilterValues()...)
+			connectAddrFamilyValues = connectAddrFamilyValues.Merge(implicitAfInetFilterValues("connect.addr.family")...)
 			fieldHandled = append(fieldHandled, field)
 		}
 	}
@@ -69,15 +69,17 @@ func connectKFiltersGetter(approvers rules.Approvers) (KFilters, []eval.Field, e
 	return newKFilters(kfilter), fieldHandled, nil
 }
 
-func implicitAfInetFilterValues() rules.FilterValues {
+// implicitAfInetFilterValues returns the address family filter values implied by an address field
+// (ip, port, ...), which only exists for AF_INET and AF_INET6 sockets
+func implicitAfInetFilterValues(familyField eval.Field) rules.FilterValues {
 	return rules.FilterValues{
 		{
-			Field: "connect.addr.family",
+			Field: familyField,
 			Value: unix.AF_INET,
 			Type:  eval.ScalarValueType,
 		},
 		{
-			Field: "connect.addr.family",
+			Field: familyField,
 			Value: unix.AF_INET6,
 			Type:  eval.ScalarValueType,
 		},

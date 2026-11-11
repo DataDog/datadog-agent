@@ -1,0 +1,8 @@
+description: Printf uses empty string for missing %s arguments.
+input:
+  script: |+
+    printf "%s and %s\n" hello
+expect:
+  stdout: "hello and \n"
+  stderr: ""
+  exit_code: 0

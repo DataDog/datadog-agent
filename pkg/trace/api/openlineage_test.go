@@ -314,3 +314,10 @@ func TestOpenLineageProxyHandler(t *testing.T) {
 		}
 	})
 }
+
+func TestOpenLineageProxyMultipleEndpointsEmptyBody(t *testing.T) {
+	assertEmptyBodyFansOut(t, func(urls []*url.URL, keys []string) http.Handler {
+		c := &config.AgentConfig{ContainerIDFromOriginInfo: config.NoopContainerIDFromOriginInfoFunc, MaxRequestBytes: 1024}
+		return newOpenLineageProxy(c, urls, keys, "key:val", &statsd.NoOpClient{})
+	})
+}

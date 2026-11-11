@@ -21,6 +21,11 @@
 #include <signal.h>
 #include <errno.h>
 #include <arpa/inet.h>
+#include <netinet/in.h>
+#include <netinet/ip.h>
+#include <netinet/ip6.h>
+#include <netinet/ip_icmp.h>
+#include <netinet/icmp6.h>
 #include <net/if.h>
 #include <netdb.h>
 #include <linux/un.h>
@@ -778,15 +783,31 @@ int test_bind(int argc, char** argv) {
 
 int test_connect_af_inet(int argc, char** argv) {
 
-    if (argc != 4) {
+    if (argc != 4 && argc != 5) {
         fprintf(stderr, "%s: please specify a valid command:\n", __FUNCTION__);
         fprintf(stderr, "Arg1: an option for the addr in the list: any, custom_ip\n");
         fprintf(stderr, "Arg2: an option for the protocol in the list: tcp, udp\n");
         fprintf(stderr, "Arg3: the port number to connect to\n");
+        fprintf(stderr, "Arg4 (optional, udp only): the number of times the socket connects (default: 1)\n");
         return EXIT_FAILURE;
     }
 
     char* proto = argv[2];
+
+    int count = 1;
+    if (argc == 5) {
+        count = atoi(argv[4]);
+        if (count <= 0) {
+            fprintf(stderr, "Invalid connect count: %s\n", argv[4]);
+            return EXIT_FAILURE;
+        }
+        // connecting an already connected TCP socket fails with EISCONN
+        if (count > 1 && strcmp(proto, "udp")) {
+            fprintf(stderr, "A connect count is only supported with udp\n");
+            return EXIT_FAILURE;
+        }
+    }
+
     int s;
 
     if (!strcmp(proto, "udp"))
@@ -820,10 +841,12 @@ int test_connect_af_inet(int argc, char** argv) {
 
     addr.sin_port = htons(atoi(argv[3]));
 
-    if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
-        close(s);
-        perror("Failed to connect to port");
-        return EXIT_FAILURE;
+    for (int i = 0; i < count; i++) {
+        if (connect(s, (struct sockaddr*)&addr, sizeof(addr)) < 0) {
+            close(s);
+            perror("Failed to connect to port");
+            return EXIT_FAILURE;
+        }
     }
 
     close (s);
@@ -1085,6 +1108,42 @@ int test_exec_in_pthread(int argc, char **argv) {
     return EXIT_SUCCESS;
 }
 
+void *thread_coredump(void *arg) {
+    // send the signal to the current thread only, so that the core is dumped by a thread that isn't the thread group leader
+    syscall(SYS_tgkill, getpid(), syscall(SYS_gettid), SIGQUIT);
+    return NULL;
+}
+
+int test_coredump_in_pthread(int argc, char **argv) {
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_coredump, NULL) != 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_join(thread, NULL);
+
+    return EXIT_SUCCESS;
+}
+
+void *thread_wait_and_exec(void *arg) {
+    getchar();
+    return thread_exec(arg);
+}
+
+int test_leader_exit_pthread_exec(int argc, char **argv) {
+    if (argc <= 1) {
+        return EXIT_FAILURE;
+    }
+
+    pthread_t thread;
+    if (pthread_create(&thread, NULL, thread_wait_and_exec, &argv[1]) < 0) {
+        return EXIT_FAILURE;
+    }
+    if (pthread_detach(thread) != 0) {
+        return EXIT_FAILURE;
+    }
+    pthread_exit(NULL);
+}
+
 int test_sleep(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "%s: Please pass a duration in seconds.\n", __FUNCTION__);
@@ -1325,6 +1384,128 @@ int test_create_socket_send_fd(int argc, char **argv) {
 
     close(fd);
     return EXIT_SUCCESS;
+}
+
+// setns_from_path opens the nsfs file at path and joins the namespace it refers to.
+static int setns_from_path(const char *path, int nstype) {
+    int fd = open(path, O_RDONLY | O_CLOEXEC);
+    if (fd < 0) {
+        perror("open");
+        return EXIT_FAILURE;
+    }
+
+    if (setns(fd, nstype) < 0) {
+        perror("setns");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    close(fd);
+    return EXIT_SUCCESS;
+}
+
+// setns_from_pidfd joins its own mount and network namespaces through a pidfd. With denied set it
+// first drops its capabilities, so the kernel fails on the mount namespace before it validates the
+// network one, and only that EPERM counts as a success.
+static int setns_from_pidfd(int denied) {
+    int fd = syscall(__NR_pidfd_open, getpid(), 0);
+    if (fd < 0) {
+        perror("pidfd_open");
+        return EXIT_FAILURE;
+    }
+
+    if (denied && setuid(1) < 0) {
+        perror("setuid");
+        close(fd);
+        return EXIT_FAILURE;
+    }
+
+    int ret = setns(fd, CLONE_NEWNS | CLONE_NEWNET);
+    int err = errno;
+    close(fd);
+
+    if (denied) {
+        if (ret == 0 || err != EPERM) {
+            fprintf(stderr, "setns should have failed with EPERM, got %d (%s)\n", ret, strerror(err));
+            return EXIT_FAILURE;
+        }
+        return EXIT_SUCCESS;
+    }
+
+    if (ret < 0) {
+        fprintf(stderr, "setns: %s\n", strerror(err));
+        return EXIT_FAILURE;
+    }
+    return EXIT_SUCCESS;
+}
+
+// Usage: syscall_tester setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied>
+int test_setns(int argc, char **argv) {
+    if (argc < 2) {
+        fprintf(stderr, "Usage: setns <net|mnt|any|netns-roundtrip|pidfd|pidfd-denied|mnt-unshared <path>>\n");
+        return EXIT_FAILURE;
+    }
+
+    const char *mode = argv[1];
+
+    if (strcmp(mode, "net") == 0) {
+        return setns_from_path("/proc/self/ns/net", CLONE_NEWNET);
+    }
+
+    if (strcmp(mode, "mnt") == 0) {
+        return setns_from_path("/proc/self/ns/mnt", CLONE_NEWNS);
+    }
+
+    // nstype 0 lets the kernel infer the namespace type from the file descriptor
+    if (strcmp(mode, "any") == 0) {
+        return setns_from_path("/proc/self/ns/net", 0);
+    }
+
+    if (strcmp(mode, "pidfd") == 0) {
+        return setns_from_pidfd(0);
+    }
+
+    if (strcmp(mode, "pidfd-denied") == 0) {
+        return setns_from_pidfd(1);
+    }
+
+    // Leave the current network namespace, then join it back through the file descriptor
+    // held across the unshare: the reported netns must be the original one, not the new one.
+    if (strcmp(mode, "netns-roundtrip") == 0) {
+        int fd = open("/proc/self/ns/net", O_RDONLY | O_CLOEXEC);
+        if (fd < 0) {
+            perror("open");
+            return EXIT_FAILURE;
+        }
+
+        if (unshare(CLONE_NEWNET) < 0) {
+            perror("unshare");
+            close(fd);
+            return EXIT_FAILURE;
+        }
+
+        if (setns(fd, CLONE_NEWNET) < 0) {
+            perror("setns");
+            close(fd);
+            return EXIT_FAILURE;
+        }
+
+        close(fd);
+        return EXIT_SUCCESS;
+    }
+
+    // Leave the current mount namespace, then join the one at path, opened from the new namespace:
+    // /proc/self/ns/mnt is then the unshared namespace itself
+    if (strcmp(mode, "mnt-unshared") == 0 && argc >= 3) {
+        if (unshare(CLONE_NEWNS) < 0) {
+            perror("unshare");
+            return EXIT_FAILURE;
+        }
+        return setns_from_path(argv[2], CLONE_NEWNS);
+    }
+
+    fprintf(stderr, "Unknown setns mode: %s\n", mode);
+    return EXIT_FAILURE;
 }
 
 int test_network_flow_send_udp4(int argc, char **argv) {
@@ -1986,6 +2167,171 @@ void *udp_client_thread(void *arg) {
     return NULL;
 }
 
+#define NETWORK_PROBE_ECHO_ID 0x4242
+
+static u_int16_t icmp_checksum(void *data, int len) {
+    u_int32_t sum = 0;
+    u_int16_t *p = data;
+
+    for (; len > 1; len -= 2) {
+        sum += *p++;
+    }
+    if (len == 1) {
+        sum += *(u_int8_t *)p;
+    }
+    sum = (sum >> 16) + (sum & 0xffff);
+    sum += (sum >> 16);
+
+    return ~sum;
+}
+
+static int set_recv_timeout(int fd) {
+    struct timeval tv = { .tv_sec = 1 };
+    return setsockopt(fd, SOL_SOCKET, SO_RCVTIMEO, &tv, sizeof(tv));
+}
+
+// network_probe_icmp_echo sends an ICMP echo request to the loopback address and returns 1 if the reply is received
+static int network_probe_icmp_echo(int family) {
+    int fd = socket(family, SOCK_RAW, family == AF_INET ? IPPROTO_ICMP : IPPROTO_ICMPV6);
+    if (fd < 0) {
+        return -1;
+    }
+
+    if (set_recv_timeout(fd) < 0) {
+	close(fd);
+	return -1;
+    }
+
+    struct sockaddr_storage addr = {};
+    socklen_t addr_len;
+    char req[64] = {};
+    if (family == AF_INET) {
+        struct sockaddr_in *sin = (struct sockaddr_in *)&addr;
+        sin->sin_family = AF_INET;
+        sin->sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+        addr_len = sizeof(*sin);
+
+        struct icmphdr *icmp = (struct icmphdr *)req;
+        icmp->type = ICMP_ECHO;
+        icmp->un.echo.id = htons(NETWORK_PROBE_ECHO_ID);
+        icmp->un.echo.sequence = htons(1);
+        icmp->checksum = icmp_checksum(req, sizeof(req));
+    } else {
+        struct sockaddr_in6 *sin6 = (struct sockaddr_in6 *)&addr;
+        sin6->sin6_family = AF_INET6;
+        sin6->sin6_addr = in6addr_loopback;
+        addr_len = sizeof(*sin6);
+
+        // the checksum of ICMPv6 raw sockets is computed by the kernel
+        struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)req;
+        icmp6->icmp6_type = ICMP6_ECHO_REQUEST;
+        icmp6->icmp6_id = htons(NETWORK_PROBE_ECHO_ID);
+        icmp6->icmp6_seq = htons(1);
+    }
+
+    if (sendto(fd, req, sizeof(req), 0, (struct sockaddr *)&addr, addr_len) < 0) {
+        int ret = errno == ENOBUFS || errno == EPERM ? 0 : -1;
+        close(fd);
+        return ret;
+    }
+
+    // raw sockets also receive the echo requests looped back, skip them
+    char buf[1500];
+    for (int i = 0; i < 16; i++) {
+        ssize_t n = recv(fd, buf, sizeof(buf), 0);
+        if (n < 0) {
+            break;
+        }
+
+        if (family == AF_INET) {
+            struct iphdr *ip = (struct iphdr *)buf;
+            size_t ip_len = ip->ihl * 4;
+            struct icmphdr *icmp = (struct icmphdr *)(buf + ip_len);
+            if ((size_t)n >= ip_len + sizeof(*icmp) && icmp->type == ICMP_ECHOREPLY && icmp->un.echo.id == htons(NETWORK_PROBE_ECHO_ID)) {
+                close(fd);
+                return 1;
+            }
+        } else {
+            struct icmp6_hdr *icmp6 = (struct icmp6_hdr *)buf;
+            if ((size_t)n >= sizeof(*icmp6) && icmp6->icmp6_type == ICMP6_ECHO_REPLY && icmp6->icmp6_id == htons(NETWORK_PROBE_ECHO_ID)) {
+                close(fd);
+                return 1;
+            }
+        }
+    }
+
+    close(fd);
+    return 0;
+}
+
+// network_probe_udp6_dstopts sends an UDP datagram with an IPv6 Destination Options extension header
+// to the loopback address and returns 1 if it is received
+static int network_probe_udp6_dstopts() {
+    int ret = -1;
+    struct sockaddr_in6 addr = { .sin6_family = AF_INET6, .sin6_addr = in6addr_loopback };
+    socklen_t addr_len = sizeof(addr);
+
+    int rfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    int sfd = socket(AF_INET6, SOCK_DGRAM, 0);
+    if (rfd < 0 || sfd < 0 || set_recv_timeout(rfd) < 0) {
+        goto out;
+    }
+
+    if (bind(rfd, (struct sockaddr *)&addr, addr_len) < 0 || getsockname(rfd, (struct sockaddr *)&addr, &addr_len) < 0) {
+        goto out;
+    }
+
+    // a single PadN option filling the 8 bytes of the header
+    unsigned char dstopts[8] = { 0, 0, IP6OPT_PADN, 4, 0, 0, 0, 0 };
+    if (setsockopt(sfd, IPPROTO_IPV6, IPV6_DSTOPTS, dstopts, sizeof(dstopts)) < 0) {
+        goto out;
+    }
+
+    if (sendto(sfd, "DATA", 4, 0, (struct sockaddr *)&addr, addr_len) < 0) {
+        ret = errno == ENOBUFS || errno == EPERM ? 0 : -1;
+        goto out;
+    }
+
+    char buf[16];
+    ret = recv(rfd, buf, sizeof(buf), 0) > 0 ? 1 : 0;
+
+out:
+    if (rfd >= 0) {
+        close(rfd);
+    }
+    if (sfd >= 0) {
+        close(sfd);
+    }
+    return ret;
+}
+
+int test_network_probe(int argc, char **argv) {
+    if (argc != 2) {
+        fprintf(stderr, "Usage: network-probe <icmp4|icmp6|udp6-dstopts>\n");
+        return EXIT_FAILURE;
+    }
+
+    int ret;
+    if (strcmp(argv[1], "icmp4") == 0) {
+        ret = network_probe_icmp_echo(AF_INET);
+    } else if (strcmp(argv[1], "icmp6") == 0) {
+        ret = network_probe_icmp_echo(AF_INET6);
+    } else if (strcmp(argv[1], "udp6-dstopts") == 0) {
+        ret = network_probe_udp6_dstopts();
+    } else {
+        fprintf(stderr, "Unknown network probe: %s\n", argv[1]);
+        return EXIT_FAILURE;
+    }
+
+    if (ret < 0) {
+        printf("%s: error: %s\n", argv[1], strerror(errno));
+    } else {
+        printf("%s: %s\n", argv[1], ret ? "delivered" : "blocked");
+    }
+
+    return EXIT_SUCCESS;
+}
+
 int test_udploop(int argc, char **argv) {
     if (argc != 2) {
         fprintf(stderr, "Usage: udploop <port>\n");
@@ -2362,6 +2708,10 @@ int main(int argc, char **argv) {
             exit_code = test_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "exec-in-pthread") == 0) {
             exit_code = test_exec_in_pthread(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "coredump-in-pthread") == 0) {
+            exit_code = test_coredump_in_pthread(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "leader-exit-pthread-exec") == 0) {
+            exit_code = test_leader_exit_pthread_exec(sub_argc, sub_argv);
         } else if (strcmp(cmd, "sleep") == 0) {
             exit_code = test_sleep(sub_argc, sub_argv);
         } else if (strcmp(cmd, "fileless") == 0) {
@@ -2374,12 +2724,16 @@ int main(int argc, char **argv) {
             exit_code = test_create_socket_send_fd(sub_argc, sub_argv);
         } else if (strcmp(cmd, "unshare-flags") == 0) {
             exit_code = test_unshare_flags(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "setns") == 0) {
+            exit_code = test_setns(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-cat") == 0) {
             exit_code = test_slow_cat(sub_argc, sub_argv);
         } else if (strcmp(cmd, "slow-write") == 0) {
             exit_code = test_slow_write(sub_argc, sub_argv);
         } else if (strcmp(cmd, "network_flow_send_udp4") == 0) {
             exit_code = test_network_flow_send_udp4(sub_argc, sub_argv);
+        } else if (strcmp(cmd, "network-probe") == 0) {
+            exit_code = test_network_probe(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod-error") == 0) {
             exit_code = test_chmod_error(sub_argc, sub_argv);
         } else if (strcmp(cmd, "chmod") == 0) {

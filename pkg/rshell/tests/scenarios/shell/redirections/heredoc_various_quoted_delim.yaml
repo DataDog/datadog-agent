@@ -1,0 +1,19 @@
+description: Various quotation styles in heredoc delimiter all suppress expansion.
+input:
+  script: |+
+    cat <<E'N'D &&
+    single
+    END
+    cat <<E"N"D &&
+    double
+    END
+    cat <<E\ND
+    backslash
+    END
+expect:
+  stdout: |+
+    single
+    double
+    backslash
+  stderr: ""
+  exit_code: 0

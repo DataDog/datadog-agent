@@ -1,0 +1,12 @@
+description: df rejects --version (not meaningful in this shell; GNU df prints version info we don't track).
+skip_assert_against_bash: true
+input:
+  script: |+
+    df --version; echo "code:$?"
+expect:
+  stdout_contains:
+    - "code:1"
+  stderr_contains:
+    - "df:"
+    - "version"
+  exit_code: 0

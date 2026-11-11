@@ -1,0 +1,10 @@
+description: Brace group can be used as source in a pipeline.
+input:
+  script: |+
+    { echo foo; echo bar; } | cat
+expect:
+  stdout: |+
+    foo
+    bar
+  stderr: ""
+  exit_code: 0

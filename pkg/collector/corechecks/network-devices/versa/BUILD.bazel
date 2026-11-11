@@ -29,5 +29,7 @@ dd_agent_go_test(
     deps = [
         "//pkg/collector/corechecks/network-devices/versa/client",
         "//pkg/networkdevice/metadata",
+        "@com_github_stretchr_testify//require",
+        "@in_yaml_go_yaml_v3//:yaml",
     ],
 )

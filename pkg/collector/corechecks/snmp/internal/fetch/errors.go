@@ -7,6 +7,8 @@ package fetch
 
 import (
 	"fmt"
+
+	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/snmp/internal/valuestore"
 )
 
 type fetchError struct {
@@ -31,5 +33,19 @@ func (e *fetchError) Error() string {
 }
 
 func (e *fetchError) Unwrap() error {
+	return e.err
+}
+
+type columnBatchError struct {
+	fetchedValues valuestore.ColumnResultValuesType
+	unfetchedOIDs []string
+	err           error
+}
+
+func (e *columnBatchError) Error() string {
+	return e.err.Error()
+}
+
+func (e *columnBatchError) Unwrap() error {
 	return e.err
 }

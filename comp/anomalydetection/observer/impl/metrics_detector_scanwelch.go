@@ -8,8 +8,8 @@ package observerimpl
 import (
 	"math"
 
+	"github.com/DataDog/datadog-agent/comp/anomalydetection/internal/logging"
 	observer "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
-	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 )
 
 // scanwelchStateKey identifies per-series state by ref and aggregation.
@@ -21,46 +21,41 @@ type scanwelchStateKey struct {
 // scanwelchSeriesState holds per-series streaming state for the ScanWelch detector.
 // Same pattern as scanmwSeriesState and BOCPD (metrics_detector_bocpd.go).
 type scanwelchSeriesState struct {
-	lastWriteGen       int64
-	lastProcessedCount int // visible point count (PointCountUpTo) at last Detect
+	lastObservedTime   int64
+	observedPoints     int // cumulative completed points, independent of storage eviction
+	lastProcessedCount int // cumulative point count at the last scan
 
 	// Segment tracking: only scan [segmentStartTime, dataTime].
 	segmentStartTime int64
 }
 
-// ScanWelchDetector detects changepoints by scanning all possible split points
-// with Welch's t-test for candidate selection, then verifies each candidate
-// with a Mann-Whitney p-value filter and MAD-based deviation check.
-//
-// This hybrid uses parametric detection (t-test finds mean shifts efficiently)
-// combined with nonparametric verification (MW p-value for selectivity).
-//
-// Implements Detector (streaming) — after finding a changepoint, advances
-// the segment start so subsequent scans only examine post-change data.
-type ScanWelchDetector struct {
-	ready bool
-	// MinSegment is the minimum number of points in each segment.
-	MinSegment int
+// ScanWelchConfig contains construction-time statistical parameters.
+type ScanWelchConfig struct {
+	// MinSegment is the minimum points on each side of a split.
+	MinSegment int `json:"-"`
 
-	// MinPoints is the minimum total points before detection runs.
+	// MinPoints is the minimum observations before detection.
 	MinPoints int `json:"min_points"`
 	// MaxPoints bounds the scan window. Default: 120.
 	MaxPoints int `json:"max_points"`
 
-	// MinTStatistic is the minimum |t| for the candidate selection phase.
-	MinTStatistic float64
+	// MinTStatistic is the candidate |t| threshold.
+	MinTStatistic float64 `json:"-"`
 
 	// SignificanceThreshold is the maximum MW p-value for reporting.
-	SignificanceThreshold float64
+	SignificanceThreshold float64 `json:"-"`
 
 	// MinEffectSize is the minimum |rank-biserial correlation|.
-	MinEffectSize float64
+	MinEffectSize float64 `json:"-"`
 
 	// MinDeviationMAD is the minimum |post_median - pre_median| / MAD.
-	MinDeviationMAD float64
+	MinDeviationMAD float64 `json:"-"`
+}
 
-	// Aggregations to run detection on. Default: [Average, Count]
-	Aggregations []observer.Aggregate
+// ScanWelchDetector verifies Welch candidates with Mann-Whitney and MAD gates.
+type ScanWelchDetector struct {
+	ready  bool
+	config ScanWelchConfig
 
 	// per-series state keyed by ref+agg
 	series map[scanwelchStateKey]*scanwelchSeriesState
@@ -74,9 +69,9 @@ type ScanWelchDetector struct {
 	cachedGen  uint64
 }
 
-// NewScanWelchDetector creates a ScanWelch detector with default settings.
-func NewScanWelchDetector() *ScanWelchDetector {
-	return &ScanWelchDetector{
+// DefaultScanWelchConfig returns the default statistical parameters.
+func DefaultScanWelchConfig() ScanWelchConfig {
+	return ScanWelchConfig{
 		MinSegment:            12,
 		MinPoints:             30,
 		MaxPoints:             scanMaxPoints,
@@ -84,10 +79,39 @@ func NewScanWelchDetector() *ScanWelchDetector {
 		SignificanceThreshold: 1e-8,
 		MinEffectSize:         0.85,
 		MinDeviationMAD:       3.0,
-		Aggregations: []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		},
+	}
+}
+
+// NewScanWelchDetector normalizes and copies configuration once at construction.
+func NewScanWelchDetector(cfg ScanWelchConfig) *ScanWelchDetector {
+	defaults := DefaultScanWelchConfig()
+	if cfg.MinSegment <= 0 {
+		cfg.MinSegment = defaults.MinSegment
+	}
+	if cfg.MinPoints <= 0 {
+		cfg.MinPoints = defaults.MinPoints
+	}
+	if cfg.MaxPoints <= 0 {
+		cfg.MaxPoints = defaults.MaxPoints
+	}
+	if cfg.MaxPoints < cfg.MinPoints {
+		logging.Warnf("ScanWelch max_points=%d is below min_points=%d; using %d", cfg.MaxPoints, cfg.MinPoints, cfg.MinPoints)
+		cfg.MaxPoints = cfg.MinPoints
+	}
+	if cfg.MinTStatistic <= 0 {
+		cfg.MinTStatistic = defaults.MinTStatistic
+	}
+	if cfg.SignificanceThreshold <= 0 {
+		cfg.SignificanceThreshold = defaults.SignificanceThreshold
+	}
+	if cfg.MinEffectSize <= 0 {
+		cfg.MinEffectSize = defaults.MinEffectSize
+	}
+	if cfg.MinDeviationMAD <= 0 {
+		cfg.MinDeviationMAD = defaults.MinDeviationMAD
+	}
+	return &ScanWelchDetector{
+		config: cfg,
 		series: make(map[scanwelchStateKey]*scanwelchSeriesState),
 	}
 }
@@ -101,8 +125,7 @@ func (d *ScanWelchDetector) Ready() bool { return d.ready }
 
 // DetectorPointWindow implements observer.DetectorPointWindowRequirement.
 func (d *ScanWelchDetector) DetectorPointWindow() observer.DetectorPointWindow {
-	d.ensureDefaults()
-	return observer.DetectorPointWindow{MinPoints: d.MinPoints, MaxPoints: d.MaxPoints}
+	return observer.DetectorPointWindow{MinPoints: d.config.MinPoints, MaxPoints: d.config.MaxPoints}
 }
 
 // Reset clears all per-series state for replay/reanalysis.
@@ -114,14 +137,12 @@ func (d *ScanWelchDetector) Reset() {
 }
 
 // RemoveSeries drops segment-tracking state for refs that storage has freed.
-// RemoveSeries drops segment-tracking state for refs that storage has freed.
 func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
-	d.ensureDefaults()
 	if len(refs) == 0 || len(d.series) == 0 {
 		return
 	}
 	for _, ref := range refs {
-		for _, agg := range d.Aggregations {
+		for _, agg := range [...]observer.Aggregate{observer.AggregateAverage, observer.AggregateSum, observer.AggregateCount} {
 			delete(d.series, scanwelchStateKey{ref: ref, agg: agg})
 		}
 	}
@@ -131,16 +152,15 @@ func (d *ScanWelchDetector) RemoveSeries(refs []observer.SeriesRef) {
 
 // Detect implements Detector. Same iteration pattern as ScanMW and BOCPD —
 // consider dedup if more scan-based detectors are added.
-func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64) observer.DetectionResult {
-	d.ensureDefaults()
-
+func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int64, filter observer.DetectionFilter) observer.DetectionResult {
+	aggregations, numAggregations := detectorAggregations(filter.Aggregations)
 	gen := storage.SeriesGeneration()
 	if d.cachedRefs == nil || gen != d.cachedGen {
-		d.cachedRefs = workloadSeriesRefs(storage, d.cachedRefs)
+		d.cachedRefs = listSeriesRefs(storage, detectorSeriesFilter(filter), d.cachedRefs)
 		d.cachedGen = gen
 	}
 
-	// Bulk-fetch write generations in a single lock acquisition.
+	// Bulk-fetch visible point counts for series activation.
 	bulkStatus := bulkSeriesStatus(storage, d.cachedRefs, dataTime)
 
 	var allAnomalies []observer.Anomaly
@@ -148,14 +168,14 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 	for i, ref := range d.cachedRefs {
 		status := bulkStatus[i]
 
-		for _, agg := range d.Aggregations {
+		for _, agg := range aggregations[:numAggregations] {
 			if !supportsSeriesAggregate(storage, ref, agg) {
 				continue
 			}
 			sk := scanwelchStateKey{ref: ref, agg: agg}
 
 			state, exists := d.series[sk]
-			if !exists && status.pointCount < d.MinPoints {
+			if !exists && status.pointCount < d.config.MinPoints {
 				continue
 			}
 			activated := !exists
@@ -164,20 +184,19 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				d.series[sk] = state
 			}
 
-			// Skip unless at least MinSegment new points are visible since the
-			// last scan. Gating on visible point count (not WriteGeneration
-			// alone) is required for replay: storage may already hold future
-			// points, so WriteGeneration reaches its final value before the
-			// simulated dataTime has advanced far enough to expose them, which
-			// would otherwise suppress every scan. WriteGeneration is still
-			// checked to catch same-bucket merges that leave the count
-			// unchanged but move stored values. Mirrors the BOCPD replay gate.
-			if status.pointCount < state.lastProcessedCount+d.MinSegment && status.writeGeneration == state.lastWriteGen {
+			// Count newly visible completed buckets, not storage writes. Preloaded
+			// replay has already written future points; streaming writes them as
+			// time advances. Retained point counts also stop growing on eviction.
+			storage.ForEachPoint(ref, state.lastObservedTime, dataTime, agg, func(_ *observer.Series, p observer.Point) {
+				state.observedPoints++
+				state.lastObservedTime = p.Timestamp
+			})
+			if !activated && state.observedPoints < state.lastProcessedCount+d.config.MinSegment {
 				continue
 			}
 
 			var seriesMeta *observer.Series
-			seriesMeta, d.scanBuf = collectLastPoints(storage, ref, dataTime, d.MaxPoints, agg, d.scanBuf)
+			seriesMeta, d.scanBuf = collectLastPoints(storage, ref, dataTime, d.config.MaxPoints, agg, d.scanBuf)
 			if state.segmentStartTime > 0 {
 				kept := d.scanBuf[:0]
 				for _, p := range d.scanBuf {
@@ -188,9 +207,8 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 				d.scanBuf = kept
 			}
 
-			if seriesMeta == nil || len(d.scanBuf) < d.MinPoints {
-				state.lastProcessedCount = status.pointCount
-				state.lastWriteGen = status.writeGeneration
+			if seriesMeta == nil || len(d.scanBuf) < d.config.MinPoints {
+				state.lastProcessedCount = state.observedPoints
 				continue
 			}
 			d.ready = true
@@ -203,11 +221,10 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 			}
 
 			if activated {
-				state.lastProcessedCount = 1 + ((status.pointCount-1)/d.MinSegment)*d.MinSegment
+				state.lastProcessedCount = 1 + ((state.observedPoints-1)/d.config.MinSegment)*d.config.MinSegment
 			} else {
-				state.lastProcessedCount = status.pointCount
+				state.lastProcessedCount = state.observedPoints
 			}
-			state.lastWriteGen = status.writeGeneration
 		}
 	}
 
@@ -218,7 +235,7 @@ func (d *ScanWelchDetector) Detect(storage observer.StorageReader, dataTime int6
 // Returns (anomaly, changeIndex, found).
 func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.Series, agg observer.Aggregate) (observer.Anomaly, int, bool) {
 	n := len(points)
-	minSeg := d.MinSegment
+	minSeg := d.config.MinSegment
 	// A valid split requires MinSegment points on each side. MinPoints is
 	// independently configurable, so a newly activated series may legitimately
 	// reach this method before a candidate split exists.
@@ -280,7 +297,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 		}
 	}
 
-	if bestK < 0 || bestTAbs < d.MinTStatistic {
+	if bestK < 0 || bestTAbs < d.config.MinTStatistic {
 		return observer.Anomaly{}, 0, false
 	}
 
@@ -314,13 +331,13 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	if pValue > 1.0 {
 		pValue = 1.0
 	}
-	if pValue >= d.SignificanceThreshold {
+	if pValue >= d.config.SignificanceThreshold {
 		return observer.Anomaly{}, 0, false
 	}
 
 	// Effect size check
 	effectSize := rankBiserialCorrelation(U, bestK, n-bestK)
-	if math.Abs(effectSize) < d.MinEffectSize {
+	if math.Abs(effectSize) < d.config.MinEffectSize {
 		return observer.Anomaly{}, 0, false
 	}
 
@@ -336,7 +353,7 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 		denom = math.Max(math.Abs(preMedian)*0.01, 1e-6)
 	}
 	deviation := math.Abs(postMedian-preMedian) / denom
-	if deviation < d.MinDeviationMAD {
+	if deviation < d.config.MinDeviationMAD {
 		return observer.Anomaly{}, 0, false
 	}
 
@@ -365,42 +382,4 @@ func (d *ScanWelchDetector) scanWelch(points []observer.Point, series *observer.
 	}
 
 	return anomaly, bestK, true
-}
-
-// ensureDefaults fills in zero-valued config fields with sensible defaults.
-func (d *ScanWelchDetector) ensureDefaults() {
-	if d.MinSegment <= 0 {
-		d.MinSegment = 12
-	}
-	if d.MinPoints <= 0 {
-		d.MinPoints = 30
-	}
-	if d.MaxPoints <= 0 {
-		d.MaxPoints = scanMaxPoints
-	}
-	if d.MaxPoints < d.MinPoints {
-		pkglog.Warnf("[observer] ScanWelch max_points=%d is below min_points=%d; using %d", d.MaxPoints, d.MinPoints, d.MinPoints)
-		d.MaxPoints = d.MinPoints
-	}
-	if d.MinTStatistic <= 0 {
-		d.MinTStatistic = 8.0
-	}
-	if d.SignificanceThreshold <= 0 {
-		d.SignificanceThreshold = 1e-8
-	}
-	if d.MinEffectSize <= 0 {
-		d.MinEffectSize = 0.85
-	}
-	if d.MinDeviationMAD <= 0 {
-		d.MinDeviationMAD = 3.0
-	}
-	if d.series == nil {
-		d.series = make(map[scanwelchStateKey]*scanwelchSeriesState)
-	}
-	if len(d.Aggregations) == 0 {
-		d.Aggregations = []observer.Aggregate{
-			observer.AggregateAverage,
-			observer.AggregateCount,
-		}
-	}
 }

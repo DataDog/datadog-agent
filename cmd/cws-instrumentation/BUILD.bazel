@@ -29,7 +29,7 @@ dd_agent_go_binary(
     name = "cws-instrumentation",
     embed = [":cws-instrumentation_lib"],
     gotags = CWS_INSTRUMENTATION_TAGS,
-    # keep - This has a main_windows, but is really not implemented.
+    # This has a main_windows, but is really not implemented.
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )
@@ -40,7 +40,7 @@ dd_agent_go_binary(
     name = "cws-instrumentation-injector_only",
     embed = [":cws-instrumentation_lib"],
     gotags = CWS_INSTRUMENTATION_TAGS | set(["cws_instrumentation_injector_only"]),
-    # keep - This has a main_windows, but is really not implemented.
+    # This has a main_windows, but is really not implemented.
     target_compatible_with = ["@platforms//os:linux"],
     visibility = ["//visibility:public"],
 )

@@ -68,6 +68,7 @@ dd_agent_go_test(
         "apps_test.go",
         "scale_stateful_set_horizontally_test.go",
         "scale_stateful_set_vertically_test.go",
+        "scale_vertically_test.go",
     ],
     embed = [":apps"],
     deps = [

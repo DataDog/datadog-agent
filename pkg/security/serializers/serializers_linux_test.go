@@ -381,6 +381,47 @@ func TestProcessSerializer_ContainerPodUID(t *testing.T) {
 	assert.Equal(t, "48d25824-cbe2-4fdc-9928-5bb49e05473d", container["pod_uid"])
 }
 
+func TestEventSerializer_ContainerECSTaskID(t *testing.T) {
+	const ecsTaskID = "409b8b89ccd746bdb9b5e03418406d96"
+	const containerID = "c40dff48f1d53c3f07a50aa12bb9ae0e58c0927dc6b1d77e3f166784722642ad"
+
+	event := model.NewFakeEvent()
+	event.Type = uint32(model.FileOpenEventType)
+
+	proc := &event.ProcessContext.Process
+	proc.Pid = 1234
+	proc.Tid = 1234
+	proc.PPid = 1
+	proc.Comm = "test"
+	proc.FileEvent.PathnameStr = "/usr/bin/test"
+	proc.FileEvent.BasenameStr = "test"
+	proc.ContainerContext.ContainerID = containerID
+	proc.ContainerContext.ECSTaskID = ecsTaskID
+	proc.ContainerContext.ContainerSource = model.ContainerSourceEvent
+	proc.CGroup.CGroupID = "/ecs/" + ecsTaskID + "/" + containerID
+	proc.CGroup.CGroupSource = model.CGroupSourceEvent
+
+	s := NewEventSerializer(event, nil, newTestScrubber(t))
+	data, err := json.Marshal(s)
+	require.NoError(t, err)
+
+	type serializedContainer struct {
+		ECSTaskID string `json:"ecs_task_id"`
+	}
+	var payload struct {
+		Container *serializedContainer `json:"container"`
+		Process   struct {
+			Container *serializedContainer `json:"container"`
+		} `json:"process"`
+	}
+	require.NoError(t, json.Unmarshal(data, &payload))
+
+	require.NotNil(t, payload.Container)
+	assert.Equal(t, ecsTaskID, payload.Container.ECSTaskID)
+	require.NotNil(t, payload.Process.Container)
+	assert.Equal(t, ecsTaskID, payload.Process.Container.ECSTaskID)
+}
+
 func TestProcessSerializer_IsExecFields(t *testing.T) {
 	event := model.NewFakeEvent()
 	event.Type = uint32(model.ExecEventType)

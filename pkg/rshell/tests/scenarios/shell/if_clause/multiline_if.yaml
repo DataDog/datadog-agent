@@ -1,0 +1,12 @@
+description: Multi-line if statement format.
+input:
+  script: |+
+    if true
+    then
+      echo yes
+    fi
+expect:
+  stdout: |+
+    yes
+  stderr: ""
+  exit_code: 0

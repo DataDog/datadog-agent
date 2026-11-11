@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs/procmaps"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -153,8 +154,8 @@ func (pn *ProcessNode) addFiles(files []string, stats *Stats, newEvent func() *m
 			evt.Open.File.FileFields.UID = fileStats.Uid
 			evt.Open.File.FileFields.GID = fileStats.Gid
 
-			evt.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).Nanosecond())
-			evt.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).Nanosecond())
+			evt.Open.File.CTime = uint64(time.Unix(fileStats.Ctime.Sec, int64(fileStats.Ctime.Nsec)).UnixNano())
+			evt.Open.File.MTime = uint64(time.Unix(fileStats.Mtime.Sec, int64(fileStats.Mtime.Nsec)).UnixNano())
 			evt.Open.File.Mode = fileStats.Mode
 			evt.Open.File.Inode = fileStats.Ino
 			evt.Open.File.Device = fileStats.Dev_major<<20 | fileStats.Dev_minor
@@ -193,9 +194,9 @@ func getMemoryMappedFiles(pid int32, processEventPath string) (files []string, _
 	// Use shared parsing utilities with combined filters:
 	// 1. FilterRegularFiles - skip [vdso], [stack], [heap], etc.
 	// 2. FilterExcludePath - skip the process binary itself
-	filter := procfs.CombineFilters(
-		procfs.FilterRegularFiles,
-		procfs.FilterExcludePath(processEventPath),
+	filter := procmaps.CombineFilters(
+		procmaps.FilterRegularFiles,
+		procmaps.FilterExcludePath(processEventPath),
 	)
 
 	return procfs.GetMappedFiles(pid, MaxMmapedFiles, filter)

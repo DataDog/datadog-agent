@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    CSPM: Host benchmark rules evaluated after an SCE script whose commands
+    read standard input now report a result. The script read the rules that
+    the agent passes to OpenSCAP, which then got no result.

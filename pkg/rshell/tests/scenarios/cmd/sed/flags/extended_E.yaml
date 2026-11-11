@@ -1,0 +1,13 @@
+description: The -E flag enables extended regular expressions.
+setup:
+  files:
+    - path: input.txt
+      content: "foo123bar\nhello456world\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -E 's/[0-9]+/NUM/' input.txt
+expect:
+  stdout: "fooNUMbar\nhelloNUMworld\n"
+  stderr: ""
+  exit_code: 0

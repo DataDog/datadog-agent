@@ -1,0 +1,9 @@
+description: Printf outputs literal \u and emits error when no hex digits follow.
+input:
+  script: |+
+    printf "\uz\n"
+expect:
+  stdout: |+
+    \uz
+  stderr_contains: ["printf: missing unicode digit for \\u"]
+  exit_code: 0

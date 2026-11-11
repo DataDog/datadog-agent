@@ -45,7 +45,7 @@ var (
 // NewCronJobV1Beta1Factory returns a new CronJob metric family generator factory.
 func NewCronJobV1Beta1Factory(client *apiserver.APIClient) customresource.RegistryFactory {
 	return &cronjobv1beta1Factory{
-		client: client.Cl,
+		client: client.InformerCl,
 	}
 }
 

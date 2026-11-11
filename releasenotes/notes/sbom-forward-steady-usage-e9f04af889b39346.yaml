@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    Runtime usage enrichment reports the usage of a package in steady use
+    within an hour. A package used more often than the enrichment interval
+    kept the time of its first use. Accesses recorded while the scan of a
+    container ran keep the time they happened, and a container whose image
+    was already scanned reports them without waiting for a later access.

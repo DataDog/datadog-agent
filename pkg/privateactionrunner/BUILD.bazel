@@ -1,1 +1,32 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
 # gazelle:ignore
+
+go_library(
+    name = "privateactionrunner",
+    srcs = [
+        "config.go",
+        "endpoints.go",
+    ],
+    importpath = "github.com/DataDog/datadog-agent/pkg/privateactionrunner",
+    visibility = ["//visibility:public"],
+    deps = [
+        "//pkg/config/model",
+        "//pkg/config/setup/constants",
+        "//pkg/config/utils",
+        "//pkg/privateactionrunner/adapters/constants",
+    ],
+)
+
+dd_agent_go_test(
+    name = "privateactionrunner_test",
+    srcs = ["endpoints_test.go"],
+    embed = [":privateactionrunner"],
+    deps = [
+        "//pkg/config/mock",
+        "//pkg/privateactionrunner/adapters/constants",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)

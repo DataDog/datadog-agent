@@ -1,0 +1,9 @@
+description: If condition using || operator.
+input:
+  script: |+
+    if false || true; then echo yes; else echo no; fi
+expect:
+  stdout: |+
+    yes
+  stderr: ""
+  exit_code: 0

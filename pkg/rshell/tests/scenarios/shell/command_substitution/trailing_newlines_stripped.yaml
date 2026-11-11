@@ -1,0 +1,10 @@
+description: Command substitution strips trailing newlines.
+input:
+  script: |+
+    x=$(printf "hello\n\n\n")
+    echo "[$x]"
+expect:
+  stdout: |+
+    [hello]
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,7 @@
+---
+fixes:
+  - |
+    CSPM: Compliance rules on sockets, FIFOs and devices, such as the CIS
+    Docker rules on the owner and mode of ``/var/run/docker.sock``, now read
+    their owner, group and mode. Rules on a socket reported an error, and
+    rules on a FIFO blocked until their timeout.

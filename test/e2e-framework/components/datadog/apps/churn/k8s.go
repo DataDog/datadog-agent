@@ -10,6 +10,7 @@ package churn
 
 import (
 	_ "embed"
+	"strings"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
 	appsv1 "github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes/apps/v1"
@@ -25,6 +26,24 @@ import (
 	componentskube "github.com/DataDog/datadog-agent/test/e2e-framework/components/kubernetes"
 )
 
+const (
+	// Namespace is the namespace of the churn orchestrator.
+	Namespace = "churn"
+	// appLabel is the value of the app label of the churn orchestrator.
+	appLabel = "churn"
+	// LabelSelector selects the pod of the churn orchestrator.
+	LabelSelector = "app=" + appLabel
+)
+
+// workloadNamespaces are the namespaces of the objects of the workload manifests.
+var workloadNamespaces = []string{"workload-fake", "workload-sleepers"}
+
+// dockerhubMirrorPlaceholder is replaced in the workload manifests by the registry mirroring
+// Docker Hub in the environment. Their pods may use the utils.DefaultImagePullSecretName image
+// pull secret, created in the workload namespaces when the environment has image pull
+// credentials.
+const dockerhubMirrorPlaceholder = "DOCKERHUB_MIRROR"
+
 var (
 	//go:embed workload/kwok-nodes.yaml
 	workloadKwokNodes string
@@ -34,6 +53,9 @@ var (
 
 	//go:embed workload/fake.yaml
 	workloadFake string
+
+	//go:embed workload/crds.yaml
+	workloadCRDs string
 )
 
 // K8sAppDefinition deploys the churn orchestrator and the workload manifests it
@@ -48,13 +70,36 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 
 	opts = append(opts, pulumi.Parent(k8sComponent))
 
-	ns, err := corev1.NewNamespace(e.Ctx(), "churn", &corev1.NamespaceArgs{
+	ns, err := corev1.NewNamespace(e.Ctx(), Namespace, &corev1.NamespaceArgs{
 		Metadata: metav1.ObjectMetaArgs{
-			Name: pulumi.StringPtr("churn"),
+			Name: pulumi.StringPtr(Namespace),
 		},
 	}, opts...)
 	if err != nil {
 		return nil, err
+	}
+
+	// The workload manifests don't create the namespaces of their objects, which churn waits
+	// for: create them before it starts.
+	workloadResources := make([]pulumi.Resource, 0, 2*len(workloadNamespaces))
+	for _, name := range workloadNamespaces {
+		workloadNamespace, err := corev1.NewNamespace(e.Ctx(), name, &corev1.NamespaceArgs{
+			Metadata: metav1.ObjectMetaArgs{
+				Name: pulumi.StringPtr(name),
+			},
+		}, opts...)
+		if err != nil {
+			return nil, err
+		}
+		workloadResources = append(workloadResources, workloadNamespace)
+
+		if e.ImagePullRegistry() != "" {
+			imgPullSecret, err := utils.NewImagePullSecret(e, name, append(opts, utils.PulumiDependsOn(workloadNamespace))...)
+			if err != nil {
+				return nil, err
+			}
+			workloadResources = append(workloadResources, imgPullSecret)
+		}
 	}
 
 	// Everything below lives in the "churn" namespace, so make it a dependency to
@@ -91,13 +136,14 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 			Name:      pulumi.StringPtr("workload"),
 			Namespace: ns.Metadata.Name(),
 			Labels: pulumi.StringMap{
-				"app": pulumi.String("churn"),
+				"app": pulumi.String(appLabel),
 			},
 		},
 		Data: pulumi.StringMap{
-			"kwok-nodes.yaml": pulumi.String(workloadKwokNodes),
-			"sleepers.yaml":   pulumi.String(workloadSleepers),
-			"fake.yaml":       pulumi.String(workloadFake),
+			"kwok-nodes.yaml": pulumi.String(withDockerhubMirror(e, workloadKwokNodes)),
+			"sleepers.yaml":   pulumi.String(withDockerhubMirror(e, workloadSleepers)),
+			"fake.yaml":       pulumi.String(withDockerhubMirror(e, workloadFake)),
+			"crds.yaml":       pulumi.String(workloadCRDs),
 		},
 	}, opts...)
 	if err != nil {
@@ -106,7 +152,7 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 
 	var imagePullSecrets corev1.LocalObjectReferenceArray
 	if e.ImagePullRegistry() != "" {
-		imgPullSecret, err := utils.NewImagePullSecret(e, "churn", opts...)
+		imgPullSecret, err := utils.NewImagePullSecret(e, Namespace, opts...)
 		if err != nil {
 			return nil, err
 		}
@@ -120,20 +166,25 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 			Name:      pulumi.StringPtr("churn"),
 			Namespace: ns.Metadata.Name(),
 			Labels: pulumi.StringMap{
-				"app": pulumi.String("churn"),
+				"app": pulumi.String(appLabel),
 			},
 		},
 		Spec: &appsv1.DeploymentSpecArgs{
 			Selector: &metav1.LabelSelectorArgs{
 				MatchLabels: pulumi.StringMap{
-					"app": pulumi.String("churn"),
+					"app": pulumi.String(appLabel),
 				},
 			},
 			Replicas: pulumi.IntPtr(1),
+			// churn deletes and recreates the objects it finds on start, so two instances
+			// must never overlap during a rollout.
+			Strategy: &appsv1.DeploymentStrategyArgs{
+				Type: pulumi.String("Recreate"),
+			},
 			Template: corev1.PodTemplateSpecArgs{
 				Metadata: &metav1.ObjectMetaArgs{
 					Labels: pulumi.StringMap{
-						"app":                         pulumi.String("churn"),
+						"app":                         pulumi.String(appLabel),
 						"agent.datadoghq.com/sidecar": pulumi.String("fargate"),
 					},
 				},
@@ -179,9 +230,14 @@ func K8sAppDefinition(e config.Env, kubeProvider *kubernetes.Provider, opts ...p
 				},
 			},
 		},
-	}, opts...); err != nil {
+	}, append(opts, utils.PulumiDependsOn(workloadResources...))...); err != nil {
 		return nil, err
 	}
 
 	return k8sComponent, nil
+}
+
+// withDockerhubMirror replaces the Docker Hub mirror placeholder of a workload manifest.
+func withDockerhubMirror(e config.Env, manifest string) string {
+	return strings.ReplaceAll(manifest, dockerhubMirrorPlaceholder, e.InternalDockerhubMirror())
 }

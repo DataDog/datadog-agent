@@ -211,6 +211,13 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "KAI Scheduler",
+			cfg: map[string]interface{}{
+				"cluster_agent.kai_scheduler.enabled": true,
+			},
+			expected: true,
+		},
+		{
 			name: "workload autoscaling alone is not a startup-time requirement",
 			cfg: map[string]interface{}{
 				"autoscaling.workload.enabled": true,
@@ -764,6 +771,22 @@ func TestResourcesWithMetadataCollectionEnabled(t *testing.T) {
 				"apm_config.instrumentation.enabled": true,
 			},
 			expectedResources: []string{"//namespaces"},
+		},
+		{
+			name: "auto instrumentation enables csidrivers collection",
+			cfg: map[string]interface{}{
+				"admission_controller.enabled":                      true,
+				"admission_controller.auto_instrumentation.enabled": true,
+			},
+			expectedResources: []string{"storage.k8s.io//csidrivers"},
+		},
+		{
+			name: "auto instrumentation disabled disables csidrivers collection",
+			cfg: map[string]interface{}{
+				"admission_controller.enabled":                      true,
+				"admission_controller.auto_instrumentation.enabled": false,
+			},
+			expectedResources: nil,
 		},
 		{
 			name: "apm on demand enables namespace collection",

@@ -13,6 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
@@ -361,8 +362,40 @@ func Test_buildPayload(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			flowPayload := buildPayload(&tt.flow, "my-hostname", curTime)
+			flowPayload := buildPayload(&tt.flow, dpi.Application{}, "my-hostname", curTime)
 			assert.Equal(t, tt.expectedPayload, flowPayload)
 		})
 	}
+}
+
+func Test_buildPayload_dpi(t *testing.T) {
+	flow := common.Flow{FlowType: common.TypeIPFIX, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationID: 100}
+
+	flowPayload := buildPayload(&flow, dpi.Application{
+		ID:          100,
+		Name:        "HTTP",
+		Description: "Hypertext Transfer Protocol",
+		Metadata:    dpi.Metadata{Category: "browsing", ApplicationFamily: "encrypted"},
+	}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{
+		ApplicationID:          100,
+		ApplicationName:        "HTTP",
+		ApplicationDescription: "Hypertext Transfer Protocol",
+		Category:               "browsing",
+		ApplicationFamily:      "encrypted",
+	}, flowPayload.DPI)
+
+	flowPayload = buildPayload(&flow, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationID: 100}, flowPayload.DPI, "the application id is reported even when the application is unknown")
+
+	paloAltoFlow := common.Flow{FlowType: common.TypeNetFlow9, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationName: "ssl"}
+	flowPayload = buildPayload(&paloAltoFlow, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationName: "ssl"}, flowPayload.DPI, "the application name reported on the flow is used without an application id")
+
+	flowWithBoth := common.Flow{FlowType: common.TypeNetFlow9, ExporterAddr: []byte{127, 0, 0, 1}, ApplicationID: 100, ApplicationName: "ssl"}
+	flowPayload = buildPayload(&flowWithBoth, dpi.Application{ID: 100, Name: "HTTP", Metadata: dpi.Metadata{Category: "browsing"}}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationID: 100, ApplicationName: "HTTP", Category: "browsing"}, flowPayload.DPI, "a resolved application is never mixed with the application name reported on the flow")
+
+	flowPayload = buildPayload(&flowWithBoth, dpi.Application{}, "my-hostname", time.Now())
+	assert.Equal(t, payload.DPI{ApplicationName: "ssl"}, flowPayload.DPI, "an unresolved application id is not reported alongside the application name reported on the flow")
 }

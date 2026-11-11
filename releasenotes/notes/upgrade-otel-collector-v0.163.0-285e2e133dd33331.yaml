@@ -1,0 +1,12 @@
+---
+enhancements:
+  - |
+    Upgrade OpenTelemetry Collector dependencies from v0.162.0 to v0.163.0
+    (core v1.68.0 to v1.69.0, k8sattributesprocessor v1.1.0 to v1.2.0).
+
+    See the full upstream changelogs:
+
+    - collector-contrib
+      `v0.163.0 <https://github.com/open-telemetry/opentelemetry-collector-contrib/releases/tag/v0.163.0>`__
+    - collector core
+      `v0.163.0 <https://github.com/open-telemetry/opentelemetry-collector/releases/tag/v0.163.0>`__

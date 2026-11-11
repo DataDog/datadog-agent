@@ -1,0 +1,9 @@
+description: Echo -- is printed literally, not treated as end-of-options.
+input:
+  script: |+
+    echo -- hello
+expect:
+  stdout: |+
+    -- hello
+  stderr: ""
+  exit_code: 0

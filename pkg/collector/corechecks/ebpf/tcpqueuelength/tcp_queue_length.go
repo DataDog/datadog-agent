@@ -20,7 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/ebpf/probe/tcpqueuelength/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
-	sysconfig "github.com/DataDog/datadog-agent/pkg/system-probe/config"
+	sysconfigtypes "github.com/DataDog/datadog-agent/pkg/system-probe/config/types"
 	"github.com/DataDog/datadog-agent/pkg/util/cgroups"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/option"
@@ -84,7 +84,7 @@ func (t *TCPQueueLengthCheck) Run() error {
 		return nil
 	}
 
-	stats, err := sysprobeclient.GetCheck[model.TCPQueueLengthStats](t.sysProbeClient, sysconfig.TCPQueueLengthTracerModule)
+	stats, err := sysprobeclient.GetCheck[model.TCPQueueLengthStats](t.sysProbeClient, sysconfigtypes.TCPQueueLengthTracerModule)
 	if err != nil {
 		return sysprobeclient.IgnoreStartupError(err)
 	}

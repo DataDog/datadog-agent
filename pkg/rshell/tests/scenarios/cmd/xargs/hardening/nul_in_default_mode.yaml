@@ -1,0 +1,10 @@
+description: xargs in default (whitespace) mode warns on NUL bytes and drops the rest of the line so NUL never reaches the child argv (matches GNU byte-for-byte).
+input:
+  script: |+
+    printf 'a\0b\0c\n' | xargs echo
+expect:
+  stdout: |+
+    a
+  stderr: |+
+    xargs: WARNING: a NUL character occurred in the input.  It cannot be passed through in the argument list.  Did you mean to use the --null option?
+  exit_code: 0

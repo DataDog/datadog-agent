@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    CWS: ``setsockopt`` events no longer hook ``release_sock``. The socket
+    family and protocol are now read in ``security_socket_setsockopt`` and the
+    attached filter in ``sk_attach_filter``, removing a kprobe/kretprobe pair
+    that ran on every socket lock release and lowering overhead on hosts with
+    high TCP traffic.

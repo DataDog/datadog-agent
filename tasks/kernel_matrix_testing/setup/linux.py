@@ -36,7 +36,7 @@ class LinuxBasePackages(Requirement):
 
         ctx.run(f"curl -L {download_url} -o aws-vault")
         ctx.run("chmod +x aws-vault")
-        sudo = "sudo " if not is_root() else ""
+        sudo = "sudo -n " if not is_root() else ""
         ctx.run(f"{sudo}mv aws-vault /usr/local/bin/")
 
         return RequirementState(Status.OK, "aws-vault installed.")

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import datetime
 import errno
 import json
 import os
@@ -12,18 +11,16 @@ from invoke.exceptions import Exit
 from invoke.tasks import task
 
 from tasks.build_tags import get_default_build_tags
-from tasks.flavor import AgentFlavor
+from tasks.flavor import FipsBackend
 from tasks.go import run_golangci_lint
 from tasks.libs.build.bazel import bazel, build_binaries_with_bazel, build_binary_with_bazel
 from tasks.libs.common.color import color_message
-from tasks.libs.common.git import get_commit_sha, get_common_ancestor, get_current_branch
+from tasks.libs.common.git import get_common_ancestor
 from tasks.libs.common.go import go_build
 from tasks.libs.common.utils import (
     REPO_PATH,
     bin_name,
     get_build_flags,
-    get_go_version,
-    get_version,
 )
 from tasks.libs.types.arch import ARCH_AMD64, Arch
 from tasks.process_agent import TempDir
@@ -43,7 +40,6 @@ is_windows = sys.platform == "win32"
 
 BIN_DIR = os.path.join(".", "bin")
 BIN_PATH = os.path.join(BIN_DIR, "security-agent", bin_name("security-agent"))
-CI_PROJECT_DIR = os.environ.get("CI_PROJECT_DIR", ".")
 
 BAZEL_TARGET = "//cmd/security-agent:security-agent"
 
@@ -57,7 +53,7 @@ def build(
     install_path=None,
     go_mod="readonly",
     static=False,
-    fips_mode=False,
+    fips_backend=FipsBackend.none,
     enable_bazel=False,
 ):
     """
@@ -73,21 +69,12 @@ def build(
             raise NotImplementedError("--enable-bazel does not support --install-path.")
         if static:
             raise NotImplementedError("--enable-bazel does not support --static.")
-
-        bazel_args = ["--//packages/agent:flavor=fips"] if fips_mode else []
-        build_binary_with_bazel(BAZEL_TARGET, args=bazel_args, bin_path=BIN_PATH)
+        if fips_backend != FipsBackend.none:
+            raise NotImplementedError("--enable-bazel does not support --fips-backend.")
+        build_binary_with_bazel(BAZEL_TARGET, bin_path=BIN_PATH)
         return
 
     ldflags, gcflags, env = get_build_flags(ctx, static=static, install_path=install_path)
-
-    main = "main."
-    ld_vars = {
-        "Version": get_version(ctx),
-        "GoVersion": get_go_version(),
-        "GitBranch": get_current_branch(ctx),
-        "GitCommit": get_commit_sha(ctx, short=True),
-        "BuildDate": datetime.datetime.now().strftime("%Y-%m-%dT%H:%M:%S"),
-    }
 
     ## build windows resources
     # generate windows resources
@@ -101,10 +88,7 @@ def build(
             out="cmd/security-agent/rsrc.syso",
         )
 
-    ldflags += ' '.join([f"-X '{main + key}={value}'" for key, value in ld_vars.items()])
-    build_tags += get_default_build_tags(
-        build="security-agent", flavor=AgentFlavor.fips if fips_mode else AgentFlavor.base
-    )
+    build_tags += get_default_build_tags(build="security-agent", flavor=fips_backend.agent_flavor())
 
     if os.path.exists(BIN_PATH):
         os.remove(BIN_PATH)
@@ -122,6 +106,7 @@ def build(
         env=env,
         check_deadcode=os.getenv("DEPLOY_AGENT") == "true",
         coverage=os.getenv("E2E_COVERAGE_PIPELINE") == "true",
+        fips_backend=fips_backend,
     )
 
 
@@ -217,7 +202,7 @@ OTEL_TLS_BAZEL_TARGET = "//pkg/security/tests/syscall_tester/c:otel_tls_artifact
 # so there is no musl counterpart to build.
 #
 # musl is covered by TestResolveOTelTLSMuslDTV in
-# pkg/security/resolvers/process/otel_tls_test.go instead: the only thing musl
+# pkg/security/otelthreadctx/layout_test.go instead: the only thing musl
 # changes is the DTV layout its libc reports, which is resolved entirely in
 # user space and needs neither eBPF nor a VM.
 def build_otel_tls_artifacts(build_dir, arch: Arch):
@@ -315,7 +300,7 @@ def build_functional_tests(
 
         build_tags.append("pcap")
         build_libpcap(ctx, env=env, arch=arch)
-        cgo_flags = get_libpcap_cgo_flags(ctx)
+        cgo_flags = get_libpcap_cgo_flags()
         # append libpcap cgo-related environment variables to any existing ones
         for k, v in cgo_flags.items():
             if k in env:
@@ -510,6 +495,8 @@ DEFAULT_BTFHUB_CONSTANTS_AMD64_PATH = "./pkg/security/probe/constantfetch/consta
 
 @task
 def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    # the generator imports pkg/config/setup, which needs the generated config schema files
+    schema_codegen(ctx)
     ctx.run(
         f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -archive-root {archive_path} -output {output_path}",
     )
@@ -517,6 +504,8 @@ def generate_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONS
 
 @task
 def combine_btfhub_constants(ctx, archive_path, output_path=DEFAULT_BTFHUB_CONSTANTS_PATH):
+    # the generator imports pkg/config/setup, which needs the generated config schema files
+    schema_codegen(ctx)
     ctx.run(
         f"go run -tags bpf,btfhubsync ./pkg/security/probe/constantfetch/btfhub/ -combine -archive-root {archive_path} -output {output_path}",
     )
@@ -602,44 +591,6 @@ def go_generate_check(ctx):
         raise Exit(code=1)
 
 
-E2E_ARTIFACT_DIR = os.path.join(CI_PROJECT_DIR, "test", "new-e2e", "tests", "security-agent-functional", "artifacts")
-
-
-@task
-def e2e_prepare_win(ctx):
-    """
-    Compile test suite for CWS windows new-e2e tests
-    """
-
-    out_binary = "testsuite.exe"
-
-    testsuite_out_dir = E2E_ARTIFACT_DIR
-    # Clean up previous build
-    if os.path.exists(testsuite_out_dir):
-        shutil.rmtree(testsuite_out_dir)
-
-    testsuite_out_path = os.path.join(testsuite_out_dir, out_binary)
-    build_functional_tests(
-        ctx,
-        bundle_ebpf=False,
-        race=False,
-        output=testsuite_out_path,
-        skip_linters=True,
-    )
-
-    # build the ETW tests binary also
-    testsuite_out_path = os.path.join(E2E_ARTIFACT_DIR, "etw", out_binary)
-    srcpath = 'pkg/security/probe'
-    build_functional_tests(
-        ctx,
-        output=testsuite_out_path,
-        srcpath=srcpath,
-        bundle_ebpf=False,
-        race=False,
-        skip_linters=True,
-    )
-
-
 @task
 def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     build_cws_object_files(ctx, with_unit_test=True, arch=CURRENT_ARCH)
@@ -647,7 +598,7 @@ def run_ebpf_unit_tests(ctx, verbose=False, trace=False, testflags=''):
     env = {"CGO_ENABLED": "1"}
 
     build_libpcap(ctx, env=env)
-    cgo_flags = get_libpcap_cgo_flags(ctx)
+    cgo_flags = get_libpcap_cgo_flags()
     # append libpcap cgo-related environment variables to any existing ones
     for k, v in cgo_flags.items():
         if k in env:

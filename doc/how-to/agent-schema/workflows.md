@@ -11,6 +11,8 @@ dda inv schema.lint
 dda inv schema.codegen
 ```
 
+`schema.codegen` writes the gitignored files in `pkg/config/setup/generatedsettings_local`. Don't run `dda inv schema.codegen-snapshot` or commit changes to `pkg/config/setup/generatedsettings`. Release automation refreshes that [committed snapshot](../../architecture/agent-schema/index.md#the-generated-settings-snapshot) after each release.
+
 ## Generate configuration examples
 
 The Agent build generates configuration examples automatically. To validate all generated examples locally, run:
@@ -18,6 +20,8 @@ The Agent build generates configuration examples automatically. To validate all 
 ```bash
 dda inv schema.template-all
 ```
+
+This command rewrites the examples in `pkg/config/example/`. Don't commit those changes. After each Agent release, an automated PR refreshes the examples from that release's pipeline (see `pkg/config/example/README.md`).
 
 To preview the example for one platform without running the whole build, render it to a temporary file:
 

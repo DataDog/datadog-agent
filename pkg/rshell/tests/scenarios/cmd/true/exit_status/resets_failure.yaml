@@ -1,0 +1,13 @@
+description: The true builtin resets $? to 0 after a failed command.
+input:
+  script: |+
+    false
+    echo $?
+    true
+    echo $?
+expect:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0

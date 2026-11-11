@@ -15,6 +15,7 @@ go_library(
         "//comp/core/settings/def",
         "//comp/core/sysprobeconfig/def",
         "//comp/def",
+        "//pkg/config/helper",
         "//pkg/config/model",
         "//pkg/process/util/coreagent",
         "//pkg/system-probe/api/client",

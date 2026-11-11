@@ -5,6 +5,7 @@ go_library(
     name = "impl",
     srcs = [
         "client.go",
+        "expvar.go",
         "registry.go",
         "services.go",
     ],
@@ -16,6 +17,7 @@ go_library(
         "//comp/core/flare/types",
         "//comp/core/ipc/def",
         "//comp/core/remoteagentregistry/def",
+        "//comp/core/remoteagentregistry/expvarcompat",
         "//comp/core/remoteagentregistry/status",
         "//comp/core/remoteagentregistry/util",
         "//comp/core/secrets/def",
@@ -43,6 +45,7 @@ dd_agent_go_test(
     name = "impl_test",
     srcs = [
         "client_test.go",
+        "expvar_test.go",
         "registry_test.go",
         "services_test.go",
     ],
@@ -53,6 +56,7 @@ dd_agent_go_test(
         "//comp/core/ipc/def",
         "//comp/core/ipc/mock",
         "//comp/core/remoteagentregistry/def",
+        "//comp/core/remoteagentregistry/expvarcompat",
         "//comp/core/secrets/mock",
         "//comp/core/telemetry/def",
         "//comp/core/telemetry/impl",

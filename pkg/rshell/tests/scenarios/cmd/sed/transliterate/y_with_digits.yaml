@@ -1,0 +1,8 @@
+description: sed y command transliterates digits.
+input:
+  script: |+
+    echo "123" | sed 'y/123/abc/'
+expect:
+  stdout: "abc\n"
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: Multiple spaces between arguments are collapsed.
+input:
+  script: |+
+    echo   spaced    out
+expect:
+  stdout: "spaced out\n"
+  stderr: ""
+  exit_code: 0

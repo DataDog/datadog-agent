@@ -1,0 +1,7 @@
+description: Left-align flag overrides zero-pad flag.
+input:
+  script: |+
+    printf "%-05d|\n" 42
+expect:
+  stdout: "42   |\n"
+  exit_code: 0

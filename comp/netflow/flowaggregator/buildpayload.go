@@ -9,11 +9,12 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/netflow/common"
+	"github.com/DataDog/datadog-agent/comp/netflow/dpi"
 	"github.com/DataDog/datadog-agent/comp/netflow/format"
 	"github.com/DataDog/datadog-agent/comp/netflow/payload"
 )
 
-func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) payload.FlowPayload {
+func buildPayload(aggFlow *common.Flow, app dpi.Application, hostname string, flushTime time.Time) payload.FlowPayload {
 	return payload.FlowPayload{
 		FlushTimestamp: flushTime.UnixMilli(),
 		FlowType:       string(aggFlow.FlowType),
@@ -63,6 +64,35 @@ func buildPayload(aggFlow *common.Flow, hostname string, flushTime time.Time) pa
 		NextHop: payload.NextHop{
 			IP: format.IPAddr(aggFlow.NextHop),
 		},
+		DPI:              buildDPIPayload(aggFlow, app),
 		AdditionalFields: aggFlow.AdditionalFields,
+	}
+}
+
+func buildDPIPayload(aggFlow *common.Flow, app dpi.Application) payload.DPI {
+	if app.ID == 0 {
+		// no app found in the cache
+		if aggFlow.ApplicationName != "" {
+			// application name sent directly on the flow (e.g. Palo Alto App-ID)
+			return payload.DPI{ApplicationName: aggFlow.ApplicationName}
+		}
+		// app not yet in the cache, but still report the app ID
+		return payload.DPI{ApplicationID: aggFlow.ApplicationID}
+	}
+	// app id sent on the flow, metadata found in the cache from the options tables the exporter sends (e.g. Cisco NBAR)
+	return payload.DPI{
+		ApplicationID:          aggFlow.ApplicationID,
+		ApplicationName:        app.Name,
+		ApplicationDescription: app.Description,
+		Category:               app.Category,
+		SubCategory:            app.SubCategory,
+		ApplicationGroup:       app.ApplicationGroup,
+		P2PTechnology:          app.P2PTechnology,
+		TunnelTechnology:       app.TunnelTechnology,
+		EncryptedTechnology:    app.EncryptedTechnology,
+		TrafficClass:           app.TrafficClass,
+		BusinessRelevance:      app.BusinessRelevance,
+		ApplicationSet:         app.ApplicationSet,
+		ApplicationFamily:      app.ApplicationFamily,
 	}
 }

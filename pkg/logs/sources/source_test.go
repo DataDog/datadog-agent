@@ -146,3 +146,40 @@ func TestConcurrentPublicJSONAndSetTailingMode(t *testing.T) {
 	start.Done()
 	wg.Wait()
 }
+
+type fakeTagFilter struct{}
+
+func (fakeTagFilter) Keep(tags []string) []string    { return tags }
+func (fakeTagFilter) RetainsTag(string, string) bool { return true }
+
+func TestLogSourceTagFilterUnset(t *testing.T) {
+	source := NewLogSource("test", nil)
+
+	f, ok := source.TagFilter()
+	assert.False(t, ok)
+	assert.True(t, f == nil)
+}
+
+func TestLogSourceTagFilterRoundTrip(t *testing.T) {
+	source := NewLogSource("test", nil)
+	want := fakeTagFilter{}
+
+	ok := source.SetTagFilterIfUnset(want)
+	assert.True(t, ok)
+	assert.False(t, source.SetTagFilterIfUnset(nil))
+
+	got, resolved := source.TagFilter()
+	assert.True(t, resolved)
+	assert.Equal(t, TagFilter(want), got)
+}
+
+func TestLogSourceTagFilterResolvedInert(t *testing.T) {
+	source := NewLogSource("test", nil)
+
+	ok := source.SetTagFilterIfUnset(nil)
+	assert.True(t, ok)
+
+	got, resolved := source.TagFilter()
+	assert.True(t, resolved)
+	assert.True(t, got == nil)
+}

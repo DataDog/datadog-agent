@@ -11,6 +11,7 @@ go_library(
     deps = [
         "//comp/core/config",
         "//comp/core/workloadmeta/def",
+        "//pkg/config/model",
         "//pkg/sbom/types",
         "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
@@ -22,7 +23,11 @@ dd_agent_go_test(
     srcs = ["sbom_test.go"],
     embed = [":sbom"],
     deps = [
+        "//comp/core/workloadmeta/def",
+        "//pkg/config/mock",
+        "//pkg/util/log",
         "@com_github_datadog_agent_payload_v5//cyclonedx_v1_4",
         "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
     ],
 )

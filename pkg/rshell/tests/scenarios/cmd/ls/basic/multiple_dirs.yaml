@@ -1,0 +1,15 @@
+description: ls with multiple directory arguments shows each with a header.
+setup:
+  files:
+    - path: dir1/file1.txt
+      content: "hello"
+    - path: dir2/file2.txt
+      content: "world"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls dir1 dir2
+expect:
+  stdout: "dir1:\nfile1.txt\n\ndir2:\nfile2.txt\n"
+  stderr: ""
+  exit_code: 0

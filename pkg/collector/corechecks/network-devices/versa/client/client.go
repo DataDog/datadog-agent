@@ -16,6 +16,7 @@ import (
 	"net/url"
 	"os"
 	"strconv"
+	"strings"
 	"sync"
 	"time"
 
@@ -27,11 +28,75 @@ const (
 	defaultOAuthPort   = 9183
 	defaultMaxAttempts = 3
 	defaultMaxPages    = 100
-	defaultMaxCount    = "2000"
+	defaultMaxCount    = 2000
 	defaultLookback    = "30minutesAgo"
-	defaultHTTPTimeout = 10
+	defaultHTTPTimeout = 10 * time.Second
 	defaultHTTPScheme  = "https"
 )
+
+// Endpoint identifies a group of Versa API calls whose request settings
+// (page size, page count, timeout) can be overridden independently
+type Endpoint string
+
+// Endpoints that support request setting overrides. Names mirror the
+// collect_* check options where one exists.
+const (
+	EndpointOrganizations                  Endpoint = "organizations"
+	EndpointAppliances                     Endpoint = "appliances"
+	EndpointInterfaces                     Endpoint = "interfaces"
+	EndpointDirectorStatus                 Endpoint = "director_status"
+	EndpointDirectorInterfaceMetrics       Endpoint = "director_interface_metrics"
+	EndpointSLAMetrics                     Endpoint = "sla_metrics"
+	EndpointLinkStatusMetrics              Endpoint = "link_status_metrics"
+	EndpointLinkUsageMetrics               Endpoint = "link_usage_metrics"
+	EndpointSiteMetrics                    Endpoint = "site_metrics"
+	EndpointApplicationsByApplianceMetrics Endpoint = "applications_by_appliance_metrics"
+	EndpointTopUserMetrics                 Endpoint = "top_user_metrics"
+	EndpointTunnelMetrics                  Endpoint = "tunnel_metrics"
+	EndpointQoSMetrics                     Endpoint = "qos_metrics"
+	EndpointDIAMetrics                     Endpoint = "dia_metrics"
+	EndpointInterfaceMetrics               Endpoint = "interface_metrics"
+)
+
+var allEndpoints = []Endpoint{
+	EndpointOrganizations,
+	EndpointAppliances,
+	EndpointInterfaces,
+	EndpointDirectorStatus,
+	EndpointDirectorInterfaceMetrics,
+	EndpointSLAMetrics,
+	EndpointLinkStatusMetrics,
+	EndpointLinkUsageMetrics,
+	EndpointSiteMetrics,
+	EndpointApplicationsByApplianceMetrics,
+	EndpointTopUserMetrics,
+	EndpointTunnelMetrics,
+	EndpointQoSMetrics,
+	EndpointDIAMetrics,
+	EndpointInterfaceMetrics,
+}
+
+// ParseEndpoint validates an endpoint name from configuration
+func ParseEndpoint(name string) (Endpoint, error) {
+	for _, e := range allEndpoints {
+		if string(e) == name {
+			return e, nil
+		}
+	}
+	names := make([]string, 0, len(allEndpoints))
+	for _, e := range allEndpoints {
+		names = append(names, string(e))
+	}
+	return "", fmt.Errorf("unknown endpoint %q, must be one of: %s", name, strings.Join(names, ", "))
+}
+
+// EndpointConfig holds the request settings for an endpoint. When used as an
+// override, zero values inherit the client-wide setting.
+type EndpointConfig struct {
+	MaxCount int
+	MaxPages int
+	Timeout  time.Duration
+}
 
 // Useful for mocking
 var timeNow = time.Now
@@ -56,7 +121,9 @@ type Client struct {
 	authenticationMutex *sync.Mutex
 	maxAttempts         int
 	maxPages            int
-	maxCount            string // Stored as string to be passed as an HTTP param
+	maxCount            int
+	timeout             time.Duration
+	endpointOverrides   map[Endpoint]EndpointConfig
 	lookback            string
 }
 
@@ -91,7 +158,7 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 	}
 
 	httpClient := &http.Client{
-		Timeout: defaultHTTPTimeout * time.Second,
+		Timeout: defaultHTTPTimeout,
 		Jar:     cookieJar,
 	}
 
@@ -124,12 +191,16 @@ func NewClient(directorEndpoint string, directorPort int, analyticsEndpoint stri
 		maxAttempts:         defaultMaxAttempts,
 		maxPages:            defaultMaxPages,
 		maxCount:            defaultMaxCount,
+		timeout:             defaultHTTPTimeout,
+		endpointOverrides:   make(map[Endpoint]EndpointConfig),
 		lookback:            defaultLookback,
 	}
 
 	for _, opt := range options {
 		opt(client)
 	}
+	// Auth requests and any request without an endpoint override use the client-wide timeout
+	client.httpClient.Timeout = client.timeout
 
 	return client, nil
 }
@@ -188,7 +259,7 @@ func WithMaxAttempts(maxAttempts int) ClientOptions {
 // WithMaxCount is a functional option to set the client max count
 func WithMaxCount(maxCount int) ClientOptions {
 	return func(c *Client) {
-		c.maxCount = strconv.Itoa(maxCount)
+		c.maxCount = maxCount
 	}
 }
 
@@ -197,6 +268,42 @@ func WithMaxPages(maxPages int) ClientOptions {
 	return func(c *Client) {
 		c.maxPages = maxPages
 	}
+}
+
+// WithTimeout is a functional option to set the client-wide HTTP request timeout
+func WithTimeout(timeout time.Duration) ClientOptions {
+	return func(c *Client) {
+		c.timeout = timeout
+	}
+}
+
+// WithEndpointConfig is a functional option to override request settings for
+// a single endpoint. Zero-valued fields inherit the client-wide setting.
+func WithEndpointConfig(endpoint Endpoint, config EndpointConfig) ClientOptions {
+	return func(c *Client) {
+		c.endpointOverrides[endpoint] = config
+	}
+}
+
+// endpointConfig resolves the request settings for an endpoint, applying any
+// override on top of the client-wide settings
+func (client *Client) endpointConfig(endpoint Endpoint) EndpointConfig {
+	config := EndpointConfig{
+		MaxCount: client.maxCount,
+		MaxPages: client.maxPages,
+		Timeout:  client.timeout,
+	}
+	override := client.endpointOverrides[endpoint]
+	if override.MaxCount > 0 {
+		config.MaxCount = override.MaxCount
+	}
+	if override.MaxPages > 0 {
+		config.MaxPages = override.MaxPages
+	}
+	if override.Timeout > 0 {
+		config.Timeout = override.Timeout
+	}
+	return config
 }
 
 // WithLookback is a functional option to set the client lookback interval
@@ -208,22 +315,22 @@ func WithLookback(lookback int) ClientOptions {
 
 // GetOrganizations retrieves a list of organizations
 func (client *Client) GetOrganizations() ([]Organization, error) {
+	cfg := client.endpointConfig(EndpointOrganizations)
 	var organizations []Organization
-	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil, false)
+	resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", nil, false, cfg.Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get organizations: %v", err)
 	}
 	organizations = append(organizations, resp.Organizations...)
 
 	// Paginate through the appliances
-	maxCount, _ := strconv.Atoi(client.maxCount)
-	totalPages := (resp.TotalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
-	for i := 1; i < totalPages; i++ {                         // start from 1 to skip the first page
+	totalPages := (resp.TotalCount + cfg.MaxCount - 1) / cfg.MaxCount // calculate total pages, rounding up if there's any remainder
+	for i := 1; i < totalPages; i++ {                                 // start from 1 to skip the first page
 		params := map[string]string{
-			"limit":  client.maxCount,
-			"offset": strconv.Itoa(i * maxCount),
+			"limit":  strconv.Itoa(cfg.MaxCount),
+			"offset": strconv.Itoa(i * cfg.MaxCount),
 		}
-		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params, false)
+		resp, err := get[OrganizationListResponse](client, "/vnms/organization/orgs", params, false, cfg.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get organizations: %v", err)
 		}
@@ -240,16 +347,17 @@ func (client *Client) GetOrganizations() ([]Organization, error) {
 
 // GetChildAppliancesDetail retrieves a list of appliances with details
 func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, error) {
+	cfg := client.endpointConfig(EndpointAppliances)
 	uri := "/vnms/dashboard/childAppliancesDetail/" + tenant
 	var appliances []Appliance
 	params := map[string]string{
 		"fetch":  "count",
-		"limit":  client.maxCount,
+		"limit":  strconv.Itoa(cfg.MaxCount),
 		"offset": "0",
 	}
 
 	// Get the total count of appliances
-	totalCount, err := get[int](client, uri, params, false)
+	totalCount, err := get[int](client, uri, params, false, cfg.Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 	}
@@ -258,12 +366,11 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 	}
 
 	// Paginate through the appliances
-	maxCount, _ := strconv.Atoi(client.maxCount)
-	totalPages := (*totalCount + maxCount - 1) / maxCount // calculate total pages, rounding up if there's any remainder
+	totalPages := (*totalCount + cfg.MaxCount - 1) / cfg.MaxCount // calculate total pages, rounding up if there's any remainder
 	for i := 0; i < totalPages; i++ {
 		params["fetch"] = "all"
-		params["offset"] = strconv.Itoa(i * maxCount)
-		resp, err := get[[]Appliance](client, uri, params, false)
+		params["offset"] = strconv.Itoa(i * cfg.MaxCount)
+		resp, err := get[[]Appliance](client, uri, params, false, cfg.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliance detail response: %v", err)
 		}
@@ -278,14 +385,15 @@ func (client *Client) GetChildAppliancesDetail(tenant string) ([]Appliance, erro
 
 // GetAppliances retrieves a list of appliances using the general appliance endpoint
 func (client *Client) GetAppliances() ([]Appliance, error) {
+	cfg := client.endpointConfig(EndpointAppliances)
 	var allAppliances []Appliance
 	params := map[string]string{
-		"limit":  client.maxCount,
+		"limit":  strconv.Itoa(cfg.MaxCount),
 		"offset": "0",
 	}
 
 	// Make the first request to get the first page and total count
-	resp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
+	resp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false, cfg.Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get appliances: %v", err)
 	}
@@ -297,7 +405,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 	allAppliances = append(allAppliances, resp.Appliances...)
 
 	// Calculate remaining pages needed
-	maxCount, _ := strconv.Atoi(client.maxCount)
+	maxCount := cfg.MaxCount
 	if maxCount <= 0 {
 		return nil, fmt.Errorf("invalid max count: %d", maxCount)
 	}
@@ -308,7 +416,7 @@ func (client *Client) GetAppliances() ([]Appliance, error) {
 	for i := 1; i < totalPages; i++ {
 		params["offset"] = strconv.Itoa(i * maxCount)
 
-		pageResp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false)
+		pageResp, err := get[ApplianceListResponse](client, "/vnms/appliance/appliance", params, false, cfg.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get appliances page %d: %v", i+1, err)
 		}
@@ -337,7 +445,8 @@ func (client *Client) GetInterfaces(tenantName string) ([]Interface, error) {
 		"tenantName": tenantName,
 	}
 
-	resp, err := get[InterfaceListResponse](client, "/vnms/dashboard/health/interface", params, false)
+	cfg := client.endpointConfig(EndpointInterfaces)
+	resp, err := get[InterfaceListResponse](client, "/vnms/dashboard/health/interface", params, false, cfg.Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get interfaces: %v", err)
 	}
@@ -357,16 +466,17 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 		return nil, errors.New("tenantName cannot be empty")
 	}
 
+	cfg := client.endpointConfig(EndpointDirectorInterfaceMetrics)
 	var allMetrics []InterfaceMetrics
 
 	// make the initial request to get the first page and query-id
 	initialEndpoint := fmt.Sprintf("/vnms/dashboard/appliance/%s/pageable_interfaces", applianceName)
 	params := map[string]string{
 		"orgName": tenantName,
-		"limit":   client.maxCount,
+		"limit":   strconv.Itoa(cfg.MaxCount),
 	}
 
-	resp, err := get[InterfaceMetricsResponse](client, initialEndpoint, params, false)
+	resp, err := get[InterfaceMetricsResponse](client, initialEndpoint, params, false, cfg.Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get interface metrics (initial request): %v", err)
 	}
@@ -379,26 +489,25 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 		return nil, errors.New("failed to get interface metrics: no query-id returned")
 	}
 	// always attempt to clean up the query
-	defer client.closeQuery(queryID)
+	defer client.closeQuery(queryID, cfg.Timeout)
 
 	// add the first page of data
 	allMetrics = append(allMetrics, resp.Collection.Interfaces...)
 
 	// if the first page has less interfaces than the limit,
 	// there's no need to paginate
-	maxCount, _ := strconv.Atoi(client.maxCount)
-	if len(resp.Collection.Interfaces) < maxCount {
+	if len(resp.Collection.Interfaces) < cfg.MaxCount {
 		return allMetrics, nil
 	}
 
 	// paginate through remaining data using the query-id
 	nextPageEndpoint := "/vnms/dashboard/appliance/next_page_data"
-	for range client.maxPages {
+	for range cfg.MaxPages {
 		pageParams := map[string]string{
 			"queryId": queryID,
 		}
 
-		pageResp, err := get[InterfaceMetricsResponse](client, nextPageEndpoint, pageParams, false)
+		pageResp, err := get[InterfaceMetricsResponse](client, nextPageEndpoint, pageParams, false, cfg.Timeout)
 		if err != nil {
 			return nil, fmt.Errorf("failed to get interface metrics (pagination): %v", err)
 		}
@@ -411,7 +520,7 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 
 		// If we get a response with less than the limit,
 		// we've hit the last page
-		if len(pageResp.Collection.Interfaces) < maxCount {
+		if len(pageResp.Collection.Interfaces) < cfg.MaxCount {
 			break
 		}
 	}
@@ -420,14 +529,14 @@ func (client *Client) GetInterfaceMetrics(applianceName string, tenantName strin
 }
 
 // closeQuery closes a pageable query to clean up resources
-func (client *Client) closeQuery(queryID string) {
+func (client *Client) closeQuery(queryID string, timeout time.Duration) {
 	closeEndpoint := "/vnms/dashboard/appliance/close_query"
 	params := map[string]string{
 		"queryId": queryID,
 	}
 
 	// We don't expect any meaningful response from the close endpoint
-	_, err := client.get(closeEndpoint, params, false)
+	_, err := client.get(closeEndpoint, params, false, timeout)
 	if err != nil {
 		log.Debugf("failed to close query %s: %v", queryID, err)
 	}
@@ -435,7 +544,7 @@ func (client *Client) closeQuery(queryID string) {
 
 // GetDirectorStatus retrieves the director status
 func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
-	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil, false)
+	resp, err := get[DirectorStatus](client, "/vnms/dashboard/vdStatus", nil, false, client.endpointConfig(EndpointDirectorStatus).Timeout)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get director status: %v", err)
 	}
@@ -447,6 +556,7 @@ func (client *Client) GetDirectorStatus() (*DirectorStatus, error) {
 func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointSLAMetrics),
 		tenant,
 		"SDWAN",
 		client.lookback,
@@ -469,6 +579,7 @@ func (client *Client) GetSLAMetrics(tenant string) ([]SLAMetrics, error) {
 func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointQoSMetrics),
 		tenant,
 		"SDWAN",
 		client.lookback,
@@ -501,6 +612,7 @@ func (client *Client) GetPathQoSMetrics(tenant string) ([]QoSMetrics, error) {
 func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, error) {
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointLinkStatusMetrics),
 		tenant,
 		"SDWAN",
 		client.lookback,
@@ -518,6 +630,7 @@ func (client *Client) GetLinkStatusMetrics(tenant string) ([]LinkStatusMetrics, 
 func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, error) {
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointLinkUsageMetrics),
 		tenant,
 		"SDWAN",
 		client.lookback,
@@ -538,6 +651,7 @@ func (client *Client) GetLinkUsageMetrics(tenant string) ([]LinkUsageMetrics, er
 func (client *Client) GetSiteMetrics(tenant string) ([]SiteMetrics, error) {
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointSiteMetrics),
 		tenant,
 		"SDWAN",
 		client.lookback,
@@ -560,6 +674,7 @@ func (client *Client) GetApplicationsByAppliance(tenant string) ([]ApplicationsB
 	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointApplicationsByApplianceMetrics),
 		tenant,
 		"SDWAN",
 		"1daysAgo",
@@ -583,6 +698,7 @@ func (client *Client) GetTopUsers(tenant string) ([]TopUserMetrics, error) {
 	// TODO: should the lookback be configurable for these? no data is returned for 30min lookback
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointTopUserMetrics),
 		tenant,
 		"SDWAN",
 		"1daysAgo",
@@ -609,6 +725,7 @@ func (client *Client) GetTunnelMetrics(tenant string) ([]TunnelMetrics, error) {
 
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointTunnelMetrics),
 		tenant,
 		"SYSTEM",
 		client.lookback,
@@ -631,6 +748,7 @@ func (client *Client) GetDIAMetrics(tenant string) ([]DIAMetrics, error) {
 
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointDIAMetrics),
 		tenant,
 		"SDWAN",
 		"1daysAgo",
@@ -655,6 +773,7 @@ func (client *Client) GetAnalyticsInterfaces(tenant string) ([]AnalyticsInterfac
 
 	return getPaginatedAnalytics(
 		client,
+		client.endpointConfig(EndpointInterfaceMetrics),
 		tenant,
 		"SDWAN",
 		client.lookback,

@@ -1,0 +1,19 @@
+description: awk applies name=value operands in input-stream order.
+setup:
+  files:
+    - path: one.txt
+      content: |+
+        a
+    - path: two.txt
+      content: |+
+        b
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    awk '{ print x ":" $0 }' one.txt x=foo two.txt
+expect:
+  stdout: |+
+    :a
+    foo:b
+  stderr: |+
+  exit_code: 0

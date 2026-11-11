@@ -8,7 +8,6 @@
 package clusterchecks
 
 import (
-	"sort"
 	"time"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
@@ -72,14 +71,4 @@ func busynessFunc(s types.CLCRunnerStats) int {
 		checkMetricSamplesWeight*float64(s.MetricSamples) +
 		checkHistogramBucketWeight*float64(s.HistogramBuckets) +
 		checkEventsWeight*float64(s.Events))
-}
-
-// orderedKeys sorts the keys of a map and return them in a slice
-func orderedKeys(m map[string]int) []string {
-	keys := []string{}
-	for key := range m {
-		keys = append(keys, key)
-	}
-	sort.Strings(keys)
-	return keys
 }

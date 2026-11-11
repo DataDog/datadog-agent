@@ -6,9 +6,12 @@
 package gke
 
 import (
+	"fmt"
+	"os"
+	"os/exec"
 	"strings"
 
-	"github.com/pulumi/pulumi-gcp/sdk/v9/go/gcp/container"
+	"github.com/pulumi/pulumi-gcp/sdk/v10/go/gcp/container"
 	"github.com/pulumi/pulumi/sdk/v3/go/pulumi"
 
 	"github.com/DataDog/datadog-agent/test/e2e-framework/common/config"
@@ -20,6 +23,15 @@ const (
 )
 
 func NewCluster(e gcp.Environment, name string, autopilot bool, opts ...pulumi.ResourceOption) (*container.Cluster, pulumi.StringOutput, error) {
+	// CI activates the service account from GOOGLE_APPLICATION_CREDENTIALS in
+	// gcp.NewEnvironment. Local GKE access instead uses the active gcloud account,
+	// whose credentials can expire independently of the ADC used for provisioning.
+	if os.Getenv("GOOGLE_APPLICATION_CREDENTIALS") == "" {
+		if _, err := exec.Command("gcloud", "auth", "print-access-token", "--quiet").Output(); err != nil {
+			return nil, pulumi.StringOutput{}, fmt.Errorf("GKE requires valid gcloud CLI credentials in addition to Application Default Credentials: %w; run `gcloud auth login` and retry", err)
+		}
+	}
+
 	opts = append(opts, e.WithProviders(config.ProviderGCP))
 
 	clusterName := e.Namer.DisplayName(MaxGkeClusterNameLen)

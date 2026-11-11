@@ -1,0 +1,8 @@
+---
+other:
+  - |
+    The end-to-end test framework can now provision `Amazon EKS Auto Mode
+    <https://docs.aws.amazon.com/eks/latest/userguide/automode.html>`_ clusters.
+    The ``dda inv aws.create-eks`` task accepts a new ``--auto-mode`` flag, which
+    lets AWS manage the cluster data plane instead of creating managed node
+    groups and a Fargate profile.

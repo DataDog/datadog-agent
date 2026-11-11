@@ -7,18 +7,23 @@ package commands
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/env"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/exec"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths/testutil"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/repository"
 )
 
@@ -145,8 +150,12 @@ type testCmd struct {
 }
 
 // newTestingCmd creates a cmd via newCmd and exposes its env through Test.GetEnv.
-func newTestingCmd() *testCmd {
-	c := newCmd("unit_test", withQuiet())
+func newTestingCmd(t *testing.T) *testCmd {
+	t.Helper()
+	c, err := newCmd("unit_test", withQuiet())
+	if err != nil {
+		t.Fatal(err)
+	}
 	return &testCmd{cmd: c, Test: testEnvAccessor{e: c.env}}
 }
 
@@ -238,7 +247,7 @@ installer:
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			dir := t.TempDir()
+			dir := testutil.TrustedDir(t)
 			agentConfigDir = dir
 			t.Cleanup(func() { agentConfigDir = paths.AgentConfigDir })
 
@@ -250,7 +259,7 @@ installer:
 				t.Setenv(k, v)
 			}
 
-			cmd := newTestingCmd()
+			cmd := newTestingCmd(t)
 			defer cmd.stop(nil)
 
 			for field, want := range tc.checks {
@@ -260,8 +269,92 @@ installer:
 	}
 }
 
+func TestTelemetryConfigUsesAgentConfigDir(t *testing.T) {
+	originalConfigDir := agentConfigDir
+	t.Cleanup(func() { agentConfigDir = originalConfigDir })
+	agentConfigDir = testutil.TrustedDir(t)
+	if err := os.WriteFile(filepath.Join(agentConfigDir, "datadog.yaml"),
+		[]byte("api_key: synthetic-key\nsite: custom.example\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	config, err := telemetryConfig()
+	if err != nil {
+		t.Fatal(err)
+	}
+	assert.Equal(t, telemetryConfigFields{APIKey: "synthetic-key", Site: "custom.example"}, config)
+}
+
 func TestSetupCommandHasHumanReadableAnnotation(t *testing.T) {
 	cmd := setupCommand()
 	assert.Equal(t, "true", cmd.Annotations[AnnotationHumanReadableErrors],
 		"setup command should have human-readable-errors annotation")
+}
+
+func TestInstallConfigExperimentArgs(t *testing.T) {
+	cmd := installConfigExperimentCommand()
+	assert.Error(t, cmd.ValidateArgs([]string{}))
+	assert.NoError(t, cmd.ValidateArgs([]string{"datadog-agent"}))
+	assert.Error(t, cmd.ValidateArgs([]string{"datadog-agent", "{}"}))
+}
+
+func TestReadConfigExperimentInput(t *testing.T) {
+	operations := config.Operations{
+		DeploymentID: "deployment-1",
+		FileOperations: []config.FileOperation{{
+			FileOperationType: config.FileOperationMergePatch,
+			FilePath:          "/datadog.yaml",
+			Patch:             json.RawMessage(`{"log_level":"debug"}`),
+		}},
+	}
+	operationsJSON, err := json.Marshal(operations)
+	require.NoError(t, err)
+
+	tests := []struct {
+		name        string
+		stdin       string
+		wantSecrets map[string]string
+		wantErr     string
+	}{
+		{
+			name:        "operations then secrets",
+			stdin:       string(operationsJSON) + "\n" + `{"ENC[secret]":"value"}`,
+			wantSecrets: map[string]string{"ENC[secret]": "value"},
+		},
+		{
+			name:        "operations then empty secrets",
+			stdin:       string(operationsJSON) + "\n{}",
+			wantSecrets: map[string]string{},
+		},
+		{
+			name:    "empty stdin",
+			wantErr: "could not decode operations from stdin",
+		},
+		{
+			name:    "invalid operations",
+			stdin:   "not json",
+			wantErr: "could not decode operations from stdin",
+		},
+		{
+			name:    "missing secrets",
+			stdin:   string(operationsJSON),
+			wantErr: "could not decode secrets from stdin",
+		},
+		{
+			name:    "invalid secrets",
+			stdin:   string(operationsJSON) + "\nnot json",
+			wantErr: "could not decode secrets from stdin",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			gotOperations, gotSecrets, err := readConfigExperimentInput(strings.NewReader(tt.stdin))
+			if tt.wantErr != "" {
+				assert.ErrorContains(t, err, tt.wantErr)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, operations, gotOperations)
+			assert.Equal(t, tt.wantSecrets, gotSecrets)
+		})
+	}
 }

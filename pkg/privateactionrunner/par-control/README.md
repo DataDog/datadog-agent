@@ -34,12 +34,20 @@ discovery.
 | Deployment | Executor endpoint | Shared certificate |
 |---|---|---|
 | Linux packages, including Fleet | `${DD_INSTALL_DIR}/run/par-executor.sock` | `${DD_CONF_DIR}/ipc_cert.pem` |
-| Linux image / Helm / Operator | `/opt/datadog-agent/run/par-executor.sock` | `${DD_IPC_CERT_FILE_PATH}` |
+| Linux image / Helm / Operator | `/opt/datadog-agent/run/par-executor.sock` | Agent IPC certificate, resolved by `dd-procmgrd` |
 | Windows | `\\.\pipe\dd-par-executor` | installer-resolved `{{.EtcDir}}/ipc_cert.pem` |
 
-The container entrypoint picks the certificate before starting procmgr: explicit
-`DD_IPC_CERT_FILE_PATH`, else beside `DD_AUTH_TOKEN_FILE_PATH`, else beside the main
-config — preserving existing Helm/Operator auth volumes.
+On Linux containers the process definitions pass `${DD_PM_IPC_CERT_FILE_PATH}`.
+`dd-procmgrd` fills that in when it starts the process, in the same order as the
+Agent: `DD_IPC_CERT_FILE_PATH`, then `ipc_cert_file_path` in `datadog.yaml`, then
+the directory of `DD_AUTH_TOKEN_FILE_PATH` or `auth_token_file_path`, then the
+directory of the config file. A certificate beside the auth token or the main
+config still matches the Helm and Operator auth volumes. The resolved value is
+not exported to the process, so it cannot override `ipc_cert_file_path` in the
+YAML. `dd-procmgrd` does not resolve `ENC[...]` secret handles or Fleet policy
+overrides: set `DD_IPC_CERT_FILE_PATH` to the certificate path in those cases.
+When the path cannot be resolved (an `ENC[...]` handle or a `datadog.yaml` that
+does not parse), the process fails to start instead of receiving a placeholder.
 
 ```bash
 par-control \
@@ -53,6 +61,15 @@ The config response carries the runner private key and possibly proxy credential
 and headers — never log it (Rust's `Debug` impl redacts it). Retrieval requires a
 verified mTLS peer presenting the *exact* shared IPC certificate; a different
 certificate signed by the same CA can submit actions but not fetch credentials.
+
+The executor endpoint is also restricted at the OS level, since procmgr starts
+both processes as the same account: a `0600` socket on Unix, and on Windows a
+pipe DACL limited to Local System, Administrators, the pipe owner, and the
+`datadogagent` service account.
+
+Action failures are logged with their task ID and error code only. Both the
+internal and the external message can carry raw error text, so they are only
+published to OPMS.
 
 ## Build and test
 

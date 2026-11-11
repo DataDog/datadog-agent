@@ -47,11 +47,20 @@ dd_agent_go_test(
     name = "collectors_test",
     srcs = [
         "ecs_common_test.go",
+        "ray_inference_kubelet_test.go",
         "resolvable_adapter_test.go",
         "workloadmeta_test.go",
     ],
     embed = [":collectors"],
+    gotags_sets = [[
+        "cel",
+        "clusterchecks",
+        "docker",
+        "kubeapiserver",
+        "kubelet",
+    ]],
     deps = [
+        "//comp/core",
         "//comp/core/config",
         "//comp/core/log/def",
         "//comp/core/log/mock",
@@ -69,6 +78,7 @@ dd_agent_go_test(
         "//pkg/util/flavor",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/kubelet",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
         "@io_k8s_apimachinery//pkg/runtime/schema",

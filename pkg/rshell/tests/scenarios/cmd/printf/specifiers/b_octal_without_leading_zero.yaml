@@ -1,0 +1,8 @@
+description: Printf %b supports \NNN octal escapes without leading zero (e.g. \101 = A).
+input:
+  script: |+
+    printf '%b\n' '\101'
+expect:
+  stdout: |+
+    A
+  exit_code: 0

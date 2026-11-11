@@ -72,7 +72,9 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestLoadModule",
 			"~TestUnloadModule",
 			"~TestOsOrigin",
-			"~TestSpan",
+			"~TestOTelSpanEBPFLess",
+			"~TestNodeSpanEBPFLess",
+			"~TestDDTraceGoSpanEBPFLess",
 			"~TestChdir",
 			"~TestBindEvent",
 			"~TestSocketEvent",
@@ -85,6 +87,7 @@ func SkipIfNotAvailable(t *testing.T) {
 			"~TestSetrlimitEvent",
 			"TestPrCtl",
 			"TestCGroupVariables",
+			"TestCGroupContainerForkNoExec",
 			"TestTimestampVariable",
 		}
 

@@ -1,0 +1,8 @@
+description: xargs always exits 1 when -s is too small to fit a single argument plus the command name (matches GNU; -x is irrelevant for this case).
+input:
+  script: |+
+    printf 'abc' | xargs -s 1 echo
+expect:
+  stdout: |+
+  stderr_contains: ["xargs:"]
+  exit_code: 1

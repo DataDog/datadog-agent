@@ -23,6 +23,8 @@ const (
 	ContainerImageScanType ScanType = "container-image"
 	// HostScanType defines the host scan type
 	HostScanType ScanType = "host"
+	// ProcfsScanType defines the scan type of containers scanned through procfs
+	ProcfsScanType ScanType = "procfs"
 	// ContainerdCollector is the name of the containerd collector
 	ContainerdCollector = "containerd"
 	// CrioCollector is the name of the containerd collector
@@ -39,8 +41,6 @@ const (
 type Collector interface {
 	// Type returns the scan type of the collector
 	Type() ScanType
-	// CleanCache cleans the collector cache
-	CleanCache() error
 	// Init initializes the collector
 	Init(config.Component, option.Option[workloadmeta.Component]) error
 	// Scan performs a scan

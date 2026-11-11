@@ -1,0 +1,15 @@
+description: "sort rejects incompatible per-key flag combinations."
+setup:
+  files:
+    - path: data.txt
+      content: "a\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sort -k 1nd data.txt
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+expect:
+  stdout: ""
+  stderr: "sort: options '-dn' are incompatible\n"
+  exit_code: 2

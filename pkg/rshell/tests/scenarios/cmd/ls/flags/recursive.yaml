@@ -1,0 +1,23 @@
+description: ls -R recursively lists subdirectories.
+setup:
+  files:
+    - path: top.txt
+      content: "top"
+      chmod: 0644
+    - path: sub/inner.txt
+      content: "inner"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -R
+expect:
+  stdout: |+
+    .:
+    sub
+    top.txt
+
+    ./sub:
+    inner.txt
+  stderr: ""
+  exit_code: 0

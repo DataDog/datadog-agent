@@ -46,7 +46,7 @@ func serverURL(server *httptest.Server) (string, string, error) {
 	return splitURL[0], splitURL[1], nil
 }
 
-func testClient(server *httptest.Server) (*Client, error) {
+func testClient(server *httptest.Server, options ...ClientOptions) (*Client, error) {
 	host, portStr, err := serverURL(server)
 	if err != nil {
 		return nil, err
@@ -60,7 +60,7 @@ func testClient(server *httptest.Server) (*Client, error) {
 		Username: "testuser",
 		Password: "testpass",
 	}
-	client, err := NewClient(host, port, "https://10.0.0.1:8443", true, authConfig)
+	client, err := NewClient(host, port, "https://10.0.0.1:8443", true, authConfig, options...)
 	if err != nil {
 		return nil, err
 	}

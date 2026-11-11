@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    CWS: On Windows, when ``process_manager.enabled`` is true and the fleet installer writes
+    ``processes.d/datadog-agent-security.yaml``, security-agent is supervised by dd-procmgr
+    instead of the legacy ``datadog-security-agent`` Windows service. When the processes.d
+    definition is absent or process manager is disabled, the Agent continues to start
+    security-agent via SCM when CWS is enabled.

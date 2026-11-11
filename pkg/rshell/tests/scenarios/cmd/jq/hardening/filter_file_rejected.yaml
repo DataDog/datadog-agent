@@ -1,0 +1,12 @@
+description: jq rejects filter files so filters cannot introduce an extra filesystem input channel.
+# Upstream jq supports --from-file; rshell intentionally does not.
+skip_assert_against_bash: true
+input:
+  script: |+
+    jq --from-file filter.jq
+expect:
+  stdout: |+
+  stderr: |+
+    jq: unrecognized option '--from-file'
+    Try 'jq --help' for more information.
+  exit_code: 1

@@ -1,0 +1,15 @@
+description: rm -v prints "removed 'FILE'" for each file successfully removed.
+setup:
+  files:
+    - path: file.txt
+      content: "data\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm -v file.txt
+expect:
+  stdout: |+
+    removed 'file.txt'
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,13 @@
+description: Four-command chain with mixed && and || operators.
+input:
+  script: |+
+    true && echo A && echo B || echo C
+    false || echo D || echo E && echo F
+expect:
+  stdout: |+
+    A
+    B
+    D
+    F
+  stderr: ""
+  exit_code: 0

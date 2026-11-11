@@ -201,7 +201,7 @@ func GetPayload(ctx context.Context, conf model.Reader, hostname hostnameinterfa
 		PythonVersion:    python.GetPythonInfo(),
 		SystemStats:      getSystemStats(),
 		Meta:             meta,
-		HostTags:         hosttags.Get(ctx, false, conf),
+		HostTags:         hosttags.Get(ctx, false, conf, true),
 		ContainerMeta:    containerMetadata.Get(1 * time.Second),
 		NetworkMeta:      getNetworkMeta(ctx),
 		LogsMeta:         getLogsMeta(conf),

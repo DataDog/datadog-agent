@@ -9,12 +9,13 @@ Worktree-local TOML lives at `<repo-root>/.agents/skills/follow-pr/config.toml`
 (gitignored, so each worktree/checkout can carry its own preference).
 
 Usage:
-    config.py resolve [--mode autofix|no-autofix|ask]
+    config.py resolve [--mode autofix|retries|no-autofix|ask]
                        [--max-fix-cycles N]
                        [--policy TEXT]
 
 Prints the resolved values as plain text, one field per line, each tagged
 with the layer that supplied it (default/global/local/environment/explicit).
+max_fix_cycles bounds the total retry batches and code-fix pushes per invocation.
 """
 
 from __future__ import annotations
@@ -41,11 +42,12 @@ ENV_VARS = {
 
 class FixMode(str, Enum):
     AUTOFIX = "autofix"
+    RETRIES = "retries"
     NO_AUTOFIX = "no-autofix"
     ASK = "ask"
 
 
-DEFAULTS: dict[str, Any] = {"mode": FixMode.AUTOFIX.value, "max_fix_cycles": 2, "policy": ""}
+DEFAULTS: dict[str, Any] = {"mode": FixMode.AUTOFIX.value, "max_fix_cycles": 3, "policy": ""}
 
 
 @dataclass(frozen=True)
@@ -183,7 +185,13 @@ def main(argv: list[str] | None = None) -> int:
 
     resolve_parser = subparsers.add_parser("resolve", help="Resolve and print the effective preferences")
     resolve_parser.add_argument("--mode", choices=[m.value for m in FixMode], default=None)
-    resolve_parser.add_argument("--max-fix-cycles", dest="max_fix_cycles", type=int, default=None)
+    resolve_parser.add_argument(
+        "--max-fix-cycles",
+        dest="max_fix_cycles",
+        type=int,
+        default=None,
+        help="Shared budget for retry batches and code-fix pushes.",
+    )
     resolve_parser.add_argument("--policy", default=None)
 
     args = parser.parse_args(argv)

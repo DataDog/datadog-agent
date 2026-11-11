@@ -1,0 +1,28 @@
+{{- with .workloadAutoscaling }}
+{{- if .Disabled }}
+  {{ .Disabled }}
+{{- else if not .Started }}
+  Workload autoscaling is enabled but has not started yet.
+{{- else }}
+  Workload
+  --------
+  DatadogPodAutoscalers: {{ .PodAutoscalerCount }}
+  Leader: {{ if .IsLeader }}true{{ else }}false{{ end }}
+  {{- range .RemoteConfigProducts }}
+
+  {{ .Product }}
+  {{- if not .Received }}
+    No update received yet (expected if no DatadogPodAutoscaler is configured remotely)
+  {{- else }}
+    Last config version: {{ .LastVersion }}
+    Last update: {{ .LastUpdate }} ({{ .LastUpdateAge }} ago)
+    Configs in last update: {{ .ConfigCount }}
+    Updates received: {{ .UpdateCount }}
+    {{- if .ErrorCount }}
+    Configs failed: {{ .ErrorCount }} of {{ .ConfigCount }}
+    Last error: {{ .LastError }}
+    {{- end }}
+  {{- end }}
+  {{- end }}
+{{- end }}
+{{- end }}

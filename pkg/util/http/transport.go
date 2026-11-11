@@ -227,6 +227,9 @@ func WithHTTP2() func(*http.Transport) {
 		transport.Protocols = new(http.Protocols)
 		transport.Protocols.SetHTTP1(true)
 		transport.Protocols.SetHTTP2(true)
+		transport.HTTP2 = &http.HTTP2Config{
+			SendPingTimeout: 30 * time.Second,
+		}
 	}
 }
 

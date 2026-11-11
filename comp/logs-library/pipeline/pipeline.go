@@ -14,6 +14,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/logs-library/metrics"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
 	"github.com/DataDog/datadog-agent/comp/logs-library/sender"
+	"github.com/DataDog/datadog-agent/comp/logs-library/tagfilter"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	pkgconfigmodel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -33,6 +34,7 @@ type Pipeline struct {
 // NewPipeline returns a new Pipeline
 func NewPipeline(
 	processingRules []*config.ProcessingRule,
+	tagFilters *tagfilter.Filters,
 	endpoints *config.Endpoints,
 	senderImpl sender.PipelineComponent,
 	diagnosticMessageReceiver diagnostic.MessageReceiver,
@@ -62,7 +64,7 @@ func NewPipeline(
 	inputChan := make(chan *message.Message, cfg.GetInt("logs_config.message_channel_size"))
 
 	processor := processor.New(cfg, inputChan, strategyInput, processingRules,
-		encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
+		tagFilters, encoder, diagnosticMessageReceiver, hostname, senderImpl.PipelineMonitor(), instanceID)
 
 	return &Pipeline{
 		InputChan:       inputChan,
@@ -87,8 +89,14 @@ func (p *Pipeline) Stop() {
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
+	p.processor.Flush(ctx) // flush messages in the processor into the strategy before flushing it
+	// The batch strategy's Flush returns once the flushed payloads are handed to the sender,
+	// so a caller waiting for in-flight sends afterwards also waits for these payloads.
+	if f, ok := p.strategy.(interface{ Flush(context.Context) }); ok {
+		f.Flush(ctx)
+		return
+	}
 	p.flushChan <- struct{}{}
-	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
 func getStrategy(

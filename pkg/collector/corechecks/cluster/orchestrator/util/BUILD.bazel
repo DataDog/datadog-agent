@@ -4,6 +4,7 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 go_library(
     name = "util",
     srcs = [
+        "collector_name.go",
         "tags.go",
         "types.go",
     ],
@@ -13,14 +14,16 @@ go_library(
 
 dd_agent_go_test(
     name = "util_test",
-    srcs = ["tags_test.go"],
+    srcs = [
+        "collector_name_test.go",
+        "tags_test.go",
+    ],
     embed = [":util"],
     gotags_sets = [[
         "cel",
         "clusterchecks",
         "kubeapiserver",
         "kubelet",
-        "orchestrator",
     ]],
     include_default = False,
     deps = ["@com_github_stretchr_testify//assert"],

@@ -1,0 +1,14 @@
+description: Cut inserts output delimiter between adjacent but separate byte ranges.
+setup:
+  files:
+    - path: input.txt
+      content: "abcd\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -b1-2,3-4 --output-delimiter=: input.txt
+expect:
+  stdout: "ab:cd\n"
+  stderr: ""
+  exit_code: 0

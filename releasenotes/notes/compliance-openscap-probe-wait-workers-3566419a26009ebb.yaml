@@ -1,0 +1,8 @@
+---
+fixes:
+  - |
+    CSPM: When ``oscap-io`` closes its probes, the bundled OpenSCAP waits
+    for each probe's worker threads to end before it frees the probe. It
+    freed the probe while the worker that sent the last result still used
+    it, which could print "DESC_WUNLOCK failed to unlock a mutex" or crash
+    ``oscap-io``.

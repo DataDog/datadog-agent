@@ -46,6 +46,11 @@ type Payload struct {
 	Metadata  map[string]interface{} `json:"system_probe_metadata"`
 }
 
+// PayloadType implements marshaler.TypedJSONMarshaler
+func (p *Payload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeSystemProbe
+}
+
 // MarshalJSON serialization a Payload to JSON
 func (p *Payload) MarshalJSON() ([]byte, error) {
 	type PayloadAlias Payload
@@ -167,7 +172,7 @@ func (sb *systemprobe) getConfigLayers() map[string]interface{} {
 	return metadata
 }
 
-func (sb *systemprobe) getPayload() marshaler.JSONMarshaler {
+func (sb *systemprobe) getPayload() marshaler.TypedJSONMarshaler {
 	return &Payload{
 		Hostname:  sb.hostname,
 		Timestamp: time.Now().UnixNano(),

@@ -140,6 +140,38 @@ func TestKueueWorkloadParser(t *testing.T) {
 			},
 			"spec": map[string]interface{}{
 				"queueName": "gpu",
+				"podSets": []interface{}{
+					map[string]interface{}{
+						"name": "driver",
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{
+									"team":       "ml",
+									"spark-role": "driver",
+								},
+								"annotations": map[string]interface{}{
+									"owner": "platform",
+									"note":  "driver",
+								},
+							},
+						},
+					},
+					map[string]interface{}{
+						"name": "executor",
+						"template": map[string]interface{}{
+							"metadata": map[string]interface{}{
+								"labels": map[string]interface{}{
+									"team":       "ml",
+									"spark-role": "executor",
+								},
+								"annotations": map[string]interface{}{
+									"owner": "platform",
+									"note":  "executor",
+								},
+							},
+						},
+					},
+				},
 			},
 			"status": map[string]interface{}{
 				"admission": map[string]interface{}{
@@ -172,6 +204,12 @@ func TestKueueWorkloadParser(t *testing.T) {
 		},
 		QueueName:        "gpu",
 		ClusterQueueName: "team-a-gpu",
+		PodTemplateLabels: map[string]string{
+			"team": "ml",
+		},
+		PodTemplateAnnotations: map[string]string{
+			"owner": "platform",
+		},
 		PodSetAssignments: []workloadmeta.KueuePodSetAssignment{
 			{
 				Name: "main",
@@ -183,8 +221,13 @@ func TestKueueWorkloadParser(t *testing.T) {
 		},
 	}
 
-	parser := NewKueueWorkloadParser()
+	parser := NewKueueWorkloadParser(true)
 	assert.Equal(t, expected, parser.Parse(obj))
+
+	disabled := NewKueueWorkloadParser(false)
+	expected.PodTemplateLabels = nil
+	expected.PodTemplateAnnotations = nil
+	assert.Equal(t, expected, disabled.Parse(obj))
 }
 
 func TestGenerateKueueQueueEntityID(t *testing.T) {

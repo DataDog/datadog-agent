@@ -11,7 +11,7 @@
 #include "helpers/syscalls.h"
 #include "helpers/approvers.h"
 
-__attribute__((always_inline)) void send_bpf_event(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline void send_bpf_event(void *ctx, struct syscall_cache_t *syscall, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct bpf_event_t *event = SPAN_FILL_EVENT(struct bpf_event_t, EVENT_BPF);
     if (!event) {
         return;
@@ -72,7 +72,7 @@ HOOK_SYSCALL_ENTRY3(bpf, int, cmd, union bpf_attr __user *, uattr, unsigned int,
     return 0;
 }
 
-__attribute__((always_inline)) int sys_bpf_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
+static __always_inline int sys_bpf_ret_impl(void *ctx, int retval, enum TAIL_CALL_PROG_TYPE prog_type) {
     struct syscall_cache_t *syscall = peek_syscall(EVENT_BPF);
     if (!syscall) {
         return 0;
@@ -100,7 +100,7 @@ pop_and_exit:
     return 0;
 }
 
-__attribute__((always_inline)) int sys_bpf_ret(void *ctx, int retval) {
+static __always_inline int sys_bpf_ret(void *ctx, int retval) {
     return sys_bpf_ret_impl(ctx, retval, KPROBE_OR_FENTRY_TYPE);
 }
 

@@ -1,0 +1,17 @@
+description: find -exec without a \; terminator is a parse error.
+skip_assert_against_bash: true  # rshell -exec only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -exec echo {}
+expect:
+  stderr_contains: ["-exec"]
+  exit_code: 1

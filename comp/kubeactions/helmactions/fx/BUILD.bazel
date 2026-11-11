@@ -9,7 +9,7 @@ go_library(
         "//comp/core/config",
         "//comp/kubeactions/helmactions/def",
         "//comp/kubeactions/helmactions/impl",
-        "//comp/privateactionrunner/def",
+        "//pkg/privateactionrunner",
         "//pkg/util/fxutil",
         "//pkg/util/kubernetes/apiserver",
         "@org_uber_go_fx//:fx",

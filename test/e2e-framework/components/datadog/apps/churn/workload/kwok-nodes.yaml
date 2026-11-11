@@ -5,7 +5,7 @@ metadata:
   annotations:
     node.alpha.kubernetes.io/ttl: "0"
     kwok.x-k8s.io/node: fake
-    churn.datadoghq.com/instances: "100"
+    churn.datadoghq.com/instances: "300"
   labels:
     beta.kubernetes.io/arch: amd64
     beta.kubernetes.io/os: linux

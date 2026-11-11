@@ -1,0 +1,8 @@
+---
+enhancements:
+  - |
+    CWS: The fentry mode (``event_monitoring_config.event_stream.use_fentry``)
+    is no longer disabled on kernels that forbid tail calls between programs
+    attached to functions with different prototypes (6.12 and later, and
+    6.1.135, 6.6.57 and 6.11.4 onwards). The tail call targets are now loaded
+    once per group of hook points sharing the same prototype.

@@ -3,7 +3,7 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2025-present Datadog, Inc.
 
-//go:build kubeapiserver && orchestrator && test
+//go:build kubeapiserver && test
 
 package discovery
 
@@ -458,5 +458,26 @@ func TestMatchesGroupVersion(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			assert.Equal(t, tt.expected, matchesGroupVersion(tt.cv, tt.group, tt.version))
 		})
+	}
+}
+
+func TestDiscoverCRDResourceKind(t *testing.T) {
+	discovery := &DiscoveryCollector{cache: DiscoveryCache{
+		CollectorForVersion: map[CollectorVersion]struct{}{
+			{GroupVersion: "example.com/v1", Kind: "people"}: {},
+		},
+		Resources: []*v1.APIResourceList{
+			{GroupVersion: "other.com/v1", APIResources: []v1.APIResource{
+				{Name: "people", Kind: "OtherPerson"},
+			}},
+			{GroupVersion: "example.com/v1", APIResources: []v1.APIResource{
+				{Name: "people/status", Kind: "Status"},
+				{Name: "people", Kind: "Person"},
+			}},
+		},
+	}}
+	collector, err := discovery.DiscoverCRDResource("people", "example.com/v1")
+	if assert.NoError(t, err) {
+		assert.Equal(t, "Person", collector.Metadata().Kind)
 	}
 }
