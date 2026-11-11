@@ -84,7 +84,7 @@ func TestClusterWIFEnrollmentSharesIdentity(t *testing.T) {
 	require.NoError(t, writeIdentitySecret(context.Background(), client, "default", "par-identity", result))
 	// A follower reads the leader's secret through the existing coordination path.
 	synctest.Test(t, func(t *testing.T) {
-		secret, err := waitForLeaderAndSecret(context.Background(), make(chan struct{}), func() bool { return false }, client, "default", "par-identity", time.Second)
+		secret, err := waitForLeaderAndSecret(context.Background(), make(chan struct{}), func() bool { return false }, client, "default", "par-identity", time.Second, acceptAnySecret)
 		require.NoError(t, err)
 		identity, err := parseSecretData(secret, "default", "par-identity")
 		require.NoError(t, err)
