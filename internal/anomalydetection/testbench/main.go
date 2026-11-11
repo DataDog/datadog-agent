@@ -13,6 +13,7 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"runtime"
 	"runtime/pprof"
 	"strings"
 	"syscall"
@@ -276,9 +277,13 @@ func run(
 				return fmt.Errorf("could not create mem profile: %w", err)
 			}
 			defer f.Close()
+			// Snapshot retained heap while the replay engine is still live,
+			// rather than including garbage awaiting the next collection.
+			runtime.GC()
 			if err := pprof.WriteHeapProfile(f); err != nil {
 				return fmt.Errorf("could not write mem profile: %w", err)
 			}
+			runtime.KeepAlive(tb)
 			fmt.Printf("Heap profile written to %s\n", params.MemProfile)
 		}
 		return nil
