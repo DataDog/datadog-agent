@@ -53,11 +53,11 @@ func TestTracesDocker(s OTelDockerTestSuite) {
 		if !assert.NotEmpty(c, traces) {
 			return
 		}
-		trace := traces[0]
-		if !assert.NotEmpty(s.T(), trace.TracerPayloads) {
+		tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+		if !assert.NotEmpty(s.T(), tps) {
 			return
 		}
-		tp := trace.TracerPayloads[0]
+		tp := tps[0]
 		if !assert.NotEmpty(s.T(), tp.Chunks) {
 			return
 		}
@@ -70,7 +70,9 @@ func TestTracesDocker(s OTelDockerTestSuite) {
 	s.T().Log("Got traces", s.T().Name(), traces)
 
 	// Verify tags on traces and spans
-	tp := traces[0].TracerPayloads[0]
+	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
+	require.NotEmpty(s.T(), tps)
+	tp := tps[0]
 	assert.Equal(s.T(), env, tp.Env)
 	assert.Equal(s.T(), version, tp.AppVersion)
 	require.NotEmpty(s.T(), tp.Chunks)

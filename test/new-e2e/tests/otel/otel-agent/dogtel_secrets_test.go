@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	provkindvm "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/kubernetes/kindvm"
 	provlocal "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/kubernetes"
+	fakeintake "github.com/DataDog/datadog-agent/test/fakeintake/client"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/otel/utils"
 
 	"github.com/pulumi/pulumi-kubernetes/sdk/v4/go/kubernetes"
@@ -155,7 +156,7 @@ func (s *dogtelSecretsTestSuite) TestDogtelSecretsResolution() {
 		assert.NoError(c, err)
 		assert.NotEmpty(c, traces)
 		for _, trace := range traces {
-			for _, tp := range trace.TracerPayloads {
+			for _, tp := range fakeintake.LegacyTracerPayloads(trace.AgentPayload) {
 				assert.Equal(c, dogtelResolvedHostname, tp.Hostname,
 					"hostname should be the resolved ENC[] value, not the raw handle; "+
 						"raw value would indicate secretsnoopfx is wired instead of secretsfx")
