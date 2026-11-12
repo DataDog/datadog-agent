@@ -58,6 +58,7 @@ dd_agent_go_test(
         "//comp/core/hostname/hostnameinterface/def",
         "//comp/core/log/def",
         "//comp/core/log/mock",
+        "//comp/core/secrets/def",
         "//comp/core/secrets/fx-noop",
         "//comp/core/secrets/mock",
         "//comp/core/tagger/def",

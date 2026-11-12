@@ -86,7 +86,7 @@ type inventorychecksImpl struct {
 
 // Requires defines the component dependencies.
 type Requires struct {
-	Secrets    secrets.Component `optional:"true"`
+	Secrets    secrets.Component
 	Log        log.Component
 	Config     config.Component
 	Serializer serializer.MetricSerializer
@@ -314,20 +314,18 @@ func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 		}
 		if includeSecrets {
 			fileMetadata["secrets"] = configFile.Secrets
-			if ic.secrets != nil {
-				var paths, handles []string
-				for _, secret := range configFile.Secrets {
-					if secret.Kind == "enc" {
-						paths = append(paths, secret.Path)
-						handles = append(handles, secret.Handle)
-					}
+			var paths, handles []string
+			for _, secret := range configFile.Secrets {
+				if secret.Kind == "enc" {
+					paths = append(paths, secret.Path)
+					handles = append(handles, secret.Handle)
 				}
-				if len(handles) > 0 {
-					fileMetadata["enc_info"] = metadata{
-						"paths":          paths,
-						"handles":        handles,
-						"hash_secret_id": ic.secrets.GetHashValues(handles),
-					}
+			}
+			if len(handles) > 0 {
+				fileMetadata["enc_info"] = metadata{
+					"paths":          paths,
+					"handles":        handles,
+					"hash_secret_id": ic.secrets.GetHashValues(handles),
 				}
 			}
 		}

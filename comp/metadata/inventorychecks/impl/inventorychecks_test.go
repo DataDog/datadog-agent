@@ -29,6 +29,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
+	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsnoopfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx-noop"
 	secretsmock "github.com/DataDog/datadog-agent/comp/core/secrets/mock"
 	tagger "github.com/DataDog/datadog-agent/comp/core/tagger/def"
@@ -54,6 +55,7 @@ import (
 // testDeps bridges fx injection for tests since Requires has no fx.In marker.
 type testDeps struct {
 	fx.In
+	Secrets secrets.Component
 
 	Log        log.Component
 	Config     config.Component
@@ -65,6 +67,7 @@ type testDeps struct {
 
 func makeRequires(deps testDeps) Requires {
 	return Requires{
+		Secrets:    deps.Secrets,
 		Log:        deps.Log,
 		Config:     deps.Config,
 		Serializer: deps.Serializer,
@@ -88,6 +91,7 @@ func getTestInventoryChecks(t *testing.T, coll option.Option[collector.Component
 				return logAgent
 			}),
 			hostnameimpl.MockModule(),
+			secretsnoopfx.Module(),
 		)),
 	)
 	return p.Comp.(*inventorychecksImpl)
@@ -414,9 +418,10 @@ func TestEncInfo(t *testing.T) {
 		assert.NotContains(t, file, "enc_info")
 	}
 	ic.conf.Set("metadata_skip_secrets", false, pkgconfigmodel.SourceAgentRuntime)
-	ic.secrets = nil
+	ic.secrets = fxutil.Test[secrets.Component](t, secretsnoopfx.Module())
 	for _, file := range ic.getPayload(true).(*Payload).FilesMetadata {
-		assert.NotContains(t, file, "enc_info")
+		info := file.(metadata)["enc_info"].(metadata)
+		assert.Empty(t, info["hash_secret_id"])
 	}
 	ic.secrets = resolver
 	// File declarations are authoritative; resolver paths are not needed.

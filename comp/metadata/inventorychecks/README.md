@@ -179,7 +179,7 @@ contents; `agent_metadata.enc_info` continues reporting resolved handles and has
 ### Resolved secret hashes per file
 
 Each file with ENC declarations also includes `files_metadata[filename].enc_info`
-when the secrets component is available. Its aligned `paths` and `handles` arrays
+using the required secrets component (which may be a no-op resolver). Its aligned `paths` and `handles` arrays
 come directly from that file's ENC declarations; paths include the YAML section
 and instance index. `hash_secret_id` contains SHA-256 hashes only for those
 handles that have resolved values. Repeated references retain each path.
