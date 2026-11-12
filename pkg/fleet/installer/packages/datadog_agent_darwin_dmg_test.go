@@ -197,6 +197,34 @@ func TestRemoveOldInstallFiles(t *testing.T) {
 	}
 }
 
+// TestRestExperimentConfig pins that the install leaves etc-exp resting on etc: as a link on a
+// fresh install, and as a link again over a host where a configuration experiment had deployed a
+// real directory, so the installer daemon never reports a discarded experiment as running.
+func TestRestExperimentConfig(t *testing.T) {
+	for name, setUp := range map[string]func(t *testing.T, layout dmgLayout){
+		"fresh install": func(*testing.T, dmgLayout) {},
+		"deployed experiment": func(t *testing.T, layout dmgLayout) {
+			require.NoError(t, os.MkdirAll(layout.expConfDir(), 0o755))
+			require.NoError(t, os.WriteFile(filepath.Join(layout.expConfDir(), ".deployment-id"), []byte("experiment-1"), 0o640))
+		},
+		"resting link": func(t *testing.T, layout dmgLayout) {
+			require.NoError(t, os.Symlink(layout.confDir(), layout.expConfDir()))
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			layout := stubDmgLayout(t)
+			setUp(t, layout)
+
+			restExperimentConfig(context.Background(), layout)
+
+			target, err := os.Readlink(layout.expConfDir())
+			require.NoError(t, err, "etc-exp is not a link")
+			assert.Equal(t, layout.confDir(), target)
+			assert.FileExists(t, filepath.Join(layout.confDir(), "datadog.yaml.example"), "the stable configuration was touched")
+		})
+	}
+}
+
 // TestInstallLinks pins the user-facing commands, replacing whatever was there.
 func TestInstallLinks(t *testing.T) {
 	layout := stubDmgLayout(t)
