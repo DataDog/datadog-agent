@@ -131,10 +131,8 @@ func TestSizeBytes_EmptyTree(t *testing.T) {
 	assert.Equal(t, int64(0), tree.Stats.HeapSize())
 }
 
-// TestApproximateSize_LegacyShallowSemantics locks in V1's legacy behavior: ApproximateSize
-// is *only* node counts × struct header sizes, regardless of SizeBytes. V1 thresholds
-// (activity_dump.max_dump_size, anomaly_detection.unstable_profile_size_threshold) are
-// tuned against this number — any drift here shifts production V1 behavior silently.
+// TestApproximateSize_LegacyShallowSemantics locks in the legacy behavior: ApproximateSize
+// is *only* node counts × struct header sizes, regardless of SizeBytes.
 func TestApproximateSize_LegacyShallowSemantics(t *testing.T) {
 	tests := []struct {
 		name  string

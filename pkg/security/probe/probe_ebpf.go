@@ -3804,7 +3804,7 @@ func getFuncArgCount(prog *lib.ProgramSpec) uint64 {
 	return uint64(argc)
 }
 
-// GetProfileManager returns the V1 security profile manager.
+// GetProfileManager returns the security profile manager.
 func (p *EBPFProbe) GetProfileManager() securityprofile.ProfileManager {
 	return p.profileManager
 }

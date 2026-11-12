@@ -87,6 +87,12 @@ properties:
         default: false
         description: Defines if process nodes in security profiles should be differentiated
           using process arguments.
+      cgroup_dump_timeout:
+        node_type: setting
+        type: integer
+        default: 900
+        comment: Deprecated in favor of dump_duration. Still rendered by the Helm chart, and
+          adjustSecurity maps it (in minutes) to dump_duration when dump_duration is not set.
       local_storage:
         node_type: section
         type: object

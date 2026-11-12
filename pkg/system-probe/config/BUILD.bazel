@@ -53,6 +53,7 @@ dd_agent_go_test(
         "adjust_discovery_test.go",
         "adjust_npm_test.go",
         "adjust_oom_kill_test.go",
+        "adjust_security_test.go",
         "config_bpf_test.go",
         "config_darwin_test.go",
         "config_test.go",

@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	// ADMinMaxDumSize represents the minimum value for runtime_security_config.activity_dump.max_dump_size
+	// ADMinMaxDumSize represents the minimum value for runtime_security_config.security_profile.v2.max_dump_size
 	ADMinMaxDumSize = 100
 
 	// samplingPressureCritical mirrors SAMPLING_PRESSURE_CRITICAL in

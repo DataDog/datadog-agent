@@ -93,10 +93,10 @@ func sampleCookieMapSize(cfg *config.Config) int {
 	return size
 }
 
-const (
-	// ActivityDumpSource defines the source of activity dumps
-	ActivityDumpSource = "runtime-security-agent"
+// ActivityDumpSource defines the source of activity dumps
+const ActivityDumpSource = "runtime-security-agent"
 
+const (
 	metricSourceRuntime = iota
 	metricSourceReplay
 	metricSourceRelated
@@ -684,6 +684,11 @@ func (m *ManagerV2) withinProfilingStartupDelay(nowMono uint64) bool {
 }
 
 func (m *ManagerV2) ProcessEvent(event *model.Event) {
+	// resolvedCgroups and profilePendingEvents are only cleaned up by Start, which only runs when V2 is enabled
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return
+	}
+
 	if m.withinProfilingStartupDelay(event.TimestampRaw) {
 		return
 	}
@@ -888,7 +893,7 @@ func (m *ManagerV2) onEventTagsResolved(event *model.Event) {
 	event.SecurityProfileContext.ProfileAlreadySent = profile.HasAlreadyBeenSent()
 
 	if m.config.RuntimeSecurity.AnomalyDetectionEnabled {
-		// Flag as an anomaly so the serializer emits the sampled syscall (mirrors the V1 path).
+		// Flag as an anomaly so the serializer emits the sampled syscall.
 		event.AddToFlags(model.EventFlagsAnomalyDetectionEvent)
 		m.sendAnomalyDetection(event)
 	}
@@ -1142,9 +1147,7 @@ func (m *ManagerV2) insertEventIntoProfile(event *model.Event) (*profile.Profile
 	m.linkWorkloadToProfile(secprof, workload)
 	m.seedMountsForWorkload(secprof, workload, event)
 
-	// Check if profile has reached max size. V2 uses its own knob evaluated against the
-	// accurate heap footprint — V1's activity_dump.max_dump_size keeps its legacy shallow
-	// semantics for ActivityDump/legacy Manager paths.
+	// Check if profile has reached max size, measured against its estimated heap footprint
 	if secprof.ComputeHeapSize() >= int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()) {
 		secprof.Disable()
 		seclog.Infof("Activity dump of %s was stopped because it reached the maximum allowed size of %d.", secprof.GetSelectorStr(), int64(m.config.RuntimeSecurity.SecurityProfileV2MaxDumpSize()))
@@ -1838,20 +1841,13 @@ func (m *ManagerV2) getNodesForAllWorkloads(containersOnly bool) map[activity_tr
 	return result
 }
 
-// ============================================================================
-// NO-OP METHODS - ProfileManager Interface Compatibility
-// ============================================================================
-//
-// The following methods are no-ops in ManagerV2. They exist solely to satisfy
-// the ProfileManager interface, allowing V1 and V2 managers to be used
-// interchangeably through the same interface.
-//
-// These methods will be removed once V2 is fully validated and V1 is deprecated.
-// ============================================================================
-
 // HandleSampleRefresh handles a sample refresh event from the kernel.
 // It updates the LastSeen timestamp of the process node associated with the given cookie.
 func (m *ManagerV2) HandleSampleRefresh(cookie uint64) {
+	if !m.config.RuntimeSecurity.SecurityProfileV2Enabled {
+		return
+	}
+
 	m.sampleRefreshReceived.Inc()
 
 	entry, ok := m.sampleCookieMap.Get(cookie)

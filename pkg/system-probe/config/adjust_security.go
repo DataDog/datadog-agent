@@ -7,12 +7,18 @@ package config
 
 import (
 	"runtime"
+	"time"
 
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 )
 
 func adjustSecurity(cfg model.Config) {
+	deprecateCustom(cfg, secNS("activity_dump.cgroup_dump_timeout"), secNS("activity_dump.dump_duration"), func(cfg model.Config) interface{} {
+		// convert old minutes int value to time.Duration
+		return time.Duration(cfg.GetInt(secNS("activity_dump.cgroup_dump_timeout"))) * time.Minute
+	})
+
 	if cfg.GetBool(secNS("enabled")) {
 		// if runtime is enabled then we enable fim as well (except if force disabled)
 		if runtime.GOOS != "windows" || !cfg.IsConfigured(secNS("fim_enabled")) {

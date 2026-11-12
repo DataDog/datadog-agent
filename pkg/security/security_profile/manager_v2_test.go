@@ -322,6 +322,7 @@ func newTestManagerV2(t *testing.T) (*ManagerV2, *lru.Cache[uint64, sampleCookie
 	timeResolver, err := ktime.NewResolver()
 	require.NoError(t, err)
 	m := &ManagerV2{
+		config:                &config.Config{RuntimeSecurity: &config.RuntimeSecurityConfig{SecurityProfileV2Enabled: true}},
 		resolvers:             &resolvers.EBPFResolvers{TimeResolver: timeResolver},
 		sampleCookieMap:       cookieMap,
 		sampleRefreshReceived: atomic.NewUint64(0),
@@ -1093,6 +1094,20 @@ func TestManagerV2_ProcessEventWithoutCWS(t *testing.T) {
 
 	assert.Empty(t, m.profilePendingEvents)
 	assert.Empty(t, m.resolvedCgroups)
+}
+
+// TestManagerV2_ProcessEventWithV2Disabled verifies that with CWS enabled but profiles disabled, ProcessEvent
+// returns before it records the cgroup or queues the event: Start doesn't run, so nothing would clean them up.
+func TestManagerV2_ProcessEventWithV2Disabled(t *testing.T) {
+	m := newTagResolutionTestManagerV2(t, 4, 100)
+	m.config.RuntimeSecurity.SecurityProfileV2Enabled = false
+
+	m.ProcessEvent(newTestEventV2(model.ExecEventType, "v1", "known"))
+	m.ProcessEvent(newUntaggedTestEventV2(0))
+
+	assert.Empty(t, m.resolvedCgroups)
+	assert.Empty(t, m.profilePendingEvents)
+	assert.Zero(t, m.queueSize.Load())
 }
 
 // newTagResolutionTestManagerV2 builds a ManagerV2 whose ProcessEvent queues the events of the
