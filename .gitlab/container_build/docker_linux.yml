@@ -21,20 +21,29 @@
     - docker buildx build --no-cache --push --pull --platform linux/$ARCH --build-arg CIBUILD=true --build-arg GENERAL_ARTIFACTS_CACHE_BUCKET_URL=${GENERAL_ARTIFACTS_CACHE_BUCKET_URL} $BUILD_ARG --file $BUILD_CONTEXT/Dockerfile --tag ${TARGET_TAG} $BUILD_CONTEXT
     # Squash image
     - crane flatten -t ${TARGET_TAG} ${TARGET_TAG}
+    # Sign the final digest: crane flatten above writes a new one. The digest
+    # lookup is its own command, so its failure fails the job.
+    - DIGEST=$(crane digest ${TARGET_TAG})
+    - ddsign sign ${TARGET_TAG}@${DIGEST}
+  id_tokens:
+    DDSIGN_ID_TOKEN:
+      aud: image-integrity
   # Workaround for temporary network failures
   retry: 2
 
 .docker_build_job_definition_amd64:
   extends: .docker_build_job_definition
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_x64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:amd64"]
+  # Dedicated runners, as on main: their identity is allowed to sign images.
+  tags: ["arch:amd64", "specific:true"]
   variables:
     ARCH: amd64
 
 .docker_build_job_definition_arm64:
   extends: .docker_build_job_definition
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/docker_arm64$DATADOG_AGENT_BUILDIMAGES_SUFFIX:$DATADOG_AGENT_BUILDIMAGES
-  tags: ["arch:arm64"]
+  # Dedicated runners, as on main: their identity is allowed to sign images.
+  tags: ["arch:arm64", "specific:true"]
   variables:
     ARCH: arm64
 
