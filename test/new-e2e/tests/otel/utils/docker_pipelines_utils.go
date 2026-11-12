@@ -68,6 +68,7 @@ func TestTracesDocker(s OTelDockerTestSuite) {
 	}, 5*time.Minute, 10*time.Second)
 	require.NotEmpty(s.T(), traces)
 	s.T().Log("Got traces", s.T().Name(), traces)
+	requireIdxTracePayloads(s.T(), traces)
 
 	// Verify tags on traces and spans
 	tps := fakeintake.LegacyTracerPayloads(traces[0].AgentPayload)
