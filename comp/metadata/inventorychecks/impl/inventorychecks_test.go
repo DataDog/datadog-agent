@@ -10,6 +10,8 @@ import (
 	"errors"
 	"expvar"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"testing"
@@ -378,4 +380,29 @@ func TestEncInfo(t *testing.T) {
 		require.NoError(t, err)
 		assert.NotContains(t, string(raw), `"enc_info"`)
 	}
+}
+
+func TestDiagnosticEndpointScrubsSecretHashes(t *testing.T) {
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.None[logagent.Component](), nil)
+	resolver := secretsmock.New(t)
+	resolver.SetPathsAndHandles([]string{"redis:instances.0.password"}, []string{"redis_password"})
+	resolver.SetSecrets(map[string]string{"redis_password": "test-secret"})
+	ic.secrets = resolver
+	hash := resolver.GetHashValues([]string{"redis_password"})["redis_password"]
+	require.NotEmpty(t, hash)
+
+	rec := httptest.NewRecorder()
+	ic.writePayloadAsJSON(rec, httptest.NewRequest(http.MethodGet, "/metadata/inventory-checks", nil))
+	require.Equal(t, http.StatusOK, rec.Code)
+	assert.NotContains(t, rec.Body.String(), hash)
+	assert.NotContains(t, rec.Body.String(), "test-secret")
+	var diagnostic map[string]any
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &diagnostic))
+	info := diagnostic["enc_info"].(map[string]any)
+	assert.Equal(t, "********", info["hash_secret_id"])
+	assert.Equal(t, []any{"redis_password"}, info["handles"])
+
+	backend, err := ic.getPayloadWithConfigs().MarshalJSON()
+	require.NoError(t, err)
+	assert.Contains(t, string(backend), hash)
 }
