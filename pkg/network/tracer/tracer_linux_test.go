@@ -38,6 +38,7 @@ import (
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/miekg/dns"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1686,8 +1687,43 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 	cfg := testConfig()
 	skipEbpflessTodo(t, cfg)
 	testutil.IptablesSave(t)
-	// Setup a NAT rule to translate 2.2.2.2 to 8.8.8.8 and issue a DNS request to 2.2.2.2
-	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 8.8.8.8"}
+	// The DNS server lives in a network namespace reachable over a veth pair, so that the test does not depend on
+	// external connectivity (it used to NAT to 8.8.8.8, and CI VMs have flaky egress; a slow or missing response
+	// shows up as a DNS timeout or a read i/o timeout). The traffic still leaves the root namespace through a real
+	// interface, unlike a loopback destination, which the DNS snooper does not match up with the NAT'ed connection.
+	ns := netlinktestutil.SetupVethPair(t) // root: 2.2.2.3 (veth1), ns: 2.2.2.4 (veth2)
+	nsHandle, err := vnetns.GetFromName(ns)
+	require.NoError(t, err)
+	t.Cleanup(func() { _ = nsHandle.Close() })
+
+	var dnsServer *dns.Server
+	require.NoError(t, netns.WithNS(nsHandle, func() error {
+		pc, err := net.ListenPacket("udp", "2.2.2.4:53")
+		if err != nil {
+			return err
+		}
+		started := make(chan struct{})
+		dnsServer = &dns.Server{
+			PacketConn:        pc,
+			NotifyStartedFunc: func() { close(started) },
+			Handler: dns.HandlerFunc(func(w dns.ResponseWriter, req *dns.Msg) {
+				resp := new(dns.Msg)
+				resp.SetReply(req)
+				rr, err := dns.NewRR(req.Question[0].Name + " 30 IN A 10.0.0.2")
+				if err == nil {
+					resp.Answer = []dns.RR{rr}
+				}
+				_ = w.WriteMsg(resp)
+			}),
+		}
+		go func() { _ = dnsServer.ActivateAndServe() }()
+		<-started
+		return nil
+	}))
+	t.Cleanup(func() { _ = dnsServer.Shutdown() })
+
+	// Setup a NAT rule to translate 2.2.2.2 to the DNS server above and issue a DNS request to 2.2.2.2
+	cmds := []string{"iptables -t nat -A OUTPUT -d 2.2.2.2 -j DNAT --to-destination 2.2.2.4"}
 	testutil.RunCommands(t, cmds, false)
 
 	cfg.CollectDNSStats = true
