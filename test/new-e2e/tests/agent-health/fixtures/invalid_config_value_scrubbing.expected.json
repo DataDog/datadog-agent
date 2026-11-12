@@ -1,0 +1,65 @@
+{
+  "emitted_at": "<timestamp>",
+  "event_type": "agent-health-issues",
+  "host": {
+    "agent_version": "<agent_version>",
+    "hostname": "<hostname>",
+    "resource_id": "<hostname>",
+    "resource_type": "host"
+  },
+  "issues": {
+    "invalid-config:/apm_config/apm_dd_url": {
+      "category": "configuration",
+      "description": "invalid value for 'apm_config.apm_dd_url'. Error: `at '/apm_config/apm_dd_url': 'https://qa:********@example.test' does not match pattern '^(https?://)?([a-zA-Z0-9\\\\.-]+)(:[0-9]{1,5})?([/\\\\w \\\\.-]*)*/?$'`",
+      "detected_at": "<timestamp>",
+      "extra": {
+        "config_path": "/etc/datadog-agent/datadog.yaml",
+        "error_count": 1,
+        "errors": {
+          "/apm_config/apm_dd_url": [
+            "invalid value for 'apm_config.apm_dd_url'. Error: `at '/apm_config/apm_dd_url': 'https://qa:********@example.test' does not match pattern '^(https?://)?([a-zA-Z0-9\\\\.-]+)(:[0-9]{1,5})?([/\\\\w \\\\.-]*)*/?$'` Check the value and format of `/apm_config/apm_dd_url`."
+          ]
+        },
+        "impact": "The Datadog Agent may apply defaults for incorrectly-typed fields and may not behave as configured."
+      },
+      "id": "invalid-config:/apm_config/apm_dd_url",
+      "issue_name": "Invalid Config",
+      "issue_type": "invalid_config",
+      "location": "agent",
+      "persisted_issue": {
+        "first_seen": "<timestamp>",
+        "last_seen": "<timestamp>",
+        "state": 4
+      },
+      "remediation": {
+        "steps": [
+          {
+            "order": 1,
+            "text": "Check this setting in `/etc/datadog-agent/datadog.yaml` or environment variables."
+          },
+          {
+            "order": 2,
+            "text": "Check the value and format of `/apm_config/apm_dd_url`."
+          },
+          {
+            "order": 3,
+            "text": "Restart the Datadog Agent."
+          },
+          {
+            "order": 4,
+            "text": "Run `datadog-agent diagnose` to confirm the configuration is now valid."
+          }
+        ],
+        "summary": "Correct this setting, then restart the Datadog Agent."
+      },
+      "severity": 2,
+      "source": "config",
+      "tags": [
+        "config",
+        "schema"
+      ],
+      "title": "Invalid configuration: `/apm_config/apm_dd_url`"
+    }
+  },
+  "service": "agent"
+}

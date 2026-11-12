@@ -1,0 +1,32 @@
+# string setting receiving a mapping
+hostname_file:
+  path: /etc/hostname
+# integer settings receiving a list and a mapping
+jmx_thread_pool_size: [3]
+jmx_collection_timeout:
+  seconds: 60
+# boolean settings receiving a list and a mapping
+logs_enabled: [true]
+inventories_enabled:
+  enabled: true
+# list setting receiving a mapping
+histogram_aggregates:
+  max: true
+# map settings receiving a list, a number and a string
+kubernetes_pod_labels_as_tags: [app]
+container_labels_as_tags: 42
+docker_labels_as_tags: not a mapping
+# map of strings with a list value: the list is converted to a string, no issue expected
+kubernetes_node_annotations_as_tags:
+  team: [a, b]
+# map of lists receiving a list, and mappings as values. The URL credentials in the second key must be scrubbed
+network_path:
+  collector:
+    source_excludes: [10.0.0.0/8]
+    dest_excludes:
+      "10.0.0.0/8":
+        port: 80
+      "https://qa:RAW_FILE_URL_PASSWORD_e2e@example.test":
+        port: 443
+# deprecated name of metric_filterlist_match_prefix, a boolean, receiving a list
+statsd_metric_blocklist_match_prefix: [true]
