@@ -187,10 +187,6 @@ func (c *WorkloadMetaCollector) processEvents(evBundle workloadmeta.EventBundle)
 			continue
 		}
 
-		if entityID.Kind == workloadmeta.KindKubernetesKueueWorkload {
-			c.updateKueueWorkloadPodIndex(ev)
-		}
-
 		switch ev.Type {
 		case workloadmeta.EventTypeSet:
 			taggerEntityID := common.BuildTaggerEntityID(entityID)
@@ -1544,8 +1540,8 @@ func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
 	// The associated workload object is the main source of information for Kueue. If it is available, we use it to extract the tags
 	// If not, we fall back to the pod labels and annotations to get the queue names and their tags
-	workload := c.getKueueWorkloadForPod(pod)
-	if workload != nil {
+	workload, err := c.store.GetKubernetesKueueWorkloadForPod(pod)
+	if err == nil && workload != nil {
 		clusterQueueName := c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
 		addKueueSchedulerTags(workload.Name, clusterQueueName, tagList)
 		return
@@ -1582,20 +1578,8 @@ func addKueueSchedulerTags(workloadName, clusterQueueName string, tagList *tagli
 	tagList.AddOrchestrator(tags.SchedulerWorkload, workloadName)
 }
 
-func kueueWorkloadNameForPod(pod *workloadmeta.KubernetesPod) string {
-	workloadName := pod.Annotations[kubernetes.KueueWorkloadAnnotationKey]
-	if workloadName == "" {
-		// Known limitation: for plain-Pod groups the Kueue Workload object name
-		// is not guaranteed to equal the pod-group-name label value. When they
-		// diverge, the lookup in getKueueWorkloadForPod fails and we fall back
-		// to pod-label queue tags (fail-closed, no incorrect tags).
-		workloadName = pod.Labels[kubernetes.KueuePodGroupNameLabelKey]
-	}
-	return workloadName
-}
-
 func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
-	return kueueWorkloadNameForPod(pod) != "" ||
+	return pod.KueueWorkloadName() != "" ||
 		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
@@ -1660,7 +1644,7 @@ func isKueueKind(kind workloadmeta.Kind) bool {
 func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
 	switch e := entity.(type) {
 	case *workloadmeta.KubernetesKueueWorkload:
-		return pod.Namespace == e.Namespace && (kueueWorkloadNameForPod(pod) == e.Name ||
+		return pod.Namespace == e.Namespace && (pod.KueueWorkloadName() == e.Name ||
 			(pod.ID != "" && e.Labels[kubernetes.KueueJobUIDLabelKey] == pod.ID))
 	case *workloadmeta.KubernetesKueueQueue:
 		// Pods can reach a queue through their Workload, so matching them
@@ -1672,54 +1656,6 @@ func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.Kuberne
 	default:
 		return false
 	}
-}
-
-// updateKueueWorkloadPodIndex indexes a Workload's owning pod for tag lookups.
-// The job-uid identifies the same pod for the Workload's lifetime.
-func (c *WorkloadMetaCollector) updateKueueWorkloadPodIndex(ev workloadmeta.Event) {
-	workload := ev.Entity.(*workloadmeta.KubernetesKueueWorkload)
-	uid := workload.Labels[kubernetes.KueueJobUIDLabelKey]
-	if uid == "" {
-		return
-	}
-	key := workloadmeta.GenerateKueueWorkloadEntityID(workload.Namespace, uid)
-	switch ev.Type {
-	case workloadmeta.EventTypeSet:
-		if c.kueueWorkloadsByPod[key] == nil {
-			c.kueueWorkloadsByPod[key] = make(map[string]struct{})
-		}
-		c.kueueWorkloadsByPod[key][workload.ID] = struct{}{}
-	case workloadmeta.EventTypeUnset:
-		delete(c.kueueWorkloadsByPod[key], workload.ID)
-		if len(c.kueueWorkloadsByPod[key]) == 0 {
-			delete(c.kueueWorkloadsByPod, key)
-		}
-	}
-}
-
-func (c *WorkloadMetaCollector) getKueueWorkloadForPod(pod *workloadmeta.KubernetesPod) *workloadmeta.KubernetesKueueWorkload {
-	workloadName := kueueWorkloadNameForPod(pod)
-	var workloadID string
-	if workloadName != "" {
-		workloadID = workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, workloadName)
-	} else {
-		podKey := workloadmeta.GenerateKueueWorkloadEntityID(pod.Namespace, pod.ID)
-		workloads := c.kueueWorkloadsByPod[podKey]
-		// An ambiguous association must not attach another workload's tags.
-		if pod.ID == "" || len(workloads) != 1 {
-			return nil
-		}
-		for id := range workloads {
-			workloadID = id
-		}
-	}
-	workload, err := c.store.GetKubernetesKueueWorkload(workloadID)
-	if err != nil || workload == nil {
-		log.Debugf("Could not get Kueue workload entity for pod %s/%s: %v", pod.Namespace, pod.ID, err)
-		return nil
-	}
-
-	return workload
 }
 
 func (c *WorkloadMetaCollector) extractTagsFromPodKAIInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {

@@ -1079,6 +1079,24 @@ func (p *KubernetesPod) AutoscalerTarget() (AutoscalerTarget, bool) {
 
 var _ Entity = &KubernetesPod{}
 
+// KueueWorkloadName returns an explicit Kueue Workload reference on the pod.
+// Admission annotations take precedence, followed by prebuilt Workload and pod
+// group references. UID-based associations require a lookup in the store.
+func (p *KubernetesPod) KueueWorkloadName() string {
+	for _, name := range []string{
+		p.Annotations[kubernetes.KueueWorkloadAnnotationKey],
+		p.Annotations[kubernetes.KueuePrebuiltWorkloadNameKey],
+		p.Labels[kubernetes.KueuePrebuiltWorkloadNameKey],
+		p.Annotations[kubernetes.KueuePodGroupNameAnnotationKey],
+		p.Labels[kubernetes.KueuePodGroupNameLabelKey],
+	} {
+		if name != "" {
+			return name
+		}
+	}
+	return ""
+}
+
 // KubernetesPodOwner is extracted from a pod's owner references.
 type KubernetesPodOwner struct {
 	Kind       string

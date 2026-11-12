@@ -7351,42 +7351,6 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 			// Repeated metadata updates preserve the same association.
 			check(process(workloadmeta.EventTypeSet, workload), true)
 			check(process(workloadmeta.EventTypeUnset, workload), false)
-			assert.Empty(t, collector.kueueWorkloadsByPod)
-		})
-	}
-}
-
-func TestKueuePodUIDLookupIsolation(t *testing.T) {
-	store := fxutil.Test[workloadmetamock.Mock](t, fx.Options(
-		fx.Provide(func() log.Component { return logmock.New(t) }),
-		fx.Provide(func() config.Component { return config.NewMock(t) }),
-		workloadmetafxmock.MockModule(workloadmeta.NewParams()),
-	))
-	collector := NewWorkloadMetaCollector(context.Background(), configmock.New(t), store, nil)
-	workload := &workloadmeta.KubernetesKueueWorkload{
-		EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesKueueWorkload, ID: "team-a/workload"},
-		EntityMeta: workloadmeta.EntityMeta{Name: "workload", Namespace: "team-a", Labels: map[string]string{
-			kubernetes.KueueJobUIDLabelKey: "pod-uid",
-		}},
-	}
-	store.Set(workload)
-	collector.updateKueueWorkloadPodIndex(workloadmeta.Event{Type: workloadmeta.EventTypeSet, Entity: workload})
-	for _, tt := range []struct {
-		namespace, uid, reference string
-		want                      bool
-	}{
-		{namespace: "team-a", uid: "pod-uid", want: true},
-		{namespace: "team-b", uid: "pod-uid"},
-		{namespace: "team-a", uid: "recreated-pod-uid"},
-		{namespace: "team-a"},
-		{namespace: "team-a", uid: "pod-uid", reference: "missing-explicit-workload"},
-	} {
-		t.Run(fmt.Sprintf("%s/%s/%s", tt.namespace, tt.uid, tt.reference), func(t *testing.T) {
-			pod := &workloadmeta.KubernetesPod{
-				EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: tt.uid},
-				EntityMeta: workloadmeta.EntityMeta{Namespace: tt.namespace, Annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: tt.reference}},
-			}
-			assert.Equal(t, tt.want, collector.getKueueWorkloadForPod(pod) != nil)
 		})
 	}
 }

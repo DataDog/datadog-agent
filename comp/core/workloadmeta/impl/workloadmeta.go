@@ -29,6 +29,11 @@ type pullInfo struct {
 	interval      time.Duration
 }
 
+type kueuePodKey struct {
+	namespace string
+	uid       string
+}
+
 // store is a central storage of metadata about workloads. A workload is any
 // unit of work being done by a piece of software, like a process, a container,
 // a kubernetes pod, or a task in any cloud provider.
@@ -39,6 +44,9 @@ type workloadmeta struct {
 	// Store related
 	storeMut sync.RWMutex
 	store    map[wmdef.Kind]map[string]*cachedEntity // store[entity.Kind][entity.ID] = &cachedEntity{}
+
+	// Protected by storeMut, alongside the merged Workload entities.
+	kueueWorkloadsByPod map[kueuePodKey]map[string]struct{}
 
 	subscribersMut sync.RWMutex
 	subscribers    []subscriber
@@ -99,6 +107,7 @@ func NewComponent(deps Dependencies) Provider {
 		config: deps.Config,
 
 		store:                 make(map[wmdef.Kind]map[string]*cachedEntity),
+		kueueWorkloadsByPod:   make(map[kueuePodKey]map[string]struct{}),
 		candidates:            candidates,
 		collectors:            make(map[string]wmdef.Collector),
 		eventCh:               make(chan []wmdef.CollectorEvent, eventChBufferSize),

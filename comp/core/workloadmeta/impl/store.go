@@ -20,6 +20,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/workloadmeta/telemetry"
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -484,6 +485,48 @@ func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesK
 	return entity.(*wmdef.KubernetesKueueWorkload), nil
 }
 
+// GetKubernetesKueueWorkloadForPod implements Component#GetKubernetesKueueWorkloadForPod.
+func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod) (*wmdef.KubernetesKueueWorkload, error) {
+	if name := pod.KueueWorkloadName(); name != "" {
+		return w.GetKubernetesKueueWorkload(wmdef.GenerateKueueWorkloadEntityID(pod.Namespace, name))
+	}
+
+	w.storeMut.RLock()
+	defer w.storeMut.RUnlock()
+	ids := w.kueueWorkloadsByPod[kueuePodKey{namespace: pod.Namespace, uid: pod.ID}]
+	if len(ids) == 0 {
+		return nil, pkgerrors.NewNotFound("Kueue Workload for pod " + pod.Namespace + "/" + pod.ID)
+	}
+	if len(ids) != 1 {
+		return nil, fmt.Errorf("multiple Kueue Workloads for pod %s/%s", pod.Namespace, pod.ID)
+	}
+	for id := range ids {
+		return w.store[wmdef.KindKubernetesKueueWorkload][id].cached.(*wmdef.KubernetesKueueWorkload), nil
+	}
+	return nil, pkgerrors.NewNotFound("Kueue Workload for pod " + pod.ID)
+}
+
+// indexKueueWorkload updates the index while storeMut is held. Use the merged
+// store entities so removing one collector source preserves other sources.
+func (w *workloadmeta) indexKueueWorkload(workload *wmdef.KubernetesKueueWorkload, add bool) {
+	uid := workload.Labels[kubernetes.KueueJobUIDLabelKey]
+	if uid == "" {
+		return
+	}
+	key := kueuePodKey{namespace: workload.Namespace, uid: uid}
+	if add {
+		if w.kueueWorkloadsByPod[key] == nil {
+			w.kueueWorkloadsByPod[key] = make(map[string]struct{})
+		}
+		w.kueueWorkloadsByPod[key][workload.ID] = struct{}{}
+	} else {
+		delete(w.kueueWorkloadsByPod[key], workload.ID)
+		if len(w.kueueWorkloadsByPod[key]) == 0 {
+			delete(w.kueueWorkloadsByPod, key)
+		}
+	}
+}
+
 // GetKubernetesKAIPodGroup implements Store#GetKubernetesKAIPodGroup
 func (w *workloadmeta) GetKubernetesKAIPodGroup(id string) (*wmdef.KubernetesKAIPodGroup, error) {
 	entity, err := w.getEntityByKind(wmdef.KindKubernetesKAIPodGroup, id)
@@ -888,6 +931,10 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 		}
 
 		cachedEntity, ok := entitiesOfKind[entityID.ID]
+		var previousKueueWorkload *wmdef.KubernetesKueueWorkload
+		if ok && entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			previousKueueWorkload = cachedEntity.cached.(*wmdef.KubernetesKueueWorkload)
+		}
 
 		switch ev.Type {
 		case wmdef.EventTypeSet:
@@ -959,6 +1006,15 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 			}
 		default:
 			w.log.Errorf("cannot handle event of type %d. event dump: %+v", ev.Type, ev)
+		}
+
+		if entityID.Kind == wmdef.KindKubernetesKueueWorkload {
+			if previousKueueWorkload != nil {
+				w.indexKueueWorkload(previousKueueWorkload, false)
+			}
+			if current, found := entitiesOfKind[entityID.ID]; found {
+				w.indexKueueWorkload(current.cached.(*wmdef.KubernetesKueueWorkload), true)
+			}
 		}
 
 		for _, sub := range w.subscribers {
