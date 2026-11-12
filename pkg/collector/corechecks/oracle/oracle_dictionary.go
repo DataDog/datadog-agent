@@ -16,6 +16,10 @@ import (
 )
 
 func getFullSQLText(c *Check, SQLStatement *string, key string, value string) error {
+	ctx := c.operationContext()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	/*
 	 * Due to the Oracle bug "V$SQLSTATS.SQL_FULLTEXT does not show full of sql statements (Doc ID 2398100.1)
 	 * we must retrieve `sql_fulltext` from `v$sql`.
@@ -26,7 +30,10 @@ func getFullSQLText(c *Check, SQLStatement *string, key string, value string) er
 		}
 	}
 	query := fmt.Sprintf("SELECT /* DD */ sql_fulltext FROM v$sql WHERE %s = :v AND rownum = 1", key)
-	err := c.db.Get(SQLStatement, query, value)
+	err := c.db.GetContext(ctx, SQLStatement, query, value)
+	if ctxErr := ctx.Err(); ctxErr != nil {
+		return ctxErr
+	}
 	reconnectOnConnectionError(c, &c.db, err)
 	if errors.Is(err, sql.ErrNoRows) {
 		log.Warnf("%s The SQL text for the statement %s = %s couldn't be fetched because the SQL was evicted from shared pool", c.logPrompt, key, value)

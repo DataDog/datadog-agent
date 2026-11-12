@@ -18,6 +18,10 @@ import (
 )
 
 func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
+	ctx := c.operationContext()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if c.db == nil {
 		// Reconnect if the connection is lost
 		// If reconnect fails, return the error
@@ -26,7 +30,7 @@ func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error
 			return err
 		}
 	}
-	err := c.db.Select(s, sql, binds...)
+	err := c.db.SelectContext(ctx, s, sql, binds...)
 	err = handleError(c, &c.db, err)
 	if err != nil {
 		err = fmt.Errorf("%w %s", err, sql)
@@ -35,13 +39,17 @@ func selectWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error
 }
 
 func getWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
+	ctx := c.operationContext()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	if c.db == nil {
 		err := reconnectOnConnectionLose(c)
 		if err != nil {
 			return err
 		}
 	}
-	err := c.db.Get(s, sql, binds...)
+	err := c.db.GetContext(ctx, s, sql, binds...)
 	err = handleError(c, &c.db, err)
 	if err != nil {
 		err = fmt.Errorf("%w %s", err, sql)
@@ -50,6 +58,9 @@ func getWrapper[T any](c *Check, s T, sql string, binds ...interface{}) error {
 }
 
 func handleError(c *Check, db **sqlx.DB, err error) error {
+	if ctxErr := c.operationContext().Err(); ctxErr != nil {
+		return ctxErr
+	}
 	if err == nil {
 		return err
 	}
@@ -134,6 +145,9 @@ curl dbserver:port`,
 }
 
 func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
+	if c.operationContext().Err() != nil {
+		return
+	}
 	if !isConnectionError(err) {
 		return
 	}
@@ -143,15 +157,22 @@ func reconnectOnConnectionError(c *Check, db **sqlx.DB, err error) {
 	}
 	*db, err = c.Connect()
 	if err != nil {
-		log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
+		if c.operationContext().Err() == nil {
+			log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
+		}
 		closeDatabase(c, *db)
 	}
 }
 
 func reconnectOnConnectionLose(c *Check) error {
+	if err := c.operationContext().Err(); err != nil {
+		return err
+	}
 	db, err := c.Connect()
 	if err != nil {
-		log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
+		if c.operationContext().Err() == nil {
+			log.Errorf("%s failed to reconnect %s", c.logPrompt, err)
+		}
 		closeDatabase(c, c.db)
 	}
 	c.db = db

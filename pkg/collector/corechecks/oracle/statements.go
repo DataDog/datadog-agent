@@ -357,6 +357,10 @@ func handlePredicate(predicateType string, dbValue sql.NullString, payloadValue 
 
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) StatementMetrics() (int, error) {
+	ctx := c.operationContext()
+	if err := ctx.Err(); err != nil {
+		return 0, err
+	}
 	if !checkIntervalExpired(&c.statementsLastRun, c.config.QueryMetrics.CollectionInterval) {
 		return 0, nil
 	}
@@ -430,6 +434,9 @@ func (c *Check) StatementMetrics() (int, error) {
 		planErrors = 0
 		sendPlan := true
 		for i, statementMetricRow := range statementMetricsAll {
+			if err := ctx.Err(); err != nil {
+				return 0, err
+			}
 			var trace bool
 			for _, t := range c.config.QueryMetrics.Trackers {
 				if len(t.ContainsText) > 0 {
@@ -569,6 +576,9 @@ func (c *Check) StatementMetrics() (int, error) {
 
 			if statementMetricRow.SQLTextLength == MaxSQLFullTextVSQLStats {
 				err := getFullSQLText(c, &SQLStatement, "sql_id", statementMetricRow.SQLID)
+				if err := ctx.Err(); err != nil {
+					return 0, err
+				}
 				if err != nil {
 					log.Errorf("%s failed to get the full text %s for sql_id %s", c.logPrompt, err, statementMetricRow.SQLID)
 				}
@@ -660,6 +670,9 @@ func (c *Check) StatementMetrics() (int, error) {
 						err = selectWrapper(c, &planStepsDB, planQuery, statementMetricRow.SQLID, statementMetricRow.PlanHashValue)
 					}
 
+					if err := ctx.Err(); err != nil {
+						return 0, err
+					}
 					if err == nil {
 						if len(planStepsDB) > 0 {
 							var firstChildNumber int64

@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    Oracle monitoring interrupts collection and releases database connections
+    when a running check is stopped or its configuration is removed.

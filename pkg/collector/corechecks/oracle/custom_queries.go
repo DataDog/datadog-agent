@@ -52,6 +52,10 @@ func shouldExecuteCustomQuery(lastExecutionTime *time.Time, collectionInterval *
 
 //nolint:revive // TODO(DBM) Fix revive linter
 func (c *Check) CustomQueries() error {
+	ctx := c.operationContext()
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	var customQueries []config.CustomQuery
 
 	if len(c.config.InstanceConfig.CustomQueries) > 0 {
@@ -77,6 +81,9 @@ func (c *Check) CustomQueries() error {
 	var metricRows []metricRow
 	var allErrors error
 	for i, q := range customQueries {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		// Evaluate each query immediately before starting it. Using one timestamp for the
 		// entire batch would let an earlier slow query shorten the effective interval of
 		// every query that follows it.
@@ -117,14 +124,14 @@ func (c *Check) CustomQueries() error {
 			if pdb == "" {
 				pdb = "CDB$ROOT"
 			}
-			_, err := c.dbCustomQueries.Exec(fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
+			_, err := c.dbCustomQueries.ExecContext(ctx, fmt.Sprintf(`alter session set container = "%s"`, strings.ReplaceAll(pdb, `"`, `""`)))
 			if err != nil {
 				allErrors = concatenateError(allErrors, fmt.Sprintf("failed to set container %s %s", pdb, err))
 				reconnectOnConnectionError(c, &c.dbCustomQueries, err)
 				continue
 			}
 		}
-		rows, err := c.dbCustomQueries.Queryx(q.Query)
+		rows, err := c.dbCustomQueries.QueryxContext(ctx, q.Query)
 		if rows != nil {
 			defer rows.Close()
 		}
@@ -134,6 +141,9 @@ func (c *Check) CustomQueries() error {
 			continue
 		}
 		for rows.Next() {
+			if err := ctx.Err(); err != nil {
+				return err
+			}
 			var metricsFromSingleRow []metricRow
 			var tags []string
 			if pdb != "" {
@@ -214,6 +224,9 @@ func (c *Check) CustomQueries() error {
 			metricRows = append(metricRows, metricsFromSingleRow...)
 		}
 		rows.Close()
+		if err := ctx.Err(); err != nil {
+			return err
+		}
 		if errInQuery {
 			continue
 		}
