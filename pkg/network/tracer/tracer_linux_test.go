@@ -1720,9 +1720,18 @@ func (s *TracerSuite) TestDNSStatsWithNAT() {
 				_ = w.WriteMsg(resp)
 			}),
 		}
-		go func() { _ = dnsServer.ActivateAndServe() }()
-		<-started
-		return nil
+		serveErr := make(chan error, 1)
+		go func() { serveErr <- dnsServer.ActivateAndServe() }()
+		select {
+		case <-started:
+			return nil
+		case err := <-serveErr:
+			_ = pc.Close()
+			return fmt.Errorf("dns server failed to start: %w", err)
+		case <-time.After(5 * time.Second):
+			_ = pc.Close()
+			return errors.New("timed out waiting for dns server to start")
+		}
 	}))
 	t.Cleanup(func() { _ = dnsServer.Shutdown() })
 
