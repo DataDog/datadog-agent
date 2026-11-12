@@ -7294,6 +7294,7 @@ func TestKueuePodUIDTagsPropagate(t *testing.T) {
 				EntityID: workloadmeta.EntityID{Kind: workloadmeta.KindKubernetesPod, ID: "pod-uid"},
 				EntityMeta: workloadmeta.EntityMeta{Name: "ray-worker", Namespace: "team-a", Labels: map[string]string{
 					kubernetes.KueueQueueNameLabelKey: "batch",
+					kubernetes.KueueManagedLabelKey:   "true",
 				}},
 				Containers: []workloadmeta.OrchestratorContainer{{ID: "container-id", Name: "worker"}},
 			}

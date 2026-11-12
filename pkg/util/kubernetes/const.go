@@ -72,9 +72,10 @@ const (
 	KueueWorkloadAnnotationKey = "kueue.x-k8s.io/workload"
 	// KueuePodGroupNameLabelKey is the pod label key used by Kueue to group plain Pods into one Workload
 	KueuePodGroupNameLabelKey = "kueue.x-k8s.io/pod-group-name"
-	// KueuePodGroupNameAnnotationKey is the annotation form of the pod group name.
-	KueuePodGroupNameAnnotationKey = KueuePodGroupNameLabelKey
-	// KueuePrebuiltWorkloadNameKey is the label or annotation referencing a prebuilt Workload.
+	// KueueManagedLabelKey marks pods managed directly by Kueue's plain Pod integration.
+	KueueManagedLabelKey = "kueue.x-k8s.io/managed"
+	// KueuePrebuiltWorkloadNameKey references a Workload created before its job or pod,
+	// rather than one created by Kueue for that job or pod. It is a label or annotation.
 	KueuePrebuiltWorkloadNameKey = "kueue.x-k8s.io/prebuilt-workload-name"
 	// KueuePodSetLabelKey is the pod label key set by Kueue with the Workload pod set name
 	KueuePodSetLabelKey = "kueue.x-k8s.io/podset"

@@ -493,6 +493,12 @@ func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod
 		return w.GetKubernetesKueueWorkload(wmdef.GenerateKueueWorkloadEntityID(pod.Namespace, name))
 	}
 
+	// This resolver is called for every pod during tag extraction. Only pods
+	// managed by the plain Pod integration need the UID-based scan.
+	if pod.Labels[kubernetes.KueueManagedLabelKey] != "true" || pod.ID == "" {
+		return nil, pkgerrors.NewNotFound("Kueue Workload for pod " + pod.Namespace + "/" + pod.ID)
+	}
+
 	// The plain Pod integration can create a Workload owned by an existing pod
 	// without adding its name back to the pod. Its job-uid label identifies that
 	// pod. Scan the stored Workloads rather than maintaining a separate index.
@@ -501,7 +507,7 @@ func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod
 	var match *wmdef.KubernetesKueueWorkload
 	for _, entity := range w.store[wmdef.KindKubernetesKueueWorkload] {
 		workload := entity.cached.(*wmdef.KubernetesKueueWorkload)
-		if pod.ID == "" || workload.Namespace != pod.Namespace || workload.Labels[kubernetes.KueueJobUIDLabelKey] != pod.ID {
+		if workload.Namespace != pod.Namespace || workload.Labels[kubernetes.KueueJobUIDLabelKey] != pod.ID {
 			continue
 		}
 		if match != nil {

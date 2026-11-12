@@ -2344,27 +2344,30 @@ func TestGetKubernetesKueueWorkloadForPod(t *testing.T) {
 		name        string
 		namespace   string
 		podUID      string
+		managed     string
 		annotations map[string]string
 		labels      map[string]string
 		duplicate   bool
 		want        string
 	}{
-		{name: "pod UID", namespace: "team-a", podUID: "pod-uid", want: "by-uid"},
+		{name: "pod UID", managed: "true", namespace: "team-a", podUID: "pod-uid", want: "by-uid"},
+		{name: "unmanaged pod", namespace: "team-a", podUID: "pod-uid"},
+		{name: "managed label false", namespace: "team-a", podUID: "pod-uid", managed: "false"},
 		{name: "admission annotation", namespace: "team-a", podUID: "pod-uid", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, want: "by-name"},
 		{name: "group label", namespace: "team-a", labels: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "by-name"}, want: "by-name"},
-		{name: "group annotation", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePodGroupNameAnnotationKey: "by-name"}, want: "by-name"},
+		{name: "group annotation", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "by-name"}, want: "by-name"},
 		{name: "prebuilt label", namespace: "team-a", labels: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "by-name"}, want: "by-name"},
 		{name: "prebuilt annotation", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "by-name"}, want: "by-name"},
-		{name: "group annotation precedes label", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePodGroupNameAnnotationKey: "by-name"}, labels: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "missing"}, want: "by-name"},
+		{name: "group annotation precedes label", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "by-name"}, labels: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "missing"}, want: "by-name"},
 		{name: "prebuilt annotation precedes label", namespace: "team-a", annotations: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "by-name"}, labels: map[string]string{kubernetes.KueuePrebuiltWorkloadNameKey: "missing"}, want: "by-name"},
 		{name: "admission annotation precedes group", namespace: "team-a", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, labels: map[string]string{kubernetes.KueuePodGroupNameLabelKey: "missing"}, want: "by-name"},
-		{name: "explicit reference overrides ambiguous UID", namespace: "team-a", podUID: "pod-uid", duplicate: true, annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, want: "by-name"},
+		{name: "explicit reference overrides ambiguous UID", managed: "true", namespace: "team-a", podUID: "pod-uid", duplicate: true, annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}, want: "by-name"},
 		{name: "explicit reference is namespaced", namespace: "team-b", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "by-name"}},
-		{name: "explicit reference missing", namespace: "team-a", podUID: "pod-uid", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "missing"}},
-		{name: "other namespace", namespace: "team-b", podUID: "pod-uid"},
-		{name: "recreated pod", namespace: "team-a", podUID: "replacement-uid"},
-		{name: "no UID", namespace: "team-a"},
-		{name: "ambiguous UID", namespace: "team-a", podUID: "pod-uid", duplicate: true},
+		{name: "explicit reference missing", managed: "true", namespace: "team-a", podUID: "pod-uid", annotations: map[string]string{kubernetes.KueueWorkloadAnnotationKey: "missing"}},
+		{name: "other namespace", managed: "true", namespace: "team-b", podUID: "pod-uid"},
+		{name: "recreated pod", managed: "true", namespace: "team-a", podUID: "replacement-uid"},
+		{name: "no UID", managed: "true", namespace: "team-a"},
+		{name: "ambiguous UID", managed: "true", namespace: "team-a", podUID: "pod-uid", duplicate: true},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			s := newWorkloadmetaObject(t)
@@ -2380,6 +2383,12 @@ func TestGetKubernetesKueueWorkloadForPod(t *testing.T) {
 					wl.Labels = map[string]string{kubernetes.KueueJobUIDLabelKey: "pod-uid"}
 				}
 				s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeSet, Source: fooSource, Entity: wl}})
+			}
+			if tt.managed != "" {
+				if tt.labels == nil {
+					tt.labels = make(map[string]string)
+				}
+				tt.labels[kubernetes.KueueManagedLabelKey] = tt.managed
 			}
 			pod := &wmdef.KubernetesPod{
 				EntityID:   wmdef.EntityID{Kind: wmdef.KindKubernetesPod, ID: tt.podUID},
@@ -2406,7 +2415,7 @@ func TestKueuePodWorkloadSourceLifecycle(t *testing.T) {
 			kubernetes.KueueJobUIDLabelKey: "pod-uid",
 		}},
 	}
-	pod := &wmdef.KubernetesPod{EntityID: wmdef.EntityID{ID: "pod-uid"}, EntityMeta: wmdef.EntityMeta{Namespace: "team-a"}}
+	pod := &wmdef.KubernetesPod{EntityID: wmdef.EntityID{ID: "pod-uid"}, EntityMeta: wmdef.EntityMeta{Namespace: "team-a", Labels: map[string]string{kubernetes.KueueManagedLabelKey: "true"}}}
 	for _, source := range []wmdef.Source{fooSource, barSource} {
 		s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeSet, Source: source, Entity: wl}})
 	}

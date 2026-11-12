@@ -131,7 +131,7 @@ func KueueWorkloadName(labels, annotations map[string]string) string {
 		annotations[KueueWorkloadAnnotationKey],
 		annotations[KueuePrebuiltWorkloadNameKey],
 		labels[KueuePrebuiltWorkloadNameKey],
-		annotations[KueuePodGroupNameAnnotationKey],
+		annotations[KueuePodGroupNameLabelKey],
 		labels[KueuePodGroupNameLabelKey],
 	} {
 		if name != "" {
