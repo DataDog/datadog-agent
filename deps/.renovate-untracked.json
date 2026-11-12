@@ -69,6 +69,7 @@
     "agent_data_plane_windows-amd64-fips": "Shares VERSION with agent_data_plane_linux-amd64; tracked together.",
     "cpython_distrusted_spki_zip": "Intentionally untracked. CPython test fixture for deps/cpython patch 0006, pinned to the same upstream commit as the patch; refreshed together with the patch by hand and removed when the patch is dropped.",
     "glibc_static_x86_64": "Intentionally untracked. The x86_64 crosstool-NG GCC toolchain tarball (same URL and sha256 as bazel/patches/gcc-toolchain/0001-adapt-to-our-ctng-toolchain.patch). No upstream release; bump it only when that archive is republished.",
-    "glibc_static_aarch64": "Intentionally untracked. The aarch64 crosstool-NG GCC toolchain tarball, same as glibc_static_x86_64."
+    "glibc_static_aarch64": "Intentionally untracked. The aarch64 crosstool-NG GCC toolchain tarball, same as glibc_static_x86_64.",
+    "bootlin_i686_musl": "Intentionally untracked. Pinned Bootlin x86-i686 musl toolchain used only to build the KMT i686 syscall_x86_tester; bootlin.com has no Renovate datasource and the test only needs a working 32-bit compiler, so bump it by hand."
   }
 }

@@ -114,7 +114,7 @@ dd_agent_go_test(
         "stream_test.go",
         "tseries_test.go",
     ],
-    data = glob(["testdata/**"]),
+    data = ["//pkg/gpu/testdata:testdata_files"],
     embed = [":gpu"],
     gotags_sets = [
         ["bpf"],

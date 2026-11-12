@@ -90,8 +90,6 @@ CURRENT_ARCH = arch_mapping.get(platform.machine(), "x64")
 # this version should be kept in sync with the one in the agent omnibus build
 LIBPCAP_VERSION = "1.10.5"
 
-TEST_HELPER_CBINS = ["cudasample"]
-
 RUST_BINARIES = [
     "pkg/discovery/module/rust",
 ]
@@ -109,46 +107,6 @@ def get_ebpf_build_dir(arch: Arch) -> Path:
 
 def get_ebpf_runtime_dir() -> Path:
     return Path("pkg/ebpf/bytecode/build/runtime")
-
-
-def ninja_define_ebpf_compiler(
-    nw: NinjaWriter,
-    strip_object_files=False,
-    kernel_release=None,
-    with_unit_test=False,
-    arch: Arch | None = None,
-):
-    if arch is not None and arch.is_cross_compiling():
-        # -target ARCH is important even if we're just emitting LLVM. If we're cross-compiling, clang
-        # might fail to interpret cross-arch assembly code (e.g, the headers with arm64-specific ASM code
-        # of the linux kernel will fail compilation in x64 hosts due to unknown register names).
-        nw.variable("target", f"-target {arch.gcc_arch} -emit-llvm")
-    else:
-        nw.variable("target", "-emit-llvm")
-    nw.variable("ebpfflags", get_ebpf_build_flags(with_unit_test, arch=arch))
-    nw.variable("kheaders", get_kernel_headers_flags(kernel_release, arch=arch))
-    nw.rule(
-        name="ebpfclang",
-        command="/opt/datadog-agent/embedded/bin/clang-bpf -MD -MF $out.d $target $ebpfflags $kheaders $flags -c $in -o $out",
-        depfile="$out.d",
-    )
-
-    strip = "/opt/datadog-agent/embedded/bin/llvm-strip -g --remove-section=.rel.BTF.ext $out"
-    strip_lbb = "/opt/datadog-agent/embedded/bin/llvm-strip -w -N \"LBB*\" $out"
-    strip_part = f"&& {strip} && {strip_lbb}" if strip_object_files else ""
-
-    nw.rule(
-        name="llc",
-        command=f"/opt/datadog-agent/embedded/bin/llc-bpf -march=bpf -filetype=obj -o $out $in {strip_part}",
-    )
-
-
-def ninja_define_exe_compiler(nw: NinjaWriter, compiler='clang'):
-    nw.rule(
-        name="exe" + compiler,
-        command=f"{compiler} -MD -MF $out.d $exeflags $flags $in -o $out $exelibs",
-        depfile="$out.d",
-    )
 
 
 @task
@@ -596,61 +554,6 @@ def print_linux_include_paths(_: Context, arch: str | None = None):
     print("\n".join(str(p) for p in paths))
 
 
-def get_ebpf_build_flags(unit_test=False, arch: Arch | None = None):
-    flags = []
-    flags.extend(
-        [
-            '-D__KERNEL__',
-            '-DCONFIG_64BIT',
-            '-D__BPF_TRACING__',
-            '-DKBUILD_MODNAME=\\"ddsysprobe\\"',
-            '-DCOMPILE_PREBUILT',
-        ]
-    )
-    if arch is not None:
-        if arch.kernel_arch is None:
-            raise Exit(f"eBPF architecture not supported for {arch}")
-        flags.append(f"-D__TARGET_ARCH_{arch.kernel_arch}")
-        flags.append(f"-D__{arch.gcc_arch.replace('-', '_')}__")
-
-    if unit_test:
-        flags.extend(['-D__BALOUM__'])
-    flags.extend(
-        [
-            '-Wno-unused-value',
-            '-Wno-pointer-sign',
-            '-Wno-compare-distinct-pointer-types',
-            '-Wunused',
-            '-Wall',
-            '-Werror',
-        ]
-    )
-    flags.extend(["-include pkg/ebpf/c/asm_goto_workaround.h"])
-    flags.extend(["-O2"])
-    flags.extend(
-        [
-            # Some linux distributions enable stack protector by default which is not available on eBPF
-            '-fno-stack-protector',
-            '-fno-color-diagnostics',
-            '-fno-unwind-tables',
-            '-fno-asynchronous-unwind-tables',
-            '-fno-jump-tables',
-            '-fmerge-all-constants',
-        ]
-    )
-    flags.extend(["-Ipkg/ebpf/c"])
-    return flags
-
-
-def get_kernel_headers_flags(kernel_release=None, minimal_kernel_release=None, arch: Arch | None = None):
-    return [
-        f"-isystem{d}"
-        for d in get_linux_header_dirs(
-            kernel_release=kernel_release, minimal_kernel_release=minimal_kernel_release, arch=arch
-        )
-    ]
-
-
 def check_for_inline(ctx):
     print("checking for invalid inline usage...")
     src_dirs = ["pkg/ebpf/c/", "pkg/network/ebpf/c/", "pkg/security/ebpf/c/"]
@@ -793,6 +696,17 @@ def ebpf_bazel_flags(arch: Arch) -> list[str]:
     if arch.is_cross_compiling():
         return [f"--//bazel/rules/ebpf:target_arch={arch.gcc_arch}"]
     return []
+
+
+LINUX_BAZEL_PLATFORMS = {
+    "x86_64": "//bazel/platforms:linux_x86_64",
+    "arm64": "//bazel/platforms:linux_arm64",
+}
+
+
+def linux_platform_flags(arch: Arch) -> list[str]:
+    """Return the Bazel flags targeting Linux on `arch`."""
+    return [f"--platforms={LINUX_BAZEL_PLATFORMS[arch.kmt_arch]}"]
 
 
 def _bazel_install(ctx: Context, target: str, destdir: str, *flags: str, sudo: bool = False) -> None:
@@ -957,14 +871,9 @@ def build_rust_binaries(ctx: Context, arch: Arch, output_dir: Path | None = None
     if not rust_targets:
         return
 
-    platform_map = {
-        "x86_64": "//bazel/platforms:linux_x86_64",
-        "arm64": "//bazel/platforms:linux_arm64",
-    }
-
     platform_flags = []
-    if arch.is_cross_compiling() and arch.kmt_arch in platform_map:
-        platform_flags.append(f"--platforms={platform_map[arch.kmt_arch]}")
+    if arch.is_cross_compiling() and arch.kmt_arch in LINUX_BAZEL_PLATFORMS:
+        platform_flags = linux_platform_flags(arch)
 
     for target, dest in rust_targets:
         bazel("run", *platform_flags, "--", f"@{target}", f"--destdir={dest}")

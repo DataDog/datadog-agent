@@ -28,6 +28,7 @@ go_library(
 go_binary(
     name = "test-json-review",
     embed = [":test-json-review_lib"],
+    gotags = ["test"],  # keep — flake is //go:build test
     tags = ["manual"],
     visibility = ["//visibility:public"],
 )

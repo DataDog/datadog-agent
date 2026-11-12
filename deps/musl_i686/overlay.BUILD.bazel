@@ -1,0 +1,10 @@
+exports_files(
+    ["bin/i686-linux-gcc"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "prefix",
+    srcs = glob(["**"]),
+    visibility = ["//visibility:public"],
+)
