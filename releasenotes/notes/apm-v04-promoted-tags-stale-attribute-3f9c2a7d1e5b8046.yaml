@@ -1,0 +1,14 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    APM: Fix ``apm_config.replace_tags`` rules (and other tag updates) leaving the
+    original value of the ``env``, ``version``, ``component`` and ``span.kind`` tags
+    in spans received on the v0.4 and v0.5 endpoints, where it could still be sent
+    to Datadog after being replaced.

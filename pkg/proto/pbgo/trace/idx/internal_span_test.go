@@ -12,6 +12,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/tinylib/msgp/msgp"
 )
 
 func TestInternalSpan_GetStringAttributeAs_UnknownKey(t *testing.T) {
@@ -999,4 +1001,102 @@ func TestTraceIDHighShortIsZeroPadded(t *testing.T) {
 			})
 		})
 	}
+}
+
+// decodeConvertedV04SpanWithMeta decodes a v0.4 msgpack span holding only the given meta
+// through the converted (v0.4 -> idx) path used by the trace-agent.
+func decodeConvertedV04SpanWithMeta(t *testing.T, meta map[string]string) *InternalSpan {
+	t.Helper()
+	bts := msgp.AppendMapHeader(nil, 1)
+	bts = msgp.AppendString(bts, "meta")
+	bts = msgp.AppendMapHeader(bts, uint32(len(meta)))
+	for k, v := range meta {
+		bts = msgp.AppendString(bts, k)
+		bts = msgp.AppendString(bts, v)
+	}
+	span := NewInternalSpan(NewStringTable(), &Span{})
+	o, err := span.UnmarshalMsgConverted(bts, &SpanConvertedFields{})
+	require.NoError(t, err)
+	require.Empty(t, o)
+	return span
+}
+
+// rawStringAttributes returns the span's attribute map as strings, bypassing the
+// GetAttributeAsString compatibility shim that reads promoted keys from their dedicated field.
+func rawStringAttributes(s *InternalSpan) map[string]string {
+	out := make(map[string]string, len(s.Attributes()))
+	for k, v := range s.Attributes() {
+		out[s.Strings.Get(k)] = v.AsString(s.Strings)
+	}
+	return out
+}
+
+// TestSetPromotedAttributeOnConvertedSpanLeavesNoStaleCopy checks that writing env, version,
+// component or span.kind on a span decoded from a v0.4 payload does not leave the original
+// value behind in the span attributes (where the v0.4 decoder also stores it).
+func TestSetPromotedAttributeOnConvertedSpanLeavesNoStaleCopy(t *testing.T) {
+	meta := map[string]string{
+		"env":       "old-env",
+		"version":   "old-version",
+		"component": "old-component",
+		"span.kind": "client",
+		"other":     "kept-other",
+	}
+	for name, set := range map[string]func(s *InternalSpan, k, v string){
+		"SetAttributeFromString": (*InternalSpan).SetAttributeFromString,
+		"SetStringAttribute":     (*InternalSpan).SetStringAttribute,
+	} {
+		t.Run(name, func(t *testing.T) {
+			span := decodeConvertedV04SpanWithMeta(t, meta)
+			set(span, "env", "new-env")
+			set(span, "version", "new-version")
+			set(span, "component", "new-component")
+			set(span, "span.kind", "server")
+
+			assert.Equal(t, "new-env", span.Env())
+			assert.Equal(t, "new-version", span.Version())
+			assert.Equal(t, "new-component", span.Component())
+			assert.Equal(t, SpanKind_SPAN_KIND_SERVER, span.Kind())
+
+			attrs := rawStringAttributes(span)
+			for k, v := range attrs {
+				assert.NotContains(t, v, "old-", "attribute %q kept a stale value", k)
+			}
+			assert.Equal(t, "kept-other", attrs["other"])
+			// The attributes are kept, in sync with the fields.
+			assert.Equal(t, "new-env", attrs["env"])
+			assert.Equal(t, "new-version", attrs["version"])
+			assert.Equal(t, "new-component", attrs["component"])
+			assert.Equal(t, "server", attrs["span.kind"])
+			for _, k := range []string{"env", "version", "component", "span.kind"} {
+				got, ok := span.GetAttributeAsString(k)
+				assert.True(t, ok)
+				assert.NotContains(t, got, "old-")
+			}
+		})
+	}
+
+	t.Run("unknown span.kind", func(t *testing.T) {
+		// Unknown kinds cannot be held by the Kind field: the v0.4 decoder keeps the raw
+		// value as an attribute, so an update must land on that attribute.
+		span := decodeConvertedV04SpanWithMeta(t, map[string]string{"span.kind": "old-kind"})
+		span.SetAttributeFromString("span.kind", "new-kind")
+		assert.Equal(t, "new-kind", rawStringAttributes(span)["span.kind"])
+
+		// Without a raw attribute to keep in sync, an unknown kind is still ignored.
+		fresh := NewInternalSpan(NewStringTable(), &Span{})
+		fresh.SetAttributeFromString("span.kind", "new-kind")
+		assert.Empty(t, rawStringAttributes(fresh))
+		assert.Equal(t, SpanKind_SPAN_KIND_UNSPECIFIED, fresh.Kind())
+	})
+
+	t.Run("no attribute is added", func(t *testing.T) {
+		// Spans that never held these keys as attributes (e.g. native v1) only get the field.
+		span := NewInternalSpan(NewStringTable(), &Span{})
+		span.SetAttributeFromString("env", "new-env")
+		span.SetAttributeFromString("span.kind", "server")
+		assert.Empty(t, rawStringAttributes(span))
+		assert.Equal(t, "new-env", span.Env())
+		assert.Equal(t, SpanKind_SPAN_KIND_SERVER, span.Kind())
+	})
 }
