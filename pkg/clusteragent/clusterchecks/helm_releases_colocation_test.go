@@ -19,7 +19,10 @@ import (
 )
 
 func orchestratorConfig(collectors ...string) integration.Config {
-	instance := "collectors: [" + strings.Join(collectors, ", ") + "]\n"
+	return orchestratorInstanceConfig("collectors: [" + strings.Join(collectors, ", ") + "]\n")
+}
+
+func orchestratorInstanceConfig(instance string) integration.Config {
 	return integration.Config{
 		Name:         orchestratorCheckName,
 		ClusterCheck: true,
@@ -42,10 +45,17 @@ func TestHelmReleasesColocationGroup(t *testing.T) {
 	assert.Equal(t, helmReleasesGroup, r.group(orchestratorConfig("pods", "configmaps")))
 	assert.Equal(t, helmReleasesGroup, r.group(orchestratorConfig("v1/configmaps")))
 
-	// Orchestrator instances that don't run the ConfigMap collector, and other
-	// checks, have no group.
+	// The default collectors include the Helm releases collector, as in the
+	// config the Operator and the Helm chart generate.
+	for _, instance := range []string{"", "skip_leader_election: true\n", "crd_collectors: [datadoghq.com/v1alpha1/datadogmetrics]\n"} {
+		assert.Equal(t, helmReleasesGroup, r.group(orchestratorInstanceConfig(instance)), "instance %q", instance)
+	}
+
+	// Orchestrator instances that don't run the ConfigMap collector, including
+	// those that skip the default collectors, and other checks, have no group.
 	assert.Empty(t, r.group(orchestratorConfig("pods", "nodes")))
 	assert.Empty(t, r.group(orchestratorConfig("apps/v1/configmaps")))
+	assert.Empty(t, r.group(orchestratorInstanceConfig("collectors: []\n")))
 	assert.Empty(t, r.group(integration.Config{Name: orchestratorCheckName}))
 	assert.Empty(t, r.group(generateIntegration("other")))
 	invalid := integration.Config{Name: orchestratorCheckName, Instances: []integration.Data{integration.Data("collectors: configmaps: [")}}

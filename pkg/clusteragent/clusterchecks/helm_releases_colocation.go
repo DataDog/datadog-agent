@@ -8,7 +8,6 @@
 package clusterchecks
 
 import (
-	"bytes"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
@@ -26,8 +25,9 @@ const (
 	helmCheckName         = "helm"
 	orchestratorCheckName = "orchestrator"
 
-	// The Helm releases ConfigMap collector of the orchestrator check is
-	// enabled with this setting, and runs in the instances that collect ConfigMaps.
+	// The Helm releases ConfigMap collector of the orchestrator check is enabled
+	// with this setting, and runs in the instances that collect ConfigMaps or use
+	// the default collectors.
 	helmReleasesConfigMapsSetting = "orchestrator_explorer.helm_releases.configmaps.enabled"
 	configMapsCollector           = "configmaps"
 )
@@ -53,7 +53,7 @@ func (r *helmReleasesColocation) group(config integration.Config) string {
 	case helmCheckName:
 		return helmReleasesGroup
 	case orchestratorCheckName:
-		if collectsConfigMaps(config) {
+		if collectsHelmReleases(config) {
 			return helmReleasesGroup
 		}
 	}
@@ -64,19 +64,19 @@ type orchestratorInstance struct {
 	Collectors []string `yaml:"collectors"`
 }
 
-// collectsConfigMaps reports whether an orchestrator config has an instance
-// that runs the ConfigMap collector, and so the Helm releases collector.
-func collectsConfigMaps(config integration.Config) bool {
+// collectsHelmReleases reports whether an orchestrator config has an instance
+// that runs the Helm releases collector: one with the ConfigMap collector, or
+// one on the default collectors, which include it.
+func collectsHelmReleases(config integration.Config) bool {
 	for _, instance := range config.Instances {
-		// Avoid parsing the YAML of the instances that can't match.
-		if !bytes.Contains(instance, []byte(configMapsCollector)) {
-			continue
-		}
-
 		var parsed orchestratorInstance
 		if err := yaml.Unmarshal(instance, &parsed); err != nil {
 			log.Debugf("Cannot read the collectors of %s: %v", config.Name, err)
 			continue
+		}
+		// Like the orchestrator check, an explicit empty list means no default collectors.
+		if parsed.Collectors == nil {
+			return true
 		}
 		for _, collector := range parsed.Collectors {
 			// Collectors are named "<resource>" or "<group>/<version>/<resource>",
