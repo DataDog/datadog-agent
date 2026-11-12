@@ -9,12 +9,6 @@
 #    include <dlfcn.h>
 #endif
 
-#ifndef _WIN32
-#    include <cstring>
-#    include <errno.h>
-#    include <sys/resource.h>
-#endif
-
 #include <iostream>
 #include <sstream>
 
@@ -302,37 +296,6 @@ void clear_error(rtloader_t *rtloader)
 {
     AS_TYPE(RtLoader, rtloader)->clearError();
 }
-
-#ifndef WIN32
-/*
- * Core dump handling
- */
-DATADOG_AGENT_RTLOADER_API int enable_core_dumps(char **error)
-{
-    // This should not require any special privileges, but if it returns EPERM
-    // then a system policy may prevent raising the hard limit.
-    struct rlimit rlim;
-    rlim.rlim_cur = RLIM_INFINITY;
-    rlim.rlim_max = RLIM_INFINITY;
-    if (setrlimit(RLIMIT_CORE, &rlim) != 0) {
-        std::ostringstream err_msg;
-        err_msg << "unable to enable core dump: " << strerror(errno);
-        *error = strdupe(err_msg.str().c_str());
-        return 0;
-    }
-
-    return 1;
-}
-
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const int enable_stacktrace, char **error)
-{
-    (void)enable_stacktrace;
-    if (!enable_coredump) {
-        return 1;
-    }
-    return enable_core_dumps(error);
-}
-#endif
 
 /*
  * memory management

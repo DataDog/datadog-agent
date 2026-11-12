@@ -334,27 +334,6 @@ DATADOG_AGENT_RTLOADER_API int has_error(const rtloader_t *);
     array employed by the underlying RtLoader implementation.
 */
 DATADOG_AGENT_RTLOADER_API const char *get_error(const rtloader_t *);
-#ifndef _WIN32
-
-/*! \fn int enable_core_dumps(char** error)
-    \brief Raise the process core dump size limit to unlimited.
-    \param error A C-string pointer output parameter to return error messages.
-    \return Zero on failure, non-zero on success.
-
-    The returned error C-string must be freed by the caller.
-*/
-DATADOG_AGENT_RTLOADER_API int enable_core_dumps(char **error);
-
-/*! \fn int handle_crashes(const int, const int, char** error)
-    \brief Deprecated compatibility wrapper for enabling core dumps.
-    \param enable_coredump Non-zero to raise the process core dump size limit.
-    \param enable_stacktrace Ignored. RtLoader no longer installs a SIGSEGV handler.
-    \param error A C-string pointer output parameter to return error messages.
-    \return Zero on failure, non-zero on success.
-*/
-DATADOG_AGENT_RTLOADER_API int handle_crashes(const int enable_coredump, const int enable_stacktrace, char **error);
-#endif
-
 // PYTHON HELPERS
 /*! \fn char *get_integration_list(rtloader_t *)
     \brief Routine to build a list of every datadog wheel installed.

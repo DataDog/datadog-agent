@@ -13,10 +13,6 @@ set(PKGS
 	"../../test/containers/..."
 )
 
-if(NOT WIN32)
-    list(APPEND PKGS "../../test/coredump/...")
-endif()
-
 if (WIN32)
     set(LIBS_PATH \"${PROJECT_BINARY_DIR}/rtloader/\;${PROJECT_BINARY_DIR}/three/\")
 else()
