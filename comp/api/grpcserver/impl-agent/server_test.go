@@ -105,6 +105,33 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 		assert.Nil(t, fake.gotEvents[1].Details)
 	})
 
+	t.Run("converts a health issue event preserving severity and component", func(t *testing.T) {
+		fake := &fakeRemoteAgentRegistry{}
+		srv := &remoteAgentServer{remoteAgentRegistry: fake}
+
+		_, err := srv.ReportRemoteAgentEvent(context.Background(), &pb.ReportRemoteAgentEventRequest{
+			SessionId: "session-123",
+			Events: []*pb.Event{
+				{
+					Message: "exporter queue full",
+					Details: &pb.Event_HealthIssue{HealthIssue: &pb.HealthIssueEvent{
+						Severity:  pb.HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_HIGH,
+						Component: "exporter",
+					}},
+				},
+			},
+		})
+		require.NoError(t, err)
+
+		require.Len(t, fake.gotEvents, 1)
+		issue, ok := fake.gotEvents[0].Details.(*remoteagentregistry.HealthIssue)
+		require.True(t, ok)
+		assert.Equal(t, "health_issue", issue.EventType())
+		assert.Equal(t, remoteagentregistry.HealthIssueSeverityHigh, issue.Severity)
+		assert.Equal(t, "exporter", issue.Component)
+		assert.Equal(t, "exporter queue full", fake.gotEvents[0].Message)
+	})
+
 	t.Run("returns NotFound when the registry reports an error", func(t *testing.T) {
 		fake := &fakeRemoteAgentRegistry{reportErr: errors.New("no remote agent found with session ID")}
 		srv := &remoteAgentServer{remoteAgentRegistry: fake}
@@ -121,6 +148,21 @@ func TestReportRemoteAgentEventHandler(t *testing.T) {
 		require.Error(t, err)
 		assert.Equal(t, codes.Unimplemented, status.Code(err))
 	})
+}
+
+func TestConvertHealthIssueSeverity(t *testing.T) {
+	cases := map[pb.HealthIssueSeverity]remoteagentregistry.HealthIssueSeverity{
+		pb.HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_LOW:         remoteagentregistry.HealthIssueSeverityLow,
+		pb.HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_MEDIUM:      remoteagentregistry.HealthIssueSeverityMedium,
+		pb.HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_HIGH:        remoteagentregistry.HealthIssueSeverityHigh,
+		pb.HealthIssueSeverity_HEALTH_ISSUE_SEVERITY_UNSPECIFIED: remoteagentregistry.HealthIssueSeverityUnspecified,
+	}
+	for in, want := range cases {
+		assert.Equal(t, want, convertHealthIssueSeverity(in), "severity %v", in)
+	}
+
+	// An unknown wire value falls back to unspecified rather than panicking.
+	assert.Equal(t, remoteagentregistry.HealthIssueSeverityUnspecified, convertHealthIssueSeverity(pb.HealthIssueSeverity(999)))
 }
 
 func TestRemoteCommandProviderExecuteCommandForwardsContextAndFrames(t *testing.T) {
