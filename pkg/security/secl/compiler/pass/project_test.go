@@ -56,10 +56,35 @@ func TestProjectField(t *testing.T) {
 			require.NoError(t, err)
 			original := ast.Sprint(rule)
 
-			projected, err := Run(rule, ResolveIdents(testLookup), ProjectField(test.field, fieldOf), FoldBools())
+			projected, err := Run(rule, ResolveIdents(testLookup), ProjectFields([]string{test.field}, fieldOf), FoldBools())
 			require.NoError(t, err)
 			require.Equal(t, test.expected, ast.Sprint(projected))
 			require.Equal(t, original, ast.Sprint(rule), "the parsed tree is left unchanged")
+		})
+	}
+}
+
+func TestProjectFieldSet(t *testing.T) {
+	fieldOf := func(name string) string { return name }
+
+	for _, test := range []struct {
+		expr     string
+		expected string
+	}{
+		{`open.file.path =~ "/etc/*" && open.file.name == "passwd"`, `(&& (=~ open.file.path "/etc/*") (== open.file.name "passwd"))`},
+		{`open.file.name == "passwd" && process.uid == 0`, `(== open.file.name "passwd")`},
+		{`open.file.path == "/a" || open.file.name == "b"`, `(|| (== open.file.path "/a") (== open.file.name "b"))`},
+		{`!(open.file.name == "a" && process.uid == 0)`, `true`},
+		{`open.file.name == process.file.name`, `true`},
+		{`process.uid == 0`, `true`},
+	} {
+		t.Run(test.expr, func(t *testing.T) {
+			rule, err := parser.ParseRule(test.expr)
+			require.NoError(t, err)
+
+			projected, err := Run(rule, ResolveIdents(testLookup), ProjectFields([]string{"open.file.path", "open.file.name"}, fieldOf), FoldBools())
+			require.NoError(t, err)
+			require.Equal(t, test.expected, ast.Sprint(projected))
 		})
 	}
 }
@@ -78,7 +103,7 @@ func TestProjectFieldMacros(t *testing.T) {
 	rule, err := parser.ParseRule(`is_root && process.name == "sh"`)
 	require.NoError(t, err)
 
-	projected, err := Run(rule, ResolveIdents(lookup), ProjectField("open.file.path", fieldOf), FoldBools())
+	projected, err := Run(rule, ResolveIdents(lookup), ProjectFields([]string{"open.file.path"}, fieldOf), FoldBools())
 	require.NoError(t, err)
 	require.Equal(t, `{is_root (== open.file.path "/a")}`, ast.Sprint(projected))
 }

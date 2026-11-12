@@ -7,30 +7,31 @@
 package pass
 
 import (
+	"slices"
 	"strings"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
 )
 
-// ProjectField returns the pass projecting a rule on one of its fields: the
-// projected rule only depends on the value of that field, and is true for a value
-// if the rule can be true for an event with that value, whatever the rest of the
-// event. It is false for a value no event with it can match: a discarder.
+// ProjectFields returns the pass projecting a rule on a set of its fields: the
+// projected rule only depends on the values of those fields, and is true for
+// values if the rule can be true for an event with them, whatever the rest of the
+// event. It is false for values no event with them can match: a discarder.
 //
 // The leaves of the boolean expression, the comparisons and the boolean values,
-// that depend on anything but the field are unknown. An unknown leaf is replaced
+// that depend on anything but the fields are unknown. An unknown leaf is replaced
 // by the value that lets the rule be true: true, or false under an odd number of
 // negations. `!(a == 1 && b == 2)` projected on `a` is `!(a == 1 && false)`, true
 // for any value of `a`. Only the logical operators and the boolean negation are
 // walked through, a leaf is kept or replaced as a whole.
 //
 // The pass doesn't fold the boolean literals it introduces, FoldBools does:
-// once folded, a rule that can't be decided by the field alone, or that doesn't
-// use it, projects to `true`.
+// once folded, a rule that can't be decided by the fields alone, or that doesn't
+// use them, projects to `true`.
 //
 // fieldOf returns the field a field reference refers to.
-func ProjectField(field string, fieldOf func(name string) string) Pass {
-	p := projection{field: field, fieldOf: fieldOf}
+func ProjectFields(fields []string, fieldOf func(name string) string) Pass {
+	p := projection{fields: fields, fieldOf: fieldOf}
 	return func(node ast.Node) (ast.Node, error) {
 		ast.EditChildren(node, func(root ast.Node) ast.Node {
 			return p.project(root, true)
@@ -40,7 +41,7 @@ func ProjectField(field string, fieldOf func(name string) string) Pass {
 }
 
 type projection struct {
-	field   string
+	fields  []string
 	fieldOf func(name string) string
 }
 
@@ -66,11 +67,11 @@ func (p projection) project(node ast.Node, positive bool) ast.Node {
 }
 
 // isUnknown returns whether the value of the node depends on anything but the
-// field.
+// fields.
 func (p projection) isUnknown(node ast.Node) bool {
 	switch n := node.(type) {
 	case *ast.FieldRef:
-		return p.fieldOf(n.Name) != p.field
+		return !slices.Contains(p.fields, p.fieldOf(n.Name))
 	case *ast.VariableRef:
 		return true
 	case *ast.Literal:
