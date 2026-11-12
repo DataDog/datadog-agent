@@ -40,10 +40,11 @@ const (
 )
 
 type subscriber struct {
-	name     string
-	priority wmdef.SubscriberPriority
-	ch       chan wmdef.EventBundle
-	filter   *wmdef.Filter
+	name       string
+	priority   wmdef.SubscriberPriority
+	ch         chan wmdef.EventBundle
+	filter     *wmdef.Filter
+	waitForAck bool
 }
 
 // start starts the workload metadata store.
@@ -139,15 +140,16 @@ func (w *workloadmeta) start(ctx context.Context) {
 // as they happen. On first subscription, it will also generate an EventTypeSet
 // event for each entity present in the store that matches filter, unless the
 // filter type is EventTypeUnset.
-func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority, filter *wmdef.Filter) chan wmdef.EventBundle {
+func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority, filter *wmdef.Filter, opts ...wmdef.SubscribeOption) chan wmdef.EventBundle {
 	// ch needs to be buffered since we'll send it events before the
 	// subscriber has the chance to start receiving from it. if it's
 	// unbuffered, it'll deadlock.
 	sub := subscriber{
-		name:     name,
-		priority: priority,
-		ch:       make(chan wmdef.EventBundle, 1),
-		filter:   filter,
+		name:       name,
+		priority:   priority,
+		ch:         make(chan wmdef.EventBundle, 1),
+		filter:     filter,
+		waitForAck: wmdef.NewSubscribeOptions(opts...).WaitForAcknowledgement,
 	}
 
 	var events []wmdef.Event
@@ -195,7 +197,7 @@ func (w *workloadmeta) Subscribe(name string, priority wmdef.SubscriberPriority,
 
 	// notifyChannel should not wait when doing the first subscription, as
 	// the subscriber is not ready to receive events yet
-	w.notifyChannel(sub.name, sub.ch, events, false)
+	w.notifyChannel(sub, events, false)
 
 	w.subscribers = append(w.subscribers, sub)
 	sort.SliceStable(w.subscribers, func(i, j int) bool {
@@ -1015,7 +1017,7 @@ func (w *workloadmeta) handleEvents(evs []wmdef.CollectorEvent) {
 				continue
 			}
 
-			w.notifyChannel(sub.name, sub.ch, evs, true)
+			w.notifyChannel(sub, evs, true)
 		}
 	}
 }
@@ -1068,36 +1070,42 @@ func (w *workloadmeta) unsubscribeAll() {
 }
 
 // call holding lock on w.subscribersMut
-func (w *workloadmeta) notifyChannel(name string, ch chan wmdef.EventBundle, events []wmdef.Event, wait bool) {
-	bundle := wmdef.EventBundle{
-		Ch:     make(chan struct{}),
-		Events: events,
+func (w *workloadmeta) notifyChannel(sub subscriber, events []wmdef.Event, wait bool) {
+	name := sub.name
+	bundle := wmdef.EventBundle{Events: events}
+	if sub.waitForAck {
+		bundle.Ch = make(chan struct{})
 	}
 
 	// Send with timeout to prevent indefinite blocking
 	// There are two timeouts here:
 	// 1. closeEventBundleChTimeout: time to wait to send the bundle to the subscriber channel.
-	// 2. eventBundleChTimeout: time to wait for the subscriber to acknowledge the bundle.
+	// 2. eventBundleChTimeout: time to wait for a WithAcknowledgement subscriber to acknowledge the bundle.
 	select {
-	case ch <- bundle:
+	case sub.ch <- bundle:
 		// Successfully sent
 	case <-time.After(closeEventBundleChTimeout):
 		// Timeout sending to channel - subscriber not reading, events will be lost
 		log.Errorf("collector %q dropped %d event(s) after %v timeout, subscriber is not reading from channel. This may cause data inconsistency for this subscriber.", name, len(bundle.Events), closeEventBundleChTimeout)
 		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
-		// Close acknowledgment channel to prevent resource leak
-		close(bundle.Ch)
 		return
 	}
 
-	if wait {
-		select {
-		case <-bundle.Ch:
-			telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
-		case <-time.After(eventBundleChTimeout):
-			log.Warnf("collector %q did not close the event bundle channel in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
-			telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
-		}
+	if !wait {
+		return
+	}
+
+	if !sub.waitForAck {
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
+		return
+	}
+
+	select {
+	case <-bundle.Ch:
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusSuccess)
+	case <-time.After(eventBundleChTimeout):
+		log.Warnf("collector %q did not acknowledge the event bundle in time, continuing with downstream collectors. bundle size: %d", name, len(bundle.Events))
+		telemetry.NotificationsSent.Inc(name, telemetry.StatusError)
 	}
 }
 

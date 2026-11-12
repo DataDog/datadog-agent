@@ -2256,9 +2256,8 @@ type Event struct {
 }
 
 // SubscriberPriority is a priority for subscribers to the store.  Subscribers
-// are notified in order by their priority, with each notification blocking the
-// next, so this allows control of which compoents are informed of changes in
-// the store first.
+// are notified in order by their priority.  Only subscribers created with
+// WithAcknowledgement hold back the subscribers after them; see EventBundle.
 type SubscriberPriority int
 
 const (
@@ -2278,17 +2277,18 @@ const (
 
 // EventBundle is a collection of events sent to Store subscribers.
 //
-// Subscribers are expected to respond to EventBundles quickly.  The Store will
-// not move on to notify the next subscriber until the included channel Ch is
-// closed.  Subscribers which need to update their state before other
-// subscribers are notified should close this channel once those updates are
-// complete.  Other subscribers should close the channel immediately.
-// See the example for Store#Subscribe for details.
+// Subscribers are expected to read EventBundles quickly.  For a subscriber
+// created with WithAcknowledgement, the Store does not notify the next
+// subscriber until Acknowledge is called (or a short timeout expires), so it
+// must call Acknowledge exactly once per bundle, as soon as the state other
+// subscribers depend on is updated.  For other subscribers, Ch is nil and
+// Acknowledge is a no-op.
 type EventBundle struct {
 	// Events gives the events in this bundle.
 	Events []Event
 
-	// Ch should be closed once the subscriber has handled the event.
+	// Ch is closed by Acknowledge. It is nil unless the subscription was
+	// created with WithAcknowledgement.
 	Ch chan struct{}
 }
 
@@ -2296,6 +2296,34 @@ type EventBundle struct {
 func (e EventBundle) Acknowledge() {
 	if e.Ch != nil {
 		close(e.Ch)
+	}
+}
+
+// SubscribeOption configures a subscription created by Subscribe.
+type SubscribeOption func(*SubscribeOptions)
+
+// SubscribeOptions holds the settings of a subscription.
+type SubscribeOptions struct {
+	WaitForAcknowledgement bool
+}
+
+// NewSubscribeOptions applies opts to the default SubscribeOptions.
+func NewSubscribeOptions(opts ...SubscribeOption) SubscribeOptions {
+	var o SubscribeOptions
+	for _, opt := range opts {
+		opt(&o)
+	}
+	return o
+}
+
+// WithAcknowledgement makes the Store wait for the subscriber to Acknowledge
+// each bundle before notifying lower-priority subscribers. Use it only when
+// other subscribers rely on this one having processed an event first (e.g.
+// the tagger), or when the subscriber reads the store while processing a
+// bundle and needs it not to move past that bundle.
+func WithAcknowledgement() SubscribeOption {
+	return func(o *SubscribeOptions) {
+		o.WaitForAcknowledgement = true
 	}
 }
 

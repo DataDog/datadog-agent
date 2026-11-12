@@ -40,6 +40,11 @@ An "unset" event indicates that an entity no longer exists.
 The first event bundle to each subscriber contains a "set" event for each existing entity at that time.
 It's safe to assume that this first bundle corresponds to entities that existed before the agent started.
 
+Subscribers are notified one at a time, in priority order.
+By default the store moves on to the next subscriber as soon as the bundle is delivered.
+A subscriber that other subscribers depend on (such as the tagger) can pass `WithAcknowledgement()` to `Subscribe`; the store then waits, up to a short timeout, for it to call `EventBundle.Acknowledge()` before notifying the next subscriber.
+For other subscribers `Acknowledge()` is a no-op.
+
 ## Telemetry and Debugging
 
 The Workloadmeta Store produces agent telemetry measuring the behavior of the component.

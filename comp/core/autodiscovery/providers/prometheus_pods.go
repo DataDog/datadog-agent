@@ -69,7 +69,7 @@ func (p *PrometheusPodsConfigProvider) Stream(ctx context.Context) <-chan integr
 	filter := workloadmeta.NewFilterBuilder().
 		AddKind(workloadmeta.KindKubernetesPod).
 		Build()
-	inCh := p.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, filter)
+	inCh := p.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, filter, workloadmeta.WithAcknowledgement())
 
 	go func() {
 		for {

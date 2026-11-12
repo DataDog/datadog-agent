@@ -2067,6 +2067,64 @@ func TestNoDataRace(t *testing.T) {
 	})
 }
 
+func TestSubscribeAcknowledgement(t *testing.T) {
+	setContainer := []wmdef.CollectorEvent{{
+		Type:   wmdef.EventTypeSet,
+		Source: fooSource,
+		Entity: &wmdef.Container{EntityID: wmdef.EntityID{Kind: wmdef.KindContainer, ID: "123"}},
+	}}
+
+	t.Run("acknowledging subscriber holds back the next one", func(t *testing.T) {
+		s := newWorkloadmetaObject(t)
+		first := s.Subscribe("first", wmdef.TaggerPriority, nil, wmdef.WithAcknowledgement())
+		next := s.Subscribe("next", wmdef.NormalPriority, nil)
+		(<-first).Acknowledge()
+		<-next
+
+		done := make(chan struct{})
+		go func() {
+			s.handleEvents(setContainer)
+			close(done)
+		}()
+
+		bundle := <-first
+		require.NotNil(t, bundle.Ch)
+		select {
+		case <-next:
+			t.Fatal("next subscriber notified before the first one acknowledged")
+		case <-time.After(100 * time.Millisecond):
+		}
+
+		bundle.Acknowledge()
+		nextBundle := <-next
+		assert.Nil(t, nextBundle.Ch)
+		<-done
+	})
+
+	t.Run("non-acknowledging subscriber does not hold back the next one", func(t *testing.T) {
+		s := newWorkloadmetaObject(t)
+		first := s.Subscribe("first", wmdef.NormalPriority, nil)
+		next := s.Subscribe("next", wmdef.NormalPriority, nil)
+		<-first
+		<-next
+
+		done := make(chan struct{})
+		go func() {
+			s.handleEvents(setContainer)
+			close(done)
+		}()
+
+		select {
+		case <-next:
+		case <-time.After(eventBundleChTimeout / 2):
+			t.Fatal("next subscriber held back by a subscriber that did not opt into acknowledgement")
+		}
+		bundle := <-first
+		assert.Nil(t, bundle.Ch)
+		<-done
+	})
+}
+
 func TestPushEvents(t *testing.T) {
 	wlm := newWorkloadmetaObject(t)
 
@@ -2158,7 +2216,7 @@ func TestHandleEvents_completeness(t *testing.T) {
 	doneCh := make(chan struct{})
 	go func() {
 		for bundle := range ch {
-			close(bundle.Ch)
+			bundle.Acknowledge()
 			actual = append(actual, wmdef.EventBundle{Events: bundle.Events})
 		}
 		close(doneCh)

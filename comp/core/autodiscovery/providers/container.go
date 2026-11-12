@@ -70,7 +70,7 @@ func (k *ContainerConfigProvider) Stream(ctx context.Context) <-chan integration
 		AddKind(workloadmeta.KindContainer).
 		AddKind(workloadmeta.KindKubernetesPod).
 		Build()
-	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, filter)
+	inCh := k.workloadmetaStore.Subscribe(name, workloadmeta.ConfigProviderPriority, filter, workloadmeta.WithAcknowledgement())
 
 	go func() {
 		for {

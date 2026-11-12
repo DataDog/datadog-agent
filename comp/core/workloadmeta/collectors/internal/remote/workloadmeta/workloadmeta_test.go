@@ -294,7 +294,7 @@ func TestCollection(t *testing.T) {
 	// in the bundle.
 	for i := 0; i < numberOfEvents; {
 		bundle := <-ch
-		close(bundle.Ch)
+		bundle.Acknowledge()
 		i += len(bundle.Events)
 	}
 	mockClientStore.Unsubscribe(ch)

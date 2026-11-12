@@ -178,7 +178,7 @@ func TestHandleSet_ConfigSourceSetToRuntime(t *testing.T) {
 // behaviour. It starts no background goroutines, keeping the leak check clean.
 type stubWmeta struct{}
 
-func (s *stubWmeta) Subscribe(_ string, _ workloadmeta.SubscriberPriority, _ *workloadmeta.Filter) chan workloadmeta.EventBundle {
+func (s *stubWmeta) Subscribe(_ string, _ workloadmeta.SubscriberPriority, _ *workloadmeta.Filter, _ ...workloadmeta.SubscribeOption) chan workloadmeta.EventBundle {
 	return make(chan workloadmeta.EventBundle, 1)
 }
 func (s *stubWmeta) Unsubscribe(ch chan workloadmeta.EventBundle) { close(ch) }

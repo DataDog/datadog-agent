@@ -25,9 +25,10 @@ type Component interface {
 	// evolves or as information about the entity is reported from multiple
 	// sources (such as a container runtime and an orchestrator).
 	//
-	// See the documentation for EventBundle regarding appropriate handling
-	// for messages on this channel.
-	Subscribe(name string, priority SubscriberPriority, filter *Filter) chan EventBundle
+	// By default the Store does not wait for the subscriber to process a
+	// bundle before notifying the next one. Pass WithAcknowledgement to opt
+	// into that ordering; see EventBundle.
+	Subscribe(name string, priority SubscriberPriority, filter *Filter, opts ...SubscribeOption) chan EventBundle
 
 	// Unsubscribe closes the EventBundle channel. Note that it will emit a zero-value event.
 	// Thus, it is important to check that the channel is not closed.

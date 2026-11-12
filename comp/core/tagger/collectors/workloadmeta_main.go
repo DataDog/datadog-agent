@@ -213,7 +213,7 @@ func (c *WorkloadMetaCollector) stream(ctx context.Context) {
 		}
 	}()
 
-	ch := c.store.Subscribe(name, workloadmeta.TaggerPriority, nil)
+	ch := c.store.Subscribe(name, workloadmeta.TaggerPriority, nil, workloadmeta.WithAcknowledgement())
 
 	log.Infof("workloadmeta tagger collector started")
 

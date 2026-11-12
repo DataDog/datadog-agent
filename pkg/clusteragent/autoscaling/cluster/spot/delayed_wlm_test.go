@@ -43,8 +43,8 @@ func newDelayedWLM(ctx context.Context, component workloadmeta.Component, delay 
 
 // Subscribe returns a channel that receives the same event bundles as the real
 // WLM channel but delayed by d.delay.
-func (d *delayedWLM) Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle {
-	realCh := d.Component.Subscribe(name, priority, filter)
+func (d *delayedWLM) Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter, opts ...workloadmeta.SubscribeOption) chan workloadmeta.EventBundle {
+	realCh := d.Component.Subscribe(name, priority, filter, opts...)
 	wrappedCh := make(chan workloadmeta.EventBundle, 100)
 	type delayedEvents struct {
 		events    []workloadmeta.Event

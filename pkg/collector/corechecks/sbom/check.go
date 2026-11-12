@@ -193,6 +193,7 @@ func (c *Check) Run() error {
 		CheckName,
 		workloadmeta.NormalPriority,
 		filter,
+		workloadmeta.WithAcknowledgement(),
 	)
 
 	// Trigger an initial scan on host. This channel is buffered to avoid blocking the scanner

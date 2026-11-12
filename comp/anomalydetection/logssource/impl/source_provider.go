@@ -21,7 +21,7 @@ import (
 // wmetaStore is the subset of workloadmeta.Component used by sourceProvider.
 // Keeping the dependency narrow makes the type testable with a simple stub.
 type wmetaStore interface {
-	Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter) chan workloadmeta.EventBundle
+	Subscribe(name string, priority workloadmeta.SubscriberPriority, filter *workloadmeta.Filter, opts ...workloadmeta.SubscribeOption) chan workloadmeta.EventBundle
 	Unsubscribe(ch chan workloadmeta.EventBundle)
 	GetContainer(id string) (*workloadmeta.Container, error)
 }
