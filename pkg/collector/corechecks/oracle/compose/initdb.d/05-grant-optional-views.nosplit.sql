@@ -1,5 +1,5 @@
--- These views are 21c+ and absent on older versions. The .nosplit.sql suffix keeps
--- TestMain from executing this PL/SQL block line-by-line.
+-- Blockchain and immutable views start at 19.10 and 19.11 respectively.
+-- The .nosplit.sql suffix keeps TestMain from executing this PL/SQL block line-by-line.
 declare
   table_or_view_does_not_exist exception;
   pragma exception_init(table_or_view_does_not_exist, -942);

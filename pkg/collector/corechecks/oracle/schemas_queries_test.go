@@ -25,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestSchemaDetailRelations(t *testing.T) {
+func TestSchemaDetailTables(t *testing.T) {
 	key := tableKey{conID: 3, owner: "APP", table: "T"}
 	for _, test := range []struct {
 		name                  string
@@ -48,7 +48,7 @@ func TestSchemaDetailRelations(t *testing.T) {
 				test.rows[i].ConID, test.rows[i].Owner, test.rows[i].TableName = key.conID, key.owner, key.table
 			}
 			allowed := map[tableKey]struct{}{key: {}}
-			external, partitioned := schemaDetailRelations(test.rows, allowed)
+			external, partitioned := schemaDetailTables(test.rows, allowed)
 			_, hasExternal := external[key]
 			_, hasPartitioned := partitioned[key]
 			require.Equal(t, test.external, hasExternal)
@@ -58,7 +58,7 @@ func TestSchemaDetailRelations(t *testing.T) {
 	}
 }
 
-func TestSchemaDetailRelationsFullKeys(t *testing.T) {
+func TestSchemaDetailTablesFullKeys(t *testing.T) {
 	ordinary := tableKey{conID: 3, owner: "APP", table: "SAME"}
 	external := tableKey{conID: 3, owner: "OTHER", table: "SAME"}
 	partitioned := tableKey{conID: 4, owner: "APP", table: "SAME"}
@@ -69,21 +69,21 @@ func TestSchemaDetailRelationsFullKeys(t *testing.T) {
 		{ConID: partitioned.conID, Owner: partitioned.owner, TableName: partitioned.table, External: "NO", Partitioned: "YES"},
 		{ConID: 9, Owner: "UNSELECTED", TableName: "SAME", External: "YES", Partitioned: "YES"},
 	}
-	actualExternal, actualPartitioned := schemaDetailRelations(rows, allowed)
+	actualExternal, actualPartitioned := schemaDetailTables(rows, allowed)
 	require.Equal(t, map[tableKey]struct{}{external: {}}, actualExternal)
 	require.Equal(t, map[tableKey]struct{}{partitioned: {}}, actualPartitioned)
 	require.Len(t, allowed, 3)
 }
 
 func TestSchemaBindingsKeepFullAndPartialPagesStable(t *testing.T) {
-	for _, count := range []int{1, schemaRelationPageSize} {
+	for _, count := range []int{1, schemaTablePageSize} {
 		allowed := make(map[tableKey]struct{})
 		for i := range count {
 			allowed[tableKey{conID: 4, owner: "OTHER", table: fmt.Sprintf("T%03d", i)}] = struct{}{}
 		}
-		columns := relationColumnNames{conID: "t.con_id", owner: "t.owner", relation: "t.table_name"}
-		full := relationFilterChunks(allowed, columns)
-		partial := relationFilterChunks(map[tableKey]struct{}{{conID: 3, owner: "APP", table: "O'RDER"}: {}}, columns)
+		columns := schemaObjectColumns{conID: "t.con_id", owner: "t.owner", name: "t.table_name"}
+		full := objectFilterChunks(allowed, columns)
+		partial := objectFilterChunks(map[tableKey]struct{}{{conID: 3, owner: "APP", table: "O'RDER"}: {}}, columns)
 		require.Len(t, full, 1)
 		require.Equal(t, full[0].text, partial[0].text)
 		require.Len(t, full[0].args, 102)
@@ -102,7 +102,7 @@ func TestSchemaColumnCommentFilterBoundary(t *testing.T) {
 					allowed[key] = struct{}{}
 				}
 			}
-			filters := columnFilterChunks(allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, "column_name")
+			filters := columnFilterChunks(allowed, schemaObjectColumns{conID: "con_id", owner: "owner", name: "table_name"}, "column_name")
 			require.Len(t, filters, 1)
 			query := `SELECT con_id, owner, table_name, column_name, comments FROM (
 				SELECT con_id, owner, table_name, column_name, comments
@@ -208,7 +208,7 @@ func TestSchemaQueryArgumentsMatchGeneratedQueries(t *testing.T) {
 				for key := range selected {
 					columns[columnKey{tableKey: key, column: "ID"}] = struct{}{}
 				}
-				filters := columnFilterChunks(columns, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, "column_name")
+				filters := columnFilterChunks(columns, schemaObjectColumns{conID: "con_id", owner: "owner", name: "table_name"}, "column_name")
 				for range filters {
 					mock.ExpectQuery("FROM cdb_col_comments").WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
 				}
@@ -256,7 +256,7 @@ func TestSchemaPrefetchPreservesConnectionOptions(t *testing.T) {
 }
 
 func TestSchemaFiltersFactorSharedContainer(t *testing.T) {
-	names := relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}
+	names := schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"}
 	for _, sameContainer := range []bool{true, false} {
 		t.Run(fmt.Sprintf("sameContainer=%t", sameContainer), func(t *testing.T) {
 			otherID := int64(3)
@@ -266,7 +266,7 @@ func TestSchemaFiltersFactorSharedContainer(t *testing.T) {
 			first := tableKey{conID: 3, owner: "APP", table: "T"}
 			second := tableKey{conID: otherID, owner: "OTHER", table: "T"}
 			for _, filters := range [][]schemaSQL{
-				relationFilterChunks(map[tableKey]struct{}{first: {}, second: {}}, names),
+				objectFilterChunks(map[tableKey]struct{}{first: {}, second: {}}, names),
 				columnFilterChunks(map[columnKey]struct{}{
 					{tableKey: first, column: "ID"}: {}, {tableKey: second, column: "ID"}: {},
 				}, names, "c.column_name"),
@@ -290,17 +290,17 @@ func TestSchemaFiltersFactorSharedContainer(t *testing.T) {
 }
 
 func TestSchemaJoinedFiltersReuseBindings(t *testing.T) {
-	primary := relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.constraint_name"}
-	joined := relationColumnNames{conID: "cc.con_id", owner: "cc.owner", relation: "cc.constraint_name"}
+	primary := schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.constraint_name"}
+	joined := schemaObjectColumns{conID: "cc.con_id", owner: "cc.owner", name: "cc.constraint_name"}
 	for _, otherID := range []int64{3, 4} {
 		t.Run(strconv.FormatInt(otherID, 10), func(t *testing.T) {
 			allowed := map[tableKey]struct{}{
 				{conID: 3, owner: "APP", table: "PK_O'RDER"}:        {},
 				{conID: otherID, owner: "OTHER", table: "PK_OTHER"}: {},
 			}
-			first := relationFilterChunks(allowed, primary)
-			second := relationFilterChunks(allowed, joined)
-			both := relationFilterChunks(allowed, primary, joined)
+			first := objectFilterChunks(allowed, primary)
+			second := objectFilterChunks(allowed, joined)
+			both := objectFilterChunks(allowed, primary, joined)
 			require.Len(t, both, 1)
 			require.Equal(t, first[0].text+" AND "+second[0].text, both[0].text)
 			require.Equal(t, first[0].args, both[0].args)
@@ -316,7 +316,7 @@ func TestSchemaJoinedFiltersReuseBindings(t *testing.T) {
 }
 
 func TestSchemaMultiOwnerFilterShapesStayStable(t *testing.T) {
-	columns := relationColumnNames{conID: "t.con_id", owner: "t.owner", relation: "t.table_name"}
+	columns := schemaObjectColumns{conID: "t.con_id", owner: "t.owner", name: "t.table_name"}
 	var previous string
 	for _, count := range []int{1, 50} {
 		allowed := make(map[tableKey]struct{})
@@ -325,13 +325,13 @@ func TestSchemaMultiOwnerFilterShapesStayStable(t *testing.T) {
 				allowed[tableKey{conID: 3, owner: owner, table: fmt.Sprintf("T%d", i)}] = struct{}{}
 			}
 		}
-		filters := relationFilterChunks(allowed, columns)
+		filters := objectFilterChunks(allowed, columns)
 		require.Len(t, filters, 1)
 		if previous != "" {
 			require.Equal(t, previous, filters[0].text)
 		}
 		previous = filters[0].text
-		require.Len(t, filters[0].args, 1+2*(1+schemaRelationPageSize))
+		require.Len(t, filters[0].args, 1+2*(1+schemaTablePageSize))
 	}
 }
 
@@ -343,8 +343,8 @@ func TestSchemaIndexQueriesPreserveJoinIndexColumns(t *testing.T) {
 				{conID: 3, owner: "APP", table: "FACT"}:      {},
 				{conID: otherID, owner: "OTHER", table: "T"}: {},
 			}
-			primary := relationFilterChunks(allowed, relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"})
-			columns := relationFilterChunks(allowed, relationColumnNames{conID: "ic.con_id", owner: "ic.table_owner", relation: "ic.table_name"})
+			primary := objectFilterChunks(allowed, schemaObjectColumns{conID: "i.con_id", owner: "i.table_owner", name: "i.table_name"})
+			columns := objectFilterChunks(allowed, schemaObjectColumns{conID: "ic.con_id", owner: "ic.table_owner", name: "ic.table_name"})
 			queries := schemaIndexQueries(allowed)
 			require.Len(t, queries, 1)
 			query := queries[0]
@@ -377,12 +377,12 @@ func TestSchemaIndexQueriesPreserveJoinIndexColumns(t *testing.T) {
 
 func TestSchemaIndexQueriesKeepChunkBindingsAligned(t *testing.T) {
 	allowed := make(map[tableKey]struct{})
-	for i := 0; i <= maxSchemaRelationsPerQuery; i++ {
+	for i := 0; i <= maxSchemaItemsPerQuery; i++ {
 		allowed[tableKey{conID: int64(3 + i%2), owner: fmt.Sprintf("APP%d", i%3), table: fmt.Sprintf("T%d", i)}] = struct{}{}
 	}
 	queries := schemaIndexQueries(allowed)
-	primary := relationFilterChunks(allowed, relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"})
-	columns := relationFilterChunks(allowed, relationColumnNames{conID: "ic.con_id", owner: "ic.table_owner", relation: "ic.table_name"})
+	primary := objectFilterChunks(allowed, schemaObjectColumns{conID: "i.con_id", owner: "i.table_owner", name: "i.table_name"})
+	columns := objectFilterChunks(allowed, schemaObjectColumns{conID: "ic.con_id", owner: "ic.table_owner", name: "ic.table_name"})
 	require.Len(t, queries, 2)
 	for i, query := range queries {
 		require.Equal(t, primary[i].args, columns[i].args)
@@ -392,9 +392,9 @@ func TestSchemaIndexQueriesKeepChunkBindingsAligned(t *testing.T) {
 	}
 }
 
-func TestSchemaBindingsColumnListSizesAreBounded(t *testing.T) {
+func TestSchemaBindingsColumnListsPreserveValuesAndBoundPadding(t *testing.T) {
 	for _, tc := range []struct{ count, slots int }{
-		{1, 50}, {50, 50}, {51, 100}, {101, 200}, {801, 1000}, {1000, 1000},
+		{1, 50}, {50, 50}, {51, 100}, {101, 200}, {801, 1000}, {1000, 1000}, {1001, 1001},
 	} {
 		t.Run(strconv.Itoa(tc.count), func(t *testing.T) {
 			names := make([]string, tc.count)
@@ -417,24 +417,24 @@ func TestSchemaBindingsColumnListSizesAreBounded(t *testing.T) {
 }
 
 func TestSchemaBindingsEmptySelectionsDoNotQuery(t *testing.T) {
-	require.Empty(t, relationFilterChunks(nil, relationColumnNames{}))
-	require.Empty(t, columnFilterChunks(nil, relationColumnNames{}, "column_name"))
+	require.Empty(t, objectFilterChunks(nil, schemaObjectColumns{}))
+	require.Empty(t, columnFilterChunks(nil, schemaObjectColumns{}, "column_name"))
 	require.Empty(t, ownerListChunks(nil))
 }
 
 func TestSchemaBindingsBoundPaddingAcrossGroups(t *testing.T) {
-	relations := make(map[tableKey]struct{})
+	tables := make(map[tableKey]struct{})
 	columns := make(map[columnKey]struct{})
-	for i := range maxSchemaRelationsPerQuery + 1 {
+	for i := range maxSchemaItemsPerQuery + 1 {
 		key := tableKey{conID: 3, owner: fmt.Sprintf("OWNER%d", i), table: "T"}
-		relations[key] = struct{}{}
+		tables[key] = struct{}{}
 		columns[columnKey{tableKey: key, column: "ID"}] = struct{}{}
 	}
-	names := relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}
-	for _, filters := range [][]schemaSQL{relationFilterChunks(relations, names), columnFilterChunks(columns, names, "column_name")} {
+	names := schemaObjectColumns{conID: "con_id", owner: "owner", name: "table_name"}
+	for _, filters := range [][]schemaSQL{objectFilterChunks(tables, names), columnFilterChunks(columns, names, "column_name")} {
 		require.Len(t, filters, 2)
 		for _, filter := range filters {
-			require.LessOrEqual(t, len(filter.args), 5*maxSchemaRelationsPerQuery)
+			require.LessOrEqual(t, len(filter.args), 5*maxSchemaItemsPerQuery)
 		}
 	}
 }
@@ -483,7 +483,7 @@ func TestSchemaColumnDefaultQueriesKeepSingleOwnerUnchanged(t *testing.T) {
 				allowed[columnKey{tableKey: tableKey{conID: 3, owner: "APP", table: fmt.Sprintf("T%d", table)}, column: name}] = struct{}{}
 			}
 		}
-		filters := columnFilterChunks(allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
+		filters := columnFilterChunks(allowed, schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"}, "c.column_name")
 		queries := schemaColumnDefaultQueries(allowed)
 		require.Len(t, queries, len(filters))
 		for i, filter := range filters {
@@ -531,7 +531,7 @@ func TestSchemaColumnDefaultQueriesBoundOwnerBranches(t *testing.T) {
 			queries := schemaColumnDefaultQueries(allowed)
 			branches := 0
 			for _, query := range queries {
-				require.LessOrEqual(t, len(query.args), 5*maxSchemaRelationsPerQuery)
+				require.LessOrEqual(t, len(query.args), 5*maxSchemaItemsPerQuery)
 				branches += strings.Count(query.text, "SELECT c.con_id")
 				bindings := make(map[string]any)
 				for _, raw := range query.args {
@@ -581,7 +581,7 @@ func TestSchemaColumnDefaultQueriesKeepExactHeterogeneousBranches(t *testing.T) 
 	var expectedArgs []any
 	var expectedBranches []string
 	for i, group := range groups {
-		filter := columnFilterChunks(group, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")[0]
+		filter := columnFilterChunks(group, schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"}, "c.column_name")[0]
 		prefix := fmt.Sprintf("owner%d_", i)
 		for _, raw := range filter.args {
 			arg := raw.(sql.NamedArg)
@@ -687,7 +687,7 @@ func TestSchemaColumnDefaultQueriesPreserveOptionalFailurePolicy(t *testing.T) {
 }
 
 func TestSchemaColumnDefaultQueriesLeaveLegacyPathUnchanged(t *testing.T) {
-	for _, version := range []string{"12.1.0.2.0", "19.0.0.0.0", "21.3.0.0.0"} {
+	for _, version := range []string{"12.2.0.1.0", "19.0.0.0.0", "21.3.0.0.0"} {
 		t.Run(version, func(t *testing.T) {
 			c, _, _, cleanup := newSchemaCheck(t)
 			defer cleanup()

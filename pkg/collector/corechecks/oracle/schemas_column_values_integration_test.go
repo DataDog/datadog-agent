@@ -23,7 +23,7 @@ func TestSchemaObjectIdentifierIndexAgainstDatabase(t *testing.T) {
 	require.NoError(t, c.init())
 	actualVersion := c.dbVersion
 	key := tableKey{conID: 1, owner: strings.ToUpper(schemaTestUser), table: "DD_ADDRESSES"}
-	for _, version := range []string{actualVersion, "12.1.0.2.0"} {
+	for _, version := range []string{actualVersion, "12.2.0.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			c.dbVersion = version
 			details := c.tableDetails(context.Background(), map[tableKey]struct{}{key: {}}, nil)
@@ -88,7 +88,7 @@ func TestSchemaLegacyColumnValuesAgainstDatabase(t *testing.T) {
 	require.NoError(t, err)
 	defer conn.Close()
 	c.schemaQueryer = conn
-	for _, version := range []string{actualVersion, "12.1.0.2.0"} {
+	for _, version := range []string{actualVersion, "12.2.0.1.0"} {
 		t.Run(version, func(t *testing.T) {
 			c.dbVersion = version
 			details := c.tableDetailsForPage(ctx, keys, columns)

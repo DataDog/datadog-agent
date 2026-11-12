@@ -33,9 +33,7 @@ func (q *schemaSQL) stringList(prefix string, values []string, size int) string 
 	for size < len(values) {
 		size *= 2
 	}
-	if size > maxSchemaRelationsPerQuery {
-		size = maxSchemaRelationsPerQuery
-	}
+	size = max(len(values), min(size, maxSchemaItemsPerQuery))
 	placeholders := make([]string, size)
 	for i := range placeholders {
 		var value sql.NullString

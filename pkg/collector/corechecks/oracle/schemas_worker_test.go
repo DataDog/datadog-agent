@@ -93,15 +93,15 @@ func TestSchemaWindowsUseReservedConnection(t *testing.T) {
 			for start := 0; start < len(keys); start += schemaConstraintPageSize {
 				mock.ExpectQuery("FROM cdb_constraints").WillReturnRows(emptyConstraintRows())
 			}
-			for start := 0; start < len(keys); start += schemaRelationPageSize {
-				page := keys[start:min(start+schemaRelationPageSize, len(keys))]
+			for start := 0; start < len(keys); start += schemaTablePageSize {
+				page := keys[start:min(start+schemaTablePageSize, len(keys))]
 				rows := emptyTablesRows()
 				names := make([]string, len(page))
 				for i, key := range page {
 					addTableWithoutColumns(rows, key.conID, key.owner, key.table)
 					names[i] = key.table
 				}
-				args := append(schemaRelationArgs(3, "APP", names...), schemaBindTestArgs("pageOwner", []string{"APP"}, schemaRelationPageSize)...)
+				args := append(schemaObjectArgs(3, "APP", names...), schemaBindTestArgs("pageOwner", []string{"APP"}, schemaTablePageSize)...)
 				mock.ExpectQuery("WITH ranked_columns").WithArgs(append([]driver.Value{sql.Named("max_columns", 100)}, args...)...).WillReturnRows(rows).RowsWillBeClosed()
 				mock.ExpectQuery(regexp.QuoteMeta("c.data_default_vc AS data_default")).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
 				for _, view := range []string{"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments", "cdb_col_comments", "cdb_indexes"} {
@@ -359,7 +359,7 @@ func TestSchemaWorkerDetailTimeoutDoesNotCompleteAndNextRunSucceeds(t *testing.T
 	dbMock.ExpectQuery("cdb_users").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "USERNAME", "USER_ID"}).AddRow(3, "APP", 104))
 	dbMock.ExpectQuery("SELECT con_id, owner, table_name").WillReturnRows(identityRows())
 	dbMock.ExpectQuery("SELECT con_id, owner, view_name").WillReturnRows(identityRows(tableKey{conID: 3, owner: "APP", table: "V1"}))
-	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(addViewRow(sqlmock.NewRows(viewRelationColumns), 3, "APP", "V1", 1))
+	dbMock.ExpectQuery(`(?s)WITH ranked_columns.*FROM cdb_views v`).WillReturnRows(addViewRow(sqlmock.NewRows(viewSchemaColumns), 3, "APP", "V1", 1))
 	dbMock.ExpectQuery("SELECT con_id, owner, view_name, text_vc").WillReturnError(context.DeadlineExceeded)
 	require.ErrorIs(t, c.schemaCollection(context.Background()), context.DeadlineExceeded)
 	require.Empty(t, emitted)

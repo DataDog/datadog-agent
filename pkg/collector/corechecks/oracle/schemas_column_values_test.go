@@ -166,7 +166,7 @@ func TestSchemaContainerRejectsChangedIdentity(t *testing.T) {
 }
 
 func TestSchemaLegacyColumnValuesUseCorrectContainer(t *testing.T) {
-	for _, version := range []string{"12.1.0.2.0", "12.2.0.1.0", "19.0.0.0.0", "21.3.0.0.0"} {
+	for _, version := range []string{"12.2.0.1.0", "19.0.0.0.0", "21.3.0.0.0"} {
 		t.Run(version, func(t *testing.T) {
 			c, _, mock, cleanup := newSchemaCheck(t)
 			defer cleanup()
@@ -194,7 +194,7 @@ func TestSchemaLegacyColumnValuesUseCorrectContainer(t *testing.T) {
 }
 
 func TestSchemaExpressionFailurePreservesIndexes(t *testing.T) {
-	for _, version := range []string{"12.1.0.2.0", "23.0.0.0.0"} {
+	for _, version := range []string{"12.2.0.1.0", "23.0.0.0.0"} {
 		t.Run(version, func(t *testing.T) {
 			c, _, mock, cleanup := newSchemaCheck(t)
 			defer cleanup()
@@ -204,7 +204,7 @@ func TestSchemaExpressionFailurePreservesIndexes(t *testing.T) {
 			mock.ExpectQuery("FROM cdb_indexes").WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
 				AddRow(3, "APP", "T", "APP", "NORMAL", "NONUNIQUE", "NORMAL", "C").
 				AddRow(3, "APP", "T", "APP", "FUNCTION", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00002$"))
-			if version == "12.1.0.2.0" {
+			if version == "12.2.0.1.0" {
 				expectSchemaSession(mock, 3, "PDB1")
 			}
 			mock.ExpectQuery("tab_cols").WillReturnError(errors.New("ORA-00904: invalid identifier"))
@@ -220,7 +220,7 @@ func TestSchemaExpressionFailurePreservesIndexes(t *testing.T) {
 }
 
 func TestSchemaIndexExpressionsPreserveOrdinaryHiddenColumns(t *testing.T) {
-	for _, version := range []string{"12.1.0.2.0", "23.0.0.0.0"} {
+	for _, version := range []string{"12.2.0.1.0", "23.0.0.0.0"} {
 		t.Run(version, func(t *testing.T) {
 			c, _, mock, cleanup := newSchemaCheck(t)
 			defer cleanup()
@@ -233,7 +233,7 @@ func TestSchemaIndexExpressionsPreserveOrdinaryHiddenColumns(t *testing.T) {
 				}},
 			}}}
 			columns := map[columnKey]struct{}{{tableKey: key, column: "SYS_NC_USER"}: {}}
-			if version == "12.1.0.2.0" {
+			if version == "12.2.0.1.0" {
 				expectSchemaSession(mock, 3, "PDB1")
 				mock.ExpectQuery(regexp.QuoteMeta("CASE WHEN " + schemaIndexExpressionColumn + " THEN 'YES' ELSE 'NO' END")).
 					WillReturnRows(sqlmock.NewRows([]string{"CON_ID", "OWNER", "TABLE_NAME", "COLUMN_NAME", "EXPRESSION_COLUMN", "DATA_DEFAULT"}).
@@ -248,7 +248,7 @@ func TestSchemaIndexExpressionsPreserveOrdinaryHiddenColumns(t *testing.T) {
 			c.enrichSchemaColumnValues(context.Background(), details, columns)
 			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_OID$"}}, details[key].Indexes[0].Columns)
 			require.Equal(t, []indexKeyPart{{Column: "SYS_NC_OID$"}, {Expression: "UPPER(C)"}, {Column: "SYS_NC_USER"}}, details[key].Indexes[1].Columns)
-			if version == "12.1.0.2.0" {
+			if version == "12.2.0.1.0" {
 				require.Equal(t, "42", details[key].ColumnDefaults["SYS_NC_USER"])
 			}
 			require.NoError(t, mock.ExpectationsWereMet())
@@ -263,7 +263,7 @@ func TestSchemaContainerNameIsQuoted(t *testing.T) {
 func TestSchemaLocalColumnValuesKeepStableBoundSQL(t *testing.T) {
 	build := func(id int64, owner, table, column string) schemaSQL {
 		keys := map[columnKey]struct{}{{tableKey: tableKey{conID: id, owner: owner, table: table}, column: column}: {}}
-		filters := columnFilterChunks(keys, relationColumnNames{conID: schemaCurrentContainerID, owner: "c.owner", relation: "c.table_name"}, "c.column_name")
+		filters := columnFilterChunks(keys, schemaObjectColumns{conID: schemaCurrentContainerID, owner: "c.owner", name: "c.table_name"}, "c.column_name")
 		require.Len(t, filters, 1)
 		return filters[0]
 	}
@@ -283,7 +283,7 @@ func TestSchemaLocalColumnValuesKeepStableBoundSQL(t *testing.T) {
 }
 
 func TestSchemaSparseDefaultsPreserveNullVirtualAndHiddenColumns(t *testing.T) {
-	for _, version := range []string{"12.1.0.2.0", "19.0.0.0.0", "21.3.0.0.0", "23.0.0.0.0"} {
+	for _, version := range []string{"12.2.0.1.0", "19.0.0.0.0", "21.3.0.0.0", "23.0.0.0.0"} {
 		t.Run(version, func(t *testing.T) {
 			c, _, mock, cleanup := newSchemaCheck(t)
 			defer cleanup()
@@ -295,6 +295,9 @@ func TestSchemaSparseDefaultsPreserveNullVirtualAndHiddenColumns(t *testing.T) {
 			}
 			longDefault := strings.Repeat("界", 4001)
 			for _, view := range []string{"cdb_blockchain_tables", "cdb_immutable_tables", "cdb_mviews", "cdb_tab_comments", "cdb_col_comments"} {
+				if (view == "cdb_blockchain_tables" && isDbVersionLessThan(&c, "19.10")) || (view == "cdb_immutable_tables" && isDbVersionLessThan(&c, "19.11")) {
+					continue
+				}
 				mock.ExpectQuery("FROM " + view).WillReturnRows(sqlmock.NewRows([]string{"UNUSED"}))
 			}
 			if version == "23.0.0.0.0" {
@@ -306,7 +309,7 @@ func TestSchemaSparseDefaultsPreserveNullVirtualAndHiddenColumns(t *testing.T) {
 						AddRow(3, "APP", "T", "SYS_NC_USER", "42").
 						AddRow(3, "APP", "T", "VIRTUAL_VALUE", "ID * 2"))
 			}
-			mock.ExpectQuery("FROM cdb_indexes").WithArgs(schemaRelationArgs(3, "APP", "T")...).WillReturnRows(
+			mock.ExpectQuery("FROM cdb_indexes").WithArgs(schemaObjectArgs(3, "APP", "T")...).WillReturnRows(
 				sqlmock.NewRows([]string{"CON_ID", "TABLE_OWNER", "TABLE_NAME", "INDEX_OWNER", "INDEX_NAME", "UNIQUENESS", "INDEX_TYPE", "COLUMN_NAME"}).
 					AddRow(3, "APP", "T", "APP", "A_OID", "UNIQUE", "NORMAL", "SYS_NC_OID$").
 					AddRow(3, "APP", "T", "APP", "B_FUNCTION", "NONUNIQUE", "FUNCTION-BASED NORMAL", "SYS_NC00002$").

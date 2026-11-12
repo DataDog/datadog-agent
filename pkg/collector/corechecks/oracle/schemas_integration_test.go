@@ -282,12 +282,14 @@ func setupSchemaFixtures(t *testing.T) string {
 			constraint dd_fk_target_pk primary key (k1, k2)
 		)`, schemaTestUser),
 		fmt.Sprintf(`create table %s.dd_fk_source (
-			id number,
+			id number not null,
 			ref_k1 number,
 			ref_k2 number,
-			code varchar2(10),
+			code varchar2(10) constraint dd_fk_source_code_nn not null,
 			constraint dd_fk_source_uk unique (code),
 			constraint dd_fk_source_chk check (id > 0),
+			check (ref_k1 <= ref_k2),
+			check ("REF_K1" IS NOT NULL),
 			constraint dd_fk_source_fk foreign key (ref_k1, ref_k2) references %s.dd_fk_target (k1, k2)
 		)`, schemaTestUser, schemaTestUser),
 
@@ -687,6 +689,30 @@ func TestSchemaCollectionIndexesAndConstraints(t *testing.T) {
 	assert.Contains(t, strings.ToUpper(chk.Condition), "ID")
 	assert.Contains(t, chk.Condition, ">")
 
+	notNull := findConstraint(source.Constraints, "dd_fk_source_code_nn")
+	require.NotNil(t, notNull)
+	assert.Equal(t, "check", notNull.Type)
+	assert.Equal(t, []string{"CODE"}, notNull.Columns)
+	assert.Equal(t, `"CODE" IS NOT NULL`, notNull.Condition)
+	var unnamedChecks []*constraintInfo
+	for _, con := range source.Constraints {
+		if con.Type == "check" && strings.HasPrefix(strings.ToUpper(con.Name), "SYS_C") {
+			unnamedChecks = append(unnamedChecks, con)
+		}
+	}
+	require.Len(t, unnamedChecks, 2)
+	for _, check := range unnamedChecks {
+		if check.Condition == `"REF_K1" IS NOT NULL` {
+			assert.Equal(t, []string{"REF_K1"}, check.Columns)
+		} else {
+			assert.ElementsMatch(t, []string{"REF_K1", "REF_K2"}, check.Columns)
+			assert.Contains(t, strings.ToUpper(check.Condition), "REF_K1")
+			assert.Contains(t, strings.ToUpper(check.Condition), "REF_K2")
+			assert.Contains(t, check.Condition, "<=")
+		}
+	}
+	assert.Len(t, source.Constraints, 6)
+
 	fk := findConstraint(source.Constraints, "dd_fk_source_fk")
 	require.NotNil(t, fk, "two-column foreign key was not collected")
 	assert.Equal(t, "foreign_key", fk.Type)
@@ -718,7 +744,7 @@ func TestSchemaCollectionFunctionBasedIndexColumnsReportExpression(t *testing.T)
 	assert.Equal(t, `UPPER("C")`, strings.ToUpper(compositeFBI.Columns[1].Expression))
 }
 
-func TestSchemaCollectionRelationKinds(t *testing.T) {
+func TestSchemaCollectionObjectKinds(t *testing.T) {
 	setupSchemaFixtures(t)
 	events := tableEvents(collectSchemaEvents(t))
 

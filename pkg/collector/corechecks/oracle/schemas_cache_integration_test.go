@@ -117,7 +117,7 @@ func testSchemaCollectionReusesCachedSQLAgainstDatabase(t *testing.T, legacy boo
 	defer c.Teardown()
 	require.NoError(t, c.init())
 	if legacy {
-		c.dbVersion = "12.1.0.2.0"
+		c.dbVersion = "12.2.0.1.0"
 	}
 	c.db.SetMaxOpenConns(1)
 	conn, err := c.db.Connx(ctx)

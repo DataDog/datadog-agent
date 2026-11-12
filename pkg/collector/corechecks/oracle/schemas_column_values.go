@@ -96,7 +96,7 @@ func (c *Check) enrichSchemaColumnValues(ctx context.Context, details map[tableK
 		return nil
 	}
 	if !local {
-		filters := columnFilterChunks(selected, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")
+		filters := columnFilterChunks(selected, schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"}, "c.column_name")
 		query := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", "c.data_default_vc", 1)
 		query += " AND " + schemaIndexExpressionColumn
 		_ = c.queryDetailFilters(ctx, "index expressions", query, filters, scan)
@@ -116,7 +116,7 @@ func (c *Check) enrichSchemaColumnValues(ctx context.Context, details map[tableK
 	slices.Sort(ids)
 	for _, id := range ids {
 		err := c.withSchemaContainer(ctx, id, func() error {
-			filters := columnFilterChunks(byContainer[id], relationColumnNames{conID: schemaCurrentContainerID, owner: "c.owner", relation: "c.table_name"}, "c.column_name")
+			filters := columnFilterChunks(byContainer[id], schemaObjectColumns{conID: schemaCurrentContainerID, owner: "c.owner", name: "c.table_name"}, "c.column_name")
 			for _, filter := range filters {
 				query := strings.Replace(localColumnValuesQuery, "/*RELATIONS*/", filter.text, 1)
 				if err := c.queryMetadata(ctx, query, scan, filter.args...); err != nil {

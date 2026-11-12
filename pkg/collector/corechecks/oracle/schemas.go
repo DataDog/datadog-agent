@@ -13,7 +13,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"regexp"
+	"math"
 	"sort"
 	"strconv"
 	"strings"
@@ -25,6 +25,8 @@ import (
 )
 
 const defaultSchemaPayloadChunkSize = 1000
+
+const maxSchemaPayloadBytes = 20_000_000
 
 const schemaOwnersQuery = `SELECT con_id, username, user_id FROM cdb_users WHERE oracle_maintained = 'N'`
 
@@ -91,7 +93,7 @@ SELECT
 	t.table_name,
 	t.temporary,
 	NVL(t.duration, '-') AS duration,
-	t.external,
+	t.external AS external,
 	NVL(t.iot_type, '-') AS iot_type,
 	NVL(t.partitioned, 'NO') AS partitioned,
 	NVL(t.cluster_name, '-') AS cluster_name,
@@ -132,7 +134,7 @@ SELECT
 	t.table_name,
 	t.temporary,
 	NVL(t.duration, '-') AS duration,
-	t.external,
+	t.external AS external,
 	NVL(t.iot_type, '-') AS iot_type,
 	NVL(t.partitioned, 'NO') AS partitioned,
 	NVL(t.cluster_name, '-') AS cluster_name,
@@ -196,7 +198,7 @@ FROM cdb_views WHERE /*RELATIONS*/`
 const viewObjectsQuery = `SELECT con_id, owner, object_name, created, last_ddl_time
 FROM cdb_objects WHERE object_type = 'VIEW' AND /*RELATIONS*/`
 
-// These 21c+ views are optional and separately granted.
+// These optional, separately granted views were backported in 19.10 and 19.11.
 const blockchainTablesQuery = `SELECT con_id, schema_name, table_name, row_retention, row_retention_locked,
 	table_inactivity_retention, hash_algorithm, /*TABLE_VERSION*/ AS table_version
 FROM cdb_blockchain_tables WHERE /*RELATIONS*/`
@@ -254,7 +256,12 @@ const constraintsQuery = `SELECT c.con_id, c.owner, c.table_name, c.constraint_n
 FROM cdb_constraints c
 JOIN cdb_cons_columns cc
 	ON cc.con_id = c.con_id AND cc.owner = c.owner AND cc.constraint_name = c.constraint_name
-WHERE (c.constraint_type IN ('P', 'U', 'R') OR (c.constraint_type = 'C' AND c.generated = 'USER NAME'))
+WHERE (c.constraint_type IN ('P', 'U', 'R') OR (c.constraint_type = 'C'
+	AND NOT (c.generated = 'GENERATED NAME'
+		AND NVL(c.search_condition_vc, '-') = '"' || REPLACE(cc.column_name, '"', '""') || '" IS NOT NULL'
+		AND EXISTS (SELECT 1 FROM cdb_tab_cols tc
+			WHERE tc.con_id = c.con_id AND tc.owner = c.owner AND tc.table_name = c.table_name
+				AND tc.column_name = cc.column_name AND tc.nullable = 'N'))))
 	AND /*RELATIONS*/
 ORDER BY c.con_id, c.owner, c.table_name, c.constraint_name, cc.position, cc.column_name`
 
@@ -288,19 +295,17 @@ AND EXISTS (SELECT 1 FROM cdb_users u WHERE u.con_id = v$containers.con_id AND u
 
 // ORA-01795 limits an IN list to 1000 expressions.
 const (
-	maxSchemaOwners            = 1000
-	maxSchemaRelationsPerQuery = 1000
-	schemaRelationPageSize     = 100
-	schemaConstraintPageSize   = 1000
-	schemaColumnBindSlots      = 50
+	maxSchemaOwners          = 1000
+	maxSchemaItemsPerQuery   = 1000
+	schemaTablePageSize      = 100
+	schemaConstraintPageSize = 1000
+	schemaColumnBindSlots    = 50
 )
 
 const (
 	oracleErrorInvalidIdentifier       = "ORA-00904"
 	oracleErrorTableOrViewDoesNotExist = "ORA-00942"
 )
-
-var schemaOwnerPattern = regexp.MustCompile(`^[A-Z0-9_$#]+$`)
 
 type schemaRowDB struct {
 	ConID            int64          `db:"CON_ID"`
@@ -495,6 +500,7 @@ type schemaSnapshot struct {
 	startedAt int64
 	count     int
 	pending   *schemaEvent
+	truncated bool
 }
 
 type schemaSnapshotCoordinator struct {
@@ -526,11 +532,71 @@ func (c *schemaSnapshotCoordinator) add(event schemaEvent) {
 		c.snapshots[containerID] = snapshot
 		c.order = append(c.order, containerID)
 	}
+	event.CollectionStartedAt = snapshot.startedAt
+	event.CollectionPayloadsCount = 0
+	event.Truncated = event.Truncated || snapshot.truncated
+	// Completion can add both fields after this event has been buffered.
+	bounded := event
+	bounded.CollectionPayloadsCount = math.MaxInt
+	bounded.Truncated = true
+	payload, err := json.Marshal(bounded)
+	if err != nil {
+		c.err = err
+		return
+	}
+	if len(payload) > maxSchemaPayloadBytes {
+		container := event.Metadata[0]
+		schemas := container.Schemas
+		if len(schemas) == 0 {
+			c.err = fmt.Errorf("schema payload envelope exceeds %d bytes", maxSchemaPayloadBytes)
+			return
+		}
+		left, right := container, container
+		if len(schemas) > 1 {
+			middle := len(schemas) / 2
+			left.Schemas, right.Schemas = schemas[:middle], schemas[middle:]
+		} else {
+			schema := schemas[0]
+			objects := len(schema.Tables) + len(schema.Views)
+			if objects <= 1 {
+				if objects == 0 {
+					c.err = fmt.Errorf("schema payload envelope for owner %q exceeds %d bytes", schema.Owner, maxSchemaPayloadBytes)
+					return
+				}
+				kind, name := "table", ""
+				if len(schema.Tables) == 1 {
+					name = schema.Tables[0].Name
+				} else {
+					kind, name = "view", schema.Views[0].Name
+				}
+				log.Warnf("Oracle schema collection skipped oversized %s: database_instance=%q container=%q con_id=%s owner=%q name=%q encoded_bytes=%d limit_bytes=%d; snapshot marked truncated",
+					kind, event.DatabaseInstance, container.Name, container.ID, schema.Owner, name, len(payload), maxSchemaPayloadBytes)
+				snapshot.truncated = true
+				if snapshot.pending != nil {
+					snapshot.pending.Truncated = true
+					return
+				}
+				container.Schemas = nil
+				event.Metadata = []containerObject{container}
+				c.add(event)
+				return
+			}
+			first, second := *schema, *schema
+			tables := min(objects/2, len(schema.Tables))
+			views := max(0, objects/2-len(schema.Tables))
+			first.Tables, second.Tables = schema.Tables[:tables], schema.Tables[tables:]
+			first.Views, second.Views = schema.Views[:views], schema.Views[views:]
+			left.Schemas, right.Schemas = []*schemaObject{&first}, []*schemaObject{&second}
+		}
+		event.Metadata = []containerObject{left}
+		c.add(event)
+		event.Metadata = []containerObject{right}
+		c.add(event)
+		return
+	}
 	if snapshot.pending != nil {
 		c.emitEvent(*snapshot.pending)
 	}
-	event.CollectionStartedAt = snapshot.startedAt
-	event.CollectionPayloadsCount = 0
 	snapshot.count++
 	snapshot.pending = &event
 }
@@ -879,6 +945,8 @@ func dataType(r schemaRowDB) string {
 				scale = r.DataScale.Int64
 			}
 			rendered = fmt.Sprintf("NUMBER(%d,%d)", r.DataPrecision.Int64, scale)
+		} else if r.DataScale.Valid {
+			rendered = fmt.Sprintf("NUMBER(*,%d)", r.DataScale.Int64)
 		} else {
 			rendered = t
 		}
@@ -978,10 +1046,6 @@ func (c *Check) schemaOwners(ctx context.Context, containers map[int64]string) (
 		if _, ok := containers[conID]; !ok {
 			return nil
 		}
-		if !schemaOwnerPattern.MatchString(name) {
-			log.Warnf("%s skipping schema owner with unexpected characters: %q", c.logPrompt, name)
-			return nil
-		}
 		id := ""
 		if userID.Valid {
 			id = strconv.FormatInt(userID.Int64, 10)
@@ -1019,10 +1083,10 @@ func ownerListChunks(names []string) []schemaSQL {
 	return chunks
 }
 
-type relationColumnNames struct {
-	conID    string
-	owner    string
-	relation string
+type schemaObjectColumns struct {
+	conID string
+	owner string
+	name  string
 }
 
 type columnKey struct {
@@ -1030,7 +1094,7 @@ type columnKey struct {
 	column string
 }
 
-func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnNames, joined ...relationColumnNames) []schemaSQL {
+func objectFilterChunks(allowed map[tableKey]struct{}, columns schemaObjectColumns, joined ...schemaObjectColumns) []schemaSQL {
 	keys := make([]tableKey, 0, len(allowed))
 	for key := range allowed {
 		keys = append(keys, key)
@@ -1045,13 +1109,13 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 		return keys[i].table < keys[j].table
 	})
 
-	filters := make([]schemaSQL, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
-	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
-		end := start + maxSchemaRelationsPerQuery
+	filters := make([]schemaSQL, 0, (len(keys)+maxSchemaItemsPerQuery-1)/maxSchemaItemsPerQuery)
+	for start := 0; start < len(keys); start += maxSchemaItemsPerQuery {
+		end := start + maxSchemaItemsPerQuery
 		if end > len(keys) {
 			end = len(keys)
 		}
-		aliases := append([]relationColumnNames{columns}, joined...)
+		aliases := append([]schemaObjectColumns{columns}, joined...)
 		groups := make([][]string, len(aliases))
 		var filter schemaSQL
 		ownerGroups := 1
@@ -1060,7 +1124,7 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 				ownerGroups++
 			}
 		}
-		bindSlots := min(schemaRelationPageSize, maxSchemaRelationsPerQuery/ownerGroups)
+		bindSlots := min(schemaTablePageSize, maxSchemaItemsPerQuery/ownerGroups)
 		var commonContainer string
 		if ownerGroups > 1 && keys[start].conID == keys[end-1].conID {
 			commonContainer = filter.bind("pagecon", keys[start].conID)
@@ -1080,9 +1144,9 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 				container = filter.bind(prefix+"con", keys[i].conID)
 			}
 			owner := filter.bind(prefix+"owner", keys[i].owner)
-			relations := filter.stringList(prefix+"name", names, bindSlots)
+			namesSQL := filter.stringList(prefix+"name", names, bindSlots)
 			for index, alias := range aliases {
-				group := fmt.Sprintf("%s = %s AND %s IN (%s)", alias.owner, owner, alias.relation, relations)
+				group := fmt.Sprintf("%s = %s AND %s IN (%s)", alias.owner, owner, alias.name, namesSQL)
 				if commonContainer == "" {
 					group = alias.conID + " = " + container + " AND " + group
 				}
@@ -1104,7 +1168,7 @@ func relationFilterChunks(allowed map[tableKey]struct{}, columns relationColumnN
 	return filters
 }
 
-func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNames, columnName string) []schemaSQL {
+func columnFilterChunks(allowed map[columnKey]struct{}, columns schemaObjectColumns, columnName string) []schemaSQL {
 	keys := make([]columnKey, 0, len(allowed))
 	for key := range allowed {
 		keys = append(keys, key)
@@ -1122,9 +1186,9 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 		return keys[i].column < keys[j].column
 	})
 
-	filters := make([]schemaSQL, 0, (len(keys)+maxSchemaRelationsPerQuery-1)/maxSchemaRelationsPerQuery)
-	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
-		end := start + maxSchemaRelationsPerQuery
+	filters := make([]schemaSQL, 0, (len(keys)+maxSchemaItemsPerQuery-1)/maxSchemaItemsPerQuery)
+	for start := 0; start < len(keys); start += maxSchemaItemsPerQuery {
+		end := start + maxSchemaItemsPerQuery
 		if end > len(keys) {
 			end = len(keys)
 		}
@@ -1136,7 +1200,7 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 				tableGroups++
 			}
 		}
-		bindSlots := min(schemaColumnBindSlots, maxSchemaRelationsPerQuery/tableGroups)
+		bindSlots := min(schemaColumnBindSlots, maxSchemaItemsPerQuery/tableGroups)
 		columnCount := (end - start) / tableGroups
 		sharedColumns := tableGroups > 1 && (end-start)%tableGroups == 0 &&
 			keys[start].conID == keys[end-1].conID && keys[start].owner == keys[end-1].owner
@@ -1158,7 +1222,7 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 			for offset := range names {
 				names[offset] = keys[start+offset].column
 			}
-			filter = relationFilterChunks(tables, columns)[0]
+			filter = objectFilterChunks(tables, columns)[0]
 			filter.text += " AND " + columnName + " IN (" + filter.stringList("sharedColumn", names, schemaColumnBindSlots) + ")"
 			filters = append(filters, filter)
 			continue
@@ -1183,7 +1247,7 @@ func columnFilterChunks(allowed map[columnKey]struct{}, columns relationColumnNa
 			}
 			group := fmt.Sprintf("%s = %s AND %s = %s AND %s IN (%s)",
 				columns.owner, filter.bind(prefix+"owner", keys[i].owner),
-				columns.relation, filter.bind(prefix+"table", keys[i].table),
+				columns.name, filter.bind(prefix+"table", keys[i].table),
 				columnName, filter.stringList(prefix+"name", names, bindSlots))
 			if commonContainer == "" {
 				group = columns.conID + " = " + container + " AND " + group
@@ -1219,8 +1283,8 @@ func schemaColumnDefaultQueries(allowed map[columnKey]struct{}) []schemaSQL {
 	})
 	template := strings.Replace(columnDefaultsQuery, "/*DEFAULT_COL*/", "c.data_default_vc", 1)
 	var queries []schemaSQL
-	for start := 0; start < len(keys); start += maxSchemaRelationsPerQuery {
-		end := min(start+maxSchemaRelationsPerQuery, len(keys))
+	for start := 0; start < len(keys); start += maxSchemaItemsPerQuery {
+		end := min(start+maxSchemaItemsPerQuery, len(keys))
 		var filters []schemaSQL
 		for i := start; i < end; {
 			j := i + 1
@@ -1232,12 +1296,12 @@ func schemaColumnDefaultQueries(allowed map[columnKey]struct{}) []schemaSQL {
 				selected[key] = struct{}{}
 			}
 			filters = append(filters, columnFilterChunks(selected,
-				relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"}, "c.column_name")...)
+				schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"}, "c.column_name")...)
 			i = j
 		}
 		for first := 0; first < len(filters); {
 			last, bindings := first+1, len(filters[first].args)
-			for last < len(filters) && bindings+len(filters[last].args) <= 5*maxSchemaRelationsPerQuery {
+			for last < len(filters) && bindings+len(filters[last].args) <= 5*maxSchemaItemsPerQuery {
 				bindings += len(filters[last].args)
 				last++
 			}
@@ -1276,17 +1340,17 @@ func schemaReferencedConstraintColumnQueries(targets map[constraintKey]tableKey)
 	sort.Strings(names)
 	var queries []schemaSQL
 	// Splitting names before tables keeps a target in only one query when a table has many constraints.
-	for start := 0; start < len(names); start += maxSchemaRelationsPerQuery {
-		end := min(start+maxSchemaRelationsPerQuery, len(names))
+	for start := 0; start < len(names); start += maxSchemaItemsPerQuery {
+		end := min(start+maxSchemaItemsPerQuery, len(names))
 		tables := make(map[tableKey]struct{})
 		for _, name := range names[start:end] {
 			for _, table := range byName[name] {
 				tables[table] = struct{}{}
 			}
 		}
-		filters := relationFilterChunks(tables, relationColumnNames{conID: "cc.con_id", owner: "cc.owner", relation: "cc.table_name"})
+		filters := objectFilterChunks(tables, schemaObjectColumns{conID: "cc.con_id", owner: "cc.owner", name: "cc.table_name"})
 		for _, filter := range filters {
-			constraintNames := filter.stringList("targetConstraint", names[start:end], schemaRelationPageSize)
+			constraintNames := filter.stringList("targetConstraint", names[start:end], schemaTablePageSize)
 			filter.text = strings.NewReplacer("/*RELATIONS*/", filter.text, "/*CONSTRAINTS*/", constraintNames).Replace(referencedConstraintColumnsQuery)
 			queries = append(queries, filter)
 		}
@@ -1295,10 +1359,10 @@ func schemaReferencedConstraintColumnQueries(targets map[constraintKey]tableKey)
 }
 
 func schemaIndexQueries(allowed map[tableKey]struct{}) []schemaSQL {
-	filters := relationFilterChunks(allowed,
-		relationColumnNames{conID: "i.con_id", owner: "i.table_owner", relation: "i.table_name"})
-	columnFilters := relationFilterChunks(allowed,
-		relationColumnNames{conID: "ic.con_id", owner: "ic.table_owner", relation: "ic.table_name"})
+	filters := objectFilterChunks(allowed,
+		schemaObjectColumns{conID: "i.con_id", owner: "i.table_owner", name: "i.table_name"})
+	columnFilters := objectFilterChunks(allowed,
+		schemaObjectColumns{conID: "ic.con_id", owner: "ic.table_owner", name: "ic.table_name"})
 	for i := range filters {
 		filters[i].text = strings.NewReplacer(
 			"/*RELATIONS*/", filters[i].text,
@@ -1407,8 +1471,8 @@ func (c *Check) queryDetailQueries(ctx context.Context, name string, queries []s
 	return nil
 }
 
-func (c *Check) queryDetails(ctx context.Context, name, template string, allowed map[tableKey]struct{}, columns relationColumnNames, scan func(*sqlx.Rows) error) error {
-	return c.queryDetailFilters(ctx, name, template, relationFilterChunks(allowed, columns), scan)
+func (c *Check) queryDetails(ctx context.Context, name, template string, allowed map[tableKey]struct{}, columns schemaObjectColumns, scan func(*sqlx.Rows) error) error {
+	return c.queryDetailFilters(ctx, name, template, objectFilterChunks(allowed, columns), scan)
 }
 
 func constraintType(t string) string {
@@ -1487,9 +1551,9 @@ func (c *Check) tableConstraintsForPage(ctx context.Context, allowed map[tableKe
 	// Foreign keys identify referenced constraints, so resolve their tables after scanning all rows.
 	primaryKeys := make(map[constraintKey]*constraintInfo)
 	query := strings.Replace(constraintsQuery, "/*CONDITION_COL*/", c.conditionColumn(), 1)
-	filters := relationFilterChunks(allowed,
-		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"},
-		relationColumnNames{conID: "cc.con_id", owner: "cc.owner", relation: "cc.table_name"})
+	filters := objectFilterChunks(allowed,
+		schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"},
+		schemaObjectColumns{conID: "cc.con_id", owner: "cc.owner", name: "cc.table_name"})
 	queries := make([]schemaSQL, len(filters))
 	for i, filter := range filters {
 		queries[i] = schemaSQL{text: strings.Replace(query, "/*RELATIONS*/", filter.text, 1), args: filter.args, positional: true}
@@ -1565,8 +1629,8 @@ func (c *Check) tableConstraintsForPage(ctx context.Context, allowed map[tableKe
 		referencedKeys[tableKey{conID: key.conID, owner: key.owner, table: key.name}] = struct{}{}
 	}
 	referencedTables := make(map[constraintKey]tableKey)
-	filters = relationFilterChunks(referencedKeys,
-		relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.constraint_name"})
+	filters = objectFilterChunks(referencedKeys,
+		schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.constraint_name"})
 	_ = c.queryDetailFilters(ctx, "referenced constraints", referencedConstraintsQuery, filters, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, table string
@@ -1584,23 +1648,31 @@ func (c *Check) tableConstraintsForPage(ctx context.Context, allowed map[tableKe
 		referencedTables[key] = target
 		return nil
 	})
-	_ = c.queryDetailQueries(ctx, "referenced constraint columns", schemaReferencedConstraintColumnQueries(referencedTables), func(rows *sqlx.Rows) error {
-		var conID int64
-		var owner, name, table, column string
-		if err := rows.Scan(&conID, &owner, &name, &table, &column); err != nil {
-			return err
-		}
-		key := constraintKey{conID: conID, owner: owner, name: name}
-		if target, ok := referencedTables[key]; !ok || target != (tableKey{conID: conID, owner: owner, table: table}) {
+	for _, query := range schemaReferencedConstraintColumnQueries(referencedTables) {
+		columns := make(map[constraintKey][]string)
+		if err := c.queryDetailQueries(ctx, "referenced constraint columns", []schemaSQL{query}, func(rows *sqlx.Rows) error {
+			var conID int64
+			var owner, name, table, column string
+			if err := rows.Scan(&conID, &owner, &name, &table, &column); err != nil {
+				return err
+			}
+			key := constraintKey{conID: conID, owner: owner, name: name}
+			if target, ok := referencedTables[key]; !ok || target != (tableKey{conID: conID, owner: owner, table: table}) {
+				return nil
+			}
+			columns[key] = append(columns[key], column)
 			return nil
+		}); err != nil {
+			break
 		}
-		for _, con := range referenced[key] {
-			con.ReferencedTable = table
-			con.ReferencedColumns = append(con.ReferencedColumns, column)
-			con.ReferencedConstraint = ""
+		for key, targetColumns := range columns {
+			for _, con := range referenced[key] {
+				con.ReferencedTable = referencedTables[key].table
+				con.ReferencedColumns = targetColumns
+				con.ReferencedConstraint = ""
+			}
 		}
-		return nil
-	})
+	}
 
 	return details
 }
@@ -1642,7 +1714,7 @@ func (c *Check) loadSchemaColumnDetails(ctx context.Context, commentFilters, def
 	})
 }
 
-func (c *Check) tableDetailsForPageWithRelations(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}, externalTables, partitionedTables map[tableKey]struct{}) map[tableKey]*tableDetails {
+func (c *Check) tableDetailsForPageWithKinds(ctx context.Context, allowed map[tableKey]struct{}, allowedColumns map[columnKey]struct{}, externalTables, partitionedTables map[tableKey]struct{}) map[tableKey]*tableDetails {
 	details := make(map[tableKey]*tableDetails)
 	at := func(conID int64, owner, table string) *tableDetails {
 		k := tableKey{conID: conID, owner: owner, table: table}
@@ -1695,14 +1767,19 @@ func (c *Check) tableDetailsForPageWithRelations(ctx context.Context, allowed ma
 		}
 	}
 
-	blockchainQuery := strings.Replace(blockchainTablesQuery, "/*TABLE_VERSION*/", c.blockchainTableVersionColumn(), 1)
-	blockchainErr := c.queryDetails(ctx, "blockchain", blockchainQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(true))
-	immutableErr := c.queryDetails(ctx, "immutable", immutableTablesQuery, allowed, relationColumnNames{conID: "con_id", owner: "schema_name", relation: "table_name"}, scanRetention(false))
+	var blockchainErr, immutableErr error
+	if !isDbVersionLessThan(c, "19.10") {
+		blockchainQuery := strings.Replace(blockchainTablesQuery, "/*TABLE_VERSION*/", c.blockchainTableVersionColumn(), 1)
+		blockchainErr = c.queryDetails(ctx, "blockchain", blockchainQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "schema_name", name: "table_name"}, scanRetention(true))
+	}
+	if !isDbVersionLessThan(c, "19.11") {
+		immutableErr = c.queryDetails(ctx, "immutable", immutableTablesQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "schema_name", name: "table_name"}, scanRetention(false))
+	}
 	for key := range allowed {
 		at(key.conID, key.owner, key.table).PropertiesIncomplete = blockchainErr != nil || immutableErr != nil
 	}
 
-	_ = c.queryDetails(ctx, "materialized views", mviewsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "mview_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "materialized views", mviewsQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "owner", name: "mview_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, mode, method, staleness string
 		var lastRefresh sql.NullTime
@@ -1726,7 +1803,7 @@ func (c *Check) tableDetailsForPageWithRelations(ctx context.Context, allowed ma
 		return nil
 	})
 
-	_ = c.queryDetails(ctx, "table comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "table comments", tableCommentsQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "owner", name: "table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, table, comment string
 		if err := rows.Scan(&conID, &owner, &table, &comment); err != nil {
@@ -1737,7 +1814,7 @@ func (c *Check) tableDetailsForPageWithRelations(ctx context.Context, allowed ma
 	})
 
 	commentFilters := columnFilterChunks(allowedColumns,
-		relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, "column_name")
+		schemaObjectColumns{conID: "con_id", owner: "owner", name: "table_name"}, "column_name")
 	var defaultQueries []schemaSQL
 	if c.defaultValueColumn() == "c.data_default_vc" {
 		defaultQueries = schemaColumnDefaultQueries(allowedColumns)
@@ -1749,81 +1826,103 @@ func (c *Check) tableDetailsForPageWithRelations(ctx context.Context, allowed ma
 		return at(key.conID, key.owner, key.table)
 	})
 
-	_ = c.queryDetailQueries(ctx, "indexes", schemaIndexQueries(allowed), func(rows *sqlx.Rows) error {
-		var conID int64
-		var owner, table, indexOwner, name, uniqueness, indexType, column string
-		if err := rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column); err != nil {
-			return err
+	for _, query := range schemaIndexQueries(allowed) {
+		indexes := make(map[tableKey][]*indexInfo)
+		if err := c.queryDetailQueries(ctx, "indexes", []schemaSQL{query}, func(rows *sqlx.Rows) error {
+			var conID int64
+			var owner, table, indexOwner, name, uniqueness, indexType, column string
+			if err := rows.Scan(&conID, &owner, &table, &indexOwner, &name, &uniqueness, &indexType, &column); err != nil {
+				return err
+			}
+			key := tableKey{conID: conID, owner: owner, table: table}
+			var idx *indexInfo
+			if n := len(indexes[key]); n > 0 && indexes[key][n-1].owner == indexOwner && indexes[key][n-1].Name == name {
+				idx = indexes[key][n-1]
+			} else {
+				idx = &indexInfo{owner: indexOwner, Name: name, Unique: uniqueness == "UNIQUE", Type: indexType}
+				indexes[key] = append(indexes[key], idx)
+			}
+			idx.Columns = append(idx.Columns, indexKeyPart{Column: column})
+			return nil
+		}); err != nil {
+			break
 		}
-		d := at(conID, owner, table)
-		var idx *indexInfo
-		if n := len(d.Indexes); n > 0 && d.Indexes[n-1].owner == indexOwner && d.Indexes[n-1].Name == name {
-			idx = d.Indexes[n-1]
-		} else {
-			idx = &indexInfo{owner: indexOwner, Name: name, Unique: uniqueness == "UNIQUE", Type: indexType}
-			d.Indexes = append(d.Indexes, idx)
+		for key, tableIndexes := range indexes {
+			at(key.conID, key.owner, key.table).Indexes = tableIndexes
 		}
-		idx.Columns = append(idx.Columns, indexKeyPart{Column: column})
-		return nil
-	})
+	}
 	c.enrichSchemaColumnValues(ctx, details, allowedColumns)
 
-	_ = c.queryDetails(ctx, "external tables", externalTablesQuery, externalTables, relationColumnNames{conID: "et.con_id", owner: "et.owner", relation: "et.table_name"}, func(rows *sqlx.Rows) error {
-		var (
-			conID                  int64
-			owner, table, driver   string
-			directory, locationDir string
-			location               sql.NullString
-		)
-		if err := rows.Scan(&conID, &owner, &table, &driver, &directory, &locationDir, &location); err != nil {
-			return err
-		}
-		d := at(conID, owner, table)
-		if d.External == nil {
-			d.External = &externalDetail{}
-		}
-		d.External.AccessDriver = driver
-		if directory != "-" {
-			d.External.Directory = directory
-		}
-		if location.Valid {
-			loc := location.String
-			if locationDir != "-" {
-				loc = locationDir + ":" + loc
+	for _, filter := range objectFilterChunks(externalTables, schemaObjectColumns{conID: "et.con_id", owner: "et.owner", name: "et.table_name"}) {
+		external := make(map[tableKey]*externalDetail)
+		if err := c.queryDetailFilters(ctx, "external tables", externalTablesQuery, []schemaSQL{filter}, func(rows *sqlx.Rows) error {
+			var (
+				conID                  int64
+				owner, table, driver   string
+				directory, locationDir string
+				location               sql.NullString
+			)
+			if err := rows.Scan(&conID, &owner, &table, &driver, &directory, &locationDir, &location); err != nil {
+				return err
 			}
-			d.External.Locations = append(d.External.Locations, loc)
+			key := tableKey{conID: conID, owner: owner, table: table}
+			if external[key] == nil {
+				external[key] = &externalDetail{}
+			}
+			d := external[key]
+			d.AccessDriver = driver
+			if directory != "-" {
+				d.Directory = directory
+			}
+			if location.Valid {
+				loc := location.String
+				if locationDir != "-" {
+					loc = locationDir + ":" + loc
+				}
+				d.Locations = append(d.Locations, loc)
+			}
+			return nil
+		}); err != nil {
+			break
 		}
-		return nil
-	})
+		for key, detail := range external {
+			at(key.conID, key.owner, key.table).External = detail
+		}
+	}
 
-	keys := make(map[tableKey][]string)
-	_ = c.queryDetails(ctx, "partitioning", partTablesQuery, partitionedTables, relationColumnNames{conID: "pt.con_id", owner: "pt.owner", relation: "pt.table_name"}, func(rows *sqlx.Rows) error {
-		var (
-			conID          int64
-			owner, table   string
-			ptype, subtype sql.NullString
-			count          sql.NullInt64
-			col            sql.NullString
-		)
-		if err := rows.Scan(&conID, &owner, &table, &ptype, &subtype, &count, &col); err != nil {
-			return err
-		}
-		d := at(conID, owner, table)
-		if d.Partitioned == nil {
-			d.Partitioned = &partitionDetail{PartitioningType: ptype.String, NumPartitions: count.Int64}
-			if subtype.Valid && subtype.String != "NONE" {
-				d.Partitioned.SubpartitionsType = subtype.String
+	for _, filter := range objectFilterChunks(partitionedTables, schemaObjectColumns{conID: "pt.con_id", owner: "pt.owner", name: "pt.table_name"}) {
+		partitions := make(map[tableKey]*partitionDetail)
+		keys := make(map[tableKey][]string)
+		if err := c.queryDetailFilters(ctx, "partitioning", partTablesQuery, []schemaSQL{filter}, func(rows *sqlx.Rows) error {
+			var (
+				conID          int64
+				owner, table   string
+				ptype, subtype sql.NullString
+				count          sql.NullInt64
+				col            sql.NullString
+			)
+			if err := rows.Scan(&conID, &owner, &table, &ptype, &subtype, &count, &col); err != nil {
+				return err
 			}
+			key := tableKey{conID: conID, owner: owner, table: table}
+			if partitions[key] == nil {
+				partitions[key] = &partitionDetail{PartitioningType: ptype.String, NumPartitions: count.Int64}
+				if subtype.Valid && subtype.String != "NONE" {
+					partitions[key].SubpartitionsType = subtype.String
+				}
+			}
+			if col.Valid {
+				keys[key] = append(keys[key], col.String)
+			}
+			return nil
+		}); err != nil {
+			break
 		}
-		if col.Valid {
-			k := tableKey{conID: conID, owner: owner, table: table}
-			keys[k] = append(keys[k], col.String)
-		}
-		return nil
-	})
-	for k, cols := range keys {
-		if d := details[k]; d != nil && d.Partitioned != nil {
-			d.Partitioned.PartitionKey = fmt.Sprintf("%s (%s)", d.Partitioned.PartitioningType, strings.Join(cols, ", "))
+		for key, detail := range partitions {
+			if cols := keys[key]; len(cols) > 0 {
+				detail.PartitionKey = fmt.Sprintf("%s (%s)", detail.PartitioningType, strings.Join(cols, ", "))
+			}
+			at(key.conID, key.owner, key.table).Partitioned = detail
 		}
 	}
 
@@ -1831,14 +1930,14 @@ func (c *Check) tableDetailsForPageWithRelations(ctx context.Context, allowed ma
 }
 
 func (c *Check) tableIdentities(ctx context.Context, ownerLists []schemaSQL, owners map[ownerKey]string, tableFilters schemaSQL, maxTables int) ([]tableKey, map[int64]struct{}, error) {
-	return c.relationIdentities(ctx, tableIdentitiesQueryTemplate, ownerLists, owners, tableFilters, maxTables)
+	return c.objectIdentities(ctx, tableIdentitiesQueryTemplate, ownerLists, owners, tableFilters, maxTables)
 }
 
 func (c *Check) viewIdentities(ctx context.Context, ownerLists []schemaSQL, owners map[ownerKey]string, viewFilters schemaSQL, maxViews int) ([]tableKey, map[int64]struct{}, error) {
-	return c.relationIdentities(ctx, viewIdentitiesQueryTemplate, ownerLists, owners, viewFilters, maxViews)
+	return c.objectIdentities(ctx, viewIdentitiesQueryTemplate, ownerLists, owners, viewFilters, maxViews)
 }
 
-func (c *Check) relationIdentities(ctx context.Context, template string, ownerLists []schemaSQL, owners map[ownerKey]string, filters schemaSQL, limit int) ([]tableKey, map[int64]struct{}, error) {
+func (c *Check) objectIdentities(ctx context.Context, template string, ownerLists []schemaSQL, owners map[ownerKey]string, filters schemaSQL, limit int) ([]tableKey, map[int64]struct{}, error) {
 	byContainer := make(map[int64][]tableKey)
 	seen := make(map[tableKey]struct{})
 	containerSet := make(map[int64]struct{})
@@ -1914,8 +2013,8 @@ func (c *Check) viewPageRows(ctx context.Context, keys []tableKey, maxColumns in
 	for _, key := range keys {
 		allowed[key] = struct{}{}
 	}
-	filters := relationFilterChunks(allowed, relationColumnNames{conID: "v.con_id", owner: "v.owner", relation: "v.view_name"})
-	columnFilters := relationFilterChunks(allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"})
+	filters := objectFilterChunks(allowed, schemaObjectColumns{conID: "v.con_id", owner: "v.owner", name: "v.view_name"})
+	columnFilters := objectFilterChunks(allowed, schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"})
 	var pageRows []schemaRowDB
 	for i, filter := range filters {
 		query := strings.ReplaceAll(viewsQueryTemplate, "/*RELATIONS*/", filter.text)
@@ -1948,7 +2047,7 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 		}
 		return details[key]
 	}
-	_ = c.queryDetails(ctx, "view definitions", viewDefinitionsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "view_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "view definitions", viewDefinitionsQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "owner", name: "view_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name string
 		var value sql.NullString
@@ -1958,7 +2057,7 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 		at(conID, owner, name).Definition = value.String
 		return nil
 	})
-	_ = c.queryDetails(ctx, "view objects", viewObjectsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "object_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "view objects", viewObjectsQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "owner", name: "object_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name string
 		var created, modified sql.NullTime
@@ -1974,7 +2073,7 @@ func (c *Check) viewDetailsForPage(ctx context.Context, allowed map[tableKey]str
 		}
 		return nil
 	})
-	_ = c.queryDetails(ctx, "view comments", tableCommentsQuery, allowed, relationColumnNames{conID: "con_id", owner: "owner", relation: "table_name"}, func(rows *sqlx.Rows) error {
+	_ = c.queryDetails(ctx, "view comments", tableCommentsQuery, allowed, schemaObjectColumns{conID: "con_id", owner: "owner", name: "table_name"}, func(rows *sqlx.Rows) error {
 		var conID int64
 		var owner, name, comment string
 		if err := rows.Scan(&conID, &owner, &name, &comment); err != nil {
@@ -1991,8 +2090,8 @@ func (c *Check) queryTablePageRows(ctx context.Context, keys []tableKey, maxColu
 	for _, key := range keys {
 		allowed[key] = struct{}{}
 	}
-	filters := relationFilterChunks(allowed, relationColumnNames{conID: "t.con_id", owner: "t.owner", relation: "t.table_name"})
-	columnFilters := relationFilterChunks(allowed, relationColumnNames{conID: "c.con_id", owner: "c.owner", relation: "c.table_name"})
+	filters := objectFilterChunks(allowed, schemaObjectColumns{conID: "t.con_id", owner: "t.owner", name: "t.table_name"})
+	columnFilters := objectFilterChunks(allowed, schemaObjectColumns{conID: "c.con_id", owner: "c.owner", name: "c.table_name"})
 	for i, filter := range filters {
 		ownerList := ownerListForKeys(keys)
 		query := strings.ReplaceAll(schemasQueryTemplate, "/*OWNERS*/", ownerList.text)
@@ -2019,7 +2118,7 @@ func (c *Check) queryTablePageRows(ctx context.Context, keys []tableKey, maxColu
 }
 
 func (c *Check) hydrateTablePages(ctx context.Context, keys []tableKey, maxColumns int, process func([]schemaRowDB) error) error {
-	return forEachTablePage(keys, schemaRelationPageSize, func(page []tableKey) error {
+	return forEachTablePage(keys, schemaTablePageSize, func(page []tableKey) error {
 		allowed := make(map[tableKey]struct{}, len(page))
 		for _, key := range page {
 			allowed[key] = struct{}{}
@@ -2054,7 +2153,7 @@ func ownerListForKeys(keys []tableKey) schemaSQL {
 	}
 	sort.Strings(names)
 	var query schemaSQL
-	query.text = query.stringList("pageOwner", names, schemaRelationPageSize)
+	query.text = query.stringList("pageOwner", names, schemaTablePageSize)
 	return query
 }
 
@@ -2098,9 +2197,17 @@ func columnKeysFromRows(rows []schemaRowDB) map[columnKey]struct{} {
 }
 
 func schemaCollectionVersionSupported(version string) bool {
-	major, _, _ := strings.Cut(version, ".")
+	major, rest, _ := strings.Cut(version, ".")
 	n, err := strconv.Atoi(major)
-	return err == nil && n >= 12
+	if err != nil || n < 12 {
+		return false
+	}
+	if n > 12 {
+		return true
+	}
+	minor, _, _ := strings.Cut(rest, ".")
+	n, err = strconv.Atoi(minor)
+	return err == nil && n >= 2
 }
 
 func (c *Check) SchemaCollection() error {
@@ -2119,8 +2226,8 @@ func (c *Check) schemaTableWindow(ctx context.Context, window []tableKey, select
 	total := 0
 	err := c.hydrateTablePages(ctx, window, c.config.Schemas.MaxColumns, func(rows []schemaRowDB) error {
 		pageTables := tableKeysFromRows(rows)
-		external, partitioned := schemaDetailRelations(rows, pageTables)
-		details := c.tableDetailsForPageWithRelations(ctx, pageTables, columnKeysFromRows(rows), external, partitioned)
+		external, partitioned := schemaDetailTables(rows, pageTables)
+		details := c.tableDetailsForPageWithKinds(ctx, pageTables, columnKeysFromRows(rows), external, partitioned)
 		for key := range pageTables {
 			if constraintDetails := constraints[key]; constraintDetails != nil {
 				if details[key] == nil {
@@ -2155,7 +2262,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 		return err
 	}
 	if !schemaCollectionVersionSupported(c.dbVersion) {
-		log.Warnf("%s schema collection requires Oracle %sc or later", c.logPrompt, minMultitenantVersion)
+		log.Warnf("%s schema collection requires Oracle 12.2 or later", c.logPrompt)
 		return nil
 	}
 
@@ -2277,7 +2384,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 				cappedViews[conID] = struct{}{}
 				containerTruncated[conID] = struct{}{}
 			}
-			if err := forEachTablePage(containerViewKeys, schemaRelationPageSize, func(page []tableKey) error {
+			if err := forEachTablePage(containerViewKeys, schemaTablePageSize, func(page []tableKey) error {
 				rows, err := c.viewPageRows(ctx, page, c.config.Schemas.MaxColumns)
 				if err != nil {
 					return err
@@ -2329,7 +2436,7 @@ func (c *Check) schemaCollection(ctx context.Context) error {
 	return errors.Join(collectionErr, c.schemaContextError(ctx))
 }
 
-func schemaDetailRelations(rows []schemaRowDB, allowed map[tableKey]struct{}) (map[tableKey]struct{}, map[tableKey]struct{}) {
+func schemaDetailTables(rows []schemaRowDB, allowed map[tableKey]struct{}) (map[tableKey]struct{}, map[tableKey]struct{}) {
 	type flags struct{ externalNo, partitionedNo bool }
 	observed := make(map[tableKey]flags)
 	for _, row := range rows {
