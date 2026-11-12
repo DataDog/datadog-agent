@@ -1455,3 +1455,20 @@ func TestInstrumentedStorageSelectionFilters(t *testing.T) {
 		})
 	}
 }
+
+func TestStorageSeriesCountByKind(t *testing.T) {
+	s := newDetectorTestStorage()
+	stable := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+	linear := addPipelinePoints(s, 2, 1, 3, metrics.GaugeType)
+	addPipelinePoints(s, 3, 1, 3, metrics.CountType)
+	s.AddWithKeyAndHostComposite(observer.TelemetryNamespace, "internal", "", 1, 1, tagset.CompositeTags{}, 4, metrics.GaugeType)
+	s.SetSeriesKind(stable, observer.STABLE)
+	s.SetSeriesKind(linear, observer.LINEAR)
+	require.Equal(t, [metricKindCount]uint64{0, 0, 1, 1}, s.SeriesCountByKind())
+	s.SetSeriesKind(stable, observer.UNKNOWN)
+	require.Equal(t, [metricKindCount]uint64{0, 1, 0, 1}, s.SeriesCountByKind())
+	s.ResetSeriesKinds()
+	require.Equal(t, [metricKindCount]uint64{2, 0, 0, 0}, s.SeriesCountByKind())
+	s.RemoveSeriesByRefs([]observer.SeriesRef{linear})
+	require.Equal(t, [metricKindCount]uint64{1, 0, 0, 0}, s.SeriesCountByKind())
+}

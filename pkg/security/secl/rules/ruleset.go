@@ -839,7 +839,7 @@ func (rs *RuleSet) innerAddExpandedRule(pRule *PolicyRule, exRule expandedRule, 
 					return model.UnknownCategory, fmt.Errorf("failed to compile action expression: %w", err)
 				}
 
-				state := eval.NewState(rs.model, "")
+				state := eval.NewState(rs.model)
 
 				evaluator, _, err := eval.Compile(astExpr, rs.evalOpts, state)
 				if err != nil {

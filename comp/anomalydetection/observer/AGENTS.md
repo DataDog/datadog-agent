@@ -209,6 +209,13 @@ After reactivation to a supported kind, only anomalies after the cutoff are
 emitted; suppressed candidates are not retained. Direct `UNSET` assignments are
 not gated. Engine resets clear kinds, and series eviction clears pipeline state.
 
+The dispatch ticker publishes kind transitions, per-kind gauge-series counts and
+mean detector call durations every second. Timings identify inner detectors and
+registration kinds, excluding pipeline overhead; legacy calls use `unset`.
+`detections.kind_emissions` adds kind attribution after baseline/muting/dedup;
+existing `detections.detector_emissions` tags stay unchanged. Pending transition
+and timing counts clear on analysis reset.
+
 ### Non-blocking ingestion
 
 Handles do non-blocking sends to separate metric and log queues, each buffered
