@@ -597,6 +597,11 @@ func TestPartial(t *testing.T) {
 		{Expr: `process.name == "abc" || ^process.uid == 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name == "abc" || ^process.uid != 0`, Field: "process.uid", IsDiscarder: false},
 		{Expr: `process.name =~ "/usr/sbin/*" && process.uid == 0 && process.is_root`, Field: "process.uid", IsDiscarder: true},
+
+		// an event with the same field value and another uid matches
+		{Expr: `!(open.filename == "xyz" && process.uid == 456)`, Field: "open.filename", IsDiscarder: false},
+		// an event with the same field value and another uid matches
+		{Expr: `process.uid + 1 - 1 == process.gid`, Field: "process.gid", IsDiscarder: false},
 	}
 
 	for _, test := range tests {
@@ -2000,7 +2005,7 @@ func TestMatchingSubExprOperandSwap(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			evaluator, err := Or(test.A, test.B, NewState(&testModel{}, ""))
+			evaluator, err := Or(test.A, test.B, NewState(&testModel{}))
 			if err != nil {
 				t.Fatalf("failed to build the `Or` evaluator: %s", err)
 			}
