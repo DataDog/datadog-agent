@@ -270,7 +270,7 @@ func GetBundleInheritedAllowedActions(actionsAllowlist map[string]sets.Set[strin
 
 		matched := false
 		for bundleID, actionsSet := range actionsAllowlist {
-			if actionsSet.Len() > 0 && strings.HasPrefix(bundleID, prefix) {
+			if actionsSet.Len() > 0 && (bundleID == prefix || strings.HasPrefix(bundleID, prefix+".")) {
 				matched = true
 				break
 			}
