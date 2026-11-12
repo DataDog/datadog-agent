@@ -68,11 +68,8 @@ func NewRunnerHttpClient(clientConfig *RunnerHttpClientConfig) (*http.Client, er
 	return httpclient.WrapClient(client, authorizer), nil
 }
 
-// maxExpiryRetries bounds the extra chain verifications for expired certificates.
-const maxExpiryRetries = 4
-
-// verifyAllowingExpiredCertificate verifies chain and hostname against roots (system roots when nil),
-// accepting a chain that would have verified at an earlier expiry instant of one of its certificates.
+// verifyAllowingExpiredCertificate verifies chain and hostname against roots (system roots when nil).
+// An expired server certificate is verified as of its own expiry, so the whole chain must have been valid then.
 func verifyAllowingExpiredCertificate(roots *x509.CertPool, now func() time.Time) func(tls.ConnectionState) error {
 	return func(cs tls.ConnectionState) error {
 		if len(cs.PeerCertificates) == 0 {
@@ -82,31 +79,22 @@ func verifyAllowingExpiredCertificate(roots *x509.CertPool, now func() time.Time
 		if cs.ServerName == "" {
 			return errors.New("tls: allowExpiredCertificate requires a DNS hostname to verify the server certificate against")
 		}
+		leaf := cs.PeerCertificates[0]
 		intermediates := x509.NewCertPool()
 		for _, cert := range cs.PeerCertificates[1:] {
 			intermediates.AddCert(cert)
 		}
-		opts := x509.VerifyOptions{
+		// Derive the instant from the leaf only: platform verifiers (Windows, macOS) attribute every expiry to the leaf.
+		at := now()
+		if leaf.NotAfter.Before(at) {
+			at = leaf.NotAfter
+		}
+		_, err := leaf.Verify(x509.VerifyOptions{
 			DNSName:       cs.ServerName,
 			Roots:         roots,
 			Intermediates: intermediates,
-			CurrentTime:   now(),
-		}
-		leaf := cs.PeerCertificates[0]
-		_, err := leaf.Verify(opts)
-		for retries := 0; err != nil && retries < maxExpiryRetries; retries++ {
-			var invalidErr x509.CertificateInvalidError
-			if !errors.As(err, &invalidErr) || invalidErr.Reason != x509.Expired || invalidErr.Cert == nil {
-				return err
-			}
-			// Follow the failing certificate, including omitted roots, so unrelated peers cannot consume retries.
-			at := invalidErr.Cert.NotAfter
-			if !at.Before(opts.CurrentTime) || at.Before(leaf.NotBefore) {
-				return err
-			}
-			opts.CurrentTime = at
-			_, err = leaf.Verify(opts)
-		}
+			CurrentTime:   at,
+		})
 		return err
 	}
 }

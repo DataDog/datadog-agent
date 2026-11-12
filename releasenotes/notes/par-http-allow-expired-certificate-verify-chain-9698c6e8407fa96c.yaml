@@ -11,10 +11,12 @@ upgrade:
     With ``allowExpiredCertificate`` enabled, the private action runner
     ``com.datadoghq.http.request`` action now fails against servers whose
     certificate is self-signed, issued by an untrusted authority, or issued
-    for a different hostname, and against IP-address URLs.
+    for a different hostname, or chained through an intermediate or root
+    certificate that expired before the server certificate, and against
+    IP-address URLs.
 fixes:
   - |
     The private action runner ``com.datadoghq.http.request`` action's
-    ``allowExpiredCertificate`` option now accepts only server certificates
-    whose sole problem is an elapsed validity period. Previously it skipped
-    all certificate checks.
+    ``allowExpiredCertificate`` option now verifies the certificate chain and
+    hostname, as of the server certificate's expiry when it has expired.
+    Previously it skipped all certificate checks.

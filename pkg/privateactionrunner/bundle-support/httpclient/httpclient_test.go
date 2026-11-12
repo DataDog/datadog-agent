@@ -32,6 +32,11 @@ func newTestCert(t *testing.T, cn string, dnsNames []string, notBefore, notAfter
 	t.Helper()
 	key, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	require.NoError(t, err)
+	return newTestCertWithKey(t, key, cn, dnsNames, notBefore, notAfter, parent)
+}
+
+func newTestCertWithKey(t *testing.T, key *ecdsa.PrivateKey, cn string, dnsNames []string, notBefore, notAfter time.Time, parent *testCert) *testCert {
+	t.Helper()
 	serial, err := rand.Int(rand.Reader, big.NewInt(1<<62))
 	require.NoError(t, err)
 	tmpl := &x509.Certificate{
@@ -77,6 +82,17 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 	invalidSignatureLeaf := newTestCert(t, host, []string{host}, longAgo, past, ca)
 	invalidSignatureLeaf.cert.Signature[0] ^= 1
 
+	// Same subject and key: one issued by the trusted CA and expired since the leaf did, one by an untrusted CA.
+	crossKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	crossTrusted := newTestCertWithKey(t, crossKey, "cross-intermediate", nil, longAgo, past.Add(time.Hour), ca)
+	crossUntrusted := newTestCertWithKey(t, crossKey, "cross-intermediate", nil, longAgo, future, untrustedCA)
+	// Renewed with the same key, but only valid after the leaf expired.
+	renewedKey, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
+	require.NoError(t, err)
+	originalIntermediate := newTestCertWithKey(t, renewedKey, "renewed-intermediate", nil, longAgo, past.Add(time.Minute), ca)
+	renewedIntermediate := newTestCertWithKey(t, renewedKey, "renewed-intermediate", nil, past.Add(time.Hour), future, ca)
+
 	tests := []struct {
 		name       string
 		chain      []*x509.Certificate
@@ -94,12 +110,39 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 			serverName: host,
 		},
 		{
-			name: "expired leaf and intermediate",
+			name: "expired leaf and intermediate valid at leaf expiry",
+			chain: []*x509.Certificate{
+				newTestCert(t, host, []string{host}, longAgo, past.Add(-time.Hour), expiredIntermediate).cert,
+				expiredIntermediate.cert,
+			},
+			serverName: host,
+		},
+		{
+			name: "expired leaf outliving its intermediate",
 			chain: []*x509.Certificate{
 				newTestCert(t, host, []string{host}, longAgo, past.Add(time.Hour), expiredIntermediate).cert,
 				expiredIntermediate.cert,
 			},
 			serverName: host,
+			wantErr:    "expired",
+		},
+		{
+			name: "expired leaf with cross-signed intermediates",
+			chain: []*x509.Certificate{
+				newTestCert(t, host, []string{host}, longAgo, past, crossTrusted).cert,
+				crossUntrusted.cert,
+				crossTrusted.cert,
+			},
+			serverName: host,
+		},
+		{
+			name: "expired leaf with intermediate renewed after leaf expiry",
+			chain: []*x509.Certificate{
+				newTestCert(t, host, []string{host}, longAgo, past, originalIntermediate).cert,
+				renewedIntermediate.cert,
+			},
+			serverName: host,
+			wantErr:    "not yet valid",
 		},
 		{
 			name: "expired leaf with valid intermediate",
@@ -131,20 +174,10 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 			serverName: host,
 		},
 		{
-			name: "expired leaf and intermediate with unrelated expiry instants",
-			chain: []*x509.Certificate{
-				newTestCert(t, host, []string{host}, longAgo, past.Add(time.Hour), expiredIntermediate).cert,
-				expiredIntermediate.cert,
-				newTestCert(t, "extra-1", nil, longAgo, past.Add(45*time.Minute), ca).cert,
-				newTestCert(t, "extra-2", nil, longAgo, past.Add(30*time.Minute), ca).cert,
-				newTestCert(t, "extra-3", nil, longAgo, past.Add(15*time.Minute), ca).cert,
-			},
-			serverName: host,
-		},
-		{
-			name:       "expired leaf with omitted root expiring before it",
+			name:       "expired leaf outliving its omitted root",
 			chain:      []*x509.Certificate{newTestCert(t, host, []string{host}, longAgo, past.Add(time.Hour), expiredCA).cert},
 			serverName: host,
+			wantErr:    "expired",
 		},
 		{
 			name: "valid leaf with expired intermediate",
@@ -153,6 +186,7 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 				expiredIntermediate.cert,
 			},
 			serverName: host,
+			wantErr:    "expired",
 		},
 		{
 			name:       "expired leaf from untrusted CA",
@@ -243,36 +277,6 @@ func TestVerifyAllowingExpiredCertificate(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestVerifyAllowingExpiredCertificateRetryLimit(t *testing.T) {
-	now := time.Now()
-	const host = "example.test"
-	notBefore := now.Add(-24 * time.Hour)
-	ca := newTestCert(t, "test-ca", nil, notBefore, now.Add(time.Hour), nil)
-	roots := x509.NewCertPool()
-	roots.AddCert(ca.cert)
-	parent := ca
-	var chain []*x509.Certificate
-	intermediates := x509.NewCertPool()
-	for i := maxExpiryRetries + 1; i >= 2; i-- {
-		parent = newTestCert(t, "intermediate", nil, notBefore, now.Add(-time.Duration(i)*time.Hour), parent)
-		chain = append(chain, parent.cert)
-		intermediates.AddCert(parent.cert)
-	}
-	leaf := newTestCert(t, host, []string{host}, notBefore, now.Add(-time.Hour), parent)
-	chain = append([]*x509.Certificate{leaf.cert}, chain...)
-
-	// The chain is otherwise valid, but needs more expiry retries than permitted.
-	_, err := leaf.cert.Verify(x509.VerifyOptions{
-		DNSName:       host,
-		Roots:         roots,
-		Intermediates: intermediates,
-		CurrentTime:   chain[1].NotAfter,
-	})
-	require.NoError(t, err)
-	verify := verifyAllowingExpiredCertificate(roots, func() time.Time { return now })
-	assert.Error(t, verify(tls.ConnectionState{PeerCertificates: chain, ServerName: host}))
 }
 
 func TestNewRunnerHttpClientAllowExpiredCertificateStillVerifiesChain(t *testing.T) {
