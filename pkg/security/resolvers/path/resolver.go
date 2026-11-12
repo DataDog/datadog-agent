@@ -88,7 +88,7 @@ func (r *Resolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDCon
 	mountPath, source, origin, err := r.mountResolver.ResolveMountPath(e.MountID, pidCtx.Pid)
 	if err != nil {
 		if _, mountErr := r.mountResolver.IsMountIDValid(e.MountID); errors.Is(mountErr, mount.ErrMountKernelID) {
-			return pathStr, "", origin, source, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount path resolution failed for dentry %q (mount_id=%d, pid=%d, mount_check=%w): %w", pathStr, e.MountID, pidCtx.Pid, mountErr, err)}
+			return pathStr, "", source, origin, &ErrPathResolutionNotCritical{Err: fmt.Errorf("mount path resolution failed for dentry %q (mount_id=%d, pid=%d, mount_check=%w): %w", pathStr, e.MountID, pidCtx.Pid, mountErr, err)}
 		}
 		return pathStr, "", source, origin, &ErrPathResolution{Err: fmt.Errorf("mount path resolution failed for dentry %q (mount_id=%d, pid=%d): %w", pathStr, e.MountID, pidCtx.Pid, err)}
 	}
@@ -102,9 +102,7 @@ func (r *Resolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDCon
 	}
 
 	// This aims to handle bind mounts
-	if rootPath != "/" {
-		pathStr = strings.TrimPrefix(pathStr, rootPath)
-	}
+	pathStr = trimMountRoot(pathStr, rootPath)
 
 	if mountPath != "/" {
 		if pathStr != "/" {
@@ -115,6 +113,18 @@ func (r *Resolver) ResolveFullFilePath(e *model.FileFields, pidCtx *model.PIDCon
 	}
 
 	return pathStr, mountPath, source, origin, nil
+}
+
+func trimMountRoot(pathStr, rootPath string) string {
+	if rootPath != "/" && rootPath != "" {
+		if pathStr == rootPath {
+			return "/"
+		}
+		if after, ok := strings.CutPrefix(pathStr, rootPath+"/"); ok {
+			return "/" + after
+		}
+	}
+	return pathStr
 }
 
 // SetMountRoot set the mount point information

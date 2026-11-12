@@ -563,6 +563,90 @@ func TestGetPidProcfsZombieLeaderFallback(t *testing.T) {
 	assert.Equal(t, expectedNs, mounts[0].NamespaceInode)
 }
 
+func TestInsertReusedMountIDDifferentUniqueID(t *testing.T) {
+	mr, err := NewResolver(nil, nil, ResolverOpts{})
+	require.NoError(t, err)
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       1,
+		MountPointStr: "/",
+	}))
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       42,
+		MountIDUnique: 100,
+		ParentPathKey: model.PathKey{MountID: 1},
+		MountPointStr: "/old",
+		Origin:        model.MountOriginEvent,
+	}))
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       43,
+		MountIDUnique: 101,
+		ParentPathKey: model.PathKey{MountID: 42},
+		MountPointStr: "/sub",
+		Origin:        model.MountOriginEvent,
+	}))
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       42,
+		MountIDUnique: 200,
+		ParentPathKey: model.PathKey{MountID: 1},
+		MountPointStr: "/new",
+		Origin:        model.MountOriginEvent,
+	}))
+
+	reused, _, _, err := mr.ResolveMount(42, 0)
+	require.NoError(t, err)
+	assert.Empty(t, reused.Children)
+
+	p, _, _, err := mr.ResolveMountPath(42, 0)
+	require.NoError(t, err)
+	assert.Equal(t, "/new", p)
+}
+
+func TestProcfsOutOfOrderDanglingAndResyncCleanup(t *testing.T) {
+	mr, err := NewResolver(nil, nil, ResolverOpts{UseProcFS: true})
+	require.NoError(t, err)
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       1,
+		MountPointStr: "/",
+		Path:          "/",
+		Origin:        model.MountOriginProcfs,
+	}))
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       51,
+		ParentPathKey: model.PathKey{MountID: 50},
+		MountPointStr: "sub",
+		Path:          "/mnt/sub",
+		Origin:        model.MountOriginProcfs,
+	}))
+	assert.Equal(t, 1, mr.dangling.Len())
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       50,
+		ParentPathKey: model.PathKey{MountID: 1},
+		MountPointStr: "mnt",
+		Path:          "/mnt",
+		Origin:        model.MountOriginProcfs,
+	}))
+	assert.Equal(t, 0, mr.dangling.Len())
+
+	parent, _, _, err := mr.ResolveMount(50, 0)
+	require.NoError(t, err)
+	assert.Equal(t, []uint32{51}, parent.Children)
+
+	require.NoError(t, mr.Insert(model.Mount{
+		MountID:       50,
+		ParentPathKey: model.PathKey{MountID: 1},
+		MountPointStr: "/moved",
+		Origin:        model.MountOriginEvent,
+	}))
+
+	childPath, _, _, err := mr.ResolveMountPath(51, 0)
+	require.NoError(t, err)
+	assert.Equal(t, "/moved/sub", childPath)
+}
+
 func BenchmarkGetParentPath(b *testing.B) {
 	// Create mount resolver
 	mr, _ := NewResolver(nil, nil, ResolverOpts{})

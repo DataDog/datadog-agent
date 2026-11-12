@@ -69,12 +69,30 @@ func TestMount(t *testing.T) {
 	os.MkdirAll(dstMntPath, 0755)
 	defer os.RemoveAll(dstMntPath)
 
-	var mntID atomic.Uint32
-	t.Run("mount", func(t *testing.T) {
-		err = test.GetProbeEvent(func() error {
+	var (
+		mntID       atomic.Uint32
+		mounted     bool
+		releaseFile *os.File
+	)
+	defer func() {
+		if releaseFile != nil {
+			_ = releaseFile.Close()
+		}
+		if mounted {
+			_ = syscall.Unmount(dstMntPath, syscall.MNT_DETACH)
+		}
+	}()
+
+	ensureMounted := func(t *testing.T) {
+		t.Helper()
+		if mounted {
+			return
+		}
+		err := test.GetProbeEvent(func() error {
 			if err := syscall.Mount(mntPath, dstMntPath, "bind", syscall.MS_BIND, ""); err != nil {
 				return fmt.Errorf("could not create bind mount: %w", err)
 			}
+			mounted = true
 			return nil
 		}, func(event *model.Event) bool {
 			if event.ProcessContext.Pid != testSuitePid {
@@ -95,9 +113,20 @@ func TestMount(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		if releaseFile == nil {
+			releaseFile, err = os.Create(path.Join(dstMntPath, "test-release"))
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+	}
+
+	t.Run("mount", func(t *testing.T) {
+		ensureMounted(t)
 	})
 
 	t.Run("mount_resolver", func(t *testing.T) {
+		ensureMounted(t)
 		file := testDrive.Path(dstMntBasename, "test-mount")
 
 		f, err := os.Create(file)
@@ -118,18 +147,14 @@ func TestMount(t *testing.T) {
 		}, "test_rule")
 	})
 
-	releaseFile, err := os.Create(path.Join(dstMntPath, "test-release"))
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer releaseFile.Close()
-
 	t.Run("umount", func(t *testing.T) {
+		ensureMounted(t)
 		err = test.GetProbeEvent(func() error {
 			// Test umount
 			if err = syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
 				return fmt.Errorf("could not unmount test-mount: %w", err)
 			}
+			mounted = false
 			return nil
 		}, func(event *model.Event) bool {
 			if event.ProcessContext.Pid != testSuitePid {
@@ -144,6 +169,15 @@ func TestMount(t *testing.T) {
 	})
 
 	t.Run("release-mount", func(t *testing.T) {
+		if releaseFile == nil {
+			ensureMounted(t)
+		}
+		if mounted {
+			if err := syscall.Unmount(dstMntPath, syscall.MNT_DETACH); err != nil {
+				t.Fatalf("could not unmount test-mount: %v", err)
+			}
+			mounted = false
+		}
 		test.WaitSignalFromRule(t, func() error {
 			return syscall.Fchownat(int(releaseFile.Fd()), "", 123, 123, unix.AT_EMPTY_PATH)
 		}, func(event *model.Event, rule *rules.Rule) {

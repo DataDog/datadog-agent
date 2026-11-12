@@ -690,7 +690,7 @@ HOOK_SYSCALL_EXIT(fsmount) {
         return 0;
     }
 
-    if(syscall->retval >= 0) {
+    if ((int)SYSCALL_PARMRET(ctx) >= 0) {
         handle_new_mount(ctx, syscall, true);
     }
 
