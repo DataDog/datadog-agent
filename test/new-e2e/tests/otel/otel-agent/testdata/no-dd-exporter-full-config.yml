@@ -91,6 +91,19 @@ extensions:
     keepalive:
       idle_conn_timeout: 1m30s
       max_idle_conns: 100
+    remote_config:
+      cache_directory: ""
+      enabled: false
+      endpoint: 127.0.0.1:8234
+      keepalive:
+        idle_timeout: 1m0s
+      max_request_body_size: 1048576
+      read_header_timeout: 5s
+      read_timeout: 10s
+      refresh_interval: 1m0s
+      request_timeout: 5s
+      transport: tcp
+      write_timeout: 30s
   ddflare/dd-autoconfigured:
     endpoint: localhost:7777
     read_header_timeout: 0s

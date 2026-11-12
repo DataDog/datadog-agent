@@ -1,0 +1,6 @@
+---
+features:
+  - |
+    DDOT can serve Remote Configuration through the Datadog extension without a
+    separate Datadog Agent process. Enable ``remote_config.enabled`` and configure
+    an absolute, writable cache directory. The capability is disabled by default.
