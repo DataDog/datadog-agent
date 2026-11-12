@@ -355,54 +355,114 @@ func TestExpvarExist(t *testing.T) {
 	assert.NotNil(t, expvar.Get("inventories"))
 }
 
-func TestEncInfo(t *testing.T) {
-	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.None[logagent.Component](), nil)
-	require.Nil(t, ic.getPayload(true).(*Payload).EncInfo)
+// Each file declares its own handle even though both configure the same integration.
+func secretFileFixture(t *testing.T) (*inventorychecksImpl, *secretsmock.Mock, []string) {
+	t.Helper()
+	dir := t.TempDir()
+	files := []string{filepath.Join(dir, "redisdb.d", "one.yaml"), filepath.Join(dir, "redisdb.d", "two.yaml")}
+	require.NoError(t, os.MkdirAll(filepath.Dir(files[0]), 0700))
 	resolver := secretsmock.New(t)
-	resolver.SetPathsAndHandles([]string{"redis.instances.0.password"}, []string{"redis_password"})
-	resolver.SetSecrets(map[string]string{"redis_password": "test-secret"})
+	var paths, handles []string
+	for i, file := range files {
+		handle := fmt.Sprintf("redis_password_%d", i)
+		content := fmt.Sprintf("init_config: {}\ninstances:\n- password: ENC[%s]\n", handle)
+		require.NoError(t, os.WriteFile(file, []byte(content), 0600))
+		conf, _, err := providers.GetIntegrationConfigFromFile("redisdb", file)
+		require.NoError(t, err)
+		paths = append(paths, conf.Digest()+":password")
+		handles = append(handles, handle)
+	}
+	paths = append(paths, "api_key", "other-origin:password")
+	handles = append(handles, "core_key", "other_password")
+	resolver.SetPathsAndHandles(paths, handles)
+	resolver.SetSecrets(map[string]string{
+		"redis_password_0": "first-secret",
+		"redis_password_1": "second-secret",
+		"core_key":         "core-secret",
+		"other_password":   "unrelated-secret",
+	})
+	providers.ResetReader([]string{dir})
+	t.Cleanup(func() { providers.ResetReader(nil) })
+	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.None[logagent.Component](), nil)
 	ic.secrets = resolver
+	return ic, resolver, files
+}
+
+func TestEncInfo(t *testing.T) {
+	ic, resolver, files := secretFileFixture(t)
 	payload := ic.getPayload(true).(*Payload)
-	assert.Equal(t, metadata{
-		"paths":          []string{"redis.instances.0.password"},
-		"handles":        []string{"redis_password"},
-		"hash_secret_id": resolver.GetHashValues([]string{"redis_password"}),
-	}, payload.EncInfo)
+	require.Len(t, payload.FilesMetadata, 2)
+	for i, file := range files {
+		handle := fmt.Sprintf("redis_password_%d", i)
+		assert.Equal(t, metadata{
+			"paths":          []string{"instances.0.password"},
+			"handles":        []string{handle},
+			"hash_secret_id": resolver.GetHashValues([]string{handle}),
+		}, payload.FilesMetadata[file].(metadata)["enc_info"])
+	}
 	raw, err := payload.MarshalJSON()
 	require.NoError(t, err)
-	assert.Contains(t, string(raw), `"enc_info":`)
-	assert.NotContains(t, string(raw), "test-secret")
-	for _, withConfigs := range []bool{false, true} {
-		if withConfigs {
-			ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
-		}
-		raw, err := ic.getPayload(withConfigs).MarshalJSON()
-		require.NoError(t, err)
-		assert.NotContains(t, string(raw), `"enc_info"`)
+	var decoded map[string]any
+	require.NoError(t, json.Unmarshal(raw, &decoded))
+	assert.NotContains(t, decoded, "enc_info")
+	assert.NotContains(t, string(raw), "core_key")
+	assert.NotContains(t, string(raw), "other_password")
+	assert.Empty(t, ic.getPayload(false).(*Payload).FilesMetadata)
+
+	ic.conf.Set("metadata_skip_secrets", true, pkgconfigmodel.SourceAgentRuntime)
+	for _, file := range ic.getPayload(true).(*Payload).FilesMetadata {
+		assert.NotContains(t, file, "enc_info")
+	}
+	ic.conf.Set("metadata_skip_secrets", false, pkgconfigmodel.SourceAgentRuntime)
+	ic.secrets = nil
+	for _, file := range ic.getPayload(true).(*Payload).FilesMetadata {
+		assert.NotContains(t, file, "enc_info")
+	}
+	ic.secrets = resolver
+	// File declarations are authoritative; resolver paths are not needed.
+	resolver.SetPathsAndHandles(nil, nil)
+	for _, file := range ic.getPayload(true).(*Payload).FilesMetadata {
+		assert.Contains(t, file, "enc_info")
+	}
+	resolver.SetSecrets(nil)
+	for _, file := range ic.getPayload(true).(*Payload).FilesMetadata {
+		info := file.(metadata)["enc_info"].(metadata)
+		assert.Empty(t, info["hash_secret_id"])
 	}
 }
 
 func TestDiagnosticEndpointScrubsSecretHashes(t *testing.T) {
-	ic := getTestInventoryChecks(t, option.None[collector.Component](), option.None[logagent.Component](), nil)
-	resolver := secretsmock.New(t)
-	resolver.SetPathsAndHandles([]string{"redis:instances.0.password"}, []string{"redis_password"})
-	resolver.SetSecrets(map[string]string{"redis_password": "test-secret"})
-	ic.secrets = resolver
-	hash := resolver.GetHashValues([]string{"redis_password"})["redis_password"]
+	ic, resolver, files := secretFileFixture(t)
+	hash := resolver.GetHashValues([]string{"redis_password_0"})["redis_password_0"]
 	require.NotEmpty(t, hash)
-
 	rec := httptest.NewRecorder()
 	ic.writePayloadAsJSON(rec, httptest.NewRequest(http.MethodGet, "/metadata/inventory-checks", nil))
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.NotContains(t, rec.Body.String(), hash)
-	assert.NotContains(t, rec.Body.String(), "test-secret")
+	assert.NotContains(t, rec.Body.String(), "first-secret")
 	var diagnostic map[string]any
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &diagnostic))
-	info := diagnostic["enc_info"].(map[string]any)
+	file := diagnostic["files_metadata"].(map[string]any)[files[0]].(map[string]any)
+	info := file["enc_info"].(map[string]any)
 	assert.Equal(t, "********", info["hash_secret_id"])
-	assert.Equal(t, []any{"redis_password"}, info["handles"])
-
+	assert.Equal(t, []any{"redis_password_0"}, info["handles"])
 	backend, err := ic.getPayloadWithConfigs().MarshalJSON()
 	require.NoError(t, err)
 	assert.Contains(t, string(backend), hash)
+}
+
+func TestFileEncInfoUsesDeclarations(t *testing.T) {
+	ic, resolver, files := secretFileFixture(t)
+	require.NoError(t, os.WriteFile(files[0], []byte("init_config: {password: 'ENC[redis_password_0]'}\ninstances: [{password: 'ENC[redis_password_0]'}, {password: raw-value}]\n"), 0600))
+	providers.ResetReader([]string{filepath.Dir(filepath.Dir(files[0]))})
+	info := ic.getPayload(true).(*Payload).FilesMetadata[files[0]].(metadata)["enc_info"].(metadata)
+	assert.Equal(t, []string{"init_config.password", "instances.0.password"}, info["paths"])
+	assert.Equal(t, []string{"redis_password_0", "redis_password_0"}, info["handles"])
+	assert.Equal(t, resolver.GetHashValues([]string{"redis_password_0"}), info["hash_secret_id"])
+
+	require.NoError(t, os.WriteFile(files[0], []byte("instances: [{password: raw-value}]\n"), 0600))
+	providers.ResetReader([]string{filepath.Dir(filepath.Dir(files[0]))})
+	file := ic.getPayload(true).(*Payload).FilesMetadata[files[0]].(metadata)
+	assert.NotContains(t, file, "enc_info")
+	assert.Contains(t, file, "secrets")
 }

@@ -44,7 +44,6 @@ type checksMetadata map[string][]metadata
 
 // Payload handles the JSON unmarshalling of the metadata payload
 type Payload struct {
-	EncInfo       metadata              `json:"enc_info,omitempty"`
 	Hostname      string                `json:"hostname"`
 	Timestamp     int64                 `json:"timestamp"`
 	Metadata      map[string][]metadata `json:"check_metadata"`
@@ -274,18 +273,7 @@ func (ic *inventorychecksImpl) getPayload(withConfigs bool) marshaler.TypedJSONM
 		filesMetadata = ic.getFilesMetadata()
 	}
 
-	var encInfo metadata
-	if withConfigs && !ic.conf.GetBool("metadata_skip_secrets") && ic.secrets != nil {
-		paths, handles := ic.secrets.GetPathsAndHandles()
-		encInfo = metadata{
-			"paths":          paths,
-			"handles":        handles,
-			"hash_secret_id": ic.secrets.GetHashValues(handles),
-		}
-	}
-
 	return &Payload{
-		EncInfo:       encInfo,
 		Hostname:      ic.hostname,
 		Timestamp:     time.Now().UnixNano(),
 		Metadata:      payloadData,
@@ -318,16 +306,32 @@ func (ic *inventorychecksImpl) getFilesMetadata() metadata {
 	}
 
 	filesMetadata := metadata{}
+	includeSecrets := !ic.conf.GetBool("metadata_skip_secrets")
 	for _, configFile := range configFiles {
-		// Use the filename as key
-		filesMetadata[configFile.Filename] = metadata{
+		fileMetadata := metadata{
 			"raw_config": configFile.ConfigFormat,
 			"hash":       configFile.Hash,
 		}
-		if !ic.conf.GetBool("metadata_skip_secrets") {
-			filesMetadata[configFile.Filename].(metadata)["secrets"] = configFile.Secrets
+		if includeSecrets {
+			fileMetadata["secrets"] = configFile.Secrets
+			if ic.secrets != nil {
+				var paths, handles []string
+				for _, secret := range configFile.Secrets {
+					if secret.Kind == "enc" {
+						paths = append(paths, secret.Path)
+						handles = append(handles, secret.Handle)
+					}
+				}
+				if len(handles) > 0 {
+					fileMetadata["enc_info"] = metadata{
+						"paths":          paths,
+						"handles":        handles,
+						"hash_secret_id": ic.secrets.GetHashValues(handles),
+					}
+				}
+			}
 		}
+		filesMetadata[configFile.Filename] = fileMetadata
 	}
-
 	return filesMetadata
 }
