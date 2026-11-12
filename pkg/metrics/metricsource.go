@@ -356,6 +356,7 @@ const (
 	MetricSourcePanFirewall
 	MetricSourceKaiScheduler
 	MetricSourceKurrentdb
+	MetricSourceCrossplane
 	// OpenTelemetry Collector receivers
 	MetricSourceOpenTelemetryCollectorUnknown
 	MetricSourceOpenTelemetryCollectorDockerstatsReceiver
@@ -1191,6 +1192,8 @@ func (ms MetricSource) String() string {
 		return "kai_scheduler"
 	case MetricSourceKurrentdb:
 		return "kurrentdb"
+	case MetricSourceCrossplane:
+		return "crossplane"
 	default:
 		return "<unknown>"
 	}
@@ -1913,6 +1916,8 @@ func CheckNameToMetricSource(name string) MetricSource {
 		return MetricSourceKaiScheduler
 	case "kurrentdb":
 		return MetricSourceKurrentdb
+	case "crossplane":
+		return MetricSourceCrossplane
 	default:
 		return MetricSourceUnknown
 	}
