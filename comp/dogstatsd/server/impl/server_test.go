@@ -57,6 +57,14 @@ func TestStartHookNoListenerDefault(t *testing.T) {
 	require.NoError(t, s.startHook(context.Background()), "startHook should swallow the no-listener error when dogstatsd_require_listener is not set")
 }
 
+func TestSetTimingUnitConfig(t *testing.T) {
+	_, s := fulfillDepsWithInactiveServer(t, map[string]interface{}{})
+	assert.False(t, s.enrichConfig.enableTimingUnit, "timing unit should be disabled by default")
+
+	_, s = fulfillDepsWithInactiveServer(t, map[string]interface{}{"dogstatsd_set_timing_unit": true})
+	assert.True(t, s.enrichConfig.enableTimingUnit)
+}
+
 func TestNewServerUseDogstatsdFalse(t *testing.T) {
 	cfg := make(map[string]interface{})
 	cfg["use_dogstatsd"] = false
