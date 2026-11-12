@@ -1,0 +1,14 @@
+---
+features:
+  - |
+    The Agent now reports an Agent Health issue when it drops logs it has already
+    read instead of delivering them: the intake rejected them (for example an
+    invalid API key or an oversized payload), a destination failed for good, or a
+    log line could not be batched. The issue is reported once per host and covers
+    every affected log source, with the number of logs and bytes dropped over the
+    last 24 hours, why and where they were dropped, and remediation steps for each
+    cause. The issue is reported as broken only when the main endpoint lost at
+    least 1% of the logs the Agent processed; smaller losses, and losses limited
+    to additional endpoints, are reported as warnings. Event platform data such as
+    Database Monitoring samples is not counted. Drops recorded before an Agent
+    restart are not carried across the restart.

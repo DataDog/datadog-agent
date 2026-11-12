@@ -1,0 +1,23 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "logsissue",
+    srcs = ["logsissue.go"],
+    importpath = "github.com/DataDog/datadog-agent/comp/healthplatform/issues/internal/logsissue",
+    visibility = ["//comp/healthplatform/issues:__subpackages__"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_dustin_go_humanize//:go-humanize",
+    ],
+)
+
+dd_agent_go_test(
+    name = "logsissue_test",
+    srcs = ["logsissue_test.go"],
+    embed = [":logsissue"],
+    deps = [
+        "//comp/core/config",
+        "@com_github_stretchr_testify//assert",
+    ],
+)

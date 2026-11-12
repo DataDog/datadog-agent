@@ -704,6 +704,8 @@
 /comp/core/gui/impl/systray/                                          @DataDog/windows-products @DataDog/fleet-remediation
 /comp/healthplatform/issues/ad-misconfiguration                       @DataDog/container-platform @DataDog/fleet-remediation
 /comp/healthplatform/issues/gpuenvironment                            @DataDog/accelerator-telemetry @DataDog/fleet-remediation
+/comp/healthplatform/issues/internal/logsissue                       @DataDog/agent-log-pipelines @DataDog/fleet-remediation
+/comp/healthplatform/issues/logsdropped                               @DataDog/agent-log-pipelines @DataDog/fleet-remediation
 /comp/healthplatform/issues/missedbytes                               @DataDog/agent-log-pipelines @DataDog/fleet-remediation
 /comp/healthplatform/issues/rofspermissions                           @DataDog/container-platform @DataDog/fleet-remediation
 /pkg/cloudfoundry                                                     @DataDog/agent-integrations
