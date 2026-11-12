@@ -22,6 +22,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
 	tracermetadata "github.com/DataDog/datadog-agent/pkg/discovery/tracermetadata/model"
+	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	pkgimage "github.com/DataDog/datadog-agent/pkg/util/containers/image"
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
@@ -1541,10 +1542,16 @@ func kueueQueueGroupResource(queueType workloadmeta.KueueQueueType) string {
 func (c *WorkloadMetaCollector) extractTagsFromPodKueueInfo(pod *workloadmeta.KubernetesPod, tagList *taglist.TagList) {
 	// The associated workload object is the main source of information for Kueue. If it is available, we use it to extract the tags
 	// If not, we fall back to the pod labels and annotations to get the queue names and their tags
-	if workload := c.store.GetKubernetesKueueWorkloadForPod(pod); workload != nil {
+	workload, err := c.store.GetKubernetesKueueWorkloadForPod(pod)
+	if err == nil {
 		clusterQueueName := c.extractKueueWorkloadAndRelatedTags(workload, pod.Labels[kubernetes.KueuePodSetLabelKey], tagList)
 		addKueueSchedulerTags(workload.Name, clusterQueueName, tagList)
 		return
+	}
+	// Missing Workloads are expected, including for pods not managed by Kueue.
+	// Ambiguous associations need investigation; keep queue-only tags below.
+	if !pkgerrors.IsNotFound(err) {
+		log.Warnf("Unable to resolve Kueue Workload for pod %s/%s: %v", pod.Namespace, pod.Name, err)
 	}
 
 	clusterQueueName := pod.Labels[kubernetes.KueueClusterQueueNameLabelKey]
