@@ -12,6 +12,9 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	goos "os"
+	"os/exec"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
@@ -28,10 +31,13 @@ import (
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/components"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/e2e"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/environments"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners"
 	awshost "github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/aws/host"
+	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/provisioners/local/host/byohost"
 	"github.com/DataDog/datadog-agent/test/e2e-framework/testing/runner"
 	"github.com/DataDog/datadog-agent/test/fakeintake/aggregator"
 	"github.com/DataDog/datadog-agent/test/fakeintake/client"
+	fakeintakeversion "github.com/DataDog/datadog-agent/test/fakeintake/version"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/common"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install"
 	"github.com/DataDog/datadog-agent/test/new-e2e/tests/agent-platform/install/installparams"
@@ -93,16 +99,116 @@ type macosInstallSuite struct {
 	e2e.BaseSuite[environments.Host]
 }
 
-func TestMacosInstallScript(t *testing.T) {
+// macosLocalFakeIntakeContainer names the fakeintake Docker container started on a LOCAL_VM
+// host, so a leftover from a previous run can be removed before starting a fresh one.
+const macosLocalFakeIntakeContainer = "e2e-fakeintake"
+
+// macosSSHArgs returns the `ssh`/`scp` flags needed to reach a LOCAL_VM host non-interactively:
+// an explicit identity file (falling back to the framework's own E2E_LOCAL_PRIVATE_KEY_PATH/
+// E2E_AWS_PRIVATE_KEY_PATH env vars, same as getSSHClient's LOCAL_VM key resolution) and
+// IdentitiesOnly, so `ssh` doesn't first offer whatever unrelated keys the local ssh-agent
+// happens to hold and get disconnected for exceeding the host's MaxAuthTries.
+func macosSSHArgs() []string {
+	keyPath := goos.Getenv("E2E_LOCAL_PRIVATE_KEY_PATH")
+	if keyPath == "" {
+		keyPath = goos.Getenv("E2E_AWS_PRIVATE_KEY_PATH")
+	}
+	if keyPath == "" {
+		return nil
+	}
+	return []string{"-i", keyPath, "-o", "IdentitiesOnly=yes"}
+}
+
+// macosStartLocalFakeIntake starts a fakeintake container on the LOCAL_VM host at addr over
+// SSH (Docker must already be installed and running there -- e.g. via colima) and returns the
+// host port it published. Docker/colima are only on PATH through the login shell's profile, so
+// every command evaluates `brew shellenv` first. Registers a t.Cleanup to remove the container.
+func macosStartLocalFakeIntake(t *testing.T, user, addr string) uint32 {
+	sshTarget := user + "@" + addr
+	sshArgs := macosSSHArgs()
+	const brewEnv = `eval "$(/opt/homebrew/bin/brew shellenv)"; `
+	sshCmd := func(remoteCmd string) *exec.Cmd {
+		args := append(append([]string{}, sshArgs...), sshTarget, remoteCmd)
+		return exec.Command("ssh", args...)
+	}
+
+	// Best-effort: a container from a previous, aborted run may still be around.
+	_ = sshCmd(brewEnv + "docker rm -f " + macosLocalFakeIntakeContainer).Run()
+
+	runCmd := sshCmd(brewEnv + "docker run -d --name " + macosLocalFakeIntakeContainer + " -p 0:80 public.ecr.aws/datadog/fakeintake:" + fakeintakeversion.Tag)
+	out, err := runCmd.CombinedOutput()
+	require.NoError(t, err, "starting fakeintake container on %s: %s", addr, out)
+
+	t.Cleanup(func() {
+		_ = sshCmd(brewEnv + "docker rm -f " + macosLocalFakeIntakeContainer).Run()
+	})
+
+	portCmd := sshCmd(brewEnv + "docker port " + macosLocalFakeIntakeContainer + " 80/tcp")
+	portOut, err := portCmd.Output()
+	require.NoError(t, err, "resolving fakeintake port on %s", addr)
+
+	portStr := strings.TrimSpace(string(portOut))
+	idx := strings.LastIndex(portStr, ":")
+	require.NotEqual(t, -1, idx, "unexpected `docker port` output: %q", portStr)
+	port, err := strconv.ParseUint(portStr[idx+1:], 10, 32)
+	require.NoError(t, err, "parsing fakeintake port from %q", portStr)
+
+	return uint32(port)
+}
+
+// macosLocalVMProvisioner returns a provisioner for the pre-existing macOS host named by LOCAL_VM
+// (a local machine or another box reachable over SSH), with a fakeintake container started on
+// it, or false when LOCAL_VM is unset. No Pulumi and no cloud provider are involved on this path.
+func macosLocalVMProvisioner(t *testing.T) (e2e.SuiteOption, bool) {
+	localVM := goos.Getenv("LOCAL_VM")
+	if localVM == "" {
+		return nil, false
+	}
+
+	arch := goos.Getenv("LOCAL_ARCH")
+	if arch == "" {
+		arch = "arm64"
+	}
+
+	user := goos.Getenv("LOCAL_USER")
+	if user == "" {
+		user = goos.Getenv("USER")
+	}
+
+	descriptorPath := filepath.Join(t.TempDir(), "macos-byo-host.json")
+	// MacosOS is the only macOS Flavor value; the actual OS version is carried by the
+	// descriptor's Version string, and "sonoma" is the only one with an AMI/descriptor
+	// entry today (components/os/macos_descriptors.go, resources/aws/platforms.json).
+	descriptor := os.NewDescriptorWithArch(os.MacosOS, "sonoma", os.ArchitectureFromString(arch))
+
+	fakeIntakePort := macosStartLocalFakeIntake(t, user, localVM)
+	require.NoError(t, byohost.WriteHostDescriptorWithFakeIntake(descriptorPath, localVM, 22, user, descriptor, localVM, fakeIntakePort))
+
+	return e2e.WithProvisioner(provisioners.NewStaticStackProvisioner[environments.Host]("", descriptorPath)), true
+}
+
+// macosAWSProvisioner returns the provisioner for a macOS host from the AWS Dedicated Host pool.
+func macosAWSProvisioner() e2e.SuiteOption {
 	extraConfigMap := runner.ConfigMap{}
 	// Pulumi needs to pick a smaller subnet subset on macOS; only settable via the configmap.
 	extraConfigMap.Set("ddinfra:aws/useMacosCompatibleSubnets", "true", false)
-	e2e.Run(t, &macosInstallSuite{}, e2e.WithProvisioner(
+	return e2e.WithProvisioner(
 		awshost.Provisioner(
 			awshost.WithRunOptions(ec2.WithEC2InstanceOptions(ec2.WithOS(os.MacOSDefault), ec2.WithInternetAccess()), ec2.WithoutAgent()),
 			awshost.WithExtraConfigParams(extraConfigMap),
-		)),
-	)
+		))
+}
+
+// macosProvisioner picks the LOCAL_VM host when LOCAL_VM is set, an AWS mac host otherwise.
+func macosProvisioner(t *testing.T) e2e.SuiteOption {
+	if provisioner, ok := macosLocalVMProvisioner(t); ok {
+		return provisioner
+	}
+	return macosAWSProvisioner()
+}
+
+func TestMacosInstallScript(t *testing.T) {
+	e2e.Run(t, &macosInstallSuite{}, macosProvisioner(t))
 }
 
 // SetupSuite installs the agent once for all Test methods, so removePreInstalledAgent wipes
@@ -113,7 +219,7 @@ func (m *macosInstallSuite) SetupSuite() {
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
 	removePreInstalledAgent(m.T(), macosTestClient)
 
-	install.MacOS(m.T(), macosTestClient, installparams.WithUsername(m.Env().RemoteHost.Username), installparams.WithArch("x64"))
+	macosInstallAgentUnderTest(m.T(), m.Env().RemoteHost, macosTestClient)
 	if m.T().Failed() {
 		m.FailNow("agent install failed, aborting SetupSuite")
 	}
@@ -122,15 +228,57 @@ func (m *macosInstallSuite) SetupSuite() {
 	m.macosWaitForHealthyAgent(macosTestClient)
 }
 
+// macosLocalDMGEnvVar names a locally built Agent .dmg to install instead of the released Agent
+// (or the CI pipeline build) that install.MacOS fetches. It must be an absolute path: the test
+// binary does not run from the repository root.
+const macosLocalDMGEnvVar = "E2E_MACOS_LOCAL_DMG"
+
+// macosRemoteLocalDMG is where macosInstallLocalDMG copies the local .dmg on the host.
+const macosRemoteLocalDMG = "/tmp/e2e-local-agent.dmg"
+
+// macosInstallAgentUnderTest installs the build under test: the local .dmg named by
+// E2E_MACOS_LOCAL_DMG when set, the pipeline (or released) build install.MacOS fetches otherwise.
+func macosInstallAgentUnderTest(t *testing.T, host *components.RemoteHost, client *common.MacOSTestClient) {
+	if localDMG := goos.Getenv(macosLocalDMGEnvVar); localDMG != "" {
+		macosInstallLocalDMG(t, host, localDMG)
+		return
+	}
+	install.MacOS(t, client, installparams.WithUsername(host.Username), installparams.WithArch("x64"))
+}
+
+// macosInstallLocalDMG installs localDMG with the repository's install_mac_os.sh, which takes a
+// local image through DD_DMG_PATH. The script is the embedded copy rather than the published one
+// so that the install logic under test matches the branch the .dmg was built from.
+func macosInstallLocalDMG(t *testing.T, host *components.RemoteHost, localDMG string) {
+	const (
+		remoteDMG    = macosRemoteLocalDMG
+		remoteScript = "/tmp/e2e-install-mac-os.sh"
+	)
+
+	t.Run("Installing the agent from a local .dmg", func(tt *testing.T) {
+		require.True(tt, filepath.IsAbs(localDMG), "%s must be an absolute path, got %q", macosLocalDMGEnvVar, localDMG)
+		_, err := goos.Stat(localDMG)
+		require.NoError(tt, err, "%s does not name a readable .dmg", macosLocalDMGEnvVar)
+
+		host.CopyFile(localDMG, remoteDMG)
+		host.CopyFileFromFS(agentmacos.Scripts, agentmacos.InstallScriptPath, remoteScript)
+
+		_, err = host.Execute(fmt.Sprintf("DD_API_KEY=aaaaaaaaaa DD_DMG_PATH=%s bash %s", remoteDMG, remoteScript))
+		require.NoError(tt, err, "failed to install the local .dmg %s", localDMG)
+	})
+}
+
 // removePreInstalledAgent mirrors cmd/agent/macos/uninstall_mac_os.sh's cleanup; best-effort,
-// logs rather than fails on error.
+// logs rather than fails on error. It also removes the installer daemon and the experiment jobs,
+// which a reused host (LOCAL_VM, or an AWS pool instance in fast mode) may still carry from an
+// earlier run.
 func removePreInstalledAgent(t *testing.T, client *common.MacOSTestClient) {
+	labels := strings.Join(append(append(append([]string{}, macosStableLaunchDaemons...), macosInstallerLaunchDaemon), macosUnexpectedLaunchDaemons...), " ")
 	cmd := `
-sudo launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
-sudo launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
-sudo launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
-sudo launchctl bootout system/com.datadoghq.data-plane 2>/dev/null || true
-sudo launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
+for label in ` + labels + `; do
+	sudo launchctl bootout "system/$label" 2>/dev/null || true
+	sudo rm -f "/Library/LaunchDaemons/$label.plist"
+done
 for logged_uid in $(who | awk '{print $1}' | sort -u | xargs -I{} id -u {} 2>/dev/null); do
 	sudo launchctl bootout "gui/$logged_uid/com.datadoghq.gui" 2>/dev/null || true
 	sudo launchctl bootout "gui/$logged_uid/com.datadoghq.ai-usage-agent.desktop-monitor" 2>/dev/null || true
@@ -139,11 +287,6 @@ done
 sudo pkill -f 'Datadog Agent.app' 2>/dev/null || true
 sudo pkill -f 'ai-usage-agent-native-host.*--desktop-monitor' 2>/dev/null || true
 sudo pkill -f 'ai-prompt-logger-native-host.*--desktop-monitor' 2>/dev/null || true
-sudo rm -f /Library/LaunchDaemons/com.datadoghq.procmgr.plist
-sudo rm -f /Library/LaunchDaemons/com.datadoghq.agent.plist
-sudo rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
-sudo rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
-sudo rm -f /Library/LaunchDaemons/com.datadoghq.installer.plist
 sudo rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
 sudo rm -f /Library/LaunchAgents/com.datadoghq.ai-usage-agent.desktop-monitor.plist
 sudo rm -f /Library/LaunchAgents/com.datadoghq.ai-prompt-logger.desktop-monitor.plist
@@ -664,6 +807,13 @@ EOF`, macosAPMSentinelService))
 // TestNPMTracesConnection opens a real connection to fakeintake's remote address and asserts
 // it shows up in fakeintake's connection payloads.
 func (m *macosInstallSuite) TestNPMTracesConnection() {
+	// On LOCAL_VM fakeintake runs on the target host itself, so the connection to it is routed
+	// over lo0, which the darwin network tracer never captures (isEligibleInterface in
+	// pkg/network/filter/packet_source_darwin.go).
+	if goos.Getenv("LOCAL_VM") != "" {
+		m.T().Skip("fakeintake is local to the host on LOCAL_VM; loopback connections are not captured")
+	}
+
 	require.NoError(m.T(), m.Env().FakeIntake.Client().FlushServerAndResetAggregators())
 
 	macosTestClient := common.NewMacOSTestClient(m.Env().RemoteHost)
