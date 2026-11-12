@@ -1,5 +1,6 @@
 """toolchains for rpath-patching"""
 
+load("@bazel_lib//lib:copy_file.bzl", "copy_file")
 load("@bazel_lib//lib:copy_to_directory.bzl", "copy_to_directory")
 load("@bazel_lib//lib:run_binary.bzl", "run_binary")
 load("@rules_cc//cc:defs.bzl", "cc_binary")
@@ -97,11 +98,11 @@ cc_binary(
 
 # Python extension modules on macOS are Mach-O bundles named `.so`. Reuse foo's
 # binary content under a `.so` name to exercise that branch of the tree rewriter.
-genrule(
+copy_file(
     name = "baz_so",
-    srcs = [":foo"],
-    outs = ["baz.so"],
-    cmd = "cp $(execpath :foo) $@",
+    src = ":foo",
+    out = "baz.so",
+    is_executable = True,
     target_compatible_with = ["@platforms//os:macos"],
 )
 

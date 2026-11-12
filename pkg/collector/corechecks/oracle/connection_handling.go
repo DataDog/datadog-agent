@@ -109,26 +109,3 @@ func closeDatabase(c *Check, db *sqlx.DB) {
 		}
 	}
 }
-
-// Building a dedicated go-ora connection for dealing with LOBs, see https://github.com/sijms/go-ora/issues/439
-func connectGoOra(c *Check) (*go_ora.Connection, error) {
-	conn, err := go_ora.NewConnection(buildGoOraURL(c), nil)
-	if err != nil {
-		return nil, fmt.Errorf("failed to connect with the oracle driver %w", err)
-	}
-	err = conn.Open()
-	if err != nil {
-		return nil, fmt.Errorf("failed to open connection with the oracle driver %w", err)
-	}
-	return conn, nil
-}
-
-func closeGoOraConnection(c *Check) {
-	if c.connection == nil {
-		return
-	}
-	err := c.connection.Close()
-	if err != nil {
-		log.Warnf("%s failed to close go-ora connection: %s", c.logPrompt, err.Error())
-	}
-}

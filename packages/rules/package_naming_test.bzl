@@ -6,16 +6,16 @@ load("@rules_testing//lib:util.bzl", "util")
 load(":package_naming.bzl", "package_name_variables")
 
 # -- Transitions for flavor testing ------------------------------------------
-# Each transition forces //packages/agent:flavor to a specific value so we can
-# verify _inject_flavor() output without changing the default flag in the repo.
+# Each transition forces a FIPS target platform or a //packages/agent:flavor value
+# so we can verify _inject_fips() output without changing the defaults of the repo.
 
 def _fips_transition_impl(_settings, _attr):
-    return {"//packages/agent:flavor": "fips"}
+    return {"//command_line_option:platforms": "//bazel/platforms:fips_test_platform"}
 
 _fips_transition = transition(
     implementation = _fips_transition_impl,
     inputs = [],
-    outputs = ["//packages/agent:flavor"],
+    outputs = ["//command_line_option:platforms"],
 )
 
 def _iot_transition_impl(_settings, _attr):
