@@ -90,10 +90,10 @@ func TestGetBundleInheritedAllowedActions(t *testing.T) {
 			},
 		},
 		{
-			name: "returns empty for similar looking bundle	",
+			name: "returns empty for similar looking integrations",
 			actionsAllowlist: map[string]sets.Set[string]{
-				"com.datadoghq.dd":           sets.New[string]("action1"),
-				"com.datadoghq.dd.subbundle": sets.New[string]("action2"),
+				"com.datadoghq.mongodbother":       sets.New[string]("find"),
+				"com.datadoghq.gitlabother.issues": sets.New[string]("getIssue"),
 			},
 			expectedInheritedActions: map[string]sets.Set[string]{},
 		},
