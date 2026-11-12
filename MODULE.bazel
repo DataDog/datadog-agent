@@ -149,6 +149,8 @@ single_version_override(
         "//bazel/patches:rules_go-windows-symlink-workaround.patch",
         # https://github.com/bazel-contrib/rules_go/pull/4727
         "//bazel/patches:rules_go-link-resource-set.patch",
+        # Local only: loads //bazel/go_tags:transition.bzl from the main repository.
+        "//bazel/patches:rules_go-project-library-tags.patch",
     ],
 )
 
