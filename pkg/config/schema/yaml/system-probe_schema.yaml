@@ -740,11 +740,13 @@ properties:
         default: false
         visibility: public
         description: |-
-          Aggregate connections by rolling up ephemeral ports. Connections that
-          differ only by their ephemeral (client-side) port are reported as a
-          single rolled-up connection, reducing cardinality. Requires process
-          event monitoring (event_monitoring_config.network_process.enabled);
-          the rollup is disabled with a warning otherwise.
+          Aggregate short-lived closed connections by rolling up ephemeral ports.
+          Short-lived closed connections that differ only by their ephemeral
+          (client-side) port are reported as a single rolled-up connection,
+          reducing cardinality. Active and longer-lived connections are not
+          rolled up. Requires process event monitoring
+          (event_monitoring_config.network_process.enabled); the rollup is
+          disabled with a warning otherwise.
       enable_dns_by_querytype:
         node_type: setting
         type: boolean
