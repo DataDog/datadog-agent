@@ -2779,6 +2779,15 @@ properties:
     - template_section:Dogstatsd
     comment: Enable check for Entity-ID presence when enriching Dogstatsd metrics
       with tags
+  dogstatsd_set_timing_unit:
+    node_type: setting
+    type: boolean
+    default: false
+    visibility: public
+    description: Attach the "millisecond" unit to DogStatsD timing (ms) metrics.
+      By default, timing metrics are sent without a unit.
+    tags:
+    - template_section:Dogstatsd
   dogstatsd_no_aggregation_pipeline:
     node_type: setting
     type: boolean
