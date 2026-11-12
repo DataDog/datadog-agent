@@ -53,6 +53,19 @@ exports_files(glob(
 
 exports_files(["go.mod"])
 
+# Inputs for //compliance:go_licenses.bzl.
+filegroup(
+    name = "license_3rdparty_csv",
+    srcs = ["LICENSE-3rdparty.csv"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "wwhrd_config",
+    srcs = [".wwhrd.yml"],
+    visibility = ["//visibility:public"],
+)
+
 # Puts datadog-agent.map among the inputs of the Go link action, for binaries
 # passing "-Wl,--version-script=datadog-agent.map" through -extldflags.
 # rules_go drops cdeps linkopts when the binary itself has no cgo sources, so
