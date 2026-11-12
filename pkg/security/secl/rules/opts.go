@@ -38,6 +38,8 @@ type Opts struct {
 	Logger                     log.Logger
 	ruleActionPerformedCb      RuleActionPerformedCb
 	RuleCacheEnabled           bool
+	// EnvsWithValue lists the environment variables whose value can be serialized
+	EnvsWithValue map[string]bool
 }
 
 // WithSupportedDiscarders set supported discarders
@@ -91,6 +93,15 @@ func (o *Opts) WithRuleActionPerformedCb(cb RuleActionPerformedCb) *Opts {
 // WithRuleCacheEnabled sets the rule cache enabled
 func (o *Opts) WithRuleCacheEnabled(ruleCacheEnabled bool) *Opts {
 	o.RuleCacheEnabled = ruleCacheEnabled
+	return o
+}
+
+// WithEnvsWithValue sets the environment variables whose value can be serialized
+func (o *Opts) WithEnvsWithValue(envsWithValue []string) *Opts {
+	o.EnvsWithValue = make(map[string]bool, len(envsWithValue))
+	for _, env := range envsWithValue {
+		o.EnvsWithValue[env] = true
+	}
 	return o
 }
 

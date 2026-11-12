@@ -978,6 +978,9 @@ type VariableOpts struct {
 	Private   bool          `json:"private"` // When a variable is marked as private, it will not be included in the serialized event
 	Inherited bool          `json:"inherited"`
 	Telemetry *Telemetry    `json:"-"`
+	// ValueFilter, when set, is applied to each string value of the variable before it is
+	// included in the serialized event
+	ValueFilter func(string) string `json:"-"`
 }
 
 // NewVariables returns a new set of global variables
