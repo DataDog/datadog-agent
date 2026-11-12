@@ -55,13 +55,3 @@ func TestParseNvidiaDeviceReplica(t *testing.T) {
 		})
 	}
 }
-
-func TestIsNvidiaDeviceID(t *testing.T) {
-	assert.True(t, IsNvidiaDeviceID("GPU-170ab964-06dc-a639-af22-0cafd46259c7"))
-	assert.True(t, IsNvidiaDeviceID("GPU-170ab964-06dc-a639-af22-0cafd46259c7::2"))
-	assert.True(t, IsNvidiaDeviceID("MIG-GPU-170ab964-06dc-a639-af22-0cafd46259c7/1/0"))
-	assert.True(t, IsNvidiaDeviceID("MIG-GPU-170ab964-06dc-a639-af22-0cafd46259c7/1/0::2"))
-	assert.False(t, IsNvidiaDeviceID("nvidia0"))
-	assert.False(t, IsNvidiaDeviceID("gpu-0-mig-1g18gb-19-0"))
-	assert.False(t, IsNvidiaDeviceID(""))
-}

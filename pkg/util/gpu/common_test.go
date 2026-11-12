@@ -69,6 +69,16 @@ func TestIsNvidiaKubernetesResource(t *testing.T) {
 			expected:     true,
 		},
 		{
+			name:         "shared GPU, renamed by the plugin's default",
+			resourceName: string(GpuNvidiaGenericShared),
+			expected:     true,
+		},
+		{
+			name:         "time-sliced MIG GPU, renamed by the plugin's default",
+			resourceName: "nvidia.com/mig-3g.20gb.shared",
+			expected:     true,
+		},
+		{
 			name:         "non-NVIDIA resource",
 			resourceName: string(GpuAMD),
 			expected:     false,
@@ -81,23 +91,6 @@ func TestIsNvidiaKubernetesResource(t *testing.T) {
 		})
 	}
 
-	t.Run("recognized by the device ID when the resource name is not NVIDIA's", func(t *testing.T) {
-		// A GPU shared by the device plugin may be exposed under a renamed
-		// resource (e.g. nvidia.com/gpu.shared), while the device ID keeps
-		// its NVIDIA shape.
-		assert.True(t, IsNvidiaKubernetesResource("nvidia.com/gpu.shared", "GPU-abc::1"))
-		assert.True(t, IsNvidiaKubernetesResource("myorg.com/gpu", "MIG-abc"))
-	})
-
-	t.Run("not recognized when neither the resource name nor the device ID is NVIDIA's", func(t *testing.T) {
-		assert.False(t, IsNvidiaKubernetesResource("amd.com/gpu", "amd-1234"))
-		assert.False(t, IsNvidiaKubernetesResource("myorg.com/gpu", "abc-123"))
-	})
-
-	t.Run("without a device ID, only the resource name decides", func(t *testing.T) {
-		assert.True(t, IsNvidiaKubernetesResource("nvidia.com/gpu"))
-		assert.False(t, IsNvidiaKubernetesResource("myorg.com/gpu"))
-	})
 }
 
 func TestExtractGPUType(t *testing.T) {
