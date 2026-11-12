@@ -15,4 +15,42 @@ maven.install(
     strict_visibility = True,
     version_conflict_policy = "pinned",
 )
+
+JMXFETCH_VERSION = "0.52.0"  # not a literal, to keep Renovate from bumping it without a release note
+
+USE_JMXFETCH_SNAPSHOT = False  # True to override the JMXFetch jar with the http_file snapshot below
+
+maven.artifact(
+    name = "maven2",
+    artifact = "jmxfetch",
+    classifier = "jar-with-dependencies",
+    exclusions = ["*:*"],  # no need to fetch bundled dependencies
+    group = "com.datadoghq",
+    version = JMXFETCH_VERSION,
+)
 use_repo(maven, "maven2")
+
+http_file = use_repo_rule("@bazel_tools//tools/build_defs/repo:http.bzl", "http_file")
+
+http_file(
+    name = "jmxfetch_license",
+    downloaded_file_path = "LICENSE",
+    sha256 = "760a910fd92b093c99fa4997649ea450eb36e9a531d7cd9f02872ced181923fc",
+    url = "https://raw.githubusercontent.com/DataDog/jmxfetch/{}/LICENSE".format(JMXFETCH_VERSION),
+)
+
+_ = [
+    # buildifier: disable=print
+    print("WARNING: The JMXFetch jar is replaced with a snapshot - DO NOT MERGE"),
+    http_file(
+        name = "jmxfetch_snapshot",
+        sha256 = "572769e090fb43bddebcbf8caf9484b4aa8cf144288fc5a6f8bbdfee6c10613e",
+        # Maven Central deletes snapshots after 90 days, hence a 404 until replaced by a fresh one
+        url = "https://central.sonatype.com/repository/maven-snapshots/com/datadoghq/jmxfetch/0.52.1-SNAPSHOT/jmxfetch-0.52.1-20260528.103732-1-jar-with-dependencies.jar",
+    ),
+    maven.override(
+        name = "maven2",
+        coordinates = "com.datadoghq:jmxfetch:jar-with-dependencies",
+        target = "@jmxfetch_snapshot//file",
+    ),
+] if USE_JMXFETCH_SNAPSHOT else None
