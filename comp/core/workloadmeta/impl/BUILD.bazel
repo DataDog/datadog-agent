@@ -32,6 +32,7 @@ go_library(
         "//pkg/util/fxutil",
         "//pkg/util/http",
         "//pkg/util/kubernetes",
+        "//pkg/util/kubernetes/kueue",
         "//pkg/util/log",
         "//pkg/util/retry",
         "@com_github_cenkalti_backoff_v7//:backoff",

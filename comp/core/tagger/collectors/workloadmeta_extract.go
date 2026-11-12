@@ -26,6 +26,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/fargate"
 	gpuutil "github.com/DataDog/datadog-agent/pkg/util/gpu"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/tmplvar"
 )
@@ -1579,7 +1580,7 @@ func addKueueSchedulerTags(workloadName, clusterQueueName string, tagList *tagli
 }
 
 func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
-	return kubernetes.KueueWorkloadName(pod.Labels, pod.Annotations) != "" ||
+	return kueue.WorkloadName(pod) != "" ||
 		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
@@ -1644,7 +1645,7 @@ func isKueueKind(kind workloadmeta.Kind) bool {
 func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
 	switch e := entity.(type) {
 	case *workloadmeta.KubernetesKueueWorkload:
-		return pod.Namespace == e.Namespace && (kubernetes.KueueWorkloadName(pod.Labels, pod.Annotations) == e.Name ||
+		return pod.Namespace == e.Namespace && (kueue.WorkloadName(pod) == e.Name ||
 			(pod.ID != "" && e.Labels[kubernetes.KueueJobUIDLabelKey] == pod.ID))
 	case *workloadmeta.KubernetesKueueQueue:
 		// Pods can reach a queue through their Workload, so matching them

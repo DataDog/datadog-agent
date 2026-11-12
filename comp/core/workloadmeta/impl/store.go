@@ -21,6 +21,7 @@ import (
 	pkgerrors "github.com/DataDog/datadog-agent/pkg/errors"
 	"github.com/DataDog/datadog-agent/pkg/status/health"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes"
+	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kueue"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/util/retry"
 )
@@ -489,7 +490,7 @@ func (w *workloadmeta) GetKubernetesKueueWorkload(id string) (*wmdef.KubernetesK
 func (w *workloadmeta) GetKubernetesKueueWorkloadForPod(pod *wmdef.KubernetesPod) (*wmdef.KubernetesKueueWorkload, error) {
 	// Jobs admitted by Kueue can propagate the Workload name to their pods.
 	// Prebuilt Workloads and plain Pod groups also provide explicit name references.
-	if name := kubernetes.KueueWorkloadName(pod.Labels, pod.Annotations); name != "" {
+	if name := kueue.WorkloadName(pod); name != "" {
 		return w.GetKubernetesKueueWorkload(wmdef.GenerateKueueWorkloadEntityID(pod.Namespace, name))
 	}
 

@@ -36,6 +36,7 @@ go_library(
         "//pkg/util/kubernetes",
         "//pkg/util/kubernetes/clustername",
         "//pkg/util/kubernetes/kubelet",
+        "//pkg/util/kubernetes/kueue",
         "//pkg/util/log",
         "//pkg/util/tags",
         "//pkg/util/tmplvar",
