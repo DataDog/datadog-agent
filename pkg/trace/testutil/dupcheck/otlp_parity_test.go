@@ -802,7 +802,11 @@ var otlpPipelineParityExceptions = []otlpPipelineParityException{
 					continue
 				}
 				spanValues := inputAttributeValues(in, k)
-				if (!wok || slices.Contains(spanValues, strings.TrimPrefix(wv, "s:"))) && (!gok || slices.Contains(spanValues, strings.TrimPrefix(gv, "s:"))) {
+				// The V1 payload must carry the key whenever an input span carries it; only the
+				// legacy payload may omit it (Process sets _dd.apm_mode from the root span of the
+				// first chunk only, and _dd.git.commit.sha from the container tags). Accepting a
+				// missing V1 key here would hide a regression that stops promoting it.
+				if (!wok || slices.Contains(spanValues, strings.TrimPrefix(wv, "s:"))) && gok && slices.Contains(spanValues, strings.TrimPrefix(gv, "s:")) {
 					want.attributes, got.attributes = maps.Clone(want.attributes), maps.Clone(got.attributes)
 					delete(want.attributes, k)
 					delete(got.attributes, k)
@@ -882,6 +886,10 @@ func compareOTLPParityStats(t *testing.T, want, got *pb.StatsPayload, spanGits [
 	t.Helper()
 	require.NotNil(t, want)
 	require.NotNil(t, got)
+	// normalize below returns equal (empty) slices when neither pipeline produced stats, so
+	// without these the comparison would pass while comparing nothing.
+	require.NotEmpty(t, want.Stats, "legacy pipeline produced no APM stats to compare")
+	require.NotEmpty(t, got.Stats, "V1 pipeline produced no APM stats to compare")
 	wantGits := make(map[string]bool)
 	for _, csp := range want.Stats {
 		wantGits[csp.GitCommitSha] = true

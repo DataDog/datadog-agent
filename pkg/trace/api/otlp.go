@@ -87,9 +87,20 @@ type OTLPReceiver struct {
 	mu                 sync.RWMutex
 }
 
-// NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
-func NewOTLPReceiver(out chan<- *PayloadV1, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+// NewOTLPReceiverV1 returns a new OTLPReceiver which sends any incoming traces down the out channel,
+// encoded as V1 (string-indexed) payloads and processed by the V1 trace pipeline.
+func NewOTLPReceiverV1(out chan<- *PayloadV1, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
 	return NewOTLPReceiverWithLegacyOut(out, nil, cfg, statsd, timing)
+}
+
+// NewOTLPReceiver returns a new OTLPReceiver which sends any incoming traces down the out channel.
+//
+// Deprecated: OTLP traces are converted to the V1 (string-indexed) trace format now, so this
+// constructor no longer reflects the default behavior of the receiver. Use NewOTLPReceiverV1
+// instead. This one is kept, still sending legacy (non-V1) payloads, for consumers of the
+// published pkg/trace module until the legacy trace pipeline is removed.
+func NewOTLPReceiver(out chan<- *Payload, cfg *config.AgentConfig, statsd statsd.ClientInterface, timing timing.Reporter) *OTLPReceiver {
+	return NewOTLPReceiverWithLegacyOut(nil, out, cfg, statsd, timing)
 }
 
 // NewOTLPReceiverWithLegacyOut returns a new OTLPReceiver which sends any incoming traces down the
@@ -316,9 +327,10 @@ func (o *OTLPReceiver) ReceiveResourceSpans(ctx context.Context, rspans ptrace.R
 	return src, nil
 }
 
-// useLegacyOut reports whether payloads are sent to the legacy (non-V1) trace pipeline.
+// useLegacyOut reports whether payloads are sent to the legacy (non-V1) trace pipeline. A receiver
+// with no V1 out channel, such as the one built by the deprecated NewOTLPReceiver, always uses it.
 func (o *OTLPReceiver) useLegacyOut() bool {
-	return o.legacyOut != nil && o.conf.HasFeature("disable-convert-traces")
+	return o.legacyOut != nil && (o.out == nil || o.conf.HasFeature("disable-convert-traces"))
 }
 
 // payloadToV1 converts a payload built by the legacy OTLP receiver into a V1 payload.

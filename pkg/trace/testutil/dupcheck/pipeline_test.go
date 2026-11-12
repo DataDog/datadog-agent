@@ -459,7 +459,7 @@ func newDupcheckPipeline(t *testing.T, c dupcheckConfig) *dupcheckPipeline {
 	p := &dupcheckPipeline{
 		agnt:    a,
 		intake:  intake,
-		otlp:    api.NewOTLPReceiver(otlpOut, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}),
+		otlp:    api.NewOTLPReceiverV1(otlpOut, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}),
 		otlpOut: otlpOut,
 	}
 	t.Cleanup(func() {

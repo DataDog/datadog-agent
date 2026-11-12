@@ -14,9 +14,9 @@ enhancements:
     same pipeline as traces from Datadog tracing libraries, instead of the legacy
     pipeline. Converted spans should look the same in the Datadog UI. A few values
     are now taken the way they already are for traces from tracing libraries: the
-    trace origin, payload env and app version can be taken from any span of a
-    trace rather than only its root span, and a ``_dd.git.commit.sha`` span
-    attribute now sets the git commit SHA of the APM stats.
+    trace origin, payload env, app version and hostname can be taken from any
+    span of a trace rather than only its root span, and a ``_dd.git.commit.sha``
+    span attribute now sets the git commit SHA of the APM stats.
     To send OTLP traces through the legacy pipeline instead, add the feature flag
     ``disable-convert-traces`` to ``apm_config.features``: it now applies to
     OTLP traces as well as to traces from tracing libraries.
@@ -26,3 +26,13 @@ deprecations:
     OTLP receiver is deprecated. Traces received with it set are converted into
     the string-indexed "v1.0" trace format like the others, unless
     ``disable-convert-traces`` is also set.
+  - |
+    APM: The ``datadog.EnableReceiveResourceSpansV2`` feature gate of the
+    OpenTelemetry Collector Datadog connector, which controls the same OTLP
+    receiver, is deprecated too. Turning it off no longer changes the format of
+    the traces: it only routes them through an extra legacy conversion.
+  - |
+    APM: The ``api.NewOTLPReceiver`` constructor of the trace-agent OTLP receiver
+    is deprecated, because the receiver now emits the string-indexed "v1.0" trace
+    format. Use ``api.NewOTLPReceiverV1`` instead. ``api.NewOTLPReceiver`` keeps
+    its previous behavior, sending legacy payloads, for callers that still need it.

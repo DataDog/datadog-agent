@@ -432,7 +432,7 @@ func TestProcess(t *testing.T) {
 		defer cancel()
 
 		out := make(chan *api.PayloadV1, 1)
-		rcv := api.NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		rcv := api.NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		now := uint64(time.Now().UnixNano())
 		req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{{
 			LibName:    "lib",

@@ -217,7 +217,7 @@ func testOTLPMetrics(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	stats := &teststatsd.Client{}
 
 	out := make(chan *PayloadV1, 1)
-	rcv := NewOTLPReceiver(out, cfg, stats, &timing.NoopReporter{})
+	rcv := NewOTLPReceiverV1(out, cfg, stats, &timing.NoopReporter{})
 	req := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -281,7 +281,7 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 	}
 	cfg.OTLPReceiver.SpanNameRemappings = map[string]string{"libname.unspecified": "new"}
 	out := make(chan *PayloadV1, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -309,7 +309,7 @@ func testOTLPNameRemapping(enableReceiveResourceSpansV2 bool, t *testing.T) {
 func TestOTLPSampleRateFromTracestate(t *testing.T) {
 	cfg := NewTestConfig(t)
 	out := make(chan *PayloadV1, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	rcv.ReceiveResourceSpans(context.Background(), testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
 			LibName:    "libname",
@@ -350,7 +350,7 @@ func testOTLPSpanNameV2(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *PayloadV1, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		in []testutil.OTLPResourceSpan
@@ -821,7 +821,7 @@ func TestCreateChunks(t *testing.T) {
 			}
 			cfg.OTLPReceiver.ProbabilisticSampling = 50
 			cfg.ProbabilisticSamplerEnabled = tt.probabilisticSamplerEnabled
-			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			o := NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			const (
 				traceID1 = 123           // sampled by 50% rate
 				traceID2 = 1237892138897 // not sampled by 50% rate
@@ -894,7 +894,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	out := make(chan *PayloadV1, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	require := require.New(t)
 	for _, tt := range []struct {
 		enableReceiveResourceSpansV2 bool
@@ -1335,7 +1335,7 @@ func testOTLPReceiveResourceSpans(enableReceiveResourceSpansV2 bool, t *testing.
 func TestOTLPReceiveDoesNotHoistSDKOtlpExport(t *testing.T) {
 	cfg := NewTestConfig(t)
 	out := make(chan *PayloadV1, 1)
-	rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	rcv := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
 		{
@@ -1367,8 +1367,8 @@ func TestOTLPReceiveDoesNotHoistSDKOtlpExport(t *testing.T) {
 }
 
 // TestOTLPReceiveLegacyOut verifies that with the disable-convert-traces feature, a receiver created
-// with NewOTLPReceiverWithLegacyOut sends legacy payloads to legacyOut and nothing to out, and that it
-// sends V1 payloads to out otherwise.
+// with NewOTLPReceiverWithLegacyOut sends legacy payloads to legacyOut and nothing to out, and that
+// it sends V1 payloads to out otherwise (including when it is created without a legacy channel).
 func TestOTLPReceiveLegacyOut(t *testing.T) {
 	for _, receiver := range []struct {
 		name     string
@@ -1380,7 +1380,7 @@ func TestOTLPReceiveLegacyOut(t *testing.T) {
 		for _, tt := range []struct {
 			name         string
 			convert      bool // whether disable-convert-traces is not set
-			nilLegacyOut bool // whether the receiver is created with NewOTLPReceiver
+			nilLegacyOut bool // whether the receiver is created with NewOTLPReceiverV1, without a legacy channel
 			wantLegacy   bool
 		}{
 			{name: "disable-convert-traces", wantLegacy: true},
@@ -1399,7 +1399,7 @@ func TestOTLPReceiveLegacyOut(t *testing.T) {
 				legacyOut := make(chan *Payload, 1)
 				var rcv *OTLPReceiver
 				if tt.nilLegacyOut {
-					rcv = NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+					rcv = NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 				} else {
 					rcv = NewOTLPReceiverWithLegacyOut(out, legacyOut, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 				}
@@ -1432,6 +1432,37 @@ func TestOTLPReceiveLegacyOut(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// TestOTLPReceiveLegacyConstructor verifies that the deprecated NewOTLPReceiver constructor keeps
+// its pre-V1 behavior: it always sends legacy (non-V1) payloads, whether or not the
+// disable-convert-traces feature is set.
+func TestOTLPReceiveLegacyConstructor(t *testing.T) {
+	for _, convert := range []bool{false, true} {
+		t.Run(fmt.Sprintf("convert=%v", convert), func(t *testing.T) {
+			cfg := NewTestConfig(t)
+			if !convert {
+				cfg.Features["disable-convert-traces"] = struct{}{}
+			}
+			legacyOut := make(chan *Payload, 1)
+			//nolint:staticcheck // SA1019: the deprecated constructor is the subject of this test
+			rcv := NewOTLPReceiver(legacyOut, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			rspans := testutil.NewOTLPTracesRequest([]testutil.OTLPResourceSpan{
+				{
+					LibName:    "libname",
+					LibVersion: "1.2",
+					Attributes: map[string]interface{}{string(semconv.DeploymentEnvironmentKey): "depenv"},
+					Spans:      []*testutil.OTLPSpan{{Name: "first"}},
+				},
+			}).Traces().ResourceSpans().At(0)
+			_, err := rcv.ReceiveResourceSpans(context.Background(), rspans, http.Header{}, nil)
+			require.NoError(t, err)
+			require.Len(t, legacyOut, 1, "the deprecated constructor must send a legacy payload")
+			p := <-legacyOut
+			require.Equal(t, "depenv", p.TracerPayload.Env)
+			require.Len(t, p.TracerPayload.Chunks, 1)
+		})
 	}
 }
 
@@ -1584,7 +1615,7 @@ func testOTLPHostname(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		}
 		cfg.Hostname = tt.config
 		out := make(chan *PayloadV1, 1)
-		rcv := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		rcv := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		rattr := map[string]interface{}{}
 		if tt.resource != "" {
 			rattr["datadog.host.name"] = tt.resource
@@ -1630,7 +1661,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		assert.NotNil(t, NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
+		assert.NotNil(t, NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{}).conf)
 	})
 
 	t.Run("Start/nil", func(t *testing.T) {
@@ -1638,7 +1669,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert.Nil(t, o.grpcsrv)
@@ -1654,7 +1685,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 			BindHost: "localhost",
 			GRPCPort: port,
 		}
-		o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.Start()
 		defer o.Stop()
 		assert := assert.New(t)
@@ -1671,7 +1702,7 @@ func testOTLPReceiver(enableReceiveResourceSpansV2 bool, t *testing.T) {
 		if !enableReceiveResourceSpansV2 {
 			cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 		}
-		o := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+		o := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 		o.processRequest(context.Background(), http.Header(map[string][]string{
 			header.Lang:        {"go"},
 			header.ContainerID: {"containerdID"},
@@ -2747,7 +2778,7 @@ func testOTelSpanToDDSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 		},
 	} {
 		t.Run("", func(t *testing.T) {
-			o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			o := NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 			lib := pcommon.NewInstrumentationScope()
 			lib.SetName(tt.libname)
 			lib.SetVersion(tt.libver)
@@ -2813,7 +2844,7 @@ func testOTLPConvertSpan(enableOperationAndResourceNameV2 bool, t *testing.T) {
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr              map[string]string
 		libname            string
@@ -3414,7 +3445,7 @@ func testOTLPConvertSpanSetPeerService(enableOperationAndResourceNameV2 bool, t 
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr           map[string]string
 		libname         string
@@ -3784,7 +3815,7 @@ func testOTelSpanToDDSpanSetPeerService(enableOperationAndResourceNameV2 bool, t
 	if !enableOperationAndResourceNameV2 {
 		cfg.Features["disable_operation_and_resource_name_logic_v2"] = struct{}{}
 	}
-	o := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	for i, tt := range []struct {
 		rattr           map[string]string
 		libname         string
@@ -4318,7 +4349,7 @@ func benchmarkProcessRequest(enableReceiveResourceSpansV2 bool, b *testing.B) {
 	if !enableReceiveResourceSpansV2 {
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
-	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
@@ -4362,7 +4393,7 @@ func benchmarkProcessRequestTopLevel(enableReceiveResourceSpansV2 bool, b *testi
 		cfg.Features["disable_receive_resource_spans_v2"] = struct{}{}
 	}
 	cfg.Features["enable_otlp_compute_top_level_by_span_kind"] = struct{}{}
-	r := NewOTLPReceiver(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	r := NewOTLPReceiverV1(out, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 	b.ReportAllocs()
 	b.ResetTimer()
@@ -4417,7 +4448,7 @@ func TestConvertSpanDBNameMapping(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			cfg := NewTestConfig(t)
-			rcv := NewOTLPReceiver(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
+			rcv := NewOTLPReceiverV1(nil, cfg, &statsd.NoOpClient{}, &timing.NoopReporter{})
 
 			span := ptrace.NewSpan()
 			span.SetName("test-span")
@@ -4464,7 +4495,7 @@ func TestConvertSpanSpanAttributePrecedence(t *testing.T) {
 		{name: "int", setSpanAttr: func(m pcommon.Map) { m.PutInt("team", 7) }, wantMetric: 7},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
-			rcv := NewOTLPReceiver(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
+			rcv := NewOTLPReceiverV1(nil, NewTestConfig(t), &statsd.NoOpClient{}, &timing.NoopReporter{})
 			span := ptrace.NewSpan()
 			span.SetName("test-span")
 			tt.setSpanAttr(span.Attributes())
