@@ -1,4 +1,6 @@
+import json
 from collections import defaultdict
+from pathlib import Path
 
 from invoke import task
 from invoke.exceptions import Exit
@@ -90,12 +92,17 @@ def _team_slugs(owners) -> list[str]:
     return sorted(slugs)
 
 
-def smp_pr_context_impl(branch: str, repository: str, owners_file: str):
+def smp_pr_context_impl(branch: str, repository: str, owners_file: str, context_out=None):
     """Return comma-separated PR labels and involved CODEOWNERS teams."""
     from tasks.libs.ciproviders.github_api import GithubAPI
 
     gh = GithubAPI(repository)
     prs = list(gh.get_pr_for_branch(head_branch_name=branch))
+    if context_out:
+        context = {'status': 'absent' if not prs else 'ambiguous'}
+        if len(prs) == 1:
+            context = {'status': 'resolved', 'number': prs[0].number, 'url': prs[0].html_url}
+        Path(context_out).write_text(json.dumps(context) + '\n', encoding='utf-8')
     if not prs:
         return "", ""
     pr = prs[0]
@@ -113,9 +120,10 @@ def smp_pr_context(
     involved_teams_out='involved_teams.txt',
     repository='DataDog/datadog-agent',
     owners_file='.github/CODEOWNERS',
+    context_out=None,
 ):
     """Write PR labels and involved teams for SMP manifest selection."""
-    labels, involved = smp_pr_context_impl(branch, repository, owners_file)
+    labels, involved = smp_pr_context_impl(branch, repository, owners_file, context_out)
     with open(labels_out, 'w') as f:
         f.write(labels)
     with open(involved_teams_out, 'w') as f:
