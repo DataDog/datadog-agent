@@ -89,8 +89,8 @@ func (s *kubeletConfigDirTestSuite) workerNode() string {
 }
 
 // writeDropins writes two drop-ins and a README into the kubelet drop-in
-// directory of node, from a pod running the image of the agent pod agentPod,
-// which the node holds already.
+// directory of node, from a pod running the image of the agent pod agentPod
+// with its pull secrets.
 func (s *kubeletConfigDirTestSuite) writeDropins(node, agentPod string) {
 	pods := s.Env().KubernetesCluster.Client().CoreV1().Pods("datadog")
 	agent, err := pods.Get(context.Background(), agentPod, metav1.GetOptions{})
@@ -118,8 +118,9 @@ chmod 0600 /dropins/sub/20-e2e.conf
 	writer := &corev1.Pod{
 		ObjectMeta: metav1.ObjectMeta{Name: "write-kubelet-dropins"},
 		Spec: corev1.PodSpec{
-			NodeName:      node,
-			RestartPolicy: corev1.RestartPolicyNever,
+			NodeName:         node,
+			RestartPolicy:    corev1.RestartPolicyNever,
+			ImagePullSecrets: agent.Spec.ImagePullSecrets,
 			Containers: []corev1.Container{{
 				Name:            "write",
 				Image:           image,
@@ -138,14 +139,11 @@ chmod 0600 /dropins/sub/20-e2e.conf
 	}
 	_, err = pods.Create(context.Background(), writer, metav1.CreateOptions{})
 	require.NoError(s.T(), err)
-	var phase corev1.PodPhase
-	require.Eventually(s.T(), func() bool {
+	assert.Eventually(s.T(), func() bool {
 		p, err := pods.Get(context.Background(), writer.Name, metav1.GetOptions{})
-		if err != nil {
-			return false
-		}
-		phase = p.Status.Phase
-		return phase == corev1.PodSucceeded || phase == corev1.PodFailed
+		return err == nil && (p.Status.Phase == corev1.PodSucceeded || p.Status.Phase == corev1.PodFailed)
 	}, 3*time.Minute, 5*time.Second, "pod %s did not complete", writer.Name)
-	require.Equal(s.T(), corev1.PodSucceeded, phase, "pod %s", writer.Name)
+	p, err := pods.Get(context.Background(), writer.Name, metav1.GetOptions{})
+	require.NoError(s.T(), err)
+	require.Equal(s.T(), corev1.PodSucceeded, p.Status.Phase, "pod %s: %+v", writer.Name, p.Status.ContainerStatuses)
 }
