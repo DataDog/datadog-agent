@@ -8,6 +8,11 @@
 // glibc hands each contended thread its own arena, up to 8*nproc, and never returns a
 // secondary arena's memory to the OS. A process that churns large blocks from many threads
 // therefore settles at the sum of every arena's high-water mark rather than its live set.
+//
+// Other platforms need no equivalent. Windows has no per-thread arenas, services anything
+// above the heap's ~508 KB VirtualMemoryThreshold straight from VirtualAlloc, and returns it
+// on free; nor does it have a counterpart to glibc's dynamic M_MMAP_THRESHOLD, which is what
+// migrates large blocks into arenas that are never trimmed.
 package mallocarena
 
 import (
