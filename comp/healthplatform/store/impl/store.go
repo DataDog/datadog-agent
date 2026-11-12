@@ -98,22 +98,16 @@ type healthPlatformImpl struct {
 	observersMu sync.RWMutex
 	observers   []healthplatformdef.IssuesObserver
 
-	ingestMu     sync.Mutex
-	ingestQueue  []ingestCmd
-	ingestWake   chan struct{}
-	stopCh       chan struct{}
-	doneCh       chan struct{}
-	dirty        bool      // Owned by the ingest worker.
-	lastDropWarn time.Time // Guarded by ingestMu; throttles the queue-full warn.
+	stopCh chan struct{}
+	doneCh chan struct{}
+	dirty  bool // Guarded by issuesMux.
 
 	// Metrics
 	metrics telemetryMetrics
 }
 
 type telemetryMetrics struct {
-	issuesCounter  telemetry.Counter
-	issuesDropped  telemetry.Counter
-	ingestQueueLen telemetry.Gauge
+	issuesCounter telemetry.Counter
 }
 
 // IssueState is a type alias for the proto enum healthplatform.IssueState.
@@ -311,7 +305,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 		persistedIssues: make(map[string]*PersistedIssue),
 		persistence:     persistence,
-		ingestWake:      make(chan struct{}, 1),
 		stopCh:          make(chan struct{}),
 		doneCh:          make(chan struct{}),
 	}
@@ -324,8 +317,6 @@ func NewComponent(reqs Requires) (Provides, error) {
 
 	// Initialize telemetry metrics
 	comp.metrics = telemetryMetrics{
-		issuesDropped:  reqs.Telemetry.NewCounter("health_platform", "issues_dropped", []string{"operation"}, "Number of health issue operations dropped when the ingest queue is full"),
-		ingestQueueLen: reqs.Telemetry.NewGauge("health_platform", "ingest_queue_length", nil, "Number of queued health issue operations"),
 		issuesCounter: reqs.Telemetry.NewCounter(
 			"health_platform",
 			"issues_detected",
@@ -356,7 +347,7 @@ func (h *healthPlatformImpl) start(ctx context.Context) error {
 	if err := h.loadPersistedState(ctx); err != nil {
 		h.log.Warn("Failed to restore persisted issues: " + err.Error())
 	}
-	go h.run()
+	go h.persistLoop()
 	return nil
 }
 
@@ -367,170 +358,47 @@ func (h *healthPlatformImpl) stop(ctx context.Context) error {
 	select {
 	case <-h.doneCh:
 	case <-ctx.Done():
-		h.log.Warn("health platform: timed out waiting for the ingest worker to drain on shutdown")
+		h.log.Warn("health platform: timed out waiting for persistence to flush on shutdown")
 	}
 	return nil
 }
 
-// ============================================================================
-// Ingest worker
-// ============================================================================
-//
-// ReportIssue/ResolveIssue/ResolveAllIssues enqueue onto ingestQueue and return;
-// a single worker (run) applies them in FIFO order, so per-id ordering is kept.
-// On overflow only the oldest report is evicted (resolutions and sync barriers
-// are never dropped). Persistence is coalesced behind the dirty flag.
+const flushInterval = time.Second
 
-const (
-	ingestChanBuf = 1024
-	flushInterval = time.Second
-)
-
-type cmdKind uint8
-
-const (
-	cmdReport cmdKind = iota
-	cmdResolve
-	cmdResolveAll
-	cmdSync
-)
-
-type ingestCmd struct {
-	kind  cmdKind
-	issue *healthplatform.Issue
-	id    string
-	done  chan struct{}
-}
-
-func (cmd ingestCmd) opLabel() string {
-	switch cmd.kind {
-	case cmdReport:
-		return "report"
-	case cmdResolve:
-		return "resolve"
-	case cmdResolveAll:
-		return "resolve_all"
-	default:
-		return "sync"
-	}
-}
-
-// enqueue appends a command without blocking. When the queue is over capacity it
-// evicts the oldest report (reports self-heal on the next tick); resolutions and
-// sync barriers are never dropped, so the queue can briefly exceed its capacity.
-func (h *healthPlatformImpl) enqueue(cmd ingestCmd) {
-	h.ingestMu.Lock()
-	h.ingestQueue = append(h.ingestQueue, cmd)
-	droppedLabel := ""
-	if len(h.ingestQueue) > ingestChanBuf {
-		for i, queued := range h.ingestQueue {
-			if queued.kind == cmdReport {
-				copy(h.ingestQueue[i:], h.ingestQueue[i+1:])
-				h.ingestQueue[len(h.ingestQueue)-1] = ingestCmd{}
-				h.ingestQueue = h.ingestQueue[:len(h.ingestQueue)-1]
-				droppedLabel = queued.opLabel()
-				h.metrics.issuesDropped.Inc(droppedLabel)
-				break
-			}
-		}
-	}
-	// Throttle the warn to at most once per minute; issues_dropped is the precise signal.
-	warn := false
-	if droppedLabel != "" {
-		if now := time.Now(); now.Sub(h.lastDropWarn) >= time.Minute {
-			h.lastDropWarn = now
-			warn = true
-		}
-	}
-	h.metrics.ingestQueueLen.Set(float64(len(h.ingestQueue)))
-	h.ingestMu.Unlock()
-	select {
-	case h.ingestWake <- struct{}{}:
-	default:
-	}
-	if warn {
-		h.log.Warnf("health platform: ingest queue full, dropping %s operation", droppedLabel)
-	}
-}
-
-// run is the single ingest worker. It applies queued commands in FIFO order and
-// coalesces persistence on a ticker. On shutdown it drains without enriching
-// (identity is not needed for persisted state) and does a final flush.
-func (h *healthPlatformImpl) run() {
+func (h *healthPlatformImpl) persistLoop() {
 	defer close(h.doneCh)
 	ticker := time.NewTicker(flushInterval)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-h.ingestWake:
-			h.drain(true, ticker.C)
 		case <-ticker.C:
 			h.flushIfDirty()
 		case <-h.stopCh:
-			h.drain(false, nil)
 			h.flushIfDirty()
 			return
 		}
 	}
 }
 
-// drain applies queued commands until the queue is empty. During a normal drain
-// it still honors the flush ticker and stop signal so a long drain cannot starve
-// persistence; the shutdown drain (enrich=false) skips those checks.
-func (h *healthPlatformImpl) drain(enrich bool, ticks <-chan time.Time) {
-	for {
-		if enrich {
-			select {
-			case <-h.stopCh:
-				return
-			case <-ticks:
-				h.flushIfDirty()
-			default:
-			}
-		}
-		h.ingestMu.Lock()
-		if len(h.ingestQueue) == 0 {
-			h.ingestMu.Unlock()
-			return
-		}
-		cmd := h.ingestQueue[0]
-		h.ingestQueue[0] = ingestCmd{}
-		h.ingestQueue = h.ingestQueue[1:]
-		if len(h.ingestQueue) == 0 {
-			h.ingestQueue = nil
-		}
-		h.metrics.ingestQueueLen.Set(float64(len(h.ingestQueue)))
-		h.ingestMu.Unlock()
-		h.apply(cmd, enrich)
-	}
+func (h *healthPlatformImpl) markDirty() {
+	h.issuesMux.Lock()
+	h.dirty = true
+	h.issuesMux.Unlock()
 }
 
-func (h *healthPlatformImpl) apply(cmd ingestCmd, enrich bool) {
-	switch cmd.kind {
-	case cmdReport:
-		h.applyReport(cmd.issue, enrich)
-	case cmdResolve:
-		h.applyResolve(cmd.id)
-	case cmdResolveAll:
-		h.applyResolveAll()
-	case cmdSync:
-	}
-	if cmd.done != nil {
-		close(cmd.done)
-	}
-}
-
-// flushIfDirty persists coalesced changes, keeping the dirty flag set on failure
-// so the next tick or shutdown retries.
+// flushIfDirty persists coalesced changes and retries failed writes on the next tick or shutdown.
 func (h *healthPlatformImpl) flushIfDirty() {
-	if !h.dirty {
+	h.issuesMux.Lock()
+	dirty := h.dirty
+	h.dirty = false
+	h.issuesMux.Unlock()
+	if !dirty {
 		return
 	}
 	if err := h.saveToDisk(); err != nil {
 		h.log.Warn("Failed to persist issues to disk: " + err.Error())
-		return
+		h.markDirty()
 	}
-	h.dirty = false
 }
 
 // RegisterIssuesObserver appends an observer. Observers registered after
@@ -562,7 +430,7 @@ func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 // Core Public API
 // ============================================================================
 
-// ReportIssue validates and queues a copy of a complete issue for asynchronous processing. issue.IssueName is the issue-type key for telemetry and persistence.
+// ReportIssue validates, enriches, and stores an issue synchronously, then marks it for background persistence.
 func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue == nil {
 		return errors.New("issue cannot be nil")
@@ -574,14 +442,7 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 		return errors.New("issue name cannot be empty")
 	}
 
-	h.enqueue(ingestCmd{kind: cmdReport, issue: proto.Clone(issue).(*healthplatform.Issue)})
-	return nil
-}
-
-func (h *healthPlatformImpl) applyReport(issue *healthplatform.Issue, enrich bool) {
-	if enrich {
-		h.enrichWithClusterIdentity(issue)
-	}
+	h.enrichWithClusterIdentity(issue)
 
 	h.issuesMux.RLock()
 	var previousIssue *healthplatform.Issue
@@ -592,7 +453,8 @@ func (h *healthPlatformImpl) applyReport(issue *healthplatform.Issue, enrich boo
 
 	h.handleIssueStateChange(issue.Source, previousIssue, issue)
 	h.storeIssue(issue.IssueName, issue)
-	h.dirty = true
+	h.markDirty()
+	return nil
 }
 
 // ============================================================================
@@ -654,12 +516,8 @@ func hydrateIssue(issue *healthplatform.Issue, stored *storedIssue) {
 // Clear Methods
 // ============================================================================
 
-// ResolveIssue queues an issue resolution and removal from the active set.
+// ResolveIssue resolves an issue and removes it from the active set.
 func (h *healthPlatformImpl) ResolveIssue(issueID string) {
-	h.enqueue(ingestCmd{kind: cmdResolve, id: issueID})
-}
-
-func (h *healthPlatformImpl) applyResolve(issueID string) {
 	h.issuesMux.Lock()
 
 	stateChanged := false
@@ -695,17 +553,15 @@ func (h *healthPlatformImpl) applyResolve(issueID string) {
 	}
 
 	if stateChanged {
-		h.dirty = true
+		h.markDirty()
 	}
 }
 
-// ResolveAllIssues queues the resolution of every active issue.
+// ResolveAllIssues resolves every active issue.
 func (h *healthPlatformImpl) ResolveAllIssues() {
-	h.enqueue(ingestCmd{kind: cmdResolveAll})
-}
-
-func (h *healthPlatformImpl) applyResolveAll() {
 	h.issuesMux.Lock()
+
+	stateChanged := len(h.issues) > 0
 
 	now := time.Now().Format(time.RFC3339)
 	var resolved []*healthplatform.Issue
@@ -714,6 +570,7 @@ func (h *healthPlatformImpl) applyResolveAll() {
 		if persisted != nil && persisted.State != IssueStateResolved {
 			persisted.State = IssueStateResolved
 			persisted.ResolvedAt = now
+			stateChanged = true
 			resolved = append(resolved, &healthplatform.Issue{
 				Id:             persisted.IssueID,
 				IssueName:      persisted.IssueType,
@@ -734,7 +591,9 @@ func (h *healthPlatformImpl) applyResolveAll() {
 		h.notifyResolved(t)
 	}
 
-	h.dirty = true
+	if stateChanged {
+		h.markDirty()
+	}
 }
 
 // GetActiveIssueIDsByIssueName returns the IDs of all currently active issues

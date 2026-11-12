@@ -60,7 +60,6 @@ func TestReportIssueEnrichesWithClusterIdentity(t *testing.T) {
 	h.selfIdent = selfident.New(mockStore)
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
-	h.sync()
 
 	_, issues := h.GetAllIssues()
 	issue := issues["t:id"]

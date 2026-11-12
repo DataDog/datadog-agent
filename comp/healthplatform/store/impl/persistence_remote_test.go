@@ -60,7 +60,6 @@ func TestLoadFromRemoteRestoresReconciliationState(t *testing.T) {
 	assert.NotEmpty(t, persisted.LastSeen)
 
 	h.ResolveIssue(issueID)
-	h.sync()
 	require.Len(t, resolvedCh, 1)
 	resolved := <-resolvedCh
 	assert.Equal(t, issueID, resolved.Id)
