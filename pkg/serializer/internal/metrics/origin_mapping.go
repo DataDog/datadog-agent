@@ -385,6 +385,7 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceSglang,
 		metrics.MetricSourcePanFirewall,
 		metrics.MetricSourceKaiScheduler,
+		metrics.MetricSourceKurrentdb,
 		metrics.MetricSourceCrossplane:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
@@ -1196,6 +1197,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 534
 	case metrics.MetricSourceKaiScheduler:
 		return 536
+	case metrics.MetricSourceKurrentdb:
+		return 537
 	case metrics.MetricSourceCrossplane:
 		return 538
 	default:
