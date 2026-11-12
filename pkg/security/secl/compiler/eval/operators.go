@@ -23,10 +23,11 @@ type OpOverrides struct {
 func isArithmDeterministic(a Evaluator, b Evaluator, state *State) bool {
 	isDc := a.IsDeterministicFor(state.field) || b.IsDeterministicFor(state.field)
 
-	if aField := a.GetField(); aField != "" && state.field != "" && aField != state.field {
+	// a field other than the partial one is only deterministic when it is derived from it
+	if aField := a.GetField(); aField != "" && state.field != "" && !a.IsDeterministicFor(state.field) {
 		isDc = false
 	}
-	if bField := b.GetField(); bField != "" && state.field != "" && bField != state.field {
+	if bField := b.GetField(); bField != "" && state.field != "" && !b.IsDeterministicFor(state.field) {
 		isDc = false
 	}
 

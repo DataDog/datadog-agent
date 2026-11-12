@@ -44,6 +44,31 @@ func TestDiscarderReport(t *testing.T) {
 		}
 	})
 
+	t.Run("basename-only-ok", func(t *testing.T) {
+		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
+
+		// The second rule has no path condition but its basename one is enough to generate discarders
+		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/**" && open.file.name == "cron"`)
+		rules.AddTestRuleExpr(t, rs, `open.file.name == "group"`)
+
+		report, err := ComputeFilters(cfg, rs)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if len(report.DiscardersReport.Supported) != 1 {
+			t.Errorf("expected 1 supported discarder, got %d", len(report.DiscardersReport.Supported))
+		}
+
+		if len(report.DiscardersReport.Invalid) != 0 {
+			t.Errorf("expected 0 invalid discarder, got %d", len(report.DiscardersReport.Invalid))
+		}
+
+		if len(report.ApproverReports["open"].ApproversOnly) != 0 {
+			t.Errorf("expected 0 approvers only, got %+v", report.ApproverReports["open"].ApproversOnly)
+		}
+	})
+
 	t.Run("no-discarder-ok-1", func(t *testing.T) {
 		rs := rules.NewRuleSet(&model.Model{}, newFakeEvent, ruleOpts, evalOpts)
 
@@ -51,7 +76,7 @@ func TestDiscarderReport(t *testing.T) {
 		// As the second can be in approver only, we can generate discarders for the first one
 		// if we convert the second one to approver only
 		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/**" && open.file.name == "cron"`)
-		rules.AddTestRuleExpr(t, rs, `open.file.name == "group"`)
+		rules.AddTestRuleExpr(t, rs, `open.flags & O_CREAT > 0`)
 
 		report, err := ComputeFilters(cfg, rs)
 		if err != nil {
@@ -78,7 +103,7 @@ func TestDiscarderReport(t *testing.T) {
 		// As the second can be in approver only, we can generate discarders for the first one
 		// if we convert the second one to approver only
 		rules.AddTestRuleExpr(t, rs, `open.file.path =~ "/etc/**" && open.file.name == "cron"`)
-		rules.AddTestRuleExpr(t, rs, `open.file.name == "group"`)
+		rules.AddTestRuleExpr(t, rs, `open.flags & O_CREAT > 0`)
 		rules.AddTestRuleExpr(t, rs, `open.file.name =~ "group*" && process.auid == 244`)
 
 		report, err := ComputeFilters(cfg, rs)
