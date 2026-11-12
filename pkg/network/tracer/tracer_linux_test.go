@@ -39,6 +39,8 @@ import (
 	"github.com/cilium/ebpf/btf"
 	"github.com/cilium/ebpf/features"
 	"github.com/cilium/ebpf/rlimit"
+	"github.com/prometheus/client_golang/prometheus"
+	dto "github.com/prometheus/client_model/go"
 	"github.com/shirou/gopsutil/v4/process"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -427,7 +429,72 @@ func (s *TracerSuite) TestTCPMiscount() {
 		assert.False(t, uint64(len(x)) == conn.Monotonic.SentBytes)
 	}
 
-	assert.NotZero(t, connection.EbpfTracerTelemetry.GetLastTCPSentMiscounts())
+	assert.NotZero(t, collectCounter(t, tr.ebpfTracer, "network_tracer__ebpf__tcp_sent_miscounts"))
+}
+
+// TestTelemetryCountersAreRunningTotals checks that reading the eBPF tracer's
+// telemetry doesn't change it. Every Gather of the telemetry registry calls
+// Collect, not only scrapes of /telemetry, so a collector that reports the change
+// since its previous call hands most of the counts to whichever reader ran last.
+func (s *TracerSuite) TestTelemetryCountersAreRunningTotals() {
+	t := s.T()
+	tr := setupTracer(t, testConfig())
+	switch tr.ebpfTracer.Type() {
+	case connection.TracerTypeKProbePrebuilt, connection.TracerTypeKProbeRuntimeCompiled, connection.TracerTypeKProbeCORE, connection.TracerTypeFentry:
+	default:
+		t.Skipf("tracer type %v has no eBPF telemetry counters", tr.ebpfTracer.Type())
+	}
+
+	server := tracertestutil.NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(io.Discard, c)
+		c.Close()
+	})
+	t.Cleanup(server.Shutdown)
+	require.NoError(t, server.Run())
+
+	// Every tcp_close of a tracked connection increments tcp_close_connection_flush.
+	for range 5 {
+		c, err := server.Dial()
+		require.NoError(t, err)
+		_, err = c.Write([]byte("ping"))
+		require.NoError(t, err)
+		require.NoError(t, c.Close())
+	}
+
+	const name = "network_tracer__ebpf__tcp_close_connection_flush"
+	var first float64
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		first = collectCounter(ct, tr.ebpfTracer, name)
+		// Each client close above is counted synchronously in tcp_close.
+		assert.GreaterOrEqual(ct, first, 5.0)
+	}, 3*time.Second, 100*time.Millisecond)
+
+	// With no new closes in between, a second read must see at least the same
+	// total, not just what changed since the first read.
+	assert.GreaterOrEqual(t, collectCounter(t, tr.ebpfTracer, name), first)
+}
+
+// collectCounter returns the value of the named counter reported by c, summed
+// over its label values. It gathers c through a pedantic registry, which also
+// checks that c only collects metrics it describes.
+func collectCounter(t require.TestingT, c prometheus.Collector, name string) float64 {
+	reg := prometheus.NewPedanticRegistry()
+	require.NoError(t, reg.Register(c))
+	families, err := reg.Gather()
+	require.NoError(t, err)
+	for _, mf := range families {
+		if mf.GetName() != name {
+			continue
+		}
+		require.Equal(t, dto.MetricType_COUNTER, mf.GetType(), "%s is not a counter", name)
+		var value float64
+		for _, m := range mf.GetMetric() {
+			value += m.GetCounter().GetValue()
+		}
+		return value
+	}
+	require.Fail(t, name+" not reported")
+	return 0
 }
 
 func (s *TracerSuite) TestConnectionExpirationRegression() {

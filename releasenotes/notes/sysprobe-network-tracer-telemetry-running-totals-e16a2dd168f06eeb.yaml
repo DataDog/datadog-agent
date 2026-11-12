@@ -1,0 +1,11 @@
+fixes:
+  - |
+    System-probe's ``/telemetry`` endpoint now reports the network tracer's eBPF
+    counters, such as ``network_tracer__ebpf__tcp_done_missing_pid``,
+    ``network_tracer__ebpf__udp_dropped_conns`` and
+    ``network_tracer__ebpf_conntracker__registers_total``, as running totals
+    since the tracer loaded. Previously, each reader of ``/telemetry``, such as
+    a flare or another scraper, received only the counts since the previous read
+    by any reader, so scrapers saw a fraction of the counts. Scrapers that
+    graph the raw values of these counters, rather than their rate, now see
+    running totals.
