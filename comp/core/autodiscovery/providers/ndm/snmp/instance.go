@@ -39,8 +39,8 @@ type initConfig struct {
 // documentInstance is one device of the document's instances list.
 type documentInstance struct {
 	IPAddress             string                              `json:"ip_address"`
-	CredID                string                              `json:"cred_id"`
 	InventoryID           string                              `json:"inventory_id"`
+	CredID                string                              `json:"cred_id"`
 	Port                  int                                 `json:"port"`
 	TimeoutSec            int                                 `json:"timeout_sec"`
 	Retries               int                                 `json:"retries"`

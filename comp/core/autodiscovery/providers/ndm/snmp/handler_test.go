@@ -99,8 +99,8 @@ func TestRenderCarriesThePerInstanceSettingsToTheCheck(t *testing.T) {
 		"init_config": {"oid_batch_size": 20, "collect_topology": false},
 		"instances": [{
 			"ip_address": "10.0.0.1",
-			"cred_id": "id-abc",
 			"inventory_id": "3f1c9a2e-8b47-4d6a-9e05-7c2d1b8a4f60",
+			"cred_id": "id-abc",
 			"port": 1161,
 			"timeout_sec": 5,
 			"profile": "cisco-nexus",
