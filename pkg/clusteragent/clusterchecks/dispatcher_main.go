@@ -71,9 +71,8 @@ type dispatcher struct {
 	// that group; runnerGroups is the set of declared groups.
 	checkGroup   map[string]string
 	runnerGroups map[string]struct{}
-	// helmReleasesColocation keeps the Helm check and the orchestrator
-	// instances that collect Helm releases on the same runner.
-	helmReleasesColocation bool
+	// colocationRules group the configs that must run on the same runner.
+	colocationRules []colocationRule
 }
 
 // runnerGroup is an entry of cluster_checks.runner_groups.
@@ -167,7 +166,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 
 	d.checkGroup, d.runnerGroups = loadRunnerGroups(pkgconfigsetup.Datadog())
-	d.helmReleasesColocation = pkgconfigsetup.Datadog().GetBool(helmReleasesConfigMapsSetting)
+	d.colocationRules = []colocationRule{newHelmReleasesColocation(pkgconfigsetup.Datadog().GetBool(helmReleasesConfigMapsSetting))}
 
 	// These options will almost always be empty
 	d.excludedChecks = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks"))

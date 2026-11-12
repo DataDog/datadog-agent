@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "checks_distribution.go",
         "dangling_config.go",
+        "dispatcher_colocation.go",
         "dispatcher_configs.go",
         "dispatcher_endpoints_configs.go",
         "dispatcher_main.go",
@@ -16,6 +17,7 @@ go_library(
         "handler.go",
         "handler_api.go",
         "handler_api_nocompile.go",
+        "helm_releases_colocation.go",
         "helpers.go",
         "instance_sharding.go",
         "ksm_sharding.go",
@@ -76,6 +78,7 @@ dd_agent_go_test(
         "dispatcher_test.go",
         "handler_test.go",
         "handler_tracing_test.go",
+        "helm_releases_colocation_test.go",
         "helpers_test.go",
         "instance_sharding_test.go",
         "ksm_sharding_test.go",
