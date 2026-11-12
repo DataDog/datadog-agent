@@ -545,12 +545,12 @@ int hook_do_exit(ctx_t *ctx) {
     u8 *in_coredump = (u8 *)bpf_map_lookup_elem(&tasks_in_coredump, &coredump_key);
     struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
     if (pid_entry) {
-        if (exit_code != 0 || (tgid == pid && !in_coredump)) {
+        if ((tgid == pid && !in_coredump) || (in_coredump && exit_code != 0)) {
             pid_entry->exit_code = exit_code;
         }
     } else if (!is_current_kworker_dying()) {
         struct pid_cache_t new_pid_entry = {
-            .exit_code = exit_code,
+            .exit_code = (tgid == pid || in_coredump) ? exit_code : 0,
         };
         bpf_map_update_elem(&pid_cache, &tgid, &new_pid_entry, BPF_NOEXIST);
     }
@@ -560,6 +560,10 @@ int hook_do_exit(ctx_t *ctx) {
 
     return 0;
 }
+
+#ifndef SIGNAL_GROUP_EXIT
+#define SIGNAL_GROUP_EXIT 0x00000004
+#endif
 
 HOOK_ENTRY("exit_itimers")
 int hook_exit_itimers(ctx_t *ctx) {
@@ -598,12 +602,35 @@ int hook_exit_itimers(ctx_t *ctx) {
         return 0;
     }
 
+    u64 signal_live_offset;
+    LOAD_CONSTANT("signal_live_offset", signal_live_offset);
+
     u32 live = 1;
     if (signal) {
-        bpf_probe_read(&live, sizeof(live), (char *)signal + sizeof(u32));
+        bpf_probe_read(&live, sizeof(live), (char *)signal + signal_live_offset);
     }
     if (live != 0) {
         return 0;
+    }
+
+    if (signal) {
+        u64 signal_flags_offset;
+        LOAD_CONSTANT("signal_flags_offset", signal_flags_offset);
+        u64 signal_group_exit_code_offset;
+        LOAD_CONSTANT("signal_group_exit_code_offset", signal_group_exit_code_offset);
+        if (signal_flags_offset && signal_group_exit_code_offset) {
+            u32 signal_flags = 0;
+            bpf_probe_read(&signal_flags, sizeof(signal_flags), (char *)signal + signal_flags_offset);
+            if (signal_flags & SIGNAL_GROUP_EXIT) {
+                u32 group_exit_code = 0;
+                bpf_probe_read(&group_exit_code, sizeof(group_exit_code), (char *)signal + signal_group_exit_code_offset);
+                u32 tgid = bpf_get_current_pid_tgid() >> 32;
+                struct pid_cache_t *pid_entry = (struct pid_cache_t *)bpf_map_lookup_elem(&pid_cache, &tgid);
+                if (pid_entry) {
+                    pid_entry->exit_code = group_exit_code;
+                }
+            }
+        }
     }
 
     if (is_network_flow_monitor_enabled()) {

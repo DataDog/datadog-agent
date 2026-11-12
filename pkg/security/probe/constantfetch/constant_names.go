@@ -18,6 +18,9 @@ const (
 const (
 	OffsetNameSuperBlockStructSFlags    = "sb_flags_offset"
 	OffsetNameSuperBlockStructSMagic    = "sb_magic_offset"
+	OffsetNameSignalStructLive          = "signal_live_offset"
+	OffsetNameSignalStructGroupExitCode = "signal_group_exit_code_offset"
+	OffsetNameSignalStructFlags         = "signal_flags_offset"
 	OffsetNameSignalStructStructTTY     = "tty_offset"
 	OffsetNameTTYStructStructName       = "tty_name_offset"
 	OffsetNameCredStructUID             = "creds_uid_offset"
