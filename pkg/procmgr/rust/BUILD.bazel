@@ -257,9 +257,12 @@ rust_test(
         "//pkg/procmgr/rust/tests/fixtures:test_fixtures",
     ],
     edition = "2024",
-    rustc_env = {
+    # Read with std::env::var in tests/helpers, so set at run time.
+    env = {
         "CARGO_BIN_EXE_dd-procmgr": "$(rootpath :dd-procmgr)",
         "CARGO_BIN_EXE_dd-procmgrd": "$(rootpath :dd-procmgrd)",
+    },
+    rustc_env = {
         "DDOT_TEMPLATE_PATH": "$(rootpath //pkg/fleet/installer/packages/embedded:tmpl/datadog-agent-ddot.yaml.tmpl)",
         "PROCMGR_TEST_FIXTURES_MARKER": "$(rootpath //pkg/procmgr/rust/tests/fixtures:.marker)",
     },
