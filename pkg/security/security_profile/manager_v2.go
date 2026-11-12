@@ -10,6 +10,7 @@ package securityprofile
 
 import (
 	"bytes"
+	"container/heap"
 	"container/list"
 	"context"
 	"errors"
@@ -205,9 +206,11 @@ type ManagerV2 struct {
 	// sampleMaps are the kernel sample maps of the enabled samplers, by event type.
 	sampleMaps map[model.EventType]*ebpf.Map
 
-	// cooldownExpiries are the nodes whose anomaly event cooldown is running. When it expires, the
-	// sample cookies of the node are removed from the kernel sample maps.
-	cooldownExpiries     map[*activity_tree.NodeBase]cooldownExpiry
+	// cooldownExpiries are the nodes whose anomaly event cooldown is running, ordered by
+	// expiration time in cooldownExpiryHeap. When a cooldown expires, the sample cookies
+	// of the node are removed from the kernel sample maps.
+	cooldownExpiries     map[*activity_tree.NodeBase]*cooldownExpiry
+	cooldownExpiryHeap   cooldownExpiryHeap
 	cooldownExpiriesLock sync.Mutex
 }
 
@@ -226,8 +229,37 @@ type sampleEntry struct {
 
 // cooldownExpiry is a node whose anomaly event cooldown is running.
 type cooldownExpiry struct {
+	node      *activity_tree.NodeBase
 	eventType model.EventType
 	expiresAt time.Time
+	index     int
+}
+
+// cooldownExpiryHeap is a min-heap of cooldownExpiry ordered by expiresAt.
+type cooldownExpiryHeap []*cooldownExpiry
+
+func (h cooldownExpiryHeap) Len() int           { return len(h) }
+func (h cooldownExpiryHeap) Less(i, j int) bool { return h[i].expiresAt.Before(h[j].expiresAt) }
+func (h cooldownExpiryHeap) Swap(i, j int) {
+	h[i], h[j] = h[j], h[i]
+	h[i].index = i
+	h[j].index = j
+}
+
+func (h *cooldownExpiryHeap) Push(x any) {
+	expiry := x.(*cooldownExpiry)
+	expiry.index = len(*h)
+	*h = append(*h, expiry)
+}
+
+func (h *cooldownExpiryHeap) Pop() any {
+	old := *h
+	n := len(old)
+	expiry := old[n-1]
+	old[n-1] = nil
+	expiry.index = -1
+	*h = old[:n-1]
+	return expiry
 }
 
 func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfManager *ebpfmanager.Manager, resolvers *resolvers.EBPFResolvers, kernelVersion *kernel.Version, dumpHandler backend.ActivityDumpHandler, sendAnomalyDetection func(*model.Event), hostname string, startTime time.Time, filterStore workloadfilter.Component) (*ManagerV2, error) {
@@ -330,7 +362,7 @@ func NewManagerV2(cfg *config.Config, statsdClient statsd.ClientInterface, ebpfM
 		imageExcluder:               imgExcluder,
 		excludedCgroupsMap:          excludedCgroupsMap,
 		sampleMaps:                  sampleMaps,
-		cooldownExpiries:            make(map[*activity_tree.NodeBase]cooldownExpiry),
+		cooldownExpiries:            make(map[*activity_tree.NodeBase]*cooldownExpiry),
 	}
 
 	m.initMetricsMap()
@@ -961,12 +993,18 @@ func sampleCookieFromEvent(event *model.Event) uint64 {
 func (m *ManagerV2) scheduleCooldownExpiry(eventType model.EventType, nodes []*activity_tree.NodeBase, now time.Time) {
 	cooldown := m.config.RuntimeSecurity.AnomalyDetectionEventCooldown
 	// Only event types that are affected by kernel sampling have cookies to be deleted
-	if cooldown <= 0 || m.sampleMaps[eventType] == nil {
+	if cooldown <= 0 {
+		return
+	}
+	if _, ok := m.sampleMaps[eventType]; !ok {
 		return
 	}
 
 	m.cooldownExpiriesLock.Lock()
 	defer m.cooldownExpiriesLock.Unlock()
+	if m.cooldownExpiries == nil {
+		m.cooldownExpiries = make(map[*activity_tree.NodeBase]*cooldownExpiry)
+	}
 	for _, node := range nodes {
 		lastSent, ok := node.GetLastAnomalySent()
 		if !ok {
@@ -978,7 +1016,15 @@ func (m *ManagerV2) scheduleCooldownExpiry(eventType model.EventType, nodes []*a
 		if expiresAt.Before(now) {
 			expiresAt = now.Add(cooldown)
 		}
-		m.cooldownExpiries[node] = cooldownExpiry{eventType: eventType, expiresAt: expiresAt}
+		if expiry, ok := m.cooldownExpiries[node]; ok {
+			expiry.eventType = eventType
+			expiry.expiresAt = expiresAt
+			heap.Fix(&m.cooldownExpiryHeap, expiry.index)
+		} else {
+			expiry := &cooldownExpiry{node: node, eventType: eventType, expiresAt: expiresAt}
+			m.cooldownExpiries[node] = expiry
+			heap.Push(&m.cooldownExpiryHeap, expiry)
+		}
 	}
 }
 
@@ -987,12 +1033,14 @@ func (m *ManagerV2) scheduleCooldownExpiry(eventType model.EventType, nodes []*a
 // a full event on the next occurrence of each of these sample keys.
 func (m *ManagerV2) expireCooldowns(now time.Time) {
 	m.cooldownExpiriesLock.Lock()
-	expired := make(map[*activity_tree.NodeBase]model.EventType)
-	for node, expiry := range m.cooldownExpiries {
-		if now.After(expiry.expiresAt) {
-			expired[node] = expiry.eventType
-			delete(m.cooldownExpiries, node)
+	var expired map[*activity_tree.NodeBase]model.EventType
+	for len(m.cooldownExpiryHeap) > 0 && now.After(m.cooldownExpiryHeap[0].expiresAt) {
+		expiry := heap.Pop(&m.cooldownExpiryHeap).(*cooldownExpiry)
+		delete(m.cooldownExpiries, expiry.node)
+		if expired == nil {
+			expired = make(map[*activity_tree.NodeBase]model.EventType)
 		}
+		expired[expiry.node] = expiry.eventType
 	}
 	m.cooldownExpiriesLock.Unlock()
 
@@ -2219,6 +2267,7 @@ func (m *ManagerV2) retargetCooldownExpiries(moved map[*activity_tree.NodeBase]*
 	retargeted := make(map[*activity_tree.NodeBase]model.EventType)
 	for from, to := range moved {
 		if expiry, ok := m.cooldownExpiries[from]; ok {
+			heap.Remove(&m.cooldownExpiryHeap, expiry.index)
 			delete(m.cooldownExpiries, from)
 			retargeted[to] = expiry.eventType
 		}

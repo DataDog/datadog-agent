@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"github.com/cilium/ebpf"
 	lru "github.com/hashicorp/golang-lru/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -1626,3 +1627,89 @@ func TestActivityNodeForEvent_capabilitiesSyscallsAndMount(t *testing.T) {
 	event.Mount.Mount.MountFlags = 1
 	assert.Nil(t, activityNodeForEvent(tree, nil, nil, event, nil))
 }
+
+func TestManagerV2_cooldownExpiryHeap(t *testing.T) {
+	const cooldown = time.Minute
+	t0 := time.Now()
+
+	newManager := func(t *testing.T) (*ManagerV2, *lru.Cache[uint64, sampleCookieEntry]) {
+		t.Helper()
+		m, cookieMap := newTestManagerV2(t)
+		m.config = &config.Config{
+			RuntimeSecurity: &config.RuntimeSecurityConfig{
+				AnomalyDetectionEventCooldown: cooldown,
+			},
+		}
+		m.sampleMaps = map[model.EventType]*ebpf.Map{
+			model.FileOpenEventType: nil,
+		}
+		m.cooldownExpiries = make(map[*activity_tree.NodeBase]*cooldownExpiry)
+		return m, cookieMap
+	}
+
+	newNode := func(sentAt time.Time, cookie uint64, cookieMap *lru.Cache[uint64, sampleCookieEntry]) *activity_tree.NodeBase {
+		nb := activity_tree.NewNodeBase()
+		nb.RecordAnomalySent(sentAt)
+		cookieMap.Add(cookie, sampleCookieEntry{eventNodeBase: &nb})
+		return &nb
+	}
+
+	t.Run("pops expired nodes in order and updates rescheduled nodes", func(t *testing.T) {
+		m, cookieMap := newManager(t)
+		n1 := newNode(t0.Add(10*time.Second), 1, cookieMap)
+		n2 := newNode(t0, 2, cookieMap)
+		n3 := newNode(t0.Add(20*time.Second), 3, cookieMap)
+
+		m.scheduleCooldownExpiry(model.FileOpenEventType, []*activity_tree.NodeBase{n1, n2, n3}, t0)
+		require.Len(t, m.cooldownExpiryHeap, 3)
+
+		// Reschedule n2 after n3
+		n2.RecordAnomalySent(t0.Add(30 * time.Second))
+		m.scheduleCooldownExpiry(model.FileOpenEventType, []*activity_tree.NodeBase{n2}, t0.Add(30*time.Second))
+		require.Len(t, m.cooldownExpiryHeap, 3)
+		assert.Same(t, n1, m.cooldownExpiryHeap[0].node)
+
+		// Before any expiry: nothing is popped
+		m.expireCooldowns(t0.Add(cooldown + 5*time.Second))
+		assert.Len(t, m.cooldownExpiryHeap, 3)
+		assert.True(t, cookieMap.Contains(1))
+
+		// n1 expires first
+		m.expireCooldowns(t0.Add(cooldown + 15*time.Second))
+		assert.Len(t, m.cooldownExpiryHeap, 2)
+		assert.False(t, cookieMap.Contains(1))
+		assert.True(t, cookieMap.Contains(2))
+		assert.True(t, cookieMap.Contains(3))
+
+		// n3 expires before the rescheduled n2
+		m.expireCooldowns(t0.Add(cooldown + 25*time.Second))
+		assert.Len(t, m.cooldownExpiryHeap, 1)
+		assert.False(t, cookieMap.Contains(3))
+		assert.True(t, cookieMap.Contains(2))
+
+		// Rescheduled n2 expires last
+		m.expireCooldowns(t0.Add(cooldown + 35*time.Second))
+		assert.Empty(t, m.cooldownExpiryHeap)
+		assert.Empty(t, m.cooldownExpiries)
+		assert.False(t, cookieMap.Contains(2))
+	})
+
+	t.Run("retargets folded nodes in the heap", func(t *testing.T) {
+		m, cookieMap := newManager(t)
+		prof := profile.New()
+		from := newNode(t0, 1, cookieMap)
+		to := activity_tree.NewNodeBase()
+		to.RecordAnomalySent(t0.Add(20 * time.Second))
+		other := newNode(t0.Add(10*time.Second), 2, cookieMap)
+		cookieMap.Add(1, sampleCookieEntry{profile: prof, eventNodeBase: from})
+
+		m.scheduleCooldownExpiry(model.FileOpenEventType, []*activity_tree.NodeBase{from, other}, t0)
+		m.retargetSampleCookies(prof, map[*activity_tree.NodeBase]*activity_tree.NodeBase{from: &to})
+
+		assert.NotContains(t, m.cooldownExpiries, from)
+		assert.Contains(t, m.cooldownExpiries, &to)
+		require.Len(t, m.cooldownExpiryHeap, 2)
+		assert.Same(t, other, m.cooldownExpiryHeap[0].node)
+	})
+}
+
