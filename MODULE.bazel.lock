@@ -2502,18 +2502,6 @@
       "zstd-safe_7.2.4": "{\"dependencies\":[{\"default_features\":false,\"name\":\"zstd-sys\",\"req\":\"^2.0.15\"}],\"features\":{\"arrays\":[],\"bindgen\":[\"zstd-sys/bindgen\"],\"debug\":[\"zstd-sys/debug\"],\"default\":[\"legacy\",\"arrays\",\"zdict_builder\"],\"doc-cfg\":[],\"experimental\":[\"zstd-sys/experimental\"],\"fat-lto\":[\"zstd-sys/fat-lto\"],\"legacy\":[\"zstd-sys/legacy\"],\"no_asm\":[\"zstd-sys/no_asm\"],\"pkg-config\":[\"zstd-sys/pkg-config\"],\"seekable\":[\"zstd-sys/seekable\"],\"std\":[\"zstd-sys/std\"],\"thin\":[\"zstd-sys/thin\"],\"thin-lto\":[\"zstd-sys/thin-lto\"],\"zdict_builder\":[\"zstd-sys/zdict_builder\"],\"zstdmt\":[\"zstd-sys/zstdmt\"]}}",
       "zstd-sys_2.0.16+zstd.1.5.7": "{\"dependencies\":[{\"default_features\":false,\"features\":[\"runtime\"],\"kind\":\"build\",\"name\":\"bindgen\",\"optional\":true,\"req\":\"^0.72\"},{\"features\":[\"parallel\"],\"kind\":\"build\",\"name\":\"cc\",\"req\":\"^1.0.45\"},{\"kind\":\"build\",\"name\":\"pkg-config\",\"req\":\"^0.3.28\"}],\"features\":{\"debug\":[],\"default\":[\"legacy\",\"zdict_builder\",\"bindgen\"],\"experimental\":[],\"fat-lto\":[],\"legacy\":[],\"no_asm\":[],\"no_wasm_shim\":[],\"non-cargo\":[],\"pkg-config\":[],\"seekable\":[],\"std\":[],\"thin\":[],\"thin-lto\":[],\"zdict_builder\":[],\"zstdmt\":[]}}",
       "zstd_0.13.3": "{\"dependencies\":[{\"features\":[\"derive\"],\"kind\":\"dev\",\"name\":\"clap\",\"req\":\"^4.0\"},{\"kind\":\"dev\",\"name\":\"humansize\",\"req\":\"^2.0\"},{\"kind\":\"dev\",\"name\":\"partial-io\",\"req\":\"^0.5\"},{\"kind\":\"dev\",\"name\":\"walkdir\",\"req\":\"^2.2\"},{\"default_features\":false,\"features\":[\"std\"],\"name\":\"zstd-safe\",\"req\":\"^7.1.0\"}],\"features\":{\"arrays\":[\"zstd-safe/arrays\"],\"bindgen\":[\"zstd-safe/bindgen\"],\"debug\":[\"zstd-safe/debug\"],\"default\":[\"legacy\",\"arrays\",\"zdict_builder\"],\"doc-cfg\":[],\"experimental\":[\"zstd-safe/experimental\"],\"fat-lto\":[\"zstd-safe/fat-lto\"],\"legacy\":[\"zstd-safe/legacy\"],\"no_asm\":[\"zstd-safe/no_asm\"],\"pkg-config\":[\"zstd-safe/pkg-config\"],\"thin\":[\"zstd-safe/thin\"],\"thin-lto\":[\"zstd-safe/thin-lto\"],\"wasm\":[],\"zdict_builder\":[\"zstd-safe/zdict_builder\"],\"zstdmt\":[\"zstd-safe/zstdmt\"]}}"
-    },
-    "@@toolchains_msvc+//:extensions.bzl%toolchain": {
-      "https://aka.ms/vs/17/release/channel": {
-        "license_url": "https://go.microsoft.com/fwlink/?LinkId=2179911",
-        "manifest_sha256": "963760b01f621ed4fa40d1cf97aeb042f7bc6e04e3176c13c38abb19d265f789",
-        "manifest_url": "https://download.visualstudio.microsoft.com/download/pr/6bd63d7f-1818-4e03-a552-9feb11496c19/4cc372d79f02e331c999a926b833a49eb74b30357d30f41ba9cffa1dc0369379/VisualStudio.vsman"
-      },
-      "https://aka.ms/vs/stable/channel": {
-        "license_url": "https://go.microsoft.com/fwlink/?LinkId=2327714",
-        "manifest_sha256": "417b8d3fee577bdb0e192835692446de51b4626526e4b555162fd9c2fca7dff1",
-        "manifest_url": "https://download.visualstudio.microsoft.com/download/pr/5f474104-723f-4007-bf4c-92e42a23dcc6/6feafaf09375b7a7534a79845739c8af4a61041fa2cf4b2d86b56a764c734b7f/VisualStudio.vsman"
-      }
     }
   },
   "factsVersions": {}
