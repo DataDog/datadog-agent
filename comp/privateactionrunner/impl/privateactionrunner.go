@@ -244,9 +244,10 @@ func (p *PrivateActionRunner) getRunnerConfig(ctx context.Context) (*parconfig.C
 	}
 	// Replace a saved runner when its enrollment does not match the configured WIF org/site,
 	// leaving the old identity file untouched until enrollment succeeds.
-	// Cluster Agent replacement needs shared-Secret coordination.
+	// Shared-Secret Cluster Agents coordinate replacement while loading the identity.
 	if p.wifEnrollmentEnabled() && p.coreConfig.GetBool(par.SelfEnroll) &&
-		flavor.GetFlavor() != flavor.ClusterAgent && persistedIdentity != nil && !persistedIdentity.MatchesWIFConfig(p.coreConfig) {
+		(flavor.GetFlavor() != flavor.ClusterAgent || !p.coreConfig.GetBool(par.IdentityUseK8sSecret)) &&
+		persistedIdentity != nil && !persistedIdentity.MatchesWIFConfig(p.coreConfig) {
 		persistedIdentity = nil
 	}
 	if enrollment.ShouldReenroll(agentIdentifier, persistedIdentity, p.coreConfig.GetString("api_key")) {
@@ -606,10 +607,10 @@ func (p *PrivateActionRunner) waitForStartup(ctx context.Context) error {
 	return nil
 }
 
-// wifEnrollmentEnabled follows primary intake authentication.
-// WIF configured only for another endpoint does not select PAR enrollment.
+// wifEnrollmentEnabled follows primary intake authentication. WIF configured
+// only for another endpoint (for example logs) does not select PAR enrollment.
 func (p *PrivateActionRunner) wifEnrollmentEnabled() bool {
-	return p.coreConfig.GetString("delegated_auth.org_uuid") != ""
+	return enrollment.UsesWIF(p.coreConfig)
 }
 
 // performSelfEnrollment handles the self-registration of a private action runner.

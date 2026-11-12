@@ -23,6 +23,7 @@ import (
 	"github.com/DataDog/datadog-agent/comp/core/delegatedauth/common"
 	delegatedauthmock "github.com/DataDog/datadog-agent/comp/core/delegatedauth/mock"
 	"github.com/DataDog/datadog-agent/pkg/config/env"
+	par "github.com/DataDog/datadog-agent/pkg/privateactionrunner"
 	app "github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/constants"
 	partypes "github.com/DataDog/datadog-agent/pkg/privateactionrunner/libs/par"
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/util"
@@ -52,8 +53,9 @@ func TestClusterWIFEnrollmentSharesIdentity(t *testing.T) {
 	defer server.Close()
 	cfg := coreconfig.NewMockWithOverrides(t, map[string]interface{}{
 		"dd_url": server.URL, "skip_ssl_validation": true, "api_key": "unused-intake-key",
-		"delegated_auth.org_uuid": "test-org", "site": "DatadogHQ.EU.",
+		"delegated_auth.org_uuid": "test-org", "site": "DatadogHQ.EU.", par.SelfEnroll: true,
 	})
+	storage := newK8sIdentityStorage(cfg, nil)
 	var signedRequest common.WorkloadTokenRequest
 	auth := &delegatedauthmock.Mock{GetWorkloadTokenFunc: func(_ context.Context, key string, request common.WorkloadTokenRequest) (string, error) {
 		require.Equal(t, "api_key", key)
@@ -84,7 +86,7 @@ func TestClusterWIFEnrollmentSharesIdentity(t *testing.T) {
 	require.NoError(t, writeIdentitySecret(context.Background(), client, "default", "par-identity", result))
 	// A follower reads the leader's secret through the existing coordination path.
 	synctest.Test(t, func(t *testing.T) {
-		secret, err := waitForLeaderAndSecret(context.Background(), make(chan struct{}), func() bool { return false }, client, "default", "par-identity", time.Second, acceptAnySecret)
+		secret, err := waitForLeaderAndSecret(context.Background(), make(chan struct{}), func() bool { return false }, client, "default", "par-identity", time.Second, storage.acceptsSecret)
 		require.NoError(t, err)
 		identity, err := parseSecretData(secret, "default", "par-identity")
 		require.NoError(t, err)
