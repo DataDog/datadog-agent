@@ -58,7 +58,6 @@ def classify(packages, licenses, exceptions):
         license_id = licenses.get(importpath)
         if license_id:
             matched[importpath] = (importpath, package.get("purl", ""), license_id)
-            unmatched.pop(importpath, None)
         else:
             unmatched.setdefault(importpath, (importpath, package.get("label", "")))
     return sorted(matched.values()), sorted(unmatched.values())

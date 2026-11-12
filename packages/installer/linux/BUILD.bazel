@@ -94,6 +94,7 @@ package_licenses(
 go_third_party_licenses(
     name = "go_licenses",
     src = ":everything",
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 diff_test(
@@ -101,6 +102,8 @@ diff_test(
     failure_message = "Installer Go license ids changed. If expected, copy go_licenses.license_ids.txt to go_license_ids.expected.txt.",
     file1 = ":go_licenses.license_ids.txt",
     file2 = "go_license_ids.expected.txt",
+    # The expected ids are a Linux snapshot; build tags change the Go deps on other hosts.
+    target_compatible_with = ["@platforms//os:linux"],
 )
 
 pkg_filegroup(
