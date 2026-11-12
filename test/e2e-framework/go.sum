@@ -559,6 +559,8 @@ github.com/pulumi/pulumi-azure-native-sdk/v3 v3.30.0 h1:2UD+rW9/ddm+GVdF/dUw2Zsw
 github.com/pulumi/pulumi-azure-native-sdk/v3 v3.30.0/go.mod h1:uama5sNC6cETJlZo8yeAQYoNl/LXe5LifboTthg9+Wo=
 github.com/pulumi/pulumi-cloud-sdk/go v1.20261027.1310 h1:nYCOZXdNoM3f6uXZb8jypR82LRZSZizdvEkjh45FCZw=
 github.com/pulumi/pulumi-cloud-sdk/go v1.20261027.1310/go.mod h1:NPA79X6Wmyr5zNKd+N+RiVJN8duwIrRmIaed8HCL9EM=
+github.com/pulumi/pulumi-cloud-sdk/go v1.20261104.0 h1:mK5CX2LbIOL+hBJhWxu/F75mhBP9L9n3bBYDC4xr+eo=
+github.com/pulumi/pulumi-cloud-sdk/go v1.20261104.0/go.mod h1:NPA79X6Wmyr5zNKd+N+RiVJN8duwIrRmIaed8HCL9EM=
 github.com/pulumi/pulumi-command/sdk v1.3.0 h1:LFE58guWswO5CS8vKUf0xm+WSn+1P0eNDFwKJ1rXn9Q=
 github.com/pulumi/pulumi-command/sdk v1.3.0/go.mod h1:Wjx5bCLZodu67XPYTA1dSvsNan0dIXwNndk5e7DVd4U=
 github.com/pulumi/pulumi-docker-build/sdk/go/dockerbuild v0.0.3 h1:NxCXxRvzhUJP9dIvlpNlZKt/A3NHu3i9pC5XO+i8bR0=
@@ -581,6 +583,8 @@ github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3 h1:u1vhOzJ+RyiHhjF+XY3QLDUO9dtU+LH6NT
 github.com/pulumi/pulumi-tls/sdk/v5 v5.6.3/go.mod h1:4TsIx6Z2fZlhidjfQ1l3P7Hq2Whx5Aqaas6VQb2ykHE=
 github.com/pulumi/pulumi/sdk/v3 v3.274.0 h1:fmXISTS5nm4xhxjUGkDEvIAVT0T1xdiVBGo6rXFJ2o8=
 github.com/pulumi/pulumi/sdk/v3 v3.274.0/go.mod h1:OOGpSXKEdPGkwN/iXJf7x40KRLbjINKP5E3OiR0dtes=
+github.com/pulumi/pulumi/sdk/v3 v3.274.1 h1:Sy2OifRLCPVmFMDTkp18yRk/YviwhJuGZU6vfLwruPM=
+github.com/pulumi/pulumi/sdk/v3 v3.274.1/go.mod h1:n81QNitoy9C+GpT+Y2jJhDwWDOftXDRbLQOSlmOGgRc=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0 h1:xfi9HKDgV+GgDxQ23oSv9KxC3DQqViGTcMrJICRgJv0=
 github.com/pulumiverse/pulumi-time/sdk v0.1.0/go.mod h1:NUa1zA74DF002WrM6iF111A6UjX9knPpXufVRvBwNyg=
 github.com/puzpuzpuz/xsync/v4 v4.5.0 h1:vOSWu6b57/emh+L/Cw0BeQfvxa/cogFywXHeGUxQxAg=
