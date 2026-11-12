@@ -111,6 +111,28 @@ func TestSelectShadowCandidatesTreatsMalformedInstanceSettingAsUnset(t *testing.
 	require.Len(t, candidates, 1)
 }
 
+func TestSelectShadowCandidatesYAML11BooleanEnabledIsUnset(t *testing.T) {
+	// YAML 1.1 boolean spellings are no longer interpreted as booleans since
+	// the switch from go.yaml.in/yaml/v2 to go.yaml.in/yaml/v4: `enabled: yes`
+	// parses as the string "yes", which is not a valid setting, so it is
+	// treated as unset (unlike `enabled: true`).
+	configs := []integration.Config{
+		{
+			Name: "cpu",
+			Instances: []integration.Data{
+				integration.Data("name: legacy\nmetric_lookback:\n  enabled: yes\n"),
+			},
+		},
+	}
+
+	candidates := SelectShadowCandidates(configs, ShadowPolicyOptions{})
+	assert.Empty(t, candidates)
+
+	candidates = SelectShadowCandidates(configs, ShadowPolicyOptions{ShadowChecksEnabled: true})
+	// no valid instance setting: the global policy enables the instance
+	require.Len(t, candidates, 1)
+}
+
 func TestSelectShadowCandidatesSkipsInvalidShadowInstance(t *testing.T) {
 	configs := []integration.Config{
 		{

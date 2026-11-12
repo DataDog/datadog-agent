@@ -114,20 +114,13 @@ func instanceLookbackEnabled(instance integration.Data) (enabled bool, validOver
 		return false, false
 	}
 
-	switch typedValue := value.(type) {
-	case integration.RawMap:
-		enabledValue, ok := typedValue[instanceEnabledKey]
-		return boolSetting(enabledValue, ok)
-	case map[interface{}]interface{}:
-		enabledValue, ok := typedValue[instanceEnabledKey]
-		return boolSetting(enabledValue, ok)
-	case map[string]interface{}:
-		// yaml v4 decodes string-keyed nested maps as map[string]interface{}
-		enabledValue, ok := typedValue[instanceEnabledKey]
-		return boolSetting(enabledValue, ok)
-	default:
+	// yaml v4 decodes string-keyed nested maps as map[string]interface{}
+	instanceConfig, ok := value.(map[string]interface{})
+	if !ok {
 		return false, false
 	}
+	enabledValue, ok := instanceConfig[instanceEnabledKey]
+	return boolSetting(enabledValue, ok)
 }
 
 func boolSetting(value interface{}, found bool) (bool, bool) {
