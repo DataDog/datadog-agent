@@ -200,7 +200,8 @@ var DefaultProfiles = Map{
 			MkRedaction(`(?m)^(enable (?:password|secret)(?: level \d+)?(?: \d)?) .+`),
 			MkRedaction(`(?m)^( +(?:password|secret)) (?:\d )?\S+`),
 			MkRedaction(`(?m)^(.*wpa-psk ascii(?: \d)?) (\S+)`),
-			MkRedaction(`(?m)^((?:[^!].*)?key [0-9]) \S.*`), // skip `!` comment lines
+			MkRedaction(`(?m)^([^!].*key 7) (\d.+)`), // type 7 obfuscated secrets; skip `!` comment lines
+			MkRedaction(`(?m)^(ntp authentication-key \d+ \S+) .+`),
 			MkRedaction(`(?m)^((?:tacacs|radius)-server (.+ )?key) .+`),
 			MkRedaction(`(?m)^(.*server-private \S+ (?:.+ )?key) .+`),
 			MkRedaction(`(?m)^( +authentication (?:local|remote) pre-share key) .+`),

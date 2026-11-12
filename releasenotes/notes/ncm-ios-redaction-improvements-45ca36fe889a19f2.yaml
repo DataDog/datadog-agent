@@ -12,5 +12,5 @@ security:
     more secrets from collected configs. ``key`` lines under ``radius server``
     and ``tacacs server`` blocks are now redacted (previously that rule never
     matched), as are RADIUS server keys, ``server-private`` keys, IKEv2
-    pre-shared keys, and passwords and secrets that are written without an
+    pre-shared keys, NTP authentication keys, and passwords and secrets that are written without an
     encryption-type digit (e.g. ``enable secret <value>``).

@@ -166,6 +166,7 @@ logging host 10.0.0.50
 ntp server 192.0.2.123 prefer
 ntp authentication-key 1 md5 104D000A0618 7
 ntp authentication-key 2 md5 plainNtpKey
+ntp trusted-key 1 - 3
 !
 end
 !
