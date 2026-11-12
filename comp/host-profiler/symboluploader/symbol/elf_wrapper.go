@@ -47,9 +47,13 @@ func (p *ProcessFileHelper) ExtractAsFile(filePath string) (string, error) {
 }
 
 type elfWrapper struct {
-	elfFile  *pfelf.File
-	filePath string
-	helper   FileHelper
+	elfFile *pfelf.File
+	// backingFile is the file elfFile was opened from. pfelf.File only exposes
+	// its ELF reader, which wraps the file in a page cache, so file-level
+	// queries (persistent path, size) go through this instead.
+	backingFile fs.File
+	filePath    string
+	helper      FileHelper
 }
 
 type SectionInfo struct {
@@ -78,7 +82,7 @@ func newElfWrapperFromMapping(m *process.RawMapping, pr process.Process) (ef *el
 		return nil, fmt.Errorf("failed to open ELF file %s for PID %d: %w", m.Path, pr.PID(), err)
 	}
 
-	ef, err = newElfWrapper(elfFile, m.Path, &ProcessFileHelper{pid: pr.PID()})
+	ef, err = newElfWrapper(elfFile, mf, m.Path, &ProcessFileHelper{pid: pr.PID()})
 	if err != nil {
 		_ = elfFile.Close()
 	}
@@ -101,25 +105,25 @@ func newElfWrapperFromFile(filePath string, helper FileHelper) (ef *elfWrapper, 
 		return nil, err
 	}
 
-	ef, err = newElfWrapper(elfFile, filePath, helper)
+	ef, err = newElfWrapper(elfFile, f, filePath, helper)
 	if err != nil {
 		_ = elfFile.Close()
 	}
 	return ef, err
 }
 
-func newElfWrapper(elfFile *pfelf.File, filePath string, helper FileHelper) (*elfWrapper, error) {
+func newElfWrapper(elfFile *pfelf.File, backingFile fs.File, filePath string, helper FileHelper) (*elfWrapper, error) {
 	err := elfFile.LoadSections()
 	if err != nil {
 		return nil, fmt.Errorf("failed to load sections for %s: %w", filePath, err)
 	}
-	return &elfWrapper{elfFile: elfFile, filePath: filePath, helper: helper}, nil
+	return &elfWrapper{elfFile: elfFile, backingFile: backingFile, filePath: filePath, helper: helper}, nil
 }
 
 // GetPersistentPath returns a path to the ELF file that remains valid while the
 // wrapper is open, or "" if the ELF file is not backed by a file (eg. vdso).
 func (e *elfWrapper) GetPersistentPath() string {
-	if f, ok := e.elfFile.Underlying().(*os.File); ok {
+	if f, ok := e.backingFile.(*os.File); ok {
 		return fmt.Sprintf("/proc/%v/fd/%v", selfPid, f.Fd())
 	}
 	return ""
@@ -127,11 +131,10 @@ func (e *elfWrapper) GetPersistentPath() string {
 
 // GetSize returns the size of the ELF file.
 func (e *elfWrapper) GetSize() (int64, error) {
-	f, ok := e.elfFile.Underlying().(fs.File)
-	if !ok {
-		return 0, errors.New("underlying ELF reader is not a fs.File")
+	if e.backingFile == nil {
+		return 0, errors.New("ELF file is not backed by a file")
 	}
-	info, err := f.Stat()
+	info, err := e.backingFile.Stat()
 	if err != nil {
 		return 0, err
 	}
