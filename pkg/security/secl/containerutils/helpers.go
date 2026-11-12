@@ -138,3 +138,39 @@ func FindECSTaskID(s CGroupID) string {
 
 	return ""
 }
+
+// ECSTaskIDFromARN extracts the task ID from an ECS task ARN, with the current format:
+//
+//	arn:<partition>:ecs:<region>:<account-id>:task/<cluster-name>/<task-id>
+//
+// or the legacy one:
+//
+//	arn:<partition>:ecs:<region>:<account-id>:task/<task-id>
+//
+// The returned task ID is normalized to lowercase.
+func ECSTaskIDFromARN(arn string) string {
+	parts := strings.SplitN(arn, ":", 6)
+	if len(parts) != 6 || parts[0] != "arn" || parts[2] != "ecs" {
+		return ""
+	}
+
+	resource, ok := strings.CutPrefix(parts[5], "task/")
+	if !ok {
+		return ""
+	}
+
+	taskID := resource
+	if cluster, id, found := strings.Cut(resource, "/"); found {
+		if cluster == "" {
+			return ""
+		}
+		taskID = id
+	}
+
+	// the anchored pattern also rejects any extra path segment
+	if !ecsTaskIDPattern.MatchString(taskID) {
+		return ""
+	}
+
+	return strings.ToLower(taskID)
+}

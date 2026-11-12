@@ -18,6 +18,7 @@ import (
 	"time"
 
 	"github.com/DataDog/datadog-go/v5/statsd"
+	"go.uber.org/atomic"
 
 	"github.com/DataDog/datadog-agent/pkg/security/metrics"
 	"github.com/DataDog/datadog-agent/pkg/security/probe/config"
@@ -40,6 +41,7 @@ type EBPFLessResolver struct {
 	opts              ResolverOpts
 	scrubber          *utils.Scrubber
 	statsdClient      statsd.ClientInterface
+	ecsTaskID         atomic.String
 }
 
 // NewEBPFLessResolver returns a new process resolver
@@ -53,6 +55,16 @@ func NewEBPFLessResolver(_ *config.Config, statsdClient statsd.ClientInterface, 
 	}
 
 	return p, nil
+}
+
+// SetECSTaskID sets the ECS task ID of the traced processes running in a container
+func (p *EBPFLessResolver) SetECSTaskID(taskID string) {
+	p.ecsTaskID.Store(taskID)
+}
+
+// GetECSTaskID returns the ECS task ID of the traced processes running in a container
+func (p *EBPFLessResolver) GetECSTaskID() string {
+	return p.ecsTaskID.Load()
 }
 
 func (p *EBPFLessResolver) deleteEntry(key CacheResolverKey, exitTime time.Time) {
@@ -159,6 +171,9 @@ func (p *EBPFLessResolver) NewEntry(key CacheResolverKey, ppid uint32, file stri
 		entry.Process.FileEvent.BasenameStr = filepath.Base(entry.Process.FileEvent.PathnameStr)
 	}
 	entry.Process.ContainerContext.ContainerID = containerutils.ContainerID(ctrID)
+	if ctrID != "" {
+		entry.Process.ContainerContext.ECSTaskID = p.GetECSTaskID()
+	}
 	entry.Process.CGroup.CGroupID = cgroupID
 
 	entry.ExecTime = time.Unix(0, int64(ts))
