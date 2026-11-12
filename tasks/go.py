@@ -23,7 +23,7 @@ from invoke.exceptions import Exit
 
 from tasks.build_tags import ALL_TAGS, UNIT_TEST_TAGS, get_default_build_tags
 from tasks.libs.build.bazel import bazel, bazel_not_found_message, is_bazel_workspace
-from tasks.libs.common.color import color_message
+from tasks.libs.common.color import Color, color_message
 from tasks.libs.common.git import check_uncommitted_changes
 from tasks.libs.common.go import download_go_dependencies
 from tasks.libs.common.gomodules import Configuration, GoModule, get_default_modules
@@ -44,6 +44,28 @@ GOARCH_MAPPING = {
     "arm64": "arm64",
     "ppc64": "ppc64",
 }
+
+
+def _user_cache_dir() -> str:
+    """Mirrors Go's os.UserCacheDir: unlike the temporary directory on Linux, other users can't write to it."""
+    if sys.platform == "win32":
+        return os.environ.get("LOCALAPPDATA") or tempfile.gettempdir()
+    if sys.platform == "darwin":
+        return os.path.join(os.path.expanduser("~"), "Library", "Caches")
+    return os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+
+
+def _gcflags_goflag(flag: str) -> str | None:
+    """Returns the GOFLAGS entry passing `flag` to the compiler of every package, or None if it can't be expressed.
+
+    cmd/go splits both GOFLAGS and the -gcflags value on whitespace, and only honors quotes around a whole field,
+    without escapes: a flag containing whitespace needs a different quote at each level, and can't contain either.
+    """
+    if not any(c in flag for c in " \t\n\r"):
+        return f"-gcflags=all={flag}"
+    if "'" in flag or '"' in flag:
+        return None
+    return f"\"-gcflags=all='{flag}'\""
 
 
 def run_golangci_lint(
@@ -78,6 +100,7 @@ def run_golangci_lint(
         headless_mode=headless_mode,
         include_python="python" in tags,
     )
+
     tags_arg = ",".join(sorted(set(tags)))
     timeout_arg_value = "25m0s" if not timeout else f"{timeout}m0s"
     # Compose the targets string for the command
@@ -98,11 +121,19 @@ def run_golangci_lint(
     # run fit in a sandbox's disk. The flag is part of the build cache key, so builds never use these archives.
     # Every compile overwrites the same file, so it is only as large as the largest package. Concurrent compiles and
     # runs can share it, since nothing ever reads it. Its path must not change between runs, as it is part of the
-    # cache key. It can't be os.devnull: the compiler seeks back in it to write the archive headers, which fails in
-    # NUL on Windows.
-    linkobj = os.path.join(tempfile.gettempdir(), "golangci-lint-linkobj.o")
-    # Quoted twice, for GOFLAGS and for -gcflags, in case the path contains spaces.
-    env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} \"-gcflags=all='-linkobj={linkobj}'\"".lstrip()
+    # cache key, and must not be writable by other users. It can't be os.devnull: the compiler seeks back in it to write
+    # the archive headers, which fails in NUL on Windows.
+    linkobj = os.path.join(_user_cache_dir(), "golangci-lint-linkobj.o")
+    if linkobj_goflag := _gcflags_goflag(f"-linkobj={linkobj}"):
+        os.makedirs(os.path.dirname(linkobj), exist_ok=True)
+        env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} {linkobj_goflag}".lstrip()
+    else:
+        print(
+            color_message(
+                f"Warning: can't pass {linkobj!r} to the compiler, linting will need more disk", Color.ORANGE
+            ),
+            file=sys.stderr,
+        )
     try:
         result, time_result = TimedOperationResult.run(
             lambda: bazel(
