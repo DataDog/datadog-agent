@@ -276,6 +276,7 @@ func buildNetworkDeviceMetadata(deviceID string, idTags []string, config *checkc
 		DeviceType:     deviceType,
 		Integration:    common.SnmpIntegrationName,
 		AgentHostname:  agentHostname,
+		InventoryID:    config.InventoryID,
 	}
 }
 
