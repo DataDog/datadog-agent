@@ -14,6 +14,7 @@ import (
 	"net/http"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/DataDog/agent-payload/v5/healthplatform"
@@ -35,6 +36,7 @@ import (
 	remotedef "github.com/DataDog/datadog-agent/comp/healthplatform/store/remote/def"
 	configenv "github.com/DataDog/datadog-agent/pkg/config/env"
 	"github.com/DataDog/datadog-agent/pkg/util/flavor"
+	pkglog "github.com/DataDog/datadog-agent/pkg/util/log"
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
@@ -76,6 +78,11 @@ type storedIssue struct {
 // healthPlatformImpl implements the health platform component.
 // It aggregates health issues reported by various agent components and integrations.
 // The component provides methods to report issues, retrieve them, and manage the health monitoring lifecycle.
+//
+// The store cannot know which of its callers are on a critical path (e.g.
+// Autodiscovery reports while holding its config lock), so mutations never
+// block: they are queued for a single worker that applies them in order, and
+// lifecycle state is persisted on a timer rather than on every change.
 type healthPlatformImpl struct {
 	// Core dependencies
 	config           config.Component            // Config component for accessing configuration
@@ -85,14 +92,25 @@ type healthPlatformImpl struct {
 	agentFlavor      string                      // Agent flavor captured at construction time
 	selfIdent        *selfident.SelfIdent        // Resolves this agent's DaemonSet/cluster identity
 
-	// Issue tracking: dehydrated at ReportIssue, rehydrated on GetAllIssues/GetIssue.
+	// Issue tracking: dehydrated when stored, rehydrated on GetAllIssues/GetIssue.
 	issues       map[string]*storedIssue // IssueID → active issue (lean proto + raw JSON)
 	issuesByName map[string][]string     // IssueName → active IssueIDs
 	issuesMux    sync.RWMutex
 
+	// Mutation queue: ReportIssue/ResolveIssue/ResolveAllIssues push here and
+	// return; the worker applies ops in order. Full queue → op dropped and counted.
+	ops          chan func()
+	workerStop   chan struct{}
+	workerDone   chan struct{}
+	dropLogLimit *pkglog.Limit
+
 	// Persistence: lifecycle state only — proto payload is not stored here.
 	persistedIssues map[string]*PersistedIssue // IssueID → lifecycle state
 	persistence     issuesPersistence
+	dirty           atomic.Bool // persistedIssues changed since the last save
+	persistInterval time.Duration
+	persisterStop   chan struct{}
+	persisterDone   chan struct{}
 
 	// Issue observers: receive issue events outside issuesMux.
 	observersMu sync.RWMutex
@@ -103,7 +121,8 @@ type healthPlatformImpl struct {
 }
 
 type telemetryMetrics struct {
-	issuesCounter telemetry.Counter
+	issuesCounter     telemetry.Counter
+	droppedOperations telemetry.Counter
 }
 
 // IssueState is a type alias for the proto enum healthplatform.IssueState.
@@ -119,6 +138,14 @@ const (
 	// persistedStateVersion is the on-disk schema version written by this binary.
 	// restorePersistedState refuses to load files with a different version (no migration).
 	persistedStateVersion = 2
+
+	// opsQueueSize bounds the mutations waiting for the worker. Callers drop
+	// (and count) further mutations rather than wait for room.
+	opsQueueSize = 1000
+
+	// persistInterval is how often lifecycle state is saved when it changed.
+	// A crash loses at most this much state; health checks re-report on restart.
+	persistInterval = 10 * time.Second
 )
 
 var issueStateToString = map[IssueState]string{
@@ -287,37 +314,14 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}
 
 	// Initialize the health platform implementation
-	comp := &healthPlatformImpl{
-		config:           reqs.Config,
-		log:              reqs.Log,
-		telemetry:        reqs.Telemetry,
-		hostnameProvider: reqs.Hostname,
-		agentFlavor:      agentFlavor,
-		selfIdent:        selfIdent,
-
-		issues:       make(map[string]*storedIssue),
-		issuesByName: make(map[string][]string),
-		issuesMux:    sync.RWMutex{},
-
-		persistedIssues: make(map[string]*PersistedIssue),
-		persistence:     persistence,
-	}
+	comp := newHealthPlatform(reqs.Log, reqs.Telemetry, reqs.Hostname, agentFlavor, selfIdent, persistence)
+	comp.config = reqs.Config
 
 	// Register lifecycle hooks for component start/stop
 	reqs.Lifecycle.Append(compdef.Hook{
 		OnStart: comp.start,
 		OnStop:  comp.stop,
 	})
-
-	// Initialize telemetry metrics
-	comp.metrics = telemetryMetrics{
-		issuesCounter: reqs.Telemetry.NewCounter(
-			"health_platform",
-			"issues_detected",
-			[]string{"issue_type", "severity"},
-			"Number of health issues detected",
-		),
-	}
 
 	// Return the component wrapped in Provides with API endpoints.
 	return Provides{
@@ -331,23 +335,163 @@ func NewComponent(reqs Requires) (Provides, error) {
 	}, nil
 }
 
+// newHealthPlatform builds the store with its telemetry and an empty queue.
+// Nothing is applied until start runs the worker.
+func newHealthPlatform(
+	logger log.Component,
+	tel telemetry.Component,
+	hostname hostnameinterface.Component,
+	agentFlavor string,
+	selfIdent *selfident.SelfIdent,
+	persistence issuesPersistence,
+) *healthPlatformImpl {
+	return &healthPlatformImpl{
+		log:              logger,
+		telemetry:        tel,
+		hostnameProvider: hostname,
+		agentFlavor:      agentFlavor,
+		selfIdent:        selfIdent,
+
+		issues:       make(map[string]*storedIssue),
+		issuesByName: make(map[string][]string),
+
+		ops:          make(chan func(), opsQueueSize),
+		workerStop:   make(chan struct{}),
+		workerDone:   make(chan struct{}),
+		dropLogLimit: pkglog.NewLogLimit(10, 10*time.Minute),
+
+		persistedIssues: make(map[string]*PersistedIssue),
+		persistence:     persistence,
+		persistInterval: persistInterval,
+		persisterStop:   make(chan struct{}),
+		persisterDone:   make(chan struct{}),
+
+		metrics: telemetryMetrics{
+			issuesCounter: tel.NewCounter(
+				"health_platform",
+				"issues_detected",
+				[]string{"issue_type", "severity"},
+				"Number of health issues detected",
+			),
+			droppedOperations: tel.NewCounter(
+				"health_platform",
+				"operations_dropped",
+				[]string{"operation"},
+				"Number of issue reports and resolutions dropped because the store queue was full",
+			),
+		},
+	}
+}
+
 // ============================================================================
 // Lifecycle Methods
 // ============================================================================
 
-// start starts the health platform component
+// start restores persisted state, then starts the worker so mutations queued
+// before start apply on top of the restored state.
 func (h *healthPlatformImpl) start(ctx context.Context) error {
 	h.log.Info("Starting health platform component")
 	if err := h.loadPersistedState(ctx); err != nil {
 		h.log.Warn("Failed to restore persisted issues: " + err.Error())
 	}
+	// Start resolving this agent's identity now so the first issues get stamped.
+	h.selfIdent.DeploymentIDNonBlocking()
+	h.selfIdent.ClusterIDNonBlocking()
+	go h.runWorker()
+	go h.runPersister()
 	return nil
 }
 
-// stop stops the health platform component
-func (h *healthPlatformImpl) stop(_ context.Context) error {
+// stop applies every queued mutation, then saves state one last time.
+func (h *healthPlatformImpl) stop(ctx context.Context) error {
 	h.log.Info("Stopping health platform component")
+	close(h.workerStop)
+	select {
+	case <-h.workerDone:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	close(h.persisterStop)
+	select {
+	case <-h.persisterDone:
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 	return nil
+}
+
+// runWorker applies queued mutations in order. On stop it drains what is
+// still queued so a clean shutdown loses nothing.
+func (h *healthPlatformImpl) runWorker() {
+	defer close(h.workerDone)
+	for {
+		select {
+		case op := <-h.ops:
+			h.apply(op)
+		case <-h.workerStop:
+			for {
+				select {
+				case op := <-h.ops:
+					h.apply(op)
+				default:
+					return
+				}
+			}
+		}
+	}
+}
+
+// apply runs op, recovering a panic so one bad issue can't stop the worker.
+func (h *healthPlatformImpl) apply(op func()) {
+	defer func() {
+		if r := recover(); r != nil {
+			h.log.Errorf("health platform: panic while applying an issue update: %v", r)
+		}
+	}()
+	op()
+}
+
+// enqueue hands op to the worker without waiting. When the queue is full op is
+// dropped and counted under operation: losing an update beats stalling a
+// caller that may be on a critical path.
+func (h *healthPlatformImpl) enqueue(operation string, op func()) {
+	select {
+	case h.ops <- op:
+	default:
+		h.metrics.droppedOperations.Inc(operation)
+		if h.dropLogLimit.ShouldLog() {
+			h.log.Warnf("health platform: update queue full (capacity %d), dropping %s", cap(h.ops), operation)
+		}
+	}
+}
+
+// runPersister saves lifecycle state every persistInterval if it changed, and
+// once more on stop, so a burst of reports costs one write instead of one each.
+func (h *healthPlatformImpl) runPersister() {
+	defer close(h.persisterDone)
+	ticker := time.NewTicker(h.persistInterval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			h.persistIfChanged()
+		case <-h.persisterStop:
+			h.persistIfChanged()
+			return
+		}
+	}
+}
+
+// persistIfChanged saves lifecycle state if it changed since the last save.
+func (h *healthPlatformImpl) persistIfChanged() {
+	if !h.dirty.Swap(false) {
+		return
+	}
+	if err := h.saveToDisk(); err != nil {
+		// Retry on the next tick even if nothing else changes.
+		h.dirty.Store(true)
+		h.log.Warn("Failed to persist issues to disk: " + err.Error())
+	}
 }
 
 // RegisterIssuesObserver appends an observer. Observers registered after
@@ -383,6 +527,10 @@ func (h *healthPlatformImpl) notifyResolved(resolved *healthplatform.Issue) {
 // responsible for building the complete proto Issue (template lookup, field
 // population), including issue.IssueType. issue.IssueName is used as the
 // issue-type key for telemetry and persistence.
+//
+// It only validates and queues the issue: the worker enriches and stores it
+// shortly after. An error means the issue is invalid; a valid issue that finds
+// the queue full is dropped and counted instead.
 func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 	if issue == nil {
 		return errors.New("issue cannot be nil")
@@ -394,6 +542,14 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 		return errors.New("issue name cannot be empty")
 	}
 
+	// Clone so the worker owns its copy: reporters may reuse the same *Issue.
+	issue = proto.Clone(issue).(*healthplatform.Issue)
+	h.enqueue("report_issue", func() { h.applyReport(issue) })
+	return nil
+}
+
+// applyReport enriches and stores a queued issue. Runs on the worker.
+func (h *healthPlatformImpl) applyReport(issue *healthplatform.Issue) {
 	h.enrichWithClusterIdentity(issue)
 
 	h.issuesMux.RLock()
@@ -405,7 +561,6 @@ func (h *healthPlatformImpl) ReportIssue(issue *healthplatform.Issue) error {
 
 	h.handleIssueStateChange(issue.Source, previousIssue, issue)
 	h.storeIssue(issue.IssueName, issue)
-	return nil
 }
 
 // ============================================================================
@@ -467,8 +622,18 @@ func hydrateIssue(issue *healthplatform.Issue, stored *storedIssue) {
 // Clear Methods
 // ============================================================================
 
-// ResolveIssue marks an issue as resolved and removes it from the active set.
+// ResolveIssue queues the issue to be marked resolved and removed from the
+// active set, without waiting for the worker to apply it.
 func (h *healthPlatformImpl) ResolveIssue(issueID string) {
+	if issueID == "" {
+		return
+	}
+	h.enqueue("resolve_issue", func() { h.resolveIssue(issueID) })
+}
+
+// resolveIssue marks an issue as resolved and removes it from the active set.
+// Runs on the worker.
+func (h *healthPlatformImpl) resolveIssue(issueID string) {
 	h.issuesMux.Lock()
 
 	stateChanged := false
@@ -499,19 +664,23 @@ func (h *healthPlatformImpl) ResolveIssue(issueID string) {
 
 	h.issuesMux.Unlock()
 
+	if stateChanged {
+		h.dirty.Store(true)
+	}
+
 	if resolved != nil {
 		h.notifyResolved(resolved)
 	}
-
-	if stateChanged {
-		if err := h.saveToDisk(); err != nil {
-			h.log.Warn("Failed to persist issues to disk: " + err.Error())
-		}
-	}
 }
 
-// ResolveAllIssues marks every active issue as resolved.
+// ResolveAllIssues queues every active issue to be marked resolved, without
+// waiting for the worker to apply it.
 func (h *healthPlatformImpl) ResolveAllIssues() {
+	h.enqueue("resolve_all_issues", h.resolveAllIssues)
+}
+
+// resolveAllIssues marks every active issue as resolved. Runs on the worker.
+func (h *healthPlatformImpl) resolveAllIssues() {
 	h.issuesMux.Lock()
 
 	now := time.Now().Format(time.RFC3339)
@@ -537,12 +706,12 @@ func (h *healthPlatformImpl) ResolveAllIssues() {
 
 	h.issuesMux.Unlock()
 
-	for _, t := range resolved {
-		h.notifyResolved(t)
+	if len(resolved) > 0 {
+		h.dirty.Store(true)
 	}
 
-	if err := h.saveToDisk(); err != nil {
-		h.log.Warn("Failed to persist issues to disk: " + err.Error())
+	for _, t := range resolved {
+		h.notifyResolved(t)
 	}
 }
 
@@ -613,7 +782,7 @@ func (h *healthPlatformImpl) handleIssueStateChange(source string, oldIssue, new
 // Extra and Tags, so that when a module keys issue.Id by deployment_id
 // (collapsing issues across a DaemonSet), the UI can still identify which
 // DaemonSet/cluster the collapsed issue came from. No-op on non-Kubernetes
-// agents, where both resolve to empty.
+// agents, where both resolve to empty, and while identity is still unresolved.
 func (h *healthPlatformImpl) enrichWithClusterIdentity(issue *healthplatform.Issue) {
 	deploymentID := h.selfIdent.DeploymentIDNonBlocking()
 	clusterID := h.selfIdent.ClusterIDNonBlocking()
@@ -639,6 +808,7 @@ func (h *healthPlatformImpl) enrichWithClusterIdentity(issue *healthplatform.Iss
 
 // storeIssue stores an issue keyed by issue.Id (the unique instance key set by ReportIssue).
 // issueType is the template identifier, used for telemetry tagging and persistence.
+// It takes ownership of issue. Runs on the worker.
 func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.Issue) {
 	h.issuesMux.Lock()
 
@@ -679,9 +849,8 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 	h.persistedIssues[issueID].ProtoIssueType = issue.IssueType
 	h.persistedIssues[issueID].Category = issue.Category
 
-	// Clone before storing to avoid external mutations (reporters may reuse the same *Issue).
-	// Serialize Extra/Remediation to raw JSON and strip from the lean clone so that
-	// structpb heap allocations are not retained for the process lifetime.
+	// Serialize Extra/Remediation to raw JSON and strip them from the stored
+	// issue so that structpb heap allocations are not retained for the process lifetime.
 	si := &storedIssue{}
 	if issue.Extra != nil {
 		if raw, err := json.Marshal(issue.Extra); err == nil {
@@ -697,18 +866,15 @@ func (h *healthPlatformImpl) storeIssue(issueType string, issue *healthplatform.
 			h.log.Warnf("health platform: failed to serialize Remediation for issue %s: %v", issueID, err)
 		}
 	}
-	lean := proto.Clone(issue).(*healthplatform.Issue)
-	lean.Extra = nil
-	lean.Remediation = nil
-	lean.PersistedIssue = persistedIssueToProto(h.persistedIssues[issueID])
-	si.issue = lean
+	issue.Extra = nil
+	issue.Remediation = nil
+	issue.PersistedIssue = persistedIssueToProto(h.persistedIssues[issueID])
+	si.issue = issue
 	h.issues[issueID] = si
 
 	h.issuesMux.Unlock()
 
-	if err := h.saveToDisk(); err != nil {
-		h.log.Warn("Failed to persist issues to disk: " + err.Error())
-	}
+	h.dirty.Store(true)
 }
 
 // ============================================================================
@@ -787,7 +953,8 @@ func (h *healthPlatformImpl) restorePersistedState(state *PersistedState) error 
 
 // saveToDisk persists the current lifecycle state via the persistence layer.
 // Only state metadata is written; proto payload fields are omitted because they are
-// repopulated by health checks on the next agent start.
+// repopulated by health checks on the next agent start. Only the persister
+// calls it outside tests, so saves never overlap.
 func (h *healthPlatformImpl) saveToDisk() error {
 	h.issuesMux.RLock()
 	// Make a deep copy to avoid race conditions during marshaling

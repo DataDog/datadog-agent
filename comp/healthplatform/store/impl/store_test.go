@@ -10,12 +10,14 @@ package storeimpl
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"sync"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -38,6 +40,7 @@ type memPersistence struct {
 	state     *PersistedState
 	loadErr   error
 	loadCalls int
+	saveCalls int
 }
 
 func (m *memPersistence) load(context.Context) (*PersistedState, error) {
@@ -51,7 +54,31 @@ func (m *memPersistence) save(state *PersistedState) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.state = state
+	m.saveCalls++
 	return nil
+}
+
+func (m *memPersistence) saved() (*PersistedState, int) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	return m.state, m.saveCalls
+}
+
+// blockingPersistence holds every save until release is closed, standing in
+// for a slow or hung disk.
+type blockingPersistence struct {
+	memPersistence
+	entered chan struct{}
+	release chan struct{}
+}
+
+func (b *blockingPersistence) save(state *PersistedState) error {
+	select {
+	case b.entered <- struct{}{}:
+	default:
+	}
+	<-b.release
+	return b.memPersistence.save(state)
 }
 
 // mockHostname implements hostnameinterface.Component in tests.
@@ -112,23 +139,38 @@ func (f *mockFlareBuilder) Save() (string, error)                    { return ""
 
 var _ flarebuilder.FlareBuilder = (*mockFlareBuilder)(nil)
 
+// newUnstartedTestStore returns a store whose worker isn't running yet:
+// mutations queue up until it starts.
+func newUnstartedTestStore(t *testing.T) *healthPlatformImpl {
+	t.Helper()
+	return newHealthPlatform(logmock.New(t), telemetrymock.New(t), &mockHostname{name: "test-host"},
+		"agent", selfident.New(nil), &memPersistence{})
+}
+
+// startTestStore runs h's start hook and stops h when the test ends.
+func startTestStore(t *testing.T, h *healthPlatformImpl) {
+	t.Helper()
+	require.NoError(t, h.start(context.Background()))
+	t.Cleanup(func() { assert.NoError(t, h.stop(context.Background())) })
+}
+
+// newTestStore returns a started store.
 func newTestStore(t *testing.T) *healthPlatformImpl {
 	t.Helper()
-	tel := telemetrymock.New(t)
-	return &healthPlatformImpl{
-		log:              logmock.New(t),
-		telemetry:        tel,
-		hostnameProvider: &mockHostname{name: "test-host"},
-		agentFlavor:      "agent",
-		selfIdent:        selfident.New(nil),
-		issues:           make(map[string]*storedIssue),
-		issuesByName:     make(map[string][]string),
-		persistedIssues:  make(map[string]*PersistedIssue),
-		persistence:      &memPersistence{},
-		metrics: telemetryMetrics{
-			issuesCounter: tel.NewCounter(
-				"health_platform", "issues_detected", []string{"issue_type", "severity"}, ""),
-		},
+	h := newUnstartedTestStore(t)
+	startTestStore(t, h)
+	return h
+}
+
+// flush waits until the worker has applied every mutation queued before it.
+func flush(t *testing.T, h *healthPlatformImpl) {
+	t.Helper()
+	done := make(chan struct{})
+	h.ops <- func() { close(done) }
+	select {
+	case <-done:
+	case <-time.After(10 * time.Second):
+		t.Fatal("worker did not apply queued mutations")
 	}
 }
 
@@ -181,11 +223,11 @@ func TestNewComponentPersistence(t *testing.T) {
 }
 
 func TestStartFailsOpenWhenPersistenceLoadFails(t *testing.T) {
-	h := newTestStore(t)
+	h := newUnstartedTestStore(t)
 	persistence := &memPersistence{loadErr: assert.AnError}
 	h.persistence = persistence
 
-	require.NoError(t, h.start(context.Background()))
+	startTestStore(t, h)
 	assert.Equal(t, 1, persistence.loadCalls)
 }
 
@@ -220,6 +262,7 @@ func TestReportIssueStoresProto(t *testing.T) {
 		Tags:      []string{"env:prod"},
 	})
 	require.NoError(t, err)
+	flush(t, h)
 
 	issue := h.GetIssue("check-failure:mysql:abc")
 	require.NotNil(t, issue)
@@ -241,6 +284,7 @@ func TestReportIssueMinimalProto(t *testing.T) {
 		Source:    "my-component",
 	})
 	require.NoError(t, err)
+	flush(t, h)
 
 	issue := h.GetIssue("custom:id-1")
 	require.NotNil(t, issue)
@@ -259,6 +303,7 @@ func TestReportIssuePreservesIssueType(t *testing.T) {
 		IssueName: "Some Issue Name",
 		IssueType: "custom_caller_chosen_type",
 	}))
+	flush(t, h)
 
 	issue := h.GetIssue("id-1")
 	require.NotNil(t, issue)
@@ -274,6 +319,7 @@ func TestReportIssueAllowsEmptyIssueType(t *testing.T) {
 		Id:        "id-2",
 		IssueName: "Some Issue Name",
 	}))
+	flush(t, h)
 
 	issue := h.GetIssue("id-2")
 	require.NotNil(t, issue)
@@ -285,12 +331,14 @@ func TestReportIssueStateTransition(t *testing.T) {
 	issue := &healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}
 
 	require.NoError(t, h.ReportIssue(issue))
+	flush(t, h)
 	persisted := h.persistedIssues["t:id"]
 	require.NotNil(t, persisted)
 	assert.Equal(t, IssueStateActive, persisted.State)
 	firstSeen := persisted.FirstSeen
 
 	require.NoError(t, h.ReportIssue(issue))
+	flush(t, h)
 	persisted = h.persistedIssues["t:id"]
 	assert.Equal(t, IssueStateActive, persisted.State)
 	assert.Equal(t, firstSeen, persisted.FirstSeen, "FirstSeen must not change on re-report")
@@ -305,6 +353,7 @@ func TestResolveIssueRemovesFromActive(t *testing.T) {
 	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
 
 	h.ResolveIssue("t:id")
+	flush(t, h)
 
 	// Issue must be removed from the active set; resolved snapshot written to ResolvedCh.
 	assert.Nil(t, h.GetIssue("t:id"), "issue must be removed from active set after ResolveIssue")
@@ -328,6 +377,7 @@ func TestResolveIssuePreservesIssueTypeAndCategory(t *testing.T) {
 	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
 
 	h.ResolveIssue("t:id")
+	flush(t, h)
 
 	require.Len(t, ch, 1)
 	got := <-ch
@@ -345,6 +395,7 @@ func TestResolveAllIssuesPreservesIssueTypeAndCategory(t *testing.T) {
 	h.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
 
 	h.ResolveAllIssues()
+	flush(t, h)
 
 	require.Len(t, ch, 1)
 	got := <-ch
@@ -355,6 +406,7 @@ func TestResolveAllIssuesPreservesIssueTypeAndCategory(t *testing.T) {
 func TestResolveIssueUnknownIDIsNoop(t *testing.T) {
 	h := newTestStore(t)
 	h.ResolveIssue("nonexistent") // must not panic or error
+	flush(t, h)
 }
 
 func TestResolveAllIssues(t *testing.T) {
@@ -363,6 +415,7 @@ func TestResolveAllIssues(t *testing.T) {
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
 
 	h.ResolveAllIssues()
+	flush(t, h)
 
 	count, issues := h.GetAllIssues()
 	assert.Equal(t, 0, count)
@@ -380,6 +433,7 @@ func TestGetIssueNilForUnknown(t *testing.T) {
 func TestGetAllIssuesDeepCopy(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t", Source: "orig"}))
+	flush(t, h)
 
 	_, issues := h.GetAllIssues()
 	got := issues["t:id"]
@@ -396,6 +450,7 @@ func TestMultiInstanceSameType(t *testing.T) {
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "db-error:prod-1", IssueName: "db-error"}))
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "db-error:prod-2", IssueName: "db-error"}))
+	flush(t, h)
 
 	count, issues := h.GetAllIssues()
 	assert.Equal(t, 2, count)
@@ -408,6 +463,7 @@ func TestMultiTypeSameSource(t *testing.T) {
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "a:id", IssueName: "type-a", Source: "mysrc"}))
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "b:id", IssueName: "type-b", Source: "mysrc"}))
+	flush(t, h)
 
 	count, _ := h.GetAllIssues()
 	assert.Equal(t, 2, count)
@@ -418,16 +474,19 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	path := filepath.Join(dir, "issues.json")
 	logger := logmock.New(t)
 
-	h1 := newTestStore(t)
+	h1 := newUnstartedTestStore(t)
 	h1.persistence = newDiskPersistence(path, logger)
+	require.NoError(t, h1.start(context.Background()))
 	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
 		Id: "t:id", IssueName: "t", IssueType: "custom_type", Category: "configuration", Title: "Test Issue", Source: "test-src",
 	}))
+	// stop applies the queued report and saves it.
+	require.NoError(t, h1.stop(context.Background()))
 	firstSeen := h1.persistedIssues["t:id"].FirstSeen
 
-	h2 := newTestStore(t)
+	h2 := newUnstartedTestStore(t)
 	h2.persistence = newDiskPersistence(path, logger)
-	require.NoError(t, h2.loadPersistedState(context.Background()))
+	startTestStore(t, h2)
 
 	// Detailed proto payload is not persisted — it is repopulated when the check re-runs.
 	// What must survive is the lifecycle state so that storeIssue can correctly
@@ -445,6 +504,7 @@ func TestPersistenceRoundTrip(t *testing.T) {
 	require.NoError(t, h2.ReportIssue(&healthplatformpayload.Issue{
 		Id: "t:id", IssueName: "t", Category: "permissions", Title: "Test Issue", Source: "test-src",
 	}))
+	flush(t, h2)
 	assert.Equal(t, firstSeen, h2.persistedIssues["t:id"].FirstSeen, "firstSeen must be preserved across restart")
 	assert.Equal(t, IssueStateActive, h2.persistedIssues["t:id"].State)
 	assert.Equal(t, "permissions", h2.persistedIssues["t:id"].Category, "category must reflect the latest report")
@@ -455,14 +515,16 @@ func TestLoadPersistedStatePreservesIssueTypeAndCategoryOnResolvedTombstone(t *t
 	path := filepath.Join(dir, "issues.json")
 	logger := logmock.New(t)
 
-	h1 := newTestStore(t)
+	h1 := newUnstartedTestStore(t)
 	h1.persistence = newDiskPersistence(path, logger)
+	require.NoError(t, h1.start(context.Background()))
 	require.NoError(t, h1.ReportIssue(&healthplatformpayload.Issue{
 		Id: "t:id", IssueName: "t", IssueType: "custom_type", Category: "configuration",
 	}))
 	h1.ResolveIssue("t:id")
+	require.NoError(t, h1.stop(context.Background()))
 
-	h2 := newTestStore(t)
+	h2 := newUnstartedTestStore(t)
 	h2.persistence = newDiskPersistence(path, logger)
 	ch := make(chan *healthplatformpayload.Issue, 1)
 	h2.RegisterIssuesObserver(storedef.IssuesObserver{ResolvedCh: ch})
@@ -494,7 +556,7 @@ func TestPersistenceVersionMismatch(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, os.WriteFile(path, data, 0644))
 
-	h := newTestStore(t)
+	h := newUnstartedTestStore(t)
 	h.persistence = newDiskPersistence(path, logmock.New(t))
 	require.NoError(t, h.loadPersistedState(context.Background()))
 
@@ -507,13 +569,15 @@ func TestPersistenceVersionMismatch(t *testing.T) {
 func TestResolvedTTLPruning(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+	flush(t, h)
 
 	// Back-date the resolved-at timestamp so it's older than the TTL.
+	h.issuesMux.Lock()
 	h.persistedIssues["t:id"].State = IssueStateResolved
 	h.persistedIssues["t:id"].ResolvedAt = time.Now().Add(-25 * time.Hour).Format(time.RFC3339)
+	h.issuesMux.Unlock()
 
-	mem := &memPersistence{}
-	h.persistence = mem
+	mem := h.persistence.(*memPersistence)
 	require.NoError(t, h.saveToDisk())
 
 	require.NotNil(t, mem.state)
@@ -525,6 +589,7 @@ func TestGetIssuesHTTPEndpoint(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
+	flush(t, h)
 
 	req := httptest.NewRequest(http.MethodGet, "/health-platform/issues", nil)
 	rec := httptest.NewRecorder()
@@ -554,6 +619,7 @@ func TestFillFlareSkipsWhenEmpty(t *testing.T) {
 func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+	flush(t, h)
 
 	fb := newMockFlareBuilder()
 	require.NoError(t, h.fillFlare(context.Background(), fb))
@@ -564,35 +630,25 @@ func TestFillFlareWritesWhenNonEmpty(t *testing.T) {
 }
 
 func TestTelemetryCounterIncrements(t *testing.T) {
-	tel := telemetrymock.New(t)
-	counter := tel.NewCounter("health_platform", "issues_detected", []string{"issue_type", "severity"}, "")
-	h := &healthPlatformImpl{
-		log:              logmock.New(t),
-		telemetry:        tel,
-		hostnameProvider: &mockHostname{name: "test-host"},
-		agentFlavor:      "agent",
-		selfIdent:        selfident.New(nil),
-		issues:           make(map[string]*storedIssue),
-		issuesByName:     make(map[string][]string),
-		persistedIssues:  make(map[string]*PersistedIssue),
-		persistence:      &memPersistence{},
-		metrics:          telemetryMetrics{issuesCounter: counter},
-	}
+	h := newTestStore(t)
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+	flush(t, h)
 
-	assert.Equal(t, 1.0, counter.WithValues("t", "ISSUE_SEVERITY_UNSPECIFIED").Get())
+	assert.Equal(t, 1.0, h.metrics.issuesCounter.WithValues("t", "ISSUE_SEVERITY_UNSPECIFIED").Get())
 }
 
 func TestGetActiveIssueIDsByIssueName(t *testing.T) {
 	h := newTestStore(t)
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:1", IssueName: "t"}))
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:2", IssueName: "t"}))
+	flush(t, h)
 
 	ids := h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:1", "t:2"}, ids)
 
 	h.ResolveIssue("t:1")
+	flush(t, h)
 	ids = h.GetActiveIssueIDsByIssueName("t")
 	assert.ElementsMatch(t, []string{"t:2"}, ids)
 }
@@ -611,6 +667,7 @@ func TestIssuesObserverResolvedNotification(t *testing.T) {
 
 	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "i:1", IssueName: "t"}))
 	h.ResolveIssue("i:1")
+	flush(t, h)
 
 	require.Len(t, obs.ResolvedCh, 1)
 	got := <-obs.ResolvedCh
@@ -625,4 +682,224 @@ func TestResourceIdentityHost(t *testing.T) {
 	resourceType, resourceID := h.ResourceIdentity("test-host")
 	assert.Equal(t, "host", resourceType)
 	assert.Equal(t, "test-host", resourceID)
+}
+
+// TestMutationsDoNotWaitForSlowPersistence verifies that a hung save blocks
+// neither callers nor the worker: reports and resolutions keep applying while
+// the persister is stuck.
+func TestMutationsDoNotWaitForSlowPersistence(t *testing.T) {
+	persistence := &blockingPersistence{entered: make(chan struct{}, 1), release: make(chan struct{})}
+	h := newUnstartedTestStore(t)
+	h.persistence = persistence
+	h.persistInterval = time.Millisecond
+	startTestStore(t, h)
+	// Registered after startTestStore, so it runs first and lets stop's final save finish.
+	t.Cleanup(func() { close(persistence.release) })
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:0", IssueName: "t"}))
+	select {
+	case <-persistence.entered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("persister never saved")
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		for i := 1; i <= 100; i++ {
+			assert.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: fmt.Sprintf("t:%d", i), IssueName: "t"}))
+		}
+		h.ResolveIssue("t:0")
+		h.ResolveAllIssues()
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("callers blocked behind a stuck save")
+	}
+
+	flush(t, h)
+	count, _ := h.GetAllIssues()
+	assert.Zero(t, count, "the worker kept applying mutations while the save was stuck")
+}
+
+// TestBurstOfReportsIsPersistedOnce verifies that persistence is driven by the
+// timer rather than by each mutation: a burst costs no writes until the
+// interval elapses, and stop saves everything still pending exactly once.
+func TestBurstOfReportsIsPersistedOnce(t *testing.T) {
+	h := newUnstartedTestStore(t)
+	h.persistInterval = time.Hour
+	mem := h.persistence.(*memPersistence)
+	require.NoError(t, h.start(context.Background()))
+
+	for i := 0; i < 100; i++ {
+		require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: fmt.Sprintf("t:%d", i%10), IssueName: "t"}))
+	}
+	h.ResolveIssue("t:0")
+	flush(t, h)
+	_, saves := mem.saved()
+	assert.Zero(t, saves, "nothing is written before the persist interval elapses")
+
+	require.NoError(t, h.stop(context.Background()))
+	state, saves := mem.saved()
+	assert.Equal(t, 1, saves, "stop saves pending changes once")
+	require.NotNil(t, state)
+	assert.Len(t, state.Issues, 10)
+	assert.Equal(t, IssueStateResolved, state.Issues["t:0"].State)
+}
+
+// TestPersistsOnTimerOnlyWhenChanged verifies that the persister saves on its
+// interval once state changed, and skips ticks where nothing changed.
+func TestPersistsOnTimerOnlyWhenChanged(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newTestStore(t)
+		mem := h.persistence.(*memPersistence)
+
+		require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+		synctest.Wait()
+		_, saves := mem.saved()
+		assert.Zero(t, saves)
+
+		time.Sleep(persistInterval)
+		synctest.Wait()
+		state, saves := mem.saved()
+		assert.Equal(t, 1, saves)
+		require.NotNil(t, state)
+		assert.Equal(t, IssueStateActive, state.Issues["t:id"].State)
+
+		time.Sleep(10 * persistInterval)
+		synctest.Wait()
+		_, saves = mem.saved()
+		assert.Equal(t, 1, saves, "no save while nothing changed")
+
+		h.ResolveIssue("t:id")
+		time.Sleep(persistInterval)
+		synctest.Wait()
+		state, saves = mem.saved()
+		assert.Equal(t, 2, saves)
+		assert.Equal(t, IssueStateResolved, state.Issues["t:id"].State)
+	})
+}
+
+// TestFailedSaveIsRetried verifies that a failed save is retried on the next
+// tick even when nothing else changes.
+func TestFailedSaveIsRetried(t *testing.T) {
+	synctest.Test(t, func(t *testing.T) {
+		h := newUnstartedTestStore(t)
+		persistence := &failingPersistence{failures: 1}
+		h.persistence = persistence
+		startTestStore(t, h)
+
+		require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+		time.Sleep(persistInterval)
+		synctest.Wait()
+		_, saves := persistence.saved()
+		assert.Zero(t, saves, "first save failed")
+
+		time.Sleep(persistInterval)
+		synctest.Wait()
+		state, saves := persistence.saved()
+		assert.Equal(t, 1, saves, "retried on the next tick")
+		require.NotNil(t, state)
+		assert.Contains(t, state.Issues, "t:id")
+	})
+}
+
+// failingPersistence fails its first failures saves, then stores in memory.
+type failingPersistence struct {
+	memPersistence
+	failures int
+}
+
+func (f *failingPersistence) save(state *PersistedState) error {
+	f.mu.Lock()
+	if f.failures > 0 {
+		f.failures--
+		f.mu.Unlock()
+		return assert.AnError
+	}
+	f.mu.Unlock()
+	return f.memPersistence.save(state)
+}
+
+// TestMutationsDropAndCountWhenQueueFull verifies that a full queue makes
+// mutations drop rather than wait, without surfacing an error to the caller.
+func TestMutationsDropAndCountWhenQueueFull(t *testing.T) {
+	h := newUnstartedTestStore(t) // no worker, so nothing drains the queue
+	for i := 0; i < opsQueueSize; i++ {
+		require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: fmt.Sprintf("t:%d", i), IssueName: "t"}))
+	}
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		assert.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:overflow", IssueName: "t"}),
+			"a dropped report is not the caller's error")
+		h.ResolveIssue("t:0")
+		h.ResolveAllIssues()
+	}()
+	select {
+	case <-done:
+	case <-time.After(5 * time.Second):
+		t.Fatal("callers blocked on a full queue")
+	}
+
+	dropped := h.metrics.droppedOperations
+	assert.Equal(t, 1.0, dropped.WithValues("report_issue").Get())
+	assert.Equal(t, 1.0, dropped.WithValues("resolve_issue").Get())
+	assert.Equal(t, 1.0, dropped.WithValues("resolve_all_issues").Get())
+}
+
+// TestMutationsApplyInCallOrder verifies that the worker applies reports and
+// resolutions for the same issue in the order they were made.
+func TestMutationsApplyInCallOrder(t *testing.T) {
+	h := newTestStore(t)
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "a", IssueName: "t"}))
+	h.ResolveIssue("a")
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "a", IssueName: "t"}))
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "b", IssueName: "t"}))
+	h.ResolveIssue("b")
+	flush(t, h)
+
+	assert.NotNil(t, h.GetIssue("a"), "re-reported after its resolution")
+	assert.Nil(t, h.GetIssue("b"), "resolved after its report")
+}
+
+// TestReportIssueCopiesCallerIssue verifies that the queued issue is detached
+// from the caller's, so a reporter reusing its *Issue can't change what's stored.
+func TestReportIssueCopiesCallerIssue(t *testing.T) {
+	h := newTestStore(t)
+	issue := &healthplatformpayload.Issue{Id: "t:id", IssueName: "t", Title: "original"}
+
+	require.NoError(t, h.ReportIssue(issue))
+	issue.Title = "reused"
+	flush(t, h)
+
+	assert.Equal(t, "original", h.GetIssue("t:id").GetTitle())
+	assert.Empty(t, issue.DetectedAt, "the store must not write to the caller's issue")
+}
+
+// TestReportsQueuedBeforeStartApplyAfterRestore verifies that the worker only
+// starts once persisted state is restored, so an early report updates the
+// restored record instead of being overwritten by it.
+func TestReportsQueuedBeforeStartApplyAfterRestore(t *testing.T) {
+	old := time.Now().Add(-time.Hour).Format(time.RFC3339)
+	h := newUnstartedTestStore(t)
+	h.persistence = &memPersistence{state: &PersistedState{
+		Version: persistedStateVersion,
+		Issues: map[string]*PersistedIssue{
+			"t:id": {IssueType: "t", State: IssueStateActive, FirstSeen: old, LastSeen: old},
+		},
+	}}
+
+	require.NoError(t, h.ReportIssue(&healthplatformpayload.Issue{Id: "t:id", IssueName: "t"}))
+	startTestStore(t, h)
+	flush(t, h)
+
+	persisted := h.persistedIssues["t:id"]
+	require.NotNil(t, persisted)
+	assert.Equal(t, old, persisted.FirstSeen, "FirstSeen comes from the restored record")
+	assert.NotEqual(t, old, persisted.LastSeen, "the report applied on top of the restored record")
+	assert.NotNil(t, h.GetIssue("t:id"))
 }

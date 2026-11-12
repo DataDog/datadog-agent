@@ -23,6 +23,8 @@ Path B — external reporters (direct)                                          
                                                                                    agenthealth-intake.<site>
 ```
 
+> **Store mutations are asynchronous.** `store.ReportIssue`, `ResolveIssue` and `ResolveAllIssues` validate, queue and return without waiting; a single worker applies them in call order, and drops (and counts) them when its queue is full. A query right after a call may not reflect it yet, so tests against the real store must wait for the change (`require.Eventually`, or `flush` inside `store/impl`).
+
 Use **Path A** when you want to delegate detection logic and evaluation scheduling to the health platform component. Use **Path B** when an existing component (the collector, autodiscovery) already detects the condition and should call `store.ReportIssue` directly with a fully-built proto `Issue`, or when reporting from another process (system-probe).
 
 Sub-package roles:

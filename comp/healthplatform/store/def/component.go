@@ -35,6 +35,11 @@ type Component interface {
 	// with the same issue.Id update the same instance (state machine: new →
 	// ongoing). issue.IssueName is used as the issue-type key for telemetry
 	// and persistence. Call ResolveIssue to mark an issue as resolved.
+	//
+	// ReportIssue never blocks: it validates issue, queues a copy and returns,
+	// so a query right after it may not reflect the report yet. Reports and
+	// resolutions apply in call order. The error only reports an invalid
+	// issue; when the queue is full a valid issue is dropped and counted.
 	ReportIssue(issue *healthplatformpayload.Issue) error
 
 	// =========================================================================
@@ -53,10 +58,12 @@ type Component interface {
 	// =========================================================================
 
 	// ResolveIssue marks the issue with the given IssueId as resolved.
-	// No-op if no such issue is currently active.
+	// No-op if no such issue is currently active. Like ReportIssue, it queues
+	// the change and returns without waiting for it to apply.
 	ResolveIssue(issueID string)
 
-	// ResolveAllIssues marks every active issue as resolved.
+	// ResolveAllIssues marks every active issue as resolved. Like ReportIssue,
+	// it queues the change and returns without waiting for it to apply.
 	ResolveAllIssues()
 
 	// GetActiveIssueIDsByIssueName returns the IDs of all currently active issues
