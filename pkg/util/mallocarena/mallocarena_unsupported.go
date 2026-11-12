@@ -7,6 +7,11 @@
 
 package mallocarena
 
+// constructorApplied is false: there is no constructor without cgo.
+func constructorApplied() bool {
+	return false
+}
+
 // setArenaMax does nothing: arenas are a glibc concept, and mallopt is only reachable
 // through cgo.
 func setArenaMax(int) error {

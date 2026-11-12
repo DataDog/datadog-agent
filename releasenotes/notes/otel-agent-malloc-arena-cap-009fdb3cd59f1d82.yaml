@@ -6,12 +6,13 @@
 #
 # Each section note must be formatted as reStructuredText.
 ---
-enhancements:
+fixes:
   - |
     OTel Agent: On Linux with glibc, the ``otel-agent`` now caps the number of per-thread
     malloc arenas at 2 to bound resident memory. glibc hands each contended thread its own
-    arena and never returns a secondary arena's memory to the operating system, so a
-    collector allocating from C on many threads used to settle at the sum of every arena's
-    high-water mark rather than its live set. Set ``MALLOC_ARENA_MAX`` or
-    ``GLIBC_TUNABLES=glibc.malloc.arena_max=N`` in the process environment to choose a
-    different limit; the ``otel-agent`` leaves an operator-provided value untouched.
+    arena and only trims a secondary arena from the top of its heap, so a collector
+    allocating large blocks from C on many threads used to settle at the sum of every
+    arena's high-water mark rather than its live set. Set ``MALLOC_ARENA_MAX`` or
+    ``GLIBC_TUNABLES=glibc.malloc.arena_max=N`` to a positive integer in the process
+    environment to choose a different limit; the ``otel-agent`` leaves an
+    operator-provided value untouched.

@@ -27,10 +27,12 @@ func initializeProcessIdentity() {
 	logsmetrics.SetAgentIdentity(otelAgentIdentity)
 }
 
-// capMallocArenas bounds the per-thread arenas glibc hands out. The collector churns
-// multi-megabyte blocks through cgo (zstd stream contexts, most of all) from a thread pool
-// sized by CPU count, and glibc never returns a secondary arena's memory to the OS, so an
-// uncapped process settles at the sum of every arena's high-water mark.
+// capMallocArenas reports the glibc malloc arena cap and re-applies it for builds whose
+// constructor did not run. The collector churns multi-megabyte blocks through cgo (zstd
+// stream contexts, most of all) from a thread pool sized by CPU count, and glibc only trims
+// a secondary arena from the top of its heap, so an uncapped process settles at the sum of
+// every arena's high-water mark. Importing pkg/util/mallocarena is what applies the cap: it
+// has to be in place before the Go runtime starts, so it rides an .init_array constructor.
 func capMallocArenas() {
 	// Logging before setup is buffered and replayed once the logger exists.
 	if summary, err := mallocarena.SetMax(mallocarena.DefaultMaxArenas); err != nil {

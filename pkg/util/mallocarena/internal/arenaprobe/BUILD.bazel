@@ -1,0 +1,9 @@
+load("@rules_go//go:def.bzl", "go_library")
+
+go_library(
+    name = "arenaprobe",
+    srcs = ["arenaprobe.go"],
+    cgo = True,
+    importpath = "github.com/DataDog/datadog-agent/pkg/util/mallocarena/internal/arenaprobe",
+    visibility = ["//pkg/util/mallocarena:__subpackages__"],
+)
