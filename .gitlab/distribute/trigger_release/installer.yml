@@ -17,8 +17,6 @@
   script:
     - !reference [.log_dd_pkg_version]
     - RELEASE_VERSION="$(dda inv agent.version --url-safe --omnibus-format --pipeline-id $PARENT_PIPELINE_ID)-1" || exit $?; export RELEASE_VERSION
-    - |
-      echo "Using artifact gateway: $DD_PKG_GITLAB_URL"
     - |-
       dd-pkg promote \
         --build-pipeline-id $PARENT_PIPELINE_ID \

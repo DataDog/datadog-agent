@@ -380,7 +380,6 @@ variables:
   # POSIX only (Linux and macOS): Windows jobs override this in .windows_docker_default
   DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: tools/ci/read_ci_secret.sh feature-flags-client token
 
-  DD_PKG_GITLAB_URL: "https://artifact-gateway.us1.ddbuild.io/internal/artifact-gateway/api/v4"
   PIPELINE_KEY_ALIAS: "alias/ci_datadog-agent_pipeline-key"
 
   # Shallow clone by default.
