@@ -15,6 +15,7 @@ import (
 	"path/filepath"
 	"slices"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -332,12 +333,17 @@ func TestDatadogAgentPackageHasPreRemove(t *testing.T) {
 
 // TestPreRemoveUnloadsTheStableSet covers what `installer prerm --upgrade datadog-agent dmg` does
 // for the .dmg's preinstall script: it runs through RunHook, as the command does, unloads every
-// stable job in the reverse of the order they are loaded in, and removes their definitions.
+// stable job in the reverse of the order they are loaded in, after any experiment job, and removes
+// their definitions.
 func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
 	for _, label := range agentLaunchdJobs.LaunchdJobsStable {
 		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte(label), 0o644))
+	}
+	// A configuration experiment's jobs, left by an experiment running when the install started.
+	for _, label := range agentLaunchdJobs.LaunchdJobsExp {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+"-exp.plist"), []byte(label), 0o644))
 	}
 	ctx := testHookContext(t)
 	ctx.Hook = "preRemove"
@@ -352,7 +358,11 @@ func TestPreRemoveUnloadsTheStableSet(t *testing.T) {
 			bootedOut = append(bootedOut, args[1])
 		}
 	}
+	// The experiment set goes first, so no -exp job outlives the configuration it reads.
 	var expected []string
+	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsExp) {
+		expected = append(expected, "system/"+label+"-exp")
+	}
 	for _, label := range slices.Backward(agentLaunchdJobs.LaunchdJobsStable) {
 		expected = append(expected, "system/"+label)
 	}
@@ -492,6 +502,57 @@ func TestLoadStableJobKeepsTheOldDefinitionWhenBootoutFails(t *testing.T) {
 	for _, call := range *calls {
 		assert.NotContains(t, []string{"enable", "bootstrap", "kickstart"}, call[0], "%s ran after a failed bootout", call[0])
 	}
+}
+
+// TestPostInstallDMGCollapsesALeftoverExperiment pins that an install never leaves both job sets
+// behind: whatever is left of a configuration experiment -- its watcher, its deadline, its jobs,
+// including the experiment installer daemon, and its configuration directory -- is discarded
+// before the stable set is loaded.
+func TestPostInstallDMGCollapsesALeftoverExperiment(t *testing.T) {
+	calls := stubLaunchd(t)
+	dir := stubJobDir(t)
+	stubInstallerState(t)
+	layout := defaultDmgLayout
+	stubDeadlinePath(t)
+	stopped := 0
+	originalStop := stopSurvivingWatchers
+	stopSurvivingWatchers = func(context.Context) error { stopped++; return nil }
+	t.Cleanup(func() { stopSurvivingWatchers = originalStop })
+	require.NoError(t, os.MkdirAll(layout.expConfDir(), 0o755))
+	require.NoError(t, os.WriteFile(filepath.Join(layout.expConfDir(), ".deployment-id"), []byte("experiment-1"), 0o640))
+	require.NoError(t, experimentDeadline().Write(time.Hour))
+	for _, label := range experimentJobs {
+		require.NoError(t, os.WriteFile(filepath.Join(dir, label+".plist"), []byte("leftover"), 0o644))
+	}
+	ctx := testHookContext(t)
+	ctx.PackageType = PackageTypeDMG
+
+	require.NoError(t, postInstallDMG(ctx))
+
+	assert.Equal(t, 1, stopped, "a surviving watcher must be stopped before the jobs it watches go away")
+	token, err := experimentDeadline().Read()
+	require.NoError(t, err)
+	assert.Empty(t, token)
+	target, err := os.Readlink(layout.expConfDir())
+	require.NoError(t, err, "the experiment configuration was not discarded")
+	assert.Equal(t, layout.confDir(), target)
+	for _, label := range experimentJobs {
+		assert.NoFileExists(t, filepath.Join(dir, label+".plist"))
+		assert.Contains(t, launchctlCalls(*calls, "bootout"), "system/"+label)
+	}
+	// The experiment jobs are all gone before the first stable job is loaded.
+	lastExperimentBootout, firstStableBootstrap := -1, -1
+	for i, args := range *calls {
+		target := strings.Join(args, " ")
+		if args[0] == "bootout" && strings.Contains(target, "-exp") {
+			lastExperimentBootout = i
+		}
+		if args[0] == "bootstrap" && firstStableBootstrap < 0 {
+			firstStableBootstrap = i
+		}
+	}
+	require.NotEqual(t, -1, firstStableBootstrap)
+	assert.Less(t, lastExperimentBootout, firstStableBootstrap)
 }
 
 // TestPostInstallDMGCreatesTheInstallerStateFirst pins that the installer's root-owned directories

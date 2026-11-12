@@ -109,6 +109,35 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
         self.assertLess(supported, handoff)
         self.assertLess(handoff, fallback)
 
+    def test_preinst_kills_every_detached_experiment_process(self):
+        # An upgrade must not leave a detached configuration experiment process (the watcher, or the
+        # installer daemon hand-over or hand-back) swapping jobs back in while the binaries it runs
+        # are replaced.
+        preinst = (REPO_ROOT / "omnibus/package-scripts/agent-dmg/preinst").read_text()
+        pkill = next(line for line in preinst.splitlines() if "pkill -9 -f" in line and "package-command" in line)
+        for command in ("watchConfigExperiment", "handOverInstaller", "handBackInstaller"):
+            self.assertIn(command, pkill)
+
+    def test_uninstall_without_installer_removes_the_experiment_jobs(self):
+        # When the installer can't uninstall, the script still removes a configuration experiment's
+        # jobs, before the stable ones, so none is left registered against binaries that are gone.
+        uninstall = (REPO_ROOT / "cmd/agent/macos/uninstall_mac_os.sh").read_text()
+        start = uninstall.find("uninstall_without_installer() {")
+        end = uninstall.find("\n}\n", start)
+        self.assertNotEqual(start, -1)
+        body = uninstall[start:end]
+        first_stable_bootout = body.find("launchctl bootout system/com.datadoghq.procmgr")
+        for label in (
+            "com.datadoghq.installer-exp",
+            "com.datadoghq.agent-exp",
+            "com.datadoghq.sysprobe-exp",
+            "com.datadoghq.data-plane-exp",
+        ):
+            bootout = body.find(f"launchctl bootout system/{label} ")
+            self.assertNotEqual(bootout, -1, label)
+            self.assertLess(bootout, first_stable_bootout, label)
+            self.assertIn(f"rm -f /Library/LaunchDaemons/{label}.plist", body)
+
     def test_windows_fips_packaging_does_not_expect_adp_sidecar_dlls(self):
         agent_installer = (
             REPO_ROOT / "tools/windows/DatadogAgentInstaller/WixSetup/Datadog Agent/AgentInstaller.cs"

@@ -24,6 +24,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/DataDog/datadog-agent/pkg/fleet/installer/config"
 	"github.com/DataDog/datadog-agent/pkg/fleet/installer/paths"
 	"github.com/DataDog/datadog-agent/pkg/util/log"
 )
@@ -79,6 +80,7 @@ var defaultDmgLayout = dmgLayout{
 }
 
 func (l dmgLayout) confDir() string      { return filepath.Join(l.installDir, "etc") }
+func (l dmgLayout) expConfDir() string   { return filepath.Join(l.installDir, "etc-exp") }
 func (l dmgLayout) runDir() string       { return filepath.Join(l.installDir, "run") }
 func (l dmgLayout) logDir() string       { return filepath.Join(l.installDir, "logs") }
 func (l dmgLayout) savedConfDir() string { return filepath.Join(l.stagingDir, "saved-conf") }
@@ -111,9 +113,23 @@ func setUpDMGInstall(ctx context.Context, layout dmgLayout) error {
 	if err := setUpConfig(ctx, layout, env); err != nil {
 		return err
 	}
+	restExperimentConfig(ctx, layout)
 	installNativeMessagingHosts(layout, env)
 	installLinks(layout)
 	return nil
+}
+
+// restExperimentConfig puts the experiment configuration path back to resting on the stable one,
+// a link from etc-exp to etc. A fresh install gets the link, and an install over a host that was
+// running a configuration experiment discards it: the experiment's deadline is removed with the
+// old install files, so nothing would ever resume it, and a real etc-exp left in place would have
+// the installer daemon report it as the running configuration. It runs before the jobs are loaded,
+// so the daemon never sees the experiment.
+func restExperimentConfig(ctx context.Context, layout dmgLayout) {
+	dirs := config.Directories{StablePath: layout.confDir(), ExperimentPath: layout.expConfDir()}
+	if err := dirs.RemoveExperiment(ctx); err != nil {
+		log.Warnf("could not rest %s on %s: %v", layout.expConfDir(), layout.confDir(), err)
+	}
 }
 
 // ensureAgentUser creates the Agent's account if it is missing, in the 450-499 range, and enforces
@@ -224,7 +240,11 @@ func removeOldInstallFiles(layout dmgLayout) {
 		filepath.Join(layout.installDir, "agent"),
 		filepath.Join(layout.installDir, "checks.d"),
 		filepath.Join(layout.installDir, "embedded", "bin", "ai-prompt-logger-native-host"),
-		// Builds that ran a configuration experiment watcher from the Agent's run directory.
+		// The deadline of a configuration experiment that was running when the install started,
+		// where builds before this one kept it. collapseConfigExperiment clears the current one.
+		// The install replaces the Agent the experiment ran, so the experiment is discarded:
+		// without its deadline the daemon doesn't resume it, and restExperimentConfig discards
+		// its configuration.
 		filepath.Join(layout.runDir(), "experiment-deadline"),
 		// Builds that kept the installer daemon's state and logs under the packages root. The
 		// daemon now keeps them in the Agent's run and log directories, and anything left under the

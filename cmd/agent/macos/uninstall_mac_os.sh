@@ -7,8 +7,9 @@
 # Datadog Agent uninstall script for macOS.
 # Paired with install_mac_os.sh (Agent 7.79.0+). Removes the system-wide
 # components installed by the DMG: LaunchDaemons (procmgr, agent, sysprobe,
-# data-plane, installer), GUI LaunchAgent, /Applications app, /opt/datadog-agent
-# and /opt/datadog-packages trees, and symlinks.
+# data-plane, installer, and a configuration experiment's -exp jobs), GUI
+# LaunchAgent, /Applications app, /opt/datadog-agent and /opt/datadog-packages
+# trees, and symlinks.
 set -eu
 
 if [ -t 1 ]; then
@@ -54,6 +55,11 @@ printf "${BLUE}* Uninstalling Datadog Agent, you might be asked for your sudo pa
 # left things behind. Every step is a no-op for what is already gone.
 uninstall_without_installer() {
     printf "${BLUE}\n    - Stopping system services...\n${NC}"
+    # A configuration experiment's jobs first, so none outlives the configuration it reads.
+    $sudo_cmd launchctl bootout system/com.datadoghq.installer-exp 2>/dev/null || true
+    $sudo_cmd launchctl bootout system/com.datadoghq.agent-exp 2>/dev/null || true
+    $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe-exp 2>/dev/null || true
+    $sudo_cmd launchctl bootout system/com.datadoghq.data-plane-exp 2>/dev/null || true
     $sudo_cmd launchctl bootout system/com.datadoghq.procmgr 2>/dev/null || true
     $sudo_cmd launchctl bootout system/com.datadoghq.agent 2>/dev/null || true
     $sudo_cmd launchctl bootout system/com.datadoghq.sysprobe 2>/dev/null || true
@@ -61,7 +67,7 @@ uninstall_without_installer() {
     $sudo_cmd launchctl bootout system/com.datadoghq.installer 2>/dev/null || true
     # bootout returns before a job has left the domain. Wait up to 30 seconds for each, as the
     # installer's pre-remove does, so the Agent is stopped before its files are removed.
-    for label in com.datadoghq.procmgr com.datadoghq.agent com.datadoghq.sysprobe com.datadoghq.data-plane com.datadoghq.installer; do
+    for label in com.datadoghq.installer-exp com.datadoghq.agent-exp com.datadoghq.sysprobe-exp com.datadoghq.data-plane-exp com.datadoghq.procmgr com.datadoghq.agent com.datadoghq.sysprobe com.datadoghq.data-plane com.datadoghq.installer; do
         attempts=0
         while [ $attempts -lt 30 ] && $sudo_cmd launchctl print "system/$label" >/dev/null 2>&1; do
             sleep 1
@@ -86,6 +92,10 @@ uninstall_without_installer() {
     $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe.plist
     $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane.plist
     $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.installer.plist
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.installer-exp.plist
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.agent-exp.plist
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.sysprobe-exp.plist
+    $sudo_cmd rm -f /Library/LaunchDaemons/com.datadoghq.data-plane-exp.plist
     $sudo_cmd rm -f /Library/LaunchAgents/com.datadoghq.gui.plist
     $sudo_cmd rm -f "/Library/LaunchAgents/$ai_usage_desktop_monitor_label.plist"
     $sudo_cmd rm -f "/Library/LaunchAgents/$old_ai_usage_desktop_monitor_label.plist"
