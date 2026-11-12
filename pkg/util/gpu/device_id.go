@@ -10,10 +10,10 @@ import (
 	"strconv"
 )
 
-// nvidiaReplicaSuffixRegex matches the replica suffix of a shared NVIDIA
-// device ID. When the NVIDIA device plugin shares a device by replication, as
-// time-slicing and MPS do, it registers one device per replica whose ID is
-// the base device ID followed by "::<replica index>":
+// nvidiaReplicaSuffixRegex matches a device-plugin replica ID. When the
+// NVIDIA device plugin shares a device by replication, as time-slicing and
+// MPS do, it registers one device per replica whose ID is the base device
+// ID followed by "::<replica index>":
 //
 //	GPU-170ab964-06dc-a639-af22-0cafd46259c7::2
 //
@@ -21,13 +21,7 @@ import (
 // NewAnnotatedID), not a stable API: it is independent of the resource name,
 // and its format may change. Parse defensively: an unrecognized shape means
 // "not a replica", never an error.
-//
-// The "GPU-…"/"MIG-…" prefixes of the base ID are NVML's documented UUID
-// scheme (MIG user guide, NVML changelog, and the plugin's own
-// api/config/v1/replicas.go), always uppercase. Matching is case-sensitive
-// end to end — the device UUID matcher compares NVML's UUIDs exactly — so
-// an unexpected case surfaces as an attribution error, never a wrong match.
-var nvidiaReplicaSuffixRegex = regexp.MustCompile(`^(GPU-|MIG-)(.+)::(\d+)$`)
+var nvidiaReplicaSuffixRegex = regexp.MustCompile(`^(.+)::(\d+)$`)
 
 // NvidiaDeviceReplica is a shared-device replica allocation: one of the
 // replicas the NVIDIA device plugin registered of a base device.
@@ -40,11 +34,12 @@ type NvidiaDeviceReplica struct {
 	Replica int
 }
 
-// ParseNvidiaDeviceReplica parses an NVIDIA device-plugin ID carrying a
-// replica suffix, e.g. "GPU-<uuid>::2", into its base device ID and replica
-// index. It reports false when the ID carries no suffix or does not match
-// the expected format, so an unrecognized shape means "not a replica",
-// never an error.
+// ParseNvidiaDeviceReplica parses a device-plugin replica ID, e.g.
+// "GPU-<uuid>::2", into its base device ID and replica index. The base can
+// be any device ID, so the caller is responsible for the allocation being
+// NVIDIA's — every caller either gates on the resource name
+// (IsNvidiaKubernetesResource) or matches the base against NVML's devices,
+// where a foreign ID cannot match anything.
 func ParseNvidiaDeviceReplica(deviceID string) (NvidiaDeviceReplica, bool) {
 	match := nvidiaReplicaSuffixRegex.FindStringSubmatch(deviceID)
 	if match == nil {
@@ -52,12 +47,12 @@ func ParseNvidiaDeviceReplica(deviceID string) (NvidiaDeviceReplica, bool) {
 	}
 	// The regex only matches decimal digits, so this cannot fail; kept
 	// defensive anyway so a regex edit cannot turn into a panic.
-	replica, err := strconv.Atoi(match[3])
+	replica, err := strconv.Atoi(match[2])
 	if err != nil {
 		return NvidiaDeviceReplica{}, false
 	}
 	return NvidiaDeviceReplica{
-		BaseDeviceID: match[1] + match[2],
+		BaseDeviceID: match[1],
 		Replica:      replica,
 	}, true
 }
