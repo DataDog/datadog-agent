@@ -948,6 +948,55 @@ func TestFromAutoscalerToContainerResourcePatches_Burstable(t *testing.T) {
 	})
 }
 
+func TestFromAutoscalerToContainerResourcePatches_RemoveLimitSentinel(t *testing.T) {
+	// CPURequestsRemoveLimitsMemoryRequestsAndLimits stamps the CPU limit with the sentinel
+	// on a non-burstable autoscaler.
+	sv := &model.VerticalScalingValues{
+		ResourcesHash: "r1",
+		ContainerResources: []datadoghqcommon.DatadogPodAutoscalerContainerResources{
+			{
+				Name:     "app",
+				Requests: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("250m")},
+				Limits:   corev1.ResourceList{corev1.ResourceCPU: removeLimitSentinel.DeepCopy(), corev1.ResourceMemory: resource.MustParse("512Mi")},
+			},
+			{
+				Name:   "sidecar",
+				Limits: corev1.ResourceList{corev1.ResourceCPU: resource.MustParse("100m")},
+			},
+		},
+	}
+	pod := &workloadmeta.KubernetesPod{
+		EntityID:   workloadmeta.EntityID{ID: "pod1"},
+		Containers: []workloadmeta.OrchestratorContainer{{Name: "app"}, {Name: "sidecar"}},
+	}
+
+	for _, preview := range []string{"", `{"burstable":true}`} {
+		t.Run("preview="+preview, func(t *testing.T) {
+			ai := (&model.FakePodAutoscalerInternal{
+				Namespace:            "default",
+				Name:                 "ai",
+				ScalingValues:        model.ScalingValues{Vertical: sv},
+				PreviewAnnotationKey: preview,
+			}).Build()
+
+			patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+
+			require.Len(t, patches, 2)
+			assert.Equal(t, map[string]string{"memory": "512Mi"}, patches[0].Limits, "the sentinel must not be sent as a limit")
+			assert.Equal(t, []string{"cpu"}, patches[0].LimitsToDelete)
+		})
+	}
+
+	ai := (&model.FakePodAutoscalerInternal{
+		Namespace:     "default",
+		Name:          "ai",
+		ScalingValues: model.ScalingValues{Vertical: sv},
+	}).Build()
+	patches := fromAutoscalerToContainerResourcePatches(&ai, pod)
+	assert.Equal(t, "100m", patches[1].Limits["cpu"], "a container without the sentinel keeps its CPU limit")
+	assert.Empty(t, patches[1].LimitsToDelete)
+}
+
 const restartContainer = string(corev1.RestartContainer)
 
 func disruptionReco(name, cpu, mem string) *model.VerticalScalingValues {
