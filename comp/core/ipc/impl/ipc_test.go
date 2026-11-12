@@ -12,6 +12,7 @@ import (
 	"os"
 	"path"
 	"testing"
+	"testing/synctest"
 	"time"
 
 	"github.com/gofrs/flock"
@@ -96,6 +97,10 @@ func TestSuccessfulLoadAuthToken(t *testing.T) {
 
 // This test check that if CreateAndSetAuthToken blocks, the function timeout
 func TestDeadline(t *testing.T) {
+	synctest.Test(t, syncTestDeadline)
+}
+
+func syncTestDeadline(t *testing.T) {
 	// Create a new config
 	mockConfig := configmock.New(t)
 	mockConfig.SetInTest("auth_init_timeout", 1*time.Second)
@@ -120,7 +125,7 @@ func TestDeadline(t *testing.T) {
 	_, err = NewComponent(reqs)
 	duration := time.Since(start)
 	assert.Error(t, err)
-	assert.LessOrEqual(t, duration, mockConfig.GetDuration("auth_init_timeout")+time.Second)
+	assert.Equal(t, mockConfig.GetDuration("auth_init_timeout"), duration)
 }
 
 // The following certificate and key are used for testing purposes only.

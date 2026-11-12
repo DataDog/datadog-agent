@@ -1084,6 +1084,7 @@ func (agg *BufferedAggregator) handleRegisterSampler(id checkid.ID) {
 		pkgconfigsetup.Datadog().GetBool("check_sampler_context_metrics"),
 		pkgconfigsetup.Datadog().GetDuration("check_sampler_stateful_metric_expiration_time"),
 		pkgconfigsetup.Datadog().GetBool("check_sampler_allow_sketch_bucket_reset"),
+		pkgconfigsetup.Datadog().GetBool("check_sampler_sketches_at_commit"),
 		agg.tagsStore,
 		id,
 		agg.tagger,

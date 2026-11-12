@@ -12,6 +12,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	configModel "github.com/DataDog/datadog-agent/pkg/config/model"
@@ -33,6 +34,8 @@ const (
 	urnField           = "urn"
 	orchClusterIDField = "orch_cluster_id"
 	apiKeyHashField    = "api_key_hash"
+	wifOrgUUIDField    = "wif_org_uuid"
+	wifSiteField       = "wif_site"
 	secretPollInterval = 1 * time.Second
 	// staleSecretWarnTicks spaces the warning about a mismatched secret to once per ~30s.
 	staleSecretWarnTicks = 30
@@ -49,6 +52,9 @@ type k8sIdentityStorage struct {
 	pollInterval time.Duration
 	apiKeyHash   string
 	selfEnroll   bool
+	useWIF       bool
+	wifOrgUUID   string
+	wifSite      string
 }
 
 func newK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource) *k8sIdentityStorage {
@@ -60,6 +66,9 @@ func newK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource) *k8sIden
 		pollInterval: secretPollInterval,
 		apiKeyHash:   HashAPIKey(cfg.GetString("api_key")),
 		selfEnroll:   cfg.GetBool(par.SelfEnroll),
+		useWIF:       UsesWIF(cfg) && cfg.GetBool(par.SelfEnroll),
+		wifOrgUUID:   cfg.GetString("delegated_auth.org_uuid"),
+		wifSite:      par.Site(cfg),
 	}
 }
 
@@ -71,8 +80,12 @@ func NewK8sIdentityStorage(cfg configModel.Reader, leader LeaderSource, client k
 	return s
 }
 
-// acceptsSecret reports whether the secret's identity can be used with the configured api_key.
+// acceptsSecret reports whether the secret's identity can be used with the configured enrollment scope.
 func (s *k8sIdentityStorage) acceptsSecret(secret *corev1.Secret) bool {
+	if s.useWIF {
+		orgUUID := string(secret.Data[wifOrgUUIDField])
+		return orgUUID != "" && strings.EqualFold(orgUUID, s.wifOrgUUID) && string(secret.Data[wifSiteField]) == s.wifSite
+	}
 	hash := string(secret.Data[apiKeyHashField])
 	return hash == "" || hash == s.apiKeyHash
 }
@@ -92,10 +105,10 @@ func (s *k8sIdentityStorage) Load(ctx context.Context) (*PersistedIdentity, erro
 	case err == nil && s.acceptsSecret(secret):
 		return parseSecretData(secret, s.namespace, s.secretName)
 	case err == nil && !s.selfEnroll:
-		log.Warn("PAR identity secret was enrolled with a different api_key and self-enrollment is disabled, ignoring it")
+		log.Warn("PAR identity secret does not match the configured enrollment scope and self-enrollment is disabled, ignoring it")
 		return nil, nil
 	case err == nil:
-		log.Info("PAR identity secret was enrolled with a different api_key, waiting for the leader to re-enroll...")
+		log.Info("PAR identity secret does not match the configured enrollment scope, waiting for the leader to re-enroll...")
 	case isNonTransientK8sError(err):
 		return nil, fmt.Errorf("failed to get identity secret: %w", err)
 	case k8serrors.IsNotFound(err):
@@ -112,6 +125,7 @@ func (s *k8sIdentityStorage) Load(ctx context.Context) (*PersistedIdentity, erro
 	if err != nil {
 		return nil, err
 	}
+
 	if secret == nil {
 		return nil, nil
 	}
@@ -169,7 +183,7 @@ func waitForLeaderAndSecret(
 					return secret, nil
 				}
 				if staleTicks%staleSecretWarnTicks == 0 {
-					log.Warnf("PAR identity secret %s/%s was enrolled with a different api_key, still waiting for the leader to re-enroll", ns, secretName)
+					log.Warnf("PAR identity secret %s/%s does not match the configured enrollment scope, still waiting for the leader to re-enroll", ns, secretName)
 				}
 				staleTicks++
 				continue
@@ -203,6 +217,8 @@ func parseSecretData(secret *corev1.Secret, ns, secretName string) (*PersistedId
 		URN:           string(urn),
 		OrchClusterID: string(secret.Data[orchClusterIDField]),
 		APIKeyHash:    string(secret.Data[apiKeyHashField]),
+		WIFOrgUUID:    string(secret.Data[wifOrgUUIDField]),
+		WIFSite:       string(secret.Data[wifSiteField]),
 	}, nil
 }
 
@@ -228,6 +244,10 @@ func writeIdentitySecret(ctx context.Context, client kubernetes.Interface, ns, s
 		urnField:           []byte(result.URN),
 		orchClusterIDField: []byte(result.OrchClusterID),
 		apiKeyHashField:    []byte(result.APIKeyHash),
+	}
+	if result.WIFOrgUUID != "" {
+		data[wifOrgUUIDField] = []byte(result.WIFOrgUUID)
+		data[wifSiteField] = []byte(result.WIFSite)
 	}
 
 	newSecret := &corev1.Secret{

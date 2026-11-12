@@ -7,6 +7,7 @@ go_library(
         "check.go",
         "check_stub.go",
         "config.go",
+        "gpumetrics.go",
     ],
     importpath = "github.com/DataDog/datadog-agent/pkg/collector/corechecks/gpu/amd",
     visibility = ["//visibility:public"],
@@ -159,7 +160,10 @@ go_library(
 
 dd_agent_go_test(
     name = "amd_test",
-    srcs = ["check_test.go"],
+    srcs = [
+        "check_test.go",
+        "gpumetrics_test.go",
+    ],
     embed = [":amd"],
     gotags_sets = [["nvml"]],
     include_default = False,
@@ -169,6 +173,7 @@ dd_agent_go_test(
             "//comp/core/tagger/def",
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/types",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/def",
             "//comp/core/workloadmeta/mock",
             "//pkg/aggregator/mocksender",
@@ -189,6 +194,7 @@ dd_agent_go_test(
             "//comp/core/tagger/def",
             "//comp/core/tagger/fx-mock",
             "//comp/core/tagger/types",
+            "//comp/core/telemetry/def",
             "//comp/core/workloadmeta/def",
             "//comp/core/workloadmeta/mock",
             "//pkg/aggregator/mocksender",
