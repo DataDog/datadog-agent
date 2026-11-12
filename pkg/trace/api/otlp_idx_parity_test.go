@@ -15,6 +15,13 @@ package api
 // Both outputs are resolved into plain Go values (every string ref is looked up in its string
 // table, typed attribute values keep their type) and compared field by field. The only accepted
 // differences are the ones of otlpIdxParityExceptions.
+//
+// Scope: this compares only what the native conversion adds -- the idx sink (idxSpanSink) and the
+// chunk/payload promotion (ApplyPromotedFields) against ConvertToIdx. The semantic derivation
+// itself (convertOTelSpanMinimal/convertOTelSpanFull through spanSink, and the receiver's
+// resourceV2) is shared by both sides and is therefore invisible here. It stays pinned by the pb
+// golden expectations (TestOTelSpanToDDSpan, TestOTLPConvertSpan) and by the dupcheck pipeline
+// parity, which must not be removed on the strength of this test.
 
 import (
 	"bytes"
@@ -644,7 +651,7 @@ func groupSpansByTrace(rspans ptrace.ResourceSpans) [][]ptrace.Span {
 func requireReceiverIdxParity(t testing.TB, conf *config.AgentConfig, rspans ptrace.ResourceSpans, clientComputedStats bool) {
 	t.Helper()
 	before := resourceSpansJSON(rspans)
-	o := NewOTLPReceiver(nil, conf, &statsd.NoOpClient{}, &timing.NoopReporter{})
+	o := NewOTLPReceiverV1(nil, conf, &statsd.NoOpClient{}, &timing.NoopReporter{})
 	ctx := context.Background()
 
 	// Each builder gets its own copy of the input, and the input must not be mutated by either.
