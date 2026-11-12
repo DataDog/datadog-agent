@@ -98,6 +98,8 @@ static __always_inline u16 read_sport(struct sock* skp) {
     // try skc_num, then inet_sport
     u16 sport = 0;
 #ifdef COMPILE_PREBUILT
+    // No inet_sport fallback: after inet_put_port zeroes skc_num the tuple can't be read.
+    // An RST racing accept() leaks the tcp_ongoing_connect_pid entry until the userspace TTL.
     bpf_probe_read_kernel_with_telemetry(&sport, sizeof(sport), ((char*)skp) + offset_sport());
 #elif defined(COMPILE_CORE) || defined(COMPILE_RUNTIME)
     BPF_CORE_READ_INTO(&sport, skp, sk_num);

@@ -27,6 +27,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"testing"
@@ -2796,6 +2797,192 @@ func (s *TracerSuite) TestTCPFailureConnectionTimeout() {
 
 		})
 	}
+}
+
+func (s *TracerSuite) TestTCPOngoingConnectPidCleanedOnClose() {
+	t := s.T()
+	if mode := ebpftest.GetBuildMode(); mode == ebpftest.Ebpfless || mode == ebpftest.SK {
+		t.Skip("tcp_ongoing_connect_pid is only used by the kprobe and fentry tracers")
+	}
+
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	ongoing, err := tr.ebpfTracer.GetMap(probes.TCPOngoingConnectPid)
+	require.NoError(t, err)
+
+	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(c, c)
+		c.Close()
+	})
+	require.NoError(t, srv.Run())
+	t.Cleanup(srv.Shutdown)
+	srvPort := uint16(srv.Addr().(*net.TCPAddr).Port)
+
+	// Both the connecting and the accepted socket get an entry; both must be
+	// gone once the sockets are closed.
+	for range 10 {
+		c, err := tracertestutil.DialTCP("tcp", srv.Address())
+		require.NoError(t, err)
+		_, err = c.Write([]byte("ping"))
+		require.NoError(t, err)
+		_, err = io.ReadFull(c, make([]byte, 4))
+		require.NoError(t, err)
+		require.NoError(t, c.Close())
+	}
+
+	// connect(AF_UNSPEC) disconnects the socket, clearing the tuple before tcp_close
+	srvAddr := srv.Addr().(*net.TCPAddr)
+	for range 10 {
+		fd := connectRawTCP(t, srvAddr)
+		// The echo ensures the server has accepted before the disconnect resets it
+		echoRawTCP(t, fd, []byte("x"))
+		disconnectTCP(t, fd)
+		require.NoError(t, unix.Close(fd))
+	}
+
+	require.EventuallyWithT(t, func(collect *assert.CollectT) {
+		var key netebpf.SkpConn
+		var val netebpf.PidTs
+		var left []string
+		it := ongoing.Iterate()
+		for it.Next(&key, &val) {
+			if key.Tup.Sport == srvPort || key.Tup.Dport == srvPort {
+				left = append(left, fmt.Sprintf("sport=%d dport=%d pid=%d", key.Tup.Sport, key.Tup.Dport, key.Tup.Pid))
+			}
+		}
+		require.NoError(collect, it.Err())
+		assert.Empty(collect, left, "tcp_ongoing_connect_pid entries left after close")
+	}, 3*time.Second, 100*time.Millisecond)
+}
+
+// connectRawTCP returns a socket fd connected to addr
+func connectRawTCP(t *testing.T, addr *net.TCPAddr) int {
+	fd, err := unix.Socket(unix.AF_INET, unix.SOCK_STREAM, unix.IPPROTO_TCP)
+	require.NoError(t, err)
+	sa := &unix.SockaddrInet4{Port: addr.Port}
+	copy(sa.Addr[:], addr.IP.To4())
+	require.NoError(t, unix.Connect(fd, sa))
+	return fd
+}
+
+// echoRawTCP writes payload and waits for the server to echo it back
+func echoRawTCP(t *testing.T, fd int, payload []byte) {
+	require.NoError(t, unix.SetsockoptTimeval(fd, unix.SOL_SOCKET, unix.SO_RCVTIMEO, &unix.Timeval{Sec: 5}))
+	n, err := unix.Write(fd, payload)
+	require.NoError(t, err)
+	require.Equal(t, len(payload), n)
+	buf := make([]byte, len(payload))
+	for read := 0; read < len(buf); {
+		n, err := unix.Read(fd, buf[read:])
+		require.NoError(t, err)
+		require.NotZero(t, n, "server closed before echoing")
+		read += n
+	}
+}
+
+// disconnectTCP calls connect(AF_UNSPEC), which runs tcp_disconnect on the socket
+func disconnectTCP(t *testing.T, fd int) {
+	unspec := unix.RawSockaddrAny{}
+	unspec.Addr.Family = unix.AF_UNSPEC
+	_, _, errno := unix.Syscall(unix.SYS_CONNECT, uintptr(fd), uintptr(unsafe.Pointer(&unspec)), unix.SizeofSockaddrAny)
+	require.Zero(t, errno)
+}
+
+func rawTCPLocalAddr(t *testing.T, fd int) *net.TCPAddr {
+	sa, err := unix.Getsockname(fd)
+	require.NoError(t, err)
+	sa4 := sa.(*unix.SockaddrInet4)
+	return &net.TCPAddr{IP: net.IP(sa4.Addr[:]), Port: sa4.Port}
+}
+
+// closedConnsFor returns the closed connections matching the tuple in conns
+func closedConnsFor(conns *network.Connections, laddr, raddr net.Addr) []network.ConnectionStats {
+	var closed []network.ConnectionStats
+	for _, c := range network.FilterConnections(conns, network.ByTuple(laddr, raddr)) {
+		if c.IsClosed {
+			closed = append(closed, c)
+		}
+	}
+	return closed
+}
+
+func (s *TracerSuite) TestTCPDisconnectFlushesConnection() {
+	t := s.T()
+	if mode := ebpftest.GetBuildMode(); mode == ebpftest.Ebpfless || mode == ebpftest.SK {
+		t.Skip("tcp_disconnect is only hooked by the kprobe and fentry tracers")
+	}
+
+	tr := setupTracer(t, testConfig())
+
+	srv := tracertestutil.NewTCPServer(func(c net.Conn) {
+		_, _ = io.Copy(c, c)
+		c.Close()
+	})
+	require.NoError(t, srv.Run())
+	t.Cleanup(srv.Shutdown)
+	srvAddr := srv.Addr().(*net.TCPAddr)
+
+	fd := connectRawTCP(t, srvAddr)
+	closeFd := sync.OnceFunc(func() { _ = unix.Close(fd) })
+	t.Cleanup(closeFd)
+
+	// first connection: disconnect must emit a close event while the fd is still open
+	echoRawTCP(t, fd, []byte("hello"))
+	first := rawTCPLocalAddr(t, fd)
+	disconnectTCP(t, fd)
+
+	var firstClosed []network.ConnectionStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		firstClosed = append(firstClosed, closedConnsFor(conns, first, srvAddr)...)
+		assert.NotEmpty(ct, firstClosed, "no close event after tcp_disconnect")
+	}, 3*time.Second, 100*time.Millisecond)
+	require.Len(t, firstClosed, 1)
+	assert.Equal(t, 5, int(firstClosed[0].Monotonic.SentBytes))
+	assert.Equal(t, 5, int(firstClosed[0].Monotonic.RecvBytes))
+
+	// second connection on the same socket must start from fresh stats
+	sa := &unix.SockaddrInet4{Port: srvAddr.Port}
+	copy(sa.Addr[:], srvAddr.IP.To4())
+	require.NoError(t, unix.Connect(fd, sa))
+	echoRawTCP(t, fd, []byte("abc"))
+	second := rawTCPLocalAddr(t, fd)
+	// SO_LINGER 0 makes tcp_close call tcp_disconnect after it has flushed
+	require.NoError(t, unix.SetsockoptLinger(fd, unix.SOL_SOCKET, unix.SO_LINGER, &unix.Linger{Onoff: 1, Linger: 0}))
+	closeFd()
+
+	// the kernel may reuse the first ephemeral port, so tell the two apart by cookie
+	var firstAgain, secondClosed []network.ConnectionStats
+	collect := func(ct require.TestingT) {
+		conns, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		closed := closedConnsFor(conns, first, srvAddr)
+		if second.Port != first.Port {
+			closed = append(closed, closedConnsFor(conns, second, srvAddr)...)
+		}
+		for _, c := range closed {
+			if c.Cookie == firstClosed[0].Cookie {
+				firstAgain = append(firstAgain, c)
+			} else if c.SPort == uint16(second.Port) {
+				secondClosed = append(secondClosed, c)
+			}
+		}
+	}
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		collect(ct)
+		assert.NotEmpty(ct, secondClosed, "no close event after close")
+	}, 3*time.Second, 100*time.Millisecond)
+	// close() runs every hook that could emit for these sockets before it returns, and
+	// GetActiveConnections flushes pending close events, so this collection sees any duplicate.
+	collect(t)
+
+	assert.Empty(t, firstAgain, "close() emitted another close event for the disconnected connection")
+	require.Len(t, secondClosed, 1, "duplicate close events for the SO_LINGER 0 close")
+	assert.Equal(t, 3, int(secondClosed[0].Monotonic.SentBytes))
+	assert.Equal(t, 3, int(secondClosed[0].Monotonic.RecvBytes))
 }
 
 func (s *TracerSuite) TestTCPFailureConnectionResetWithDNAT() {

@@ -267,6 +267,26 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_close, struct sock *sk) {
     return 0;
 }
 
+// tcp_disconnect zeroes the destination port and source address, so tcp_close
+// can no longer read the tuple. Flush the connection here instead. When called
+// from tcp_close (SO_LINGER 0) the entries are already gone, so nothing is emitted.
+SEC("kprobe/tcp_disconnect")
+int BPF_BYPASSABLE_KPROBE(kprobe__tcp_disconnect, struct sock *sk) {
+    conn_tuple_t t = {};
+    u64 pid_tgid = bpf_get_current_pid_tgid();
+    if (!read_conn_tuple(&t, sk, pid_tgid, CONN_TYPE_TCP)) {
+        return 0;
+    }
+    skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
+    skp_conn.tup.pid = 0;
+    bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+
+    if (cleanup_conn(ctx, &t, sk) == 0) {
+        increment_telemetry_count(tcp_close_connection_flush);
+    }
+    return 0;
+}
+
 SEC("kretprobe/tcp_close")
 int BPF_BYPASSABLE_KRETPROBE(kretprobe__tcp_close_clean_protocols) {
     u64 pid_tgid = bpf_get_current_pid_tgid();
