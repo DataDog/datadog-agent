@@ -150,3 +150,22 @@ dd_agent_go_test(
         "//conditions:default": [],
     }),
 )
+
+dd_agent_go_test(
+    name = "symbol_uploader_bench_test",
+    srcs = ["symbol_uploader_bench_test.go"],
+    data = glob(["testdata/**"]),
+    embed = [":symboluploader"],
+    target_compatible_with = ["@platforms//os:linux"],
+    deps = select({
+        "@rules_go//go/platform:android": [
+            "@com_github_klauspost_compress//zstd",
+            "@com_github_stretchr_testify//require",
+        ],
+        "@rules_go//go/platform:linux": [
+            "@com_github_klauspost_compress//zstd",
+            "@com_github_stretchr_testify//require",
+        ],
+        "//conditions:default": [],
+    }),
+)
