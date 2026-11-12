@@ -33,7 +33,7 @@ license(
     Copyright (c) 2006-2016 Kirill Simonov
     """,
     license_kinds = ["@rules_license//licenses/spdx:MIT"],
-    license_text = "LICENSE",
+    license_text = "License",
     visibility = ["//visibility:public"],
 )
 
