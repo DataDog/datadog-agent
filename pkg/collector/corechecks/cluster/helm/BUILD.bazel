@@ -55,11 +55,8 @@ dd_agent_go_test(
     include_default = False,
     deps = [
         "//pkg/aggregator/mocksender",
-        "//pkg/collector/corechecks/cluster/orchestrator/collectors",
-        "//pkg/collector/corechecks/cluster/orchestrator/collectors/k8s",
         "//pkg/metrics/event",
         "//pkg/metrics/servicecheck",
-        "//pkg/util/kubernetes/apiserver",
         "//pkg/util/kubernetes/helminformers",
         "@com_github_stretchr_testify//assert",
         "@com_github_stretchr_testify//require",
@@ -67,5 +64,6 @@ dd_agent_go_test(
         "@io_k8s_apimachinery//pkg/apis/meta/v1:meta",
         "@io_k8s_apimachinery//pkg/runtime",
         "@io_k8s_client_go//kubernetes/fake",
+        "@io_k8s_client_go//tools/cache",
     ],
 )

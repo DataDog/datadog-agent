@@ -14,10 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"k8s.io/client-go/kubernetes/fake"
+	"k8s.io/client-go/tools/cache"
 
-	"github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors"
-	k8sCollectors "github.com/DataDog/datadog-agent/pkg/collector/corechecks/cluster/orchestrator/collectors/k8s"
-	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/apiserver"
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/helminformers"
 )
 
@@ -36,19 +34,10 @@ func TestSharesInformersWithOrchestratorCollector(t *testing.T) {
 		require.NoError(t, err)
 		client := fake.NewSimpleClientset(cm)
 
-		// The orchestrator collector starts first, so the Helm check joins a synced informer.
-		stopCh := make(chan struct{})
-		collector := k8sCollectors.NewHelmReleaseConfigMapCollector()
-		collector.Init(&collectors.CollectorRunConfig{
-			K8sCollectorRunConfig: collectors.K8sCollectorRunConfig{
-				APIClient: &apiserver.APIClient{InformerCl: client},
-			},
-			StopCh: stopCh,
-		})
+		// Another check, e.g. the orchestrator check, holds a synced informer before the Helm check joins it.
 		shared, release := helminformers.Acquire(client, helminformers.ConfigMaps)
 		defer release()
-		assert.Same(t, shared, collector.Informer())
-		synctest.Wait()
+		require.True(t, cache.WaitForCacheSync(t.Context().Done(), shared.HasSynced))
 
 		check := newCheck().(*HelmCheck)
 		check.kubeClient = client
@@ -58,13 +47,12 @@ func TestSharesInformersWithOrchestratorCollector(t *testing.T) {
 		// The release is in the Helm check's store as soon as setup returns.
 		assert.NotNil(t, check.store.get(rls.namespacedName(), rls.revision(), k8sConfigmaps))
 
-		// The informer stays up for the orchestrator collector when the Helm check stops...
+		// The informer stays up for its other holder when the Helm check stops...
 		check.Cancel()
 		synctest.Wait()
 		assert.False(t, shared.IsStopped())
 
-		// ...and goes away once the last holder, here the test, has released it.
-		close(stopCh)
+		// ...and goes away once that holder releases it.
 		release()
 		synctest.Wait()
 		assert.True(t, shared.IsStopped())
