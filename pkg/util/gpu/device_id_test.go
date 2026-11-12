@@ -29,18 +29,22 @@ func TestParseNvidiaDeviceReplica(t *testing.T) {
 		{"MIG-GPU-170ab964-06dc-a639-af22-0cafd46259c7/1/0", "", 0, false},
 		// Exclusive whole-GPU allocation.
 		{"GPU-170ab964-06dc-a639-af22-0cafd46259c7", "", 0, false},
-		// GKE device plugin IDs.
+		// GKE device plugin ID: exclusive (no suffix) — but a suffixed one
+		// parses, since the base can be any device ID (the caller gates on
+		// the resource being NVIDIA's).
 		{"nvidia0", "", 0, false},
-		{"nvidia0::1", "", 0, false},
+		{"nvidia0::1", "nvidia0", 1, true},
+		// The plugin's index device-ID strategy produces numeric base IDs.
+		{"0::1", "0", 1, true},
+		{"1::12", "1", 12, true},
 		// DRA device names.
 		{"gpu-0-mig-1g18gb-19-0", "", 0, false},
 		// Defensive: formats that must degrade to "not a replica".
 		{"", "", 0, false},
-		{"GPU-", "", 0, false},
-		{"GPU-abc::", "", 0, false},
-		{"GPU-abc::-1", "", 0, false},
-		{"GPU-abc::notanumber", "", 0, false},
 		{"::0", "", 0, false},
+		{"abc::", "", 0, false},
+		{"abc::-1", "", 0, false},
+		{"abc::notanumber", "", 0, false},
 		{"GPU-abc::0::1", "GPU-abc::0", 1, true},
 	}
 
