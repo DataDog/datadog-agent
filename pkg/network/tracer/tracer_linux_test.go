@@ -1456,38 +1456,36 @@ func testUDPPacketSumming(t *testing.T, udpnet, ip string) {
 	// sanity check: did userspace get all four expected packets?
 	require.Equal(t, recvBytes, expectedBytes)
 
-	var incoming *network.ConnectionStats
-	var outgoing *network.ConnectionStats
+	// The counters are checked inside the retry loop: eBPFless mode counts
+	// packets asynchronously from an AF_PACKET ring, so a poll can return the
+	// connections before all the packets have been processed.
 	require.EventuallyWithTf(t, func(collect *assert.CollectT) {
 		conns, cleanup := getConnections(collect, tr)
 		defer cleanup()
-		newOutgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
-		if newOutgoing != nil {
-			outgoing = newOutgoing
+
+		outgoing, _ := findConnection(c.LocalAddr(), c.RemoteAddr(), conns)
+		if !assert.NotNil(collect, outgoing, "outgoing connection not found") {
+			return
 		}
-		newIncoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
-		if newIncoming != nil {
-			incoming = newIncoming
+		m := outgoing.Monotonic
+		assert.Equal(collect, expectedBytes, int(m.SentBytes), "outgoing sent bytes")
+		assert.Equal(collect, 0, int(m.RecvBytes), "outgoing recv bytes")
+		assert.Equal(collect, len(msg), int(m.SentPackets), "outgoing sent packets")
+		assert.Equal(collect, 0, int(m.RecvPackets), "outgoing recv packets")
+		assert.True(collect, outgoing.IntraHost, "outgoing intrahost")
+
+		// make sure the inverse values are seen for the other message
+		incoming, _ := findConnection(c.RemoteAddr(), c.LocalAddr(), conns)
+		if !assert.NotNil(collect, incoming, "incoming connection not found") {
+			return
 		}
-
-		require.NotNil(collect, outgoing)
-		require.NotNil(collect, incoming)
-	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections matching")
-
-	m := outgoing.Monotonic
-	require.Equal(t, expectedBytes, int(m.SentBytes))
-	require.Equal(t, 0, int(m.RecvBytes))
-	require.Equal(t, int(len(msg)), int(m.SentPackets))
-	require.Equal(t, 0, int(m.RecvPackets))
-	require.True(t, outgoing.IntraHost)
-
-	// make sure the inverse values are seen for the other message
-	m = incoming.Monotonic
-	require.Equal(t, 0, int(m.SentBytes))
-	require.Equal(t, expectedBytes, int(m.RecvBytes))
-	require.Equal(t, 0, int(m.SentPackets))
-	require.Equal(t, int(len(msg)), int(m.RecvPackets))
-	require.True(t, incoming.IntraHost)
+		m = incoming.Monotonic
+		assert.Equal(collect, 0, int(m.SentBytes), "incoming sent bytes")
+		assert.Equal(collect, expectedBytes, int(m.RecvBytes), "incoming recv bytes")
+		assert.Equal(collect, 0, int(m.SentPackets), "incoming sent packets")
+		assert.Equal(collect, len(msg), int(m.RecvPackets), "incoming recv packets")
+		assert.True(collect, incoming.IntraHost, "incoming intrahost")
+	}, 3*time.Second, 100*time.Millisecond, "couldn't find incoming and outgoing connections with the expected counters")
 }
 
 func (s *TracerSuite) TestUDPPythonReusePort() {
