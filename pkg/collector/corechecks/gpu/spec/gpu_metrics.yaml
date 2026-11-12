@@ -365,6 +365,60 @@ metrics:
         mig: false
         physical: true
         vgpu: false
+  # device.sharing_replicas is only reported for devices shared by replication
+  # (time-slicing, MPS), so it is optional: other devices never produce it.
+  device.sharing_replicas:
+    metadata:
+      metric_type: gauge
+      unit: device
+      description: >-
+        Number of device replicas the device plugin registered of the GPU,
+        when it is shared by replication (time-slicing or MPS), as described
+        by the gpu_sharing_mode tag: how many workloads can share the GPU.
+        Not reported for GPUs that are not shared by replication.
+      aggregation: absolute_usage
+    optional: true
+    tagsets:
+      - device
+    validator:
+      range:
+        min: 1
+        max: 1000000000000
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
+  # device.sharing_replicas_used is only reported for containers holding
+  # replicas of a device shared by replication (time-slicing, MPS), so it is
+  # optional: other workloads never produce it.
+  device.sharing_replicas_used:
+    metadata:
+      metric_type: gauge
+      unit: device
+      description: >-
+        Number of replicas of the GPU that the container holds, when the GPU
+        is shared by replication (time-slicing or MPS), as described by the
+        gpu_sharing_mode tag. A container can hold several of them, e.g.
+        requesting two shared GPUs that are both replicas of one. Not
+        reported for containers without an allocated replica.
+      aggregation: absolute_usage
+    workload_only: true
+    optional: true
+    tagsets:
+      - device
+      - container
+    validator:
+      range:
+        min: 1
+        max: 1000000000000
+    support:
+      unsupported_architectures: []
+      device_modes:
+        mig: true
+        physical: true
+        vgpu: true
   # device.sharing_fraction is only reported for containers assigned a share of
   # a GPU, so it is optional: other workloads never produce it.
   device.sharing_fraction:

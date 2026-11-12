@@ -5396,6 +5396,40 @@ func TestHandleGPU(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "shared by time-slicing",
+			gpu: workloadmeta.GPU{
+				EntityID: entityID,
+				EntityMeta: workloadmeta.EntityMeta{
+					Name: entityID.ID,
+				},
+				Vendor:          "nvidia",
+				Device:          "NVIDIA A10G",
+				NVLinkVersion:   "not_nvlink_capable",
+				SharingMode:     workloadmeta.GPUSharingModeTimeSlicing,
+				SharingReplicas: 4,
+			},
+			expected: []*types.TagInfo{
+				{
+					Source:               gpuSource,
+					EntityID:             taggerEntityID,
+					HighCardTags:         []string{},
+					OrchestratorCardTags: []string{},
+					LowCardTags: []string{
+						"gpu_vendor:nvidia",
+						"gpu_device:nvidia_a10g",
+						"gpu_uuid:gpu-1234",
+						"gpu_slicing_mode:none",
+						"gpu_sharing_mode:time-slicing",
+						"gpu_mig_profile:none",
+						"gpu_parent_uuid:gpu-1234",
+						"gpu_nvlink_version:not_nvlink_capable",
+						"gpu_nvlink_capable:false",
+					},
+					StandardTags: []string{},
+				},
+			},
+		},
 	}
 
 	for _, tt := range tests {
@@ -5412,7 +5446,6 @@ func TestHandleGPU(t *testing.T) {
 		})
 	}
 }
-
 func TestHandleDelete(t *testing.T) {
 	const (
 		podName       = "datadog-agent-foobar"
