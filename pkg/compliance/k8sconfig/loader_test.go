@@ -19,6 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/DataDog/datadog-agent/pkg/compliance/types"
 )
 
 const eksProcTable = `
@@ -972,6 +974,80 @@ func TestKubAksConfigLoader(t *testing.T) {
 		assert.NotNil(t, conf.Components.Kubelet.FeatureGates)
 		featureGates := "CSIMigration=true,CSIMigrationAzureDisk=true,CSIMigrationAzureFile=true,DelegateFSGroupToCSIDriver=true,DisableAcceleratorUsageMetrics=false,DynamicKubeletConfig=false"
 		assert.Equal(t, &featureGates, conf.Components.Kubelet.FeatureGates)
+	}
+}
+
+// On AKS the loader reports the ownership and permissions of azure.json and
+// keeps its content, the cluster credentials, out of the payload. An absent
+// file leaves the field out, and a file of mode 0 writes mode 0.
+func TestKubAksAzureJSON(t *testing.T) {
+	usr, err := user.Current()
+	require.NoError(t, err)
+	grp, err := user.LookupGroupId(usr.Gid)
+	require.NoError(t, err)
+
+	const name = "/etc/kubernetes/azure.json"
+	const secret = "azure-json-client-secret"
+	azureJSON := func(mode uint32) *mockFile {
+		return &mockFile{
+			name:    name,
+			mode:    mode,
+			content: `{"cloud": "AzurePublicCloud", "aadClientId": "6196d48f", "aadClientSecret": "` + secret + `"}`,
+		}
+	}
+
+	tests := []struct {
+		name      string
+		table     string
+		files     []*mockFile
+		azureJSON *mockFile
+		typ       types.ResourceType
+	}{
+		{"labels", aksProcTable, aksFs, azureJSON(0600), types.ResourceTypeAzureAksWorkerNode},
+		{"kubeconfig server", "kubelet --kubeconfig=/var/lib/kubelet/kubeconfig\n", aksFs, azureJSON(0644), types.ResourceTypeAzureAksWorkerNode},
+		{"mode 0", aksProcTable, aksFs, azureJSON(0), types.ResourceTypeAzureAksWorkerNode},
+		{"absent", aksProcTable, aksFs, nil, types.ResourceTypeAzureAksWorkerNode},
+		{"not aks", openshiftProcTable, openshiftFs, azureJSON(0600), types.ResourceTypeKubernetesWorkerNode},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			for _, f := range tt.files {
+				f.create(t, tmpDir)
+			}
+			if tt.azureJSON != nil {
+				tt.azureJSON.create(t, tmpDir)
+			}
+
+			l := &loader{hostroot: tmpDir}
+			typ, node := l.load(context.Background(), func(_ context.Context) []proc {
+				return procTable(tt.table)
+			})
+			assert.Equal(t, tt.typ, typ)
+			assert.Empty(t, node.Errors)
+
+			b, err := json.Marshal(node)
+			require.NoError(t, err)
+			assert.NotContains(t, string(b), secret)
+			var payload map[string]interface{}
+			require.NoError(t, json.Unmarshal(b, &payload))
+
+			if tt.azureJSON == nil || tt.typ != types.ResourceTypeAzureAksWorkerNode {
+				assert.Nil(t, node.AzureJSON)
+				assert.NotContains(t, payload, "azureJson")
+				return
+			}
+			want := &K8sFileMeta{Path: name, User: usr.Username, Group: grp.Name, Mode: tt.azureJSON.mode}
+			assert.Equal(t, want, node.AzureJSON)
+			// A mode of 0 is written out, so a rule tells it from a
+			// missing file.
+			assert.Equal(t, map[string]interface{}{
+				"path":  name,
+				"user":  usr.Username,
+				"group": grp.Name,
+				"mode":  float64(tt.azureJSON.mode),
+			}, payload["azureJson"])
+		})
 	}
 }
 

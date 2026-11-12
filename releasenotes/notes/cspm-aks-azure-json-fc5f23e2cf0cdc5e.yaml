@@ -1,0 +1,7 @@
+---
+enhancements:
+  - |
+    CSM Misconfigurations: the Kubernetes node configuration of an AKS node now
+    reports the ownership and permissions of ``/etc/kubernetes/azure.json``, for
+    the CIS AKS benchmark controls 3.1.3 and 3.1.4. Only the file's metadata is
+    collected, since the file holds the cluster credentials.
