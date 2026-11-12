@@ -87,7 +87,6 @@ func stubUninstall(t *testing.T) *[][]string {
 	return &commands
 }
 
-// catalogStub answers for the processes.d writer and remover with the errors it is given.
 type catalogStub struct {
 	writeErr  error
 	removeErr error
@@ -98,8 +97,7 @@ const (
 	catalogRemoveCall = "remove-processes.d"
 )
 
-// stubProcmgrCatalog replaces the processes.d writer and remover with fakes that record their
-// calls into calls, beside the launchctl invocations, so the tests can check their order.
+// stubProcmgrCatalog records catalog writes and removals in calls and returns the errors it is given.
 func stubProcmgrCatalog(t *testing.T, calls *[][]string) *catalogStub {
 	t.Helper()
 
@@ -117,16 +115,12 @@ func stubProcmgrCatalog(t *testing.T, calls *[][]string) *catalogStub {
 	return stub
 }
 
-// launchctlCalls drops the recorded processes.d writer and remover calls, leaving the launchctl
-// invocations.
 func launchctlCalls(calls [][]string) [][]string {
 	return slices.DeleteFunc(slices.Clone(calls), func(c []string) bool {
 		return len(c) > 0 && (c[0] == catalogWriteCall || c[0] == catalogRemoveCall)
 	})
 }
 
-// failProcmgrBootout makes the stubbed client fail to unload the process manager, which stays
-// loaded.
 func failProcmgrBootout(t *testing.T) {
 	t.Helper()
 
@@ -154,7 +148,6 @@ func callIndex(calls [][]string, call ...string) int {
 	return slices.IndexFunc(calls, func(c []string) bool { return slices.Equal(c, call) })
 }
 
-// procmgrCalls returns the launchctl verbs run against the process manager.
 func procmgrCalls(calls [][]string, dir string) []string {
 	var verbs []string
 	for _, args := range calls {
@@ -913,8 +906,6 @@ func assertLoaded(t *testing.T, calls [][]string, dir string, skip ...string) {
 	}
 }
 
-// TestPostInstallDMGWritesTheCatalogBeforeLoadingProcmgr pins that dd-procmgrd reads the catalog
-// when it starts: the writer runs before the process manager is first unloaded for its reload.
 func TestPostInstallDMGWritesTheCatalogBeforeLoadingProcmgr(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
@@ -938,9 +929,6 @@ func TestPostInstallDMGLoadsEveryJobWhenTheCatalogWriteFails(t *testing.T) {
 	assertLoaded(t, *calls, dir)
 }
 
-// TestPostInstallDMGOmitsProcmgrOnAnUntrustedCatalog pins that dd-procmgrd, which runs as root
-// and starts what processes.d names, is neither loaded nor left loadable at boot on a catalog
-// that cannot be trusted, while every other job still loads.
 func TestPostInstallDMGOmitsProcmgrOnAnUntrustedCatalog(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)
@@ -1030,9 +1018,6 @@ func TestPreRemoveSucceedsWhenTheCatalogCannotBeRemoved(t *testing.T) {
 	require.NoError(t, preRemoveDatadogAgent(dmgHookContext(t)))
 }
 
-// TestPostInstallDMGOmitsProcmgrWithoutTheAgentsAccount pins that an untrusted catalog still takes
-// the process manager down when the Agent's account is missing and no other job is loaded: it
-// runs as root, so the missing account does not stop it from starting at boot.
 func TestPostInstallDMGOmitsProcmgrWithoutTheAgentsAccount(t *testing.T) {
 	calls := stubLaunchd(t)
 	dir := stubJobDir(t)

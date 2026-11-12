@@ -229,8 +229,7 @@ func TestWriteDarwinProcmgrCatalogMissingInstallRootIsUntrusted(t *testing.T) {
 }
 
 func TestWriteDarwinProcmgrCatalogQuarantinesAnUntrustedProcessesDir(t *testing.T) {
-	// Each setup plants an untrusted processes.d holding evil.yaml (or is a file) and returns a
-	// check that the original was not modified.
+	// Each setup plants an untrusted processes.d and returns a check that the original was not modified.
 	cases := map[string]func(t *testing.T, root string) func(*testing.T, string){
 		"symlink outside the root": func(t *testing.T, root string) func(*testing.T, string) {
 			target := t.TempDir()

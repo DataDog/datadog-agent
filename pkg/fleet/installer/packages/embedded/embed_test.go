@@ -243,8 +243,6 @@ func TestShippedProcmgrConfigFilesListsEmbeds(t *testing.T) {
 	assert.Contains(t, shipped, "datadog-agent-par-control.yaml")
 }
 
-// TestDarwinProcmgrProcessesAreTheInertCatalog pins the macOS processes.d catalog to the inert
-// system-probe entry, rendered at codegen with the macOS paths.
 func TestDarwinProcmgrProcessesAreTheInertCatalog(t *testing.T) {
 	names, err := DarwinProcmgrProcesses()
 	require.NoError(t, err)

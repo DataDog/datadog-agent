@@ -32,8 +32,7 @@ import (
 
 const darwinProcessesDir = "processes.d"
 
-// ErrUntrustedCatalog means the install root or processes.d could not be established as
-// trusted, so dd-procmgrd must not be started on it.
+// ErrUntrustedCatalog means dd-procmgrd must not be started on this install root.
 var ErrUntrustedCatalog = errors.New("processes.d is not trusted")
 
 // fileOwnerUID and hasACL are indirected so the tests can run unprivileged.
@@ -44,9 +43,8 @@ var (
 		}
 		return math.MaxUint32
 	}
-	// hasACL names ls by absolute path: a GNU ls earlier on PATH rejects -e. With -e, ls prints
-	// one line per ACL entry under the mode line. An error is returned to the caller, which
-	// treats the path as untrusted.
+	// hasACL uses /bin/ls -lde. A GNU ls earlier on PATH rejects -e, and -e prints one line per
+	// ACL entry under the mode line. An error makes the caller treat the path as untrusted.
 	hasACL = func(path string) (bool, error) {
 		out, err := exec.Command("/bin/ls", "-lde", "--", path).Output()
 		if err != nil {
@@ -56,9 +54,8 @@ var (
 	}
 )
 
-// trusted reports whether path is something only root could have written: a real directory or
-// regular file, not a symlink, owned by uid 0, with no group or other write bit, and with no
-// ACL. fi is the Lstat of path. When it is not, the second value says why.
+// trusted reports whether fi, the Lstat of path, is a real file or directory that only root
+// could have written. The second value says why not.
 func trusted(path string, fi fs.FileInfo) (bool, string) {
 	mode := fi.Mode()
 	if mode&fs.ModeSymlink != 0 {
@@ -93,21 +90,14 @@ func randomHex() string {
 	return hex.EncodeToString(b)
 }
 
-// WriteDarwinProcmgrCatalog writes the macOS processes.d entries the installer embeds under
-// installRoot/processes.d.
+// WriteDarwinProcmgrCatalog writes the embedded macOS processes.d entries under installRoot/processes.d.
 //
-// dd-procmgrd runs as root and starts what processes.d names, so nothing in it is trusted unless
-// root alone could have put it there. installRoot must be trusted or nothing is written. A
-// processes.d that is not trusted is moved aside, not repaired, and a new one is created: its
-// contents may have been planted while it was open. Each entry is replaced, never written
-// through, so an existing symlink or foreign-owned file at that name is not followed.
-//
-// An error wrapping ErrUntrustedCatalog means processes.d is not safe to start dd-procmgrd on.
-// Any other error means some entries could not be written into a trusted processes.d.
+// An error wrapping ErrUntrustedCatalog means dd-procmgrd must not be started. Any other error
+// means a managed entry could not be written and nothing untrusted was left at its name.
 func WriteDarwinProcmgrCatalog(installRoot string) error {
 	managed, err := embedded.DarwinProcmgrProcesses()
 	if err != nil {
-		// Without the managed names, a kept processes.d cannot be vetted.
+		// A kept processes.d cannot be vetted without the managed names.
 		return untrustedf("failed to list the embedded processes.d entries: %v", err)
 	}
 
@@ -147,7 +137,7 @@ func WriteDarwinProcmgrCatalog(installRoot string) error {
 			}
 			break
 		}
-		// Never chmod, read or write into an untrusted processes.d: move it aside whole.
+		// Move the directory aside whole. Repairing it would read or write a tree that is not trusted.
 		quarantine := fmt.Sprintf("%s.untrusted-%d-%s", darwinProcessesDir, time.Now().UnixNano(), randomHex())
 		if err := root.Rename(darwinProcessesDir, quarantine); err != nil {
 			return untrustedf("%s %s and could not be moved aside: %v", dirPath, why, err)
@@ -157,8 +147,7 @@ func WriteDarwinProcmgrCatalog(installRoot string) error {
 	}
 
 	if create {
-		// The parent passed the trust check, so the new directory inherits no ACL. The chmod
-		// undoes the umask.
+		// Chmod undoes the umask. The parent passed the trust check, so the directory inherits no ACL.
 		if err := root.Mkdir(darwinProcessesDir, 0o755); err != nil {
 			return untrustedf("failed to create %s: %v", dirPath, err)
 		}
@@ -171,8 +160,7 @@ func WriteDarwinProcmgrCatalog(installRoot string) error {
 	for _, name := range managed {
 		dst := path.Join(darwinProcessesDir, name)
 		if err := replaceEntry(root, name); err != nil {
-			// A leftover can be a planted symlink or a trusted stale entry that would start
-			// something, and dd-procmgrd must not load either.
+			// A leftover can be a planted symlink or a stale entry that would start a process.
 			if _, lerr := root.Lstat(dst); !errors.Is(lerr, fs.ErrNotExist) {
 				return untrustedf("failed to replace %s, which is still present: %v", filepath.Join(installRoot, dst), err)
 			}
@@ -182,10 +170,8 @@ func WriteDarwinProcmgrCatalog(installRoot string) error {
 	return errors.Join(errs...)
 }
 
-// vetForeignEntries fails unless every entry in a kept processes.d that dd-procmgrd would load,
-// other than the managed names that are about to be replaced, is a trusted regular file.
-// dd-procmgrd loads every name with a yaml or yml extension, dotfiles included. A name that is
-// exactly .yaml is judged too, which is stricter than what dd-procmgrd loads.
+// vetForeignEntries fails unless every yaml or yml entry dd-procmgrd would load, other than the
+// managed names about to be replaced, is a trusted regular file. Dotfiles are included.
 func vetForeignEntries(root *os.Root, installRoot string, managed []string) error {
 	dirPath := filepath.Join(installRoot, darwinProcessesDir)
 	dir, err := root.Open(darwinProcessesDir)
@@ -221,9 +207,8 @@ func vetForeignEntries(root *os.Root, installRoot string, managed []string) erro
 	return nil
 }
 
-// replaceEntry writes the embedded entry name to a temp file in processes.d and renames it over
-// name, so whatever was at name is replaced without being followed. The temp file is removed on
-// failure.
+// replaceEntry writes the embedded entry to a temp file and renames it over name, so a symlink
+// or foreign file at that name is replaced rather than followed.
 func replaceEntry(root *os.Root, name string) error {
 	content, err := embedded.GetDarwinProcmgrProcess(name)
 	if err != nil {
@@ -260,9 +245,8 @@ func replaceEntry(root *os.Root, name string) error {
 	return nil
 }
 
-// RemoveDarwinProcmgrCatalog removes the entries WriteDarwinProcmgrCatalog writes, leaves any
-// other file alone, and removes processes.d if that left it empty. It removes nothing when
-// installRoot or processes.d is not trusted. Missing files are not errors.
+// RemoveDarwinProcmgrCatalog removes the entries WriteDarwinProcmgrCatalog writes and removes
+// processes.d if that leaves it empty. It removes nothing when the tree is not trusted.
 func RemoveDarwinProcmgrCatalog(installRoot string) error {
 	dirPath := filepath.Join(installRoot, darwinProcessesDir)
 	for _, p := range []string{installRoot, dirPath} {

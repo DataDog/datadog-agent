@@ -4,12 +4,10 @@ args:
   - run
   - -c
   - '/opt/datadog-agent/etc'
-# launchd's com.datadoghq.sysprobe still owns system-probe on macOS. This stays false until the
-# change that suppresses that job flips it, so exactly one supervisor ever owns the binary.
+# Stays false while launchd's com.datadoghq.sysprobe owns the binary.
 auto_start: false
 condition_path_exists: '/opt/datadog-agent/embedded/bin/system-probe'
-# Mirrors the launchd job's KeepAlive {SuccessfulExit: false}: a system-probe with nothing enabled
-# exits 0 and stays down.
+# on-failure: a system-probe with nothing enabled exits 0 and stays down.
 restart: on-failure
 restart_sec: 2
 start_limit_interval_sec: 10

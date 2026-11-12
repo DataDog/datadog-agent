@@ -165,12 +165,8 @@ func assertMacosStableLaunchDaemons(t *testing.T, client *common.MacOSTestClient
 	assertMacosProcmgrCatalogFiles(t, client)
 }
 
-// assertMacosProcmgrAnswers checks dd-procmgrd is up and lists the inert catalog: expected
-// entries, every one skipped and none running.
-//
-// The system-probe entry ships with auto_start: false while launchd's com.datadoghq.sysprobe owns
-// the binary, so auto_start_false must be its only skip reason. A command path that does not exist
-// on the host would add path_missing, so this also checks the entry names the installed binary.
+// assertMacosProcmgrAnswers checks dd-procmgrd lists the shipped entries, all skipped and none
+// running. auto_start_false must be the only skip reason: a missing binary would add path_missing.
 func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, expected int) {
 	assert.EventuallyWithT(t, func(c *assert.CollectT) {
 		out, err := client.Execute("sudo " + macosProcmgrCLI + " status --json")
@@ -222,10 +218,8 @@ func assertMacosProcmgrAnswers(t *testing.T, client *common.MacOSTestClient, exp
 	assert.Equal(t, []string{"run", "-c", macosInstallDir + "/etc"}, detail.Args)
 }
 
-// assertMacosProcmgrCatalogFiles checks the catalog dd-procmgrd loads could only have been written
-// by root: dd-procmgrd runs as root and starts what processes.d names. The install root,
-// processes.d and the entry are owned by root, have no group or other write bit, carry no ACL and
-// are not writable by the Agent's account. No untrusted processes.d was moved aside.
+// assertMacosProcmgrCatalogFiles checks the install root, processes.d and the entry are root-only
+// and that no untrusted processes.d was moved aside.
 func assertMacosProcmgrCatalogFiles(t *testing.T, client *common.MacOSTestClient) {
 	for path, expected := range map[string]string{
 		macosInstallDir:        "root 755",
@@ -236,7 +230,6 @@ func assertMacosProcmgrCatalogFiles(t *testing.T, client *common.MacOSTestClient
 		require.NoError(t, err)
 		assert.Equal(t, expected, strings.TrimSpace(attributes), "%s has the wrong owner or mode", path)
 
-		// ls -e prints one line per ACL entry under the mode line.
 		acl, err := client.Execute("sudo /bin/ls -lde " + path)
 		require.NoError(t, err)
 		assert.Len(t, strings.Split(strings.TrimSpace(acl), "\n"), 1, "%s carries an ACL:\n%s", path, acl)

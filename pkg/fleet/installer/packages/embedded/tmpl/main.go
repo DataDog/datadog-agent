@@ -345,8 +345,7 @@ var (
 	}
 )
 
-// darwinProcmgrCodegenData renders the macOS processes.d entries. macOS has a single install
-// root, so the files are final at codegen and the installer writes them as they are.
+// darwinProcmgrCodegenData renders the macOS entries with their final paths. There is one install root.
 var darwinProcmgrCodegenData = installerTemplateData{
 	InstallDir: "/opt/datadog-agent",
 	EtcDir:     "/opt/datadog-agent/etc",

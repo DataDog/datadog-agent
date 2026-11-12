@@ -3,9 +3,8 @@
 // This product includes software developed at Datadog (https://www.datadoghq.com/).
 // Copyright 2026-present Datadog, Inc.
 
-//! Parse tests for the macOS `processes.d` catalog the fleet installer writes. The entry is
-//! rendered at codegen with the macOS paths, so the generated file is what ships. Nothing here
-//! depends on the host OS, so drift is caught on every platform.
+//! Loads the generated macOS system-probe `processes.d` entry. It has no host dependency, so the
+//! same test runs on every platform.
 
 use crate::config::{RestartPolicy, load_configs};
 use std::fs;
@@ -39,7 +38,6 @@ fn darwin_sysprobe_entry_is_inert() {
     assert_eq!(process.name, "datadog-agent-sysprobe");
     let config = &process.config;
 
-    // launchd's com.datadoghq.sysprobe still owns the binary.
     assert!(!config.auto_start);
 
     assert_eq!(config.command, SYSTEM_PROBE);
@@ -51,8 +49,6 @@ fn darwin_sysprobe_entry_is_inert() {
     assert_eq!(config.start_limit_interval_sec, Some(10));
     assert_eq!(config.start_limit_burst, Some(5));
 
-    // launchd starts system-probe with no config decision of its own, and the binary gates
-    // itself, so the entry carries no config gate either.
     assert!(
         config.condition_config_any.is_empty(),
         "condition_config_any: {:?}",
