@@ -10,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/samber/lo"
 )
 
 // PhaseBoundary is the start or the end of a measurement phase.
@@ -84,9 +86,5 @@ func (e PhaseEvent) Tags() []string {
 
 // codeList formats values as a comma-separated list of code spans.
 func codeList(values []string) string {
-	quoted := make([]string, len(values))
-	for i, value := range values {
-		quoted[i] = "`" + value + "`"
-	}
-	return strings.Join(quoted, ", ")
+	return strings.Join(lo.Map(values, func(value string, _ int) string { return "`" + value + "`" }), ", ")
 }
