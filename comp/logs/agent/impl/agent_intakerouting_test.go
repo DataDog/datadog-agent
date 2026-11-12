@@ -355,8 +355,8 @@ func TestIntakeRoutingLogsEndpointEligibility(t *testing.T) {
 	assert.Subset(t, recorder.debugMessages(), []string{
 		"Intake routing: logs endpoint #0 (" + base.Main.Host + ") is eligible",
 		"Intake routing: logs endpoint #1 (foobar.logs.datad0g.com) is eligible",
-		"Intake routing: logs endpoint #2 (logs.example.com) is not eligible: its host is not an official Datadog logs intake host (<name>.logs.<site>)",
-		"Intake routing: logs endpoint #3 (agent-http-intake.logs.datadoghq.eu:8443) is not eligible: it uses port 8443 instead of 443",
+		"Intake routing: logs endpoint #2 (logs.example.com) is not eligible: " + config.IntakeRoutingIneligibleUnofficialHost,
+		"Intake routing: logs endpoint #3 (agent-http-intake.logs.datadoghq.eu:8443) is not eligible: " + config.IntakeRoutingIneligiblePort,
 	})
 }
 

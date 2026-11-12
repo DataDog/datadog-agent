@@ -30,7 +30,7 @@ func routingCandidates(endpoints *Endpoints) []int {
 	}
 	var indices []int
 	for i := range endpoints.Endpoints {
-		if endpoints.Endpoints[i].LogsIntakeRoutingExclusion() == "" {
+		if eligible, _ := endpoints.Endpoints[i].IsIntakeRoutingEligible(); eligible {
 			indices = append(indices, i)
 		}
 	}
@@ -178,41 +178,41 @@ func TestLogsIntakeRoutingCandidates(t *testing.T) {
 	})
 }
 
-func TestLogsIntakeRoutingExclusion(t *testing.T) {
+func TestIsIntakeRoutingEligible(t *testing.T) {
 	tests := []struct {
 		name      string
 		overrides map[string]interface{}
 		index     int
-		expected  string
+		// reason is "" for an eligible endpoint.
+		reason string
 	}{
 		{
-			name:     "eligible",
-			expected: "",
+			name: "eligible",
 		},
 		{
 			name:      "custom port",
 			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://agent-http-intake.logs.datadoghq.com:8443"},
-			expected:  "it uses port 8443 instead of 443",
+			reason:    IntakeRoutingIneligiblePort,
 		},
 		{
 			name:      "path prefix",
 			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://agent-http-intake.logs.datadoghq.com/prefix"},
-			expected:  `it has the path prefix "/prefix"`,
+			reason:    IntakeRoutingIneligiblePathPrefix,
 		},
 		{
 			name:      "plain HTTP",
 			overrides: map[string]interface{}{"logs_config.logs_dd_url": "http://agent-http-intake.logs.datadoghq.com:80"},
-			expected:  "it does not use SSL",
+			reason:    IntakeRoutingIneligibleNoSSL,
 		},
 		{
 			name:      "custom host",
 			overrides: map[string]interface{}{"logs_config.logs_dd_url": "https://logs-proxy.example.com"},
-			expected:  "its host is not an official Datadog logs intake host (<name>.logs.<site>)",
+			reason:    IntakeRoutingIneligibleUnofficialHost,
 		},
 		{
 			name:      "v1 API",
 			overrides: map[string]interface{}{"logs_config.use_v2_api": false},
-			expected:  "it does not use the v2 intake API",
+			reason:    IntakeRoutingIneligibleIntakeVersion,
 		},
 		{
 			name: "OPW",
@@ -220,7 +220,7 @@ func TestLogsIntakeRoutingExclusion(t *testing.T) {
 				"observability_pipelines_worker.logs.enabled": true,
 				"observability_pipelines_worker.logs.url":     "https://agent-http-intake.logs.datadoghq.com",
 			},
-			expected: "it is an Observability Pipelines Worker endpoint",
+			reason: IntakeRoutingIneligibleObsPipeline,
 		},
 		{
 			name: "MRF",
@@ -229,15 +229,19 @@ func TestLogsIntakeRoutingExclusion(t *testing.T) {
 				"multi_region_failover.site":    "us3.datadoghq.com",
 				"multi_region_failover.api_key": "mrfkey",
 			},
-			index:    1,
-			expected: "it is a Multi-Region Failover endpoint",
+			index:  1,
+			reason: IntakeRoutingIneligibleMRF,
 		},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
 			endpoints := buildLogsAgentEndpoints(t, config.NewMockWithOverrides(t, tc.overrides), HTTPConnectivitySuccess)
 			require.Greater(t, len(endpoints.Endpoints), tc.index)
-			assert.Equal(t, tc.expected, endpoints.Endpoints[tc.index].LogsIntakeRoutingExclusion())
+			eligible, reason := endpoints.Endpoints[tc.index].IsIntakeRoutingEligible()
+			assert.Equal(t, tc.reason == "", eligible)
+			if !eligible {
+				assert.Equal(t, tc.reason, reason)
+			}
 		})
 	}
 }
