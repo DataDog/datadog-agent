@@ -753,7 +753,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   fabric.health.unhealthy:
@@ -773,7 +773,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   fabric.health.issue:
@@ -796,7 +796,7 @@ metrics:
       unsupported_architectures: []
       device_modes:
         mig: false
-        mig_parent: false
+        mig_parent: true
         physical: true
         vgpu: false
   fan_speed:
