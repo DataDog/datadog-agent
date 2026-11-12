@@ -33,17 +33,19 @@ func newTestForwarder(t *testing.T, cfg config.Component) *forwarder {
 
 func newTestForwarderWithTelemetry(t *testing.T, cfg config.Component, tel telemetry.Component) *forwarder {
 	t.Helper()
+	domain := buildIntakeDomain(cfg)
 	return &forwarder{
-		cfg:        cfg,
-		intakeURL:  buildIntakeURL(cfg),
-		httpClient: buildHTTPClient(cfg),
-		log:        logmock.New(t),
-		httpErrors: newHTTPErrorsCounter(tel),
+		cfg:          cfg,
+		intakeDomain: domain,
+		intakeURL:    domain + intakeEndpointPath,
+		httpClient:   buildHTTPClient(cfg),
+		log:          logmock.New(t),
+		httpErrors:   newHTTPErrorsCounter(tel),
 	}
 }
 
 func TestSendCountsHTTPErrors(t *testing.T) {
-	statuses := []int{http.StatusBadRequest, http.StatusForbidden, http.StatusInternalServerError, http.StatusMovedPermanently}
+	statuses := []int{http.StatusNotFound, http.StatusNotFound, http.StatusForbidden, http.StatusServiceUnavailable, http.StatusMovedPermanently}
 	next := 0
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(statuses[next])
@@ -53,9 +55,9 @@ func TestSendCountsHTTPErrors(t *testing.T) {
 
 	cfg := config.NewMock(t)
 	cfg.SetInTest("api_key", "test-api-key")
+	cfg.SetInTest("health_platform.forwarder.dd_url", server.URL)
 	tel := telemetrymock.New(t)
 	fwd := newTestForwarderWithTelemetry(t, cfg, tel)
-	fwd.intakeURL = server.URL
 	// Don't follow the 301, so the forwarder sees it as a non-2xx response.
 	fwd.httpClient.CheckRedirect = func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }
 
@@ -68,22 +70,13 @@ func TestSendCountsHTTPErrors(t *testing.T) {
 	require.NoError(t, err)
 	got := map[string]float64{}
 	for _, m := range metrics {
+		assert.Equal(t, server.URL, m.Tags()["domain"])
+		assert.Equal(t, "agenthealth", m.Tags()["endpoint"])
 		assert.Equal(t, "health_platform", m.Tags()["forwarder"])
 		got[m.Tags()["code"]] = m.Value()
 	}
-	// 3xx is a non-2xx response but not an HTTP error: it must not be counted.
-	assert.Equal(t, map[string]float64{"4xx": 2, "5xx": 1}, got)
-}
-
-func TestStatusClass(t *testing.T) {
-	for status, want := range map[int]string{
-		200: "", 204: "", 301: "", 399: "",
-		400: "4xx", 403: "4xx", 404: "4xx", 429: "4xx", 499: "4xx",
-		500: "5xx", 503: "5xx", 599: "5xx",
-		0: "", 600: "",
-	} {
-		assert.Equal(t, want, statusClass(status), "status %d", status)
-	}
+	// Exact status codes, like transactions.http_errors; 3xx is not an HTTP error and is not counted.
+	assert.Equal(t, map[string]float64{"404": 2, "403": 1, "503": 1}, got)
 }
 
 func TestSend(t *testing.T) {

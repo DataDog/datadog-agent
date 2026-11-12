@@ -150,8 +150,9 @@ profiles:
           - endpoint
       - name: forwarder.http_errors
         preserve_tags:
-          - forwarder
           - code
+          - endpoint
+          - forwarder
   schedule:
     start_after: 30
     iterations: 0
