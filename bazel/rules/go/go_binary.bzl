@@ -116,6 +116,10 @@ def dd_agent_go_binary(
 
     go_binary(
         name = name,
+        gc_linkopts = kwargs.pop("gc_linkopts", []) + select({
+            "//packages/agent:linux_fips": ["-r", "$(EMBEDDED_LIB_DIRS)"],  # where msgo dlopens OpenSSL from
+            "//conditions:default": [],
+        }),
         toolchains = kwargs.pop("toolchains", []) + [
             "//:install_dir",
             "//bazel/rules/variables",
