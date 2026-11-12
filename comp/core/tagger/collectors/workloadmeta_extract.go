@@ -1579,7 +1579,7 @@ func addKueueSchedulerTags(workloadName, clusterQueueName string, tagList *tagli
 }
 
 func podHasKueueInfo(pod *workloadmeta.KubernetesPod) bool {
-	return pod.KueueWorkloadName() != "" ||
+	return kubernetes.KueueWorkloadName(pod.Labels, pod.Annotations) != "" ||
 		pod.Labels[kubernetes.KueueClusterQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueLocalQueueNameLabelKey] != "" ||
 		pod.Labels[kubernetes.KueueQueueNameLabelKey] != ""
@@ -1644,7 +1644,7 @@ func isKueueKind(kind workloadmeta.Kind) bool {
 func kueueEntityAffectsPod(entity workloadmeta.Entity, pod *workloadmeta.KubernetesPod) bool {
 	switch e := entity.(type) {
 	case *workloadmeta.KubernetesKueueWorkload:
-		return pod.Namespace == e.Namespace && (pod.KueueWorkloadName() == e.Name ||
+		return pod.Namespace == e.Namespace && (kubernetes.KueueWorkloadName(pod.Labels, pod.Annotations) == e.Name ||
 			(pod.ID != "" && e.Labels[kubernetes.KueueJobUIDLabelKey] == pod.ID))
 	case *workloadmeta.KubernetesKueueQueue:
 		// Pods can reach a queue through their Workload, so matching them

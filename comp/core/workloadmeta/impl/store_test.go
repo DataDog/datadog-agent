@@ -2398,7 +2398,7 @@ func TestGetKubernetesKueueWorkloadForPod(t *testing.T) {
 	}
 }
 
-func TestKueuePodIndexSourceLifecycle(t *testing.T) {
+func TestKueuePodWorkloadSourceLifecycle(t *testing.T) {
 	s := newWorkloadmetaObject(t)
 	wl := &wmdef.KubernetesKueueWorkload{
 		EntityID: wmdef.EntityID{Kind: wmdef.KindKubernetesKueueWorkload, ID: "team-a/workload"},
@@ -2420,5 +2420,4 @@ func TestKueuePodIndexSourceLifecycle(t *testing.T) {
 	s.handleEvents([]wmdef.CollectorEvent{{Type: wmdef.EventTypeUnset, Source: barSource, Entity: idOnly}})
 	_, err = s.GetKubernetesKueueWorkloadForPod(pod)
 	require.Error(t, err)
-	assert.Empty(t, s.kueueWorkloadsByPod)
 }

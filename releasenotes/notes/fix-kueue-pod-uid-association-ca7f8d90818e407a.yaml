@@ -1,8 +1,4 @@
 ---
 fixes:
   - |
-    Fix missing Kueue workload identity tags on pods and containers when the
-    Workload identifies its owning pod by UID instead of a workload-name
-    annotation or pod-group label.
-    Also recognize prebuilt Workload references and the annotation form of
-    pod-group names.
+    Fix missing Kueue workload tags on pods and containers.

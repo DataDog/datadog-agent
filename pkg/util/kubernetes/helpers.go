@@ -122,3 +122,21 @@ func removeKubernetesNameSuffix(name string) string {
 
 	return name[:lastDash]
 }
+
+// KueueWorkloadName returns an explicit Kueue Workload reference from pod
+// metadata. Admission annotations take precedence over prebuilt Workload and
+// pod-group references. Annotation forms take precedence over label forms.
+func KueueWorkloadName(labels, annotations map[string]string) string {
+	for _, name := range []string{
+		annotations[KueueWorkloadAnnotationKey],
+		annotations[KueuePrebuiltWorkloadNameKey],
+		labels[KueuePrebuiltWorkloadNameKey],
+		annotations[KueuePodGroupNameAnnotationKey],
+		labels[KueuePodGroupNameLabelKey],
+	} {
+		if name != "" {
+			return name
+		}
+	}
+	return ""
+}
