@@ -344,6 +344,11 @@ if windows_target?
     windows_symbol_stripping_file "#{install_dir}\\bin\\agent\\par-control.exe"
   end
 
+  # Strip openssl binaries
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\DLLs\\libcrypto-3-x64.dll"
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\DLLs\\libssl-3-x64.dll"
+  windows_symbol_stripping_file "#{install_dir}\\embedded3\\bin\\openssl.exe"
+
   if windows_signing_enabled?
     # Sign additional binaries from here.
     # We can't request signing from the respective components/software definitions
