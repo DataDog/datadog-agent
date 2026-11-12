@@ -187,46 +187,55 @@ func TestGetIntegrationConfig(t *testing.T) {
 // YAML v2 accepts numeric and string keys with the same spelling, but the
 // structure-preserving metadata scrubber uses YAML v3, which rejects them.
 func TestConfigMetadataPreservesYAMLV2Config(t *testing.T) {
-	configmock.New(t)
-	dir := t.TempDir()
-	file := filepath.Join(dir, "compatibility.yaml")
-	const content = `instances:
+	for _, relativePath := range []string{"compatibility.yaml", filepath.Join("compatibility.d", "conf.yaml")} {
+		t.Run(relativePath, func(t *testing.T) {
+			configmock.New(t)
+			dir := t.TempDir()
+			file := filepath.Join(dir, relativePath)
+			const content = `instances:
   - password: compatibility-plaintext-password
     api_key: ENC[compatibility-key]
+    additional_endpoints:
+      https://example.invalid:
+        - compatibility-structured-credential
     options:
       1: numeric-value
       "1": string-value
 `
-	require.NoError(t, os.WriteFile(file, []byte(content), 0600))
+			require.NoError(t, os.MkdirAll(filepath.Dir(file), 0700))
+			require.NoError(t, os.WriteFile(file, []byte(content), 0600))
 
-	withoutMetadata, _, err := getIntegrationConfigFromFile("compatibility", file, false)
-	require.NoError(t, err)
-	require.Len(t, withoutMetadata.Instances, 1)
+			withoutMetadata, _, err := getIntegrationConfigFromFile("compatibility", file, false)
+			require.NoError(t, err)
+			require.Len(t, withoutMetadata.Instances, 1)
 
-	withMetadata, format, err := getIntegrationConfigFromFile("compatibility", file, true)
-	require.NoError(t, err)
-	assert.Equal(t, withoutMetadata, withMetadata)
-	assert.Equal(t, file, format.Filename)
-	assert.Nil(t, format.Secrets)
-	assert.Contains(t, format.ConfigFormat, "numeric-value")
-	assert.Contains(t, format.ConfigFormat, "string-value")
-	assert.NotContains(t, format.ConfigFormat, "compatibility-plaintext-password")
-	hash := sha256.Sum256([]byte(format.ConfigFormat))
-	assert.Equal(t, hex.EncodeToString(hash[:]), format.Hash)
+			withMetadata, format, err := getIntegrationConfigFromFile("compatibility", file, true)
+			require.NoError(t, err)
+			assert.Equal(t, withoutMetadata, withMetadata)
+			assert.Empty(t, format, "omit file metadata when it cannot be safely scrubbed")
 
-	// A metadata scan refreshes the cache also used by the integration loader.
-	ResetReader([]string{dir})
-	t.Cleanup(func() { ResetReader(nil) })
-	configs, configErrors, err := ReadConfigFiles(GetAll)
-	require.NoError(t, err)
-	require.Empty(t, configErrors)
-	require.Equal(t, []integration.Config{withoutMetadata}, configs)
-	formats := ReadConfigFormats()
-	require.Equal(t, []ConfigFormatWrapper{format}, formats)
-	afterMetadata, configErrors, err := ReadConfigFiles(GetAll)
-	require.NoError(t, err)
-	assert.Empty(t, configErrors)
-	assert.Equal(t, configs, afterMetadata)
+			// Safe files still report metadata, including raw and ENC declarations.
+			supportedFile := filepath.Join(dir, "supported.yaml")
+			require.NoError(t, os.WriteFile(supportedFile, []byte("instances: [{password: raw-password, api_key: 'ENC[supported-key]'}]\n"), 0600))
+			supportedConfig, supportedFormat, err := getIntegrationConfigFromFile("supported", supportedFile, true)
+			require.NoError(t, err)
+			require.Len(t, supportedFormat.Secrets, 2)
+
+			// Metadata collection must not remove integrations from the shared cache.
+			ResetReader([]string{dir})
+			t.Cleanup(func() { ResetReader(nil) })
+			configs, configErrors, err := ReadConfigFiles(GetAll)
+			require.NoError(t, err)
+			require.Empty(t, configErrors)
+			require.ElementsMatch(t, []integration.Config{withoutMetadata, supportedConfig}, configs)
+			formats := ReadConfigFormats()
+			require.Equal(t, []ConfigFormatWrapper{supportedFormat}, formats)
+			afterMetadata, configErrors, err := ReadConfigFiles(GetAll)
+			require.NoError(t, err)
+			assert.Empty(t, configErrors)
+			assert.Equal(t, configs, afterMetadata)
+		})
+	}
 }
 
 func TestReadConfigFiles(t *testing.T) {
