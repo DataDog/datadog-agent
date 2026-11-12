@@ -48,7 +48,8 @@ Key patterns:
   every compile overwrites. Without it, a cold lint of an E2E package needs ~11 GB of free
   disk for the Pulumi SDKs alone instead of ~0.5 GB, and fails with `no space left on device`
   reported as `typecheck` errors. Don't point it at `os.devnull`: the compiler seeks back in
-  that file, which fails in `NUL` on Windows.
+  that file, which fails in `NUL` on Windows. Don't randomize its path either: the flag is part
+  of the build cache key, so every run would recompile all dependencies.
 
 ### CI / Pipeline
 

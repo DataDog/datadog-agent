@@ -4,6 +4,7 @@ Golang related tasks go here
 
 from __future__ import annotations
 
+import contextlib
 import glob
 import os
 import posixpath
@@ -95,12 +96,14 @@ def run_golangci_lint(
     # which is ~97% of their size (5.3 of 5.5 GB for an E2E package and its Pulumi SDKs). `go list` stores each archive
     # in GOCACHE and also keeps it in its work directory until it exits, so discarding that object is what lets a cold
     # run fit in a sandbox's disk. The flag is part of the build cache key, so builds never use these archives.
-    # Every compile overwrites the same file, so it is only as large as the largest package. It can't be os.devnull:
-    # the compiler seeks back in it to write the archive headers, which fails in NUL on Windows.
-    with tempfile.TemporaryDirectory(prefix="golangci-lint-", ignore_cleanup_errors=True) as linkobj_dir:
-        linkobj = os.path.join(linkobj_dir, "discard.o")
-        # Quoted twice, for GOFLAGS and for -gcflags, in case the path contains spaces.
-        env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} \"-gcflags=all='-linkobj={linkobj}'\"".lstrip()
+    # Every compile overwrites the same file, so it is only as large as the largest package. Concurrent compiles and
+    # runs can share it, since nothing ever reads it. Its path must not change between runs, as it is part of the
+    # cache key. It can't be os.devnull: the compiler seeks back in it to write the archive headers, which fails in
+    # NUL on Windows.
+    linkobj = os.path.join(tempfile.gettempdir(), "golangci-lint-linkobj.o")
+    # Quoted twice, for GOFLAGS and for -gcflags, in case the path contains spaces.
+    env["GOFLAGS"] = f"{os.environ.get('GOFLAGS', '')} \"-gcflags=all='-linkobj={linkobj}'\"".lstrip()
+    try:
         result, time_result = TimedOperationResult.run(
             lambda: bazel(
                 "run",
@@ -113,6 +116,10 @@ def run_golangci_lint(
             "golangci-lint",
             f"Lint {targets_str}",
         )
+    finally:
+        # Fails on Windows while a concurrent run still has it open, which leaves it for that run to remove.
+        with contextlib.suppress(OSError):
+            os.remove(linkobj)
     return [result], [time_result]
 
 
