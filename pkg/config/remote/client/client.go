@@ -144,9 +144,9 @@ type Client struct {
 	installerState *atomic.Value // *pbgo.ClientUpdater
 	cwsWorkloads   *atomic.Value // []string
 
-	// lastTUFStateReset is only read and written from the poll goroutine: it
+	// lastTUFStateResetAttempt is only read and written from the poll goroutine: it
 	// gates how often the TUF state can be dropped after failed updates.
-	lastTUFStateReset time.Time
+	lastTUFStateResetAttempt time.Time
 
 	// pendingResetRemovals holds the products that had configs in the
 	// repository dropped by the last TUF state reset. The fresh repository
@@ -616,10 +616,10 @@ func (c *Client) maybeResetTUFState() {
 		return
 	}
 	now := c.now()
-	if !c.lastTUFStateReset.IsZero() && now.Sub(c.lastTUFStateReset) < tufStateResetCooldown {
+	if !c.lastTUFStateResetAttempt.IsZero() && now.Sub(c.lastTUFStateResetAttempt) < tufStateResetCooldown {
 		return
 	}
-	c.lastTUFStateReset = now
+	c.lastTUFStateResetAttempt = now
 
 	repository, err := state.NewRepository(meta.RootsDirector(c.site, c.directorRootOverride).Root())
 	if err != nil {
