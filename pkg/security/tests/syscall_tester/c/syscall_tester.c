@@ -75,7 +75,12 @@ static int set_rlimit(int resource, const struct rlimit *rlim) {
 }
 
 static int exec_fd(int fd, char *const argv[], char *const envp[]) {
-    return (int)syscall(SYS_execveat, fd, "", argv, envp, AT_EMPTY_PATH);
+    syscall(SYS_execveat, fd, "", argv, envp, AT_EMPTY_PATH);
+    // Kernels before 3.19 (e.g. CentOS 7) have no execveat.
+    if (errno == ENOSYS) {
+        return fexecve(fd, argv, envp);
+    }
+    return -1;
 }
 
 // DD_TRACER_MEMFD_SEALS mirrors the seal set libdatadog applies
@@ -1248,7 +1253,7 @@ int test_memfd_create(int argc, char **argv) {
         char * const envp[] = {NULL};
         fflush(stream);
         if (exec_fd(fd, argv, envp) < 0){
-            err(1, "%s failed", "execveat");
+            err(1, "%s failed", "exec");
         }
 
         fclose(stream);
