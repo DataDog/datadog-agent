@@ -12,7 +12,7 @@ import (
 	"slices"
 	"strings"
 
-	yaml "go.yaml.in/yaml/v2" // not v3 in case of YAML 1.1 booleans (yes/no/on/off)
+	yaml "go.yaml.in/yaml/v4" // boolean options accept YAML 1.1 spellings through check.ToLenientBool
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/collector/check"
@@ -90,8 +90,7 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 		return err
 	}
 
-	useMount, found := conf["use_mount"]
-	if useMount, ok := useMount.(bool); found && ok {
+	if useMount, ok := check.ToLenientBool(conf["use_mount"]); ok {
 		c.cfg.useMount = useMount
 	}
 
@@ -124,8 +123,7 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 		}
 	}
 
-	tagByFilesystem, found := conf["tag_by_filesystem"]
-	if tagByFilesystem, ok := tagByFilesystem.(bool); found && ok {
+	if tagByFilesystem, ok := check.ToLenientBool(conf["tag_by_filesystem"]); ok {
 		c.cfg.tagByFilesystem = tagByFilesystem
 	}
 
@@ -137,22 +135,32 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 		}
 	}
 
-	allPartitions, found := conf["all_partitions"]
-	if allPartitions, ok := allPartitions.(bool); found && ok {
+	if allPartitions, ok := check.ToLenientBool(conf["all_partitions"]); ok {
 		c.cfg.allPartitions = allPartitions
 	}
 
 	deviceTagRe, found := conf["device_tag_re"]
-	if deviceTagRe, ok := deviceTagRe.(map[interface{}]interface{}); found && ok {
+	if found {
 		c.cfg.deviceTagRe = make(map[*regexp.Regexp][]string)
-		for reString, tags := range deviceTagRe {
-			if reString, ok := reString.(string); ok {
+		// yaml v4 decodes string-keyed nested maps as map[string]interface{},
+		// but non-string keys can still produce map[interface{}]interface{}
+		switch deviceTagRe := deviceTagRe.(type) {
+		case map[string]interface{}:
+			for reString, tags := range deviceTagRe {
 				if tags, ok := tags.(string); ok {
-					re, err := regexp.Compile(reString)
-					if err != nil {
+					if err := c.addDeviceTagRe(reString, tags); err != nil {
 						return err
 					}
-					c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
+				}
+			}
+		case map[interface{}]interface{}:
+			for reString, tags := range deviceTagRe {
+				if reString, ok := reString.(string); ok {
+					if tags, ok := tags.(string); ok {
+						if err := c.addDeviceTagRe(reString, tags); err != nil {
+							return err
+						}
+					}
 				}
 			}
 		}
@@ -163,6 +171,16 @@ func (c *Check) instanceConfigure(data integration.Data) error {
 
 func stringSliceContain(slice []string, x string) bool {
 	return slices.Contains(slice, x)
+}
+
+// addDeviceTagRe compiles a device_tag_re entry and stores its tags
+func (c *Check) addDeviceTagRe(reString, tags string) error {
+	re, err := regexp.Compile(reString)
+	if err != nil {
+		return err
+	}
+	c.cfg.deviceTagRe[re] = strings.Split(tags, ",")
+	return nil
 }
 
 func (c *Check) applyDeviceTags(device, mountpoint string, tags []string) []string {

@@ -21,7 +21,7 @@ import (
 	"github.com/shirou/gopsutil/v4/common"
 	gopsutil_disk "github.com/shirou/gopsutil/v4/disk"
 	"github.com/spf13/afero"
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4" // typed bool fields keep accepting YAML 1.1 spellings, like v3
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/aggregator/sender"
