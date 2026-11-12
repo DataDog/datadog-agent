@@ -10,6 +10,7 @@ package clusterchecks
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -1090,4 +1091,131 @@ func TestClusterAgentOnlyChecksAreNotDispatched(t *testing.T) {
 	assert.Len(t, stored, 0)
 
 	requireNotLocked(t, dispatcher.store)
+}
+
+func orchestratorConfig(collectors ...string) integration.Config {
+	instance := "collectors: [" + strings.Join(collectors, ", ") + "]\n"
+	return integration.Config{
+		Name:         orchestratorCheckName,
+		ClusterCheck: true,
+		Instances:    []integration.Data{integration.Data(instance)},
+	}
+}
+
+func helmConfig() integration.Config {
+	return integration.Config{
+		Name:         helmCheckName,
+		ClusterCheck: true,
+		Instances:    []integration.Data{integration.Data("collect_events: true\n")},
+	}
+}
+
+func TestColocationGroup(t *testing.T) {
+	configmock.New(t).SetInTest(helmReleasesConfigMapsSetting, true)
+	d := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+
+	assert.Equal(t, helmReleasesGroup, d.colocationGroup(helmConfig()))
+	assert.Equal(t, helmReleasesGroup, d.colocationGroup(orchestratorConfig("pods", "configmaps")))
+	assert.Equal(t, helmReleasesGroup, d.colocationGroup(orchestratorConfig("v1/configmaps")))
+
+	// Orchestrator instances that don't run the ConfigMap collector, and other
+	// checks, have no group.
+	assert.Empty(t, d.colocationGroup(orchestratorConfig("pods", "nodes")))
+	assert.Empty(t, d.colocationGroup(orchestratorConfig("apps/v1/configmaps")))
+	assert.Empty(t, d.colocationGroup(integration.Config{Name: orchestratorCheckName}))
+	assert.Empty(t, d.colocationGroup(generateIntegration("other")))
+	invalid := integration.Config{Name: orchestratorCheckName, Instances: []integration.Data{integration.Data("collectors: configmaps: [")}}
+	assert.Empty(t, d.colocationGroup(invalid))
+
+	// Nothing is colocated when the Helm releases collector is off.
+	configmock.New(t).SetInTest(helmReleasesConfigMapsSetting, false)
+	d = newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	assert.Empty(t, d.colocationGroup(helmConfig()))
+	assert.Empty(t, d.colocationGroup(orchestratorConfig("configmaps")))
+}
+
+func newColocationDispatcher(t *testing.T) *dispatcher {
+	configmock.New(t).SetInTest(helmReleasesConfigMapsSetting, true)
+	d := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	d.processNodeStatus("node1", "10.0.0.1", types.NodeStatus{})
+	d.processNodeStatus("node2", "10.0.0.2", types.NodeStatus{})
+	d.processNodeStatus("node3", "10.0.0.3", types.NodeStatus{})
+	// node2 is the busiest runner, so without colocation nothing goes there.
+	d.addConfig(generateIntegration("other1"), "node2")
+	d.addConfig(generateIntegration("other2"), "node2")
+	return d
+}
+
+func TestColocatedConfigsShareARunner(t *testing.T) {
+	d := newColocationDispatcher(t)
+
+	d.addConfig(helmConfig(), "node2")
+
+	second := orchestratorConfig("configmaps")
+	d.add(second)
+	assert.Equal(t, "node2", d.store.digestToNode[second.Digest()])
+
+	// Orchestrator instances without the ConfigMap collector are placed as usual.
+	noConfigMaps := orchestratorConfig("pods")
+	d.add(noConfigMaps)
+	assert.NotEqual(t, "node2", d.store.digestToNode[noConfigMaps.Digest()])
+
+	requireNotLocked(t, d.store)
+}
+
+func TestColocatedConfigFollowsGroupOnDispatchDangling(t *testing.T) {
+	d := newColocationDispatcher(t)
+
+	d.addConfig(helmConfig(), "node2")
+
+	// A config that couldn't be placed earlier joins the group's runner.
+	second := orchestratorConfig("configmaps")
+	d.addConfig(second, "")
+	assert.Contains(t, d.store.danglingConfigs, second.Digest())
+
+	d.dispatchDangling()
+	assert.Equal(t, "node2", d.store.digestToNode[second.Digest()])
+
+	requireNotLocked(t, d.store)
+}
+
+func TestColocationIgnoredAcrossRunnerGroups(t *testing.T) {
+	d := newColocationDispatcher(t)
+	d.checkGroup = map[string]string{"orchestrator": "kube"}
+	d.runnerGroups = map[string]struct{}{"kube": {}}
+	d.processNodeStatus("kube-node", "10.0.0.4", types.NodeStatus{Group: "kube"})
+
+	// "helm" runs on general workers, "orchestrator" only in the "kube" group:
+	// they can't share a runner, so the group is not honored.
+	d.addConfig(helmConfig(), "node2")
+
+	second := orchestratorConfig("configmaps")
+	d.add(second)
+	assert.Equal(t, "kube-node", d.store.digestToNode[second.Digest()])
+
+	requireNotLocked(t, d.store)
+}
+
+func TestColocationSkipsMembersOnRejectingNodes(t *testing.T) {
+	d := newColocationDispatcher(t)
+	d.checkGroup = map[string]string{"orchestrator": "kube", "helm": "kube"}
+	d.runnerGroups = map[string]struct{}{"kube": {}}
+	d.processNodeStatus("kube-busy", "10.0.0.4", types.NodeStatus{Group: "kube"})
+	d.processNodeStatus("kube-idle", "10.0.0.5", types.NodeStatus{Group: "kube"})
+
+	// One orchestrator config sits on a general node, which "kube" checks can't
+	// use, and another on the busier kube-busy: the Helm check joins the one it
+	// can share instead of going to the idle runner.
+	d.addConfig(orchestratorConfig("configmaps", "nodes"), "node2")
+	d.addConfig(orchestratorConfig("configmaps"), "kube-busy")
+	d.addConfig(generateIntegration("other3"), "kube-busy")
+
+	for range 20 { // map iteration order varies: try both orders
+		helm := helmConfig()
+		d.add(helm)
+		require.Equal(t, "kube-busy", d.store.digestToNode[helm.Digest()])
+		d.removeConfig(helm.Digest())
+	}
+
+	requireNotLocked(t, d.store)
 }

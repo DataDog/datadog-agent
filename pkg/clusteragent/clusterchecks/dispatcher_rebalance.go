@@ -300,10 +300,11 @@ func (d *dispatcher) currentDistribution() configsDistribution {
 				workersNeeded = 1
 			}
 
-			// Pin if the check is explicitly excluded from rebalancing or if
-			// this instance has no usable execution-time signal (AverageExecutionTime == 0).
+			// Pin if the check is explicitly excluded from rebalancing, if
+			// this instance has no usable execution-time signal (AverageExecutionTime == 0),
+			// or if it must stay with a config of its colocation group.
 			_, excluded := d.excludedChecksFromDispatching[conf.Name]
-			pinned := excluded || workersNeeded == 0
+			pinned := excluded || workersNeeded == 0 || d.hasColocatedPeer(digest, conf, nodeName)
 
 			distribution.addConfig(digest, conf.Name, workersNeeded, nodeName, pinned)
 		}

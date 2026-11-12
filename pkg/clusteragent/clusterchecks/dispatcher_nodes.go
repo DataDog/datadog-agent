@@ -8,11 +8,15 @@
 package clusterchecks
 
 import (
+	"bytes"
 	"cmp"
 	"fmt"
 	"math/rand"
 	"sort"
+	"strings"
 	"time"
+
+	"go.yaml.in/yaml/v3"
 
 	"github.com/DataDog/datadog-agent/comp/core/autodiscovery/integration"
 	"github.com/DataDog/datadog-agent/pkg/clusteragent/clusterchecks/types"
@@ -305,4 +309,130 @@ func (d *dispatcher) updateRunnersStats() {
 		busyness.Set(float64(node.busyness), node.name, le.JoinLeaderValue)
 		node.Unlock()
 	}
+}
+
+const (
+	// helmReleasesGroup is the colocation group of the Helm check and of the
+	// orchestrator instance that collects Helm releases. Both watch the Helm release
+	// ConfigMaps, so on the same runner they share that informer.
+	helmReleasesGroup = "helm-releases"
+
+	helmCheckName         = "helm"
+	orchestratorCheckName = "orchestrator"
+
+	// The Helm releases ConfigMap collector of the orchestrator check is
+	// enabled with this setting, and runs in the instances that collect ConfigMaps.
+	helmReleasesConfigMapsSetting = "orchestrator_explorer.helm_releases.configmaps.enabled"
+	configMapsCollector           = "configmaps"
+)
+
+type orchestratorInstance struct {
+	Collectors []string `yaml:"collectors"`
+}
+
+// colocationGroup returns the colocation group of a config, or "" if it has
+// none. Configs of the same group are dispatched to the same runner.
+func (d *dispatcher) colocationGroup(config integration.Config) string {
+	if !d.helmReleasesColocation {
+		return ""
+	}
+	switch config.Name {
+	case helmCheckName:
+		return helmReleasesGroup
+	case orchestratorCheckName:
+		if collectsConfigMaps(config) {
+			return helmReleasesGroup
+		}
+	}
+	return ""
+}
+
+// collectsConfigMaps reports whether an orchestrator config has an instance
+// that runs the ConfigMap collector, and so the Helm releases collector.
+func collectsConfigMaps(config integration.Config) bool {
+	for _, instance := range config.Instances {
+		// Avoid parsing the YAML of the instances that can't match.
+		if !bytes.Contains(instance, []byte(configMapsCollector)) {
+			continue
+		}
+
+		var parsed orchestratorInstance
+		if err := yaml.Unmarshal(instance, &parsed); err != nil {
+			log.Debugf("Cannot read the collectors of %s: %v", config.Name, err)
+			continue
+		}
+		for _, collector := range parsed.Collectors {
+			// Collectors are named "<resource>" or "<group>/<version>/<resource>",
+			// split like the orchestrator check's SplitCollectorName.
+			groupVersion, resource := "", collector
+			if idx := strings.LastIndex(collector, "/"); idx != -1 {
+				groupVersion, resource = collector[:idx], collector[idx+1:]
+			}
+			if resource == configMapsCollector && (groupVersion == "" || groupVersion == "v1") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// colocatedNode returns a node already running a config of the same
+// colocation group as config that may run config too, or "" when there is none.
+//
+// The store must be read-locked.
+func (d *dispatcher) colocatedNode(config integration.Config) string {
+	group := d.colocationGroup(config)
+	if group == "" {
+		return ""
+	}
+
+	digest := config.Digest()
+	for otherDigest, nodeName := range d.store.digestToNode {
+		if otherDigest == digest {
+			continue
+		}
+		other, found := d.store.digestToConfig[otherDigest]
+		if !found || d.colocationGroup(other) != group {
+			continue
+		}
+
+		node, found := d.store.nodes[nodeName]
+		if !found {
+			continue
+		}
+		if !d.accepts(node, config.Name) {
+			log.Debugf("Cannot colocate %s with %s on node %s for group %q: the node doesn't accept it", config.Name, other.Name, nodeName, group)
+			continue
+		}
+		return nodeName
+	}
+	return ""
+}
+
+// hasColocatedPeer reports whether another config of the colocation group of
+// config runs on nodeName, so config must stay there. The store must be read-locked.
+func (d *dispatcher) hasColocatedPeer(digest string, config integration.Config, nodeName string) bool {
+	group := d.colocationGroup(config)
+	if group == "" {
+		return false
+	}
+	for otherDigest, otherNode := range d.store.digestToNode {
+		if otherDigest == digest || otherNode != nodeName {
+			continue
+		}
+		if other, found := d.store.digestToConfig[otherDigest]; found && d.colocationGroup(other) == group {
+			return true
+		}
+	}
+	return false
+}
+
+// getNodeToSchedule returns the node where a new config should be scheduled:
+// the node of its colocation group when it has one, otherwise the node chosen
+// for its check. The store must be read-locked.
+func (d *dispatcher) getNodeToSchedule(config integration.Config) (node string, anyNode bool) {
+	if node = d.colocatedNode(config); node != "" {
+		return node, true
+	}
+	return d.getNodeToScheduleCheck(config.Name)
 }

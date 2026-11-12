@@ -71,6 +71,9 @@ type dispatcher struct {
 	// that group; runnerGroups is the set of declared groups.
 	checkGroup   map[string]string
 	runnerGroups map[string]struct{}
+	// helmReleasesColocation keeps the Helm check and the orchestrator
+	// instances that collect Helm releases on the same runner.
+	helmReleasesColocation bool
 }
 
 // runnerGroup is an entry of cluster_checks.runner_groups.
@@ -164,6 +167,7 @@ func newDispatcher(tagger tagger.Component) *dispatcher {
 	}
 
 	d.checkGroup, d.runnerGroups = loadRunnerGroups(pkgconfigsetup.Datadog())
+	d.helmReleasesColocation = pkgconfigsetup.Datadog().GetBool(helmReleasesConfigMapsSetting)
 
 	// These options will almost always be empty
 	d.excludedChecks = toSet(pkgconfigsetup.Datadog().GetStringSlice("cluster_checks.exclude_checks"))
@@ -339,7 +343,7 @@ func (d *dispatcher) dispatchDangling() {
 	defer d.store.Unlock()
 
 	for digest, c := range d.store.danglingConfigs {
-		target, anyNode := d.getNodeToScheduleCheck(c.config.Name)
+		target, anyNode := d.getNodeToSchedule(c.config)
 		if target == "" {
 			log.Warnf("No eligible node to dispatch %s:%s on, will retry later", c.config.Name, digest)
 			if anyNode {
@@ -358,7 +362,7 @@ func (d *dispatcher) add(config integration.Config) bool {
 	// Pick and place under one lock: a node expired in between would
 	// otherwise be recreated by addConfig, without IP or heartbeat.
 	d.store.Lock()
-	target, anyNode := d.getNodeToScheduleCheck(config.Name)
+	target, anyNode := d.getNodeToSchedule(config)
 	added := d.addConfigLocked(config, target)
 	d.store.Unlock()
 

@@ -597,3 +597,88 @@ func TestRebalanceIsWorthIt(t *testing.T) {
 
 	assert.True(t, rebalanceIsWorthIt(currentDistribution, proposedDistribution, 10))
 }
+
+func TestRebalanceKeepsColocatedConfigsTogether(t *testing.T) {
+	configmock.New(t).SetInTest(helmReleasesConfigMapsSetting, true)
+	d := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	mockClient := &rebalanceTestClcRunnerClient{testStats: make(map[string]types.CLCRunnersStats)}
+	d.clcRunnersClient = mockClient
+	d.advancedDispatching.Store(true)
+
+	d.store.active = true
+	d.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
+	d.store.nodes["node1"].workers = constants.DefaultNumWorkers
+	d.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
+	d.store.nodes["node2"].workers = constants.DefaultNumWorkers
+
+	// Everything starts on node1 and has an execution time, so only the
+	// colocation group keeps the Helm and orchestrator configs from moving.
+	node1Stats := types.CLCRunnersStats{
+		"helm":         {AverageExecutionTime: 4000, IsClusterCheck: true},
+		"orchestrator": {AverageExecutionTime: 4000, IsClusterCheck: true},
+		"movable":      {AverageExecutionTime: 4000, IsClusterCheck: true},
+	}
+	d.store.nodes["node1"].clcRunnerStats = node1Stats
+	mockClient.testStats["10.0.0.1"] = node1Stats
+	mockClient.testStats["10.0.0.2"] = types.CLCRunnersStats{}
+
+	helm := helmConfig()
+	orchestrator := orchestratorConfig("configmaps")
+	movable := orchestratorConfig("pods")
+	d.store.idToDigest = map[checkid.ID]string{
+		"helm":         helm.Digest(),
+		"orchestrator": orchestrator.Digest(),
+		"movable":      movable.Digest(),
+	}
+	d.store.digestToConfig = map[string]integration.Config{
+		helm.Digest():         helm,
+		orchestrator.Digest(): orchestrator,
+		movable.Digest():      movable,
+	}
+	d.store.digestToNode = map[string]string{
+		helm.Digest():         "node1",
+		orchestrator.Digest(): "node1",
+		movable.Digest():      "node1",
+	}
+
+	dist := d.currentDistribution()
+	require.Contains(t, dist.Configs, helm.Digest())
+	assert.True(t, dist.Configs[helm.Digest()].Pinned)
+	assert.True(t, dist.Configs[orchestrator.Digest()].Pinned)
+	assert.False(t, dist.Configs[movable.Digest()].Pinned)
+
+	for _, move := range d.rebalanceUsingUtilization(true) {
+		assert.NotEqual(t, helm.Digest(), move.Digest, "helm must not move")
+		assert.NotEqual(t, orchestrator.Digest(), move.Digest, "orchestrator must not move")
+	}
+	assert.Equal(t, "node1", d.store.digestToNode[helm.Digest()])
+	assert.Equal(t, "node1", d.store.digestToNode[orchestrator.Digest()])
+
+	requireNotLocked(t, d.store)
+}
+
+func TestRebalanceDoesNotPinLoneColocationMember(t *testing.T) {
+	configmock.New(t).SetInTest(helmReleasesConfigMapsSetting, true)
+	d := newDispatcher(taggerfxmock.SetupFakeTagger(t))
+	d.store.nodes["node1"] = newNodeStore("node1", "10.0.0.1")
+	d.store.nodes["node1"].workers = constants.DefaultNumWorkers
+	d.store.nodes["node2"] = newNodeStore("node2", "10.0.0.2")
+	d.store.nodes["node2"].workers = constants.DefaultNumWorkers
+
+	// The Helm check runs alone on node1, its orchestrator peer on node2: neither
+	// has a peer to stay with, so both stay movable.
+	d.store.nodes["node1"].clcRunnerStats = types.CLCRunnersStats{"helm": {AverageExecutionTime: 4000, IsClusterCheck: true}}
+	d.store.nodes["node2"].clcRunnerStats = types.CLCRunnersStats{"orchestrator": {AverageExecutionTime: 4000, IsClusterCheck: true}}
+	helm := helmConfig()
+	orchestrator := orchestratorConfig("configmaps")
+	d.store.idToDigest = map[checkid.ID]string{"helm": helm.Digest(), "orchestrator": orchestrator.Digest()}
+	d.store.digestToConfig = map[string]integration.Config{helm.Digest(): helm, orchestrator.Digest(): orchestrator}
+	d.store.digestToNode = map[string]string{helm.Digest(): "node1", orchestrator.Digest(): "node2"}
+
+	dist := d.currentDistribution()
+	require.Contains(t, dist.Configs, helm.Digest())
+	assert.False(t, dist.Configs[helm.Digest()].Pinned)
+	assert.False(t, dist.Configs[orchestrator.Digest()].Pinned)
+
+	requireNotLocked(t, d.store)
+}

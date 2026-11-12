@@ -54,6 +54,15 @@ update the store accordingly
   - re-dispatch orphaned configs
   - expose its state to the Handler
 
+#### Colocation groups
+
+When `orchestrator_explorer.helm_releases.configmaps.enabled` is set, the `helm` check and
+the `orchestrator` instances that run the ConfigMap collector (and so the Helm releases
+collector) watch the same Helm release objects. The dispatcher puts them on the same
+runner (see `colocationGroup` in `dispatcher_nodes.go`) so they share their informers, and the rebalancing doesn't
+move them. The group is ignored (and logged at debug level) when the checks can't share a runner
+(for example because they belong to different runner groups).
+
 ### clusterStore and nodeStore
 
 These classes hold the dispatching state and provide convenience methods to make sure the
