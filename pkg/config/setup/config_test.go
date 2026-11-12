@@ -853,6 +853,35 @@ logon_duration:
 		"explicit user logon_duration.enabled=false should override the EUD default")
 }
 
+// System-probe clears its env layer and applies the core config stream snapshot on startup,
+// which rebuilds the config from its layers. The end_user_device defaults must survive that,
+// otherwise the software_inventory module is never registered.
+func TestInfrastructureModeEndUserDeviceSurvivesLayerRebuild(t *testing.T) {
+	config := confFromYAML(t, `
+infrastructure_mode: end_user_device
+`)
+	applyInfrastructureModeOverrides(config)
+
+	control, ok := config.(pkgconfigmodel.EnvVarControl)
+	require.True(t, ok)
+	control.ClearEnvVars()
+
+	for _, key := range []string{
+		"software_inventory.enabled",
+		"notable_events.enabled",
+		"logon_duration.enabled",
+		"process_config.process_collection.enabled",
+	} {
+		assert.True(t, config.GetBool(key), "%s should stay enabled after a layer rebuild", key)
+		assert.Equal(t, pkgconfigmodel.SourceInfraMode, config.GetSource(key), key)
+	}
+
+	// The flare's runtime_config_dump.yaml is built from AllSettingsWithoutSecrets.
+	softwareInventory, ok := config.AllSettingsWithoutSecrets()["software_inventory"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, true, softwareInventory["enabled"])
+}
+
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
 		cfg := confFromYAML(t, `
