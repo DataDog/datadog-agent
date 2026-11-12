@@ -50,6 +50,8 @@ type forwarder struct {
 	log          log.Component
 	// httpErrors is the shared forwarder.http_errors counter (pkg/util/telemetry); tests swap in their own.
 	httpErrors telemetry.Counter
+	// errors is the shared forwarder.errors counter (pkg/util/telemetry); tests swap in their own.
+	errors telemetry.Counter
 }
 
 // Requires defines the dependencies for the forwarder.
@@ -69,6 +71,7 @@ func NewComponent(reqs Requires) forwarderdef.Component {
 		httpClient:   buildHTTPClient(reqs.Config),
 		log:          reqs.Log,
 		httpErrors:   utiltelemetry.ForwarderHTTPErrors,
+		errors:       utiltelemetry.ForwarderErrors,
 	}
 }
 
@@ -100,6 +103,7 @@ func (f *forwarder) Send(ctx context.Context, report *healthplatform.HealthRepor
 
 	resp, err := f.httpClient.Do(req)
 	if err != nil {
+		utiltelemetry.RecordForwarderTransportError(f.errors, forwarderName, f.intakeDomain, intakeEndpointName, err)
 		return 0, fmt.Errorf("send request: %w", err)
 	}
 	defer resp.Body.Close()

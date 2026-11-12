@@ -3,7 +3,10 @@ load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
 
 go_library(
     name = "telemetry",
-    srcs = ["forwarder.go"],
+    srcs = [
+        "forwarder.go",
+        "forwarder_errors.go",
+    ],
     importpath = "github.com/DataDog/datadog-agent/pkg/util/telemetry",
     visibility = ["//visibility:public"],
     deps = [
@@ -14,7 +17,10 @@ go_library(
 
 dd_agent_go_test(
     name = "telemetry_test",
-    srcs = ["forwarder_test.go"],
+    srcs = [
+        "forwarder_errors_test.go",
+        "forwarder_test.go",
+    ],
     embed = [":telemetry"],
     deps = [
         "//comp/core/telemetry/mock",
