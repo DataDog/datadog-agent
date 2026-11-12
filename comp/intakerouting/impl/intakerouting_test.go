@@ -10,7 +10,9 @@ package intakeroutingimpl
 import (
 	"context"
 	"errors"
+	"fmt"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -21,6 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	config "github.com/DataDog/datadog-agent/comp/core/config"
+	log "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logmock "github.com/DataDog/datadog-agent/comp/core/log/mock"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetrymock "github.com/DataDog/datadog-agent/comp/core/telemetry/mock"
@@ -292,6 +295,8 @@ func (f *fixture) register(reqs ...intakerouting.Request) intakerouting.Registra
 	return reg
 }
 
+// counter returns the non-zero values of a counter, by tag values. Every combination of tag values
+// is created at 0 up front, so the zero values are left out.
 func (f *fixture) counter(name string) map[string]float64 {
 	f.t.Helper()
 	metrics, err := f.tel.GetCountMetric(telemetrySubsystem, name)
@@ -300,6 +305,9 @@ func (f *fixture) counter(name string) map[string]float64 {
 	}
 	values := make(map[string]float64)
 	for _, m := range metrics {
+		if m.Value() == 0 {
+			continue
+		}
 		tags := m.Tags()
 		key := ""
 		for _, tag := range []string{"status", "telemetry_type", "direction", "reason"} {
@@ -385,15 +393,62 @@ func TestTelemetryNames(t *testing.T) {
 	}, labels)
 }
 
+// TestTelemetryInitializedToZero checks that enabling intake routing creates every metric, with every
+// combination of tag values at 0, before anything is registered.
+func TestTelemetryInitializedToZero(t *testing.T) {
+	tel := telemetrymock.New(t)
+	lc := compdef.NewTestLifecycle(t)
+	NewComponent(Requires{
+		Lc:        lc,
+		Config:    config.NewMockWithOverrides(t, map[string]interface{}{"intake_routing.enabled": true}),
+		Log:       logmock.New(t),
+		Telemetry: tel,
+	})
+	t.Cleanup(func() { require.NoError(t, lc.Stop(context.Background())) })
+
+	series := func(name string, tagNames ...string) []string {
+		get := tel.GetCountMetric
+		if name == "active_overrides" {
+			get = tel.GetGaugeMetric
+		}
+		metrics, err := get(telemetrySubsystem, name)
+		require.NoError(t, err, name)
+		var keys []string
+		for _, m := range metrics {
+			assert.Zero(t, m.Value(), "%s %v", name, m.Tags())
+			key := ""
+			for _, tag := range tagNames {
+				key += m.Tags()[tag] + ","
+			}
+			keys = append(keys, strings.TrimSuffix(key, ","))
+		}
+		return keys
+	}
+	assert.ElementsMatch(t, []string{statusSuccess, statusNotOffered, statusNetworkError, statusTimeout, statusHTTPError, statusInvalidResponse}, series("queries", "status"))
+	assert.ElementsMatch(t, []string{preflightSuccess, preflightFailure}, series("preflights", "status"))
+	assert.ElementsMatch(t, []string{"logs," + directionToEnhanced, "logs," + directionToDefault, "logs," + directionEnhancedToEnhanced}, series("switches", "telemetry_type", "direction"))
+	assert.ElementsMatch(t, []string{"logs," + rejectInvalidHost, "logs," + rejectAbsent}, series("rejected_answers", "telemetry_type", "reason"))
+	assert.ElementsMatch(t, []string{"logs," + pathPrivateAddress, "logs," + pathProxied, "logs," + pathLookupFailed}, series("skipped_endpoints", "telemetry_type", "reason"))
+	assert.ElementsMatch(t, []string{"logs"}, series("active_overrides", "telemetry_type"))
+}
+
 func TestDisabled(t *testing.T) {
 	lc := compdef.NewTestLifecycle(t)
+	tel := telemetrymock.New(t)
 	provides := NewComponent(Requires{
 		Lc:        lc,
 		Config:    config.NewMock(t),
 		Log:       logmock.New(t),
-		Telemetry: telemetrymock.New(t),
+		Telemetry: tel,
 	})
 	lc.AssertHooksNumber(0)
+
+	// No metric is created when intake routing is disabled.
+	families, err := tel.GetRegistry().Gather()
+	require.NoError(t, err)
+	for _, family := range families {
+		assert.NotContains(t, family.GetName(), telemetrySubsystem)
+	}
 
 	reg := provides.Comp.Register([]intakerouting.Request{logsRequest(defaultHost, testKey)})
 	assert.Equal(t, []intakerouting.Endpoint{defaultEndpoint}, reg.WaitInitial(context.Background()))
@@ -825,7 +880,7 @@ func TestIndirectDefaultIsNotQueried(t *testing.T) {
 			assertNotNotified(t, reg)
 			assert.Empty(t, f.client.queryCalls())
 			assert.Empty(t, f.client.preflightCalls())
-			assert.Nil(t, f.counter("queries"))
+			assert.Empty(t, f.counter("queries"))
 			assert.Equal(t, map[string]float64{"logs," + reason: 1}, f.counter("skipped_endpoints"))
 
 			// The skip settles the group: the default host is checked again one refresh later.
@@ -1016,4 +1071,132 @@ func TestStopCancelsInFlightQueries(t *testing.T) {
 func TestStopWithoutRegistration(t *testing.T) {
 	f := newFixture(t)
 	require.NoError(t, f.r.stop(context.Background()))
+}
+
+// debugRecorder is a logger that records its debug messages.
+type debugRecorder struct {
+	log.Component
+	mu       sync.Mutex
+	messages []string
+}
+
+func (r *debugRecorder) Debugf(format string, params ...interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.messages = append(r.messages, fmt.Sprintf(format, params...))
+}
+
+func (r *debugRecorder) Debug(v ...interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.messages = append(r.messages, fmt.Sprint(v...))
+}
+
+// take returns the debug messages recorded since the last call.
+func (r *debugRecorder) take() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	messages := r.messages
+	r.messages = nil
+	return messages
+}
+
+func newRecordingFixture(t *testing.T, opts ...func(*routerOptions)) (*fixture, *debugRecorder) {
+	recorder := &debugRecorder{Component: logmock.New(t)}
+	return newFixture(t, append([]func(*routerOptions){func(o *routerOptions) { o.log = recorder }}, opts...)...), recorder
+}
+
+func TestDebugLogsQueryLifecycle(t *testing.T) {
+	f, logs := newRecordingFixture(t)
+	answer := overrideResult(enhancedHost, 443)
+	answer.routes["metrics"] = routeAnswer{override: false}
+	f.client.setResult(answer)
+
+	reg := f.register(logsRequest(defaultHost, testKey))
+	assert.Equal(t, []string{
+		"Intake routing: registered the logs endpoint " + defaultHost + " (site datadoghq.com)",
+		"Intake routing: querying site datadoghq.com for 1 endpoint(s)",
+		"Intake routing: pre-flight check of " + enhancedHost + " passed",
+		"Intake routing: site datadoghq.com: answer logs: override " + enhancedHost + "; metrics: no override, next query in 1h0m0s",
+		"Intake routing: ignoring the entries of the answer for site datadoghq.com for telemetry types that no endpoint uses: metrics",
+		"Intake routing: active overrides: logs=1/1",
+	}, logs.take())
+
+	// The same answer on the next refresh leaves the endpoint where it is.
+	f.advance(testRefresh)
+	assert.Contains(t, logs.take(), "Intake routing: keeping the logs endpoint "+defaultHost+" on "+enhancedHost+": the override is already in use")
+
+	// So does an answer without an override, once back on the default.
+	f.client.setResult(noOverrideResult())
+	f.advance(testRefresh)
+	logs.take()
+	f.advance(testRefresh)
+	messages := logs.take()
+	assert.Contains(t, messages, "Intake routing: keeping the logs endpoint "+defaultHost+" on "+defaultHost+": the backend returned no override")
+	assert.Contains(t, messages, "Intake routing: active overrides: logs=0/1")
+
+	f.client.setResult(notOfferedResult())
+	f.advance(testRefresh)
+	assert.Contains(t, logs.take(), "Intake routing: site datadoghq.com: routing is not offered (HTTP 404), next query in 1h0m0s")
+
+	f.client.setResult(failedResult(statusNetworkError))
+	f.advance(testRefresh)
+	assert.Contains(t, logs.take(), "Intake routing: next query for site datadoghq.com in 1h0m0s")
+
+	reg.Close()
+	assert.Equal(t, []string{"Intake routing: no longer routing 1 endpoint(s), their registration was closed"}, logs.take())
+}
+
+func TestDebugLogsIndirectPath(t *testing.T) {
+	f, logs := newRecordingFixture(t)
+	f.paths.set(defaultHost, pathPrivateAddress)
+
+	f.register(logsRequest(defaultHost, testKey))
+	assert.Contains(t, logs.take(), "Intake routing: not querying site datadoghq.com, the Agent does not reach any of its 1 endpoint(s) directly (private_address)")
+
+	// The change was logged at Info; the next refreshes log at debug.
+	f.advance(testRefresh)
+	assert.Contains(t, logs.take(), "Intake routing: still not routing the logs endpoint "+defaultHost+" (private_address): not reached directly")
+}
+
+func TestDebugLogsAPIKeyReadiness(t *testing.T) {
+	f, logs := newRecordingFixture(t)
+	f.client.setResult(notOfferedResult())
+	var ready atomic.Bool
+	req := logsRequest(defaultHost, testKey)
+	req.APIKey = func() (string, bool) { return testKey, ready.Load() }
+
+	f.register(req)
+	notReady := "Intake routing: the API key of the logs endpoint " + defaultHost + " is not ready, the endpoint is not routed until it is"
+	assert.Contains(t, logs.take(), notReady)
+
+	// Logged once per change, not on every recheck.
+	f.advance(testKeyRecheck)
+	assert.NotContains(t, logs.take(), notReady)
+
+	ready.Store(true)
+	f.advance(testKeyRecheck)
+	assert.Contains(t, logs.take(), "Intake routing: the API key of the logs endpoint "+defaultHost+" is ready, routing it")
+}
+
+func TestDebugLogsGraceElapsed(t *testing.T) {
+	f, logs := newRecordingFixture(t)
+	f.client.gate = make(chan struct{})
+	defer close(f.client.gate)
+
+	reg := f.r.Register([]intakerouting.Request{logsRequest(defaultHost, testKey)})
+	f.clock.Add(testGrace)
+	reg.WaitInitial(context.Background())
+	assert.Contains(t, logs.take(), "Intake routing: the startup grace period (1s) elapsed before every endpoint had its first routing decision, starting on the current endpoints")
+}
+
+func TestDebugLogsNoGraceMessageWhenDecided(t *testing.T) {
+	f, logs := newRecordingFixture(t)
+	f.client.setResult(notOfferedResult())
+
+	reg := f.register(logsRequest(defaultHost, testKey))
+	reg.WaitInitial(context.Background())
+	for _, message := range logs.take() {
+		assert.NotContains(t, message, "startup grace period")
+	}
 }

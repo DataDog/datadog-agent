@@ -9,6 +9,8 @@ package agentimpl
 
 import (
 	"context"
+	"net"
+	"strconv"
 
 	intakerouting "github.com/DataDog/datadog-agent/comp/intakerouting/def"
 	"github.com/DataDog/datadog-agent/comp/logs/agent/config"
@@ -54,7 +56,20 @@ func (a *logAgent) registerIntakeRouting(base *config.Endpoints) (intakerouting.
 	if a.intakeRouting == nil {
 		return nil, nil
 	}
-	indices := base.LogsIntakeRoutingCandidates()
+	if !base.UseHTTP {
+		a.log.Debugf("Intake routing: not routing the %d logs endpoint(s), they are not sent over HTTP", len(base.Endpoints))
+		return nil, nil
+	}
+	var indices []int
+	for i := range base.Endpoints {
+		endpoint := &base.Endpoints[i]
+		if reason := endpoint.LogsIntakeRoutingExclusion(); reason != "" {
+			a.log.Debugf("Intake routing: logs endpoint #%d (%s) is not eligible: %s", i, endpointAddress(endpoint), reason)
+			continue
+		}
+		a.log.Debugf("Intake routing: logs endpoint #%d (%s) is eligible", i, endpointAddress(endpoint))
+		indices = append(indices, i)
+	}
 	if len(indices) == 0 {
 		return nil, nil
 	}
@@ -136,6 +151,15 @@ func (a *logAgent) onIntakeRoutingChange(reg intakerouting.Registration) {
 func (a *logAgent) closeIntakeRoutingLocked() {
 	a.routing.close()
 	a.routing = intakeRoutingState{}
+}
+
+// endpointAddress returns the host of an endpoint, with its port when one is set, for logs. It never
+// includes the API key.
+func endpointAddress(e *config.Endpoint) string {
+	if e.Port == 0 {
+		return e.Host
+	}
+	return net.JoinHostPort(e.Host, strconv.Itoa(e.Port))
 }
 
 // sameHosts reports whether a and b send to the same hosts and ports.

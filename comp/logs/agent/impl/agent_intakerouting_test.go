@@ -9,7 +9,10 @@ package agentimpl
 
 import (
 	"context"
+	"fmt"
 	"maps"
+	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -307,6 +310,68 @@ func TestIntakeRoutingAdditionalEndpoints(t *testing.T) {
 		defer agent.restartMutex.Unlock()
 		return agent.endpoints.Endpoints[2].Host == euHost
 	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// debugRecorder is a logger that records its debug messages.
+type debugRecorder struct {
+	log.Component
+	mu       sync.Mutex
+	messages []string
+}
+
+func (r *debugRecorder) Debugf(format string, params ...interface{}) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.messages = append(r.messages, fmt.Sprintf(format, params...))
+}
+
+func (r *debugRecorder) debugMessages() []string {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return slices.Clone(r.messages)
+}
+
+func TestIntakeRoutingLogsEndpointEligibility(t *testing.T) {
+	routing := intakeroutingmock.New()
+	agent := newIntakeRoutingTestAgent(t, routing, map[string]interface{}{
+		"logs_config.force_use_http": true,
+		"logs_config.additional_endpoints": `[
+			{"api_key": "fedcba9876543210fedcba9876543210", "host": "foobar.logs.datad0g.com"},
+			{"api_key": "fedcba9876543210fedcba9876543210", "host": "logs.example.com"},
+			{"api_key": "fedcba9876543210fedcba9876543210", "host": "agent-http-intake.logs.datadoghq.eu", "port": 8443}
+		]`,
+	})
+	recorder := &debugRecorder{Component: agent.log}
+	agent.log = recorder
+	base := buildHTTPTestEndpoints(t, agent)
+	require.Len(t, base.Endpoints, 4)
+
+	startOn(t, agent, base)
+	agent.restartMutex.Lock()
+	indices := agent.routing.indices
+	agent.restartMutex.Unlock()
+	assert.Equal(t, []int{0, 1}, indices)
+	assert.Len(t, routing.Requests(), 2)
+	assert.Subset(t, recorder.debugMessages(), []string{
+		"Intake routing: logs endpoint #0 (" + base.Main.Host + ") is eligible",
+		"Intake routing: logs endpoint #1 (foobar.logs.datad0g.com) is eligible",
+		"Intake routing: logs endpoint #2 (logs.example.com) is not eligible: its host is not an official Datadog logs intake host (<name>.logs.<site>)",
+		"Intake routing: logs endpoint #3 (agent-http-intake.logs.datadoghq.eu:8443) is not eligible: it uses port 8443 instead of 443",
+	})
+}
+
+func TestIntakeRoutingLogsTCPEndpoints(t *testing.T) {
+	routing := intakeroutingmock.New()
+	agent := newIntakeRoutingTestAgent(t, routing, map[string]interface{}{"logs_config.force_use_tcp": true})
+	recorder := &debugRecorder{Component: agent.log}
+	agent.log = recorder
+	endpoints, err := config.BuildEndpointsWithVectorOverride(agent.config, config.HTTPConnectivitySuccess, intakeTrackType, config.AgentJSONIntakeProtocol, config.DefaultIntakeOrigin)
+	require.NoError(t, err)
+	require.False(t, endpoints.UseHTTP)
+
+	startOn(t, agent, endpoints)
+	assert.Empty(t, routing.Requests())
+	assert.Contains(t, recorder.debugMessages(), "Intake routing: not routing the 1 logs endpoint(s), they are not sent over HTTP")
 }
 
 func TestIntakeRoutingSkipsTCP(t *testing.T) {
