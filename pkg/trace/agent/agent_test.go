@@ -774,6 +774,58 @@ func TestProcess(t *testing.T) {
 		assert.Equal(t, "something_that_should_be_a_metric", resultSpan.Service())
 	})
 
+	t.Run("TraceIDZero", func(t *testing.T) {
+		// A zero trace ID drops the chunk and is counted the same way in both pipelines.
+		cfg := config.New()
+		cfg.Endpoints[0].APIKey = "test"
+		ctx, cancel := context.WithCancel(context.Background())
+		defer cancel()
+
+		t.Run("legacy", func(t *testing.T) {
+			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+			ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+			span := testutil.GetTestSpan()
+			span.TraceID = 0
+			agnt.Process(&api.Payload{
+				TracerPayload: testutil.TracerPayloadWithChunk(testutil.TraceChunkWithSpanAndPriority(span, 2)),
+				Source:        ts,
+			})
+			assert.Empty(t, agnt.TraceWriter.(*mockTraceWriter).payloads)
+			assert.EqualValues(t, 1, ts.TracesDropped.TraceIDZero.Load())
+			assert.EqualValues(t, 1, ts.SpansDropped.Load())
+		})
+
+		t.Run("v1", func(t *testing.T) {
+			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+			ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+			strings := idx.NewStringTable()
+			chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+			chunk.TraceID = make([]byte, 16)
+			agnt.ProcessV1(&api.PayloadV1{
+				TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+				Source:        ts,
+			})
+			assert.Empty(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1)
+			assert.EqualValues(t, 1, ts.TracesDropped.TraceIDZero.Load())
+			assert.EqualValues(t, 1, ts.SpansDropped.Load())
+		})
+
+		t.Run("v1-low-64-bits-zero-kept", func(t *testing.T) {
+			// All 128 bits are checked: a trace ID with only its low-order 64 bits zero is valid.
+			agnt := NewTestAgent(ctx, cfg, telemetry.NewNoopCollector())
+			ts := agnt.Receiver.Stats.GetTagStats(info.Tags{})
+			strings := idx.NewStringTable()
+			chunk := testutil.TraceChunkV1WithSpanAndPriority(testutil.GetTestSpanV1(strings), 2)
+			chunk.TraceID = []byte{1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0}
+			agnt.ProcessV1(&api.PayloadV1{
+				TracerPayload: testutil.TracerPayloadV1WithChunk(chunk),
+				Source:        ts,
+			})
+			assert.Len(t, agnt.TraceWriterV1.(*mockTraceWriter).payloadsV1, 1)
+			assert.EqualValues(t, 0, ts.TracesDropped.TraceIDZero.Load())
+		})
+	})
+
 	t.Run("normalizingV1-NamesAreKept", func(t *testing.T) {
 		cfg := config.New()
 		cfg.Endpoints[0].APIKey = "test"

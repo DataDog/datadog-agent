@@ -1039,7 +1039,6 @@ func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
 		tid  []byte
 		want []byte
 	}{
-		{"empty", []byte{}, make([]byte, 16)},
 		{"short", []byte{1, 2, 3, 4}, []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}},
 		{"exact", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
 		{"overlong", []byte{99, 99, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}},
@@ -1062,6 +1061,46 @@ func TestNormalizeTraceChunkV1TraceIDLength(t *testing.T) {
 				_ = chunk.LegacyTraceID()
 				_ = chunk.TraceID[:8]
 			})
+		})
+	}
+}
+
+// TestNormalizeTraceChunkV1TraceIDZero verifies that, like the legacy normalize, normalizeTraceChunkV1
+// drops a chunk whose trace ID is zero and counts it as TraceIDZero. All 128 bits are checked: an ID
+// whose low-order 64 bits are zero is a valid W3C/OTel trace ID and is kept.
+func TestNormalizeTraceChunkV1TraceIDZero(t *testing.T) {
+	cases := []struct {
+		name     string
+		tid      []byte
+		wantDrop bool
+	}{
+		{"all-zero", make([]byte, 16), true},
+		{"empty", []byte{}, true},
+		{"nil", nil, true},
+		{"short-zero", []byte{0, 0, 0, 0}, true},
+		{"low-64-bits-zero", []byte{1, 2, 3, 4, 5, 6, 7, 8, 0, 0, 0, 0, 0, 0, 0, 0}, false},
+		{"high-64-bits-zero", []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1}, false},
+		{"normal", []byte{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16}, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			a := &Agent{conf: config.New()}
+			ts := newTagStats()
+			st := idx.NewStringTable()
+			chunk := &idx.InternalTraceChunk{
+				Strings: st,
+				TraceID: tc.tid,
+				Spans:   []*idx.InternalSpan{newTestSpanV1(st)},
+			}
+			err := a.normalizeTraceChunkV1(ts, chunk)
+			if tc.wantDrop {
+				require.Error(t, err)
+				assert.Contains(t, err.Error(), "reason:trace_id_zero")
+				assert.Equal(t, tsDropped(&info.TracesDropped{TraceIDZero: *atomic.NewInt64(1)}), ts)
+				return
+			}
+			require.NoError(t, err)
+			assert.Equal(t, newTagStats(), ts)
 		})
 	}
 }
