@@ -361,6 +361,7 @@ archive_override(
         "//bazel/patches:gcc-toolchain/0002-fix-c-x86_64-header-locations-with-our-ctng-toolchai.patch",
         "//bazel/patches:gcc-toolchain/0003-add-nostdinc-to-asmflags.patch",
         "//bazel/patches:gcc-toolchain/0006-independent-exec-target-arch.patch",
+        "//bazel/patches:gcc-toolchain/0007-link-cxx-against-libstdcxx-by-default.patch",  # f0rmiga/gcc-toolchain#221
     ],
     sha256 = "9602cf9a7f854a9a70758e6eac241e269996d2a1eb941479e8886f4ccf127412",
     strip_prefix = "gcc-toolchain-0.12.1",
