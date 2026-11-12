@@ -36,36 +36,43 @@ func WithRootNS(procRoot string, fn func() error) error {
 	return WithNS(rootNS, fn)
 }
 
+// setNS is a variable so tests can make restoring the namespace fail.
+var setNS = netns.Set
+
 // WithNS executes the given function in the given network namespace, and then
 // switches back to the previous namespace.
-func WithNS(ns netns.NsHandle, fn func() error) error {
+func WithNS(ns netns.NsHandle, fn func() error) (err error) {
 	if ns == netns.None() {
 		return fn()
 	}
 
 	runtime.LockOSThread()
-	defer runtime.UnlockOSThread()
 
 	prevNS, err := netns.Get()
 	if err != nil {
+		runtime.UnlockOSThread()
 		return err
 	}
 	defer prevNS.Close()
 
 	if ns.Equal(prevNS) {
+		defer runtime.UnlockOSThread()
 		return fn()
 	}
 
-	if err := netns.Set(ns); err != nil {
+	if err := setNS(ns); err != nil {
+		runtime.UnlockOSThread()
 		return err
 	}
 
-	fnErr := fn()
-	nsErr := netns.Set(prevNS)
-	if fnErr != nil {
-		return fnErr
-	}
-	return nsErr
+	// Deferred so the namespace is also restored if fn panics.
+	defer func() {
+		if nsErr := setNS(prevNS); nsErr != nil {
+			err = errors.Join(err, fmt.Errorf("restoring network namespace: %w", nsErr))
+		}
+		runtime.UnlockOSThread()
+	}()
+	return fn()
 }
 
 // GetNetNamespaces returns a list of network namespaces on the machine. The caller
