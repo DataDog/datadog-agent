@@ -3,9 +3,13 @@
 <plist version="1.0">
     <dict>
         <key>Label</key>
-        <string>com.datadoghq.installer</string>
+        <string>com.datadoghq.installer{{.LabelSuffix}}</string>
+{{- /* Only the stable daemon starts at load and is relaunched by launchd: a reboot
+       mid-experiment brings back only the stable daemon, which resumes the experiment, and an
+       experiment daemon that exits stays down, so the watcher reverts the experiment. */}}
         <key>RunAtLoad</key>
-        <true/>
+        <{{if .Supervised}}true{{else}}false{{end}}/>
+{{- if .Supervised}}
 {{- /* SuccessfulExit false: a clean exit is respected, so the daemon can exit 0 when it is not
        enabled without launchd relaunching it, while a crash is relaunched. */}}
         <key>KeepAlive</key>
@@ -13,10 +17,17 @@
             <key>SuccessfulExit</key>
             <false/>
         </dict>
+{{- end}}
         <key>EnvironmentVariables</key>
         <dict>
             <key>DD_LOG_TO_CONSOLE</key>
             <string>false</string>
+{{- if not .Stable}}
+{{- /* Tells the daemon, and the installer commands and hooks it runs, that it is the
+       experiment's daemon rather than the stable one. */}}
+            <key>DD_INSTALLER_EXPERIMENT_DAEMON</key>
+            <string>true</string>
+{{- end}}
         </dict>
 {{- /* The pidfile goes in the Agent's run directory, next to the daemon's socket, as on Linux. */}}
         <key>ProgramArguments</key>
@@ -29,9 +40,9 @@
             <string>{{.RunDir}}/installer.pid</string>
         </array>
         <key>StandardOutPath</key>
-        <string>{{.LogDir}}/launchd_installer.log</string>
+        <string>{{.LogDir}}/launchd_installer{{.LabelSuffix}}.log</string>
         <key>StandardErrorPath</key>
-        <string>{{.LogDir}}/launchd_installer.log</string>
+        <string>{{.LogDir}}/launchd_installer{{.LabelSuffix}}.log</string>
         <key>ExitTimeOut</key>
         <integer>10</integer>
         <key>UserName</key>
