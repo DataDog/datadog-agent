@@ -454,29 +454,65 @@ func deductAndUpdatePrevValue(key string, prevPromMetricValues map[string]uint64
 	prevPromMetricValues[key] = origCurValue
 }
 
-func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
-	if len(metrics) > 0 {
-		bucketCount := len(metrics[0].Histogram.GetBucket())
-		var prevValue uint64
-
-		for i, m := range metrics {
-			// 1. deduct the previous cumulative count from each explicit  buckets
-			for j, b := range m.Histogram.GetBucket() {
-				deductAndUpdatePrevValue(keyNames[(i*(bucketCount+1))+j], prevPromMetricValues, b.CumulativeCount)
-			}
-			// 2. deduct the previous cumulative count from the implicit  "+Inf" bucket
-			deductAndUpdatePrevValue(keyNames[((i+1)*(bucketCount+1))-1], prevPromMetricValues, m.Histogram.SampleCount)
-
-			// 3. "De-cumulate" next explicit bucket value from the preceding bucket value
-			prevValue = 0
-			for _, b := range m.Histogram.GetBucket() {
-				curValue := b.GetCumulativeCount()
-				*b.CumulativeCount -= prevValue
-				prevValue = curValue
-			}
-			// 4. "De-cumulate" implicit "+Inf" bucket value from the preceding bucket value
-			*m.Histogram.SampleCount -= prevValue
+// histogramSeriesWasReset reports whether the growth since the previous reading of a histogram timeseries is not
+// meaningful, so that the reading must be reported as it is (like counters do, see
+// convertPromCountersToDatadogCountersValues). That is the case when a cumulative count went down, because the producer
+// restarted, or when only some of the buckets have a previous reading, because the producer now reports different
+// buckets. The first reading of a timeseries has no previous reading at all and is not a reset.
+func histogramSeriesWasReset(buckets []*dto.Bucket, sampleCount uint64, seriesKeys []string, prevPromMetricValues map[string]uint64) bool {
+	known := 0
+	reset := false
+	for j, b := range buckets {
+		if prevValue, ok := prevPromMetricValues[seriesKeys[j]]; ok {
+			known++
+			reset = reset || b.GetCumulativeCount() < prevValue
 		}
+	}
+	// the implicit "+Inf" bucket is the last key of the timeseries
+	if prevValue, ok := prevPromMetricValues[seriesKeys[len(buckets)]]; ok {
+		known++
+		reset = reset || sampleCount < prevValue
+	}
+	return reset || (known != 0 && known != len(seriesKeys))
+}
+
+func convertPromHistogramsToDatadogHistogramsValues(metrics []*dto.Metric, prevPromMetricValues map[string]uint64, keyNames []string) {
+	// keyNames holds, for each timeseries, the key of each explicit bucket followed by the key of the implicit "+Inf"
+	// bucket. Timeseries can have different numbers of buckets, so the keys are walked with a running offset.
+	offset := 0
+	var prevValue uint64
+
+	for _, m := range metrics {
+		buckets := m.Histogram.GetBucket()
+		seriesKeys := keyNames[offset : offset+len(buckets)+1]
+		offset += len(buckets) + 1
+
+		reset := histogramSeriesWasReset(buckets, m.Histogram.GetSampleCount(), seriesKeys, prevPromMetricValues)
+
+		// 1. deduct the previous cumulative count from each explicit  buckets
+		for j, b := range buckets {
+			if reset {
+				prevPromMetricValues[seriesKeys[j]] = b.GetCumulativeCount()
+			} else {
+				deductAndUpdatePrevValue(seriesKeys[j], prevPromMetricValues, b.CumulativeCount)
+			}
+		}
+		// 2. deduct the previous cumulative count from the implicit  "+Inf" bucket
+		if reset {
+			prevPromMetricValues[seriesKeys[len(buckets)]] = m.Histogram.GetSampleCount()
+		} else {
+			deductAndUpdatePrevValue(seriesKeys[len(buckets)], prevPromMetricValues, m.Histogram.SampleCount)
+		}
+
+		// 3. "De-cumulate" next explicit bucket value from the preceding bucket value
+		prevValue = 0
+		for _, b := range buckets {
+			curValue := b.GetCumulativeCount()
+			*b.CumulativeCount -= prevValue
+			prevValue = curValue
+		}
+		// 4. "De-cumulate" implicit "+Inf" bucket value from the preceding bucket value
+		*m.Histogram.SampleCount -= prevValue
 	}
 }
 
