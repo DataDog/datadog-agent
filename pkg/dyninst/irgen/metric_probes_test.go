@@ -179,6 +179,12 @@ func TestMetricProbesAtReturn(t *testing.T) {
 						}
 					}
 					require.NotNil(t, metric)
+					switch tc.name {
+					case "return":
+						require.Equal(t, ir.MetricValueSigned, metric.GaugeValueEncoding)
+					case "duration":
+						require.Equal(t, ir.MetricValueDuration, metric.GaugeValueEncoding)
+					}
 					for _, inst := range metric.Instances {
 						require.Len(t, inst.Events, 2)
 						require.Equal(t, ir.EventKindEntry, inst.Events[0].Kind)

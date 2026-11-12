@@ -269,7 +269,9 @@ the many other implementations unchanged.
   selected event, under `RootExpressionKindMetricValue`. Install-time
   issues are recorded on the analyzed probe and reported by
   `populateInstanceExpressions`, as condition issues are.
-- After resolution, the value's Go kind is checked against the table above.
+- After resolution, a shared value encoding is used to check the value's type
+  against the table above and compile its BPF update. A gauge's encoding is
+  validated across instances and stored on the IR probe for the reporter.
 - The runtime.recovery probe is added when return-time metrics require panic
   unwinding cleanup, as it is for other probes with return events.
 
@@ -326,11 +328,11 @@ which mirrors `Program.RuntimeStats()`. `types_linux.go` is regenerated with
 A module-level `metricsReporter` with a single goroutine:
 
 - **Registration.** `runtimeImpl.Load` registers programs that contain metric
-  probes. It passes the loaded program, each probe's kind, name, value type and
+  probes. It passes the loaded program, each probe's kind, name, gauge encoding and
   tags, the process identity (service/env/version, container ID), and a logs
   uploader for evaluation-error events.
 - **Each tick** (2s), for each registered program:
-  - read `MetricStates()` and diff against the previous read;
+  - read `MetricStates()` and diff against each probe's previous state;
   - send counts and gauges;
   - mark probes EMITTING;
   - send rate-limited evaluation-error events.

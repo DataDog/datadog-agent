@@ -79,6 +79,9 @@ func metricProbe(id, kind, name string, tags []string, valueKind reflect.Kind) *
 		Instances: []ir.ProbeInstance{{
 			Events: []*ir.Event{{Kind: ir.EventKindEntry, Type: rootType}},
 		}},
+		GaugeValueEncoding: ir.MetricEncoding(&ir.BaseType{
+			GoTypeAttributes: ir.GoTypeAttributes{GoKind: valueKind},
+		}),
 	}
 }
 
@@ -214,6 +217,36 @@ func TestMetricsReporterEmittingBeforeLastReport(t *testing.T) {
 	<-lastReport
 }
 
+func TestMetricsReporterMissingStates(t *testing.T) {
+	client := &fakeMetricsClient{}
+	r := newMetricsReporter(client, time.Hour, nil, nil)
+	defer r.close()
+	program := &ir.Program{Probes: []*ir.Probe{
+		metricProbe("first", "COUNT", "first", nil, reflect.Invalid),
+		metricProbe("second", "COUNT", "second", nil, reflect.Invalid),
+	}}
+	states := []loader.MetricState{{Sum: 2, Updates: 1}, {Sum: 3, Updates: 1}}
+	r.register(1, program, func() []loader.MetricState { return states }, procRuntimeID{}, nil)
+	r.reportAll()
+	require.Len(t, client.take(), 2)
+
+	states = nil
+	r.reportAll()
+	require.Empty(t, client.take())
+	states = []loader.MetricState{{Sum: 4, Updates: 2}}
+	r.reportAll()
+	metrics := client.take()
+	require.Len(t, metrics, 1)
+	require.Equal(t, float64(2), metrics[0].value)
+
+	states = append(states, loader.MetricState{Sum: 8, Updates: 2})
+	r.reportAll()
+	metrics = client.take()
+	require.Len(t, metrics, 1)
+	require.Equal(t, metricProbeNamePrefix+"second", metrics[0].name)
+	require.Equal(t, float64(5), metrics[0].value)
+}
+
 func TestMetricsReporterPodTag(t *testing.T) {
 	client := &fakeMetricsClient{}
 	// The container isn't known to workloadmeta at first.
@@ -336,35 +369,31 @@ func TestMetricsReporterEvalErrors(t *testing.T) {
 	require.True(t, uploader.closed)
 }
 
-func TestGaugeValueDecoder(t *testing.T) {
+func TestMetricsReporterGaugeValues(t *testing.T) {
 	for _, tc := range []struct {
-		kind reflect.Kind
-		bits uint64
-		want float64
+		encoding ir.MetricValueEncoding
+		bits     uint64
+		want     float64
 	}{
-		{reflect.Float64, math.Float64bits(-3.25), -3.25},
-		{reflect.Float32, uint64(math.Float32bits(2.5)), 2.5},
-		// The BPF program sign-extends signed integers.
-		{reflect.Int8, uint64(math.MaxUint64), -1},
-		{reflect.Int64, uint64(1 << 40), 1 << 40},
-		{reflect.Uint32, math.MaxUint32, math.MaxUint32},
-		{reflect.Bool, 1, 1},
+		{ir.MetricValueFloat64, math.Float64bits(-3.25), -3.25},
+		{ir.MetricValueFloat32, uint64(math.Float32bits(2.5)), 2.5},
+		{ir.MetricValueSigned, math.MaxUint64, -1},
+		{ir.MetricValueUnsigned, math.MaxUint32, math.MaxUint32},
+		{ir.MetricValueDuration, 1250000, 1.25},
 	} {
-		decode := gaugeValueDecoder(metricProbe("p", "GAUGE", "m", nil, tc.kind))
-		require.Equal(t, tc.want, decode(tc.bits), "%v", tc.kind)
+		client := &fakeMetricsClient{}
+		r := newMetricsReporter(client, time.Hour, nil, nil)
+		probe := metricProbe("p", "GAUGE", "m", nil, reflect.Invalid)
+		probe.GaugeValueEncoding = tc.encoding
+		r.register(1, &ir.Program{Probes: []*ir.Probe{probe}}, func() []loader.MetricState {
+			return []loader.MetricState{{Value: tc.bits, Updates: 1}}
+		}, procRuntimeID{}, nil)
+		r.reportAll()
+		r.close()
+		metrics := client.take()
+		require.Len(t, metrics, 1)
+		require.Equal(t, tc.want, metrics[0].value, "%v", tc.encoding)
 	}
-}
-
-func TestReturnGaugeValueDecoder(t *testing.T) {
-	probe := metricProbe("p", "GAUGE", "m", nil, reflect.Int64)
-	value := probe.Instances[0].Events[0].Type.Expressions[0]
-	probe.Instances[0].Events = []*ir.Event{
-		{Kind: ir.EventKindEntry, Type: &ir.EventRootType{}},
-		{Kind: ir.EventKindReturn, Type: &ir.EventRootType{Expressions: []*ir.RootExpression{value}}},
-	}
-	require.Equal(t, float64(-1), gaugeValueDecoder(probe)(math.MaxUint64))
-	value.Expression.Type = &ir.DurationType{}
-	require.Equal(t, 1.25, gaugeValueDecoder(probe)(1250000))
 }
 
 func TestSanitizeMetricNameAndTags(t *testing.T) {

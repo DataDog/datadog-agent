@@ -9,8 +9,6 @@ package module
 
 import (
 	"fmt"
-	"math"
-	"reflect"
 	"strings"
 	"sync"
 	"time"
@@ -66,8 +64,6 @@ type metricsProgram struct {
 	// readStates reads the probes' state from the program's metrics_buf.
 	readStates func() []loader.MetricState
 	probes     []*reportedMetricProbe
-	// last is the state read by the previous report, indexed by probe ID.
-	last []loader.MetricState
 	// containerID is the ID of the target process's container, if any.
 	containerID string
 	// containerResolved is set once the container has been found in
@@ -90,6 +86,7 @@ type reportedMetricProbe struct {
 	// the BPF program, to the reported value.
 	gaugeValue func(bits uint64) float64
 	emitting   bool
+	last       loader.MetricState
 
 	// The DSL of the probe's value and condition, for evaluation errors.
 	valueDSL string
@@ -178,7 +175,7 @@ func (r *metricsReporter) register(
 			kind:       mp.GetMetricKind(),
 			name:       metricProbeNamePrefix + sanitizeMetricName(mp.GetMetricName()),
 			tags:       metricProbeTags(probe.ProbeDefinition, runtimeID),
-			gaugeValue: gaugeValueDecoder(probe),
+			gaugeValue: probe.GaugeValueEncoding.Float64,
 			valueDSL:   valueDSL,
 			whenDSL:    mp.GetWhenDSL(),
 		})
@@ -245,15 +242,12 @@ func (r *metricsReporter) reportAll() {
 func (r *metricsReporter) reportLocked(p *metricsProgram) (newlyEmitting []*reportedMetricProbe) {
 	r.resolveContainerLocked(p)
 	states := p.readStates()
-	if len(p.last) < len(states) {
-		p.last = append(p.last, make([]loader.MetricState, len(states)-len(p.last))...)
-	}
 	for _, probe := range p.probes {
 		if int(probe.probeID) >= len(states) {
 			continue
 		}
-		cur, prev := states[probe.probeID], p.last[probe.probeID]
-		p.last[probe.probeID] = cur
+		cur, prev := states[probe.probeID], probe.last
+		probe.last = cur
 		r.reportEvalErrorsLocked(p, probe, cur, prev)
 		// The BPF program updates the sum or value and the update count
 		// separately, so a read can see one change without the other. A probe
@@ -419,42 +413,6 @@ func metricProbeTags(def ir.ProbeDefinition, runtimeID procRuntimeID) []string {
 	}
 	// Override the client's DD_ENTITY_ID until the target pod is known.
 	return append(tags, "dd.internal.entity_id:none")
-}
-
-// gaugeValueDecoder returns the function that converts the bits of a gauge
-// probe's value, as recorded by the BPF program, to the reported value. The
-// BPF program sign-extends signed integers to 64 bits and records floats as
-// their raw bits.
-//
-// IR generation ensures that every instance uses the same value encoding.
-func gaugeValueDecoder(probe *ir.Probe) func(bits uint64) float64 {
-	var goKind reflect.Kind
-	if len(probe.Instances) > 0 {
-		for _, event := range probe.Instances[0].Events {
-			if event.Type == nil {
-				continue
-			}
-			for _, expr := range event.Type.Expressions {
-				if expr.Kind != ir.RootExpressionKindMetricValue {
-					continue
-				}
-				if _, duration := expr.Expression.Type.(*ir.DurationType); duration {
-					return func(bits uint64) float64 { return float64(int64(bits)) / float64(time.Millisecond) }
-				}
-				goKind, _ = expr.Expression.Type.GetGoKind()
-			}
-		}
-	}
-	switch goKind {
-	case reflect.Float32:
-		return func(bits uint64) float64 { return float64(math.Float32frombits(uint32(bits))) }
-	case reflect.Float64:
-		return math.Float64frombits
-	case reflect.Int, reflect.Int8, reflect.Int16, reflect.Int32, reflect.Int64:
-		return func(bits uint64) float64 { return float64(int64(bits)) }
-	default:
-		return func(bits uint64) float64 { return float64(bits) }
-	}
 }
 
 // sanitizeMetricName replaces the characters that don't belong in metric
