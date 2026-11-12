@@ -3037,7 +3037,7 @@ func TestDefaultProfilesDoNotListMandatoryEmitter(t *testing.T) {
 		{name: "transactions.input_bytes", preserveTags: []string{"domain", "endpoint"}},
 		{name: "transactions.success", preserveTags: []string{"domain", "endpoint", "proto_version"}, aggregateTotal: false},
 		{name: "transactions.success_bytes", preserveTags: []string{"domain", "endpoint"}, aggregateTotal: false},
-		{name: "transactions.http_errors", preserveTags: []string{"code", "endpoint", "forwarder"}},
+		{name: "transactions.http_errors", preserveTags: []string{"code", "endpoint"}},
 	} {
 		t.Run(testCase.name, func(t *testing.T) {
 			metric := metricsByName[testCase.name]

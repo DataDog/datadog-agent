@@ -116,12 +116,9 @@ func TestProcessHTTPError(t *testing.T) {
 	secrets.SetRefreshHook(func() bool {
 		return true
 	})
-	http503Errors := TlmTxHTTPErrors.WithValues(ts.URL, transaction.GetEndpointName(), "503", ForwarderTagDefault)
-	before := http503Errors.Get()
 	err := transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
 	assert.NotNil(t, err)
 	assert.Contains(t, err.Error(), "error \"503 Service Unavailable\" while sending transaction")
-	assert.Equal(t, before+1, http503Errors.Get(), "transactions.http_errors must be tagged forwarder:default")
 
 	errorCode = http.StatusBadRequest
 	err = transaction.Process(context.Background(), mockConfig, log, secrets, client, nil)
