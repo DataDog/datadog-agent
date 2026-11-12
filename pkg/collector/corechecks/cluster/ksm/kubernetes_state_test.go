@@ -2151,6 +2151,32 @@ func TestResourceClaimCreatedMetricAllowed(t *testing.T) {
 	assert.False(t, isIncluded)
 }
 
+func TestRolloutTrackerFamiliesAllowed(t *testing.T) {
+	// Regression test: the rollout-tracker families emit no metrics, so they
+	// appear in none of the maps the allow-list is derived from. Their
+	// generators only populate the rollout tracker (StoreReplicaSet,
+	// StoreControllerRevision, StoreDaemonSetControllerRevision) that the
+	// rollout-duration transformers read; without an explicit entry the
+	// generator filter drops them and rollout durations start at
+	// observation time instead of revision-creation time.
+	check := newKSMCheckWithLabelJoins(t)
+	allowDenyList, err := allowdenylist.New(check.buildAllowedMetricsSet(), options.MetricSet{})
+	require.NoError(t, err)
+	require.NoError(t, allowDenyList.Parse())
+
+	for _, family := range []string{
+		customresources.ReplicaSetRolloutTrackerFamily,
+		customresources.ControllerRevisionRolloutTrackerFamily,
+	} {
+		isIncluded, err := allowDenyList.IsIncluded(family)
+		require.NoError(t, err)
+		assert.True(t, isIncluded, family)
+		isExcluded, err := allowDenyList.IsExcluded(family)
+		require.NoError(t, err)
+		assert.False(t, isExcluded, family)
+	}
+}
+
 func TestKSMCheckInitTags(t *testing.T) {
 	type fields struct {
 		instance    *KSMConfig

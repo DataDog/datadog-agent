@@ -1821,6 +1821,12 @@ func (k *KSMCheck) buildAllowedMetricsSet() options.MetricSet {
 	for name := range k.instance.labelJoins {
 		allowedMetrics["^"+name+"$"] = struct{}{}
 	}
+	// The rollout-tracker families emit no metrics, so they appear in none of
+	// the maps above, but their generators populate the rollout tracker that
+	// the rollout-duration transformers read. Keep them allowed or the
+	// generator filter drops them before the side effects run.
+	allowedMetrics["^"+customresources.ReplicaSetRolloutTrackerFamily+"$"] = struct{}{}
+	allowedMetrics["^"+customresources.ControllerRevisionRolloutTrackerFamily+"$"] = struct{}{}
 	return allowedMetrics
 }
 
