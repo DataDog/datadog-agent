@@ -384,7 +384,8 @@ func metricSourceToOriginCategory(ms metrics.MetricSource) int32 {
 		metrics.MetricSourceRavendb,
 		metrics.MetricSourceSglang,
 		metrics.MetricSourcePanFirewall,
-		metrics.MetricSourceKaiScheduler:
+		metrics.MetricSourceKaiScheduler,
+		metrics.MetricSourceKurrentdb:
 		return 11 // integrationMetrics
 	case metrics.MetricSourceGPU:
 		return 72 // ref: https://github.com/DataDog/dd-source/blob/276882b71d84785ec89c31973046ab66d5a01807/domains/metrics/shared/libs/proto/origin/origin.proto#L427
@@ -1195,6 +1196,8 @@ func metricSourceToOriginService(ms metrics.MetricSource) int32 {
 		return 534
 	case metrics.MetricSourceKaiScheduler:
 		return 536
+	case metrics.MetricSourceKurrentdb:
+		return 537
 	default:
 		return 0
 	}

@@ -57,7 +57,8 @@
 
 # First rules of the jobs of the benchmark: the pipelines it never runs in, and its automatic run, disabled for now.
 # To run the benchmark automatically again, uncomment the line below and the automatic run rule of
-# new-e2e-containers-benchmarkeks-pr-comment, and remove new-e2e-containers-benchmarkeks-instructions.
+# new-e2e-containers-benchmarkeks-pr-comment, and remove new-e2e-containers-benchmarkeks-instructions, with the
+# new-e2e-tests.benchmarkeks-instructions task and its helpers in tasks/libs/testing/benchmarkeks.py.
 .on_benchmarkeks_automatic_run:
   - !reference [.except_benchmarkeks_unsupported]
   # - !reference [.on_benchmarkeks_changes]
@@ -93,12 +94,10 @@ new-e2e-containers-benchmarkeks-instructions:
   before_script:
     - !reference [.setup_github_token_comment_pr]
   script:
+    # Both tasks run in a single invoke process, in this order: pr-commenter reads the file the first one writes.
     - >-
-      dda inv -- -e github.pr-commenter --title="Agent performance benchmark (benchmarkeks)"
-      --body='This pull request changes the `benchmarkeks` performance benchmark or the code it measures, and the
-      benchmark only runs manually. To compare the resource usage of its Agent with the one of its base branch, play
-      the manual job `new-e2e-containers-benchmarkeks-baseline` of [the pipeline]('"$CI_PIPELINE_URL"'): the other
-      jobs of the benchmark run after it, on an EKS cluster.'
+      dda inv -- -e new-e2e-tests.benchmarkeks-instructions --output-file=benchmarkeks_instructions.md
+      github.pr-commenter --title="Agent performance benchmark (benchmarkeks)" --body-file=benchmarkeks_instructions.md
 
 # Resolves the baseline and publishes its images to agent-qa, as qa_agent_linux and qa_dca did for the baseline
 # pipeline: the images of agent-qa expire after a day, the build outputs of registry.ddbuild.io are kept for months.

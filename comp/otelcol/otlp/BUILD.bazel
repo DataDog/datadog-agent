@@ -94,5 +94,6 @@ dd_agent_go_test(
         "@io_opentelemetry_go_collector_exporter_exportertest//:exportertest",
         "@io_opentelemetry_go_collector_otelcol//:otelcol",
         "@io_opentelemetry_go_collector_pdata//pmetric",
+        "@org_uber_go_multierr//:multierr",
     ],
 )

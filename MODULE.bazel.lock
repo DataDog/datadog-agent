@@ -53,8 +53,8 @@
     "https://bcr.bazel.build/modules/bazel_lib/3.2.0/MODULE.bazel": "39b50d94b9be6bda507862254e20c263f9b950e3160112348d10a938be9ce2c2",
     "https://bcr.bazel.build/modules/bazel_lib/3.2.2/MODULE.bazel": "e2c890c8a515d6bca9c66d47718aa9e44b458fde64ec7204b8030bf2d349058c",
     "https://bcr.bazel.build/modules/bazel_lib/3.3.1/MODULE.bazel": "732a0d516cf6400d9b3136e4356258aef1bf91de8d5240f87f0112f098920c1d",
-    "https://bcr.bazel.build/modules/bazel_lib/3.7.2/MODULE.bazel": "cbc920fff00a55b2fd663d40850560a6fb17fd5ef3a9f3d6cbf0d32908dd8a40",
-    "https://bcr.bazel.build/modules/bazel_lib/3.7.2/source.json": "7a9c2b06a113c4962d329bb68befdb90d0447788a19aabaa32b476a0458e7d28",
+    "https://bcr.bazel.build/modules/bazel_lib/3.8.0/MODULE.bazel": "ac892a5b9b1d6b755c915f1e82663cb71ebffb4183d57f95c6507fafc2cac53a",
+    "https://bcr.bazel.build/modules/bazel_lib/3.8.0/source.json": "45eb621b9efa8fbc4c1c9f2ea484fc0e330558a1d8e120b063f7463363adc854",
     "https://bcr.bazel.build/modules/bazel_skylib/1.0.3/MODULE.bazel": "bcb0fd896384802d1ad283b4e4eb4d718eebd8cb820b0a2c3a347fb971afd9d8",
     "https://bcr.bazel.build/modules/bazel_skylib/1.1.1/MODULE.bazel": "1add3e7d93ff2e6998f9e118022c84d163917d912f5afafb3058e3d2f1545b5e",
     "https://bcr.bazel.build/modules/bazel_skylib/1.2.0/MODULE.bazel": "44fe84260e454ed94ad326352a698422dbe372b21a1ac9f3eab76eb531223686",
@@ -85,8 +85,8 @@
     "https://bcr.bazel.build/modules/bzip2/1.0.8.bcr.3/MODULE.bazel": "29ecf4babfd3c762be00d7573c288c083672ab60e79c833ff7f49ee662e54471",
     "https://bcr.bazel.build/modules/bzip2/1.0.8.bcr.3/source.json": "8be4a3ef2599693f759e5c0990a4cc5a246ac08db4c900a38f852ba25b5c39be",
     "https://bcr.bazel.build/modules/gawk/5.3.2.bcr.3/MODULE.bazel": "f1b7bb2dd53e8f2ef984b39485ec8a44e9076dda5c4b8efd2fb4c6a6e856a31d",
-    "https://bcr.bazel.build/modules/gawk/5.4.0.bcr.4/MODULE.bazel": "f26a17fbe04c926061f3e9031c05540ec3147b76ec79ccb2b01d929ae3f83479",
-    "https://bcr.bazel.build/modules/gawk/5.4.0.bcr.4/source.json": "cb324a9b568515049255d5b10d0450d0d727044a7d6f2f12fca13cf439bdf050",
+    "https://bcr.bazel.build/modules/gawk/5.4.0.bcr.5/MODULE.bazel": "8a886580deec3af8ba1895cd5c420715536008ec9726d9237f748a9181a179f6",
+    "https://bcr.bazel.build/modules/gawk/5.4.0.bcr.5/source.json": "f2f4e2b59e01647da2740ef0277703c04de62a474982f1362660d03d425a3153",
     "https://bcr.bazel.build/modules/gazelle/0.32.0/MODULE.bazel": "b499f58a5d0d3537f3cf5b76d8ada18242f64ec474d8391247438bf04f58c7b8",
     "https://bcr.bazel.build/modules/gazelle/0.33.0/MODULE.bazel": "a13a0f279b462b784fb8dd52a4074526c4a2afe70e114c7d09066097a46b3350",
     "https://bcr.bazel.build/modules/gazelle/0.34.0/MODULE.bazel": "abdd8ce4d70978933209db92e436deb3a8b737859e9354fb5fd11fb5c2004c8a",
@@ -173,8 +173,8 @@
     "https://bcr.bazel.build/modules/rules_cc/0.2.27/source.json": "a1e5e45c8a56ec19fadf109ef34abb06979982badf55a504d3f82a1258d83e3f",
     "https://bcr.bazel.build/modules/rules_cc_autoconf/0.26.0/MODULE.bazel": "bbde86042066b179c51ff1e2bfb4e3de0690cd17dba8642c705a07a283dd0e28",
     "https://bcr.bazel.build/modules/rules_cc_autoconf/0.32.0/MODULE.bazel": "c1dc853a311d7bce7479c00041dd888c0e83f4435123ffec076bae7fd399e342",
-    "https://bcr.bazel.build/modules/rules_cc_autoconf/0.34.0/MODULE.bazel": "8685f278a75d6f1550fd4b2204592c2fe283b060b8854c2cecdda0fbe5825fb4",
-    "https://bcr.bazel.build/modules/rules_cc_autoconf/0.34.0/source.json": "32de3e23e83870662ebf73bb6eea0afc6729ab9b140ee447c50e757a71990fe4",
+    "https://bcr.bazel.build/modules/rules_cc_autoconf/0.37.0/MODULE.bazel": "c1f530e2c9a523193764756edb87b4ec94d6af5e5c63ab9ad582c258879dd2df",
+    "https://bcr.bazel.build/modules/rules_cc_autoconf/0.37.0/source.json": "cc6f3b724e32f0c9dc78a6645c685fc796cda8ae8635537571260621d2c3df93",
     "https://bcr.bazel.build/modules/rules_flex/0.4.1/MODULE.bazel": "f3d0e224cdce177fdc17ae8cbae9c7bd7010149b9a9482897d289090b9e78034",
     "https://bcr.bazel.build/modules/rules_flex/0.4.1/source.json": "09c7de298925d653c98fa242ca490a991703bcfe1da8c4c75432d51c4803e3be",
     "https://bcr.bazel.build/modules/rules_foreign_cc/0.17.0/MODULE.bazel": "9aac24f07a642f38ccc15131f580a62e2972a649f206d6ce333eef89878558dd",
@@ -700,7 +700,7 @@
     },
     "@@rules_rust+//crate_universe/private:internal_extensions.bzl%cu_nr": {
       "general": {
-        "bzlTransitiveDigest": "U+5DTzF3X8BDePbw0L17g19Lb6Ka65gSeQ2oQq4gvjE=",
+        "bzlTransitiveDigest": "K0UsylVmmuBH6kVZi2wCEKlpqsvISlFMQgunTg/Z1C4=",
         "usagesDigest": "tG3p3Nb5XxC7vWY/bcKdb//g0HoAxpxxH3F5/jBVlk4=",
         "recordedInputs": [
           "REPO_MAPPING:bazel_features+,bazel_features_globals bazel_features++version_extension+bazel_features_globals",
@@ -907,13 +907,13 @@
       }
     },
     "//deps/pulumi_plugins:extension.bzl%pulumi_plugins": {
-      "https://github.com/pulumi/pulumi-aws/releases/download/v7.52.1/pulumi-aws_7.52.1_checksums.txt": {
-        "pulumi-resource-aws-v7.52.1-darwin-amd64.tar.gz": "sha1-DZnOAwN8o4ySCBsfInxndsbkvMk=",
-        "pulumi-resource-aws-v7.52.1-darwin-arm64.tar.gz": "sha1-iZ5ET3Mh4tMqxOxT8Bno/ighezA=",
-        "pulumi-resource-aws-v7.52.1-linux-amd64.tar.gz": "sha1-SyMHN7knrSwS7mvJEZih+CJIzQ0=",
-        "pulumi-resource-aws-v7.52.1-linux-arm64.tar.gz": "sha1-Ld5Umek/5zcDQTL35//bBfN36hQ=",
-        "pulumi-resource-aws-v7.52.1-windows-amd64.tar.gz": "sha1-lp7qLA49t3yHi/p2nsAA+BLoGi4=",
-        "pulumi-resource-aws-v7.52.1-windows-arm64.tar.gz": "sha1-yqjMo1wAezo+spbKEM7hfIXm4Rs="
+      "https://github.com/pulumi/pulumi-aws/releases/download/v7.53.0/pulumi-aws_7.53.0_checksums.txt": {
+        "pulumi-resource-aws-v7.53.0-darwin-amd64.tar.gz": "sha1-8opY9Mh/S7fX5t0dihDpx6NGslk=",
+        "pulumi-resource-aws-v7.53.0-darwin-arm64.tar.gz": "sha1-50nHnixcsukUefHsTzKgVocAZlg=",
+        "pulumi-resource-aws-v7.53.0-linux-amd64.tar.gz": "sha1-nyRyhjv4UZmI6oyMNy9xd6drkx8=",
+        "pulumi-resource-aws-v7.53.0-linux-arm64.tar.gz": "sha1-kJWTslU4rdwk1HSV8/WTz4+lfUI=",
+        "pulumi-resource-aws-v7.53.0-windows-amd64.tar.gz": "sha1-Y822MmW2UF782nGsjMCSatUXucs=",
+        "pulumi-resource-aws-v7.53.0-windows-arm64.tar.gz": "sha1-ZqyKU2E9QyaxoehfuIslMtkJkl8="
       },
       "https://github.com/pulumi/pulumi-awsx/releases/download/v3.12.0/pulumi-awsx_3.12.0_checksums.txt": {
         "pulumi-resource-awsx-v3.12.0-darwin-amd64.tar.gz": "sha1-jbs7BxW3PCJ3cc15hGQbccrGL+w=",
@@ -923,12 +923,12 @@
         "pulumi-resource-awsx-v3.12.0-windows-amd64.tar.gz": "sha1-w1TxQhidZaSDQDak7/OsDgh9QpQ=",
         "pulumi-resource-awsx-v3.12.0-windows-arm64.tar.gz": "sha1-GL1GedbkflYVbC0ygkeN3hIblkg="
       },
-      "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.29.0/pulumi-azure-native_3.29.0_checksums.txt": {
-        "pulumi-resource-azure-native-v3.29.0-darwin-amd64.tar.gz": "sha1-cTQJm+ML5yhMWzVDWSlneZpKYv4=",
-        "pulumi-resource-azure-native-v3.29.0-darwin-arm64.tar.gz": "sha1-m0MYH17Sk4IQuDjbAtqaxRfHWtU=",
-        "pulumi-resource-azure-native-v3.29.0-linux-amd64.tar.gz": "sha1-M6Uq25uvIdJWE/BE2tAyj8ykHrU=",
-        "pulumi-resource-azure-native-v3.29.0-linux-arm64.tar.gz": "sha1-GdARgk5J71GCLdkIRxDNZH9FL18=",
-        "pulumi-resource-azure-native-v3.29.0-windows-amd64.tar.gz": "sha1-03UeEKdXagb47Tpk/yJV6Go578s="
+      "https://github.com/pulumi/pulumi-azure-native/releases/download/v3.30.0/pulumi-azure-native_3.30.0_checksums.txt": {
+        "pulumi-resource-azure-native-v3.30.0-darwin-amd64.tar.gz": "sha1-SDD6hUdB+YBeRlAiUQea6+7qxig=",
+        "pulumi-resource-azure-native-v3.30.0-darwin-arm64.tar.gz": "sha1-A31ivb6CR/x8f9Ai85QCloOj6Io=",
+        "pulumi-resource-azure-native-v3.30.0-linux-amd64.tar.gz": "sha1-Gnj9sUckffpfooT27vKCJNQaNuk=",
+        "pulumi-resource-azure-native-v3.30.0-linux-arm64.tar.gz": "sha1-+noQqnLlMxxtDasSeha7XUCnolI=",
+        "pulumi-resource-azure-native-v3.30.0-windows-amd64.tar.gz": "sha1-85TcPLIOLClXYpP5usb/jkvm+0w="
       },
       "https://github.com/pulumi/pulumi-command/releases/download/v1.3.0/pulumi-command_1.3.0_checksums.txt": {
         "pulumi-resource-command-v1.3.0-darwin-amd64.tar.gz": "sha256-s9krML7JXg+oT6O1Qwe0o1dh++Oux9FUxlrr52oaLX8=",
@@ -954,13 +954,13 @@
         "pulumi-resource-docker-v4.11.2-windows-amd64.tar.gz": "sha1-GM1wKy/IAznBMUQ7jShGtY2kKYA=",
         "pulumi-resource-docker-v4.11.2-windows-arm64.tar.gz": "sha1-osE1xp11GE6E8P10FtNySoLp78A="
       },
-      "https://github.com/pulumi/pulumi-docker/releases/download/v5.2.1/pulumi-docker_5.2.1_checksums.txt": {
-        "pulumi-resource-docker-v5.2.1-darwin-amd64.tar.gz": "sha1-pVUXqtM1eubQNlkzjuMV9XC5Nes=",
-        "pulumi-resource-docker-v5.2.1-darwin-arm64.tar.gz": "sha1-L4XxnfxDxavTHQ2ScFusY8HnLDs=",
-        "pulumi-resource-docker-v5.2.1-linux-amd64.tar.gz": "sha1-xLuSPZRwW0uOxN+ONtVfH0MvrYA=",
-        "pulumi-resource-docker-v5.2.1-linux-arm64.tar.gz": "sha1-VN93Kj1kO4rDe7aFQzSMJxiN2w8=",
-        "pulumi-resource-docker-v5.2.1-windows-amd64.tar.gz": "sha1-Vv6Ttx1okMLUMPb5f90zCH6JyEs=",
-        "pulumi-resource-docker-v5.2.1-windows-arm64.tar.gz": "sha1-962dR7uXT9YfdgdK7h6oR2dCg9E="
+      "https://github.com/pulumi/pulumi-docker/releases/download/v5.2.2/pulumi-docker_5.2.2_checksums.txt": {
+        "pulumi-resource-docker-v5.2.2-darwin-amd64.tar.gz": "sha1-WdQM2HxXzJ4Y6XPjp/dNyNOO4Qw=",
+        "pulumi-resource-docker-v5.2.2-darwin-arm64.tar.gz": "sha1-x+wCdq38hnxsa5iqqTDIYn5mMYs=",
+        "pulumi-resource-docker-v5.2.2-linux-amd64.tar.gz": "sha1-elvW7mFNRq66bwZrAgm4N8ivVlI=",
+        "pulumi-resource-docker-v5.2.2-linux-arm64.tar.gz": "sha1-wZJvh4y9kqSZHKwQGYVQ0KoNcEM=",
+        "pulumi-resource-docker-v5.2.2-windows-amd64.tar.gz": "sha1-vOszq3FjR8VC4e6Llwj8bB7HoJw=",
+        "pulumi-resource-docker-v5.2.2-windows-arm64.tar.gz": "sha1-+dL5Iz3SjnJjMH+maxjq40rk9kE="
       },
       "https://github.com/pulumi/pulumi-eks/releases/download/v4.5.0/pulumi-eks_4.5.0_checksums.txt": {
         "pulumi-resource-eks-v4.5.0-darwin-amd64.tar.gz": "sha1-7CjidWiFR0rImzbYWjo0LLyWGtQ=",
@@ -1009,13 +1009,13 @@
         "pulumi-resource-random-v4.21.6-windows-amd64.tar.gz": "sha1-UA3mITAgyV9fXf7cSczYs6IS8z8=",
         "pulumi-resource-random-v4.21.6-windows-arm64.tar.gz": "sha1-dcRAKo+540ipt7FcMyaUkOPQGE8="
       },
-      "https://github.com/pulumi/pulumi-tls/releases/download/v5.6.2/pulumi-tls_5.6.2_checksums.txt": {
-        "pulumi-resource-tls-v5.6.2-darwin-amd64.tar.gz": "sha1-UPzzXuQqxqd2vVqa1yKj7lFYCPE=",
-        "pulumi-resource-tls-v5.6.2-darwin-arm64.tar.gz": "sha1-HVFO5DbG4WGfhimOQcz6fMzdAms=",
-        "pulumi-resource-tls-v5.6.2-linux-amd64.tar.gz": "sha1-o4zFCPQp+FllZar6uVYNHhf5RhE=",
-        "pulumi-resource-tls-v5.6.2-linux-arm64.tar.gz": "sha1-MbFiOY4rH8IQi6qSnDNnNkMTN2Y=",
-        "pulumi-resource-tls-v5.6.2-windows-amd64.tar.gz": "sha1-AUh10NfcNhIDoRiuvPo5wlldxMA=",
-        "pulumi-resource-tls-v5.6.2-windows-arm64.tar.gz": "sha1-ntIFDyD1ZPAxgxQSCKXajRBkj20="
+      "https://github.com/pulumi/pulumi-tls/releases/download/v5.6.3/pulumi-tls_5.6.3_checksums.txt": {
+        "pulumi-resource-tls-v5.6.3-darwin-amd64.tar.gz": "sha1-NxB+R0jX+3AF+lQhyA71i0pa24s=",
+        "pulumi-resource-tls-v5.6.3-darwin-arm64.tar.gz": "sha1-xO96YcKIE4GWXOVSvFQrbIs2bJE=",
+        "pulumi-resource-tls-v5.6.3-linux-amd64.tar.gz": "sha1-uOBkPAgmbJprjHt0VfIJiRABmPc=",
+        "pulumi-resource-tls-v5.6.3-linux-arm64.tar.gz": "sha1-Yb884nTwFk82Ex2YiJ8QjSuQXkw=",
+        "pulumi-resource-tls-v5.6.3-windows-amd64.tar.gz": "sha1-aec8hWNGjSsAv/tfdTrmSbXFHxI=",
+        "pulumi-resource-tls-v5.6.3-windows-arm64.tar.gz": "sha1-dZy6FIIeRS6ln4coeQFziuM9nMw="
       },
       "https://github.com/pulumiverse/pulumi-time/releases/download/v0.1.0/pulumi-time_0.1.0_checksums.txt": {
         "pulumi-resource-time-v0.1.0-darwin-amd64.tar.gz": "sha256-p/pkRdejbGHoWbfk7m2b6oHEEO5Dx8Jcvp56gmqAqEI=",
@@ -1025,7 +1025,7 @@
         "pulumi-resource-time-v0.1.0-windows-amd64.tar.gz": "sha256-LcZni/wvXQJ4+fc4rPwuKi4y9hUpSc9GhJRykh6/i0c=",
         "pulumi-resource-time-v0.1.0-windows-arm64.tar.gz": "sha256-mjorlphPz5S4mz3/OjAt1iywnrF/WPxh/+2U81tj1Wc="
       },
-      "https://registry.npmjs.org/@pulumi/aws/7.52.1": {
+      "https://registry.npmjs.org/@pulumi/aws/7.53.0": {
         "dependencies": {},
         "name": "aws",
         "url": "https://github.com/pulumi/pulumi-aws"
@@ -1039,12 +1039,12 @@
         "name": "awsx",
         "url": "https://github.com/pulumi/pulumi-awsx"
       },
-      "https://registry.npmjs.org/@pulumi/azure-native/3.29.0": {
+      "https://registry.npmjs.org/@pulumi/azure-native/3.30.0": {
         "dependencies": {},
         "name": "azure-native",
         "url": "https://github.com/pulumi/pulumi-azure-native"
       },
-      "https://registry.npmjs.org/@pulumi/cloud/1.20260918.0": {},
+      "https://registry.npmjs.org/@pulumi/cloud/1.20261027.1310": {},
       "https://registry.npmjs.org/@pulumi/command/1.3.0": {
         "dependencies": {},
         "name": "command",
@@ -1060,7 +1060,7 @@
         "name": "docker",
         "url": "https://github.com/pulumi/pulumi-docker"
       },
-      "https://registry.npmjs.org/@pulumi/docker/5.2.1": {
+      "https://registry.npmjs.org/@pulumi/docker/5.2.2": {
         "dependencies": {},
         "name": "docker",
         "url": "https://github.com/pulumi/pulumi-docker"
@@ -1098,7 +1098,7 @@
         "name": "random",
         "url": "https://github.com/pulumi/pulumi-random"
       },
-      "https://registry.npmjs.org/@pulumi/tls/5.6.2": {
+      "https://registry.npmjs.org/@pulumi/tls/5.6.3": {
         "dependencies": {},
         "name": "tls",
         "url": "https://github.com/pulumi/pulumi-tls"

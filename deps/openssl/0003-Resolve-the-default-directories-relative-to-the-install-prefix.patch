@@ -1,0 +1,289 @@
+From 0000000000000000000000000000000000000000 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Hugo=20Beauz=C3=A9e-Luyssen?= <hugo.beauzee@datadoghq.com>
+Date: Mon, 9 Nov 2026 10:30:31 +0100
+Subject: [PATCH] Resolve the default directories relative to the install
+ prefix
+
+On Unix, derive OPENSSLDIR, ENGINESDIR and MODULESDIR at runtime from the
+location of the object libcrypto was linked into (lib/libcrypto.so or
+bin/openssl), so the installation can be relocated without rebuilding.
+The build-time values are used if the prefix cannot be determined.
+---
+ crypto/ct/ct_log.c     | 12 ++++++++++
+ crypto/cversion.c      | 12 ++++++--
+ crypto/defaults.c      | 69 ++++++++++++++++++++++++++++++++++++++++++
+ crypto/x509/x509_def.c | 36 ++++++++--------------
+ 4 files changed, 105 insertions(+), 24 deletions(-)
+
+diff --git a/crypto/ct/ct_log.c b/crypto/ct/ct_log.c
+index b9990dc..74c8812 100644
+--- a/crypto/ct/ct_log.c
++++ b/crypto/ct/ct_log.c
+@@ -7,6 +7,7 @@
+  * https://www.openssl.org/source/license.html
+  */
+
++#include <limits.h>
+ #include <stdlib.h>
+ #include <string.h>
+
+@@ -161,6 +162,17 @@ static int ctlog_new_from_conf(CTLOG_STORE *store, CTLOG **ct_log,
+ int CTLOG_STORE_load_default_file(CTLOG_STORE *store)
+ {
+     const char *fpath = ossl_safe_getenv(CTLOG_FILE_EVP);
++#if !defined(_WIN32)
++    char path[PATH_MAX];
++    const char *dir;
++    int len;
++
++    if (fpath == NULL && (dir = ossl_get_openssldir()) != NULL) {
++        len = BIO_snprintf(path, sizeof(path), "%s/ct_log_list.cnf", dir);
++        if (len > 0 && (size_t)len < sizeof(path))
++            fpath = path;
++    }
++#endif
+
+     if (fpath == NULL)
+         fpath = CTLOG_FILE;
+diff --git a/crypto/cversion.c b/crypto/cversion.c
+index 1a92296..f1ea3f1 100644
+--- a/crypto/cversion.c
++++ b/crypto/cversion.c
+@@ -49,6 +49,14 @@ const char *OPENSSL_version_build_metadata(void)
+ extern char ossl_cpu_info_str[];
+
+ #if defined(_WIN32) && defined(OSSL_WINCTX)
++#define OSSL_RUNTIME_DIRS
++#elif !defined(_WIN32)
++#include <limits.h>
++#define OSSL_RUNTIME_DIRS
++#define MAX_PATH PATH_MAX
++#endif
++
++#if defined(OSSL_RUNTIME_DIRS)
+ /* size: MAX_PATH + sizeof("OPENSSLDIR: \"\"") */
+ static char openssldir[MAX_PATH + 15];
+
+@@ -78,7 +86,7 @@ DEFINE_RUN_ONCE_STATIC(version_strings_setup)
+
+ const char *OpenSSL_version(int t)
+ {
+-#if defined(_WIN32) && defined(OSSL_WINCTX)
++#if defined(OSSL_RUNTIME_DIRS)
+     /* Cannot really fail but we would return empty strings anyway */
+     (void)RUN_ONCE(&version_strings_once, version_strings_setup);
+ #endif
+@@ -96,7 +104,7 @@ const char *OpenSSL_version(int t)
+         return compiler_flags;
+     case OPENSSL_PLATFORM:
+         return PLATFORM;
+-#if defined(_WIN32) && defined(OSSL_WINCTX)
++#if defined(OSSL_RUNTIME_DIRS)
+     case OPENSSL_DIR:
+         return openssldir;
+     case OPENSSL_ENGINES_DIR:
+diff --git a/crypto/defaults.c b/crypto/defaults.c
+index 17d8ffd..30a0df1 100644
+--- a/crypto/defaults.c
++++ b/crypto/defaults.c
+@@ -7,12 +7,69 @@
+  * https://www.openssl.org/source/license.html
+  */
+
++#if !defined(_WIN32)
++#define _GNU_SOURCE
++#endif
++
+ #include <stdio.h>
+ #include <openssl/opensslv.h>
+ #include "internal/thread_once.h"
+ #include "internal/cryptlib.h"
+ #include "internal/e_os.h"
+
++#if !defined(_WIN32)
++#include <dlfcn.h>
++#include <limits.h>
++#include <stdlib.h>
++#include <string.h>
++
++static char openssldir[PATH_MAX] = OPENSSLDIR;
++static char enginesdir[PATH_MAX] = ENGINESDIR;
++static char modulesdir[PATH_MAX] = MODULESDIR;
++
++static CRYPTO_ONCE defaults_setup_init = CRYPTO_ONCE_STATIC_INIT;
++
++static void set_relative_dir(char *dst, size_t size, const char *prefix,
++    const char *suffix)
++{
++    char path[PATH_MAX];
++    int len = snprintf(path, sizeof(path), "%s/%s", prefix, suffix);
++
++    if (len > 0 && (size_t)len < size)
++        memcpy(dst, path, len + 1);
++}
++
++/*
++ * Resolve the directories relative to the installation prefix, i.e. the
++ * parent of the directory holding the object this function was linked into
++ * (lib/libcrypto.so or bin/openssl). The build-time values are kept if the
++ * prefix cannot be determined.
++ */
++DEFINE_RUN_ONCE_STATIC(do_defaults_setup)
++{
++    Dl_info info;
++    char prefix[PATH_MAX];
++    char *sep;
++    int i;
++
++    if (dladdr((void *)ossl_get_openssldir, &info) == 0
++        || info.dli_fname == NULL
++        || info.dli_fname[0] != '/'
++        || realpath(info.dli_fname, prefix) == NULL)
++        return 1;
++    for (i = 0; i < 2; i++) {
++        sep = strrchr(prefix, '/');
++        if (sep == NULL)
++            return 1;
++        *sep = '\0';
++    }
++    set_relative_dir(openssldir, sizeof(openssldir), prefix, "ssl");
++    set_relative_dir(enginesdir, sizeof(enginesdir), prefix, "lib/engines-3");
++    set_relative_dir(modulesdir, sizeof(modulesdir), prefix, "lib/ossl-modules");
++    return 1;
++}
++#endif /* !defined(_WIN32) */
++
+ #if defined(_WIN32) && defined(OSSL_WINCTX)
+
+ #define TOSTR(x) #x
+@@ -154,6 +211,10 @@ const char *ossl_get_openssldir(void)
+     if (!RUN_ONCE(&defaults_setup_init, do_defaults_setup))
+         return NULL;
+     return (const char *)openssldirptr;
++#elif !defined(_WIN32)
++    if (!RUN_ONCE(&defaults_setup_init, do_defaults_setup))
++        return NULL;
++    return openssldir;
+ #else
+     return OPENSSLDIR;
+ #endif
+@@ -170,6 +231,10 @@ const char *ossl_get_enginesdir(void)
+     if (!RUN_ONCE(&defaults_setup_init, do_defaults_setup))
+         return NULL;
+     return (const char *)enginesdirptr;
++#elif !defined(_WIN32)
++    if (!RUN_ONCE(&defaults_setup_init, do_defaults_setup))
++        return NULL;
++    return enginesdir;
+ #else
+     return ENGINESDIR;
+ #endif
+@@ -186,6 +251,10 @@ const char *ossl_get_modulesdir(void)
+     if (!RUN_ONCE(&defaults_setup_init, do_defaults_setup))
+         return NULL;
+     return (const char *)modulesdirptr;
++#elif !defined(_WIN32)
++    if (!RUN_ONCE(&defaults_setup_init, do_defaults_setup))
++        return NULL;
++    return modulesdir;
+ #else
+     return MODULESDIR;
+ #endif
+diff --git a/crypto/x509/x509_def.c b/crypto/x509/x509_def.c
+index 5a6ecaf..84b75ad 100644
+--- a/crypto/x509/x509_def.c
++++ b/crypto/x509/x509_def.c
+@@ -15,6 +15,15 @@
+ #include <openssl/x509.h>
+
+ #if defined(_WIN32)
++#define X509_DIR_SEP "\\"
++#define X509_AREA_SUFFIX "\\"
++#else
++#include <limits.h>
++#include <string.h>
++#define MAX_PATH PATH_MAX
++#define X509_DIR_SEP "/"
++#define X509_AREA_SUFFIX ""
++#endif
+
+ static char x509_private_dir[MAX_PATH + 1];
+ static char *x509_private_dirptr = NULL;
+@@ -30,7 +39,7 @@ static char *x509_cert_fileptr = NULL;
+
+ static void get_windows_default_path(char *pathname, const char *suffix)
+ {
+-    char *ossldir;
++    const char *ossldir;
+
+     ossldir = ossl_get_openssldir();
+
+@@ -45,64 +54,47 @@ static void get_windows_default_path(char *pathname, const char *suffix)
+ static CRYPTO_ONCE openssldir_setup_init = CRYPTO_ONCE_STATIC_INIT;
+ DEFINE_RUN_ONCE_STATIC(do_openssldir_setup)
+ {
+-    get_windows_default_path(x509_private_dir, "\\private");
++    get_windows_default_path(x509_private_dir, X509_DIR_SEP "private");
+     if (strlen(x509_private_dir) > 0)
+         x509_private_dirptr = x509_private_dir;
+
+-    get_windows_default_path(x509_cert_area, "\\");
++    get_windows_default_path(x509_cert_area, X509_AREA_SUFFIX);
+     if (strlen(x509_cert_area) > 0)
+         x509_cert_areaptr = x509_cert_area;
+
+-    get_windows_default_path(x509_cert_dir, "\\certs");
++    get_windows_default_path(x509_cert_dir, X509_DIR_SEP "certs");
+     if (strlen(x509_cert_dir) > 0)
+         x509_cert_dirptr = x509_cert_dir;
+
+-    get_windows_default_path(x509_cert_file, "\\cert.pem");
++    get_windows_default_path(x509_cert_file, X509_DIR_SEP "cert.pem");
+     if (strlen(x509_cert_file) > 0)
+         x509_cert_fileptr = x509_cert_file;
+
+     return 1;
+ }
+-#endif
+
+ const char *X509_get_default_private_dir(void)
+ {
+-#if defined(_WIN32)
+     RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
+     return x509_private_dirptr;
+-#else
+-    return X509_PRIVATE_DIR;
+-#endif
+ }
+
+ const char *X509_get_default_cert_area(void)
+ {
+-#if defined(_WIN32)
+     RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
+     return x509_cert_areaptr;
+-#else
+-    return X509_CERT_AREA;
+-#endif
+ }
+
+ const char *X509_get_default_cert_dir(void)
+ {
+-#if defined(_WIN32)
+     RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
+     return x509_cert_dirptr;
+-#else
+-    return X509_CERT_DIR;
+-#endif
+ }
+
+ const char *X509_get_default_cert_file(void)
+ {
+-#if defined(_WIN32)
+     RUN_ONCE(&openssldir_setup_init, do_openssldir_setup);
+     return x509_cert_fileptr;
+-#else
+-    return X509_CERT_FILE;
+-#endif
+ }
+
+ const char *X509_get_default_cert_dir_env(void)

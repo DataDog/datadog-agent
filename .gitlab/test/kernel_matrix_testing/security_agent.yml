@@ -1,7 +1,6 @@
 # Security agent overrides
 upload_dependencies_secagent_x64:
   needs:
-    - !reference [.kmt_setup_needs]
     - pull_test_dockers_x64
   extends:
     - .package_dependencies
@@ -14,7 +13,6 @@ upload_dependencies_secagent_x64:
 
 upload_dependencies_secagent_arm64:
   needs:
-    - !reference [.kmt_setup_needs]
     - pull_test_dockers_arm64
   extends:
     - .package_dependencies
@@ -55,7 +53,6 @@ kmt_setup_env_secagent_x64:
   allow_failure: true
   rules: !reference [.on_security_agent_changes_or_manual]
   before_script:
-    - !reference [.retrieve_linux_go_deps]
     - !reference [.kmt_new_profile]
     - !reference [.write_ssh_key_file]
   script:
@@ -92,7 +89,6 @@ upload_secagent_tests_x64:
   extends:
     - .upload_secagent_tests
   needs:
-    - !reference [.kmt_setup_needs]
     - prepare_secagent_ebpf_functional_tests_x64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
@@ -104,7 +100,6 @@ upload_secagent_tests_arm64:
   extends:
     - .upload_secagent_tests
   needs:
-    - !reference [.kmt_setup_needs]
     - prepare_secagent_ebpf_functional_tests_arm64
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:arm64", "specific:true"]
