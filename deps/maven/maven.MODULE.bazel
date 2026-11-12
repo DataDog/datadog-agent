@@ -10,7 +10,7 @@ maven.install(
     lock_file = "//deps/maven:maven2_install.json",
     repositories = [
         "https://repo1.maven.org/maven2",
-        "https://maven-central.storage-download.googleapis.com/maven2",
+        "https://storage.googleapis.com/maven-central/maven2",
     ],
     strict_visibility = True,
     version_conflict_policy = "pinned",

@@ -5,13 +5,13 @@
     "org.bouncycastle:bcpkix-fips": -665183901,
     "org.bouncycastle:bctls-fips": 2134114768,
     "org.bouncycastle:bcutil-fips": -387701816,
-    "repositories": 736830508
+    "repositories": 1591083170
   },
   "__RESOLVED_ARTIFACTS_HASH": {
-    "org.bouncycastle:bc-fips": -1638425669,
-    "org.bouncycastle:bcpkix-fips": -1158259034,
-    "org.bouncycastle:bctls-fips": -711361591,
-    "org.bouncycastle:bcutil-fips": 992118029
+    "org.bouncycastle:bc-fips": 1510907827,
+    "org.bouncycastle:bcpkix-fips": -1895363594,
+    "org.bouncycastle:bctls-fips": -2138153767,
+    "org.bouncycastle:bcutil-fips": -1049732140
   },
   "artifacts": {
     "org.bouncycastle:bc-fips": {
@@ -235,7 +235,7 @@
       "org.bouncycastle:bctls-fips",
       "org.bouncycastle:bcutil-fips"
     ],
-    "https://maven-central.storage-download.googleapis.com/maven2/": [
+    "https://storage.googleapis.com/maven-central/maven2/": [
       "org.bouncycastle:bc-fips",
       "org.bouncycastle:bcpkix-fips",
       "org.bouncycastle:bctls-fips",
