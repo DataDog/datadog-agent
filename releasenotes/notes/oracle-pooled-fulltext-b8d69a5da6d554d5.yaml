@@ -1,0 +1,5 @@
+---
+enhancements:
+  - |
+    Oracle monitoring reuses its main connection pool to collect full SQL text,
+    removing the extra connection previously used by the default driver.
