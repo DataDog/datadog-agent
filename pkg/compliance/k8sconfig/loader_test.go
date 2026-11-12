@@ -1051,6 +1051,66 @@ func TestKubeletLegacyDefaults(t *testing.T) {
 	assert.Equal(t, &anonymousAuth, conf.Components.Kubelet.AnonymousAuth)
 }
 
+// The kubelet service file is a systemd unit, so the loader reports its
+// ownership and permissions alone.
+func TestKubeletServiceFileMeta(t *testing.T) {
+	unit := mockFile{
+		name: "/etc/systemd/system/kubelet.service",
+		mode: 0644,
+		content: `[Unit]
+Description=Kubelet
+ConditionPathExists=/usr/local/bin/kubelet
+
+[Service]
+ExecStart=/usr/local/bin/kubelet --config=/etc/default/kubeletconfig.json
+`,
+	}
+	dropin := mockFile{
+		name: "/etc/systemd/system/kubelet.service.d/10-kubeadm.conf",
+		mode: 0600,
+		content: `# Note: This dropin only works with kubeadm and kubelet v1.11+
+[Service]
+Environment="KUBELET_KUBECONFIG_ARGS=--bootstrap-kubeconfig=/etc/kubernetes/bootstrap-kubelet.conf --kubeconfig=/etc/kubernetes/kubelet.conf"
+ExecStart=
+ExecStart=/usr/bin/kubelet $KUBELET_KUBECONFIG_ARGS
+`,
+	}
+	dir := mockFile{
+		isDir: true,
+		name:  "/etc/systemd/system/kubelet.service.d/kubelet.conf",
+		mode:  0755,
+	}
+	unreadable := unit
+	unreadable.mode = 0200
+	tests := []struct {
+		name  string
+		files []mockFile
+		want  mockFile
+	}{
+		{"unit", []mockFile{unit}, unit},
+		{"drop-in", []mockFile{dropin}, dropin},
+		{"drop-in over unit", []mockFile{unit, dropin}, dropin},
+		{"directory skipped", []mockFile{dir, unit}, unit},
+		{"unreadable unit", []mockFile{unreadable}, unreadable},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			for _, f := range tt.files {
+				f.create(t, tmpDir)
+			}
+			conf := loadTestConfiguration(t, tmpDir, "")
+			assert.Empty(t, conf.Errors)
+			require.NotNil(t, conf.KubeletService)
+			assert.Equal(t, tt.want.name, conf.KubeletService.Path)
+			assert.Equal(t, tt.want.mode, conf.KubeletService.Mode)
+			assert.NotEmpty(t, conf.KubeletService.User)
+			assert.NotEmpty(t, conf.KubeletService.Group)
+			assert.Nil(t, conf.KubeletService.Content)
+		})
+	}
+}
+
 // A drop-in that turns the read-only port on wins over the file given to
 // --config, which leaves readOnlyPort out.
 func TestKubeletConfigDropinEnablesReadOnlyPort(t *testing.T) {
