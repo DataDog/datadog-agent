@@ -8,8 +8,8 @@ replace (
 )
 
 require (
-	github.com/DataDog/datadog-agent/pkg/tagset v0.53.2-rc.19.0.20261102104545-284bc262925d
-	github.com/DataDog/datadog-agent/pkg/util/sort v0.53.2-rc.19.0.20261102104545-284bc262925d
+	github.com/DataDog/datadog-agent/pkg/tagset v0.53.2-rc.19.0.20261112132505-188d35bb5f54
+	github.com/DataDog/datadog-agent/pkg/util/sort v0.53.2-rc.19.0.20261112132505-188d35bb5f54
 	github.com/stretchr/testify v1.10.0
 	github.com/twmb/murmur3 v1.1.8
 )
