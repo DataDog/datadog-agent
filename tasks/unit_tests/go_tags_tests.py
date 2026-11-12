@@ -59,6 +59,13 @@ class TestScanSources(unittest.TestCase):
             path.write_text("//go:build docker\npackage foo\n")
             self.assertEqual(go_tags.scan_sources([str(path)], cache)[0], {str(path): {"docker"}})
 
+    def test_other_files_only_need_to_exist(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "schema.json"
+            path.write_text("//go:build docker\n")
+            missing = str(Path(tmp) / "api.pb")
+            self.assertEqual(go_tags.scan_sources([str(path), missing], {})[0], {str(path): set(), missing: None})
+
 
 class TestBuildManifest(unittest.TestCase):
     def _manifest(self, rules, sources):
@@ -97,6 +104,30 @@ class TestBuildManifest(unittest.TestCase):
             {},
         )
         self.assertEqual(manifest, {"ex/a": None, "ex/gen": None})
+
+    def test_rule_in_srcs_keeps_all_tags(self):
+        tag_free = sorted(go_tags.TAG_FREE_GENERATORS)[0]
+        _, manifest = self._manifest(
+            [
+                _rule("//cmd:bin", "go_binary", deps=["//a:a", "//b:b", "//c:c", "//d:d"], gotags=["docker"]),
+                _rule("//a:a", "go_library", importpath="ex/a", srcs=["//a:gen_src"]),
+                _rule("//b:b", "go_library", importpath="ex/b", srcs=["//b:b.go", "//b:schema.json"]),
+                _rule("//c:c", "go_library", importpath="ex/c", srcs=[tag_free]),
+                _rule("//d:d", "go_library", importpath="ex/d", srcs=["//d:api.pb"]),
+            ],
+            {"//b:b.go": set(), "//b:schema.json": set()},
+        )
+        self.assertEqual(manifest, {"ex/a": None, "ex/d": None})
+
+    def test_tag_free_generators_use_schema_codegen(self):
+        root = Path(__file__).parents[2]
+        for label in go_tags.TAG_FREE_GENERATORS:
+            package, _, name = label.removeprefix("@@//").partition(":")
+            build = (root / package / "BUILD.bazel").read_text()
+            rule = build[build.index(f'name = "{name}"') :].split("\n)", 1)[0]
+            self.assertIn('tool = "//tasks/schema:codegen_settings_main"', rule, label)
+        for name in ("codegen_init_settings.py", "codegen_settings_main.py", "merge_schema.py"):
+            self.assertNotRegex((root / "tasks/schema" / name).read_text(), r"go:build|\+build", name)
 
     def test_graph_without_main_library_fails(self):
         with self.assertRaisesRegex(ValueError, "no main-repository go_library"):

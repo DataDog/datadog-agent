@@ -29,6 +29,15 @@ _EDGE_ATTRS = ("deps", "embed", "compilers", "compiler", "actual")
 _QUERIED_ATTRS = (*_EDGE_ATTRS, "srcs", "importpath", "gotags")
 _SCANNED_EXTENSIONS = (".go", ".s", ".S", ".c", ".h", ".cc", ".cpp", ".cxx", ".hh", ".hpp", ".m", ".syso")
 _IDENTIFIER = re.compile(r"[A-Za-z_][A-Za-z0-9_.]*")
+# Rules in `srcs` whose generated Go files never have a build constraint: `//tasks/schema:codegen_settings_main`
+# writes none. Any other `srcs` entry that isn't a file on disk (a rule or a generated file) makes the closure
+# unknown, since its outputs can't be scanned before they are built.
+TAG_FREE_GENERATORS = frozenset(
+    {
+        "@@//pkg/config/setup/constants:codegen_constants",
+        "@@//pkg/config/setup/generatedsettings_local:codegen_settings",
+    }
+)
 
 
 def _values(attr: dict) -> list[str]:
@@ -87,9 +96,10 @@ def scan_build_tags(path: str) -> set[str] | None:
 
 def scan_sources(paths: list[str], cache: dict) -> tuple[dict[str, set[str] | None], dict]:
     """
-    Build tags of each source file, or None if it can't be read, plus the cache for the next run.
+    Build tags of each source file, or None if it doesn't exist or can't be read, plus the cache for the next run.
 
-    `cache` maps a path to its stat key and tags; a file whose key is unchanged is not read again.
+    Only files with a scanned extension are read; others only need to exist. `cache` maps a path to its stat key and
+    tags; a file whose key is unchanged is not read again.
     """
 
     def scan(path: str) -> tuple[set[str] | None, list | None]:
@@ -101,7 +111,7 @@ def scan_sources(paths: list[str], cache: dict) -> tuple[dict[str, set[str] | No
         entry = cache.get(path)
         if entry and entry[0] == key:
             return set(entry[1]), entry
-        tags = scan_build_tags(path)
+        tags = scan_build_tags(path) if path.endswith(_SCANNED_EXTENSIONS) else set()
         return tags, None if tags is None else [key, sorted(tags)]
 
     # Opening tens of thousands of files dominates a run without cache, and file I/O releases the GIL.
@@ -168,11 +178,12 @@ def build_manifest(nodes: dict[str, dict], scan) -> tuple[list[str], dict[str, l
             raise ValueError(f"{label} is missing from the `bazel query` graph, check the query errors above")
         tags = set()
         for src in node["srcs"]:
-            if src.endswith(_SCANNED_EXTENSIONS):
-                found = scan(src)
-                if found is None:
-                    return None
-                tags |= found
+            if src in TAG_FREE_GENERATORS:
+                continue
+            found = scan(src)
+            if found is None:
+                return None
+            tags |= found
         for dep in node["deps"]:
             dep_tags = closure(dep)
             if dep_tags is None:
@@ -253,7 +264,7 @@ def main() -> int:
             src: source_path(src, workspace, output_base)
             for node in nodes.values()
             for src in node["srcs"]
-            if src.endswith(_SCANNED_EXTENSIONS)
+            if src not in TAG_FREE_GENERATORS
         }
         cache_path = os.path.join(output_base, _SCAN_CACHE)
         try:
