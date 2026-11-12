@@ -216,7 +216,18 @@ func TestNetNSMountRegistration(t *testing.T) {
 		return handle.Close()
 	}, backoff.WithBackOff(backoff.NewConstantBackOff(100*time.Millisecond)), backoff.WithMaxElapsedTime(5*time.Second))
 	if err != nil {
-		t.Fatal(err)
+		// tells a mount event that never made it to the mount resolver from a mount path that couldn't be opened
+		var mountID uint32
+		p.Resolvers.MountResolver.Iterate(func(m *model.Mount) {
+			if m.GetFSType() == "nsfs" && uint32(m.RootPathKey.Inode) == nsID {
+				mountID = m.MountID
+			}
+		})
+		if mountID == 0 {
+			t.Fatalf("%v, and the mount resolver has no nsfs mount of it", err)
+		}
+		mountPath, _, _, pathErr := p.Resolvers.MountResolver.ResolveMountPath(mountID, 0)
+		t.Fatalf("%v, and the mount resolver has its nsfs mount %d at %q (%v)", err, mountID, mountPath, pathErr)
 	}
 
 	run("link", "add", "wpnsfs0", "type", "veth", "peer", "name", "wpnsfs1")

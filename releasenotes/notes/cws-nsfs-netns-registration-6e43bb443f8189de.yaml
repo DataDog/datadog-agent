@@ -2,3 +2,5 @@
 fixes:
   - |
     CWS: network namespaces created with ``ip netns add`` or by a container runtime are now monitored as soon as they are mounted, instead of only once a process inside them emits an event.
+  - |
+    CWS: mount events of namespace files are no longer dropped on kernels older than 5.2.
