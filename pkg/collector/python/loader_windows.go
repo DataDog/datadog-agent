@@ -7,26 +7,8 @@
 
 package python
 
-import (
-	"github.com/go-ole/go-ole"
-)
-
-const sFalse = 0x00000001
-
-func platformLoaderPrep() error {
-	// Initialize COM to multithreaded model
-	err := ole.CoInitializeEx(0, ole.COINIT_MULTITHREADED)
-	if err != nil {
-		oleCode := err.(*ole.OleError).Code()
-		if oleCode != ole.S_OK && oleCode != sFalse {
-			return err
-		}
-	}
-	return nil
-}
-
-func platformLoaderDone() error {
-	// UnInitialize COM
-	ole.CoUninitialize()
-	return nil
+// platformLoaderPrep initializes COM for loading a Python check and returns
+// the function that releases it.
+func platformLoaderPrep() (func(), error) {
+	return initLoaderCOM()
 }
