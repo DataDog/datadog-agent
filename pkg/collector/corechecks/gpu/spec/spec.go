@@ -344,6 +344,8 @@ func (v *MetricValidator) validateDefinition() error {
 
 // MetricSupportSpec defines where a metric is supported.
 type MetricSupportSpec struct {
+	// AMDOnly marks a metric emitted only for AMD GPUs: no NVIDIA architecture supports it.
+	AMDOnly                  bool                       `yaml:"amd_only,omitempty"`
 	UnsupportedArchitectures []string                   `yaml:"unsupported_architectures"`
 	DeviceModes              map[DeviceMode]bool        `yaml:"device_modes"`
 	CapabilitiesRequired     MetricCapabilitiesRequired `yaml:"capabilities_required,omitempty"`
@@ -499,6 +501,9 @@ func (a ArchitectureSpec) SupportedNVLinkGeneration() int {
 
 // SupportsArchitecture returns true if the metric is supported on this architecture.
 func (m MetricSpec) SupportsArchitecture(arch string) bool {
+	if m.Support.AMDOnly {
+		return false
+	}
 	for _, unsupportedArch := range m.Support.UnsupportedArchitectures {
 		if unsupportedArch == arch {
 			return false

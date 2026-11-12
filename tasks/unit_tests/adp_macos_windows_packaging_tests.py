@@ -41,7 +41,7 @@ class TestADPMacOSWindowsPackaging(unittest.TestCase):
     def test_adp_all_files_is_wired_into_dependencies_for_linux_macos_and_windows(self):
         dependencies = (REPO_ROOT / "packages/agent/dependencies/BUILD.bazel").read_text()
 
-        self.assertIn('"//packages/agent:linux_default": [', dependencies)
+        self.assertIn('"@platforms//os:linux": [', dependencies)
         self.assertIn('"//packages/agent:linux_fips": [', dependencies)
         macos_srcs = dependencies.partition('"@platforms//os:macos": [')[2].partition("],")[0]
         self.assertIn('"//deps/agent_data_plane:all_files"', macos_srcs)

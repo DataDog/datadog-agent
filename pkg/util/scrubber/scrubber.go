@@ -35,6 +35,9 @@ type Replacer struct {
 	// value is passed to the function and replaced by the returned interface. This is useful to produce custom
 	// scrubbing. Example: keeping the last 5 digit of an api key.
 	ProcessValue func(data interface{}) interface{}
+	// processValueAtPath is like ProcessValue, but also receives the dotted path of the value. It is used by
+	// replacers that re-enter the scrubber on the value, so the nested paths they record are complete.
+	processValueAtPath func(data interface{}, path string) interface{}
 	// Hints, if given, are strings which must also be present in the text for the regexp to match.
 	// Especially in single-line replacers, this can be used to limit the contexts where an otherwise
 	// very broad Regex is actually replaced.
@@ -74,6 +77,18 @@ const (
 var commentRegex = regexp.MustCompile(`^\s*#.*$`)
 var blankRegex = regexp.MustCompile(`^\s*$`)
 
+func (r Replacer) hasProcessValue() bool {
+	return r.ProcessValue != nil || r.processValueAtPath != nil
+}
+
+// processValue calls processValueAtPath, or ProcessValue if it is not set
+func (r Replacer) processValue(data interface{}, path string) interface{} {
+	if r.processValueAtPath != nil {
+		return r.processValueAtPath(data, path)
+	}
+	return r.ProcessValue(data)
+}
+
 // Scrubber implements support for cleaning sensitive information out of strings
 // and files.  Its intended use is to "clean" data before it is logged or
 // transmitted to a remote system, so that the meaning of the data remains
@@ -98,7 +113,7 @@ type Scrubber struct {
 	// This is primarily used by the flare to preserve ENC value in yaml files.
 	preserveENC bool
 
-	// strippedKeys records the keys whose values were scrubbed by ScrubDataObj
+	// strippedKeys records the paths of the settings whose values were scrubbed by ScrubDataObj
 	strippedKeys      map[string]struct{}
 	strippedKeysMutex sync.Mutex
 }
@@ -141,10 +156,11 @@ func (c *Scrubber) SetPreserveENC(preserve bool) {
 	c.preserveENC = preserve
 }
 
-// GetStrippedKeys returns the sorted keys whose values were scrubbed by ScrubDataObj (and so ScrubYaml and ScrubJSON).
-// This includes keys known to hold sensitive data (ex: "password", "authKey", or any key added through AddStrippedKeys)
-// as well as keys whose value was detected to be a credential (ex: a raw API key, a bearer token or a password in a
-// URL). Elements of a list are reported under the key holding the list.
+// GetStrippedKeys returns the sorted full dotted paths of the settings whose values were scrubbed by ScrubDataObj (and
+// so ScrubYaml and ScrubJSON). This includes keys known to hold sensitive data (ex: "password", "authKey", or any key
+// added through AddStrippedKeys) as well as keys whose value was detected to be a credential (ex: a raw API key, a
+// bearer token or a password in a URL). Elements of a list use their index in the path (ex:
+// "instances.0.community_string").
 func (c *Scrubber) GetStrippedKeys() []string {
 	c.strippedKeysMutex.Lock()
 	defer c.strippedKeysMutex.Unlock()
