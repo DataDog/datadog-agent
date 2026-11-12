@@ -132,6 +132,24 @@ func NewMetric(name string, value float64, metricType ddmetrics.MetricType, prio
 	}
 }
 
+// NewMetricWithNoWorkloadTags creates a metric sample whose series stays on
+// device tags only: the emitter adds no workload tags to it and does not emit
+// it once per workload on the device. Use it for per-device quantities and
+// states -- e.g. a GPU's sharing factor -- that a shared device would
+// otherwise duplicate once per workload with tags their spec does not list.
+func NewMetricWithNoWorkloadTags(name string, value float64, metricType ddmetrics.MetricType, priority MetricPriority, tags []string) *Metric {
+	return &Metric{
+		baseSample: baseSample{
+			priority:       priority,
+			tags:           slices.Clone(tags),
+			noWorkloadTags: true,
+		},
+		Name:  name,
+		Value: value,
+		Type:  metricType,
+	}
+}
+
 var _ Sample = (*Metric)(nil)
 
 func (m *Metric) Key() string {

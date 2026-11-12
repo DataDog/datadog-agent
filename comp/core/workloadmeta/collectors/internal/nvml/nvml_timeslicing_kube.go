@@ -15,9 +15,8 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/kubernetes/kubelet"
 )
 
-// fetchNodeGPULabels reads the labels of this node from the cluster agent or
-// the API server, through the node info the agent's other node-label reads
-// (e.g. the MIG reconfiguration window) use as well.
+// fetchNodeGPULabels reads this node's labels from the cluster agent or
+// the API server.
 func (c *collector) fetchNodeGPULabels(ctx context.Context) (map[string]string, error) {
 	ni, err := hostinfo.NewNodeInfo()
 	if err != nil {
@@ -27,10 +26,7 @@ func (c *collector) fetchNodeGPULabels(ctx context.Context) (map[string]string, 
 }
 
 // getKubeletDeviceIDs returns the IDs of every device registered to the
-// kubelet on this node, across plugins, whatever their health. A
-// shared-device replica is one registered device per replica, so counting
-// the IDs that carry a base device's replica suffix is how the number of
-// replicas of that device is established.
+// kubelet on this node, across plugins.
 func (c *collector) getKubeletDeviceIDs(ctx context.Context) ([]string, error) {
 	// for now support only kubernetes as a source of truth for devices
 	if !env.IsFeaturePresent(env.KubernetesDevicePlugins) {
