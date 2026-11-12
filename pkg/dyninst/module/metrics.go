@@ -45,8 +45,8 @@ type metricsReporter struct {
 	// mu held.
 	onEmitting func(ir.ProgramID, ir.ProbeDefinition)
 	// lookupContainer looks up the Kubernetes pod that a container belongs
-	// to. It returns ok=false if the container is unknown, and an empty UID
-	// if the container is known but not part of a pod. It may be nil.
+	// to. It returns ok=false if the container or its owner is unknown, and
+	// an empty UID with ok=true for a known non-pod owner. It may be nil.
 	lookupContainer func(containerID string) (podUID string, ok bool)
 	// now returns the current time. Overridden by tests.
 	now func() time.Time
@@ -341,9 +341,9 @@ func metricEvaluationError(probe *reportedMetricProbe) decode.EvaluationError {
 }
 
 // resolveContainerLocked adds the pod of the target's container to the tags
-// of the program's probes, once workloadmeta knows about the container. The
-// container may not be known yet when the program is loaded, so this is
-// retried on every report until it succeeds.
+// of the program's probes, once workloadmeta knows the container's owner.
+// Missing container or owner metadata is retried on every report without
+// delaying metrics.
 //
 // Until then, and always for targets that aren't in a pod, the probes have no
 // dd.internal.entity_id tag of their own. If system-probe's environment sets

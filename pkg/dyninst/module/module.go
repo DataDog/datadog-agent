@@ -179,16 +179,19 @@ func withMetricsClient(
 	}
 }
 
-// podLookup returns a function that finds the Kubernetes pod of a container in
-// workloadmeta.
+// podLookup finds a container's pod in workloadmeta. Missing ownership is
+// retried because container metadata may arrive before pod metadata.
 func podLookup(wmeta workloadmeta.Component) func(containerID string) (podUID string, ok bool) {
 	return func(containerID string) (string, bool) {
 		container, err := wmeta.GetContainer(containerID)
 		if err != nil {
 			return "", false
 		}
-		if owner := container.Owner; owner != nil && owner.Kind == workloadmeta.KindKubernetesPod {
-			return owner.ID, true
+		if container.Owner == nil {
+			return "", false
+		}
+		if container.Owner.Kind == workloadmeta.KindKubernetesPod {
+			return container.Owner.ID, true
 		}
 		return "", true
 	}
