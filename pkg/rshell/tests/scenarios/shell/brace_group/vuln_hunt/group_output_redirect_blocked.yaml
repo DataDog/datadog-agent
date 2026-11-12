@@ -1,0 +1,11 @@
+# skip: write redirects are intentionally blocked in the restricted shell.
+skip_assert_against_bash: true
+description: A group-level output redirect on a brace group cannot write a file.
+input:
+  script: |+
+    { echo body; } > /tmp/brace-output.txt
+expect:
+  stdout: ""
+  stderr: |+
+    > file redirection is not supported
+  exit_code: 2

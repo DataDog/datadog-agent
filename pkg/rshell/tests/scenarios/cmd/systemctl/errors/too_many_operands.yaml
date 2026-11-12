@@ -1,0 +1,16 @@
+# The operand bound is checked on the raw argument list, before deduplication.
+skip_assert_against_bash: true
+description: systemctl rejects more than 32 unit operands, before deduplication
+input:
+  mode: remediation
+  script: |+
+    systemctl status u1.service u2.service u3.service u4.service u5.service u6.service u7.service u8.service u9.service u10.service u11.service u12.service u13.service u14.service u15.service u16.service u17.service u18.service u19.service u20.service u21.service u22.service u23.service u24.service u25.service u26.service u27.service u28.service u29.service u30.service u31.service u32.service u33.service
+    systemctl restart u1.service u2.service u3.service u4.service u5.service u6.service u7.service u8.service u9.service u10.service u11.service u12.service u13.service u14.service u15.service u16.service u17.service u18.service u19.service u20.service u21.service u22.service u23.service u24.service u25.service u26.service u27.service u28.service u29.service u30.service u31.service u32.service u33.service
+    systemctl status api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service api.service
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: too many unit operands (maximum 32)
+    systemctl: too many unit operands (maximum 32)
+    systemctl: too many unit operands (maximum 32)
+  exit_code: 1

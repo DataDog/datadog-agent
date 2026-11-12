@@ -1,0 +1,15 @@
+description: stat -f continues after one operand fails and exits nonzero.
+setup:
+  files:
+    - path: file
+      content: "data"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f missing file
+expect:
+  stdout_contains:
+    - "  File: \"file\"\n"
+  stderr_contains:
+    - "missing"
+  exit_code: 1

@@ -1,0 +1,18 @@
+description: grep -o prints only matched parts.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foobar
+        bazfoo
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -o foo file.txt
+expect:
+  stdout: |+
+    foo
+    foo
+  stderr: ""
+  exit_code: 0

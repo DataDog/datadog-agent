@@ -46,6 +46,25 @@ class TestTidy(unittest.TestCase):
         bazel_tidy.assert_not_called()
         go_only_tidy.assert_called_once()
 
+    def test_bazel_workspace_checks_modules(self):
+        Path("MODULE.bazel").touch()
+        with (
+            patch.object(go, "_check_valid_mods") as check_valid_mods,
+            patch.object(go, "_bazel_tidy"),
+            patch.object(go, "_go_only_tidy"),
+        ):
+            go.tidy(MagicMock(spec=Context))
+        check_valid_mods.assert_called_once()
+
+    def test_pre_bazel_branch_skips_module_check(self):
+        with (
+            patch.object(go, "_check_valid_mods") as check_valid_mods,
+            patch.object(go, "_bazel_tidy"),
+            patch.object(go, "_go_only_tidy"),
+        ):
+            go.tidy(MagicMock(spec=Context))
+        check_valid_mods.assert_not_called()
+
     def test_generates_settings_when_the_module_exists(self):
         Path(go.GENERATED_SETTINGS_DIR).mkdir(parents=True)
         with patch.object(go, "schema_codegen") as schema_codegen:

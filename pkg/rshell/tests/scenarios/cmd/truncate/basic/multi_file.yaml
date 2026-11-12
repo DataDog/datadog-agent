@@ -1,0 +1,21 @@
+# Derived from uutils test_truncate.rs::test_truncate_multi_file.
+description: truncate processes multiple file operands in order.
+setup:
+  files:
+    - path: a.txt
+      content: "aaaaaaaaa"
+    - path: b.txt
+      content: "bbbbbbbbb"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    truncate -s 3 a.txt b.txt
+    wc -c < a.txt
+    wc -c < b.txt
+expect:
+  stdout: |+
+    3
+    3
+  stderr: |+
+  exit_code: 0

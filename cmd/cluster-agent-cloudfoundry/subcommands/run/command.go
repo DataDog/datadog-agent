@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"code.cloudfoundry.org/bbs"
-	"github.com/cloudfoundry-community/go-cfclient/v2"
 	"github.com/spf13/cobra"
 
 	"github.com/DataDog/datadog-agent/cmd/cluster-agent-cloudfoundry/command"
@@ -279,12 +278,12 @@ func initializeCCCache(ctx context.Context, config config.Component) (cloudfound
 	pollInterval := time.Second * time.Duration(config.GetInt("cloud_foundry_cc.poll_interval"))
 
 	// Create the CF client
-	ccClient, err := cloudfoundry.NewCFClient(&cfclient.Config{
-		ApiAddress:        config.GetString("cloud_foundry_cc.url"),
-		ClientID:          config.GetString("cloud_foundry_cc.client_id"),
-		ClientSecret:      config.GetString("cloud_foundry_cc.client_secret"),
-		SkipSslValidation: config.GetBool("cloud_foundry_cc.skip_ssl_validation"),
-	})
+	ccClient, err := cloudfoundry.NewCFClient(
+		config.GetString("cloud_foundry_cc.url"),
+		config.GetString("cloud_foundry_cc.client_id"),
+		config.GetString("cloud_foundry_cc.client_secret"),
+		config.GetBool("cloud_foundry_cc.skip_ssl_validation"),
+	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create CC client: %v", err)
 	}

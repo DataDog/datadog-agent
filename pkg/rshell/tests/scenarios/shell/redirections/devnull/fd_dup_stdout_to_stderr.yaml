@@ -1,0 +1,8 @@
+description: Fd duplication >&2 redirects stdout to stderr.
+input:
+  script: |+
+    echo hello >&2
+expect:
+  stdout: ""
+  stderr: "hello\n"
+  exit_code: 0

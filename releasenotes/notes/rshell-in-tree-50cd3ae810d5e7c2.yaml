@@ -1,0 +1,13 @@
+enhancements:
+  - |
+    The restricted shell is now maintained and built in the Agent repository.
+    It remains available to Go consumers as
+    ``github.com/DataDog/datadog-agent/pkg/rshell``.
+  - |
+    The restricted shell library can preview local and remote script
+    authorization without executing the script.
+fixes:
+  - |
+    Restricted shell redirects now expand their targets and reject ambiguous
+    targets. The ``sed`` builtin now uses leftmost-longest regular expression
+    matching.

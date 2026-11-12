@@ -1,0 +1,8 @@
+description: Nested brace groups produce combined output.
+input:
+  script: |+
+    { echo outer; { echo inner; }; }
+expect:
+  stdout: "outer\ninner\n"
+  stderr: ""
+  exit_code: 0

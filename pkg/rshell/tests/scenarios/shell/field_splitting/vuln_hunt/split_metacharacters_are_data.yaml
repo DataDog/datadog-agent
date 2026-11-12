@@ -1,0 +1,14 @@
+# vuln-hunt 2026-05-19-codex / field_splitting.
+description: Split words containing shell metacharacters remain data and are not re-parsed.
+input:
+  script: |+
+    PAYLOAD='one;echo bad two|cat three>file'
+    for w in $PAYLOAD; do echo "[$w]"; done
+expect:
+  stdout: |+
+    [one;echo]
+    [bad]
+    [two|cat]
+    [three>file]
+  stderr: ""
+  exit_code: 0

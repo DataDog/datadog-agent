@@ -1,0 +1,25 @@
+# Security test: the per-invocation rm cap (10 files) bounds a single mistaken
+# glob, but nothing else — `for f in *; do rm "$f"; done` issues one
+# single-file invocation per file and would otherwise delete an unbounded
+# number of files. The run-wide budget (builtins.MaxFileRemovalsPerRun = 100)
+# is shared by every invocation in the run, so the loop stops after 100
+# removals and the remaining files survive.
+description: rm's run-wide removal budget bounds a for-loop that removes one file per invocation.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    for a in 0 1 2 3 4 5 6 7 8 9; do for b in 0 1 2 3 4 5 6 7 8 9; do echo x > f$a$b.txt; done; done
+    echo x > zz1.txt
+    echo x > zz2.txt
+    for f in *.txt; do rm "$f"; done
+    echo "---"
+    ls *.txt
+expect:
+  stdout: |+
+    ---
+    zz1.txt
+    zz2.txt
+  stderr_contains: ["run-wide budget of 100 file removals is exhausted"]
+  exit_code: 0
+skip_assert_against_bash: true

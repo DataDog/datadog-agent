@@ -1,0 +1,19 @@
+description: awk reads dash input and treats missing program files as fatal.
+setup:
+  files:
+    - path: prog.awk
+      content: |+
+        { print NR ":" $2 }
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    printf 'a b\nc d\n' | awk -f prog.awk -
+    awk -f missing.awk
+expect:
+  stdout: |+
+    1:b
+    2:d
+  stderr_contains:
+    - 'awk: fatal: cannot open source file "missing.awk" for reading:'
+    - no such file or directory
+  exit_code: 2

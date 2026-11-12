@@ -1,0 +1,9 @@
+description: When left side of || fails, right side executes.
+input:
+  script: |+
+    false || echo fallback
+expect:
+  stdout: |+
+    fallback
+  stderr: ""
+  exit_code: 0

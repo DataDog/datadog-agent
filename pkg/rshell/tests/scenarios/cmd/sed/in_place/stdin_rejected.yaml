@@ -1,0 +1,12 @@
+description: sed -i rejects "-" (standard input) as a target even in remediation mode.
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    echo hi | sed -i 's/hi/bye/' -
+expect:
+  stdout: |+
+  stderr: |+
+    sed: -i: cannot edit standard input in place
+  exit_code: 1
+skip_assert_against_bash: true

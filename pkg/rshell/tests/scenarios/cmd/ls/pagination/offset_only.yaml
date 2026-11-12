@@ -1,0 +1,29 @@
+description: ls --offset skips entries and returns the rest.
+# skip: pagination flags are an rshell-specific extension not present in the reference implementation
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: f01
+      content: ""
+      chmod: 0644
+    - path: f02
+      content: ""
+      chmod: 0644
+    - path: f03
+      content: ""
+      chmod: 0644
+    - path: f04
+      content: ""
+      chmod: 0644
+    - path: f05
+      content: ""
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls --offset 3 | wc -l | tr -d ' '
+expect:
+  stdout: |+
+    2
+  stderr: ""
+  exit_code: 0

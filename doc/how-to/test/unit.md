@@ -2,9 +2,9 @@
 
 -----
 
-The `dda inv test` command runs Go tests. It's implementation is transitioning from being a thin wrapper around [gotestsum](https://github.com/gotestyourself/gotestsum) to wrapping Bazel instead.
-On Linux and macos, `dda inv test` uses Bazel, `dda inv test-legacy` still being available for the `gotestsum` wrapper for
-transitional purposes. On all other platforms, `dda inv test` uses `gotestsum`, the Bazel version being available under `dda inv test-new` instead.
+The `dda inv test` command runs Go tests via Bazel.
+
+`dda inv test-legacy` still allows the use of the former way of running tests, which wraps [gotestsum](https://github.com/gotestyourself/gotestsum) instead of Bazel. On AIX, only `dda inv test` is available, which is equivalent to `test-legacy`, as Bazel is not supported on it.
 
 ## Test selection
 

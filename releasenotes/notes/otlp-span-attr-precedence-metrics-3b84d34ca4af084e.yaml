@@ -1,0 +1,5 @@
+---
+fixes:
+  - |
+    APM: In OTLP span conversion, numeric span attributes now take precedence over
+    resource attributes with the same key, instead of also keeping the resource value as a tag.

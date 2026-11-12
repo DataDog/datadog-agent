@@ -10,7 +10,6 @@ import (
 	"strings"
 	"testing"
 
-	observerdef "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/def"
 	telemetry "github.com/DataDog/datadog-agent/comp/core/telemetry/def"
 	telemetryimpl "github.com/DataDog/datadog-agent/comp/core/telemetry/impl"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
@@ -23,7 +22,7 @@ type testLifecycle struct {
 }
 
 func TestStorageConfigFromAgentConfigDerivesRetentionFromDetectorWindows(t *testing.T) {
-	detectors := []observerdef.Detector{NewBOCPDDetector(DefaultBOCPDConfig())}
+	detectors := []detectorRegistration{{detector: NewBOCPDDetector(DefaultBOCPDConfig())}}
 
 	for name, test := range map[string]struct {
 		yaml string
@@ -78,12 +77,12 @@ anomaly_detection:
 func TestMaxDetectorPoints(t *testing.T) {
 	bocpdConfig := DefaultBOCPDConfig()
 	bocpdConfig.WarmupPoints = 40
-	detectors := []observerdef.Detector{
-		NewBOCPDDetector(bocpdConfig),
-		NewHoltResidualDetector(),
-		NewTukeyBiweightDetector(),
-		NewScanMWDetector(),
-		NewScanWelchDetector(),
+	detectors := []detectorRegistration{
+		{detector: NewBOCPDDetector(bocpdConfig)},
+		{detector: NewHoltResidualDetector(DefaultHoltResidualConfig())},
+		{detector: NewTukeyBiweightDetector(DefaultTukeyBiweightConfig())},
+		{detector: NewScanMWDetector(DefaultScanMWConfig())},
+		{detector: NewScanWelchDetector(DefaultScanWelchConfig())},
 	}
 	require.Equal(t, 120, maxDetectorPoints(detectors))
 }

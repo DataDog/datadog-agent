@@ -1,0 +1,12 @@
+description: until loop's condition can be a pipeline; only the trailing exit status matters.
+input:
+  script: |+
+    until echo test | grep -q match; do
+      echo body
+      break
+    done
+expect:
+  stdout: |+
+    body
+  stderr: |+
+  exit_code: 0

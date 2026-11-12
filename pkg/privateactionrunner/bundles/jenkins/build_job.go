@@ -93,15 +93,19 @@ func (h *BuildJobHandler) Run(
 }
 
 func buildJobURL(domain string, inputs BuildJobInputs) (*url.URL, error) {
+	encodedJobName, err := encodeJobNameForUrl(inputs.JobName)
+	if err != nil {
+		return nil, err
+	}
 	params := url.Values{"delay": []string{"0sec"}}
 	var path string
 	if inputs.BuildWithParameters != nil && inputs.BuildWithParameters.Option == WithParameters {
-		path = fmt.Sprintf("/job/%s/buildWithParameters", encodeJobNameForUrl(inputs.JobName))
+		path = fmt.Sprintf("/job/%s/buildWithParameters", encodedJobName)
 		for k, v := range inputs.BuildWithParameters.Parameters {
 			params.Add(k, v)
 		}
 	} else {
-		path = fmt.Sprintf("/job/%s/build", encodeJobNameForUrl(inputs.JobName))
+		path = fmt.Sprintf("/job/%s/build", encodedJobName)
 	}
 	jobURL, err := url.Parse(domain + path)
 	if err != nil {

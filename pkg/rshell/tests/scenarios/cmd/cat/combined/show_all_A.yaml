@@ -1,0 +1,13 @@
+description: cat -A is equivalent to -vET (shows all non-printing, tabs, and ends).
+setup:
+  files:
+    - path: file.txt
+      content: "\thello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -A file.txt
+expect:
+  stdout: "^Ihello$\n"
+  stderr: ""
+  exit_code: 0

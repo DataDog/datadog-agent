@@ -1,0 +1,16 @@
+description: Question mark requires exactly one character and does not match zero characters.
+setup:
+  files:
+    - path: ab
+      content: ""
+    - path: a
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    echo a?
+expect:
+  stdout: |+
+    ab
+  stderr: ""
+  exit_code: 0

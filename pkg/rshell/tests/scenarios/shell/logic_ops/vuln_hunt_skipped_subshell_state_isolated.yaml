@@ -1,0 +1,11 @@
+description: Skipped subshell operands do not mutate parent-visible variables.
+input:
+  script: |+
+    false && (X=hacked)
+    true || (Y=hacked)
+    echo "X=$X Y=$Y"
+expect:
+  stdout: |+
+    X= Y=
+  stderr: ""
+  exit_code: 0

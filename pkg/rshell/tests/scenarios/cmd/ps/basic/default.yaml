@@ -1,0 +1,10 @@
+description: ps with no arguments shows a PID column header and at least one process.
+skip_assert_against_bash: true
+input:
+  script: |+
+    ps
+expect:
+  stdout_contains:
+    - "PID"
+    - "CMD"
+  exit_code: 0

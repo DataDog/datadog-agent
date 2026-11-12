@@ -1,0 +1,9 @@
+description: A brace group containing a single command executes correctly.
+input:
+  script: |+
+    { echo only; }
+expect:
+  stdout: |+
+    only
+  stderr: ""
+  exit_code: 0

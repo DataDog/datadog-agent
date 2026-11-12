@@ -1,0 +1,17 @@
+description: cd in a pipeline stage runs in a subshell; the parent shell's cwd does not change.
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    p1=$(pwd)
+    echo go | { cd child; pwd; } >/dev/null
+    p2=$(pwd)
+    if [ "$p1" = "$p2" ]; then echo isolated; else echo leaked; fi
+expect:
+  stdout: |+
+    isolated
+  stderr: ""
+  exit_code: 0

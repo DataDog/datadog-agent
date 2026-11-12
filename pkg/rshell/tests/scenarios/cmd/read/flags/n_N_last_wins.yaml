@@ -1,0 +1,11 @@
+description: When both -n and -N are given, the last one specified wins (matches bash).
+input:
+  script: |+
+    printf 'abcde' | { read -n 1 -N 2 x; echo "x1=[$x]"; }
+    printf 'abcde' | { read -N 2 -n 1 y; echo "y1=[$y]"; }
+expect:
+  stdout: |+
+    x1=[ab]
+    y1=[a]
+  stderr: ""
+  exit_code: 0

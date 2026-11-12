@@ -229,4 +229,4 @@
 .windows_docker_default:
   extends: .windows_docker_v2_2022
   variables:
-    DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: C:\devtools\ci-identities-gitlab-job-client.exe secrets read feature-flags-client token
+    DDA_FEATURE_FLAGS_CI_TOKEN_COMMAND: powershell.exe -NoLogo -NoProfile -NonInteractive -File tools\ci\read_ci_secret.ps1 feature-flags-client token

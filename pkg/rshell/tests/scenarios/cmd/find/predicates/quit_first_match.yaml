@@ -1,0 +1,21 @@
+description: find -name target -print -quit prints exactly one match then stops.
+setup:
+  files:
+    - path: dir/sub1/target.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/sub2/target.txt
+      content: "b"
+      chmod: 0644
+    - path: dir/sub3/other.txt
+      content: "c"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name 'target.txt' -print -quit
+expect:
+  stdout_contains:
+    - "target.txt"
+  stderr: ""
+  exit_code: 0

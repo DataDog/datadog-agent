@@ -1,0 +1,15 @@
+description: "N (append next) command with $ address only matches last line of last file."
+setup:
+  files:
+    - path: a.txt
+      content: "a\nb\n"
+    - path: b.txt
+      content: "c\nd\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 'N;$p' a.txt b.txt
+expect:
+  stdout: "c\nd\n"
+  stderr: ""
+  exit_code: 0

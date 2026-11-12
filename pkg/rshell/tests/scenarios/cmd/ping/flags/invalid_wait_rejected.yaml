@@ -1,0 +1,9 @@
+# -W with a non-numeric, non-duration string is rejected with exit 1.
+description: "ping -W with invalid value is rejected"
+input:
+  script: |+
+    ping -W abc localhost
+expect:
+  stderr: "ping: invalid argument \"abc\" for \"-W, --wait\" flag: invalid duration \"abc\": must be a Go duration (e.g. \"1s\", \"500ms\") or seconds (e.g. \"1\", \"0.5\")\n"
+  exit_code: 1
+skip_assert_against_bash: true

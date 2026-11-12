@@ -89,8 +89,14 @@ func (p *Pipeline) Stop() {
 
 // Flush flushes synchronously the processor and sender managed by this pipeline.
 func (p *Pipeline) Flush(ctx context.Context) {
+	p.processor.Flush(ctx) // flush messages in the processor into the strategy before flushing it
+	// The batch strategy's Flush returns once the flushed payloads are handed to the sender,
+	// so a caller waiting for in-flight sends afterwards also waits for these payloads.
+	if f, ok := p.strategy.(interface{ Flush(context.Context) }); ok {
+		f.Flush(ctx)
+		return
+	}
 	p.flushChan <- struct{}{}
-	p.processor.Flush(ctx) // flush messages in the processor into the sender
 }
 
 func getStrategy(

@@ -61,13 +61,23 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 
 	// Create fake informer factories
 	informerFactory := informers.NewSharedInformerFactoryWithOptions(client, 300*time.Second)
-	metadataInformerFactory := metadatainformer.NewSharedInformerFactory(metadataClient, 300*time.Second)
+	secretMetadataInformerFactory := metadatainformer.NewSharedInformerFactory(metadataClient, 300*time.Second)
+	configMapMetadataInformerFactory := metadatainformer.NewFilteredSharedInformerFactory(metadataClient, 300*time.Second, metav1.NamespaceAll,
+		func(opts *metav1.ListOptions) {
+			opts.LabelSelector = NonHelmReleaseLabelSelector
+		})
+	helmReleaseConfigMapInformerFactory := informers.NewSharedInformerFactoryWithOptions(client, 300*time.Second,
+		informers.WithTweakListOptions(func(opts *metav1.ListOptions) {
+			opts.LabelSelector = HelmReleaseLabelSelector
+		}))
 
 	// Create OrchestratorInformerFactory with fake informers
 	orchestratorInformerFactory := &collectors.OrchestratorInformerFactory{
-		InformerFactory:         informerFactory,
-		MetadataInformerFactory: metadataInformerFactory,
+		InformerFactory: informerFactory,
 	}
+	orchestratorInformerFactory.HelmReleaseConfigMapInformerFactory = helmReleaseConfigMapInformerFactory
+	orchestratorInformerFactory.ConfigMapMetadataInformerFactory = configMapMetadataInformerFactory
+	orchestratorInformerFactory.SecretMetadataInformerFactory = secretMetadataInformerFactory
 
 	apiClient := &apiserver.APIClient{Cl: client}
 
@@ -96,7 +106,9 @@ func RunCollectorTest(t *testing.T, config CollectorTestConfig, collector collec
 	stopCh := make(chan struct{})
 	defer close(stopCh)
 	informerFactory.Start(stopCh)
-	metadataInformerFactory.Start(stopCh)
+	secretMetadataInformerFactory.Start(stopCh)
+	helmReleaseConfigMapInformerFactory.Start(stopCh)
+	configMapMetadataInformerFactory.Start(stopCh)
 
 	// Wait for the informer to sync
 	if k8sCollector, ok := collector.(collectors.K8sCollector); ok {

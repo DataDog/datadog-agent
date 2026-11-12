@@ -2,41 +2,16 @@
 SELinux namespaced tasks
 """
 
-import os
-
 from invoke import task
 
-DEFAULT_SYSPROBE_POLICY_TE_FILE = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "cmd", "agent", "selinux", "system_probe_policy.te"
-)
-DEFAULT_SYSPROBE_POLICY_OUTPUT_DIRECTORY = os.path.join(
-    os.path.dirname(os.path.realpath(__file__)), "..", "cmd", "agent", "selinux"
-)
+from tasks.libs.build.bazel import bazel
 
 
 @task
-def compile_system_probe_policy_file(
-    ctx, te_file=DEFAULT_SYSPROBE_POLICY_TE_FILE, output_directory=DEFAULT_SYSPROBE_POLICY_OUTPUT_DIRECTORY
-):
+def compile_system_probe_policy_file(_):
     """
-    Takes a SELinux .te policy file and compiles it into a .pp policy module.
+    Compiles cmd/agent/selinux/system_probe_policy.te into system_probe_policy.pp next to it.
+
+    Wraps `bazel run //cmd/agent/selinux:write_system_probe_policy`; prefer calling Bazel directly.
     """
-
-    # Get the filename without the .te extension
-    policy_filename = os.path.splitext(te_file)[0]
-
-    # Compute the .mod module name
-    temp_module_name = ".".join([policy_filename, "mod"])
-
-    # Compute the .pp packaged module name
-    output_module_name = ".".join([os.path.join(output_directory, os.path.basename(policy_filename)), "pp"])
-
-    # Compile the module targeting modular policy version 19, the highest version
-    # supported by libsepol on RHEL 7 (range 4-19). Newer distributions remain
-    # backward-compatible, so a v19 module loads on all supported RHEL releases.
-    command = f"checkmodule -M -m -c 19 -o {temp_module_name} {te_file}"
-    ctx.run(command)
-
-    # Package the module
-    command = f"semodule_package -o {output_module_name} -m {temp_module_name}"
-    ctx.run(command)
+    bazel("run", "//cmd/agent/selinux:write_system_probe_policy")

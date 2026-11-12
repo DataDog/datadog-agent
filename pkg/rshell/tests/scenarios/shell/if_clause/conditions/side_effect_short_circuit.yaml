@@ -1,0 +1,17 @@
+description: Once a branch matches, later elif conditions must not run (short-circuit). Side effects in later conditions must be invisible.
+input:
+  script: |+
+    if true; then
+      echo matched-first
+    elif echo should-not-run; then
+      echo elif-body
+    elif echo also-should-not-run; then
+      echo second-elif-body
+    else
+      echo else-body
+    fi
+expect:
+  stdout: |+
+    matched-first
+  stderr: ""
+  exit_code: 0

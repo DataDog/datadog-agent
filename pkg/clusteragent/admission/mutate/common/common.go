@@ -9,12 +9,15 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/DataDog/dd-trace-go/v2/ddtrace/tracer"
 	"github.com/wI2L/jsondiff"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/dynamic"
@@ -28,9 +31,28 @@ import (
 // Kubernetes cluster-autoscaler to mark a volume as safe to evict
 const K8sAutoscalerSafeToEvictVolumesAnnotation = "cluster-autoscaler.kubernetes.io/safe-to-evict-local-volumes"
 
+// Mutation errors may contain pod data. Never attach the original error to spans.
+var errMutation = errors.New("admission mutation failed")
+
+// Defer this directly so recover observes panics and err is read at function exit.
+func finishMutationSpan(span *tracer.Span, err *error) {
+	p := recover()
+	var spanErr error
+	if p != nil || *err != nil {
+		spanErr = errMutation
+	}
+	span.Finish(tracer.WithError(spanErr))
+	if p != nil {
+		panic(p)
+	}
+}
+
 // Mutate handles mutating pods and encoding and decoding admission
 // requests and responses for the public mutate functions
-func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) ([]byte, error) {
+func Mutate(ctx context.Context, rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dynamic.Interface) (patchJSON []byte, retErr error) {
+	span, ctx := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.mutate", tracer.ResourceName(mutationType))
+	defer finishMutationSpan(span, &retErr)
+
 	var pod corev1.Pod
 	if err := json.Unmarshal(rawPod, &pod); err != nil {
 		return nil, fmt.Errorf("failed to decode raw object: %v", err)
@@ -48,10 +70,16 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 	// Normalize correctable issues before proceeding so downstream can assume the pod spec is valid.
 	if err := NormalizePodSpec(&pod); err != nil {
 		// TODO should we return early here?
+		span.SetTag("normalization_failed", true)
 		log.Warnf("failed to normalize input spec for %s: %v - API Server is likely to reject due to invalid spec", PodString(&pod), err)
 	}
 
-	injected, err := m(&pod, ns, dc)
+	injected, err := func() (_ bool, err error) {
+		mutationSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.mutate_pod", tracer.ResourceName(mutationType))
+		defer finishMutationSpan(mutationSpan, &err)
+		return m(&pod, ns, dc)
+	}()
+	span.SetTag("injected", injected)
 	if err != nil {
 		metrics.MutationAttempts.Inc(mutationType, metrics.StatusError, strconv.FormatBool(false), err.Error())
 		return nil, fmt.Errorf("failed to mutate pod: %v", err)
@@ -59,6 +87,8 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 
 	metrics.MutationAttempts.Inc(mutationType, metrics.StatusSuccess, strconv.FormatBool(injected), "")
 
+	patchSpan, _ := tracer.StartSpanFromContext(ctx, "cluster_agent.admission.prepare_patch", tracer.ResourceName(mutationType))
+	defer finishMutationSpan(patchSpan, &retErr)
 	afterJSON, err := json.Marshal(pod)
 	if err != nil {
 		return nil, fmt.Errorf("failed to encode the mutated Pod object: %v", err)
@@ -69,6 +99,8 @@ func Mutate(rawPod []byte, ns string, mutationType string, m MutatorFunc, dc dyn
 		return nil, fmt.Errorf("failed to prepare the JSON patch: %v", err)
 	}
 
+	// Normalization or a mutator returning false may still produce a patch.
+	span.SetTag("patch_present", len(patch) > 0)
 	return json.Marshal(patch)
 }
 

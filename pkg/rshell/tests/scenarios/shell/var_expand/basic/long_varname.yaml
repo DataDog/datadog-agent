@@ -1,0 +1,10 @@
+description: Long variable names with underscores and digits work correctly.
+input:
+  script: |+
+    _L0NG_variable_NAME_123=value
+    echo "$_L0NG_variable_NAME_123"
+expect:
+  stdout: |+
+    value
+  stderr: ""
+  exit_code: 0

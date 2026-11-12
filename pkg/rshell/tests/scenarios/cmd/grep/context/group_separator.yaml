@@ -1,0 +1,24 @@
+description: grep prints -- between non-contiguous match groups.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        aaa
+        bbb
+        ccc
+        ddd
+        eee
+        fff
+        ggg
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -C 0 -e bbb -e fff file.txt
+expect:
+  stdout: |+
+    bbb
+    --
+    fff
+  stderr: ""
+  exit_code: 0

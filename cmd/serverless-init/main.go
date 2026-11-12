@@ -28,6 +28,7 @@ import (
 	hostnameinterface "github.com/DataDog/datadog-agent/comp/core/hostname/hostnameinterface/def"
 	logdef "github.com/DataDog/datadog-agent/comp/core/log/def"
 	logfx "github.com/DataDog/datadog-agent/comp/core/log/fx"
+	schemanoopfx "github.com/DataDog/datadog-agent/comp/core/schema/fx-noop"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	secretsfx "github.com/DataDog/datadog-agent/comp/core/secrets/fx"
 	secretnooptypes "github.com/DataDog/datadog-agent/comp/core/secrets/noop-impl/types"
@@ -47,6 +48,10 @@ import (
 	haagentfx "github.com/DataDog/datadog-agent/comp/haagent/fx"
 	healthplatform "github.com/DataDog/datadog-agent/comp/healthplatform"
 	"github.com/DataDog/datadog-agent/comp/logs-library/processor"
+	runner "github.com/DataDog/datadog-agent/comp/metadata/runner/def"
+	runnerfx "github.com/DataDog/datadog-agent/comp/metadata/runner/fx"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
+	serverlessinitfx "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/fx"
 	logscompression "github.com/DataDog/datadog-agent/comp/serializer/logscompression/def"
 	logscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/logscompression/fx"
 	metricscompressionfx "github.com/DataDog/datadog-agent/comp/serializer/metricscompression/fx"
@@ -54,6 +59,7 @@ import (
 	workloadmeta "github.com/DataDog/datadog-agent/comp/core/workloadmeta/def"
 	workloadmetafx "github.com/DataDog/datadog-agent/comp/core/workloadmeta/fx"
 	"github.com/DataDog/datadog-agent/pkg/aggregator"
+	"github.com/DataDog/datadog-agent/pkg/serializer"
 
 	"go.uber.org/fx"
 
@@ -61,6 +67,7 @@ import (
 	enhancedmetrics "github.com/DataDog/datadog-agent/cmd/serverless-init/enhanced-metrics"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/lifecycle"
 	serverlessInitTag "github.com/DataDog/datadog-agent/cmd/serverless-init/tag"
+	schemanoopimpl "github.com/DataDog/datadog-agent/comp/core/schema/noop-impl"
 	logsAgent "github.com/DataDog/datadog-agent/comp/logs/agent/def"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
@@ -204,6 +211,9 @@ func preloadEarly() {
 	// the run are preserved.
 	setOverride("dogstatsd_flush_incomplete_buckets", true)
 
+	// Send the first metadata payload as soon as resource identity is known.
+	setOverride("inventories_first_run_delay", 0)
+
 	// Agent Data Plane (ADP) is a separate process serverless-init does not support.
 	setOverride("data_plane.enabled", false)
 	setOverride("data_plane.dogstatsd.enabled", false)
@@ -234,6 +244,13 @@ func setOverride(key string, val interface{}) {
 	}
 }
 
+func wrappedCommand() []string {
+	if len(os.Args) <= 1 {
+		return nil
+	}
+	return os.Args[1:]
+}
+
 // applyCloudServiceOverrides sets the config overrides that depend on the detected
 // cloud service. It must run after cloud service detection and before
 // fxutil.OneShot constructs the DogStatsD server, which reads them.
@@ -248,13 +265,11 @@ func applyCloudServiceOverrides(cloudService cloudservice.CloudService) {
 	}
 }
 
-func main() {
-
-	preloadEarly()
-
-	modeConf = mode.DetectMode()
-	setEnvWithoutOverride(modeConf.EnvDefaults)
-
+// loadEarlyConfig loads the configuration file and the proxy settings from the
+// environment into the global config. main() must call it before fxutil.OneShot,
+// because the Fx-constructed metrics forwarder reads the proxy settings when it
+// builds its HTTP transport.
+func loadEarlyConfig() {
 	// Load the config file early so that yaml-configured values (e.g.
 	// api_key, dogstatsd_tags, tags, extra_tags) are visible to the tag
 	// computation, the merge, and the api_key check below. setup() calls
@@ -268,9 +283,28 @@ func main() {
 	// resolved here, so metricTags below is snapshotted from this pre-secrets
 	// view. The second LoadDatadog in setup() resolves them for the config,
 	// but the already-snapshotted metricTags keep the raw values.
-	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}); err != nil {
+	if err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), &secretnooptypes.SecretNoop{}, &delegatedauthnooptypes.DelegatedAuthNoop{}, &schemanoopimpl.SchemaNoop{}); err != nil {
 		log.Debugf("early config load error (non-fatal): %v", err)
 	}
+
+	// Load proxy settings (DD_PROXY_HTTP / DD_PROXY_HTTPS / DD_PROXY_NO_PROXY)
+	// before fxutil.OneShot. The metrics forwarder and its HTTP transport are
+	// built during Fx construction, and CreateHTTPTransport only installs a
+	// proxy function if the proxy settings are already in the config at that
+	// point. setup() also calls LoadProxyFromEnv, but it runs after OneShot has
+	// started, which is too late for the forwarder: metrics and sketches would
+	// bypass the proxy while logs and traces (created in setup()) honor it.
+	pkgconfigsetup.LoadProxyFromEnv(pkgconfigsetup.Datadog())
+}
+
+func main() {
+
+	preloadEarly()
+
+	modeConf = mode.DetectMode()
+	setEnvWithoutOverride(modeConf.EnvDefaults)
+
+	loadEarlyConfig()
 
 	cloudService := cloudservice.GetCloudServiceType()
 	log.Debugf("Detected cloud service: %s", cloudService.GetOrigin())
@@ -323,8 +357,17 @@ func main() {
 	err := fxutil.OneShot(
 		run,
 		fx.Provide(func() cloudservice.CloudService { return cloudService }),
+		fx.Provide(func() serverlessdef.CloudServiceMetadataProvider { return cloudService }),
 		fx.Supply(tagConfig),
 		fx.Supply(metricTags),
+		fx.Supply(serverlessdef.Params{
+			Sidecar:        modeConf.SidecarMode,
+			Tags:           tagConfig.Tags,
+			WrappedCommand: wrappedCommand(),
+		}),
+		fx.Provide(func(d aggregator.Demultiplexer) serializer.MetricSerializer { return d.Serializer() }),
+		serverlessinitfx.Module(),
+		runnerfx.Module(),
 		delegatedauthfx.Module(),
 		healthplatform.Bundle(),
 		fx.Provide(func(config coreconfig.Component) healthprobeDef.Options {
@@ -338,6 +381,7 @@ func main() {
 		workloadmetafx.Module(workloadmeta.NewParams()),
 		fx.Supply(coreconfig.NewParams("")),
 		coreconfig.Module(),
+		schemanoopfx.Module(),
 		logscompressionfx.Module(),
 		metricscompressionfx.Module(),
 		filterlistfx.Module(),
@@ -385,10 +429,12 @@ func run(
 	cloudService cloudservice.CloudService,
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
+	_ runner.Component,
+	metadata serverlessdef.Component,
 ) error {
 	cloudService, logConfig, tracingCtx, metricAgent, logsAgent, enhancedMetricsCollector, enhancedMetricsEnabled := setup(
 		secretComp, delegatedAuthComp, modeConf, tagger, logsCompression, hostname,
-		cloudService, tagConfig, metricTags, demux,
+		cloudService, tagConfig, metricTags, demux, metadata,
 	)
 
 	err := cloudService.Run(modeConf, logConfig)
@@ -404,7 +450,9 @@ func run(
 	//   4. logs agent flushes any buffered records — bounded by
 	//      logsFlushTimeout (1.5 s).
 	//   5. run() returns; Fx OnStop hooks fire in reverse construction order,
-	//      and the metrics pipeline flushes itself (no external orchestration):
+	//      and the metrics pipeline flushes itself (no external orchestration).
+	//      The metadata stop hook, with its bounded identity wait, runs before
+	//      the metrics pipeline hooks:
 	//        5a. dsdServer.stop() — gated by dogstatsd_flush_incomplete_buckets
 	//            (set in preloadEarly) — closes stopChan; each worker flushes its
 	//            batcher (batcher.flush() → AggregateSamples → samplesChan push)
@@ -422,8 +470,15 @@ func run(
 	//            the drain and the flush are bounded together by
 	//            aggregator_stop_timeout (2 s).
 	//        5c. SharedForwarder.Stop() — drains in-flight HTTP transactions —
-	//            bounded by forwarder_stop_timeout (2 s).
-	defer flushLogsAgent(logConfig.FlushTimeout, logsAgent)
+	//            bounded by forwarder_stop_timeout.
+	defer func() {
+		// Lines still in the channel have not reached the logs pipeline and may
+		// miss the exit flush.
+		if n := len(logConfig.Channel); n > 0 {
+			log.Debugf("%d log lines still queued when the exit flush started", n)
+		}
+		flushLogsAgent(logConfig.FlushTimeout, logsAgent)
+	}()
 	defer tracingCtx.TraceAgent.Stop()
 	defer func() {
 		cloudService.Shutdown(metricAgent, enhancedMetricsEnabled, err)
@@ -459,6 +514,7 @@ func setup(
 	tagConfig tagConfiguration,
 	metricTags metrics.Tags,
 	demux aggregator.Demultiplexer,
+	metadata serverlessdef.Component,
 ) (cloudservice.CloudService, *serverlessInitLog.Config, *cloudservice.TracingContext, *metrics.ServerlessMetricAgent, logsAgent.ServerlessLogsAgent, *enhancedmetrics.Collector, bool) {
 	tracelog.SetLogger(log.NewWrapper(3))
 
@@ -470,7 +526,7 @@ func setup(
 
 	// The datadog-agent requires Load to be called or it could
 	// panic down the line.
-	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, delegatedAuthComp)
+	err := pkgconfigsetup.LoadDatadog(pkgconfigsetup.Datadog(), secretComp, delegatedAuthComp, &schemanoopimpl.SchemaNoop{})
 	if err != nil {
 		log.Debugf("Error loading config: %v\n", err)
 	}
@@ -518,6 +574,7 @@ func setup(
 					metricAgent.SetEnhancedUsageMetricTags(tags)
 				}),
 				BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+				Metadata:            metadata,
 			},
 		}
 		// Only MicroVM needs initialization without an API key: its Init starts the
@@ -559,6 +616,7 @@ func setup(
 				metricAgent.SetEnhancedUsageMetricTags(tags)
 			}),
 			BaseUsageMetricTags: metricTags.EnhancedUsageMetric,
+			Metadata:            metadata,
 		},
 	}
 
@@ -593,8 +651,11 @@ type tagConfiguration struct {
 	// for use on dogstatsd metrics, legacy enhanced metrics, logs, and traces.
 	Tags                    map[string]string
 	EnhancedMetricTags      map[string]string // subset of tags derived from cloud service for enhanced metrics.
-	EnhancedUsageMetricTags map[string]string // subset of tags derived from cloud service for enhanced usage metrics, including a high cardinality instance/replica tag.
+	EnhancedUsageMetricTags map[string]string // subset of tags derived from cloud service for enhanced usage metrics, including a high cardinality instance/replica tag, plus env, service, and version.
 }
+
+// unifiedServiceTagKeys are the Unified Service Tagging keys copied onto the enhanced usage metric.
+var unifiedServiceTagKeys = []string{"env", "service", "version"}
 
 func configureTags(cloudService cloudservice.CloudService) tagConfiguration {
 	configuredTags := configUtils.GetConfiguredTags(pkgconfigsetup.Datadog(), false)
@@ -613,14 +674,25 @@ func configureTags(cloudService cloudservice.CloudService) tagConfiguration {
 	serverlessInitTag.SetVersionMode(enhancedMetricTags, modeConf.TagVersionModeEnhancedMetrics)
 	serverlessInitTag.SetSidecarModeTag(enhancedMetricTags, modeConf.SidecarMode)
 
-	serverlessInitTag.SetVersionMode(enhancedMetricTagSets.Usage, modeConf.TagVersionModeEnhancedMetrics)
-	serverlessInitTag.SetSidecarModeTag(enhancedMetricTagSets.Usage, modeConf.SidecarMode)
+	// The usage metric keeps a small tag set, but env, service, and version let users
+	// group and route alerts on it. Take them from the same sources, with the same
+	// precedence, as the other enhanced metrics so the values match.
+	unifiedServiceTags := make(map[string]string, len(unifiedServiceTagKeys))
+	for _, key := range unifiedServiceTagKeys {
+		if value, ok := enhancedMetricTags[key]; ok {
+			unifiedServiceTags[key] = value
+		}
+	}
+	enhancedUsageMetricTags := serverlessTag.MergeWithOverwrite(baseTags, enhancedMetricTagSets.Usage)
+
+	serverlessInitTag.SetVersionMode(enhancedUsageMetricTags, modeConf.TagVersionModeEnhancedMetrics)
+	serverlessInitTag.SetSidecarModeTag(enhancedUsageMetricTags, modeConf.SidecarMode)
 
 	return tagConfiguration{
 		ConfiguredTags:          configuredTags,
 		Tags:                    tags,
 		EnhancedMetricTags:      enhancedMetricTags,
-		EnhancedUsageMetricTags: enhancedMetricTagSets.Usage,
+		EnhancedUsageMetricTags: enhancedUsageMetricTags,
 	}
 }
 

@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix macOS installer GUI-session detection so the Datadog GUI helper and
+    desktop monitor start for the console user after installation or upgrade
+    when a GUI session exists, including installations run outside a desktop terminal.

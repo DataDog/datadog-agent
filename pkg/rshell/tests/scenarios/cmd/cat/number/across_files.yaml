@@ -1,0 +1,15 @@
+description: cat -n continues line numbers across multiple files.
+setup:
+  files:
+    - path: a.txt
+      content: "one\n"
+    - path: b.txt
+      content: "two\nthree\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat -n a.txt b.txt
+expect:
+  stdout: "     1\tone\n     2\ttwo\n     3\tthree\n"
+  stderr: ""
+  exit_code: 0

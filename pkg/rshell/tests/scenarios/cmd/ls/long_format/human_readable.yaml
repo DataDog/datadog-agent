@@ -1,0 +1,22 @@
+description: ls -lh shows human-readable sizes.
+# skip_assert_against_bash: rshell displays numeric UID/GID (sandbox safety)
+# while GNU ls resolves to usernames, so long-format output will always differ.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: tiny.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -lh tiny.txt
+expect:
+  stdout_contains:
+    - "-rw-r--r--"
+    - "tiny.txt"
+  stdout_contains_windows:
+    - "-rw-rw-rw-"
+    - "tiny.txt"
+  stderr: ""
+  exit_code: 0

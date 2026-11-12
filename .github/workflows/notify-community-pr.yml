@@ -1,0 +1,39 @@
+---
+name: Notify teams about community PRs
+
+on:
+  # Has the Slack token on fork PRs: never check out or run code from the PR.
+  pull_request_target:
+    types: [labeled]
+
+permissions: {}
+
+jobs:
+  notify-teams:
+    if: github.event.label.name == 'community'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: main
+          sparse-checkout: |
+            .gitlab-ci.yml
+            .github/CODEOWNERS
+            .github/actions
+            tasks
+          persist-credentials: false
+      - name: Install dda
+        uses: ./.github/actions/install-dda
+        with:
+          features: legacy-tasks
+      - name: Notify teams
+        env:
+          REPO: ${{ github.repository }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          SLACK_DATADOG_AGENT_BOT_TOKEN: ${{ secrets.SLACK_DATADOG_AGENT_BOT_TOKEN }}
+        run: dda inv -- -e github.notify-community-pr --repo="${REPO}" --pr-id="${PR_NUMBER}"

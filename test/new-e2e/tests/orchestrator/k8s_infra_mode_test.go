@@ -54,6 +54,8 @@ func TestKindInfraModeSuite(t *testing.T) {
 		// fakeintake read completes within the client's timeout.
 		e2e.WithProvisioner(awskindvm.Provisioner(
 			awskindvm.WithRunOptions(
+				// TODO: Mirror Kubernetes component and workload images internally.
+				scenariokindvm.WithInternetAccess(),
 				scenariokindvm.WithAgentOptions(
 					kubernetesagentparams.WithHelmValues(agentInfraModeValues),
 				),

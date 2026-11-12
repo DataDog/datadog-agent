@@ -1,0 +1,35 @@
+load("@rules_go//go:def.bzl", "go_library")
+load("//bazel/rules/go:dd_agent_go_test.bzl", "dd_agent_go_test")
+
+go_library(
+    name = "sort",
+    srcs = ["sort.go"],
+    importpath = "github.com/DataDog/datadog-agent/pkg/rshell/builtins/sort",
+    visibility = ["//visibility:public"],
+    deps = ["//pkg/rshell/builtins"],
+)
+
+dd_agent_go_test(
+    name = "sort_test",
+    srcs = [
+        "builtin_sort_pentest_test.go",
+        "cancellation_test.go",
+        "human_numeric_test.go",
+        "key_extraction_test.go",
+        "sort_test.go",
+    ],
+    embed = [":sort"],
+    deps = [
+        "//pkg/rshell/builtins",
+        "//pkg/rshell/builtins/testutil",
+        "//pkg/rshell/interp",
+        "@com_github_stretchr_testify//assert",
+        "@com_github_stretchr_testify//require",
+    ],
+)
+
+filegroup(
+    name = "source_files",
+    srcs = glob(["*.go"]),
+    visibility = ["//pkg/rshell:__pkg__"],
+)

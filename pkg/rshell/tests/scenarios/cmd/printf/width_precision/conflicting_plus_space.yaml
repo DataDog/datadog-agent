@@ -1,0 +1,7 @@
+description: Plus flag overrides space flag.
+input:
+  script: |+
+    printf "%+ d\n" 42
+expect:
+  stdout: "+42\n"
+  exit_code: 0

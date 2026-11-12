@@ -1,0 +1,20 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: --dry-run=false is rejected rather than silently downgrading a preview into a real truncation.
+setup:
+  files:
+    - path: app.log
+      content: "abcde"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --force --dry-run=false app.log
+    wc -c < app.log
+expect:
+  stdout: |+
+    5
+  stderr: |+
+    logrotate: option '--dry-run' doesn't allow an argument
+    Try 'logrotate --help' for more information.
+  exit_code: 0

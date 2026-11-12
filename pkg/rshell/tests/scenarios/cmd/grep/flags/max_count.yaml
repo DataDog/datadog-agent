@@ -1,0 +1,20 @@
+description: grep -m stops after NUM matching lines.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        foo
+        foo
+        foo
+        bar
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -m 2 foo file.txt
+expect:
+  stdout: |+
+    foo
+    foo
+  stderr: ""
+  exit_code: 0

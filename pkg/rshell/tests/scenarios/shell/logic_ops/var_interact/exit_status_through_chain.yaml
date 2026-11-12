@@ -1,0 +1,13 @@
+description: The $? variable tracks exit status correctly through an and-or chain.
+input:
+  script: |+
+    true && echo $?
+    false || echo $?
+    true && false || echo $?
+expect:
+  stdout: |+
+    0
+    1
+    1
+  stderr: ""
+  exit_code: 0

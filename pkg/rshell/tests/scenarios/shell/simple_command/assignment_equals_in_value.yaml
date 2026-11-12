@@ -1,0 +1,9 @@
+description: Assignment with equals sign in value treats everything after first equals as the value.
+input:
+  script: |+
+    a=b=c
+    echo $a
+expect:
+  stdout: "b=c\n"
+  stderr: ""
+  exit_code: 0

@@ -6,11 +6,14 @@
 package main
 
 import (
+	"os"
+	"path/filepath"
 	"testing"
 
 	"go.uber.org/fx"
 
 	observerfx "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/fx"
+	observerimpl "github.com/DataDog/datadog-agent/comp/anomalydetection/observer/impl"
 	recordernoop "github.com/DataDog/datadog-agent/comp/anomalydetection/recorder/fx-noop"
 	reportertestbenchfx "github.com/DataDog/datadog-agent/comp/anomalydetection/reporter/fx-testbench"
 	"github.com/DataDog/datadog-agent/comp/core"
@@ -27,6 +30,7 @@ import (
 
 func TestFxApp(t *testing.T) {
 	testFxApp(t, CLIParams{})
+	testFxApp(t, CLIParams{ComponentSettings: observerimpl.ComponentSettings{UseMetricPipeline: true}})
 }
 
 func testFxApp(t *testing.T, params CLIParams) {
@@ -57,6 +61,7 @@ func testbenchFXOptions(params CLIParams) []fx.Option {
 		fx.Decorate(func(c config.Component) config.Component {
 			c.Set("anomaly_detection.anomaly_scorer.dry_run.enabled", true, pkgconfigmodel.SourceAgentRuntime)
 			c.Set("anomaly_detection.logs.internal.enabled", false, pkgconfigmodel.SourceAgentRuntime)
+			c.Set("anomaly_detection.metric_pipeline.enabled", params.ComponentSettings.UseMetricPipeline, pkgconfigmodel.SourceAgentRuntime)
 			if len(params.AllowedTypes) > 0 {
 				c.Set("anomaly_detection.metrics.allowed_types", params.AllowedTypes, pkgconfigmodel.SourceAgentRuntime)
 			}
@@ -106,4 +111,47 @@ func TestValidateCLIParams(t *testing.T) {
 		require.Contains(t, err.Error(), `invalid metric type "BadType"`)
 		require.Contains(t, err.Error(), "valid types: Unknown, Gauge, Rate, Count")
 	})
+}
+
+func TestCLIWorkflowSelection(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "params.json")
+	require.NoError(t, os.WriteFile(path, []byte(`{"components":{"scanmw":{"enabled":false,"min_points":42}}}`), 0600))
+	for _, pipeline := range []bool{false, true} {
+		for _, config := range []string{"", path} {
+			settings, err := loadCLIComponentSettings(config, "scanmw", "", "", pipeline)
+			require.NoError(t, err)
+			require.Equal(t, pipeline, settings.UseMetricPipeline)
+			require.Equal(t, config == "", settings.Enabled["scanmw"], "config retains precedence over component flags")
+			if pipeline {
+				require.Equal(t, "metric_pipeline", metricWorkflowName(pipeline))
+			} else {
+				require.Equal(t, "legacy", metricWorkflowName(pipeline))
+			}
+		}
+	}
+	_, err := loadCLIComponentSettings(filepath.Join(t.TempDir(), "missing"), "", "", "", true)
+	require.Error(t, err)
+}
+
+func TestCLIWorkflowSelectionFromParamsFile(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		body     string
+		flag     bool
+		pipeline bool
+	}{
+		{name: "file enables", body: `{"use_metric_pipeline":true,"components":{}}`, pipeline: true},
+		{name: "file disables", body: `{"use_metric_pipeline":false,"components":{}}`},
+		{name: "file omits key", body: `{"components":{}}`},
+		{name: "flag enables when file omits key", body: `{"components":{}}`, flag: true, pipeline: true},
+		{name: "flag enables when file disables", body: `{"use_metric_pipeline":false,"components":{}}`, flag: true, pipeline: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "params.json")
+			require.NoError(t, os.WriteFile(path, []byte(tc.body), 0600))
+			settings, err := loadCLIComponentSettings(path, "", "", "", tc.flag)
+			require.NoError(t, err)
+			require.Equal(t, tc.pipeline, settings.UseMetricPipeline)
+		})
+	}
 }

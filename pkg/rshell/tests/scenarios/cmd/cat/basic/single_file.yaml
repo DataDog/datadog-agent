@@ -1,0 +1,16 @@
+description: Cat outputs a single file to stdout.
+setup:
+  files:
+    - path: hello.txt
+      content: |+
+        hello world
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat hello.txt
+expect:
+  stdout: |+
+    hello world
+  stderr: ""
+  exit_code: 0

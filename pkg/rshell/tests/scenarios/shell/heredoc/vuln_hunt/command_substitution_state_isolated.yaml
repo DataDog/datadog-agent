@@ -1,0 +1,15 @@
+# vuln-hunt 2026-05-19-codex / heredoc.
+description: Command substitutions in a heredoc do not leak variable writes to the parent shell.
+input:
+  script: |+
+    X=outer
+    cat <<EOF
+    $(X=inner; echo "$X")
+    EOF
+    echo "$X"
+expect:
+  stdout: |+
+    inner
+    outer
+  stderr: ""
+  exit_code: 0

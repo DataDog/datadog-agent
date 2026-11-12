@@ -45,7 +45,6 @@ _GODEBUG_DEFAULT = "tlsmlkem=0"
 
 def dd_agent_go_binary(
         name,
-        gc_linkopts = None,
         gotags = None,
         exact_gotags = None,
         agent_version = None,
@@ -53,18 +52,15 @@ def dd_agent_go_binary(
         **kwargs):
     """Wrapper around go_binary that injects Datadog Agent version x_defs.
 
-    Accepts all go_binary attributes.  x_defs and gc_linkopts are merged with
-    the version/strip definitions; caller-supplied values take
-    precedence over the defaults provided here.
+    Accepts all go_binary attributes.  x_defs are merged with
+    the version definitions; caller-supplied values take precedence over the
+    defaults provided here.
 
     Defaults applied automatically (override by passing the attribute explicitly):
       cgo: True on Windows (required to link .syso resource files), False elsewhere.
 
     Args:
       name: target name
-      gc_linkopts: Base set of link opts. Stripping options are automatically
-                   added to these: on release builds, -s -w (strip symbol
-                   table and DWARF).
       gotags: Base set of gotags for this binary. COMMON tags are added, and
               per-platform adjustments are made.
       exact_gotags: Like gotags, but if this is specified, no other tag sets are added.
@@ -97,21 +93,13 @@ def dd_agent_go_binary(
     all_x_defs.update({k: v.format(**subs) for k, v in (x_defs or {}).items()})
     linux_x_defs = {_DEFAULTPATHS_PKG + ".defaultInstallPath": "$(INSTALL_DIR)"} | all_x_defs
 
-    # cgo must be enabled on Windows to link the .syso resource file produced
-    # by win_resource().  Callers that need additional conditions (e.g. FIPS)
-    # should pass an explicit cgo = select({...}) which replaces this default.
+    # cgo must be enabled on Windows to link the .syso resource file produced by win_resource().
+    # Callers that need additional conditions should pass an explicit cgo = select({...}) which replaces this default.
     if "cgo" not in kwargs:
         kwargs["cgo"] = select({
             "@platforms//os:windows": True,
             "//conditions:default": False,
         })
-
-    # Strip the symbol table and DWARF debug info in release builds to reduce
-    # binary size.  Dev builds keep symbols for debugger and profiler use.
-    strip_linkopts = select({
-        "//:is_release": ["-s", "-w"],
-        "//conditions:default": [],
-    })
 
     if exact_gotags:
         # this might be select()'ed by platform. It is up to the user to sort it.
@@ -128,7 +116,6 @@ def dd_agent_go_binary(
 
     go_binary(
         name = name,
-        gc_linkopts = (gc_linkopts or []) + strip_linkopts,
         toolchains = kwargs.pop("toolchains", []) + [
             "//:install_dir",
             "//bazel/rules/variables",

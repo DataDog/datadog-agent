@@ -21,11 +21,13 @@ var (
 	tlmCheckMetricsAdded   = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "created_total", []string{"stateful"}, "Count of new check metrics added")
 	tlmCheckMetricsExpired = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "expired_total", []string{"stateful"}, "Count of expired metrics")
 	tlmCheckMetricsRemoved = telemetryimpl.GetCompatComponent().NewCounter("check_metrics", "removed_total", []string{"stateful"}, "Count of removed metrics")
+	tlmChecksTypeMismatch  = telemetryimpl.GetCompatComponent().NewSimpleCounter("aggregator", "checks_type_mismatch", "Count of check samples whose metric type differs from the existing metric for their context")
 
 	checkMetricsAddSampleTelemetry = &AddSampleTelemetry{
-		Total:     tlmCheckMetricsAdded.WithValues("sum"),
-		Stateful:  tlmCheckMetricsAdded.WithValues("true"),
-		Stateless: tlmCheckMetricsAdded.WithValues("false"),
+		Total:        tlmCheckMetricsAdded.WithValues("sum"),
+		Stateful:     tlmCheckMetricsAdded.WithValues("true"),
+		Stateless:    tlmCheckMetricsAdded.WithValues("false"),
+		TypeMismatch: tlmChecksTypeMismatch,
 	}
 	tlmCheckMetricsExpiredTotal     = tlmCheckMetricsExpired.WithValues("sum")
 	tlmCheckMetricsExpiredStateful  = tlmCheckMetricsExpired.WithValues("true")
@@ -114,6 +116,29 @@ func (cm *CheckMetrics) Expire(contextKeys []ckey.ContextKey, timestamp float64)
 // Flush flushes every metrics in the CheckMetrics (see ContextMetrics.Flush)
 func (cm *CheckMetrics) Flush(timestamp float64) ([]*Serie, map[ckey.ContextKey]error) {
 	return cm.metrics.Flush(timestamp)
+}
+
+// FlushDecomposable flushes the decomposable metrics (see Metric.isDecomposable), and returns
+// their context keys.
+func (cm *CheckMetrics) FlushDecomposable(timestamp float64) ([]*Serie, map[ckey.ContextKey]error, []ckey.ContextKey) {
+	var series []*Serie
+	var keys []ckey.ContextKey
+	errors := make(map[ckey.ContextKey]error)
+
+	for contextKey, metric := range cm.metrics {
+		if !metric.isDecomposable() {
+			continue
+		}
+		// Not sampled since expired, so there is nothing to flush. Don't return the key for
+		// cleanup, it will cause Expire to update extend the deadline, making it stick forver.
+		if _, waiting := cm.deadlines[contextKey]; waiting {
+			continue
+		}
+		series = flushToSeries(contextKey, metric, timestamp, series, errors)
+		keys = append(keys, contextKey)
+	}
+
+	return series, errors, keys
 }
 
 // RemoveExpired removes stateful metrics that have expired before the given timestamp.

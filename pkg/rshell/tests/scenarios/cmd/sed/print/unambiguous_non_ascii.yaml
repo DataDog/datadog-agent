@@ -1,0 +1,13 @@
+description: The l command octal-escapes non-ASCII bytes like GNU sed.
+setup:
+  files:
+    - path: input.txt
+      content: "caf\u00e9\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    sed -n 'l' input.txt
+expect:
+  stdout: "caf\\303\\251$\n"
+  stderr: ""
+  exit_code: 0

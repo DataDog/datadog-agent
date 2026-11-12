@@ -1,0 +1,10 @@
+description: In a six-stage pipeline, exit status comes from the last command.
+input:
+  script: |+
+    exit 1 | exit 2 | exit 3 | exit 4 | exit 5 | exit 0
+    echo $?
+expect:
+  stdout: |+
+    0
+  stderr: ""
+  exit_code: 0

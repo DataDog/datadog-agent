@@ -1,0 +1,13 @@
+description: Subshell body separated by newlines instead of semicolons.
+input:
+  script: |+
+    (
+    echo hello
+    echo world
+    )
+expect:
+  stdout: |+
+    hello
+    world
+  stderr: ""
+  exit_code: 0

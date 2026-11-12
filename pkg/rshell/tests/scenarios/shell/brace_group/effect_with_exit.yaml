@@ -1,0 +1,11 @@
+description: Brace group with variable assignment and exit terminates execution.
+input:
+  script: |+
+    a=1
+    { a=2; echo $a; exit; echo not reached; }
+    echo not reached
+expect:
+  stdout: |+
+    2
+  stderr: ""
+  exit_code: 0

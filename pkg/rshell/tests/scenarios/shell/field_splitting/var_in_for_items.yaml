@@ -1,0 +1,12 @@
+description: Variable expansion in for loop word list respects field splitting.
+input:
+  script: |+
+    ITEMS="a b c"
+    for i in $ITEMS; do echo "$i"; done
+expect:
+  stdout: |+
+    a
+    b
+    c
+  stderr: ""
+  exit_code: 0

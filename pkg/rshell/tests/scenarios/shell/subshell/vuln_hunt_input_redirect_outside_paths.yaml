@@ -1,0 +1,17 @@
+# vuln-hunt 2026-05-18-initial-audit: `<` inside a subshell still honors
+# AllowedPaths; wrapping in `(...)` does not bypass sandbox path checks.
+skip_assert_against_bash: true
+description: Input redirection inside a subshell is rejected when the path is outside AllowedPaths.
+setup:
+  files:
+    - path: secret.txt
+      content: "leak\n"
+input:
+  allowed_paths: []
+  script: |+
+    (cat) < secret.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "secret.txt"
+  exit_code: 1

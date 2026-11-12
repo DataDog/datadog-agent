@@ -1,0 +1,19 @@
+description: find -perm -0111 matches files with all execute bits set.
+setup:
+  files:
+    - path: dir/a.sh
+      content: "a"
+      chmod: 0755
+    - path: dir/b.txt
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -perm -0111
+expect:
+  stdout: |+
+    dir/a.sh
+  stdout_windows: ""
+  stderr: ""
+  exit_code: 0

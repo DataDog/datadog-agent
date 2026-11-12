@@ -24,6 +24,13 @@ func newTestFilterList(t *testing.T, cfg map[string]interface{}) *FilterList {
 	return NewFilterList(logComponent, configComponent, telemetryComponent)
 }
 
+func newTestFilterListFromYAML(t *testing.T, yaml string) *FilterList {
+	logComponent := logmock.New(t)
+	configComponent := config.NewMockFromYAML(t, yaml)
+	telemetryComponent := fxutil.Test[telemetry.Component](t, telemetrynoop.Module())
+	return NewFilterList(logComponent, configComponent, telemetryComponent)
+}
+
 func prefixListConfig(entries ...MetricPrefixListEntry) []map[string]interface{} {
 	out := make([]map[string]interface{}, 0, len(entries))
 	for _, e := range entries {
@@ -148,16 +155,23 @@ func TestMetricFilterListPrefixListEntries(t *testing.T) {
 
 // `*` in metric_filterlist is not a prefix marker.
 func TestMetricFilterListStarIsNoLongerAPrefixMarker(t *testing.T) {
-	for name, cfg := range map[string]map[string]interface{}{
-		"metric_filterlist": {
-			"metric_filterlist": []string{"exactfoo*"},
+	cases := map[string]func(*testing.T) *FilterList{
+		"metric_filterlist": func(t *testing.T) *FilterList {
+			return newTestFilterList(t, map[string]interface{}{
+				"metric_filterlist": []string{"exactfoo*"},
+			})
 		},
-		"statsd_metric_blocklist": {
-			"statsd_metric_blocklist": []string{"exactfoo*"},
+		"statsd_metric_blocklist": func(t *testing.T) *FilterList {
+			return newTestFilterListFromYAML(t, `
+statsd_metric_blocklist:
+  - exactfoo*
+`)
 		},
-	} {
+	}
+
+	for name, newFilterList := range cases {
 		t.Run(name, func(t *testing.T) {
-			matcher := newTestFilterList(t, cfg).GetMetricFilterList()
+			matcher := newFilterList(t).GetMetricFilterList()
 
 			// `*` normalizes away instead of widening the entry.
 			require.True(t, matcher.Test("exactfoo"))

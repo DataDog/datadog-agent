@@ -13,7 +13,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/DataDog/rshell/privilegedhelper"
+	"github.com/DataDog/datadog-agent/pkg/rshell/privilegedhelper"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

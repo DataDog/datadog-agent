@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -29,6 +30,64 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
 	"github.com/DataDog/datadog-agent/pkg/util/scrubber"
 )
+
+// noopSchemaValidator is a pkgconfigmodel.SchemaValidator that never reports any violation
+type noopSchemaValidator struct{}
+
+func (noopSchemaValidator) ValidateConfig(pkgconfigmodel.Reader) ([]*pkgconfigmodel.Violation, error) {
+	return nil, nil
+}
+
+// hostnameViolationValidator is a pkgconfigmodel.SchemaValidator reporting the hostname as invalid
+type hostnameViolationValidator struct{}
+
+func (hostnameViolationValidator) ValidateConfig(pkgconfigmodel.Reader) ([]*pkgconfigmodel.Violation, error) {
+	return []*pkgconfigmodel.Violation{{Message: "invalid hostname", Path: "/hostname", SettingKey: "hostname"}}, nil
+}
+
+func TestLoadCustomSchemaEnforcement(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		yaml     string
+		hostname string
+	}{
+		{"disabled by default", "hostname: invalid\n", "invalid"},
+		{"enabled in the file", "hostname: invalid\nschema:\n  enforce: true\n", ""},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			config := newTestConf(t)
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			require.NoError(t, os.WriteFile(configPath, []byte(tc.yaml), 0o600))
+			config.SetConfigFile(configPath)
+
+			// schema.enforce is read once the file is loaded, so it can come from the file itself
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, config))
+			assert.Equal(t, tc.hostname, config.GetString("hostname"))
+		})
+	}
+}
+
+func TestLoadCustomSchemaEnforcementFromAnotherConfig(t *testing.T) {
+	// like system-probe.yaml, whose enforcement is configured in datadog.yaml
+	for _, enforce := range []bool{true, false} {
+		t.Run(strconv.FormatBool(enforce), func(t *testing.T) {
+			ddConf := newTestConf(t)
+			ddConf.SetInTest("schema.enforce", enforce)
+
+			config := newTestConf(t)
+			configPath := filepath.Join(t.TempDir(), "datadog.yaml")
+			require.NoError(t, os.WriteFile(configPath, []byte("hostname: invalid\n"), 0o600))
+			config.SetConfigFile(configPath)
+
+			require.NoError(t, loadCustom(config, hostnameViolationValidator{}, ddConf))
+			if enforce {
+				assert.Equal(t, "", config.GetString("hostname"))
+			} else {
+				assert.Equal(t, "invalid", config.GetString("hostname"))
+			}
+		})
+	}
+}
 
 func TestConfigureDelegatedAuthAllowsAsyncStartupOnlyForPrimaryKey(t *testing.T) {
 	config := newTestConf(t)
@@ -90,6 +149,59 @@ logs_config:
 	} {
 		require.Contains(t, paramsByKey, key)
 		assert.True(t, paramsByKey[key].AllowAsyncStartup)
+	}
+}
+
+func TestDelegatedAuthScansStartupTimeout(t *testing.T) {
+	for _, scan := range []struct {
+		name string
+		run  func(context.Context, pkgconfigmodel.Config, delegatedauth.Component) error
+	}{
+		{"initial", configureDelegatedAuth},
+		{"rescan", func(ctx context.Context, config pkgconfigmodel.Config, comp delegatedauth.Component) error {
+			ConfigureDelegatedAuthEndpoints(ctx, config, comp)
+			return nil
+		}},
+	} {
+		for _, timeout := range []int{-1, 0, 5} {
+			t.Run(fmt.Sprintf("%s/timeout_%d", scan.name, timeout), func(t *testing.T) {
+				config := confFromYAML(t, `
+additional_endpoints:
+  https://metrics.datadoghq.com:
+    - DELA[map-org, aws]
+logs_config:
+  force_use_http: true
+  additional_endpoints:
+    - host: logs.datadoghq.com
+      api_key: DELA[list-org, aws]
+`)
+				config.SetInTest("delegated_auth.startup_timeout_secs", timeout)
+				parent, cancelParent := context.WithCancel(context.Background())
+				defer cancelParent()
+				var contexts []context.Context
+				comp := &delegatedauthmock.Mock{AddInstanceFunc: func(ctx context.Context, _ delegatedauth.InstanceParams) error {
+					require.NoError(t, ctx.Err())
+					contexts = append(contexts, ctx)
+					return nil
+				}}
+
+				startedAt := time.Now()
+				require.NoError(t, scan.run(parent, config, comp))
+				require.Len(t, contexts, 2)
+				assert.Same(t, contexts[0], contexts[1])
+				require.NoError(t, parent.Err())
+				if timeout > 0 {
+					deadline, ok := contexts[0].Deadline()
+					require.True(t, ok)
+					assert.WithinDuration(t, startedAt.Add(time.Duration(timeout)*time.Second), deadline, time.Second)
+					assert.ErrorIs(t, contexts[0].Err(), context.Canceled)
+				} else {
+					assert.Same(t, parent, contexts[0])
+					cancelParent()
+					assert.ErrorIs(t, contexts[0].Err(), context.Canceled)
+				}
+			})
+		}
 	}
 }
 
@@ -530,7 +642,7 @@ func TestProxy(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -647,7 +759,7 @@ func TestDatabaseMonitoringAurora(t *testing.T) {
 				c.setup(t, config)
 			}
 
-			err := LoadDatadog(config, resolver, delegatedauthmock.New(t))
+			err := LoadDatadog(config, resolver, delegatedauthmock.New(t), noopSchemaValidator{})
 			require.NoError(t, err)
 
 			c.tests(t, config)
@@ -843,6 +955,35 @@ logon_duration:
 		"explicit user logon_duration.enabled=false should override the EUD default")
 }
 
+// System-probe clears its env layer and applies the core config stream snapshot on startup,
+// which rebuilds the config from its layers. The end_user_device defaults must survive that,
+// otherwise the software_inventory module is never registered.
+func TestInfrastructureModeEndUserDeviceSurvivesLayerRebuild(t *testing.T) {
+	config := confFromYAML(t, `
+infrastructure_mode: end_user_device
+`)
+	applyInfrastructureModeOverrides(config)
+
+	control, ok := config.(pkgconfigmodel.EnvVarControl)
+	require.True(t, ok)
+	control.ClearEnvVars()
+
+	for _, key := range []string{
+		"software_inventory.enabled",
+		"notable_events.enabled",
+		"logon_duration.enabled",
+		"process_config.process_collection.enabled",
+	} {
+		assert.True(t, config.GetBool(key), "%s should stay enabled after a layer rebuild", key)
+		assert.Equal(t, pkgconfigmodel.SourceInfraMode, config.GetSource(key), key)
+	}
+
+	// The flare's runtime_config_dump.yaml is built from AllSettingsWithoutSecrets.
+	softwareInventory, ok := config.AllSettingsWithoutSecrets()["software_inventory"].(map[string]interface{})
+	require.True(t, ok)
+	assert.Equal(t, true, softwareInventory["enabled"])
+}
+
 func TestApplyUseDogstatsdSuppression(t *testing.T) {
 	t.Run("use_dogstatsd=false forces data_plane.dogstatsd.enabled=false", func(t *testing.T) {
 		cfg := confFromYAML(t, `
@@ -953,9 +1094,24 @@ func TestDataPlaneDefaults(t *testing.T) {
 	assert.False(t, cfg.GetBool("data_plane.telemetry_enabled"))
 	assert.Equal(t, "tcp://0.0.0.0:5102", cfg.GetString("data_plane.telemetry_listen_addr"))
 	assert.Equal(t, defaultpaths.GetDefaultDataPlaneLogFile(), cfg.GetString("data_plane.log_file"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.traces.enabled"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.metrics.enabled"))
-	assert.True(t, cfg.GetBool("data_plane.otlp.proxy.logs.enabled"))
+	assert.False(t, cfg.GetBool(DataPlaneOTLPEnabled))
+	assert.Equal(t, "127.0.0.1:4319", cfg.GetString(DataPlaneExperimentalOTLPProxyAgentReceiverGRPCEndpoint))
+	assert.Equal(t, "127.0.0.1:4320", cfg.GetString(DataPlaneExperimentalOTLPProxyAgentReceiverHTTPEndpoint))
+	for _, signal := range []string{"logs", "metrics", "traces"} {
+		key := DataPlaneExperimentalOTLPProxySection + "." + signal
+		assert.True(t, cfg.IsKnown(key))
+		assert.False(t, cfg.GetBool(key))
+		assert.False(t, cfg.IsConfigured(key))
+	}
+	for _, key := range []string{
+		"data_plane.otlp.proxy.enabled",
+		"data_plane.otlp.proxy.logs.enabled",
+		"data_plane.otlp.proxy.metrics.enabled",
+		"data_plane.otlp.proxy.traces.enabled",
+		"data_plane.otlp.proxy.receiver.protocols.grpc.endpoint",
+	} {
+		assert.False(t, cfg.IsKnown(key), "%s must not have a compatibility alias", key)
+	}
 }
 
 func TestUsePodmanLogsAndDockerPathOverride(t *testing.T) {
@@ -1377,7 +1533,7 @@ func TestConfigAssignAtPath(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1425,7 +1581,7 @@ func TestConfigAssignAtPathWorksWithGet(t *testing.T) {
 	os.WriteFile(configPath, testExampleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_command"}, "different")
@@ -1467,7 +1623,7 @@ func TestConfigAssignAtPathSimple(t *testing.T) {
 	os.WriteFile(configPath, testSimpleConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"secret_backend_arguments", "0"}, "password1")
@@ -1520,7 +1676,7 @@ use_proxy_for_cloud_metadata: true
 		"diff_url": "second_value",
 	})
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = resolveSecrets(config, resolver, "unit_test")
@@ -1567,7 +1723,7 @@ additional_endpoints:
 	os.WriteFile(configPath, testIntKeysConf, 0o600)
 	config.SetConfigFile(configPath)
 
-	err := loadCustom(config)
+	err := loadCustom(config, noopSchemaValidator{}, config)
 	assert.NoError(t, err)
 
 	err = configAssignAtPath(config, []string{"additional_endpoints", "2"}, "cherry")
@@ -1591,12 +1747,13 @@ func TestServerlessConfigInit(t *testing.T) {
 	// ensure some non-serverless configs are not declared
 	assert.False(t, conf.IsKnown("sbom.enabled"))
 
-	// inventory metadata collection is available in serverless-init, gated by
-	// the serverless-only serverless.inventory_enabled ramp key
+	// serverless-init collects metadata only when the serverless-only
+	// serverless.metadata_enabled key is true.
 	assert.True(t, conf.IsKnown("inventories_enabled"))
 	assert.True(t, conf.IsKnown("inventories_first_run_delay"))
-	assert.True(t, conf.IsKnown("serverless.inventory_enabled"))
-	assert.True(t, conf.IsKnown("serverless.inventory_wrapped_command_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_wrapped_command_enabled"))
+	assert.True(t, conf.IsKnown("serverless.metadata_runtime"))
 
 	// comp/trace/config reads these unconditionally; serverless builds only run
 	// initCommonConfigComponents, so the defaults must be reachable from here.
@@ -1606,9 +1763,9 @@ func TestServerlessConfigInit(t *testing.T) {
 	assert.Equal(t, 2, conf.GetInt("ol_proxy_config.api_version"))
 }
 
-func TestServerlessInventoryWrappedCommandEnabled(t *testing.T) {
-	const envVar = "DD_SERVERLESS_INIT_INVENTORY_WRAPPED_COMMAND_ENABLED"
-	const key = "serverless.inventory_wrapped_command_enabled"
+func TestServerlessMetadataWrappedCommandEnabled(t *testing.T) {
+	const envVar = "DD_SERVERLESS_INIT_METADATA_WRAPPED_COMMAND_ENABLED"
+	const key = "serverless.metadata_wrapped_command_enabled"
 	for _, tt := range []struct {
 		name string
 		env  string
@@ -1715,7 +1872,7 @@ flare_stripped_keys:
 	require.NoError(t, err)
 	cfg.SetConfigFile(configPath)
 
-	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t))
+	err = LoadDatadog(cfg, secretsmock.New(t), delegatedauthmock.New(t), noopSchemaValidator{})
 	require.NoError(t, err)
 
 	stringToScrub := `api_key: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -1901,6 +2058,64 @@ func TestSanitizeDataPlaneConfig(t *testing.T) {
 			assert.Equal(t, tt.wantSource, cfg.GetSource("data_plane.enabled"))
 		})
 	}
+}
+
+func TestApplyKubernetesHealthPlatformDefault(t *testing.T) {
+	const key = "health_platform.enabled"
+	setKubernetes := func(t *testing.T, k8s bool) {
+		t.Setenv("KUBERNETES_SERVICE_PORT", "")
+		t.Setenv("DD_EKS_FARGATE", "")
+		if k8s {
+			t.Setenv("KUBERNETES", "yes")
+		} else {
+			t.Setenv("KUBERNETES", "")
+		}
+	}
+
+	t.Run("non-kubernetes keeps it enabled by default", func(t *testing.T) {
+		setKubernetes(t, false)
+		config := newTestConf(t)
+		applyKubernetesHealthPlatformDefault(config)
+		assert.True(t, config.GetBool(key))
+	})
+
+	t.Run("kubernetes disables it by default", func(t *testing.T) {
+		setKubernetes(t, true)
+		config := newTestConf(t)
+		applyKubernetesHealthPlatformDefault(config)
+		assert.False(t, config.GetBool(key))
+		assert.False(t, config.IsConfigured(key))
+	})
+
+	t.Run("eks fargate disables it by default", func(t *testing.T) {
+		setKubernetes(t, false)
+		t.Setenv("DD_EKS_FARGATE", "true")
+		config := newTestConf(t)
+		applyKubernetesHealthPlatformDefault(config)
+		assert.False(t, config.GetBool(key))
+	})
+
+	t.Run("explicit true wins on kubernetes", func(t *testing.T) {
+		setKubernetes(t, true)
+		config := confFromYAML(t, "health_platform:\n  enabled: true\n")
+		applyKubernetesHealthPlatformDefault(config)
+		assert.True(t, config.GetBool(key))
+	})
+
+	t.Run("explicit true from env var wins on kubernetes", func(t *testing.T) {
+		setKubernetes(t, true)
+		t.Setenv("DD_HEALTH_PLATFORM_ENABLED", "true")
+		config := newTestConf(t)
+		applyKubernetesHealthPlatformDefault(config)
+		assert.True(t, config.GetBool(key))
+	})
+
+	t.Run("explicit false wins off kubernetes", func(t *testing.T) {
+		setKubernetes(t, false)
+		config := confFromYAML(t, "health_platform:\n  enabled: false\n")
+		applyKubernetesHealthPlatformDefault(config)
+		assert.False(t, config.GetBool(key))
+	})
 }
 
 func TestApplyKubernetesContainerDefaults(t *testing.T) {

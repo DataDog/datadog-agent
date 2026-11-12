@@ -1,0 +1,10 @@
+# Per RULES.md: error paths must be tested
+skip_assert_against_bash: true
+description: tr with no arguments fails with missing operand error.
+input:
+  script: |+
+    tr
+expect:
+  stdout: ""
+  stderr: "tr: missing operand\n"
+  exit_code: 1

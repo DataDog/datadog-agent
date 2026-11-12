@@ -1,0 +1,17 @@
+description: malformed bracket pattern in -name matches literal filename.
+setup:
+  files:
+    - path: "dir/["
+      content: "x"
+      chmod: 0644
+    - path: dir/a.txt
+      content: "y"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -name '['
+expect:
+  stdout: |+
+    dir/[
+  exit_code: 0

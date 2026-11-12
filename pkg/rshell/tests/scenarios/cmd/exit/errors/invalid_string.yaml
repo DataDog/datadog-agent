@@ -1,0 +1,10 @@
+description: >
+  Exit with a non-numeric string argument produces an error and exits the shell with code 2.
+input:
+  script: |+
+    exit abc
+expect:
+  stdout: ""
+  stderr_contains:
+    - "abc: numeric argument required"
+  exit_code: 2

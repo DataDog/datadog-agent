@@ -17,7 +17,7 @@ while [[ $retry_count -lt $max_retries ]]; do
         vault_name="kv/k8s/${POD_NAMESPACE}/datadog-agent"
         if [[ "$(uname -s)" == "Darwin" ]]; then
             vault_name="kv/aws/arn:aws:iam::486234852809:role/ci-datadog-agent"
-            result="$(ci-identities-gitlab-job-client secrets read ${parameter_name} ${parameter_field} 2> errorFile)"
+            result="$("$(dirname "$0")"/read_ci_secret.sh "${parameter_name}" "${parameter_field}" 2> errorFile)"
             exit_code=$?
         else
             result="$(vault kv get -format="${format}" -field="${parameter_field}" "${vault_name}"/"${parameter_name}" 2> errorFile)"

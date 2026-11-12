@@ -1,0 +1,13 @@
+# Each section from every release note are combined when the
+# CHANGELOG-DCA.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+fixes:
+  - |
+    The admission controller webhook server now replies with HTTP 400 to an
+    ``AdmissionReview`` that has no ``request``, and with HTTP 500 when a
+    webhook produces no response, instead of dropping the connection.

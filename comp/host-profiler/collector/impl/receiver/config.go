@@ -27,11 +27,12 @@ import (
 // 19 Hz avoids lockstep sampling with periodic activity.
 const defaultSamplesPerSecond = 19
 
+const minReporterInterval = 60 * time.Second
+
 // Config is the configuration for the profiles receiver.
 type Config struct {
 	EbpfCollectorConfig *ebpfconfig.Config                  `mapstructure:",squash"`
 	SymbolUploader      symboluploader.SymbolUploaderConfig `mapstructure:"symbol_uploader"`
-	CollectContext      bool                                `mapstructure:"collect_context"`
 }
 
 // defaultEnvVars lists environment variables read from profiled processes to populate
@@ -73,13 +74,16 @@ func (c *Config) Validate() error {
 			slog.Int("effective_samples_per_second", defaultSamplesPerSecond))
 		c.EbpfCollectorConfig.SamplesPerSecond = defaultSamplesPerSecond
 	}
+	if c.EbpfCollectorConfig.ReporterInterval < minReporterInterval {
+		return fmt.Errorf("reporter_interval must be at least %s", minReporterInterval)
+	}
 	if err := c.EbpfCollectorConfig.Validate(); err != nil {
 		return err
 	}
-	if c.CollectContext {
-		c.EbpfCollectorConfig.Interpreters.Go.Labels.Disabled = false
+	if len(c.EbpfCollectorConfig.Probes) > 0 {
+		slog.Warn("Datadog Host Profiler probe extensions are not supported at the time of this release; profiles collected by these probes may be interpreted incorrectly.",
+			slog.Any("probes", c.EbpfCollectorConfig.Probes))
 	}
-
 	includeEnvVars := append([]string{}, defaultEnvVars...)
 	if c.EbpfCollectorConfig.IncludeEnvVars != "" {
 		includeEnvVars = append(includeEnvVars, c.EbpfCollectorConfig.IncludeEnvVars)
@@ -113,18 +117,18 @@ func defaultConfig(profilerName string) component.Config {
 	cfg := ebpfcollector.NewFactory().CreateDefaultConfig().(*ebpfconfig.Config)
 	cfg.Interpreters = defaultInterpretersConfig()
 	// 60s batches more samples per report, improving compression and reducing upload bandwidth
-	cfg.ReporterInterval = 60 * time.Second
+	cfg.ReporterInterval = minReporterInterval
 	// Default jitter is 20%, which makes sense for 5s intervals (~1s variation).
 	// With 60s intervals, 20% would mean ~12s variation, so we reduce to 5% (~3s).
 	cfg.ReporterJitter = 0.05
 	cfg.SendErrorFrames = false
+	cfg.FilterMinProcessAge = 0
 	cfg.SamplesPerSecond = defaultSamplesPerSecond
 
 	symbolUploaderConfig := symboluploader.DefaultSymbolUploaderConfig(profilerName)
 	return Config{
 		EbpfCollectorConfig: cfg,
 		SymbolUploader:      symbolUploaderConfig,
-		CollectContext:      false,
 	}
 }
 
@@ -132,7 +136,7 @@ func defaultInterpretersConfig() interpreterconfig.Config {
 	cfg := interpreterconfig.AllInterpreters()
 	// Disable Go symbolization by default because we do Go symbolization remotely.
 	cfg.Go.Symbolization = interpreter.BaseConfig{Disabled: true}
-	//  Disable Labels by default. It will be enabled if ReporterConfig.CollectContext is true.
+	// Disable Go labels by default; enable them with interpreters.go.labels.disabled: false.
 	cfg.Go.Labels = interpreter.BaseConfig{Disabled: true}
 	// CRuby has lots of Ruby->native->Ruby transitions which runs out of ebpf tail calls very fast
 	// and captures only a small part of the stack. This config fixes this by skipping native frames

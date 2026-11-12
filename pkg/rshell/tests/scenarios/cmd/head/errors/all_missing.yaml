@@ -1,0 +1,11 @@
+description: All nonexistent files each produce an error message; no headers are printed.
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head missing1.txt missing2.txt
+expect:
+  stdout: ""
+  stderr_contains:
+    - "missing1.txt"
+    - "missing2.txt"
+  exit_code: 1

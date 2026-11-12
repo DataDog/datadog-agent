@@ -1,0 +1,16 @@
+description: find -type b, -type c, and -type b,c are accepted by the parser.
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -type b
+    find . -type c
+    find . -type b,c
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

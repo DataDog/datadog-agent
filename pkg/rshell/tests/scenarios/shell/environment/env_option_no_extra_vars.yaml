@@ -1,0 +1,12 @@
+description: "Variables from Env option do not pollute unrelated variable names"
+# skip: rshell uses an isolated environment that does not inherit from the parent process
+skip_assert_against_bash: true
+input:
+  interpreter_env:
+    DEFINED: "yes"
+  script: |
+    echo "defined=$DEFINED"
+    echo "other=$UNDEFINED_VAR"
+expect:
+  stdout: "defined=yes\nother=\n"
+  exit_code: 0

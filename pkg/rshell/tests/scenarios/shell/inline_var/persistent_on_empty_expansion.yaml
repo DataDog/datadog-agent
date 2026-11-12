@@ -1,0 +1,12 @@
+description: >-
+  When the command word expands to nothing (unquoted unset variable),
+  the assignment becomes persistent (inspired by yash simple-p.tst).
+input:
+  script: |+
+    A=hello $___NONEXISTENT_VAR___
+    echo $A
+expect:
+  stdout: |+
+    hello
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,21 @@
+description: find -false -execdir echo {} \; never runs echo because AND short-circuits on -false.
+skip_assert_against_bash: true  # rshell -execdir only runs builtins, not external commands
+setup:
+  files:
+    - path: dir/a.txt
+      content: "a"
+      chmod: 0644
+    - path: dir/b.txt
+      content: "b"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  allowed_commands:
+    - rshell:find
+    - rshell:echo
+  script: |+
+    find dir -false -execdir echo {} \;
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

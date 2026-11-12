@@ -12,7 +12,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/ast"
+	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/parser"
 
 	"github.com/DataDog/datadog-agent/pkg/security/secl/compiler/eval"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
@@ -21,7 +21,7 @@ import (
 // newTestRuleWithExecContextTag creates a *Rule with the given id and tag value
 func newOrderTestRule(t *testing.T, id string, internalPolicyType InternalPolicyType, execContextTag string, priority int) *Rule {
 	expression := `open.file.path == "/tmp/test"`
-	pc := ast.NewParsingContext(false)
+	pc := parser.NewParsingContext(false)
 	evalRule, err := eval.NewRule(id, expression, pc, &eval.Opts{})
 	if err != nil {
 		t.Error(err)

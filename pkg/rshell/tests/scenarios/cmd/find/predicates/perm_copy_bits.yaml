@@ -1,0 +1,19 @@
+description: "-perm with copy-bits symbolic mode (g=u) matches correctly."
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/f770
+      content: ""
+      chmod: 0770
+    - path: dir/f750
+      content: ""
+      chmod: 0750
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -perm u=rwx,g=u | sort
+expect:
+  stdout: "dir/f770\n"
+  stdout_windows: ""
+  stderr: ""
+  exit_code: 0

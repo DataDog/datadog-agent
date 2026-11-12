@@ -1,0 +1,14 @@
+description: ls -lh shows human-readable file sizes.
+setup:
+  files:
+    - path: file.txt
+      content: "hello world"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    ls -lh
+expect:
+  stdout_contains:
+    - "file.txt"
+  stderr: ""
+  exit_code: 0

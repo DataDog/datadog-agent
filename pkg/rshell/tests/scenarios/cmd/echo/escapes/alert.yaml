@@ -1,0 +1,8 @@
+description: Echo -e with \a (alert/bell) escape sequence.
+input:
+  script: |+
+    echo -e '\a'
+expect:
+  stdout: "\a\n"
+  stderr: ""
+  exit_code: 0

@@ -136,6 +136,12 @@ func (a *ClientStatsAggregator) Stop() {
 	a.exitWG.Wait()
 }
 
+// ForceFlush writes every bucket to the writer, including the ones still open,
+// as Stop does. The aggregator keeps running.
+func (a *ClientStatsAggregator) ForceFlush() {
+	a.flushAll()
+}
+
 // flushOnTime flushes all buckets up to flushTs, except the last one.
 func (a *ClientStatsAggregator) flushOnTime(now time.Time) {
 	a.flush(now, false)

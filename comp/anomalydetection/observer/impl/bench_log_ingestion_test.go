@@ -83,9 +83,9 @@ func BenchmarkLogExtraction_SeriesCount(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				_, _, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
+				_, _, _, extractors, _ := instantiateForTest(b, defaultCatalog(), benchmarkSettings)
 				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{
+				e := mustNewEngine(engineConfig{
 					storage:    storage,
 					extractors: extractors,
 				})
@@ -120,9 +120,9 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 
 			for i := 0; i < b.N; i++ {
 				b.StopTimer()
-				_, _, _, extractors, _ := defaultCatalog().Instantiate(benchmarkSettings)
+				_, _, _, extractors, _ := instantiateForTest(b, defaultCatalog(), benchmarkSettings)
 				storage := newTimeSeriesStorage()
-				e := newEngine(engineConfig{
+				e := mustNewEngine(engineConfig{
 					storage:    storage,
 					extractors: extractors,
 				})
@@ -143,7 +143,7 @@ func BenchmarkLogExtraction_DiversePatterns(b *testing.B) {
 func BenchmarkLogContextSteadyState(b *testing.B) {
 	extractor := NewLogPatternExtractor(DefaultLogPatternExtractorConfig())
 	extractor.config.MinClusterSizeBeforeEmit = 1
-	e := newEngine(engineConfig{
+	e := mustNewEngine(engineConfig{
 		storage:    newTimeSeriesStorage(),
 		extractors: []observerdef.LogMetricsExtractor{extractor},
 	})
@@ -237,7 +237,7 @@ func BenchmarkLogProducer_Handoff(b *testing.B) {
 				containers: newLogSourceRateState("info", -1, -1, -1),
 			}
 			h := &handle{
-				ch:        ch,
+				logsCh:    ch,
 				source:    "logs",
 				telemetry: newObserverTelemetry(telemetryComp),
 				logFilter: logFilter,
@@ -288,7 +288,7 @@ anomaly_detection:
 		b.Fatal(err)
 	}
 	obs := provides.Comp.(*observerImpl)
-	b.Cleanup(func() { close(obs.obsCh) })
+	b.Cleanup(func() { close(obs.metricsCh); close(obs.logsCh) })
 
 	metricHandle := obs.GetHandle("check")
 	logHandle := obs.GetHandle("logs")

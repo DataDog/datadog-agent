@@ -1,0 +1,22 @@
+description: strings -n 2 reports sequences of 2 or more printable chars.
+setup:
+  files:
+    - path: data.bin
+      content: |+
+        hi
+        hello
+        ab
+        x
+        test
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    strings -n 2 data.bin
+expect:
+  stdout: |+
+    hi
+    hello
+    ab
+    test
+  stderr: ""
+  exit_code: 0

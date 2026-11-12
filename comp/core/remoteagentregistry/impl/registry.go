@@ -26,6 +26,7 @@ import (
 	flaretypes "github.com/DataDog/datadog-agent/comp/core/flare/types"
 	ipc "github.com/DataDog/datadog-agent/comp/core/ipc/def"
 	remoteagentregistry "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/def"
+	"github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/expvarcompat"
 	remoteagentregistryStatus "github.com/DataDog/datadog-agent/comp/core/remoteagentregistry/status"
 	secrets "github.com/DataDog/datadog-agent/comp/core/secrets/def"
 	"github.com/DataDog/datadog-agent/comp/core/status"
@@ -48,6 +49,7 @@ type Requires struct {
 // Provides defines the output of the remoteagentregistry component
 type Provides struct {
 	Comp          remoteagentregistry.Component
+	ExpvarSource  expvarcompat.Source
 	FlareProvider flaretypes.Provider
 	Status        status.InformationProvider
 }
@@ -63,6 +65,7 @@ func NewComponent(reqs Requires) Provides {
 
 	return Provides{
 		Comp:          registry,
+		ExpvarSource:  registry.getRemoteAgentExpvars,
 		FlareProvider: flaretypes.NewProvider(registry.fillFlare),
 		Status:        status.NewInformationProvider(remoteagentregistryStatus.GetProvider(registry)),
 	}
@@ -202,6 +205,7 @@ type remoteAgentRegistry struct {
 	shutdownChan      chan struct{}
 	telemetry         telemetry.Component
 	telemetryStore    *telemetryStore
+	expvarCache       remoteExpvarCache
 
 	// eventSubscribers receive Remote Agent events reported via ReportRemoteAgentEvent. The slice is
 	// set once at construction and is immutable afterwards, so it needs no lock.

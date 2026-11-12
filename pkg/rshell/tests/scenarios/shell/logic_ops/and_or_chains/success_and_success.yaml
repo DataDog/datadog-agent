@@ -1,0 +1,10 @@
+description: Both commands in && list succeed and produce output.
+input:
+  script: |+
+    echo 1 && echo 2
+expect:
+  stdout: |+
+    1
+    2
+  stderr: ""
+  exit_code: 0

@@ -1,0 +1,10 @@
+description: Pipeline can be used inside a brace group alongside other commands.
+input:
+  script: |+
+    { echo a | cat; echo b; }
+expect:
+  stdout: |+
+    a
+    b
+  stderr: ""
+  exit_code: 0

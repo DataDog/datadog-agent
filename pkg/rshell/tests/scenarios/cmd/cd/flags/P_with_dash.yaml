@@ -1,0 +1,19 @@
+description: cd -P - swaps to OLDPWD; for a real (non-symlinked) directory the result equals -L.
+setup:
+  files:
+    - path: a/leaf
+      content: ""
+    - path: b/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a
+    cd ../b
+    cd -P - >/dev/null
+    pwd
+expect:
+  stdout_contains: ["/a"]
+  stdout_contains_windows: ["\\a"]
+  stderr: ""
+  exit_code: 0

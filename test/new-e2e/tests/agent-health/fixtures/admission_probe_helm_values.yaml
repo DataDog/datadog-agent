@@ -1,14 +1,47 @@
 datadog:
   clusterName: "e2e-admission-probe"
   logLevel: DEBUG
+agents:
+  volumes:
+    - name: remote-persistence-ca
+      secret:
+        secretName: remote-persistence-ca
+  volumeMounts:
+    - name: remote-persistence-ca
+      mountPath: /etc/ssl/certs/remote-persistence-ca.crt
+      subPath: ca.crt
+      readOnly: true
+  containers:
+    agent:
+      envDict:
+        DD_CHECK_RUNNERS: "not_a_number_for_e2e"
+        DD_HEALTH_PLATFORM_ENABLED: "true"
+        DD_HEALTH_PLATFORM_FORWARDER_INTERVAL: "5s"
+        DD_HEALTH_PLATFORM_INVALIDCONFIG_CHECK_ENABLED: "true"
+        DD_HEALTH_PLATFORM_PERSIST_REMOTELY_ON_KUBERNETES: "true"
+        DD_SITE: "remote-persistence.svc.cluster.local"
+        DD_SKIP_SSL_VALIDATION: "false"
 clusterAgent:
   replicas: 1
   admissionController:
     enabled: true
     mutateUnlabelled: true
+  volumes:
+    - name: remote-persistence-ca
+      secret:
+        secretName: remote-persistence-ca
+  volumeMounts:
+    - name: remote-persistence-ca
+      mountPath: /etc/ssl/certs/remote-persistence-ca.crt
+      subPath: ca.crt
+      readOnly: true
   envDict:
     DD_HEALTH_PLATFORM_ENABLED: "true"
-    DD_HEALTH_PLATFORM_FORWARDER_INTERVAL: "30000000000"
+    DD_HEALTH_PLATFORM_FORWARDER_INTERVAL: "5s"
+    DD_HEALTH_PLATFORM_INVALIDCONFIG_CHECK_ENABLED: "true"
+    DD_HEALTH_PLATFORM_PERSIST_REMOTELY_ON_KUBERNETES: "true"
+    DD_SITE: "remote-persistence.svc.cluster.local"
+    DD_SKIP_SSL_VALIDATION: "false"
     DD_ADMISSION_CONTROLLER_PROBE_ENABLED: "true"
     DD_ADMISSION_CONTROLLER_PROBE_INTERVAL: "15"
     DD_ADMISSION_CONTROLLER_PROBE_GRACE_PERIOD: "10"

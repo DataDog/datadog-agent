@@ -58,7 +58,7 @@ func (ds *DebugServer) Start() {
 		return
 	}
 
-	listener, err := net.Listen("tcp", net.JoinHostPort("127.0.0.1", strconv.Itoa(ds.conf.DebugServerPort)))
+	listener, err := net.Listen("tcp", ds.conf.DebugServerAddr())
 	if err != nil {
 		log.Errorf("Error creating debug server listener: %s", err)
 		return

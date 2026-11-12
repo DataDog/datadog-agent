@@ -1,0 +1,13 @@
+description: wc -L preserves max line length across form feed reset.
+setup:
+  files:
+    - path: file.txt
+      content: "abcdef\fxy\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    wc -L file.txt
+expect:
+  stdout: "6 file.txt\n"
+  stderr: ""
+  exit_code: 0

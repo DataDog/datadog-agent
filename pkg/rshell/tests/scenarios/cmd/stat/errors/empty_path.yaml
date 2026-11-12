@@ -1,0 +1,11 @@
+description: stat -f rejects an empty path instead of treating it as the current directory.
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    stat -f ""
+expect:
+  stdout: |+
+  stderr_contains:
+    - "no such file or directory"
+  exit_code: 1

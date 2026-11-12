@@ -14,7 +14,6 @@ import (
 	"io"
 	"net/http"
 	"net/url"
-	"os"
 	"runtime"
 	"slices"
 	"strconv"
@@ -176,15 +175,7 @@ func (c *client) endpointURL(path string) string {
 }
 
 func EndpointURL(cfg *config.Config, path string) string {
-	scheme, host := "https", cfg.DDApiHost
-	if os.Getenv(app.InternalUseDDURLForOPMSEnvVar) == "true" {
-		host = cfg.DDHost
-		if strings.HasPrefix(host, "http://") {
-			scheme = "http"
-		}
-		host = strings.TrimPrefix(strings.TrimPrefix(host, "http://"), "https://")
-	}
-	return (&url.URL{Scheme: scheme, Host: host, Path: path}).String()
+	return strings.TrimSuffix(cfg.APIBaseURL, "/") + path
 }
 
 func (c *client) DequeueTask(ctx context.Context) (*types.Task, time.Duration, error) {

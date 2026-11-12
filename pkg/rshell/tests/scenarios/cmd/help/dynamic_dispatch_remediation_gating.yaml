@@ -1,0 +1,10 @@
+description: help systemctl is refused by the same RemediationOnly dispatch gate as direct invocation, before systemctl's own handler ever runs — read-only mode returns the gate's refusal text on stderr with exit code 1, remediation mode returns real usage text.
+skip_assert_against_bash: true
+input:
+  script: |+
+    help systemctl
+expect:
+  stdout: |+
+  stderr: |+
+    systemctl: remediation mode required
+  exit_code: 1

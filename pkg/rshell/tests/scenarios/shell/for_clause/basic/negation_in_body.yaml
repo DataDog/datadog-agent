@@ -1,0 +1,13 @@
+description: Negation works inside for loop body.
+input:
+  script: |+
+    for i in a b; do
+      ! false
+      echo "$i:$?"
+    done
+expect:
+  stdout: |+
+    a:0
+    b:0
+  stderr: ""
+  exit_code: 0

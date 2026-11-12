@@ -1,0 +1,9 @@
+description: '`head -n nope` fails with GNU''s exact wording (`head: invalid number of lines: ''nope''`). Validation lives in the bound handler in builtins/head/head.go and runs before the `--help` short-circuit so that this case matches GNU regardless of whether `--help` follows.'
+input:
+  script: |+
+    head -n nope
+expect:
+  stdout: ""
+  stderr: |+
+    head: invalid number of lines: 'nope'
+  exit_code: 1

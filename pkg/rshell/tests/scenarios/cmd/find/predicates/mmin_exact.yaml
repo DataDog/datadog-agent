@@ -1,0 +1,16 @@
+description: find -mmin 0 does not match files that are even 1 second old (ceiling rounding).
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/recent.txt
+      content: "just created"
+      chmod: 0644
+      mod_time: "2020-01-01T00:00:00Z"  # explicit past time to ensure file is > 0 minutes old
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -mmin 0
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

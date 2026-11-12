@@ -1,0 +1,19 @@
+# Each section from every release note are combined when the
+# CHANGELOG.rst is rendered. So the text needs to be worded so that
+# it does not depend on any information only available in another
+# section. This may mean repeating some details, but each section
+# must be readable independently of the other.
+#
+# Each section note must be formatted as reStructuredText.
+---
+enhancements:
+  - |
+    APM: When it sends to DogStatsD over loopback, the trace-agent DogStatsD
+    proxy (``/dogstatsd/v1/proxy`` and ``/dogstatsd/v2/proxy``) now packs the
+    metric lines of a request into UDP datagrams of up to
+    ``dogstatsd_buffer_size`` bytes, and at most 8 KiB, instead of sending one
+    datagram per line. This lowers the chance that large requests lose metrics
+    to a full UDP receive buffer, notably in serverless-init where the buffer
+    size cannot be raised. The trace-agent's ``dogstatsd_buffer_size`` must not
+    exceed the one DogStatsD reads with, as DogStatsD truncates larger
+    datagrams.

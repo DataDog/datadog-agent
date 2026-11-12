@@ -1,0 +1,10 @@
+description: Heredoc with command substitution expands the substitution.
+input:
+  script: |+
+    cat <<EOF
+    today is $(printf hello)
+    EOF
+expect:
+  stdout: "today is hello\n"
+  stderr: ""
+  exit_code: 0

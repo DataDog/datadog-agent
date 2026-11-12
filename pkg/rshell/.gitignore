@@ -1,0 +1,13 @@
+**/.claude/settings.local.json
+.claude/scheduled_tasks.lock
+.claude/worktrees/
+.superset/
+
+.idea/
+/rshell
+
+.DS_Store
+
+# Fuzz corpus: keep checked in for regression testing.
+# Uncomment the line below if corpus grows too large:
+# interp/builtins/tests/*/testdata/fuzz/*/corpus-*

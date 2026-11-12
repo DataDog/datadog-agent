@@ -50,6 +50,17 @@ func createHeaders(userName, apiToken string) http.Header {
 	return headers
 }
 
-func encodeJobNameForUrl(jobName string) string {
-	return strings.ReplaceAll(url.PathEscape(jobName), "%2F", "/")
+// Dot segments are rejected because url.PathEscape leaves "." unescaped, so "../" could escape /job/.
+func encodeJobNameForUrl(jobName string) (string, error) {
+	if jobName == "" {
+		return "", errors.New("job name must not be empty")
+	}
+	segments := strings.Split(jobName, "/")
+	for i, segment := range segments {
+		if segment == "." || segment == ".." {
+			return "", fmt.Errorf("job name %q must not contain %q path segments", jobName, segment)
+		}
+		segments[i] = url.PathEscape(segment)
+	}
+	return strings.Join(segments, "/"), nil
 }

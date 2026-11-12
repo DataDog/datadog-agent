@@ -1,0 +1,15 @@
+description: jq raw input replaces each malformed UTF-8 unit using jq's sequence boundaries.
+input:
+  script: |+
+    printf '\342\202' | jq -R 'length'
+    printf '\200\201' | jq -R 'length'
+    printf '\355\240\200' | jq -R 'length'
+    printf '\342A' | jq -R 'length'
+expect:
+  stdout: |+
+    1
+    2
+    1
+    1
+  stderr: |+
+  exit_code: 0

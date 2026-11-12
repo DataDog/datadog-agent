@@ -1,0 +1,15 @@
+description: jq continues after per-input runtime errors and uses the final input status.
+input:
+  script: |+
+    printf '0\n1\n' | jq -c '1 / .' 2>/dev/null
+    echo "success-last:$?"
+    printf '1\n0\n' | jq -c '1 / .' 2>/dev/null
+    echo "error-last:$?"
+expect:
+  stdout: |+
+    1
+    success-last:0
+    1
+    error-last:5
+  stderr: |+
+  exit_code: 0

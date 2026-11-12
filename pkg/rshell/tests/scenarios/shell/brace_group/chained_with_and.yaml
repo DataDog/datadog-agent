@@ -1,0 +1,10 @@
+description: Brace group exit code propagates through && chain.
+input:
+  script: |+
+    { true; } && { echo "step2"; } && { echo "step3"; }
+expect:
+  stdout: |+
+    step2
+    step3
+  stderr: ""
+  exit_code: 0

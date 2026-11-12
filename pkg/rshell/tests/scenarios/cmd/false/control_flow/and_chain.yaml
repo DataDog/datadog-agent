@@ -1,0 +1,8 @@
+description: Chained && with false short-circuits at the first false.
+input:
+  script: |+
+    false && echo a && echo b
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

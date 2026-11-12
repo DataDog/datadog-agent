@@ -27,6 +27,7 @@ import (
 	settings "github.com/DataDog/datadog-agent/comp/core/settings/def"
 	sysprobeconfig "github.com/DataDog/datadog-agent/comp/core/sysprobeconfig/def"
 	compdef "github.com/DataDog/datadog-agent/comp/def"
+	pkgconfighelper "github.com/DataDog/datadog-agent/pkg/config/helper"
 	"github.com/DataDog/datadog-agent/pkg/config/model"
 	"github.com/DataDog/datadog-agent/pkg/process/util/coreagent"
 	sysprobeclient "github.com/DataDog/datadog-agent/pkg/system-probe/api/client"
@@ -71,10 +72,10 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 	pdata := flaretypes.ProfileData{}
 
 	type pprofGetter func(path string) ([]byte, error)
-	tcpGet := func(portConfig string, onHTTPS bool) pprofGetter {
+	tcpGet := func(host, portConfig string, onHTTPS bool) pprofGetter {
 		endpoint := url.URL{
 			Scheme: "http",
-			Host:   net.JoinHostPort("127.0.0.1", strconv.Itoa(p.cfg.GetInt(portConfig))),
+			Host:   net.JoinHostPort(host, strconv.Itoa(p.cfg.GetInt(portConfig))),
 			Path:   "/debug/pprof",
 		}
 		if onHTTPS {
@@ -133,20 +134,20 @@ func (p profiler) ReadProfileData(seconds int, logFunc func(log string, params .
 
 	agentCollectors := map[string]agentProfileCollector{}
 	if p.coreAgentEnabled() {
-		agentCollectors["core"] = serviceProfileCollector(tcpGet("expvar_port", false), seconds)
+		agentCollectors["core"] = serviceProfileCollector(tcpGet("127.0.0.1", "expvar_port", false), seconds)
 	}
 
 	if p.securityAgentEnabled() {
-		agentCollectors["security-agent"] = serviceProfileCollector(tcpGet("security_agent.expvar_port", false), seconds)
+		agentCollectors["security-agent"] = serviceProfileCollector(tcpGet("127.0.0.1", "security_agent.expvar_port", false), seconds)
 	}
 
 	if p.processAgentEnabled() {
-		agentCollectors["process"] = serviceProfileCollector(tcpGet("process_config.expvar_port", false), seconds)
+		agentCollectors["process"] = serviceProfileCollector(tcpGet("127.0.0.1", "process_config.expvar_port", false), seconds)
 	}
 
 	if p.apmEnabled() {
 		traceCpusec := p.apmTraceSeconds(seconds)
-		agentCollectors["trace"] = serviceProfileCollector(tcpGet("apm_config.debug.port", true), traceCpusec)
+		agentCollectors["trace"] = serviceProfileCollector(tcpGet(pkgconfighelper.APMDebugHost(p.cfg), "apm_config.debug.port", true), traceCpusec)
 	}
 
 	if p.sysProbeEnabled() {

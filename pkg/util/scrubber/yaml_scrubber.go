@@ -7,36 +7,53 @@ package scrubber
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
+	"io"
 	"os"
+	"strconv"
 	"strings"
 
 	"go.yaml.in/yaml/v3"
 )
 
-type scrubCallback = func(string, interface{}) (bool, interface{})
+// scrubCallback is called on every map entry and on every string in a slice. key is the map key, or "" for slice
+// elements, while path is the full dotted path to the entry, where slice elements use their index (ex:
+// "instances.0.community_string"). path is "" for a top-level string.
+type scrubCallback = func(key string, path string, value interface{}) (bool, interface{})
 
-func walkSlice(data []interface{}, callback scrubCallback) {
+// joinPath appends elem to the dotted path prefix
+func joinPath(prefix string, elem string) string {
+	if prefix == "" {
+		return elem
+	}
+	return prefix + "." + elem
+}
+
+func (c *Scrubber) walkSlice(data []interface{}, prefix string, callback scrubCallback) {
 	for i, k := range data {
+		path := joinPath(prefix, strconv.Itoa(i))
 		switch v := k.(type) {
 		case map[interface{}]interface{}:
-			walkHash(v, callback)
+			c.walkHash(v, path, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			c.walkSlice(v, path, callback)
 		case map[string]interface{}:
-			walkStringMap(v, callback)
+			c.walkStringMap(v, path, callback)
 		case string:
-			if match, newValue := callback("", v); match {
+			if match, newValue := callback("", path, v); match {
 				data[i] = newValue
 			}
 		}
 	}
 }
 
-func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
+func (c *Scrubber) walkHash(data map[interface{}]interface{}, prefix string, callback scrubCallback) {
 	for k, v := range data {
-		if keyString, ok := k.(string); ok {
-			if match, newValue := callback(keyString, v); match {
+		keyString, isString := k.(string)
+		path := joinPath(prefix, c.scrubYamlText(fmt.Sprint(k)))
+		if isString {
+			if match, newValue := callback(keyString, path, v); match {
 				data[keyString] = newValue
 				continue
 			}
@@ -44,103 +61,157 @@ func walkHash(data map[interface{}]interface{}, callback scrubCallback) {
 
 		switch v := data[k].(type) {
 		case map[interface{}]interface{}:
-			walkHash(v, callback)
+			c.walkHash(v, path, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			c.walkSlice(v, path, callback)
 		}
 	}
 }
 
-func walkStringMap(data map[string]interface{}, callback scrubCallback) {
+func (c *Scrubber) walkStringMap(data map[string]interface{}, prefix string, callback scrubCallback) {
 	for k, v := range data {
-		if match, newValue := callback(k, v); match {
+		path := joinPath(prefix, c.scrubYamlText(k))
+		if match, newValue := callback(k, path, v); match {
 			data[k] = newValue
 			continue
 		}
 		switch v := data[k].(type) {
 		case map[string]interface{}:
-			walkStringMap(v, callback)
+			c.walkStringMap(v, path, callback)
 		case []interface{}:
-			walkSlice(v, callback)
+			c.walkSlice(v, path, callback)
 		}
 
 	}
 }
 
 // walk will go through loaded data and call callback on every strings allowing
-// the callback to overwrite the string value
-func walk(data *interface{}, callback scrubCallback) {
+// the callback to overwrite the string value. prefix is the path of data itself.
+func (c *Scrubber) walk(data *interface{}, prefix string, callback scrubCallback) {
 	if data == nil {
 		return
 	}
 
 	switch v := (*data).(type) {
 	case map[interface{}]interface{}:
-		walkHash(v, callback)
+		c.walkHash(v, prefix, callback)
 	case []interface{}:
-		walkSlice(v, callback)
+		c.walkSlice(v, prefix, callback)
 	case map[string]interface{}:
-		walkStringMap(v, callback)
+		c.walkStringMap(v, prefix, callback)
 	case string:
-		if match, newValue := callback("", v); match {
+		if match, newValue := callback("", prefix, v); match {
 			*data = newValue
 		}
 	}
 }
 
-// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes
+// ScrubDataObj scrubs credentials from the data interface by recursively walking over all the nodes. The full paths of
+// the settings whose values get scrubbed are recorded, see GetStrippedKeys.
 func (c *Scrubber) ScrubDataObj(data *interface{}) {
-	walk(data, func(key string, value interface{}) (bool, interface{}) {
-		str, isString := value.(string)
-		if isString && IsEnc(str) {
-			return false, ""
-		}
+	c.scrubDataObjAt(data, "")
+}
 
-		for _, replacer := range c.singleLineReplacers {
-			if replacer.YAMLKeyRegex == nil {
-				continue
-			}
+// scrubDataObjAt is like ScrubDataObj for data found at the given path, which prefixes the recorded paths
+func (c *Scrubber) scrubDataObjAt(data *interface{}, prefix string) {
+	c.walk(data, prefix, c.scrubDataValue)
+}
 
-			if c.shouldApply != nil && !c.shouldApply(replacer) {
-				continue
-			}
-
-			lowerKey := strings.ToLower(key)
-			if replacer.YAMLKeyRegex.Match([]byte(lowerKey)) {
-				if replacer.ProcessValue != nil {
-					result := replacer.ProcessValue(value)
-					// If ProcessValue returned a string, still apply the value-content pass
-					// so embedded credentials (e.g. API keys in a JSON-encoded string) get scrubbed.
-					if resultStr, ok := result.(string); ok {
-						lines := strings.Split(resultStr, "\n")
-						for i, line := range lines {
-							lines[i] = string(c.scrub([]byte(line), c.singleLineReplacers, true))
-						}
-						joined := strings.Join(lines, "\n")
-						scrubbed := string(c.scrub([]byte(joined), c.multiLineReplacers, false))
-						return true, scrubbed
-					}
-					return true, result
-				}
-				return true, defaultReplacement
-			}
-		}
-
-		if isString {
-			// Apply single-line replacers per line so regexes like `\bBearer\s+[^*]+\b`
-			// (which match newlines via `[^*]`) can't consume content from following lines.
-			lines := strings.Split(str, "\n")
-			for i, line := range lines {
-				lines[i] = string(c.scrub([]byte(line), c.singleLineReplacers, true))
-			}
-			joined := strings.Join(lines, "\n")
-			scrubbed := string(c.scrub([]byte(joined), c.multiLineReplacers, false))
-			if scrubbed != str {
-				return true, scrubbed
-			}
-		}
+func (c *Scrubber) scrubDataValue(key string, path string, value interface{}) (bool, interface{}) {
+	str, isString := value.(string)
+	if isString && IsEnc(str) {
 		return false, ""
-	})
+	}
+
+	for _, replacer := range c.singleLineReplacers {
+		if replacer.YAMLKeyRegex == nil {
+			continue
+		}
+
+		if c.shouldApply != nil && !c.shouldApply(replacer) {
+			continue
+		}
+
+		lowerKey := strings.ToLower(key)
+		if replacer.YAMLKeyRegex.Match([]byte(lowerKey)) {
+			if replacer.hasProcessValue() {
+				result := replacer.processValue(value, path)
+				// If ProcessValue returned a string, still apply the value-content pass
+				// so embedded credentials (e.g. API keys in a JSON-encoded string) get scrubbed.
+				if resultStr, ok := result.(string); ok {
+					if mayHoldCredential(value) {
+						c.addStrippedKey(path)
+					}
+					return true, c.scrubYamlText(resultStr)
+				}
+				// Structured results (ex: additional_endpoints, private_action_runner) are only recorded
+				// if they contain a scrubbed leaf. Replacers that re-enter ScrubDataObj record nested keys.
+				if containsReplacement(result) {
+					c.addStrippedKey(path)
+				}
+				return true, result
+			}
+			if mayHoldCredential(value) {
+				c.addStrippedKey(path)
+			}
+			return true, defaultReplacement
+		}
+	}
+
+	if isString {
+		scrubbed := c.scrubYamlText(str)
+		if scrubbed != str {
+			// the value itself looks like a credential (ex: a raw API key or a password in a URL)
+			c.addStrippedKey(path)
+			return true, scrubbed
+		}
+	}
+	return false, ""
+}
+
+// mayHoldCredential returns false if value holds no data that could be a credential, such as an empty value or a
+// boolean. This avoids recording keys like "pass_through: false" that only match a sensitive key pattern.
+func mayHoldCredential(value interface{}) bool {
+	switch v := value.(type) {
+	case nil, bool:
+		return false
+	case string:
+		return strings.TrimSpace(v) != ""
+	case map[string]interface{}:
+		return len(v) != 0
+	case map[interface{}]interface{}:
+		return len(v) != 0
+	case []interface{}:
+		return len(v) != 0
+	}
+	return true
+}
+
+// containsReplacement returns true if any leaf of data was replaced by defaultReplacement
+func containsReplacement(data interface{}) bool {
+	switch v := data.(type) {
+	case string:
+		return v == defaultReplacement
+	case map[string]interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	case map[interface{}]interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	case []interface{}:
+		for _, vv := range v {
+			if containsReplacement(vv) {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 // ScrubYaml scrubs credentials from the given YAML by loading the data and scrubbing the object instead of the
@@ -164,4 +235,197 @@ func (c *Scrubber) ScrubYaml(input []byte) ([]byte, error) {
 		encoder.Close()
 	}
 	return c.ScrubBytes(input)
+}
+
+// ScrubYamlPreserveStructure scrubs credentials from YAML while preserving the
+// document's key order and scalar styles. Unlike ScrubYaml, it walks
+// the YAML node tree instead of unmarshalling into maps, which avoids turning a
+// configuration file into an interpreted and reordered view of its contents.
+// Comments are omitted because they are free-form text and YAML key-based
+// replacers cannot safely identify secrets in them.
+//
+// Invalid YAML is rejected instead of falling back to the text scrubber. The
+// fallback cannot apply YAML-only replacers and is therefore not safe for data
+// that is sent automatically as metadata.
+func (c *Scrubber) ScrubYamlPreserveStructure(input []byte) ([]byte, error) {
+	if len(input) == 0 {
+		return []byte{}, nil
+	}
+
+	decoder := yaml.NewDecoder(bytes.NewReader(input))
+	var document yaml.Node
+	if err := decoder.Decode(&document); err != nil {
+		if err == io.EOF {
+			return []byte{}, nil
+		}
+		return nil, err
+	}
+	var trailing yaml.Node
+	if err := decoder.Decode(&trailing); err != io.EOF {
+		if err == nil {
+			return nil, errors.New("multiple YAML documents are not supported")
+		}
+		return nil, err
+	}
+	if len(document.Content) == 0 {
+		return []byte{}, nil
+	}
+	if containsYamlAlias(&document) {
+		return nil, errors.New("YAML aliases are not supported")
+	}
+	var validation interface{}
+	if err := document.Decode(&validation); err != nil {
+		return nil, err
+	}
+
+	if err := c.scrubYamlNode(&document, "", make(map[*yaml.Node]struct{})); err != nil {
+		return nil, err
+	}
+
+	var buffer bytes.Buffer
+	encoder := yaml.NewEncoder(&buffer)
+	encoder.SetIndent(2)
+	if err := encoder.Encode(&document); err != nil {
+		return nil, err
+	}
+	if err := encoder.Close(); err != nil {
+		return nil, err
+	}
+	return buffer.Bytes(), nil
+}
+
+// scrubYamlNode scrubs node, whose dotted path is path (see scrubCallback)
+func (c *Scrubber) scrubYamlNode(node *yaml.Node, path string, visited map[*yaml.Node]struct{}) error {
+	if node == nil {
+		return nil
+	}
+	if _, found := visited[node]; found {
+		return nil
+	}
+	visited[node] = struct{}{}
+
+	node.HeadComment = ""
+	node.LineComment = ""
+	node.FootComment = ""
+
+	switch node.Kind {
+	case yaml.DocumentNode:
+		for _, child := range node.Content {
+			if err := c.scrubYamlNode(child, path, visited); err != nil {
+				return err
+			}
+		}
+	case yaml.SequenceNode:
+		for i, child := range node.Content {
+			if err := c.scrubYamlNode(child, joinPath(path, strconv.Itoa(i)), visited); err != nil {
+				return err
+			}
+		}
+	case yaml.MappingNode:
+		for i := 0; i+1 < len(node.Content); i += 2 {
+			key, value := node.Content[i], node.Content[i+1]
+			keyValue := key.Value
+			var decodedKey interface{}
+			if err := key.Decode(&decodedKey); err != nil {
+				return err
+			}
+			if decodedKeyString, ok := decodedKey.(string); ok {
+				keyValue = decodedKeyString
+			}
+			if err := c.scrubYamlNode(key, path, visited); err != nil {
+				return err
+			}
+
+			var decoded interface{}
+			if err := value.Decode(&decoded); err != nil {
+				return err
+			}
+			valuePath := joinPath(path, keyValue)
+			if matched, replacement := c.scrubYamlDataValue(keyValue, valuePath, decoded); matched {
+				replaceYamlNode(value, replacement)
+				if err := c.scrubYamlNode(value, valuePath, visited); err != nil {
+					return err
+				}
+			} else if err := c.scrubYamlNode(value, valuePath, visited); err != nil {
+				return err
+			}
+		}
+	case yaml.ScalarNode:
+		var decoded interface{}
+		if err := node.Decode(&decoded); err != nil {
+			return err
+		}
+		if str, ok := decoded.(string); ok {
+			if matched, replacement := c.scrubDataValue("", path, str); matched {
+				replaceYamlNode(node, replacement)
+			}
+		}
+	case yaml.AliasNode:
+		return errors.New("YAML aliases are not supported")
+	}
+	return nil
+}
+
+func (c *Scrubber) scrubYamlText(value string) string {
+	lines := strings.Split(value, "\n")
+	for i, line := range lines {
+		lines[i] = string(c.scrub([]byte(line), c.singleLineReplacers, true))
+	}
+	joined := strings.Join(lines, "\n")
+	return string(c.scrub([]byte(joined), c.multiLineReplacers, false))
+}
+
+func (c *Scrubber) scrubYamlDataValue(key string, path string, value interface{}) (bool, interface{}) {
+	if matched, replacement := c.scrubDataValue(key, path, value); matched {
+		return true, replacement
+	}
+
+	lowerKey := strings.ToLower(key)
+	for _, replacer := range c.multiLineReplacers {
+		if replacer.YAMLKeyRegex == nil || !replacer.YAMLKeyRegex.MatchString(lowerKey) {
+			continue
+		}
+		if c.shouldApply != nil && !c.shouldApply(replacer) {
+			continue
+		}
+		if replacer.hasProcessValue() {
+			return true, replacer.processValue(value, path)
+		}
+		return true, defaultReplacement
+	}
+	return false, ""
+}
+
+func containsYamlAlias(node *yaml.Node) bool {
+	if node == nil {
+		return false
+	}
+	if node.Kind == yaml.AliasNode {
+		return true
+	}
+	for _, child := range node.Content {
+		if containsYamlAlias(child) {
+			return true
+		}
+	}
+	return false
+}
+
+func replaceYamlNode(node *yaml.Node, value interface{}) {
+	anchor := node.Anchor
+	style := node.Style
+	originalKind := node.Kind
+
+	var replacement yaml.Node
+	if err := replacement.Encode(value); err != nil {
+		replacement = yaml.Node{Kind: yaml.ScalarNode, Tag: "!!str", Value: defaultReplacement}
+	}
+	if originalKind == yaml.ScalarNode && replacement.Kind == yaml.ScalarNode {
+		replacement.Style = style
+		if strings.HasPrefix(node.Tag, "!") && !strings.HasPrefix(node.Tag, "!!") {
+			replacement.Tag = node.Tag
+		}
+	}
+	replacement.Anchor = anchor
+	*node = replacement
 }

@@ -1,0 +1,9 @@
+description: read with no NAME assigns the raw line to REPLY without IFS trimming.
+input:
+  script: |+
+    printf '  hello world  \n' | { read; echo "[$REPLY]"; }
+expect:
+  stdout: |+
+    [  hello world  ]
+  stderr: ""
+  exit_code: 0

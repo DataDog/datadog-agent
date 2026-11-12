@@ -49,15 +49,28 @@ func (c TagGroupByKey) AsMap() map[string]string {
 
 // tagGroupByKeyHash computes a stable fnv64a hash for a TagGroupByKey.
 func tagGroupByKeyHash(c TagGroupByKey) uint64 {
-	h := fnv.New64a()
-	h.Write([]byte(c.Source))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Service))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Env))
-	h.Write([]byte{'|'})
-	h.Write([]byte(c.Host))
-	return h.Sum64()
+	// This is FNV-1a over the same byte sequence as the former hash.Hash64
+	// implementation. It is inlined so hot-path group preparation is
+	// allocation-free.
+	const (
+		offset64 = 14695981039346656037
+		prime64  = 1099511628211
+	)
+	hash := uint64(offset64)
+	hashTagGroupPart := func(s string) {
+		for i := 0; i < len(s); i++ {
+			hash ^= uint64(s[i])
+			hash *= prime64
+		}
+	}
+	hashTagGroupPart(c.Source)
+	hashTagGroupPart("|")
+	hashTagGroupPart(c.Service)
+	hashTagGroupPart("|")
+	hashTagGroupPart(c.Env)
+	hashTagGroupPart("|")
+	hashTagGroupPart(c.Host)
+	return hash
 }
 
 // TagGroupByKeyRegistry stores active tag groups by their stable uint64 hash.
@@ -124,21 +137,15 @@ func extractTagGroupByKey(tags []string) TagGroupByKey {
 	return group
 }
 
-// tagsForPatternGrouping returns a tag slice for TaggedPatternClusterer.Process.
-// When tags omit `host:` but hostname is non-empty (e.g. from LogView.GetHostname()),
-// a synthetic `host:<hostname>` entry is appended so grouping matches the host
-// split dimension. An explicit `host:` tag in tags always wins.
-func tagsForPatternGrouping(tags []string, hostname string) []string {
-	if hostname == "" {
-		return tags
+// tagGroupForPatternGrouping extracts the grouping dimensions and applies the
+// hostname fallback directly to the group. It neither allocates nor mutates
+// tags. A nonempty extracted host wins over hostname.
+func tagGroupForPatternGrouping(tags []string, hostname string) TagGroupByKey {
+	group := extractTagGroupByKey(tags)
+	if group.Host == "" {
+		group.Host = hostname
 	}
-	if extractTagGroupByKey(tags).Host != "" {
-		return tags
-	}
-	out := make([]string, len(tags)+1)
-	copy(out, tags)
-	out[len(tags)] = "host:" + hostname
-	return out
+	return group
 }
 
 // globalClusterHash produces a hex string that stably encodes a (groupHash,
@@ -221,8 +228,7 @@ func NewTaggedPatternClustererWithFactory(registry *TagGroupByKeyRegistry, newPC
 // LRU evictions (if any) caused by this call — from per-group MaxClusters or
 // global MaxTagGroups caps — must be retrieved via DrainLRUEvictions before
 // the next Process call to avoid silently dropping eviction context.
-func (tc *TaggedPatternClusterer) Process(tags []string, message string, unixSec int64) (uint64, *patterns.Cluster, bool) {
-	group := extractTagGroupByKey(tags)
+func (tc *TaggedPatternClusterer) Process(group TagGroupByKey, message string, unixSec int64) (uint64, *patterns.Cluster, bool) {
 	groupHash := tagGroupByKeyHash(group)
 
 	sub, exists := tc.subClusterers[groupHash]

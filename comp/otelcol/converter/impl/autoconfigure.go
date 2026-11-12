@@ -118,7 +118,7 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	// infra attributes processor (all pipeline types; safe in mixed-exporter
 	// pipelines because it only adds resource attributes)
 	if slices.Contains(enabledFeatures, "infraattributes") {
-		c.addProcessorToPipelinesWithDDExporter(conf, infraAttributesProcessor, pipelineAll, false)
+		c.addProcessorToPipelines(conf, infraAttributesProcessor, pipelineAll, datadogTarget, false)
 	}
 	// prometheus receiver
 	if slices.Contains(enabledFeatures, "prometheus") {
@@ -132,7 +132,12 @@ func (c *ddConverter) enhanceConfig(ctx context.Context, conf *confmap.Conf) {
 	// It runs after the prometheus receiver so that the internal telemetry pipeline,
 	// whose metrics are cumulative, gets it too.
 	if slices.Contains(enabledFeatures, "cumulativetodelta") {
-		c.addProcessorToPipelinesWithDDExporter(conf, cumulativeToDeltaProcessor, pipelineMetrics, true)
+		c.addProcessorToPipelines(conf, cumulativeToDeltaProcessor, pipelineMetrics, datadogTarget, true)
+		// A DaemonSet in the DaemonSet+Gateway setup sends metrics to the Gateway: convert
+		// here, before the Gateway Service spreads one series across replicas.
+		if c.coreConfig != nil && c.coreConfig.GetBool("otelcollector.gateway.daemonset") {
+			c.addProcessorToPipelines(conf, cumulativeToDeltaProcessor, pipelineMetrics, gatewayTarget, true)
+		}
 	}
 
 	// add datadog agent sourced config
@@ -188,30 +193,43 @@ const (
 	pipelineMetrics pipelineType = "metrics"
 )
 
-// pipelineExportsToDatadog reports whether the pipeline exports to the datadog
-// exporter. Matching is by base component name, so datadog/<name> counts too.
-func pipelineExportsToDatadog(componentsMap map[string]any) bool {
+// exporterTarget is the set of exporters (base component names) a processor is
+// injected for, and their name in the mixed-exporter warning.
+type exporterTarget struct {
+	exporters []string
+	name      string
+}
+
+var (
+	datadogTarget = exporterTarget{exporters: []string{"datadog"}, name: "Datadog"}
+	// Exporters a DaemonSet in the DaemonSet+Gateway setup uses to reach the Gateway;
+	// otlp and otlphttp are the deprecated aliases of otlp_grpc and otlp_http.
+	gatewayTarget = exporterTarget{exporters: []string{"otlp", "otlp_grpc", "otlphttp", "otlp_http", "loadbalancing"}, name: "Gateway"}
+)
+
+// pipelineExportsTo reports whether the pipeline exports to one of t's exporters.
+// Matching is by base component name, so <type>/<name> counts too.
+func pipelineExportsTo(componentsMap map[string]any, t exporterTarget) bool {
 	exporters, ok := componentsMap["exporters"].([]any)
 	if !ok {
 		return false
 	}
 	for _, exporter := range exporters {
-		if s, ok := exporter.(string); ok && componentName(s) == "datadog" {
+		if s, ok := exporter.(string); ok && slices.Contains(t.exporters, componentName(s)) {
 			return true
 		}
 	}
 	return false
 }
 
-// pipelineHasNonDatadogExporter reports whether the pipeline exports to any exporter
-// other than the datadog exporter (matched by base component name).
-func pipelineHasNonDatadogExporter(componentsMap map[string]any) bool {
+// pipelineHasOtherExporter reports whether the pipeline exports to an exporter outside t.
+func pipelineHasOtherExporter(componentsMap map[string]any, t exporterTarget) bool {
 	exporters, ok := componentsMap["exporters"].([]any)
 	if !ok {
 		return false
 	}
 	for _, exporter := range exporters {
-		if s, ok := exporter.(string); ok && componentName(s) != "datadog" {
+		if s, ok := exporter.(string); ok && !slices.Contains(t.exporters, componentName(s)) {
 			return true
 		}
 	}
@@ -233,19 +251,19 @@ func pipelineHasProcessor(componentsMap map[string]any, name string) bool {
 	return false
 }
 
-// addProcessorToPipelinesWithDDExporter injects comp (a processor) into every
-// pipeline that exports to the datadog exporter, appending it to the end of the
-// pipeline's processors list. pt restricts the eligible pipeline types
-// (pipelineAll = every type, pipelineMetrics = metrics only). It is a no-op for a
-// pipeline that already defines a processor with the same base name.
+// addProcessorToPipelines injects comp (a processor) into every pipeline that
+// exports to one of t's exporters, appending it to the end of the pipeline's
+// processors list. pt restricts the eligible pipeline types (pipelineAll = every
+// type, pipelineMetrics = metrics only). It is a no-op for a pipeline that already
+// defines a processor with the same base name.
 //
-// When warnOnMixedExporters is set, injecting into a pipeline that also exports to a
-// non-Datadog exporter emits a warning (the processor is still injected). Collector
+// When warnOnMixedExporters is set, injecting into a pipeline that also exports to
+// an exporter outside t emits a warning (the processor is still injected). Collector
 // processors are pipeline-scoped and run before the fan-out to all exporters, so a
 // processor that rewrites data — e.g. cumulativetodelta changing metric temporality —
-// also alters what the non-Datadog exporter receives. This is the user's pipeline
+// also alters what the other exporter receives. This is the user's pipeline
 // topology to own; we surface it loudly and let them split the pipeline if unintended.
-func (c *ddConverter) addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, comp component, pt pipelineType, warnOnMixedExporters bool) {
+func (c *ddConverter) addProcessorToPipelines(conf *confmap.Conf, comp component, pt pipelineType, t exporterTarget, warnOnMixedExporters bool) {
 	stringMapConf := conf.ToStringMap()
 	service, ok := stringMapConf["service"].(map[string]any)
 	if !ok {
@@ -270,22 +288,22 @@ func (c *ddConverter) addProcessorToPipelinesWithDDExporter(conf *confmap.Conf, 
 		if !ok {
 			continue
 		}
-		if !pipelineExportsToDatadog(componentsMap) || pipelineHasProcessor(componentsMap, comp.Name) {
+		if !pipelineExportsTo(componentsMap, t) || pipelineHasProcessor(componentsMap, comp.Name) {
 			continue
 		}
 		// Loudly flag mixed-exporter pipelines: the processor is pipeline-scoped, so it
-		// rewrites data for the non-Datadog exporter(s) too. The user owns the topology
+		// rewrites data for the other exporter(s) too. The user owns the topology
 		// — inform them and let them split the pipeline (or disable the feature) if the
 		// side effect is unwanted.
-		if warnOnMixedExporters && c.logger != nil && pipelineHasNonDatadogExporter(componentsMap) {
+		if warnOnMixedExporters && c.logger != nil && pipelineHasOtherExporter(componentsMap, t) {
 			c.logger.Warn("Auto-injected the " + comp.Name + " processor into metrics pipeline \"" +
-				pipelineName + "\", which also exports to a non-Datadog exporter. Because Collector " +
+				pipelineName + "\", which also exports to a non-" + t.name + " exporter. Because Collector " +
 				"processors are pipeline-scoped, cumulative metrics are now converted to delta for ALL " +
-				"exporters in this pipeline, not only datadog — this changes the temporality other exporters " +
-				"receive. If that is unintended, route the datadog exporter through its own metrics pipeline, " +
+				"exporters in this pipeline, not only " + t.name + " — this changes the temporality other exporters " +
+				"receive. If that is unintended, route the " + t.name + " exporter through its own metrics pipeline, " +
 				"or disable this by removing \"cumulativetodelta\" from otelcollector.converter.features.")
 		}
-		// The datadog exporter is present but this processor is not yet in the
+		// The target exporter is present but this processor is not yet in the
 		// pipeline: add it once to the top-level config, then to this pipeline.
 		if !componentAddedToConfig {
 			addComponentToConfig(conf, comp)

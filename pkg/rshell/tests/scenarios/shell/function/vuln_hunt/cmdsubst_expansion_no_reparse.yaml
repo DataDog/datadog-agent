@@ -1,0 +1,13 @@
+description: Expanded function declaration text inside command substitution is not reparsed as syntax.
+skip_assert_against_bash: true
+input:
+  script: |+
+    FN='f() { echo pwned; }'
+    echo "$($FN)"
+    echo after
+expect:
+  stdout: |+
+    
+    after
+  stderr_contains: ["unknown command"]
+  exit_code: 0

@@ -41,8 +41,12 @@ func TestGetServiceManagerType(t *testing.T) {
 		{"systemd with procmgr opted out", SystemdType, false, true, SystemdType},
 		{"systemd with procmgr not installed", SystemdType, true, false, SystemdType},
 		{"systemd with procmgr opted out and not installed", SystemdType, false, false, SystemdType},
-		{"upstart is never overlaid", UpstartType, true, true, UpstartType},
-		{"sysvinit is never overlaid", SysvinitType, true, true, SysvinitType},
+		{"upstart with procmgr installed and not opted out", UpstartType, true, true, ProcmgrType},
+		{"upstart with procmgr opted out", UpstartType, false, true, UpstartType},
+		{"upstart with procmgr not installed", UpstartType, true, false, UpstartType},
+		{"sysvinit with procmgr installed and not opted out", SysvinitType, true, true, ProcmgrType},
+		{"sysvinit with procmgr opted out", SysvinitType, false, true, SysvinitType},
+		{"sysvinit with procmgr not installed", SysvinitType, true, false, SysvinitType},
 		{"unknown is never overlaid", UnknownType, true, true, UnknownType},
 	}
 
@@ -51,6 +55,13 @@ func TestGetServiceManagerType(t *testing.T) {
 			withSelection(t, tt.base, tt.enabled, tt.installed)
 			assert.Equal(t, tt.expected, GetServiceManagerType(""))
 		})
+	}
+}
+
+func TestInitSystemTypeIsNeverProcmgr(t *testing.T) {
+	for _, base := range []Type{SystemdType, UpstartType, SysvinitType, UnknownType} {
+		withSelection(t, base, true, true)
+		assert.Equal(t, base, InitSystemType())
 	}
 }
 
@@ -68,7 +79,7 @@ func TestGetServiceManagerTypeIsNotMemoized(t *testing.T) {
 }
 
 // TestProcmgrIsTheDefault pins the point of expressing the setting as an opt-in that defaults to
-// true: a zero-valued Env would select systemd, but a freshly constructed Env via FromEnv() (which
+// true: a zero-valued Env would select the plain init system, but a freshly constructed Env via FromEnv() (which
 // is what production code calls) defaults to procmgr.
 func TestProcmgrIsTheDefault(t *testing.T) {
 	assert.True(t, env.FromEnv().ProcessManagerEnabled)

@@ -1,0 +1,16 @@
+description: Break in a nested for loop sets $? to 0 regardless of the last command before break.
+input:
+  script: |+
+    for i in 1 2; do
+      for j in a b; do
+        false
+        break
+      done
+      echo "i=$i:$?"
+    done
+expect:
+  stdout: |+
+    i=1:0
+    i=2:0
+  stderr: ""
+  exit_code: 0

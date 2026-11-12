@@ -1,0 +1,13 @@
+# skip: variable expansion feature is intentionally blocked in the restricted shell
+skip_assert_against_bash: true
+description: Prefix variable listing ${!prefix*} is not supported (caught by indirect expansion check).
+input:
+  script: |+
+    MY_A=1
+    MY_B=2
+    echo ${!MY_*}
+expect:
+  stdout: ""
+  stderr: |+
+    ${!var} is not supported
+  exit_code: 2

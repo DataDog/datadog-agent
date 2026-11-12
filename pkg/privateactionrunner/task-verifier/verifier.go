@@ -45,6 +45,11 @@ func (t *signedEnvelopeTaskVerifier) UnwrapTask(task *types.Task) (*types.Task, 
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, errors.New("signatures are missing"))
 	}
 
+	// The envelope expiration is unsigned, so it can only shorten the signed task expiration checked below.
+	if envelope.ExpirationTime != nil && envelope.ExpirationTime.AsTime().Before(time.Now()) {
+		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_EXPIRED_TASK, errors.New("task envelope is expired"))
+	}
+
 	if envelope.HashType != privateactionspb.HashType_SHA256 {
 		return nil, util.NewPARError(aperrorpb.ActionPlatformErrorCode_INTERNAL_ERROR, fmt.Errorf("unsupported hash type %s", envelope.HashType))
 	}
@@ -121,12 +126,14 @@ func mapPbTaskToStruct(task *privateactionspb.PrivateActionTask) *types.Task {
 			Attributes: &types.Attributes{
 				Name:                  task.ActionName,
 				BundleID:              task.BundleId,
+				ExecutionFQN:          task.GetExecutionFqn(),
 				Client:                task.Client,
 				SecDatadogHeaderValue: task.SecDatadogHeaderValue,
 				Inputs:                task.Inputs.AsMap(),
 				OrgId:                 task.OrgId,
 				ConnectionInfo:        task.ConnectionInfo,
 				SystemInputs:          task.GetSystemInputs(),
+				ExpirationTime:        task.GetExpirationTime().AsTime(),
 			},
 		},
 	}

@@ -1,0 +1,9 @@
+description: read -d X uses X as the line delimiter.
+input:
+  script: |+
+    printf 'first,second,third' | { read -d , X; echo "[$X]"; }
+expect:
+  stdout: |+
+    [first]
+  stderr: ""
+  exit_code: 0

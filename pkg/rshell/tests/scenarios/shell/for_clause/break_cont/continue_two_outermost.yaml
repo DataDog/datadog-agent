@@ -1,0 +1,24 @@
+description: Continue 2 in double nested for loops continues the outer loop.
+input:
+  script: |+
+    for i in 1 2 3; do
+      echo in $i
+      for j in a b c; do
+        echo in $i $j
+        continue 2
+        echo out $i $j
+      done
+      echo out $i
+    done
+    echo done $?
+expect:
+  stdout: |+
+    in 1
+    in 1 a
+    in 2
+    in 2 a
+    in 3
+    in 3 a
+    done 0
+  stderr: ""
+  exit_code: 0

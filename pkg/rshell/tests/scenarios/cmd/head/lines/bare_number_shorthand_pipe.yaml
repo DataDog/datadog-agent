@@ -1,0 +1,8 @@
+description: head -5 works with piped input.
+input:
+  script: |+
+    printf "1\n2\n3\n4\n5\n6\n7\n" | head -5
+expect:
+  stdout: "1\n2\n3\n4\n5\n"
+  stderr: ""
+  exit_code: 0

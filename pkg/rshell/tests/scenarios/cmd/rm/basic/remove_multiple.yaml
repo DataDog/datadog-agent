@@ -1,0 +1,21 @@
+description: rm accepts multiple FILE operands and removes each of them.
+setup:
+  files:
+    - path: a.txt
+      content: "a\n"
+    - path: b.txt
+      content: "b\n"
+    - path: c.txt
+      content: "c\n"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    rm -v a.txt b.txt c.txt
+expect:
+  stdout: |+
+    removed 'a.txt'
+    removed 'b.txt'
+    removed 'c.txt'
+  stderr: |+
+  exit_code: 0

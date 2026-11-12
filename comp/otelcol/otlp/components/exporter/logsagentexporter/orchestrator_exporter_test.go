@@ -143,48 +143,15 @@ func TestConsumeK8sObjects_MultiCluster(t *testing.T) {
 	assert.True(t, seen["uid-cluster-B"], "expected request for cluster B")
 }
 
-// TestShouldSkipResourceKind tests that secrets and configmaps are rejected.
-// This is tested indirectly through ToManifest since shouldSkipResourceKind is an internal function.
-func TestShouldSkipResourceKind(t *testing.T) {
+// TestSensitiveResourceKindsAreCollected verifies that secrets and configmaps are converted to manifests.
+func TestSensitiveResourceKindsAreCollected(t *testing.T) {
 	logRecord := plog.NewLogRecord()
 
-	tests := []struct {
-		name        string
-		kind        string
-		expectError bool
-	}{
-		{
-			name:        "secret should be skipped",
-			kind:        "Secret",
-			expectError: true,
-		},
-		{
-			name:        "configmap should be skipped",
-			kind:        "ConfigMap",
-			expectError: true,
-		},
-		{
-			name:        "Pod should not be skipped",
-			kind:        "Pod",
-			expectError: false,
-		},
-		{
-			name:        "Deployment should not be skipped",
-			kind:        "Deployment",
-			expectError: false,
-		},
-		{
-			name:        "Node should not be skipped",
-			kind:        "Node",
-			expectError: false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
+	for _, kind := range []string{"Secret", "ConfigMap", "Pod", "Deployment", "Node"} {
+		t.Run(kind, func(t *testing.T) {
 			bodyJSON := `{
 				"apiVersion": "v1",
-				"kind": "` + tt.kind + `",
+				"kind": "` + kind + `",
 				"metadata": {
 					"uid": "test-uid-123",
 					"resourceVersion": "12345",
@@ -193,13 +160,9 @@ func TestShouldSkipResourceKind(t *testing.T) {
 			}`
 			logRecord.Body().SetStr(bodyJSON)
 
-			_, _, err := logsmapping.ToManifest(logRecord)
-			if tt.expectError {
-				assert.Error(t, err)
-				assert.Contains(t, err.Error(), "sensitive data")
-			} else {
-				assert.NoError(t, err)
-			}
+			manifest, _, err := logsmapping.ToManifest(logRecord)
+			require.NoError(t, err)
+			assert.Equal(t, kind, manifest.Kind)
 		})
 	}
 }
@@ -362,7 +325,7 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 			errorContains: "missing uid",
 		},
 		{
-			name: "secret resource (should be skipped)",
+			name: "secret resource",
 			k8sResource: map[string]interface{}{
 				"apiVersion": "v1",
 				"kind":       "Secret",
@@ -371,11 +334,13 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 					"resourceVersion": "12345",
 				},
 			},
-			expectError:   true,
-			errorContains: "contains sensitive data",
+			validateFn: func(t *testing.T, m *agentmodel.Manifest) {
+				assert.Equal(t, "secret-123", m.Uid)
+				assert.Equal(t, "Secret", m.Kind)
+			},
 		},
 		{
-			name: "configmap resource (should be skipped)",
+			name: "configmap resource",
 			k8sResource: map[string]interface{}{
 				"apiVersion": "v1",
 				"kind":       "ConfigMap",
@@ -384,8 +349,10 @@ func TestBuildManifestFromK8sResource(t *testing.T) {
 					"resourceVersion": "12345",
 				},
 			},
-			expectError:   true,
-			errorContains: "contains sensitive data",
+			validateFn: func(t *testing.T, m *agentmodel.Manifest) {
+				assert.Equal(t, "cm-123", m.Uid)
+				assert.Equal(t, "ConfigMap", m.Kind)
+			},
 		},
 	}
 

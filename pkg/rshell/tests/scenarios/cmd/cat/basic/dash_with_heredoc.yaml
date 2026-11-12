@@ -1,0 +1,11 @@
+description: Cat with dash reads stdin provided by heredoc.
+input:
+  script: |+
+    cat - <<EOF
+    heredoc stdin
+    EOF
+expect:
+  stdout: |+
+    heredoc stdin
+  stderr: ""
+  exit_code: 0

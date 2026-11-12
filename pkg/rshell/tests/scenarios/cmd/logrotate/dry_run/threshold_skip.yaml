@@ -1,0 +1,19 @@
+# skip: rshell logrotate is a remediation-only truncation helper, not system logrotate.
+skip_assert_against_bash: true
+description: logrotate --dry-run reports threshold skips without modifying the file.
+setup:
+  files:
+    - path: app.log
+      content: "tiny"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    logrotate --dry-run --size 10 app.log
+    wc -c < app.log
+expect:
+  stdout: |+
+    logrotate: app.log: would skip, 4 bytes below threshold 10
+    4
+  stderr: |+
+  exit_code: 0

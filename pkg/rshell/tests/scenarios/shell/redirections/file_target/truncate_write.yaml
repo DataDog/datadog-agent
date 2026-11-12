@@ -1,0 +1,12 @@
+description: In remediation mode, > truncates and writes a file within AllowedPaths.
+input:
+  script: |+
+    echo hello > out.txt
+    cat out.txt
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+expect:
+  stdout: |+
+    hello
+  stderr: |+
+  exit_code: 0

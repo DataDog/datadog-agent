@@ -1,0 +1,13 @@
+description: Exit code from brace group is captured by $? on the next line.
+input:
+  script: |+
+    { true; false; }
+    echo $?
+    { false; true; }
+    echo $?
+expect:
+  stdout: |+
+    1
+    0
+  stderr: ""
+  exit_code: 0

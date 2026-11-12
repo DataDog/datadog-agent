@@ -1,0 +1,8 @@
+description: Echo -e with \x followed by no valid hex digits outputs literal \x.
+input:
+  script: |+
+    echo -e '\xZZ'
+expect:
+  stdout: "\\xZZ\n"
+  stderr: ""
+  exit_code: 0

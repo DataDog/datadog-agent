@@ -1,0 +1,19 @@
+# Tests the xargs dispatch path (CallContext.RunCommand), mirroring the
+# find -exec coverage in truncate/basic/find_exec.yaml for the other
+# non-top-level command dispatch path.
+description: truncate invoked via xargs works in remediation mode.
+setup:
+  files:
+    - path: big.log
+      content: "lots of log data"
+input:
+  allowed_paths: ["$DIR:rw"]
+  mode: "remediation"
+  script: |+
+    printf 'big.log\n' | xargs truncate -s 0
+    wc -c < big.log
+expect:
+  stdout: |+
+    0
+  stderr: |+
+  exit_code: 0

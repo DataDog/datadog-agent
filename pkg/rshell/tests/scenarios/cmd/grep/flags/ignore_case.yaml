@@ -1,0 +1,21 @@
+description: grep -i matches case-insensitively.
+setup:
+  files:
+    - path: file.txt
+      content: |+
+        Hello
+        hello
+        HELLO
+        world
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    grep -i hello file.txt
+expect:
+  stdout: |+
+    Hello
+    hello
+    HELLO
+  stderr: ""
+  exit_code: 0

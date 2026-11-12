@@ -1,0 +1,28 @@
+---
+upgrade:
+  - |
+    Container image SBOM scans read the image layers in place by default:
+    ``sbom.container_image.overlayfs_direct_scan`` now defaults to ``true``.
+    This affects Agents with ``sbom.container_image.enabled`` that left the
+    setting unset. The Agent reads the layer directories of the Docker
+    ``overlay2`` storage driver, the containerd snapshotter and CRI-O, which
+    a containerized Agent finds under ``/host``, or ``HOST_ROOT``, when the
+    runtime storage is mounted there read-only, for example
+    ``/var/lib/containerd`` at ``/host/var/lib/containerd``. The Datadog Helm
+    chart and Operator mount it when ``uncompressedLayersSupport`` is enabled,
+    the Helm chart's default. The Agent exports a Docker or containerd image
+    whose layers it cannot read, or a containerd image that neither the
+    default snapshotter nor nydus unpacked, to a temporary file and scans the
+    export, as it did before, and logs a warning once. CRI-O images, which
+    only the in-place scan reads, get SBOMs without further configuration.
+    The SBOMs of images scanned in place carry ``scan_method:overlayfs`` in
+    place of ``scan_method:tarball``. Containerd images stay mounted when
+    ``sbom.container_image.use_mount`` is set. To export every Docker and
+    containerd image as before, set
+    ``sbom.container_image.overlayfs_direct_scan`` to ``false``.
+enhancements:
+  - |
+    The check that the disk holds 20% more than the size of a container image
+    now runs right before an SBOM scan exports the image, and measures the
+    filesystem that receives the export. Scans that read the image layers in
+    place skip it.

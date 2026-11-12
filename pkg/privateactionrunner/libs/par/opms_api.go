@@ -9,7 +9,7 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/privateactionrunner/adapters/modes"
 )
 
-// CreateRunnerRequest represents the request to create a runner with API key auth
+// CreateRunnerRequest represents the request to create a runner with API-key or workload-token auth
 type CreateRunnerRequest struct {
 	ID            string       `jsonapi:"primary,createRunnerRequest"`
 	RunnerName    string       `json:"runner_name" jsonapi:"attribute" validate:"required"`

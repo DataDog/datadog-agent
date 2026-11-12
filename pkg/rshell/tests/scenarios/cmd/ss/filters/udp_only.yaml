@@ -1,0 +1,12 @@
+description: ss -u is accepted and runs end-to-end against a live /proc/net, producing a valid header. Filter correctness (that -u actually drops non-UDP entries) is unit-tested against synthetic socketEntry values in ss_helpers_test.go, since live socket state isn't controllable in a scenario.
+skip_assert_against_bash: true
+input:
+  allowed_paths: ["/proc/net"]
+  script: |+
+    ss -uan
+expect:
+  stdout_contains:
+    - "Netid"
+    - "State"
+  stderr: |+
+  exit_code: 0

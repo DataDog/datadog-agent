@@ -1,0 +1,11 @@
+description: read assigns valid names before failing on a later invalid identifier (matches bash).
+input:
+  script: |+
+    printf 'a b c\n' | { read good 1bad mid 2>/dev/null; echo "rc=$?"; echo "good=[$good]"; echo "mid=[$mid]"; }
+expect:
+  stdout: |+
+    rc=1
+    good=[a]
+    mid=[]
+  stderr: ""
+  exit_code: 0

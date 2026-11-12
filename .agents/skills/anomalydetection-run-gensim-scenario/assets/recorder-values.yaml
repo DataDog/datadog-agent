@@ -1,0 +1,58 @@
+datadog:
+  apiKeyExistingSecret: datadog-secret
+  clusterName: "__CLUSTER_NAME__"
+  logLevel: INFO
+  apm:
+    instrumentation:
+      enabled: true
+  logs:
+    enabled: true
+    containerCollectAll: true
+  processAgent:
+    enabled: true
+    processCollection: true
+  kubelet:
+    tlsVerify: false
+  clusterChecks:
+    enabled: true
+  env:
+    - name: DD_ANOMALY_DETECTION_RECORDING_ENABLED
+      value: "true"
+    - name: DD_ANOMALY_DETECTION_RECORDING_OUTPUT_DIR
+      value: /tmp/observer-metrics
+    - name: DD_ANOMALY_DETECTION_RECORDING_FLUSH_INTERVAL
+      value: "__FLUSH__"
+    - name: DD_ANOMALY_DETECTION_RECORDING_RETENTION
+      value: "__RETENTION__"
+    - name: DD_ANOMALY_DETECTION_RECORDING_ONLY
+      value: "__RECORDING_ONLY__"
+    # The observer drops logs below info and rate-limits them by default
+    # (containers, internal and kubelet inputs), which loses info access logs.
+    # Record info and above without rate caps. Keep in sync with the EKS agent-values.yaml.tmpl.
+    - name: DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MIN_SEVERITY
+      value: info
+    - name: DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MAX_RATE_MEDIUM_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_CONTAINERS_MAX_RATE_LOW_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_INTERNAL_MIN_SEVERITY
+      value: info
+    - name: DD_ANOMALY_DETECTION_LOGS_INTERNAL_MAX_RATE_MEDIUM_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_INTERNAL_MAX_RATE_LOW_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_KUBELET_MIN_SEVERITY
+      value: info
+    - name: DD_ANOMALY_DETECTION_LOGS_KUBELET_MAX_RATE_MEDIUM_PRIORITY
+      value: "-1"
+    - name: DD_ANOMALY_DETECTION_LOGS_KUBELET_MAX_RATE_LOW_PRIORITY
+      value: "-1"
+agents:
+  image:
+    repository: datadog/agent-dev
+    tag: "__TAG__"
+    pullPolicy: Never
+    doNotCheckTag: true
+clusterAgent:
+  enabled: true
+  replicas: 1

@@ -1,0 +1,15 @@
+description: Help separates allowlisted remediation commands from commands disabled by policy in read-only mode.
+skip_assert_against_bash: true
+input:
+  allowed_commands: ["rshell:echo", "rshell:help", "rshell:rm", "rshell:truncate"]
+  script: |+
+    help
+expect:
+  stdout_contains:
+    - "Commands available now (2):"
+    - "Require remediation mode (2):"
+    - "rm        remove files"
+    - "truncate  shrink or extend file size"
+    - "Disabled by policy ("
+  stderr: ""
+  exit_code: 0

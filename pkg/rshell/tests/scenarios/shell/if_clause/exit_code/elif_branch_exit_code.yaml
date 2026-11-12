@@ -1,0 +1,10 @@
+description: Exit code reflects last command in elif branch.
+input:
+  script: |+
+    if false; then true; elif true; then false; fi
+    echo $?
+expect:
+  stdout: |+
+    1
+  stderr: ""
+  exit_code: 0

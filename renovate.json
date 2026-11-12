@@ -53,6 +53,11 @@
         "schedule": ["* 1-4 5 6,12 *"]
       },
       {
+        "description": "Update the lading version in test/regression/**/config.yaml manually.",
+        "matchDepNames": ["DataDog/lading"],
+        "enabled": false
+      },
+      {
         "matchManagers": ["custom.regex"],
         "minimumReleaseAge": null,
         "prPriority": 10
@@ -165,12 +170,6 @@
       },
       {
         "matchManagers": ["gomod"],
-        "matchDepNames": ["github.com/DataDog/rshell"],
-        "minimumReleaseAge": null,
-        "prPriority": 10
-      },
-      {
-        "matchManagers": ["gomod"],
         "matchDepNames": ["github.com/aws/aws-sdk-go-v2{,/**}"],
         "groupName": "aws-sdk-go-v2"
       },
@@ -254,6 +253,26 @@
     "customManagers" : [
       {
         "customType": "regex",
+        "managerFilePatterns": ["test/e2e-framework/components/kubernetes/istio/ambient.go"],
+        "matchStrings": [
+          "AmbientDefaultVersion\\s*=\\s*\"(?<currentValue>[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        ],
+        "depNameTemplate": "base",
+        "packageNameTemplate": "base",
+        "registryUrlTemplate": "https://istio-release.storage.googleapis.com/charts",
+        "datasourceTemplate": "helm"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["test/e2e-framework/components/kubernetes/istio/ambient.go"],
+        "matchStrings": [
+          "gatewayAPIVersion\\s*=\\s*\"(?<currentValue>v[0-9]+\\.[0-9]+\\.[0-9]+)\""
+        ],
+        "depNameTemplate": "kubernetes-sigs/gateway-api",
+        "datasourceTemplate": "github-releases"
+      },
+      {
+        "customType": "regex",
         "managerFilePatterns": [".gitlab-ci.yml"],
         "matchStrings": [
           "  CI_IMAGE_[^W][^:]*: (?<currentValue>v.*)"
@@ -290,15 +309,6 @@
           "(?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
         ],
         "depNameTemplate": "DataDog/datadog-agent-dev",
-        "datasourceTemplate": "github-releases"
-      },
-      {
-        "customType": "regex",
-        "managerFilePatterns": ["test/regression/container/config.yaml"],
-        "matchStrings": [
-          "  version: (?<currentValue>[0-9]+.[0-9]+.[0-9]+)"
-        ],
-        "depNameTemplate": "DataDog/lading",
         "datasourceTemplate": "github-releases"
       },
       {
@@ -403,6 +413,16 @@
         "depNameTemplate": "node",
         "datasourceTemplate": "node",
         "versioningTemplate": "node"
+      },
+      {
+        "customType": "regex",
+        "managerFilePatterns": ["deps/repos.MODULE.bazel"],
+        "matchStrings": [
+          "temurin_jre_version = \"(?<currentValue>[^\"]+)\"\\n\\nhttp_archive\\(\\n    name = \"temurin_jre_windows_x64\",[\\s\\S]*?sha256 = \"(?<currentDigest>[0-9a-f]{64})\""
+        ],
+        "depNameTemplate": "temurin_jre_windows_x64",
+        "datasourceTemplate": "custom.temurin-jre-11-windows-x64",
+        "versioningTemplate": "regex:^(?<major>\\d+)\\.(?<minor>\\d+)\\.(?<patch>\\d+)(?:\\.(?<build>\\d+))?\\+(?<revision>\\d+)$"
       }
     ],
     "customDatasources": {
@@ -434,6 +454,12 @@
         "defaultRegistryUrlTemplate": "https://api.github.com/repos/DataDog/dd-trace-py/releases",
         "transformTemplates": [
           "{\"releases\": $map($, function($v) { {\"version\": $replace($v.tag_name, /^v/, \"\"), \"releaseTimestamp\": $v.published_at, \"isStable\": $not($v.prerelease) } }) }"
+        ]
+      },
+      "temurin-jre-11-windows-x64": {
+        "defaultRegistryUrlTemplate": "https://api.adoptium.net/v3/assets/feature_releases/11/ga?architecture=x64&image_type=jre&jvm_impl=hotspot&os=windows&vendor=eclipse&page_size=20&sort_order=DESC",
+        "transformTemplates": [
+          "{\"releases\": $map($, function($v) { {\"version\": $substringAfter($v.release_name, \"jdk-\"), \"digest\": $v.binaries[0].package.checksum, \"releaseTimestamp\": $v.timestamp } }) }"
         ]
       }
     }

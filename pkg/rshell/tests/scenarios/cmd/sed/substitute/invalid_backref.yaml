@@ -1,0 +1,10 @@
+description: "Invalid backreference in s/// replacement is rejected."
+input:
+  script: |+
+    echo test | sed 's/a/\1/'
+# skip: rshell builtin error/output format differs from the reference implementation
+skip_assert_against_bash: true
+expect:
+  stdout: ""
+  stderr_contains: ["invalid reference \\1 on `s' command's RHS"]
+  exit_code: 1

@@ -11,15 +11,6 @@ extensions:
     hpflare:
         endpoint: localhost:7778
 processors:
-    cumulativetodelta: {}
-    filter:
-        metrics:
-            exclude:
-                match_type: regexp
-                metric_names:
-                    - ^scrape_.*$
-                    - ^up$
-                    - ^promhttp_metric_handler_errors_total$
     infraattributes:
         allow_hostname_override: true
         cardinality: 2
@@ -33,6 +24,8 @@ processors:
               value: 7.0.0-test
 receivers:
     profiling:
+        filter_min_process_age: 0s
+        reporter_interval: 1m0s
         send_error_frames: false
         symbol_uploader:
             enabled: true
@@ -42,33 +35,10 @@ receivers:
             symbol_endpoints:
                 - api_key: test_api_key_123
                   site: us3.datadoghq.com
-    prometheus:
-        config:
-            scrape_configs:
-                - fallback_scrape_protocol: PrometheusText0.0.4
-                  job_name: host-profiler-internal
-                  metric_name_escaping_scheme: underscores
-                  metric_name_validation_scheme: legacy
-                  scrape_interval: 60s
-                  scrape_protocols:
-                    - PrometheusText0.0.4
-                  static_configs:
-                    - targets:
-                        - 127.0.0.1:8889
 service:
     extensions:
         - hpflare
     pipelines:
-        metrics:
-            exporters:
-                - otlp_http/us3.datadoghq.com_0
-            processors:
-                - filter
-                - cumulativetodelta
-                - infraattributes
-                - resource/dd-profiler-internal-metadata
-            receivers:
-                - prometheus
         profiles:
             exporters:
                 - otlp_http/us3.datadoghq.com_0
@@ -79,9 +49,4 @@ service:
                 - profiling
     telemetry:
         metrics:
-            readers:
-                - pull:
-                    exporter:
-                        prometheus:
-                            host: 127.0.0.1
-                            port: 8889
+            level: none

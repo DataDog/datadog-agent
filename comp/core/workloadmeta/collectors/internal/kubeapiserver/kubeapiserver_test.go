@@ -211,6 +211,13 @@ func TestPodsRequiredAtStartup(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "KAI Scheduler",
+			cfg: map[string]interface{}{
+				"cluster_agent.kai_scheduler.enabled": true,
+			},
+			expected: true,
+		},
+		{
 			name: "workload autoscaling alone is not a startup-time requirement",
 			cfg: map[string]interface{}{
 				"autoscaling.workload.enabled": true,

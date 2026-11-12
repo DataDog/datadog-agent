@@ -1,0 +1,9 @@
+description: Subshell output can be piped.
+input:
+  script: |+
+    (echo hello; echo world) | grep world
+expect:
+  stdout: |+
+    world
+  stderr: ""
+  exit_code: 0

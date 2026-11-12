@@ -1,0 +1,14 @@
+description: Cut with --complement excludes the specified field.
+setup:
+  files:
+    - path: input.txt
+      content: "9_1\n8_2\n7_3\n"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cut -d_ --complement -f2 input.txt
+expect:
+  stdout: "9\n8\n7\n"
+  stderr: ""
+  exit_code: 0

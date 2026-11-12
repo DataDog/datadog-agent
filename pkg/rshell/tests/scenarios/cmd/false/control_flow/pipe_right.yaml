@@ -1,0 +1,8 @@
+description: The false builtin on the right side of a pipe results in exit code 1.
+input:
+  script: |+
+    echo hello | false
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

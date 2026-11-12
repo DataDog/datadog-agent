@@ -3,11 +3,11 @@ import importlib
 import os
 import re
 import shutil
-from datetime import timedelta
 from pathlib import Path
 
 from invoke.context import Context
 
+from tasks.e2e_framework.tool import install_pulumi_plugins
 from tasks.libs.common.status import Status
 from tasks.libs.common.utils import get_repo_root, is_installed
 from tasks.libs.types.arch import Arch
@@ -112,14 +112,8 @@ class PulumiPlugin(Requirement):
                 return RequirementState(Status.FAIL, "pulumi plugins not installed.", fixable=True)
 
             try:
-                # https://github.com/golang/go/issues/63758: downloading dependencies stuck when git tag signature [...]
-                ctx.run(
-                    "go mod download -x",
-                    timeout=timedelta(minutes=10).total_seconds(),
-                    env={"GIT_TERMINAL_PROMPT": "0"},
-                )
-                ctx.run("PULUMI_CONFIG_PASSPHRASE=dummy pulumi --non-interactive plugin install")
-            except Exception as e:
+                install_pulumi_plugins()
+            except SystemExit as e:
                 return RequirementState(Status.FAIL, f"pulumi plugins installation failed: {e}")
 
         return RequirementState(Status.OK, "pulumi plugins installed.")

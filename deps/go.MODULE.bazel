@@ -72,20 +72,12 @@ go_deps.gazelle_override(
     build_extra_args = ["-build_tags=trivy_no_javadb"],
     path = "github.com/aquasecurity/trivy",
 )
-go_deps.gazelle_override(
-    directives = [
-        "gazelle:go_visibility @@//pkg/privateactionrunner/rshell:__pkg__",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/fleet/installer/telemetry @@//pkg/fleet/installer/telemetry:telemetry",
-        "gazelle:resolve go github.com/DataDog/datadog-agent/pkg/remoteconfig/state @@//pkg/remoteconfig/state:state",
-    ],
-    path = "github.com/DataDog/rshell",
-)
 use_repo(
     go_deps,
     "cat_dario_mergo",
+    "cc_mvdan_sh_v3",
     "com_github_aarzilli_whydeadcode",
     "com_github_acobaugh_osrelease",
-    "com_github_alecthomas_participle_v2",
     "com_github_alecthomas_units",
     "com_github_apache_arrow_go_v18",
     "com_github_aptly_dev_aptly",
@@ -122,7 +114,7 @@ use_repo(
     "com_github_cilium_ebpf",
     "com_github_clbanning_mxj_v2",
     "com_github_cloudflare_cbpfc",
-    "com_github_cloudfoundry_community_go_cfclient_v2",
+    "com_github_cloudfoundry_go_cfclient_v3",
     "com_github_containerd_cgroups_v3",
     "com_github_containerd_containerd_api",
     "com_github_containerd_containerd_v2",
@@ -150,7 +142,6 @@ use_repo(
     "com_github_datadog_go_tuf",
     "com_github_datadog_gohai",
     "com_github_datadog_jsonapi",
-    "com_github_datadog_rshell",
     "com_github_datadog_sketches_go",
     "com_github_datadog_watermarkpodautoscaler_apis",
     "com_github_datadog_zstd",
@@ -199,7 +190,6 @@ use_repo(
     "com_github_gosnmp_gosnmp",
     "com_github_goware_modvendor",
     "com_github_grpc_ecosystem_go_grpc_middleware_v2",
-    "com_github_h2non_filetype",
     "com_github_hairyhenderson_go_codeowners",
     "com_github_hashicorp_consul_api_v2",
     "com_github_hashicorp_go_multierror",
@@ -364,6 +354,7 @@ use_repo(
     "com_github_twmb_franz_go_pkg_kmsg",
     "com_github_twmb_murmur3",
     "com_github_uber_go_gopatch",
+    "com_github_ulikunitz_xz",
     "com_github_uptrace_bun",
     "com_github_uptrace_bun_dialect_pgdialect",
     "com_github_uptrace_bun_driver_pgdriver",
@@ -386,6 +377,7 @@ use_repo(
     "dev_cel_cel_go",
     "dev_essio_al_pkg_shellescape",
     "in_gopkg_ini_v1",
+    "in_gopkg_yaml_v3",
     "in_gopkg_zorkian_go_datadog_api_v2",
     "in_yaml_go_yaml_v2",
     "in_yaml_go_yaml_v3",
@@ -515,7 +507,7 @@ use_repo(
     "org_uber_go_multierr",
     "org_uber_go_zap",
     "org_uber_go_zap_exp",
-    "sh_helm_helm_v3",
+    "sh_helm_helm_v4",
     "tools_gotest_gotestsum",
 )
 
@@ -592,6 +584,17 @@ go_deps.module_override(
     patch_strip = 1,
     patches = ["//bazel/patches:kustomize-disable-go-plugin-loader.patch"],
     path = "sigs.k8s.io/kustomize/api",
+)
+
+# kyaml's openapi package go:embeds files from its kubernetesapi and kustomizationapi subpackages, which Gazelle
+# leaves out of embedsrcs across package boundaries (bazel-contrib/bazel-gazelle#1392): excluding their unused Go
+# files keeps those directories in the openapi package.
+go_deps.gazelle_override(
+    directives = [
+        "gazelle:exclude openapi/kubernetesapi/*.go",
+        "gazelle:exclude openapi/kustomizationapi/*.go",
+    ],
+    path = "sigs.k8s.io/kustomize/kyaml",
 )
 
 # gopacket/pcap links -lpcap, but the hermetic Linux sysroot ships neither pcap.h

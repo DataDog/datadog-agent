@@ -1,0 +1,10 @@
+# Pinging a multicast address must be rejected.
+description: "ping 224.0.0.1 (multicast address) exits 1"
+input:
+  script: |+
+    ping -c 1 224.0.0.1
+expect:
+  stdout: ""
+  stderr: "ping: multicast destination not allowed: 224.0.0.1\n"
+  exit_code: 1
+skip_assert_against_bash: true

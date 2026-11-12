@@ -1,0 +1,13 @@
+description: head validates all explicitly-given mode flags, not just the winner; -n xyz -c 1 fails even though -c wins.
+setup:
+  files:
+    - path: file.txt
+      content: "hello\n"
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    head -n xyz -c 1 file.txt
+expect:
+  stdout: ""
+  stderr_contains: ["head:"]
+  exit_code: 1

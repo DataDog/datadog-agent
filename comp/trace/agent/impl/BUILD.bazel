@@ -46,6 +46,7 @@ go_library(
         "//pkg/util/coredump",
         "//pkg/util/log",
         "//pkg/util/profiling",
+        "//pkg/util/sigdanger",
         "//pkg/version",
         "@com_github_datadog_datadog_go_v5//statsd",
         "@io_opentelemetry_go_collector_pdata//ptrace",

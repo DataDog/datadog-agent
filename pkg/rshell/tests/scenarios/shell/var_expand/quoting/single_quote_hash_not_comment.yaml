@@ -1,0 +1,11 @@
+description: Hash inside single quotes is literal, not a comment.
+input:
+  script: |+
+    echo '# not a comment'
+    echo 'before # after'
+expect:
+  stdout: |+
+    # not a comment
+    before # after
+  stderr: ""
+  exit_code: 0

@@ -46,20 +46,10 @@ func run(binaryPath string, typelinks bool) (err error) {
 	}
 	defer func() { err = errors.Join(err, table.Close()) }()
 
-	tl := mef.Section(".typelink")
-	if tl == nil {
-		return errors.New("no .typelink section")
-	}
-	tlMap, err := mef.SectionData(tl)
+	ids, err := gotype.ReadTypeLinks(mef)
 	if err != nil {
-		return fmt.Errorf("failed to mmap .typelink: %w", err)
+		return err
 	}
-	defer func() { err = errors.Join(err, tlMap.Close()) }()
-
-	tlData := tlMap.Data()
-
-	// Walk all reachable types and sort them for stable output.
-	ids := gotype.ParseTypeLinks(tlData)
 	var all []gotype.Type
 	if typelinks {
 		for id := range ids.TypeIDs() {

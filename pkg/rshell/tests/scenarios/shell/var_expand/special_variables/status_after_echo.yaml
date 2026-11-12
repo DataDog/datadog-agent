@@ -1,0 +1,11 @@
+description: The $? variable is 0 after a successful echo.
+input:
+  script: |+
+    echo hello
+    echo $?
+expect:
+  stdout: |+
+    hello
+    0
+  stderr: ""
+  exit_code: 0

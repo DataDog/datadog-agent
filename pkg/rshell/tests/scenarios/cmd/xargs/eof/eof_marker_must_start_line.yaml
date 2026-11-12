@@ -1,0 +1,9 @@
+description: xargs -E EOF-STR is recognised as the EOF marker only when the matching token starts at a line boundary; a trailing EOF-STR wedged onto the same logical line as prior content (no newline before it, no whitespace after) is treated as a literal item.
+input:
+  script: |+
+    printf 'a STOP' | xargs -E STOP echo
+expect:
+  stdout: |+
+    a STOP
+  stderr: |+
+  exit_code: 0

@@ -1,0 +1,8 @@
+description: tr -dc with character class keeps only matching characters.
+input:
+  script: |+
+    echo 'abc123!@#' | tr -dc '[:alpha:]'
+expect:
+  stdout: "abc"
+  stderr: ""
+  exit_code: 0

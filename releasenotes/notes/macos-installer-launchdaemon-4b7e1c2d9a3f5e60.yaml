@@ -1,0 +1,9 @@
+---
+enhancements:
+  - |
+    The macOS ``.dmg`` now also installs the Datadog installer daemon as the
+    ``com.datadoghq.installer`` LaunchDaemon, and links the installer as
+    ``/usr/local/bin/datadog-installer``. The daemon runs as root, keeps its
+    socket and task database in ``/opt/datadog-agent/run`` and logs to
+    ``/opt/datadog-agent/logs``. The macOS uninstall script removes it, along
+    with ``/opt/datadog-packages``.

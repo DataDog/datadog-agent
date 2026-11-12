@@ -1,0 +1,11 @@
+description: Empty command substitution produces an empty string and does not reuse stale output.
+input:
+  script: |+
+    before=$(echo stale)
+    value=$()
+    echo "[$value][$before]"
+expect:
+  stdout: |+
+    [][stale]
+  stderr: ""
+  exit_code: 0

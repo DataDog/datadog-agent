@@ -1,0 +1,19 @@
+description: Cat concatenates multiple files to stdout in order.
+setup:
+  files:
+    - path: first.txt
+      content: |+
+        line one
+    - path: second.txt
+      content: |+
+        line two
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cat first.txt second.txt
+expect:
+  stdout: |+
+    line one
+    line two
+  stderr: ""
+  exit_code: 0

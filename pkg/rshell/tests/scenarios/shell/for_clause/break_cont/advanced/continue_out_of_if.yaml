@@ -1,0 +1,13 @@
+description: Continue inside an if-then continues the enclosing for loop.
+input:
+  script: |+
+    for i in 1 2; do
+        if true; then continue; echo not reached then; fi
+        echo not reached
+    done
+    echo done
+expect:
+  stdout: |+
+    done
+  stderr: ""
+  exit_code: 0

@@ -47,7 +47,7 @@ func (c *remoteCatalog) replace(next fleetcatalog.Catalog) error {
 		return fmt.Errorf("invalid package catalog: %w", err)
 	}
 
-	compatiblePackages := make(map[string]fleetcatalog.Package)
+	compatiblePackages := make(map[string][]fleetcatalog.Package)
 	for _, pkg := range next.Packages {
 		if !strings.HasPrefix(pkg.Name, authoredScriptPackagePrefix) {
 			continue
@@ -58,14 +58,29 @@ func (c *remoteCatalog) replace(next fleetcatalog.Catalog) error {
 		if !pkg.MatchesTarget(runtime.GOOS, runtime.GOARCH) {
 			continue
 		}
-		if _, found := compatiblePackages[pkg.Name]; found {
-			return fmt.Errorf("multiple compatible authored-script packages match %q", pkg.Name)
+		compatiblePackages[pkg.Name] = append(compatiblePackages[pkg.Name], pkg)
+	}
+
+	selectedPackages := make(map[string]fleetcatalog.Package, len(compatiblePackages))
+	for packageName, packages := range compatiblePackages {
+		selected := packages[0]
+		latestCount := 0
+		for _, pkg := range packages {
+			if pkg.Latest {
+				selected = pkg
+				latestCount++
+			}
 		}
-		compatiblePackages[pkg.Name] = pkg
+		// A single unmarked entry remains valid for older catalogs. Multiple
+		// compatible entries require exactly one explicit latest marker.
+		if latestCount > 1 || (len(packages) > 1 && latestCount == 0) {
+			return fmt.Errorf("multiple compatible authored-script packages match %q: expected exactly one latest entry, found %d", packageName, latestCount)
+		}
+		selectedPackages[packageName] = selected
 	}
 
 	c.mu.Lock()
-	c.packages = compatiblePackages
+	c.packages = selectedPackages
 	c.mu.Unlock()
 	c.readyOnce.Do(func() {
 		close(c.ready)

@@ -71,6 +71,61 @@ func TestParallelLimit(t *testing.T) {
 	assert.Equal(t, 20, p.parallelQueries)
 }
 
+func TestMetricRequestsInflight(t *testing.T) {
+	cfg := configmock.New(t)
+	cfg.Set("external_metrics_provider.max_parallel_queries", 2, pkgconfigmodel.SourceLocalConfigProcess)
+	cfg.Set("external_metrics_provider.chunk_size", 1, pkgconfigmodel.SourceLocalConfigProcess)
+
+	queries := []string{"avg:first{*}", "avg:second{*}", "avg:third{*}"}
+	entered := make(chan string, len(queries))
+	release := make(chan struct{})
+	t.Cleanup(func() {
+		select {
+		case <-release:
+		default:
+			close(release)
+		}
+	})
+
+	client := datadogclientmock.New(t).Comp
+	client.SetQueryMetricsFunc(func(_, _ int64, query string) ([]datadog.Series, error) {
+		entered <- query
+		<-release
+		if query == queries[0] {
+			return nil, errors.New("request failed")
+		}
+		return nil, nil
+	})
+	p := NewProcessor(client)
+	assert.Equal(t, float64(2), ddRequestsParallelLimit.WithValues(le.JoinLeaderValue).Get())
+	assert.Zero(t, ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+
+	resultsCh := make(chan map[string]Point, 1)
+	go func() { resultsCh <- p.QueryExternalMetric(queries, time.Minute) }()
+	for range 2 {
+		select {
+		case <-entered:
+		case <-time.After(5 * time.Second):
+			t.Fatal("timed out waiting for parallel requests")
+		}
+	}
+	assert.Equal(t, float64(2), ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+	select {
+	case <-entered:
+		t.Fatal("request started beyond the configured parallel limit")
+	default:
+	}
+
+	close(release)
+	select {
+	case results := <-resultsCh:
+		assert.Error(t, results[queries[0]].Error)
+	case <-time.After(5 * time.Second):
+		t.Fatal("timed out waiting for requests to finish")
+	}
+	assert.Zero(t, ddRequestsInflight.WithValues(le.JoinLeaderValue).Get())
+}
+
 func TestProcessor_UpdateExternalMetrics(t *testing.T) {
 	penTime := (int(time.Now().Unix()) - int(testMaxAge.Seconds()/2)) * 1000
 	metricName := "requests_per_s"

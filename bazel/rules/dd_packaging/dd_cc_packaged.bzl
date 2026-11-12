@@ -8,6 +8,7 @@ load("@rules_pkg//pkg:mappings.bzl", "pkg_attributes", "pkg_files")
 load("@rules_pkg//pkg:providers.bzl", "PackageFilegroupInfo", "PackageFilesInfo")
 load("//bazel/rules:so_symlink.bzl", "so_symlink")
 load("//bazel/rules/dd_packaging:dd_packaging_info.bzl", "DdPackagingInfo")
+load("//bazel/rules/dd_strip:dd_strip.bzl", "dd_strip_symbols")
 load("//bazel/rules/rewrite_rpath:rewrite_rpath.bzl", "rewrite_rpath", "rewrite_rpaths")
 
 def _dd_packaged_files_impl(ctx):
@@ -104,6 +105,7 @@ _dd_cc_packaged_rule = rule(
 
 def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, data = [], mode = "0644", libname = "", prefix = "", dest_dir = "", visibility = None, **kwargs):
     patched_name = "{}_patched".format(name)
+    stripped_name = "{}_stripped".format(name)
     base = dest_dir if dest_dir else "lib"
     package_dest_dir = paths.join(base, prefix) if prefix else base
     use_relative_rpaths = select({
@@ -118,6 +120,13 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, 
         use_relative_rpaths = use_relative_rpaths,
         package_metadata = [],
     )
+
+    dd_strip_symbols(
+        name = stripped_name,
+        src = patched_name,
+        package_metadata = [],
+    )
+
     extra_files = []
     if installed_executables:
         exec_files_name = "{}_exec_files".format(name)
@@ -134,7 +143,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, 
     if version:
         so_symlink(
             name = packaged_lib,
-            src = ":{}".format(patched_name),
+            src = ":{}".format(stripped_name),
             libname = resolved_libname,
             version = version,
             mode = mode,
@@ -145,7 +154,7 @@ def _dd_cc_packaged_impl(name, input, version = "", installed_executables = {}, 
     else:
         pkg_files(
             name = packaged_lib,
-            srcs = [":{}".format(patched_name)],
+            srcs = [":{}".format(stripped_name)],
             attributes = pkg_attributes(mode = mode),
             prefix = package_dest_dir,
             visibility = visibility,

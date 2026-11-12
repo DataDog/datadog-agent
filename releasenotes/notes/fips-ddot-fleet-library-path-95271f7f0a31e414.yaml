@@ -1,0 +1,6 @@
+---
+fixes:
+  - |
+    Fix the bundled OpenTelemetry Collector failing to start after a Linux FIPS
+    Agent upgrade through Fleet Automation. The Collector now loads the FIPS
+    libraries from its Agent package instead of the previous installation directory.

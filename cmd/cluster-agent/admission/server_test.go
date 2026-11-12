@@ -246,3 +246,77 @@ func TestHandleBodyLimitAppliesToEveryRoute(t *testing.T) {
 		assert.LessOrEqual(t, filler.read, maxRequestBodyBytes()+int64(64<<10), "route %s", uri)
 	}
 }
+
+func TestHandleReviewWithoutRequest(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "v1 review without request", body: `{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview"}`},
+		{name: "v1 review with null request", body: `{"apiVersion":"admission.k8s.io/v1","kind":"AdmissionReview","request":null}`},
+		{name: "v1beta1 review without request", body: `{"apiVersion":"admission.k8s.io/v1beta1","kind":"AdmissionReview"}`},
+		{name: "v1beta1 review with null request", body: `{"apiVersion":"admission.k8s.io/v1beta1","kind":"AdmissionReview","request":null}`},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestServer(t)
+			hit := false
+			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
+				hit = true
+				return &admiv1.AdmissionResponse{Allowed: true}
+			}, nil, nil)
+
+			req := httptest.NewRequest(http.MethodPost, "/injectconfig", bytes.NewReader([]byte(tt.body)))
+			req.Header.Set("Content-Type", jsonContentType)
+			w := httptest.NewRecorder()
+
+			assert.NotPanics(t, func() { s.mux.ServeHTTP(w, req) })
+			assert.Equal(t, http.StatusBadRequest, w.Code)
+			assert.False(t, hit, "webhook func should not be called without a request")
+		})
+	}
+}
+
+func TestHandleWebhookResponse(t *testing.T) {
+	tests := []struct {
+		name       string
+		apiVersion string
+		response   *admiv1.AdmissionResponse
+		wantStatus int
+	}{
+		{name: "v1 webhook without response", apiVersion: "admission.k8s.io/v1", wantStatus: http.StatusInternalServerError},
+		{name: "v1beta1 webhook without response", apiVersion: "admission.k8s.io/v1beta1", wantStatus: http.StatusInternalServerError},
+		{name: "v1 webhook with response", apiVersion: "admission.k8s.io/v1", response: &admiv1.AdmissionResponse{Allowed: true}, wantStatus: http.StatusOK},
+		{name: "v1beta1 webhook with response", apiVersion: "admission.k8s.io/v1beta1", response: &admiv1.AdmissionResponse{Allowed: true}, wantStatus: http.StatusOK},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			s := newTestServer(t)
+			s.Register("/injectconfig", "test", admicommon.MutatingWebhook, func(*Request) *admiv1.AdmissionResponse {
+				return tt.response
+			}, nil, nil)
+
+			body := `{"apiVersion":"` + tt.apiVersion + `","kind":"AdmissionReview","request":{"uid":"test-uid","operation":"UPDATE"}}`
+			req := httptest.NewRequest(http.MethodPost, "/injectconfig", bytes.NewReader([]byte(body)))
+			req.Header.Set("Content-Type", jsonContentType)
+			w := httptest.NewRecorder()
+
+			assert.NotPanics(t, func() { s.mux.ServeHTTP(w, req) })
+			require.Equal(t, tt.wantStatus, w.Code)
+			if tt.wantStatus != http.StatusOK {
+				return
+			}
+			var review struct {
+				Response struct {
+					UID     string `json:"uid"`
+					Allowed bool   `json:"allowed"`
+				} `json:"response"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &review))
+			assert.Equal(t, "test-uid", review.Response.UID)
+			assert.True(t, review.Response.Allowed)
+		})
+	}
+}

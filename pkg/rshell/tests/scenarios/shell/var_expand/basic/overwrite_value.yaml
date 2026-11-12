@@ -1,0 +1,16 @@
+description: A variable can be overwritten from empty to non-empty and vice versa.
+input:
+  script: |+
+    VAR=
+    echo "[$VAR]"
+    VAR=hello
+    echo "[$VAR]"
+    VAR=
+    echo "[$VAR]"
+expect:
+  stdout: |+
+    []
+    [hello]
+    []
+  stderr: ""
+  exit_code: 0

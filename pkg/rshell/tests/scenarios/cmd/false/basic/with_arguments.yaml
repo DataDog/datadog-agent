@@ -1,0 +1,8 @@
+description: The false builtin ignores any arguments passed to it.
+input:
+  script: |+
+    false unused ignored arguments
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 1

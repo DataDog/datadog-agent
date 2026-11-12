@@ -1,0 +1,23 @@
+description: "test -a/-o operator precedence in multi-arg expressions"
+input:
+  script: |+
+    # -a binds tighter than -o: ("" AND "") OR " " = false OR true = true
+    test "" -a "" -o " "
+    echo "case1: $?"
+    # -a binds tighter than -o: ("x" AND "y") OR "" = true OR false = true
+    test "x" -a "y" -o ""
+    echo "case2: $?"
+    # -a binds tighter than -o: ("" AND "y") OR "" = false OR false = false
+    test "" -a "y" -o ""
+    echo "case3: $?"
+    # Multiple -o: "" OR "x" OR "" = true
+    test "" -o "x" -o ""
+    echo "case4: $?"
+expect:
+  stdout: |
+    case1: 0
+    case2: 0
+    case3: 1
+    case4: 0
+  stderr: ""
+  exit_code: 0

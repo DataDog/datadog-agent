@@ -1,0 +1,14 @@
+description: find -type with trailing comma produces error.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dummy.txt
+      content: "x"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find . -type 'f,'
+expect:
+  stderr_contains: ["Unknown argument to -type: f,"]
+  exit_code: 1

@@ -1,0 +1,9 @@
+description: Double quotes suppress glob expansion - asterisk, question mark, and brackets remain literal.
+input:
+  script: |+
+    echo "*.txt" "?.txt" "[abc]"
+expect:
+  stdout: |+
+    *.txt ?.txt [abc]
+  stderr: ""
+  exit_code: 0

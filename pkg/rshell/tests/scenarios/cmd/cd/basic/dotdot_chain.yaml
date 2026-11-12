@@ -1,0 +1,18 @@
+description: cd ../../leaf climbs two levels then descends one.
+setup:
+  files:
+    - path: a/b/leaf
+      content: ""
+    - path: c/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd a/b
+    cd ../../c
+    pwd
+expect:
+  stdout_contains: ["/c"]
+  stdout_contains_windows: ["\\c"]
+  stderr: ""
+  exit_code: 0

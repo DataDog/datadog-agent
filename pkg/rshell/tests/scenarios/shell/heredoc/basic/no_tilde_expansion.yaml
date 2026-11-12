@@ -1,0 +1,12 @@
+description: Tilde is not expanded in heredoc content.
+input:
+  script: |+
+    HOME=/home
+    cat <<END
+    tilde ~
+    END
+expect:
+  stdout: |+
+    tilde ~
+  stderr: ""
+  exit_code: 0

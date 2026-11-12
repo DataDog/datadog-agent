@@ -47,6 +47,10 @@ type staticConfig struct {
 	// gpuTarget is the target injecting tracers into GPU workloads. It is nil when gpu.tracing is disabled.
 	gpuTarget *Target
 
+	// apmBasicTarget is the target injecting dd-trace-c in APM Basic mode. It is nil when
+	// apm_config.instrumentation.apm_basic is disabled.
+	apmBasicTarget *Target
+
 	// containerRegistry is the container registry to use for the autoinstrumentation logic
 	containerRegistry string
 
@@ -152,6 +156,7 @@ func NewConfig(datadogConfig config.Component) (*Config, error) {
 			LanguageDetection:             NewLanguageDetectionConfig(datadogConfig),
 			Instrumentation:               instrumentationConfig,
 			gpuTarget:                     newGPUTarget(gpuconfig.NewTracingConfig(datadogConfig), gpuconfig.NewJobsConfig(datadogConfig)),
+			apmBasicTarget:                newAPMBasicTarget(instrumentationConfig.APMBasic),
 			containerRegistry:             containerRegistry,
 			registryAllowList:             registryAllowList,
 			defaultDDRegistries:           defaultDDRegistries,
@@ -224,6 +229,9 @@ type InstrumentationConfig struct {
 	// Possible values: "auto" (default), "init_container" and "csi".
 	// Full config key: apm_config.instrumentation.injection_mode
 	InjectionMode string `mapstructure:"injection_mode" json:"injection_mode"`
+	// APMBasic configures the target injecting dd-trace-c in APM Basic mode. Full config key:
+	// apm_config.instrumentation.apm_basic
+	APMBasic APMBasicConfig `mapstructure:"apm_basic" json:"apm_basic"`
 }
 
 // NewInstrumentationConfig creates a new InstrumentationConfig from the datadog config. It returns an error if the

@@ -146,3 +146,31 @@ func TestDirectScanMismatchedHistory(t *testing.T) {
 	}
 	assert.Contains(t, names, "musl")
 }
+
+// TestScanDockerImageUnreadableLayer checks that the direct scan exports an
+// image whose overlay2 layers the Agent cannot read, once the disk holds the
+// export.
+func TestScanDockerImageUnreadableLayer(t *testing.T) {
+	const id = "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+	inspect := dockerInspect("", filepath.Join(t.TempDir(), "missing"), []string{
+		"sha256:1111111111111111111111111111111111111111111111111111111111111111",
+	})
+	inspect.ID = id
+	cl := imageClient{inspect: inspect}
+	imgMeta := &workloadmeta.ContainerImageMetadata{
+		EntityID:   workloadmeta.EntityID{Kind: workloadmeta.KindContainerImageMetadata, ID: id},
+		EntityMeta: workloadmeta.EntityMeta{Name: "alpine:3.20"},
+	}
+	opts := sbom.ScanOptions{OverlayFsScan: true, CheckDiskUsage: true, Analyzers: []string{OSAnalyzers}}
+	c := NewCollectorForCLI()
+
+	_, method, err := c.ScanDockerImage(t.Context(), imgMeta, cl, opts)
+	assert.Equal(t, "tarball", method)
+	assert.ErrorIs(t, err, errSave)
+
+	imgMeta.SizeBytes = 1 << 60
+	_, method, err = c.ScanDockerImage(t.Context(), imgMeta, cl, opts)
+	assert.Equal(t, "tarball", method)
+	assert.ErrorContains(t, err, "not enough disk space")
+	assert.NotErrorIs(t, err, errSave)
+}

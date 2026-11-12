@@ -9,7 +9,9 @@ package secretsimpl
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
 	"embed"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -87,6 +89,8 @@ type secretResolver struct {
 
 	// list of handles and where they were found
 	origin handleToContext
+	// originNames maps an origin to its readable name (ex: the integration name)
+	originNames map[string]string
 
 	// resolvedSecretValues is an append-only set of all secret values ever returned by the backend.
 	// old values are retained for IsValueFromSecret lookups.
@@ -149,6 +153,7 @@ func newEnabledSecretResolver(telemetry telemetry.Component) *secretResolver {
 	return &secretResolver{
 		cache:                   make(map[string]string),
 		origin:                  make(handleToContext),
+		originNames:             make(map[string]string),
 		resolvedSecretValues:    make(map[string]struct{}),
 		tlmSecretBackendElapsed: telemetry.NewGauge("secret_backend", "elapsed_ms", []string{"command", "exit_code"}, "Elapsed time of secret backend invocation"),
 		tlmSecretUnmarshalError: telemetry.NewCounter("secret_backend", "unmarshal_errors_count", []string{}, "Count of errors when unmarshalling the output of the secret binary"),
@@ -249,7 +254,7 @@ func setJSONError(w http.ResponseWriter, err error, errorCode int) {
 	http.Error(w, string(body), errorCode)
 }
 
-// assocate with the handle itself the origin (filename) and path where the handle appears
+// assocate with the handle itself the origin (filename or hash) and path where the handle appears
 func (r *secretResolver) registerSecretOrigin(handle string, origin string, path []string) {
 	for _, info := range r.origin[handle] {
 		if info.origin == origin && slices.Equal(info.path, path) {
@@ -801,10 +806,20 @@ func (r *secretResolver) IsValueFromSecret(value string) bool {
 	return ok
 }
 
+// SetOriginName associates an origin with a readable name for it (ex: the integration name)
+func (r *secretResolver) SetOriginName(origin string, name string) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	r.originNames[origin] = name
+}
+
 // RemoveOrigin removes a origin from the cache
 func (r *secretResolver) RemoveOrigin(origin string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
+
+	delete(r.originNames, origin)
 
 	for handle, origins := range r.origin {
 		newList := []secretContext{}
@@ -822,23 +837,28 @@ func (r *secretResolver) RemoveOrigin(origin string) {
 }
 
 // mainConfigOrigin is the origin of secrets found in the main Agent configuration
-const mainConfigOrigin = "datadog.yaml"
+const coreAgentConfig = "datadog.yaml"
 
-// GetPathsAndHandles returns the setting path and handle of every place a secret appears in the configuration
+// GetPathsAndHandles returns the sanitized setting path and handle of every place a secret appears in the configuration
 func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
 	type pathAndHandle struct {
-		origin string
-		path   []string
-		handle string
+		originName string
+		path       []string
+		handle     string
 	}
 
 	entries := []pathAndHandle{}
 	for handle, contexts := range r.origin {
 		for _, secretCtx := range contexts {
-			entries = append(entries, pathAndHandle{origin: secretCtx.origin, path: secretCtx.path, handle: handle})
+			// origins not registered through SetOriginName, such as the main configuration, are reported as is
+			originName, found := r.originNames[secretCtx.origin]
+			if !found {
+				originName = secretCtx.origin
+			}
+			entries = append(entries, pathAndHandle{originName: originName, path: secretCtx.path, handle: handle})
 		}
 	}
 
@@ -846,14 +866,14 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	// NOTE: entries from datadog.yaml come first, followed by other origins sorted by name
 	// NOTE: numeric indexes are compared numerically (example: "list.2" precedes "list.10")
 	slices.SortStableFunc(entries, func(a, b pathAndHandle) int {
-		if a.origin != b.origin {
-			if a.origin == mainConfigOrigin {
+		if a.originName != b.originName {
+			if a.originName == coreAgentConfig {
 				return -1
 			}
-			if b.origin == mainConfigOrigin {
+			if b.originName == coreAgentConfig {
 				return 1
 			}
-			return strings.Compare(a.origin, b.origin)
+			return strings.Compare(a.originName, b.originName)
 		}
 		for i := 0; i < len(a.path) && i < len(b.path); i++ {
 			if a.path[i] == b.path[i] {
@@ -875,15 +895,38 @@ func (r *secretResolver) GetPathsAndHandles() ([]string, []string) {
 	paths := make([]string, 0, len(entries))
 	handles := make([]string, 0, len(entries))
 	for _, entry := range entries {
-		path := strings.Join(entry.path, ".")
-		// paths from datadog.yaml are kept as is, other origins are prefixed with "<origin>:"
-		if entry.origin != mainConfigOrigin {
-			path = entry.origin + ":" + path
+		parts := slices.Clone(entry.path)
+		for i := range parts {
+			parts[i], _ = scrubber.ScrubString(parts[i])
+		}
+		path := strings.Join(parts, ".")
+		// omit the datadog.yaml origin
+		// other origins are integrations, prefixed by the name given to SetOriginName
+		if entry.originName != coreAgentConfig {
+			path = entry.originName + ":" + path
 		}
 		paths = append(paths, path)
 		handles = append(handles, entry.handle)
 	}
 	return paths, handles
+}
+
+// GetHashValues returns the SHA-256 hash (hex encoded) of the cached secret value for each given handle. Handles
+// without a value in the cache are omitted from the result.
+func (r *secretResolver) GetHashValues(handles []string) map[string]string {
+	r.lock.Lock()
+	defer r.lock.Unlock()
+
+	hashes := make(map[string]string, len(handles))
+	for _, handle := range handles {
+		secretValue, ok := r.cache[handle]
+		if !ok {
+			continue
+		}
+		sum := sha256.Sum256([]byte(secretValue))
+		hashes[handle] = hex.EncodeToString(sum[:])
+	}
+	return hashes
 }
 
 // performRefresh executes the actual secret refresh operation

@@ -1,0 +1,8 @@
+description: tr rejects equivalence classes in STRING2 when translating.
+input:
+  script: |+
+    echo hello | tr a '[=a=]'
+expect:
+  stdout: ""
+  stderr: "tr: [=c=] expressions may not appear in string2 when translating\n"
+  exit_code: 1

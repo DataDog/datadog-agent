@@ -27,14 +27,16 @@ import (
 
 // Provider turns NDM Remote Configuration documents into autodiscovery configs.
 type Provider struct {
-	log      log.Component
-	handlers map[string]handler.Handler
-	keys     []string // registered keys, sorted, for deterministic iteration
+	log          log.Component
+	renderers    map[string]handler.Renderer
+	snapshotters map[string]handler.Snapshotter
+	keys         []string // registered keys, sorted, for deterministic iteration
 
-	stateMutex sync.RWMutex // guards activeByPath, configErrors and closed
+	stateMutex sync.RWMutex // guards activeByPath, snapshotByPath, configErrors and closed
 
-	activeByPath map[string]map[string][]integration.Config // path -> key -> configs
-	configErrors map[string]types.ErrorMsgSet
+	activeByPath   map[string]map[string][]integration.Config // path -> key -> configs
+	snapshotByPath map[string]map[string]json.RawMessage      // path -> snapshotted key -> last valid value
+	configErrors   map[string]types.ErrorMsgSet
 
 	configChanges chan integration.ConfigChanges
 	shutdownCh    chan struct{}
@@ -44,9 +46,15 @@ type Provider struct {
 
 var _ types.StreamingConfigProvider = (*Provider)(nil)
 
-// NewProvider builds the provider from its handlers, one per document key.
+// NewProvider builds the provider from its handlers, one per document key. It
+// fails if a handler is neither a Renderer nor a Snapshotter.
 func NewProvider(logComp log.Component, handlers []handler.Handler) (*Provider, error) {
-	byKey := make(map[string]handler.Handler, len(handlers))
+	renderers := make(map[string]handler.Renderer, len(handlers))
+	snapshotters := make(map[string]handler.Snapshotter, len(handlers))
+	var keys []string
+
+	claimed := make(map[string]struct{}, len(handlers))
+
 	for _, h := range handlers {
 		if h == nil {
 			// An fx value group yields a zero value for a declining constructor.
@@ -56,14 +64,23 @@ func NewProvider(logComp log.Component, handlers []handler.Handler) (*Provider, 
 		if key == "" {
 			return nil, errors.New("an NDM remote configuration handler reports an empty key")
 		}
-		if _, exists := byKey[key]; exists {
+		if _, taken := claimed[key]; taken {
 			return nil, fmt.Errorf("two NDM remote configuration handlers claim the key %q", key)
 		}
-		byKey[key] = h
-	}
 
-	keys := make([]string, 0, len(byKey))
-	for key := range byKey {
+		renderer, renders := h.(handler.Renderer)
+		snapshotter, snapshots := h.(handler.Snapshotter)
+		if !renders && !snapshots {
+			return nil, fmt.Errorf("the NDM remote configuration handler for key %q is neither a Renderer nor a Snapshotter", key)
+		}
+		if renders {
+			renderers[key] = renderer
+		}
+		if snapshots {
+			snapshotters[key] = snapshotter
+		}
+
+		claimed[key] = struct{}{}
 		keys = append(keys, key)
 	}
 	sort.Strings(keys)
@@ -73,13 +90,15 @@ func NewProvider(logComp log.Component, handlers []handler.Handler) (*Provider, 
 	configChanges <- integration.ConfigChanges{}
 
 	return &Provider{
-		log:           logComp,
-		handlers:      byKey,
-		keys:          keys,
-		activeByPath:  make(map[string]map[string][]integration.Config),
-		configErrors:  make(map[string]types.ErrorMsgSet),
-		configChanges: configChanges,
-		shutdownCh:    make(chan struct{}),
+		log:            logComp,
+		renderers:      renderers,
+		snapshotters:   snapshotters,
+		keys:           keys,
+		activeByPath:   make(map[string]map[string][]integration.Config),
+		snapshotByPath: make(map[string]map[string]json.RawMessage),
+		configErrors:   make(map[string]types.ErrorMsgSet),
+		configChanges:  configChanges,
+		shutdownCh:     make(chan struct{}),
 	}, nil
 }
 
@@ -127,49 +146,96 @@ func (p *Provider) close() {
 // Update handles a complete NDM Remote Configuration snapshot, emitting all of
 // its changes as one ConfigChanges. Not safe to call concurrently with itself.
 func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback func(string, state.ApplyStatus)) {
-	p.stateMutex.Lock()
-
-	changes := integration.ConfigChanges{}
-	seenPaths := make(map[string]struct{}, len(updates))
-
+	owned := make(map[string]map[string]json.RawMessage, len(updates))
+	malformed := make(map[string]error)
 	for path, raw := range updates {
 		keys, err := parseDocument(raw.Config)
 		if err != nil {
 			// A malformed replacement keeps the path's last valid configs.
 			p.log.Errorf("ndm: keeping the last valid configs of %s: %v", path, err)
-			seenPaths[path] = struct{}{}
-			p.configErrors[path] = types.ErrorMsgSet{err.Error(): {}}
-			applyStateCallback(path, state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()})
+			malformed[path] = err
 			continue
 		}
-
-		configsByKey, errsByKey, owned := p.dispatch(path, keys)
-		if !owned {
+		if !p.owns(keys) {
 			p.log.Debugf("ndm: ignoring config %s: it carries no NDM key, only %v", path, documentKeys(keys))
 			continue
 		}
+		owned[path] = keys
+	}
 
-		// Only an owned path is seen, so it never sweeps another feature's state.
-		seenPaths[path] = struct{}{}
+	// The snapshot handlers schedule their own work, so they run outside the
+	// state lock and before any apply state is reported.
+	snapshotErrs := p.snapshot(p.snapshotDocuments(owned, malformed))
+
+	changes, statuses := p.render(owned, malformed, snapshotErrs)
+
+	for path, status := range statuses {
+		applyStateCallback(path, status)
+	}
+	p.sendChanges(changes)
+}
+
+// render turns every owned path into check configs, diffs them against the
+// active state, and returns the changes with the apply state per path.
+func (p *Provider) render(owned map[string]map[string]json.RawMessage, malformed map[string]error, snapshotErrs map[string]map[string]error) (integration.ConfigChanges, map[string]state.ApplyStatus) {
+	p.stateMutex.Lock()
+
+	changes := integration.ConfigChanges{}
+	statuses := make(map[string]state.ApplyStatus, len(owned)+len(malformed))
+
+	for path, err := range malformed {
+		p.configErrors[path] = types.ErrorMsgSet{err.Error(): {}}
+		statuses[path] = state.ApplyStatus{State: state.ApplyStateError, Error: err.Error()}
+	}
+
+	for path, keys := range owned {
+		p.retainSnapshotValues(path, keys)
+
+		configsByKey, errsByKey := p.dispatch(path, keys)
+		for key, err := range snapshotErrs[path] {
+			if errsByKey == nil {
+				errsByKey = make(map[string]error, 1)
+			}
+			// A handler doing both can fail both, and each reason is reported.
+			if rendered := errsByKey[key]; rendered != nil {
+				errsByKey[key] = fmt.Errorf("%w; %w", rendered, err)
+				continue
+			}
+			errsByKey[key] = err
+		}
 
 		if set := errorSet(errsByKey, p.keys); set != nil {
 			p.configErrors[path] = set
 		} else {
 			delete(p.configErrors, path)
 		}
-		applyStateCallback(path, applyStatus(errsByKey, p.keys))
+		statuses[path] = applyStatus(errsByKey, p.keys)
 
 		p.diffPath(path, configsByKey, &changes)
 	}
 
+	seen := func(path string) bool {
+		if _, found := owned[path]; found {
+			return true
+		}
+		_, found := malformed[path]
+		return found
+	}
+
 	for path := range p.activeByPath {
-		if _, found := seenPaths[path]; found {
+		if seen(path) {
 			continue
 		}
 		p.removePath(path, &changes)
 	}
+	for path := range p.snapshotByPath {
+		if seen(path) {
+			continue
+		}
+		delete(p.snapshotByPath, path)
+	}
 	for path := range p.configErrors {
-		if _, found := seenPaths[path]; found {
+		if seen(path) {
 			continue
 		}
 		delete(p.configErrors, path)
@@ -179,9 +245,9 @@ func (p *Provider) Update(updates map[string]state.RawConfig, applyStateCallback
 	p.stateMutex.Unlock()
 
 	if scheduled > 0 || unscheduled > 0 {
-		p.log.Infof("ndm: scheduling %d and unscheduling %d check configs across %d configs", scheduled, unscheduled, len(seenPaths))
+		p.log.Infof("ndm: scheduling %d and unscheduling %d check configs across %d configs", scheduled, unscheduled, len(owned))
 	}
-	p.sendChanges(changes)
+	return changes, statuses
 }
 
 // diffPath replaces a path's configs, recording only what changed. The caller
@@ -217,6 +283,7 @@ func (p *Provider) removePath(path string, changes *integration.ConfigChanges) {
 		changes.Unschedule = append(changes.Unschedule, configs...)
 	}
 	delete(p.activeByPath, path)
+	delete(p.snapshotByPath, path)
 	delete(p.configErrors, path)
 }
 

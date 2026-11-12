@@ -20,7 +20,7 @@ from tasks.schema.generate import schema_codegen
 EBPF_PROFILER_MODULE = "go.opentelemetry.io/ebpf-profiler"
 CILIUM_EBPF_MODULE = "github.com/cilium/ebpf"
 PPROFILE_MODULE = "go.opentelemetry.io/collector/pdata/pprofile"
-PPROFILE_MAX_VERSION = "v0.163.0"
+PPROFILE_MAX_VERSION = "v0.164.1"
 
 BIN_NAME = "host-profiler"
 BIN_DIR = os.path.join(".", "bin", "host-profiler")
@@ -83,6 +83,8 @@ def build(ctx, enable_bazel=False):
     else:
         build_tags = get_default_build_tags(build="host-profiler")
         ldflags, gcflags, env = get_build_flags(ctx)
+        if not os.environ.get("DELVE"):
+            ldflags += " -w"
         if profiler_version := _get_profiler_agent_version(ctx):
             ldflags += f" -X {REPO_PATH}/pkg/version.AgentVersion={profiler_version}"
 

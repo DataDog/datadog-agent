@@ -1,0 +1,16 @@
+description: cd - emits the new directory on stdout (the only stdout-emitting cd form).
+setup:
+  files:
+    - path: child/leaf
+      content: ""
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    cd child
+    cd ..
+    cd -
+expect:
+  stdout_contains: ["/child"]
+  stdout_contains_windows: ["\\child"]
+  stderr: ""
+  exit_code: 0

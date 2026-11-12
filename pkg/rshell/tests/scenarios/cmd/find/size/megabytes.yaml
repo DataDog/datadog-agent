@@ -1,0 +1,15 @@
+description: find -size +1M on small files matches nothing.
+skip_assert_against_bash: true
+setup:
+  files:
+    - path: dir/small.txt
+      content: "this is a small file"
+      chmod: 0644
+input:
+  allowed_paths: ["$DIR"]
+  script: |+
+    find dir -type f -size +1M
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

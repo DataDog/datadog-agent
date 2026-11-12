@@ -1,0 +1,8 @@
+description: Exit 0 explicitly terminates with success.
+input:
+  script: |+
+    exit 0
+expect:
+  stdout: ""
+  stderr: ""
+  exit_code: 0

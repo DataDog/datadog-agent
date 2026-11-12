@@ -1,0 +1,15 @@
+description: jq reports a per-value bound breach and continues with later inputs.
+# rshell's 256-bit bound intentionally differs from upstream jq.
+skip_assert_against_bash: true
+input:
+  script: |+
+    printf '2\n%s\n3\n' 10000000000000000000000000000000000000000000000000000000000000000000000000000000000 | jq -c '.'
+    echo "status:$?"
+expect:
+  stdout: |+
+    2
+    3
+    status:5
+  stderr: |+
+    jq: integer exceeds the supported 256-bit range
+  exit_code: 0
