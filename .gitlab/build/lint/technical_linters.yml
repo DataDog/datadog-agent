@@ -105,6 +105,14 @@ lint_releasenotes_unique_ids:
   script:
     - dda inv -- -e linter.releasenote-unique-ids
 
+lint_releasenotes_reused_uids:
+  extends: .lint
+  rules: !reference [.on_releasenotes_changes]
+  variables:
+    GIT_DEPTH: 0  # Full history: looks for past deletions of the added notes' UIDs
+  script:
+    - dda inv -- -e linter.releasenote-reused-uids --only-changed
+
 lint_config_schema:
   extends: .lint
   rules:

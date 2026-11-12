@@ -6,6 +6,7 @@ go_library(
     srcs = [
         "common_runner.go",
         "dev_action_run_mirror.go",
+        "task_ledger.go",
         "workflow_runner.go",
         "workflow_task_executor.go",
     ],
@@ -46,6 +47,7 @@ dd_agent_go_test(
     srcs = [
         "common_runner_test.go",
         "dev_action_run_mirror_test.go",
+        "task_ledger_test.go",
         "workflow_task_executor_kubeapiserver_test.go",
         "workflow_task_executor_test.go",
     ],

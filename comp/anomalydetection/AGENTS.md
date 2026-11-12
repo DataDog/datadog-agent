@@ -81,6 +81,11 @@ dda inv anomalydetection.launch-testbench
 See `internal/anomalydetection/testbench/README.md` for flags and
 headless/eval workflows.
 
+Local evaluation and testbench replay accept LLMObs recording datasets through
+`--dataset NAME_OR_UUID`, using the latest version. Dataset rows provide scenario
+names and recording ZIP references. `--local` replays existing files without
+LLMObs. See the testbench README for commands and the default dataset.
+
 ## Production Safety and Review Invariants
 
 The live Agent is the primary constraint; testbench convenience must not affect

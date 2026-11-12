@@ -6,11 +6,13 @@
 package stats
 
 import (
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
+	"github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace/idx"
 )
 
 func fixedSpan() *pb.Span {
@@ -60,6 +62,49 @@ func TestSpanWeight(t *testing.T) {
 
 	span.Metrics[keySamplingRateGlobal] = 1.5
 	assert.Equal(1., weight(span))
+}
+
+var sampleRateWeightCases = []struct {
+	name string
+	rate float64
+	want float64
+}{
+	{"quarter", 0.25, 4},
+	{"one", 1, 1},
+	{"tiny rate", 0x1p-1000, 0x1p1000},
+	{"negative", -1, 1},
+	{"zero", 0, 1},
+	{"above one", 1.5, 1},
+	{"NaN", math.NaN(), 1},
+	{"positive infinity", math.Inf(1), 1},
+	{"negative infinity", math.Inf(-1), 1},
+	{"subnormal rate with infinite inverse", math.SmallestNonzeroFloat64, 1},
+}
+
+func TestSpanWeightRejectsNonFiniteRates(t *testing.T) {
+	for _, tc := range sampleRateWeightCases {
+		t.Run(tc.name, func(t *testing.T) {
+			span := fixedSpan()
+			span.Metrics[keySamplingRateGlobal] = tc.rate
+			assert.Equal(t, tc.want, weight(span))
+		})
+	}
+}
+
+func TestSpanWeightV1RejectsNonFiniteRates(t *testing.T) {
+	for _, tc := range sampleRateWeightCases {
+		t.Run(tc.name, func(t *testing.T) {
+			strings := idx.NewStringTable()
+			span := idx.NewInternalSpan(strings, &idx.Span{
+				ServiceRef: strings.Add("django"),
+				NameRef:    strings.Add("django.controller"),
+				Attributes: map[uint32]*idx.AnyValue{
+					strings.Add(keySamplingRateGlobal): {Value: &idx.AnyValue_DoubleValue{DoubleValue: tc.rate}},
+				},
+			})
+			assert.Equal(t, tc.want, weightV1(span))
+		})
+	}
 }
 
 func TestSpanWeightNil(t *testing.T) {

@@ -22,6 +22,7 @@ import (
 	"golang.org/x/sys/unix"
 
 	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs/procmaps"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/containerutils"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 	"github.com/DataDog/datadog-agent/pkg/security/seclog"
@@ -193,9 +194,9 @@ func getMemoryMappedFiles(pid int32, processEventPath string) (files []string, _
 	// Use shared parsing utilities with combined filters:
 	// 1. FilterRegularFiles - skip [vdso], [stack], [heap], etc.
 	// 2. FilterExcludePath - skip the process binary itself
-	filter := procfs.CombineFilters(
-		procfs.FilterRegularFiles,
-		procfs.FilterExcludePath(processEventPath),
+	filter := procmaps.CombineFilters(
+		procmaps.FilterRegularFiles,
+		procmaps.FilterExcludePath(processEventPath),
 	)
 
 	return procfs.GetMappedFiles(pid, MaxMmapedFiles, filter)

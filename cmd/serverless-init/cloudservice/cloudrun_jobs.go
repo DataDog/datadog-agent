@@ -16,6 +16,7 @@ import (
 	serverlessInitLog "github.com/DataDog/datadog-agent/cmd/serverless-init/log"
 	"github.com/DataDog/datadog-agent/cmd/serverless-init/mode"
 	serverlessInitTrace "github.com/DataDog/datadog-agent/cmd/serverless-init/trace"
+	serverlessdef "github.com/DataDog/datadog-agent/comp/metadata/serverlessinit/def"
 	pkgconfigsetup "github.com/DataDog/datadog-agent/pkg/config/setup"
 	"github.com/DataDog/datadog-agent/pkg/metrics"
 	pb "github.com/DataDog/datadog-agent/pkg/proto/pbgo/trace"
@@ -49,6 +50,8 @@ const (
 	cloudRunJobsDurationMetricName = "gcp.run.job.enhanced.task.duration"
 	cloudRunJobsStartMetricName    = "gcp.run.job.enhanced.task.started"
 	cloudRunJobsShutdownMetricName = "gcp.run.job.enhanced.task.ended"
+
+	workloadTypeCloudRunJob = "cloud_run_job"
 )
 
 // CloudRunJobs has helper functions for getting Google Cloud Run data
@@ -106,6 +109,38 @@ func cloudRunJobCCRID(project, region, job string) string {
 		return ""
 	}
 	return fmt.Sprintf("projects/%s/locations/%s/jobs/%s", project, region, job)
+}
+
+// cloudRunJobExecutionCCRID builds the regional execution identity. The job is
+// required even though it is not part of the execution path. Tasks and
+// attempts of one execution share this ID.
+func cloudRunJobExecutionCCRID(project, region, job, execution string) string {
+	if project == "" || region == "" || job == "" || execution == "" {
+		return ""
+	}
+	return fmt.Sprintf("projects/%s/locations/%s/executions/%s", project, region, execution)
+}
+
+func (c *CloudRunJobs) CanCollectMetadata() bool { return true }
+
+// GetMetadata derives the metadata fields for Cloud Run Jobs from the GCP
+// metadata cached by GetTags. The execution is the resource ID and the job is
+// its semantic parent, whose ID is not a prefix of the execution ID.
+func (c *CloudRunJobs) GetMetadata() serverlessdef.CloudServiceMetadata {
+	gcpMetadata := c.gcpMetadata.cached()
+	project := gcpMetadata[projectID]
+	region := gcpMetadata[location]
+	job := os.Getenv(cloudRunJobNameEnvVar)
+	execution := os.Getenv(cloudRunExecutionEnvVar)
+
+	return serverlessdef.CloudServiceMetadata{
+		WorkloadType:     workloadTypeCloudRunJob,
+		ResourceID:       cloudRunMetadataID(cloudRunJobExecutionCCRID(project, region, job, execution)),
+		ParentResourceID: cloudRunMetadataID(cloudRunJobCCRID(project, region, job)),
+		ResourceName:     job,
+		Region:           region,
+		GCPProjectID:     project,
+	}
 }
 
 func (c *CloudRunJobs) GetEnhancedMetricTags(tags map[string]string) EnhancedMetricTags {

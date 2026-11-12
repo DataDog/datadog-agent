@@ -6,10 +6,11 @@ otlp_config:
       http:
         endpoint: "0.0.0.0:4318"
 data_plane:
+  enabled: true
+  experimental:
+    otlp:
+      proxy:
+        agent_receiver_grpc_endpoint: ""
+        agent_receiver_http_endpoint: ""
   otlp:
-    proxy:
-      enabled: true
-      receiver:
-        protocols:
-          grpc:
-            endpoint: ""
+    enabled: true

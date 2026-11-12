@@ -1,0 +1,32 @@
+Resolve the %{LIBDIR} path token to the directory containing the loaded
+libkrb5 on Unix, as is already done on Windows, falling back to the
+compile-time LIBDIR when that path is not absolute. This makes the default plugin directory
+relocatable along with the library.
+
+diff --git a/src/lib/krb5/os/expand_path.c b/src/lib/krb5/os/expand_path.c
+--- a/src/lib/krb5/os/expand_path.c
++++ b/src/lib/krb5/os/expand_path.c
+@@ -264,2 +264,3 @@
+ #else /* not _WIN32 */
++#include <dlfcn.h>
+ #include <pwd.h>
+@@ -269,3 +270,14 @@
+ {
++    Dl_info info;
++    const char *slash;
++
++    if (param != 0 && dladdr((void *)&expand_path, &info) != 0 &&
++        info.dli_fname != NULL && info.dli_fname[0] == '/') {
++        slash = strrchr(info.dli_fname, '/');
++        if (slash != NULL && slash != info.dli_fname) {
++            *ret = strndup(info.dli_fname, slash - info.dli_fname);
++            return (*ret == NULL) ? ENOMEM : 0;
++        }
++    }
+     *ret = strdup(postfix);
+     if (*ret == NULL)
+@@ -381,3 +393,3 @@
+ #else
+-    {"LIBDIR", 0, LIBDIR, expand_path},
++    {"LIBDIR", 1, LIBDIR, expand_path},
+     {"BINDIR", 0, BINDIR, expand_path},

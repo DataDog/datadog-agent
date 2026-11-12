@@ -36,10 +36,25 @@ go_library(
         "//pkg/util/scrubber",
         "@com_github_cenkalti_backoff_v7//:backoff",
     ] + select({
+        "@rules_go//go/platform:aix": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:android": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:darwin": [
+            "//pkg/serializer/marshaler",
+        ],
         "@rules_go//go/platform:dragonfly": [
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:freebsd": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:ios": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:linux": [
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:netbsd": [
@@ -49,6 +64,9 @@ go_library(
             "//pkg/serializer/marshaler",
         ],
         "@rules_go//go/platform:solaris": [
+            "//pkg/serializer/marshaler",
+        ],
+        "@rules_go//go/platform:windows": [
             "//pkg/serializer/marshaler",
         ],
         "//conditions:default": [],

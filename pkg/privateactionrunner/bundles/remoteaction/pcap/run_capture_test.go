@@ -87,11 +87,69 @@ func validInputs() map[string]interface{} {
 type recordingCaptureTrigger struct {
 	got RunCaptureInputs
 	out captureOutcome
+	ctx context.Context
 }
 
-func (r *recordingCaptureTrigger) Capture(_ context.Context, in RunCaptureInputs) (captureOutcome, error) {
+func (r *recordingCaptureTrigger) Capture(ctx context.Context, in RunCaptureInputs) (captureOutcome, error) {
 	r.got = in
+	r.ctx = ctx
 	return r.out, nil
+}
+
+type deadlineCheckingUploader struct {
+	pcapuploader.Component
+	check func(context.Context)
+}
+
+func (u deadlineCheckingUploader) Upload(ctx context.Context, _ pcapuploader.UploadRequest) error {
+	u.check(ctx)
+	return nil
+}
+
+func TestRunCaptureTimeoutCoversCaptureAndUpload(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		timeout any
+		want    time.Duration
+	}{
+		{name: "missing timeout inherits parent", want: time.Minute},
+		{name: "zero timeout inherits parent", timeout: 0, want: time.Minute},
+		{name: "negative timeout inherits parent", timeout: -1, want: time.Minute},
+		{name: "shorter timeout applies in seconds", timeout: 5, want: 5 * time.Second},
+		{name: "longer timeout cannot extend parent", timeout: 120, want: time.Minute},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			parentDeadline := time.Now().Add(time.Minute)
+			ctx, cancel := context.WithDeadline(context.Background(), parentDeadline)
+			defer cancel()
+			before := time.Now()
+			check := func(ctx context.Context) {
+				deadline, ok := ctx.Deadline()
+				require.True(t, ok)
+				if tc.want == time.Minute {
+					require.Equal(t, parentDeadline, deadline)
+				} else {
+					require.False(t, deadline.Before(before.Add(tc.want)))
+					require.False(t, deadline.After(time.Now().Add(tc.want)))
+				}
+			}
+			uploaded := false
+			handler := NewRunCaptureHandler(deadlineCheckingUploader{check: func(ctx context.Context) {
+				check(ctx)
+				uploaded = true
+			}}, newTestHostname())
+			rec := &recordingCaptureTrigger{out: captureOutcome{PcapPath: writeCapture(t, []byte("pcap"))}}
+			handler.capture = rec
+			inputs := validInputs()
+			if tc.timeout != nil {
+				inputs["timeout"] = tc.timeout
+			}
+			_, err := handler.Run(ctx, newTask(inputs), nil)
+			require.NoError(t, err)
+			check(rec.ctx)
+			require.True(t, uploaded)
+		})
+	}
 }
 
 func newRecordingHandler() (*RunCaptureHandler, *recordingCaptureTrigger) {

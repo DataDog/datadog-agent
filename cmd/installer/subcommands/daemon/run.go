@@ -7,8 +7,10 @@ package daemon
 
 import (
 	"context"
+	"errors"
 
 	"github.com/spf13/cobra"
+	"go.uber.org/dig"
 	"go.uber.org/fx"
 
 	"github.com/DataDog/datadog-agent/cmd/installer/command"
@@ -25,6 +27,7 @@ import (
 	rctelemetryreporterfx "github.com/DataDog/datadog-agent/comp/remote-config/rctelemetryreporter/fx"
 	localapiimplFx "github.com/DataDog/datadog-agent/comp/updater/localapi/fx"
 	updatertelemetryfx "github.com/DataDog/datadog-agent/comp/updater/telemetry/fx"
+	updater "github.com/DataDog/datadog-agent/comp/updater/updater/def"
 	updaterFx "github.com/DataDog/datadog-agent/comp/updater/updater/fx"
 	"github.com/DataDog/datadog-agent/pkg/config/remote/service"
 	"github.com/DataDog/datadog-agent/pkg/util/defaultpaths"
@@ -42,6 +45,11 @@ func runCommand(global *command.GlobalParams) *cobra.Command {
 		},
 	}
 	return runCmd
+}
+
+func isDaemonDisabled(err error) bool {
+	err = dig.RootCause(err)
+	return errors.Is(err, updater.ErrRemoteConfigRequired) || errors.Is(err, updater.ErrRemoteUpdateDisabled)
 }
 
 func getCommonFxOption(global *command.GlobalParams) fx.Option {

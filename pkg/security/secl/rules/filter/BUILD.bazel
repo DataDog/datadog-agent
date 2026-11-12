@@ -8,5 +8,6 @@ go_library(
     deps = [
         "//pkg/security/secl/compiler/ast",
         "//pkg/security/secl/compiler/eval",
+        "//pkg/security/secl/compiler/parser",
     ],
 )

@@ -18,6 +18,8 @@
 # template (aix_helpers.sh and aix_git_setup.sh), sourced in before_script.
 
 .aix_remote:
+  # Gives the jobs the DDOCTOSTS_ID_TOKEN used below to mint a GitHub token.
+  extends: .dd_octo_sts
   image: registry.ddbuild.io/ci/datadog-agent-buildimages/linux$CI_IMAGE_LINUX_SUFFIX:$CI_IMAGE_LINUX
   tags: ["arch:amd64", "specific:true"]
   # Wait for the setup job that uploads the agent-version cache, which the
@@ -33,6 +35,12 @@
     AIX_GIT_REMOTE: "https://github.com/DataDog/datadog-agent.git"
     GIT_DEPTH: 1
   before_script:
+    - !reference [.setup_github_token_read]
+    - test -n "$GITHUB_TOKEN"
+    # Record the mint time so aix_run_cmd can refresh the token if a job runs
+    # longer than the token's 1h lifetime (see aix_helpers.sh).
+    - export AIX_GITHUB_TOKEN_MINTED_AT=$(date +%s)
+
     # Fetch the AIX host SSH connection details and private key from Vault.
     - export AIX_HOST="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER hostname)"
     - export AIX_PORT="$($CI_PROJECT_DIR/tools/ci/fetch_secret.sh $SITEOX_AIX_CI_RUNNER port)"

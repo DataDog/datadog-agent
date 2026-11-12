@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
 
-	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs"
+	"github.com/DataDog/datadog-agent/pkg/security/probe/procfs/procmaps"
 	"github.com/DataDog/datadog-agent/pkg/security/secl/model"
 )
 
@@ -103,7 +103,7 @@ func TestExtractPathFromMapsLine(t *testing.T) {
 
 	for _, entry := range entries {
 		t.Run(entry.name, func(t *testing.T) {
-			mapsEntry, ok := procfs.ParseMapsLine([]byte(entry.line))
+			mapsEntry, ok := procmaps.ParseMapsLine([]byte(entry.line))
 			if ok != entry.ok {
 				t.Errorf("expected ok=%t, got %t", entry.ok, ok)
 			}

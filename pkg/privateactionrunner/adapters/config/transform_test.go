@@ -146,104 +146,42 @@ func TestIsActionAllowed(t *testing.T) {
 	}
 }
 
-func TestGetDatadogHost(t *testing.T) {
-	tests := []struct {
-		name     string
-		endpoint string
-		expected string
-	}{
-		{
-			name:     "removes https prefix and trailing dot",
-			endpoint: "https://api.datadoghq.com.",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "removes https prefix only",
-			endpoint: "https://api.datadoghq.com",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "removes trailing dot only",
-			endpoint: "api.datadoghq.com.",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "handles clean URL without modifications",
-			endpoint: "api.datadoghq.com",
-			expected: "api.datadoghq.com",
-		},
-		{
-			name:     "handles empty string",
-			endpoint: "",
-			expected: "",
-		},
-		{
-			name:     "handles EU site with https and trailing dot",
-			endpoint: "https://api.datadoghq.eu.",
-			expected: "api.datadoghq.eu",
-		},
-		{
-			name:     "handles gov site",
-			endpoint: "https://api.ddog-gov.com.",
-			expected: "api.ddog-gov.com",
-		},
-		{
-			name:     "handles custom domain",
-			endpoint: "https://custom.endpoint.example.com.",
-			expected: "custom.endpoint.example.com",
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := getDatadogHost(tt.endpoint)
-			assert.Equal(t, tt.expected, result)
-		})
-	}
-}
-
 func TestFromDDConfig(t *testing.T) {
 	tests := []struct {
 		name           string
 		site           string
 		ddURL          string
-		expectedDDHost string
 		expectedDDSite string
 	}{
 		{
 			name:           "US site (datadoghq.com)",
 			site:           "datadoghq.com",
 			ddURL:          "",
-			expectedDDHost: "api.datadoghq.com",
 			expectedDDSite: "datadoghq.com",
 		},
 		{
 			name:           "EU site (datadoghq.eu)",
 			site:           "datadoghq.eu",
 			ddURL:          "",
-			expectedDDHost: "api.datadoghq.eu",
 			expectedDDSite: "datadoghq.eu",
 		},
 		{
 			name:           "Gov site (ddog-gov.com)",
 			site:           "ddog-gov.com",
 			ddURL:          "",
-			expectedDDHost: "api.ddog-gov.com",
 			expectedDDSite: "ddog-gov.com",
 		},
 		{
-			name:           "dd_url overrides site",
+			name:           "dd_url does not override site",
 			site:           "datadoghq.com",
 			ddURL:          "https://api.datadoghq.eu.",
-			expectedDDHost: "api.datadoghq.eu",
-			expectedDDSite: "datadoghq.eu",
+			expectedDDSite: "datadoghq.com",
 		},
 		{
-			name:           "custom domain via dd_url",
+			name:           "metrics proxy does not override default site",
 			site:           "",
 			ddURL:          "https://custom.endpoint.example.com.",
-			expectedDDHost: "custom.endpoint.example.com",
-			expectedDDSite: "",
+			expectedDDSite: "datadoghq.com",
 		},
 	}
 
@@ -267,14 +205,37 @@ func TestFromDDConfig(t *testing.T) {
 			cfg, err := FromDDConfig(mockConfig, nil)
 			require.NoError(t, err)
 
-			// Verify both DDHost and DatadogSite are set correctly
-			assert.Equal(t, tt.expectedDDHost, cfg.DDHost, "DDHost mismatch")
-			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite, "DatadogSite mismatch")
-
-			// Verify DDApiHost is derived from site, not from dd_url
-			assert.Equal(t, "api."+tt.expectedDDSite, cfg.DDApiHost, "DDApiHost should be api.<site>")
+			assert.Equal(t, tt.expectedDDSite, cfg.DatadogSite)
+			assert.Equal(t, "https://api."+tt.expectedDDSite, cfg.APIBaseURL)
 		})
 	}
+}
+
+func TestFromDDConfigWarnsForRCWithoutPARURL(t *testing.T) {
+	t.Setenv("DD_INTERNAL_PAR_USE_DD_URL_FOR_OPMS", "false")
+	cfg := configmock.New(t)
+	cfg.SetInTest(par.Enabled, true)
+	cfg.SetInTest("site", "datad0g.com")
+	for _, rcURL := range []string{"https://config.datad0g.com.", "https://config.datadoghq.com."} {
+		cfg.SetInTest("remote_configuration.rc_dd_url", rcURL)
+		warnings := captureTransformWarnings(t, func() {
+			runner, err := FromDDConfig(cfg, nil)
+			require.NoError(t, err)
+			require.Equal(t, "https://api.datad0g.com", runner.APIBaseURL)
+		})
+		require.Contains(t, warnings, "[WARN]")
+		require.Contains(t, warnings, "the RC override does not change PAR routing")
+		require.Contains(t, warnings, "Set private_action_runner.par_dd_url explicitly")
+		require.NotContains(t, warnings, "nonstandard")
+	}
+
+	cfg.SetInTest(par.RunnerURL, "https://par-proxy.example.com/prefix")
+	warnings := captureTransformWarnings(t, func() {
+		runner, err := FromDDConfig(cfg, nil)
+		require.NoError(t, err)
+		require.Equal(t, "https://par-proxy.example.com/prefix", runner.APIBaseURL)
+	})
+	require.NotContains(t, warnings, "remote_configuration.rc_dd_url")
 }
 
 func TestFromDDConfigKubernetesAllowedCustomResources(t *testing.T) {

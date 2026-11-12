@@ -17,6 +17,9 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/version"
 )
 
+const reportReasonStartup = "startup"
+const reportReasonPeriodic = "periodic"
+
 // serverlessInitFlavor is the flavor reported in the metadata payload only;
 // it is not the process-global flavor (flavor.SetFlavor).
 const serverlessInitFlavor = "serverless-init"
