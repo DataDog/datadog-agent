@@ -1,0 +1,9 @@
+---
+fixes:
+  - |
+    CSM Misconfigurations: a Kubernetes component flag that takes its value
+    from the next argument, such as ``--config /etc/default/kubeletconfig.json``,
+    now keeps that value to itself. The value also appeared as a flag of its
+    own, set to ``true``, in the ``skippedFlags`` of the Kubernetes node
+    configuration. AKS and Bottlerocket nodes, among others, start the kubelet
+    this way.

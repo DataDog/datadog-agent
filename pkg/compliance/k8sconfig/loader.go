@@ -775,6 +775,7 @@ func buildProc(name string, cmdline []string) proc {
 			} else {
 				if pendingFlagValue {
 					p.flags[cmdline[i-1]] = arg
+					pendingFlagValue = false
 				} else {
 					p.flags[arg] = ""
 				}
