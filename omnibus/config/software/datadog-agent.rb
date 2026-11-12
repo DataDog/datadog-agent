@@ -229,6 +229,8 @@ build do
     if linux_target?
       # The Bazel install omits the binary on FIPS until there is a FIPS Go toolchain.
       if fips_mode?
+        # build-sysprobe-binary links this archive and does not build it.
+        command "bazel run #{omnibazel_flags} #{host_distribution} -- //pkg/discovery/module/rust:install_libs --destdir=\"#{project_dir}/pkg/discovery/module/rust\"", env: env, :live_stream => Omnibus.logger.live_stream(:info)
         command "dda inv -- -e system-probe.build-sysprobe-binary #{fips_args} --install-path=#{install_dir}", env: env, :live_stream => Omnibus.logger.live_stream(:info)
         copy "bin/system-probe/system-probe", "#{install_dir}/embedded/bin"
       end
