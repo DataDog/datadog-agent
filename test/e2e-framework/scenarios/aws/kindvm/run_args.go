@@ -231,7 +231,7 @@ func WithStandaloneOTelAgent(fn StandaloneDdotDeployFunc) RunOption {
 	return func(p *RunParams) error { p.standaloneDdotFunc = fn; return nil }
 }
 
-// WithKindWorkerNodes configures the kind cluster worker nodes with custom labels and taints.
+// WithKindWorkerNodes configures the kind cluster worker nodes: their labels, taints, kubelet flags and mounts.
 // Use this to test workloads that depend on node topology (e.g. spot vs on-demand capacity types).
 func WithKindWorkerNodes(nodes ...kubecomp.KindWorkerNode) RunOption {
 	return func(p *RunParams) error {

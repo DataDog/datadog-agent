@@ -1227,6 +1227,221 @@ maxPods: 300`,
 	assert.NotNil(t, x509["clientCAFile"])
 }
 
+// The loader reports the ownership and permissions of the kubelet drop-in
+// directory and of each drop-in under it, in the order the kubelet merges
+// them.
+func TestKubeletConfigDirMeta(t *testing.T) {
+	usr, err := user.Current()
+	require.NoError(t, err)
+	grp, err := user.LookupGroupId(usr.Gid)
+	require.NoError(t, err)
+	file := func(name string, mode uint32) *K8sFileMeta {
+		return &K8sFileMeta{Path: name, User: usr.Username, Group: grp.Name, Mode: mode}
+	}
+
+	const dir = "/etc/openshift/kubelet.conf.d"
+	const dropin = "kind: KubeletConfiguration\napiVersion: kubelet.config.k8s.io/v1beta1\n"
+	tests := []struct {
+		name  string
+		table string
+		base  []*mockFile
+		files []*mockFile
+		want  *K8sConfigDirMeta
+	}{
+		{
+			name:  "drop-ins",
+			table: openshiftProcTable,
+			base:  openshiftFs,
+			files: []*mockFile{
+				{name: dir, isDir: true, mode: 0755},
+				{name: dir + "/10-first.conf", mode: 0644, content: dropin},
+				{name: dir + "/sub/20-second.conf", mode: 0600, content: dropin},
+				{name: dir + "/README", mode: 0644, content: "files without the .conf suffix are left alone"},
+			},
+			want: &K8sConfigDirMeta{
+				Path:  dir,
+				User:  usr.Username,
+				Group: grp.Name,
+				Mode:  uint32(os.ModeDir | 0755),
+				Files: []*K8sFileMeta{file(dir+"/10-first.conf", 0644), file(dir+"/sub/20-second.conf", 0600)},
+			},
+		},
+		{
+			name:  "missing directory",
+			table: openshiftProcTable,
+			base:  openshiftFs,
+			want:  &K8sConfigDirMeta{Path: dir},
+		},
+		{
+			// An empty --config-dir turns the kubelet drop-ins off, and the
+			// loader would otherwise walk the whole host.
+			name:  "empty --config-dir",
+			table: "kubelet --config-dir=\n",
+			files: []*mockFile{
+				{name: "/etc/stray.conf", mode: 0644, content: dropin},
+			},
+		},
+		{
+			name:  "without --config",
+			table: "kubelet --config-dir=" + dir + "\n",
+			files: []*mockFile{
+				{name: dir, isDir: true, mode: 0700},
+				{name: dir + "/10-first.conf", mode: 0640, content: dropin},
+			},
+			want: &K8sConfigDirMeta{
+				Path:  dir,
+				User:  usr.Username,
+				Group: grp.Name,
+				Mode:  uint32(os.ModeDir | 0700),
+				Files: []*K8sFileMeta{file(dir+"/10-first.conf", 0640)},
+			},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			for _, f := range tt.base {
+				f.create(t, tmpDir)
+			}
+			for _, f := range tt.files {
+				f.create(t, tmpDir)
+			}
+
+			conf := loadTestConfiguration(t, tmpDir, tt.table)
+			assert.Empty(t, conf.Errors)
+			require.NotNil(t, conf.Components.Kubelet)
+			assert.Equal(t, tt.want, conf.Components.Kubelet.ConfigDir)
+			assert.NotContains(t, conf.Components.Kubelet.SkippedFlags, "--config-dir")
+		})
+	}
+}
+
+// A drop-in of mode 0 is reported with its mode written out.
+func TestKubeletConfigDirMetaMode0(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, f := range openshiftFs {
+		f.create(t, tmpDir)
+	}
+	const name = "/etc/openshift/kubelet.conf.d/10-unreadable.conf"
+	dropin := &mockFile{name: name, mode: 0, content: "kind: KubeletConfiguration\n"}
+	dropin.create(t, tmpDir)
+
+	// The read of the drop-in fails unless the test runs as root, so the
+	// errors are left unchecked.
+	conf := loadTestConfiguration(t, tmpDir, openshiftProcTable)
+	require.NotNil(t, conf.Components.Kubelet)
+	require.NotNil(t, conf.Components.Kubelet.ConfigDir)
+	files := conf.Components.Kubelet.ConfigDir.Files
+	require.Len(t, files, 1)
+	assert.Equal(t, name, files[0].Path)
+	b, err := json.Marshal(files[0])
+	require.NoError(t, err)
+	assert.Contains(t, string(b), `"mode":0`)
+}
+
+// The kubelet lstats its drop-in directory: a symbolic link is walked only when
+// --config-dir ends with a slash, and a file named *.conf is the single
+// drop-in. The loader reads and reports the drop-ins the kubelet applies, and
+// the directory as its lstat sees it.
+func TestKubeletConfigDirRoot(t *testing.T) {
+	usr, err := user.Current()
+	require.NoError(t, err)
+	grp, err := user.LookupGroupId(usr.Gid)
+	require.NoError(t, err)
+
+	const dropin = "kind: KubeletConfiguration\napiVersion: kubelet.config.k8s.io/v1beta1\nreadOnlyPort: 10255\n"
+	tests := []struct {
+		name  string
+		dir   string
+		files []*mockFile
+		link  bool
+		typ   os.FileMode
+		want  []string
+	}{
+		{
+			name:  "symbolic link",
+			dir:   "/etc/openshift/kubelet.conf.d",
+			files: []*mockFile{{name: "/etc/openshift/real.d/10-a.conf", mode: 0644, content: dropin}},
+			link:  true,
+			typ:   os.ModeSymlink,
+		},
+		{
+			name:  "symbolic link with a slash",
+			dir:   "/etc/openshift/kubelet.conf.d/",
+			files: []*mockFile{{name: "/etc/openshift/real.d/10-a.conf", mode: 0644, content: dropin}},
+			link:  true,
+			typ:   os.ModeDir,
+			want:  []string{"/etc/openshift/kubelet.conf.d/10-a.conf"},
+		},
+		{
+			name:  "file",
+			dir:   "/etc/openshift/90-single.conf",
+			files: []*mockFile{{name: "/etc/openshift/90-single.conf", mode: 0644, content: dropin}},
+			want:  []string{"/etc/openshift/90-single.conf"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			tmpDir := t.TempDir()
+			for _, f := range openshiftFs {
+				f.create(t, tmpDir)
+			}
+			for _, f := range tt.files {
+				f.create(t, tmpDir)
+			}
+			if tt.link {
+				require.NoError(t, os.Symlink("real.d", filepath.Join(tmpDir, "/etc/openshift/kubelet.conf.d")))
+			}
+			table := strings.Replace(openshiftProcTable, "--config-dir=/etc/openshift/kubelet.conf.d", "--config-dir="+tt.dir, 1)
+
+			conf := loadTestConfiguration(t, tmpDir, table)
+			assert.Empty(t, conf.Errors)
+			require.NotNil(t, conf.Components.Kubelet)
+			require.NotNil(t, conf.Components.Kubelet.ConfigDir)
+			assert.Equal(t, tt.typ, os.FileMode(conf.Components.Kubelet.ConfigDir.Mode).Type())
+			var files []string
+			for _, f := range conf.Components.Kubelet.ConfigDir.Files {
+				assert.Equal(t, &K8sFileMeta{Path: f.Path, User: usr.Username, Group: grp.Name, Mode: 0644}, f)
+				files = append(files, f.Path)
+			}
+			assert.Equal(t, tt.want, files)
+
+			// The drop-in turns the read-only port on only where the
+			// kubelet applies it.
+			content, ok := conf.Components.Kubelet.Config.Content.(map[string]interface{})
+			require.True(t, ok)
+			if tt.want == nil {
+				readOnlyPort := 0
+				assert.Equal(t, &readOnlyPort, conf.Components.Kubelet.ReadOnlyPort)
+				assert.NotContains(t, content, "readOnlyPort")
+			} else {
+				assert.Nil(t, conf.Components.Kubelet.ReadOnlyPort)
+				assert.Equal(t, float64(10255), content["readOnlyPort"])
+			}
+		})
+	}
+}
+
+// The configuration and its metadata share one lstat and walk of the drop-in
+// directory, so an error about it is reported once.
+func TestKubeletConfigDirErrorOnce(t *testing.T) {
+	tmpDir := t.TempDir()
+	for _, f := range openshiftFs {
+		f.create(t, tmpDir)
+	}
+	const name = "/etc/openshift/90-single.conf"
+	file := &mockFile{name: name, mode: 0644, content: "kind: KubeletConfiguration\n"}
+	file.create(t, tmpDir)
+	// A slash after a file name fails the lstat with ENOTDIR, root or not.
+	table := strings.Replace(openshiftProcTable, "--config-dir=/etc/openshift/kubelet.conf.d", "--config-dir="+name+"/", 1)
+
+	conf := loadTestConfiguration(t, tmpDir, table)
+	assert.Len(t, conf.Errors, 1)
+	assert.Contains(t, strings.Join(conf.Errors, "\n"), name)
+	require.NotNil(t, conf.Components.Kubelet)
+	assert.Equal(t, &K8sConfigDirMeta{Path: name + "/"}, conf.Components.Kubelet.ConfigDir)
+}
+
 // A file the Agent may not read is reported with its content left out. Turning
 // it into an empty configuration made the managed environment detection
 // conclude that a managed node was unmanaged.

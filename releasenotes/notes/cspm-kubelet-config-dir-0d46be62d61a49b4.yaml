@@ -1,0 +1,13 @@
+---
+enhancements:
+  - |
+    CSM Misconfigurations: the Kubernetes node configuration now reports the
+    ownership and permissions of the kubelet drop-in directory given to
+    ``--config-dir``, and of each ``.conf`` file the kubelet reads from it, for
+    the CIS Kubernetes benchmark control 4.1.11.
+fixes:
+  - |
+    CSM Misconfigurations: the Kubernetes node configuration now reads the
+    kubelet drop-ins of ``--config-dir`` as the kubelet does. A drop-in
+    directory given as a symbolic link is read only when the flag ends with a
+    slash, and a ``.conf`` file given as the directory is its single drop-in.

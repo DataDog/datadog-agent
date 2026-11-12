@@ -619,6 +619,7 @@ type K8sKubeletConfig struct {
 	AnonymousAuth                  *bool              `json:"anonymous-auth,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	AuthorizationMode              *string            `json:"authorization-mode,omitempty"`                // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	ClientCaFile                   *K8sCertFileMeta   `json:"client-ca-file,omitempty"`                    // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
+	ConfigDir                      *K8sConfigDirMeta  `json:"config-dir,omitempty"`                        // versions: v1.28.4
 	EventBurst                     *int               `json:"event-burst,omitempty"`                       // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	EventQps                       *int               `json:"event-qps,omitempty"`                         // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
 	FeatureGates                   *string            `json:"feature-gates,omitempty"`                     // versions: v1.28.4, v1.27.3, v1.26.6, v1.25.11, v1.24.15
@@ -678,6 +679,10 @@ func (l *loader) newK8sKubeletConfig(flags map[string]string) *K8sKubeletConfig 
 	if v, ok := flags["--client-ca-file"]; ok {
 		delete(flags, "--client-ca-file")
 		res.ClientCaFile = l.loadCertFileMeta(v)
+	}
+	if v, ok := flags["--config-dir"]; ok {
+		delete(flags, "--config-dir")
+		res.ConfigDir = l.loadConfigDirMeta(v)
 	}
 	if v, ok := flags["--event-burst"]; ok {
 		delete(flags, "--event-burst")
