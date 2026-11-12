@@ -444,7 +444,7 @@ class TestHealthRendering(unittest.TestCase):
         Loader.add_constructor('!reference', lambda loader, node: loader.construct_sequence(node))
         pipeline = yaml.load(Path('.gitlab/childs/smp-regression-child-pipeline.yml').read_text(), Loader=Loader)
         job = pipeline['single-machine-performance-experiment-health-upload']
-        self.assertEqual(job['when'], 'manual')
+        self.assertEqual(job['rules'], [{'when': 'manual'}])
         self.assertTrue(job['allow_failure'])
         self.assertEqual(job['retry'], 0)
         self.assertEqual(job['needs'], [{'job': 'single-machine-performance-regression_detector', 'artifacts': True}])

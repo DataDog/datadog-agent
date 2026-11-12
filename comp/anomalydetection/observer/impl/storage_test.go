@@ -66,6 +66,41 @@ func TestTimeSeriesStorage_Add(t *testing.T) {
 	assert.Equal(t, 10.0, series.Points[0].Value)
 }
 
+func TestTimeSeriesStorage_FreshSeriesCount(t *testing.T) {
+	s := newTimeSeriesStorage()
+
+	updated := s.Add("check", "updated", 1, 10, nil).Ref
+	unchanged := s.Add("check", "unchanged", 1, 10, nil).Ref
+	s.Add(observer.TelemetryNamespace, "internal", 1, 11, nil)
+
+	// Both series are visible at cutoff 10 and newer than the previous cutoff 9.
+	assert.Equal(t, 2, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 9))
+	// Visible, but not newer than the previous cutoff.
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+	// Cutoff below the only visible bucket excludes both.
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 9, 8))
+
+	// A same-second merge is not a new visible bucket.
+	s.Add("check", "updated", 2, 10, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+
+	// A late historical write does not make the series fresh again.
+	s.Add("check", "updated", 3, 9, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 10, 10))
+
+	// A bucket beyond the cutoff is not visible yet and must not count.
+	s.Add("check", "future", 1, 100, nil)
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 50, 49))
+	// It counts once, on the advance that makes it visible.
+	assert.Equal(t, 1, s.FreshSeriesCount(observer.TelemetryNamespace, 100, 99))
+	assert.Equal(t, 0, s.FreshSeriesCount(observer.TelemetryNamespace, 101, 100))
+
+	// Re-admission after eviction participates in the next sample.
+	s.RemoveSeriesByRefs([]observer.SeriesRef{updated, unchanged})
+	s.Add("check", "updated", 4, 11, nil)
+	assert.Equal(t, 1, s.FreshSeriesCount(observer.TelemetryNamespace, 11, 10))
+}
+
 func TestTimeSeriesStorage_ContextSnapshots(t *testing.T) {
 	s := newTimeSeriesStorage()
 	result := s.Add("logs", "log.pattern.count", 1, 1, nil)
@@ -1419,4 +1454,21 @@ func TestInstrumentedStorageSelectionFilters(t *testing.T) {
 			require.NotEqual(t, unknownHash, hash(empty, observer.SeriesFilter{MetricType: &mt}))
 		})
 	}
+}
+
+func TestStorageSeriesCountByKind(t *testing.T) {
+	s := newDetectorTestStorage()
+	stable := addPipelinePoints(s, 1, 1, 3, metrics.GaugeType)
+	linear := addPipelinePoints(s, 2, 1, 3, metrics.GaugeType)
+	addPipelinePoints(s, 3, 1, 3, metrics.CountType)
+	s.AddWithKeyAndHostComposite(observer.TelemetryNamespace, "internal", "", 1, 1, tagset.CompositeTags{}, 4, metrics.GaugeType)
+	s.SetSeriesKind(stable, observer.STABLE)
+	s.SetSeriesKind(linear, observer.LINEAR)
+	require.Equal(t, [metricKindCount]uint64{0, 0, 1, 1}, s.SeriesCountByKind())
+	s.SetSeriesKind(stable, observer.UNKNOWN)
+	require.Equal(t, [metricKindCount]uint64{0, 1, 0, 1}, s.SeriesCountByKind())
+	s.ResetSeriesKinds()
+	require.Equal(t, [metricKindCount]uint64{2, 0, 0, 0}, s.SeriesCountByKind())
+	s.RemoveSeriesByRefs([]observer.SeriesRef{linear})
+	require.Equal(t, [metricKindCount]uint64{1, 0, 0, 0}, s.SeriesCountByKind())
 }

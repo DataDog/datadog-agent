@@ -22,3 +22,9 @@ func threadPointer(tid int, _ *syscall.PtraceRegs) (uint64, error) {
 	}
 	return tls.Regs[0], nil
 }
+
+// goGRegister returns R28, the register the Go ABI keeps g in. A program built
+// without cgo keeps g there only, never in TLS.
+func goGRegister(regs *syscall.PtraceRegs) uint64 {
+	return regs.Regs[28]
+}

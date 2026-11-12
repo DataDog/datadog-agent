@@ -25,6 +25,10 @@ import (
 // Payload handles the JSON unmarshalling of the metadata payload
 type testPayload struct{}
 
+func (p *testPayload) PayloadType() marshaler.MetadataPayloadType {
+	return marshaler.MetadataPayloadTypeAgent
+}
+
 func (p *testPayload) MarshalJSON() ([]byte, error) {
 	return []byte("{\"test\": true}"), nil
 }
@@ -34,7 +38,7 @@ func getTestInventoryPayload(t *testing.T, confOverrides map[string]any) *Invent
 		config.NewMockWithOverrides(t, confOverrides),
 		logmock.New(t),
 		serializermock.NewMetricSerializer(t),
-		func() marshaler.JSONMarshaler { return &testPayload{} },
+		func() marshaler.TypedJSONMarshaler { return &testPayload{} },
 		"test.json",
 	)
 	return &i
@@ -67,7 +71,7 @@ func TestProviderSpecificFirstRunDelay(t *testing.T) {
 	conf := config.NewMockWithOverrides(t, map[string]any{"inventories_first_run_delay": 3600})
 	l := logmock.New(t)
 	s := serializermock.NewMetricSerializer(t)
-	getPayload := func() marshaler.JSONMarshaler { return &testPayload{} }
+	getPayload := func() marshaler.TypedJSONMarshaler { return &testPayload{} }
 	regular := CreateInventoryPayload(conf, l, s, getPayload, "regular.json")
 	immediate := CreateInventoryPayload(conf, l, s, getPayload, "immediate.json")
 	immediate.SetFirstRunDelay(0)
@@ -283,7 +287,7 @@ func TestSubmitSkippedWithoutCollectionOrSerializer(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			i := getTestInventoryPayload(t, map[string]any{"inventories_enabled": tt.enabled})
-			i.getPayload = func() marshaler.JSONMarshaler {
+			i.getPayload = func() marshaler.TypedJSONMarshaler {
 				t.Fatal("skipped submission must not build a payload")
 				return nil
 			}
@@ -329,14 +333,14 @@ func TestSubmitPreservesRefreshTriggeredWhileBuildingPayload(t *testing.T) {
 	i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
 	serializerMock := i.serializer.(*serializermock.MetricSerializer)
 	serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Twice()
-	i.getPayload = func() marshaler.JSONMarshaler {
+	i.getPayload = func() marshaler.TypedJSONMarshaler {
 		i.Refresh()
 		return &testPayload{}
 	}
 	assert.NoError(t, i.Submit())
 	assert.True(t, i.RefreshTriggered())
 
-	i.getPayload = func() marshaler.JSONMarshaler { return &testPayload{} }
+	i.getPayload = func() marshaler.TypedJSONMarshaler { return &testPayload{} }
 	i.Collect(context.Background())
 	assert.False(t, i.RefreshTriggered())
 	serializerMock.AssertNumberOfCalls(t, "SendMetadata", 2)
@@ -356,7 +360,7 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 			i := getTestInventoryPayload(t, map[string]any{"inventories_first_run_delay": 0})
 			serializerMock := i.serializer.(*serializermock.MetricSerializer)
 			if tt.emptyPayload {
-				i.getPayload = func() marshaler.JSONMarshaler { return nil }
+				i.getPayload = func() marshaler.TypedJSONMarshaler { return nil }
 			} else {
 				serializerMock.On("SendMetadata", &testPayload{}).Return(tt.sendError).Once()
 			}
@@ -378,7 +382,7 @@ func TestSubmitEmptyPayloadAndSerializerError(t *testing.T) {
 				serializerMock.AssertNumberOfCalls(t, "SendMetadata", 1)
 			}
 
-			i.getPayload = func() marshaler.JSONMarshaler { return &testPayload{} }
+			i.getPayload = func() marshaler.TypedJSONMarshaler { return &testPayload{} }
 			serializerMock.On("SendMetadata", &testPayload{}).Return(nil).Once()
 			i.Refresh()
 			i.Collect(context.Background())

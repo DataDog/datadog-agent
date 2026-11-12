@@ -64,6 +64,13 @@ const (
 	maximalMaxBackoffTime = 5 * time.Minute
 )
 
+// Minimum delay between two DC switch recovery attempts. The recovery
+// re-requests a full fresh-join payload from the backend, so it must not run
+// on every poll: the cooldown is deliberately well above the (1 minute)
+// default refresh interval. The first attempt after a TUF failure is
+// immediate; only the retries are spaced out.
+const dcSwitchRecoveryCooldown = 5 * time.Minute
+
 const (
 	// When the agent continuously has the same authorization error when fetching RC updates
 	// The first initialLogRefreshError are logged as ERROR, and then it's only logged as INFO
@@ -189,6 +196,11 @@ type CoreAgentService struct {
 		// of our backoff policy
 		backoffErrorCount int
 
+		// Last time a DC switch recovery was attempted (zero until the first
+		// attempt). Recovery re-requests a full payload from the backend, so it
+		// is rate limited to one attempt per cooldown.
+		lastDCSwitchRecoveryAttempt time.Time
+
 		products    map[rdata.Product]struct{}
 		newProducts map[rdata.Product]struct{}
 	}
@@ -215,6 +227,8 @@ type uptaneClient interface {
 type coreAgentUptaneClient interface {
 	uptaneClient
 	Update(response *pbgo.LatestConfigsResponse) error
+	TryRecoverFromEmbeddedRoot(response *pbgo.LatestConfigsResponse) error
+	EmbeddedRootVersions() (uptane.TUFVersions, error)
 }
 
 // RcTelemetryReporter should be implemented by the agent to publish metrics
@@ -937,7 +951,54 @@ func (s *CoreAgentService) refresh() error {
 	if err != nil {
 		s.mu.backoffErrorCount = s.backoffPolicy.IncError(s.mu.backoffErrorCount)
 		s.mu.lastUpdateErr = fmt.Errorf("tuf: %v", err)
-		return err
+
+		// When an org moves to another DC behind the same URL,
+		// the TUF update fails permanently on signature verification: the
+		// latched state belongs to the old DC, and the new DC's root chain
+		// cannot even be sent through a normal update since both DCs share the
+		// embedded root version (no root files are sent at all). Attempt to
+		// recover by re-requesting a fresh-join payload and verifying it from
+		// the embedded root; on success the RC DB is wiped and the new DC's
+		// state is accepted.
+		if s.mu.lastDCSwitchRecoveryAttempt.IsZero() || s.clock.Now().Sub(s.mu.lastDCSwitchRecoveryAttempt) >= dcSwitchRecoveryCooldown {
+			s.mu.lastDCSwitchRecoveryAttempt = s.clock.Now()
+
+			embeddedVersions, embeddedErr := s.mu.uptane.EmbeddedRootVersions()
+			if embeddedErr != nil {
+				log.Warnf("[%s] could not get the embedded root versions, skipping the DC switch recovery: %v", s.rcType, embeddedErr)
+				return err
+			}
+			// A fresh-join request: the embedded root versions, so the backend
+			// sends the full root chain starting from the embedded root, all the
+			// other versions zeroed, and the TUF error reported for backend
+			// observability.
+			recoveryRequest := buildLatestConfigsRequest(s.hostname, s.agentVersion, s.tagsGetter(), s.traceAgentEnv, orgUUID, embeddedVersions, activeClients, s.mu.products, s.mu.newProducts, s.mu.lastUpdateErr, clientState)
+			var recoveryResponse *pbgo.LatestConfigsResponse
+			var recoveryErr error
+			func() {
+				s.mu.Unlock()
+				defer s.mu.Lock()
+				ctx := context.Background()
+				recoveryResponse, recoveryErr = s.api.Fetch(ctx, recoveryRequest)
+			}()
+			if recoveryErr != nil {
+				log.Debugf("[%s] could not fetch a fresh-join payload for the DC switch recovery: %v", s.rcType, recoveryErr)
+				return err
+			}
+			if recoveryErr = s.mu.uptane.TryRecoverFromEmbeddedRoot(recoveryResponse); recoveryErr != nil {
+				log.Warnf("[%s] DC switch recovery failed, keeping the current TUF state: %v", s.rcType, recoveryErr)
+				return err
+			}
+			log.Infof("[%s] recovered from a DC switch: the Remote Config database was reset and re-verified from the embedded root", s.rcType)
+			// The TUF error was transient (caused by the DC switch) and is now
+			// resolved: do not report a stale error to the backend on the next
+			// poll.
+			s.mu.lastUpdateErr = nil
+		} else {
+			// Within the recovery cooldown: do not hammer the backend, keep
+			// the original error.
+			return err
+		}
 	}
 	// If a user hasn't explicitly set the refresh interval, allow the backend to override it based
 	// on the contents of our update request

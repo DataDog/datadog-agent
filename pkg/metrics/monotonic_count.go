@@ -77,6 +77,12 @@ func (mc *MonotonicCount) isStateful() bool {
 	return true
 }
 
+// Deltas flushed for the parts of a window sum up to the delta of the window, as the
+// previous sample is kept across flushes.
+func (mc *MonotonicCount) isDecomposable() bool {
+	return true
+}
+
 func (mc *MonotonicCount) metricType() MetricType {
 	return MonotonicCountType
 }

@@ -97,7 +97,6 @@ type Server struct {
 	decoder       runtime.Decoder
 	mux           *http.ServeMux
 	secretsLister corelisters.SecretLister
-	healthHandle  *health.Handle
 }
 
 // NewServer creates an admission webhook server.
@@ -105,7 +104,6 @@ func NewServer(secretsLister corelisters.SecretLister) *Server {
 	s := &Server{
 		mux:           http.NewServeMux(),
 		secretsLister: secretsLister,
-		healthHandle:  health.RegisterReadiness("admission-controller-webhook"),
 	}
 
 	s.initDecoder()
@@ -139,6 +137,9 @@ func (s *Server) Register(uri string, webhookName string, webhookType admicommon
 
 // Run starts the kubernetes admission webhook server.
 func (s *Server) Run(mainCtx context.Context) error {
+	// Registered before listening so that a failure to start leaves the server unhealthy.
+	healthHandle := health.RegisterReadiness("admission-controller-webhook")
+
 	var tlsMinVersion uint16 = tls.VersionTLS13
 	if pkgconfigsetup.Datadog().GetBool("cluster_agent.allow_legacy_tls") {
 		tlsMinVersion = tls.VersionTLS10
@@ -186,11 +187,11 @@ func (s *Server) Run(mainCtx context.Context) error {
 		case <-mainCtx.Done():
 			shutdownCtx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 			defer cancel()
-			s.healthHandle.Deregister() //nolint:errcheck
+			healthHandle.Deregister() //nolint:errcheck
 			return server.Shutdown(shutdownCtx)
 		case err := <-servErrCh:
 			return fmt.Errorf("admission controller webhook server stopped unexpectedly: %w", err)
-		case <-s.healthHandle.C:
+		case <-healthHandle.C:
 			// Drain the health check channel to stay healthy
 		}
 	}
