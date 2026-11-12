@@ -1,0 +1,14 @@
+# JSON objects in strings for map settings
+kubernetes_pod_labels_as_tags: '{"app": "kube_app"}'
+network_path:
+  collector:
+    source_excludes: '{"10.0.0.0/8": ["80", "443"]}'
+    dest_excludes: '{"10.0.0.0/8": "80"}'
+# nested JSON object for a map of strings
+kubernetes_node_labels_as_tags: '{"zone": {"nested": "value"}}'
+# JSON list for a map setting
+container_labels_as_tags: '["app"]'
+# invalid JSON for a map setting
+docker_labels_as_tags: '{"app": '
+# JSON object for a list setting
+histogram_aggregates: '{"max": true}'

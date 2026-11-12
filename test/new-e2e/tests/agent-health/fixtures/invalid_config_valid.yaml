@@ -1,0 +1,13 @@
+# Valid values for scalar, list and map settings: no invalid-config issue is expected.
+tags:
+  - team:agent-health
+  - env:e2e
+histogram_aggregates: [max, median, count]
+jmx_thread_pool_size: 3
+inventories_enabled: true
+kubernetes_pod_labels_as_tags:
+  app: kube_app
+network_path:
+  collector:
+    source_excludes:
+      "10.0.0.0/8": ["80", "443"]
