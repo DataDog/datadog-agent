@@ -13,16 +13,78 @@ import (
 
 	"github.com/stretchr/testify/require"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 
 	configmock "github.com/DataDog/datadog-agent/pkg/config/mock"
+	"github.com/DataDog/datadog-agent/pkg/util/pointer"
 )
+
+// valueFromTracerConfigs is the expected result of decoding testdata/value_from.yaml and
+// valueFromTargetsJSON. The unquoted boolean value is decoded as "1".
+var valueFromTracerConfigs = []TracerConfig{
+	{Name: "DD_PROFILING_ENABLED", Value: "1"},
+	{
+		Name: "DD_SERVICE",
+		ValueFrom: &corev1.EnvVarSource{
+			FieldRef: &corev1.ObjectFieldSelector{FieldPath: "metadata.labels['app']"},
+		},
+	},
+	{
+		Name: "DD_API_KEY",
+		ValueFrom: &corev1.EnvVarSource{
+			SecretKeyRef: &corev1.SecretKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "datadog-secret"},
+				Key:                  "api-key",
+			},
+		},
+	},
+	{
+		Name: "DD_ENV",
+		ValueFrom: &corev1.EnvVarSource{
+			ConfigMapKeyRef: &corev1.ConfigMapKeySelector{
+				LocalObjectReference: corev1.LocalObjectReference{Name: "datadog-config"},
+				Key:                  "env",
+				Optional:             pointer.Ptr(true),
+			},
+		},
+	},
+	{
+		Name: "MEMORY_LIMIT",
+		ValueFrom: &corev1.EnvVarSource{
+			ResourceFieldRef: &corev1.ResourceFieldSelector{
+				ContainerName: "app",
+				Resource:      "limits.memory",
+				Divisor:       resource.MustParse("1Mi"),
+			},
+		},
+	},
+	{
+		Name: "CPU_LIMIT",
+		ValueFrom: &corev1.EnvVarSource{
+			ResourceFieldRef: &corev1.ResourceFieldSelector{
+				Resource: "limits.cpu",
+				Divisor:  resource.MustParse("1"),
+			},
+		},
+	},
+}
+
+const valueFromTargetsJSON = `[{"name": "value-from", "ddTraceConfigs": [
+	{"name": "DD_PROFILING_ENABLED", "value": true},
+	{"name": "DD_SERVICE", "valueFrom": {"fieldRef": {"fieldPath": "metadata.labels['app']"}}},
+	{"name": "DD_API_KEY", "valueFrom": {"secretKeyRef": {"name": "datadog-secret", "key": "api-key"}}},
+	{"name": "DD_ENV", "valueFrom": {"configMapKeyRef": {"name": "datadog-config", "key": "env", "optional": true}}},
+	{"name": "MEMORY_LIMIT", "valueFrom": {"resourceFieldRef": {"containerName": "app", "resource": "limits.memory", "divisor": "1Mi"}}},
+	{"name": "CPU_LIMIT", "valueFrom": {"resourceFieldRef": {"resource": "limits.cpu", "divisor": 1}}}
+]}]`
 
 func TestNewInstrumentationConfig(t *testing.T) {
 	tests := []struct {
-		name       string
-		configPath string
-		expected   *InstrumentationConfig
-		shouldErr  bool
+		name        string
+		configPath  string
+		expected    *InstrumentationConfig
+		shouldErr   bool
+		errContains string
 	}{
 		{
 			name:       "valid config enabled namespaces",
@@ -200,6 +262,38 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			},
 		},
 		{
+			name:       "tracer configs with every valueFrom source",
+			configPath: "testdata/value_from.yaml",
+			expected: &InstrumentationConfig{
+				Enabled:            true,
+				OnDemand:           true,
+				EnabledNamespaces:  []string{},
+				DisabledNamespaces: []string{},
+				InjectorImageTag:   "0",
+				LibVersions:        map[string]string{},
+				Targets: []Target{
+					{
+						Name:          "value-from",
+						TracerConfigs: valueFromTracerConfigs,
+					},
+				},
+				InjectionMode: "auto",
+				APMBasic:      APMBasicConfig{TracerVersions: map[string]string{"c": "0"}},
+			},
+		},
+		{
+			name:        "unknown field in valueFrom",
+			configPath:  "testdata/value_from_extra_field.yaml",
+			shouldErr:   true,
+			errContains: "fooBar",
+		},
+		{
+			name:        "unknown field in tracer config",
+			configPath:  "testdata/env_extra_field.yaml",
+			shouldErr:   true,
+			errContains: "vaule",
+		},
+		{
 			name:       "both enabled and disabled namespaces",
 			configPath: "testdata/both_enabled_and_disabled.yaml",
 			shouldErr:  true,
@@ -226,6 +320,7 @@ func TestNewInstrumentationConfig(t *testing.T) {
 			actual, err := NewInstrumentationConfig(mockConfig)
 			if tt.shouldErr {
 				require.Error(t, err)
+				require.ErrorContains(t, err, tt.errContains)
 				return
 			}
 			require.NoError(t, err)
@@ -408,6 +503,15 @@ func TestTargetEnvVar(t *testing.T) {
 			require.Equal(t, tt.expected, actual.Targets)
 		})
 	}
+}
+
+func TestTargetEnvVarValueFrom(t *testing.T) {
+	t.Setenv("DD_APM_INSTRUMENTATION_TARGETS", valueFromTargetsJSON)
+
+	actual, err := NewInstrumentationConfig(configmock.New(t))
+	require.NoError(t, err)
+
+	require.Equal(t, []Target{{Name: "value-from", TracerConfigs: valueFromTracerConfigs}}, actual.Targets)
 }
 
 func TestGetPinnedLibraries(t *testing.T) {
