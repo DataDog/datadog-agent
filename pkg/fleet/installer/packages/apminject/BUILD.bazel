@@ -235,6 +235,8 @@ dd_agent_go_test(
         "systemd_test.go",
     ],
     embed = [":apminject"],
+    # expects umask 022, RBE workers use 077
+    tags = ["no-remote-exec"],
     deps = select({
         "@rules_go//go/platform:aix": [
             "//pkg/fleet/installer/env",

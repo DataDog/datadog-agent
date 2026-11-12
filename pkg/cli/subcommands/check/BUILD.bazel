@@ -98,6 +98,8 @@ dd_agent_go_test(
     name = "check_test",
     srcs = ["command_test.go"],
     embed = [":check"],
+    # expects umask 022, RBE workers use 077
+    tags = ["no-remote-exec"],
     deps = [
         "//comp/core",
         "//comp/core/autodiscovery/integration",

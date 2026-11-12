@@ -281,6 +281,8 @@ dd_agent_go_test(
         ["npm"],
         ["pcap"],
     ],
+    # needs CAP_NET_RAW and umask 022
+    tags = ["no-remote-exec"],
     deps = select({
         "@rules_go//go/platform:android": [
             "//pkg/compliance/dbconfig",
