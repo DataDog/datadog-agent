@@ -257,12 +257,6 @@ pkg_files(
     prefix = "pkg/ebpf/bytecode/runtime",
 )
 
-pkg_install(
-    name = "install_runtime_hash_files",
-    srcs = [":install_runtime_hashes"],
-    target_compatible_with = ["@platforms//os:linux"],
-)
-
 pkg_files(
     name = "install_kernelbugs_objects",
     srcs = ["//pkg/ebpf/kernelbugs:uprobe-trigger.stripped"],
