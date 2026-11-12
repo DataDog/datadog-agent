@@ -8,6 +8,8 @@
 package defaultforwarderimpl
 
 import (
+	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -597,6 +599,56 @@ func TestDomainForwarderStopFlushesCanceledInflightTransactionToDisk(t *testing.
 	require.Len(t, storage.allStored, 1, "canceled in-flight transaction must reach retry queue before shutdown FlushToDisk")
 	assert.Equal(t, txn, storage.allStored[0])
 	assert.Equal(t, 0, forwarder.retryQueue.GetTransactionCount(), "FlushToDisk should empty the in-memory retry queue")
+}
+
+// TestDomainForwarderSendHTTPTransactionDirectDoesNotBlockEndpointOnCancel
+// covers sendHTTPTransactionDirect (used by SubmitV1IntakeDirect and friends):
+// like Worker.process, a canceled context must be reported back to the
+// caller but must not trip the endpoint circuit breaker, since cancellation
+// means the caller stopped waiting for a response, not that the endpoint is
+// unhealthy.
+func TestDomainForwarderSendHTTPTransactionDirectDoesNotBlockEndpointOnCancel(t *testing.T) {
+	requestEntered := make(chan struct{})
+	releaseHandler := make(chan struct{})
+	server := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+		close(requestEntered)
+		// Fall back to releaseHandler in case this environment's server-side
+		// request context is not canceled promptly (or at all) when the client
+		// drops the connection; without it, server.Close() below could block on
+		// this handler until the suite's global timeout. See the handler in
+		// TestDomainForwarderStopFlushesCanceledInflightTransactionToDisk.
+		select {
+		case <-r.Context().Done():
+		case <-releaseHandler:
+		}
+	}))
+	defer server.Close()
+
+	mockConfig := mock.New(t)
+	log := logmock.New(t)
+	secrets := secretsmock.New(t)
+	telemetry := retry.NewTransactionRetryQueueTelemetry("domain")
+	retryQueue := retry.NewTransactionRetryQueue(nil, 100, 0, telemetry, retry.NewPointCountTelemetryMock())
+	forwarder := newDomainForwarder(mockConfig, log, secrets, "test", false, false, retryQueue, newTestConcurrencyDomain(1, 1), 0, retry.NewPointCountTelemetry("domain"), server.Client().Transport)
+
+	txn := newTestHTTPTransaction(server.URL, 1)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan error, 1)
+	go func() {
+		done <- forwarder.sendHTTPTransactionDirect(ctx, txn)
+	}()
+
+	<-requestEntered
+	cancel()
+
+	err := <-done
+	close(releaseHandler)
+
+	require.Error(t, err, "cancellation must still be surfaced to the direct-send caller")
+	assert.True(t, errors.Is(err, context.Canceled), "error must wrap context.Canceled: %v", err)
+	assert.False(t, forwarder.blockedList.isBlockForSend(txn.GetTarget(), time.Now()),
+		"a canceled direct-send request must not trip the endpoint circuit breaker")
 }
 
 func newDomainForwarderForTest(t *testing.T, config config.Component, log log.Component, connectionResetInterval time.Duration, ha bool) *domainForwarder {
