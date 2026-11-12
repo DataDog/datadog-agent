@@ -13,18 +13,38 @@ import (
 	"github.com/DataDog/datadog-agent/pkg/networkdevices/connectivity"
 )
 
-// scan probes one request's targets.
+// scan probes one request's targets. A request with target groups tries each
+// target only with its group's credentials and tags its result with the group.
 func (c *connectivityCheck) scan(ctx context.Context, req connectivity.Request) (connectivity.Result, error) {
-	opts, err := toProbeOptions(req, c.pingCapability())
+	ping := c.pingCapability()
+	opts, err := toProbeOptions(req, ping)
 	if err != nil {
 		return connectivity.Result{}, err
 	}
 
-	results, err := probe.Scan(ctx, workers(req.Workers), req.Targets, opts)
+	if req.TargetGroups == nil {
+		results, err := probe.Scan(ctx, workers(req.Workers), req.Targets, opts)
+		if err != nil {
+			return connectivity.Result{}, err
+		}
+		return toConnectivityResult(results), nil
+	}
+
+	plans, err := toTargetPlans(req, ping)
 	if err != nil {
 		return connectivity.Result{}, err
 	}
-	return toConnectivityResult(results), nil
+	results, err := probe.ScanEach(ctx, workers(req.Workers), req.Targets, func(target string) probe.Options {
+		return plans[target].opts
+	})
+	if err != nil {
+		return connectivity.Result{}, err
+	}
+	res := toConnectivityResult(results)
+	for i := range res.Devices {
+		res.Devices[i].GroupID = plans[res.Devices[i].IPAddress].groupID
+	}
+	return res, nil
 }
 
 // workers is the request's concurrency, which bounds one check. The number of

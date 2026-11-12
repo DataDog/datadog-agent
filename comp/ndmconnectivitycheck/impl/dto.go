@@ -63,6 +63,84 @@ func toProbeOptions(req connectivity.Request, ping pingprobe.Capability) (probe.
 	return opts, nil
 }
 
+// targetPlan is the probes one target of a grouped request runs, and its group.
+type targetPlan struct {
+	groupID string
+	opts    probe.Options
+}
+
+// toTargetPlans maps a grouped request to each target's probes: a target is
+// tried only with the credentials its group names, in the group's order. The
+// request's targets must be exactly its groups' targets, each in one group only,
+// and every credential id must name one of the request's credentials. A group
+// with no credentials runs no SNMP probe, as a request with no credentials does.
+// Its error is answered with a 400.
+func toTargetPlans(req connectivity.Request, ping pingprobe.Capability) (map[string]targetPlan, error) {
+	creds := make(map[string]connectivity.SNMPCredential, len(req.Credentials))
+	for _, c := range req.Credentials {
+		if _, dup := creds[c.ID]; dup {
+			return nil, fmt.Errorf("%w: credential id '%s' is not unique", connectivity.ErrInvalidRequest, c.ID)
+		}
+		creds[c.ID] = c
+	}
+
+	plans := make(map[string]targetPlan)
+	groupIDs := make(map[string]struct{}, len(req.TargetGroups))
+	for _, g := range req.TargetGroups {
+		if g.ID == "" {
+			return nil, fmt.Errorf("%w: a target group has no id", connectivity.ErrInvalidRequest)
+		}
+		if _, dup := groupIDs[g.ID]; dup {
+			return nil, fmt.Errorf("%w: target group id '%s' is not unique", connectivity.ErrInvalidRequest, g.ID)
+		}
+		groupIDs[g.ID] = struct{}{}
+
+		groupReq := req
+		groupReq.Credentials = make([]connectivity.SNMPCredential, 0, len(g.CredentialIDs))
+		named := make(map[string]struct{}, len(g.CredentialIDs))
+		for _, id := range g.CredentialIDs {
+			c, ok := creds[id]
+			if !ok {
+				return nil, fmt.Errorf("%w: target group '%s' names unknown credential '%s'", connectivity.ErrInvalidRequest, g.ID, id)
+			}
+			if _, dup := named[id]; dup {
+				return nil, fmt.Errorf("%w: target group '%s' names credential '%s' more than once", connectivity.ErrInvalidRequest, g.ID, id)
+			}
+			named[id] = struct{}{}
+			groupReq.Credentials = append(groupReq.Credentials, c)
+		}
+
+		opts, err := toProbeOptions(groupReq, ping)
+		if err != nil {
+			return nil, fmt.Errorf("target group '%s': %w", g.ID, err)
+		}
+
+		for _, ip := range g.TargetIPs {
+			if _, dup := plans[ip]; dup {
+				return nil, fmt.Errorf("%w: target '%s' is listed more than once in the target groups", connectivity.ErrInvalidRequest, ip)
+			}
+			plans[ip] = targetPlan{groupID: g.ID, opts: opts}
+		}
+	}
+
+	targets := make(map[string]struct{}, len(req.Targets))
+	for _, t := range req.Targets {
+		if _, ok := plans[t]; !ok {
+			return nil, fmt.Errorf("%w: target '%s' is in no target group", connectivity.ErrInvalidRequest, t)
+		}
+		targets[t] = struct{}{}
+	}
+	for _, g := range req.TargetGroups {
+		for _, ip := range g.TargetIPs {
+			if _, ok := targets[ip]; !ok {
+				return nil, fmt.Errorf("%w: target '%s' of target group '%s' is not in the targets", connectivity.ErrInvalidRequest, ip, g.ID)
+			}
+		}
+	}
+
+	return plans, nil
+}
+
 func toSNMPCredentials(creds []connectivity.SNMPCredential) []snmpprobe.Credential {
 	out := make([]snmpprobe.Credential, 0, len(creds))
 	for _, c := range creds {

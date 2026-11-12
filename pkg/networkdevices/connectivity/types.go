@@ -77,9 +77,19 @@ type SNMPResult struct {
 }
 
 type DeviceResult struct {
-	IPAddress  string      `json:"ipAddress"`
+	IPAddress string `json:"ipAddress"`
+	// GroupID is the id of the TargetGroup the device was checked in, empty for a request without groups.
+	GroupID    string      `json:"groupID,omitempty"`
 	PingResult *PingResult `json:"pingResult,omitempty"`
 	SNMPResult *SNMPResult `json:"snmpResult,omitempty"`
+}
+
+// TargetGroup restricts the SNMP credentials tried on a set of targets to the
+// credentials whose id is listed in CredentialIDs.
+type TargetGroup struct {
+	ID            string   `json:"id"`
+	TargetIPs     []string `json:"targetIPs"`
+	CredentialIDs []string `json:"credentialIDs"`
 }
 
 type Request struct {
@@ -89,6 +99,10 @@ type Request struct {
 	SNMPOptions *SNMPOptions     `json:"snmpOptions,omitempty"`
 	Workers     int              `json:"workers,omitempty"`
 	Credentials []SNMPCredential `json:"credentials,omitempty"`
+	// TargetGroups, when not nil, has every target tried only with its own
+	// group's credentials. A nil value tries every target with every credential.
+	// It has no omitempty so that an empty, non-nil list is still a grouped request.
+	TargetGroups []TargetGroup `json:"targetGroups"`
 }
 
 type Result struct {

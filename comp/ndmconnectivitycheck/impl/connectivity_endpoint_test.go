@@ -38,6 +38,21 @@ func TestConnectivityCheckEndpointHandler(t *testing.T) {
 			expectedStatus: http.StatusBadRequest,
 		},
 		{
+			name:           "rejects a target group naming an unknown credential",
+			body:           `{"targets":["10.0.0.1"],"checks":[],"targetGroups":[{"id":"g1","targetIPs":["10.0.0.1"],"credentialIDs":["cred-z"]}]}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "rejects an empty target group list for targets",
+			body:           `{"targets":["10.0.0.1"],"checks":[],"targetGroups":[]}`,
+			expectedStatus: http.StatusBadRequest,
+		},
+		{
+			name:           "accepts a grouped request",
+			body:           `{"targets":["10.0.0.1"],"checks":[],"targetGroups":[{"id":"g1","targetIPs":["10.0.0.1"],"credentialIDs":[]}]}`,
+			expectedStatus: http.StatusOK,
+		},
+		{
 			name:           "accepts a request with no checks",
 			body:           `{"targets":["10.0.0.1"],"checks":[]}`,
 			expectedStatus: http.StatusOK,

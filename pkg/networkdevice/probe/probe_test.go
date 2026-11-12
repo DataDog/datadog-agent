@@ -182,3 +182,25 @@ func TestScanWithNoProbeStillReturnsATargetPerAddress(t *testing.T) {
 	assert.Equal(t, "10.0.0.1", results[0].Target)
 	assert.Equal(t, "10.0.0.2", results[1].Target)
 }
+
+func TestScanEachRunsEachTargetWithItsOwnOptions(t *testing.T) {
+	optionsFor := func(target string) Options {
+		if target == "127.0.0.1" {
+			return Options{SNMP: &snmpprobe.Options{
+				Port:        1,
+				Timeout:     50 * time.Millisecond,
+				Credentials: []snmpprobe.Credential{{ID: "cred-1", Version: "2c", Community: "public"}},
+			}}
+		}
+		return Options{}
+	}
+
+	results, err := ScanEach(context.Background(), 2, []string{"127.0.0.1", "10.0.0.2"}, optionsFor)
+
+	require.NoError(t, err)
+	require.Len(t, results, 2)
+	assert.Equal(t, "127.0.0.1", results[0].Target)
+	require.NotNil(t, results[0].SNMP)
+	assert.Equal(t, "10.0.0.2", results[1].Target)
+	assert.Nil(t, results[1].SNMP)
+}

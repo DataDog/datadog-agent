@@ -47,8 +47,14 @@ func (o Options) Fingerprints() []string {
 // Scan probes every target with every configured probe. It errors only when its
 // context is done, alongside the results it already collected.
 func Scan(ctx context.Context, workers int, targets []string, opts Options) ([]Result, error) {
+	return ScanEach(ctx, workers, targets, func(string) Options { return opts })
+}
+
+// ScanEach is Scan with the probes for each target given by optionsFor, on the
+// same bounded fan-out.
+func ScanEach(ctx context.Context, workers int, targets []string, optionsFor func(target string) Options) ([]Result, error) {
 	return scan(ctx, workers, targets, func(ctx context.Context, target string) Result {
-		return scanOne(ctx, target, opts)
+		return scanOne(ctx, target, optionsFor(target))
 	})
 }
 

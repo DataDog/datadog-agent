@@ -30,6 +30,7 @@ dd_agent_go_test(
     srcs = [
         "connectivity_endpoint_test.go",
         "dto_test.go",
+        "scan_test.go",
     ],
     embed = [":impl"],
     deps = [
