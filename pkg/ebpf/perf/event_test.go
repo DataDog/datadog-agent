@@ -74,6 +74,40 @@ func TestAfterStopWaitsForHandler(t *testing.T) {
 	}
 }
 
+// TestPreStartStartsOneReadLoop checks that a second PreStart, as on a repeated
+// manager Start, doesn't start another read loop, which AfterStop wouldn't
+// wait for: records are handled one at a time, by a single loop.
+func TestPreStartStartsOneReadLoop(t *testing.T) {
+	const records = 4
+	moduleName := names.NewModuleName("perf_test")
+	var active, maxActive, handled atomic.Int32
+	e := &EventHandler{
+		handler: func([]byte) {
+			n := active.Add(1)
+			for {
+				m := maxActive.Load()
+				if n <= m || maxActive.CompareAndSwap(m, n) {
+					break
+				}
+			}
+			time.Sleep(20 * time.Millisecond)
+			active.Add(-1)
+			handled.Add(1)
+		},
+		ringChan: make(chan *ringbuf.Record, records),
+	}
+	e.readLoop = e.ringLoop
+	require.NoError(t, e.PreStart(nil, moduleName))
+	require.NoError(t, e.PreStart(nil, moduleName))
+	for range records {
+		e.ringChan <- &ringbuf.Record{RawSample: []byte{1}}
+	}
+
+	require.NoError(t, e.AfterStop(nil, moduleName, manager.CleanAll))
+	assert.EqualValues(t, records, handled.Load())
+	assert.EqualValues(t, 1, maxActive.Load(), "records were handled concurrently by more than one read loop")
+}
+
 // TestAfterStopWithoutPreStart checks that AfterStop doesn't block when the
 // read loop was never started, e.g. because the manager failed to start.
 func TestAfterStopWithoutPreStart(t *testing.T) {

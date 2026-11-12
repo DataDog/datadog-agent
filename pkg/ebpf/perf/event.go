@@ -301,6 +301,12 @@ func (e *EventHandler) setupRingbufferWakeupConstant(mgrOpts *manager.Options) {
 
 // PreStart implements the ModifierPreStart interface
 func (e *EventHandler) PreStart(_ *manager.Manager, _ names.ModuleName) error {
+	// The manager wrapper calls PreStart on every Start, even when the
+	// manager is already running; start only one read loop, so that AfterStop
+	// waits for the only one there is.
+	if e.readLoopDone != nil {
+		return nil
+	}
 	done := make(chan struct{})
 	e.readLoopDone = done
 	go func() {
