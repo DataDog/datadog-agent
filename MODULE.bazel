@@ -77,7 +77,7 @@ archive_override(
 
 bazel_dep(name = "apple_support", version = "2.12.0")  # provides --platforms=@apple_support//platforms:macos_x86_64
 bazel_dep(name = "bazel_features", version = "1.55.0")
-bazel_dep(name = "bazel_lib", version = "3.7.2")
+bazel_dep(name = "bazel_lib", version = "3.8.0")
 bazel_dep(name = "bazel_skylib", version = "1.9.2")
 bazel_dep(name = "gawk", version = "5.4.0.bcr.5")
 bazel_dep(name = "gazelle", version = "0.54.0")
