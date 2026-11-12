@@ -103,8 +103,9 @@ func newDummyClusterAgent(conf model.Config) (*dummyClusterAgent, error) {
 			},
 		},
 		rawResponses: map[string]string{
-			"/version":           `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
-			"/api/v1/cluster/id": `"94e43011-177b-11ea-a4fe-42010a8401d2"`,
+			"/version":                     `{"Major":0, "Minor":0, "Patch":0, "Pre":"test", "Meta":"test", "Commit":"1337"}`,
+			"/api/v1/cluster/id":           `"94e43011-177b-11ea-a4fe-42010a8401d2"`,
+			"/api/v1/cluster/eks-identity": `{"cluster_name":"orders","cluster_arn":"arn:aws:eks:us-west-2:123456789012:cluster/orders","aws_account_id":"123456789012","region":"us-west-2"}`,
 		},
 		token:    conf.GetString("cluster_agent.auth_token"),
 		requests: make(chan *http.Request, 100),
@@ -734,6 +735,56 @@ func (suite *clusterAgentSuite) TestGetKubernetesClusterID() {
 	clusterID, err := ca.GetKubernetesClusterID()
 	require.Nil(suite.T(), err)
 	require.Equal(suite.T(), "94e43011-177b-11ea-a4fe-42010a8401d2", clusterID)
+}
+
+func (suite *clusterAgentSuite) TestGetEKSClusterIdentity() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	client, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+	identity, err := client.GetEKSClusterIdentity(suite.T().Context())
+	require.NoError(suite.T(), err)
+	require.NotNil(suite.T(), identity)
+	assert.Equal(suite.T(), "orders", identity.ClusterName)
+	assert.Equal(suite.T(), "arn:aws:eks:us-west-2:123456789012:cluster/orders", identity.ClusterARN)
+	assert.Equal(suite.T(), "123456789012", identity.AccountID)
+	assert.Equal(suite.T(), "us-west-2", identity.Region)
+}
+
+func (suite *clusterAgentSuite) TestGetEKSClusterIdentityDistinguishesAnswersFromTransportFailures() {
+	dca, err := newDummyClusterAgent(suite.config)
+	require.NoError(suite.T(), err)
+	delete(dca.rawResponses, "/api/v1/cluster/eks-identity")
+
+	ts, port, err := dca.StartTLS()
+	require.NoError(suite.T(), err)
+	defer ts.Close()
+
+	suite.config.SetInTest("cluster_agent.url", fmt.Sprintf("https://127.0.0.1:%d", port))
+	ipcmock.New(suite.T())
+
+	client, err := GetClusterAgentClient()
+	require.NoError(suite.T(), err)
+
+	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	var statusErr *StatusError
+	require.ErrorAs(suite.T(), err, &statusErr)
+	assert.Equal(suite.T(), http.StatusInternalServerError, statusErr.StatusCode)
+	assert.True(suite.T(), errors.IsRemoteService(err))
+
+	ts.Close()
+	_, err = client.GetEKSClusterIdentity(suite.T().Context())
+	require.Error(suite.T(), err)
+	assert.NotErrorAs(suite.T(), err, &statusErr)
+	assert.True(suite.T(), errors.IsRemoteService(err))
 }
 
 func TestClusterAgentSuite(t *testing.T) {
