@@ -2627,7 +2627,7 @@ func TestSetNotifiesOnlyWhenTheResolvedValueChanges(t *testing.T) {
 // system-probe after it clears its env layer and applies the config stream snapshot.
 func TestInfraModeLayerSurvivesRebuild(t *testing.T) {
 	newCfg := func(t *testing.T) *ntmConfig {
-		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg := NewNodeTreeConfig("test", "", nil)
 		cfg.SetEnvPrefix("TEST")
 		cfg.SetDefault("feature.enabled", false)
 		cfg.SetDefault("other", 0)
@@ -2650,7 +2650,7 @@ func TestInfraModeLayerSurvivesRebuild(t *testing.T) {
 	})
 
 	t.Run("DirectBulkSet with infra-mode source", func(t *testing.T) {
-		cfg := NewNodeTreeConfig("test", model.CoreSchema)
+		cfg := NewNodeTreeConfig("test", "", nil)
 		cfg.SetDefault("feature.enabled", false)
 		cfg.BuildSchema()
 		ntm := cfg.(*ntmConfig)
