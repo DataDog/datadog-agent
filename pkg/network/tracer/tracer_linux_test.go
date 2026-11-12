@@ -2317,6 +2317,145 @@ func testPreexistingEmptyIncomingConnectionDirection(t *testing.T, config *confi
 	require.False(t, ok, "expected connection to not be found")
 }
 
+// acceptedTCPConnPair opens a loopback TCP connection and returns both ends, closed
+// at the end of the test, along with the server and client ports.
+func acceptedTCPConnPair(t *testing.T) (client, server net.Conn, serverPort, clientPort uint16) {
+	ln, err := net.Listen("tcp4", "127.0.0.1:0")
+	require.NoError(t, err)
+	t.Cleanup(func() { ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err == nil {
+			accepted <- c
+		}
+	}()
+	client, err = net.Dial("tcp4", ln.Addr().String())
+	require.NoError(t, err)
+	t.Cleanup(func() { client.Close() })
+	select {
+	case server = <-accepted:
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "connection not accepted")
+	}
+	t.Cleanup(func() { server.Close() })
+	return client, server, uint16(ln.Addr().(*net.TCPAddr).Port), uint16(client.LocalAddr().(*net.TCPAddr).Port)
+}
+
+// TestTCPAcceptedConnectionOngoingConnectPid checks the tcp_ongoing_connect_pid
+// entry made for an accepted connection: it must be keyed with a zero pid, like
+// tcp_close and tcp_done look it up, hold the accepting process's pid, and be
+// removed when the connection closes. Otherwise tcp_done can't attribute a
+// server-side failure to the accepting process, and the entry lingers until the
+// userspace cleaner's TTL.
+func (s *TracerSuite) TestTCPAcceptedConnectionOngoingConnectPid() {
+	t := s.T()
+	cfg := testConfig()
+	skipEbpflessTodo(t, cfg)
+	if ebpftest.GetBuildMode() == ebpftest.SK {
+		t.Skip("SK tracer doesn't use tcp_ongoing_connect_pid")
+	}
+	tr := setupTracer(t, cfg)
+	ongoing, err := tr.GetMap(probes.TCPOngoingConnectPid)
+	require.NoError(t, err)
+
+	client, server, serverPort, clientPort := acceptedTCPConnPair(t)
+
+	type entry struct {
+		key netebpf.SkpConn
+		val netebpf.PidTs
+	}
+	// entries for the accepted socket: local port = server port
+	acceptedEntries := func() ([]entry, error) {
+		var entries []entry
+		var key netebpf.SkpConn
+		var val netebpf.PidTs
+		it := ongoing.Iterate()
+		for it.Next(&key, &val) {
+			if key.Tup.Sport == serverPort && key.Tup.Dport == clientPort {
+				entries = append(entries, entry{key, val})
+			}
+		}
+		return entries, it.Err()
+	}
+
+	entries, err := acceptedEntries()
+	require.NoError(t, err)
+	require.Len(t, entries, 1, "expected one tcp_ongoing_connect_pid entry for the accepted socket")
+	assert.Zero(t, entries[0].key.Tup.Pid, "accepted socket's entry must be keyed with a zero pid")
+	assert.Equal(t, os.Getpid(), int(entries[0].val.Tgid>>32), "accepted socket's entry must hold the accepting process's pid")
+
+	require.NoError(t, client.Close())
+	require.NoError(t, server.Close())
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		entries, err := acceptedEntries()
+		require.NoError(ct, err)
+		assert.Empty(ct, entries)
+	}, 3*time.Second, 100*time.Millisecond, "tcp_ongoing_connect_pid entry for the accepted socket wasn't removed on close")
+}
+
+// TestTCPFailureServerSideReset covers an accepted connection that the client
+// resets: the server's socket gets ECONNRESET in tcp_done, which takes the pid
+// from the accept-time tcp_ongoing_connect_pid entry, then the server closes it.
+// The server side must be reported once, as an established connection with one
+// reset, attributed to the accepting process. (On loopback the RST is processed
+// in the test process's context, so the pid check alone can't tell the map's pid
+// from the current one; TestTCPAcceptedConnectionOngoingConnectPid checks the
+// map entry.)
+func (s *TracerSuite) TestTCPFailureServerSideReset() {
+	t := s.T()
+	checkSkipFailureConnectionsTests(t)
+	cfg := testConfig()
+	cfg.TCPFailedConnectionsEnabled = true
+	tr := setupTracer(t, cfg)
+
+	client, server, serverPort, clientPort := acceptedTCPConnPair(t)
+
+	_, err := client.Write([]byte("ping"))
+	require.NoError(t, err)
+	buf := make([]byte, 4)
+	_, err = io.ReadFull(server, buf)
+	require.NoError(t, err)
+
+	// closing with SO_LINGER 0 sends an RST
+	require.NoError(t, client.(*net.TCPConn).SetLinger(0))
+	require.NoError(t, client.Close())
+	// Reading the reset clears sk_err, so tcp_close no longer sees the failure:
+	// it can only be reported from tcp_done, which is what this test checks.
+	// Without this read the test would pass even if tcp_done missed the reset.
+	require.NoError(t, server.SetReadDeadline(time.Now().Add(5*time.Second)))
+	_, err = server.Read(buf)
+	require.ErrorIs(t, err, syscall.ECONNRESET)
+	require.NoError(t, server.Close())
+
+	isServerSide := func(cs network.ConnectionStats) bool {
+		return cs.Type == network.TCP && cs.SPort == serverPort && cs.DPort == clientPort
+	}
+	var records []network.ConnectionStats
+	require.EventuallyWithT(t, func(ct *assert.CollectT) {
+		connections, cleanup := getConnections(ct, tr)
+		defer cleanup()
+		found := network.FilterConnections(connections, isServerSide)
+		require.NotEmpty(ct, found)
+		records = found
+	}, 3*time.Second, 100*time.Millisecond, "server side of the connection not reported")
+
+	for _, r := range records {
+		t.Logf("server-side record: %s established=%d closed=%d failures=%v", r, r.Monotonic.TCPEstablished, r.Monotonic.TCPClosed, r.TCPFailures)
+	}
+	require.Len(t, records, 1, "expected the server side to be reported once")
+	r := records[0]
+	assert.Equal(t, uint16(1), r.Monotonic.TCPEstablished, "established")
+	assert.Equal(t, uint32(1), r.TCPFailures[uint16(syscall.ECONNRESET)], "expected 1 connection reset")
+	assert.Equal(t, uint64(4), r.Monotonic.RecvBytes, "received bytes")
+	assert.Equal(t, os.Getpid(), int(r.Pid), "pid")
+
+	// a later poll must not report the server side again
+	connections, cleanup := getConnections(t, tr)
+	defer cleanup()
+	assert.Empty(t, network.FilterConnections(connections, isServerSide), "server side reported again")
+}
+
 func (s *TracerSuite) TestUDPIncomingDirectionFix() {
 	t := s.T()
 

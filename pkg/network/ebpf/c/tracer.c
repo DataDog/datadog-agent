@@ -213,12 +213,15 @@ int BPF_BYPASSABLE_KPROBE(kprobe__tcp_done, struct sock *sk) {
     skp_conn_tuple_t skp_conn = {.sk = sk, .tup = t};
 
     // connection timeouts will have 0 pids as they are cleaned up by an idle process.
-    // resets can also have kernel pids are they are triggered by receiving an RST packet from the server
-    // get the pid from the ongoing failure map in this case, as it should have been set in connect(). else bail
+    // resets can also have kernel pids as they are triggered by receiving an RST packet from the peer
+    // get the pid from tcp_ongoing_connect_pid instead, which tcp_connect (client side) or
+    // inet_csk_accept (server side) set. else bail
     pid_ts_t *failed_conn_pid = bpf_map_lookup_elem(&tcp_ongoing_connect_pid, &skp_conn);
     if (failed_conn_pid) {
-        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
+        // read the pid before deleting: preallocated elements are reused without an RCU grace
+        // period, so this narrows (but doesn't close) the race with a concurrent delete
         t.pid = GET_USER_MODE_PID(failed_conn_pid->pid_tgid);
+        bpf_map_delete_elem(&tcp_ongoing_connect_pid, &skp_conn);
     } else {
         increment_telemetry_count(tcp_done_missing_pid);
         return 0;
